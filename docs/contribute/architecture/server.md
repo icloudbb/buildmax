@@ -144,8 +144,11 @@ stays coherent without a per-route argument. They govern HTTP routes only;
 - **OpenAPI is split along the listener boundary.** The public document
   (`internal/server/static/openapi.json`) and the worker document
   (`openapi-worker.json`) each correspond to one `Register*` method, and the
-  "spec matches routes" architecture check runs per listener. `info.version` is
-  stamped from the build version at serve time, not a hand-maintained literal.
+  "spec matches routes" architecture check exercises those registration methods
+  on separate muxes rather than inferring ownership from path prefixes. It also
+  checks that each document declares only security schemes its operations use;
+  every worker operation must declare run-token authentication. `info.version`
+  is stamped from the build version at serve time, not a hand-maintained literal.
   See [worker API network boundary](../../design/worker-api-network-boundary.md).
 
 ## Conversation Turns

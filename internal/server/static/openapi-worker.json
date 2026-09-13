@@ -13,11 +13,6 @@
   ],
   "components": {
     "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      },
       "runTokenAuth": {
         "type": "http",
         "scheme": "bearer",
@@ -355,6 +350,11 @@
     "/api/worker/task-runs/{task_run_id}/llm/completions": {
       "post": {
         "summary": "Run one managed model call on behalf of a task run, so a worker needs no upstream provider credential. Authenticated with the run token the scheduler minted for that run: user, space, task, and run all come from the credential, never from the request",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "task_run_id",

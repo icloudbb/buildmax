@@ -10,11 +10,6 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT"
-      },
-      "runTokenAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "A run-scoped token issued when a worker claims a task run. It carries neither a user session nor access to any store a user route reads."
       }
     },
     "schemas": {
@@ -1488,6 +1483,7 @@
         "tags": ["auth"],
         "summary": "Set or change the caller's password",
         "description": "Requires the current password when the account already has one: a session by itself must not be enough, since a stolen access token works until its session is revoked or expires. Setting the first password after signing in with a login code needs no current password.",
+        "security": [{ "bearerAuth": [] }],
         "responses": {
           "204": { "description": "Password set" },
           "400": { "description": "New password fails the length rule, or body invalid" },
