@@ -11,11 +11,14 @@ package architecture_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/icloudbb/buildmax/internal/server/handlers"
 )
 
 // deliveryRoutes serve the contract itself rather than being part of it.
@@ -43,6 +46,7 @@ type openAPIOperation struct {
 		Name string `json:"name"`
 		In   string `json:"in"`
 	} `json:"parameters"`
+	Security []map[string][]string `json:"security"`
 }
 
 // specFiles are the two OpenAPI documents, split along the listener boundary:
@@ -118,6 +122,50 @@ func registeredRoutes(t *testing.T, root string) map[string]string {
 	return routes
 }
 
+// listenerRoutes asks the real registration methods which listener owns each
+// route found in the server source. The source scan supplies candidates; it
+// does not decide ownership. In particular, a /api/worker/* route wired through
+// RegisterPublic is public here and cannot pass merely because its prefix looks
+// like a worker route.
+func listenerRoutes(t *testing.T, candidates map[string]string) (map[string]bool, map[string]bool) {
+	t.Helper()
+	h := handlers.NewHandler(handlers.Config{})
+	publicMux := http.NewServeMux()
+	// These two contract routes are registered by server.New directly; the
+	// remaining direct registrations serve the documents rather than belong in
+	// them and are filtered through deliveryRoutes below.
+	publicMux.HandleFunc("GET /healthz", func(http.ResponseWriter, *http.Request) {})
+	publicMux.HandleFunc("GET /readyz", func(http.ResponseWriter, *http.Request) {})
+	h.RegisterPublic(publicMux)
+	workerMux := http.NewServeMux()
+	h.RegisterWorker(workerMux)
+
+	public := map[string]bool{}
+	worker := map[string]bool{}
+	for route := range candidates {
+		method, pattern, ok := strings.Cut(route, " ")
+		if !ok {
+			t.Fatalf("route %q is not METHOD /pattern", route)
+		}
+		req, err := http.NewRequest(method, "http://buildmax.test"+concretePath(pattern), nil)
+		if err != nil {
+			t.Fatalf("build request for %s: %v", route, err)
+		}
+		if _, matched := publicMux.Handler(req); matched == route {
+			public[openAPIPath(route)] = true
+		}
+		if _, matched := workerMux.Handler(req); matched == route {
+			worker[openAPIPath(route)] = true
+		}
+	}
+	return public, worker
+}
+
+func concretePath(pattern string) string {
+	segment := regexp.MustCompile(`\{[^}]+\}`)
+	return segment.ReplaceAllString(pattern, "value")
+}
+
 // openAPIPath converts a Go 1.22 route pattern to its OpenAPI path.
 //
 // The only difference is the wildcard: Go's {path...} matches the rest of the
@@ -137,27 +185,25 @@ func TestOpenAPICoversEveryRoute(t *testing.T) {
 	root := repoRoot(t)
 	publicOps := documentedOps(loadOpenAPI(t, root, specFiles["public"]))
 	workerOps := documentedOps(loadOpenAPI(t, root, specFiles["worker"]))
+	routes := registeredRoutes(t, root)
+	registeredPublic, registeredWorker := listenerRoutes(t, routes)
 
-	registeredPublic := map[string]bool{}
-	registeredWorker := map[string]bool{}
-	for route, file := range registeredRoutes(t, root) {
+	for route, file := range routes {
 		if deliveryRoutes[route] {
 			continue
 		}
 		op := openAPIPath(route)
-		if strings.HasPrefix(strings.SplitN(op, " ", 2)[1], workerRoutePrefix) {
-			registeredWorker[op] = true
-			if !workerOps[op] {
-				t.Errorf("%s is registered in %s but openapi-worker.json does not describe it", route, file)
-			}
-			if publicOps[op] {
-				t.Errorf("%s is a worker route but openapi.json (public) describes it; the worker plane must stay out of the public document", route)
-			}
-			continue
+		if registeredPublic[op] && registeredWorker[op] {
+			t.Errorf("%s is registered on both listeners (source: %s)", route, file)
 		}
-		registeredPublic[op] = true
-		if !publicOps[op] {
+		if registeredPublic[op] && !publicOps[op] {
 			t.Errorf("%s is registered in %s but openapi.json does not describe it", route, file)
+		}
+		if registeredWorker[op] && !workerOps[op] {
+			t.Errorf("%s is registered in %s but openapi-worker.json does not describe it", route, file)
+		}
+		if !registeredPublic[op] && !registeredWorker[op] {
+			t.Errorf("%s is registered in source (%s) but neither listener registration method installs it", route, file)
 		}
 	}
 	for op := range publicOps {
@@ -169,6 +215,75 @@ func TestOpenAPICoversEveryRoute(t *testing.T) {
 		if !registeredWorker[op] {
 			t.Errorf("openapi-worker.json describes %s, which the server does not register on the worker listener", op)
 		}
+	}
+}
+
+func TestOpenAPISecurityMatchesListenerAuthentication(t *testing.T) {
+	root := repoRoot(t)
+	public := loadOpenAPI(t, root, specFiles["public"])
+	worker := loadOpenAPI(t, root, specFiles["worker"])
+
+	assertSecuritySchemesUsed(t, public, specFiles["public"])
+	assertSecuritySchemesUsed(t, worker, specFiles["worker"])
+	assertOperationSecurity(t, public, specFiles["public"], "POST /api/auth/password", "bearerAuth")
+
+	// RegisterWorker's whole surface is run-scoped. Checking every operation is
+	// both smaller and more durable than a list of selected worker callbacks.
+	for op := range documentedOps(worker) {
+		assertOperationSecurity(t, worker, specFiles["worker"], op, "runTokenAuth")
+	}
+}
+
+func assertSecuritySchemesUsed(t *testing.T, doc openAPIDoc, name string) {
+	t.Helper()
+	used := map[string]bool{}
+	for path, item := range doc.Paths {
+		for method, raw := range item {
+			if !httpMethods[method] {
+				continue
+			}
+			var op openAPIOperation
+			if err := json.Unmarshal(raw, &op); err != nil {
+				t.Fatalf("%s: %s %s: %v", name, method, path, err)
+			}
+			for _, requirement := range op.Security {
+				for scheme := range requirement {
+					used[scheme] = true
+					if _, ok := doc.Components.SecuritySchemes[scheme]; !ok {
+						t.Errorf("%s: %s %s uses undeclared security scheme %q", name, strings.ToUpper(method), path, scheme)
+					}
+				}
+			}
+		}
+	}
+	for scheme := range doc.Components.SecuritySchemes {
+		if !used[scheme] {
+			t.Errorf("%s declares unused security scheme %q", name, scheme)
+		}
+	}
+}
+
+func assertOperationSecurity(t *testing.T, doc openAPIDoc, name, operation, want string) {
+	t.Helper()
+	method, path, ok := strings.Cut(operation, " ")
+	if !ok {
+		t.Fatalf("operation %q is not METHOD /path", operation)
+	}
+	raw, ok := doc.Paths[path][strings.ToLower(method)]
+	if !ok {
+		t.Errorf("%s does not describe %s", name, operation)
+		return
+	}
+	var op openAPIOperation
+	if err := json.Unmarshal(raw, &op); err != nil {
+		t.Fatalf("%s: %s: %v", name, operation, err)
+	}
+	if len(op.Security) != 1 || len(op.Security[0]) != 1 {
+		t.Errorf("%s: %s security = %#v; want only %s", name, operation, op.Security, want)
+		return
+	}
+	if _, ok := op.Security[0][want]; !ok {
+		t.Errorf("%s: %s security = %#v; want only %s", name, operation, op.Security, want)
 	}
 }
 
