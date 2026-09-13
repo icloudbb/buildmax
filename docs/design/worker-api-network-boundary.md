@@ -199,7 +199,7 @@ An unknown route returns `404` on either listener. In particular:
 
 - `/api/worker/task-runs/...` on the public listener returns `404`, even with a
   valid run token;
-- `/api/spaces/...`, `/api/login`, `/api/webhook`, `/swagger`, and
+- `/api/spaces/...`, `/api/auth/login`, `/api/webhook`, `/swagger`, and
   `/openapi.json` on the worker listener return `404`.
 
 The public OpenAPI document may continue to describe the complete protocol for

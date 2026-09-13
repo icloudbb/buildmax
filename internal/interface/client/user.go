@@ -57,12 +57,14 @@ func (c *Client) IssueLoginCode(ctx context.Context, token, userID string) (stri
 // SetAccountDisabled disables or enables the account and returns it with the
 // number of sessions the change revoked (non-zero only when disabling).
 func (c *Client) SetAccountDisabled(ctx context.Context, token, userID string, disabled bool) (*AdminAccount, int64, error) {
-	action := "enable"
-	if disabled {
-		action = "disable"
+	payload, err := json.Marshal(struct {
+		Disabled bool `json:"disabled"`
+	}{Disabled: disabled})
+	if err != nil {
+		return nil, 0, err
 	}
-	path := "/api/admin/users/" + url.PathEscape(userID) + "/" + action
-	resp, err := c.do(ctx, http.MethodPost, token, path, "", nil)
+	path := "/api/admin/users/" + url.PathEscape(userID) + "/state"
+	resp, err := c.do(ctx, http.MethodPut, token, path, "application/json", bytes.NewReader(payload))
 	if err != nil {
 		return nil, 0, err
 	}

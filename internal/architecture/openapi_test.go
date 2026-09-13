@@ -45,17 +45,38 @@ type openAPIOperation struct {
 	} `json:"parameters"`
 }
 
-func loadOpenAPI(t *testing.T, root string) openAPIDoc {
+// specFiles are the two OpenAPI documents, split along the listener boundary:
+// the public API and the worker control plane. See
+// docs/design/api-surface-conventions.md §5 and worker-api-network-boundary.md.
+var specFiles = map[string]string{
+	"public": "openapi.json",
+	"worker": "openapi-worker.json",
+}
+
+func loadOpenAPI(t *testing.T, root, name string) openAPIDoc {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(root, "internal", "server", "static", "openapi.json"))
+	raw, err := os.ReadFile(filepath.Join(root, "internal", "server", "static", name))
 	if err != nil {
-		t.Fatalf("read openapi.json: %v", err)
+		t.Fatalf("read %s: %v", name, err)
 	}
 	var doc openAPIDoc
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		t.Fatalf("openapi.json is not valid JSON: %v", err)
+		t.Fatalf("%s is not valid JSON: %v", name, err)
 	}
 	return doc
+}
+
+// documentedOps returns the "METHOD /path" set a document describes.
+func documentedOps(doc openAPIDoc) map[string]bool {
+	out := map[string]bool{}
+	for path, item := range doc.Paths {
+		for method := range item {
+			if httpMethods[method] {
+				out[strings.ToUpper(method)+" "+path] = true
+			}
+		}
+	}
+	return out
 }
 
 // registeredRoutes returns every "METHOD /pattern" the server registers, across
@@ -106,37 +127,47 @@ func openAPIPath(pattern string) string {
 	return strings.ReplaceAll(pattern, "...}", "}")
 }
 
-// TestOpenAPICoversEveryRoute holds the document to an exact match with the
-// routes. Both directions matter: an undocumented route leaves a caller with
-// no contract, and a documented route the server does not register sends them
-// somewhere that answers 404.
+// TestOpenAPICoversEveryRoute holds each document to an exact match with its
+// listener's routes. The spec is split along the listener boundary, so the
+// public document describes every public route and the worker document every
+// worker route — and neither describes the other's. Both directions matter: an
+// undocumented route leaves a caller with no contract, and a documented route
+// the server does not register sends them somewhere that answers 404.
 func TestOpenAPICoversEveryRoute(t *testing.T) {
 	root := repoRoot(t)
-	doc := loadOpenAPI(t, root)
+	publicOps := documentedOps(loadOpenAPI(t, root, specFiles["public"]))
+	workerOps := documentedOps(loadOpenAPI(t, root, specFiles["worker"]))
 
-	documented := map[string]bool{}
-	for path, item := range doc.Paths {
-		for method := range item {
-			if httpMethods[method] {
-				documented[strings.ToUpper(method)+" "+path] = true
-			}
-		}
-	}
-
-	registered := map[string]bool{}
+	registeredPublic := map[string]bool{}
+	registeredWorker := map[string]bool{}
 	for route, file := range registeredRoutes(t, root) {
 		if deliveryRoutes[route] {
 			continue
 		}
 		op := openAPIPath(route)
-		registered[op] = true
-		if !documented[op] {
+		if strings.HasPrefix(strings.SplitN(op, " ", 2)[1], workerRoutePrefix) {
+			registeredWorker[op] = true
+			if !workerOps[op] {
+				t.Errorf("%s is registered in %s but openapi-worker.json does not describe it", route, file)
+			}
+			if publicOps[op] {
+				t.Errorf("%s is a worker route but openapi.json (public) describes it; the worker plane must stay out of the public document", route)
+			}
+			continue
+		}
+		registeredPublic[op] = true
+		if !publicOps[op] {
 			t.Errorf("%s is registered in %s but openapi.json does not describe it", route, file)
 		}
 	}
-	for op := range documented {
-		if !registered[op] {
-			t.Errorf("openapi.json describes %s, which the server does not register", op)
+	for op := range publicOps {
+		if !registeredPublic[op] {
+			t.Errorf("openapi.json describes %s, which the server does not register on the public listener", op)
+		}
+	}
+	for op := range workerOps {
+		if !registeredWorker[op] {
+			t.Errorf("openapi-worker.json describes %s, which the server does not register on the worker listener", op)
 		}
 	}
 }
@@ -145,7 +176,14 @@ func TestOpenAPICoversEveryRoute(t *testing.T) {
 // names {issue_id} without declaring it is not a contract a generator or a
 // client can use.
 func TestOpenAPIDeclaresPathParameters(t *testing.T) {
-	doc := loadOpenAPI(t, repoRoot(t))
+	root := repoRoot(t)
+	for _, name := range specFiles {
+		declaresPathParameters(t, loadOpenAPI(t, root, name), name)
+	}
+}
+
+func declaresPathParameters(t *testing.T, doc openAPIDoc, name string) {
+	t.Helper()
 	template := regexp.MustCompile(`\{([^}]+)\}`)
 
 	for path, item := range doc.Paths {
@@ -170,8 +208,8 @@ func TestOpenAPIDeclaresPathParameters(t *testing.T) {
 				t.Fatalf("%s %s: %v", method, path, err)
 			}
 			declared := map[string]bool{}
-			for _, name := range shared {
-				declared[name] = true
+			for _, p := range shared {
+				declared[p] = true
 			}
 			for _, p := range op.Parameters {
 				if p.In == "path" {
@@ -180,8 +218,8 @@ func TestOpenAPIDeclaresPathParameters(t *testing.T) {
 			}
 			for _, m := range template.FindAllStringSubmatch(path, -1) {
 				if !declared[m[1]] {
-					t.Errorf("%s %s templates {%s} but declares no such path parameter",
-						strings.ToUpper(method), path, m[1])
+					t.Errorf("%s: %s %s templates {%s} but declares no such path parameter",
+						name, strings.ToUpper(method), path, m[1])
 				}
 			}
 		}
@@ -195,13 +233,21 @@ func TestOpenAPIDeclaresPathParameters(t *testing.T) {
 //
 // See docs/contribute/conventions.md and docs/design/timestamp-representation.md.
 func TestOpenAPITimestampsAreRFC3339(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join(repoRoot(t), "internal", "server", "static", "openapi.json"))
+	root := repoRoot(t)
+	for _, name := range specFiles {
+		timestampsAreRFC3339(t, root, name)
+	}
+}
+
+func timestampsAreRFC3339(t *testing.T, root, specName string) {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(root, "internal", "server", "static", specName))
 	if err != nil {
-		t.Fatalf("read openapi.json: %v", err)
+		t.Fatalf("read %s: %v", specName, err)
 	}
 	var doc any
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		t.Fatalf("openapi.json is not valid JSON: %v", err)
+		t.Fatalf("%s is not valid JSON: %v", specName, err)
 	}
 	// Instant-valued property names. A duration, a count, and a quota are not
 	// instants and stay numbers, so the suffix is what selects them.
@@ -218,8 +264,8 @@ func TestOpenAPITimestampsAreRFC3339(t *testing.T) {
 						continue
 					}
 					if s["type"] != "string" || s["format"] != "date-time" {
-						t.Errorf("%s.%s is %v/%v; an instant is a string with format date-time",
-							path, name, s["type"], s["format"])
+						t.Errorf("%s: %s.%s is %v/%v; an instant is a string with format date-time",
+							specName, path, name, s["type"], s["format"])
 					}
 				}
 			}

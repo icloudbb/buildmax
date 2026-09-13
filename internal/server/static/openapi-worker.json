@@ -1,0 +1,1046 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "BuildMax Worker API",
+    "version": "dev",
+    "description": "The worker control plane, served on the internal worker listener and authenticated with a run token. Split from the public API per docs/design/api-surface-conventions.md §5."
+  },
+  "tags": [
+    {
+      "name": "worker",
+      "description": "Run-token routes the scheduler's workers call back on."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "runTokenAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A run-scoped token issued when a worker claims a task run. It carries neither a user session nor access to any store a user route reads."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "RunIssue": {
+        "type": "object",
+        "description": "The bounded view of an issue a run's agent reads. Not the full issue: children are title and status only, and the comment thread is a recent window.",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "executor_kind": {
+            "type": "string"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "status"
+              ]
+            }
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "author_kind": {
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "author_kind",
+                "body",
+                "created_at"
+              ]
+            }
+          },
+          "omitted_comments": {
+            "type": "integer",
+            "description": "How many older comments the window left out"
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "status",
+          "children",
+          "comments",
+          "omitted_comments"
+        ]
+      },
+      "WorkerTaskRun": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "task_id": {
+                "type": "string"
+              },
+              "previous_task_run_id": {
+                "type": "string"
+              },
+              "input": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "cancel_requested": {
+                "type": "boolean"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "task_id",
+              "input",
+              "status",
+              "created_at"
+            ]
+          },
+          "task": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "conversation_id": {
+                "type": "string"
+              },
+              "space_id": {
+                "type": "string"
+              },
+              "user_id": {
+                "type": "string"
+              },
+              "session_id": {
+                "type": "string"
+              },
+              "agent_instructions": {
+                "type": "string"
+              },
+              "space_agent_instructions": {
+                "type": "string"
+              },
+              "space_agent_instructions_revision": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "conversation_id",
+              "space_id",
+              "user_id"
+            ]
+          },
+          "llm": {
+            "type": "object",
+            "properties": {
+              "transport": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "context_window": {
+                "type": "integer"
+              },
+              "call_timeout": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "transport"
+            ]
+          },
+          "plugins": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "digest": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "version",
+                "digest"
+              ]
+            }
+          },
+          "plugin_error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "run",
+          "task"
+        ]
+      }
+    }
+  },
+  "paths": {
+    "/api/worker/task-runs/{task_run_id}/llm/completions": {
+      "post": {
+        "summary": "Run one managed model call on behalf of a task run, so a worker needs no upstream provider credential. Authenticated with the run token the scheduler minted for that run: user, space, task, and run all come from the credential, never from the request",
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK. Same body and streaming behaviour as the user route"
+          },
+          "400": {
+            "description": "Invalid request, unknown field, or a model the run's space may not use"
+          },
+          "401": {
+            "description": "Missing, invalid, or expired run token"
+          },
+          "403": {
+            "description": "The run token authorizes a different task run, or a different space than the run's"
+          },
+          "404": {
+            "description": "No such task run"
+          },
+          "409": {
+            "description": "The run is not executing, so no call is accepted for it"
+          },
+          "429": {
+            "description": "Space quota exceeded"
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}": {
+      "get": {
+        "summary": "Claim the run's inputs",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerTaskRun"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Task runs are not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Report the run's status",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  },
+                  "error_message": {
+                    "type": "string"
+                  },
+                  "workspace_checkpoint": {
+                    "type": "object",
+                    "description": "Result checkpoint captured from workspace/ after a successful run; committed as the terminal outcome is accepted.",
+                    "properties": {
+                      "payload_format": {
+                        "type": "string"
+                      },
+                      "payload_sha256": {
+                        "type": "string"
+                      },
+                      "size_bytes": {
+                        "type": "integer"
+                      },
+                      "uncompressed_bytes": {
+                        "type": "integer"
+                      },
+                      "entry_count": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid run status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Task runs are not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/stream": {
+      "post": {
+        "summary": "Append streamed run output",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/secrets": {
+      "get": {
+        "summary": "Get the run's resolved secret env grants",
+        "description": "The variable names this run's agent declared, mapped to the values the server decrypted. Values ride this route alone so the response is Cache-Control: no-store and unlogged. An empty object means the agent consumes no secret; a non-2xx means a required grant could not be produced and the run must fail.",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "env": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A required secret is disabled or destroyed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/issue": {
+      "get": {
+        "summary": "Read the issue this run is working",
+        "description": "The run token names the run, the run names the task, and the task names the issue. A worker never says which issue it wants.",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunIssue"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found, or this run is not working an issue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/issue/comments": {
+      "post": {
+        "summary": "Report on the issue this run is working",
+        "description": "Appends one agent-authored comment. There is no route that changes an issue's status, owner, executor, or hierarchy from a run token.",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string"
+                  },
+                  "artifact_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "body"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid comment body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found, or this run is not working an issue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/artifacts": {
+      "post": {
+        "summary": "Keep a file the run produced",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Artifact"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This run has no space to keep an artifact for",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/workspace-base": {
+      "get": {
+        "summary": "The checkpoint this run restores its workspace from",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "checkpoint_id": {
+                      "type": "string"
+                    },
+                    "payload_format": {
+                      "type": "string"
+                    },
+                    "payload_sha256": {
+                      "type": "string"
+                    },
+                    "size_bytes": {
+                      "type": "integer"
+                    },
+                    "uncompressed_bytes": {
+                      "type": "integer"
+                    },
+                    "entry_count": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "checkpoint_id",
+                    "payload_format",
+                    "payload_sha256"
+                  ]
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "The run has no base; it seeds instead"
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/workspace-restore": {
+      "post": {
+        "summary": "Record how the run's base restoration ended",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "restored",
+                      "failed"
+                    ]
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "400": {
+            "description": "Invalid status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/workspace-checkpoints": {
+      "post": {
+        "summary": "Finalize a seed the run captured and uploaded",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "payload_format": {
+                    "type": "string"
+                  },
+                  "payload_sha256": {
+                    "type": "string"
+                  },
+                  "size_bytes": {
+                    "type": "integer"
+                  },
+                  "uncompressed_bytes": {
+                    "type": "integer"
+                  },
+                  "entry_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "payload_format",
+                  "payload_sha256",
+                  "size_bytes"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "checkpoint_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "checkpoint_id"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid descriptor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Payload not uploaded, or a conflicting checkpoint exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/plugins/{plugin_name}/{version}/download": {
+      "get": {
+        "summary": "Download a release this run is pinned to",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plugin_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The gzipped package",
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found, or this run is not pinned to that release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Plugin packages are not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

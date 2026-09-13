@@ -54,7 +54,7 @@ func TestClientIssueLoginCode(t *testing.T) {
 
 func TestClientSetAccountDisabledReportsRevoked(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/admin/users/u_9/disable" || r.Method != http.MethodPost {
+		if r.URL.Path != "/api/admin/users/u_9/state" || r.Method != http.MethodPut {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")

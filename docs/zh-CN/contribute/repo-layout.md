@@ -252,13 +252,14 @@ internal/
 │
 ├── server/             面向 Portal 与 worker 回调的 HTTP API
 │   ├── handlers/       路由处理器
+│   │   ├── account/    行为主体账号跨 space 拥有的资源：webhook key
 │   │   ├── admin/      部署范围的路由；其 Config 无法触达任何 space
 │   │   ├── artifact/   以不透明 ID 寻址的 Artifact；space 来自该记录本身
 │   │   ├── auth/       建立一个 session：登录、刷新、登出、密码
 │   │   ├── auditexport/  space 与 admin 审计路由共用的 CSV 导出
 │   │   ├── llmhttp/    通过 HTTP 暴露的受管网关，供 space 与 worker 路由共用
 │   │   ├── runterminal/  向任何在关注它的人宣布一次 run 已完成
-│   │   ├── space/       一个 space 拥有什么：成员、agent、密钥、用量、审计
+│   │   ├── space/       一个 space 拥有什么：成员、agent、用量、审计
 │   │   ├── work/       Issue、workflow、task、conversation 及其 run
 │   │   └── worker/     Worker API；以一个 run token 而非 session 鉴权
 │   ├── access/         谁在调用、哪个 space，以及是否被允许

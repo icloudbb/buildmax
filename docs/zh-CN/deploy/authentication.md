@@ -75,7 +75,7 @@ buildmax-server admin revoke alice@example.com
 | **访问令牌** | 7 天（`access_token_ttl`） | 否，是签名 JWT | 否，过期前持续有效 |
 | **刷新令牌** | 30 天（`refresh_token_ttl`） | 是，以哈希存于 `user_refresh_token` | 是，立即生效 |
 
-每个请求携带访问令牌。刷新令牌只发送给 `POST /api/token/refresh`，返回时会被替换：每次兑换消耗提交的令牌并签发下一个。由于刷新令牌对应存储行，`POST /api/logout` 可以使它失效；这个区别很关键，因为访问令牌无法提前失效。
+每个请求携带访问令牌。刷新令牌只发送给 `POST /api/auth/token/refresh`，返回时会被替换：每次兑换消耗提交的令牌并签发下一个。由于刷新令牌对应存储行，`POST /api/auth/logout` 可以使它失效；这个区别很关键，因为访问令牌无法提前失效。
 
 每次登录建立独立会话。在笔记本上登录不会影响手机会话，退出其中一个也不影响另一个。
 
@@ -91,7 +91,7 @@ buildmax-server admin revoke alice@example.com
 
 ## 自助注册默认关闭，且没有界面
 
-除非 `server.yaml` 设置 `allow_signup: true`，否则 `POST /api/otp/request` 对 `intent: signup` 返回 `403`。账户通过 `buildmax-server user create` 创建，Portal 不提供注册表单。
+除非 `server.yaml` 设置 `allow_signup: true`，否则 `POST /api/auth/otp` 对 `intent: signup` 返回 `403`。账户通过 `buildmax-server user create` 创建，Portal 不提供注册表单。
 
 即使设置 `allow_signup: true`，自助注册也只创建账户：新账户没有密码，也没有渠道向其拥有者发送信息，因此仍需运维人员签发登录码。这也是没有注册表单的原因。
 

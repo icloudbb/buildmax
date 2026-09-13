@@ -740,7 +740,7 @@ func smokeSignIn(ctx context.Context, client *http.Client, target smokeTarget, e
 	var login struct {
 		Token string `json:"token"`
 	}
-	if err := requestJSON(ctx, client, http.MethodPost, target.apiBase+"/api/login", "", map[string]string{
+	if err := requestJSON(ctx, client, http.MethodPost, target.apiBase+"/api/auth/login", "", map[string]string{
 		"email": email, "otp": code, "platform": "deployment-smoke",
 	}, &login, http.StatusOK); err != nil {
 		return "", "", fmt.Errorf("sign %s in: %w", email, err)

@@ -20,7 +20,7 @@ The message prints the exact path it looked at; if that path is not what you exp
 
 Free OpenRouter models rate-limit aggressively. This shows up as runs that work individually but fail when you run several in a row, or when an agent makes many tool-calling round trips. Switch to a paid model in `settings.yaml`, or slow down.
 
-## `POST /api/login` returns 503
+## `POST /api/auth/login` returns 503
 
 The Server could not reach a user, password, or login-code store, or it has no JWT secret. Check the startup log and `server.yaml`, then create an account and issue its first login code. BuildMax has no mail delivery channel: an operator passes that single-use code to the user out of band.
 

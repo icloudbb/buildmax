@@ -26,11 +26,12 @@ const (
 	AdminCatalogPath = "/api/admin/plugins"
 	// AdminReleasesPath lists a plugin's releases and publishes a new one.
 	AdminReleasesPath = "/api/admin/plugins/%s/releases"
-	// AdminYankPath withdraws one release.
-	AdminYankPath = "/api/admin/plugins/%s/releases/%s/yank"
-	// AdminArchivePath and AdminUnarchivePath retire and restore an entry.
-	AdminArchivePath   = "/api/admin/plugins/%s/archive"
-	AdminUnarchivePath = "/api/admin/plugins/%s/unarchive"
+	// AdminReleaseStatePath sets a release's stored state; withdrawal is the
+	// only transition today. See docs/design/api-surface-conventions.md §3.5.
+	AdminReleaseStatePath = "/api/admin/plugins/%s/releases/%s/state"
+	// AdminPluginStatePath sets an entry's stored `archived` flag, retiring or
+	// restoring it.
+	AdminPluginStatePath = "/api/admin/plugins/%s/state"
 )
 
 // DigestHeader carries a release's digest with its bytes, so a client verifies
@@ -77,8 +78,15 @@ type CreatePluginRequest struct {
 	Description string `json:"description,omitempty"`
 }
 
-// YankReleaseRequest withdraws one release.
-type YankReleaseRequest struct {
+// PluginStateRequest sets a catalog entry's stored `archived` flag.
+type PluginStateRequest struct {
+	Archived bool `json:"archived"`
+}
+
+// ReleaseStateRequest sets a release's stored state. Only withdrawal exists
+// today, so Yanked must be true; the reason is optional.
+type ReleaseStateRequest struct {
+	Yanked bool   `json:"yanked"`
 	Reason string `json:"reason,omitempty"`
 }
 

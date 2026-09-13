@@ -14,7 +14,7 @@ export async function requestOtp(
   email: string,
   intent: "signup" | "login"
 ): Promise<OtpRequestResponse> {
-  return requestJson<OtpRequestResponse>(`${getApiBase()}/api/otp/request`, {
+  return requestJson<OtpRequestResponse>(`${getApiBase()}/api/auth/otp`, {
     method: "POST",
     headers: jsonHeaders,
     body: JSON.stringify({ email, intent }),
@@ -23,7 +23,7 @@ export async function requestOtp(
 
 /** Sign in with a single-use login code: the recovery path. */
 export async function login(email: string, otp: string): Promise<LoginResponse> {
-  return requestJson<LoginResponse>(`${getApiBase()}/api/login`, {
+  return requestJson<LoginResponse>(`${getApiBase()}/api/auth/login`, {
     method: "POST",
     headers: jsonHeaders,
     body: JSON.stringify({ email, otp, platform: "portal" }),
@@ -35,7 +35,7 @@ export async function loginWithPassword(
   email: string,
   password: string
 ): Promise<LoginResponse> {
-  return requestJson<LoginResponse>(`${getApiBase()}/api/login`, {
+  return requestJson<LoginResponse>(`${getApiBase()}/api/auth/login`, {
     method: "POST",
     headers: jsonHeaders,
     body: JSON.stringify({ email, password, platform: "portal" }),
@@ -55,7 +55,7 @@ export async function setPassword(
   newPassword: string,
   currentPassword?: string
 ): Promise<void> {
-  const res = await apiFetch(`${getApiBase()}/api/password`, {
+  const res = await apiFetch(`${getApiBase()}/api/auth/password`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify({
@@ -78,7 +78,7 @@ export async function revokeSession(): Promise<void> {
   const accessToken = currentAccessToken()
   if (!refreshToken && !accessToken) return
   try {
-    await fetch(`${getApiBase()}/api/logout`, {
+    await fetch(`${getApiBase()}/api/auth/logout`, {
       method: "POST",
       headers: accessToken
         ? { ...jsonHeaders, Authorization: `Bearer ${accessToken}` }

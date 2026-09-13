@@ -24,8 +24,12 @@ func (h *Handler) RegisterPublic(mux *http.ServeMux) {
 	// decide what a session may reach.
 	h.auth.Register(mux)
 
-	// What a space owns -- membership, agents, webhook keys, usage, audit trail --
-	// lives in its own package, holding exactly the stores those routes read.
+	// What the acting account owns across spaces -- webhook keys today -- is
+	// top-level, not space-scoped. See docs/design/api-surface-conventions.md §3.3.
+	h.account.Register(mux)
+
+	// What a space owns -- membership, agents, usage, audit trail -- lives in its
+	// own package, holding exactly the stores those routes read.
 	h.space.Register(mux)
 
 	// The work surface -- issues, workflows, tasks, conversations, and the files

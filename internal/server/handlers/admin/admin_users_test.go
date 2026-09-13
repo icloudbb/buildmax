@@ -52,7 +52,7 @@ func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 		t.Fatalf("CreateRefreshToken: %v", err)
 	}
 
-	rec := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/disable", adminUser, "")
+	rec := f.do(t, "PUT", "/api/admin/users/"+f.target.ID+"/state", adminUser, `{"disabled":true}`)
 	var body struct {
 		SessionsRevoked int64 `json:"sessions_revoked"`
 	}
@@ -63,7 +63,7 @@ func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 		t.Errorf("sessions_revoked = %d, want 1", body.SessionsRevoked)
 	}
 
-	refresh := f.do(t, "POST", "/api/token/refresh", "", `{"refresh_token":"`+plaintext+`"}`)
+	refresh := f.do(t, "POST", "/api/auth/token/refresh", "", `{"refresh_token":"`+plaintext+`"}`)
 	if refresh.Code == http.StatusOK {
 		t.Errorf("a disabled account refreshed into a new access token: %s", refresh.Body.String())
 	}
@@ -73,7 +73,7 @@ func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 // undo through the API, and pointless to allow.
 func TestAdminCannotDisableThemselves(t *testing.T) {
 	f := newDisableFixture(t)
-	rec := f.do(t, "POST", "/api/admin/users/"+adminUser+"/disable", adminUser, "")
+	rec := f.do(t, "PUT", "/api/admin/users/"+adminUser+"/state", adminUser, `{"disabled":true}`)
 	if rec.Code != http.StatusConflict {
 		t.Errorf("self-disable got %d, want 409: %s", rec.Code, rec.Body.String())
 	}
@@ -101,7 +101,7 @@ func TestDisablingTheLastAdministratorIsRefused(t *testing.T) {
 	f := newDisableFixture(t)
 	f.users.DisableErr = coreidentity.ErrSystemGrantLastHolder
 
-	rec := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/disable", adminUser, "")
+	rec := f.do(t, "PUT", "/api/admin/users/"+f.target.ID+"/state", adminUser, `{"disabled":true}`)
 	if rec.Code != http.StatusConflict {
 		t.Errorf("got %d, want 409: %s", rec.Code, rec.Body.String())
 	}
@@ -215,8 +215,8 @@ func TestAdminAccountActionsAreRecorded(t *testing.T) {
 
 	f.do(t, "POST", "/api/admin/users", adminUser, `{"email":"new@example.com"}`)
 	f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/login-code", adminUser, "")
-	f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/disable", adminUser, "")
-	f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/enable", adminUser, "")
+	f.do(t, "PUT", "/api/admin/users/"+f.target.ID+"/state", adminUser, `{"disabled":true}`)
+	f.do(t, "PUT", "/api/admin/users/"+f.target.ID+"/state", adminUser, `{"disabled":false}`)
 	f.do(t, "DELETE", "/api/admin/users/"+f.target.ID+"/sessions", adminUser, "")
 
 	want := []string{
@@ -297,7 +297,7 @@ func TestAdminUserRoutesOnAnUnknownAccount(t *testing.T) {
 	f := newDisableFixture(t)
 	for _, tc := range []struct{ method, path string }{
 		{"GET", "/api/admin/users/u_nobody"},
-		{"POST", "/api/admin/users/u_nobody/disable"},
+		{"PUT", "/api/admin/users/u_nobody/state"},
 		{"POST", "/api/admin/users/u_nobody/login-code"},
 		{"DELETE", "/api/admin/users/u_nobody/sessions"},
 	} {

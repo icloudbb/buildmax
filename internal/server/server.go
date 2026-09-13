@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/icloudbb/buildmax/internal/server/handlers/admin"
@@ -60,7 +61,7 @@ const (
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
 type AuthConfig struct {
 	JWTSecret   string // Required for login when UserStore is set
-	AllowSignup bool   // Open POST /api/otp/request to self-registration; closed by default
+	AllowSignup bool   // Open POST /api/auth/otp to self-registration; closed by default
 	CORSOrigin  string // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 	// PublicBaseURL is the externally reachable origin at which people open
 	// BuildMax. Artifact share links are rendered against it; empty refuses
@@ -188,6 +189,11 @@ type Config struct {
 	Audit *audit.Recorder
 	// Deployment describes this deployment for the admin system status.
 	Deployment admin.DeploymentInfo
+	// Version is the application version stamped into the served OpenAPI
+	// info.version. Empty leaves the document's placeholder in place. Bootstrap
+	// sets it from the single build-version source. See
+	// docs/design/api-surface-conventions.md §4.
+	Version string
 	// RedactedConfig is the operator-facing view of server.yaml. Nil means the
 	// admin configuration route answers 503.
 	RedactedConfig any
@@ -222,6 +228,9 @@ type Server struct {
 	// run has to be told, not polled. See docs/design/graceful-shutdown.md §5.
 	drain     chan struct{}
 	drainOnce sync.Once
+	// openAPISpec is the served OpenAPI document, built once with info.version
+	// stamped from cfg.Version.
+	openAPISpec []byte
 }
 
 // New builds the server. The public listener serves healthz, readyz, openapi,
@@ -232,12 +241,21 @@ type Server struct {
 func New(cfg Config) *Server {
 	s := &Server{cfg: cfg, drain: make(chan struct{})}
 
+	spec, err := buildOpenAPISpec(cfg.Version)
+	if err != nil {
+		// Fall back to the embedded document rather than fail to start: the spec
+		// is documentation, not a request-serving dependency.
+		slog.Error("openapi version stamp failed; serving unstamped spec", "err", err)
+		spec, _ = staticFS.ReadFile("static/openapi.json")
+	}
+	s.openAPISpec = spec
+
 	s.handlers = handlers.NewHandler(buildHandlersConfig(cfg, s.drain))
 
 	publicMux := http.NewServeMux()
 	publicMux.HandleFunc("GET /healthz", healthzHandler)
 	publicMux.HandleFunc("GET /readyz", s.readyzHandler)
-	publicMux.HandleFunc("GET /openapi.json", openAPIHandler)
+	publicMux.HandleFunc("GET /openapi.json", s.openAPIHandler)
 	publicMux.HandleFunc("GET /swagger/", swaggerUIHandler)
 	publicMux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
 	publicMux.HandleFunc("GET /swagger", swaggerUIHandler)
@@ -541,8 +559,45 @@ func serveStatic(w http.ResponseWriter, path, contentType string) {
 	_, _ = w.Write(data)
 }
 
-func openAPIHandler(w http.ResponseWriter, _ *http.Request) {
-	serveStatic(w, "static/openapi.json", "application/json")
+// buildOpenAPISpec returns the served OpenAPI document with info.version stamped
+// from the build's application version, so the version has one source — the
+// build — rather than a hand-maintained literal that drifts. The document's own
+// info.version is a placeholder overridden here. An empty version leaves the
+// placeholder in place. See docs/design/api-surface-conventions.md §4.
+//
+// It runs once in New and the bytes are served as-is, so parsing never happens
+// on the request path.
+func buildOpenAPISpec(version string) ([]byte, error) {
+	raw, err := staticFS.ReadFile("static/openapi.json")
+	if err != nil {
+		return nil, err
+	}
+	if version == "" {
+		return raw, nil
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, err
+	}
+	info := map[string]json.RawMessage{}
+	if err := json.Unmarshal(doc["info"], &info); err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(version)
+	if err != nil {
+		return nil, err
+	}
+	info["version"] = encoded
+	if doc["info"], err = json.Marshal(info); err != nil {
+		return nil, err
+	}
+	return json.Marshal(doc)
+}
+
+func (s *Server) openAPIHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(s.openAPISpec)
 }
 
 func swaggerUIHandler(w http.ResponseWriter, _ *http.Request) {

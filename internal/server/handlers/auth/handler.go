@@ -19,7 +19,7 @@ type Config struct {
 	// JWTSecret signs access tokens. Empty means this deployment cannot log
 	// anyone in, and the routes say so rather than minting something unsigned.
 	JWTSecret string
-	// AllowSignup opens POST /api/otp/request to self-registration. False --
+	// AllowSignup opens POST /api/auth/otp to self-registration. False --
 	// the zero value -- means accounts are created by an operator.
 	AllowSignup      bool
 	DefaultQuotaTier string
@@ -53,11 +53,13 @@ func (h *Handler) guard() *access.Guard {
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
+	// Session and credential routes for the acting subject share the /api/auth/
+	// prefix. See docs/design/api-surface-conventions.md §3.7.
 	// Unauthenticated.
-	mux.HandleFunc("POST /api/otp/request", h.otpRequestHandler)
-	mux.HandleFunc("POST /api/login", h.loginHandler)
-	mux.HandleFunc("POST /api/token/refresh", h.refreshHandler)
-	mux.HandleFunc("POST /api/logout", h.logoutHandler)
+	mux.HandleFunc("POST /api/auth/otp", h.otpRequestHandler)
+	mux.HandleFunc("POST /api/auth/login", h.loginHandler)
+	mux.HandleFunc("POST /api/auth/token/refresh", h.refreshHandler)
+	mux.HandleFunc("POST /api/auth/logout", h.logoutHandler)
 	// Authenticated; sets or changes the caller's own password.
-	mux.HandleFunc("POST /api/password", h.setPasswordHandler)
+	mux.HandleFunc("POST /api/auth/password", h.setPasswordHandler)
 }

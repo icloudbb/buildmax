@@ -21,7 +21,14 @@ const matrixSpace = "tm_matrix"
 // handlers that take a request body rather than only a path.
 func adminPostJSON(t *testing.T, mux *http.ServeMux, path, userID, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	return adminRequestJSON(t, mux, http.MethodPost, path, userID, body)
+}
+
+// adminRequestJSON drives one request of any method with a JSON body as the
+// given user, for the state sub-resources that read the target from the body.
+func adminRequestJSON(t *testing.T, mux *http.ServeMux, method, path, userID, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	if userID != "" {
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, testSecret))

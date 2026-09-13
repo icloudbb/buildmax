@@ -189,7 +189,7 @@ func TestLoginHandler(t *testing.T) {
 				JWTSecret:        tt.jwtSecret,
 				DefaultQuotaTier: "",
 			}).Register(mux)
-			req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewBufferString(tt.body))
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
@@ -241,7 +241,7 @@ func TestWrongEmailLeavesTheCodeSpendable(t *testing.T) {
 	}).Register(mux)
 
 	post := func(body string) int {
-		req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewBufferString(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -369,7 +369,7 @@ func TestOtpRequestHandler(t *testing.T) {
 				JWTSecret:        "",
 				DefaultQuotaTier: "free_trial",
 			}).Register(mux)
-			req := httptest.NewRequest(http.MethodPost, "/api/otp/request", bytes.NewBufferString(tt.body))
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/otp", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
@@ -400,7 +400,7 @@ func TestLoginHandlerConsumesCodeOnUse(t *testing.T) {
 	}).Register(mux)
 
 	post := func() int {
-		req := httptest.NewRequest(http.MethodPost, "/api/login",
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/login",
 			bytes.NewBufferString(`{"email":"a@b.c","otp":"code-1"}`))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -427,7 +427,7 @@ func TestLoginHandlerStoreErrorIsNotARejection(t *testing.T) {
 		JWTSecret:  "test-jwt-secret",
 	}).Register(mux)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/login",
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login",
 		bytes.NewBufferString(`{"email":"a@b.c","otp":"code-1"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

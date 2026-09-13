@@ -51,7 +51,7 @@ func newPasswordMux(t *testing.T, cfg Config) (*http.ServeMux, *mock.MockPasswor
 
 func TestPasswordLoginIssuesASession(t *testing.T) {
 	mux, _ := newPasswordMux(t, Config{})
-	rec := postJSON(t, mux, "/api/login",
+	rec := postJSON(t, mux, "/api/auth/login",
 		`{"email":"a@b.c","password":"`+testPassword+`","platform":"portal"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
@@ -90,7 +90,7 @@ func TestPasswordLoginFailuresAreIndistinguishable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := postJSON(t, mux, "/api/login", tt.body, nil)
+			rec := postJSON(t, mux, "/api/auth/login", tt.body, nil)
 			if rec.Code != http.StatusUnauthorized {
 				t.Fatalf("status = %d, want 401", rec.Code)
 			}
@@ -105,7 +105,7 @@ func TestPasswordLoginFailuresAreIndistinguishable(t *testing.T) {
 // set — otherwise a hash written before the rule existed would still work.
 func TestPasswordLoginRejectsAnEmptyPasswordWithoutFallingBackToOtp(t *testing.T) {
 	mux, _ := newPasswordMux(t, Config{})
-	rec := postJSON(t, mux, "/api/login", `{"email":"a@b.c","password":"","otp":""}`, nil)
+	rec := postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","password":"","otp":""}`, nil)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", rec.Code)
 	}
@@ -119,7 +119,7 @@ func TestSetPasswordRequiresTheCurrentOneWhenThereIsOne(t *testing.T) {
 	// Without the current password, the session alone is not enough. A stolen
 	// access token cannot be revoked before it expires; letting one set a
 	// password would make a temporary theft permanent.
-	rec := postJSON(t, mux, "/api/password", `{"new_password":"`+next+`"}`, map[string]string{
+	rec := postJSON(t, mux, "/api/auth/password", `{"new_password":"`+next+`"}`, map[string]string{
 		"Authorization": "Bearer " + access,
 	})
 	if rec.Code != http.StatusUnauthorized {
@@ -129,7 +129,7 @@ func TestSetPasswordRequiresTheCurrentOneWhenThereIsOne(t *testing.T) {
 		t.Fatal("the password changed without the current one")
 	}
 
-	rec = postJSON(t, mux, "/api/password",
+	rec = postJSON(t, mux, "/api/auth/password",
 		`{"current_password":"`+testPassword+`","new_password":"`+next+`"}`,
 		map[string]string{"Authorization": "Bearer " + access})
 	if rec.Code != http.StatusNoContent {
@@ -160,14 +160,14 @@ func TestSetFirstPasswordNeedsOnlyTheSession(t *testing.T) {
 		JWTSecret:     "test-jwt-secret",
 	}).Register(mux)
 
-	rec := postJSON(t, mux, "/api/login", `{"email":"a@b.c","otp":"code-1"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","otp":"code-1"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("login with a code failed: %d %s", rec.Code, rec.Body.String())
 	}
 	access, _ := decodeJSON(t, rec)["access_token"].(string)
 
 	const chosen = "the passphrase they chose themselves"
-	rec = postJSON(t, mux, "/api/password", `{"new_password":"`+chosen+`"}`, map[string]string{
+	rec = postJSON(t, mux, "/api/auth/password", `{"new_password":"`+chosen+`"}`, map[string]string{
 		"Authorization": "Bearer " + access,
 	})
 	if rec.Code != http.StatusNoContent {
@@ -178,7 +178,7 @@ func TestSetFirstPasswordNeedsOnlyTheSession(t *testing.T) {
 	}
 
 	// And it works: recovery is complete, not half-done.
-	rec = postJSON(t, mux, "/api/login", `{"email":"a@b.c","password":"`+chosen+`"}`, nil)
+	rec = postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","password":"`+chosen+`"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Errorf("the password just set does not sign in: %d", rec.Code)
 	}
@@ -188,7 +188,7 @@ func TestSetPasswordEnforcesTheLengthMinimum(t *testing.T) {
 	mux, _ := newPasswordMux(t, Config{})
 	access, _ := loginWithPassword(t, mux)
 
-	rec := postJSON(t, mux, "/api/password",
+	rec := postJSON(t, mux, "/api/auth/password",
 		`{"current_password":"`+testPassword+`","new_password":"short"}`,
 		map[string]string{"Authorization": "Bearer " + access})
 	if rec.Code != http.StatusBadRequest {
@@ -201,7 +201,7 @@ func TestSetPasswordEnforcesTheLengthMinimum(t *testing.T) {
 
 func TestSetPasswordRequiresAuthentication(t *testing.T) {
 	mux, _ := newPasswordMux(t, Config{})
-	rec := postJSON(t, mux, "/api/password", `{"new_password":"a long enough passphrase"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/password", `{"new_password":"a long enough passphrase"}`, nil)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)
 	}
@@ -209,7 +209,7 @@ func TestSetPasswordRequiresAuthentication(t *testing.T) {
 
 func loginWithPassword(t *testing.T, mux *http.ServeMux) (accessToken, refreshToken string) {
 	t.Helper()
-	rec := postJSON(t, mux, "/api/login", `{"email":"a@b.c","password":"`+testPassword+`"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","password":"`+testPassword+`"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("login status = %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -240,10 +240,10 @@ func TestUnknownAddressCostsWhatAWrongPasswordCosts(t *testing.T) {
 	})
 
 	known := medianDuration(5, func() {
-		postJSON(t, mux, "/api/login", `{"email":"a@b.c","password":"wrong but long enough"}`, nil)
+		postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","password":"wrong but long enough"}`, nil)
 	})
 	unknown := medianDuration(5, func() {
-		postJSON(t, mux, "/api/login", `{"email":"nobody@example.com","password":"wrong but long enough"}`, nil)
+		postJSON(t, mux, "/api/auth/login", `{"email":"nobody@example.com","password":"wrong but long enough"}`, nil)
 	})
 
 	if known <= 0 {

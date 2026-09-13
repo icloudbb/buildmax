@@ -113,7 +113,7 @@ describe("token refresh", () => {
     // The stale token is refused; the rotated one is accepted. That is all the
     // server needs to do for this test to be about the client's coordination.
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
-      if (String(url).endsWith("/api/token/refresh")) {
+      if (String(url).endsWith("/api/auth/token/refresh")) {
         return Promise.resolve(
           jsonResponse(200, {
             access_token: "access-2",
@@ -138,7 +138,7 @@ describe("token refresh", () => {
     ])
 
     const refreshCalls = fetchMock.mock.calls.filter((c) =>
-      String(c[0]).endsWith("/api/token/refresh")
+      String(c[0]).endsWith("/api/auth/token/refresh")
     )
     expect(refreshCalls).toHaveLength(1)
   })
@@ -181,7 +181,7 @@ describe("token refresh", () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 401 }))
     vi.stubGlobal("fetch", fetchMock)
 
-    await apiFetch("https://api.test/api/login", { method: "POST" })
+    await apiFetch("https://api.test/api/auth/login", { method: "POST" })
 
     // One call, no refresh: a login that fails is not a session that expired.
     expect(fetchMock).toHaveBeenCalledTimes(1)

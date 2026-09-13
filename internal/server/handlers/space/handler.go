@@ -1,5 +1,5 @@
 // Package space serves what a space owns: its membership, its agents, its
-// webhook keys, its consumption, and its audit trail.
+// consumption, and its audit trail.
 //
 // The boundary is the one the product already has. Space is the ownership and
 // authorization unit for Portal resources, so a package holding exactly the
@@ -32,11 +32,10 @@ type Config struct {
 	JWTSecret        string
 	DefaultQuotaTier string
 
-	Spaces      corespace.Store
-	Users       coreidentity.UserStore
-	Agents      agentdef.Store
-	WebhookKeys coreidentity.UserWebhookKeyStore
-	Audits      coreaudit.Store
+	Spaces corespace.Store
+	Users  coreidentity.UserStore
+	Agents agentdef.Store
+	Audits coreaudit.Store
 	// LoginCodes backs the space-scoped access-recovery route only -- issuing a
 	// code for a locked-out member of the caller's own space. Nil leaves that
 	// route unavailable, which is what a deployment with no login-code store
@@ -139,11 +138,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/spaces/{space_id}/schedules/{schedule_id}", h.getScheduleHandler)
 	mux.HandleFunc("PATCH /api/spaces/{space_id}/schedules/{schedule_id}", h.patchScheduleHandler)
 	mux.HandleFunc("DELETE /api/spaces/{space_id}/schedules/{schedule_id}", h.deleteScheduleHandler)
-
-	// Webhook keys
-	mux.HandleFunc("POST /api/webhook-keys", h.createWebhookKeyHandler)
-	mux.HandleFunc("GET /api/webhook-keys", h.listWebhookKeysHandler)
-	mux.HandleFunc("DELETE /api/webhook-keys/{key_id}", h.revokeWebhookKeyHandler)
 
 	// Plugin activation
 	mux.HandleFunc("GET /api/spaces/{space_id}/plugin-activations", h.listPluginActivationsHandler)

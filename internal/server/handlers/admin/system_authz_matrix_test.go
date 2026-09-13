@@ -56,8 +56,7 @@ var adminRoutes = []adminCase{
 	{"POST", "/api/admin/users"},
 	{"GET", "/api/admin/users/{user_id}"},
 	{"POST", "/api/admin/users/{user_id}/login-code"},
-	{"POST", "/api/admin/users/{user_id}/disable"},
-	{"POST", "/api/admin/users/{user_id}/enable"},
+	{"PUT", "/api/admin/users/{user_id}/state"},
 	{"GET", "/api/admin/users/{user_id}/sessions"},
 	{"DELETE", "/api/admin/users/{user_id}/sessions"},
 	{"DELETE", "/api/admin/users/{user_id}/sessions/{session_id}"},
@@ -69,8 +68,7 @@ var adminRoutes = []adminCase{
 	{"GET", "/api/admin/spaces/{space_id}"},
 	{"GET", "/api/admin/llm/models"},
 	{"POST", "/api/admin/llm/models"},
-	{"POST", "/api/admin/llm/models/{model_id}/enable"},
-	{"POST", "/api/admin/llm/models/{model_id}/disable"},
+	{"PUT", "/api/admin/llm/models/{model_id}/state"},
 	// Publishing changes what every member of the deployment can install, so
 	// reaching any of these without a grant has to be refused before the
 	// handler looks at a body.
@@ -78,9 +76,8 @@ var adminRoutes = []adminCase{
 	{"POST", "/api/admin/plugins"},
 	{"GET", "/api/admin/plugins/{plugin_name}/releases"},
 	{"POST", "/api/admin/plugins/{plugin_name}/releases"},
-	{"POST", "/api/admin/plugins/{plugin_name}/releases/{version}/yank"},
-	{"POST", "/api/admin/plugins/{plugin_name}/archive"},
-	{"POST", "/api/admin/plugins/{plugin_name}/unarchive"},
+	{"PUT", "/api/admin/plugins/{plugin_name}/releases/{version}/state"},
+	{"PUT", "/api/admin/plugins/{plugin_name}/state"},
 }
 
 // adminMux builds a handler whose grant store has one active admin and one

@@ -85,12 +85,14 @@ func (c *Client) CreateModel(ctx context.Context, token string, in CreateModelIn
 
 // SetModelEnabled enables or disables a catalog model and returns its new state.
 func (c *Client) SetModelEnabled(ctx context.Context, token, modelID string, enabled bool) (*AdminModel, error) {
-	action := "disable"
-	if enabled {
-		action = "enable"
+	payload, err := json.Marshal(struct {
+		Enabled bool `json:"enabled"`
+	}{Enabled: enabled})
+	if err != nil {
+		return nil, err
 	}
-	path := "/api/admin/llm/models/" + url.PathEscape(modelID) + "/" + action
-	resp, err := c.do(ctx, http.MethodPost, token, path, "", nil)
+	path := "/api/admin/llm/models/" + url.PathEscape(modelID) + "/state"
+	resp, err := c.do(ctx, http.MethodPut, token, path, "application/json", bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}

@@ -294,70 +294,80 @@ func (h *Handler) issueAdminLoginCodeHandler(w http.ResponseWriter, r *http.Requ
 }
 
 // setAdminUserDisabledHandler serves the disable and enable routes.
-func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		actorID, ok := h.guard().SystemAdmin(w, r)
-		if !ok {
-			return
-		}
-		user, ok := h.adminTargetUser(w, r)
-		if !ok {
-			return
-		}
-		// An administrator who disables their own account locks themselves out
-		// mid-request and cannot undo it, because the next call is refused
-		// too. The recovery would be the operator command, for a mistake that
-		// is easy to make and pointless to allow.
-		if disable && user.ID == actorID {
-			httputil.WriteJSONError(w, http.StatusConflict, "an administrator cannot disable their own account")
-			return
-		}
+// setUserStateRequest is the body of PUT /api/admin/users/{user_id}/state.
+type setUserStateRequest struct {
+	Disabled bool `json:"disabled"`
+}
 
-		var disabledAt *time.Time
-		action := coreaudit.UserEnabled
-		if disable {
-			now := time.Now().UTC()
-			disabledAt = &now
-			action = coreaudit.UserDisabled
-		}
-		if err := h.cfg.Users.SetUserDisabled(r.Context(), user.ID, disabledAt); err != nil {
-			if errors.Is(err, coreidentity.ErrUserNotFound) {
-				httputil.WriteJSONError(w, http.StatusNotFound, "account not found")
-				return
-			}
-			if errors.Is(err, coreidentity.ErrSystemGrantLastHolder) {
-				httputil.WriteJSONError(w, http.StatusConflict,
-					"this account is the deployment's last system administrator; grant another before disabling it")
-				return
-			}
-			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "user_id", user.ID)
-			return
-		}
-
-		revoked := int64(0)
-		if disable && h.cfg.RefreshTokens != nil {
-			// The stored half of every login, retired now rather than left to
-			// expire. The access token cannot be revoked at all; what stops it
-			// is requireActiveUser refusing on the next request.
-			n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.ID, time.Now().UTC())
-			if err != nil {
-				httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "revoke_sessions")
-				return
-			}
-			revoked = n
-		}
-		h.recordAdminUserAction(r, actorID, action, user.ID, "")
-
-		updated, err := h.cfg.Users.GetUser(r.Context(), user.ID)
-		if err != nil || updated == nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "reload")
-			return
-		}
-		httputil.WriteJSON(w, http.StatusOK, struct {
-			AdminUser
-			SessionsRevoked int64 `json:"sessions_revoked"`
-		}{AdminUser: toAdminUser(*updated), SessionsRevoked: revoked})
+// setAdminUserStateHandler sets the account's stored `disabled` flag. See
+// docs/design/api-surface-conventions.md §3.5.
+func (h *Handler) setAdminUserStateHandler(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := h.guard().SystemAdmin(w, r)
+	if !ok {
+		return
 	}
+	user, ok := h.adminTargetUser(w, r)
+	if !ok {
+		return
+	}
+	var req setUserStateRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	disable := req.Disabled
+	// An administrator who disables their own account locks themselves out
+	// mid-request and cannot undo it, because the next call is refused
+	// too. The recovery would be the operator command, for a mistake that
+	// is easy to make and pointless to allow.
+	if disable && user.ID == actorID {
+		httputil.WriteJSONError(w, http.StatusConflict, "an administrator cannot disable their own account")
+		return
+	}
+
+	var disabledAt *time.Time
+	action := coreaudit.UserEnabled
+	if disable {
+		now := time.Now().UTC()
+		disabledAt = &now
+		action = coreaudit.UserDisabled
+	}
+	if err := h.cfg.Users.SetUserDisabled(r.Context(), user.ID, disabledAt); err != nil {
+		if errors.Is(err, coreidentity.ErrUserNotFound) {
+			httputil.WriteJSONError(w, http.StatusNotFound, "account not found")
+			return
+		}
+		if errors.Is(err, coreidentity.ErrSystemGrantLastHolder) {
+			httputil.WriteJSONError(w, http.StatusConflict,
+				"this account is the deployment's last system administrator; grant another before disabling it")
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "user_id", user.ID)
+		return
+	}
+
+	revoked := int64(0)
+	if disable && h.cfg.RefreshTokens != nil {
+		// The stored half of every login, retired now rather than left to
+		// expire. The access token cannot be revoked at all; what stops it
+		// is requireActiveUser refusing on the next request.
+		n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.ID, time.Now().UTC())
+		if err != nil {
+			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "revoke_sessions")
+			return
+		}
+		revoked = n
+	}
+	h.recordAdminUserAction(r, actorID, action, user.ID, "")
+
+	updated, err := h.cfg.Users.GetUser(r.Context(), user.ID)
+	if err != nil || updated == nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "reload")
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, struct {
+		AdminUser
+		SessionsRevoked int64 `json:"sessions_revoked"`
+	}{AdminUser: toAdminUser(*updated), SessionsRevoked: revoked})
 }
 
 // revokeAdminUserSessionsHandler serves DELETE /api/admin/users/{user_id}/sessions.

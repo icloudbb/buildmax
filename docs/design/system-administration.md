@@ -288,8 +288,7 @@ exactly the confusion §4 exists to prevent.
 | `GET /api/admin/users/{user_id}` | One account: email, name, quota tier, last login and platform, `has_password`, `disabled_at`, space memberships with roles, active session count | Everything in the row above |
 | `POST /api/admin/users` | Creates an account and its personal space | — |
 | `POST /api/admin/users/{user_id}/login-code` | Issues a single-use code, shown once | A code that can be read back later |
-| `POST /api/admin/users/{user_id}/disable` | Disables the account (§8) | — |
-| `POST /api/admin/users/{user_id}/enable` | Re-enables it | — |
+| `PUT /api/admin/users/{user_id}/state` | Sets the account's `disabled` flag, disabling or re-enabling it (§8) | — |
 | `GET /api/admin/users/{user_id}/sessions` | Live login chains: session ID, platform, creation, rotation, expiry | Token values |
 | `DELETE /api/admin/users/{user_id}/sessions/{session_id}` | Revokes one login chain's refresh tokens | A session belonging to another account |
 | `DELETE /api/admin/users/{user_id}/sessions` | Revokes every refresh session, returns the count | — |
@@ -300,7 +299,7 @@ exactly the confusion §4 exists to prevent.
 | `GET /api/admin/audit-events` | The trail across every space, filtered by `space_id`, `actor_id`, `action`, `since`, `until`, paged | Anything the event does not already hold |
 | `POST /api/admin/llm/models` | Creates a model, encrypting a write-only credential | Credential material in the response |
 | `GET /api/admin/llm/models` | The catalog: name, provider, model, capabilities, enabled | `api_key`, in any form |
-| `POST /api/admin/llm/models/{model_id}/enable` · `/disable` | Retires or restores a catalog model | — |
+| `PUT /api/admin/llm/models/{model_id}/state` | Sets the model's `enabled` flag, retiring or restoring it | — |
 
 `POST /api/admin/users` returns the created account and **no credential**. An
 operator who wants the person to sign in issues a login code as a second,

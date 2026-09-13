@@ -44,7 +44,6 @@
 | [Session 树、Agent 邮箱与分支工作区](session-tree-and-agent-mailbox.md) | 本地体验 | Session 是否应 fork 隔离工作区，并通过持久邮箱恢复父 Session？ | 尚未开始 |
 | [Issue 主题协调与 Agent 黑板](issue-topic-coordination.md) | 产品与执行模型 | 子 Issue 参与者是否应共享父级范围的信息流，同时保持定向投递与同步语义相互独立？ | 现有 Issue 评论与限定范围的 Agent 读取/报告工具是候选验证底座；跨子项 Topic feed 尚未建设 |
 | [Agent 原生协作底座](agent-native-collaboration-substrate.md) | 产品与执行模型 | 不同规模和不同专业背景的参与者，是否需要一套统一的意图、执行、提议、证据、决策、集成与知识生命周期？ | 尚未建设；当前 Issue、Task/TaskRun、Artifact、Space 与本地 workspace 是待验证的基础构件 |
-| [API 表面约定](api-surface-conventions.md) | 运维与部署 | 什么样的命名与结构规则应治理 HTTP 路由，且该表面是否需要 URL 版本化或拆分 OpenAPI 文档？ | 尚未建设；约 150 条路由处于风格分歧的单一表面中，配一份合并的 OpenAPI 文档 |
 
 已退役提案不留在当前索引中。获采纳的理由移入
 [设计记录](../design/设计文档索引.md)，被拒绝或取代的讨论仍可通过 Git 历史查阅。

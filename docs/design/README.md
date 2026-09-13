@@ -118,6 +118,7 @@ the individual record rather than being duplicated here.
 | [Server coordination](server-coordination.md) | Active plan | Shipped Redis fan-out, turn leases, and write fencing; candidate qualification remains |
 | [Enterprise deployment](enterprise-deployment.md) | Active plan | Supported private deployment shape and operating gaps |
 | [Graceful shutdown](graceful-shutdown.md) | Active plan | Draining, quiescing, worker interruption, and bounded shutdown |
+| [API surface conventions](api-surface-conventions.md) | Active plan | HTTP route naming and placement, URL versioning, the OpenAPI split, and the old→new reconciliation plan |
 
 ## Verification
 

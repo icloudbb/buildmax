@@ -27,7 +27,7 @@
 ## 主要路由分组
 
 - 健康检查与 API 描述：`/healthz`、`/openapi.json`、`/swagger/`
-- 鉴权：`/api/otp/request`、`/api/login`、`/api/token/refresh`、`/api/logout`
+- 鉴权：`/api/auth/otp`、`/api/auth/login`、`/api/auth/token/refresh`、`/api/auth/logout`
 - 存活与就绪探针：`/healthz`、`/readyz`
 - Space 与成员：`/api/spaces...`
 - Agent：`/api/spaces/{space_id}/agents...`
@@ -100,5 +100,5 @@ Server 从不自己终结一次已经开始的运行：只有运行自身的进�
 - Worker API 使用的是调度器为该 TaskRun 铸造的 run token，而不是用户的 JWT 鉴权。这个令牌携带用户、Space、Task 和运行信息，每条路由都从这些声明中推导出自己的资源范围。它是这些路由唯一接受的凭证：旧有的共享 worker 令牌已经被移除——见 [design/worker-run-token.md](../../design/Worker运行令牌.md)。
 - 登录会返回两份凭证。access token 是一个 Server 不会存储的签名 JWT；refresh token 则是一行 `user_refresh_token` 记录，这正是让一个 Session 可被撤销的原因。`internal/service/identity` 拥有这套流程，`internal/server/handlers/auth` 拥有它的路由，每一次轮换都停留在 access token 的 `sid` 声明所指名的那个 Session 之内。
 - 调用者是谁、请求关于哪个 Space，以及是否可以放行，这些问题都由 `internal/server/access` 回答。它的 `Guard` 会自己写出拒绝响应，因此一条路由读起来就像一份关卡清单；它所依据的角色/动作判定，是 `internal/core/space/policy.go` 中的 `space.Allows`——这是 Space 服务与它共用的唯一实现。
-- `POST /api/login` 接受密码，或是一个由运维人员签发的一次性登录码。后者是账号认领与找回的路径，因为 BuildMax 没有邮件通道——见 [deploy/authentication.md](../../deploy/authentication.md)。
+- `POST /api/auth/login` 接受密码，或是一个由运维人员签发的一次性登录码。后者是账号认领与找回的路径，因为 BuildMax 没有邮件通道——见 [deploy/authentication.md](../../deploy/authentication.md)。
 - 另见：[Store](store.md)、[Portal](portal.md)、[边界](packages.md)。

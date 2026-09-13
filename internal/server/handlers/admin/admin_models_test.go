@@ -89,7 +89,7 @@ func TestAdminModelEnableDisable(t *testing.T) {
 	mux, models, audits := adminModelsMux(t)
 	id := models.Models[0].ID
 
-	rec := adminRequestAs(t, mux, adminCase{"POST", "/api/admin/llm/models/" + id + "/disable"}, adminUser)
+	rec := adminRequestJSON(t, mux, "PUT", "/api/admin/llm/models/"+id+"/state", adminUser, `{"enabled":false}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("disable got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -100,7 +100,7 @@ func TestAdminModelEnableDisable(t *testing.T) {
 		t.Errorf("the toggle response carried a credential: %s", rec.Body.String())
 	}
 
-	if got := adminRequestAs(t, mux, adminCase{"POST", "/api/admin/llm/models/" + id + "/enable"}, adminUser).Code; got != http.StatusOK {
+	if got := adminRequestJSON(t, mux, "PUT", "/api/admin/llm/models/"+id+"/state", adminUser, `{"enabled":true}`).Code; got != http.StatusOK {
 		t.Fatalf("enable got %d", got)
 	}
 	if !models.Models[0].Enabled {
@@ -193,7 +193,7 @@ func TestAdminModelCreateRejectsInvalidAndDuplicate(t *testing.T) {
 
 func TestAdminModelToggleOnAnUnknownModel(t *testing.T) {
 	mux, _, _ := adminModelsMux(t)
-	if got := adminRequestAs(t, mux, adminCase{"POST", "/api/admin/llm/models/lm_nobody/disable"}, adminUser).Code; got != http.StatusNotFound {
+	if got := adminRequestAs(t, mux, adminCase{"PUT", "/api/admin/llm/models/lm_nobody/state"}, adminUser).Code; got != http.StatusNotFound {
 		t.Errorf("got %d, want 404", got)
 	}
 }

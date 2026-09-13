@@ -124,8 +124,9 @@ export function setAdminUserDisabled(
   userId: string,
   disabled: boolean,
 ): Promise<ApiAdminUserAfterDisable> {
-  const action = disabled ? "disable" : "enable"
-  return send<ApiAdminUserAfterDisable>("POST", `/users/${encodeURIComponent(userId)}/${action}`, token)
+  return send<ApiAdminUserAfterDisable>("PUT", `/users/${encodeURIComponent(userId)}/state`, token, {
+    disabled,
+  })
 }
 
 export function revokeAdminUserSessions(token: string, userId: string): Promise<ApiAdminSessionsRevoked> {
@@ -180,10 +181,10 @@ export function yankAdminPluginRelease(
   reason: string,
 ): Promise<void> {
   return send<void>(
-    "POST",
-    `/plugins/${encodeURIComponent(name)}/releases/${encodeURIComponent(version)}/yank`,
+    "PUT",
+    `/plugins/${encodeURIComponent(name)}/releases/${encodeURIComponent(version)}/state`,
     token,
-    { reason },
+    { yanked: true, reason },
   )
 }
 
@@ -193,8 +194,7 @@ export function setAdminPluginArchived(
   name: string,
   archived: boolean,
 ): Promise<void> {
-  const action = archived ? "archive" : "unarchive"
-  return send<void>("POST", `/plugins/${encodeURIComponent(name)}/${action}`, token)
+  return send<void>("PUT", `/plugins/${encodeURIComponent(name)}/state`, token, { archived })
 }
 
 export function listAdminSpaces(
@@ -250,8 +250,9 @@ export function setAdminModelEnabled(
   modelId: string,
   enabled: boolean,
 ): Promise<ApiAdminModel> {
-  const action = enabled ? "enable" : "disable"
-  return send<ApiAdminModel>("POST", `/llm/models/${encodeURIComponent(modelId)}/${action}`, token)
+  return send<ApiAdminModel>("PUT", `/llm/models/${encodeURIComponent(modelId)}/state`, token, {
+    enabled,
+  })
 }
 
 /**

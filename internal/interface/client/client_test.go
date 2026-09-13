@@ -10,7 +10,7 @@ import (
 
 func TestClientRequestOTP(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/otp/request" || r.Method != http.MethodPost {
+		if r.URL.Path != "/api/auth/otp" || r.Method != http.MethodPost {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		var body map[string]string
@@ -48,7 +48,7 @@ func TestClientRequestOTPError(t *testing.T) {
 
 func TestClientLogin(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/login" || r.Method != http.MethodPost {
+		if r.URL.Path != "/api/auth/login" || r.Method != http.MethodPost {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		var body map[string]string

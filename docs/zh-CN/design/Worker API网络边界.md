@@ -195,7 +195,7 @@ Worker listener 和调度器迁移到另一个二进制文件或另一个 Deploy
 
 - `/api/worker/task-runs/...` 在公共 listener 上会返回 `404`,即便请求
   携带了一个有效的运行令牌;
-- `/api/spaces/...`、`/api/login`、`/api/webhook`、`/swagger` 和
+- `/api/spaces/...`、`/api/auth/login`、`/api/webhook`、`/swagger` 和
   `/openapi.json` 在 Worker listener 上会返回 `404`。
 
 公共 OpenAPI 文档可以继续为贡献者完整描述整个协议,但提供这份文档并不
