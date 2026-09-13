@@ -21,6 +21,17 @@ export default defineConfig({
       '@buildmax/gui/modal.css': path.resolve(__dirname, 'node_modules/@buildmax/gui/dist/modal.css'),
     },
   },
+  server: {
+    // The refresh cookie is SameSite=Strict and set on the API origin, so it
+    // only rides along when the Portal and the API share an origin. In dev the
+    // Vite server proxies /api to the local server, which makes every request
+    // same-origin (see .env.development, VITE_API_BASE=/).
+    proxy: {
+      // ws:true so the /api/spaces/:id/ws upgrade is proxied too, not just
+      // plain HTTP.
+      '/api': { target: 'http://localhost:5678', ws: true },
+    },
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

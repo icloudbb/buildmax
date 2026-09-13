@@ -6,63 +6,69 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import type { LoginResponse, LoginUser } from "../lib/api"
+import type { PortalSessionResponse, LoginUser } from "../lib/api"
 import { TOKEN_REFRESHED_EVENT, UNAUTHORIZED_EVENT } from "../lib/api"
-import { revokeSession } from "../features/auth/api"
-import {
-  clearSession,
-  currentAccessToken,
-  expiresAtFrom,
-  readStoredUser,
-  writeSession,
-  writeStoredUser,
-} from "../lib/api/session"
+import { restoreSession, revokeSession } from "../features/auth/api"
+import { clearAccessToken, expiresAtFrom, setAccessToken } from "../lib/api/session"
 import { clearStoredCurrentSpaceId } from "../lib/storage/currentSpaceStorage"
+
+/** "loading" until the one-shot session restore settles, then "ready". */
+type AuthStatus = "loading" | "ready"
 
 interface AuthState {
   token: string | null
   user: LoginUser | null
+  status: AuthStatus
 }
 
 interface AuthContextValue extends AuthState {
-  login: (res: LoginResponse) => void
+  login: (res: PortalSessionResponse) => void
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function loadStored(): AuthState {
-  const token = currentAccessToken()
-  const user = readStoredUser<LoginUser>()
-  if (!token || !user) return { token: null, user: null }
-  return { token, user }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>(loadStored)
+  const [state, setState] = useState<AuthState>({
+    token: null,
+    user: null,
+    status: "loading",
+  })
 
-  const login = useCallback((res: LoginResponse) => {
-    // access_token is the current name; token is what the server called it
-    // before the credentials were split, and older servers send only that.
-    const accessToken = res.access_token ?? res.token
-    writeSession({
-      accessToken,
-      refreshToken: res.refresh_token ?? null,
-      expiresAt: expiresAtFrom(res.expires_in),
-    })
-    writeStoredUser(res.user)
-    setState({ token: accessToken, user: res.user })
+  const login = useCallback((res: PortalSessionResponse) => {
+    setAccessToken(res.access_token, expiresAtFrom(res.expires_in))
+    setState({ token: res.access_token, user: res.user, status: "ready" })
   }, [])
 
   const logout = useCallback(() => {
     // Tell the server first: clearing local state only makes this browser
-    // forget the session, while the refresh token stays usable for weeks.
+    // forget the session, while the refresh cookie stays usable for weeks.
     // Best effort — a failed call must not strand someone in a session they
     // asked to leave.
     void revokeSession()
-    clearSession()
+    clearAccessToken()
     clearStoredCurrentSpaceId()
-    setState({ token: null, user: null })
+    setState({ token: null, user: null, status: "ready" })
+  }, [])
+
+  useEffect(() => {
+    // Hydrate once from the refresh cookie the server holds. A reload starts
+    // with no in-memory token, so this is the only way a returning session
+    // comes back without a fresh login.
+    let cancelled = false
+    void (async () => {
+      const res = await restoreSession()
+      if (cancelled) return
+      if (res) {
+        setAccessToken(res.access_token, expiresAtFrom(res.expires_in))
+        setState({ token: res.access_token, user: res.user, status: "ready" })
+      } else {
+        setState({ token: null, user: null, status: "ready" })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {

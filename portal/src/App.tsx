@@ -15,7 +15,7 @@ import { Login } from "./pages/auth/Login"
 import { navigate } from "./router"
 
 function AppContent() {
-  const { token, user, logout } = useAuth()
+  const { token, user, status, logout } = useAuth()
   const { route } = useApp()
   const { currentSpaceId, spacesState, refetchSpaces, setCurrentSpaceId } = useSpace()
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
@@ -53,6 +53,13 @@ function AppContent() {
     if (!("spaceId" in route) || !route.spaceId || route.spaceId === currentSpaceId) return
     setCurrentSpaceId(route.spaceId)
   }, [route, currentSpaceId, setCurrentSpaceId])
+
+  if (status === "loading") {
+    // Restoring the session from the refresh cookie. Render a bare loader
+    // rather than the login form, which would otherwise flash on every reload
+    // for an already-signed-in user.
+    return <div className="app-loading">Loading…</div>
+  }
 
   if (!token) {
     return <Login />

@@ -5,11 +5,10 @@
 
 import {
   accessTokenExpiresAt,
-  clearSession,
+  clearAccessToken,
   currentAccessToken,
-  currentRefreshToken,
   expiresAtFrom,
-  writeSession,
+  setAccessToken,
 } from "./session"
 
 const defaultApiBase = "http://localhost:5678"
@@ -43,59 +42,57 @@ export function checkUnauthorized(res: Response): void {
  *
  * An access token expiring is not one request's problem: a dashboard mounts a
  * dozen at once, and they all get 401 within the same tick. Without this they
- * would each present the same refresh token, and the server — correctly — would
- * read the second one as a replayed credential and revoke the session. One
- * refresh, one rotation, everyone waits for it.
+ * would each hit the session endpoint, and the server — which rotates the
+ * refresh cookie on every exchange — would read the second one as a replayed
+ * credential and revoke the session. One refresh, one rotation, everyone waits
+ * for it.
  */
 let refreshInFlight: Promise<string | null> | null = null
 
 /** Refresh the access token, sharing one exchange between concurrent callers. */
 export function refreshAccessToken(): Promise<string | null> {
   if (refreshInFlight) return refreshInFlight
-  refreshInFlight = exchangeRefreshToken().finally(() => {
+  refreshInFlight = exchangePortalSession().finally(() => {
     refreshInFlight = null
   })
   return refreshInFlight
 }
 
-async function exchangeRefreshToken(): Promise<string | null> {
-  const refreshToken = currentRefreshToken()
-  if (!refreshToken) return null
-
+/**
+ * Trade the refresh cookie for a fresh access token at the Portal session
+ * endpoint. No body: the credential is the HttpOnly cookie the browser sends
+ * with `credentials: "include"`, which the server rotates on each call.
+ */
+async function exchangePortalSession(): Promise<string | null> {
   let res: Response
   try {
-    res = await fetch(`${getApiBase()}/api/auth/token/refresh`, {
+    res = await fetch(`${getApiBase()}/api/auth/portal/session`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      credentials: "include",
     })
   } catch {
-    // The network is down, not the session. Keeping the stored token means
-    // coming back online resumes where it left off instead of at the login
-    // form — which, on this deployment, would mean asking for a login code.
+    // The network is down, not the session. The cookie the server holds is
+    // untouched, so coming back online resumes where it left off instead of at
+    // the login form — which, on this deployment, would mean asking for a
+    // login code.
     return null
   }
 
   if (!res.ok) {
-    // 401 is the server saying this token is spent, revoked, or was replayed.
-    // Any of those means the session is over and holding on to it only delays
-    // the login form. Other statuses are the server's problem, not the
-    // session's.
-    if (res.status === 401) clearSession()
+    // 401 is the server saying the session is dead — spent, revoked, or gone —
+    // and it has already cleared the cookie. Any other status is the server's
+    // problem, not the session's, but there is no token to hand back either
+    // way.
+    if (res.status === 401) clearAccessToken()
     return null
   }
 
   const body = (await res.json()) as {
     access_token?: string
-    refresh_token?: string
     expires_in?: number
   }
   if (!body.access_token) return null
-  writeSession({
-    accessToken: body.access_token,
-    refreshToken: body.refresh_token ?? refreshToken,
-    expiresAt: expiresAtFrom(body.expires_in),
-  })
+  setAccessToken(body.access_token, expiresAtFrom(body.expires_in))
   window.dispatchEvent(
     new CustomEvent(TOKEN_REFRESHED_EVENT, { detail: { accessToken: body.access_token } })
   )
@@ -138,7 +135,7 @@ function withBearer(init: RequestInit | undefined, token: string): RequestInit {
 /**
  * Fetch, and on 401 refresh once and replay.
  *
- * The Authorization header is rewritten from the stored session rather than
+ * The Authorization header is rewritten from the in-memory token rather than
  * used as passed. Callers take a token as an argument and hold it in React
  * state, which goes stale the moment any other call refreshes; reading the
  * current one here means that staleness never reaches the server.
@@ -147,11 +144,10 @@ function withBearer(init: RequestInit | undefined, token: string): RequestInit {
  * endpoint answering 401 is not a session problem.
  */
 export async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
-  // The stored token wins, but only when there is one. A browser with storage
-  // blocked keeps whatever the caller held in memory rather than being handed
-  // an empty credential.
-  const stored = currentAccessToken()
-  const sent = authorizationOf(init) && stored ? withBearer(init, stored) : init
+  // The in-memory token wins, but only when there is one — before hydration
+  // there is none, and a caller's header is left as passed rather than dropped.
+  const current = currentAccessToken()
+  const sent = authorizationOf(init) && current ? withBearer(init, current) : init
   const res = await fetch(url, sent)
   if (res.status !== 401 || !authorizationOf(sent)) {
     if (res.status === 401) checkUnauthorized(res)

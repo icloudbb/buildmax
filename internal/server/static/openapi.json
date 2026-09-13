@@ -1487,7 +1487,7 @@
       "post": {
         "tags": ["auth"],
         "summary": "Set or change the caller's password",
-        "description": "Requires the current password when the account already has one: a session by itself must not be enough, since an access token cannot be revoked before it expires. Setting the first password after signing in with a login code needs no current password.",
+        "description": "Requires the current password when the account already has one: a session by itself must not be enough, since a stolen access token works until its session is revoked or expires. Setting the first password after signing in with a login code needs no current password.",
         "responses": {
           "204": { "description": "Password set" },
           "400": { "description": "New password fails the length rule, or body invalid" },
@@ -1518,6 +1518,42 @@
           "204": { "description": "Session revoked, or already gone" },
           "401": { "description": "Neither credential supplied" },
           "503": { "description": "Deployment has no refresh token store" }
+        }
+      }
+    },
+    "/api/auth/portal/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Portal login (cookie-delivered refresh)",
+        "description": "Same credential check as `/api/auth/login`, but the renewable credential is set as a Secure, HttpOnly, SameSite=Strict cookie scoped to `/api/auth/portal` instead of returned in the body. The response carries only the short-lived access token and the user. Requires a same-origin `Origin`.",
+        "responses": {
+          "200": { "description": "OK; refresh cookie set" },
+          "400": { "description": "Body invalid" },
+          "401": { "description": "Invalid credential" },
+          "403": { "description": "Account disabled, or cross-origin request" }
+        }
+      }
+    },
+    "/api/auth/portal/session": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Exchange the Portal refresh cookie for an access token",
+        "description": "Reads the refresh cookie, rotates it, and returns a fresh access token and the user. The Portal calls it on load, on reload, and on a 401. A missing or dead cookie is a 401 and the cookie is cleared. Requires a same-origin `Origin`.",
+        "responses": {
+          "200": { "description": "OK; refresh cookie rotated" },
+          "401": { "description": "No cookie, or the session is no longer active" },
+          "403": { "description": "Cross-origin request" }
+        }
+      }
+    },
+    "/api/auth/portal/logout": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Portal logout",
+        "description": "Revokes the session the refresh cookie names and clears the cookie. An absent cookie is still a success. Requires a same-origin `Origin`.",
+        "responses": {
+          "204": { "description": "Session revoked, or already gone" },
+          "403": { "description": "Cross-origin request" }
         }
       }
     },

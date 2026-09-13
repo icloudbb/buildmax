@@ -40,9 +40,12 @@ export interface Session {
  *
  * Two things have to be discovered rather than assumed.
  *
- * `page.request` does not inherit the session: the Portal authenticates with a
- * bearer token in localStorage, not a cookie, so the saved storage state that
- * signs the browser in leaves the request context anonymous.
+ * The access token now lives in the app's memory, not localStorage, so it cannot
+ * be read out of the page. The renewable credential is an HttpOnly cookie the
+ * browser context already holds (the saved storage state carries it), and
+ * `page.request` shares that context's cookies — so exchanging the cookie at the
+ * Portal session endpoint mints a bearer token these specs can send, exactly as
+ * the app does.
  *
  * And the API base is a property of the deployment, not of the Portal. Behind
  * one ingress it is same-origin; the Compose quickstart publishes the server on
@@ -57,12 +60,18 @@ export async function session(page: Page): Promise<Session> {
 
   // The space is stored only after `GET /api/spaces` answers, so this waits for
   // the app to settle rather than reading straight after navigation.
-  const handle = await page.waitForFunction(() => {
-    const token = localStorage.getItem("buildmax_token")
-    const spaceId = localStorage.getItem("buildmax_current_space")
-    return token && spaceId ? { token, spaceId } : null
+  const spaceHandle = await page.waitForFunction(() => localStorage.getItem("buildmax_current_space"))
+  const spaceId = (await spaceHandle.jsonValue()) as string
+
+  // The session route requires a same-origin Origin; derive it from the base the
+  // app itself used, falling back to the page's own origin when the base is
+  // same-origin (empty).
+  const origin = new URL(apiBase || page.url()).origin
+  const res = await page.request.post(`${apiBase}/api/auth/portal/session`, {
+    headers: { Origin: origin },
   })
-  const { token, spaceId } = await handle.jsonValue()
+  expect(res.ok(), `POST /api/auth/portal/session → ${res.status()} ${await res.text()}`).toBeTruthy()
+  const { access_token: token } = (await res.json()) as { access_token: string }
   return { token, spaceId, apiBase, space: `${apiBase}/api/spaces/${encodeURIComponent(spaceId)}` }
 }
 

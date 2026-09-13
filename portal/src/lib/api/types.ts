@@ -9,12 +9,15 @@ export interface LoginUser {
   name: string
 }
 
-export interface LoginResponse {
-  /** The access token under the name it had before the credentials were split. */
-  token: string
-  access_token?: string
-  /** Absent when the deployment has no store to keep refresh tokens in. */
-  refresh_token?: string
+/**
+ * What the Portal auth endpoints (login and session) return.
+ *
+ * The renewable credential never appears here: the server keeps it in an
+ * HttpOnly refresh cookie the script cannot read. Only the short-lived access
+ * token, its lifetime, and the account come back in the body.
+ */
+export interface PortalSessionResponse {
+  access_token: string
   /** Access token lifetime in seconds. */
   expires_in?: number
   user: LoginUser

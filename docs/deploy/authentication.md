@@ -136,6 +136,17 @@ inactive no matter how often its refresh token rotated, and the person signs in
 again. Signing in from a laptop does not disturb a session on a phone, and
 logging one out leaves the other alone.
 
+**Where the refresh token lives depends on the client.** Native CLI and Desktop
+clients hold it in an OS credential store and use the JSON routes above. The
+Portal never receives it as script-readable data: it signs in through
+`POST /api/auth/portal/login`, which returns only the access token and sets the
+refresh token as a Secure, HttpOnly, `SameSite=Strict` cookie scoped to
+`/api/auth/portal`. The Portal exchanges that cookie for a fresh access token at
+`POST /api/auth/portal/session` (on load, on reload, and after a 401) and clears
+it at `POST /api/auth/portal/logout`. These routes require a same-origin `Origin`
+and set no permissive CORS, so the Portal and API must share one origin — a
+reverse proxy in production, and the dev server's `/api` proxy locally.
+
 ### Reuse Ends The Session
 
 A refresh token presented after it was already exchanged means two copies exist.

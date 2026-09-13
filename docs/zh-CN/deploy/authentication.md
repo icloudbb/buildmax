@@ -79,6 +79,8 @@ buildmax-server admin revoke alice@example.com
 
 每次登录都会开启自己的 Session，并带有一个绝对寿命（`session_absolute_ttl`，默认 90 天）：越过该上限后，无论其刷新令牌轮换多频繁，该 Session 都会失效，用户需要重新登录。在笔记本上登录不会影响手机上的 Session，退出其中一个也不影响另一个。
 
+**刷新令牌存放在哪里取决于客户端。** 原生 CLI 与 Desktop 客户端把它保存在操作系统凭证库中，并使用上文的 JSON 路由。Portal 则从不以脚本可读的形式拿到它：它通过 `POST /api/auth/portal/login` 登录，该接口只返回访问令牌，并把刷新令牌设置为一个 Secure、HttpOnly、`SameSite=Strict`、作用域限定在 `/api/auth/portal` 的 cookie。Portal 在 `POST /api/auth/portal/session`（页面加载、刷新以及遇到 401 时）用该 cookie 换取新的访问令牌，并在 `POST /api/auth/portal/logout` 清除它。这些路由要求同源 `Origin` 且不设置任何宽松的 CORS，因此 Portal 与 API 必须同源——生产环境用反向代理，本地用开发服务器的 `/api` 代理。
+
 ### 重用会结束会话
 
 已兑换的刷新令牌再次被提交，说明存在两个副本。服务器无法判断哪个持有者合法，因此会撤销整个会话，合法用户也会被登出，并记录 `auth.refresh_reuse` 审计事件。
