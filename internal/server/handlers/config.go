@@ -52,6 +52,13 @@ type Config struct {
 	// AllowSignup opens POST /api/auth/otp to self-registration. False — the
 	// zero value — means accounts are created by an operator.
 	AllowSignup bool
+	// LocalLogin gates native password/login-code sign-in: "all" (default),
+	// "system_admins", or "off". Advertised at GET /api/auth/methods.
+	LocalLogin string
+	// OIDCEnabled and OIDCDisplayName advertise SSO at GET /api/auth/methods.
+	// They carry no secret: the issuer, client, and policy stay server-side.
+	OIDCEnabled     bool
+	OIDCDisplayName string
 
 	// Token lifetimes. Zero means the model package's default. The access
 	// token is signed and unstored, so its lifetime is the window in which a
@@ -160,6 +167,9 @@ type Config struct {
 	// admin status reports them so an operator sees what /readyz sees without
 	// needing to reach it.
 	DependencyProbes []admin.DependencyProbe
+	// OIDCStatus reports the live SSO provider health for the admin system view.
+	// Nil means SSO is not configured. Bootstrap adapts the provider into it.
+	OIDCStatus admin.OIDCStatusFunc
 	// RedactedConfig is the operator-facing view of server.yaml, built by
 	// internal/config so that the decision about which fields may be shown
 	// lives next to the struct. Nil means the deployment reports none.

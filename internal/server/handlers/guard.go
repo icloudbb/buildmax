@@ -63,6 +63,7 @@ func (h *Handler) buildAdminHandler() *admin.Handler {
 		Deployment:       h.cfg.Deployment,
 		DependencyProbes: h.cfg.DependencyProbes,
 		RedactedConfig:   h.cfg.RedactedConfig,
+		OIDCStatus:       h.cfg.OIDCStatus,
 	})
 }
 
@@ -154,6 +155,9 @@ func (h *Handler) buildAuthHandler() *authroutes.Handler {
 	return authroutes.New(authroutes.Config{
 		JWTSecret:            h.cfg.JWTSecret,
 		AllowSignup:          h.cfg.AllowSignup,
+		LocalLogin:           h.cfg.LocalLogin,
+		OIDCEnabled:          h.cfg.OIDCEnabled,
+		OIDCDisplayName:      h.cfg.OIDCDisplayName,
 		DefaultQuotaTier:     h.cfg.DefaultQuotaTier,
 		AccessTokenTTL:       h.cfg.AccessTokenTTL,
 		RefreshTokenTTL:      h.cfg.RefreshTokenTTL,

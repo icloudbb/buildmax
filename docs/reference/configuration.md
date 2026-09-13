@@ -73,6 +73,7 @@ value alone.
 | `BUILDMAX_STORAGE_MINIO_SECRET_KEY` | `storage.minio.secret_key` |
 | `BUILDMAX_CONVERSATION_MODEL_API_KEY` | `conversation.model.api_key` |
 | `BUILDMAX_COORDINATION_REDIS_PASSWORD` | `coordination.redis.password` |
+| `BUILDMAX_OIDC_CLIENT_SECRET` | `oidc.client_secret` |
 
 The split to aim for: **`server.yaml` carries shape and non-secret values; the
 environment carries credentials.** That is exactly how

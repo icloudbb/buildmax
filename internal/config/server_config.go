@@ -43,6 +43,14 @@ type ServerConfig struct {
 	// to false, and the zero value is the safe one on purpose: a server that
 	// forgets to configure this is closed, not open.
 	AllowSignup bool `mapstructure:"allow_signup"`
+	// LocalLogin gates the native password and login-code paths independently of
+	// whether SSO is configured. It is one of LocalLoginAll (default),
+	// LocalLoginSystemAdmins (a break-glass path for operators while everyone
+	// else signs in through the IdP), or LocalLoginOff. It is orthogonal to
+	// oidc.enabled: a deployment can run both, only one, or — with off and no
+	// OIDC — lock itself out, which startup warns about. See
+	// docs/design/enterprise-identity-and-access.md §11.
+	LocalLogin string `mapstructure:"local_login"`
 	// ShutdownGrace is the whole budget for stopping: draining connections,
 	// letting interrupted runs report, and stopping the background loops. The
 	// phases are derived from it rather than configured separately, because two
@@ -80,6 +88,162 @@ type ServerConfig struct {
 	// Its zero value is the single-instance in-process backend. See
 	// docs/design/server-coordination.md.
 	Coordination ServerCoordinationConfig `mapstructure:"coordination"`
+	// OIDC configures corporate sign-in over OpenID Connect. Its zero value is
+	// disabled: a deployment that names no IdP gets native login only. See
+	// docs/design/enterprise-identity-and-access.md.
+	OIDC ServerOIDCConfig `mapstructure:"oidc"`
+}
+
+// Local-login modes for local_login. They gate the native password and
+// login-code paths independently of whether OIDC is configured.
+const (
+	// LocalLoginAll accepts native login for every account. It is the default,
+	// so a deployment that configures no SSO behaves exactly as before.
+	LocalLoginAll = "all"
+	// LocalLoginSystemAdmins accepts native login only for System Administrators:
+	// the break-glass path that keeps operators able to sign in when the IdP is
+	// unreachable, while everyone else must use SSO.
+	LocalLoginSystemAdmins = "system_admins"
+	// LocalLoginOff refuses every native login. Only valid with SSO configured;
+	// with neither, nobody can sign in, which startup warns about.
+	LocalLoginOff = "off"
+)
+
+// OIDC provisioning modes for oidc.provisioning.
+const (
+	// OIDCProvisioningJIT creates a BuildMax account on a first successful
+	// sign-in whose verified email is in allowed_email_domains. It is the SSO
+	// default; the domain allow-list is what bounds who it will create.
+	OIDCProvisioningJIT = "jit"
+	// OIDCProvisioningExistingOnly refuses a subject with no linked account: an
+	// operator provisions accounts, and SSO only authenticates them.
+	OIDCProvisioningExistingOnly = "existing_only"
+)
+
+// ServerOIDCConfig configures corporate sign-in over OpenID Connect. OIDC proves
+// authentication only; BuildMax still owns accounts, sessions, and every
+// authorization decision. See docs/design/enterprise-identity-and-access.md.
+type ServerOIDCConfig struct {
+	// Enabled turns on the SSO login flow and advertises it at
+	// GET /api/auth/methods. It is orthogonal to local_login.
+	Enabled bool `mapstructure:"enabled"`
+	// DisplayName labels the Portal's sign-in button ("Sign in with <name>").
+	// Empty falls back to a generic label; it is never a trust input.
+	DisplayName string `mapstructure:"display_name"`
+	// Issuer is the IdP's issuer URL and the only URL trust root: Discovery,
+	// JWKS, and the token/authorize endpoints are all taken from it, never from a
+	// request. It must be HTTPS.
+	Issuer string `mapstructure:"issuer"`
+	// ClientID is this deployment's registered OIDC client.
+	ClientID string `mapstructure:"client_id"`
+	// ClientSecret authenticates the confidential client at the token endpoint.
+	// Inject it through BUILDMAX_OIDC_CLIENT_SECRET rather than writing it to
+	// disk; it is never served, logged, or handed to a worker.
+	ClientSecret string `mapstructure:"client_secret"`
+	// Provisioning is OIDCProvisioningJIT (default) or OIDCProvisioningExistingOnly.
+	Provisioning string `mapstructure:"provisioning"`
+	// AllowedEmailDomains bounds JIT provisioning: a first sign-in creates an
+	// account only when its verified email's domain is in this list. It is
+	// required, and must be non-empty, whenever provisioning is jit — an
+	// unbounded JIT would let anyone the IdP authenticates create an account.
+	AllowedEmailDomains []string `mapstructure:"allowed_email_domains"`
+	// SessionMaxAge caps a session opened through SSO from its creation. Zero
+	// uses OIDCSessionMaxAgeDefault. It is the SSO analogue of session_absolute_ttl
+	// and is deliberately shorter, because a corporate login is expected to be
+	// re-proven against the IdP more often than a native one.
+	SessionMaxAge time.Duration `mapstructure:"session_max_age"`
+}
+
+// OIDCSessionMaxAgeDefault is the session ceiling for an SSO login when
+// oidc.session_max_age is unset.
+const OIDCSessionMaxAgeDefault = 12 * time.Hour
+
+// localLogin returns the effective local-login mode, defaulting to all so a
+// deployment that configures nothing keeps native login for everyone.
+func (sc ServerConfig) localLogin() string {
+	if sc.LocalLogin == "" {
+		return LocalLoginAll
+	}
+	return sc.LocalLogin
+}
+
+// LocalLogin returns the effective local-login mode.
+func (sc ServerConfig) LocalLoginMode() string { return sc.localLogin() }
+
+// ValidateAuth reports the first problem in the login configuration, so a
+// deployment that would refuse every login or run an unbounded JIT refuses to
+// start rather than discovering it at the first sign-in.
+func (sc ServerConfig) ValidateAuth() error {
+	switch sc.localLogin() {
+	case LocalLoginAll, LocalLoginSystemAdmins, LocalLoginOff:
+	default:
+		return fmt.Errorf("local_login %q is not one of %q, %q, or %q", sc.LocalLogin, LocalLoginAll, LocalLoginSystemAdmins, LocalLoginOff)
+	}
+	// Self-registration is a native-login concept. It cannot mean anything when
+	// native login is not open to everyone, so pairing it with a narrower mode is
+	// a contradiction the operator should see, not a silently ignored setting.
+	if sc.AllowSignup && sc.localLogin() != LocalLoginAll {
+		return fmt.Errorf("allow_signup requires local_login %q, not %q", LocalLoginAll, sc.localLogin())
+	}
+	return sc.OIDC.validate(sc.PublicBaseURL)
+}
+
+// SessionMaxAge returns the effective SSO session ceiling.
+func (o ServerOIDCConfig) sessionMaxAge() time.Duration {
+	if o.SessionMaxAge <= 0 {
+		return OIDCSessionMaxAgeDefault
+	}
+	return o.SessionMaxAge
+}
+
+// provisioning returns the effective provisioning mode, defaulting to jit.
+func (o ServerOIDCConfig) provisioning() string {
+	if o.Provisioning == "" {
+		return OIDCProvisioningJIT
+	}
+	return o.Provisioning
+}
+
+// validate reports the first problem that would make SSO unusable or unsafe.
+// It is a no-op when OIDC is disabled: an operator drafting a block should not
+// be blocked from starting until they turn it on.
+func (o ServerOIDCConfig) validate(publicBaseURL string) error {
+	if !o.Enabled {
+		return nil
+	}
+	iss, err := url.Parse(o.Issuer)
+	if err != nil || o.Issuer == "" || iss.Host == "" {
+		return fmt.Errorf("oidc.issuer must be a valid URL when oidc.enabled")
+	}
+	if iss.Scheme != "https" {
+		return errors.New("oidc.issuer must be https: the issuer is the only URL trust root and its metadata cannot travel in the clear")
+	}
+	if o.ClientID == "" {
+		return errors.New("oidc.client_id is required when oidc.enabled")
+	}
+	switch o.provisioning() {
+	case OIDCProvisioningJIT:
+		if len(o.AllowedEmailDomains) == 0 {
+			return fmt.Errorf("oidc.allowed_email_domains must be non-empty when oidc.provisioning is %q: unbounded just-in-time provisioning would let anyone the IdP authenticates create an account", OIDCProvisioningJIT)
+		}
+	case OIDCProvisioningExistingOnly:
+	default:
+		return fmt.Errorf("oidc.provisioning %q is not one of %q or %q", o.Provisioning, OIDCProvisioningJIT, OIDCProvisioningExistingOnly)
+	}
+	// The browser is redirected back to public_base_url + a fixed callback path,
+	// and an OAuth redirect URI carrying a code must not travel in the clear. A
+	// loopback origin is the documented development exception.
+	if publicBaseURL == "" {
+		return errors.New("public_base_url is required when oidc.enabled: the OIDC redirect URI is built from it")
+	}
+	pub, err := url.Parse(publicBaseURL)
+	if err != nil || pub.Host == "" {
+		return fmt.Errorf("public_base_url must be a valid URL when oidc.enabled")
+	}
+	if pub.Scheme != "https" && !isLoopbackHost(pub.Hostname()) {
+		return errors.New("public_base_url must be https when oidc.enabled, except for a loopback development origin")
+	}
+	return nil
 }
 
 // Coordination backend modes for coordination.mode.
@@ -558,6 +722,10 @@ const (
 	EnvKeyBuildmaxConversationAPIKey = "BUILDMAX_CONVERSATION_MODEL_API_KEY"
 	// BUILDMAX_COORDINATION_REDIS_PASSWORD overrides coordination.redis.password.
 	EnvKeyBuildmaxCoordinationRedisPassword = "BUILDMAX_COORDINATION_REDIS_PASSWORD"
+	// BUILDMAX_OIDC_CLIENT_SECRET overrides oidc.client_secret. Injecting the
+	// confidential client's secret at deploy time keeps it off disk, like
+	// jwt_secret; it is never served, logged, or handed to a worker.
+	EnvKeyBuildmaxOIDCClientSecret = "BUILDMAX_OIDC_CLIENT_SECRET"
 )
 
 // BUILDMAX_CORS_ORIGIN overrides cors_origin.
@@ -636,6 +804,10 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("conversation.model.context_window", 0)
 	v.SetDefault("coordination.mode", CoordinationModeLocal)
 	v.SetDefault("coordination.redis.db", 0)
+	v.SetDefault("local_login", LocalLoginAll)
+	v.SetDefault("oidc.enabled", false)
+	v.SetDefault("oidc.provisioning", OIDCProvisioningJIT)
+	v.SetDefault("oidc.session_max_age", OIDCSessionMaxAgeDefault.String())
 
 	// Environment overrides for values the file cannot hold: credentials that
 	// should not be on disk, and cors_origin, which only the deployment knows.
@@ -650,6 +822,7 @@ func LoadServerConfig() (ServerConfig, error) {
 	_ = v.BindEnv("storage.minio.secret_key", EnvKeyBuildmaxMinIOSecretKey)
 	_ = v.BindEnv("conversation.model.api_key", EnvKeyBuildmaxConversationAPIKey)
 	_ = v.BindEnv("coordination.redis.password", EnvKeyBuildmaxCoordinationRedisPassword)
+	_ = v.BindEnv("oidc.client_secret", EnvKeyBuildmaxOIDCClientSecret)
 	_ = v.BindEnv("worker.llm.transport", EnvKeyBuildmaxWorkerLLMTransport)
 	_ = v.BindEnv("llm.default_model", EnvKeyBuildmaxLLMDefaultModel)
 	_ = v.BindEnv("conversation.model_target", EnvKeyBuildmaxConversationModelTarget)

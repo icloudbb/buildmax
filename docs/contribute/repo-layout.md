@@ -233,6 +233,8 @@ internal/
 │   ├── llmwire/        Versioned wire contract for managed inference
 │   ├── llmremote/      LLM client that calls a BuildMax managed gateway
 │   ├── mcp/            MCP protocol, client transport, registry
+│   ├── oidc/           OpenID Connect provider: cached Discovery and JWKS, and
+│   │                   asymmetric-only ID-token verification, over go-oidc
 │   ├── hook/           Hook transports: command, http, mcp_tool, prompt
 │   ├── pluginwire/     Wire contract for the private plugin Marketplace
 │   ├── pluginarchive/  Packing and hardened extraction of plugin archives

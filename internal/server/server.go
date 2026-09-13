@@ -63,6 +63,12 @@ type AuthConfig struct {
 	JWTSecret   string // Required for login when UserStore is set
 	AllowSignup bool   // Open POST /api/auth/otp to self-registration; closed by default
 	CORSOrigin  string // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	// LocalLogin gates native password/login-code sign-in: "all" (default),
+	// "system_admins", or "off". Advertised at GET /api/auth/methods.
+	LocalLogin string
+	// OIDCEnabled and OIDCDisplayName advertise SSO at GET /api/auth/methods.
+	OIDCEnabled     bool
+	OIDCDisplayName string
 	// PublicBaseURL is the externally reachable origin at which people open
 	// BuildMax. Artifact share links are rendered against it; empty refuses
 	// share creation rather than emitting an unreachable link.
@@ -199,6 +205,9 @@ type Config struct {
 	// RedactedConfig is the operator-facing view of server.yaml. Nil means the
 	// admin configuration route answers 503.
 	RedactedConfig any
+	// OIDCStatus reports the live SSO provider health for the admin system view.
+	// Nil means SSO is not configured. Bootstrap adapts the provider into it.
+	OIDCStatus admin.OIDCStatusFunc
 	// Readiness lists the dependency probes GET /readyz runs. Empty means the
 	// endpoint reports ready without verifying anything, and says so by
 	// returning an empty check list.
@@ -329,6 +338,9 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 	return handlers.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
 		AllowSignup:              cfg.Auth.AllowSignup,
+		LocalLogin:               cfg.Auth.LocalLogin,
+		OIDCEnabled:              cfg.Auth.OIDCEnabled,
+		OIDCDisplayName:          cfg.Auth.OIDCDisplayName,
 		CORSOrigin:               cfg.Auth.CORSOrigin,
 		AccessTokenTTL:           cfg.Auth.AccessTokenTTL,
 		RefreshTokenTTL:          cfg.Auth.RefreshTokenTTL,
@@ -349,6 +361,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		Deployment:               cfg.Deployment,
 		DependencyProbes:         dependencyProbes(cfg.Readiness),
 		RedactedConfig:           cfg.RedactedConfig,
+		OIDCStatus:               cfg.OIDCStatus,
 		Audit:                    cfg.Audit,
 		LoginCodeStore:           cfg.Stores.LoginCodeStore,
 		PasswordStore:            cfg.Stores.PasswordStore,

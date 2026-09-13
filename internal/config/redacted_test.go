@@ -112,6 +112,7 @@ func TestRedactedConfigCoversTheSecretFieldsWeKnowAbout(t *testing.T) {
 		"ServerMinIOConfig.SecretKey":      true,
 		"ServerModelEntry.APIKey":          true,
 		"ServerCoordinationRedis.Password": true,
+		"ServerOIDCConfig.ClientSecret":    true,
 	}
 	found := map[string]bool{}
 	var walk func(t reflect.Type, seen map[reflect.Type]bool)

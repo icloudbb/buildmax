@@ -24,6 +24,15 @@ type Config struct {
 	AllowSignup      bool
 	DefaultQuotaTier string
 
+	// LocalLogin gates the native password and login-code paths: "all"
+	// (the default when empty), "system_admins", or "off". It is advertised at
+	// GET /api/auth/methods so the Portal knows whether to show local inputs.
+	LocalLogin string
+	// OIDCEnabled and OIDCDisplayName advertise SSO at GET /api/auth/methods.
+	// They carry no secret: the issuer, client, and policy stay server-side.
+	OIDCEnabled     bool
+	OIDCDisplayName string
+
 	// Token lifetimes. Zero means the model package's default. The access token
 	// is signed and unstored, so its lifetime is the window in which a stolen
 	// one still works; the refresh token is a row and can be revoked before it
@@ -62,6 +71,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Session and credential routes for the acting subject share the /api/auth/
 	// prefix. See the route conventions in docs/contribute/architecture/server.md
 	// Unauthenticated.
+	mux.HandleFunc("GET /api/auth/methods", h.methodsHandler)
 	mux.HandleFunc("POST /api/auth/otp", h.otpRequestHandler)
 	mux.HandleFunc("POST /api/auth/login", h.loginHandler)
 	mux.HandleFunc("POST /api/auth/token/refresh", h.refreshHandler)

@@ -218,6 +218,8 @@ internal/
 │   ├── llmwire/        受管推理的带版本号线上契约
 │   ├── llmremote/      调用 BuildMax 受管网关的 LLM client
 │   ├── mcp/            MCP 协议、client 传输、注册表
+│   ├── oidc/           OpenID Connect provider：基于 go-oidc 的带缓存的
+│   │                   Discovery 与 JWKS，以及仅限非对称算法的 ID token 校验
 │   ├── hook/           Hook 传输方式：command、http、mcp_tool、prompt
 │   ├── pluginwire/     私有 plugin Marketplace 的线上契约
 │   ├── pluginarchive/  plugin 归档的打包，以及经过加固的解包

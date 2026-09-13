@@ -10,6 +10,7 @@ package admin
 
 import (
 	"net/http"
+	"time"
 
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
@@ -53,7 +54,18 @@ type Config struct {
 	// internal/config so the decision about which fields may be shown lives
 	// next to the struct.
 	RedactedConfig any
+	// OIDCStatus reports the live SSO provider health for the system view. Nil
+	// means SSO is not configured. It is a closure so this package needs no
+	// import of the OIDC provider; bootstrap adapts the provider into it. Unlike
+	// a dependency probe, a degraded provider does not make the deployment
+	// not-ready: an IdP fetch is retryable and must not fail /readyz.
+	OIDCStatus OIDCStatusFunc
 }
+
+// OIDCStatusFunc reports the SSO provider's current health: whether discovery
+// has succeeded, when it last did, and the last error's message (already safe
+// to show).
+type OIDCStatusFunc func() (available bool, lastRefresh time.Time, lastError string)
 
 type Handler struct{ cfg Config }
 
