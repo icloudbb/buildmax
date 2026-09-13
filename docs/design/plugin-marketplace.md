@@ -724,9 +724,8 @@ GET  /api/admin/plugins                                      shipped
 POST /api/admin/plugins                                      shipped
 GET  /api/admin/plugins/{plugin_name}/releases               shipped
 POST /api/admin/plugins/{plugin_name}/releases               shipped
-POST /api/admin/plugins/{plugin_name}/releases/{version}/yank shipped
-POST /api/admin/plugins/{plugin_name}/archive                shipped
-POST /api/admin/plugins/{plugin_name}/unarchive              shipped
+PUT  /api/admin/plugins/{plugin_name}/releases/{version}/state shipped
+PUT  /api/admin/plugins/{plugin_name}/state                  shipped
 ```
 
 Both halves ship. `internal/server/handlers/routes.go` and

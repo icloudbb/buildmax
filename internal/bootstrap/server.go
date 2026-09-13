@@ -594,6 +594,8 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		// internal/config, next to the struct it describes.
 		Deployment:     deploymentInfoFor(sc),
 		RedactedConfig: sc.Redacted(),
+		// The served OpenAPI info.version comes from the one build-version source.
+		Version: config.Version,
 	}
 	if err := wireLLM(&cfg, sc, st, quotaService); err != nil {
 		return httpserver.Config{}, err

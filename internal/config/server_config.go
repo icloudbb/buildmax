@@ -34,7 +34,7 @@ type ServerConfig struct {
 	// session. It absorbs concurrent refreshes from processes sharing one
 	// credentials file; it is not a security setting to raise casually.
 	RefreshRotationGrace time.Duration `mapstructure:"refresh_rotation_grace"`
-	// AllowSignup opens POST /api/otp/request to self-registration. It defaults
+	// AllowSignup opens POST /api/auth/otp to self-registration. It defaults
 	// to false, and the zero value is the safe one on purpose: a server that
 	// forgets to configure this is closed, not open.
 	AllowSignup bool `mapstructure:"allow_signup"`

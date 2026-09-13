@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "BuildMax API",
-    "version": "0.0.7"
+    "version": "dev"
   },
   "components": {
     "securitySchemes": {
@@ -1419,7 +1419,7 @@
         }
       }
     },
-    "/api/otp/request": {
+    "/api/auth/otp": {
       "post": {
         "summary": "Request OTP",
         "responses": {
@@ -1427,7 +1427,7 @@
         }
       }
     },
-    "/api/login": {
+    "/api/auth/login": {
       "post": {
         "summary": "Login",
         "description": "Accepts either a `password` (the everyday credential) or a single-use `otp` login code (the recovery path, issued by an operator). Returns an access token and, when the deployment stores them, a refresh token. `token` repeats `access_token` under the name it had before the two were split.",
@@ -1436,7 +1436,7 @@
         }
       }
     },
-    "/api/password": {
+    "/api/auth/password": {
       "post": {
         "summary": "Set or change the caller's password",
         "description": "Requires the current password when the account already has one: a session by itself must not be enough, since an access token cannot be revoked before it expires. Setting the first password after signing in with a login code needs no current password.",
@@ -1448,7 +1448,7 @@
         }
       }
     },
-    "/api/token/refresh": {
+    "/api/auth/token/refresh": {
       "post": {
         "summary": "Exchange a refresh token for a new token pair",
         "description": "Unauthenticated: possession of the refresh token is the proof. Each exchange spends the token presented and returns its replacement in the same session. Presenting a spent token past `refresh_rotation_grace` revokes the whole session.",
@@ -1460,7 +1460,7 @@
         }
       }
     },
-    "/api/logout": {
+    "/api/auth/logout": {
       "post": {
         "summary": "Revoke one session",
         "description": "Accepts either credential: a refresh_token in the body names its session, otherwise the session comes from the access token's sid claim. Revoking a session the server has already forgotten is a success.",
@@ -1545,23 +1545,6 @@
           "429": { "description": "Quota exceeded" },
           "502": { "description": "The model provider failed" },
           "503": { "description": "Managed inference is not configured" }
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}/llm/completions": {
-      "post": {
-        "summary": "Run one managed model call on behalf of a task run, so a worker needs no upstream provider credential. Authenticated with the run token the scheduler minted for that run: user, space, task, and run all come from the credential, never from the request",
-        "parameters": [
-          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "OK. Same body and streaming behaviour as the user route" },
-          "400": { "description": "Invalid request, unknown field, or a model the run's space may not use" },
-          "401": { "description": "Missing, invalid, or expired run token" },
-          "403": { "description": "The run token authorizes a different task run, or a different space than the run's" },
-          "404": { "description": "No such task run" },
-          "409": { "description": "The run is not executing, so no call is accepted for it" },
-          "429": { "description": "Space quota exceeded" }
         }
       }
     },
@@ -2289,39 +2272,15 @@
         }
       }
     },
-    "/api/admin/users/{user_id}/disable": {
-      "post": {
-        "summary": "Disable an account",
+    "/api/admin/users/{user_id}/state": {
+      "put": {
+        "summary": "Set an account's disabled state",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {"id": {"type": "string"}, "disabled": {"type": "boolean"}}
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Account not found",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          },
-          "409": {
-            "description": "An administrator cannot disable their own account",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      }
-    },
-    "/api/admin/users/{user_id}/enable": {
-      "post": {
-        "summary": "Enable an account",
-        "security": [{"bearerAuth": []}],
-        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["disabled"], "properties": {"disabled": {"type": "boolean"}}}}}
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -2733,28 +2692,15 @@
         }
       }
     },
-    "/api/admin/llm/models/{model_id}/enable": {
-      "post": {
-        "summary": "Enable a catalog model",
+    "/api/admin/llm/models/{model_id}/state": {
+      "put": {
+        "summary": "Set a catalog model's enabled state",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "model_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminModel"}}}
-          },
-          "404": {
-            "description": "Model not found",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      }
-    },
-    "/api/admin/llm/models/{model_id}/disable": {
-      "post": {
-        "summary": "Disable a catalog model",
-        "security": [{"bearerAuth": []}],
-        "parameters": [{"name": "model_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["enabled"], "properties": {"enabled": {"type": "boolean"}}}}}
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -2819,25 +2765,15 @@
         }
       }
     },
-    "/api/admin/plugins/{plugin_name}/archive": {
-      "post": {
-        "summary": "Archive a catalog entry",
+    "/api/admin/plugins/{plugin_name}/state": {
+      "put": {
+        "summary": "Set a catalog entry's archived state",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {
-          "204": {"description": "Applied"},
-          "404": {
-            "description": "Plugin not found",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      }
-    },
-    "/api/admin/plugins/{plugin_name}/unarchive": {
-      "post": {
-        "summary": "Unarchive a catalog entry",
-        "security": [{"bearerAuth": []}],
-        "parameters": [{"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["archived"], "properties": {"archived": {"type": "boolean"}}}}}
+        },
         "responses": {
           "204": {"description": "Applied"},
           "404": {
@@ -2904,22 +2840,27 @@
         }
       }
     },
-    "/api/admin/plugins/{plugin_name}/releases/{version}/yank": {
-      "post": {
-        "summary": "Withdraw a release",
+    "/api/admin/plugins/{plugin_name}/releases/{version}/state": {
+      "put": {
+        "summary": "Set a release's state (withdraw it)",
+        "description": "Withdrawal is the only supported transition, so `yanked` must be true; a request with `yanked: false` is refused with `400`.",
         "security": [{"bearerAuth": []}],
         "parameters": [
           {"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}},
           {"name": "version", "in": "path", "required": true, "schema": {"type": "string"}}
         ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
-            "application/json": {"schema": {"type": "object", "properties": {"reason": {"type": "string"}}}}
+            "application/json": {"schema": {"type": "object", "required": ["yanked"], "properties": {"yanked": {"type": "boolean"}, "reason": {"type": "string"}}}}
           }
         },
         "responses": {
           "204": {"description": "Withdrawn"},
+          "400": {
+            "description": "yanked is not true (un-yanking is not supported), or body invalid",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
           "404": {
             "description": "Release not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
@@ -4390,349 +4331,6 @@
           "101": {"description": "Switching Protocols"},
           "401": {"description": "Missing or invalid token"},
           "503": {"description": "This server is shutting down, or spaces are not configured"}
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}": {
-      "get": {
-        "summary": "Claim the run's inputs",
-        "security": [{"runTokenAuth": []}],
-        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkerTaskRun"}}}
-          },
-          "404": {
-            "description": "Run not found",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          },
-          "503": {
-            "description": "Task runs are not configured",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      },
-      "patch": {
-        "summary": "Report the run's status",
-        "security": [{"runTokenAuth": []}],
-        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "status": {"type": "string"},
-                  "error_message": {"type": "string"},
-                  "workspace_checkpoint": {
-                    "type": "object",
-                    "description": "Result checkpoint captured from workspace/ after a successful run; committed as the terminal outcome is accepted.",
-                    "properties": {
-                      "payload_format": {"type": "string"},
-                      "payload_sha256": {"type": "string"},
-                      "size_bytes": {"type": "integer"},
-                      "uncompressed_bytes": {"type": "integer"},
-                      "entry_count": {"type": "integer"}
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {"schema": {"type": "object", "properties": {"status": {"type": "string"}}}}
-            }
-          },
-          "400": {
-            "description": "Missing or invalid run status",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          },
-          "503": {
-            "description": "Task runs are not configured",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}/stream": {
-      "post": {
-        "summary": "Append streamed run output",
-        "security": [{"runTokenAuth": []}],
-        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {"schema": {"type": "object", "properties": {"status": {"type": "string"}}}}
-            }
-          },
-          "400": {
-            "description": "Invalid JSON body",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          },
-          "404": {
-            "description": "Run not found",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}/secrets": {
-      "get": {
-        "summary": "Get the run's resolved secret env grants",
-        "description": "The variable names this run's agent declared, mapped to the values the server decrypted. Values ride this route alone so the response is Cache-Control: no-store and unlogged. An empty object means the agent consumes no secret; a non-2xx means a required grant could not be produced and the run must fail.",
-        "security": [
-          {
-            "runTokenAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "task_run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "env": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Run not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "A required secret is disabled or destroyed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}/issue": {
-      "get": {
-        "summary": "Read the issue this run is working",
-        "description": "The run token names the run, the run names the task, and the task names the issue. A worker never says which issue it wants.",
-        "security": [{"runTokenAuth": []}],
-        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RunIssue"}}}
-          },
-          "404": {
-            "description": "Run not found, or this run is not working an issue",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}/issue/comments": {
-      "post": {
-        "summary": "Report on the issue this run is working",
-        "description": "Appends one agent-authored comment. There is no route that changes an issue's status, owner, executor, or hierarchy from a run token.",
-        "security": [{"runTokenAuth": []}],
-        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "body": {"type": "string"},
-                  "artifact_ids": {"type": "array", "items": {"type": "string"}}
-                },
-                "required": ["body"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {"application/json": {"schema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}}}
-          },
-          "400": {
-            "description": "Invalid comment body",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          },
-          "404": {
-            "description": "Run not found, or this run is not working an issue",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}/artifacts": {
-      "post": {
-        "summary": "Keep a file the run produced",
-        "security": [{"runTokenAuth": []}],
-        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {"type": "object", "properties": {"file": {"type": "string", "format": "binary"}}}
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Artifact"}}}
-          },
-          "404": {
-            "description": "Run not found",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          },
-          "409": {
-            "description": "This run has no space to keep an artifact for",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}/workspace-base": {
-      "get": {
-        "summary": "The checkpoint this run restores its workspace from",
-        "security": [{"runTokenAuth": []}],
-        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {"application/json": {"schema": {
-              "type": "object",
-              "properties": {
-                "checkpoint_id": {"type": "string"},
-                "payload_format": {"type": "string"},
-                "payload_sha256": {"type": "string"},
-                "size_bytes": {"type": "integer"},
-                "uncompressed_bytes": {"type": "integer"},
-                "entry_count": {"type": "integer"}
-              },
-              "required": ["checkpoint_id", "payload_format", "payload_sha256"]
-            }}}
-          },
-          "204": {"description": "The run has no base; it seeds instead"}
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}/workspace-restore": {
-      "post": {
-        "summary": "Record how the run's base restoration ended",
-        "security": [{"runTokenAuth": []}],
-        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "requestBody": {
-          "required": true,
-          "content": {"application/json": {"schema": {
-            "type": "object",
-            "properties": {
-              "status": {"type": "string", "enum": ["restored", "failed"]},
-              "error": {"type": "string"}
-            },
-            "required": ["status"]
-          }}}
-        },
-        "responses": {
-          "204": {"description": "Recorded"},
-          "400": {"description": "Invalid status", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
-          "404": {"description": "Run not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}/workspace-checkpoints": {
-      "post": {
-        "summary": "Finalize a seed the run captured and uploaded",
-        "security": [{"runTokenAuth": []}],
-        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "requestBody": {
-          "required": true,
-          "content": {"application/json": {"schema": {
-            "type": "object",
-            "properties": {
-              "payload_format": {"type": "string"},
-              "payload_sha256": {"type": "string"},
-              "size_bytes": {"type": "integer"},
-              "uncompressed_bytes": {"type": "integer"},
-              "entry_count": {"type": "integer"}
-            },
-            "required": ["payload_format", "payload_sha256", "size_bytes"]
-          }}}
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {"application/json": {"schema": {
-              "type": "object",
-              "properties": {"checkpoint_id": {"type": "string"}},
-              "required": ["checkpoint_id"]
-            }}}
-          },
-          "400": {"description": "Invalid descriptor", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
-          "404": {"description": "Run not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
-          "409": {"description": "Payload not uploaded, or a conflicting checkpoint exists", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
-        }
-      }
-    },
-    "/api/worker/task-runs/{task_run_id}/plugins/{plugin_name}/{version}/download": {
-      "get": {
-        "summary": "Download a release this run is pinned to",
-        "security": [{"runTokenAuth": []}],
-        "parameters": [
-          {"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}},
-          {"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}},
-          {"name": "version", "in": "path", "required": true, "schema": {"type": "string"}}
-        ],
-        "responses": {
-          "200": {
-            "description": "The gzipped package",
-            "content": {"application/gzip": {"schema": {"type": "string", "format": "binary"}}}
-          },
-          "404": {
-            "description": "Run not found, or this run is not pinned to that release",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          },
-          "503": {
-            "description": "Plugin packages are not configured",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
         }
       }
     }

@@ -47,7 +47,7 @@ it for every call back, managed inference included. See
 ## Main Route Groups
 
 - Health and API description: `/healthz`, `/openapi.json`, `/swagger/`
-- Auth: `/api/otp/request`, `/api/login`, `/api/token/refresh`, `/api/logout`
+- Auth: `/api/auth/otp`, `/api/auth/login`, `/api/auth/token/refresh`, `/api/auth/logout`
 - Liveness and readiness: `/healthz`, `/readyz`
 - Spaces and members: `/api/spaces...`
 - Agents: `/api/spaces/{space_id}/agents...`
@@ -227,7 +227,7 @@ quota applies to it identically.
   refusal itself, so a route reads as a list of gates; the role/action decision
   it consults is `space.Allows` in `internal/core/space/policy.go`, the one
   implementation the space service shares with it.
-- `POST /api/login` accepts a password or an operator-issued, single-use login
+- `POST /api/auth/login` accepts a password or an operator-issued, single-use login
   code. The latter is the account-claim and recovery path because BuildMax has
   no mail channel — see
   [deploy/authentication.md](../../deploy/authentication.md).

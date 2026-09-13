@@ -168,15 +168,19 @@ func TestAdminPluginArchiveAndYank(t *testing.T) {
 		t.Fatalf("publish = %d: %s", rec.Code, rec.Body)
 	}
 
-	// A withdrawal with no body is still a withdrawal.
-	if rec := pluginRequest(t, mux, "POST", "/api/admin/plugins/code-review/releases/1.0.0/yank", nil); rec.Code != http.StatusNoContent {
+	// A withdrawal names no reason and is still a withdrawal.
+	if rec := pluginRequest(t, mux, "PUT", "/api/admin/plugins/code-review/releases/1.0.0/state", []byte(`{"yanked":true}`)); rec.Code != http.StatusNoContent {
 		t.Errorf("yank = %d: %s", rec.Code, rec.Body)
 	}
-	if rec := pluginRequest(t, mux, "POST", "/api/admin/plugins/code-review/releases/9.9.9/yank", nil); rec.Code != http.StatusNotFound {
+	// Un-yanking is not a capability the catalog has, so the state route refuses it.
+	if rec := pluginRequest(t, mux, "PUT", "/api/admin/plugins/code-review/releases/1.0.0/state", []byte(`{"yanked":false}`)); rec.Code != http.StatusBadRequest {
+		t.Errorf("un-yank = %d, want 400", rec.Code)
+	}
+	if rec := pluginRequest(t, mux, "PUT", "/api/admin/plugins/code-review/releases/9.9.9/state", []byte(`{"yanked":true}`)); rec.Code != http.StatusNotFound {
 		t.Errorf("yanking a missing release = %d, want 404", rec.Code)
 	}
 
-	if rec := pluginRequest(t, mux, "POST", "/api/admin/plugins/code-review/archive", nil); rec.Code != http.StatusNoContent {
+	if rec := pluginRequest(t, mux, "PUT", "/api/admin/plugins/code-review/state", []byte(`{"archived":true}`)); rec.Code != http.StatusNoContent {
 		t.Errorf("archive = %d: %s", rec.Code, rec.Body)
 	}
 	// Archiving refuses new releases; it deletes nothing.
@@ -184,13 +188,13 @@ func TestAdminPluginArchiveAndYank(t *testing.T) {
 	if rec := pluginRequest(t, mux, "POST", "/api/admin/plugins/code-review/releases", next); rec.Code != http.StatusConflict {
 		t.Errorf("publishing to an archived entry = %d, want 409", rec.Code)
 	}
-	if rec := pluginRequest(t, mux, "POST", "/api/admin/plugins/code-review/unarchive", nil); rec.Code != http.StatusNoContent {
+	if rec := pluginRequest(t, mux, "PUT", "/api/admin/plugins/code-review/state", []byte(`{"archived":false}`)); rec.Code != http.StatusNoContent {
 		t.Errorf("unarchive = %d: %s", rec.Code, rec.Body)
 	}
 	if rec := pluginRequest(t, mux, "POST", "/api/admin/plugins/code-review/releases", next); rec.Code != http.StatusCreated {
 		t.Errorf("publishing after restore = %d: %s", rec.Code, rec.Body)
 	}
-	if rec := pluginRequest(t, mux, "POST", "/api/admin/plugins/absent/archive", nil); rec.Code != http.StatusNotFound {
+	if rec := pluginRequest(t, mux, "PUT", "/api/admin/plugins/absent/state", []byte(`{"archived":true}`)); rec.Code != http.StatusNotFound {
 		t.Errorf("archiving a missing entry = %d, want 404", rec.Code)
 	}
 }

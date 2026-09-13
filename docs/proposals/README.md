@@ -49,7 +49,6 @@ last column says so, and the paper's own delivery phases hold the detail.
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Local Experience | Should sessions fork isolated workspaces and resume parents through a durable mailbox? | Nothing |
 | [Issue topic coordination and Agent Blackboard](issue-topic-coordination.md) | Product and Execution Model | Should child Issue participants share a parent-scoped information feed while addressed delivery and synchronization remain separate? | Existing Issue comments and scoped Agent read/report tools are the proposed validation substrate; no cross-child Topic feed exists |
 | [Agent 原生协作底座](agent-native-collaboration-substrate.md) | Product and Execution Model | 不同规模和不同专业背景的参与者，是否需要一套统一的意图、执行、提议、证据、决策、集成与知识生命周期？ | 尚未建设；当前 Issue、Task/TaskRun、Artifact、Space 与本地 workspace 是待验证的基础构件 |
-| [API surface conventions](api-surface-conventions.md) | Operations and Deployment | What naming and structural rules should govern HTTP routes, and does the surface need URL versioning or a split OpenAPI document? | Nothing; ~150 routes exist in one style-divergent surface with a single combined OpenAPI document |
 
 Retired proposals do not remain in this live index. Accepted rationale moves to
 [design records](../design/README.md), and rejected or superseded discussion

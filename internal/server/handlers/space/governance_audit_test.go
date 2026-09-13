@@ -14,7 +14,7 @@ import (
 )
 
 // governanceFixture wires the stores the second-slice governance actions touch:
-// space creation and webhook keys, plus the trail they write into.
+// space creation, plus the trail it writes into.
 func governanceFixture(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 	t.Helper()
 	store := &mock.MockAuditStore{}
@@ -24,7 +24,6 @@ func governanceFixture(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 		Spaces:           &mock.MockSpaceStore{},
 		Users:            &mock.MockUserStore{},
 		Agents:           &mock.MockAgentStore{},
-		WebhookKeys:      &mock.MockUserWebhookKeyStore{},
 		Audits:           store,
 		Audit:            audit.NewRecorder(store),
 	})
@@ -68,43 +67,5 @@ func TestSpaceCreationIsAudited(t *testing.T) {
 	}
 	if ev.Detail != "team" {
 		t.Errorf("space.created detail = %q, want the quota tier", ev.Detail)
-	}
-}
-
-// A webhook key admits work under its owner's identity. Its life is worth the
-// trail; the key material is not, and it is account-scoped so it carries no
-// space.
-func TestWebhookKeyLifecycleIsAudited(t *testing.T) {
-	mux, store := governanceFixture(t)
-	auth := "Bearer " + testsupport.SignJWT(matrixMember, matrixSecret)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/webhook-keys", strings.NewReader(`{"name":"ci"}`))
-	req.Header.Set("Authorization", auth)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("create status = %d, want 201: %s", rec.Code, rec.Body.String())
-	}
-	var made struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &made); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	ev := firstEvent(t, store, coreaudit.WebhookKeyCreated)
-	if ev.ActorID != matrixMember || ev.SpaceID != "" || ev.TargetID != made.ID {
-		t.Errorf("webhook_key.created event = %+v", ev)
-	}
-
-	del := httptest.NewRequest(http.MethodDelete, "/api/webhook-keys/"+made.ID, nil)
-	del.Header.Set("Authorization", auth)
-	delRec := httptest.NewRecorder()
-	mux.ServeHTTP(delRec, del)
-	if delRec.Code != http.StatusNoContent {
-		t.Fatalf("revoke status = %d, want 204: %s", delRec.Code, delRec.Body.String())
-	}
-	rev := firstEvent(t, store, coreaudit.WebhookKeyRevoked)
-	if rev.ActorID != matrixMember || rev.SpaceID != "" || rev.TargetID != made.ID {
-		t.Errorf("webhook_key.revoked event = %+v", rev)
 	}
 }

@@ -20,6 +20,7 @@ import (
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
+	accountroutes "github.com/icloudbb/buildmax/internal/server/handlers/account"
 	"github.com/icloudbb/buildmax/internal/server/handlers/admin"
 	artifactroutes "github.com/icloudbb/buildmax/internal/server/handlers/artifact"
 	authroutes "github.com/icloudbb/buildmax/internal/server/handlers/auth"
@@ -48,7 +49,7 @@ type Config struct {
 	// direct, which is what a deployment that has not enabled managed worker
 	// inference reports.
 	WorkerLLM *workerclient.TaskRunLLM
-	// AllowSignup opens POST /api/otp/request to self-registration. False — the
+	// AllowSignup opens POST /api/auth/otp to self-registration. False — the
 	// zero value — means accounts are created by an operator.
 	AllowSignup bool
 
@@ -224,6 +225,7 @@ type Handler struct {
 	// capability; it never rebuilds the application's dependency graph.
 	admin         *admin.Handler
 	auth          *authroutes.Handler
+	account       *accountroutes.Handler
 	space         *spaceroutes.Handler
 	work          *work.Handler
 	worker        *worker.Handler
@@ -258,6 +260,7 @@ func NewHandler(cfg Config) *Handler {
 	h.conversations = h.buildConversationService()
 	h.admin = h.buildAdminHandler()
 	h.auth = h.buildAuthHandler()
+	h.account = h.buildAccountHandler()
 	h.space = h.buildSpaceHandler()
 	h.work = h.buildWorkHandler()
 	h.worker = h.buildWorkerHandler()

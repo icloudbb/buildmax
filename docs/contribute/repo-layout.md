@@ -267,13 +267,14 @@ internal/
 │
 ├── server/             HTTP API for Portal and worker callbacks
 │   ├── handlers/       Route handlers
+│   │   ├── account/    What the acting account owns across spaces: webhook keys
 │   │   ├── admin/      Deployment-scoped routes; a Config that cannot reach a space
 │   │   ├── artifact/   Artifacts, addressed by opaque ID; space comes from the record
 │   │   ├── auth/       Establishing a session: login, refresh, logout, password
 │   │   ├── auditexport/  CSV export shared by the space and admin audit routes
 │   │   ├── llmhttp/    Managed gateway over HTTP, shared by the space and worker routes
 │   │   ├── runterminal/  Announces a finished run to whoever is watching
-│   │   ├── space/       What a space owns: members, agents, keys, usage, audit
+│   │   ├── space/       What a space owns: members, agents, usage, audit
 │   │   ├── work/       Issues, workflows, tasks, conversations, and their runs
 │   │   └── worker/     Worker API; authenticates with a run token, not a session
 │   ├── access/         Who is calling, which space, and whether they may

@@ -75,7 +75,7 @@ func decodeJSON(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
 // exercise the same credentials a client would hold.
 func login(t *testing.T, mux *http.ServeMux) (accessToken, refreshToken string) {
 	t.Helper()
-	rec := postJSON(t, mux, "/api/login", `{"email":"a@b.c","otp":"code-1","platform":"cli"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","otp":"code-1","platform":"cli"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("login status = %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -90,7 +90,7 @@ func login(t *testing.T, mux *http.ServeMux) (accessToken, refreshToken string) 
 
 func TestLoginIssuesBothCredentials(t *testing.T) {
 	mux, _ := newAuthTestMux(t, Config{})
-	rec := postJSON(t, mux, "/api/login", `{"email":"a@b.c","otp":"code-1","platform":"cli"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","otp":"code-1","platform":"cli"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -125,7 +125,7 @@ func TestLoginWithoutRefreshStoreStillIssuesAnAccessToken(t *testing.T) {
 		JWTSecret: refreshTestSecret,
 	}).Register(mux)
 
-	rec := postJSON(t, mux, "/api/login", `{"email":"a@b.c","otp":"code-1"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","otp":"code-1"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -142,7 +142,7 @@ func TestRefreshRotatesAndTheOldTokenStopsWorking(t *testing.T) {
 	mux, _ := newAuthTestMux(t, Config{})
 	_, refreshToken := login(t, mux)
 
-	rec := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("refresh status = %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -156,7 +156,7 @@ func TestRefreshRotatesAndTheOldTokenStopsWorking(t *testing.T) {
 	}
 
 	// The replacement works.
-	if rec := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+next+`"}`, nil); rec.Code != http.StatusOK {
+	if rec := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+next+`"}`, nil); rec.Code != http.StatusOK {
 		t.Errorf("rotated token status = %d, want 200", rec.Code)
 	}
 }
@@ -168,7 +168,7 @@ func TestRefreshedAccessTokenAuthenticates(t *testing.T) {
 	mux, _ := newAuthTestMux(t, Config{})
 	_, refreshToken := login(t, mux)
 
-	rec := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("refresh status = %d", rec.Code)
 	}
@@ -199,7 +199,7 @@ func TestRefreshKeepsTheSession(t *testing.T) {
 		t.Fatal("login token does not verify")
 	}
 
-	rec := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("refresh status = %d", rec.Code)
 	}
@@ -224,7 +224,7 @@ func TestEachLoginOpensItsOwnSession(t *testing.T) {
 	})
 	firstAccess, firstRefresh := login(t, mux)
 
-	rec := postJSON(t, mux, "/api/login", `{"email":"a@b.c","otp":"code-2","platform":"portal"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","otp":"code-2","platform":"portal"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("second login status = %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -237,12 +237,12 @@ func TestEachLoginOpensItsOwnSession(t *testing.T) {
 	}
 
 	// Logging the second one out leaves the first able to refresh.
-	if rec := postJSON(t, mux, "/api/logout", "", map[string]string{
+	if rec := postJSON(t, mux, "/api/auth/logout", "", map[string]string{
 		"Authorization": "Bearer " + secondAccess,
 	}); rec.Code != http.StatusNoContent {
 		t.Fatalf("logout status = %d", rec.Code)
 	}
-	if rec := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+firstRefresh+`"}`, nil); rec.Code != http.StatusOK {
+	if rec := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+firstRefresh+`"}`, nil); rec.Code != http.StatusOK {
 		t.Errorf("logging out one session broke another: refresh status = %d", rec.Code)
 	}
 }
@@ -253,7 +253,7 @@ func TestReusedRefreshTokenRevokesTheWholeSession(t *testing.T) {
 	mux, store := newAuthTestMux(t, Config{RefreshRotationGrace: time.Minute})
 	_, stolen := login(t, mux)
 
-	rec := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+stolen+`"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+stolen+`"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("first refresh status = %d", rec.Code)
 	}
@@ -267,7 +267,7 @@ func TestReusedRefreshTokenRevokesTheWholeSession(t *testing.T) {
 	}
 
 	// The copy is presented after the grace window.
-	rec = postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+stolen+`"}`, nil)
+	rec = postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+stolen+`"}`, nil)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("replayed token status = %d, want 401", rec.Code)
 	}
@@ -277,7 +277,7 @@ func TestReusedRefreshTokenRevokesTheWholeSession(t *testing.T) {
 
 	// The holder that did nothing wrong is signed out too. That is the point:
 	// with two copies in circulation there is no way to tell which is which.
-	rec = postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+legitimate+`"}`, nil)
+	rec = postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+legitimate+`"}`, nil)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("the session survived a reuse report: status = %d", rec.Code)
 	}
@@ -296,8 +296,8 @@ func TestConcurrentRefreshWithinGraceBothSucceed(t *testing.T) {
 	mux, _ := newAuthTestMux(t, Config{RefreshRotationGrace: time.Hour})
 	_, refreshToken := login(t, mux)
 
-	first := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
-	second := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
+	first := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
+	second := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
 	if first.Code != http.StatusOK || second.Code != http.StatusOK {
 		t.Fatalf("statuses = %d and %d, want both 200", first.Code, second.Code)
 	}
@@ -308,7 +308,7 @@ func TestConcurrentRefreshWithinGraceBothSucceed(t *testing.T) {
 	}
 	// Both replacements are live.
 	for _, tok := range []string{firstNext, secondNext} {
-		if rec := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+tok+`"}`, nil); rec.Code != http.StatusOK {
+		if rec := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+tok+`"}`, nil); rec.Code != http.StatusOK {
 			t.Errorf("token from a concurrent refresh is not usable: status = %d", rec.Code)
 		}
 	}
@@ -327,7 +327,7 @@ func TestRefreshRejectsUnknownAndMissingTokens(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := postJSON(t, mux, "/api/token/refresh", tt.body, nil)
+			rec := postJSON(t, mux, "/api/auth/token/refresh", tt.body, nil)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d (body %s)", rec.Code, tt.wantStatus, rec.Body.String())
 			}
@@ -347,13 +347,13 @@ func TestRefreshRejectsADeletedUser(t *testing.T) {
 		Users:         &mock.MockUserStore{ByID: map[string]*coreidentity.User{}},
 		RefreshTokens: store,
 	})
-	rec := postJSON(t, deleted, "/api/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
+	rec := postJSON(t, deleted, "/api/auth/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401 for a token whose account is gone", rec.Code)
 	}
 
 	// The session is retired rather than left for the next attempt.
-	if rec := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil); rec.Code != http.StatusUnauthorized {
+	if rec := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil); rec.Code != http.StatusUnauthorized {
 		t.Errorf("the session survived a deleted account: status = %d", rec.Code)
 	}
 }
@@ -362,10 +362,10 @@ func TestLogoutByRefreshTokenEndsTheSession(t *testing.T) {
 	mux, _ := newAuthTestMux(t, Config{})
 	_, refreshToken := login(t, mux)
 
-	if rec := postJSON(t, mux, "/api/logout", `{"refresh_token":"`+refreshToken+`"}`, nil); rec.Code != http.StatusNoContent {
+	if rec := postJSON(t, mux, "/api/auth/logout", `{"refresh_token":"`+refreshToken+`"}`, nil); rec.Code != http.StatusNoContent {
 		t.Fatalf("logout status = %d, body %s", rec.Code, rec.Body.String())
 	}
-	if rec := postJSON(t, mux, "/api/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil); rec.Code != http.StatusUnauthorized {
+	if rec := postJSON(t, mux, "/api/auth/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil); rec.Code != http.StatusUnauthorized {
 		t.Errorf("a logged-out token still refreshes: status = %d", rec.Code)
 	}
 }
@@ -374,7 +374,7 @@ func TestLogoutByRefreshTokenEndsTheSession(t *testing.T) {
 // error the client can act on, but it must not leave the session live either.
 func TestLogoutWithoutAnyCredentialIsUnauthorized(t *testing.T) {
 	mux, _ := newAuthTestMux(t, Config{})
-	if rec := postJSON(t, mux, "/api/logout", "", nil); rec.Code != http.StatusUnauthorized {
+	if rec := postJSON(t, mux, "/api/auth/logout", "", nil); rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }
@@ -383,7 +383,7 @@ func TestLogoutWithoutAnyCredentialIsUnauthorized(t *testing.T) {
 // client's goal — that token no longer works — is already true.
 func TestLogoutWithAnUnknownTokenSucceeds(t *testing.T) {
 	mux, _ := newAuthTestMux(t, Config{})
-	if rec := postJSON(t, mux, "/api/logout", `{"refresh_token":"mock-refresh-nobody-9"}`, nil); rec.Code != http.StatusNoContent {
+	if rec := postJSON(t, mux, "/api/auth/logout", `{"refresh_token":"mock-refresh-nobody-9"}`, nil); rec.Code != http.StatusNoContent {
 		t.Errorf("status = %d, want 204", rec.Code)
 	}
 }

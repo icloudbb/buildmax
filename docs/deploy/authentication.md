@@ -123,9 +123,9 @@ Two credentials, not one:
 | **Refresh token** | 30 days (`refresh_token_ttl`) | Yes, as a hash in `user_refresh_token` | Yes, immediately |
 
 The access token goes with every request. The refresh token goes to
-`POST /api/token/refresh` and nowhere else, and comes back replaced: each
+`POST /api/auth/token/refresh` and nowhere else, and comes back replaced: each
 exchange spends the one presented and issues the next. Because it is a stored
-row, `POST /api/logout` can retire it — which is the difference that matters,
+row, `POST /api/auth/logout` can retire it — which is the difference that matters,
 since nothing can retire an access token early.
 
 Each login opens its own session. Signing in from a laptop does not disturb a
@@ -154,7 +154,7 @@ but refresh traffic.
 
 ## Self-Registration Is Closed, And Has No UI
 
-`POST /api/otp/request` refuses `intent: signup` with `403` unless `server.yaml`
+`POST /api/auth/otp` refuses `intent: signup` with `403` unless `server.yaml`
 sets `allow_signup: true`. Accounts come from `buildmax-server user create`, and
 the Portal offers no sign-up form.
 

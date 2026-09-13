@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	accountroutes "github.com/icloudbb/buildmax/internal/server/handlers/account"
 	"github.com/icloudbb/buildmax/internal/server/handlers/admin"
 	artifactroutes "github.com/icloudbb/buildmax/internal/server/handlers/artifact"
 	authroutes "github.com/icloudbb/buildmax/internal/server/handlers/auth"
@@ -163,6 +164,17 @@ func (h *Handler) buildAuthHandler() *authroutes.Handler {
 	})
 }
 
+// buildAccountHandler builds the account surface: the routes the acting subject
+// owns across spaces, holding only the stores those routes read.
+func (h *Handler) buildAccountHandler() *accountroutes.Handler {
+	return accountroutes.New(accountroutes.Config{
+		JWTSecret:   h.cfg.JWTSecret,
+		Users:       h.cfg.UserStore,
+		WebhookKeys: h.cfg.UserWebhookKeyStore,
+		Audit:       h.cfg.Audit,
+	})
+}
+
 // spaceHandler builds the space surface from the stores a space's own routes read.
 func (h *Handler) buildSpaceHandler() *spaceroutes.Handler {
 	return spaceroutes.New(spaceroutes.Config{
@@ -171,7 +183,6 @@ func (h *Handler) buildSpaceHandler() *spaceroutes.Handler {
 		Spaces:           h.cfg.SpaceStore,
 		Users:            h.cfg.UserStore,
 		Agents:           h.cfg.AgentStore,
-		WebhookKeys:      h.cfg.UserWebhookKeyStore,
 		Audits:           h.cfg.AuditStore,
 		Workflows:        h.cfg.WorkflowStore,
 		Schedules:        h.cfg.ScheduleStore,

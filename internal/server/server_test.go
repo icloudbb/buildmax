@@ -65,7 +65,8 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestOpenAPI(t *testing.T) {
-	s := New(Config{Addr: ":0"})
+	const wantVersion = "9.9.9-test"
+	s := New(Config{Addr: ":0", Version: wantVersion})
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
@@ -91,6 +92,15 @@ func TestOpenAPI(t *testing.T) {
 	}
 	if _, ok := paths["/healthz"]; !ok {
 		t.Error("openapi spec missing path /healthz")
+	}
+	// info.version is stamped from cfg.Version (the build's version source), not
+	// the document's placeholder, so there is one source for the version.
+	info, _ := spec["info"].(map[string]interface{})
+	if info == nil {
+		t.Fatal("openapi spec missing info")
+	}
+	if got := info["version"]; got != wantVersion {
+		t.Errorf("openapi info.version = %v; want %q", got, wantVersion)
 	}
 }
 

@@ -145,28 +145,37 @@ func (h *Handler) createAdminModelHandler(w http.ResponseWriter, r *http.Request
 //
 // What a change records is service/llmcatalog's; this decides only that the
 // caller is a person and says which one.
-func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		actorID, ok := h.guard().SystemAdmin(w, r)
-		if !ok {
-			return
-		}
-		if !httputil.RequireStore(w, h.cfg.Models, "the model catalog is not configured") {
-			return
-		}
-		modelID, ok := httputil.PathValue(w, r, "model_id")
-		if !ok {
-			return
-		}
-		svc := &llmcatalog.Service{Models: h.cfg.Models, Audit: h.cfg.Audit}
-		updated, err := svc.SetEnabled(r.Context(), modelID, enabled, coreaudit.UserActor(actorID))
-		if err != nil {
-			if httputil.WriteServiceError(w, err) {
-				return
-			}
-			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_enabled", "model_id", modelID)
-			return
-		}
-		httputil.WriteJSON(w, http.StatusOK, AdminModel{Model: *updated})
+// setModelStateRequest is the body of PUT /api/admin/llm/models/{model_id}/state.
+type setModelStateRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+// setAdminModelStateHandler sets the catalog model's stored `enabled` flag. See
+// docs/design/api-surface-conventions.md §3.5.
+func (h *Handler) setAdminModelStateHandler(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := h.guard().SystemAdmin(w, r)
+	if !ok {
+		return
 	}
+	if !httputil.RequireStore(w, h.cfg.Models, "the model catalog is not configured") {
+		return
+	}
+	modelID, ok := httputil.PathValue(w, r, "model_id")
+	if !ok {
+		return
+	}
+	var req setModelStateRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	svc := &llmcatalog.Service{Models: h.cfg.Models, Audit: h.cfg.Audit}
+	updated, err := svc.SetEnabled(r.Context(), modelID, req.Enabled, coreaudit.UserActor(actorID))
+	if err != nil {
+		if httputil.WriteServiceError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_enabled", "model_id", modelID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, AdminModel{Model: *updated})
 }

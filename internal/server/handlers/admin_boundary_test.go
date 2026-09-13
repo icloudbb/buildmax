@@ -117,7 +117,7 @@ func TestDisableStopsTheAccessTokenOnTheNextRequest(t *testing.T) {
 		t.Fatalf("setup: an enabled account was refused with %d", got)
 	}
 
-	rec := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/disable", adminUser, "")
+	rec := f.do(t, "PUT", "/api/admin/users/"+f.target.ID+"/state", adminUser, `{"disabled":true}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("disable got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -139,7 +139,7 @@ func TestDisableStopsTheAccessTokenOnTheNextRequest(t *testing.T) {
 
 	// And enabling brings it back. Nothing else is restored — that is what
 	// section 8 means by "enabling reverses the state and nothing else".
-	if got := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/enable", adminUser, "").Code; got != http.StatusOK {
+	if got := f.do(t, "PUT", "/api/admin/users/"+f.target.ID+"/state", adminUser, `{"disabled":false}`).Code; got != http.StatusOK {
 		t.Fatalf("enable got %d", got)
 	}
 	if got := f.do(t, "GET", "/api/webhook-keys", f.target.ID, "").Code; got == http.StatusForbidden {
@@ -157,7 +157,7 @@ func TestDisabledAccountCannotLogIn(t *testing.T) {
 	}
 	f.users.DisableForTest(f.target.ID, time.Unix(1, 0).UTC())
 
-	rec := f.do(t, "POST", "/api/login", "", `{"email":"`+f.target.Email+`","otp":"code-1"}`)
+	rec := f.do(t, "POST", "/api/auth/login", "", `{"email":"`+f.target.Email+`","otp":"code-1"}`)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("login got %d, want 403: %s", rec.Code, rec.Body.String())
 	}
@@ -168,7 +168,7 @@ func TestDisabledAccountCannotLogIn(t *testing.T) {
 	// A wrong credential on the same disabled account still gets the generic
 	// answer, so the endpoint does not become a way to ask which addresses are
 	// registered.
-	wrong := f.do(t, "POST", "/api/login", "", `{"email":"`+f.target.Email+`","otp":"not-a-code"}`)
+	wrong := f.do(t, "POST", "/api/auth/login", "", `{"email":"`+f.target.Email+`","otp":"not-a-code"}`)
 	if strings.Contains(wrong.Body.String(), "account_disabled") {
 		t.Errorf("a wrong code revealed the account state: %s", wrong.Body.String())
 	}

@@ -82,8 +82,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/users", h.createAdminUserHandler)
 	mux.HandleFunc("GET /api/admin/users/{user_id}", h.getAdminUserHandler)
 	mux.HandleFunc("POST /api/admin/users/{user_id}/login-code", h.issueAdminLoginCodeHandler)
-	mux.HandleFunc("POST /api/admin/users/{user_id}/disable", h.setAdminUserDisabledHandler(true))
-	mux.HandleFunc("POST /api/admin/users/{user_id}/enable", h.setAdminUserDisabledHandler(false))
+	// Stored-flag transitions are a state sub-resource, not RPC actions. See
+	// docs/design/api-surface-conventions.md §3.5.
+	mux.HandleFunc("PUT /api/admin/users/{user_id}/state", h.setAdminUserStateHandler)
 	mux.HandleFunc("GET /api/admin/users/{user_id}/sessions", h.listAdminUserSessionsHandler)
 	mux.HandleFunc("DELETE /api/admin/users/{user_id}/sessions", h.revokeAdminUserSessionsHandler)
 	mux.HandleFunc("DELETE /api/admin/users/{user_id}/sessions/{session_id}", h.revokeAdminUserSessionHandler)
@@ -95,15 +96,13 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/spaces/{space_id}", h.getAdminSpaceHandler)
 	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)
 	mux.HandleFunc("POST /api/admin/llm/models", h.createAdminModelHandler)
-	mux.HandleFunc("POST /api/admin/llm/models/{model_id}/enable", h.setAdminModelEnabledHandler(true))
-	mux.HandleFunc("POST /api/admin/llm/models/{model_id}/disable", h.setAdminModelEnabledHandler(false))
+	mux.HandleFunc("PUT /api/admin/llm/models/{model_id}/state", h.setAdminModelStateHandler)
 	mux.HandleFunc("GET /api/admin/plugins", h.listAdminPluginsHandler)
 	mux.HandleFunc("POST /api/admin/plugins", h.createAdminPluginHandler)
 	mux.HandleFunc("GET /api/admin/plugins/{plugin_name}/releases", h.listAdminPluginReleasesHandler)
 	mux.HandleFunc("POST /api/admin/plugins/{plugin_name}/releases", h.publishAdminPluginReleaseHandler)
-	mux.HandleFunc("POST /api/admin/plugins/{plugin_name}/releases/{version}/yank", h.yankAdminPluginReleaseHandler)
-	mux.HandleFunc("POST /api/admin/plugins/{plugin_name}/archive", h.setAdminPluginArchivedHandler(true))
-	mux.HandleFunc("POST /api/admin/plugins/{plugin_name}/unarchive", h.setAdminPluginArchivedHandler(false))
+	mux.HandleFunc("PUT /api/admin/plugins/{plugin_name}/releases/{version}/state", h.setAdminReleaseStateHandler)
+	mux.HandleFunc("PUT /api/admin/plugins/{plugin_name}/state", h.setAdminPluginStateHandler)
 }
 
 // systemRoleAdmin keeps admin_system.go from importing the model package for

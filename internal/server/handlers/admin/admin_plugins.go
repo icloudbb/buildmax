@@ -119,9 +119,11 @@ func (h *Handler) publishAdminPluginReleaseHandler(w http.ResponseWriter, r *htt
 	httputil.WriteJSON(w, http.StatusCreated, release)
 }
 
-// yankAdminPluginReleaseHandler serves
-// POST /api/admin/plugins/{plugin_name}/releases/{version}/yank.
-func (h *Handler) yankAdminPluginReleaseHandler(w http.ResponseWriter, r *http.Request) {
+// setAdminReleaseStateHandler serves
+// PUT /api/admin/plugins/{plugin_name}/releases/{version}/state. Withdrawal is
+// the only transition the store supports, so the body must set `yanked: true`.
+// See docs/design/api-surface-conventions.md §3.5.
+func (h *Handler) setAdminReleaseStateHandler(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {
 		return
@@ -137,10 +139,14 @@ func (h *Handler) yankAdminPluginReleaseHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	var req pluginwire.YankReleaseRequest
-	// A body is optional here: a withdrawal with no reason is still a
-	// withdrawal, and refusing one would leave a broken release published.
-	if r.ContentLength > 0 && !httputil.DecodeJSONBody(w, r, &req) {
+	var req pluginwire.ReleaseStateRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	if !req.Yanked {
+		// Restoring a withdrawn release is not a capability the catalog has, so
+		// there is no meaningful non-withdrawn state to set here.
+		httputil.WriteJSONError(w, http.StatusBadRequest, "un-yanking a release is not supported")
 		return
 	}
 	if err := h.cfg.Plugins.Yank(r.Context(), name, version, actorID, req.Reason); err != nil {
@@ -150,26 +156,29 @@ func (h *Handler) yankAdminPluginReleaseHandler(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// setAdminPluginArchivedHandler serves the archive and unarchive routes.
-func (h *Handler) setAdminPluginArchivedHandler(archived bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		actorID, ok := h.guard().SystemAdmin(w, r)
-		if !ok {
-			return
-		}
-		if !h.requirePlugins(w) {
-			return
-		}
-		name, ok := httputil.PathValue(w, r, "plugin_name")
-		if !ok {
-			return
-		}
-		if err := h.cfg.Plugins.SetArchived(r.Context(), name, archived, actorID); err != nil {
-			writePluginError(w, err, "admin_set_plugin_archived", name)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
+// setAdminPluginStateHandler serves PUT /api/admin/plugins/{plugin_name}/state,
+// setting the entry's stored `archived` flag.
+func (h *Handler) setAdminPluginStateHandler(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := h.guard().SystemAdmin(w, r)
+	if !ok {
+		return
 	}
+	if !h.requirePlugins(w) {
+		return
+	}
+	name, ok := httputil.PathValue(w, r, "plugin_name")
+	if !ok {
+		return
+	}
+	var req pluginwire.PluginStateRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	if err := h.cfg.Plugins.SetArchived(r.Context(), name, req.Archived, actorID); err != nil {
+		writePluginError(w, err, "admin_set_plugin_archived", name)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // requirePlugins refuses when the deployment has no Marketplace.

@@ -112,21 +112,22 @@ func (c *Client) PublishRelease(
 
 // YankRelease withdraws one release from default selection.
 func (c *Client) YankRelease(ctx context.Context, token, name, version, reason string) error {
-	payload, err := json.Marshal(pluginwire.YankReleaseRequest{Reason: reason})
+	payload, err := json.Marshal(pluginwire.ReleaseStateRequest{Yanked: true, Reason: reason})
 	if err != nil {
 		return err
 	}
-	path := fmt.Sprintf(pluginwire.AdminYankPath, url.PathEscape(name), url.PathEscape(version))
-	return c.postNoContent(ctx, token, path, payload)
+	path := fmt.Sprintf(pluginwire.AdminReleaseStatePath, url.PathEscape(name), url.PathEscape(version))
+	return c.sendNoContent(ctx, http.MethodPut, token, path, payload)
 }
 
 // SetPluginArchived retires or restores a catalog entry.
 func (c *Client) SetPluginArchived(ctx context.Context, token, name string, archived bool) error {
-	template := pluginwire.AdminUnarchivePath
-	if archived {
-		template = pluginwire.AdminArchivePath
+	payload, err := json.Marshal(pluginwire.PluginStateRequest{Archived: archived})
+	if err != nil {
+		return err
 	}
-	return c.postNoContent(ctx, token, fmt.Sprintf(template, url.PathEscape(name)), nil)
+	path := fmt.Sprintf(pluginwire.AdminPluginStatePath, url.PathEscape(name))
+	return c.sendNoContent(ctx, http.MethodPut, token, path, payload)
 }
 
 func (c *Client) getJSON(ctx context.Context, token, path string, dst any) error {
@@ -144,13 +145,13 @@ func (c *Client) getJSON(ctx context.Context, token, path string, dst any) error
 	return nil
 }
 
-func (c *Client) postNoContent(ctx context.Context, token, path string, payload []byte) error {
+func (c *Client) sendNoContent(ctx context.Context, method, token, path string, payload []byte) error {
 	var body io.Reader
 	contentType := ""
 	if payload != nil {
 		body, contentType = bytes.NewReader(payload), "application/json"
 	}
-	resp, err := c.do(ctx, http.MethodPost, token, path, contentType, body)
+	resp, err := c.do(ctx, method, token, path, contentType, body)
 	if err != nil {
 		return err
 	}

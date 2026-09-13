@@ -28,7 +28,7 @@ type LoginUser struct {
 	Name  string `json:"name"`
 }
 
-// LoginResponse is the successful result of POST /api/login.
+// LoginResponse is the successful result of POST /api/auth/login.
 type LoginResponse struct {
 	// Token is AccessToken under the name it had before a login returned two
 	// credentials. A server older than that split sends only this one.
@@ -49,7 +49,7 @@ func (r *LoginResponse) Access() string {
 	return r.Token
 }
 
-// RefreshResponse is the successful result of POST /api/token/refresh.
+// RefreshResponse is the successful result of POST /api/auth/token/refresh.
 type RefreshResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -75,13 +75,13 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// RequestOTP calls POST /api/otp/request. intent is "login" or "signup".
+// RequestOTP calls POST /api/auth/otp. intent is "login" or "signup".
 func (c *Client) RequestOTP(ctx context.Context, email, intent string) error {
 	body, _ := json.Marshal(map[string]string{
 		"email":  email,
 		"intent": intent,
 	})
-	url := c.BaseURL + "/api/otp/request"
+	url := c.BaseURL + "/api/auth/otp"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -100,7 +100,7 @@ func (c *Client) RequestOTP(ctx context.Context, email, intent string) error {
 	return httpclient.DecodeError(resp, "")
 }
 
-// Login calls POST /api/login with a single-use login code — the recovery
+// Login calls POST /api/auth/login with a single-use login code — the recovery
 // path, used to claim a new account or replace a forgotten password.
 // platform identifies the calling client ("cli", "desktop", "portal").
 func (c *Client) Login(ctx context.Context, email, otp, platform string) (*LoginResponse, error) {
@@ -111,7 +111,7 @@ func (c *Client) Login(ctx context.Context, email, otp, platform string) (*Login
 	})
 }
 
-// LoginWithPassword calls POST /api/login with a password, the everyday way in.
+// LoginWithPassword calls POST /api/auth/login with a password, the everyday way in.
 func (c *Client) LoginWithPassword(ctx context.Context, email, password, platform string) (*LoginResponse, error) {
 	return c.login(ctx, map[string]string{
 		"email":    email,
@@ -122,7 +122,7 @@ func (c *Client) LoginWithPassword(ctx context.Context, email, password, platfor
 
 func (c *Client) login(ctx context.Context, payload map[string]string) (*LoginResponse, error) {
 	body, _ := json.Marshal(payload)
-	url := c.BaseURL + "/api/login"
+	url := c.BaseURL + "/api/auth/login"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -145,7 +145,7 @@ func (c *Client) login(ctx context.Context, payload map[string]string) (*LoginRe
 	return &lr, nil
 }
 
-// Refresh calls POST /api/token/refresh, exchanging a refresh token for a new
+// Refresh calls POST /api/auth/token/refresh, exchanging a refresh token for a new
 // pair.
 //
 // A rejected token returns ErrRefreshRejected, which the caller must be able to
@@ -153,7 +153,7 @@ func (c *Client) login(ctx context.Context, payload map[string]string) (*LoginRe
 // other means try later.
 func (c *Client) Refresh(ctx context.Context, refreshToken string) (*RefreshResponse, error) {
 	body, _ := json.Marshal(map[string]string{"refresh_token": refreshToken})
-	url := c.BaseURL + "/api/token/refresh"
+	url := c.BaseURL + "/api/auth/token/refresh"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -182,10 +182,10 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (*RefreshResp
 	return &rr, nil
 }
 
-// Logout calls POST /api/logout to revoke the session behind refreshToken.
+// Logout calls POST /api/auth/logout to revoke the session behind refreshToken.
 func (c *Client) Logout(ctx context.Context, refreshToken, accessToken string) error {
 	body, _ := json.Marshal(map[string]string{"refresh_token": refreshToken})
-	url := c.BaseURL + "/api/logout"
+	url := c.BaseURL + "/api/auth/logout"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return err

@@ -15,7 +15,7 @@ import (
 	identitysvc "github.com/icloudbb/buildmax/internal/service/identity"
 )
 
-// LoginRequest is the JSON body for POST /api/login. Exactly one of Password
+// LoginRequest is the JSON body for POST /api/auth/login. Exactly one of Password
 // and Otp is used; Password is tried first when both arrive.
 type LoginRequest struct {
 	Email    string `json:"email"`
@@ -24,7 +24,7 @@ type LoginRequest struct {
 	Platform string `json:"platform"`
 }
 
-// POST /api/login accepts two credentials, for two different jobs.
+// POST /api/auth/login accepts two credentials, for two different jobs.
 //
 //  1. A password, which the person chose and can use every day. This is the
 //     ordinary way in.
@@ -55,7 +55,7 @@ type LoginResponse struct {
 	User      LoginUser `json:"user"`
 }
 
-// RefreshRequest is the JSON body for POST /api/token/refresh.
+// RefreshRequest is the JSON body for POST /api/auth/token/refresh.
 type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
@@ -67,7 +67,7 @@ type RefreshResponse struct {
 	ExpiresIn    int64  `json:"expires_in"`
 }
 
-// LogoutRequest is the JSON body for POST /api/logout. The refresh token is
+// LogoutRequest is the JSON body for POST /api/auth/logout. The refresh token is
 // optional: a caller that no longer has one falls back to the session named by
 // its access token.
 type LogoutRequest struct {
@@ -81,7 +81,7 @@ type LoginUser struct {
 	Name  string `json:"name"`
 }
 
-// OtpRequestRequest is the JSON body for POST /api/otp/request.
+// OtpRequestRequest is the JSON body for POST /api/auth/otp.
 type OtpRequestRequest struct {
 	Email  string `json:"email"`
 	Intent string `json:"intent"` // "signup" or "login"; default "signup"
@@ -260,7 +260,7 @@ func (h *Handler) writeRefreshError(w http.ResponseWriter, r *http.Request, err 
 	httputil.WriteInternalError(w, err, "auth handler error", "handler", "refresh")
 }
 
-// SetPasswordRequest is the JSON body for POST /api/password.
+// SetPasswordRequest is the JSON body for POST /api/auth/password.
 type SetPasswordRequest struct {
 	// CurrentPassword is required when the account already has one. It is not
 	// used when setting the first password, because there is nothing to prove
