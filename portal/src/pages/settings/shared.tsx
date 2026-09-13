@@ -492,7 +492,9 @@ export function SpaceMembersSection({
           </p>
         </div>
         <div className="space-settings-page__member-head-actions">
-          <span className="page-activity__meta">{members.length} members</span>
+          <span className="page-activity__meta">
+            {members.length} member{members.length === 1 ? "" : "s"}
+          </span>
           {canInvite ? (
             <button
               type="button"

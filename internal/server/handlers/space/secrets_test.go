@@ -11,10 +11,12 @@ import (
 	"testing"
 
 	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	infrasecret "github.com/icloudbb/buildmax/internal/infra/secret"
 	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/service/audit"
 	secretsvc "github.com/icloudbb/buildmax/internal/service/secret"
 	"github.com/icloudbb/buildmax/internal/testsupport"
 )
@@ -216,4 +218,76 @@ func TestSecretHandlers_FeatureOff(t *testing.T) {
 
 func (m *memSecretStore) RecordEnvGrant(_ context.Context, _ coresecret.GrantRecord) error {
 	return nil
+}
+
+// A Secret is a credential an agent granted it can read, so its create/disable/
+// destroy lifecycle belongs in the space audit trail — with the secret id as the
+// target and no item name, value, or ciphertext anywhere in the event.
+func TestSecretLifecycleIsAudited(t *testing.T) {
+	spaceID := "tm_1"
+	spaceStore := &mock.MockSpaceStore{
+		Spaces:  []corespace.Space{{ID: spaceID, Name: "Space", CreatedBy: "u1"}},
+		Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}},
+	}
+	key := make([]byte, 32)
+	_, _ = io.ReadFull(rand.Reader, key)
+	kek, err := infrasecret.NewKEKFileProviderFromKeys(map[string][]byte{"file:root:1": key}, "file:root:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := &secretsvc.Service{Store: newMemSecretStore(), Sealer: infrasecret.NewCipher(kek)}
+	store := &mock.MockAuditStore{}
+	h := New(Config{
+		JWTSecret:     secretTestSecret,
+		Spaces:        spaceStore,
+		SecretService: svc,
+		Audits:        store,
+		Audit:         audit.NewRecorder(store),
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	token := "Bearer " + testsupport.SignJWT("u1", secretTestSecret)
+	base := "/api/spaces/" + spaceID + "/secrets"
+
+	rec := doJSON(t, mux, http.MethodPost, base, token,
+		`{"name":"aws","items":{"access_key_id":"AKIA","secret_access_key":"wJa"}}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d: %s", rec.Code, rec.Body.String())
+	}
+	var created secretResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	ev := firstEvent(t, store, coreaudit.SecretCreated)
+	if ev.ActorID != "u1" || ev.SpaceID != spaceID || ev.TargetType != "secret" || ev.TargetID != created.ID {
+		t.Errorf("secret.created event = %+v", ev)
+	}
+	if ev.Detail != "" {
+		t.Errorf("secret.created detail = %q, want empty", ev.Detail)
+	}
+
+	rec = doJSON(t, mux, http.MethodPut, base+"/"+created.ID+"/state", token, `{"state":"disabled"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("disable status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if ev := firstEvent(t, store, coreaudit.SecretDisabled); ev.TargetID != created.ID {
+		t.Errorf("secret.disabled event = %+v", ev)
+	}
+
+	rec = doJSON(t, mux, http.MethodPut, base+"/"+created.ID+"/state", token, `{"state":"destroyed"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("destroy status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if ev := firstEvent(t, store, coreaudit.SecretDestroyed); ev.TargetID != created.ID {
+		t.Errorf("secret.destroyed event = %+v", ev)
+	}
+
+	// No item name, value, or ciphertext may appear in any recorded event.
+	for _, e := range store.Events {
+		for _, leak := range []string{"access_key_id", "secret_access_key", "AKIA", "wJa"} {
+			if strings.Contains(e.Detail, leak) || strings.Contains(e.TargetID, leak) {
+				t.Errorf("event %s leaked %q: %+v", e.Action, leak, e)
+			}
+		}
+	}
 }

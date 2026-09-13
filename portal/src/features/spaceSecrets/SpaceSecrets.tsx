@@ -325,6 +325,7 @@ function ItemRowsEditor({
         <div key={i} className="sec-item">
           <input
             className="modal__input sec-item__key"
+            aria-label="Item name"
             placeholder="ITEM_NAME"
             value={row.key}
             onChange={(e) => {
@@ -335,6 +336,7 @@ function ItemRowsEditor({
           />
           <input
             className="modal__input sec-item__val"
+            aria-label="Item value"
             placeholder="value"
             type="password"
             value={row.value}

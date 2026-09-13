@@ -104,8 +104,20 @@ func e2eDesktopUIPreflight() error {
 	// `wails dev` compiles the frontend once before it starts watching, and
 	// that build fails on a missing gui/dist the same way `build desktop` does
 	// — but from inside the Wails CLI's own output, where it is hard to place.
+	// The suite provisions the gui build itself, the same as it does the
+	// desktop frontend test deps below; the early refusal stays only as a
+	// fallback when that build cannot produce gui/dist.
 	if isDir("gui") && !exists(filepath.Join("gui", "dist", "index.js")) {
-		return fmt.Errorf("gui not built (missing gui/dist/index.js); run `cd gui && npm ci && npm run build`")
+		fmt.Println("[e2e] building the gui package (required by `wails dev`)...")
+		if err := runIn("gui", "npm", "ci"); err != nil {
+			return fmt.Errorf("build the gui package (npm ci): %w", err)
+		}
+		if err := runIn("gui", "npm", "run", "build"); err != nil {
+			return fmt.Errorf("build the gui package (npm run build): %w", err)
+		}
+		if !exists(filepath.Join("gui", "dist", "index.js")) {
+			return fmt.Errorf("gui not built (missing gui/dist/index.js); run `cd gui && npm ci && npm run build`")
+		}
 	}
 	frontend := filepath.Join("desktop", "frontend")
 	if _, err := os.Stat(filepath.Join(frontend, "node_modules", "@playwright", "test")); err != nil {

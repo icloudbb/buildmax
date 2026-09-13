@@ -158,20 +158,23 @@ func runAgentSession(cmd *cobra.Command, issueSession *auth.IssueSession) error 
 		}
 	}
 
-	var effectiveSessionID string
+	var target sessionTarget
 	if sessionID != "" {
-		effectiveSessionID = sessionID
+		// --session-id names a specific session and creates it on miss, as its
+		// help promises, so a caller can start a run under a deterministic id.
+		// -r/--resume goes through resolveSessionTarget and stays open-only.
+		target = sessionTarget{SessionID: sessionID, Workspace: workspace, CreateIfMissing: true}
 	} else {
-		target, err := resolveSessionTarget(cmd.Context(), resumeID, cont, acrossProject,
+		target, err = resolveSessionTarget(cmd.Context(), resumeID, cont, acrossProject,
 			workspace, cmd.Flags().Changed("workspace"))
 		if err != nil {
 			return err
 		}
-		// A resumed session continues in the directory it ran in, so the
-		// workspace the rest of this function passes on is the target's, not
-		// the one the terminal happened to be in.
-		effectiveSessionID, workspace = target.SessionID, target.Workspace
 	}
+	// A resumed session continues in the directory it ran in, so the workspace
+	// the rest of this function passes on is the target's, not the one the
+	// terminal happened to be in.
+	effectiveSessionID, workspace := target.SessionID, target.Workspace
 
 	// Argument errors are reported before the environment is inspected: a bad flag combination
 	// is fixable without a model configured, and reporting the missing configuration first
@@ -190,7 +193,8 @@ func runAgentSession(cmd *cobra.Command, issueSession *auth.IssueSession) error 
 		slog.Info("running print mode")
 		return runPrintMode(printOptions{
 			Prompt:                 prompt,
-			ResumeID:               effectiveSessionID,
+			SessionID:              effectiveSessionID,
+			CreateIfMissing:        target.CreateIfMissing,
 			ModelName:              model,
 			Workspace:              workspace,
 			Format:                 format,
@@ -202,7 +206,7 @@ func runAgentSession(cmd *cobra.Command, issueSession *auth.IssueSession) error 
 		})
 	}
 	slog.Info("starting TUI")
-	return runTUIFunc(effectiveSessionID, model, additionalSystemPrompt, workspace, overrides)
+	return runTUIFunc(effectiveSessionID, model, additionalSystemPrompt, workspace, overrides, target.CreateIfMissing)
 }
 
 // runOverrides are the per-run flags that outrank settings.yaml for this

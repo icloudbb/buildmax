@@ -427,6 +427,47 @@ func TestResumingASessionSendsTheEarlierTurnBackToTheModel(t *testing.T) {
 	}
 }
 
+// TestASessionIDCreatesTheSessionThenReusesIt is what --session-id has to mean,
+// as its help promises: load if it exists, else create. Unlike -r, which errors
+// on an unknown id, the first run must create the named session; a second run
+// under the same id must continue it rather than start an empty one.
+func TestASessionIDCreatesTheSessionThenReusesIt(t *testing.T) {
+	server := startModel(t, "resume-a-session.json")
+	workspace := t.TempDir()
+	home := writeHome(t, server, nil)
+
+	const id = "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+
+	first := run(t, home, workspace, "--session-id", id, "-p", "remember the code word: albatross", "--output", "jsonl")
+	if first.exitCode != 0 {
+		t.Fatalf("first run exit code = %d, want 0 (a missing --session-id must be created)\nstderr:\n%s", first.exitCode, first.stderr)
+	}
+	if got := first.field("result", "session_id"); got != id {
+		t.Fatalf("created session id = %q, want the id it was given, %q", got, id)
+	}
+
+	second := run(t, home, workspace, "--session-id", id, "-p", "what was the code word?", "--output", "jsonl")
+	if second.exitCode != 0 {
+		t.Fatalf("reused run exit code = %d, want 0\nstderr:\n%s", second.exitCode, second.stderr)
+	}
+	if got := second.field("result", "session_id"); got != id {
+		t.Fatalf("reused session id = %q, want the id it continued, %q", got, id)
+	}
+
+	// The second run sending the first turn back is the proof it continued the
+	// created session rather than opening an empty one under the same id.
+	calls := server.Requests()
+	if len(calls) != 2 {
+		t.Fatalf("model calls = %d, want 2, one per run", len(calls))
+	}
+	if sent := string(calls[1].Body); !strings.Contains(sent, "albatross") {
+		t.Errorf("the reused run did not send the earlier turn to the model:\n%s", sent)
+	}
+	if remaining := server.Remaining(); remaining != 0 {
+		t.Fatalf("unconsumed scenario steps = %d, want 0", remaining)
+	}
+}
+
 // TestContinueResumesTheMostRecentSession covers the flag a person actually
 // types: -r needs an id from somewhere, -c has to find the session itself.
 // Choosing the wrong one is invisible until the model answers out of the wrong

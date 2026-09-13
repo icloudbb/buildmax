@@ -58,7 +58,7 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 // the flags resolved to without launching an interactive program.
 var runTUIFunc = runTUI
 
-func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string, overrides runOverrides) error {
+func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, overrides runOverrides, createIfMissing bool) error {
 	source, err := resolveModelSource(context.Background())
 	if err != nil {
 		return err
@@ -71,7 +71,11 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string, overr
 	for _, notice := range app.StartupNotices(relinkCommandHint) {
 		fmt.Fprintln(os.Stderr, notice)
 	}
-	sess, err := app.OpenSession(resumeID)
+	openSession := app.OpenSession
+	if createIfMissing {
+		openSession = app.OpenOrCreateSession
+	}
+	sess, err := openSession(sessionID)
 	if err != nil {
 		return err
 	}

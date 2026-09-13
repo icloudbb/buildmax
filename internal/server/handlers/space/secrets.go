@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
@@ -168,6 +169,7 @@ func (h *Handler) createSecretHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_secret", "space_id", spaceID)
 		return
 	}
+	h.cfg.Audit.UserAction(r.Context(), userID, spaceID, coreaudit.SecretCreated, "secret", created.ID, "")
 	httputil.WriteJSON(w, http.StatusCreated, secretToResponse(*created))
 }
 
@@ -221,7 +223,7 @@ func (h *Handler) editSecretHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) setSecretStateHandler(w http.ResponseWriter, r *http.Request) {
-	_, spaceID, ok := h.authorizeSecrets(w, r, corespace.ActionManageSecrets)
+	userID, spaceID, ok := h.authorizeSecrets(w, r, corespace.ActionManageSecrets)
 	if !ok {
 		return
 	}
@@ -244,6 +246,15 @@ func (h *Handler) setSecretStateHandler(w http.ResponseWriter, r *http.Request) 
 		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "set_secret_state", "secret_id", secretID)
 		return
+	}
+	// Only the security-relevant transitions are recorded: disabling refuses new
+	// run grants and destroying erases the material. Re-enabling (back to active)
+	// has no action in the design's §11 set, so it leaves no event.
+	switch updated.State {
+	case coresecret.StateDisabled:
+		h.cfg.Audit.UserAction(r.Context(), userID, spaceID, coreaudit.SecretDisabled, "secret", secretID, "")
+	case coresecret.StateDestroyed:
+		h.cfg.Audit.UserAction(r.Context(), userID, spaceID, coreaudit.SecretDestroyed, "secret", secretID, "")
 	}
 	httputil.WriteJSON(w, http.StatusOK, secretToResponse(*updated))
 }

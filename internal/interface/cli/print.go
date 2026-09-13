@@ -20,14 +20,18 @@ import (
 
 // printOptions controls the behavior of runPrintMode. Built from CLI flags.
 type printOptions struct {
-	Prompt        string
-	ResumeID      string
-	ModelName     string
-	Workspace     string
-	Format        OutputFormat
-	NoStream      bool
-	Quiet         bool
-	IncludeDeltas bool
+	Prompt    string
+	SessionID string
+	// CreateIfMissing routes SessionID through OpenOrCreateSession instead of
+	// the open-only OpenSession. Set only for an explicit --session-id; -r and
+	// --continue leave it false so an unknown id still errors.
+	CreateIfMissing bool
+	ModelName       string
+	Workspace       string
+	Format          OutputFormat
+	NoStream        bool
+	Quiet           bool
+	IncludeDeltas   bool
 	// AdditionalSystemPrompt is this run's user-authored prompt text, appended as the system
 	// prompt's last layer. Empty leaves a resumed session running under whatever text it
 	// already had.
@@ -87,7 +91,11 @@ func runPrintMode(opts printOptions) error {
 	for _, notice := range app.StartupNotices(relinkCommandHint) {
 		fmt.Fprintln(os.Stderr, notice)
 	}
-	sess, err := app.OpenSession(opts.ResumeID)
+	openSession := app.OpenSession
+	if opts.CreateIfMissing {
+		openSession = app.OpenOrCreateSession
+	}
+	sess, err := openSession(opts.SessionID)
 	if err != nil {
 		return printFatal(opts.Format, ExitModelError, err)
 	}
