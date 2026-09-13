@@ -25,7 +25,7 @@ func (h *Handler) RegisterPublic(mux *http.ServeMux) {
 	h.auth.Register(mux)
 
 	// What the acting account owns across spaces -- webhook keys today -- is
-	// top-level, not space-scoped. See docs/design/api-surface-conventions.md §3.3.
+	// top-level, not space-scoped. See the route conventions in docs/contribute/architecture/server.md
 	h.account.Register(mux)
 
 	// What a space owns -- membership, agents, usage, audit trail -- lives in its

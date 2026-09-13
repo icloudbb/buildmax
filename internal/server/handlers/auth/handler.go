@@ -54,7 +54,7 @@ func (h *Handler) guard() *access.Guard {
 
 func (h *Handler) Register(mux *http.ServeMux) {
 	// Session and credential routes for the acting subject share the /api/auth/
-	// prefix. See docs/design/api-surface-conventions.md §3.7.
+	// prefix. See the route conventions in docs/contribute/architecture/server.md
 	// Unauthenticated.
 	mux.HandleFunc("POST /api/auth/otp", h.otpRequestHandler)
 	mux.HandleFunc("POST /api/auth/login", h.loginHandler)
