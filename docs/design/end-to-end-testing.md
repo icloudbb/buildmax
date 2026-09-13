@@ -38,8 +38,9 @@
   in the smoke. Step 5 landed the Desktop bridge, including rewind and fork,
   and CI now packages and launch-smokes the desktop app on macOS and Windows.
   The smoke proves that the packaged process starts and stays alive briefly; it
-  does not drive or visually inspect the native window. Open: the two deployment
-  paths §6.1 leaves for later
+  does not drive or visually inspect the native window. Cancellation (§6.2) and
+  failure recovery (§6.3) have both landed since. Open: the partial-output
+  survival half of cancellation that §6.2 leaves for later
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -319,6 +320,8 @@ deployment-level fact no handler test can reach:
 Retry and authorization denial were covered by the deployment smoke first.
 Cancellation is covered now, and §6.2 records how — the mechanism is not the one
 this section originally proposed, and the reason it is not is worth keeping.
+Failure recovery is covered too; §6.3 records how, and why the deployment can
+prove only the worker-reported half of it while the store test carries the rest.
 
 That proposal was to let the deployment mock serve more than one scenario,
 selected by the model alias a run uses. It cannot be built as written: nothing
@@ -378,6 +381,39 @@ does **not** yet prove that partial output produced before the cancellation
 survives, because a run stalled on its first model call has produced none. That
 half needs a scenario that does work before it stalls, which needs the stall
 aimed at one run — see above.
+
+### 6.3 Losing A Worker Mid-Run
+
+The failure-recovery case (`kindWorkerLossProbe` in `tools/mk`) holds a run at
+its model call, deletes the Kubernetes Job running it, and asserts the run
+reaches a terminal `FAILED` naming the worker loss and that its provenance still
+answers `FAILED` when asked afterward. That is the §6.1 fact no handler test can
+reach: a run whose worker is gone settles to a diagnosable terminal state rather
+than staying `RUNNING` forever, and its record survives the loss.
+
+Deleting the Job terminates the worker pod through the kubelet with `SIGTERM`,
+which the worker catches and reports as an interrupted run. That is the common
+worker-loss shape in this deployment — a rollout, an eviction, a drained node —
+so it is the one worth a deployment assertion. The other shape, a worker that
+vanishes without reporting (a node crash, a kernel OOM-kill), is settled instead
+by the server's liveness sweep, and that path cannot be reproduced from here:
+the kernel will not deliver an in-container `SIGKILL` to the worker's PID 1, and
+any orderly deletion the kubelet performs starts with the `SIGTERM` the worker
+reports on, so the run is always reclaimed by its own report before the sweep's
+grace elapses. The sweep is covered at the store level by
+`TestReaperClosesRunsWhoseWorkerWentSilent` in
+`internal/server/scheduler/stale_runs_test.go`; both paths land the run in the
+same terminal, diagnosable state this case asserts.
+
+Unlike cancellation, this case arms the stall *after* the task is created, not
+before. It must: creating a task titles it with a model call of its own, and a
+stall armed first would hang the create rather than the run. It can, because the
+worker is a Job the scheduler dispatches only after the create returns — the
+seconds of Job scheduling and pod startup before the run reaches its model call
+are a comfortable margin to arm the stall in, where the near-simultaneous
+create-and-run of §6.2 left none. The case still waits for `RUNNING` before it
+deletes the Job, so it acts only on a run it actually caught mid-flight; a run
+that finished first is never mistaken for a stranded one.
 
 ## 7. AI Agent Workflow
 
