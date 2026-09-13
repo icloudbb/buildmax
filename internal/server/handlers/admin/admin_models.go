@@ -151,7 +151,7 @@ type setModelStateRequest struct {
 }
 
 // setAdminModelStateHandler sets the catalog model's stored `enabled` flag. See
-// docs/design/api-surface-conventions.md §3.5.
+// the route conventions in docs/contribute/architecture/server.md
 func (h *Handler) setAdminModelStateHandler(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {

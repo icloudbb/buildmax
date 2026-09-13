@@ -27,7 +27,7 @@ const (
 	// AdminReleasesPath lists a plugin's releases and publishes a new one.
 	AdminReleasesPath = "/api/admin/plugins/%s/releases"
 	// AdminReleaseStatePath sets a release's stored state; withdrawal is the
-	// only transition today. See docs/design/api-surface-conventions.md §3.5.
+	// only transition today. See the route conventions in docs/contribute/architecture/server.md
 	AdminReleaseStatePath = "/api/admin/plugins/%s/releases/%s/state"
 	// AdminPluginStatePath sets an entry's stored `archived` flag, retiring or
 	// restoring it.

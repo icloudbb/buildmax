@@ -122,7 +122,7 @@ func (h *Handler) publishAdminPluginReleaseHandler(w http.ResponseWriter, r *htt
 // setAdminReleaseStateHandler serves
 // PUT /api/admin/plugins/{plugin_name}/releases/{version}/state. Withdrawal is
 // the only transition the store supports, so the body must set `yanked: true`.
-// See docs/design/api-surface-conventions.md §3.5.
+// See the route conventions in docs/contribute/architecture/server.md
 func (h *Handler) setAdminReleaseStateHandler(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {

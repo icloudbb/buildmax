@@ -192,7 +192,7 @@ type Config struct {
 	// Version is the application version stamped into the served OpenAPI
 	// info.version. Empty leaves the document's placeholder in place. Bootstrap
 	// sets it from the single build-version source. See
-	// docs/design/api-surface-conventions.md §4.
+	// the route conventions in docs/contribute/architecture/server.md
 	Version string
 	// RedactedConfig is the operator-facing view of server.yaml. Nil means the
 	// admin configuration route answers 503.
@@ -563,7 +563,7 @@ func serveStatic(w http.ResponseWriter, path, contentType string) {
 // from the build's application version, so the version has one source — the
 // build — rather than a hand-maintained literal that drifts. The document's own
 // info.version is a placeholder overridden here. An empty version leaves the
-// placeholder in place. See docs/design/api-surface-conventions.md §4.
+// placeholder in place. See the route conventions in docs/contribute/architecture/server.md
 //
 // It runs once in New and the bytes are served as-is, so parsing never happens
 // on the request path.

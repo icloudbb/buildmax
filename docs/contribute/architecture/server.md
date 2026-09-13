@@ -104,6 +104,50 @@ it for every call back, managed inference included. See
   docs/design/worker-api-network-boundary.md §8
 - Inbound webhook: `/api/webhook`
 
+## Route Conventions
+
+These rules decide where a new route lives and how it is named, so the surface
+stays coherent without a per-route argument. They govern HTTP routes only;
+`internal/tool/names.go` remains authoritative for LLM-facing tool names.
+
+- **Path syntax.** Segments are kebab-case and collections plural (`task-runs`,
+  `webhook-keys`, `audit-events`).
+- **Path parameters.** `{resource_id}` for a public identifier; a descriptive
+  name (`{plugin_name}`, `{version}`, `{revision}`) where the segment is a
+  natural key rather than a `NewPublicID`. See
+  [entity identity](../../design/entity-identity.md).
+- **Top-level vs space-scoped.** A resource managed within one Space is
+  space-scoped (`/api/spaces/{space_id}/...`). A top-level route (`/api/...`) is
+  reserved for the acting account and its cross-Space view — "everything I own or
+  can see" aggregates such as `/api/usage`, the invitations I received, and
+  `/api/webhook-keys` (account-owned; the handler lives in
+  `internal/server/handlers/account`).
+- **Collection vs single entity.** Collection operations (create, list) hang off
+  the parent path; an entity with a durable id is read or mutated by the flat
+  `.../{entity}-runs/{id}` form. This is why `task-runs` and `workflow-runs` are
+  created under a parent but read by their own id.
+- **State transitions.** A transition that only sets a stored lifecycle flag is a
+  state sub-resource, `PUT .../state` (Space secrets, admin `users`/`llm models`/
+  `plugins`/`releases` state). `POST .../{verb}` is reserved for an operation
+  `set attribute = X` cannot express — one that creates a new entity or acts on a
+  live execution (`.../cancel`, `.../retry`, `.../accept`, `.../restore`). The
+  boundary is idempotence and side effects, not the English verb.
+- **Authorization by record.** A route addressed by a globally-unique id takes
+  the Space from the record, not the path (Artifacts are the reference pattern).
+- **Auth grouping.** Session and credential routes for the acting subject share
+  the `/api/auth/` prefix.
+- **No URL versioning.** There is no out-of-band consumer to bridge — every
+  client ships from this repository and deploys with the server — so the surface
+  changes in lockstep with its clients rather than carrying a `/v1/` that never
+  gets a successor. Introduce versioning only for an evidence-backed pinned
+  consumer, as a versioned public subset rather than a global prefix.
+- **OpenAPI is split along the listener boundary.** The public document
+  (`internal/server/static/openapi.json`) and the worker document
+  (`openapi-worker.json`) each correspond to one `Register*` method, and the
+  "spec matches routes" architecture check runs per listener. `info.version` is
+  stamped from the build version at serve time, not a hand-maintained literal.
+  See [worker API network boundary](../../design/worker-api-network-boundary.md).
+
 ## Conversation Turns
 
 One turn per conversation runs at a time. The turn queue

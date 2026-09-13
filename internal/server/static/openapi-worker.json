@@ -3,7 +3,7 @@
   "info": {
     "title": "BuildMax Worker API",
     "version": "dev",
-    "description": "The worker control plane, served on the internal worker listener and authenticated with a run token. Split from the public API per docs/design/api-surface-conventions.md §5."
+    "description": "The worker control plane, served on the internal worker listener and authenticated with a run token. Split from the public API per the route conventions in docs/contribute/architecture/server.md"
   },
   "tags": [
     {

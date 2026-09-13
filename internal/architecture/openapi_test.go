@@ -47,7 +47,7 @@ type openAPIOperation struct {
 
 // specFiles are the two OpenAPI documents, split along the listener boundary:
 // the public API and the worker control plane. See
-// docs/design/api-surface-conventions.md §5 and worker-api-network-boundary.md.
+// the route conventions in docs/contribute/architecture/server.md and worker-api-network-boundary.md.
 var specFiles = map[string]string{
 	"public": "openapi.json",
 	"worker": "openapi-worker.json",

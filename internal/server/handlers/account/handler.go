@@ -3,8 +3,8 @@
 //
 // Webhook keys are the current member: user_webhook_key keys every row by
 // user_id, so the routes are top-level (/api/webhook-keys), not space-scoped.
-// The distinction is the ownership rule in
-// docs/design/api-surface-conventions.md §3.3; keeping these handlers out of the
+// The distinction is the ownership rule in the route conventions in
+// docs/contribute/architecture/server.md; keeping these handlers out of the
 // space package makes it something the compiler knows about rather than
 // something a reviewer has to remember.
 package account

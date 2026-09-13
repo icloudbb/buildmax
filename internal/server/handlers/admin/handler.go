@@ -83,7 +83,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/users/{user_id}", h.getAdminUserHandler)
 	mux.HandleFunc("POST /api/admin/users/{user_id}/login-code", h.issueAdminLoginCodeHandler)
 	// Stored-flag transitions are a state sub-resource, not RPC actions. See
-	// docs/design/api-surface-conventions.md §3.5.
+	// the route conventions in docs/contribute/architecture/server.md
 	mux.HandleFunc("PUT /api/admin/users/{user_id}/state", h.setAdminUserStateHandler)
 	mux.HandleFunc("GET /api/admin/users/{user_id}/sessions", h.listAdminUserSessionsHandler)
 	mux.HandleFunc("DELETE /api/admin/users/{user_id}/sessions", h.revokeAdminUserSessionsHandler)
