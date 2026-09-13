@@ -230,9 +230,13 @@ reservation. `internal/service/quota.Check` reads a rolling window through
 `SeedDefaultQuotaTiers`. Concurrent runs can therefore overshoot a limit, and
 that is a property of the current design rather than a defect a test should
 pin. What is worth covering there is the window-boundary arithmetic of the
-usage query — query correctness, not a concurrency guarantee — and it belongs
-under §3's matrix rather than here. Reinstate this bullet if reservation is
-ever built.
+usage query — query correctness, not a concurrency guarantee — now covered in
+the MySQL scope by
+[`quota_usage_test.go`](../../internal/infra/db/quota_usage_test.go): the
+inclusive `[since, until]` boundary, per-space scoping of the join, title
+tokens billed by the task's own `created_at`, NULL token columns folded to
+zero, and an unknown space returning zero rather than an error. Reinstate the
+reservation bullet only if reservation is ever built.
 
 ### 4.3 Acceptance
 
