@@ -2,7 +2,7 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/workflow-runtime.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-> **受众：** 贡献者、产品评审者与运维人员 · **状态：** 计划中——方向已经确定；当前实现仍然只是一个线性雏形。带保护的 compare-and-set Run/步骤转换、失败步骤原子收口、幂等 Task 准入、协调租约以及线性协调器均已交付——`Service.Reconcile` 从持久状态中折叠某个步骤终态的 TaskRun、派发下一个步骤并安排该 Run 的下次协调，且 `StartWorkflowRun` 与终态回调唤醒都经由它。由 Server 拥有的后台到期 Run 扫描与重启恢复仍待完成
+> **受众：** 贡献者、产品评审者与运维人员 · **状态：** 部分实现——已接受的自适应图方向仍在计划中，持久化线性雏形已经交付。带保护的 compare-and-set Run/步骤转换、失败步骤原子收口、幂等 Task 准入、协调租约、线性协调器，以及由 Server 持有的到期 Run 恢复循环均已实现。`Service.Reconcile` 从持久状态中折叠某个步骤终态的 TaskRun、派发下一个步骤并安排该 Run 的下次协调；启动时和周期性扫描能够从回调丢失或 Server 重启中恢复。类型化 `nodes`/`bindings`、受 schema 约束的输入输出、静态 DAG 与自适应控制仍待实现
 
 相关文档：[路线图](../ROADMAP.md)、[产品愿景](产品愿景.md)、[界面定位](界面定位.md)、[Agent 执行与 Task 线程](Agent执行与Task线程.md)、[Space 治理](Space治理.md)、[统一 Artifact](统一工件.md)、[数据模型](../contribute/architecture/data-model.md)，以及[验证计划](验证计划.md)。
 

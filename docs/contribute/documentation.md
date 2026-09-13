@@ -97,9 +97,11 @@ Each record also has one lifecycle:
   partly implemented subsystem is designed. These stay current.
 
 Keep roadmap priority and detailed implementation status in `ROADMAP.md` and
-the individual record. The index carries only the lifecycle and a concise scope
-description, so it remains useful as navigation instead of becoming a second
-roadmap.
+the individual record. The index carries the lifecycle, a concise progress
+label, and a scope description so a reader can distinguish shipped, partial,
+unstarted, and decision-only records without turning the index into a second
+roadmap. Do not put percentages or slice-by-slice detail in the index; link to
+the owning record instead.
 
 A design document is **rationale, not user documentation**. When a design ships
 a user-configurable feature, the user-facing half belongs in the `manual/` manual

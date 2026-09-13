@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** planned — the direction is accepted; the current implementation remains a linear precursor. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, and the linear reconciler have shipped — `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run, and both `StartWorkflowRun` and the terminal-callback wake-up route through it. The Server-owned background due-run sweep and restart recovery remain open
+> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. Typed `nodes`/`bindings`, schema-constrained input and output, static DAGs, and adaptive control remain open
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
