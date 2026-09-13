@@ -4,8 +4,6 @@ handed to GoReleaser as --release-notes. Edit the standing prose here; what
 the version changed comes from its CHANGELOG.md section as .Summary (the
 highlights and upgrade notes) and .Details (the categorized lists).
 */ -}}
-BuildMax is an out-of-the-box, privately deployable Agent platform: a CLI/TUI,
-a desktop app, and a space Portal on one shared Go Agent Runtime.
 {{if .Summary}}
 {{.Summary}}
 {{end}}
@@ -36,21 +34,9 @@ server and Portal additionally needs MySQL and object storage; see the README.
 The desktop app is not published here. It needs code signing and notarization
 to launch on macOS, so build it locally with `./make build`.
 
-## Before you deploy this
-
-This is an alpha, and two defaults deserve to be read as warnings rather than
-footnotes:
-
-- **Server authentication is bootstrap-level.** There is no mail channel, so an
-  operator creates accounts and issues single-use login codes with
-  `buildmax-server user create` and `user login-code`. Self-registration is
-  closed by default. There is no password, second factor, SSO, or recovery
-  flow; putting the Portal on a network you do not control requires wiring a
-  real identity provider first.
-- **The bash sandbox is off by default**, and worker hardening is incomplete.
-
-`SECURITY.md` lists both, along with how to report a vulnerability privately.
-Interfaces and deployment guidance may change before a stable release.
+This is an alpha: server authentication is bootstrap-level and the bash sandbox
+is off by default. Read [`SECURITY.md`](https://github.com/icloudbb/buildmax/blob/{{.Tag}}/SECURITY.md)
+before exposing the Portal.
 {{if .Details}}
 {{.Details}}
 {{end}}
