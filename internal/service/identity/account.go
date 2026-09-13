@@ -97,9 +97,18 @@ func (s *Service) LogoutByRefreshToken(ctx context.Context, token string) (*Logo
 	if s.RefreshTokens == nil {
 		return nil, ErrRefreshNotConfigured
 	}
-	userID, sessionID, err := s.RefreshTokens.RevokeRefreshTokenSession(ctx, token, s.now().UTC())
+	now := s.now().UTC()
+	userID, sessionID, err := s.RefreshTokens.RevokeRefreshTokenSession(ctx, token, now)
 	if err != nil {
 		return nil, fmt.Errorf("revoke by token: %w", err)
+	}
+	// Revoke the session record too, so an access token still within its window
+	// stops on its next request rather than after logout only killed the refresh
+	// chain.
+	if s.Sessions != nil && sessionID != "" {
+		if _, err := s.Sessions.RevokeSession(ctx, sessionID, now); err != nil {
+			return nil, fmt.Errorf("revoke session: %w", err)
+		}
 	}
 	s.recordLogout(ctx, userID, sessionID)
 	return &LogoutResult{UserID: userID, SessionID: sessionID}, nil
@@ -107,10 +116,10 @@ func (s *Service) LogoutByRefreshToken(ctx context.Context, token string) (*Logo
 
 // LogoutSession ends a session named by a live access token's claims.
 func (s *Service) LogoutSession(ctx context.Context, userID, sessionID string) (*LogoutResult, error) {
-	if s.RefreshTokens == nil {
+	if s.Sessions == nil {
 		return nil, ErrRefreshNotConfigured
 	}
-	if _, err := s.RefreshTokens.RevokeSession(ctx, sessionID, s.now().UTC()); err != nil {
+	if _, err := s.Sessions.RevokeSession(ctx, sessionID, s.now().UTC()); err != nil {
 		return nil, fmt.Errorf("revoke session: %w", err)
 	}
 	s.recordLogout(ctx, userID, sessionID)

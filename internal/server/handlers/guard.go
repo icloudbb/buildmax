@@ -30,6 +30,7 @@ func (h *Handler) guard() *access.Guard {
 		Users:     h.cfg.UserStore,
 		Spaces:    h.cfg.SpaceStore,
 		Grants:    h.cfg.SystemGrantStore,
+		Sessions:  h.cfg.AuthSessionStore,
 		Audit:     h.cfg.Audit,
 	}
 }
@@ -49,6 +50,7 @@ func (h *Handler) buildAdminHandler() *admin.Handler {
 		Users:            h.cfg.UserStore,
 		LoginCodes:       h.cfg.LoginCodeStore,
 		RefreshTokens:    h.cfg.RefreshTokenStore,
+		Sessions:         h.cfg.AuthSessionStore,
 		Spaces:           h.cfg.SpaceStore,
 		Grants:           h.cfg.SystemGrantStore,
 		Audits:           h.cfg.AuditStore,
@@ -156,10 +158,12 @@ func (h *Handler) buildAuthHandler() *authroutes.Handler {
 		AccessTokenTTL:       h.cfg.AccessTokenTTL,
 		RefreshTokenTTL:      h.cfg.RefreshTokenTTL,
 		RefreshRotationGrace: h.cfg.RefreshRotationGrace,
+		SessionAbsoluteTTL:   h.cfg.SessionAbsoluteTTL,
 		Users:                h.cfg.UserStore,
 		LoginCodes:           h.cfg.LoginCodeStore,
 		Passwords:            h.cfg.PasswordStore,
 		RefreshTokens:        h.cfg.RefreshTokenStore,
+		Sessions:             h.cfg.AuthSessionStore,
 		Audit:                h.cfg.Audit,
 	})
 }
@@ -170,6 +174,7 @@ func (h *Handler) buildAccountHandler() *accountroutes.Handler {
 	return accountroutes.New(accountroutes.Config{
 		JWTSecret:   h.cfg.JWTSecret,
 		Users:       h.cfg.UserStore,
+		Sessions:    h.cfg.AuthSessionStore,
 		WebhookKeys: h.cfg.UserWebhookKeyStore,
 		Audit:       h.cfg.Audit,
 	})
@@ -182,6 +187,7 @@ func (h *Handler) buildSpaceHandler() *spaceroutes.Handler {
 		DefaultQuotaTier: h.cfg.DefaultQuotaTier,
 		Spaces:           h.cfg.SpaceStore,
 		Users:            h.cfg.UserStore,
+		Sessions:         h.cfg.AuthSessionStore,
 		Agents:           h.cfg.AgentStore,
 		Audits:           h.cfg.AuditStore,
 		Workflows:        h.cfg.WorkflowStore,
@@ -231,6 +237,7 @@ func (h *Handler) buildArtifactHandler() *artifactroutes.Handler {
 		JWTSecret: h.cfg.JWTSecret,
 		Users:     h.cfg.UserStore,
 		Spaces:    h.cfg.SpaceStore,
+		Sessions:  h.cfg.AuthSessionStore,
 		Artifacts: h.artifacts,
 		Audit:     h.cfg.Audit,
 	})
@@ -264,6 +271,7 @@ func (h *Handler) buildWorkHandler() *work.Handler {
 	return work.New(work.Config{
 		JWTSecret:       h.cfg.JWTSecret,
 		Users:           h.cfg.UserStore,
+		Sessions:        h.cfg.AuthSessionStore,
 		Issues:          h.cfg.IssueStore,
 		IssueComments:   h.cfg.IssueCommentStore,
 		Workflows:       h.cfg.WorkflowStore,

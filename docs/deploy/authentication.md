@@ -119,17 +119,22 @@ Two credentials, not one:
 
 | | Lives | Stored on the server | Revocable |
 |---|---|---|---|
-| **Access token** | 7 days (`access_token_ttl`) | No — a signed JWT | No; it works until it expires |
-| **Refresh token** | 30 days (`refresh_token_ttl`) | Yes, as a hash in `user_refresh_token` | Yes, immediately |
+| **Access token** | 15 minutes (`access_token_ttl`) | The token is a signed JWT, but the session it names is a row (`auth_session`) | Yes — the server checks that session every request, so revocation takes effect within `access_token_ttl` |
+| **Refresh token** | 30 days (`refresh_token_ttl`) | Yes, as a hash in `user_refresh_token`, belonging to the session | Yes, immediately |
 
-The access token goes with every request. The refresh token goes to
-`POST /api/auth/token/refresh` and nowhere else, and comes back replaced: each
-exchange spends the one presented and issues the next. Because it is a stored
-row, `POST /api/auth/logout` can retire it — which is the difference that matters,
-since nothing can retire an access token early.
+The access token goes with every request and names a session (`sid`). The server
+resolves that `auth_session` row on every authenticated request through one
+funnel, so `POST /api/auth/logout`, an administrator's revoke, and account
+disablement stop an already-issued access token on its next call rather than at
+its expiry. The refresh token goes to `POST /api/auth/token/refresh` and nowhere
+else, and comes back replaced: each exchange spends the one presented and issues
+the next.
 
-Each login opens its own session. Signing in from a laptop does not disturb a
-session on a phone, and logging one out leaves the other alone.
+Each login opens its own session with an absolute lifetime
+(`session_absolute_ttl`, default 90 days): past that ceiling the session is
+inactive no matter how often its refresh token rotated, and the person signs in
+again. Signing in from a laptop does not disturb a session on a phone, and
+logging one out leaves the other alone.
 
 ### Reuse Ends The Session
 
@@ -144,13 +149,15 @@ in the same moment is ordinary rather than suspicious; inside that window both
 get a usable token. Raising it widens the window in which a stolen token goes
 unnoticed.
 
-### What This Does Not Do
+### The Bound On A Leaked Access Token
 
-Rotating a refresh token does not shorten the access token already issued from
-it. A leaked access token works for its full lifetime no matter what happens to
-the session behind it — there is no revocation list. Shortening
-`access_token_ttl` is the only control over that window, and it costs nothing
-but refresh traffic.
+Revoking or disabling stops an access token because the server checks its session
+on the next request, but a route that reached a user without passing that funnel
+would not make that check — the architecture tests exist to keep every
+authenticated route on it. The token itself is still a bearer credential with no
+per-token revocation list, so `access_token_ttl` (default 15 minutes) remains the
+ceiling on how long a leaked one works if the session check is ever bypassed.
+Keeping it short costs nothing but refresh traffic.
 
 ## Self-Registration Is Closed, And Has No UI
 
@@ -183,8 +190,9 @@ toward short predictable passwords that satisfy them.
 Changing a password requires the current one. Setting the *first* password does
 not, because someone who just redeemed a login code has none — that is the
 recovery flow finishing. A session by itself is deliberately not enough to
-change an existing password: an access token cannot be revoked before it
-expires, so allowing it would turn a stolen token into a permanent takeover.
+change an existing password: a stolen access token still works until its session
+is revoked or it expires, so allowing a password change on the session alone
+would let that window become a lasting takeover.
 
 Changing a password does **not** sign existing sessions out. Revoke those
 separately if that is the intent.
@@ -209,11 +217,12 @@ Login attempts are not throttled. See the note under [Passwords](#passwords).
 A System Administrator can list live login sessions in Portal's account detail
 or `GET /api/admin/users/{user_id}/sessions`, and revoke one through
 `DELETE /api/admin/users/{user_id}/sessions/{session_id}` or all through the
-collection DELETE route. The list shows session ID, platform, creation, last
-rotation, and expiry; last rotation is not a continuous device-presence signal.
-There is no self-service session-management page or dedicated admin CLI session
-verb. Revocation retires refresh tokens, not already-issued access tokens;
-disabling the account is what stops those on the next account check.
+collection DELETE route. The list shows session ID, platform, authentication
+method, creation, last-seen, and absolute expiry; last-seen is throttled, not a
+continuous device-presence signal. There is no self-service session-management
+page or dedicated admin CLI session verb. Revoking a session retires its refresh
+tokens and marks the `auth_session` row revoked, so an already-issued access
+token under it stops on its next request rather than at expiry.
 
 ## The Other Credentials
 
@@ -235,9 +244,10 @@ status, since the inference route refuses a run that is no longer executing.
 
 Portal's account detail and the Admin API support both single-session and
 all-session revocation. A single-session revoke is checked against the named
-account and leaves its other login chains intact. Already-issued access tokens
-remain usable until expiry unless the account is disabled. These operations do
-not require direct database access.
+account and leaves its other sessions intact. Because the server checks a token's
+session on every request, a revoked session's access token stops on its next
+call rather than at expiry. These operations do not require direct database
+access.
 
 ## Reporting Problems
 

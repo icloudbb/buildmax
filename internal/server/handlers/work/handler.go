@@ -44,6 +44,7 @@ type Config struct {
 	// Users is part of authentication, not work ownership: every user-facing
 	// route must reject a disabled account before it reads the space's work.
 	Users         coreidentity.UserStore
+	Sessions      coreidentity.AuthSessionStore
 	Issues        coreissue.Store
 	IssueComments coreissue.CommentStore
 	Workflows     coreworkflow.Store
@@ -128,6 +129,7 @@ func (h *Handler) guard() *access.Guard {
 		JWTSecret: h.cfg.JWTSecret,
 		Users:     h.cfg.Users,
 		Spaces:    h.cfg.Spaces,
+		Sessions:  h.cfg.Sessions,
 		Audit:     h.cfg.Audit,
 	}
 }

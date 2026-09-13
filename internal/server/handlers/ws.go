@@ -3,7 +3,6 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/icloudbb/buildmax/internal/server/access"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
 )
@@ -26,7 +25,10 @@ func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "token required", http.StatusUnauthorized)
 		return
 	}
-	userID, ok := access.UserIDFromToken(tokenStr, h.cfg.JWTSecret)
+	// The same active-account and active-session checks the HTTP guard makes, so a
+	// disabled account or a revoked session cannot open a socket on a token that
+	// has not yet expired.
+	userID, ok := h.guard().TokenSubjectActive(r.Context(), tokenStr)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

@@ -72,12 +72,12 @@ buildmax-server admin revoke alice@example.com
 
 | | 有效期 | 服务器端存储 | 可撤销 |
 |---|---|---|---|
-| **访问令牌** | 7 天（`access_token_ttl`） | 否，是签名 JWT | 否，过期前持续有效 |
-| **刷新令牌** | 30 天（`refresh_token_ttl`） | 是，以哈希存于 `user_refresh_token` | 是，立即生效 |
+| **访问令牌** | 15 分钟（`access_token_ttl`） | 该 token 是签名 JWT，但它所指名的 Session 是一行记录（`auth_session`） | 是——server 每个请求都会检查该 Session，因此撤销会在 `access_token_ttl` 之内生效 |
+| **刷新令牌** | 30 天（`refresh_token_ttl`） | 是，以哈希存于 `user_refresh_token`，属于该 Session | 是，立即生效 |
 
-每个请求携带访问令牌。刷新令牌只发送给 `POST /api/auth/token/refresh`，返回时会被替换：每次兑换消耗提交的令牌并签发下一个。由于刷新令牌对应存储行，`POST /api/auth/logout` 可以使它失效；这个区别很关键，因为访问令牌无法提前失效。
+每个请求都携带访问令牌，并指名一个 Session（`sid`）。server 在每个已认证请求上通过同一个通道解析对应的 `auth_session` 记录，因此 `POST /api/auth/logout`、管理员的撤销和账户禁用会让已签发的访问令牌在其下一次调用时停止，而不是等到过期。刷新令牌只发送给 `POST /api/auth/token/refresh`，别无他处，返回时会被替换：每次兑换消耗提交的那个并签发下一个。
 
-每次登录建立独立会话。在笔记本上登录不会影响手机会话，退出其中一个也不影响另一个。
+每次登录都会开启自己的 Session，并带有一个绝对寿命（`session_absolute_ttl`，默认 90 天）：越过该上限后，无论其刷新令牌轮换多频繁，该 Session 都会失效，用户需要重新登录。在笔记本上登录不会影响手机上的 Session，退出其中一个也不影响另一个。
 
 ### 重用会结束会话
 
@@ -85,9 +85,9 @@ buildmax-server admin revoke alice@example.com
 
 `refresh_rotation_grace`（默认 30 秒）是唯一例外。CLI 和 Desktop 的多个进程共享一个凭证文件，同时刷新是正常情况；在此窗口内，两者都会拿到可用令牌。增大该值也会扩大被盗令牌不被发现的时间窗口。
 
-### 这一机制的局限
+### 泄露的访问令牌的限度
 
-轮换刷新令牌不会缩短已经由它签发的访问令牌寿命。无论其背后的会话发生什么，泄露的访问令牌在完整有效期内仍然可用，因为没有撤销列表。缩短 `access_token_ttl` 是控制该窗口的唯一方式，代价只是增加刷新流量。
+撤销或禁用之所以能让访问令牌停止，是因为 server 会在下一个请求上检查它的 Session；但一个未经过该通道就到达用户的路由不会做这项检查——架构测试的存在正是为了让每个已认证路由都走这条通道。令牌本身仍是一个 bearer 凭据，没有按令牌的撤销列表，因此若 Session 检查被绕过，`access_token_ttl`（默认 15 分钟）仍是一个泄露令牌可用时长的上限。把它保持较短，代价只是增加刷新流量。
 
 ## 自助注册默认关闭，且没有界面
 
@@ -103,7 +103,7 @@ buildmax-server admin revoke alice@example.com
 
 唯一的规则是长度：**至少 12 个字符**，最多 1024 个。没有“一个数字加一个符号”之类的要求，因为组合规则容易促使用户选择符合规则却简短、可预测的密码。
 
-修改密码需要当前密码。设置*第一个*密码不需要，因为刚兑换登录码的人尚无密码，这是恢复流程的最后一步。仅有会话有意不足以修改已有密码：访问令牌无法在过期前撤销，如果允许这样操作，被盗令牌就能造成永久账户接管。
+修改密码需要当前密码。设置*第一个*密码不需要，因为刚兑换登录码的人尚无密码，这是恢复流程的最后一步。仅有会话有意不足以修改已有密码：被盗的访问令牌在其 Session 被撤销或它过期之前仍然有效，因此若允许仅凭会话就修改密码，就会让这段时间窗口变成一次持久的账户接管。
 
 修改密码**不会**登出已有会话。如需登出，请另行撤销会话。
 
@@ -118,11 +118,12 @@ buildmax-server admin revoke alice@example.com
 System Administrator 可在 Portal 的账户详情页或通过
 `GET /api/admin/users/{user_id}/sessions` 查看有效登录 Session，并通过
 `DELETE /api/admin/users/{user_id}/sessions/{session_id}` 撤销单个 Session，
-或通过集合的 DELETE 路由撤销全部 Session。列表包含 Session ID、平台、创建
-时间、最近轮换时间与到期时间；最近轮换时间并不表示设备持续在线。目前没有
-用户自助 Session 管理页，也没有专门的管理 CLI Session 命令。撤销只会使
-refresh token 失效；已签发的 access token 仍需等待到期，或通过禁用账户来
-阻止其继续使用。
+或通过集合的 DELETE 路由撤销全部 Session。列表包含 Session ID、平台、认证
+方式、创建时间、最近可见时间与绝对到期时间；最近可见时间经过节流，并非持续
+的设备在线信号。目前没有用户自助 Session 管理页，也没有专门的管理 CLI
+Session 命令。撤销一个 Session 会停用它的 refresh token 并将 `auth_session`
+记录标记为已撤销，因此该 Session 下已签发的 access token 会在其下一个请求时
+停止，而不是等到过期。
 
 ## 其他凭证
 
@@ -137,8 +138,9 @@ refresh token 失效；已签发的 access token 仍需等待到期，或通过�
 同样，Run 令牌是签名而非数据库行，无法在过期前撤销。它由作用域（单次运行）和运行状态约束：推理路由拒绝已不在执行的运行。
 
 Portal 的账户详情页和 Admin API 都支持撤销单个或全部 Session。单 Session
-撤销会核对其所属账户，并保留该账户的其他登录链。已签发的 access token 在
-到期前仍可使用，除非账户被禁用。这些操作不需要直接访问数据库。
+撤销会核对其所属账户，并保留该账户的其他登录链。因为 server 会在每个请求上
+检查令牌的 Session，被撤销 Session 的 access token 会在其下一次调用时停止，
+而不是等到过期。这些操作不需要直接访问数据库。
 
 ## 报告问题
 

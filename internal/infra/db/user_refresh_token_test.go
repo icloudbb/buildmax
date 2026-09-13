@@ -218,12 +218,11 @@ func TestRefreshTokenRejectsExpiredRevokedAndUnknown(t *testing.T) {
 	t.Run("revoked", func(t *testing.T) {
 		const sessionID = "as_refreshrevoked"
 		plaintext := newRefreshTokenSession(t, s, newTestUser(t, s, "refreshrev"), sessionID, time.Hour)
-		n, err := s.RevokeSession(ctx, sessionID, now)
-		if err != nil {
-			t.Fatalf("RevokeSession: %v", err)
-		}
-		if n != 1 {
-			t.Errorf("revoked %d tokens, want 1", n)
+		// Session-level revocation lives on AuthSessionStore now and cascades to
+		// the refresh tokens through this helper; rotating a revoked chain must
+		// still fail.
+		if err := revokeSessionTx(s.db.WithContext(ctx), sessionID, now); err != nil {
+			t.Fatalf("revokeSessionTx: %v", err)
 		}
 		if _, err := s.RotateRefreshToken(ctx, plaintext, now, time.Hour, 30*time.Second); !errors.Is(err, coreidentity.ErrRefreshTokenInvalid) {
 			t.Errorf("err = %v, want ErrRefreshTokenInvalid", err)
@@ -272,57 +271,6 @@ func TestRevokeRefreshTokenSession(t *testing.T) {
 	gotUser, gotSession, err = s.RevokeRefreshTokenSession(ctx, "bmxrefresh_never-issued", now)
 	if err != nil || gotUser != "" || gotSession != "" {
 		t.Errorf("unknown token: (%q, %q, %v), want empty and no error", gotUser, gotSession, err)
-	}
-}
-
-// TestListUserSessions is the projection the admin session list is built on:
-// one row per live login chain, aggregated from its tokens, and no chain that
-// has been revoked or has expired.
-func TestListUserSessions(t *testing.T) {
-	s, ctx := newTestStore(t)
-	userID := newTestUser(t, s, "refreshlist")
-	now := time.Now().UTC()
-
-	laptop := newRefreshTokenSession(t, s, userID, "as_laptop", time.Hour)
-	newRefreshTokenSession(t, s, userID, "as_phone", time.Hour)
-	// Rotate the laptop chain so it holds more than one token: the projection
-	// must still report it as one session.
-	if _, err := s.RotateRefreshToken(ctx, laptop, now, time.Hour, 30*time.Second); err != nil {
-		t.Fatalf("RotateRefreshToken: %v", err)
-	}
-
-	sessions, err := s.ListUserSessions(ctx, userID, now)
-	if err != nil {
-		t.Fatalf("ListUserSessions: %v", err)
-	}
-	if len(sessions) != 2 {
-		t.Fatalf("sessions = %d, want 2 (one per chain, not per token): %+v", len(sessions), sessions)
-	}
-	byID := map[string]coreidentity.Session{}
-	for _, sess := range sessions {
-		byID[sess.SessionID] = sess
-	}
-	laptopSession, ok := byID["as_laptop"]
-	if !ok {
-		t.Fatalf("as_laptop missing from %+v", sessions)
-	}
-	if laptopSession.Platform != "cli" {
-		t.Errorf("platform = %q, want cli (the platform the chain logged in with)", laptopSession.Platform)
-	}
-	if !laptopSession.LastRotatedAt.After(laptopSession.CreatedAt) && !laptopSession.LastRotatedAt.Equal(laptopSession.CreatedAt) {
-		t.Errorf("last_rotated_at %v should not precede created_at %v", laptopSession.LastRotatedAt, laptopSession.CreatedAt)
-	}
-
-	// Revoking one chain drops it from the list; the other stays.
-	if _, err := s.RevokeSession(ctx, "as_laptop", now); err != nil {
-		t.Fatalf("RevokeSession: %v", err)
-	}
-	after, err := s.ListUserSessions(ctx, userID, now)
-	if err != nil {
-		t.Fatalf("ListUserSessions: %v", err)
-	}
-	if len(after) != 1 || after[0].SessionID != "as_phone" {
-		t.Fatalf("after revoke = %+v, want only as_phone", after)
 	}
 }
 

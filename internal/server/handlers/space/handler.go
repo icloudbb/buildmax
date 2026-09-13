@@ -32,10 +32,11 @@ type Config struct {
 	JWTSecret        string
 	DefaultQuotaTier string
 
-	Spaces corespace.Store
-	Users  coreidentity.UserStore
-	Agents agentdef.Store
-	Audits coreaudit.Store
+	Spaces   corespace.Store
+	Users    coreidentity.UserStore
+	Sessions coreidentity.AuthSessionStore
+	Agents   agentdef.Store
+	Audits   coreaudit.Store
 	// LoginCodes backs the space-scoped access-recovery route only -- issuing a
 	// code for a locked-out member of the caller's own space. Nil leaves that
 	// route unavailable, which is what a deployment with no login-code store
@@ -91,6 +92,7 @@ func (h *Handler) guard() *access.Guard {
 		JWTSecret: h.cfg.JWTSecret,
 		Users:     h.cfg.Users,
 		Spaces:    h.cfg.Spaces,
+		Sessions:  h.cfg.Sessions,
 		Audit:     h.cfg.Audit,
 	}
 }

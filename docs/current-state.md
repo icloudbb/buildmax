@@ -309,7 +309,11 @@ were removed by policy.
 Account creation, single-use login codes, password sign-in, system administrator
 grants, Space invitations to existing accounts, role changes, ownership
 transfer, and member-scoped recovery are implemented. Signup defaults off;
-creating an account does not itself issue a credential. See the
+creating an account does not itself issue a credential. Each login opens a
+durable session (`auth_session`) that the request guard checks every call, so
+logout, administrator revocation, and disablement stop an already-issued access
+token within its short lifetime rather than at expiry; sessions also carry an
+absolute lifetime. SSO is not implemented. See the
 [identity service](../internal/service/identity/account.go) and
 [Space service](../internal/service/space/service.go).
 

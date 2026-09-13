@@ -488,9 +488,10 @@ log_level: info
 port: 5678
 jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in production
 # allow_signup: true                 # default false; accounts are created with `buildmax-server user create`
-access_token_ttl: 168h               # signed, unstored — this is how long a leaked one works
+access_token_ttl: 15m                # signed; the server checks the session it names each request, so this is the max replay window
 refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
 refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
+session_absolute_ttl: 2160h          # hard ceiling on a login's life regardless of refresh; reaching it needs a new sign-in
 shutdown_grace: 25s                  # whole budget for an orderly stop; keep below the orchestrator's kill deadline
 cors_origin: http://localhost:5173   # or inject via BUILDMAX_CORS_ORIGIN where the Portal's port is chosen
 public_base_url: ""                  # externally reachable origin for artifact share links; empty keeps sharing off
@@ -565,7 +566,7 @@ storage:
 
 一个可运行的 server 必须具备：`jwt_secret`（或 `BUILDMAX_JWT_SECRET`）和 `database`。其余一切都有适用于本地开发的可用默认值。Worker 本身不需要任何凭据——`jwt_secret` 正是用来签发 server 在分发时交给它的 run token 的。
 
-这两个 token 的有效期并不可以互换。Access token 是签名后从不落盘的，因此没有办法提前作废某一个——`access_token_ttl` 就是一个泄露的 token 仍然有效的时间窗口。Refresh token 是数据库中的一行记录，因此 `refresh_token_ttl` 是一次会话可以被续期多久，而不是它超出可控范围之外还能存在多久。见 [deploy/authentication.md](../deploy/authentication.md)。
+这两个 token 的有效期并不可以互换。Access token 是签名后从不落盘的，但 server 会在每个请求上解析它所指名的持久 Session（`auth_session`），因此登出、管理员撤销和账户禁用会在 `access_token_ttl`（默认 **15m**）之内生效，而不是等到 token 自身过期。Refresh token 是属于该 Session 的一行数据库记录，因此 `refresh_token_ttl` 是一次 Session 可以被续期多久。`session_absolute_ttl`（默认 **90 天**）为一次登录的整体寿命设定上限，无论其 refresh token 轮换多频繁：越过该上限后，Session 即失效，用户需重新登录。见 [deploy/authentication.md](../deploy/authentication.md)。
 
 `shutdown_grace` 是有序停止 server 的整体预算，默认是 **25s**。收到 SIGINT 或 SIGTERM 时，server 会先停止报告就绪状态，以便负载均衡器将其摘除，然后结束正在监视某次运行的流，让 Portal 转而在别处重新订阅，再排空已经接受的请求，最后停止其后台循环。各个阶段的时长都是从这一个数字推导出来的，而不是逐项单独配置的。
 

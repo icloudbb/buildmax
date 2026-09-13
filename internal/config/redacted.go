@@ -36,6 +36,7 @@ type RedactedServerConfig struct {
 	AccessTokenTTL       string `json:"access_token_ttl,omitempty"`
 	RefreshTokenTTL      string `json:"refresh_token_ttl,omitempty"`
 	RefreshRotationGrace string `json:"refresh_rotation_grace,omitempty"`
+	SessionAbsoluteTTL   string `json:"session_absolute_ttl,omitempty"`
 	ShutdownGrace        string `json:"shutdown_grace,omitempty"`
 
 	JWTSecret SecretStatus `json:"jwt_secret"`
@@ -183,6 +184,9 @@ func (sc ServerConfig) Redacted() RedactedServerConfig {
 	}
 	if sc.RefreshRotationGrace > 0 {
 		out.RefreshRotationGrace = sc.RefreshRotationGrace.String()
+	}
+	if sc.SessionAbsoluteTTL > 0 {
+		out.SessionAbsoluteTTL = sc.SessionAbsoluteTTL.String()
 	}
 	if sc.ShutdownGrace > 0 {
 		out.ShutdownGrace = sc.ShutdownGrace.String()

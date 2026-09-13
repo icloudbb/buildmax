@@ -21,11 +21,34 @@ func (f *disableFixture) do(t *testing.T, method, path, userID, body string) *ht
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	if userID != "" {
-		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, testSecret))
+		// The guard checks the session store this fixture wires, so the actor's
+		// token must name a live session, exactly as a real login's would.
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWTWithSID(userID, f.actorSession(t, userID), testSecret))
 	}
 	rec := httptest.NewRecorder()
 	f.mux.ServeHTTP(rec, req)
 	return rec
+}
+
+// actorSession returns a live session id for the actor, creating one on first
+// use, so a forged token authenticates the way a logged-in caller's would.
+func (f *disableFixture) actorSession(t *testing.T, userID string) string {
+	t.Helper()
+	if f.actorSIDs == nil {
+		f.actorSIDs = map[string]string{}
+	}
+	if sid, ok := f.actorSIDs[userID]; ok {
+		return sid
+	}
+	sid, err := f.sessions.CreateSession(t.Context(), coreidentity.NewAuthSession{
+		UserID: userID, Platform: "portal", AuthMethod: "login_code",
+		AbsoluteExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	f.actorSIDs[userID] = sid
+	return sid
 }
 
 func (f *disableFixture) actions() []string {
@@ -45,8 +68,9 @@ func (f *disableFixture) actions() []string {
 // token stops working now rather than at expiry.
 func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 	f := newDisableFixture(t)
-	plaintext, _, err := f.sessions.CreateRefreshToken(t.Context(), coreidentity.NewRefreshToken{
-		UserID: f.target.ID, SessionID: "as_one", Platform: "portal", TTL: time.Hour,
+	sid := f.seedSession(t, "portal")
+	plaintext, _, err := f.refresh.CreateRefreshToken(t.Context(), coreidentity.NewRefreshToken{
+		UserID: f.target.ID, SessionID: sid, Platform: "portal", TTL: time.Hour,
 	})
 	if err != nil {
 		t.Fatalf("CreateRefreshToken: %v", err)
@@ -111,13 +135,8 @@ func TestDisablingTheLastAdministratorIsRefused(t *testing.T) {
 // operator lists an account's sessions, retires one, and the other stays live.
 func TestAdminSessionsListAndSingleRevoke(t *testing.T) {
 	f := newDisableFixture(t)
-	for _, s := range []struct{ id, platform string }{{"as_laptop", "portal"}, {"as_phone", "cli"}} {
-		if _, _, err := f.sessions.CreateRefreshToken(t.Context(), coreidentity.NewRefreshToken{
-			UserID: f.target.ID, SessionID: s.id, Platform: s.platform, TTL: time.Hour,
-		}); err != nil {
-			t.Fatalf("CreateRefreshToken: %v", err)
-		}
-	}
+	laptop := f.seedSession(t, "portal")
+	phone := f.seedSession(t, "cli")
 
 	rec := f.do(t, "GET", "/api/admin/users/"+f.target.ID+"/sessions", adminUser, "")
 	if rec.Code != http.StatusOK {
@@ -138,7 +157,7 @@ func TestAdminSessionsListAndSingleRevoke(t *testing.T) {
 		t.Fatalf("sessions = %d, want 2", len(list.Sessions))
 	}
 
-	if got := f.do(t, "DELETE", "/api/admin/users/"+f.target.ID+"/sessions/as_laptop", adminUser, "").Code; got != http.StatusOK {
+	if got := f.do(t, "DELETE", "/api/admin/users/"+f.target.ID+"/sessions/"+laptop, adminUser, "").Code; got != http.StatusOK {
 		t.Fatalf("revoke one got %d", got)
 	}
 
@@ -146,8 +165,8 @@ func TestAdminSessionsListAndSingleRevoke(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(list.Sessions) != 1 || list.Sessions[0].SessionID != "as_phone" {
-		t.Fatalf("after revoke sessions = %+v, want only as_phone", list.Sessions)
+	if len(list.Sessions) != 1 || list.Sessions[0].SessionID != phone {
+		t.Fatalf("after revoke sessions = %+v, want only %q", list.Sessions, phone)
 	}
 
 	// Revoking one that is not this account's live session is a 404, not a
@@ -315,9 +334,11 @@ func newDisableFixture(t *testing.T) *disableFixture {
 	// Two, so revoking one is not the last-grant case.
 	grants.GrantForTest("u_second_admin", coreidentity.SystemRoleAdmin)
 
+	refresh := &mock.MockRefreshTokenStore{}
 	f := &disableFixture{
 		users:    users,
-		sessions: &mock.MockRefreshTokenStore{},
+		sessions: &mock.MockAuthSessionStore{Refresh: refresh},
+		refresh:  refresh,
 		codes:    &mock.MockLoginCodeStore{},
 		keys:     &mock.MockUserWebhookKeyStore{},
 		audits:   &mock.MockAuditStore{},
@@ -331,7 +352,8 @@ func newDisableFixture(t *testing.T) *disableFixture {
 		Users:         users,
 		Spaces:        &mock.MockSpaceStore{},
 		LoginCodes:    f.codes,
-		RefreshTokens: f.sessions,
+		RefreshTokens: f.refresh,
+		Sessions:      f.sessions,
 		// Present so the webhook route reaches its credential check rather
 		// than answering "not configured" first.
 		Audits: f.audits,
@@ -342,15 +364,30 @@ func newDisableFixture(t *testing.T) *disableFixture {
 	return f
 }
 
+// seedSession opens a session for the target account and returns its id.
+func (f *disableFixture) seedSession(t *testing.T, platform string) string {
+	t.Helper()
+	sid, err := f.sessions.CreateSession(t.Context(), coreidentity.NewAuthSession{
+		UserID: f.target.ID, Platform: platform, AuthMethod: "login_code",
+		AbsoluteExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	return sid
+}
+
 // disableFixture is a deployment with one administrator and one ordinary
 // account, wired with the stores disablement actually touches.
 type disableFixture struct {
-	mux      *http.ServeMux
-	users    *mock.MockUserStore
-	sessions *mock.MockRefreshTokenStore
-	codes    *mock.MockLoginCodeStore
-	keys     *mock.MockUserWebhookKeyStore
-	audits   *mock.MockAuditStore
-	admin    *coreidentity.User
-	target   *coreidentity.User
+	mux       *http.ServeMux
+	users     *mock.MockUserStore
+	sessions  *mock.MockAuthSessionStore
+	refresh   *mock.MockRefreshTokenStore
+	codes     *mock.MockLoginCodeStore
+	keys      *mock.MockUserWebhookKeyStore
+	audits    *mock.MockAuditStore
+	admin     *coreidentity.User
+	target    *coreidentity.User
+	actorSIDs map[string]string
 }

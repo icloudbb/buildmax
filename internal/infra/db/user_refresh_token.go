@@ -8,7 +8,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 
 	"gorm.io/gorm"
@@ -249,111 +248,9 @@ func (s *Store) RevokeRefreshTokenSession(ctx context.Context, plaintext string,
 	return row.UserPublicID, row.Row.SessionID, nil
 }
 
-// RevokeSession implements coreidentity.RefreshTokenStore.
-func (s *Store) RevokeSession(ctx context.Context, sessionID string, now time.Time) (int64, error) {
-	if sessionID == "" {
-		return 0, nil
-	}
-	res := s.db.WithContext(ctx).Model(&userRefreshTokenRow{}).
-		Where("session_id = ? AND revoked_at IS NULL", sessionID).
-		Update("revoked_at", now)
-	return res.RowsAffected, res.Error
-}
-
-// RevokeUserSessions implements coreidentity.RefreshTokenStore.
-func (s *Store) RevokeUserSessions(ctx context.Context, userID string, now time.Time) (int64, error) {
-	if userID == "" {
-		return 0, nil
-	}
-	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, apierr.ErrNotFound) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, err
-	}
-	res := s.db.WithContext(ctx).Model(&userRefreshTokenRow{}).
-		Where("user_id = ? AND revoked_at IS NULL", userKey).
-		Update("revoked_at", now)
-	return res.RowsAffected, res.Error
-}
-
-// CountUserSessions implements coreidentity.RefreshTokenStore.
-//
-// Distinct session ids rather than rows: rotation leaves several live tokens in
-// one chain during the grace window, and reporting those as separate sessions
-// would tell an operator someone is signed in three times when they are signed
-// in once.
-func (s *Store) CountUserSessions(ctx context.Context, userID string, now time.Time) (int, error) {
-	if userID == "" {
-		return 0, nil
-	}
-	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, apierr.ErrNotFound) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, err
-	}
-	var n int64
-	if err := s.db.WithContext(ctx).Model(&userRefreshTokenRow{}).
-		Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", userKey, now).
-		Distinct("session_id").
-		Count(&n).Error; err != nil {
-		return 0, err
-	}
-	return int(n), nil
-}
-
-// ListUserSessions implements coreidentity.RefreshTokenStore.
-//
-// One row per live login chain, aggregated from its tokens: the login is the
-// earliest created_at, the last rotation the latest, the expiry the furthest
-// out. The same live filter CountUserSessions uses keeps a revoked or expired
-// chain off the list. It selects only safe metadata — no token_hash ever leaves
-// the store.
-func (s *Store) ListUserSessions(ctx context.Context, userID string, now time.Time) ([]coreidentity.Session, error) {
-	if userID == "" {
-		return nil, nil
-	}
-	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, apierr.ErrNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	type sessionRow struct {
-		SessionID     string    `gorm:"column:session_id"`
-		Platform      string    `gorm:"column:platform"`
-		CreatedAt     time.Time `gorm:"column:created_at"`
-		LastRotatedAt time.Time `gorm:"column:last_rotated_at"`
-		ExpiresAt     time.Time `gorm:"column:expires_at"`
-	}
-	var rows []sessionRow
-	if err := s.db.WithContext(ctx).
-		Model(&userRefreshTokenRow{}).
-		Select("session_id, MAX(platform) AS platform, MIN(created_at) AS created_at, "+
-			"MAX(created_at) AS last_rotated_at, MAX(expires_at) AS expires_at").
-		Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", userKey, now).
-		Group("session_id").
-		Order("last_rotated_at DESC").
-		Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-	out := make([]coreidentity.Session, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, coreidentity.Session{
-			SessionID:     r.SessionID,
-			Platform:      r.Platform,
-			CreatedAt:     r.CreatedAt,
-			LastRotatedAt: r.LastRotatedAt,
-			ExpiresAt:     r.ExpiresAt,
-		})
-	}
-	return out, nil
-}
-
+// revokeSessionTx retires every live refresh token in one session. Session-level
+// revocation is owned by AuthSessionStore, which calls this to cascade to the
+// refresh tokens; the reuse path in RotateRefreshToken uses it too.
 func revokeSessionTx(tx *gorm.DB, sessionID string, now time.Time) error {
 	if sessionID == "" {
 		return nil

@@ -90,11 +90,12 @@ type AdminSessionsRevokedResponse struct {
 // response struct, not the store's row: it carries safe metadata to recognise a
 // device by, and never a token or its hash.
 type AdminSession struct {
-	SessionID     string    `json:"session_id"`
-	Platform      string    `json:"platform,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	LastRotatedAt time.Time `json:"last_rotated_at"`
-	ExpiresAt     time.Time `json:"expires_at"`
+	SessionID  string    `json:"session_id"`
+	Platform   string    `json:"platform,omitempty"`
+	AuthMethod string    `json:"auth_method,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
 }
 
 // AdminSessionsResponse is the list of an account's live sessions.
@@ -207,8 +208,8 @@ func (h *Handler) getAdminUserHandler(w http.ResponseWriter, r *http.Request) {
 			detail.Spaces = append(detail.Spaces, AdminUserSpace{SpaceID: space.ID, Name: space.Name, Role: role})
 		}
 	}
-	if h.cfg.RefreshTokens != nil {
-		count, err := h.cfg.RefreshTokens.CountUserSessions(r.Context(), user.ID, time.Now().UTC())
+	if h.cfg.Sessions != nil {
+		count, err := h.cfg.Sessions.CountUserSessions(r.Context(), user.ID, time.Now().UTC())
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "sessions")
 			return
@@ -346,11 +347,11 @@ func (h *Handler) setAdminUserStateHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	revoked := int64(0)
-	if disable && h.cfg.RefreshTokens != nil {
-		// The stored half of every login, retired now rather than left to
-		// expire. The access token cannot be revoked at all; what stops it
-		// is requireActiveUser refusing on the next request.
-		n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.ID, time.Now().UTC())
+	if disable && h.cfg.Sessions != nil {
+		// Every session, and its refresh tokens, retired now rather than left to
+		// expire. The access token cannot be revoked directly; what stops it is
+		// the guard's session check refusing on the next request.
+		n, err := h.cfg.Sessions.RevokeUserSessions(r.Context(), user.ID, time.Now().UTC())
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "revoke_sessions")
 			return
@@ -376,14 +377,14 @@ func (h *Handler) revokeAdminUserSessionsHandler(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.RefreshTokens, "sessions not configured") {
+	if !httputil.RequireStore(w, h.cfg.Sessions, "sessions not configured") {
 		return
 	}
 	user, ok := h.adminTargetUser(w, r)
 	if !ok {
 		return
 	}
-	n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.ID, time.Now().UTC())
+	n, err := h.cfg.Sessions.RevokeUserSessions(r.Context(), user.ID, time.Now().UTC())
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_revoke_sessions", "user_id", user.ID)
 		return
@@ -397,14 +398,14 @@ func (h *Handler) listAdminUserSessionsHandler(w http.ResponseWriter, r *http.Re
 	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.RefreshTokens, "sessions not configured") {
+	if !httputil.RequireStore(w, h.cfg.Sessions, "sessions not configured") {
 		return
 	}
 	user, ok := h.adminTargetUser(w, r)
 	if !ok {
 		return
 	}
-	sessions, err := h.cfg.RefreshTokens.ListUserSessions(r.Context(), user.ID, time.Now().UTC())
+	sessions, err := h.cfg.Sessions.ListUserSessions(r.Context(), user.ID, time.Now().UTC())
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_sessions", "user_id", user.ID)
 		return
@@ -412,11 +413,12 @@ func (h *Handler) listAdminUserSessionsHandler(w http.ResponseWriter, r *http.Re
 	out := make([]AdminSession, 0, len(sessions))
 	for _, s := range sessions {
 		out = append(out, AdminSession{
-			SessionID:     s.SessionID,
-			Platform:      s.Platform,
-			CreatedAt:     s.CreatedAt,
-			LastRotatedAt: s.LastRotatedAt,
-			ExpiresAt:     s.ExpiresAt,
+			SessionID:  s.SID,
+			Platform:   s.Platform,
+			AuthMethod: s.AuthMethod,
+			CreatedAt:  s.CreatedAt,
+			LastSeenAt: s.LastSeenAt,
+			ExpiresAt:  s.AbsoluteExpiresAt,
 		})
 	}
 	httputil.WriteJSON(w, http.StatusOK, AdminSessionsResponse{Sessions: out})
@@ -430,7 +432,7 @@ func (h *Handler) revokeAdminUserSessionHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.RefreshTokens, "sessions not configured") {
+	if !httputil.RequireStore(w, h.cfg.Sessions, "sessions not configured") {
 		return
 	}
 	user, ok := h.adminTargetUser(w, r)
@@ -447,14 +449,14 @@ func (h *Handler) revokeAdminUserSessionHandler(w http.ResponseWriter, r *http.R
 	// live. An id that is not returns 404 rather than a revoke recorded against
 	// the wrong person.
 	now := time.Now().UTC()
-	sessions, err := h.cfg.RefreshTokens.ListUserSessions(r.Context(), user.ID, now)
+	sessions, err := h.cfg.Sessions.ListUserSessions(r.Context(), user.ID, now)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_revoke_session", "user_id", user.ID)
 		return
 	}
 	found := false
 	for _, s := range sessions {
-		if s.SessionID == sessionID {
+		if s.SID == sessionID {
 			found = true
 			break
 		}
@@ -463,7 +465,7 @@ func (h *Handler) revokeAdminUserSessionHandler(w http.ResponseWriter, r *http.R
 		httputil.WriteJSONError(w, http.StatusNotFound, "no live session with that id for this account")
 		return
 	}
-	n, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), sessionID, now)
+	n, err := h.cfg.Sessions.RevokeSession(r.Context(), sessionID, now)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_revoke_session", "user_id", user.ID)
 		return

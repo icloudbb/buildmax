@@ -17,10 +17,6 @@ func (fixedIssuer) Mint(string, string, time.Time) (string, time.Duration, error
 	return "access-token", time.Hour, nil
 }
 
-type fixedSessions struct{}
-
-func (fixedSessions) NewSessionID() (string, error) { return "sn_fixed", nil }
-
 const goodPassword = "correct horse battery staple"
 
 func newLoginService(t *testing.T) *identity.Service {
@@ -41,7 +37,7 @@ func newLoginService(t *testing.T) *identity.Service {
 		},
 		Passwords: &mock.MockPasswordStore{Hashes: map[string]string{known.ID: hash}},
 		Tokens:    fixedIssuer{},
-		Sessions:  fixedSessions{},
+		Sessions:  &mock.MockAuthSessionStore{},
 	}
 }
 

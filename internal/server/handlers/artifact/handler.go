@@ -21,8 +21,9 @@ import (
 type Config struct {
 	JWTSecret string
 
-	Users  coreidentity.UserStore
-	Spaces corespace.Store
+	Users    coreidentity.UserStore
+	Spaces   corespace.Store
+	Sessions coreidentity.AuthSessionStore
 
 	// Artifacts is the capability itself. Nil means this deployment has no
 	// artifact store, and every route here answers 503.
@@ -39,6 +40,7 @@ func (h *Handler) guard() *access.Guard {
 		JWTSecret: h.cfg.JWTSecret,
 		Users:     h.cfg.Users,
 		Spaces:    h.cfg.Spaces,
+		Sessions:  h.cfg.Sessions,
 		Audit:     h.cfg.Audit,
 	}
 }

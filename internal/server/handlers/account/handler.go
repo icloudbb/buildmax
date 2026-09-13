@@ -23,6 +23,8 @@ type Config struct {
 	JWTSecret string
 	// Users backs the guard's active-account check.
 	Users coreidentity.UserStore
+	// Sessions backs the guard's active-session check.
+	Sessions coreidentity.AuthSessionStore
 	// WebhookKeys is the account-owned key store. Nil leaves the routes
 	// reporting the feature is unconfigured.
 	WebhookKeys coreidentity.UserWebhookKeyStore
@@ -37,7 +39,7 @@ func New(cfg Config) *Handler { return &Handler{cfg: cfg} }
 // guard authenticates the account. It holds no space store: these routes are
 // account-scoped and never make a space authorization decision.
 func (h *Handler) guard() *access.Guard {
-	return &access.Guard{JWTSecret: h.cfg.JWTSecret, Users: h.cfg.Users, Audit: h.cfg.Audit}
+	return &access.Guard{JWTSecret: h.cfg.JWTSecret, Users: h.cfg.Users, Sessions: h.cfg.Sessions, Audit: h.cfg.Audit}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {

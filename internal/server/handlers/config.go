@@ -63,12 +63,16 @@ type Config struct {
 	// exchanged again before that counts as reuse. It exists because the CLI
 	// and Desktop share one credentials file between processes.
 	RefreshRotationGrace time.Duration
+	// SessionAbsoluteTTL caps a session's life from its creation, regardless of
+	// refresh activity. Zero means the core package default.
+	SessionAbsoluteTTL time.Duration
 
 	// Stores
 	UserStore         coreidentity.UserStore
 	LoginCodeStore    coreidentity.LoginCodeStore
 	PasswordStore     coreidentity.PasswordStore
 	RefreshTokenStore coreidentity.RefreshTokenStore
+	AuthSessionStore  coreidentity.AuthSessionStore
 	SpaceStore        corespace.Store
 	WorkflowStore     coreworkflow.Store
 	AgentStore        agentdef.Store

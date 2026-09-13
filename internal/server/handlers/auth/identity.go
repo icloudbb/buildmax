@@ -5,7 +5,6 @@ import (
 
 	"github.com/icloudbb/buildmax/internal/server/access"
 	identitysvc "github.com/icloudbb/buildmax/internal/service/identity"
-	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // jwtIssuer mints access tokens for the identity service.
@@ -26,27 +25,20 @@ func (i jwtIssuer) Mint(userID, sessionID string, now time.Time) (string, time.D
 	return token, i.ttl, nil
 }
 
-// publicIDSessions mints session identifiers.
-//
-// Injected rather than called directly so a test can make a session id
-// predictable without making every public id predictable.
-type publicIDSessions struct{}
-
-func (publicIDSessions) NewSessionID() (string, error) { return util.NewPublicID() }
-
 // identityService builds the authentication workflows from this handler's
 // configuration. It is built per call rather than held, the same way the other
 // handlers in this package build theirs.
 func (h *Handler) identityService() *identitysvc.Service {
 	return &identitysvc.Service{
-		Users:         h.cfg.Users,
-		Passwords:     h.cfg.Passwords,
-		LoginCodes:    h.cfg.LoginCodes,
-		RefreshTokens: h.cfg.RefreshTokens,
-		Tokens:        jwtIssuer{secret: h.cfg.JWTSecret, ttl: h.accessTokenTTL()},
-		Sessions:      publicIDSessions{},
-		RefreshTTL:    h.refreshTokenTTL(),
-		RotationGrace: h.refreshRotationGrace(),
-		Audit:         h.cfg.Audit,
+		Users:              h.cfg.Users,
+		Passwords:          h.cfg.Passwords,
+		LoginCodes:         h.cfg.LoginCodes,
+		RefreshTokens:      h.cfg.RefreshTokens,
+		Sessions:           h.cfg.Sessions,
+		Tokens:             jwtIssuer{secret: h.cfg.JWTSecret, ttl: h.accessTokenTTL()},
+		RefreshTTL:         h.refreshTokenTTL(),
+		RotationGrace:      h.refreshRotationGrace(),
+		SessionAbsoluteTTL: h.sessionAbsoluteTTL(),
+		Audit:              h.cfg.Audit,
 	}
 }

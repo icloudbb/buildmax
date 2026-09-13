@@ -34,6 +34,11 @@ type ServerConfig struct {
 	// session. It absorbs concurrent refreshes from processes sharing one
 	// credentials file; it is not a security setting to raise casually.
 	RefreshRotationGrace time.Duration `mapstructure:"refresh_rotation_grace"`
+	// SessionAbsoluteTTL caps how long one login may live from its creation,
+	// regardless of how often its refresh token rotates. It is the ceiling that
+	// makes "a session cannot renew forever" true. Zero means the default in
+	// internal/core/identity.
+	SessionAbsoluteTTL time.Duration `mapstructure:"session_absolute_ttl"`
 	// AllowSignup opens POST /api/auth/otp to self-registration. It defaults
 	// to false, and the zero value is the safe one on purpose: a server that
 	// forgets to configure this is closed, not open.

@@ -766,9 +766,10 @@ log_level: info
 port: 5678
 jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in production
 # allow_signup: true                 # default false; accounts are created with `buildmax-server user create`
-access_token_ttl: 168h               # signed, unstored — this is how long a leaked one works
+access_token_ttl: 15m                # signed; the server checks the session it names each request, so this is the max replay window
 refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
 refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
+session_absolute_ttl: 2160h          # hard ceiling on a login's life regardless of refresh; reaching it needs a new sign-in
 shutdown_grace: 25s                  # whole budget for an orderly stop; keep below the orchestrator's kill deadline
 cors_origin: http://localhost:5173   # or inject via BUILDMAX_CORS_ORIGIN where the Portal's port is chosen
 public_base_url: ""                  # externally reachable origin for artifact share links; empty keeps sharing off
@@ -846,11 +847,15 @@ Required for a working server: `jwt_secret` (or `BUILDMAX_JWT_SECRET`) and
 worker needs no credential of its own — `jwt_secret` is what signs the run token
 the server hands it at dispatch.
 
-The two token lifetimes are not interchangeable. An access token is signed and
-never stored, so nothing can retire one early — `access_token_ttl` is the window
-in which a leaked one still works. A refresh token is a database row, so
-`refresh_token_ttl` is how long a session can be renewed, not how long it is
-beyond reach. See [deploy/authentication.md](../deploy/authentication.md).
+The token lifetimes are not interchangeable. An access token is signed and never
+stored, but the server resolves the durable session it names (`auth_session`) on
+every request, so logout, administrator revocation, and account disablement take
+effect within `access_token_ttl` (default **15m**) rather than at the token's own
+expiry. A refresh token is a database row belonging to that session, so
+`refresh_token_ttl` is how long a session can be renewed. `session_absolute_ttl`
+(default **90 days**) caps a login's whole life regardless of how often its
+refresh token rotates: past it the session is inactive and the person signs in
+again. See [deploy/authentication.md](../deploy/authentication.md).
 
 `shutdown_grace` is the whole budget for stopping the server in order, and
 defaults to **25s**. On SIGINT or SIGTERM the server stops reporting ready so a

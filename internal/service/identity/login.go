@@ -20,6 +20,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	"github.com/icloudbb/buildmax/internal/service/audit"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // Refusals a login can produce. The two 401s carry no Kind: apierr has no
@@ -76,21 +77,23 @@ type TokenIssuer interface {
 	Mint(userID, sessionID string, now time.Time) (token string, ttl time.Duration, err error)
 }
 
-// SessionIDs mints the identifier a session is tracked by.
-type SessionIDs interface {
-	NewSessionID() (string, error)
-}
-
 // Service authenticates.
 type Service struct {
 	Users         coreidentity.UserStore
 	Passwords     coreidentity.PasswordStore
 	LoginCodes    coreidentity.LoginCodeStore
 	RefreshTokens coreidentity.RefreshTokenStore
+	// Sessions is the durable session authority. A login opens a session here;
+	// the guard checks it on every request so logout and revocation stop an
+	// already-issued access token, and the absolute expiry caps how long a login
+	// may live regardless of refresh activity.
+	Sessions coreidentity.AuthSessionStore
 
 	Tokens     TokenIssuer
-	Sessions   SessionIDs
 	RefreshTTL time.Duration
+	// SessionAbsoluteTTL caps a session's life from its creation. Zero means the
+	// core package default.
+	SessionAbsoluteTTL time.Duration
 	// RotationGrace is how long a just-rotated refresh token may be exchanged
 	// again before that counts as reuse. It exists because the CLI and Desktop
 	// share one credentials file between processes.
@@ -184,14 +187,35 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (*LoginResult, error)
 	if platform == "" {
 		platform = "unknown"
 	}
+	now := s.now()
 	// Every login opens its own session. Signing in from a second machine
 	// therefore does not disturb the first, and revoking one leaves the other
 	// alone -- which is the whole point of tracking sessions rather than users.
-	sessionID, err := s.Sessions.NewSessionID()
-	if err != nil {
-		return nil, fmt.Errorf("mint session id: %w", err)
+	// With a session store the session is a durable record the guard checks and
+	// an absolute expiry caps; without one (a deployment with no database) the id
+	// is minted inline so the access token still carries a sid, and the guard,
+	// which has no session store either, simply does not check it.
+	var sessionID string
+	if s.Sessions != nil {
+		absoluteTTL := s.SessionAbsoluteTTL
+		if absoluteTTL <= 0 {
+			absoluteTTL = coreidentity.SessionAbsoluteTTLDefault
+		}
+		sessionID, err = s.Sessions.CreateSession(ctx, coreidentity.NewAuthSession{
+			UserID:            user.ID,
+			Platform:          platform,
+			AuthMethod:        method,
+			AbsoluteExpiresAt: now.Add(absoluteTTL),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create session: %w", err)
+		}
+	} else {
+		sessionID, err = util.NewPublicID()
+		if err != nil {
+			return nil, fmt.Errorf("mint session id: %w", err)
+		}
 	}
-	now := s.now()
 	accessToken, ttl, err := s.Tokens.Mint(user.ID, sessionID, now)
 	if err != nil {
 		return nil, fmt.Errorf("mint access token: %w", err)
