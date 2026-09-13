@@ -390,6 +390,9 @@ func kindSmoke() error {
 	if err := kindCoordinationProbe(); err != nil {
 		return err
 	}
+	if err := kindWorkerLossProbe(); err != nil {
+		return err
+	}
 	printSmokeLogin(target)
 	return nil
 }

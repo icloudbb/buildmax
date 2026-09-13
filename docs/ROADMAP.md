@@ -116,10 +116,15 @@ Design: [Server coordination](design/server-coordination.md) and
 **Test infrastructure implemented; lifecycle evidence remains.** The MySQL
 scope runs on pull requests and covers critical authorization, TaskRun state,
 checkpoint, Artifact, and Workflow transition behavior. Deployment smoke covers
-ordinary execution and cancellation. A server now expires persisted run traces
-on an operator-set window, defaulting to keep-forever and recording each prune;
-no candidate has yet proved hard worker loss, dependency denial, paired restore,
-schema upgrade, binary rollback, or credential rotation.
+ordinary execution, cancellation, and now worker-loss recovery: a run whose
+worker is deleted mid-execution settles to a diagnosable terminal FAILED and
+stays retrievable. That drill exercises the graceful-termination path a rollout,
+eviction, or drained node takes; the silent hard-loss path the liveness reaper
+settles cannot be reproduced from the deployment and is covered at the store
+level instead. A server now expires persisted run traces on an operator-set
+window, defaulting to keep-forever and recording each prune; no candidate has
+yet proved dependency denial, paired restore, schema upgrade, binary rollback,
+or credential rotation.
 
 **Next:** extend real-MySQL coverage for
 [quota windows](https://github.com/icloudbb/buildmax/issues/498) and
