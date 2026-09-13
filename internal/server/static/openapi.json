@@ -18,6 +18,46 @@
       }
     },
     "schemas": {
+      "Artifact": {
+        "type": "object",
+        "description": "A stored file the space owns, as the artifact routes return it (internal/server/handlers/artifact).",
+        "properties": {
+          "id": {"type": "string"},
+          "space_id": {"type": "string"},
+          "filename": {"type": "string"},
+          "media_type": {"type": "string"},
+          "size_bytes": {"type": "integer", "format": "int64"},
+          "sha256": {"type": "string"},
+          "title": {"type": "string"},
+          "created_by_type": {"type": "string"},
+          "created_by_id": {"type": "string"},
+          "source_type": {"type": "string"},
+          "source_id": {"type": "string"},
+          "preview": {"type": "string", "enum": ["inline", "sandbox", "none"], "description": "How the deployment renders the content: inline, sandbox (opaque-origin frame), or none (download-only)."},
+          "expires_at": {"type": "string", "format": "date-time"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "share": {
+            "type": "object",
+            "description": "Present only on an upload that requested and got a public link; the sole place the link token is returned.",
+            "properties": {
+              "share_id": {"type": "string"},
+              "artifact_id": {"type": "string"},
+              "url": {"type": "string"},
+              "download_url": {"type": "string"},
+              "token": {"type": "string"},
+              "created_by_type": {"type": "string"},
+              "created_by_id": {"type": "string"},
+              "expires_at": {"type": "string", "format": "date-time"},
+              "revoked_at": {"type": "string", "format": "date-time"},
+              "retrieval_count": {"type": "integer", "format": "int64"},
+              "last_retrieved_at": {"type": "string", "format": "date-time"},
+              "created_at": {"type": "string", "format": "date-time"}
+            }
+          },
+          "share_error": {"type": "string"}
+        },
+        "required": ["id", "space_id", "filename", "media_type", "size_bytes", "sha256", "created_by_type", "source_type", "preview", "created_at"]
+      },
       "Secret": {
         "type": "object",
         "properties": {
