@@ -40,6 +40,7 @@
 | [企业身份与访问](enterprise-identity-and-access.md) | 信任与安全 | 私有部署应如何将企业身份连接到 BuildMax Space 与角色？ | 已依据当前代码与标准形成可评审的 OIDC 设计；没有产品实现，也没有获采纳的路线图切片 |
 | [持久化 Agent Session](durable-agent-sessions.md) | 本地体验 | 已认证的本地 Agent Session 是否应成为带 revision 的 Server 资源？ | 尚未开始；没有 Server 路由提供 Session 资源 |
 | [Assistant 编排与 Workflow 边界](assistant-orchestration-and-workflow-boundary.md) | 产品与执行模型 | 管理者 Agent 是否足以支持 Assistant 产品，Workflow 是否应收窄为确定性的 Automation？ | 尚未开始；Agent 无法承接持久的子级 Space Agent Task |
+| [Agent 自我调节能力](agent-self-regulation-capabilities.md) | Agent Runtime and Models | 哪些 runtime 可见元能力能够显著改善 Agent 调节自身工作的能力，同时不创建模型拥有的控制平面？ | 现有目标、事件、工具、权限、trace、checkpoints、委派与 memory 是候选基础；尚无统一的自我调节契约 |
 | [本地 Issue 工作桥接](local-issue-work-bridge.md) | 本地体验 | 已连接的本地界面应如何处理 Space Issue？ | R5 第 1 项安排剩余的 Phase 1 决策；持久 Issue-to-Session 关联与后续阶段仍待完成 |
 | [Session 树、Agent 邮箱与分支工作区](session-tree-and-agent-mailbox.md) | 本地体验 | Session 是否应 fork 隔离工作区，并通过持久邮箱恢复父 Session？ | 尚未开始 |
 | [Issue 主题协调与 Agent 黑板](issue-topic-coordination.md) | 产品与执行模型 | 子 Issue 参与者是否应共享父级范围的信息流，同时保持定向投递与同步语义相互独立？ | 现有 Issue 评论与限定范围的 Agent 读取/报告工具是候选验证底座；跨子项 Topic feed 尚未建设 |
