@@ -88,12 +88,14 @@ event payload from a subagent run is stamped with `is_subagent` and
 `agent_type` so audit hooks can attribute. Subagents cannot bypass parent
 hooks.
 
-**Deferred** to follow-ups: `agent` transport (CC experimental), skill /
-subagent frontmatter hooks (session-scoped lifetime), `async` command flag,
-`buildmax hooks` inspector. See [hook-system.md](./hook-system.md) §10
-(implementation phase F).
+**Deferred** to a follow-up when a run needs it: skill / subagent frontmatter
+hooks (session-scoped lifetime). See [hook-system.md](./hook-system.md) §10
+(implementation phase F). The `agent` transport, the `async` command flag, and a
+`buildmax hooks` inspector are out of R0 scope (§4): the 13 events over four
+transports already cover the demonstrated hook use cases, and hook configuration
+is small and file-authored, so a dedicated inspector command earns nothing yet.
 
-### 3.2 Sandbox And Execution Boundaries — local sandbox, worker surface, process limits, and hook boundary shipped ✅, `buildmax sandbox overrides` open
+### 3.2 Sandbox And Execution Boundaries — shipped ✅
 
 Explicit sandbox modes for command execution now exist. Detail design lives in
 [sandbox-boundaries.md](./sandbox-boundaries.md);
@@ -145,12 +147,13 @@ mirrors the same `WrapBashCommand`/`HostAllowed` calls `Bash`/`WebFetch`
 make, with no `dangerously_disable_sandbox`-equivalent escape hatch, since
 hooks are config-authored automation rather than an LLM-chosen call an
 operator is watching turn by turn. Verified against a real `sandbox.Manager`
-(Seatbelt), not only a test double. Still open in
-[sandbox-boundaries.md](./sandbox-boundaries.md): `buildmax sandbox
-overrides` (§8) is not implemented. §3.2 is therefore **not** fully closed,
-but only that one operator-facing command and its documentation remain —
-the enforcement engine, the worker surface, process limits, downgrade
-marking, and the hook boundary have all landed.
+(Seatbelt), not only a test double. The enforcement engine, the worker surface,
+process limits, downgrade marking, and the hook boundary have all landed, so
+§3.2 is closed. The one command left unbuilt, `buildmax sandbox overrides`
+([sandbox-boundaries.md](./sandbox-boundaries.md) §8), is out of R0 scope (§4):
+it only writes `allow_unsandboxed_commands`, an operator lock already set in
+`policy.yaml`, so no run needs a per-session convenience toggle to close the
+boundary.
 
 ### 3.3 Durable Run Trace — phase 1 shipped ✅
 
@@ -185,9 +188,14 @@ Coverage against the full §3.3 target (✅ = in phase 1):
   Per-command boundary decisions and violations are still ❌ (see §3.2)
 - memory and instruction sources used for the run — ❌ deferred
 
-Deferred to follow-ups (see [durable-run-trace.md](./durable-run-trace.md) §7):
-activity-view UI, a `buildmax trace` inspector, the records marked ❌ above,
-and retention/GC of the traces directory.
+The records marked ❌ above (hook execution, file changes, per-command boundary
+decisions, and the memory/instruction sources a run loaded) are the trace work
+that genuinely remains; see [durable-run-trace.md](./durable-run-trace.md) §7.
+They enrich diagnostics but are not R0 acceptance gates (§6). A trace
+activity-view UI, a `buildmax trace` inspector, and retention/GC of the traces
+directory are out of R0 scope (§4): the JSONL trace is already bounded and
+directly readable, and Portal Run Details already surfaces a run's boundary and
+MCP treatment, so a second viewer earns nothing until trace volume forces GC.
 
 ### 3.4 Activity Views
 
@@ -335,6 +343,25 @@ Do not include these in the current R0 trust-boundary scope:
 - IDE extension
 - container/seccomp implementation in Go
 - broad versioned workspace implementation
+
+The first two above are conditional hardening: reopen them when the supported
+threat model changes (§3.9). The rest are separate product questions. The items
+below are different — convenience surfaces the enforced boundary and the bounded,
+readable trace already make redundant. They are cut on Occam's razor, not
+deferred; add one only when a concrete operator or run task cannot be done
+without it:
+
+- `buildmax sandbox overrides`, a `buildmax hooks` inspector, and a `buildmax
+  trace` inspector — the sandbox boundary is enforced from config and
+  `policy.yaml`, hook configuration is small and file-authored, and the JSONL
+  trace is already bounded and directly readable, so none of these second command
+  surfaces earns its keep
+- a trace activity-view UI and trace retention/GC — the trace is bounded at the
+  source and Portal Run Details already surfaces a run's boundary and MCP
+  treatment, so a viewer and a collector earn nothing until trace volume forces
+  GC
+- the `agent` hook transport and the `async` command flag — the 13 shipped events
+  over four transports cover the demonstrated hook use cases
 
 Task workspace checkpointing and restore-before-Continue have since shipped
 under [task-workspace-checkpoints.md](task-workspace-checkpoints.md). Generic
