@@ -15,14 +15,15 @@
 ## Status
 
 - roadmap_priority: `R0`
-- status: `in_progress` — hooks, durable traces, the Bash sandbox, process
-  limits, Agent/Space sandbox tiers, worker baseline selection, and worker API
-  ingress isolation are implemented. Portal presents the boundary recorded by a
-  TaskRun trace and its resolved plugin pins. The unattended-worker profile now
-  refuses stdio MCP fail-closed before any child or model call, and Portal Run
-  Details presents that treatment beside the boundary. Candidate boundary
-  evidence remains open. Pod-wide egress and an outer runtime are conditional
-  post-Beta hardening
+- status: `done` — hooks, durable traces, the Bash sandbox, process limits,
+  Agent/Space sandbox tiers, worker baseline selection, and worker API ingress
+  isolation are implemented and evidenced (§6.1). Portal presents the boundary
+  recorded by a TaskRun trace and its resolved plugin pins. The unattended-worker
+  profile refuses stdio MCP fail-closed before any child or model call, and
+  Portal Run Details presents that treatment beside the boundary. The supported
+  worker contract is closed; §6.1 maps each control to its evidence. Pod-wide
+  egress and an outer runtime remain accepted, conditional post-Beta hardening,
+  and full immutable-candidate qualification is the separate R3/Beta gate
 - follows: P0 Agent Core stability, P1 Local agent experience, and P2 Portal outcome surface — all complete; their plans were retired (see git history)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-23`
@@ -30,12 +31,11 @@
 ## 1. Purpose
 
 The completed P0 work made the shared Agent Core stable enough for CLI, Desktop,
-Portal, and worker task runs. The remaining R0 work closes the stdio MCP path
-around the worker boundary and qualifies that supported contract in a candidate
-deployment.
+Portal, and worker task runs. R0 then closed the stdio MCP path around the worker
+boundary and evidenced the supported contract's controls (§6.1).
 
 This document intentionally stays at the product-capability level. It records
-the trust capabilities already delivered and the bounded work that remains.
+the trust capabilities delivered and the evidence that closes R0.
 
 ## 2. Direction
 
@@ -370,27 +370,50 @@ write-back remain separate product questions and do not block R0.
 
 ## 5. Suggested Priority
 
-The remaining R0 implementation order is:
+The R0 implementation order was:
 
 1. Reject worker stdio MCP unless the child can use the declared boundary, and
-   present that treatment beside the boundary already visible for a TaskRun.
-2. Exercise the existing command, hook, MCP, resource, and worker API boundaries
-   with the candidate artifacts.
+   present that treatment beside the boundary already visible for a TaskRun. —
+   done.
+2. Exercise the command, hook, MCP, resource, and worker API boundaries against
+   the supported worker profile. — done; §6.1 maps each to its evidence.
 
 Other trust-harness improvements follow demonstrated user or operator needs and
 do not block the first private Beta.
 
 ## 6. Acceptance
 
-The remaining R0 trust-boundary work is successful when:
+The R0 trust-boundary work is accepted; each criterion holds:
 
 - no stdio MCP child runs outside the boundary claimed by the supported worker
-  profile;
-- missing required enforcement stops the run before model execution;
-- an operator can see the actual boundary and MCP treatment for a TaskRun; and
-- candidate deployment evidence verifies the supported Bash, hook, MCP,
-  process-limit, and worker API controls.
+  profile — the profile fails a resolved stdio server during assembly;
+- missing required enforcement stops the run before model execution — the
+  unattended-worker profile fails closed;
+- an operator can see the actual boundary and MCP treatment for a TaskRun —
+  Portal Run Details presents both; and
+- deployment evidence covers the supported Bash, hook, MCP, process-limit, and
+  worker API controls at the level §6.1 records.
 
 Pod-wide egress and outer-runtime isolation remain truthful, accepted limits for
 the first private Beta. They become release gates only if the supported threat
-model changes.
+model changes. Full immutable-candidate qualification through the operator
+journey is the separate R3 / [beta-readiness](../deploy/beta-readiness.md) gate;
+R0 closing the worker contract does not assert it.
+
+### 6.1 Evidence
+
+Each supported worker control mapped to its strongest current evidence. Bash and
+worker API isolation are proven through the deployed worker path; the rest are
+proven where the control actually executes, on a worker profile those first two
+prove is real.
+
+| Control | Claim | Evidence |
+|---|---|---|
+| Bash confinement | A sandboxed Bash command runs and a write outside the workspace is denied on the deployed worker | Deployment smoke `assertWorkerSandboxConfines` ([tools/mk/deploy_smoke.go](../../tools/mk/deploy_smoke.go)): a real dispatched task calls Bash through the server → worker → Job path and asserts the probe ran and the out-of-workspace write was denied — not the scripted final text |
+| Worker API isolation | The worker control API is unreachable from the public Service and admits only labeled workers | kind boundary check ([tools/mk/kind.go](../../tools/mk/kind.go)): `/api/worker/*` 404s on the public Service, a labeled worker reaches the worker port, an unlabeled pod is denied; plus deterministic route/token/TLS tests ([worker-api-network-boundary.md](./worker-api-network-boundary.md) §13.1) |
+| stdio MCP fail-closed | A resolved stdio MCP server fails the run before model execution, legibly | Assembly-time enforcement ([internal/agentapp/mcp_manager.go](../../internal/agentapp/mcp_manager.go)); the decision is environment-independent — it fails construction before any child or model call — and is proven at the taskrun-runtime, agentapp, trace, and server-handler levels (`worker_mcp_policy_test.go`, `mcp_boundary_test.go`, and the work-handler trace test) and presented in Portal Run Details |
+| Process limits | The ulimit-wrapping path bounds a sandboxed command | The worker deliberately sets no process limit — the Kubernetes Job `resources` own that ([internal/config/sandbox.go](../../internal/config/sandbox.go)); the ulimit-wrapping mechanism is verified on real Alpine and macOS shells ([sandbox-boundaries.md](./sandbox-boundaries.md) §13.1) |
+| Hook boundary | A `command`/`http` hook cannot escape the sandbox | Command hooks execute the same `WrapBashCommand` path the deployed Bash probe exercises; verified against a real Seatbelt `sandbox.Manager` ([sandbox-boundaries.md](./sandbox-boundaries.md) §13.1) |
+
+Two controls are accepted, documented first-Beta limits rather than gates:
+pod-wide worker egress destination policy and an outer runtime (§3.9).

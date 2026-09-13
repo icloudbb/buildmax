@@ -3,7 +3,7 @@
 > **简体中文：** [阅读中文镜像](zh-CN/ROADMAP.md)
 >
 > **Audience:** users, operators, and contributors · **Status:** current — Alpha
-> **Last reviewed:** 2026-09-12
+> **Last reviewed:** 2026-09-13
 
 BuildMax is an open-source Agent runtime for local work and private Space
 deployment. CLI/TUI, Desktop, and Server/Portal use the same Go Agent Core.
@@ -19,7 +19,7 @@ release readiness depends on evidence, not the number of features implemented.
 | Horizon | User outcome | Current position |
 |---|---|---|
 | Available in Alpha | Run Agents locally or in a private Space, with managed models, background and scheduled work, shared results, and diagnostic traces. | Implemented capabilities have different limits; see the [current-state assessment](current-state.md) and [user manual](../manual/introduction.md). |
-| Next: private-deployment Beta | Trust the worker boundary, supported Server topology, persistence, and recovery procedures. | Engineering gaps and candidate operating evidence remain open. |
+| Next: private-deployment Beta | Trust the worker boundary, supported Server topology, persistence, and recovery procedures. | The worker boundary contract (R0) is closed and evidenced; durable-state and recovery engineering gaps and candidate operating evidence remain open. |
 | Later: evidence-led expansion | Richer Workflows, integrations, and local experiences that solve demonstrated user problems. | Candidate directions, not release commitments. |
 
 This roadmap owns priority, sequencing, and release gates. Implementation
@@ -32,9 +32,10 @@ historical capability groupings; the R0–R5 order below governs current work.
 
 ## Active Priority Order
 
-R0–R2 close the remaining release-blocking engineering gaps: the supported
-worker contract, durable state correctness, and long-running recovery. R3 then
-qualifies one immutable candidate through the documented operator journey.
+R0 closed the supported worker contract. R1–R2 close the remaining
+release-blocking engineering gaps: durable state correctness and long-running
+recovery. R3 then qualifies one immutable candidate through the documented
+operator journey.
 R4–R5 are post-Beta, evidence-led work rather than prerequisites hidden inside
 the release path. These are priorities, not claims that someone is currently
 assigned to every item.
@@ -46,24 +47,29 @@ prose that follows still carries the real detail and the `Done when:` gate.
 
 ### R0. Close The Supported Worker Contract
 
-**Status:** candidate-proof-remains
+**Status:** done
 
-**Candidate proof remains.** Official worker images
-select and probe the worker sandbox baseline; Bash confinement, process limits,
-hook transport policy, worker API isolation, trace boundary presentation, and
-resolved plugin presentation are implemented. The supported unattended-worker
-profile now disables stdio MCP fail-closed: a resolved stdio server fails the
-run during assembly, before its command runs, and the treatment is legible in
-TaskRun diagnostics beside the run boundary.
+**Done.** Official worker images select and probe the worker sandbox baseline;
+Bash confinement, process limits, hook transport policy, worker API isolation,
+trace boundary presentation, and resolved plugin presentation are implemented.
+The supported unattended-worker profile disables stdio MCP fail-closed: a
+resolved stdio server fails the run during assembly, before its command runs,
+and the treatment is legible in TaskRun diagnostics beside the run boundary. Each
+control is mapped to its evidence in
+[trust harness](design/trust-harness.md) §6.1: Bash confinement and worker API
+isolation are proven through the deployed worker path (the deployment smoke's
+`assertWorkerSandboxConfines` and the kind worker-API boundary check), and the
+stdio MCP, process-limit, and hook controls are proven where each executes on
+that same proven worker profile.
 
-**Next:** verify the Bash, process-limit, hook, MCP, and worker API controls
-with the candidate artifacts on a deployed worker profile.
-
-**Done when:** no stdio MCP child runs outside the boundary claimed by the
-supported worker profile; unavailable required enforcement fails closed; the
+**Evidence recorded:** no stdio MCP child runs outside the boundary claimed by
+the supported worker profile; unavailable required enforcement fails closed; the
 actual boundary and MCP treatment are legible in TaskRun diagnostics; and
-candidate deployment evidence covers those claims. Pod-wide destination
-control and an outer runtime sandbox remain accepted first-Beta limits.
+deployment evidence covers those claims at the level trust harness §6.1 records.
+Pod-wide destination control and an outer runtime sandbox remain accepted
+first-Beta limits, not R0 gates. Full immutable-candidate qualification through
+the operator journey is R3 and the [Beta readiness record](deploy/beta-readiness.md),
+which stay open; R0 closing the worker contract does not assert them.
 
 Design: [trust harness](design/trust-harness.md),
 [worker API network boundary](design/worker-api-network-boundary.md), and

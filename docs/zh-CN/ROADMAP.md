@@ -3,7 +3,7 @@
 > **英文原文：** [BuildMax Roadmap](../ROADMAP.md)
 >
 > **读者：** 用户、运维人员与贡献者 · **状态：** 当前有效 — Alpha
-> **最近复核：** 2026-09-12
+> **最近复核：** 2026-09-13
 >
 > 本文是英文原文的简体中文镜像；如有差异，以英文原文为准。
 
@@ -20,7 +20,7 @@ CLI/TUI、Desktop 和 Server/Portal 使用同一个 Go Agent Core。
 | 阶段 | 用户能获得什么 | 当前情况 |
 |---|---|---|
 | Alpha 已可用 | 在本地或私有 Space 中运行 Agent，使用托管模型、后台与定时工作、共享结果与诊断轨迹。 | 各项能力的限制不同，参见[当前状态评估](current-state.md)与[用户手册](../../manual/introduction.md)。 |
-| 下一步：私有部署 Beta | 能够信任 worker 边界、受支持的 Server 拓扑、持久化与恢复流程。 | 工程缺口与候选版本运行证据仍待补齐。 |
+| 下一步：私有部署 Beta | 能够信任 worker 边界、受支持的 Server 拓扑、持久化与恢复流程。 | worker 边界契约（R0）已关闭并有证据；持久状态与恢复的工程缺口、候选版本运行证据仍待补齐。 |
 | 后续：依据证据扩展 | 更丰富的 Workflow、集成与本地体验，解决已得到验证的用户问题。 | 候选方向，不是发布承诺。 |
 
 路线图负责优先级、顺序与发布门槛。实现证据放在[当前状态](current-state.md)，
@@ -31,8 +31,8 @@ CLI/TUI、Desktop 和 Server/Portal 使用同一个 Go Agent Core。
 
 ## 当前优先顺序
 
-R0–R2 关闭剩余的发布阻塞型工程缺口：受支持的 worker 契约、持久状态正确性与
-长期运行恢复。R3 随后依据文档中的运维流程验证一个不可变候选版本。
+R0 已关闭受支持的 worker 契约。R1–R2 关闭剩余的发布阻塞型工程缺口：持久状态
+正确性与长期运行恢复。R3 随后依据文档中的运维流程验证一个不可变候选版本。
 R4–R5 是 Beta 之后、由证据驱动的工作，不是藏在发布路径中的前置条件。
 这些是优先级，不代表每项都已有负责人正在开发。
 
@@ -42,21 +42,23 @@ R4–R5 是 Beta 之后、由证据驱动的工作，不是藏在发布路径中
 
 ### R0. 关闭受支持的 worker 契约
 
-**Status:** candidate-proof-remains
+**Status:** done
 
-**还剩一条工程规则与候选版本验证。** 官方 worker 镜像已经选择并探测 worker
-沙箱基线；Bash 隔离、进程限制、hook 传输策略、worker API 隔离、轨迹边界展示和
-已解析 Plugin 展示均已实现。stdio MCP server 仍作为 worker 直接子进程启动，位于
-Bash 边界之外，而 Beta 门槛要求受支持的 worker 配置约束或禁用它。
+**已完成。** 官方 worker 镜像选择并探测 worker 沙箱基线；Bash 隔离、进程限制、
+hook 传输策略、worker API 隔离、轨迹边界展示和已解析 Plugin 展示均已实现。受支持
+的无人值守 worker 配置失败关闭地禁用 stdio MCP：解析到的 stdio server 在装配期、
+在命令运行之前让运行失败，该处理在 TaskRun 诊断信息中于运行边界旁清晰可见。每项
+控制都在[信任保障](design/信任保障.md) §6.1 映射到其证据：Bash 隔离与 worker API
+隔离经真实部署 worker 路径证明（部署冒烟的 `assertWorkerSandboxConfines` 与 kind
+的 worker-API 边界检查），stdio MCP、进程限制与 hook 控制则在各自执行的层面、于同
+一已证明为真实的 worker 配置上证明。
 
-**下一步：** 除非 stdio MCP 子进程能进入声明的边界，否则让受支持的无人值守
-worker 配置拒绝它；在已经可见的运行边界旁展示这种处理；并用候选制品验证 Bash、
-进程限制、hook、MCP 与 worker API 控制。
-
-**完成标准：** 没有 stdio MCP 子进程在受支持 worker 配置所声明的边界之外运行；
+**证据已记录：** 没有 stdio MCP 子进程在受支持 worker 配置所声明的边界之外运行；
 必要的强制机制不可用时失败关闭；实际边界与 MCP 处理在 TaskRun 诊断信息中清晰可见；
-候选部署证据覆盖这些声明。Pod 级目的地控制与外层 runtime 沙箱仍是首个 Beta
-明确接受的限制。
+部署证据以信任保障 §6.1 记录的层级覆盖这些声明。Pod 级目的地控制与外层 runtime
+沙箱仍是首个 Beta 明确接受的限制，而非 R0 门槛。经由运维旅程的完整不可变候选资格
+认证属于 R3 与 [Beta 就绪记录](deploy/beta-readiness.md)，二者仍未关闭；R0 关闭
+worker 契约并不代表已通过它们。
 
 设计：[信任保障](design/信任保障.md)、
 [worker API 网络边界](design/Worker API网络边界.md)与
