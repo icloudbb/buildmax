@@ -19,7 +19,7 @@ release readiness depends on evidence, not the number of features implemented.
 | Horizon | User outcome | Current position |
 |---|---|---|
 | Available in Alpha | Run Agents locally or in a private Space, with managed models, background and scheduled work, shared results, and diagnostic traces. | Implemented capabilities have different limits; see the [current-state assessment](current-state.md) and [user manual](../manual/introduction.md). |
-| Next: private-deployment Beta | Trust the worker boundary, supported Server topology, persistence, and recovery procedures. | The worker boundary contract (R0) is closed and evidenced; durable-state and recovery engineering gaps and candidate operating evidence remain open. |
+| Next: private-deployment Beta | Trust the worker boundary, supported Server topology, persistence, and recovery procedures. | The worker boundary contract (R0) and durable-state correctness (R1) are closed and evidenced, R1 including a deployed cross-replica coordination exercise; long-running recovery (R2) and candidate operating evidence for one immutable deployment (R3) remain open. |
 | Later: evidence-led expansion | Richer Workflows, integrations, and local experiences that solve demonstrated user problems. | Candidate directions, not release commitments. |
 
 This roadmap owns priority, sequencing, and release gates. Implementation
@@ -32,10 +32,10 @@ historical capability groupings; the R0–R5 order below governs current work.
 
 ## Active Priority Order
 
-R0 closed the supported worker contract. R1–R2 close the remaining
-release-blocking engineering gaps: durable state correctness and long-running
-recovery. R3 then qualifies one immutable candidate through the documented
-operator journey.
+R0 closed the supported worker contract and R1 closed durable state correctness.
+R2 closes the remaining release-blocking engineering gap: bounding long-running
+operation and recovery. R3 then qualifies one immutable candidate through the
+documented operator journey.
 R4–R5 are post-Beta, evidence-led work rather than prerequisites hidden inside
 the release path. These are priorities, not claims that someone is currently
 assigned to every item.
@@ -77,28 +77,34 @@ Design: [trust harness](design/trust-harness.md),
 
 ### R1. Close Durable State Correctness
 
-**Status:** in-progress
+**Status:** done
 
-**Core mechanisms implemented; the durable-reconciliation window remains.** Redis
-mode supplies shared streams, connection events, and Conversation turn leases, and
-the reference manifests run two coordinated Server replicas. Workflow run and
-step-run transitions now use guarded compare-and-set writes, with failed-step
-finalization made atomic. Message-history writes now enforce lease fencing, so a
-stale writer is rejected rather than corrupting a conversation. A task is no
-longer refused for the tokens its generated title spent, so a space under its run
-limit no longer strands a Conversation on a token refusal. The linear Workflow
-precursor is now durably reconciled: a Server-owned recovery loop sweeps due
-runs from stored state, so a lost callback or a restart no longer strands one,
-proven against real MySQL.
+**Done.** Redis mode supplies shared streams, connection events, and Conversation
+turn leases, and the reference manifests run two coordinated Server replicas.
+Workflow run and step-run transitions use guarded compare-and-set writes, with
+failed-step finalization made atomic. Message-history writes enforce lease
+fencing, so a stale writer is rejected rather than corrupting a conversation. A
+task is no longer refused for the tokens its generated title spent, so a space
+under its run limit no longer strands a Conversation on a token refusal. The
+linear Workflow precursor is durably reconciled: a Server-owned recovery loop
+sweeps due runs from stored state, so a lost callback or a restart no longer
+strands one, proven against real MySQL.
 
-**Next:** exercise worker updates, reconnects, concurrent turns, and Redis
-failure in the candidate topology. Do not count an in-process two-replica test
-as a cluster exercise.
-
-**Done when:** stale writers cannot commit, persisted work converges after a
-process interruption without duplicate execution, refused work leaves no
-orphan record, and the supported topology has candidate evidence for delivery,
-serialization, and recovery.
+**Evidence recorded:** the deployed candidate exercise the bar required now
+exists. [`kindCoordinationProbe`](../tools/mk/coordination_probe.go), run by
+`./make kind smoke` against the two-replica + Redis kind stack, drives the two
+replicas by hand and proves the delivery, serialization, and recovery the bar
+names: a task's worker output reaches a stream opened on either replica; a turn
+holding the conversation lease on one replica keeps a turn on the other replica
+from reaching the model until it releases; and both recover after the Redis pod
+restarts. Stale writers cannot commit (fencing), refused work leaves no orphan
+record (the title-token fix), and persisted work converges after interruption
+without duplicate execution (the Server-owned reconciliation loop, proven against
+real MySQL). Propagating a lost lease to the running turn and a Server
+rolling-update drill remain open, but are R3 deployment-qualification concerns
+rather than durable-state-correctness gaps; R1 closing does not assert full
+immutable-candidate qualification, which stays with R3 and the
+[Beta readiness record](deploy/beta-readiness.md).
 
 Design: [Server coordination](design/server-coordination.md) and
 [Workflow runtime](design/workflow-runtime.md).
