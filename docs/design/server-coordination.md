@@ -2,9 +2,11 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/服务器协调.md)
 
-> **Audience:** contributors and operators · **Status:** mechanism implemented;
-> qualification open. Both `local` and `redis` backends ship, and message-write
-> fencing is enforced. The remaining R1 work is candidate deployment evidence.
+> **Audience:** contributors and operators · **Status:** implemented and
+> qualified. Both `local` and `redis` backends ship, message-write fencing is
+> enforced, and a deployed kind probe proves cross-replica delivery, turn
+> serialization, and recovery after a Redis restart against the candidate
+> topology.
 
 Related: [Graceful shutdown](graceful-shutdown.md), [Worker API network
 boundary](worker-api-network-boundary.md), [Enterprise
@@ -37,10 +39,15 @@ topology checks all ship.
 Each lease's fencing token is enforced in the Conversation message-history write
 path: a write carrying a token below the highest the conversation has accepted is
 rejected, so a holder that resumed after its lease expired cannot append behind
-the replica that superseded it. The remaining qualification gap is a deployed
-candidate exercise covering cross-replica delivery, concurrent turns, reconnects,
-Redis failure, and recovery. In-process and miniredis tests prove the mechanism,
-not the candidate topology.
+the replica that superseded it. The deployed qualification gap is now closed:
+[`kindCoordinationProbe`](../../tools/mk/coordination_probe.go), run by
+`./make kind smoke`, drives the two-replica + Redis kind stack directly and
+proves cross-replica stream delivery, cross-replica turn-lease serialization,
+and recovery after a Redis restart — the delivery, serialization, and recovery
+evidence R1 asks for (§10). In-process and miniredis tests prove the mechanism;
+this probe proves the candidate topology. Propagating a lost lease to the running
+turn (§11) and a server rolling-update drill remain open beyond that bar, and are
+R3 deployment-qualification concerns rather than coordination-correctness gaps.
 
 ## 2. Problem
 
@@ -252,6 +259,18 @@ coordination:
 - An architecture test asserts the production manifest's `buildmax-server` replica
   count is consistent with a configured coordination backend, so a manifest that
   scales the server without `coordination.mode: redis` fails the build.
+- A deployed probe closes the gap the miniredis tests leave open.
+  [`kindCoordinationProbe`](../../tools/mk/coordination_probe.go), run at the end
+  of `./make kind smoke` beside the sandbox and worker-API boundary probes,
+  forwards each `buildmax-server` pod on its own port and drives the two replicas
+  by hand against real Redis. It proves three things a unit test cannot, on the
+  candidate topology: a task's worker output reaches a stream opened on either
+  replica (delivery); a turn stalled at the model on one replica holds the
+  conversation lease so a turn raised on the other replica cannot reach the model
+  until it releases (serialization); and both recover after the Redis pod is
+  restarted (recovery). A stall armed on the shared mock is what opens the window
+  to observe each before any reply is written, and each turn carries a per-run
+  nonce because the mock's request log is cumulative across runs.
 
 ## 11. Out Of Scope And Open Questions
 

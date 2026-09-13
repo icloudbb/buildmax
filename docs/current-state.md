@@ -210,9 +210,12 @@ unreachable configured Redis rather than silently falling back to local mode.
 
 Both the basic/kind and production manifests now configure Redis and two Server
 replicas. Architecture tests reject multiple replicas without coordination.
-Multi-replica streaming and lease behavior have automated tests; candidate
-reconnect, contention, outage, and recovery exercises still need operating
-proof. The lease exposes a fencing token, and message-history writes enforce it:
+Multi-replica streaming and lease behavior have automated tests, and a deployed
+kind probe ([`kindCoordinationProbe`](../tools/mk/coordination_probe.go), run by
+`./make kind smoke`) now drives the two replicas by hand against real Redis to
+prove cross-replica stream delivery, cross-replica turn-lease serialization, and
+recovery after a Redis restart on the candidate topology. The lease exposes a
+fencing token, and message-history writes enforce it:
 a write carrying a token below the one the conversation has accepted is rejected,
 so a stale writer after lease loss cannot append behind the new holder. Lease
 renewal itself discards Redis errors and does not cancel the running turn when

@@ -20,7 +20,7 @@ CLI/TUI、Desktop 和 Server/Portal 使用同一个 Go Agent Core。
 | 阶段 | 用户能获得什么 | 当前情况 |
 |---|---|---|
 | Alpha 已可用 | 在本地或私有 Space 中运行 Agent，使用托管模型、后台与定时工作、共享结果与诊断轨迹。 | 各项能力的限制不同，参见[当前状态评估](current-state.md)与[用户手册](../../manual/introduction.md)。 |
-| 下一步：私有部署 Beta | 能够信任 worker 边界、受支持的 Server 拓扑、持久化与恢复流程。 | worker 边界契约（R0）已关闭并有证据；持久状态与恢复的工程缺口、候选版本运行证据仍待补齐。 |
+| 下一步：私有部署 Beta | 能够信任 worker 边界、受支持的 Server 拓扑、持久化与恢复流程。 | worker 边界契约（R0）与持久状态正确性（R1）已关闭并有证据，R1 含一次部署级跨副本协调演练；长期运行恢复（R2）与一个不可变部署的候选运行证据（R3）仍待补齐。 |
 | 后续：依据证据扩展 | 更丰富的 Workflow、集成与本地体验，解决已得到验证的用户问题。 | 候选方向，不是发布承诺。 |
 
 路线图负责优先级、顺序与发布门槛。实现证据放在[当前状态](current-state.md)，
@@ -31,8 +31,8 @@ CLI/TUI、Desktop 和 Server/Portal 使用同一个 Go Agent Core。
 
 ## 当前优先顺序
 
-R0 已关闭受支持的 worker 契约。R1–R2 关闭剩余的发布阻塞型工程缺口：持久状态
-正确性与长期运行恢复。R3 随后依据文档中的运维流程验证一个不可变候选版本。
+R0 已关闭受支持的 worker 契约，R1 已关闭持久状态正确性。R2 关闭剩余的发布阻塞型
+工程缺口：约束长期运行与恢复闭环。R3 随后依据文档中的运维流程验证一个不可变候选版本。
 R4–R5 是 Beta 之后、由证据驱动的工作，不是藏在发布路径中的前置条件。
 这些是优先级，不代表每项都已有负责人正在开发。
 
@@ -66,21 +66,26 @@ worker 契约并不代表已通过它们。
 
 ### R1. 关闭持久状态正确性缺口
 
-**Status:** in-progress
+**Status:** done
 
-**核心机制已实现；还剩持久化协调这一窗口。** Redis 模式提供共享流、连接事件和
-Conversation 回合租约，参考清单运行两个协调后的 Server 副本。Workflow run 与
-step-run 转换现在使用带保护的 compare-and-set 写入，失败步骤的收口也已原子化。
-消息历史写入现在已执行租约 fencing，陈旧写入者会被拒绝而非损坏会话。任务不再因其
-生成标题所花的 token 而被拒绝，因此在 run 额度之内的 space 不会再因 token 拒绝而留下
-孤立 Conversation。Workflow 推进仍依赖 callback 而非持久化协调。
+**已完成。** Redis 模式提供共享流、连接事件和 Conversation 回合租约，参考清单运行
+两个协调后的 Server 副本。Workflow run 与 step-run 转换使用带保护的 compare-and-set
+写入，失败步骤的收口也已原子化。消息历史写入已执行租约 fencing，陈旧写入者会被拒绝
+而非损坏会话。任务不再因其生成标题所花的 token 而被拒绝，因此在 run 额度之内的 space
+不会再因 token 拒绝而留下孤立 Conversation。线性 Workflow 前身已实现持久化协调：一个
+由 Server 拥有的恢复循环从持久化状态中扫描到期的 run，因此 callback 丢失或重启不再让
+其搁浅，并已用真实 MySQL 验证。
 
-**下一步：** 让线性 Workflow 前身能在 callback 丢失或重启后恢复，并用真实 MySQL 验证
-其竞争。之后在候选拓扑中演练 worker 更新、重连、并发回合与 Redis 故障。进程内双副本
-测试不能算作集群演练。
-
-**完成标准：** 旧持有者不能提交写入；持久工作在进程中断后收敛且不会重复执行；
-被拒绝的工作不留下孤立记录；受支持拓扑具备投递、串行化与恢复的候选版本证据。
+**已记录证据：** 完成标准所要求的部署级候选演练现已存在。由 `./make kind smoke` 对着
+两副本 + Redis 的 kind 栈运行的 [`kindCoordinationProbe`](../../tools/mk/coordination_probe.go)
+手动驱动两个副本，证明完成标准所指的投递、串行化与恢复：一个任务的 worker 输出能到达
+在任一副本上打开的流；一个在某副本上持有会话租约的回合，会让在另一副本上发起的回合
+在它释放前无法到达模型；以及在 Redis Pod 重启后两者都能恢复。旧持有者不能提交写入
+（fencing），被拒绝的工作不留下孤立记录（标题 token 修复），持久工作在中断后收敛且不会
+重复执行（由 Server 拥有的、用真实 MySQL 验证的协调循环）。把失租信号传递给正在运行的
+回合以及 Server 滚动更新演练仍属未决，但它们是 R3 部署资格验证的问题，而非持久状态
+正确性缺口；R1 关闭并不断言完整的不可变候选资格认证，那仍归属 R3 与
+[Beta 就绪记录](deploy/beta-readiness.md)。
 
 设计：[服务器协调](design/服务器协调.md)与
 [Workflow runtime](design/Workflow运行时.md)。
