@@ -26,9 +26,9 @@
 - roadmap_priority: `P0.5`
 - status: `phases A–E implemented (process limits and hook transports
   included), phase F's worker surface selection, production-pod
-  verification, and downgrade marking done` (§13; docs and
-  `buildmax sandbox overrides` remain — modelled on
-  [Claude Code's sandbox docs](https://code.claude.com/docs/en/sandboxing))
+  verification, downgrade marking, and phase F docs all done` (§13; the §15
+  acceptance list is met. `buildmax sandbox overrides` is out of scope, see §14 —
+  modelled on [Claude Code's sandbox docs](https://code.claude.com/docs/en/sandboxing))
 - follows: [trust-harness.md](./trust-harness.md), [hook-system.md](./hook-system.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-23`
@@ -222,8 +222,9 @@ behavior matches Claude Code's defaults:
 - **Filesystem read**: entire computer, minus `deny_read`.
   *Note*: this default still allows reads of `~/.aws/credentials`,
   `~/.ssh/`, etc. Operators who care must add those to `deny_read`
-  themselves. We will document this caveat in
-  `config-examples/sandbox.example.yaml` and `CLAUDE.md`.
+  themselves. This caveat is documented in
+  [manual/sandbox.md](../../manual/sandbox.md) and shown in the annotated
+  `sandbox:` block of `config-examples/settings.example.yaml`.
 - **Network**: no domains pre-allowed. Each new domain prompts via
   the existing approval flow (interactive surfaces) or denies
   outright (non-interactive — `applyPolicyAndExecute` already
@@ -357,8 +358,9 @@ Subcommands:
   with per-platform install hints.
 - `buildmax sandbox mode <auto_allow|regular>` — writes
   `auto_allow_bash_if_sandboxed` to user settings.
-- `buildmax sandbox overrides <strict|permissive>` — writes
-  `allow_unsandboxed_commands` to user settings.
+- `buildmax sandbox overrides <strict|permissive>` — out of scope (§14):
+  `allow_unsandboxed_commands` is an operator lock set once in `policy.yaml`,
+  not a per-session convenience toggle, so this subcommand is not built.
 - `buildmax sandbox enable` / `disable` — writes
   `sandbox.enabled`.
 
@@ -520,8 +522,8 @@ ignore_violations.** ✅
 - TUI footer; `buildmax sandbox mode` / `enable` / `disable`.
 - `SessionStart` hook payload populated with `SandboxInfo`.
 
-**Phase F — Worker hardening + docs.** ⚠️ surface selection, k8s-pod
-verification, and downgrade marking done; docs still open
+**Phase F — Worker hardening + docs.** ✅ surface selection, k8s-pod
+verification, downgrade marking, and docs all done
 - Worker bootstrap: hard-code `enabled: true,
   fail_if_unavailable: true, allow_unsandboxed_commands: false`
   unless explicitly overridden by `policy.yaml`. ✅
@@ -534,8 +536,13 @@ verification, and downgrade marking done; docs still open
   `buildAgentApp` logs a `slog.Warn` at construction when either is true. The
   `SessionStart` hook payload and every run's `sandbox_boundary` trace record
   both carry the combined result.
-- `config-examples/sandbox.example.yaml`, CLAUDE.md §4.1 update,
-  ROADMAP.md update.
+- User and operator docs: [manual/sandbox.md](../../manual/sandbox.md), the
+  annotated `sandbox:` blocks in `config-examples/settings.example.yaml` and
+  `config-examples/policy.example.yaml`, and the sandbox rows in
+  [docs/reference/configuration.md](../reference/configuration.md). A separate
+  `config-examples/sandbox.example.yaml` is intentionally not added — those files
+  already cover the user block, the operator lock-out, and the env/env-var
+  surface, so a combined example would only duplicate them. ✅
 
 ### 13.1 Implementation state
 
@@ -548,7 +555,9 @@ matcher, env scrubber, violation store), `agentapp/sandbox.go`
 demotion and `dangerously_disable_sandbox`, the TUI footer tag, and
 `buildmax sandbox status|deps|mode|enable|disable`.
 
-Still open — these block §15 acceptance:
+All items below have since landed, so the §15 acceptance list is met
+(`buildmax sandbox overrides` was dropped from the list — it is now out of
+scope, §14):
 
 1. ✅ **Worker default is now selected and verified against the production
    pod security context.** `agentapp/taskrun/runtime.go` sets
@@ -605,10 +614,13 @@ Still open — these block §15 acceptance:
    against a real `sandbox.Manager` (Seatbelt, not a stub): a command hook
    printed its own output, then had a write outside the workspace denied
    with `Operation not permitted`, exactly as `Bash` would.
-4. **`buildmax sandbox overrides <strict|permissive>`** (§8) is not
-   implemented; `allow_unsandboxed_commands` can only be edited by hand.
-5. **Docs from phase F**: no `config-examples/sandbox.example.yaml`, and
-   AGENTS.md §4.1 documents the sandbox only as of this pass.
+4. ✅ **Docs from phase F.** The sandbox is documented for users and operators in
+   [manual/sandbox.md](../../manual/sandbox.md), the annotated `sandbox:` blocks
+   of `config-examples/settings.example.yaml` and
+   `config-examples/policy.example.yaml`, and the sandbox rows in
+   [docs/reference/configuration.md](../reference/configuration.md). A dedicated
+   `config-examples/sandbox.example.yaml` is intentionally not created: it would
+   only duplicate those. AGENTS.md carries the sandbox runtime invariant.
 
 Naming deviations from the plan, harmless: the unsupported-platform stub is
 `unsupported_other.go` (not `unsupported_windows.go`), the env denylist lives in
@@ -648,6 +660,10 @@ the phase A list.
 - Dynamic profile switching mid-run; sandbox config is fixed at
   run start (a `Refresh()` call still requires the next run to
   pick it up).
+- A `buildmax sandbox overrides` subcommand. `allow_unsandboxed_commands` is an
+  operator lock set once in `policy.yaml`, not a per-session convenience toggle,
+  so editing it there is the whole supported path. Trust harness §4 records the
+  same cut.
 
 ## 15. Acceptance
 
@@ -668,10 +684,11 @@ the phase A list.
 - Secret-shaped env vars never leak into the sandbox unless
   explicitly listed.
 - `command` and `http` hook transports honor the same boundaries.
-- `buildmax sandbox` subcommand mirrors Claude Code's `/sandbox`
-  panel (status, deps, mode, overrides, enable/disable).
+- `buildmax sandbox` subcommand covers status, deps, mode, and
+  enable/disable. (`overrides` is out of scope — §14.)
 
 ---
 
-*Phases A–E of this doc are implemented; see §13.1 for what is still open
-before the §15 acceptance list is satisfied.*
+*Phases A–F of this doc are implemented; the §15 acceptance list is satisfied.
+See §13.1 for the landed state and the one item (`buildmax sandbox overrides`)
+that was moved out of scope (§14).*

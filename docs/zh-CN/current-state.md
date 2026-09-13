@@ -17,9 +17,13 @@ BuildMax 仍处于 Alpha。本地 Agent 执行与私有 Space 执行链路已经
 这些不等于已具备生产多租户服务能力，也不证明 Beta 候选版本已通过验证。
 [Beta 就绪记录](deploy/beta-readiness.md)仍未合格。
 
-MCP stdio 子进程目前不经过 Bash 沙箱。受支持的 worker 配置必须在 Beta 前约束或
-禁用它们；这是剩余的 R0 工程规则，不只是资格验证清单。整个 worker 的出站网络是
-首个私有 Beta 已记录并接受的限制。
+受支持的无人值守 worker 配置现在失败关闭地禁用 stdio MCP：解析到的 stdio server
+在装配期、命令运行前、首次模型调用前让 worker 运行失败，而远程传输与本地界面不受
+影响；TaskRun 诊断在记录的边界旁于 Portal 运行详情中展示该处理。R0——受支持的
+worker 契约——已关闭：[信任保障](design/信任保障.md) §6.1 把每项控制（Bash 隔离、
+worker API 隔离、stdio MCP 失败关闭、进程限制与 hook 边界）映射到其证据，其中 Bash
+与 worker API 隔离经真实部署 worker 路径证明。经由运维旅程的不可变候选资格认证仍是
+单独的 Beta 关卡。整个 worker 的出站网络是首个私有 Beta 已记录并接受的限制。
 持久 Workflow 状态协调、轨迹保留，以及候选版本的故障与恢复证据仍待完成。
 共享 Redis 协调已经实现，包括消息历史写入对分布式租约 fencing token 的校验。
 worker API 已有独立监听器、TLS 支持和已交付的入站 NetworkPolicy；

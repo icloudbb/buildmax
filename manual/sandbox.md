@@ -97,13 +97,17 @@ Two keys make the policy layer authoritative rather than merely additive: `allow
 
 A single call can request `dangerously_disable_sandbox`. It is honored **only** when `allow_unsandboxed_commands: true`. Leave that false and the flag is inert — which is the point of having it be config-gated rather than a runtime decision.
 
-## Known gaps
+## Scope and limits
 
-The sandbox is genuinely useful today, but it is not finished:
+The sandbox confines `Bash` well today. Keep its deliberate boundaries in mind:
 
-- `buildmax sandbox overrides <strict|permissive>` is not implemented; `allow_unsandboxed_commands` can only be edited by hand
+- it covers `Bash` (and the `command`/`http` hook transports, below) only — every other tool's boundary is the workspace root, not this config
+- network egress is filtered by hostname, not by inspecting TLS
+- on a worker it does not impose a pod-wide destination policy; that is an accepted, documented first-Beta limit, not this layer's job
 
-A `command` or `http` hook now runs through the same confinement a sandboxed `Bash`/`WebFetch` call does — a hook cannot reach what the sandbox exists to contain — but hooks carry no `dangerously_disable_sandbox`-equivalent: they are config-authored automation, not an LLM-chosen call you watch turn by turn, so there is no per-invocation argument for one to opt out with.
+There is deliberately no `buildmax sandbox overrides` subcommand: `allow_unsandboxed_commands` is an operator lock you set once in `policy.yaml`, not a per-session toggle, so you edit it there.
+
+A `command` or `http` hook runs through the same confinement a sandboxed `Bash`/`WebFetch` call does — a hook cannot reach what the sandbox exists to contain — but hooks carry no `dangerously_disable_sandbox`-equivalent: they are config-authored automation, not an LLM-chosen call you watch turn by turn, so there is no per-invocation argument for one to opt out with.
 
 Do not treat the sandbox as a substitute for reviewing what a deployment is allowed to reach.
 

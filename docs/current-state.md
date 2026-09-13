@@ -22,8 +22,12 @@ The supported unattended-worker profile now disables stdio MCP: a resolved
 stdio server fails a worker run during assembly, before its command runs and
 before the first model call, while remote transports and local surfaces are
 unaffected. TaskRun diagnostics present that treatment beside the recorded
-boundary in Portal Run Details. The remaining R0 work is candidate deployment
-evidence for the supported worker controls. Worker-wide network
+boundary in Portal Run Details. R0 — the supported worker contract — is closed:
+[trust-harness](design/trust-harness.md) §6.1 maps each control (Bash
+confinement, worker API isolation, stdio MCP fail-closed, process limits, and
+the hook boundary) to its evidence, with Bash and worker API isolation proven
+through the deployed worker path. Immutable-candidate qualification through the
+operator journey stays the separate Beta gate. Worker-wide network
 egress is a documented, accepted limit for the first private Beta. The linear
 Workflow reconciler now folds terminal facts and dispatches from durable state,
 and a Server-owned recovery loop sweeps due runs at startup and on an interval,
