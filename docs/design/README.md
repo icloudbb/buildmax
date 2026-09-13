@@ -110,6 +110,7 @@ the individual record rather than being duplicated here.
 | [Tool permissions](tool-permissions.md) | Active plan | Runtime tool allow, deny, and approval policy |
 | [Sandbox boundaries](sandbox-boundaries.md) | Specification | Local and worker command containment boundaries |
 | [Worker run token](worker-run-token.md) | Specification | The run-scoped credential accepted by worker routes |
+| [Enterprise identity and access](enterprise-identity-and-access.md) | Direction | OIDC corporate sign-in, external-identity linking, sessions, and the native-versus-SSO posture |
 
 ## Operations and Deployment
 

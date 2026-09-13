@@ -9,7 +9,7 @@
 Related: [system administration design](../design/system-administration.md),
 [space governance](../design/space-governance.md),
 [space membership lifecycle](../design/space-membership-lifecycle.md),
-[enterprise identity and access](enterprise-identity-and-access.md), and the
+[enterprise identity and access](../design/enterprise-identity-and-access.md), and the
 [roadmap](../ROADMAP.md).
 
 ## Contents
@@ -164,7 +164,7 @@ be passed into `SpaceAction` or used as a fallback when Space authorization fail
 - A universal superuser that bypasses Space membership.
 - Custom roles, arbitrary permissions, or per-resource ACLs in this slice.
 - OIDC, SAML, SCIM, MFA, and service accounts. The
-  [enterprise identity proposal](enterprise-identity-and-access.md) owns those.
+  [enterprise identity proposal](../design/enterprise-identity-and-access.md) owns those.
 - Account hard deletion or Space deletion. Both require data-ownership,
   retention, and audit decisions first.
 - Editing `server.yaml` from Portal. It is process-start configuration and has

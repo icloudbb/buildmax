@@ -6,7 +6,7 @@
 >
 > **讨论开始：** 2026-09-05
 
-相关文档：[系统管理设计文档](../design/系统管理.md)、[Space 治理](../design/Space治理.md)、[Space 成员生命周期](../design/Space成员生命周期.md)、[企业身份与访问](enterprise-identity-and-access.md)，以及[路线图](../ROADMAP.md)。
+相关文档：[系统管理设计文档](../design/系统管理.md)、[Space 治理](../design/Space治理.md)、[Space 成员生命周期](../design/Space成员生命周期.md)、[企业身份与访问](../design/企业身份与访问.md)，以及[路线图](../ROADMAP.md)。
 
 ## 目录
 
@@ -107,7 +107,7 @@ System Administrator 并不是角色层级的顶端。它是一条独立于 Spac
 
 - 一个绕过 Space 成员身份的通用超级用户。
 - 本次切片中不引入自定义角色、任意权限或按资源的 ACL。
-- OIDC、SAML、SCIM、MFA 和服务账户。这些由[企业身份提案](enterprise-identity-and-access.md)负责。
+- OIDC、SAML、SCIM、MFA 和服务账户。这些由[企业身份提案](../design/企业身份与访问.md)负责。
 - 账户的硬删除或 Space 删除。两者都需要先做出数据归属、保留期限和审计方面的决策。
 - 从 Portal 编辑 `server.yaml`。它是进程启动时的配置，没有可供多副本共享的写入目标。
 - 一个原始日志查看器。日志可能包含端点、prompt 和凭据，这仍然是部署可观测性系统的职责。

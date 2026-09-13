@@ -12,7 +12,7 @@ Related: [roadmap](../ROADMAP.md) P3 and P4,
 [client modes design](../design/client-modes.md),
 [worker run token design](../design/worker-run-token.md),
 [data model](../contribute/architecture/data-model.md), and the
-[enterprise identity and access proposal](enterprise-identity-and-access.md).
+[enterprise identity and access proposal](../design/enterprise-identity-and-access.md).
 
 ## Contents
 

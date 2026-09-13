@@ -156,9 +156,10 @@ canary 只能证明评估链路成立，不能证明平台整体可靠，也不�
 当支持不互信多租户、不可信仓库，或 worker 持有高价值凭证时重新开启这项工作；
 没有这些证据，不把特定 CNI 或代理变成 BuildMax 的无条件依赖。
 
-企业 SSO 仍是讨论中的[企业身份提案](proposals/enterprise-identity-and-access.md)，
-不是已准入或排定顺序的 R5 结果。只有具名 provider、offboarding 上限、provisioning
-policy 与原生 connected client 的需要都有证据后，才采纳并安排它。
+企业 SSO 已在[企业身份与访问](design/企业身份与访问.md)设计记录中
+有了获采纳的方向（OIDC、外部身份关联，以及原生与 SSO 两种姿态），但没有排定顺序的
+R5 切片，也尚未实现。每个构建切片都要等待该记录列出的按部署输入——主要是目标 provider、
+offboarding 上限、JIT 域名策略,以及是否需要原生 connected client。
 
 Beta 门槛通过后，按以下顺序评估并交付此前尚未排期的本地与插件后续项。每一步仍需
 满足其所述证据；在此获得一个有序位置，并不意味着可以跳过提案的接受决策。

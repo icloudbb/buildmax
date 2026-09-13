@@ -37,7 +37,6 @@
 | [单一维护者的 Agent 开发工作流](single-maintainer-agent-development.md) | 验证 | 一位维护者如何借助编码 Agent 提升被接受的开发吞吐量，同时不成为工作流瓶颈？ | 支撑流程的构件已经存在，但就绪性复核、租约、变更范围验证与独立验收尚未形成闭环 |
 | [系统管理操作](system-administration-operations.md) | 运维与部署 | 运维 CLI 与 Portal 应如何为管理和运行时健康提供安全且一致的结果？ | 核心管理界面已交付；事务审计、CLI Session 对齐、配额分配与更丰富的运行时操作仍待完成 |
 | [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md) | 信任与安全 | 交互式、原生与无人值守客户端应获得哪些凭证？ | Session 链的列出与撤销已交付；显式状态、到期、claim、安全存储与自助管理仍待完成 |
-| [企业身份与访问](enterprise-identity-and-access.md) | 信任与安全 | 私有部署应如何将企业身份连接到 BuildMax Space 与角色？ | 已依据当前代码与标准形成可评审的 OIDC 设计；没有产品实现，也没有获采纳的路线图切片 |
 | [持久化 Agent Session](durable-agent-sessions.md) | 本地体验 | 已认证的本地 Agent Session 是否应成为带 revision 的 Server 资源？ | 尚未开始；没有 Server 路由提供 Session 资源 |
 | [Assistant 编排与 Workflow 边界](assistant-orchestration-and-workflow-boundary.md) | 产品与执行模型 | 管理者 Agent 是否足以支持 Assistant 产品，Workflow 是否应收窄为确定性的 Automation？ | 尚未开始；Agent 无法承接持久的子级 Space Agent Task |
 | [本地 Issue 工作桥接](local-issue-work-bridge.md) | 本地体验 | 已连接的本地界面应如何处理 Space Issue？ | R5 第 1 项安排剩余的 Phase 1 决策；持久 Issue-to-Session 关联与后续阶段仍待完成 |

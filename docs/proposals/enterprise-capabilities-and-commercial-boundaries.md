@@ -9,7 +9,7 @@
 > **Primary domain:** Operations and Deployment
 
 Related: [roadmap](../ROADMAP.md), [current state](../current-state.md),
-[enterprise identity](enterprise-identity-and-access.md),
+[enterprise identity](../design/enterprise-identity-and-access.md),
 [Space governance](../design/space-governance.md), and
 [private-deployment qualification](../deploy/beta-readiness.md).
 
@@ -52,7 +52,7 @@ older record uses historical phases or describes an earlier baseline.
 
 | Concern | Existing home | What this memo adds |
 |---|---|---|
-| Corporate identity | [Enterprise identity and access](enterprise-identity-and-access.md) | Place SSO and provisioning within the broader enterprise offer |
+| Corporate identity | [Enterprise identity and access](../design/enterprise-identity-and-access.md) | Place SSO and provisioning within the broader enterprise offer |
 | Sessions and automation credentials | [Client sessions and API credentials](client-sessions-and-api-credentials.md) | Connect revocation to unattended work and enterprise account lifecycle |
 | Roles, quota, and audit | [Space governance](../design/space-governance.md), [administration operations](system-administration-operations.md) | Distinguish foundational controls from possible centralized-management additions |
 | Secrets and execution trust | [Space secrets](../design/space-secrets.md), [trust harness](../design/trust-harness.md), [sandbox boundaries](../design/sandbox-boundaries.md), [plugin distribution](../design/plugin-space-distribution.md) | Identify enterprise policy and integration questions without claiming those extensions exist |

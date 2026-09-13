@@ -1,31 +1,51 @@
 # Enterprise Identity And Access
 
-> **简体中文：** [阅读中文镜像](../zh-CN/proposals/enterprise-identity-and-access.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/企业身份与访问.md)
 >
-> **Audience:** contributors, operators, product reviewers, and security reviewers · **Status:** proposal — under discussion
+> **Audience:** contributors, operators, product reviewers, and security reviewers
 >
-> **Opened:** 2026-08-16 · **Reworked from code and standards:** 2026-09-13 at `cceba61c`
+> **Lifecycle:** Direction — accepted 2026-09-13; nothing implemented yet. Built so far: none.
 >
 > **Primary domain:** Trust and Security
+
+This record supersedes the retired *Enterprise Identity And Access* proposal. It
+keeps that paper's direction and evidence — repository behavior inspected at
+`cceba61c` against OpenID Connect Core/Discovery, OAuth 2.0 Security BCP, and the
+browser/native guidance linked below — and records three decisions taken on
+acceptance:
+
+1. **Native and SSO are an emergent, validated posture, not a mode enum.** The
+   switch is the two orthogonal knobs `oidc.enabled` and `local_login`, not a new
+   `auth_mode` field. See §4 and §11.
+2. **SSO provisions just-in-time by default.** A verified first login creates the
+   BuildMax account automatically, bounded by a required non-empty allowed-email
+   domain list. Native deployments keep operator-created accounts. See §4 and §5.
+3. **One external protocol now, SAML as a clean later extension.** Only OIDC is
+   implemented; no SAML field, column, or config exists today. The extension path
+   is recorded in §8a so adding SAML is addition, not rework.
+
+The open items in §19 are the per-deployment inputs each build slice still needs,
+not questions about whether to build. Git history keeps the full proposal.
 
 Related: [roadmap](../ROADMAP.md) R5,
 [current state](../current-state.md),
 [deployment authentication](../deploy/authentication.md),
-[Space membership lifecycle](../design/space-membership-lifecycle.md),
-[system administration](../design/system-administration.md),
-[client sessions and API credentials](client-sessions-and-api-credentials.md), and
-[enterprise capabilities](enterprise-capabilities-and-commercial-boundaries.md).
+[Space membership lifecycle](space-membership-lifecycle.md),
+[system administration](system-administration.md),
+[client sessions and API credentials](../proposals/client-sessions-and-api-credentials.md), and
+[enterprise capabilities](../proposals/enterprise-capabilities-and-commercial-boundaries.md).
 
 ## Contents
 
-- [1. Decision Boundary And Evidence](#1-decision-boundary-and-evidence)
+- [1. Acceptance Context And Evidence](#1-acceptance-context-and-evidence)
 - [2. Essential User Outcome](#2-essential-user-outcome)
 - [3. Verified Current Constraints](#3-verified-current-constraints)
-- [4. Recommended Minimum Design](#4-recommended-minimum-design)
+- [4. Minimum Design](#4-minimum-design)
 - [5. Identity And Account Association](#5-identity-and-account-association)
 - [6. Space Membership, First Login, And Invitations](#6-space-membership-first-login-and-invitations)
 - [7. BuildMax Session Lifecycle](#7-buildmax-session-lifecycle)
 - [8. OIDC Protocol And Browser Flow](#8-oidc-protocol-and-browser-flow)
+- [8a. Extensibility And Future Protocols](#8a-extensibility-and-future-protocols)
 - [9. Data Model And Ownership](#9-data-model-and-ownership)
 - [10. HTTP API And Portal Changes](#10-http-api-and-portal-changes)
 - [11. Configuration And Deployment](#11-configuration-and-deployment)
@@ -36,16 +56,16 @@ Related: [roadmap](../ROADMAP.md) R5,
 - [16. Alternatives Considered](#16-alternatives-considered)
 - [17. Delivery And Verification](#17-delivery-and-verification)
 - [18. Non-Goals](#18-non-goals)
-- [19. Open Decisions And Evidence Needed](#19-open-decisions-and-evidence-needed)
-- [20. Likely Destination If Accepted](#20-likely-destination-if-accepted)
+- [19. Open Per-Deployment Inputs](#19-open-per-deployment-inputs)
+- [20. Documentation And Delivery Status](#20-documentation-and-delivery-status)
 
-## 1. Decision Boundary And Evidence
+## 1. Acceptance Context And Evidence
 
-This paper proposes the smallest coherent corporate sign-in path for a private
-BuildMax deployment. It does not approve implementation or move SSO ahead of
-the private-deployment Beta gate.
+This record defines the smallest coherent corporate sign-in path for a private
+BuildMax deployment. The direction is accepted; it does not move SSO ahead of
+the private-deployment Beta gate, and nothing here is implemented yet.
 
-The design begins from three kinds of evidence:
+The design rests on three kinds of evidence:
 
 1. Repository behavior was inspected at `cceba61c`, including account and
    refresh-token stores, authentication services and handlers, the central
@@ -56,12 +76,12 @@ The design begins from three kinds of evidence:
    deployment authority, and local execution does not require a Server.
 3. The protocol baseline is OpenID Connect Core and Discovery, OAuth 2.0
    Security Best Current Practice, and the browser/native guidance linked in
-   this paper. These standards support the security requirements below; they
-   do not prove demand for a particular identity provider.
+   this record.
 
-No target customer, identity provider, offboarding service-level objective, or
-native-client requirement has yet been supplied. Those are decision inputs,
-not details the implementation should guess.
+The direction is settled, but a target identity provider, offboarding
+service-level objective, and native-client requirement are still
+per-deployment inputs, not details an implementation should guess. They gate
+each build slice and are listed in §19; they do not reopen whether to build.
 
 ## 2. Essential User Outcome
 
@@ -88,7 +108,7 @@ The following is current code, not inferred future behavior:
 |---|---|---|
 | Account identity | `user` has one unique email, optional password, disablement, and no external-identity link | Add association; do not overload email with issuer identity |
 | Account creation | `CreateUser` atomically creates the account, personal Space, and owner membership | JIT provisioning must preserve that invariant in one transaction |
-| Login | `/api/login` accepts a password or operator-issued single-use code | OIDC becomes another proof that opens the same BuildMax session, not another authorization plane |
+| Login | `/api/auth/login` accepts a password or operator-issued single-use code | OIDC becomes another proof that opens the same BuildMax session, not another authorization plane |
 | Access token | HMAC JWT carries `sub`, `typ`, `sid`, `jti`, `iat`, and `exp`; default lifetime is seven days | Shorten the bearer window and make `sid` refer to authoritative session state |
 | Refresh token | Opaque, hashed, rotating rows grouped by `session_id`; rotation resets a 30-day inactivity window | Add absolute expiry and authentication provenance; retain rotation |
 | Revocation | Logout/revoke retires refresh rows, but an issued access JWT remains usable until expiry | A durable session check is required for prompt logout and provider-session revocation |
@@ -105,14 +125,14 @@ not provide a directory synchronization or prompt deprovisioning channel. Any
 design that says “SSO solves leavers” without a bounded reauthentication policy
 or provisioning integration is making a claim the protocol does not support.
 
-## 4. Recommended Minimum Design
+## 4. Minimum Design
 
-Adopt this direction if the evidence in §19 supports SSO:
+The accepted direction is:
 
 1. **One native OIDC provider per deployment.** BuildMax Server is a
    confidential relying party using Authorization Code Flow with PKCE. SAML,
    trusted proxy headers, and multiple simultaneous issuers are not in the
-   first implementation.
+   first implementation; §8a records how SAML is added later without rework.
 2. **OIDC proves authentication only.** The verified `(issuer, subject)` pair
    identifies an external person. BuildMax still owns accounts, sessions,
    System Administrator grants, Space memberships, roles, and every resource
@@ -121,9 +141,15 @@ Adopt this direction if the evidence in §19 supports SSO:
    `external_identity` record binds the OIDC subject to one existing BuildMax
    user. Verified email is used only for the first association or optional JIT
    creation; later logins resolve by `(issuer, subject)`.
-4. **Default to existing accounts.** `existing_only` refuses an unknown email.
-   `jit` is an explicit operator choice and creates only the normal account and
-   personal Space. It grants no shared-Space membership or system role.
+4. **SSO provisions just-in-time by default; native keeps operator-created
+   accounts.** In an SSO deployment a verified first login for an unknown but
+   allowed-domain email creates the normal account and personal Space
+   automatically (`provisioning: jit`). JIT grants no shared-Space membership or
+   system role, and an empty `allowed_email_domains` list refuses JIT rather than
+   meaning "every domain." An operator may instead set `existing_only` to accept
+   only accounts it pre-created. A native deployment (`oidc.enabled: false`) has
+   no external login at all: System Administrators create and assign accounts
+   exactly as today.
 5. **Issue BuildMax credentials, not IdP credentials.** The callback validates
    and discards the provider tokens, then opens the same BuildMax session model
    every other login uses. Provider tokens never reach Portal, CLI, Desktop,
@@ -145,6 +171,17 @@ Adopt this direction if the evidence in §19 supports SSO:
    password/login-code authentication defaults to System Administrators only.
    The database-direct `buildmax-server` bootstrap commands remain the recovery
    root.
+10. **Switch native versus SSO with two orthogonal knobs, not a mode enum.**
+    `oidc.enabled` turns external login on or off; `local_login`
+    (`all | system_admins | off`) governs who may still use the local username
+    and password plane. The deployment's posture is the validated combination of
+    the two — native is `oidc.enabled: false` with `local_login: all`; SSO is
+    `oidc.enabled: true` with `local_login: system_admins` — reported on the admin
+    status surface. No separate `auth_mode` field is introduced: because
+    break-glass requires local login to keep working for administrators even
+    under SSO, a single native/sso enum could not stand alone and would duplicate
+    `local_login`. Keeping the two axes orthogonal is also what lets a future
+    protocol (§8a) be a third, independent axis rather than a new enum value.
 
 The design deliberately introduces only two durable concepts:
 `external_identity`, because issuer identity cannot safely live on `user.email`,
@@ -188,11 +225,16 @@ After validation, one transaction applies these rules in order:
    session.
 
 The issuer is operator-trusted, but email matching remains a security-sensitive
-one-time link. `existing_only` is the safe default because the operator has
-already named the accounts the provider may claim. `jit` additionally requires
-an exact allowed-domain list; an empty list refuses JIT rather than meaning
-“every domain.” Domain comparison is canonical and exact, not a string suffix
-check.
+one-time link. `jit` is the default because the accepted outcome is that a
+verified corporate login provisions its own account; its safety comes from the
+required non-empty `allowed_email_domains` list, not from an operator having
+pre-named every account. An empty list refuses JIT rather than meaning "every
+domain," and domain comparison is canonical and exact, not a string suffix
+check. `existing_only` remains available for deployments that prefer the
+operator to name every account the provider may claim; it refuses an unknown
+email with one generic "not authorized for this deployment" response. Either
+way, rules 1–4 above still apply first, so JIT never replaces or moves an
+existing subject link.
 
 ### 5.3 Attribute drift and recovery
 
@@ -344,6 +386,46 @@ Normative references:
 - [OAuth 2.0 for Browser-Based Applications (RFC 10017)](https://www.rfc-editor.org/rfc/rfc10017.html)
 - [RP-Initiated Logout 1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html)
 
+## 8a. Extensibility And Future Protocols
+
+SAML and any other enterprise login protocol are out of the first slice, and no
+SAML field, column, configuration block, or `auth_method` value exists today.
+This section records the intended extension path so that adding one later is
+deliberate addition rather than rework — it does **not** authorize building any
+of it now, and nothing below should be implemented ahead of a named deployment
+that requires it.
+
+The design is protocol-extensible because authentication and authorization are
+separate axes (§4, §13). Only the handler layer is protocol-specific; the
+external-identity key, the `auth_session` model, credential delivery, and the
+central guard are not. A later protocol therefore slots onto three existing
+axes without a fourth concept:
+
+1. **A new value on the authentication axis.** `auth_session.auth_method` gains
+   `saml`. `local_login` and the OIDC settings are untouched, because "who may
+   use local login" is independent of which external protocol is configured.
+   This is exactly why §4 keeps native/SSO as orthogonal knobs rather than an
+   `auth_mode` enum: a protocol is a value on one axis, not a new top-level mode.
+2. **A protocol discriminator on `external_identity`.** The stable key
+   generalizes from OIDC's `(issuer, subject)` to `(protocol, issuer, subject)`,
+   where SAML supplies `(saml, IdP EntityID, NameID)`. The discriminator is
+   **not** added now — with one protocol it would be a field with no concrete
+   requirement — but the uniqueness constraints in §9.1 are documented as
+   "within the configured issuer" so the later migration adds a column rather
+   than reinterpreting existing rows. A persistent, non-transient `NameID` is
+   required; a transient NameID cannot be a stable account key.
+3. **A sibling provider configuration block.** A `saml:` block sits beside
+   `oidc:` with its own metadata URL or IdP certificate, entity IDs, NameID
+   format, and assertion-signature requirements, validated the same way the OIDC
+   block is. Assertion validation uses a maintained SAML library, never
+   hand-written XML or signature parsing, matching the OIDC library rule above.
+
+Two questions are explicitly deferred to that later review, not answered here:
+running more than one external protocol or issuer simultaneously (provider-choice
+UX, link-conflict, and issuer-migration behavior — see §16), and whether a target
+IdP that cannot speak OIDC justifies SAML at all. The single-external-issuer
+assumption in this record holds until then.
+
 ## 9. Data Model And Ownership
 
 ### 9.1 `external_identity`
@@ -358,10 +440,12 @@ Normative references:
 | `last_seen_name` | Optional display snapshot |
 | `last_login_at`, `created_at` | Lifecycle evidence |
 
-Unique constraints are `(issuer, subject)` and `(issuer, user_id)`. The second
-keeps one account from silently accumulating two subjects from the one
-configured issuer. The row has no provider access token, ID token, group list,
-role, or Space ID.
+Unique constraints are `(issuer, subject)` and `(issuer, user_id)`, scoped
+within the single configured issuer. The second keeps one account from silently
+accumulating two subjects from that issuer. A second protocol or issuer would
+add a discriminator column ahead of these keys rather than reinterpret existing
+rows (§8a). The row has no provider access token, ID token, group list, role, or
+Space ID.
 
 ### 9.2 `auth_session`
 
@@ -420,8 +504,8 @@ identifier, domain allowlist, or policy detail an anonymous caller does not
 need.
 
 The three Portal endpoints are credential-delivery adapters over the same
-identity service used by current `/api/login`, `/api/token/refresh`, and
-`/api/logout`. The existing routes remain the native-client JSON transport; the
+identity service used by current `/api/auth/login`, `/api/auth/token/refresh`,
+and `/api/auth/logout`. The existing routes remain the native-client JSON transport; the
 Portal routes never serialize a refresh token. Credential verification and
 session transitions are not duplicated.
 
@@ -441,26 +525,42 @@ correlation ID, not in the browser response.
 ## 11. Configuration And Deployment
 
 Keep the current top-level authentication settings for this slice rather than
-restructuring all of `server.yaml` incidentally. Add one enum and one OIDC
-block:
+restructuring all of `server.yaml` incidentally. The native-versus-SSO posture
+is the validated combination of the existing plane (`local_login`) and the new
+`oidc` block (§4, decision 10); there is no separate `auth_mode` field. Add one
+enum and one OIDC block:
 
 ```yaml
 jwt_secret: ""                 # existing; normally injected
 access_token_ttl: 15m          # existing field, proposed safer default
 refresh_token_ttl: 720h        # existing inactivity window
 session_absolute_ttl: 2160h    # new; local/login-code/password sessions
-local_login: system_admins     # all | system_admins | off
+local_login: all               # all | system_admins | off; migration default
 
 oidc:
-  enabled: true
+  enabled: false               # false => native: operator-created accounts only
   display_name: Company SSO
   issuer: https://id.example.com
   client_id: buildmax
   client_secret: ""            # inject with BUILDMAX_OIDC_CLIENT_SECRET
-  provisioning: existing_only  # existing_only | jit
+  provisioning: jit            # jit (default) | existing_only
   allowed_email_domains: []    # required and non-empty for jit
   session_max_age: 12h
 ```
+
+The two documented postures are:
+
+- **Native (default):** `oidc.enabled: false` with `local_login: all`. System
+  Administrators create and assign accounts through the `buildmax-server`
+  bootstrap commands exactly as today; there is no external login.
+- **SSO:** `oidc.enabled: true` with the recommended `local_login: system_admins`
+  for break-glass. `provisioning: jit` auto-creates an account on a verified
+  first login from an `allowed_email_domains` address; set `existing_only` to
+  accept only pre-created accounts.
+
+`provisioning` and `allowed_email_domains` are ignored when `oidc.enabled` is
+false, and startup refuses `oidc.enabled: true` with `provisioning: jit` and an
+empty `allowed_email_domains`.
 
 The callback is exactly
 `<public_base_url>/api/auth/oidc/callback`. `public_base_url` is required and
@@ -610,7 +710,7 @@ separate decision in the client-credentials proposal.
 | Authorization-code interception | Server-side exchange, confidential client, PKCE; no code/token in Portal storage | IdP or TLS compromise is outside BuildMax |
 | Issuer mix-up | One configured issuer, exact Discovery/ID Token issuer and audience validation | Multi-issuer support needs a new review |
 | Open redirect | Only a validated relative Portal path stored inside protected transaction state | External post-login redirects are not supported |
-| Account takeover by email match | Verified email, existing-only default, atomic uniqueness, never replace an existing subject link | Reassigned corporate email can claim a never-linked stale local account unless the operator disabled it |
+| Account takeover by email match | Verified email, required non-empty allowed-domain list for JIT, atomic uniqueness, never replace an existing subject link | Reassigned corporate email can claim a never-linked stale local account unless the operator disabled it; with JIT a new allowed-domain mailbox provisions a fresh account but gains no shared-Space or system authority |
 | Group/role escalation | Ignore IdP groups and roles; derive grants and memberships locally | Directory-driven roles await an explicit reconciler design |
 | Stolen BuildMax access token | Short TTL plus active-session and active-user check | A route that bypasses the central guard would bypass revocation and must fail architecture tests |
 | Stolen refresh cookie | Secure/HttpOnly/SameSite, rotation, reuse detection, exact-origin session endpoints | A fully compromised browser origin can act as the user |
@@ -645,15 +745,18 @@ deployment limit even when local login is restricted.
 
 ## 17. Delivery And Verification
 
-No backlog item should be created until this proposal is accepted. If accepted,
-decompose it into independently reviewable outcomes:
+The direction is accepted, but no backlog item is created until a concrete
+deployment settles the Phase 0 inputs in §19. Each slice below becomes an
+independently reviewable backlog task once its dependencies and acceptance
+criteria are settled:
 
 ### Phase 0 — evidence and decision
 
 - Name the first supported IdP and record its Discovery, claim, client-auth,
   logout, and test-environment behavior.
-- Decide the offboarding bound, JIT policy, local fallback mode, and whether
-  Portal-only scope is usable.
+- Confirm the offboarding bound, the JIT allowed-domain list (or `existing_only`
+  if a deployment needs it), local fallback mode, and whether Portal-only scope
+  is usable.
 - Threat-model the exact deployment and approve the configuration contract.
 
 ### Phase 1 — session and Portal credential foundation
@@ -723,16 +826,17 @@ forms of evidence are required before claiming support for that provider.
 - Claiming compliance-grade audit while ordinary event writes remain
   best-effort.
 
-## 19. Open Decisions And Evidence Needed
+## 19. Open Per-Deployment Inputs
 
-The design recommends defaults, but these facts are still missing:
+The direction is accepted, but these per-deployment facts gate each build slice
+and are still missing:
 
 1. **Target provider.** Which IdP must work first, and does it supply exact
    issuer Discovery, PKCE S256, verified email, UserInfo behavior, `max_age`,
    secret overlap, and a reproducible test tenant?
-2. **Provisioning policy.** Is operator-created `existing_only` sufficient, or
-   does a real onboarding volume justify JIT? Which exact email domains are
-   corporate authority?
+2. **Provisioning domains.** JIT is the accepted SSO default; which exact email
+   domains are corporate authority, and does any target deployment instead need
+   `existing_only`?
 3. **Offboarding objective.** Is a 12-hour reauthentication bound plus manual
    immediate disablement acceptable? If not, the requested outcome requires
    SCIM, validated back-channel logout, or another named lifecycle channel.
@@ -755,13 +859,20 @@ equivalent reproducible facts, an agreed joiner/leaver bound, a threat-model
 review, and a provider test plan. Feature comparison tables or “enterprise
 tools usually have SSO” are not enough.
 
-## 20. Likely Destination If Accepted
+## 20. Documentation And Delivery Status
 
-Acceptance should move the durable decisions into a new enterprise identity
-design record and its Chinese mirror, add the
-chosen post-Beta Roadmap outcome, and create only the Phase 1–3 backlog slices
-whose dependencies and acceptance criteria are then settled. The proposal is
-deleted at that point, as the documentation lifecycle requires.
+This record is the accepted direction; the originating proposal is retired to Git
+history. No implementation exists yet. Because the build slices depend on the
+per-deployment inputs in §19 — chiefly a named target provider — no backlog task
+is created here. Each Phase 1–3 slice (§17) becomes a backlog item only once its
+dependencies and acceptance criteria are settled, starting with the Phase 0
+evidence and decision for a concrete deployment.
+
+Until the relevant slice lands, `docs/current-state.md`,
+`docs/deploy/authentication.md`, `docs/reference/configuration.md`, OpenAPI,
+Portal Help/manual content, deployment examples, and the support matrix must
+continue to state that SSO is not implemented. As implementation lands, update
+each of those in the same contribution that ships the behavior.
 
 As implementation lands, update `docs/current-state.md`,
 `docs/deploy/authentication.md`, `docs/reference/configuration.md`, OpenAPI,
