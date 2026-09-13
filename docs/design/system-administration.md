@@ -37,7 +37,7 @@
   distinguishes them from its remaining proposed work
 - follows: [space-governance.md](./space-governance.md) and
   [enterprise-deployment.md](./enterprise-deployment.md)
-- relates to: [enterprise identity and access](../proposals/enterprise-identity-and-access.md)
+- relates to: [enterprise identity and access](enterprise-identity-and-access.md)
   proposal, which owns OIDC/SCIM and must not be pre-empted here
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-08-18`
@@ -525,8 +525,8 @@ without touching the database directly.
 
 - A second or third system role, until one has a caller (§5.1).
 - Organization hierarchy, custom roles, per-resource ACLs.
-- OIDC, SAML, SCIM. The [identity proposal](../proposals/enterprise-identity-and-access.md)
-  owns those. The only constraint this design places on it: an identity
+- OIDC, SAML, SCIM. The [enterprise identity and access](enterprise-identity-and-access.md)
+  record owns those. The only constraint this design places on it: an identity
   provider may *add* grants, and the operator command must keep working, so an
   IdP outage cannot lock a deployment out of its own administration.
 - A log viewer, a log search, or anything SIEM-shaped (§7.2).

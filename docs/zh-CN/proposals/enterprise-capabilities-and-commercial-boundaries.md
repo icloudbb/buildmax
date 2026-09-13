@@ -9,7 +9,7 @@
 > **主要领域：** 运维与部署
 
 相关文档：[路线图](../ROADMAP.md)、[当前状态](../current-state.md)、
-[企业身份](enterprise-identity-and-access.md)、
+[企业身份](../design/企业身份与访问.md)、
 [Space 治理](../design/Space治理.md)、
 [私有部署验收](../../deploy/beta-readiness.md)。
 
@@ -45,7 +45,7 @@ BuildMax 仍处于 Alpha。路线图的目标是面向私有网络中一个受�
 
 | 关注点 | 现有文档 | 本备忘录补充的内容 |
 |---|---|---|
-| 企业身份 | [企业身份与访问](enterprise-identity-and-access.md) | 将 SSO 与人员同步放入整体企业产品讨论 |
+| 企业身份 | [企业身份与访问](../design/企业身份与访问.md) | 将 SSO 与人员同步放入整体企业产品讨论 |
 | Session 与自动化凭证 | [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md) | 将撤销与无人值守工作、企业账户生命周期关联 |
 | 角色、配额和审计 | [Space 治理](../design/Space治理.md)、[系统管理操作](system-administration-operations.md) | 区分基础控制和可能新增的集中管理能力 |
 | 密钥与执行信任 | [Space Secret](../design/Space密钥.md)、[信任框架](../design/信任保障.md)、[沙箱边界](../design/沙箱边界.md)、[插件分发](../design/Space插件分发.md) | 标明企业策略和集成问题，不宣称扩展能力已经实现 |

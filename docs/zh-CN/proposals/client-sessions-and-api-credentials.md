@@ -12,7 +12,7 @@
 [客户端模式设计](../design/客户端模式.md)、
 [Worker 运行令牌设计](../design/Worker运行令牌.md)、
 [数据模型](../contribute/architecture/data-model.md)，以及
-[企业身份与访问提案](enterprise-identity-and-access.md)。
+[企业身份与访问提案](../design/企业身份与访问.md)。
 
 ## 目录
 

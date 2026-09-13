@@ -198,11 +198,13 @@ untrusted repositories, or workers holding high-value credentials; do not make
 a particular CNI or proxy an unconditional BuildMax dependency without that
 evidence.
 
-Corporate SSO remains an under-discussion
-[enterprise identity proposal](proposals/enterprise-identity-and-access.md), not
-an admitted or ordered R5 outcome. Accept and place it only after a target
-provider, an offboarding bound, a provisioning policy, and the need for native
-connected clients are evidenced.
+Corporate SSO has an accepted direction in the
+[enterprise identity and access](design/enterprise-identity-and-access.md) design
+record (OIDC, external-identity linking, and a native-versus-SSO posture), but no
+ordered R5 slice and nothing implemented. Each build slice waits on the
+per-deployment inputs that record names — chiefly a target provider, an
+offboarding bound, the JIT domain policy, and whether native connected clients
+are required.
 
 After the Beta gate, evaluate and deliver the previously unplanned local and
 plugin follow-ons in this order. Each step still needs its stated evidence; an
