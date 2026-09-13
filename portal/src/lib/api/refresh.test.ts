@@ -6,22 +6,7 @@ import {
   TOKEN_REFRESHED_EVENT,
   UNAUTHORIZED_EVENT,
 } from "./client"
-import { currentAccessToken, currentRefreshToken, writeSession } from "./session"
-
-/** A localStorage that behaves like the real one, for a node test environment. */
-function stubStorage(): Storage {
-  const map = new Map<string, string>()
-  return {
-    get length() {
-      return map.size
-    },
-    clear: () => map.clear(),
-    getItem: (k: string) => map.get(k) ?? null,
-    key: (i: number) => [...map.keys()][i] ?? null,
-    removeItem: (k: string) => void map.delete(k),
-    setItem: (k: string, v: string) => void map.set(k, v),
-  } as Storage
-}
+import { clearAccessToken, currentAccessToken, setAccessToken } from "./session"
 
 /** Collects events the way AuthContext listens for them. */
 function captureEvents() {
@@ -52,23 +37,20 @@ function jsonResponse(status: number, body: unknown): Response {
   })
 }
 
+const SESSION_URL = "/api/auth/portal/session"
+
 describe("token refresh", () => {
-  let storage: Storage
   let events: ReturnType<typeof captureEvents>
 
   beforeEach(() => {
-    storage = stubStorage()
     events = captureEvents()
-    vi.stubGlobal("localStorage", storage)
     vi.stubGlobal("window", { ...events.target, __BUILDMAX_CONFIG__: { apiBase: "https://api.test" } })
-    writeSession({
-      accessToken: "access-1",
-      refreshToken: "bmxrefresh_1",
-      expiresAt: Date.now() + 3_600_000,
-    })
+    // The access token lives in module memory; reset it before each test.
+    setAccessToken("access-1", Date.now() + 3_600_000)
   })
 
   afterEach(() => {
+    clearAccessToken()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -77,13 +59,7 @@ describe("token refresh", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response("", { status: 401 }))
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          access_token: "access-2",
-          refresh_token: "bmxrefresh_2",
-          expires_in: 604800,
-        })
-      )
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: "access-2", expires_in: 604800 }))
       .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
     vi.stubGlobal("fetch", fetchMock)
 
@@ -94,33 +70,32 @@ describe("token refresh", () => {
     expect(res.status).toBe(200)
     expect(fetchMock).toHaveBeenCalledTimes(3)
 
+    // The session exchange sends the cookie, no body, no bearer.
+    const sessionInit = fetchMock.mock.calls[1][1] as RequestInit
+    expect(String(fetchMock.mock.calls[1][0])).toContain(SESSION_URL)
+    expect(sessionInit.credentials).toBe("include")
+    expect(sessionInit.body).toBeUndefined()
+
     // The replay carries the new token, not the one the caller passed.
     const replayInit = fetchMock.mock.calls[2][1] as RequestInit
     expect(new Headers(replayInit.headers).get("Authorization")).toBe("Bearer access-2")
 
-    // Both halves of the rotated pair are stored.
+    // The new access token is held in memory.
     expect(currentAccessToken()).toBe("access-2")
-    expect(currentRefreshToken()).toBe("bmxrefresh_2")
     expect(events.seen).toContain(TOKEN_REFRESHED_EVENT)
     expect(events.seen).not.toContain(UNAUTHORIZED_EVENT)
   })
 
   // The reason single-flight exists. A page mounting several requests at once
-  // gets several 401s in the same tick; if each exchanged the refresh token,
-  // the server would see the same token presented repeatedly and — correctly —
-  // revoke the session as replayed.
+  // gets several 401s in the same tick; if each hit the session endpoint, the
+  // server would see the rotating refresh cookie presented repeatedly and —
+  // correctly — revoke the session as replayed.
   it("shares one exchange between concurrent callers", async () => {
     // The stale token is refused; the rotated one is accepted. That is all the
     // server needs to do for this test to be about the client's coordination.
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
-      if (String(url).endsWith("/api/auth/token/refresh")) {
-        return Promise.resolve(
-          jsonResponse(200, {
-            access_token: "access-2",
-            refresh_token: "bmxrefresh_2",
-            expires_in: 604800,
-          })
-        )
+      if (String(url).endsWith(SESSION_URL)) {
+        return Promise.resolve(jsonResponse(200, { access_token: "access-2", expires_in: 604800 }))
       }
       const auth = new Headers(init?.headers).get("Authorization")
       return Promise.resolve(
@@ -137,17 +112,15 @@ describe("token refresh", () => {
       apiFetch("https://api.test/api/spaces", { headers: { Authorization: "Bearer access-1" } }),
     ])
 
-    const refreshCalls = fetchMock.mock.calls.filter((c) =>
-      String(c[0]).endsWith("/api/auth/token/refresh")
-    )
-    expect(refreshCalls).toHaveLength(1)
+    const sessionCalls = fetchMock.mock.calls.filter((c) => String(c[0]).endsWith(SESSION_URL))
+    expect(sessionCalls).toHaveLength(1)
   })
 
-  it("ends the session when the server rejects the refresh token", async () => {
+  it("ends the session when the server rejects the exchange", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response("", { status: 401 }))
-      .mockResolvedValueOnce(jsonResponse(401, { error: "invalid refresh token" }))
+      .mockResolvedValueOnce(jsonResponse(401, { error: "no session" }))
     vi.stubGlobal("fetch", fetchMock)
 
     const res = await apiFetch("https://api.test/api/spaces", {
@@ -155,15 +128,15 @@ describe("token refresh", () => {
     })
 
     expect(res.status).toBe(401)
+    // On 401 the server has cleared the cookie; the in-memory token goes too.
     expect(currentAccessToken()).toBeNull()
-    expect(currentRefreshToken()).toBeNull()
     expect(events.seen).toContain(UNAUTHORIZED_EVENT)
   })
 
   // Being offline is not the same as being signed out. On a deployment where
   // signing back in means asking an operator for a login code, discarding a
   // usable session because the network blipped is an expensive mistake.
-  it("keeps the session when the refresh call cannot reach the server", async () => {
+  it("keeps the token when the exchange cannot reach the server", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response("", { status: 401 }))
@@ -174,27 +147,30 @@ describe("token refresh", () => {
       headers: { Authorization: "Bearer access-1" },
     })
 
-    expect(currentRefreshToken()).toBe("bmxrefresh_1")
+    // A network error is not a dead session: the token stays.
+    expect(currentAccessToken()).toBe("access-1")
   })
 
   it("leaves an unauthenticated request alone", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 401 }))
     vi.stubGlobal("fetch", fetchMock)
 
-    await apiFetch("https://api.test/api/auth/login", { method: "POST" })
+    await apiFetch("https://api.test/api/auth/portal/login", { method: "POST" })
 
     // One call, no refresh: a login that fails is not a session that expired.
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(currentRefreshToken()).toBe("bmxrefresh_1")
+    expect(currentAccessToken()).toBe("access-1")
   })
 
-  it("does nothing when there is no refresh token to exchange", async () => {
-    writeSession({ accessToken: "access-1", refreshToken: null, expiresAt: null })
-    const fetchMock = vi.fn()
+  it("exchanges the refresh cookie for a new access token", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: "access-2", expires_in: 604800 }))
     vi.stubGlobal("fetch", fetchMock)
 
-    expect(await refreshAccessToken()).toBeNull()
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(await refreshAccessToken()).toBe("access-2")
+    expect(currentAccessToken()).toBe("access-2")
+    expect(String(fetchMock.mock.calls[0][0])).toContain(SESSION_URL)
   })
 })
 
@@ -203,21 +179,17 @@ describe("ensureAccessToken", () => {
 
   beforeEach(() => {
     events = captureEvents()
-    vi.stubGlobal("localStorage", stubStorage())
     vi.stubGlobal("window", { ...events.target, __BUILDMAX_CONFIG__: { apiBase: "https://api.test" } })
   })
 
   afterEach(() => {
+    clearAccessToken()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
-  it("hands back the stored token while it is still good", async () => {
-    writeSession({
-      accessToken: "access-1",
-      refreshToken: "bmxrefresh_1",
-      expiresAt: Date.now() + 3_600_000,
-    })
+  it("hands back the current token while it is still good", async () => {
+    setAccessToken("access-1", Date.now() + 3_600_000)
     const fetchMock = vi.fn()
     vi.stubGlobal("fetch", fetchMock)
 
@@ -227,29 +199,21 @@ describe("ensureAccessToken", () => {
 
   // The WebSocket asks in advance because a rejected upgrade tells it nothing.
   it("refreshes before the deadline rather than at it", async () => {
-    writeSession({
-      accessToken: "access-1",
-      refreshToken: "bmxrefresh_1",
-      // Inside the skew window: still valid, but not for long enough to open a
-      // connection that is meant to last.
-      expiresAt: Date.now() + 5_000,
-    })
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse(200, {
-        access_token: "access-2",
-        refresh_token: "bmxrefresh_2",
-        expires_in: 604800,
-      })
-    )
+    // Inside the skew window: still valid, but not for long enough to open a
+    // connection that is meant to last.
+    setAccessToken("access-1", Date.now() + 5_000)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { access_token: "access-2", expires_in: 604800 }))
     vi.stubGlobal("fetch", fetchMock)
 
     expect(await ensureAccessToken()).toBe("access-2")
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  // A session stored before expiry was recorded still has to work.
+  // A token with no recorded expiry still has to work.
   it("uses a token of unknown expiry rather than refusing it", async () => {
-    writeSession({ accessToken: "access-1", refreshToken: "bmxrefresh_1", expiresAt: null })
+    setAccessToken("access-1", null)
     const fetchMock = vi.fn()
     vi.stubGlobal("fetch", fetchMock)
 

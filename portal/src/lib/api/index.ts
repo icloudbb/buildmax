@@ -11,7 +11,7 @@ export {
 } from "./client"
 export type {
   LoginUser,
-  LoginResponse,
+  PortalSessionResponse,
   ApiWorkspace,
   ApiAgent,
   ApiTask,

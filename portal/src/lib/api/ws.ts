@@ -25,6 +25,21 @@ const RECONNECT_MAX = 30000
 const STABLE_CONNECTION_MS = 10000
 
 /**
+ * The absolute ws(s):// origin to open the socket against.
+ *
+ * An absolute http(s) API base becomes its ws(s) form directly. A same-origin
+ * base — "" or a relative path, the reverse-proxy setup where the Portal and
+ * server share a hostname — has no scheme to swap, so the origin comes from
+ * `window.location`: a WebSocket URL must be absolute, unlike a fetch path.
+ */
+function wsBaseFrom(httpBase: string): string {
+  if (/^https?:\/\//.test(httpBase)) {
+    return httpBase.replace(/^http/, "ws")
+  }
+  return window.location.origin.replace(/^http/, "ws")
+}
+
+/**
  * BuildMaxWebSocket manages a persistent WebSocket connection to the server.
  * Supports typed events, auto-reconnect with exponential backoff.
  */
@@ -73,8 +88,7 @@ export class BuildMaxWebSocket {
     if (this.intentionalClose) return
     this.token = token
 
-    const httpBase = getApiBase()
-    const wsBase = httpBase.replace(/^http/, "ws")
+    const wsBase = wsBaseFrom(getApiBase())
     const params = new URLSearchParams({ token })
     const url = `${wsBase}/api/spaces/${encodeURIComponent(this.spaceId)}/ws?${params.toString()}`
 

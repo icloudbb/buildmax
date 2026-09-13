@@ -66,6 +66,12 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/login", h.loginHandler)
 	mux.HandleFunc("POST /api/auth/token/refresh", h.refreshHandler)
 	mux.HandleFunc("POST /api/auth/logout", h.logoutHandler)
+	// Portal credential-delivery adapters: same identity service as the routes
+	// above, but the renewable credential rides in a Secure, HttpOnly,
+	// SameSite=Strict cookie instead of a JSON body. See portal.go.
+	mux.HandleFunc("POST /api/auth/portal/login", h.portalLoginHandler)
+	mux.HandleFunc("POST /api/auth/portal/session", h.portalSessionHandler)
+	mux.HandleFunc("POST /api/auth/portal/logout", h.portalLogoutHandler)
 	// Authenticated; sets or changes the caller's own password.
 	mux.HandleFunc("POST /api/auth/password", h.setPasswordHandler)
 }

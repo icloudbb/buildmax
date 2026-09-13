@@ -1,1 +1,8 @@
-export { login, loginWithPassword, requestOtp, revokeSession, setPassword } from "./api"
+export {
+  login,
+  loginWithPassword,
+  requestOtp,
+  restoreSession,
+  revokeSession,
+  setPassword,
+} from "./api"
