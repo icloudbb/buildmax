@@ -39,9 +39,8 @@ the trust capabilities delivered and the evidence that closes R0.
 
 ## 2. Direction
 
-The remaining R0 work focuses on the supported unattended-worker profile. CLI,
-Desktop, Portal, and worker should still expose shared core capabilities in
-surface-appropriate ways.
+R0 centered on the supported unattended-worker profile. CLI, Desktop, Portal,
+and worker expose shared core capabilities in surface-appropriate ways.
 
 The goal is:
 
