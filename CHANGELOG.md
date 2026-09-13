@@ -14,6 +14,63 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.12] - 2026-09-13
+
+### Added
+
+- Creating, disabling, or destroying a space Secret now writes a
+  `secret.created`, `secret.disabled`, or `secret.destroyed` event to the space
+  audit trail, with the Secret's id as the target and no item name, value, or
+  ciphertext in the event.
+
+### Changed
+
+- Admin stored-flag transitions are now a single idempotent `PUT .../state`
+  instead of paired POST actions: `PUT /api/admin/users/{user_id}/state`
+  (`disabled`), `PUT /api/admin/llm/models/{model_id}/state` (`enabled`),
+  `PUT /api/admin/plugins/{plugin_name}/state` (`archived`), and
+  `PUT /api/admin/plugins/{plugin_name}/releases/{version}/state` (`yanked`).
+  The old `/disable`, `/enable`, `/archive`, `/unarchive`, and `/yank` routes no
+  longer exist; clients that ship with the server were updated in step.
+
+- Authentication routes moved under a common `/api/auth/` prefix:
+  `/api/auth/otp`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/password`,
+  and `/api/auth/token/refresh`. The old top-level paths (`/api/login`,
+  `/api/otp/request`, and the rest) no longer exist; clients that ship with the
+  server were updated in step.
+
+- The OpenAPI specification is split along the listener boundary: the public
+  `/openapi.json` no longer documents the worker control plane, which now lives
+  in its own `openapi-worker.json`. This matches the two-listener network
+  boundary, where the public socket cannot dispatch a worker route.
+
+### Fixed
+
+- `buildmax -r <value>` with a malformed (non-UUID) session id now reports an
+  "invalid resume id" usage error instead of the "session not found" a
+  well-formed but unknown id gets, matching the `--session-id` validation.
+
+- `buildmax --session-id <uuid>` now creates the session when it does not exist,
+  matching the flag's documented "load if exists, else create" contract, so a
+  caller can start a run under a deterministic id. `-r/--resume` still errors on
+  an unknown id.
+
+- The OpenAPI documents now define the `Artifact` schema every artifact route's
+  response referenced, so `/openapi.json` (and the worker document) no longer
+  carry a dangling `$ref` for the file a create or read returns.
+
+- The served OpenAPI document's `info.version` now reflects the running build
+  instead of a stale hand-maintained literal, so `/openapi.json` and Swagger UI
+  report the deployment's actual version.
+
+- Portal now shows "1 member" (not "1 members") for a one-member space, exposes
+  the agent-detail section tabs with the standard `tab` role, and gives the
+  new-secret item name and value inputs real accessible labels.
+
+- The Portal dashboard no longer issues `GET /api/spaces/null/conversations` on
+  first load, removing the 403 console error emitted on every sign-in before the
+  current space resolves.
+
 ## [0.2.0-alpha.11] - 2026-09-13
 
 ### Added
@@ -2888,7 +2945,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.11...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.12...HEAD
+[0.2.0-alpha.12]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.11...v0.2.0-alpha.12
 [0.2.0-alpha.11]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.10...v0.2.0-alpha.11
 [0.2.0-alpha.10]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.9...v0.2.0-alpha.10
 [0.2.0-alpha.9]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.8...v0.2.0-alpha.9
