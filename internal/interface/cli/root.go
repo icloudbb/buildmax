@@ -27,7 +27,7 @@ var rootLong = fmt.Sprintf(`BuildMax – AI Agent CLI
 
 Sessions:
   Each run with -p saves the session under the app data directory (see BUILDMAX_HOME or ~/.buildmax).
-  Use -r/--resume <session-id> to continue a previous session (TUI or print mode).
+  Use -r/--resume <session-id> to continue a previous session (TUI or print mode); value must be a valid UUID.
   Use -c/--continue to resume the most recent session (by creation time); -r takes precedence if both are set.
   Use --session-id <uuid> to use a specific session ID (load if exists, else create); value must be a valid UUID.
 
@@ -80,7 +80,7 @@ func NewRootCommand() *cobra.Command {
 // than a copy per surface.
 func addRunFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("print", "p", "", "send QUERY to the LLM and print the response (no TUI)")
-	cmd.Flags().StringP("resume", "r", "", "session id to resume (TUI or print mode)")
+	cmd.Flags().StringP("resume", "r", "", "session id to resume (TUI or print mode); must be a valid UUID")
 	cmd.Flags().BoolP("continue", "c", false, "resume this directory's most recent session (by creation time)")
 	cmd.Flags().Bool("project", false, "with --continue, widen the search to every directory of this project")
 	cmd.Flags().String("session-id", "", "use a specific session ID (load if exists, else create); must be a valid UUID")
@@ -157,21 +157,33 @@ func runAgentSession(cmd *cobra.Command, issueSession *auth.IssueSession) error 
 			return &ExitError{Code: ExitUsage, Err: fmt.Errorf("invalid session-id: %w", err)}
 		}
 	}
+	// A session id is a UUID, so a malformed -r value is a usage error the caller
+	// can fix, reported as such rather than as the "session not found" a
+	// well-formed but unknown id gets when it is opened.
+	if resumeID != "" {
+		if _, err := uuid.Parse(resumeID); err != nil {
+			fmt.Fprintln(os.Stderr, "invalid resume id: not a valid UUID")
+			return &ExitError{Code: ExitUsage, Err: fmt.Errorf("invalid resume id: %w", err)}
+		}
+	}
 
-	var effectiveSessionID string
+	var target sessionTarget
 	if sessionID != "" {
-		effectiveSessionID = sessionID
+		// --session-id names a specific session and creates it on miss, as its
+		// help promises, so a caller can start a run under a deterministic id.
+		// -r/--resume goes through resolveSessionTarget and stays open-only.
+		target = sessionTarget{SessionID: sessionID, Workspace: workspace, CreateIfMissing: true}
 	} else {
-		target, err := resolveSessionTarget(cmd.Context(), resumeID, cont, acrossProject,
+		target, err = resolveSessionTarget(cmd.Context(), resumeID, cont, acrossProject,
 			workspace, cmd.Flags().Changed("workspace"))
 		if err != nil {
 			return err
 		}
-		// A resumed session continues in the directory it ran in, so the
-		// workspace the rest of this function passes on is the target's, not
-		// the one the terminal happened to be in.
-		effectiveSessionID, workspace = target.SessionID, target.Workspace
 	}
+	// A resumed session continues in the directory it ran in, so the workspace
+	// the rest of this function passes on is the target's, not the one the
+	// terminal happened to be in.
+	effectiveSessionID, workspace := target.SessionID, target.Workspace
 
 	// Argument errors are reported before the environment is inspected: a bad flag combination
 	// is fixable without a model configured, and reporting the missing configuration first
@@ -190,7 +202,8 @@ func runAgentSession(cmd *cobra.Command, issueSession *auth.IssueSession) error 
 		slog.Info("running print mode")
 		return runPrintMode(printOptions{
 			Prompt:                 prompt,
-			ResumeID:               effectiveSessionID,
+			SessionID:              effectiveSessionID,
+			CreateIfMissing:        target.CreateIfMissing,
 			ModelName:              model,
 			Workspace:              workspace,
 			Format:                 format,
@@ -202,7 +215,7 @@ func runAgentSession(cmd *cobra.Command, issueSession *auth.IssueSession) error 
 		})
 	}
 	slog.Info("starting TUI")
-	return runTUIFunc(effectiveSessionID, model, additionalSystemPrompt, workspace, overrides)
+	return runTUIFunc(effectiveSessionID, model, additionalSystemPrompt, workspace, overrides, target.CreateIfMissing)
 }
 
 // runOverrides are the per-run flags that outrank settings.yaml for this

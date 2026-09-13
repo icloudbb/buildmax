@@ -30,4 +30,3 @@
 
 | 报告 | 界面 | 摘要 |
 |---|---|---|
-| [2026-09-13-cli-first-use-continuity.md](2026-09-13-cli-first-use-continuity.md) | CLI | 真实模型下的首次使用与会话恢复旅程；连续性、`info`/`usage` 与错误/空状态表现良好；一处低影响的提示措辞；实时 TUI 中断因无 PTY 受阻 |

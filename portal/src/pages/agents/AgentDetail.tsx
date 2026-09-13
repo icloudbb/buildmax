@@ -342,15 +342,16 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
 
       {agent && (
         <>
-          <nav className="agent-detail__tabs" aria-label="Agent sections">
+          <nav className="agent-detail__tabs" aria-label="Agent sections" role="tablist">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
+                role="tab"
                 className={
                   t.id === tab ? "agent-detail__tab agent-detail__tab--active" : "agent-detail__tab"
                 }
-                aria-current={t.id === tab}
+                aria-selected={t.id === tab}
                 onClick={() => setTab(t.id)}
               >
                 {t.label}

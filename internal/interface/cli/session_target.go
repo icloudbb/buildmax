@@ -23,6 +23,11 @@ import (
 type sessionTarget struct {
 	SessionID string
 	Workspace string
+	// CreateIfMissing is set only for an explicit --session-id, whose contract
+	// is "load if exists, else create". -r/--resume and --continue leave it
+	// false: they continue a session that already exists and must keep erroring
+	// on an unknown id.
+	CreateIfMissing bool
 }
 
 // resolveSessionTarget settles --continue and --resume against the Workspace

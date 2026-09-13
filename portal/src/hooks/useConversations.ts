@@ -12,13 +12,15 @@ export function useConversations(
   enabled = true
 ): { data: Conversation[] | null; loading: boolean; error: RequestError | null; refetch: () => Promise<void> } {
   return useAsyncList(
-    () =>
-      getConversations(currentSpaceId!, token!, { limit: CONVERSATIONS_LIMIT }).then(
+    () => {
+      if (!token || !currentSpaceId) return Promise.resolve([])
+      return getConversations(currentSpaceId, token, { limit: CONVERSATIONS_LIMIT }).then(
         (res) => res.conversations
-      ),
+      )
+    },
     (list) => list.map(apiConversationToConversation),
     [token, currentSpaceId],
-    enabled && !!token,
+    enabled && !!token && !!currentSpaceId,
     { fallbackMessage: "Failed to load conversations" }
   )
 }

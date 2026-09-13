@@ -32,6 +32,25 @@ func TestRootCommand_InvalidSessionIDReturnsError(t *testing.T) {
 	}
 }
 
+// A session id is a UUID, so a malformed -r value is a usage error the caller
+// can fix, told apart from the "session not found" a well-formed but unknown id
+// gets when it is opened.
+func TestRootCommand_InvalidResumeIDReturnsError(t *testing.T) {
+	for _, id := range []string{"not-a-uuid", "x", "123"} {
+		t.Run(id, func(t *testing.T) {
+			root := NewRootCommand()
+			root.SetArgs([]string{"-r", id, "-p", "hi"})
+			err := root.Execute()
+			if err == nil {
+				t.Fatal("Execute(): want error for invalid -r id")
+			}
+			if !strings.Contains(err.Error(), "invalid resume id") {
+				t.Errorf("error message should contain 'invalid resume id': %q", err.Error())
+			}
+		})
+	}
+}
+
 // TestRootCommand_FlagErrorPrecedesModelCheck pins the order of the two usage checks. A bad flag
 // combination is fixable without a model configured, so reporting the missing configuration
 // first would send the user to solve the wrong problem.
@@ -65,7 +84,7 @@ func TestRootCommand_PassesWorkspaceToTUI(t *testing.T) {
 	var gotWorkspace string
 	var gotOverrides runOverrides
 	orig := runTUIFunc
-	runTUIFunc = func(resumeID, modelName, additionalSystemPrompt, ws string, overrides runOverrides) error {
+	runTUIFunc = func(sessionID, modelName, additionalSystemPrompt, ws string, overrides runOverrides, createIfMissing bool) error {
 		gotWorkspace = ws
 		gotOverrides = overrides
 		return nil
@@ -89,6 +108,50 @@ func TestRootCommand_PassesWorkspaceToTUI(t *testing.T) {
 	}
 	if gotOverrides.MaxIterations != 1500 {
 		t.Errorf("MaxIterations reaching the TUI = %d, want 1500", gotOverrides.MaxIterations)
+	}
+}
+
+// --session-id carries a caller-chosen id through to the TUI with the
+// create-on-miss contract set, while -r/--resume stays open-only. The two share
+// the same effective-id argument, so the boolean is what keeps them distinct.
+func TestRootCommand_SessionIDCreatesOnMissWhileResumeStaysOpenOnly(t *testing.T) {
+	const id = "11111111-2222-3333-4444-555555555555"
+	tests := []struct {
+		name             string
+		args             []string
+		wantSessionID    string
+		wantCreateOnMiss bool
+	}{
+		{"session-id creates on miss", []string{"--session-id", id}, id, true},
+		{"resume stays open-only", []string{"-r", id}, id, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("BUILDMAX_HOME", t.TempDir())
+			writeTestSettings(t, "models:\n  - model: stub\n    name: stub\n    api_key: x\n")
+
+			var gotSessionID string
+			var gotCreateOnMiss bool
+			orig := runTUIFunc
+			runTUIFunc = func(sessionID, modelName, additionalSystemPrompt, ws string, overrides runOverrides, createIfMissing bool) error {
+				gotSessionID = sessionID
+				gotCreateOnMiss = createIfMissing
+				return nil
+			}
+			t.Cleanup(func() { runTUIFunc = orig })
+
+			root := NewRootCommand()
+			root.SetArgs(tt.args)
+			if err := root.Execute(); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			if gotSessionID != tt.wantSessionID {
+				t.Errorf("session id reaching the TUI = %q, want %q", gotSessionID, tt.wantSessionID)
+			}
+			if gotCreateOnMiss != tt.wantCreateOnMiss {
+				t.Errorf("createIfMissing = %v, want %v", gotCreateOnMiss, tt.wantCreateOnMiss)
+			}
+		})
 	}
 }
 

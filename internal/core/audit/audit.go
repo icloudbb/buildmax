@@ -207,6 +207,18 @@ const (
 	WorkflowPublished   = "workflow.published"
 	WorkflowArchived    = "workflow.archived"
 	WorkflowUnpublished = "workflow.unpublished"
+	// SecretCreated, SecretDisabled, and SecretDestroyed record a space Secret
+	// entering and leaving service. A Secret is a credential an agent granted it
+	// can read, so its lifecycle is as security-relevant as a webhook key's;
+	// disabling refuses new run grants and destroying erases the material, so
+	// both are governed acts worth the trail. The target is the secret id, and
+	// the detail is empty: item names, values, ciphertext, and hashes never
+	// belong in the trail. Disable and destroy are distinct actions rather than
+	// one state_changed so that "was this secret ever destroyed" is a filter over
+	// the trail, not a scan of it.
+	SecretCreated   = "secret.created"
+	SecretDisabled  = "secret.disabled"
+	SecretDestroyed = "secret.destroyed"
 )
 
 // ActorOperator is the ActorID for an action taken by an operator command

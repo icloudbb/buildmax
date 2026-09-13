@@ -649,6 +649,14 @@ Audit actions: `secret.created`, `secret.rotated`, `secret.disabled`,
 `secret.destroyed`, `secret.consumption_changed`, `secret.materialized`,
 `secret.revoked`, and `secret.access_denied`.
 
+Shipped today: the space lifecycle events `secret.created`, `secret.disabled`,
+and `secret.destroyed`, emitted by the space Secret handlers with the Secret
+public ID as target and an empty detail; and `secret.materialized`, recorded per
+run as the `task_run_secret` snapshot on the worker route. The remaining
+actions — `secret.rotated`, `secret.consumption_changed`, `secret.revoked`, and
+`secret.access_denied` — are not yet emitted; they arrive with the rotation,
+consumption-change, and denial paths they name.
+
 An event names the actor, Space, Secret public ID, Agent revision or TaskRun,
 action, and a bounded non-sensitive detail such as the delivery mode and target
 name. It
@@ -979,6 +987,10 @@ a worker holds only what its run needs.
   destroyed, or gone fails the run; an optional one is skipped;
 - **done** — a required grant that cannot be produced fails the run before the
   Agent does its work, an optional one is skipped;
+- **done** — the space lifecycle audit events `secret.created`,
+  `secret.disabled`, and `secret.destroyed`, emitted by the create and set-state
+  handlers with the Secret public ID as target and no item name, value, or
+  ciphertext in the event;
 - **done** — the `task_run_secret` audit snapshot: the worker route records one
   row per materialized grant, idempotent on (run, secret, item) so a retried
   fetch records once, carrying no value; the write is fail-open beside a run

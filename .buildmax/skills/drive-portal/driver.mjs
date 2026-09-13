@@ -40,6 +40,13 @@ let browser = null
 let page = null
 let consoleLog = []
 
+// What the dialog handler does with the NEXT window.confirm()/alert()/prompt():
+// null dismisses it (Playwright's own default before any handler is
+// registered), 'accept' clicks OK. One-shot — the handler resets this after
+// each dialog, so one `confirm` covers one confirm()-gated action rather than
+// silently arming every later one. See the `confirm` command.
+let dialogArm = null
+
 // Longer than an element genuinely needs to become actionable, short enough
 // that a wrong selector fails fast instead of eating 30s of Playwright's
 // default per call — this REPL is driven interactively, one command at a time.
@@ -60,6 +67,22 @@ function trackPage(p) {
   consoleLog = []
   p.on('console', (msg) => consoleLog.push({ type: msg.type(), text: msg.text() }))
   p.on('pageerror', (err) => consoleLog.push({ type: 'pageerror', text: err.message }))
+  // Registering any 'dialog' handler replaces Playwright's implicit
+  // auto-dismiss with this one, so a window.confirm()-gated action now goes
+  // through when `confirm` armed acceptance. The outcome lands in consoleLog so
+  // `console` shows that the dialog fired and how it was answered.
+  p.on('dialog', async (dialog) => {
+    const armed = dialogArm
+    dialogArm = null
+    const action = armed === 'accept' ? 'accept' : 'dismiss'
+    consoleLog.push({ type: 'dialog', text: `${dialog.type()} "${dialog.message()}" -> ${action}` })
+    try {
+      if (armed === 'accept') await dialog.accept()
+      else await dialog.dismiss()
+    } catch {
+      /* raced with a navigation or a page close that already tore it down */
+    }
+  })
 }
 
 const COMMANDS = {
@@ -217,6 +240,24 @@ const COMMANDS = {
     console.log('pressed:', key)
   },
 
+  // Arms what the dialog handler (registered in trackPage) does with the next
+  // window.confirm(): `confirm` accepts it once, so a delete/destroy/disable
+  // click that is confirm-gated actually goes through instead of being
+  // silently cancelled; `confirm off` (or `confirm reject`) restores the
+  // default of dismissing it. One-shot on purpose — one arm per gated action.
+  async confirm(arg) {
+    const mode = (arg || '').trim().toLowerCase()
+    if (mode === '' || mode === 'accept' || mode === 'on') {
+      dialogArm = 'accept'
+      console.log('armed: accept the next dialog')
+    } else if (mode === 'off' || mode === 'reject' || mode === 'dismiss') {
+      dialogArm = null
+      console.log('armed: dismiss the next dialog (default)')
+    } else {
+      console.log('usage: confirm [accept|off]')
+    }
+  },
+
   async wait(sel) {
     if (!page) return console.log('ERROR: launch first')
     try {
@@ -243,6 +284,43 @@ const COMMANDS = {
       console.log(JSON.stringify(await page.evaluate(expr)))
     } catch (e) {
       console.log('ERROR:', e.message)
+    }
+  },
+
+  // Replays a GET with the exact bearer token Portal itself sends, so the
+  // reported status matches what the app's own request receives — a real 403
+  // reads as 403, not the 401 an unauthenticated probe would return. The fetch
+  // runs inside page.evaluate, which keeps it same-origin and lets it read the
+  // token straight from where the app keeps it: localStorage 'buildmax_token'
+  // (the key portal/src/lib/api/session.ts writes) against the API base the app
+  // resolves (window.__BUILDMAX_CONFIG__.apiBase, else the serving origin). A
+  // plain `eval fetch(url, {credentials:"include"})` carries no Authorization
+  // header — Portal is bearer-token, not cookie, auth — so it comes back 401
+  // wherever the app would get 200 or 403.
+  async probe(pathArg) {
+    if (!page) return console.log('ERROR: launch first')
+    const rel = (pathArg || '').trim()
+    if (!rel) return console.log('ERROR: usage: probe <api-path> (e.g. /api/spaces/<id>/members)')
+    try {
+      const r = await page.evaluate(async (p) => {
+        let token = null
+        try {
+          token = localStorage.getItem('buildmax_token')
+        } catch {
+          /* storage blocked */
+        }
+        const cfg = window.__BUILDMAX_CONFIG__ && window.__BUILDMAX_CONFIG__.apiBase
+        const base = typeof cfg === 'string' && cfg !== '' ? cfg.replace(/\/+$/, '') : ''
+        const url = /^https?:\/\//.test(p) ? p : base + p
+        const res = await fetch(url, { headers: token ? { Authorization: 'Bearer ' + token } : {} })
+        const body = await res.text()
+        return { status: res.status, url, hadToken: !!token, body: body.slice(0, 300) }
+      }, rel)
+      const note = r.hadToken ? '' : ' (no token in storage — login first)'
+      console.log(`probe ${rel} -> ${r.status}${note} ${r.url}`)
+      console.log(r.body || '(empty body)')
+    } catch (e) {
+      console.log('probe', rel, '-> ERROR:', shortError(e))
     }
   },
 

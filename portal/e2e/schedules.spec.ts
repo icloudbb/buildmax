@@ -30,7 +30,7 @@ test("a schedule is listed on its agent's Schedules tab", async ({ page }) => {
   await page.goto(`/#/spaces/${current.spaceId}/agents/${agent.id}`)
   // Scope to the agent's own tab bar: the sidebar also has a "Schedules" button
   // (the space-wide overview), so an unscoped role lookup is ambiguous.
-  await page.locator(".agent-detail__tabs").getByRole("button", { name: "Schedules", exact: true }).click()
+  await page.locator(".agent-detail__tabs").getByRole("tab", { name: "Schedules", exact: true }).click()
 
   const list = page.locator(".agent-schedules__list")
   await expect(list.getByText(name, { exact: true })).toBeVisible()

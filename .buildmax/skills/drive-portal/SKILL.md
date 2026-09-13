@@ -77,6 +77,8 @@ appended commands as you send — unlike a one-shot pipe, which closes stdin
 | `label <text>` | focus the input behind an accessible label (then `type` into it) |
 | `type <text>` | keyboard-type into whatever has focus |
 | `press <key>` | press one key (`Enter`, `Escape`, ...) |
+| `confirm [accept\|off]` | arm the next browser dialog: `confirm` (or `confirm accept`) accepts the next `window.confirm()` once so a confirm-gated delete/destroy/disable actually runs; `confirm off` (or `confirm reject`) restores the default of dismissing it. One-shot — re-arm per gated action; the outcome is logged and visible in `console` |
+| `probe <api-path>` | GET an API path with the same bearer token Portal itself sends (read from `localStorage`, against the app's API base) and print the status plus a body snippet — the authenticated status the app's own request would get, e.g. `probe /api/spaces/<id>/members`. Login first |
 | `wait <css-sel>` | wait up to 10s for a selector to appear |
 | `wait-text <text>` | wait up to 10s for text to appear anywhere on the page |
 | `url` | print the current page URL |
@@ -116,6 +118,20 @@ console errors
   run `roles` to see what's actually on the page.
 - **A dialog's own close control may itself be icon-only.** If `click-text
   Close` doesn't dismiss it, `press Escape` reliably does.
+- **A `window.confirm()`-gated action does nothing until you arm acceptance.**
+  Distinct from the icon-only-close case above: many management actions
+  (schedule delete, secret disable/destroy, comment or artifact delete, and
+  Administration operations) are gated on a browser `window.confirm()`, which
+  the driver's dialog handler dismisses by default — the click lands, `console
+  errors` stays clean, and nothing changes. Run `confirm` first to accept the
+  next dialog, then click; re-arm before each gated action.
+- **`probe` reuses the page's own token — a plain `eval fetch` does not.**
+  Portal authenticates with a bearer token it holds in memory, not a cookie, so
+  `eval fetch(url, {credentials:"include"})` sends no `Authorization` header and
+  returns 401 where the app's request would get 200 or 403. `probe` reads the
+  same token the app stores and reports the real authenticated status, so you
+  can tell an authorization failure (403) from an unauthenticated probe (401)
+  without reading server logs. Run `login` first, or it probes as anonymous.
 - **Websockets / long-poll.** `wait` and `wait-text` target the element you
   actually need; there is no generic "network idle" wait, because a live
   conversation or task view never goes idle.
