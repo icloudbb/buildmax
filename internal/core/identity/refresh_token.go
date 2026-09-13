@@ -12,7 +12,12 @@ import (
 // revoked at any time. That asymmetry is why the long-lived half is the stored
 // one.
 const (
-	AccessTokenTTLDefault       = 7 * 24 * time.Hour
+	// AccessTokenTTLDefault is short: the access token is a signed JWT the server
+	// never stores, so this is the window a stolen one still works before the
+	// guard's session check gets another chance to refuse it. The refresh token
+	// carries the day-to-day usability, so shortening this does not sign anyone
+	// out — it just means a client refreshes more often.
+	AccessTokenTTLDefault       = 15 * time.Minute
 	RefreshTokenTTLDefault      = 30 * 24 * time.Hour
 	RefreshRotationGraceDefault = 30 * time.Second
 )
@@ -50,24 +55,6 @@ type RotatedRefreshToken struct {
 	ExpiresAt time.Time
 }
 
-// Session is one live login chain as an administrator sees it: safe metadata by
-// which to recognise a device, never a token or its hash. It is what makes
-// revoking one device rather than all of them possible.
-type Session struct {
-	// SessionID names the chain. It is not a secret — it is already a claim in
-	// every access token issued under it — so it is the handle a revoke names.
-	SessionID string
-	// Platform is the surface that logged in ("portal", "cli", "desktop"), a
-	// label rather than something the server enforced.
-	Platform string
-	// CreatedAt is when the chain began: the login.
-	CreatedAt time.Time
-	// LastRotatedAt is when the most recent token in the chain was issued.
-	LastRotatedAt time.Time
-	// ExpiresAt is when the chain's current token expires.
-	ExpiresAt time.Time
-}
-
 // RefreshTokenStore issues, rotates, and revokes the stored half of a login.
 //
 // Rotation is what makes a stolen refresh token detectable: each exchange
@@ -96,31 +83,16 @@ type RefreshTokenStore interface {
 	// caller can record what was revoked.
 	RotateRefreshToken(ctx context.Context, plaintext string, now time.Time, ttl, grace time.Duration) (RotatedRefreshToken, error)
 
-	// RevokeRefreshTokenSession revokes the session the token belongs to and
-	// reports whose it was. An unknown token is not an error: logging out
-	// something already gone is a success.
+	// RevokeRefreshTokenSession revokes the refresh tokens the token belongs to
+	// and reports whose session it was, so the caller can revoke the session
+	// record too. An unknown token is not an error: logging out something already
+	// gone is a success.
 	RevokeRefreshTokenSession(ctx context.Context, plaintext string, now time.Time) (userID, sessionID string, err error)
-
-	// RevokeSession revokes every live token in one session and returns how
-	// many it retired.
-	RevokeSession(ctx context.Context, sessionID string, now time.Time) (int64, error)
-
-	// RevokeUserSessions revokes every live session the user has and returns
-	// how many tokens it retired. This is what "sign them out everywhere"
-	// means, and it is the strongest thing disabling an account can do to a
-	// credential the server actually stores.
-	RevokeUserSessions(ctx context.Context, userID string, now time.Time) (int64, error)
-
-	// CountUserSessions counts the user's live sessions — distinct login
-	// chains, not tokens, since a chain is what a person would recognise as
-	// "signed in on my laptop".
-	CountUserSessions(ctx context.Context, userID string, now time.Time) (int, error)
-
-	// ListUserSessions returns the user's live login chains as safe metadata,
-	// newest first, so an administrator can revoke one device by its SessionID
-	// rather than all of them. It never returns a token or a hash.
-	ListUserSessions(ctx context.Context, userID string, now time.Time) ([]Session, error)
 
 	// DeleteExpiredRefreshTokens removes rows that can no longer be exchanged.
 	DeleteExpiredRefreshTokens(ctx context.Context, before time.Time) (int64, error)
 }
+
+// Session listing, counting, and revocation moved to AuthSessionStore: the
+// durable auth_session row is the authority for a login, and revoking it
+// cascades to these refresh tokens.

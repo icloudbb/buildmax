@@ -181,19 +181,23 @@ func TestRevokeUserSessionsAndCount(t *testing.T) {
 	user := createTestUser(t, s, ctx)
 	now := time.Now().UTC()
 
-	for _, sessionID := range []string{"as_one", "as_two"} {
-		if _, _, err := s.CreateRefreshToken(ctx, coreidentity.NewRefreshToken{
-			UserID: user.ID, SessionID: sessionID, Platform: "portal", TTL: time.Hour,
-		}); err != nil {
+	// Two sessions, each with its refresh token, so the cascade can be observed.
+	var refreshTokens []string
+	for range []int{0, 1} {
+		sid, err := s.CreateSession(ctx, coreidentity.NewAuthSession{
+			UserID: user.ID, Platform: "portal", AuthMethod: "login_code",
+			AbsoluteExpiresAt: now.Add(time.Hour),
+		})
+		if err != nil {
+			t.Fatalf("CreateSession: %v", err)
+		}
+		plaintext, _, err := s.CreateRefreshToken(ctx, coreidentity.NewRefreshToken{
+			UserID: user.ID, SessionID: sid, Platform: "portal", TTL: time.Hour,
+		})
+		if err != nil {
 			t.Fatalf("CreateRefreshToken: %v", err)
 		}
-	}
-	// A second token in an existing chain, as rotation leaves during the grace
-	// window. It must not read as a third session.
-	if _, _, err := s.CreateRefreshToken(ctx, coreidentity.NewRefreshToken{
-		UserID: user.ID, SessionID: "as_one", Platform: "portal", TTL: time.Hour,
-	}); err != nil {
-		t.Fatalf("CreateRefreshToken: %v", err)
+		refreshTokens = append(refreshTokens, plaintext)
 	}
 
 	count, err := s.CountUserSessions(ctx, user.ID, now)
@@ -202,12 +206,16 @@ func TestRevokeUserSessionsAndCount(t *testing.T) {
 	}
 
 	revoked, err := s.RevokeUserSessions(ctx, user.ID, now)
-	if err != nil || revoked != 3 {
-		t.Fatalf("RevokeUserSessions = %d, %v; want 3 tokens", revoked, err)
+	if err != nil || revoked != 2 {
+		t.Fatalf("RevokeUserSessions = %d, %v; want 2 sessions", revoked, err)
 	}
 	count, err = s.CountUserSessions(ctx, user.ID, now)
 	if err != nil || count != 0 {
 		t.Fatalf("after revoke CountUserSessions = %d, %v; want 0", count, err)
+	}
+	// The cascade retired the refresh tokens too: a revoked chain no longer rotates.
+	if _, err := s.RotateRefreshToken(ctx, refreshTokens[0], now, time.Hour, 30*time.Second); !errors.Is(err, coreidentity.ErrRefreshTokenInvalid) {
+		t.Errorf("refresh token survived its session's revocation: err = %v", err)
 	}
 	// Revoking again retires nothing rather than failing.
 	if revoked, err := s.RevokeUserSessions(ctx, user.ID, now); err != nil || revoked != 0 {

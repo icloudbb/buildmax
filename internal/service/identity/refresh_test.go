@@ -11,26 +11,34 @@ import (
 	"github.com/icloudbb/buildmax/internal/service/identity"
 )
 
-func newRefreshService(t *testing.T, user *coreidentity.User) (*identity.Service, *mock.MockRefreshTokenStore, string) {
+func newRefreshService(t *testing.T, user *coreidentity.User) (*identity.Service, *mock.MockAuthSessionStore, *mock.MockRefreshTokenStore, string) {
 	t.Helper()
 	tokens := &mock.MockRefreshTokenStore{}
+	sessions := &mock.MockAuthSessionStore{Refresh: tokens}
+	sid, err := sessions.CreateSession(context.Background(), coreidentity.NewAuthSession{
+		UserID: user.ID, Platform: "cli", AuthMethod: identity.MethodLoginCode,
+		AbsoluteExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
 	svc := &identity.Service{
 		Users: &mock.MockUserStore{
 			ByEmail: map[string]*coreidentity.User{user.Email: user},
 			ByID:    map[string]*coreidentity.User{user.ID: user},
 		},
 		RefreshTokens: tokens,
+		Sessions:      sessions,
 		Tokens:        fixedIssuer{},
-		Sessions:      fixedSessions{},
 		RefreshTTL:    time.Hour,
 	}
 	plaintext, _, err := tokens.CreateRefreshToken(context.Background(), coreidentity.NewRefreshToken{
-		UserID: user.ID, SessionID: "sn_1", Platform: "cli", TTL: time.Hour,
+		UserID: user.ID, SessionID: sid, Platform: "cli", TTL: time.Hour,
 	})
 	if err != nil {
 		t.Fatalf("CreateRefreshToken: %v", err)
 	}
-	return svc, tokens, plaintext
+	return svc, sessions, tokens, plaintext
 }
 
 // TestARefusedRefreshRevokesTheSession is the part a transport cannot check.
@@ -43,7 +51,7 @@ func newRefreshService(t *testing.T, user *coreidentity.User) (*identity.Service
 func TestARefusedRefreshRevokesTheSession(t *testing.T) {
 	t.Run("a deleted account", func(t *testing.T) {
 		user := &coreidentity.User{ID: "u_gone", Email: "gone@example.test"}
-		svc, tokens, plaintext := newRefreshService(t, user)
+		svc, sessions, _, plaintext := newRefreshService(t, user)
 		// The account disappears between issuing and refreshing.
 		svc.Users.(*mock.MockUserStore).ByID = map[string]*coreidentity.User{}
 
@@ -52,7 +60,7 @@ func TestARefusedRefreshRevokesTheSession(t *testing.T) {
 		if !errors.As(err, &invalid) {
 			t.Fatalf("err = %v, want *InvalidRefresh", err)
 		}
-		if n, _ := tokens.CountUserSessions(context.Background(), user.ID, time.Now()); n != 0 {
+		if n, _ := sessions.CountUserSessions(context.Background(), user.ID, time.Now()); n != 0 {
 			t.Errorf("%d session(s) survived a refusal; the session must end with it", n)
 		}
 	})
@@ -60,12 +68,12 @@ func TestARefusedRefreshRevokesTheSession(t *testing.T) {
 	t.Run("a disabled account", func(t *testing.T) {
 		disabled := time.Now().UTC()
 		user := &coreidentity.User{ID: "u_off", Email: "off@example.test", DisabledAt: &disabled}
-		svc, tokens, plaintext := newRefreshService(t, user)
+		svc, sessions, _, plaintext := newRefreshService(t, user)
 
 		if _, err := svc.Refresh(context.Background(), plaintext); !errors.Is(err, identity.ErrDisabled) {
 			t.Fatalf("err = %v, want ErrDisabled", err)
 		}
-		if n, _ := tokens.CountUserSessions(context.Background(), user.ID, time.Now()); n != 0 {
+		if n, _ := sessions.CountUserSessions(context.Background(), user.ID, time.Now()); n != 0 {
 			t.Errorf("%d session(s) survived a disabled account's refresh", n)
 		}
 	})
@@ -76,7 +84,7 @@ func TestARefusedRefreshRevokesTheSession(t *testing.T) {
 // waking somebody for, so the error has to say which it is.
 func TestAReusedTokenIsMarkedAsSuch(t *testing.T) {
 	user := &coreidentity.User{ID: "u_1", Email: "a@example.test"}
-	svc, tokens, plaintext := newRefreshService(t, user)
+	svc, _, tokens, plaintext := newRefreshService(t, user)
 
 	if _, err := svc.Refresh(context.Background(), plaintext); err != nil {
 		t.Fatalf("the first refresh failed: %v", err)
@@ -104,7 +112,7 @@ func TestAReusedTokenIsMarkedAsSuch(t *testing.T) {
 // TestAnUnknownTokenIsNotMarkedReused keeps the alarm from firing on noise.
 func TestAnUnknownTokenIsNotMarkedReused(t *testing.T) {
 	user := &coreidentity.User{ID: "u_1", Email: "a@example.test"}
-	svc, _, _ := newRefreshService(t, user)
+	svc, _, _, _ := newRefreshService(t, user)
 
 	_, err := svc.Refresh(context.Background(), "rt_never_existed")
 	var invalid *identity.InvalidRefresh

@@ -2405,8 +2405,9 @@
                         "properties": {
                           "session_id": {"type": "string"},
                           "platform": {"type": "string"},
+                          "auth_method": {"type": "string"},
                           "created_at": {"type": "string", "format": "date-time"},
-                          "last_rotated_at": {"type": "string", "format": "date-time"},
+                          "last_seen_at": {"type": "string", "format": "date-time"},
                           "expires_at": {"type": "string", "format": "date-time"}
                         }
                       }

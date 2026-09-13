@@ -25,12 +25,13 @@ jwt_secret: your-jwt-secret-here
 # Setting this to true lets anyone who can reach the server register.
 # allow_signup: true
 
-# Token lifetimes. Signing in returns an access token (sent with every
-# request, not stored anywhere so it can't be revoked before it expires) and
-# a refresh token (a database row, so revoking a session takes effect at the
-# next exchange). Each exchange rotates the refresh token; presenting a spent
+# Token lifetimes. Signing in returns an access token (sent with every request;
+# not stored, but the server checks the session it names on every request, so
+# revocation and disablement take effect within this window) and a refresh token
+# (a database row). Each exchange rotates the refresh token; presenting a spent
 # one revokes the whole session — that's how a copied credential is noticed.
-access_token_ttl: 168h
+# Keep the access token short: it is the maximum replay window.
+access_token_ttl: 15m
 refresh_token_ttl: 720h
 
 # Grace window for reusing a just-rotated refresh token before it counts as
@@ -38,6 +39,11 @@ refresh_token_ttl: 720h
 # may both refresh at once. Raising it widens the window in which a stolen
 # token goes unnoticed.
 refresh_rotation_grace: 30s
+
+# Hard ceiling on a session's life from its creation, regardless of how often
+# its refresh token rotates — so a login cannot renew forever. Reaching it
+# requires signing in again.
+session_absolute_ttl: 2160h
 
 # Budget for an orderly shutdown: leave the load balancer, end run-watching
 # streams, let in-flight runs report their results, drain accepted requests,

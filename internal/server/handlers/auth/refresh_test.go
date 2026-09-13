@@ -42,6 +42,9 @@ func newAuthTestMux(t *testing.T, cfg Config) (*http.ServeMux, *mock.MockRefresh
 	} else if s, ok := cfg.RefreshTokens.(*mock.MockRefreshTokenStore); ok {
 		store = s
 	}
+	if cfg.Sessions == nil {
+		cfg.Sessions = &mock.MockAuthSessionStore{Refresh: store}
+	}
 	if cfg.JWTSecret == "" {
 		cfg.JWTSecret = refreshTestSecret
 	}

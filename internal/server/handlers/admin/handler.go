@@ -30,6 +30,7 @@ type Config struct {
 	Users         coreidentity.UserStore
 	LoginCodes    coreidentity.LoginCodeStore
 	RefreshTokens coreidentity.RefreshTokenStore
+	Sessions      coreidentity.AuthSessionStore
 	Spaces        corespace.Store
 	Grants        coreidentity.SystemGrantStore
 	Audits        coreaudit.Store
@@ -64,6 +65,7 @@ func (h *Handler) guard() *access.Guard {
 		Users:     h.cfg.Users,
 		Spaces:    h.cfg.Spaces,
 		Grants:    h.cfg.Grants,
+		Sessions:  h.cfg.Sessions,
 		Audit:     h.cfg.Audit,
 	}
 }

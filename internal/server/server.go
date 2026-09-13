@@ -73,6 +73,7 @@ type AuthConfig struct {
 	AccessTokenTTL       time.Duration
 	RefreshTokenTTL      time.Duration
 	RefreshRotationGrace time.Duration
+	SessionAbsoluteTTL   time.Duration
 }
 
 // StoresConfig holds entity store interfaces used by handlers.
@@ -81,6 +82,7 @@ type StoresConfig struct {
 	LoginCodeStore      coreidentity.LoginCodeStore
 	PasswordStore       coreidentity.PasswordStore
 	RefreshTokenStore   coreidentity.RefreshTokenStore
+	AuthSessionStore    coreidentity.AuthSessionStore
 	SpaceStore          corespace.Store
 	WorkflowStore       coreworkflow.Store
 	AgentStore          agentdef.Store
@@ -331,6 +333,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		AccessTokenTTL:           cfg.Auth.AccessTokenTTL,
 		RefreshTokenTTL:          cfg.Auth.RefreshTokenTTL,
 		RefreshRotationGrace:     cfg.Auth.RefreshRotationGrace,
+		SessionAbsoluteTTL:       cfg.Auth.SessionAbsoluteTTL,
 		WorkerLLM:                cfg.Worker.LLM,
 		UserStore:                cfg.Stores.UserStore,
 		AuditStore:               cfg.Stores.AuditStore,
@@ -350,6 +353,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		LoginCodeStore:           cfg.Stores.LoginCodeStore,
 		PasswordStore:            cfg.Stores.PasswordStore,
 		RefreshTokenStore:        cfg.Stores.RefreshTokenStore,
+		AuthSessionStore:         cfg.Stores.AuthSessionStore,
 		SpaceStore:               cfg.Stores.SpaceStore,
 		WorkflowStore:            cfg.Stores.WorkflowStore,
 		AgentStore:               cfg.Stores.AgentStore,

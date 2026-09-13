@@ -34,11 +34,17 @@ type Config struct {
 	// exchanged again before that counts as reuse. It exists because the CLI
 	// and Desktop share one credentials file between processes.
 	RefreshRotationGrace time.Duration
+	// SessionAbsoluteTTL caps a session's life from its creation, regardless of
+	// refresh activity. Zero means the core package default.
+	SessionAbsoluteTTL time.Duration
 
 	Users         coreidentity.UserStore
 	LoginCodes    coreidentity.LoginCodeStore
 	Passwords     coreidentity.PasswordStore
 	RefreshTokens coreidentity.RefreshTokenStore
+	// Sessions is the durable session authority: a login opens one, the guard
+	// checks it on every request, and logout/revocation retire it.
+	Sessions coreidentity.AuthSessionStore
 
 	// Audit records logins and credential changes. Nil discards them.
 	Audit *audit.Recorder
@@ -49,7 +55,7 @@ type Handler struct{ cfg Config }
 func New(cfg Config) *Handler { return &Handler{cfg: cfg} }
 
 func (h *Handler) guard() *access.Guard {
-	return &access.Guard{JWTSecret: h.cfg.JWTSecret, Users: h.cfg.Users, Audit: h.cfg.Audit}
+	return &access.Guard{JWTSecret: h.cfg.JWTSecret, Users: h.cfg.Users, Sessions: h.cfg.Sessions, Audit: h.cfg.Audit}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {

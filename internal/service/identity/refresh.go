@@ -65,9 +65,11 @@ func (s *Service) Refresh(ctx context.Context, token string) (*RefreshResult, er
 	rotated, err := s.RefreshTokens.RotateRefreshToken(ctx, token, now, s.RefreshTTL, s.RotationGrace)
 	switch {
 	case errors.Is(err, coreidentity.ErrRefreshTokenReused):
-		// The store has already revoked the session. Record it: this is the one
-		// signal a deployment gets that a credential was copied, and it arrives
-		// without anyone reporting anything.
+		// The store has already revoked this session's refresh tokens; revoke the
+		// session record too so a still-valid access token under it stops working.
+		// Record it: this is the one signal a deployment gets that a credential was
+		// copied, and it arrives without anyone reporting anything.
+		s.revokeSession(ctx, rotated.SessionID, now, "refresh token reused")
 		s.recordReuse(ctx, rotated.UserID, rotated.SessionID)
 		return nil, &InvalidRefresh{
 			Reason: "presented after rotation", Reused: true,
@@ -99,6 +101,23 @@ func (s *Service) Refresh(ctx context.Context, token string) (*RefreshResult, er
 		s.revokeSession(ctx, rotated.SessionID, now, "disabled user")
 		return nil, ErrDisabled
 	}
+	// The refresh token still rotated, but the session's absolute expiry can pass
+	// before the token's does. The session is the authority, so a login past its
+	// ceiling ends here rather than renewing.
+	if s.Sessions != nil {
+		if _, err := s.Sessions.ActiveSession(ctx, rotated.SessionID, now); err != nil {
+			if errors.Is(err, coreidentity.ErrSessionInactive) {
+				s.revokeSession(ctx, rotated.SessionID, now, "session expired or revoked")
+				return nil, &InvalidRefresh{
+					Reason: "session is no longer active", UserID: rotated.UserID, SessionID: rotated.SessionID,
+				}
+			}
+			return nil, fmt.Errorf("read session: %w", err)
+		}
+		if err := s.Sessions.TouchSession(ctx, rotated.SessionID, now); err != nil {
+			slog.Warn("touch session failed", "err", err, "session_id", rotated.SessionID)
+		}
+	}
 
 	accessToken, ttl, err := s.Tokens.Mint(user.ID, rotated.SessionID, now)
 	if err != nil {
@@ -129,7 +148,10 @@ func (s *Service) recordReuse(ctx context.Context, userID, sessionID string) {
 // and turning a cleanup failure into a different answer would tell them
 // something about the account.
 func (s *Service) revokeSession(ctx context.Context, sessionID string, now time.Time, why string) {
-	if _, err := s.RefreshTokens.RevokeSession(ctx, sessionID, now); err != nil {
+	if s.Sessions == nil {
+		return
+	}
+	if _, err := s.Sessions.RevokeSession(ctx, sessionID, now); err != nil {
 		slog.Error("revoke session failed", "err", err, "reason", why, "session_id", sessionID)
 	}
 }

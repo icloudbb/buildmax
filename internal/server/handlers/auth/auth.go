@@ -117,6 +117,13 @@ func (h *Handler) refreshRotationGrace() time.Duration {
 	return coreidentity.RefreshRotationGraceDefault
 }
 
+func (h *Handler) sessionAbsoluteTTL() time.Duration {
+	if h.cfg.SessionAbsoluteTTL > 0 {
+		return h.cfg.SessionAbsoluteTTL
+	}
+	return coreidentity.SessionAbsoluteTTLDefault
+}
+
 func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

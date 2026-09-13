@@ -2,7 +2,9 @@ package access
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"time"
 
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
@@ -25,46 +27,119 @@ type Guard struct {
 	Users     coreidentity.UserStore
 	Spaces    corespace.Store
 	Grants    coreidentity.SystemGrantStore
+	// Sessions is the durable session authority. When set, ActiveUser refuses a
+	// token whose session has been revoked or has passed its absolute expiry,
+	// which is what makes logout and revocation stop an already-issued access
+	// token. Nil skips the check, which is what a deployment without a session
+	// store has.
+	Sessions coreidentity.AuthSessionStore
 	// Audit records refusals. Nil discards them, which is what a deployment
 	// without a database has.
 	Audit *audit.Recorder
+	// Now is the clock the session check reads. Nil means time.Now.
+	Now func() time.Time
 }
 
-// ActiveUser authenticates the caller and refuses a disabled account.
+// ActiveUser authenticates the caller and refuses a disabled account or a
+// revoked or expired session.
 //
-// This is where "disable this account" becomes immediate. The access token is a
-// signed JWT the server never stores, so it cannot be retired -- the only way
-// to stop honouring one is to check where the identity is resolved, and this is
-// the single funnel every authenticated route reaches. The cost is one
-// primary-key read per request, strictly less than the ListSpaceMembers every
-// space-scoped route already does. Waiting out the token instead would make
-// "disable" mean "in about a week", which is not the feature.
+// This is where "disable this account" and "sign this session out" become
+// immediate. The access token is a signed JWT the server never stores, so it
+// cannot be retired -- the only way to stop honouring one is to check where the
+// identity is resolved, and this is the single funnel every authenticated route
+// reaches. The cost is at most two indexed reads per request (the account and
+// its session), no more than the ListSpaceMembers every space-scoped route
+// already does. Waiting out the token instead would make "disable" and "log out"
+// mean "in about fifteen minutes", which is not the feature.
 func (g *Guard) ActiveUser(w http.ResponseWriter, r *http.Request) (string, bool) {
-	userID, ok := UserIDFromRequest(r, g.JWTSecret)
+	claims, ok := ClaimsFromRequest(r, g.JWTSecret)
 	if !ok {
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "unauthorized")
 		return "", false
 	}
-	if g.Users == nil {
-		// No store to ask. A deployment without one has no accounts to
-		// disable, so there is nothing this check could have found.
-		return userID, true
+	userID := claims.Sub
+	if g.Users != nil {
+		user, err := g.Users.GetUser(r.Context(), userID)
+		if err != nil {
+			httputil.WriteInternalError(w, err, "auth handler error", "handler", "require_active_user", "user_id", userID)
+			return "", false
+		}
+		// A token naming an account the store does not have is allowed through
+		// unchanged. Nothing deletes accounts, so this is not a state a deployment
+		// reaches; tightening it is a separate decision from disablement, and
+		// making it here would change what an unknown subject means on every route
+		// at once.
+		if user != nil && user.Disabled() {
+			httputil.WriteJSONError(w, http.StatusForbidden, DisabledMessage)
+			return "", false
+		}
 	}
-	user, err := g.Users.GetUser(r.Context(), userID)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "auth handler error", "handler", "require_active_user", "user_id", userID)
-		return "", false
-	}
-	// A token naming an account the store does not have is allowed through
-	// unchanged. Nothing deletes accounts, so this is not a state a deployment
-	// reaches; tightening it is a separate decision from disablement, and
-	// making it here would change what an unknown subject means on every route
-	// at once.
-	if user != nil && user.Disabled() {
-		httputil.WriteJSONError(w, http.StatusForbidden, DisabledMessage)
+	if !g.activeSession(w, r, claims) {
 		return "", false
 	}
 	return userID, true
+}
+
+// activeSession refuses a token whose session has been revoked or has passed its
+// absolute expiry. A nil Sessions store skips the check, the same way a nil
+// Users store skips the disable check: a deployment without the store has no
+// session records to consult.
+func (g *Guard) activeSession(w http.ResponseWriter, r *http.Request, claims *Claims) bool {
+	if g.Sessions == nil {
+		return true
+	}
+	sess, err := g.Sessions.ActiveSession(r.Context(), claims.Sid, g.now())
+	if err != nil {
+		if errors.Is(err, coreidentity.ErrSessionInactive) {
+			httputil.WriteJSONError(w, http.StatusUnauthorized, "unauthorized")
+			return false
+		}
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "require_active_session", "user_id", claims.Sub)
+		return false
+	}
+	// A valid signature on a token whose sid names another account's session must
+	// not pass: the subject and the session's owner have to agree.
+	if sess.UserID != claims.Sub {
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return false
+	}
+	return true
+}
+
+func (g *Guard) now() time.Time {
+	if g.Now != nil {
+		return g.Now()
+	}
+	return time.Now()
+}
+
+// TokenSubjectActive authenticates a token taken from outside the Authorization
+// header — the WebSocket upgrade carries it as a query parameter — and applies
+// the same active-account and active-session checks ActiveUser makes, collapsed
+// to a single yes/no because the upgrade has one refusal to give. It returns the
+// subject when the token is valid, the account is not disabled, and the session
+// is live.
+func (g *Guard) TokenSubjectActive(ctx context.Context, tokenStr string) (string, bool) {
+	claims, ok := Verify(tokenStr, g.JWTSecret)
+	if !ok {
+		return "", false
+	}
+	if g.Users != nil {
+		user, err := g.Users.GetUser(ctx, claims.Sub)
+		if err != nil {
+			return "", false
+		}
+		if user != nil && user.Disabled() {
+			return "", false
+		}
+	}
+	if g.Sessions != nil {
+		sess, err := g.Sessions.ActiveSession(ctx, claims.Sid, g.now())
+		if err != nil || sess.UserID != claims.Sub {
+			return "", false
+		}
+	}
+	return claims.Sub, true
 }
 
 // UserAndStore authenticates the caller and refuses when the feature's store is

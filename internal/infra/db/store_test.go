@@ -85,6 +85,7 @@ func deleteTestUser(t *testing.T, s *Store, userID string) {
 	for _, del := range []func() error{
 		func() error { return db.Delete(&loginCodeRow{}, "user_id = ?", key).Error },
 		func() error { return db.Delete(&userRefreshTokenRow{}, "user_id = ?", key).Error },
+		func() error { return db.Delete(&authSessionRow{}, "user_id = ?", key).Error },
 		func() error { return db.Delete(&userWebhookKeyRow{}, "user_id = ?", key).Error },
 		func() error { return db.Delete(&systemGrantRow{}, "user_id = ?", key).Error },
 		func() error { return db.Delete(&spaceMemberRow{}, "user_id = ?", key).Error },
