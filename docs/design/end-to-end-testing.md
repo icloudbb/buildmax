@@ -415,6 +415,41 @@ create-and-run of §6.2 left none. The case still waits for `RUNNING` before it
 deletes the Job, so it acts only on a run it actually caught mid-flight; a run
 that finished first is never mistaken for a stranded one.
 
+### 6.4 Losing The Database
+
+The database-outage probe (`kindDBOutageProbe` in `tools/mk`) proves the
+dependency-degradation contract the beta-readiness record names: when the server
+loses its database at runtime, it reports the failure through `/readyz` — which
+the System Status admin view mirrors, reading the same probes — and is taken out
+of the Service rather than restarted, and it recovers on its own once the
+database returns. This is the deployment-level fact behind the manifests' split
+of readiness (`/readyz`, which pings MySQL and probes object storage) from
+liveness (`/healthz`, which checks nothing): a liveness probe that failed on a
+dependency outage would restart a healthy server and turn a recoverable outage
+into a crash loop.
+
+Interrupting the database is less obvious than it sounds. A deny-all
+`NetworkPolicy` on the MySQL pod blocks new connections, but the server's pooled
+connection is already established and the pool sets no lifetime, so it is reused
+indefinitely and never notices the block — `/readyz` stays ready. The probe
+therefore also bounces MySQL (a graceful `mysqladmin shutdown`, after which the
+kubelet restarts the container in place so its emptyDir data survives), which
+drops the established connection; the server's reconnection then hits the policy
+and the outage holds until the probe removes it. Blocking access rather than
+deleting the pod is what lets "normal service returns after the database is
+restored" be a real assertion: the schema and rows are still there, so a sign-in
+afterward reads and writes the same database. The probe reads `/readyz` straight
+from a server pod, not through the ingress, because a not-ready pod leaves the
+Service and the ingress would answer its own endpoint-less 503 instead of the
+app's 503 that names the failed check; the recovery sign-in does go through the
+ingress, because that is the "whole path returns" claim.
+
+This is the runtime-loss path. Losing the database at process start is a
+separate, deliberate fail-fast: bootstrap connects and migrates with no retry,
+so the server exits and crash-loops until the database is reachable. That
+asymmetry is intended — a candidate that cannot reach its database at boot has
+nothing to serve — and it is not what this probe exercises.
+
 ## 7. AI Agent Workflow
 
 The harness is a first-class tool for code-changing agents, not merely a CI
