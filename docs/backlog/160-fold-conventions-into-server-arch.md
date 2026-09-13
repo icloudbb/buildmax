@@ -6,7 +6,7 @@ source: docs/design/api-surface-conventions.md#9-status-and-rollout
 depends_on: [110-openapi-split-listener-boundary.md, 120-openapi-version-from-build.md, 130-admin-state-transition-routes.md, 140-auth-route-grouping.md, 150-webhook-keys-handler-relocation.md]
 verification: ["./make check docs", "./make test ./internal/architecture"]
 claim:
-pr:
+pr: 611
 ---
 
 ## Outcome

@@ -6,7 +6,7 @@ source: docs/design/api-surface-conventions.md#65-non-route-follow-ups
 depends_on: []
 verification: ["./make test ./internal/server/handlers", "./make test ./internal/architecture"]
 claim:
-pr:
+pr: 611
 ---
 
 ## Outcome

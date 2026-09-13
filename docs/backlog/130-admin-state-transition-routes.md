@@ -6,7 +6,7 @@ source: docs/design/api-surface-conventions.md#61-state-transition-renames
 depends_on: []
 verification: ["./make test ./internal/server/handlers/admin", "./make check portal", "./make e2e kind"]
 claim: gougoujiang 2026-09-13
-pr:
+pr: 611
 ---
 
 ## Outcome

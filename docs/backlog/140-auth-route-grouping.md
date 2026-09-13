@@ -6,7 +6,7 @@ source: docs/design/api-surface-conventions.md#62-authentication-route-grouping
 depends_on: []
 verification: ["./make test ./internal/server/handlers/auth", "./make e2e cli", "./make e2e kind"]
 claim: gougoujiang 2026-09-13
-pr:
+pr: 611
 ---
 
 ## Outcome

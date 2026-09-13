@@ -6,7 +6,7 @@ source: docs/design/api-surface-conventions.md#5-decision-split-openapi-along-th
 depends_on: []
 verification: ["./make test ./internal/architecture", "./make check docs"]
 claim:
-pr:
+pr: 611
 ---
 
 ## Outcome
