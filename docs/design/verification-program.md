@@ -209,8 +209,6 @@ evidence.
 Still to write:
 
 - restart recovery cases for durable Task/TaskRun/checkpoint state;
-- broader cross-Space lookup rejection at the store, distinct from the role
-  matrix the handler tests already assert; and
 - migration fixtures for the declared starting schema. The three explicit
   migrations include `issue_owner_executor_split`, whose old-column backfill
   already has a MySQL test. This is not an old-binary rollback fixture. Alpha
@@ -222,6 +220,18 @@ Still to write:
   terminal callbacks, and the Server-owned recovery loop (startup sweep, per-run
   reconcile, and end-to-end restart recovery of a run stranded by a lost
   callback) are now covered (above).
+
+Cross-Space lookup rejection at the store — distinct from the role matrix the
+handler tests already assert — is now covered in the MySQL scope by
+[`cross_space_test.go`](../../internal/infra/db/cross_space_test.go). It proves
+the store's own space guards, not the edge: a workflow update and an issue
+update addressed from another space are silent no-ops that neither mutate the
+row nor reveal it exists (each given the real revision or version, so the space
+guard, not a stale precondition, is what rejects), and a plugin activation is
+invisible to another space's read, list, and suspend — the cross-space suspend
+answering `ErrNotFound` rather than reaching across the boundary. The existing
+`publicid_test.go` oracle, that a foreign handle answers identically to an
+unknown one, still carries the list and aggregate paths.
 
 One item from this list is withdrawn rather than pending. **Quota reservation
 and charging boundaries** describes a design that does not exist: there is no

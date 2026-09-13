@@ -126,12 +126,13 @@ window, defaulting to keep-forever and recording each prune; no candidate has
 yet proved dependency denial, paired restore, schema upgrade, binary rollback,
 or credential rotation.
 
-**Next:** extend real-MySQL coverage for
-[quota windows](https://github.com/icloudbb/buildmax/issues/498) and
-cross-Space scenarios; and make the failure and recovery
-drills in the Beta readiness record executable. Retire plans for removed
-mechanisms, including the old result-delivery queue, rather than recreate them
-for a checklist.
+**Next:** the remaining lifecycle evidence — dependency denial, paired
+database-and-bucket restore, a schema upgrade and binary rollback fixture, and
+credential rotation — several of which land as the R3 operator journey.
+Real-MySQL coverage for [quota windows](https://github.com/icloudbb/buildmax/issues/498)
+and cross-Space store scoping, and the deployed worker-loss drill, are done.
+Retire plans for removed mechanisms, including the old result-delivery queue,
+rather than recreate them for a checklist.
 
 **Done when:** a long-lived deployment has bounded or explicitly capacity-planned
 trace storage, critical persistence paths have real-database regression tests,
