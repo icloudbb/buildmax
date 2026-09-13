@@ -380,13 +380,16 @@ measured in this review.
 Deployment smoke includes retry, managed inference and its call ledger,
 cancellation of a running worker, worker-loss recovery (a run whose worker is
 deleted mid-execution settles to a diagnosable terminal FAILED and stays
-retrievable), and the Bash confinement probe. Scheduler unit tests cover
-stale-run handling and cleanup, including the liveness sweep that settles a run
-whose worker went silent — the hard-loss path the deployment cannot reproduce,
-since the kernel drops an in-container SIGKILL to PID 1 and any kubelet deletion
-starts with the SIGTERM the worker reports on. These are not equivalent to
-candidate exercises for database outage, object-storage access denial, paired
-restore, credential rotation, and schema rollback.
+retrievable), database-outage degradation and recovery (a runtime loss of MySQL
+flips /readyz to report the database failed and pulls the server out of the
+Service without restarting it, and it recovers on its own once access returns),
+and the Bash confinement probe. Scheduler unit tests cover stale-run handling
+and cleanup, including the liveness sweep that settles a run whose worker went
+silent — the hard-loss path the deployment cannot reproduce, since the kernel
+drops an in-container SIGKILL to PID 1 and any kubelet deletion starts with the
+SIGTERM the worker reports on. These are not equivalent to candidate exercises
+for worker object-storage denial, paired restore, credential rotation, and
+schema rollback.
 
 Compose, kind, production Kubernetes manifests, release verification, SBOM,
 image scanning, and provenance workflows exist. Their presence does not fill
