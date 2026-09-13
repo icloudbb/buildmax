@@ -54,4 +54,3 @@ before committing.
 
 | Report | Surface | Summary |
 |---|---|---|
-| [2026-09-13-cli-first-use-continuity.md](2026-09-13-cli-first-use-continuity.md) | CLI | First-use and resume-a-session journey with a real model; continuity, `info`/`usage`, and error/empty states behave well; one low-impact message nuance; live TUI interrupt blocked by no PTY |

@@ -32,6 +32,25 @@ func TestRootCommand_InvalidSessionIDReturnsError(t *testing.T) {
 	}
 }
 
+// A session id is a UUID, so a malformed -r value is a usage error the caller
+// can fix, told apart from the "session not found" a well-formed but unknown id
+// gets when it is opened.
+func TestRootCommand_InvalidResumeIDReturnsError(t *testing.T) {
+	for _, id := range []string{"not-a-uuid", "x", "123"} {
+		t.Run(id, func(t *testing.T) {
+			root := NewRootCommand()
+			root.SetArgs([]string{"-r", id, "-p", "hi"})
+			err := root.Execute()
+			if err == nil {
+				t.Fatal("Execute(): want error for invalid -r id")
+			}
+			if !strings.Contains(err.Error(), "invalid resume id") {
+				t.Errorf("error message should contain 'invalid resume id': %q", err.Error())
+			}
+		})
+	}
+}
+
 // TestRootCommand_FlagErrorPrecedesModelCheck pins the order of the two usage checks. A bad flag
 // combination is fixable without a model configured, so reporting the missing configuration
 // first would send the user to solve the wrong problem.
