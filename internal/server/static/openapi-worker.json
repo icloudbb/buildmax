@@ -387,7 +387,10 @@
           "429": {
             "description": "Space quota exceeded"
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/api/worker/task-runs/{task_run_id}": {
@@ -439,7 +442,10 @@
               }
             }
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       },
       "patch": {
         "summary": "Report the run's status",
@@ -533,7 +539,10 @@
               }
             }
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/api/worker/task-runs/{task_run_id}/stream": {
@@ -600,7 +609,10 @@
               }
             }
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/api/worker/task-runs/{task_run_id}/secrets": {
@@ -661,7 +673,10 @@
               }
             }
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/api/worker/task-runs/{task_run_id}/issue": {
@@ -704,7 +719,10 @@
               }
             }
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/api/worker/task-runs/{task_run_id}/issue/comments": {
@@ -789,7 +807,10 @@
               }
             }
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/api/worker/task-runs/{task_run_id}/artifacts": {
@@ -857,7 +878,10 @@
               }
             }
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/api/worker/task-runs/{task_run_id}/workspace-base": {
@@ -917,7 +941,10 @@
           "204": {
             "description": "The run has no base; it seeds instead"
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/api/worker/task-runs/{task_run_id}/workspace-restore": {
@@ -987,7 +1014,10 @@
               }
             }
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/api/worker/task-runs/{task_run_id}/workspace-checkpoints": {
@@ -1089,7 +1119,10 @@
               }
             }
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/api/worker/task-runs/{task_run_id}/plugins/{plugin_name}/{version}/download": {
@@ -1158,7 +1191,10 @@
               }
             }
           }
-        }
+        },
+        "tags": [
+          "worker"
+        ]
       }
     }
   }
