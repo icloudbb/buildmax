@@ -30,3 +30,4 @@
 
 | 报告 | 界面 | 摘要 |
 |---|---|---|
+| [2026-09-13-cross-surface-task-continuity.md](2026-09-13-cross-surface-task-continuity.md) | Desktop / Portal / server / worker | 本地审批与重启，以及部署环境中的会话/Task 连续性；发现继续后 run 输入错误、kind 404 探针误报、登录控制台噪声和 Desktop 卡片压缩 |
