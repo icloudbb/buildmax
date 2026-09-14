@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. Typed `nodes`/`bindings`, schema-constrained input and output, static DAGs, and adaptive control remain open
+> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Immutable run-input admission, persisted resolved input and full output, RFC 6901 pointer and Artifact bindings, the stored run result, typed `nodes`/`needs`, schema-constrained input and output at runtime, static DAGs, and adaptive control remain open
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
@@ -1208,7 +1208,11 @@ even if later product evidence delays R5.
 
 ### Phase 2: Cut Over To The Versioned Data Contract
 
-- Replace the unversioned `steps` definition with `schema_version: 1`.
+- Replace the unversioned `steps` definition with `schema_version: 1`. **Shipped:**
+  a definition must declare `schema_version: 1`, and may declare an `input_schema`
+  (compiled against the shared JSON Schema subset) and a `result` selector naming
+  an existing step; publication rejects an unknown version, an out-of-subset input
+  schema, or a result naming a missing step.
 - Separate draft and published pointers.
 - Admit immutable WorkflowRun input.
 - replace StepRun with NodeRun and persist resolved input/full output;

@@ -72,7 +72,7 @@ func TestWorkflowRestartRecovery(t *testing.T) {
 		TaskRuns:    store,
 	}
 	definition := fmt.Sprintf(
-		`{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":%q,"prompt":"collect"},{"step_id":"summarize","type":"agent_task","target_agent_id":%q,"prompt":"summarize"}]}`,
+		`{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":%q,"prompt":"collect"},{"step_id":"summarize","type":"agent_task","target_agent_id":%q,"prompt":"summarize"}]}`,
 		agentA.ID, agentB.ID)
 	wf, err := svc.CreateWorkflow(ctx, workflowsvc.CreateWorkflowCmd{
 		SpaceID: space.ID, UserID: user.ID, Name: "WF", Definition: definition,

@@ -76,6 +76,7 @@ test("advanced JSON mode is checked against the same validation as the step form
   // the normal form makes impossible to type in the first place.
   await definitionField.fill(
     JSON.stringify({
+      schema_version: 1,
       steps: [{ step_id: "s1", type: "shell_command", target_agent_id: agent.id, prompt: "rm -rf /" }],
     })
   )
@@ -88,6 +89,7 @@ test("advanced JSON mode is checked against the same validation as the step form
   // accepted -- proving the block above was the type, not the JSON mode.
   await definitionField.fill(
     JSON.stringify({
+      schema_version: 1,
       steps: [{ step_id: "s1", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" }],
     })
   )

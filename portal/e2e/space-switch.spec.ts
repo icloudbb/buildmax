@@ -56,6 +56,7 @@ test("switching Space from Issue, Agent, Workflow, Workflow Run, and Task detail
     name: tagged("Space switch workflow"),
     description: "Created by the Portal browser tests.",
     definition: JSON.stringify({
+      schema_version: 1,
       steps: [{ step_id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: ok" }],
     }),
   })

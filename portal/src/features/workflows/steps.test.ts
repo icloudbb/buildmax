@@ -46,6 +46,10 @@ describe("stepsToDefinition / parseDefinition", () => {
     expect(parsed?.steps).toEqual(original)
   })
 
+  it("declares the schema version the runtime requires", () => {
+    expect(JSON.parse(stepsToDefinition([step()])).schema_version).toBe(1)
+  })
+
   it("emits bindings in the wire snake_case shape only when a step has them", () => {
     expect(stepsToDefinition([step()])).not.toContain("bindings")
     const wire = stepsToDefinition([step({ id: "b", bindings: [{ name: "r", fromStep: "a" }] })])

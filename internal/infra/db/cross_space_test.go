@@ -30,7 +30,7 @@ func TestUpdateWorkflowInAForeignSpaceIsANoOp(t *testing.T) {
 	stranger := newTestUser(t, s, "r2-wf-stranger")
 	strangerSpace := newTestSpace(t, s, stranger)
 
-	wf, err := s.CreateWorkflow(ctx, ownerSpace, owner, "owned", "the owner's plan", `{"steps":[]}`)
+	wf, err := s.CreateWorkflow(ctx, ownerSpace, owner, "owned", "the owner's plan", `{"schema_version":1,"steps":[]}`)
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}

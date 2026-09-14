@@ -146,7 +146,7 @@ func TestWorkflowRevisionsUseTheSameQueryShape(t *testing.T) {
 	userID := newTestUser(t, s, "revision")
 	spaceID := newTestSpace(t, s, userID)
 
-	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "d", `{"steps":[]}`)
+	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "d", `{"schema_version":1,"steps":[]}`)
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}

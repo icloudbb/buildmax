@@ -21,31 +21,31 @@ func TestParseDefinition_ValidatesBindings(t *testing.T) {
 	}{
 		{
 			name: "binds an earlier step",
-			raw:  `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"step_id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","from_step":"a"}]}]}`,
+			raw:  `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"step_id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","from_step":"a"}]}]}`,
 		},
 		{
 			name:    "from_step missing",
-			raw:     `{"steps":[{"step_id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","from_step":"a"}]}]}`,
+			raw:     `{"schema_version":1,"steps":[{"step_id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","from_step":"a"}]}]}`,
 			wantErr: true,
 		},
 		{
 			name:    "from_step is a later step",
-			raw:     `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","from_step":"b"}]},{"step_id":"b","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+			raw:     `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","from_step":"b"}]},{"step_id":"b","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
 			wantErr: true,
 		},
 		{
 			name:    "from_step is itself",
-			raw:     `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","from_step":"a"}]}]}`,
+			raw:     `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","from_step":"a"}]}]}`,
 			wantErr: true,
 		},
 		{
 			name:    "duplicate binding name",
-			raw:     `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"step_id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","from_step":"a"},{"name":"r","from_step":"a"}]}]}`,
+			raw:     `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"step_id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","from_step":"a"},{"name":"r","from_step":"a"}]}]}`,
 			wantErr: true,
 		},
 		{
 			name:    "empty binding name",
-			raw:     `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"step_id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"","from_step":"a"}]}]}`,
+			raw:     `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"step_id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"","from_step":"a"}]}]}`,
 			wantErr: true,
 		},
 	}
@@ -70,15 +70,15 @@ func TestParseDefinition_ValidatesOutputSchema(t *testing.T) {
 	}{
 		{
 			name: "absent output_schema is free text",
-			raw:  `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+			raw:  `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
 		},
 		{
 			name: "schema in the supported subset",
-			raw:  `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","output_schema":{"type":"object","additionalProperties":false,"properties":{"n":{"type":"integer"}},"required":["n"]}}]}`,
+			raw:  `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","output_schema":{"type":"object","additionalProperties":false,"properties":{"n":{"type":"integer"}},"required":["n"]}}]}`,
 		},
 		{
 			name:    "schema outside the subset is rejected",
-			raw:     `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","output_schema":{"type":"string","pattern":"x"}}]}`,
+			raw:     `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","output_schema":{"type":"string","pattern":"x"}}]}`,
 			wantErr: true,
 		},
 	}
@@ -90,6 +90,53 @@ func TestParseDefinition_ValidatesOutputSchema(t *testing.T) {
 			}
 			if !tc.wantErr && err != nil {
 				t.Fatalf("err = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestParseDefinition_ValidatesContract(t *testing.T) {
+	cases := []struct {
+		name    string
+		raw     string
+		wantErr error
+	}{
+		{
+			name: "declares schema_version, input_schema, and result",
+			raw:  `{"schema_version":1,"input_schema":{"type":"object","additionalProperties":false,"properties":{"topic":{"type":"string"}},"required":["topic"]},"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}],"result":{"from_step":"a"}}`,
+		},
+		{
+			name:    "missing schema_version is rejected",
+			raw:     `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+			wantErr: ErrUnsupportedSchemaVersion,
+		},
+		{
+			name:    "unknown schema_version is rejected",
+			raw:     `{"schema_version":2,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+			wantErr: ErrUnsupportedSchemaVersion,
+		},
+		{
+			name:    "input_schema outside the subset is rejected",
+			raw:     `{"schema_version":1,"input_schema":{"type":"string","pattern":"x"},"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+			wantErr: ErrInvalidInputSchema,
+		},
+		{
+			name:    "result selecting a missing step is rejected",
+			raw:     `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}],"result":{"from_step":"b"}}`,
+			wantErr: ErrInvalidResult,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parseDefinition(tc.raw)
+			if tc.wantErr == nil {
+				if err != nil {
+					t.Fatalf("err = %v, want nil", err)
+				}
+				return
+			}
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
 			}
 		})
 	}
@@ -126,7 +173,7 @@ func TestStartWorkflowRun_BindsUpstreamOutputIntoDownstreamInput(t *testing.T) {
 			ID:      "w_1",
 			SpaceID: "tm_1",
 			Name:    "WF",
-			Definition: `{"steps":[` +
+			Definition: `{"schema_version":1,"steps":[` +
 				`{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect"},` +
 				`{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"write-the-summary","bindings":[{"name":"research","from_step":"collect"}]}` +
 				`]}`,

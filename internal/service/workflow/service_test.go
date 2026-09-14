@@ -23,7 +23,7 @@ func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
 		SpaceID:    "tm_1",
 		UserID:     "u1",
 		Name:       "WF",
-		Definition: `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`,
+		Definition: `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`,
 	})
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
@@ -42,7 +42,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 			ID:          "w_1",
 			SpaceID:     "tm_1",
 			Name:        "WF",
-			Definition:  `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
+			Definition:  `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
 			Description: "desc",
 			Status:      coreworkflow.StatusPublished,
 		}},
@@ -122,7 +122,7 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 			ID:         "w_1",
 			SpaceID:    "tm_1",
 			Name:       "WF",
-			Definition: `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
+			Definition: `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
 			Status:     coreworkflow.StatusPublished,
 			Revision:   3,
 		}},
@@ -213,7 +213,7 @@ func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 		Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "Agent 1", Revision: 1}},
 	}
 	svc := &Service{Workflows: workflowStore, Agents: agentStore}
-	first := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
+	first := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
 	created, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
 		SpaceID: "tm_1", UserID: "u1", Name: "WF", Definition: first,
 	})
@@ -224,7 +224,7 @@ func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 		t.Fatalf("created revision = %d, want 1", created.Revision)
 	}
 
-	second := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
+	second := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
 	updated, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
 		SpaceID: "tm_1", UserID: "u2", WorkflowID: created.ID, Definition: &second,
 	})
@@ -263,7 +263,7 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 		Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "Agent 1", Revision: 1}},
 	}
 	svc := &Service{Workflows: workflowStore, Agents: agentStore}
-	first := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
+	first := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
 	created, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
 		SpaceID: "tm_1", UserID: "u1", Name: "WF", Definition: first,
 	})
@@ -276,7 +276,7 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
-	second := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
+	second := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
 	if _, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
 		SpaceID: "tm_1", UserID: "u1", WorkflowID: created.ID, Definition: &second,
 	}); err != nil {
@@ -311,7 +311,7 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 // a TaskRun already in flight completes, but a later workflow step cannot
 // create a new Task for an agent deleted in the meantime.
 func TestDeletedAgent_RunFinishesButNextStepIsRefused(t *testing.T) {
-	definition := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`
+	definition := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{{
 			ID:         "w_1",
@@ -393,8 +393,8 @@ func TestDeletedAgent_RunFinishesButNextStepIsRefused(t *testing.T) {
 }
 
 func TestPublishedWorkflowsUsingAgent(t *testing.T) {
-	using := `{"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_1","prompt":"p"}]}`
-	other := `{"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_2","prompt":"p"}]}`
+	using := `{"schema_version":1,"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_1","prompt":"p"}]}`
+	other := `{"schema_version":1,"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_2","prompt":"p"}]}`
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{
 			{ID: "w_pub", SpaceID: "tm_1", Name: "Published", Definition: using, Status: coreworkflow.StatusPublished},
@@ -441,7 +441,7 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 			ID:         "w_1",
 			SpaceID:    "tm_1",
 			Name:       "WF",
-			Definition: `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
+			Definition: `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
 			Status:     coreworkflow.StatusPublished,
 		}},
 	}
@@ -508,7 +508,7 @@ func twoStepReconcileSvc(t *testing.T) (svc *Service, workflowStore *mock.MockWo
 			ID:         "w_1",
 			SpaceID:    "tm_1",
 			Name:       "WF",
-			Definition: `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
+			Definition: `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
 			Status:     coreworkflow.StatusPublished,
 		}},
 	}

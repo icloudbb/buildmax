@@ -33,6 +33,9 @@ var (
 	ErrIssueNotFound              = apierr.New(apierr.KindNotFound, "issue not found")
 	ErrIssueWorkflowMismatch      = apierr.New(apierr.KindInvalid, "issue not assigned to workflow")
 	ErrInvalidDefinition          = apierr.New(apierr.KindInvalid, "invalid workflow definition")
+	ErrUnsupportedSchemaVersion   = apierr.New(apierr.KindInvalid, "unsupported workflow schema_version: only schema_version 1 is supported")
+	ErrInvalidInputSchema         = apierr.New(apierr.KindInvalid, "invalid workflow input_schema: must be within the supported JSON Schema subset")
+	ErrInvalidResult              = apierr.New(apierr.KindInvalid, "invalid workflow result: from_step must name an existing step")
 	ErrInvalidStepType            = apierr.New(apierr.KindInvalid, "invalid workflow step type")
 	ErrInvalidStepID              = apierr.New(apierr.KindInvalid, "invalid workflow step_id")
 	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow step binding: name and from_step are required, names are unique within a step, and from_step must be an earlier step")
@@ -828,6 +831,17 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 	if err := json.Unmarshal([]byte(raw), &def); err != nil {
 		return nil, apierr.Detail(ErrInvalidDefinition, "%v", err)
 	}
+	if def.SchemaVersion != coreworkflow.DefinitionSchemaVersion {
+		return nil, ErrUnsupportedSchemaVersion
+	}
+	// An input schema must be in the shared subset so run admission can validate a
+	// run's immutable input against it and the Portal can generate its form
+	// (docs/design/workflow-runtime.md §6.1). Absent means the run takes no input.
+	if len(bytes.TrimSpace(def.InputSchema)) > 0 {
+		if _, err := jsonschema.Compile(def.InputSchema); err != nil {
+			return nil, apierr.Detail(ErrInvalidInputSchema, "%v", err)
+		}
+	}
 	if len(def.Steps) == 0 {
 		return nil, ErrInvalidDefinition
 	}
@@ -879,6 +893,14 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 			}
 		}
 		seen[step.StepID] = struct{}{}
+	}
+	// The declared run result, when present, must select an existing step. Every
+	// step id is in seen now, so a forward or missing reference is rejected here.
+	if def.Result != nil {
+		def.Result.FromStep = strings.TrimSpace(def.Result.FromStep)
+		if _, ok := seen[def.Result.FromStep]; !ok {
+			return nil, ErrInvalidResult
+		}
 	}
 	return &def, nil
 }

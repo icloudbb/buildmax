@@ -12,6 +12,11 @@ const (
 	StatusArchived  = "archived"
 
 	StepTypeAgentTask = "agent_task"
+
+	// DefinitionSchemaVersion is the only workflow definition contract version the
+	// runtime accepts. A definition must declare it explicitly; publication rejects
+	// any other value so a stored plan always names the contract it was written for.
+	DefinitionSchemaVersion = 1
 )
 
 // RunStatus is the lifecycle status of one workflow run. StepRunStatus is one
@@ -195,7 +200,24 @@ type StepRun struct {
 
 // Definition is the parsed structure of a workflow definition JSON.
 type Definition struct {
-	Steps []DefinitionStep `json:"steps"`
+	// SchemaVersion names the definition contract this plan is written for. It must
+	// equal DefinitionSchemaVersion; publication refuses anything else rather than
+	// guessing an unversioned shape.
+	SchemaVersion int `json:"schema_version"`
+	// InputSchema, when set, is a JSON Schema (in the shared subset) that a run's
+	// immutable input must satisfy at admission and that drives the Portal input
+	// form. Absent means the run takes no declared input. Publication rejects a
+	// schema outside the subset.
+	InputSchema json.RawMessage  `json:"input_schema,omitempty"`
+	Steps       []DefinitionStep `json:"steps"`
+	// Result, when set, selects the WorkflowRun result from one step's output. The
+	// selected step must exist. Absent leaves the run without a declared result.
+	Result *ResultSelector `json:"result,omitempty"`
+}
+
+// ResultSelector names the step whose output becomes the WorkflowRun result.
+type ResultSelector struct {
+	FromStep string `json:"from_step"`
 }
 
 // DefinitionStep describes one step in a workflow definition.

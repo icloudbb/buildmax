@@ -26,6 +26,7 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
     name,
     description: "Created by the Portal browser tests to exercise the workflow views.",
     definition: JSON.stringify({
+      schema_version: 1,
       steps: [{ step_id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" }],
     }),
   })
@@ -73,6 +74,7 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
     name: tagged("Workflow run probe"),
     description: "Created by the Portal browser tests to exercise workflow execution.",
     definition: JSON.stringify({
+      schema_version: 1,
       steps: [
         {
           step_id: "only",
@@ -157,6 +159,7 @@ test("a workflow binds one step's output into the next step's input", async ({ p
     name: tagged("Workflow binding probe"),
     description: "Created by the Portal browser tests to exercise step output binding.",
     definition: JSON.stringify({
+      schema_version: 1,
       steps: [
         { step_id: "collect", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" },
         {

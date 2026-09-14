@@ -37,8 +37,14 @@ context, so a multi-step Workflow can pass one Agent's result to the next, and
 the Portal step form authors those bindings directly rather than only through
 advanced JSON. A step may also declare an `output_schema`: its run is constrained
 to that schema, the validated value is persisted, and the step succeeds only on a
-value that validates (see the shared runtime below). The typed `nodes`/`bindings`
-contract, input schemas, and typed `/structured/...` routing remain open.
+value that validates (see the shared runtime below). A definition now declares a
+`"schema_version": 1`, and may declare an `input_schema` (validated against the
+shared JSON Schema subset at publication) and a `result` selector naming the step
+whose output becomes the run result; publication rejects an unknown version, an
+out-of-subset input schema, or a result naming a missing step. Admitting an
+immutable run input against that schema, persisting each step's resolved input and
+full output, RFC 6901 pointer and Artifact bindings, storing the declared result,
+the typed `nodes`/`needs` graph, and typed `/structured/...` routing remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including

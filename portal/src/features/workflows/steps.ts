@@ -8,6 +8,11 @@ import type { Agent } from "../../lib/types"
  */
 export const AGENT_TASK_STEP_TYPE = "agent_task"
 
+/** The only workflow definition contract version the runtime accepts. The
+ *  Portal always emits it so a published plan names the contract it targets;
+ *  the server rejects any other value. */
+export const WORKFLOW_SCHEMA_VERSION = 1
+
 /** A binding feeds an earlier step's whole output into this step's input under
  *  a name. The step form authors it directly; it also round-trips through
  *  advanced JSON mode so a definition authored there is not silently stripped. */
@@ -50,6 +55,7 @@ export function newStep(agentId = ""): WorkflowStepDraft {
 export function stepsToDefinition(steps: WorkflowStepDraft[]): string {
   return JSON.stringify(
     {
+      schema_version: WORKFLOW_SCHEMA_VERSION,
       steps: steps.map((step) => ({
         step_id: step.id,
         type: step.type,

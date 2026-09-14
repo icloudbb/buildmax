@@ -28,7 +28,7 @@ func reconcileFixture(t *testing.T) (s *Store, userID, workflowID string) {
 	}
 	var spaceID string
 	userID, spaceID = secretTestSpace(t, s, "workflow-reconcile@example.com")
-	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "", `{"steps":[]}`)
+	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "", `{"schema_version":1,"steps":[]}`)
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
