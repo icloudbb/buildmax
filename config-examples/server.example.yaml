@@ -25,6 +25,40 @@ jwt_secret: your-jwt-secret-here
 # Setting this to true lets anyone who can reach the server register.
 # allow_signup: true
 
+# Which accounts may sign in with a native password or login code, independent
+# of whether SSO (oidc, below) is configured:
+#   all            every account (the default; unchanged native behavior)
+#   system_admins  only System Administrators — a break-glass path while
+#                  everyone else signs in through the IdP
+#   off            no native login (only valid with oidc enabled)
+# local_login: all
+
+# Corporate sign-in over OpenID Connect. OIDC proves authentication only;
+# BuildMax still owns accounts, sessions, and every authorization decision. It
+# is orthogonal to local_login: run both, either, or (with local_login: off)
+# SSO alone. See docs/deploy/authentication.md and
+# docs/design/enterprise-identity-and-access.md.
+# oidc:
+#   enabled: true
+#   display_name: Okta                     # labels the Portal sign-in button
+#   issuer: https://example.okta.com        # the only URL trust root; must be https
+#   client_id: 0oaExampleClientId
+#   # The confidential client's secret. Inject it at deploy time with
+#   # BUILDMAX_OIDC_CLIENT_SECRET rather than writing it here; it is never
+#   # served, logged, or handed to a worker.
+#   client_secret: ""
+#   # jit          create an account on a first verified sign-in whose email
+#   #              domain is in allowed_email_domains (the default)
+#   # existing_only  refuse a subject with no account an operator already made
+#   provisioning: jit
+#   # Required and non-empty when provisioning is jit: the domains whose verified
+#   # emails may create an account. Bounds who JIT will provision.
+#   allowed_email_domains:
+#     - example.com
+#   # Ceiling on an SSO session from its creation (default 12h). Deliberately
+#   # shorter than session_absolute_ttl: a corporate login is re-proven more often.
+#   session_max_age: 12h
+
 # Token lifetimes. Signing in returns an access token (sent with every request;
 # not stored, but the server checks the session it names on every request, so
 # revocation and disablement take effect within this window) and a refresh token

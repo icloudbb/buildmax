@@ -1459,6 +1459,16 @@
         }
       }
     },
+    "/api/auth/methods": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "List the enabled sign-in methods",
+        "description": "Unauthenticated: a client has to know how to sign in before it can. Reports the effective `local_login` mode (`all`, `system_admins`, or `off`) and whether SSO is offered with its display name. It never carries the issuer, client id, or provisioning policy.",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
     "/api/auth/otp": {
       "post": {
         "tags": ["auth"],

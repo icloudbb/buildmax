@@ -30,6 +30,7 @@ type RedactedServerConfig struct {
 	LogLevel             string `json:"log_level,omitempty"`
 	Port                 int    `json:"port"`
 	AllowSignup          bool   `json:"allow_signup"`
+	LocalLogin           string `json:"local_login,omitempty"`
 	CORSOrigin           string `json:"cors_origin,omitempty"`
 	WorkspacesDir        string `json:"workspaces_dir,omitempty"`
 	DefaultQuotaTier     string `json:"default_quota_tier,omitempty"`
@@ -46,6 +47,7 @@ type RedactedServerConfig struct {
 	Worker       RedactedWorkerConfig       `json:"worker"`
 	LLM          RedactedLLMConfig          `json:"llm"`
 	Coordination RedactedCoordinationConfig `json:"coordination"`
+	OIDC         RedactedOIDCConfig         `json:"oidc"`
 
 	// Warnings are configuration states worth an operator's attention. They are
 	// not errors — the server is running — and they are computed rather than
@@ -122,6 +124,20 @@ type RedactedCoordinationConfig struct {
 	RedisPassword SecretStatus `json:"redis_password"`
 }
 
+// RedactedOIDCConfig shows how SSO is configured, never the client secret. The
+// issuer and client_id are identifiers an operator needs to diagnose a login
+// failure, not credentials; the secret is reported only as configured or not.
+type RedactedOIDCConfig struct {
+	Enabled             bool         `json:"enabled"`
+	DisplayName         string       `json:"display_name,omitempty"`
+	Issuer              string       `json:"issuer,omitempty"`
+	ClientID            string       `json:"client_id,omitempty"`
+	Provisioning        string       `json:"provisioning,omitempty"`
+	AllowedEmailDomains []string     `json:"allowed_email_domains,omitempty"`
+	SessionMaxAge       string       `json:"session_max_age,omitempty"`
+	ClientSecret        SecretStatus `json:"client_secret"`
+}
+
 // Redacted returns the operator-facing view of the configuration.
 func (sc ServerConfig) Redacted() RedactedServerConfig {
 	out := RedactedServerConfig{
@@ -175,6 +191,17 @@ func (sc ServerConfig) Redacted() RedactedServerConfig {
 			RedisTLS:      sc.Coordination.Redis.TLS,
 			RedisPassword: secretStatus(sc.Coordination.Redis.Password),
 		},
+		OIDC: RedactedOIDCConfig{
+			Enabled:             sc.OIDC.Enabled,
+			DisplayName:         sc.OIDC.DisplayName,
+			Issuer:              sc.OIDC.Issuer,
+			ClientID:            sc.OIDC.ClientID,
+			Provisioning:        sc.OIDC.provisioning(),
+			AllowedEmailDomains: sc.OIDC.AllowedEmailDomains,
+			SessionMaxAge:       sc.OIDC.sessionMaxAge().String(),
+			ClientSecret:        secretStatus(sc.OIDC.ClientSecret),
+		},
+		LocalLogin: sc.localLogin(),
 	}
 	if sc.AccessTokenTTL > 0 {
 		out.AccessTokenTTL = sc.AccessTokenTTL.String()
@@ -226,6 +253,12 @@ func (sc ServerConfig) configWarnings() []string {
 	}
 	if sc.Storage.PersistBackend == "" || sc.Storage.PersistBackend == "local_fs" {
 		warnings = append(warnings, "storage.persist_backend is local_fs: run output lives on the server's disk and is lost with the pod")
+	}
+	if sc.localLogin() == LocalLoginOff && !sc.OIDC.Enabled {
+		warnings = append(warnings, "local_login is off and oidc is disabled: no one can sign in — configure oidc or widen local_login")
+	}
+	if sc.OIDC.Enabled && sc.localLogin() == LocalLoginOff {
+		warnings = append(warnings, "local_login is off with oidc enabled: there is no break-glass login if the IdP is unreachable — local_login: system_admins keeps operators able to sign in")
 	}
 	return warnings
 }

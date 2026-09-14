@@ -65,6 +65,8 @@ cp config-examples/mcp.example.json      ~/.buildmax/mcp.json      # MCP servers
 | `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` | `storage.minio.access_key` |
 | `BUILDMAX_STORAGE_MINIO_SECRET_KEY` | `storage.minio.secret_key` |
 | `BUILDMAX_CONVERSATION_MODEL_API_KEY` | `conversation.model.api_key` |
+| `BUILDMAX_COORDINATION_REDIS_PASSWORD` | `coordination.redis.password` |
+| `BUILDMAX_OIDC_CLIENT_SECRET` | `oidc.client_secret` |
 
 理想的划分方式是：**`server.yaml` 携带形状和非敏感的值；环境变量携带凭据。** `deployment/buildmax-deploy.yaml` 正是按这种方式组织的——用 ConfigMap 承载文件内容，用 Secret 承载这些变量。
 
