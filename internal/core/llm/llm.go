@@ -101,6 +101,62 @@ type Completion struct {
 	// ProviderState is set only by a protocol that carries reasoning state and
 	// only when the model produced some.
 	ProviderState *ProviderState
+	// Structured is the validated machine-readable answer, set only when the
+	// Request carried an Output schema. See Structured and
+	// docs/design/structured-output.md.
+	Structured *Structured
+}
+
+// StructuredMode records how a structured value was obtained, so a consumer can
+// tell an enforced value from a best-effort one. See
+// docs/design/structured-output.md §7-§8.
+type StructuredMode string
+
+const (
+	// StructuredNative: the provider constrained its output to the schema.
+	StructuredNative StructuredMode = "native"
+	// StructuredForcedTool: a single forced tool whose input schema is the
+	// output schema; the tool input is the value.
+	StructuredForcedTool StructuredMode = "forced_tool"
+	// StructuredPrompted: the schema was rendered into the prompt and the reply
+	// parsed. Best-effort; never Enforced.
+	StructuredPrompted StructuredMode = "prompted"
+)
+
+// OutputSchema is an optional schema the run's final answer must satisfy. Nil on
+// a Request is today's free-text behavior. See docs/design/structured-output.md.
+type OutputSchema struct {
+	// Name is a stable identifier some providers require for the schema.
+	Name string
+	// Schema is the JSON Schema, in the shared subset checked by
+	// internal/core/jsonschema (docs/design/structured-output.md §6).
+	Schema json.RawMessage
+}
+
+// StructuredError reports that the model's candidate value did not validate
+// against the requested schema. It is a value the consumer inspects, not a
+// transport failure: the call succeeded, the model's answer did not conform.
+type StructuredError struct {
+	Message string
+}
+
+func (e *StructuredError) Error() string { return e.Message }
+
+// Structured is the machine-readable answer a Request asked for, plus how it was
+// obtained. The runtime validates the model's candidate against the schema — even
+// for a native provider, so a provider bug cannot smuggle an off-schema value
+// past the contract — and records the outcome here beside the text Content.
+type Structured struct {
+	// Value is the validated value, or nil when validation failed.
+	Value json.RawMessage
+	// Mode is the mechanism the adapter used.
+	Mode StructuredMode
+	// Enforced is true only when the provider guaranteed the shape, never for a
+	// prompted fallback. A consumer that requires enforcement treats false as a
+	// failure.
+	Enforced bool
+	// Err is set when the candidate did not validate; then Value is nil.
+	Err *StructuredError
 }
 
 // AssistantMessage is the history entry this completion becomes. The agent loop
@@ -201,6 +257,10 @@ type Request struct {
 	// with another's. It is never accepted from a client, never persisted, and
 	// never logged — it is an input to a hash and nothing else.
 	CacheScope string
+	// Output, when set, asks for a final answer that satisfies the schema. The
+	// adapter maps it to the provider's native mechanism; the Client validates
+	// the result and reports it on Completion.Structured. Nil is free text.
+	Output *OutputSchema
 }
 
 // LLMClient can perform chat completions with tools and exposes its configuration.

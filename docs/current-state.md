@@ -36,7 +36,7 @@ may bind an earlier step's whole output into its input as labelled, untrusted
 context, so a multi-step Workflow can pass one Agent's result to the next, and
 the Portal step form authors those bindings directly rather than only through
 advanced JSON; the typed `nodes`/`bindings` contract, input and output schemas,
-and structured output remain open.
+and Workflow's use of structured output remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including
@@ -79,9 +79,16 @@ model catalog; a server-rejected credential is treated as an expired login, and
 [`internal/interface/auth/models.go`](../internal/interface/auth/models.go) and
 its [tests](../internal/interface/auth/models_test.go).
 
-The shared LLM request contract does not yet expose a provider-neutral
-structured-output schema. Tool-argument JSON schemas are a separate capability;
-see [`internal/core/llm/llm.go`](../internal/core/llm/llm.go).
+The shared LLM request contract exposes a provider-neutral structured-output
+schema: a `Request.Output` schema is validated against the shared subset in
+[`internal/core/jsonschema`](../internal/core/jsonschema), and the result — the
+validated value, its mode, whether the provider enforced it, or a typed failure —
+comes back on `Completion.Structured`. The two OpenAI adapters map it to their
+native `json_schema` mechanism; Anthropic, Ollama, the prompted fallback, and
+wiring it into a run's final answer and a consumer remain open (Phases 2-4 of
+[structured output](design/structured-output.md)). Tool-argument JSON schemas
+are a separate capability; see
+[`internal/core/llm/llm.go`](../internal/core/llm/llm.go).
 
 ## Tasks, Results, And Workspace Continuity
 

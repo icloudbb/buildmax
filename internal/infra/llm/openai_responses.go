@@ -126,6 +126,18 @@ func (a *openAIResponsesAdapter) buildRequest(call cllm.Request) openai.CreateRe
 	// conversation itself, so opt out rather than leave copies behind.
 	store := false
 	req.Store = &store
+	if call.Output != nil {
+		// text.format json_schema with strict is this protocol's native
+		// structured-output mechanism. The Client re-validates the result.
+		req.Text = &openai.ResponseTextConfig{
+			Format: &openai.ResponseTextFormat{
+				Type:   "json_schema",
+				Name:   call.Output.Name,
+				Schema: json.RawMessage(call.Output.Schema),
+				Strict: true,
+			},
+		}
+	}
 	a.applyCacheControls(&req, call, strings.Join(instructions, "\n\n"), tools)
 	if config.ReasoningEnabled(a.reasoning) {
 		req.Reasoning = &openai.ResponseReasoning{Effort: a.reasoning}
@@ -287,6 +299,7 @@ func (a *openAIResponsesAdapter) blocking(ctx context.Context, req cllm.Request)
 		ToolCalls:     toolCalls,
 		Usage:         responsesUsage(resp.Usage),
 		ProviderState: responsesReasoning(resp.Output),
+		Structured:    nativeCandidate(req, content),
 	}, nil
 }
 
@@ -358,6 +371,7 @@ func (a *openAIResponsesAdapter) streaming(ctx context.Context, req cllm.Request
 		ToolCalls:     toolCalls,
 		Usage:         usage,
 		ProviderState: reasoning,
+		Structured:    nativeCandidate(req, fullContent.String()),
 	}, nil
 }
 
