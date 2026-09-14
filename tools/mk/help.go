@@ -342,17 +342,21 @@ func helpTopics() []helpTopic {
 		{
 			name:    "board",
 			usage:   "board [--md]",
-			summary: "Show the project status view derived from the backlog, Roadmap, and git.",
+			summary: "Show the project status view derived from the backlog, Roadmap, designs, proposals, and git.",
 			details: []string{
 				"The board holds no state of its own. It reads the backlog task frontmatter,\n" +
-					"the Roadmap `Status:` lines, the unreleased changelog, and recent git\n" +
-					"history, so it cannot drift from them the way a hand-maintained status file\n" +
-					"would. There is nothing to commit.",
+					"the Roadmap `Status:` lines, the design index progress column, the open\n" +
+					"proposal files, the unreleased changelog, and recent git history, so it\n" +
+					"cannot drift from them the way a hand-maintained status file would. There\n" +
+					"is nothing to commit.",
 				"A backlog task is in progress when it is claimed, in review once its `pr`\n" +
 					"field names an open pull request, ready when it is unclaimed and every\n" +
 					"dependency has merged, and blocked while a dependency file still exists.\n" +
 					"The format contract those columns depend on is enforced by the architecture\n" +
 					"tests `" + mk() + " check docs` runs, not by this command.",
+				"A design record is listed as unfinished unless its `docs/design/README.md`\n" +
+					"progress is Complete or Superseded in part. Every proposal file is listed,\n" +
+					"since a proposal exists only while its direction is still open.",
 				"`--md` prints the same view as Markdown on stdout, for pasting into a note or\n" +
 					"an issue. It is not written to a file.",
 			},

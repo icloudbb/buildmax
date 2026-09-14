@@ -9,9 +9,9 @@ import (
 )
 
 // The board is a derived, read-only status view. It holds no state of its own:
-// the backlog frontmatter, the Roadmap `Status:` lines, the unreleased changelog,
-// and the git history are the single sources of truth, so the view cannot drift
-// from them. The format contract that keeps those docs parseable is enforced by
+// the backlog frontmatter, the Roadmap `Status:` lines, the design index progress
+// column, the open proposal files, the unreleased changelog, and the git history
+// are the single sources of truth, so the view cannot drift from them. The format contract that keeps those docs parseable is enforced by
 // TestBacklogFrontmatterIsValid and TestRoadmapPrioritiesCarryStatus, not here —
 // this command renders what it finds and degrades gracefully when a field or the
 // git binary is missing, rather than gating.
@@ -27,7 +27,18 @@ var (
 	boardRoadmapHeadRe = regexp.MustCompile(`^### (R\d+)\. (.+)$`)
 	boardStatusLineRe  = regexp.MustCompile(`^\*\*Status:\*\* (\S+)`)
 	boardMergeRe       = regexp.MustCompile(`^Merge pull request #(\d+) from \S+/(\S+)$`)
+	// A design-record row in docs/design/README.md: a title linking to a `.md`
+	// record, its lifecycle, then its progress. The `.md` link in the first cell
+	// is what tells these rows apart from the domain-browse table, whose first
+	// cell links to a `#anchor` instead.
+	boardDesignRowRe = regexp.MustCompile(`^\|\s*\[([^\]]+)\]\(([^)]+\.md)\)\s*\|([^|]*)\|([^|]*)\|`)
 )
+
+// boardDesignDone marks the progress values that need no further implementation,
+// so the board omits them. Everything else — Partial, Not started, Conditional,
+// and Decision only — counts as unfinished. The full progress vocabulary lives
+// in docs/design/README.md.
+var boardDesignDone = map[string]bool{"Complete": true, "Superseded in part": true}
 
 type boardTask struct {
 	file      string // NN-slug.md
@@ -55,12 +66,14 @@ func cmdBoard(args []string) error {
 		return err
 	}
 	roadmap := loadRoadmapStatuses()
+	designs := loadUnfinishedDesigns()
+	proposals := loadOpenProposals()
 	done := loadRecentlyDone()
 
 	if asMarkdown {
-		printBoardMarkdown(tasks, roadmap, done)
+		printBoardMarkdown(tasks, roadmap, designs, proposals, done)
 	} else {
-		printBoardText(tasks, roadmap, done)
+		printBoardText(tasks, roadmap, designs, proposals, done)
 	}
 	return nil
 }
@@ -155,6 +168,70 @@ func statusAfter(after []string) string {
 		}
 	}
 	return "?"
+}
+
+// designRecord is one unfinished design, read from the docs/design/README.md
+// progress snapshot the maintainer keeps aligned with the code and roadmap.
+type designRecord struct {
+	title    string
+	progress string
+}
+
+// loadUnfinishedDesigns parses the design index tables and keeps the records
+// whose progress is not yet complete. The README progress column is the
+// authoritative snapshot; the free-text Status line in each record is prose and
+// does not classify into that vocabulary.
+func loadUnfinishedDesigns() (out []designRecord) {
+	body, err := os.ReadFile(filepath.Join("docs", "design", "README.md"))
+	if err != nil {
+		return nil
+	}
+	for line := range strings.SplitSeq(string(body), "\n") {
+		m := boardDesignRowRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		progress := strings.TrimSpace(m[4])
+		if progress == "" || boardDesignDone[progress] {
+			continue
+		}
+		out = append(out, designRecord{title: strings.TrimSpace(m[1]), progress: progress})
+	}
+	return out
+}
+
+// loadOpenProposals lists every live proposal. A proposal file exists only while
+// its direction is open — it is deleted when accepted, rejected, or superseded —
+// so the directory itself is the source of truth, not a hand-kept index. The
+// title comes from each file's first heading.
+func loadOpenProposals() (out []string) {
+	dir := filepath.Join("docs", "proposals")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	for _, e := range entries {
+		if e.IsDir() || e.Name() == "README.md" || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		out = append(out, firstHeading(string(body), e.Name()))
+	}
+	return out
+}
+
+// firstHeading returns the text of the first Markdown H1, falling back to the
+// filename so a proposal missing its heading still appears.
+func firstHeading(body, file string) string {
+	for line := range strings.SplitSeq(body, "\n") {
+		if h, ok := strings.CutPrefix(line, "# "); ok {
+			return strings.TrimSpace(h)
+		}
+	}
+	return strings.TrimSuffix(file, ".md")
 }
 
 type doneEntry struct {
@@ -310,14 +387,14 @@ func (t boardTask) note(live map[string]bool) string {
 	return ""
 }
 
-func printBoardText(tasks []boardTask, roadmap []roadmapPriority, done []doneEntry) {
+func printBoardText(tasks []boardTask, roadmap []roadmapPriority, designs []designRecord, proposals []string, done []doneEntry) {
 	live := map[string]bool{}
 	for _, t := range tasks {
 		live[t.file] = true
 	}
 	inProgress, inReview, ready, blocked := boardBuckets(tasks)
 
-	fmt.Println("BuildMax board — derived from docs/backlog, docs/ROADMAP.md, and git")
+	fmt.Println("BuildMax board — derived from docs/backlog, docs/ROADMAP.md, docs/design, docs/proposals, and git")
 	fmt.Println()
 	fmt.Println("Backlog")
 	printTaskColumn(live, "In progress", inProgress)
@@ -332,6 +409,18 @@ func printBoardText(tasks []boardTask, roadmap []roadmapPriority, done []doneEnt
 	}
 	for _, p := range roadmap {
 		fmt.Printf("  %-3s %-24s %s\n", p.id, p.status, p.title)
+	}
+
+	fmt.Println()
+	fmt.Printf("Designs (unfinished) (%d)\n", len(designs))
+	for _, d := range designs {
+		fmt.Printf("  %-14s %s\n", d.progress, d.title)
+	}
+
+	fmt.Println()
+	fmt.Printf("Proposals (open) (%d)\n", len(proposals))
+	for _, p := range proposals {
+		fmt.Printf("  %s\n", p)
 	}
 
 	fmt.Println()
@@ -355,7 +444,7 @@ func printTaskColumn(live map[string]bool, heading string, tasks []boardTask) {
 	}
 }
 
-func printBoardMarkdown(tasks []boardTask, roadmap []roadmapPriority, done []doneEntry) {
+func printBoardMarkdown(tasks []boardTask, roadmap []roadmapPriority, designs []designRecord, proposals []string, done []doneEntry) {
 	live := map[string]bool{}
 	for _, t := range tasks {
 		live[t.file] = true
@@ -364,7 +453,7 @@ func printBoardMarkdown(tasks []boardTask, roadmap []roadmapPriority, done []don
 
 	fmt.Println("# BuildMax Board")
 	fmt.Println()
-	fmt.Println("Derived from `docs/backlog/`, `docs/ROADMAP.md`, and git. Do not edit; run `./make board --md`.")
+	fmt.Println("Derived from `docs/backlog/`, `docs/ROADMAP.md`, `docs/design/`, `docs/proposals/`, and git. Do not edit; run `./make board --md`.")
 	fmt.Println()
 	fmt.Println("## Backlog")
 	printTaskColumnMarkdown(live, "In progress", inProgress)
@@ -377,6 +466,20 @@ func printBoardMarkdown(tasks []boardTask, roadmap []roadmapPriority, done []don
 	fmt.Println()
 	for _, p := range roadmap {
 		fmt.Printf("- **%s** `%s` — %s\n", p.id, p.status, p.title)
+	}
+
+	fmt.Println()
+	fmt.Printf("## Designs (unfinished) (%d)\n", len(designs))
+	fmt.Println()
+	for _, d := range designs {
+		fmt.Printf("- `%s` %s\n", d.progress, d.title)
+	}
+
+	fmt.Println()
+	fmt.Printf("## Proposals (open) (%d)\n", len(proposals))
+	fmt.Println()
+	for _, p := range proposals {
+		fmt.Printf("- %s\n", p)
 	}
 
 	fmt.Println()
