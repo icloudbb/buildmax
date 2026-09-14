@@ -28,16 +28,17 @@ type Config struct {
 	JWTSecret        string
 	DefaultQuotaTier string
 
-	Users         coreidentity.UserStore
-	LoginCodes    coreidentity.LoginCodeStore
-	RefreshTokens coreidentity.RefreshTokenStore
-	Sessions      coreidentity.AuthSessionStore
-	Spaces        corespace.Store
-	Grants        coreidentity.SystemGrantStore
-	Audits        coreaudit.Store
-	Models        coregw.ModelStore
-	Schema        coreschema.Store
-	TaskRuns      coretask.RunStore
+	Users              coreidentity.UserStore
+	LoginCodes         coreidentity.LoginCodeStore
+	RefreshTokens      coreidentity.RefreshTokenStore
+	Sessions           coreidentity.AuthSessionStore
+	ExternalIdentities coreidentity.ExternalIdentityStore
+	Spaces             corespace.Store
+	Grants             coreidentity.SystemGrantStore
+	Audits             coreaudit.Store
+	Models             coregw.ModelStore
+	Schema             coreschema.Store
+	TaskRuns           coretask.RunStore
 
 	Quota *quota.Service
 	// Plugins publishes releases and manages catalog entries. Nil is a
@@ -99,6 +100,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Stored-flag transitions are a state sub-resource, not RPC actions. See
 	// the route conventions in docs/contribute/architecture/server.md
 	mux.HandleFunc("PUT /api/admin/users/{user_id}/state", h.setAdminUserStateHandler)
+	mux.HandleFunc("GET /api/admin/users/{user_id}/identities", h.listAdminUserIdentitiesHandler)
+	mux.HandleFunc("DELETE /api/admin/users/{user_id}/identities/{identity_id}", h.unlinkAdminUserIdentityHandler)
 	mux.HandleFunc("GET /api/admin/users/{user_id}/sessions", h.listAdminUserSessionsHandler)
 	mux.HandleFunc("DELETE /api/admin/users/{user_id}/sessions", h.revokeAdminUserSessionsHandler)
 	mux.HandleFunc("DELETE /api/admin/users/{user_id}/sessions/{session_id}", h.revokeAdminUserSessionHandler)
