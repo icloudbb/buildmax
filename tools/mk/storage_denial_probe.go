@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -149,7 +148,7 @@ func kindStorageDenialProbe() error {
 	// backoff is a test artifact, not the recovery behavior under test, so it is
 	// waited out here rather than charged against the readiness recovery deadline.
 	// The generous ceiling covers repeated local runs; `kind reload` resets it.
-	if err := waitForMinioUp(ctx, 6*time.Minute); err != nil {
+	if err := waitForContainerReady(ctx, "storage", "app=minio", 6*time.Minute); err != nil {
 		return fmt.Errorf("object storage did not come back after the bounce: %w", err)
 	}
 
@@ -175,28 +174,4 @@ func kindStorageDenialProbe() error {
 
 	fmt.Println("Object-storage recovery verified: /readyz reported object storage failed while the pods stayed up, then recovered with the bucket intact once access was restored.")
 	return nil
-}
-
-// waitForMinioUp waits until the MinIO pod's container reports ready again after
-// the in-place bounce, so a kubelet restart backoff is waited out rather than
-// mistaken for a server that will not recover.
-func waitForMinioUp(ctx context.Context, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	var last string
-	for {
-		out, err := captureKindKubectl("get", "pods", "-n", "storage", "-l", "app=minio",
-			"-o", "jsonpath={.items[0].status.containerStatuses[0].ready}")
-		last = strings.TrimSpace(out)
-		if err == nil && last == "true" {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("MinIO not ready within %s (last ready=%q)", timeout, last)
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(2 * time.Second):
-		}
-	}
 }

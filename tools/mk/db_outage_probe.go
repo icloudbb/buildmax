@@ -27,9 +27,11 @@ import (
 // restored" requires. The policy alone is not enough: the server's pooled
 // connections are already established and the pool sets no lifetime, so they are
 // reused and never notice a block on new connections. The probe therefore also
-// kills the server's sessions inside MySQL, forcing the pool to reopen against
-// the block; MySQL itself stays up, so recovery is a fast reconnection when the
-// policy is removed rather than a wait on a database restart.
+// bounces MySQL in place -- a SIGTERM to its PID 1 exits the container and the
+// kubelet restarts it in the same pod, so the emptyDir data survives -- which
+// drops the established connections; the server's reconnection then hits the
+// policy and the outage holds until it is removed. Recovery waits for MySQL to
+// be serving again before expecting the server to reconnect.
 //
 // /readyz is read through a direct port-forward to a server pod, not through the
 // ingress: the readiness probe pulls a pod out of the Service during the outage,
@@ -126,17 +128,19 @@ func kindDBOutageProbe() error {
 
 	// The deny policy blocks new connections, but the server's pooled connections
 	// are already established and the pool sets no lifetime, so they would be
-	// reused indefinitely and never notice the block. Kill the server's
-	// connections inside MySQL so the pool must reopen -- and, blocked by the
-	// policy, fail. MySQL itself stays up, so recovery is a fast reconnection when
-	// the policy is removed rather than a wait on a database restart, and its data
-	// is untouched. The kill runs through the API server, which the ingress policy
-	// does not gate; it kills only the application user's sessions, not root's own
-	// (this one included), so it cannot cut itself off before finishing.
-	fmt.Println("  killing the server's database connections...")
-	killSessions := `mysql -uroot -pbuildmax -N -e "SELECT CONCAT('KILL ', id, ';') FROM information_schema.processlist WHERE user = 'buildmax'" | mysql -uroot -pbuildmax`
-	if out, err := captureKindKubectl("exec", "deploy/mysql", "-n", "db", "--", "sh", "-c", killSessions); err != nil {
-		return fmt.Errorf("kill the server's database connections: %w\n%s", err, out)
+	// reused indefinitely and never notice the block. Drop them by bouncing MySQL
+	// in place: a SIGTERM to its PID 1 exits the container and the kubelet restarts
+	// it in the same pod, so the emptyDir data survives while the server's
+	// reconnection now hits the policy and the outage holds until it is removed.
+	// The bounce goes through the API server, which the ingress policy does not
+	// gate; SIGTERM to PID 1 is a graceful mysqld shutdown, and the exec can exit
+	// non-zero as its own connection drops, so /readyz below is the real signal.
+	// (An earlier version killed the server's sessions in place to avoid a restart,
+	// but that raced the pool reopening a fresh connection and left the outage
+	// unobserved; a bounce severs at the source and cannot be raced.)
+	fmt.Println("  bouncing MySQL to drop the established connections...")
+	if out, err := captureKindKubectl("exec", "deploy/mysql", "-n", "db", "--", "sh", "-c", "kill 1"); err != nil {
+		fmt.Printf("  (mysql bounce reported %v; the /readyz check below is the real signal)\n%s", err, out)
 	}
 
 	// The failure must surface: /readyz answers 503 and names the database check
@@ -155,6 +159,16 @@ func kindDBOutageProbe() error {
 		return fmt.Errorf("remove the deny policy: %w", err)
 	}
 	policyDeleted = true
+
+	// Wait for MySQL to be serving again before expecting the server to recover.
+	// The bounce restarts the container, and the kubelet's restart backoff grows
+	// with a pod's restart history, so a cluster that has run this drill before can
+	// take a while to bring MySQL back. That backoff is a test artifact, not the
+	// recovery behavior under test, so it is waited out here rather than charged
+	// against the readiness recovery deadline.
+	if err := waitForContainerReady(ctx, "db", "app=mysql", 6*time.Minute); err != nil {
+		return fmt.Errorf("the database did not come back after the bounce: %w", err)
+	}
 
 	// The pod recovers on its own: /readyz reports the database healthy again.
 	if err := waitReadyzCheck(ctx, client, readyzURL, "database", "ok", true, dbOutageRecoverDeadline); err != nil {
@@ -245,6 +259,32 @@ func readyzCheckStatus(ctx context.Context, client *http.Client, url, check stri
 		}
 	}
 	return resp.StatusCode, "", nil
+}
+
+// waitForContainerReady waits until the first pod matching selector in namespace
+// reports its container ready again after an in-place bounce, so a kubelet
+// restart backoff -- which grows with a pod's restart history and is a test
+// artifact, not the behavior under test -- is waited out rather than mistaken for
+// a dependency that will not recover.
+func waitForContainerReady(ctx context.Context, namespace, selector string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var last string
+	for {
+		out, err := captureKindKubectl("get", "pods", "-n", namespace, "-l", selector,
+			"-o", "jsonpath={.items[0].status.containerStatuses[0].ready}")
+		last = strings.TrimSpace(out)
+		if err == nil && last == "true" {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%s pod not ready within %s (last ready=%q)", selector, timeout, last)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
 }
 
 // serverPodRestarts maps each running buildmax-server pod to its container
