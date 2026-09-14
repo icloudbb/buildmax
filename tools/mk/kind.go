@@ -464,7 +464,11 @@ func kindTCPReachable(name, labels, host, port string) (bool, error) {
 // caller that can reach :5678 cannot dispatch it.
 func kindExpectPublicWorkerRoute404() error {
 	const url = "http://buildmax-api.buildmax.svc.cluster.local:5678/api/worker/task-runs/probe"
-	script := fmt.Sprintf("if wget -T 5 -O /dev/null %s 2>&1 | grep -q ' 404 '; then echo BM_404; else echo BM_NOT404; fi", url)
+	// Match 404 as a standalone status code rather than the substring " 404 ":
+	// BusyBox wget renders the diagnostic as "...HTTP/1.1 404 Not Found", so a
+	// trailing space is not guaranteed after the code. The character-class bounds
+	// still reject codes like 4040 or 1404.
+	script := fmt.Sprintf("if wget -T 5 -O /dev/null %s 2>&1 | grep -qE '[^0-9]404([^0-9]|$)'; then echo BM_404; else echo BM_NOT404; fi", url)
 	out, err := captureCombined("kubectl", "--context", kindContext(),
 		"run", "worker-route-probe", "-n", "buildmax", "--rm", "-i", "--restart=Never", "--quiet",
 		"--image=buildmax:local", "--image-pull-policy=Never", "--labels=role=probe",

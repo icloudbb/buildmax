@@ -54,4 +54,3 @@ before committing.
 
 | Report | Surface | Summary |
 |---|---|---|
-| [2026-09-13-cross-surface-task-continuity.md](2026-09-13-cross-surface-task-continuity.md) | Desktop / Portal / server / worker | Local approval and relaunch plus deployed conversation/Task continuity; wrong continued-run input, false-negative kind 404 probe, login console noise, and Desktop card compression |
