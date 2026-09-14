@@ -94,7 +94,7 @@ func kindDBOutageProbe() error {
 	readyzURL := base + "/readyz"
 
 	// Baseline: the pod is ready and names the database dependency healthy.
-	if err := waitReadyzDatabase(ctx, client, readyzURL, "ok", true, 30*time.Second); err != nil {
+	if err := waitReadyzCheck(ctx, client, readyzURL, "database", "ok", true, 30*time.Second); err != nil {
 		return fmt.Errorf("the server was not ready before the outage: %w", err)
 	}
 
@@ -141,7 +141,7 @@ func kindDBOutageProbe() error {
 
 	// The failure must surface: /readyz answers 503 and names the database check
 	// failed, not merely a blanket unavailable.
-	if err := waitReadyzDatabase(ctx, client, readyzURL, "failed", false, dbOutageDegradeDeadline); err != nil {
+	if err := waitReadyzCheck(ctx, client, readyzURL, "database", "failed", false, dbOutageDegradeDeadline); err != nil {
 		return fmt.Errorf("the server did not report the database outage: %w", err)
 	}
 
@@ -157,7 +157,7 @@ func kindDBOutageProbe() error {
 	policyDeleted = true
 
 	// The pod recovers on its own: /readyz reports the database healthy again.
-	if err := waitReadyzDatabase(ctx, client, readyzURL, "ok", true, dbOutageRecoverDeadline); err != nil {
+	if err := waitReadyzCheck(ctx, client, readyzURL, "database", "ok", true, dbOutageRecoverDeadline); err != nil {
 		return fmt.Errorf("the server did not recover after access was restored: %w", err)
 	}
 
@@ -183,10 +183,10 @@ func kindDBOutageProbe() error {
 	return nil
 }
 
-// waitReadyzDatabase polls a /readyz URL until the database check reports
-// wantDBStatus and the HTTP code matches wantReady (200 ready / 503 not), or
+// waitReadyzCheck polls a /readyz URL until the named dependency check reports
+// wantStatus and the HTTP code matches wantReady (200 ready / 503 not), or
 // errors if it never does within timeout.
-func waitReadyzDatabase(ctx context.Context, client *http.Client, url, wantDBStatus string, wantReady bool, timeout time.Duration) error {
+func waitReadyzCheck(ctx context.Context, client *http.Client, url, check, wantStatus string, wantReady bool, timeout time.Duration) error {
 	wantCode := http.StatusOK
 	if !wantReady {
 		wantCode = http.StatusServiceUnavailable
@@ -194,14 +194,14 @@ func waitReadyzDatabase(ctx context.Context, client *http.Client, url, wantDBSta
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	for {
-		code, dbStatus, err := readyzDatabaseStatus(ctx, client, url)
+		code, status, err := readyzCheckStatus(ctx, client, url, check)
 		switch {
 		case err != nil:
 			lastErr = err
-		case code == wantCode && dbStatus == wantDBStatus:
+		case code == wantCode && status == wantStatus:
 			return nil
 		default:
-			lastErr = fmt.Errorf("/readyz = %d with database %q, want %d with %q", code, dbStatus, wantCode, wantDBStatus)
+			lastErr = fmt.Errorf("/readyz = %d with %s %q, want %d with %q", code, check, status, wantCode, wantStatus)
 		}
 		if time.Now().After(deadline) {
 			return lastErr
@@ -214,10 +214,10 @@ func waitReadyzDatabase(ctx context.Context, client *http.Client, url, wantDBSta
 	}
 }
 
-// readyzDatabaseStatus reads one /readyz response and returns its HTTP code and
-// the status of the "database" check. A response that omits the check reads as
-// an empty status, which no caller is waiting for.
-func readyzDatabaseStatus(ctx context.Context, client *http.Client, url string) (int, string, error) {
+// readyzCheckStatus reads one /readyz response and returns its HTTP code and the
+// status of the named check. A response that omits the check reads as an empty
+// status, which no caller is waiting for.
+func readyzCheckStatus(ctx context.Context, client *http.Client, url, check string) (int, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, "", err
@@ -240,7 +240,7 @@ func readyzDatabaseStatus(ctx context.Context, client *http.Client, url string) 
 		return resp.StatusCode, "", nil
 	}
 	for _, c := range body.Checks {
-		if c.Name == "database" {
+		if c.Name == check {
 			return resp.StatusCode, c.Status, nil
 		}
 	}

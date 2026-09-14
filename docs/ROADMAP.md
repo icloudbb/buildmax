@@ -124,18 +124,22 @@ settles cannot be reproduced from the deployment and is covered at the store
 level instead. Deployment smoke also proves database-outage degradation and
 recovery: a runtime loss of MySQL flips `/readyz` to report the database failed
 and takes the server out of the Service without restarting it, and it recovers
-on its own once access returns. A server now expires persisted run traces on an
+on its own once access returns, and it proves the same for object storage: a
+runtime loss of the bucket flips `/readyz`'s object-storage check and recovers
+with the bucket intact. A server now expires persisted run traces on an
 operator-set window, defaulting to keep-forever and recording each prune; no
-candidate has yet proved worker object-storage denial, paired restore, schema
-upgrade, binary rollback, or credential rotation.
+candidate has yet proved the worker's object-storage write path under denial,
+paired restore, schema upgrade, binary rollback, or credential rotation.
 
-**Next:** the remaining lifecycle evidence — object-storage denial, paired
-database-and-bucket restore, a schema upgrade and binary rollback fixture, and
-credential rotation — several of which land as the R3 operator journey.
-Real-MySQL coverage for [quota windows](https://github.com/icloudbb/buildmax/issues/498)
-and cross-Space store scoping, and the deployed worker-loss and database-outage
-drills, are done. Retire plans for removed mechanisms, including the old
-result-delivery queue, rather than recreate them for a checklist.
+**Next:** the remaining lifecycle evidence — the worker object-storage write
+path under denial, paired database-and-bucket restore, a schema upgrade and
+binary rollback fixture, and credential rotation — several of which land as the
+R3 operator journey. Real-MySQL coverage for
+[quota windows](https://github.com/icloudbb/buildmax/issues/498) and cross-Space
+store scoping, and the deployed worker-loss, database-outage, and
+object-storage-denial drills, are done. Retire plans for removed mechanisms,
+including the old result-delivery queue, rather than recreate them for a
+checklist.
 
 **Done when:** a long-lived deployment has bounded or explicitly capacity-planned
 trace storage, critical persistence paths have real-database regression tests,
