@@ -106,27 +106,22 @@ func TestTheHarborImportIsDispatchedOnTheSubcommand(t *testing.T) {
 	}
 }
 
-// TestE2ETargetsMatchTheirDeployments pins the difference the browser tests can
-// actually see: the kind reference serves Portal and server from one ingress,
-// so the bundle's API base is same-origin, while Compose publishes them
-// separately and needs an absolute one.
+// TestE2ETargetsMatchTheirDeployments pins that both references serve the Portal
+// and the API from one origin — kind through its ingress, Compose through its
+// gateway — so the bundle's API base is same-origin ("/") for each. A split
+// origin would fail the server's same-origin session-cookie check.
 func TestE2ETargetsMatchTheirDeployments(t *testing.T) {
-	kind, err := e2eTarget("kind")
-	if err != nil {
-		t.Fatalf("kind target: %v", err)
-	}
-	if kind.portalRuntimeAPIBase != "/" {
-		t.Errorf("kind API base = %q; the single-ingress reference is same-origin", kind.portalRuntimeAPIBase)
-	}
-	compose, err := e2eTarget("compose")
-	if err != nil {
-		t.Fatalf("compose target: %v", err)
-	}
-	if !strings.HasPrefix(compose.portalRuntimeAPIBase, "http") {
-		t.Errorf("compose API base = %q; separate ports need an absolute URL", compose.portalRuntimeAPIBase)
-	}
-	if compose.portalURL == "" || compose.admin == nil {
-		t.Error("compose target cannot be driven: it has no portal URL or no admin command")
+	for _, name := range []string{"kind", "compose"} {
+		target, err := e2eTarget(name)
+		if err != nil {
+			t.Fatalf("%s target: %v", name, err)
+		}
+		if target.portalRuntimeAPIBase != "/" {
+			t.Errorf("%s API base = %q; the single-origin reference is same-origin", name, target.portalRuntimeAPIBase)
+		}
+		if target.portalURL == "" || target.admin == nil {
+			t.Errorf("%s target cannot be driven: it has no portal URL or no admin command", name)
+		}
 	}
 }
 
