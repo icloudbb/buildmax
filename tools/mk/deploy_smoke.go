@@ -149,15 +149,15 @@ func composeProjectName() string {
 	return envOr("BUILDMAX_COMPOSE_PROJECT", "buildmax")
 }
 
-// composeSmokeTarget describes the quickstart stack. Its Portal and its server
-// answer on separate published ports, so the bundle is configured with an
-// absolute API base — unlike the kind reference, where one ingress serves both
-// and the base is same-origin.
+// composeSmokeTarget describes the quickstart stack. A gateway fronts the Portal
+// and the server on one published port, so the browser is same-origin and the
+// Portal's runtime API base is "/", like the kind reference. The server also
+// publishes its own port, which the non-browser smoke calls here use directly.
 func composeSmokeTarget(managed bool) smokeTarget {
 	return smokeTarget{
 		apiBase:               composeServerURL(),
 		portalURL:             composePortalURL(),
-		portalRuntimeAPIBase:  composeServerURL(),
+		portalRuntimeAPIBase:  "/",
 		managedLLM:            managed,
 		llmControlURL:         composeSmokeLLMControlURL(),
 		llmControlToolCallURL: composeSmokeLLMControlBase() + llmControlToolCallPath,
