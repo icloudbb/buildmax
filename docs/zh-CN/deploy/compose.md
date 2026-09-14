@@ -92,14 +92,14 @@ sample-data/orders/      e-commerce orders, with a README describing the columns
 
 此栈面向笔记本环境。向其他人开放前：
 
-- **端口发布到宿主机。** 只要能访问该机器，就可能访问 `5678` 和 `8080`。
-- **没有 TLS。** 两个服务都使用明文 HTTP。请在前方放置反向代理，并将 Portal 的 `BUILDMAX_API_BASE` 设为 `/`，让其调用同源地址，同时消除下文的 CORS 配对要求。
+- **端口发布到宿主机。** 只要能访问该机器，就可能访问 `8080`（网关：Portal 与 API 同源）和 `5678`（服务器直连端口，供 CLI 使用）。
+- **没有 TLS。** 全部使用明文 HTTP。如需 TLS，请在前方放置反向代理；浏览器已通过网关访问单一源。
 - **Agent 会执行 shell 命令。** Worker 在服务器容器内执行模型要求的命令。官方镜像会选择 worker 沙箱基线；此 Compose local-process 路径不会形成独立的宿主机信任边界。参见[沙箱边界](../../../manual/sandbox.md)。
 - **数据存储在 Docker 卷中。** `docker compose down -v` 会删除其中所有工作区、Artifact 和账户。
 
 ## 更改宿主机端口
 
-只需修改 `.env` 中的 `BUILDMAX_SERVER_PORT` 和 `BUILDMAX_PORTAL_PORT`。`compose.yaml` 据此生成 Portal 的 `BUILDMAX_API_BASE`（**浏览器**调用的地址，所以是宿主机地址而非容器名）及服务器的 `cors_origin`。两者必须指向彼此正确的源，否则即使两个容器都报告健康，浏览器仍会阻止所有请求。
+只需修改 `.env` 中的 `BUILDMAX_PORTAL_PORT`（浏览器打开的网关端口）和 `BUILDMAX_SERVER_PORT`（服务器直连端口）。浏览器通过同一个网关源访问 Portal 与 API,因此不存在需要保持一致的跨源配对；服务器的 `cors_origin` 仍从 `BUILDMAX_PORTAL_PORT` 推导,只是因为 WebSocket 升级仍会用它校验请求来源。
 
 调整 `BUILDMAX_PORTAL_PORT` 也可让此栈与发布固定 `8080` 端口的 [kind 集群](local-kind.md) 并行运行。
 
@@ -108,7 +108,7 @@ sample-data/orders/      e-commerce orders, with a README describing the columns
 | 症状 | 原因 |
 |---|---|
 | `run ./generate-env.sh first` | 缺少 `.env`；Compose 会拒绝启动，而不是使用空密钥 |
-| Portal 能打开，但浏览器控制台中所有请求都失败 | `cors_origin` 与 Portal 的源不一致；检查服务器容器上的 `BUILDMAX_CORS_ORIGIN`，这是该栈设置的值 |
+| Portal 能打开，但页面短暂出现 502 | 网关仍在预热或正在跟随刚重启的上游；刷新即可 |
 | `signup is disabled on this server` | 符合预期。使用 `user create` 创建账户 |
 | `invalid otp` | 验证码只能使用一次，一小时后过期；请重新签发 |
 | 服务器反复重启 | 通常与 MySQL 有关，运行 `docker compose logs mysql` |
