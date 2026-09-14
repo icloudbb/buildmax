@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/core/jsonschema"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	"github.com/icloudbb/buildmax/internal/service/audit"
@@ -34,6 +36,7 @@ var (
 	ErrInvalidStepType            = apierr.New(apierr.KindInvalid, "invalid workflow step type")
 	ErrInvalidStepID              = apierr.New(apierr.KindInvalid, "invalid workflow step_id")
 	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow step binding: name and from_step are required, names are unique within a step, and from_step must be an earlier step")
+	ErrInvalidOutputSchema        = apierr.New(apierr.KindInvalid, "invalid workflow step output_schema: must be within the supported JSON Schema subset")
 	ErrInvalidTargetAgent         = apierr.New(apierr.KindInvalid, "invalid target agent")
 	ErrInvalidWorkflowStatus      = apierr.New(apierr.KindInvalid, "invalid workflow status")
 	ErrWorkflowNotPublished       = apierr.New(apierr.KindInvalid, "workflow not published")
@@ -387,6 +390,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 			AgentRevision:     agent.Revision,
 			Prompt:            def.Steps[i].Prompt,
 			Bindings:          def.Steps[i].Bindings,
+			OutputSchema:      outputSchemaSnapshot(def.Steps[i].OutputSchema),
 			Status:            string(coreworkflow.StepRunStatusPending),
 		}
 	}
@@ -542,13 +546,21 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 // the callback path used; only the source of the terminal facts changed from a
 // pushed payload to the read TaskRun.
 func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, step coreworkflow.StepRun, taskRun *coretask.Run, now time.Time, nextReconcileAt **time.Time) error {
-	if taskRun.Status == string(coretask.RunStatusSucceeded) {
+	// A step that declared an output schema succeeds only when the run returned a
+	// value that validated against it: an otherwise-successful run with no
+	// structured value did not satisfy the node's contract, so the step fails
+	// rather than passing an absent value downstream (docs/design/structured-output.md
+	// §9, workflow-runtime §13.1). The runtime already validated the value; a
+	// present taskRun.Structured is a validated one.
+	schemaUnsatisfied := step.OutputSchema != nil && taskRun.Structured == nil
+	if taskRun.Status == string(coretask.RunStatusSucceeded) && !schemaUnsatisfied {
 		applied, err := s.Workflows.TransitionWorkflowStepRun(ctx, coreworkflow.TransitionStepRunInput{
 			StepRunID:      step.ID,
 			ExpectedStatus: coreworkflow.StepRunStatusRunning,
 			NewStatus:      coreworkflow.StepRunStatusSucceeded,
 			TaskRunID:      &taskRun.ID,
 			OutputSummary:  summarizeOutput(taskRun.Output),
+			Structured:     taskRun.Structured,
 			EndedAt:        &now,
 		})
 		if err != nil {
@@ -581,6 +593,12 @@ func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, s
 		stepStatus = coreworkflow.StepRunStatusCanceled
 		runStatus = coreworkflow.RunStatusCanceled
 	}
+	errorMessage := taskRun.ErrorMessage
+	if schemaUnsatisfied && taskRun.Status == string(coretask.RunStatusSucceeded) {
+		// The run finished, but its answer did not satisfy the declared output
+		// schema, so the node fails with a reason rather than the run's empty one.
+		errorMessage = util.Ptr("step required structured output but the run did not return a value satisfying its output_schema")
+	}
 	// One transaction ends the run: the step goes terminal, every later step
 	// still pending is blocked, and the run goes terminal -- so a crash cannot
 	// leave a failed step under a run that still reads as running.
@@ -593,7 +611,7 @@ func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, s
 		RunExpected:   coreworkflow.RunStatusRunning,
 		RunStatus:     runStatus,
 		TaskRunID:     &taskRun.ID,
-		ErrorMessage:  taskRun.ErrorMessage,
+		ErrorMessage:  errorMessage,
 		EndedAt:       &now,
 	})
 	return err
@@ -746,6 +764,7 @@ func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, st
 		CreatedByType: coretask.RunCreatedByTypeUser,
 		TriggerSource: coretask.RunTriggerSourceWorkflowStep,
 		AdmissionKey:  workflowTaskAdmissionKey(step.WorkflowRunID, step.StepID),
+		OutputSchema:  step.OutputSchema,
 	})
 	if err != nil {
 		return nil, "", err
@@ -793,6 +812,17 @@ func (s *Service) parseAndValidateDefinition(ctx context.Context, spaceID, raw s
 
 // parseDefinition unmarshals raw JSON into a WorkflowDefinition and validates structural fields
 // (step count, unique IDs, required type/agent/prompt). Does not touch the database.
+// outputSchemaSnapshot captures a step's output schema as the JSON text stored
+// on the step run, so a later definition edit cannot change what an in-flight
+// step must satisfy. Nil for a free-text step.
+func outputSchemaSnapshot(schema json.RawMessage) *string {
+	if len(bytes.TrimSpace(schema)) == 0 {
+		return nil
+	}
+	s := string(schema)
+	return &s
+}
+
 func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 	var def coreworkflow.Definition
 	if err := json.Unmarshal([]byte(raw), &def); err != nil {
@@ -838,6 +868,14 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 			bindingNames[b.Name] = struct{}{}
 			if _, ok := seen[b.FromStep]; !ok {
 				return nil, ErrInvalidBinding
+			}
+		}
+		// An output schema must be in the shared subset, so a published workflow
+		// cannot declare a constraint the runtime cannot enforce
+		// (docs/design/structured-output.md §6). Absent means free text.
+		if len(bytes.TrimSpace(step.OutputSchema)) > 0 {
+			if _, err := jsonschema.Compile(step.OutputSchema); err != nil {
+				return nil, apierr.Detail(ErrInvalidOutputSchema, "%v", err)
 			}
 		}
 		seen[step.StepID] = struct{}{}

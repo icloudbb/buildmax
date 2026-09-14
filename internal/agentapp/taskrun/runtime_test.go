@@ -433,7 +433,7 @@ func TestContinueRunSendsRestoredHistoryToModel(t *testing.T) {
 	firstRun := &coretask.Run{ID: "run1", Input: "remember the code word: albatross"}
 	firstDirs := testRunDirs(t)
 	if _, err := runAgentTask(ctx, firstRun, firstDirs.runDir, firstDirs.runGlobal, firstDirs.runOSHome,
-		sessionID, nil, model, ManagedInference{}, nil, "", "", nil, nil, "", "", nil); err != nil {
+		sessionID, nil, model, ManagedInference{}, nil, "", "", nil, nil, "", "", nil, nil); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
 	uploadTaskGlobal(ctx, firstDirs.runGlobal, RunScope{SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: firstRun.ID}, persist, "")
@@ -442,7 +442,7 @@ func TestContinueRunSendsRestoredHistoryToModel(t *testing.T) {
 	secondDirs := testRunDirs(t)
 	restoreSessionFromPreviousRun(ctx, task, secondRun, secondDirs.runGlobal, persist)
 	if _, err := runAgentTask(ctx, secondRun, secondDirs.runDir, secondDirs.runGlobal, secondDirs.runOSHome,
-		sessionID, nil, model, ManagedInference{}, nil, "", "", nil, nil, "", "", nil); err != nil {
+		sessionID, nil, model, ManagedInference{}, nil, "", "", nil, nil, "", "", nil, nil); err != nil {
 		t.Fatalf("continued run: %v", err)
 	}
 

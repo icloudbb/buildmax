@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/结构化输出.md)
 
-> **Audience:** contributors, product designers, and operators · **Status:** accepted — Phases 1-3 in progress: the runtime contract, all provider mappings (except the deferred prompted fallback), and the run boundary. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
+> **Audience:** contributors, product designers, and operators · **Status:** accepted — Phases 1-4 in progress: the runtime contract, all provider mappings (except the deferred prompted fallback), the run boundary, and the Workflow consumer (a step's `output_schema`, enforcement, and persistence). Typed `/structured/...` routing and the Portal editor remain a follow-up. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
 
 Related: [workflow runtime](workflow-runtime.md),
 [agent execution and Task threads](agent-execution-and-task-threads.md),
@@ -325,13 +325,28 @@ column added ahead of need (Occam's razor). Phase 3 is the reusable run-level
 primitive; a direct caller that sets `RunPromptOpts.Output` already receives the
 value on `RunResult.Structured`.
 
-**Phase 4 — the consumers.** Workflow `output_schema` enforcement, typed routes,
-and planner/map reading `/structured/...`; the TaskRun structured column and its
-persistence; the Task result envelope's structured field. This is the R5 Workflow
-work this record unblocks, and it lands the persistence beside the first producer.
+**Phase 4 — the Workflow consumer and persistence.** A Workflow `agent_task`
+step declares an `output_schema` (rejected at publication if outside the subset,
+§6), snapshotted onto the step run so a later edit cannot change an in-flight
+step. The step's Task carries the schema (`Task.OutputSchema`), so the worker run
+requests it and the runtime constrains the terminating answer. The validated
+value rides the TaskRun persistence chain — the new `task_run.structured` column —
+and the reconciler folds it onto the step run (`workflow_step_run.structured`).
+**Enforcement:** a step with an `output_schema` succeeds only when its run
+returned a value that validated; an otherwise-successful run with no structured
+value fails the step, so no absent value is passed downstream (§9,
+[workflow runtime §13.1](workflow-runtime.md)). This lands the persistence beside
+its first producer.
 
-Phases 1–3 are the shared primitive; Phase 4 is its first real consumer and
-lands with the Workflow slices that need it, including where the value is stored.
+**Follow-up — typed dataflow (adaptive Workflow).** Typed routes, planners, and
+map reading `/structured/...` through an RFC-6901 pointer on a binding, and the
+Portal step-form editor for `output_schema`, are a further slice: today a binding
+still binds an upstream step's whole output, with no pointer selection. They
+belong with the adaptive-Workflow work in [workflow runtime §13](workflow-runtime.md)
+and build on the persisted structured value this phase establishes.
+
+Phases 1–3 are the shared primitive; Phase 4 is its first real consumer and lands
+the persistence where the value is stored.
 
 ## 13. Verification
 

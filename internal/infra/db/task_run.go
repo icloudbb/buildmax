@@ -32,11 +32,14 @@ type taskRunRow struct {
 	IdempotencyKey *string `gorm:"column:idempotency_key;type:varchar(128);uniqueIndex:idx_task_run_idempotency,priority:2"`
 	// CreatedBy stays an opaque handle: created_by_type admits "webhook" and
 	// "system", neither of which is a user row.
-	CreatedBy        string     `gorm:"type:varchar(64);index"`
-	CreatedByType    string     `gorm:"type:varchar(32)"`
-	TriggerSource    string     `gorm:"type:varchar(64)"`
-	Status           string     `gorm:"type:varchar(32);not null"`
-	Output           *string    `gorm:"type:text"`
+	CreatedBy     string  `gorm:"type:varchar(64);index"`
+	CreatedByType string  `gorm:"type:varchar(32)"`
+	TriggerSource string  `gorm:"type:varchar(64)"`
+	Status        string  `gorm:"type:varchar(32);not null"`
+	Output        *string `gorm:"type:text"`
+	// Structured is the validated structured-output value as JSON text, nil for a
+	// free-text run. See docs/design/structured-output.md.
+	Structured       *string    `gorm:"type:text"`
 	ErrorMessage     *string    `gorm:"type:text"`
 	StartedAt        *time.Time `gorm:""`
 	EndedAt          *time.Time `gorm:""`
@@ -143,6 +146,7 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		TriggerSource:                  row.Row.TriggerSource,
 		Status:                         row.Row.Status,
 		Output:                         row.Row.Output,
+		Structured:                     row.Row.Structured,
 		ErrorMessage:                   row.Row.ErrorMessage,
 		StartedAt:                      row.Row.StartedAt,
 		EndedAt:                        row.Row.EndedAt,
@@ -190,6 +194,7 @@ type taskRunUpdate struct {
 	startedAt        *time.Time
 	endedAt          *time.Time
 	output           *string
+	structured       *string
 	errorMessage     *string
 	sessionID        *string
 	tracePath        *string
@@ -210,6 +215,9 @@ func buildTaskRunUpdates(in taskRunUpdate) map[string]interface{} {
 	}
 	if in.output != nil {
 		updates["output"] = *in.output
+	}
+	if in.structured != nil {
+		updates["structured"] = *in.structured
 	}
 	if in.errorMessage != nil {
 		updates["error_message"] = *in.errorMessage
@@ -705,6 +713,7 @@ func (s *Store) TransitionTaskRun(ctx context.Context, in coretask.TransitionRun
 				startedAt:        in.StartedAt,
 				endedAt:          in.EndedAt,
 				output:           in.Output,
+				structured:       in.Structured,
 				errorMessage:     in.ErrorMessage,
 				sessionID:        in.SessionID,
 				tracePath:        in.TracePath,

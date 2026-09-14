@@ -19,24 +19,27 @@ type taskRow struct {
 	// The space index carries created_at: a space's task list is always ordered
 	// by it, and the single-column index the string model left could not serve
 	// the sort.
-	ConversationID        *uint64    `gorm:"column:conversation_id;index"`
-	SpaceID               uint64     `gorm:"column:space_id;not null;index:idx_task_space_created,priority:1;uniqueIndex:uq_task_admission_key,priority:1"`
-	IssueID               *uint64    `gorm:"column:issue_id;index"`
-	ScheduleID            *uint64    `gorm:"column:schedule_id;index"`
-	Status                string     `gorm:"type:varchar(32);not null"`
-	Input                 string     `gorm:"type:text;not null"`
-	Title                 string     `gorm:"type:varchar(256)"`
-	TitlePromptTokens     int        `gorm:""`
-	TitleCompletionTokens int        `gorm:""`
-	Output                *string    `gorm:"type:text"`
-	CreatedBy             uint64     `gorm:"column:created_by;not null"`
-	CreatedAt             time.Time  `gorm:"autoCreateTime;index:idx_task_space_created,priority:2"`
-	StartedAt             *time.Time `gorm:""`
-	EndedAt               *time.Time `gorm:""`
-	ErrorMessage          *string    `gorm:"type:text"`
-	SessionID             *string    `gorm:"type:varchar(36)"`
-	LastRunID             *uint64    `gorm:"column:last_run_id;index"`
-	AgentID               *uint64    `gorm:"column:agent_id;index"`
+	ConversationID        *uint64 `gorm:"column:conversation_id;index"`
+	SpaceID               uint64  `gorm:"column:space_id;not null;index:idx_task_space_created,priority:1;uniqueIndex:uq_task_admission_key,priority:1"`
+	IssueID               *uint64 `gorm:"column:issue_id;index"`
+	ScheduleID            *uint64 `gorm:"column:schedule_id;index"`
+	Status                string  `gorm:"type:varchar(32);not null"`
+	Input                 string  `gorm:"type:text;not null"`
+	Title                 string  `gorm:"type:varchar(256)"`
+	TitlePromptTokens     int     `gorm:""`
+	TitleCompletionTokens int     `gorm:""`
+	Output                *string `gorm:"type:text"`
+	// OutputSchema is the JSON Schema a run's final answer must satisfy, nil for a
+	// free-text task. See docs/design/structured-output.md.
+	OutputSchema *string    `gorm:"type:text"`
+	CreatedBy    uint64     `gorm:"column:created_by;not null"`
+	CreatedAt    time.Time  `gorm:"autoCreateTime;index:idx_task_space_created,priority:2"`
+	StartedAt    *time.Time `gorm:""`
+	EndedAt      *time.Time `gorm:""`
+	ErrorMessage *string    `gorm:"type:text"`
+	SessionID    *string    `gorm:"type:varchar(36)"`
+	LastRunID    *uint64    `gorm:"column:last_run_id;index"`
+	AgentID      *uint64    `gorm:"column:agent_id;index"`
 	// WorkspaceHeadCheckpointID points at the latest checkpoint accepted as this
 	// Task's recoverable workspace (its seed, then each successful result). A
 	// projection maintained in the same transaction as checkpoint finalization;
@@ -103,6 +106,7 @@ func toTask(row *taskReadRow) *coretask.Task {
 		TitlePromptTokens:     row.Row.TitlePromptTokens,
 		TitleCompletionTokens: row.Row.TitleCompletionTokens,
 		Output:                row.Row.Output,
+		OutputSchema:          row.Row.OutputSchema,
 		CreatedBy:             row.CreatedByPublicID,
 		CreatedAt:             row.Row.CreatedAt,
 		StartedAt:             row.Row.StartedAt,
@@ -403,6 +407,7 @@ func newTaskRows(in *coretask.CreateInput) (*taskRow, *taskRunRow) {
 		TitleCompletionTokens: in.TitleCompletionTokens,
 		CreatedAt:             now,
 		SessionID:             &sessionID,
+		OutputSchema:          in.OutputSchema,
 	}
 	if in.AdmissionKey != "" {
 		key := in.AdmissionKey

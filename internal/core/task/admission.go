@@ -37,6 +37,7 @@ func AdmissionFingerprint(in *CreateInput) string {
 		CreatedByType string  `json:"created_by_type"`
 		TriggerSource string  `json:"trigger_source"`
 		SourceMessage *string `json:"source_message"`
+		OutputSchema  *string `json:"output_schema"`
 	}{
 		Space:         in.SpaceID,
 		Conversation:  in.ConversationID,
@@ -49,6 +50,7 @@ func AdmissionFingerprint(in *CreateInput) string {
 		CreatedByType: in.InitialRunCreatedByType,
 		TriggerSource: in.InitialRunTriggerSource,
 		SourceMessage: in.InitialRunSourceMessageID,
+		OutputSchema:  in.OutputSchema,
 	}
 	// json.Marshal cannot fail for this fixed shape of strings and string
 	// pointers; the error is ignored because there is no value it could take.
