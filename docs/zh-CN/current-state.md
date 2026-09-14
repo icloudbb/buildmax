@@ -2,11 +2,11 @@
 
 > **英文原文：** [BuildMax Current State](../current-state.md)
 >
-> **读者：** 用户、运维人员与贡献者 · **状态：** 截至 2026-09-12 当前有效
+> **读者：** 用户、运维人员与贡献者 · **状态：** 截至 2026-09-14 当前有效
 >
 > 本文是英文原文的简体中文镜像；如有差异，以英文原文为准。
 
-本次评估对照了仓库 `0bd7e5bf` 的代码，描述已实现行为、测试覆盖和剩余限制。
+本次评估对照了仓库 `938f85de` 的代码，描述已实现行为、测试覆盖和剩余限制。
 优先级与后续顺序由[路线图](ROADMAP.md)维护，本页不再另列一套优先级。
 设计记录解释决策；其中尚未勾选的清单不能证明代码尚未实现。
 
@@ -24,10 +24,20 @@ worker 契约——已关闭：[信任保障](design/信任保障.md) §6.1 把�
 worker API 隔离、stdio MCP 失败关闭、进程限制与 hook 边界）映射到其证据，其中 Bash
 与 worker API 隔离经真实部署 worker 路径证明。经由运维旅程的不可变候选资格认证仍是
 单独的 Beta 关卡。整个 worker 的出站网络是首个私有 Beta 已记录并接受的限制。
-持久 Workflow 状态协调、轨迹保留，以及候选版本的故障与恢复证据仍待完成。
-共享 Redis 协调已经实现，包括消息历史写入对分布式租约 fencing token 的校验。
-worker API 已有独立监听器、TLS 支持和已交付的入站 NetworkPolicy；
-不能把这部分网络边界与尚未限制的 worker 出站网络混为一谈。
+线性 Workflow 协调器现在从持久状态折叠终态事实并分发后续步骤；Server 自有恢复循环在
+启动时及之后定期扫描到期 Run，因此丢失终态 callback 或 Server 重启不再让 Workflow
+永久搁置。步骤可把前序步骤的完整输出作为带标签的不可信上下文绑定到输入，Portal 步骤
+表单也能直接编辑这些绑定。步骤还可声明 `output_schema`：运行受该 schema 约束，已验证
+的值会持久化，并且只有值通过验证步骤才成功。类型化 `nodes`/`bindings` 契约、输入
+schema 与类型化 `/structured/...` 路由仍待完成。worker TaskRun 在领取后丢失时不会自动
+重新分发；这是首个 Beta 接受并记录的限制，与 Workflow 推进恢复不同。
+
+Server 现在可以按运维配置的保留窗口清理旧 Run 轨迹，并记录每次成功清理；默认仍为永久
+保留。部署冒烟已覆盖 worker 优雅丢失，以及 MySQL 和对象存储在运行期中断时 Server 就绪
+状态的降级与恢复。数据库和存储桶配对恢复、schema 升级与二进制回滚、凭证轮换，以及
+worker 对象存储写路径被拒仍待验证。共享 Redis 协调已经实现，包括消息历史写入对分布式
+租约 fencing token 的校验。worker API 已有独立监听器、TLS 支持和已交付的入站
+NetworkPolicy；不能把这部分网络边界与尚未限制的 worker 出站网络混为一谈。
 
 本次复核检查实现、组装、部署清单和测试断言，不将旧版全量构建结果、覆盖率、
 变异测试结论或成熟度百分比当作当前版本的证据。本次实际验证列在文末。
@@ -135,12 +145,15 @@ Linux Bash 封装将容器的 `/proc` 重新绑定为只读。
 剩余限制：
 
 - MCP stdio 服务通过 `exec.Command` 启动，未经过 Bash 沙箱
-  （[MCP transport](../../internal/infra/mcp/transport.go)）。受支持的 worker 配置必须
-  约束或拒绝它们；这项失败关闭处理尚未实现。
+  （[MCP transport](../../internal/infra/mcp/transport.go)）。无人值守 worker 配置会在
+  启动任何子进程或调用模型前失败关闭地拒绝它们
+  （[MCP 管理器](../../internal/agentapp/mcp_manager.go)）；本地界面仍在同一个未隔离边界
+  内运行 stdio。
 - 即使 Bash 命令已隔离，`local_process` 仍与 Server 处于同一主机信任域。
 - `buildmax sandbox overrides` 未实现。Portal 可设置 Agent 层级和 Space 默认值；
-  Run Details 会显示轨迹记录的边界和解析后的 Plugin 固定版本，但不会把请求/解析后的
-  层级对或 stdio MCP 处理作为独立诊断字段展示。
+  Run Details 会显示轨迹记录的边界、解析后的 Plugin 固定版本，以及 worker MCP 的处理
+  （无人值守配置禁用 stdio，并列出解析后的远程传输），但不会把请求/解析后的层级对作为
+  独立诊断字段展示。
 - Job 构建器未接入 worker RuntimeClass 选择。gVisor 是条件触发的 Beta 后加固，
   不是已交付且受支持的 worker 配置，也不是首个 Beta 要求。
 
@@ -160,6 +173,9 @@ worker 可以使用配置的 CA 与客户端身份，仍须通过每次 Run 的�
 [监听器边界测试](../../internal/server/listener_boundary_test.go)、
 [worker TLS](../../internal/bootstrap/worker_tls.go)与
 [生产清单](../../deployment/production/buildmax.yaml)。
+对外提供的[公共 OpenAPI 文档](../../internal/server/static/openapi.json)只包含公共监听器
+路由；Worker 控制平面使用独立的 [OpenAPI 文档](../../internal/server/static/openapi-worker.json)。
+架构测试会把每份文档与对应监听器实际注册的路由逐项对照。
 
 **首个 Beta 接受的限制：** worker 出站 NetworkPolicy 尚未实现。Server 入站策略不会限制 worker
 所有出站流量，不会隔离 MCP 进程，也不会隐藏 worker 使用的存储凭证。
@@ -206,12 +222,40 @@ CI 提供固定版本的 `mysql:8.0` 服务。默认测试在没有 DSN 时仍�
 | Artifact 软删除、并发删除、过期、字节统计与清理生命周期 | [artifact_retention_test.go](../../internal/infra/db/artifact_retention_test.go) |
 | 检查点 head 推进与部分检查点保留 | [workspace_checkpoint_test.go](../../internal/infra/db/workspace_checkpoint_test.go) |
 | Workflow 受保护的 Run/步骤转换与原子失败收口 | [workflow_test.go](../../internal/infra/db/workflow_test.go) |
+| Workflow Task 幂等接纳、重放、负载冲突、Space 作用域与并发获胜者 | [task_admission_test.go](../../internal/infra/db/task_admission_test.go) |
+| Workflow 到期 Run 发现，以及协调租约在竞争下的领取、续租与释放 | [workflow_reconciliation_test.go](../../internal/infra/db/workflow_reconciliation_test.go) |
+| 线性协调器折叠终态 TaskRun：步骤推进、最终成功、失败/取消区分、后续步骤阻塞、callback 丢失恢复与并发协调的单一结果 | [reconcile_mysql_test.go](../../internal/service/workflow/reconcile_mysql_test.go)、[service_test.go](../../internal/service/workflow/service_test.go) |
+| Server 自有 Workflow 恢复循环：启动扫描、逐 Run 协调、到期扫描错误容忍、Start/Stop 生命周期，以及因 callback 丢失而搁置的 Run 在重启后恢复 | [workflow_recovery_test.go](../../internal/server/scheduler/workflow_recovery_test.go)、[workflow_restart_recovery_mysql_test.go](../../internal/server/scheduler/workflow_restart_recovery_mysql_test.go) |
+| 步骤输出绑定：发布校验、Run 绑定快照往返存储，以及使用上游完整输出作为带标签不可信输入来分发下游步骤 | [binding_test.go](../../internal/service/workflow/binding_test.go)、[workflow_test.go](../../internal/infra/db/workflow_test.go) |
+| 编辑与竞争下使用 compare-and-set 推进 Workflow 修订 | [workflow_test.go](../../internal/infra/db/workflow_test.go) |
 | Workflow 初始修订与修订查询 | [revision_query_test.go](../../internal/infra/db/revision_query_test.go) |
 | Secret 的 Space 隔离与独立邀请 | [secret_test.go](../../internal/infra/db/secret_test.go)、[space_invitation_test.go](../../internal/infra/db/space_invitation_test.go) |
+| 对 Workflow 与 Issue 更新和插件激活读写的跨 Space 拒绝 | [cross_space_test.go](../../internal/infra/db/cross_space_test.go) |
+| 配额用量窗口边界、标题 token 计费、空用量与 Space 隔离 | [quota_usage_test.go](../../internal/infra/db/quota_usage_test.go) |
+| 持久认证 Session 的活跃状态、过期、撤销、refresh token 级联、touch 节流、列表与计数 | [auth_session_test.go](../../internal/infra/db/auth_session_test.go) |
+| 外部身份查询与唯一性、账号/个人 Space/链接的原子 JIT 创建、并发首次登录、禁用后才能解绑与事务性审计 | [external_identity_test.go](../../internal/infra/db/external_identity_test.go) |
+| Task 输出 schema 与已验证 TaskRun 结构化值的持久化 | [task_run_structured_test.go](../../internal/infra/db/task_run_structured_test.go) |
+| 过期 Run 轨迹发现与幂等清除轨迹指针 | [task_run_trace_retention_test.go](../../internal/infra/db/task_run_trace_retention_test.go) |
 
 受保护的转换会拒绝非法终态改写，并将失败步骤、后续步骤阻塞和 Run 失败收口原子化。
-它们尚未形成持久协调器：推进仍依赖 callback，因此重启与 callback 丢失后的恢复仍未完成。
-这些测试也不能穷尽证明跨 Space 存储行为或编辑及并发下的 Workflow 修订推进。
+Workflow 步骤分发现在通过 `AdmitTask` 幂等接纳 Task，以
+`workflow/<workflow_run_id>/node/<step_id>` 为键并在 Space 内保持唯一，因此重试或并发
+分发——包括接纳 Task 后、把它关联到步骤 Run 前的崩溃窗口——会解析为同一个 Task，而不会
+重复执行 Agent。存储还能发现到期的非终态 Run，并发放有界、可安全接管的协调租约。并发
+Workflow 编辑现在会在 compare-and-set 上失败并得到冲突，而不是覆盖更新的定义或泄漏重复键
+错误。
+
+线性协调器已经实现：[`Service.Reconcile`](../../internal/service/workflow/service.go) 领取租约，
+读取 Run 与步骤，从 TaskRun 存储而不是 callback 中读取并折叠运行中步骤的终态 TaskRun，
+通过稳定键重新接纳 Task 来分发下一个待处理步骤，并在仍有工作时设置下次协调时间。
+`StartWorkflowRun` 使用同一个 `Reconcile` 分发第一步；`HandleTaskRunTerminal` 现在只负责
+唤醒并触发协调，因此 callback 丢失只会丢一次唤醒，后续协调仍能完全根据持久事实恢复。
+Server 自有的 [`WorkflowRecoveryLoop`](../../internal/server/scheduler/workflow_recovery.go)
+会在启动时扫描一次，之后按固定间隔扫描到期 Run；每个副本都会运行它，由协调租约而不是
+进程内选主避免两个副本同时推进一个 Run。
+
+worker TaskRun 在领取后丢失时不会自动重新分发；这是首个 Beta 接受的限制，与上述推进恢复
+不同。显式跨 Space 存储测试覆盖 Workflow 与 Issue 更新以及插件激活，并不覆盖每个存储方法。
 外部依赖恢复仍需具体场景证据。已移除的结果投递队列不再有独立的重启恢复义务。
 
 **显式迁移列表已经不为空。** [migration.go](../../internal/infra/db/migration.go)
@@ -220,20 +264,28 @@ CI 提供固定版本的 `mysql:8.0` 服务。默认测试在没有 DSN 时仍�
 迁移测试覆盖账本记录与第二次运行跳过。该测试或设计文档中的 N-1 策略，都不能证明
 旧模式升级与二进制回滚已实际演练。“迁移历史为空，无法建立 fixture”的旧理由已过时。
 
-每份轨迹都有字段与记录数量上限，但轨迹目录没有保留期清扫。长期运行的进程目前需要
-外部容量管理或手动删除；BuildMax 尚不能记录旧轨迹是因策略而被移除。
+每份轨迹都有字段与记录数量上限。运维人员把 `trace.retention_days` 设置为大于零后，
+Server 自有的小时级清理会删除结束时间早于截止点的 Run 轨迹、清除相应 TaskRun 指针，
+并记录 `traces.pruned` 审计事件。零仍表示默认永久保留，因此保持默认值的运维人员仍须负责
+容量规划。删除和指针清理均可重试，但这一机制本身不能证明候选版本选择的保留与容量策略
+已经实际演练。
 
 ## 账号、Space 与扩展界面
 
 账号创建、一次性登录码、密码登录、系统管理员授权、面向已有账号的 Space 邀请、
 角色变更、所有权转移和成员级恢复均已实现。注册默认关闭；创建账号本身不发放凭证。
 每次登录都会开启一个持久 Session（`auth_session`），请求守卫在每次调用时都会检查它，
-因此登出、管理员撤销和禁用会在访问令牌较短的寿命之内、而不是等到过期时让一个已签发的
-访问令牌停止；Session 还带有一个绝对寿命。基于 OpenID Connect 的企业登录已实现：
+因此登出、管理员撤销和禁用会让已签发的访问令牌在下一次请求立即停止；Session 还带有一个
+绝对寿命。Portal 把可续期的 refresh 凭证保存在 Secure、HttpOnly、SameSite=Strict Cookie
+中，只在内存中持有短期 access token；CLI 与 Desktop 继续使用 JSON 凭证流程。
+基于 OpenID Connect 的企业登录已实现：
 部署配置一个 `oidc` 块（首个支持的提供方为 Okta），一次已验证的登录按 `(issuer, subject)`
 关联到账号——复用已有链接、以已验证邮箱关联运维创建的账号，或在 `allowed_email_domains`
 范围内即时创建账号。原生密码与登录码登录由 `local_login`（`all`、`system_admins`、`off`）
-独立管控。固定的真实 Okta 端到端与密钥/密钥轮换演练尚未完成。
+独立管控。Portal 会发现已启用的登录方式，并通过 Server 自有 state、nonce、PKCE、callback
+校验及服务端 token 交换完成授权码流程；提供方 token 不会被保留。身份关联和协议分支已有
+service、handler、provider fake 与真实 MySQL 覆盖。固定的真实 Okta 端到端与密钥轮换
+演练尚未完成。
 参见[身份服务](../../internal/service/identity/account.go)、
 [OIDC provider](../../internal/infra/oidc/provider.go)与
 [Space 服务](../../internal/service/space/service.go)。
@@ -253,9 +305,10 @@ Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，
 
 Space 审批流程仍未实现且明确不在范围内；这不能被视为邀请或所有权转移功能未完成。
 
-Workflow 定义仍是线性的 `agent_task` 步骤，具有版本化定义和持久 Run/步骤记录，
-但定义契约没有分支、并行图、人工审批、循环或类型化输入/输出映射
-（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
+Workflow 定义仍是线性的 `agent_task` 步骤，具有版本化定义和持久 Run/步骤记录。
+步骤可以通过 `output_schema` 约束结果，也可以通过非类型化绑定把前序步骤的完整输出传给
+后续步骤。定义契约仍没有类型化输入 schema 或 JSON Pointer 绑定选择，也没有分支、并行图、
+人工审批或循环（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
 
 Portal 与入站 webhook 执行已组装。Telegram 仍只是渠道词汇，
 webhook 回调发送器未组装进 Server。周期性 schedule 通过 `schedule` 触发来源与
@@ -298,12 +351,11 @@ Compose、kind、生产 Kubernetes 清单、发布验证、SBOM、镜像扫描�
 ## 本次复核的验证
 
 本次是源码与测试复核，不是重新进行部署资格验证。
-最新 `main` 在 `0bd7e5bf` 上的 CI、CodeQL、Windows 与部署冒烟工作流均已通过。
-本次文档更新在本地通过了 `./make check docs`、`./make check portal`、
-`./make test ./internal/architecture`、注释有改动的 Go 包测试以及
-`git diff --check`。文档检查覆盖链接与格式，不证明运行时行为。
+本次文档更新在 `938f85de` 上于本地通过了 `./make test`、`./make check docs` 与
+`git diff --check`。普通测试范围包括架构、runtime、提供商、身份、handler、scheduler、
+CLI 与 Desktop bridge 套件。文档检查覆盖链接与格式；两者都不能证明一个已部署候选版本。
 
 本次未运行真实 MySQL 测试（未提供 `BUILDMAX_TEST_DSN`）、全量构建、
 前端/浏览器测试、Compose/kind 部署冒烟、外部恢复演练或付费模型评估。
-上文数据库测试的断言经过阅读，未宣称实际执行。
-因此，没有将历史覆盖率或部署结果沿用为当前测量值。
+上文数据库测试的断言经过阅读，但未在 MySQL 上重新执行。托管 CI 状态、历史覆盖率与
+之前的部署结果均未沿用为当前测量值。
