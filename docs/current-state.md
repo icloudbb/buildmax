@@ -83,11 +83,13 @@ The shared LLM request contract exposes a provider-neutral structured-output
 schema: a `Request.Output` schema is validated against the shared subset in
 [`internal/core/jsonschema`](../internal/core/jsonschema), and the result — the
 validated value, its mode, whether the provider enforced it, or a typed failure —
-comes back on `Completion.Structured`. The two OpenAI adapters map it to their
-native `json_schema` mechanism; Anthropic, Ollama, the prompted fallback, and
-wiring it into a run's final answer and a consumer remain open (Phases 2-4 of
-[structured output](design/structured-output.md)). Tool-argument JSON schemas
-are a separate capability; see
+comes back on `Completion.Structured`. Every provider maps it to its native
+mechanism — OpenAI Chat and Responses to `response_format` `json_schema`,
+Anthropic to a single forced tool, Ollama to `format` — and the Client validates
+the candidate once, even for a native provider. Wiring it into a run's final
+answer and a consumer, and the deferred prompted fallback, remain open (Phases
+3-4 of [structured output](design/structured-output.md)). Tool-argument JSON
+schemas are a separate capability; see
 [`internal/core/llm/llm.go`](../internal/core/llm/llm.go).
 
 ## Tasks, Results, And Workspace Continuity

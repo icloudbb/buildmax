@@ -35,6 +35,11 @@ func finalizeStructured(req cllm.Request, completion *cllm.Completion) {
 		return
 	}
 	structured := completion.Structured
+	// An adapter that already reported a failure — a forced tool the model never
+	// called — keeps its own, more specific message.
+	if structured.Err != nil {
+		return
+	}
 	candidate := structured.Value
 	fail := func(msg string) {
 		structured.Value = nil

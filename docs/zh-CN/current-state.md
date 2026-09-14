@@ -58,10 +58,12 @@ Desktop 的 Memory 界面有意保持只读：用户直接编辑 Markdown 文件
 共享 LLM 请求契约已提供与提供商无关的结构化输出 schema：`Request.Output`
 schema 会按 [`internal/core/jsonschema`](../../internal/core/jsonschema) 中的
 共享子集校验，结果——校验通过的值、其模式、提供商是否强制，或一个带类型的
-失败——回到 `Completion.Structured`。两个 OpenAI 适配器将其映射到各自原生的
-`json_schema` 机制；Anthropic、Ollama、prompted 兜底，以及将其接入一次运行的
-最终答案和某个消费方，仍待完成（[结构化输出](design/结构化输出.md)第 2-4
-阶段）。工具参数的 JSON schema 是另一项能力；参见
+失败——回到 `Completion.Structured`。每个提供商都映射到各自的原生机制——
+OpenAI Chat 与 Responses 用 `response_format` `json_schema`、Anthropic 用单个
+强制工具、Ollama 用 `format`——并且 Client 会对候选值统一校验一次（即便 native）。
+将其接入一次运行的最终答案和某个消费方，以及已推迟的 prompted 兜底，仍待完成
+（[结构化输出](design/结构化输出.md)第 3-4 阶段）。工具参数的 JSON schema
+是另一项能力；参见
 [LLM 契约](../../internal/core/llm/llm.go)。
 
 ## Task、结果与工作区连续性

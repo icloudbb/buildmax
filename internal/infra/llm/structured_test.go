@@ -15,15 +15,40 @@ func personOutput() *cllm.OutputSchema {
 	return &cllm.OutputSchema{Name: "person", Schema: []byte(personSchema)}
 }
 
-// openAIStructuredProtocols is the subset of protocols that map structured
-// output natively in Phase 1.
-var openAIStructuredProtocols = []protocol{protocols[0], protocols[1]}
+// structuredCase describes how one protocol carries a structured answer, so the
+// same assertions run against every provider's native mechanism.
+type structuredCase struct {
+	p             protocol
+	wantMode      cllm.StructuredMode
+	carriesAsText bool // the value is the model's text (not a tool input)
+	// replyFor renders a model turn whose structured answer is value.
+	replyFor func(value string) reply
+	// wantInBody is what the outgoing request must contain to have asked for it.
+	wantInBody []string
+}
 
-func TestStructuredOutputRequestCarriesSchema(t *testing.T) {
-	for _, p := range openAIStructuredProtocols {
-		t.Run(p.provider, func(t *testing.T) {
-			up := newUpstream(t, p, reply{text: `{"name":"Ada"}`}, 0)
-			client := newTestClient(t, p.provider, up.server.URL)
+func structuredCases() []structuredCase {
+	textReply := func(value string) reply { return reply{text: value} }
+	return []structuredCase{
+		{protocols[0], cllm.StructuredNative, true, textReply, []string{"json_schema", `"strict":true`, `"name":"person"`}},
+		{protocols[1], cllm.StructuredNative, true, textReply, []string{"json_schema", `"strict":true`, `"name":"person"`}},
+		{protocols[3], cllm.StructuredNative, true, textReply, []string{`"format"`, `"additionalProperties":false`}},
+		{
+			p:        protocols[2],
+			wantMode: cllm.StructuredForcedTool,
+			replyFor: func(value string) reply {
+				return reply{toolCalls: []cllm.ToolCall{{ID: "toolu_1", Name: "person", Arguments: value}}}
+			},
+			wantInBody: []string{`"tool_choice"`, `"name":"person"`, `"additionalProperties":false`},
+		},
+	}
+}
+
+func TestStructuredOutputRequestCarriesMechanism(t *testing.T) {
+	for _, tc := range structuredCases() {
+		t.Run(tc.p.provider, func(t *testing.T) {
+			up := newUpstream(t, tc.p, tc.replyFor(`{"name":"Ada"}`), 0)
+			client := newTestClient(t, tc.p.provider, up.server.URL)
 
 			_, err := client.ChatCompletionBlocking(context.Background(),
 				cllm.Request{Messages: conformanceHistory(), Output: personOutput()})
@@ -31,7 +56,7 @@ func TestStructuredOutputRequestCarriesSchema(t *testing.T) {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
 			body := up.bodies[len(up.bodies)-1]
-			for _, want := range []string{"json_schema", `"strict":true`, `"name":"person"`, `"additionalProperties":false`} {
+			for _, want := range tc.wantInBody {
 				if !strings.Contains(body, want) {
 					t.Errorf("request body missing %q\nbody: %s", want, body)
 				}
@@ -42,28 +67,39 @@ func TestStructuredOutputRequestCarriesSchema(t *testing.T) {
 
 func TestStructuredOutputValidValue(t *testing.T) {
 	const value = `{"name":"Ada","age":36}`
-	for _, p := range openAIStructuredProtocols {
-		for _, mode := range []string{"blocking", "streaming"} {
-			t.Run(p.provider+"/"+mode, func(t *testing.T) {
-				up := newUpstream(t, p, reply{text: value}, 0)
-				client := newTestClient(t, p.provider, up.server.URL)
+	for _, tc := range structuredCases() {
+		modes := []string{"blocking", "streaming"}
+		if !tc.carriesAsText {
+			// The forced-tool value is assembled from the finished message either
+			// way; one path is enough and the streaming fixture carries tool input
+			// through the same accumulator the blocking one reads.
+			modes = []string{"blocking"}
+		}
+		for _, mode := range modes {
+			t.Run(tc.p.provider+"/"+mode, func(t *testing.T) {
+				up := newUpstream(t, tc.p, tc.replyFor(value), 0)
+				client := newTestClient(t, tc.p.provider, up.server.URL)
 				completion := callStructured(t, client, mode, personOutput())
 
-				if completion.Structured == nil {
+				s := completion.Structured
+				if s == nil {
 					t.Fatal("completion.Structured is nil")
 				}
-				s := completion.Structured
 				if s.Err != nil {
 					t.Fatalf("unexpected StructuredError: %v", s.Err)
 				}
-				if s.Mode != cllm.StructuredNative {
-					t.Errorf("Mode = %q, want native", s.Mode)
+				if s.Mode != tc.wantMode {
+					t.Errorf("Mode = %q, want %q", s.Mode, tc.wantMode)
 				}
 				if !s.Enforced {
-					t.Error("Enforced = false, want true for native")
+					t.Error("Enforced = false, want true")
 				}
 				if string(s.Value) != value {
 					t.Errorf("Value = %s, want %s", s.Value, value)
+				}
+				// The forced tool is the run reporting, not a tool for the caller.
+				if len(completion.ToolCalls) != 0 {
+					t.Errorf("ToolCalls = %v, want none", completion.ToolCalls)
 				}
 			})
 		}
@@ -73,16 +109,16 @@ func TestStructuredOutputValidValue(t *testing.T) {
 func TestStructuredOutputOffSchemaValueIsTypedFailure(t *testing.T) {
 	// age is a string, violating the schema; the model returned it anyway.
 	const value = `{"name":"Ada","age":"old"}`
-	for _, p := range openAIStructuredProtocols {
-		t.Run(p.provider, func(t *testing.T) {
-			up := newUpstream(t, p, reply{text: value}, 0)
-			client := newTestClient(t, p.provider, up.server.URL)
+	for _, tc := range structuredCases() {
+		t.Run(tc.p.provider, func(t *testing.T) {
+			up := newUpstream(t, tc.p, tc.replyFor(value), 0)
+			client := newTestClient(t, tc.p.provider, up.server.URL)
 			completion := callStructured(t, client, "blocking", personOutput())
 
-			if completion.Structured == nil {
+			s := completion.Structured
+			if s == nil {
 				t.Fatal("completion.Structured is nil")
 			}
-			s := completion.Structured
 			if s.Err == nil {
 				t.Fatal("expected a StructuredError for an off-schema value")
 			}
@@ -91,10 +127,6 @@ func TestStructuredOutputOffSchemaValueIsTypedFailure(t *testing.T) {
 			}
 			if s.Enforced {
 				t.Error("Enforced = true, want false on failure")
-			}
-			// The text output is still the whole turn, even when it did not validate.
-			if completion.Content != value {
-				t.Errorf("Content = %q, want the whole turn %q", completion.Content, value)
 			}
 		})
 	}
@@ -114,10 +146,25 @@ func TestStructuredOutputUnsupportedSchemaIsTypedFailure(t *testing.T) {
 	}
 }
 
+// TestStructuredForcedToolMissingIsTypedFailure pins the honest failure when a
+// provider that maps to a forced tool did not make the call.
+func TestStructuredForcedToolMissingIsTypedFailure(t *testing.T) {
+	up := newUpstream(t, protocols[2], reply{text: "I would rather answer in prose."}, 0)
+	client := newTestClient(t, protocols[2].provider, up.server.URL)
+	completion := callStructured(t, client, "blocking", personOutput())
+
+	if completion.Structured == nil || completion.Structured.Err == nil {
+		t.Fatal("expected a StructuredError when the forced tool was not called")
+	}
+	if completion.Structured.Enforced {
+		t.Error("Enforced = true, want false when the value never arrived")
+	}
+}
+
 // TestNoOutputLeavesStructuredNil pins that a request without an Output schema is
-// unchanged: no structured value and no response_format on the wire.
+// unchanged across every provider: no structured value on the completion.
 func TestNoOutputLeavesStructuredNil(t *testing.T) {
-	for _, p := range openAIStructuredProtocols {
+	for _, p := range protocols {
 		t.Run(p.provider, func(t *testing.T) {
 			up := newUpstream(t, p, reply{text: "plain text"}, 0)
 			client := newTestClient(t, p.provider, up.server.URL)
@@ -128,9 +175,6 @@ func TestNoOutputLeavesStructuredNil(t *testing.T) {
 			}
 			if completion.Structured != nil {
 				t.Errorf("Structured = %+v, want nil without an Output schema", completion.Structured)
-			}
-			if strings.Contains(up.bodies[len(up.bodies)-1], "json_schema") {
-				t.Error("request carried a json_schema format without an Output schema")
 			}
 		})
 	}

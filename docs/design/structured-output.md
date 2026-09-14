@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/结构化输出.md)
 
-> **Audience:** contributors, product designers, and operators · **Status:** accepted — Phase 1 (the runtime contract) in progress. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
+> **Audience:** contributors, product designers, and operators · **Status:** accepted — Phases 1-2 (the runtime contract and all provider mappings except the deferred prompted fallback) in progress. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
 
 Related: [workflow runtime](workflow-runtime.md),
 [agent execution and Task threads](agent-execution-and-task-threads.md),
@@ -302,8 +302,13 @@ consumers together, with no compatibility interpreter for the old shapes.
 scripted provider. No consumer yet; `Output` nil is unchanged behavior.
 
 **Phase 2 — the other providers.** Anthropic `forced_tool` and Ollama `format`,
-plus the `prompted` fallback and honest `Mode`/`Enforced` reporting. A model
-with no mechanism validates against the runtime's own validator.
+with honest `Mode`/`Enforced` reporting. The `prompted` fallback is **deferred**:
+all four current providers have a native mechanism, so nothing exercises it, and
+its trigger (a provider with no mechanism, or capability detection for an
+OpenAI-compatible endpoint that rejects `response_format`) is its own unresolved
+design. It stays the documented floor (§7, §14.2) and is added when a consumer
+needs it, per Occam's razor. A model with no mechanism will then validate against
+the runtime's own validator.
 
 **Phase 3 — the run boundary.** `RunLoopOpts.Output`, applied to the
 terminating answer (§5), returning `Structured` beside the reply; the TaskRun
