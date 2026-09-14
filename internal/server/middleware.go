@@ -22,11 +22,19 @@ const RequestIDHeader = "X-Request-Id"
 
 // corsMiddleware wraps h and adds CORS headers. allowedOrigin is the value for Access-Control-Allow-Origin (e.g. "http://localhost:5173").
 // For OPTIONS (preflight), it responds with 204 and CORS headers without calling h.
+//
+// Allow-Credentials is set because the Portal sends its session cookie with
+// `credentials: "include"`: a credentialed cross-origin request is blocked by
+// the browser unless the response both names a specific origin (never "*", which
+// allowedOrigin is) and allows credentials. Without it, a split-origin
+// deployment — the Portal and server on different hosts or ports, as the Compose
+// bundle runs them — can complete a preflight but never send the login POST.
 func corsMiddleware(h http.Handler, allowedOrigin string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

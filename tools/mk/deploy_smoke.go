@@ -149,15 +149,15 @@ func composeProjectName() string {
 	return envOr("BUILDMAX_COMPOSE_PROJECT", "buildmax")
 }
 
-// composeSmokeTarget describes the quickstart stack. Its Portal and its server
-// answer on separate published ports, so the bundle is configured with an
-// absolute API base — unlike the kind reference, where one ingress serves both
-// and the base is same-origin.
+// composeSmokeTarget describes the quickstart stack. A gateway fronts the Portal
+// and the server on one published port, so the browser is same-origin and the
+// Portal's runtime API base is "/", like the kind reference. The server also
+// publishes its own port, which the non-browser smoke calls here use directly.
 func composeSmokeTarget(managed bool) smokeTarget {
 	return smokeTarget{
 		apiBase:               composeServerURL(),
 		portalURL:             composePortalURL(),
-		portalRuntimeAPIBase:  composeServerURL(),
+		portalRuntimeAPIBase:  "/",
 		managedLLM:            managed,
 		llmControlURL:         composeSmokeLLMControlURL(),
 		llmControlToolCallURL: composeSmokeLLMControlBase() + llmControlToolCallPath,
@@ -271,7 +271,10 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 	if err := waitForHTTP(ctx, client, target.apiBase+"/healthz", 90*time.Second); err != nil {
 		return err
 	}
-	if err := expectHTTPStatus(ctx, client, target.portalURL, http.StatusOK); err != nil {
+	// Wait rather than assert once: the gateway that fronts the Portal may still
+	// be warming up (or re-resolving a just-recreated upstream) right after the
+	// stack comes up, which is a transient 502, not a failure.
+	if err := waitForHTTP(ctx, client, target.portalURL, 60*time.Second); err != nil {
 		return fmt.Errorf("portal: %w", err)
 	}
 	portalConfig, err := requestText(ctx, client, http.MethodGet, strings.TrimRight(target.portalURL, "/")+"/config.js", "", nil, http.StatusOK)

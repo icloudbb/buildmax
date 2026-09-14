@@ -136,11 +136,11 @@ works the same way.
 
 This stack is shaped for a laptop. Before it faces anyone else:
 
-- **Ports are published to the host.** `5678` and `8080` are reachable from
-  wherever the machine is reachable.
-- **No TLS.** Both services speak plain HTTP. Put a reverse proxy in front, and
-  then set `BUILDMAX_API_BASE=/` on the Portal so it calls its own origin —
-  which also removes the CORS pairing below.
+- **Ports are published to the host.** The gateway on `8080` (the Portal and the
+  API on one origin) and the server on `5678` (direct, for the CLI) are reachable
+  from wherever the machine is reachable.
+- **No TLS.** Everything speaks plain HTTP. Put a reverse proxy in front for TLS;
+  the browser already reaches a single origin through the gateway.
 - **The agent runs shell commands.** The worker executes what the model asks
   for, inside the server container. The official image selects the worker
   sandbox baseline; this Compose local-process path does not create a separate
@@ -150,11 +150,12 @@ This stack is shaped for a laptop. Before it faces anyone else:
 
 ## Changing The Host Ports
 
-`BUILDMAX_SERVER_PORT` and `BUILDMAX_PORTAL_PORT` in `.env` are the whole
-change. `compose.yaml` derives the Portal's `BUILDMAX_API_BASE` — what the
-**browser** calls, so a host address, not a container name — and the server's
-`cors_origin` from them; the two must name each other's origin or the browser
-blocks every request while both containers report healthy.
+`BUILDMAX_PORTAL_PORT` (the gateway the browser opens) and `BUILDMAX_SERVER_PORT`
+(the server's direct port) in `.env` are the whole change. The browser reaches
+the Portal and the API through the one gateway origin, so there is no
+cross-origin pair to keep in step; the server's `cors_origin` is derived from
+`BUILDMAX_PORTAL_PORT` only because the WebSocket upgrade still checks the
+request origin against it.
 
 Moving `BUILDMAX_PORTAL_PORT` is also how this stack runs beside a
 [kind cluster](local-kind.md), which publishes `8080` and cannot move.
@@ -164,7 +165,7 @@ Moving `BUILDMAX_PORTAL_PORT` is also how this stack runs beside a
 | Symptom | Cause |
 |---|---|
 | `run ./generate-env.sh first` | `.env` is missing; compose refuses rather than starting with empty secrets |
-| Portal loads, every request fails in the browser console | `cors_origin` and the Portal's origin disagree; check `BUILDMAX_CORS_ORIGIN` on the server container, which is what the stack sets |
+| Portal loads but a page briefly shows 502 | The gateway is still warming up or following a just-restarted upstream; reload |
 | `signup is disabled on this server` | Expected. Create the account with `user create` |
 | `invalid otp` | The code is single-use and expires in an hour; issue another |
 | Server restarts in a loop | Usually MySQL: `docker compose logs mysql` |

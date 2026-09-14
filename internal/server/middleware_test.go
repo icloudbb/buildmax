@@ -25,6 +25,41 @@ func serve(h http.Handler, r *http.Request) (*httptest.ResponseRecorder, *http.R
 	return w, r
 }
 
+// TestCORSAllowsCredentialedCrossOrigin pins the headers a credentialed
+// cross-origin request needs: the Portal sends its session cookie with
+// `credentials: "include"`, so a split-origin deployment's login POST is blocked
+// unless the response names a specific origin and allows credentials.
+func TestCORSAllowsCredentialedCrossOrigin(t *testing.T) {
+	const origin = "http://localhost:8080"
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	h := corsMiddleware(next, origin)
+
+	// The actual request carries the headers on its response.
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/auth/portal/login", nil))
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != origin {
+		t.Errorf("Allow-Origin = %q, want %q", got, origin)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Errorf("Allow-Credentials = %q, want true", got)
+	}
+
+	// The preflight must carry them too, or the browser never sends the POST.
+	pre := httptest.NewRecorder()
+	h.ServeHTTP(pre, httptest.NewRequest(http.MethodOptions, "/api/auth/portal/login", nil))
+	if pre.Code != http.StatusNoContent {
+		t.Errorf("preflight status = %d, want 204", pre.Code)
+	}
+	if got := pre.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Errorf("preflight Allow-Credentials = %q, want true", got)
+	}
+	// A credentialed request cannot use a wildcard origin, so the value must be
+	// the specific configured origin.
+	if got := pre.Header().Get("Access-Control-Allow-Origin"); got == "*" || got != origin {
+		t.Errorf("preflight Allow-Origin = %q, want %q", got, origin)
+	}
+}
+
 func TestRequestLogRecordsOutcome(t *testing.T) {
 	buf := captureLog(t)
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
