@@ -89,6 +89,22 @@ type Service struct {
 	// may live regardless of refresh activity.
 	Sessions coreidentity.AuthSessionStore
 
+	// ExternalIdentities links accounts to verified IdP identities. Nil when SSO
+	// is not configured, which is what the association path checks before running.
+	ExternalIdentities coreidentity.ExternalIdentityStore
+	// Provisioning decides a first sign-in with no linked account: ProvisioningJIT
+	// (create) or ProvisioningExistingOnly (refuse). Empty means jit.
+	Provisioning string
+	// AllowedEmailDomains bounds JIT provisioning: a verified email creates an
+	// account only when its domain is in this list, compared canonically and
+	// exactly. Required non-empty for jit; an empty list refuses rather than
+	// meaning "every domain".
+	AllowedEmailDomains []string
+	// DefaultQuotaTier is the tier a JIT account is created under, so a
+	// provisioned account matches an operator-created one. Empty leaves it to the
+	// store's default.
+	DefaultQuotaTier string
+
 	Tokens     TokenIssuer
 	RefreshTTL time.Duration
 	// SessionAbsoluteTTL caps a session's life from its creation. Zero means the

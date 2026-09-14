@@ -84,25 +84,26 @@ type AuthConfig struct {
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
-	UserStore           coreidentity.UserStore
-	LoginCodeStore      coreidentity.LoginCodeStore
-	PasswordStore       coreidentity.PasswordStore
-	RefreshTokenStore   coreidentity.RefreshTokenStore
-	AuthSessionStore    coreidentity.AuthSessionStore
-	SpaceStore          corespace.Store
-	WorkflowStore       coreworkflow.Store
-	AgentStore          agentdef.Store
-	IssueStore          coreissue.Store
-	IssueCommentStore   coreissue.CommentStore
-	TaskStore           coretask.Store
-	TaskRunStore        coretask.RunStore
-	ScheduleStore       coreschedule.Store
-	LLMCallStore        coregw.CallStore
-	UserWebhookKeyStore coreidentity.UserWebhookKeyStore
-	AuditStore          coreaudit.Store
-	SystemGrantStore    coreidentity.SystemGrantStore
-	SchemaStore         coreschema.Store
-	LLMModelStore       coregw.ModelStore
+	UserStore             coreidentity.UserStore
+	LoginCodeStore        coreidentity.LoginCodeStore
+	PasswordStore         coreidentity.PasswordStore
+	RefreshTokenStore     coreidentity.RefreshTokenStore
+	AuthSessionStore      coreidentity.AuthSessionStore
+	ExternalIdentityStore coreidentity.ExternalIdentityStore
+	SpaceStore            corespace.Store
+	WorkflowStore         coreworkflow.Store
+	AgentStore            agentdef.Store
+	IssueStore            coreissue.Store
+	IssueCommentStore     coreissue.CommentStore
+	TaskStore             coretask.Store
+	TaskRunStore          coretask.RunStore
+	ScheduleStore         coreschedule.Store
+	LLMCallStore          coregw.CallStore
+	UserWebhookKeyStore   coreidentity.UserWebhookKeyStore
+	AuditStore            coreaudit.Store
+	SystemGrantStore      coreidentity.SystemGrantStore
+	SchemaStore           coreschema.Store
+	LLMModelStore         coregw.ModelStore
 	// ArtifactStore records durable files. Nil leaves the artifact routes
 	// answering 503, which is what a deployment with no database has.
 	ArtifactStore coreartifact.Store
@@ -367,6 +368,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		PasswordStore:            cfg.Stores.PasswordStore,
 		RefreshTokenStore:        cfg.Stores.RefreshTokenStore,
 		AuthSessionStore:         cfg.Stores.AuthSessionStore,
+		ExternalIdentityStore:    cfg.Stores.ExternalIdentityStore,
 		SpaceStore:               cfg.Stores.SpaceStore,
 		WorkflowStore:            cfg.Stores.WorkflowStore,
 		AgentStore:               cfg.Stores.AgentStore,

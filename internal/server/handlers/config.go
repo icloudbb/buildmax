@@ -75,19 +75,20 @@ type Config struct {
 	SessionAbsoluteTTL time.Duration
 
 	// Stores
-	UserStore         coreidentity.UserStore
-	LoginCodeStore    coreidentity.LoginCodeStore
-	PasswordStore     coreidentity.PasswordStore
-	RefreshTokenStore coreidentity.RefreshTokenStore
-	AuthSessionStore  coreidentity.AuthSessionStore
-	SpaceStore        corespace.Store
-	WorkflowStore     coreworkflow.Store
-	AgentStore        agentdef.Store
-	IssueStore        coreissue.Store
-	IssueCommentStore coreissue.CommentStore
-	TaskStore         coretask.Store
-	TaskRunStore      coretask.RunStore
-	ScheduleStore     coreschedule.Store
+	UserStore             coreidentity.UserStore
+	LoginCodeStore        coreidentity.LoginCodeStore
+	PasswordStore         coreidentity.PasswordStore
+	RefreshTokenStore     coreidentity.RefreshTokenStore
+	AuthSessionStore      coreidentity.AuthSessionStore
+	ExternalIdentityStore coreidentity.ExternalIdentityStore
+	SpaceStore            corespace.Store
+	WorkflowStore         coreworkflow.Store
+	AgentStore            agentdef.Store
+	IssueStore            coreissue.Store
+	IssueCommentStore     coreissue.CommentStore
+	TaskStore             coretask.Store
+	TaskRunStore          coretask.RunStore
+	ScheduleStore         coreschedule.Store
 	// LLMCallStore reads the managed call ledger. Nil leaves the ledger
 	// unreadable over HTTP, which is what a deployment with no database has.
 	LLMCallStore             coregw.CallStore

@@ -2425,6 +2425,69 @@
         }
       }
     },
+    "/api/admin/users/{user_id}/identities": {
+      "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "tags": ["admin"],
+        "summary": "List an account's external (SSO) identity links",
+        "description": "Returns the (issuer, subject) links the account has, with the last-seen email and name for reconciling drift. Carries no secret; the identity key is protocol metadata.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "identities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {"type": "string"},
+                          "issuer": {"type": "string"},
+                          "subject": {"type": "string"},
+                          "last_seen_email": {"type": "string"},
+                          "last_seen_name": {"type": "string"},
+                          "last_login_at": {"type": "string", "format": "date-time"},
+                          "created_at": {"type": "string", "format": "date-time"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {"description": "Account not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "503": {"description": "SSO not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/identities/{identity_id}": {
+      "parameters": [
+        {"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "identity_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "delete": {
+        "tags": ["admin"],
+        "summary": "Unlink an account's external identity",
+        "description": "Permitted only while the account is disabled, and recorded atomically with the deletion. It removes the binding, never the account, its memberships, its work, or its history.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "identity_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "204": {"description": "Unlinked"},
+          "404": {"description": "No such identity for this account", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "Account is still enabled; disable it before unlinking", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "503": {"description": "SSO not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
     "/api/admin/users/{user_id}/sessions": {
       "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
