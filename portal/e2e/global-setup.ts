@@ -58,12 +58,29 @@ async function signIn(browser: Browser, baseURL: string, email: string, code: st
     await page.getByRole("button", { name: /login code/i }).click()
     await page.getByLabel("Email").fill(email)
     await page.getByLabel("Login code").fill(code)
-    // exact: the form also carries a "Sign in with a password" link, and a
-    // substring match would find both and refuse to guess.
-    await page.getByRole("button", { name: "Sign in", exact: true }).click()
-    // Signed in when the login card is gone. Asserting on its absence rather
-    // than on a URL keeps this working if the post-login landing route moves.
-    await page.locator(".login-page__card").waitFor({ state: "detached", timeout: 15_000 })
+    // Tie the wait to the login request, not a downstream UI side effect. A
+    // rejected code or an errored call otherwise surfaced only as a blind wait
+    // for the card to disappear, timing out with no hint of why — which is what
+    // made a login hiccup an undiagnosable flake before the whole suite. Waiting
+    // for the response fails fast and loud with the status and body, and confirms
+    // success before asserting on the card. exact: the form also carries a
+    // "Sign in with a password" link a substring match would also find.
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes("/api/auth/portal/login") && r.request().method() === "POST",
+        { timeout: 30_000 }
+      ),
+      page.getByRole("button", { name: "Sign in", exact: true }).click(),
+    ])
+    if (!response.ok()) {
+      throw new Error(
+        `sign-in for ${email} failed: POST /api/auth/portal/login returned ${response.status()} ${await response.text()}`
+      )
+    }
+    // Signed in: the token lands in context and the login card unmounts.
+    // Asserting on its absence rather than on a URL keeps this working if the
+    // post-login landing route moves.
+    await page.locator(".login-page__card").waitFor({ state: "detached", timeout: 30_000 })
     await context.storageState({ path: statePath })
   } finally {
     await context.close()
