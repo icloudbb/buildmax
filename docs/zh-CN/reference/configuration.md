@@ -490,6 +490,16 @@ log_level: info
 port: 5678
 jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in production
 # allow_signup: true                 # default false; accounts are created with `buildmax-server user create`
+# local_login: all                   # all（默认）| system_admins（应急通道）| off；管控原生密码/登录码登录
+# oidc:                              # 基于 OpenID Connect 的企业登录（首选 Okta）；见 docs/deploy/authentication.md
+#   enabled: true
+#   display_name: Okta
+#   issuer: https://example.okta.com  # https；唯一的 URL 信任根
+#   client_id: 0oaExampleClientId
+#   client_secret: ""                 # 通过 BUILDMAX_OIDC_CLIENT_SECRET 注入
+#   provisioning: jit                 # jit（默认，需要 allowed_email_domains）| existing_only
+#   allowed_email_domains: [example.com]
+#   session_max_age: 12h              # SSO 会话上限；默认 12h
 access_token_ttl: 15m                # signed; the server checks the session it names each request, so this is the max replay window
 refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
 refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
@@ -582,6 +592,8 @@ buildmax-server user login-code alice@example.com
 ```
 
 同样的登录码也是忘记密码的人重新登录的方式。登录尝试没有限流；在把 server 暴露到不受信任的网络之前，请先阅读该文档中的警告。
+
+部署也可以用 `oidc` 块启用基于 OpenID Connect 的企业登录（首个支持的提供方为 Okta），并用 `local_login`（`all`、`system_admins` 或 `off`）独立于 SSO 管控原生登录。客户端密钥通过 `BUILDMAX_OIDC_CLIENT_SECRET` 注入。配置方法与账号关联规则见 [deploy/authentication.md](../deploy/authentication.md)。
 
 Worker 读取同一份 `server.yaml`，至少需要 `worker.server_url`（或 `BUILDMAX_SERVER_URL`）、`workspaces_dir` 以及 `storage` 配置块——它直接与对象存储通信，而不是通过 server 代理。
 

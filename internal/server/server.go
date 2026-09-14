@@ -29,6 +29,7 @@ import (
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
+	infraoidc "github.com/icloudbb/buildmax/internal/infra/oidc"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	"github.com/icloudbb/buildmax/internal/server/handlers"
 	workerroutes "github.com/icloudbb/buildmax/internal/server/handlers/worker"
@@ -69,6 +70,14 @@ type AuthConfig struct {
 	// OIDCEnabled and OIDCDisplayName advertise SSO at GET /api/auth/methods.
 	OIDCEnabled     bool
 	OIDCDisplayName string
+	// OIDCProvider drives the browser sign-in flow. Nil when SSO is not
+	// configured, which makes the /api/auth/oidc/* routes answer 404.
+	OIDCProvider *infraoidc.Provider
+	// OIDCSessionMaxAge caps an SSO session; OIDCProvisioning and
+	// OIDCAllowedEmailDomains parameterize just-in-time account creation.
+	OIDCSessionMaxAge       time.Duration
+	OIDCProvisioning        string
+	OIDCAllowedEmailDomains []string
 	// PublicBaseURL is the externally reachable origin at which people open
 	// BuildMax. Artifact share links are rendered against it; empty refuses
 	// share creation rather than emitting an unreachable link.
@@ -342,6 +351,11 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		LocalLogin:               cfg.Auth.LocalLogin,
 		OIDCEnabled:              cfg.Auth.OIDCEnabled,
 		OIDCDisplayName:          cfg.Auth.OIDCDisplayName,
+		OIDCProvider:             cfg.Auth.OIDCProvider,
+		OIDCSessionMaxAge:        cfg.Auth.OIDCSessionMaxAge,
+		OIDCProvisioning:         cfg.Auth.OIDCProvisioning,
+		OIDCAllowedEmailDomains:  cfg.Auth.OIDCAllowedEmailDomains,
+		PublicBaseURL:            cfg.Auth.PublicBaseURL,
 		CORSOrigin:               cfg.Auth.CORSOrigin,
 		AccessTokenTTL:           cfg.Auth.AccessTokenTTL,
 		RefreshTokenTTL:          cfg.Auth.RefreshTokenTTL,

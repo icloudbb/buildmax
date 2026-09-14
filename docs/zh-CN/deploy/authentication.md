@@ -111,9 +111,59 @@ buildmax-server admin revoke alice@example.com
 
 > **登录没有速率限制。** 密码尝试不会被限流，因此任何人可访问的服务器可能遭受在线暴力破解。12 字符的最短长度和内存密集型哈希提高了每次猜测的成本，但不能替代限流。对不可信网络开放的部署，应在前方设置速率限制器。统一限流能力已规划但尚未实现。
 
+## 单点登录（OIDC）
+
+部署可以让用户通过其组织已有的身份提供方经 OpenID Connect 登录。**首个支持的提供方是 Okta。**
+SSO 只证明"来者是谁"；账号、会话以及每一个授权决策仍由 BuildMax 拥有——IdP 的分组或角色声明
+在这里从不授予访问权限。
+
+在 `server.yaml` 中用一个 `oidc` 块开启它：
+
+```yaml
+public_base_url: https://buildmax.example.com   # 必填；回调 URI 由它构建
+oidc:
+  enabled: true
+  display_name: Okta                # 用于 Portal 登录按钮的标签
+  issuer: https://example.okta.com  # 唯一的 URL 信任根；必须为 https
+  client_id: 0oaExampleClientId
+  provisioning: jit                 # jit（默认）或 existing_only
+  allowed_email_domains:            # jit 下必填且非空
+    - example.com
+  session_max_age: 12h              # SSO 会话上限；默认 12h
+```
+
+客户端密钥应在部署时注入，而非写入文件：
+
+```bash
+BUILDMAX_OIDC_CLIENT_SECRET=…   # 从不被返回、记录日志或交给 worker
+```
+
+**一次登录如何变成账号。** 首次已验证登录时，BuildMax 按精确的 `(issuer, subject)` 对把 IdP
+身份关联到账号——即使邮箱变化该值也不变。若尚无链接，则关联一个邮箱与已验证地址匹配的运维创建账号；
+否则在 `provisioning: jit` 下，当已验证邮箱的域名在 `allowed_email_domains` 中时创建账号（及其个人
+Space）。空的域名列表意味着*不为任何人*预配，而非所有人。`provisioning: existing_only` 从不创建账号
+——由运维预配，SSO 仅做认证。已关联到另一身份的邮箱会被拒绝以待运维核对，绝不静默迁移。
+
+**与 SSO 并存的原生登录。** `local_login` 独立于 SSO 管控密码与登录码登录：
+
+- `all`（默认）——所有账号仍可原生登录。
+- `system_admins`——仅系统管理员可以，作为 IdP 不可达而其他人使用 SSO 时的应急通道。
+- `off`——无原生登录。仅在已配置 SSO 时才合理；若没有任何人能登录，服务器会在启动时告警。
+
+**配置 Okta 应用。** 创建一个 OIDC **Web** 应用（机密客户端，`client_secret_basic`）。将其登录
+回调 URI 设为 `<public_base_url>/api/auth/oidc/callback`。授予 `openid`、`email`、`profile`
+scope，并分配应当访问此部署的人员或分组。把 issuer、client ID 与 client secret 填入上面的配置。
+
+系统管理员可在 `GET /api/admin/users/{user_id}/identities` 查看某人的已关联身份，并且**在账号被禁用时**
+用对应的 `DELETE` 移除其一。解绑仅移除绑定关系——绝不移除账号、其成员身份或历史——因此运维可以更正不匹配
+并重新启用账号以进行一次全新的首次关联。
+
+对 IdP 自身的端到端资格验证（固定的 Okta 租户、密钥与密钥轮换演练、RP 发起的登出）仍在完成中；上述登录、
+关联与管理界面均已就绪。
+
 ## 尚未具备的能力
 
-没有第二认证因素、SSO 或自助恢复：忘记密码需要向运维人员索取登录码。系统不验证邮件地址是否属于使用者；地址在这里是标识，不是证明。面向组织外部人员的部署需要在前方使用真正的身份提供商；OIDC 已规划但尚未实现。
+没有第二认证因素，也没有自助恢复：忘记密码需要向运维人员索取登录码，或在已配置 SSO 时通过 SSO 登录。系统不验证原生邮件地址是否属于使用者；地址在这里是标识，不是证明——这也是面向组织外部人员的部署需要在前方使用上述 OIDC 提供方的原因之一。
 
 登录尝试没有限流，见[密码](#密码)一节的说明。
 

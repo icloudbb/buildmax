@@ -1474,6 +1474,28 @@
         }
       }
     },
+    "/api/auth/oidc/start": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Begin SSO sign-in",
+        "description": "Mints a login transaction (state, nonce, PKCE) bound to the browser in a short-lived cookie and redirects to the IdP's authorize endpoint. Answers 404 when SSO is not configured.",
+        "responses": {
+          "302": { "description": "Redirect to the IdP" },
+          "404": { "description": "SSO not configured" }
+        }
+      }
+    },
+    "/api/auth/oidc/callback": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Complete SSO sign-in",
+        "description": "Verifies the transaction cookie and state, exchanges the code, validates the ID Token, associates the account, opens a session, and sets the Portal refresh cookie before redirecting to the Portal. On failure it redirects to the sign-in page with a coarse, non-sensitive `?sso_error=` class (unavailable, expired, not_authorized, disabled); no token, email, or raw provider error is ever in the URL.",
+        "responses": {
+          "302": { "description": "Redirect to the Portal on success, or to the sign-in page with an sso_error class on failure" },
+          "404": { "description": "SSO not configured" }
+        }
+      }
+    },
     "/api/auth/otp": {
       "post": {
         "tags": ["auth"],

@@ -4,7 +4,7 @@
 >
 > **Audience:** contributors, operators, product reviewers, and security reviewers
 >
-> **Lifecycle:** Direction — accepted 2026-09-13; nothing implemented yet. Built so far: none.
+> **Lifecycle:** Accepted 2026-09-13. Built so far: Phase 1 (durable sessions and the Portal cookie credential) and Phase 2 (OIDC login and association, with Okta the named provider). Phase 3 qualification is open.
 >
 > **Primary domain:** Trust and Security
 
@@ -62,8 +62,9 @@ Related: [roadmap](../ROADMAP.md) R5,
 ## 1. Acceptance Context And Evidence
 
 This record defines the smallest coherent corporate sign-in path for a private
-BuildMax deployment. The direction is accepted; it does not move SSO ahead of
-the private-deployment Beta gate, and nothing here is implemented yet.
+BuildMax deployment. The direction is accepted and it does not move SSO ahead of
+the private-deployment Beta gate. Phases 1 and 2 are implemented; the Phase 3
+qualification (§17, §20) is still open.
 
 The design rests on three kinds of evidence:
 
@@ -831,9 +832,13 @@ forms of evidence are required before claiming support for that provider.
 The direction is accepted, but these per-deployment facts gate each build slice
 and are still missing:
 
-1. **Target provider.** Which IdP must work first, and does it supply exact
-   issuer Discovery, PKCE S256, verified email, UserInfo behavior, `max_age`,
-   secret overlap, and a reproducible test tenant?
+1. **Target provider.** **Chosen: Okta.** It supplies exact-issuer Discovery,
+   PKCE S256, a verified `email`/`email_verified`, standard UserInfo, and a
+   confidential client with `client_secret_basic`. The provider-agnostic core is
+   built against OpenID Connect Core/Discovery and verified with a deterministic
+   adversarial fake issuer; the pinned real-Okta end-to-end and its
+   `max_age`/secret-overlap specifics are the Phase 3 qualification, which needs a
+   reproducible Okta test tenant.
 2. **Provisioning domains.** JIT is the accepted SSO default; which exact email
    domains are corporate authority, and does any target deployment instead need
    `existing_only`?
@@ -862,19 +867,21 @@ tools usually have SSO” are not enough.
 ## 20. Documentation And Delivery Status
 
 This record is the accepted direction; the originating proposal is retired to Git
-history. No implementation exists yet. Because the build slices depend on the
-per-deployment inputs in §19 — chiefly a named target provider — no backlog task
-is created here. Each Phase 1–3 slice (§17) becomes a backlog item only once its
-dependencies and acceptance criteria are settled, starting with the Phase 0
-evidence and decision for a concrete deployment.
+history. Phase 1 (durable sessions and the Portal cookie credential) and Phase 2
+(OIDC login and association, with **Okta** the named target provider) are
+implemented: the `oidc` configuration and the orthogonal `local_login` knob; a
+Discovery/JWKS provider with asymmetric-only ID-token verification; the
+`external_identity` table and the section 5.2 association with JIT provisioning;
+the admin identity routes; and the `/api/auth/oidc/start` and
+`/api/auth/oidc/callback` browser flow with the Portal sign-in button. The
+provider-agnostic core is verified against a deterministic adversarial fake
+issuer.
 
-Until the relevant slice lands, `docs/current-state.md`,
-`docs/deploy/authentication.md`, `docs/reference/configuration.md`, OpenAPI,
-Portal Help/manual content, deployment examples, and the support matrix must
-continue to state that SSO is not implemented. As implementation lands, update
-each of those in the same contribution that ships the behavior.
+Phase 3 remains open and needs a reproducible Okta test tenant: the pinned
+real-Okta end-to-end, JWKS and client-secret rotation, issuer-change refusal,
+break-glass and IdP-outage continuity, and RP-initiated logout. It does not
+exist yet.
 
-As implementation lands, update `docs/current-state.md`,
-`docs/deploy/authentication.md`, `docs/reference/configuration.md`, OpenAPI,
-Portal Help/manual content, deployment examples, and the support matrix. Until
-then, all of those must continue to say that SSO is not implemented.
+`docs/current-state.md`, `docs/deploy/authentication.md`,
+`docs/reference/configuration.md`, and OpenAPI describe the shipped behavior;
+each remaining Phase 3 slice updates them in the same contribution that ships it.

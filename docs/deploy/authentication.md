@@ -215,13 +215,80 @@ separately if that is the intent.
 > untrusted networks can reach. A unified rate-limiting capability is planned
 > and not built.
 
+## Single Sign-On (OIDC)
+
+A deployment can let people sign in through the identity provider their
+organization already runs, over OpenID Connect. **Okta is the first supported
+provider.** SSO proves who someone is; BuildMax still owns the account, the
+session, and every authorization decision — an IdP group or role claim never
+grants access here.
+
+Turn it on with an `oidc` block in `server.yaml`:
+
+```yaml
+public_base_url: https://buildmax.example.com   # required; the redirect URI is built from it
+oidc:
+  enabled: true
+  display_name: Okta                # labels the Portal sign-in button
+  issuer: https://example.okta.com  # the only URL trust root; must be https
+  client_id: 0oaExampleClientId
+  provisioning: jit                 # jit (default) or existing_only
+  allowed_email_domains:            # required and non-empty for jit
+    - example.com
+  session_max_age: 12h              # ceiling on an SSO session; default 12h
+```
+
+Inject the client secret at deploy time rather than writing it to the file:
+
+```bash
+BUILDMAX_OIDC_CLIENT_SECRET=…   # never served, logged, or handed to a worker
+```
+
+**How a sign-in becomes an account.** On the first verified sign-in, BuildMax
+links the IdP identity to an account by the exact `(issuer, subject)` pair — a
+value that never changes even if the person's email does. If no link exists yet,
+it links an operator-created account whose email matches the verified address;
+otherwise, under `provisioning: jit`, it creates the account (and its personal
+Space) when the verified email's domain is in `allowed_email_domains`. An empty
+domain list means *nobody* is provisioned, not everybody. `provisioning:
+existing_only` never creates accounts — an operator provisions them and SSO only
+authenticates. An email already linked to a different identity is refused for an
+operator to reconcile, never silently moved.
+
+**Native login alongside SSO.** `local_login` gates password and login-code
+sign-in independently of SSO:
+
+- `all` (default) — every account can still sign in natively.
+- `system_admins` — only System Administrators can, a break-glass path for when
+  the IdP is unreachable while everyone else uses SSO.
+- `off` — no native login. Only sensible with SSO configured; the server warns
+  at startup if nothing is left that anyone can sign in with.
+
+**Setting up the Okta application.** Create an OIDC **Web** application
+(confidential client, `client_secret_basic`). Set its sign-in redirect URI to
+`<public_base_url>/api/auth/oidc/callback`. Grant the `openid`, `email`, and
+`profile` scopes, and assign the people or groups who should reach this
+deployment. Copy the issuer, client ID, and client secret into the configuration
+above.
+
+A System Administrator can see a person's linked identities at
+`GET /api/admin/users/{user_id}/identities` and, **while the account is
+disabled**, remove one with the matching `DELETE`. Unlinking removes the binding
+only — never the account, its memberships, or its history — so an operator can
+correct a mismatch and re-enable the account for a fresh first association.
+
+The IdP's own end-to-end qualification (a pinned Okta tenant, key and secret
+rotation drills, RP-initiated logout) is still being completed; the login,
+association, and admin surfaces above are in place.
+
 ## What Is Still Missing
 
-There is no second factor, no SSO, and no self-service recovery: a forgotten
-password means asking an operator for a login code. Nothing verifies that an
-email address belongs to the person using it — addresses are identifiers here,
-not proof. A deployment serving people outside your organization wants a real
-identity provider in front of it; OIDC is planned and not built.
+There is no second factor and no self-service recovery: a forgotten password
+means asking an operator for a login code, or signing in through SSO if it is
+configured. Nothing verifies that a native email address belongs to the person
+using it — addresses are identifiers here, not proof — which is one reason a
+deployment serving people outside your organization wants the OIDC provider
+above in front of it.
 
 Login attempts are not throttled. See the note under [Passwords](#passwords).
 

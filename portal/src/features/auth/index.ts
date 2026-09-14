@@ -1,4 +1,5 @@
 export {
+  getAuthMethods,
   login,
   loginWithPassword,
   requestOtp,
