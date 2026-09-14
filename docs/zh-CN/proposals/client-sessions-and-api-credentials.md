@@ -2,17 +2,17 @@
 
 > **翻译说明：** 本文是[英文原文](../../proposals/client-sessions-and-api-credentials.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-> **受众：** 贡献者、产品评审人、运维人员与安全评审人 · **状态：** 提案 —— 讨论中
+> **受众：** 贡献者、产品评审人、运维人员与安全评审人 · **状态：** 提案 —— 已由实现收窄：持久人类 Session、Portal cookie 认证与原生 Secret 存储已交付；机器凭据、scope/audience、签名密钥轮换与自助管理仍在讨论
 >
 > **提出时间：** 2026-08-24
 
-相关文档：[路线图](../ROADMAP.md) P3 与 P4、
+相关文档：[路线图](../ROADMAP.md) R5、
 [部署认证](../deploy/authentication.md)、
 [托管 LLM 网关设计](../design/LLM网关.md)、
 [客户端模式设计](../design/客户端模式.md)、
 [Worker 运行令牌设计](../design/Worker运行令牌.md)、
 [数据模型](../contribute/architecture/data-model.md)，以及
-[企业身份与访问提案](../design/企业身份与访问.md)。
+[企业身份与访问设计](../design/企业身份与访问.md)。
 
 ## 目录
 
@@ -37,9 +37,9 @@
 
 ## 决策问题
 
-在一次交互式登录之后,BuildMax 是否应该在 access token 与 refresh token 之外,
-再返回第三个长期有效的 token,以便 CLI/TUI 和 Desktop 能够持续调用托管的 LLM
-网关?
+已经实现的人类 Session 路径回答了原始问题：BuildMax 登录后不会返回第三个长期
+有效的网关 token。提案现在剩下的问题是：受支持的无人值守调用方应获得哪一种
+显式凭据（如果需要），以及怎样的 audience、scope、所有权、到期与轮换契约才安全。
 
 可能的方向是:
 
@@ -51,9 +51,8 @@
 > 限定受众(audience-restricted)的 token,而不是在登录时获得一个长期有效的
 > 网关 token。
 
-这并非一项已被采纳的路线图承诺。它的作用是在当前 Alpha 阶段的登录形态固化为
-其他客户端所依赖的 API 之前,把这个凭据边界问题讲清楚,以便被接受、修改或
-拒绝。
+人类 Session 部分已经通过获采纳的[企业身份与访问](../design/企业身份与访问.md)
+记录实现。PAT、服务账号、网关 token 交换与签名密钥轮换仍是提案，不是路线图承诺。
 
 ## 问题与当前背景
 
@@ -85,15 +84,15 @@ access token。
 
 ### 交互式登录
 
-`POST /api/login` 接受密码或运维人员签发的一次性登录码。任一凭证都会创建一个
-新的 session ID,并返回:
+`POST /api/auth/login` 接受密码或运维人员签发的一次性登录码。任一凭证都会创建
+持久 `auth_session`，并返回:
 
 - `access_token`,以及为兼容而保留的旧字段 `token`;
 - 当配置了 refresh-token 存储时返回 `refresh_token`;
 - `expires_in`;以及
 - 用户的公开身份字段。
 
-每次登录都会创建自己的 session。refresh token 是一个不透明的随机密钥,
+每次登录都会创建带绝对生命周期的独立 session。refresh token 是一个不透明的随机密钥,
 仅以 SHA-256 哈希的形式存储在 `user_refresh_token` 中。轮换(rotation)会
 消耗当前呈现的行并在同一 `session_id` 链中创建替代行。在 `refresh_rotation_grace`
 之外重用旧 token 会撤销整条链,并记录一条 `auth.refresh_reuse` 审计事件。
@@ -105,14 +104,14 @@ access token。
 | `access_token_ttl` | 7 天 | 一个未被存储的 access JWT 保持可用的时长 |
 | `refresh_token_ttl` | 30 天 | 当前 refresh-token 行可被兑换的时长 |
 | `refresh_rotation_grace` | 30 秒 | 一个已被消耗的 token 允许被并发的客户端进程再次兑换的时长 |
+| `session_absolute_ttl` | 90 天 | 原生/密码/登录码 Session 不受刷新活动影响的硬上限 |
 
-轮换会为每个替代 token 赋予 `now + refresh_token_ttl`。因此 30 天这个值是一个
-不活跃窗口(inactivity window),而不是 session 的绝对生命周期。一个持续定期
-刷新的客户端可以让 session 无限期保持存活。
+轮换会为每个替代 token 赋予 `now + refresh_token_ttl`，但不能让持久 Session
+越过 `session_absolute_ttl`（默认 90 天）。
 
-登出会撤销 refresh-token 链,但不会使该链已经签发出去的 access token 失效。
-禁用账户会立即生效,因为每个已认证路由都会解析用户行,并拒绝
-`disabled_at` 非空的用户。
+登出会撤销持久 Session 及其 refresh-token 链。请求守卫会在每次认证调用时解析
+`sid`，因此登出、管理员撤销、绝对过期与账户禁用都会在下一次请求时停止已经签发的
+access token。
 
 ### Access Token 的形态
 
@@ -122,7 +121,7 @@ access token。
 |---|---|
 | `sub` | 用户的公开 ID |
 | `typ` | `access` |
-| `sid` | Refresh-token session 链 |
+| `sid` | 持久 `auth_session` |
 | `jti`、`iat`、`exp` | 注册的 token 身份与生命周期 claim |
 
 它没有强制校验的 issuer、audience、客户端身份或 scope。`typ` 能够防止 run token
@@ -155,13 +154,12 @@ POST /api/llm/completions
 
 ### 客户端存储
 
-CLI/TUI 与 Desktop 共享 `auth.json`,其中保存了 Server URL、access token、
-refresh token 以及用户元数据。写入是原子的,文件权限为 `0600`。这个共享文件
-也是服务器需要一个轮换宽限窗口(rotation grace window)的原因:两个进程可能
-并发地读取并兑换同一个 refresh token。
+CLI/TUI 与 Desktop 默认把 access/refresh token 保存在 OS 凭据存储中；不可用时
+回退到明确报告的 `0600` 文件。`auth.json` 只保留 Server URL 与非密钥用户元数据。
 
-Portal 把两种凭据都存储在 `localStorage` 中,并在一个浏览器标签页内协调刷新。
-这与原生客户端是不同的威胁模型,不应因此强行套用原生存储的设计。
+Portal 把可续期 refresh 凭据保存在 Secure、HttpOnly、SameSite=Strict cookie 中，
+短期 access token 只放内存。浏览器 JavaScript 无法读取 refresh token；刷新与登出
+通过 cookie 完成。
 
 ### Worker 认证
 
@@ -212,8 +210,8 @@ access token 限定为最小必要的受众与权限范围。BuildMax 目前实�
 - 为脚本与服务提供一条显式的机器凭据路径,具备 scope、过期时间、归属关系与
   单独可撤销性。
 - 保留 run 范围限定的 worker 凭据,以及直连本地模式。
-- 为企业身份提案正在评估的 OIDC 方向留出空间,而不把 OIDC 变成当前私有部署
-  的前提条件。
+- 保留已交付的 OIDC 浏览器流程与独立配置的原生登录姿态，而不把 OIDC 变成私有
+  部署的必选项。
 - 让 Space 成员身份与系统管理员授权保持为由服务器推导的授权结果,而不是
   客户端可以任意声明的内容。
 
@@ -370,10 +368,8 @@ Access token 与 refresh token 绝不能被复制进:
 
 ### 当前的密码与登录码流程
 
-在企业身份方案被采纳并实现之前:
-
 1. CLI 或 Desktop 通过 TLS 把密码或运维人员签发的登录码发送到
-   `POST /api/login`。
+   `POST /api/auth/login`。
 2. 服务器创建一个显式的客户端 session,并返回一个 access token 与一个可
    轮换的 refresh token。
 3. 客户端把 refresh token 移入其密钥存储,并尽可能把 access token 保留在
@@ -389,9 +385,9 @@ access token 的登录方式,但一个托管客户端应当报告该登录无法
 托管推理作为运维服务提供的部署应当要求配置 session 存储,而不是把一个 7 天
 有效期的 access token 当作其可用性机制。
 
-### 未来的原生 OIDC 流程
+### 未来的原生客户端 OIDC 流程
 
-企业身份提案的可能方向是原生 OIDC。若被采纳:
+Portal OIDC 已交付。原生 CLI/Desktop OIDC 与无浏览器设备授权仍是未来工作：
 
 - Desktop 与拥有可用浏览器的终端会打开系统浏览器,使用带 PKCE 的
   Authorization Code 流程与一个精确注册的重定向地址;
@@ -408,16 +404,9 @@ access token 的登录方式,但一个托管客户端应当报告该登录无法
 
 ### Portal Session
 
-Portal 应当共享服务器端的 session 模型,但不应盲目地共享原生存储机制。
-它当前存放在 `localStorage` 中的 refresh token 对该 origin 内的 JavaScript
-是可见的。在部署拓扑允许的情况下,更安全的目标是采用同源的
-Backend-for-Frontend 或服务器端 session,使用带有 `Secure`、`HttpOnly` 与
-合适 `SameSite` 属性的 cookie,并配合 CSRF 防护。一个继续直接持有 token 的
-浏览器客户端仍然需要短 scope、短生命周期,以及 refresh 轮换。参见
-[RFC 10017](https://www.rfc-editor.org/info/rfc10017/)。
-
-Portal 是否迁移到 cookie/BFF 模型是一个独立的实现与部署决策;它不应阻碍从
-原生客户端文件中移除 refresh 密钥的工作。
+Portal 已共享服务器端 Session 模型，并使用同源 Secure、HttpOnly、
+SameSite=Strict refresh cookie；access token 只保留在内存。该实现保持浏览器
+JavaScript 看不到可续期密钥，同时仍由服务器端 Session 提供逐请求撤销。
 
 ## 机器凭据
 
@@ -474,27 +463,28 @@ Worker 将继续使用 run token。服务账号或 PAT 设计不会扩展
 
 ## 数据模型影响
 
-Alpha 阶段的策略允许一次性修正所有存储形态,而不是保留一个错误的契约。如果
-这个方向被采纳,可能的关系模型如下:
+Alpha 阶段的策略允许一次性修正所有存储形态,而不是保留一个错误的契约。下面的
+人类 Session 行已经实现；机器凭据相关行仍是提案。
 
 ### `auth_session`
 
-每次人类登录对应一行:
+**已交付：** 每次人类登录对应一行:
 
 | 字段 | 用途 |
 |---|---|
 | 公开 ID | 稳定的 `sid` 与 API 句柄 |
 | 用户 ID | Session 所有者 |
-| 客户端 ID 与平台 | 被强制执行的客户端类别,而不只是一个信息性标签 |
-| 设备名称 | 便于用户识别的 session 列表条目 |
-| 创建时间、最后使用时间 | 生命周期与诊断信息 |
-| 空闲过期时间 | 拒绝刷新前允许的最大不活跃时长 |
+| 平台与认证方式 | 打开 Session 的界面与凭据；当前为信息字段 |
+| 创建时间、最后活动时间 | 生命周期与经过限流的活动诊断 |
 | 绝对过期时间 | 无论如何轮换都适用的最大生命周期 |
-| 撤销时间与原因 | 立即退休该 session,并提供审计上下文 |
+| 撤销时间 | 立即终止该 Session |
 
 `user_refresh_token` 行会引用该 session,并保留 token 哈希、轮换/替换关系、
 过期时间、使用记录与撤销证据。该 session 行使得列出与撤销操作无需从每一次
 轮换记录中重新构建出整条家族链。
+
+强制 client ID、用户可识别的设备名、单独的 Session 空闲过期时间与持久撤销原因仍是
+拟议新增字段，不是当前行已经拥有的字段。
 
 ### `personal_access_token`
 
@@ -525,17 +515,17 @@ Alpha 阶段的策略允许一次性修正所有存储形态,而不是保留一�
 
 ## HTTP API 影响
 
-准确的路由只以 `internal/server/handlers/routes.go` 为权威来源。一种可能的
-API 形态是:
+准确的路由只以 `internal/server/handlers/routes.go` 为权威来源。已交付的人类
+Session 路由与拟议的自助/机器路由如下:
 
 ```text
-POST   /api/login
-POST   /api/token/refresh
-POST   /api/logout
+POST   /api/auth/login                 # 已交付
+POST   /api/auth/refresh               # 已交付
+POST   /api/auth/logout                # 已交付
 
-GET    /api/sessions
-DELETE /api/sessions/{session_id}
-DELETE /api/sessions
+GET    /api/sessions                   # 拟议自助
+DELETE /api/sessions/{session_id}      # 拟议自助
+DELETE /api/sessions                   # 拟议自助
 
 POST   /api/personal-access-tokens
 GET    /api/personal-access-tokens
@@ -551,7 +541,7 @@ Alpha 阶段的客户端能够统一切换,那么可以直接移除遗留的重�
 而不必无限期地保留它。
 
 每个已认证的路由都应声明其允许的凭据类型、audience 与所需的 scope。把一个
-PAT 呈递给 `/api/token/refresh`、把一个仅用于网关的 token 呈递给某个 Issue
+PAT 呈递给 `/api/auth/refresh`、把一个仅用于网关的 token 呈递给某个 Issue
 路由、把一个用户 access token 呈递给某个 worker 路由,或把一个 run token
 呈递给某个用户路由,都应当在资源授权检查之前就失败。
 
@@ -591,9 +581,9 @@ OIDC 将打开系统浏览器,而不是嵌入身份提供方页面。
 |---|---|---|---|
 | 为每次登录增加第三个长期有效的 token | 对客户端而言表面上更简单 | 使刷新职责重复,制造隐藏的机器权限,登出与审计含义模糊,泄漏窗口很大 | 拒绝 |
 | 为 TUI/Desktop 使用一个静态 PAT | 无需实现刷新机制 | 交互式客户端持有一个可直接使用的长期有效密钥;重用检测能力弱,session 体验差 | 拒绝 |
-| 保留 access + 轮换的 refresh,单一 API audience | 改动最小;现有客户端已在做刷新 | 一个泄漏的 access token 可能跨越其 scope 所允许的多个 API 区域;仍需安全存储与 session 状态 | 可行的第一步切片 |
+| 保留 access + 轮换的 refresh,单一 API audience | 改动最小;现有客户端已在做刷新 | 一个泄漏的 access token 可能跨越其 scope 所允许的多个 API 区域 | 基础已交付；audience/scope 加固仍待完成 |
 | 增加按需的网关 token 交换 | audience 分离效果强,LLM 凭据生命周期短 | 增加更多协议、缓存、失败与发现相关的行为 | 在基础 session 模型之上优先加固的方向 |
-| 让每个 access token 都具备状态(stateful) | 可立即撤销 | 每次请求都需要数据库/缓存检查,并带来可用性耦合 | 部分被采纳:在存在 session 存储的地方检查显式的 session 状态 |
+| 让每个 access token 都具备状态(stateful) | 可立即撤销 | 每次经过守卫的请求都需要数据库读取，并带来可用性耦合 | 已通过持久 Session 检查交付 |
 | 用 DPoP 为原生 token 绑定发送方 | 单独被窃取的 token 用处更小 | 密钥生命周期与跨平台实现复杂度高;同进程内被攻陷时仍可使用该密钥 | 若有部署证据支持,可作为后续加固手段 |
 | 仅新增 PAT | 用一个较小的主体模型解决个人脚本化需求 | 会鼓励以个人身份拥有自动化;无法解决 Space 拥有的服务问题 | 当存在真实的脚本化用例时有用 |
 | 优先新增服务账号 | 为共享自动化提供正确的所有者 | 更大的授权、供应与界面改动面 | 等待出现 Space 拥有的自动化需求时再做 |
@@ -622,8 +612,8 @@ OIDC 将打开系统浏览器,而不是嵌入身份提供方页面。
   用户的最后登录元数据。已修正为:登录处理程序会调用 `UpdateLoginMeta`。
 - `docs/design/llm-gateway.md` 曾把"刷新 versus 一个受限的客户端 token"列为
   一个未决问题,并把 access token 称为一个 24 小时的 JWT。已修正为:刷新
-  机制已经实现,默认值为 7 天;尚未解决的部分是安全存储、绝对生命周期、
-  audience/scope 以及机器身份。
+  机制已经实现,配置默认值为 7 天。安全原生存储与 Session 绝对生命周期此后已经
+  交付；audience/scope 与机器身份仍未解决。
 - P3 路线图中的一句话可能被误读为 CLI、TUI、Desktop 与 task run 都使用一种
   按 run 划分的凭据。已修正为:只有 task run 使用 run token,交互式客户端
   使用的是人类 session。
@@ -632,23 +622,18 @@ OIDC 将打开系统浏览器,而不是嵌入身份提供方页面。
 
 ### 第一阶段:加固现有的双 token session
 
-- 增加显式的 session 状态与绝对过期时间。
-- 缩短 access-token 的默认生命周期。
-- 增加并强制执行 issuer、audience、client 与 scope claim。
-- 将 CLI 与 Desktop 的 session 分开。
-- 把原生的 refresh 密钥移到一个凭据存储接口之后。
-- 增加自助式的 session 列表与撤销功能。
-- 明确签名密钥的轮换方式。
-- 修正当前的文档与 OpenAPI 漂移问题。
+已交付：显式 Session 状态与绝对过期、逐请求 Session 强制检查、独立创建的客户端
+Session、原生凭据存储接口、Portal cookie 流程、管理员列表/撤销，以及当前文档与
+OpenAPI。仍待完成：缩短配置层默认 access-token 生命周期、issuer/audience/client/
+scope 强制检查、自助 Session 管理与签名密钥轮换。
 
 这一阶段不会改变任何托管模式的产品语义:登录仍然选择部署的模型,网关调用
 仍然按用户归属,直连模式仍然不需要 Server。
 
 ### 第二阶段:企业级交互式登录
 
-如果企业身份提案被采纳,则为拥有浏览器的场景增加带 PKCE 的外部浏览器 OIDC,
-并为无浏览器终端增加设备授权。两者最终都会创建第一阶段所述的同一个
-BuildMax session。
+Portal 带 PKCE 的外部浏览器 OIDC 已交付，并创建同一个持久 BuildMax Session。
+原生 CLI/Desktop 浏览器流程与无浏览器终端的设备授权仍待完成。
 
 ### 第三阶段:显式的机器身份
 
@@ -669,28 +654,21 @@ Space 或部署拥有的无人值守工作有一个具体的所有者与授权�
    统一,也需要一个部署层面的授权(entitlement)?
 3. Access、refresh 不活跃期、session 绝对期限与 PAT 的生命周期,分别应支持
    哪些默认值,以及运维人员可配置的限制范围是什么?
-4. 登出是否必须通过一次 session 状态检查立即使当前 access token 失效,还是
-   对某些部署而言一个较短的过期时间就足够了?
-5. 操作系统密钥存储是否是受支持托管模式的一项硬性要求,还是在无头系统上
-   支持一种可见的 `0600` 文件回退方案?
-6. Portal 是否应当迁移到 cookie/BFF session,还是继续作为一个持有 token 的
-   浏览器客户端?
-7. 哪些是第一批对应实际受支持自动化用例的 PAT scope?托管推理是否属于其中
+4. 哪些是第一批对应实际受支持自动化用例的 PAT scope?托管推理是否属于其中
    之一?
-8. 无人值守的权限应当归属于个人、Space 还是部署,因此是 PAT 已经足够,还是
+5. 无人值守的权限应当归属于个人、Space 还是部署,因此是 PAT 已经足够,还是
    需要服务账号?
-9. 签名密钥是否应当按用户 token 与 run token 类型分开,私有部署在轮换期间
+6. 签名密钥是否应当按用户 token 与 run token 类型分开,私有部署在轮换期间
    应当把验证密钥环(verification key ring)保存在哪里?
-10. OIDC/设备授权是否应当因为原生托管客户端需要企业级登录而提前于其当前
-    "后 Beta"的路线图位置,还是仍然作为一个更靠后的身份里程碑?
+7. 原生托管客户端是否需要浏览器 OIDC 与设备授权，还是已交付的 Portal SSO 加
+   原生本地登录可以作为受支持的分工？
 
 ## 做出决策所需的证据
 
-- 针对 `auth.json`、本地模型选择的命令、hook、MCP 服务器、浏览器 JavaScript、
-  日志与 worker 环境中的 token 窃取场景,进行一次威胁模型走查。
-- 一次跨平台的验证性实现(spike),证明一个单一二进制的 CLI 能够使用
-  Keychain、Credential Manager,以及一种实用的 Linux/无头系统回退方案,而
-  不引入 Node 依赖。
+- 针对 OS 凭据存储或明确报告的回退文件、本地模型选择的命令、hook、MCP 服务器、
+  浏览器 JavaScript、日志与 worker 环境中的 token 窃取场景,进行一次威胁模型走查。
+- 继续验证已经交付的 Keychain、Credential Manager、Secret Service 与明确报告的
+  `0600` 回退在各平台上的行为。
 - 针对多个 CLI 进程刷新同一个 session 的并发测试,包括丢失的刷新响应,以及
   宽限窗口之外的重放。
 - 覆盖凭据类型、audience、scope、账户禁用、session 撤销、Space 授权与系统
@@ -698,17 +676,15 @@ Space 或部署拥有的无人值守工作有一个具体的所有者与授权�
 - 一次在不中断刷新 session 或正在运行的 run 的情况下轮换签名密钥的部署演练。
 - 在选择 PAT、服务账号或二者兼有之前,针对第一个非交互式调用方给出产品层面
   的证据。
-- 如果企业身份提案被采纳,进行一次端到端的原生 OIDC 与设备流程试验。
+- 如果原生托管客户端被选为受支持的 SSO 界面，进行一次端到端的原生 OIDC 与设备流程试验。
 
 ## 若被采纳后的可能归宿
 
-一项被采纳的决策将会:
+人类 Session 决策已经归入获采纳的企业身份设计。剩余机器凭据范围一旦获采纳，将会：
 
-- 在 `docs/design/` 下新增一份持久化的客户端 session 与凭据规范文档;
-- 用被选定的各阶段与证据关口更新 P3/P4 路线图;
+- 把选定的 PAT 和/或服务账号契约写入持久设计记录；
+- 只把选定的机器身份与密钥轮换阶段及证据关口加入路线图；
 - 同步更新部署认证、配置、支持、CLI、Desktop、Portal、数据模型与 OpenAPI
   相关文档,并与实现同步进行;
-- 为 session 状态、原生密钥存储、access-token claim 与路由 scope、session
-  用户体验以及签名密钥轮换创建聚焦的实现 Issue;以及
-- 只有当 PAT、服务账号、网关 token 交换与 OIDC/设备授权各自对应的产品决策
-  被采纳后,才将它们作为独立的实现 Issue 留待处理。
+- 为 access-token claim、路由 scope、签名密钥轮换与选定的机器凭据创建聚焦实现工作；以及
+- 让未选择的 PAT、服务账号、网关 token 交换与原生 OIDC/设备方向保持未实现。

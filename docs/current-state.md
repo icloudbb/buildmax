@@ -2,9 +2,9 @@
 
 > **简体中文：** [阅读中文镜像](zh-CN/current-state.md)
 >
-> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-12
+> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-14
 
-This assessment was checked against repository code at `0bd7e5bf`. It describes
+This assessment was checked against repository code at `938f85de`. It describes
 implemented behavior, test coverage, and remaining limits. Priority and future
 sequencing belong in the [roadmap](ROADMAP.md), not in a second priority list
 here. Design records explain decisions; their unfinished checklists are not
@@ -41,10 +41,16 @@ value that validates (see the shared runtime below). The typed `nodes`/`bindings
 contract, input schemas, and typed `/structured/...` routing remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
-recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including
-distributed lease fencing at message-history writes. The worker API already
-has a separate listener, TLS support, and a shipped ingress NetworkPolicy; that
-bounded network slice must not be confused with unrestricted worker egress.
+recovery. A Server can now expire old run traces on an operator-set retention
+window and records each successful prune; keep-forever remains the default.
+Deployment smoke now exercises graceful worker loss and the Server's readiness
+degradation and recovery across runtime MySQL and object-storage outages.
+Paired restore, schema upgrade and binary rollback, credential rotation, and
+the worker's object-storage write path under denial remain open. Shared Redis
+coordination is implemented, including distributed lease fencing at
+message-history writes. The worker API already has a separate listener, TLS
+support, and a shipped ingress NetworkPolicy; that bounded network slice must
+not be confused with unrestricted worker egress.
 
 This review inspected implementation, assembly, manifests, and test assertions.
 It does not reuse old full-build results, coverage percentages, mutation-test
@@ -211,6 +217,10 @@ Sources and coverage:
 [listener boundary tests](../internal/server/listener_boundary_test.go),
 [`internal/bootstrap/worker_tls.go`](../internal/bootstrap/worker_tls.go), and
 [production manifest](../deployment/production/buildmax.yaml).
+The served [public OpenAPI document](../internal/server/static/openapi.json)
+contains only public-listener routes; the Worker control plane has a separate
+[OpenAPI document](../internal/server/static/openapi-worker.json). Architecture
+tests compare each document to the routes registered on its listener.
 
 **Accepted first-Beta limit:** a worker egress NetworkPolicy is absent. The Server-ingress policy does
 not constrain all outbound traffic from a worker, sandbox MCP processes, or hide
@@ -273,6 +283,12 @@ The database coverage is broader than the previous assessment reported:
 | Workflow revision advancement under edits and contention (guarded compare-and-set) | [workflow_test.go](../internal/infra/db/workflow_test.go) |
 | Workflow initial revision and revision queries | [revision_query_test.go](../internal/infra/db/revision_query_test.go) |
 | Space isolation for secrets and independent invitations | [secret_test.go](../internal/infra/db/secret_test.go), [space_invitation_test.go](../internal/infra/db/space_invitation_test.go) |
+| Cross-Space rejection for Workflow and Issue updates and plugin activation reads/writes | [cross_space_test.go](../internal/infra/db/cross_space_test.go) |
+| Quota usage-window boundaries, title-token accounting, null usage, and Space isolation | [quota_usage_test.go](../internal/infra/db/quota_usage_test.go) |
+| Durable auth-session activity, expiry, revocation, refresh-token cascade, touch throttling, listing, and counts | [auth_session_test.go](../internal/infra/db/auth_session_test.go) |
+| External-identity lookup and uniqueness, atomic JIT account/Space/link creation, concurrent first login, disable-before-unlink, and transactional audit | [external_identity_test.go](../internal/infra/db/external_identity_test.go) |
+| Task output-schema and validated TaskRun structured-value persistence | [task_run_structured_test.go](../internal/infra/db/task_run_structured_test.go) |
+| Expired run-trace discovery and idempotent trace-pointer clearing | [task_run_trace_retention_test.go](../internal/infra/db/task_run_trace_retention_test.go) |
 
 The guarded transitions prevent illegal terminal rewrites and make failed-step,
 later-step blocking, and failed-run finalization atomic. Workflow step dispatch
@@ -303,10 +319,10 @@ stopped with the other background loops on graceful shutdown. Every replica runs
 it; the reconciliation lease, not process-local election, keeps two from
 advancing one run. Automatic re-dispatch of a worker TaskRun lost after it was
 claimed is an accepted first-Beta limit, distinct from this progression
-recovery. This is also not exhaustive proof of cross-Space store behavior.
-External dependency recovery still needs scenario-specific evidence. The
-removed result-delivery queue has no remaining restart-recovery obligation of
-its own.
+recovery. The explicit cross-Space store tests cover Workflow and Issue updates
+and plugin activations, not every store method. External dependency recovery
+still needs scenario-specific evidence. The removed result-delivery queue has
+no remaining restart-recovery obligation of its own.
 
 **The explicit migration list is no longer empty.**
 [`internal/infra/db/migration.go`](../internal/infra/db/migration.go) contains
@@ -318,10 +334,13 @@ a design document establishes an exercised old-schema upgrade and binary
 rollback. The old explanation that a fixture is blocked by an empty migration
 history is obsolete.
 
-Each trace is bounded by field and record caps, but the traces directory has no
-retention sweep. A long-lived process therefore needs external capacity
-management or manual deletion today; BuildMax cannot yet record that old traces
-were removed by policy.
+Each trace is bounded by field and record caps. When an operator sets
+`trace.retention_days` above zero, a Server-owned hourly sweep deletes traces
+for runs that ended before the cutoff, clears their TaskRun pointers, and
+records a `traces.pruned` audit event. Zero remains the keep-forever default, so
+an operator who leaves it unchanged still owns capacity planning. Deletion and
+pointer clearing are retryable, but this mechanism is not evidence that a
+candidate's chosen retention and capacity policy has been exercised.
 
 ## Account, Space, And Extension Surfaces
 
@@ -331,14 +350,21 @@ transfer, and member-scoped recovery are implemented. Signup defaults off;
 creating an account does not itself issue a credential. Each login opens a
 durable session (`auth_session`) that the request guard checks every call, so
 logout, administrator revocation, and disablement stop an already-issued access
-token within its short lifetime rather than at expiry; sessions also carry an
-absolute lifetime. Corporate sign-in over OpenID Connect is implemented: a
+token on its next request; sessions also carry an absolute lifetime. Portal
+keeps the renewable refresh credential in a Secure,
+HttpOnly, SameSite=Strict cookie and holds the short-lived access token only in
+memory; CLI and Desktop retain the JSON credential flow. Corporate sign-in over
+OpenID Connect is implemented: a
 deployment configures an `oidc` block (Okta is the first supported provider), and
 a verified sign-in links to an account by `(issuer, subject)` — reusing an
 existing link, linking an operator-created account by verified email, or creating
 one just in time within `allowed_email_domains`. Native password and login-code
 sign-in are gated independently by `local_login` (`all`, `system_admins`, `off`).
-The pinned real-Okta end-to-end and key/secret-rotation drills are not yet done.
+Portal discovers the enabled methods and completes the authorization-code flow
+through Server-owned state, nonce, PKCE, callback validation, and a server-side
+token exchange; provider tokens are not retained. The association and protocol
+branches have service, handler, provider-fake, and real-MySQL coverage. The
+pinned real-Okta end-to-end and key/secret-rotation drills are not yet done.
 See the [identity service](../internal/service/identity/account.go), the
 [OIDC provider](../internal/infra/oidc/provider.go), and the
 [Space service](../internal/service/space/service.go).
@@ -364,9 +390,11 @@ Space approval workflows remain unimplemented and deliberately out of scope;
 that is not evidence of an unfinished invitation or ownership-transfer feature.
 
 Workflow definitions remain linear `agent_task` steps. They have versioned
-definitions and durable run/step records, but no branching, parallel graph,
-manual approval, loops, or typed input/output mapping in the definition contract
-([`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go)).
+definitions and durable run/step records. A step can constrain its result with
+`output_schema`, and an untyped binding can pass an earlier step's whole output
+to a later one. The definition contract still has no typed input schema or
+JSON-Pointer binding selection, branching, parallel graph, manual approval, or
+loops ([`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go)).
 
 Portal and inbound webhook execution are assembled. Telegram remains channel
 vocabulary, and the webhook callback sender is not assembled into the Server.
@@ -426,14 +454,15 @@ the unsigned [Beta readiness record](deploy/beta-readiness.md).
 ## Verification For This Review
 
 This is a source-and-tests reassessment, not a fresh deployment qualification.
-The latest `main` CI, CodeQL, Windows, and deployment-smoke workflows passed for
-`0bd7e5bf`. For this documentation update, `./make check docs`,
-`./make check portal`, `./make test ./internal/architecture`, the Go packages
-whose comments changed, and `git diff --check` passed locally. Documentation
-checks cover links and formatting; they do not prove runtime behavior.
+For this documentation update, `./make test`, `./make check docs`, and
+`git diff --check` passed locally at `938f85de`. The ordinary test scope includes
+the architecture, runtime, provider, identity, handler, scheduler, CLI, and
+Desktop bridge suites. Documentation checks cover links and formatting; neither
+scope proves a deployed candidate.
 
 The review did not run the real-MySQL scope (no `BUILDMAX_TEST_DSN` was supplied),
 full builds, frontend/browser suites, Compose/kind deployment smoke, external
 recovery drills, or paid model evaluation. Database test assertions above were
-read, not claimed as executed. Historical coverage and deployment results have
-therefore not been carried forward as current measurements.
+read, not claimed as executed against MySQL. Hosted CI state, historical
+coverage, and earlier deployment results have not been carried forward as
+current measurements.

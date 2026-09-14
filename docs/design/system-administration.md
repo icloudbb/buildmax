@@ -37,8 +37,8 @@
   distinguishes them from its remaining proposed work
 - follows: [space-governance.md](./space-governance.md) and
   [enterprise-deployment.md](./enterprise-deployment.md)
-- relates to: [enterprise identity and access](enterprise-identity-and-access.md)
-  proposal, which owns OIDC/SCIM and must not be pre-empted here
+- relates to: [enterprise identity and access](enterprise-identity-and-access.md),
+  the accepted record that owns OIDC/SCIM and must not be duplicated here
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-08-18`
 
@@ -374,14 +374,11 @@ The alternative — wait out the access token TTL, which defaults to seven days 
 was rejected. "Disable this account" that means "in about a week" is not the
 feature.
 
-There is no `CANCELED` run status, and this design did not add one. Introducing
-a terminal status is a run-lifecycle change: the scheduler, `syncTaskStatusFromRun`,
-and every Portal badge would have to learn it, and a status that half the readers
-do not handle is how a run stops explaining itself. What shipped instead reuses
-the dispatch-time refusal already in the scheduler — the same path a run takes
-when its credential cannot be minted — so the run reaches a terminal state and
-says why in `error_message`. Whether these should be distinguishable from a
-failure is open question 6.
+`CANCELED` now exists for an explicit run cancellation, but account disablement
+still does not synthesize that user action. This design's dispatch-time refusal
+uses the same failure path as an unavailable run credential, so a newly admitted
+run for a disabled account reaches terminal `FAILED` and explains the refusal in
+`error_message`. That remains distinct from a user-requested cancellation.
 
 The guard fails open on a store error: a database blip must not turn into a
 space's work being refused. A run starting for an account disabled moments ago is

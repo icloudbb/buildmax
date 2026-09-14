@@ -273,14 +273,19 @@ operator creates an account and its personal Space with `buildmax-server user
 create`, issues a single-use login code, and grants deployment authority
 separately with `buildmax-server admin grant`. The default quota tier and Space
 owner membership are created without a database edit. See M5 and
-[deployment authentication](../deploy/authentication.md).
+[deployment authentication](../deploy/authentication.md). Separately, an
+enabled OIDC deployment can JIT-provision ordinary accounts under its explicit
+domain policy; that path is owned by
+[enterprise identity and access](enterprise-identity-and-access.md).
 
 ## 6. Out Of Scope
 
 - Full Helm chart as the first required deliverable.
 - Multi-region deployment.
 - HA MySQL design.
-- Enterprise SSO.
+- Enterprise SSO in this deployment-loop record; the browser OIDC flow is now
+  implemented under the separate
+  [enterprise identity and access](enterprise-identity-and-access.md) design.
 - Billing.
 - Advanced secrets manager integration.
 - A policy or approval platform beyond the shipped audit trail and governance

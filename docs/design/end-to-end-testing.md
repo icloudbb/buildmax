@@ -18,9 +18,9 @@
 
 ## Status
 
-- roadmap_priority: `R2` — the two remaining deployment paths supply lifecycle
-  evidence for the recovery priority in [../ROADMAP.md](../ROADMAP.md); the
-  completed local productivity work does not form a separate roadmap item
+- roadmap_priority: `R2` — the deployed lifecycle probes supply evidence for
+  the recovery priority in [../ROADMAP.md](../ROADMAP.md); the completed local
+  productivity work does not form a separate roadmap item
 - status: `in progress` — §9 steps 1, 2, 3, 5, and 6 are done: the model harness of
   §4 is `internal/testsupport/mockllm` and serves the deployment smokes too; the
   CLI suite covers print mode, answers an approval on a pseudo-terminal, and
@@ -38,9 +38,12 @@
   in the smoke. Step 5 landed the Desktop bridge, including rewind and fork,
   and CI now packages and launch-smokes the desktop app on macOS and Windows.
   The smoke proves that the packaged process starts and stays alive briefly; it
-  does not drive or visually inspect the native window. Cancellation (§6.2) and
-  failure recovery (§6.3) have both landed since. Open: the partial-output
-  survival half of cancellation that §6.2 leaves for later
+  does not drive or visually inspect the native window. Cancellation (§6.2),
+  graceful worker-loss recovery (§6.3), database degradation/recovery (§6.4),
+  and object-storage readiness degradation/recovery (§6.5) have landed since.
+  Open in this record: the partial-output survival half of cancellation that
+  §6.2 leaves for later. Broader candidate-only lifecycle gaps stay in the
+  [verification program](verification-program.md) and Beta readiness record
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;

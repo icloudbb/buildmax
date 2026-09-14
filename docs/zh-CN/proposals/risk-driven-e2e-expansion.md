@@ -2,7 +2,7 @@
 
 > **翻译说明：** 本文是[英文原文](../../proposals/risk-driven-e2e-expansion.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 >
-> **受众：** 维护者、贡献者、发布运维人员与验证作者 · **状态：** 提案 — 讨论中
+> **受众：** 维护者、贡献者、发布运维人员与验证作者 · **状态：** 提案 — 讨论中；本提案中的优雅 worker 丢失与依赖 readiness kind 探针已经交付，其余增量与候选证据仍待完成
 >
 > **开启日期：** 2026-09-13
 
@@ -44,8 +44,8 @@ BuildMax 已经拥有覆盖面较广的确定性端到端基线。当前的开�
 建议批准一个**风险驱动的部署生命周期增量**，遵循四条规则：
 
 1. 不为增加浏览器测试广度而继续扩张 Portal CRUD 与表现层 happy path。
-2. 为 worker 丢失、Server 重启与重连、依赖拒绝与恢复，以及已有部分工作的取消
-   添加确定性部署用例。
+2. 把已交付的优雅 worker 丢失与依赖 readiness 用例保留为回归，再补充 Server
+   重启/重连、worker 写拒绝与已有部分工作的取消。
 3. 针对候选产物验证受支持的 worker 契约，包括必须 fail-closed 的负向路径。
 4. 每个新增用例只绑定一个关键旅程、一个可独立观测的结果和一个证据包。测试数量
    不是验收指标。
@@ -67,12 +67,14 @@ BuildMax 已经拥有覆盖面较广的确定性端到端基线。当前的开�
 - Portal 套件覆盖认证、路由、Space 切换与角色、Task、Continue 与 Retry、Workflow、
   文件、插件、管理、审计、响应式布局、可访问性和依赖状态呈现；
 - Compose 与 kind smoke 覆盖常规 direct/managed 执行、存储、真实 worker、Artifact
-  读取、Retry、授权拒绝、取消与基础 Bash confinement 探针。
+  读取、Retry、授权拒绝、取消、基础 Bash confinement 探针、优雅 worker 丢失，以及
+  运行时 MySQL/对象存储 readiness 降级与恢复。
 
 这套基线留下的是另一类风险。一次成功运行不能证明进程消失、依赖拒绝操作，或持久
 结果必须跨重启保留时系统的行为。路线图已将候选 worker 证明、持久协调与生命周期
-恢复列为 R0–R2。Beta 就绪记录中的 worker 丢失、数据库中断、存储拒绝、成对恢复、
-升级、回滚和凭证轮换证据仍全部为空。
+恢复列为 R0–R2。仓库现在已经有优雅 worker 丢失常见路径，以及 MySQL/对象存储
+readiness 中断恢复的可重复 kind 证据。这些是开发环境回归，不是已经填写的候选记录：
+Beta 就绪行仍为“未运行”，worker 写拒绝、成对恢复、升级、回滚与凭证轮换仍无对应证明。
 
 当前取消测试体现了这一区别：deployment smoke 在第一次模型调用上 stall，因此能
 证明取消到达实时执行并保持终态，但运行在取消前尚未产生输出或 Artifact，无法证明
@@ -95,8 +97,8 @@ BuildMax 已经拥有覆盖面较广的确定性端到端基线。当前的开�
   故障边界；
 - CLI 与 Desktop 快速套件必须足够便宜，才能留在日常测试循环；
 - 确定性模型 harness 必须无需凭证，且不得根据 prompt 推断回复；
-- Compose 是首选的自拥有故障注入环境；当断言依赖 ingress、Kubernetes Job 或
-  Pod 生命周期时必须使用 kind；
+- 使用能证明断言的最低自有故障注入环境。已交付的 readiness 探针依赖 Pod 网络、
+  Service 移除与 Kubernetes Job，因此必须使用 kind；不需要这些边界的故障仍可使用 Compose；
 - release-candidate 的恢复、升级、回滚、TLS 与凭证轮换需要外部生产形态依赖，
   不能由本地 mock stack 声称完成；
 - R1 Workflow reconciliation 已拥有权威恢复行为，并有真实 MySQL 重启证据；剩余
@@ -192,11 +194,12 @@ fixture API，但被断言的用户结果必须跨越用例命名的边界。
 
 ### 8.2 Kind 生命周期
 
-增加两个确定性旅程：
+两个确定性旅程中的第一个已经部分交付：
 
-1. **硬性 worker 丢失：** 在 claim 后、terminal report 前终止 Kubernetes worker
-   Job。liveness 路径在配置时限内把运行置为 `FAILED`，说明 worker 失联，保留可用
-   证据，不执行隐藏 Retry，并允许显式 Retry 创建新 TaskRun。
+1. **Worker 丢失：** 已交付的 kind 探针在 claim 后、terminal report 前终止
+   Kubernetes worker Job，并证明持久、可诊断的 `FAILED` 结果。Job 删除会发送
+   `SIGTERM`，所以这是 rollout/eviction/drain 的优雅路径；无声硬故障 liveness
+   reaper 仍由 store 层测试覆盖，不冒充部署证明。
 2. **Server 重启与重连：** 在 direct Task 或前台 turn 可观测期间重启 serving path。
    重连后，持久状态重建同一份工作，不产生重复 TaskRun、输出、Artifact、usage 或
    message-history 写入。
@@ -205,14 +208,16 @@ Workflow 变体以已交付的 Server-owned recovery loop 及其真实 MySQL 契
 端到端用例只补充这些测试无法证明的部分：部署后的 worker update、Server 重启和
 无重复执行的多副本恢复。
 
-### 8.3 Compose 依赖故障
+### 8.3 依赖故障
 
-增加以下定向控制：
+由于断言依赖 Pod 网络与 readiness 行为，以下两个定向控制已在 kind 中交付：
 
-- MySQL 暂时不可用，覆盖 readiness 失败及无需重建 Server 的恢复；
+- MySQL 暂时不可用，覆盖 readiness 失败及无需重建 Server 的恢复；以及
+- 对象存储读/readiness 拒绝后恢复，并保留原始 bucket。
+
+以下控制仍待完成：
+
 - 对象存储写拒绝，覆盖诚实的运行失败和不存在虚假可下载 Artifact；
-- 对象存储读拒绝后恢复，覆盖诚实的 readiness/System Status，以及原始对象随后
-  恢复可读；
 - 有工作进行时优雅关闭 Server，覆盖 drain 行为，以及重启后不存在搁置的运行记录。
 
 每个控制记录 arm 与 release 的时间。测试必须区分预期注入拒绝与注入前已经存在的
@@ -257,9 +262,10 @@ worker 失联，或依赖故障后 System Status 恢复。如果 deployment smok
 3. **增加部署后的 R1 拓扑证据。** 在候选拓扑中验证 worker update、重连、并发 turn、
    Redis 故障和已交付的 Workflow recovery loop。现有真实 MySQL 契约继续作为
    reconciliation 语义的权威。
-4. **增加 kind 生命周期旅程。** 实现硬性 worker 丢失、Server 重启、重连，以及
-   跨部署进程边界的 Workflow 恢复。
-5. **增加 Compose 依赖旅程。** 实现带确定性分类的 MySQL、对象存储与 shutdown 控制。
+4. **增加 kind 生命周期旅程。** 优雅 worker 丢失路径已交付；Server 重启、重连、
+   已部署拓扑中的 Workflow 恢复，以及任何可复现的无声硬故障证明仍待完成。
+5. **增加依赖旅程。** kind MySQL 与对象存储 readiness 中断/恢复探针已交付。
+   worker 对象存储写拒绝和负载下 shutdown 仍待实现，具体归属由其所需边界决定。
 6. **增加部分工作取消。** 落地最小的 run-scoped harness 能力和保留/禁止副作用断言。
 7. **演练固定版本候选。** 使用不可变 image digest 与外部依赖执行 Beta 就绪的运维、
    故障、恢复、升级、回滚或 cutover 及轮换流程。
@@ -320,6 +326,9 @@ skip 和未测试限制。
 
 建议增量在满足以下条件时完成：
 
+当前进度只满足下面与优雅 worker 丢失和依赖 readiness 有关的部分；它尚未完成本提案，
+也没有关闭任何候选记录行。
+
 - 验证矩阵把每个 V01–V20 旅程映射到确切证据或显式缺口；
 - 候选 worker 探针针对受支持 profile 覆盖 Bash enforcement、进程限制、Hook/MCP
   treatment、worker API isolation 与诚实诊断；
@@ -354,8 +363,9 @@ skip 和未测试限制。
 
 1. 第一批已采纳切片是否包含验证矩阵，还是把它作为已经接受的验证计划维护工作独立
    落地？
-2. Compose failure 用例应作为另一个 matrix cell 扩展 `deployment-smoke.yml`，还是
-   在具有不同耗时与 ownership 策略的独立 workflow 中运行？
+2. 剩余的 worker 写入与 shutdown 故障用例应作为另一个 matrix cell 扩展
+   `deployment-smoke.yml`，还是在具有不同耗时与 ownership 策略的独立 workflow 中
+   运行？readiness 中断探针已经归属 kind，因为它们断言 Pod 网络与 Service 行为。
 3. worker 开始模型执行前，可用的最小安全 run-scoped 模型控制标识符是什么？
 4. 第一个 Server 重启旅程应是 direct Task、前台 Conversation turn，还是两者？选择
    应由更大的未证明持久性风险驱动，而不是追求界面对称。

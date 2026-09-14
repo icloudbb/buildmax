@@ -41,11 +41,12 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
   Workflow reconciliation lease (due-run discovery plus concurrent
   claim/renew/release with takeover), Workflow revision advancement under
   edits and contention, and the Workflow recovery loop finishing a run stranded
-  by a lost callback also have real-MySQL coverage. Remaining database work
-  includes broader cross-Space
-  store cases, and fixtures for the candidate’s declared starting schema. The
-  unified matrix, expanded failure paths, and complete release rehearsal
-  described here are not implemented
+  by a lost callback also have real-MySQL coverage. Cross-Space store isolation,
+  quota windows, durable auth sessions, external identities, structured TaskRun
+  results, and trace-retention discovery are now covered too. Remaining database
+  work is any uncovered store-specific cross-Space path and fixtures for the
+  candidate's declared starting schema. The unified matrix, several failure
+  paths, and complete release rehearsal described here are not implemented
 - principle: implementation code, tests, and documentation can share the same
   mistaken assumption when all are generated from one context. Acceptance must
   therefore assert independently observable outcomes across public interfaces,
@@ -319,6 +320,13 @@ A deployment journey never stops at HTTP success. V08, for example, asserts:
 Failures must be controlled and reproducible. Randomly killing services without
 recording the injection point produces noise, not evidence.
 
+The kind deployment smoke now implements three bounded slices from this
+section: graceful worker loss during execution, runtime MySQL denial and
+recovery, and runtime object-storage readiness denial and recovery. The silent
+hard-loss reaper remains store-tested because Kubernetes Job deletion delivers
+`SIGTERM`; worker artifact writes under storage denial, Server restart/reconnect,
+partial-work cancellation, and graceful shutdown under load remain open.
+
 ### 6.1 Worker Lifecycle
 
 Add controls and cases for terminating a worker:
@@ -381,8 +389,8 @@ The scheduled matrix is:
 | Compose | managed | Managed gateway, per-run authorization, call ledger, and quota. |
 | kind | direct | Ingress, Kubernetes Job worker, pod boundary reporting, artifacts, and cancellation. |
 | kind | managed | Job worker token, managed gateway, ledger, and quota through the deployed path. |
-| Compose | failure | Worker, MySQL, storage, model, and shutdown injections from §6. |
-| kind | lifecycle | Cancellation, hard worker loss, Server restart, and reconnect. |
+| Compose | failure | Planned model, worker-write storage, and shutdown injections from §6. |
+| kind | lifecycle | Cancellation plus shipped graceful worker-loss and dependency-readiness probes; Server restart, reconnect, and silent hard-loss deployment proof remain open. |
 
 Workflow rules:
 
