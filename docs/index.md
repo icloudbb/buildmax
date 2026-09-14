@@ -177,3 +177,5 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: SSO account linking](changelog/added/oidc-account-linking.md) · 中文：—
 - [English: Workflow step output schema](changelog/added/workflow-step-output-schema.md) · 中文：—
 - [English: Cross-origin sign-in CORS credentials](changelog/fixed/cors-credentials-cross-origin.md) · 中文：—
+- [English: Portal reload Space fallback](changelog/fixed/portal-reload-space-fallback.md) · 中文：—
+- [English: Compose single-origin gateway](changelog/changed/compose-single-origin-gateway.md) · 中文：—
