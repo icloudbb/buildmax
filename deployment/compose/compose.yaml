@@ -119,6 +119,15 @@ services:
       # split-origin setup would be blocked as cross-site. The gateway, not the
       # Portal, owns the published port.
       BUILDMAX_API_BASE: /
+    healthcheck:
+      # So the gateway (and `up --wait`) start only once nginx is actually
+      # serving; otherwise the gateway can proxy to a not-yet-ready Portal and
+      # return 502 to the first request.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
 
   # One origin for the browser: it serves the Portal and proxies the API, so the
   # session cookie and its same-origin check work. The kind reference does this
@@ -126,9 +135,13 @@ services:
   gateway:
     image: nginx:alpine-slim
     restart: unless-stopped
+    # Healthy, not just started: nginx resolves its upstreams at boot and a
+    # request that arrives before the Portal serves would 502.
     depends_on:
-      - server
-      - portal
+      server:
+        condition: service_healthy
+      portal:
+        condition: service_healthy
     volumes:
       - ./gateway.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
