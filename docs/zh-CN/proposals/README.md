@@ -33,7 +33,7 @@
 | 提案 | Primary domain | 问题 | 目前已构建的内容 |
 |---|---|---|---|
 | [风险驱动的端到端验证扩展](risk-driven-e2e-expansion.md) | 验证 | 哪一小组新增端到端旅程最能降低剩余 Beta 风险，以及每个旅程应由哪一层边界证明？ | 正常路径覆盖已较广；定向 worker 丢失、重启、依赖拒绝、部分工作取消与统一证据仍待完成 |
-| [企业能力与商业边界备忘录](enterprise-capabilities-and-commercial-boundaries.md) | 运维与部署 | 企业部署需要哪些能力，社区、付费扩展与服务可以如何划分？ | 仅记录讨论；链接既有基础与提案，尚未批准企业版 |
+| [企业功能要求盘点](enterprise-capability-requirements.md) | 运维与部署 | 企业部署可能需要哪些候选要求，应以什么证据逐项验证？ | 仅盘点要求；关联既有基础，不定义企业版或功能边界 |
 | [单一维护者的 Agent 开发工作流](single-maintainer-agent-development.md) | 验证 | 一位维护者如何借助编码 Agent 提升被接受的开发吞吐量，同时不成为工作流瓶颈？ | 支撑流程的构件已经存在，但就绪性复核、租约、变更范围验证与独立验收尚未形成闭环 |
 | [系统管理操作](system-administration-operations.md) | 运维与部署 | 运维 CLI 与 Portal 应如何为管理和运行时健康提供安全且一致的结果？ | 核心管理界面已交付；事务审计、CLI Session 对齐、配额分配与更丰富的运行时操作仍待完成 |
 | [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md) | 信任与安全 | 交互式、原生与无人值守客户端应获得哪些凭证？ | Session 链的列出与撤销已交付；显式状态、到期、claim、安全存储与自助管理仍待完成 |

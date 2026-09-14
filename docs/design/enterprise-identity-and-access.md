@@ -33,7 +33,7 @@ Related: [roadmap](../ROADMAP.md) R5,
 [Space membership lifecycle](space-membership-lifecycle.md),
 [system administration](system-administration.md),
 [client sessions and API credentials](../proposals/client-sessions-and-api-credentials.md), and
-[enterprise capabilities](../proposals/enterprise-capabilities-and-commercial-boundaries.md).
+[enterprise requirements inventory](../proposals/enterprise-capability-requirements.md).
 
 ## Contents
 
@@ -847,9 +847,9 @@ and are still missing:
    models in the first customer journey? If yes, choose browser loopback or
    device authorization from actual environment constraints before accepting
    Portal-only delivery.
-6. **Commercial boundary.** Whether SSO is community or paid functionality is
-   deliberately left to the enterprise-capabilities proposal and cannot change
-   the security or interoperability bar here.
+6. **Requirement scope.** Which target deployment outcomes need SSO beyond the
+   accepted Portal browser slice? The enterprise-requirements inventory can
+   guide discovery but cannot change the security or interoperability bar here.
 7. **Rate limiting.** Which shared limiter protects the remaining local login
    and OIDC transaction endpoints in the supported topology? Until answered,
    current external rate-limiting guidance remains mandatory.

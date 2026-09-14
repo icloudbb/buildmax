@@ -27,6 +27,10 @@ an English page, update its `zh/` counterpart in the same pull request.
 | `design/` | Someone asking "why is it like this" | Semantic design records browsed by domain and marked by lifecycle |
 | `proposals/` | Someone evaluating a possible future direction | Exploratory cross-cutting papers that are not committed work |
 
+[`docs/index.md`](../index.md) is the complete, bilingual file directory for
+compact and mobile browsing. Keep `docs/README.md` as the task-oriented landing
+page rather than duplicating the complete inventory there.
+
 The test for where a document belongs is **who is stuck without it**, not what
 kind of document it is.
 
@@ -228,6 +232,7 @@ the build on the ways documentation rots silently:
 | Test | Fails when |
 |---|---|
 | `TestDocsLinksResolve` | A relative markdown link points at a file that does not exist |
+| `TestDocsIndexCoversEveryDocument` | A Markdown file under `docs/` is missing from the [single-page index](../index.md) |
 | `TestEnvVarsDocumented` | `config.EnvVars()` gains a variable missing from [reference/configuration.md](../reference/configuration.md) |
 | `TestToolNamesDocumented` | A tool name constant is missing from [manual/tools.md](../../manual/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | A tool declared in `internal/tool/names.go` is missing from the contributor [tool inventory](architecture/tools.md) |
