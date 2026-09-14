@@ -224,8 +224,13 @@ CI 提供固定版本的 `mysql:8.0` 服务。默认测试在没有 DSN 时仍�
 角色变更、所有权转移和成员级恢复均已实现。注册默认关闭；创建账号本身不发放凭证。
 每次登录都会开启一个持久 Session（`auth_session`），请求守卫在每次调用时都会检查它，
 因此登出、管理员撤销和禁用会在访问令牌较短的寿命之内、而不是等到过期时让一个已签发的
-访问令牌停止；Session 还带有一个绝对寿命。SSO 尚未实现。
-参见[身份服务](../../internal/service/identity/account.go)与
+访问令牌停止；Session 还带有一个绝对寿命。基于 OpenID Connect 的企业登录已实现：
+部署配置一个 `oidc` 块（首个支持的提供方为 Okta），一次已验证的登录按 `(issuer, subject)`
+关联到账号——复用已有链接、以已验证邮箱关联运维创建的账号，或在 `allowed_email_domains`
+范围内即时创建账号。原生密码与登录码登录由 `local_login`（`all`、`system_admins`、`off`）
+独立管控。固定的真实 Okta 端到端与密钥/密钥轮换演练尚未完成。
+参见[身份服务](../../internal/service/identity/account.go)、
+[OIDC provider](../../internal/infra/oidc/provider.go)与
 [Space 服务](../../internal/service/space/service.go)。
 
 `buildmax admin` 提供经过身份认证的管理员、账号和模型目录操作；

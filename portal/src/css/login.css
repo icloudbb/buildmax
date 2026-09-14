@@ -113,3 +113,40 @@
 .login-page__link:hover {
   color: var(--color-text);
 }
+
+.login-page__sso {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 1rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.login-page__sso:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.login-page__sso:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-page__divider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+.login-page__divider::before,
+.login-page__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}

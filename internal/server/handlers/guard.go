@@ -153,12 +153,16 @@ func (h *Handler) terminalListeners(ctx context.Context, info coretask.RunTermin
 
 // authHandler builds the session routes from the fields they need.
 func (h *Handler) buildAuthHandler() *authroutes.Handler {
-	return authroutes.New(authroutes.Config{
+	cfg := authroutes.Config{
 		JWTSecret:            h.cfg.JWTSecret,
 		AllowSignup:          h.cfg.AllowSignup,
 		LocalLogin:           h.cfg.LocalLogin,
 		OIDCEnabled:          h.cfg.OIDCEnabled,
 		OIDCDisplayName:      h.cfg.OIDCDisplayName,
+		OIDCSessionMaxAge:    h.cfg.OIDCSessionMaxAge,
+		Provisioning:         h.cfg.OIDCProvisioning,
+		AllowedEmailDomains:  h.cfg.OIDCAllowedEmailDomains,
+		PublicBaseURL:        h.cfg.PublicBaseURL,
 		DefaultQuotaTier:     h.cfg.DefaultQuotaTier,
 		AccessTokenTTL:       h.cfg.AccessTokenTTL,
 		RefreshTokenTTL:      h.cfg.RefreshTokenTTL,
@@ -169,8 +173,16 @@ func (h *Handler) buildAuthHandler() *authroutes.Handler {
 		Passwords:            h.cfg.PasswordStore,
 		RefreshTokens:        h.cfg.RefreshTokenStore,
 		Sessions:             h.cfg.AuthSessionStore,
+		ExternalIdentities:   h.cfg.ExternalIdentityStore,
+		Grants:               h.cfg.SystemGrantStore,
 		Audit:                h.cfg.Audit,
-	})
+	}
+	// Assign the provider only when one exists, so a nil *oidc.Provider is not
+	// wrapped in a non-nil OIDCFlow interface the handler would then call.
+	if h.cfg.OIDCProvider != nil {
+		cfg.OIDC = h.cfg.OIDCProvider
+	}
+	return authroutes.New(cfg)
 }
 
 // buildAccountHandler builds the account surface: the routes the acting subject

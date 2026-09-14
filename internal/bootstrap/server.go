@@ -540,12 +540,14 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 	// server from starting. Its health is reported to the admin system view apart
 	// from the readiness probes, because an IdP fetch is retryable.
 	var oidcStatus admin.OIDCStatusFunc
+	var oidcProvider *infraoidc.Provider
 	if sc.OIDC.Enabled {
-		provider := infraoidc.New(infraoidc.Config{
+		oidcProvider = infraoidc.New(infraoidc.Config{
 			Issuer:       sc.OIDC.Issuer,
 			ClientID:     sc.OIDC.ClientID,
 			ClientSecret: sc.OIDC.ClientSecret,
 		})
+		provider := oidcProvider
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
@@ -558,6 +560,10 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			return st.Available, st.LastRefresh, st.LastError
 		}
 	}
+	oidcSessionMaxAge := sc.OIDC.SessionMaxAge
+	if oidcSessionMaxAge <= 0 {
+		oidcSessionMaxAge = config.OIDCSessionMaxAgeDefault
+	}
 	cfg := httpserver.Config{
 		Addr: fmt.Sprintf(":%d", port),
 		// The worker control API is served on its own listener, off the public
@@ -565,19 +571,23 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		WorkerAddr: sc.WorkerAPI.Listen,
 		WorkerTLS:  workerTLS,
 		Auth: httpserver.AuthConfig{
-			JWTSecret:            jwtSecret,
-			AllowSignup:          sc.AllowSignup,
-			LocalLogin:           sc.LocalLoginMode(),
-			OIDCEnabled:          sc.OIDC.Enabled,
-			OIDCDisplayName:      sc.OIDC.DisplayName,
-			CORSOrigin:           sc.CORSOrigin,
-			PublicBaseURL:        sc.PublicBaseURL,
-			QuotaService:         quotaService,
-			DefaultQuotaTier:     sc.DefaultQuotaTier,
-			AccessTokenTTL:       sc.AccessTokenTTL,
-			RefreshTokenTTL:      sc.RefreshTokenTTL,
-			RefreshRotationGrace: sc.RefreshRotationGrace,
-			SessionAbsoluteTTL:   sc.SessionAbsoluteTTL,
+			JWTSecret:               jwtSecret,
+			AllowSignup:             sc.AllowSignup,
+			LocalLogin:              sc.LocalLoginMode(),
+			OIDCEnabled:             sc.OIDC.Enabled,
+			OIDCDisplayName:         sc.OIDC.DisplayName,
+			OIDCProvider:            oidcProvider,
+			OIDCSessionMaxAge:       oidcSessionMaxAge,
+			OIDCProvisioning:        sc.OIDC.Provisioning,
+			OIDCAllowedEmailDomains: sc.OIDC.AllowedEmailDomains,
+			CORSOrigin:              sc.CORSOrigin,
+			PublicBaseURL:           sc.PublicBaseURL,
+			QuotaService:            quotaService,
+			DefaultQuotaTier:        sc.DefaultQuotaTier,
+			AccessTokenTTL:          sc.AccessTokenTTL,
+			RefreshTokenTTL:         sc.RefreshTokenTTL,
+			RefreshRotationGrace:    sc.RefreshRotationGrace,
+			SessionAbsoluteTTL:      sc.SessionAbsoluteTTL,
 		},
 		Stores: httpserver.StoresConfig{
 			UserStore:                st,

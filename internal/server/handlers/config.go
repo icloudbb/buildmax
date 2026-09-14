@@ -19,6 +19,7 @@ import (
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
+	infraoidc "github.com/icloudbb/buildmax/internal/infra/oidc"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	accountroutes "github.com/icloudbb/buildmax/internal/server/handlers/account"
 	"github.com/icloudbb/buildmax/internal/server/handlers/admin"
@@ -59,6 +60,16 @@ type Config struct {
 	// They carry no secret: the issuer, client, and policy stay server-side.
 	OIDCEnabled     bool
 	OIDCDisplayName string
+	// OIDCProvider drives the browser sign-in flow. Nil when SSO is not
+	// configured. OIDCSessionMaxAge, OIDCProvisioning, and OIDCAllowedEmailDomains
+	// parameterize the session ceiling and just-in-time provisioning.
+	OIDCProvider            *infraoidc.Provider
+	OIDCSessionMaxAge       time.Duration
+	OIDCProvisioning        string
+	OIDCAllowedEmailDomains []string
+	// PublicBaseURL is the externally reachable origin the OIDC redirect URI and
+	// post-login Portal redirect are built from.
+	PublicBaseURL string
 
 	// Token lifetimes. Zero means the model package's default. The access
 	// token is signed and unstored, so its lifetime is the window in which a
