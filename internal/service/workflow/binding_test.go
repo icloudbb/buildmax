@@ -62,6 +62,39 @@ func TestParseDefinition_ValidatesBindings(t *testing.T) {
 	}
 }
 
+func TestParseDefinition_ValidatesOutputSchema(t *testing.T) {
+	cases := []struct {
+		name    string
+		raw     string
+		wantErr bool
+	}{
+		{
+			name: "absent output_schema is free text",
+			raw:  `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+		},
+		{
+			name: "schema in the supported subset",
+			raw:  `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","output_schema":{"type":"object","additionalProperties":false,"properties":{"n":{"type":"integer"}},"required":["n"]}}]}`,
+		},
+		{
+			name:    "schema outside the subset is rejected",
+			raw:     `{"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","output_schema":{"type":"string","pattern":"x"}}]}`,
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parseDefinition(tc.raw)
+			if tc.wantErr && !errors.Is(err, ErrInvalidOutputSchema) {
+				t.Fatalf("err = %v, want ErrInvalidOutputSchema", err)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("err = %v, want nil", err)
+			}
+		})
+	}
+}
+
 func TestBuildWorkflowTaskInput_LabelsBoundOutputAsUntrusted(t *testing.T) {
 	agent := &agentdef.Agent{Name: "Writer", Description: "writes", Instructions: "Follow the plan."}
 	input := buildWorkflowTaskInput(agent, "Write the report.", []boundOutput{

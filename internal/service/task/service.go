@@ -79,6 +79,10 @@ type CreateTaskCmd struct {
 	// a replayed or concurrent dispatch under the same key resolves to the one
 	// task instead of a duplicate. Empty for ordinary CreateTask callers.
 	AdmissionKey string
+	// OutputSchema is a JSON Schema (shared subset) the task's runs must satisfy
+	// as their final answer, or nil for free text. A Workflow node with an
+	// output_schema sets it. See docs/design/structured-output.md.
+	OutputSchema *string
 }
 
 // CreateRunCmd creates a new run on an existing task.
@@ -183,6 +187,7 @@ func (s *Service) buildCreateInput(ctx context.Context, cmd CreateTaskCmd) (*cor
 		IssueID:                   cmd.IssueID,
 		ScheduleID:                cmd.ScheduleID,
 		AdmissionKey:              cmd.AdmissionKey,
+		OutputSchema:              cmd.OutputSchema,
 	}
 	if selectedAgent != nil {
 		revision := selectedAgent.Revision

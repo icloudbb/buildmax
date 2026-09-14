@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -173,15 +174,23 @@ type StepRun struct {
 	Prompt            string `json:"prompt"`
 	// Bindings is the run's snapshot of this step's input bindings, taken at start
 	// so a later definition edit cannot change what an in-flight step receives.
-	Bindings      []StepBinding `json:"bindings,omitempty"`
-	Status        string        `json:"status"`
-	TaskID        *string       `json:"task_id,omitempty"`
-	TaskRunID     *string       `json:"task_run_id,omitempty"`
-	OutputSummary *string       `json:"output_summary,omitempty"`
-	ErrorMessage  *string       `json:"error_message,omitempty"`
-	CreatedAt     time.Time     `json:"created_at"`
-	StartedAt     *time.Time    `json:"started_at,omitempty"`
-	EndedAt       *time.Time    `json:"ended_at,omitempty"`
+	Bindings []StepBinding `json:"bindings,omitempty"`
+	// OutputSchema is the run's snapshot of this step's output schema, taken at
+	// start so a later definition edit cannot change what an in-flight step must
+	// satisfy. Nil for a free-text step.
+	OutputSchema  *string `json:"output_schema,omitempty"`
+	Status        string  `json:"status"`
+	TaskID        *string `json:"task_id,omitempty"`
+	TaskRunID     *string `json:"task_run_id,omitempty"`
+	OutputSummary *string `json:"output_summary,omitempty"`
+	// Structured is the validated structured-output value the accepted run
+	// produced, as JSON text. Nil for a free-text step, or when the value did not
+	// validate (which fails the step).
+	Structured   *string    `json:"structured,omitempty"`
+	ErrorMessage *string    `json:"error_message,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	StartedAt    *time.Time `json:"started_at,omitempty"`
+	EndedAt      *time.Time `json:"ended_at,omitempty"`
 }
 
 // Definition is the parsed structure of a workflow definition JSON.
@@ -200,6 +209,12 @@ type DefinitionStep struct {
 	// bound output reaches the Task as labelled untrusted context, never the
 	// agent's instructions.
 	Bindings []StepBinding `json:"bindings,omitempty"`
+	// OutputSchema, when set, is a JSON Schema (in the shared subset) the step's
+	// agent run must satisfy as its final answer. Publication rejects a schema
+	// outside the subset. The step succeeds only when the run returns a value
+	// that validates against it. Empty leaves the step free text. See
+	// docs/design/structured-output.md.
+	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
 }
 
 // StepBinding binds one earlier step's output into a downstream step's input
@@ -245,6 +260,7 @@ type CreateStepRunInput struct {
 	AgentRevision     int
 	Prompt            string
 	Bindings          []StepBinding
+	OutputSchema      *string
 	Status            string
 }
 
@@ -271,6 +287,7 @@ type TransitionStepRunInput struct {
 	TaskID         *string
 	TaskRunID      *string
 	OutputSummary  *string
+	Structured     *string
 	ErrorMessage   *string
 	StartedAt      *time.Time
 	EndedAt        *time.Time

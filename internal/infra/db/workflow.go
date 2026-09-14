@@ -137,15 +137,21 @@ type workflowStepRunRow struct {
 	Prompt            string `gorm:"type:text;not null"`
 	// Bindings is the run's snapshot of this step's input bindings as a JSON
 	// array, NULL when the step binds nothing.
-	Bindings      *string    `gorm:"type:text"`
-	Status        string     `gorm:"type:varchar(32);not null"`
-	TaskID        *uint64    `gorm:"column:task_id;index"`
-	TaskRunID     *uint64    `gorm:"column:task_run_id;index"`
-	OutputSummary *string    `gorm:"type:text"`
-	ErrorMessage  *string    `gorm:"type:text"`
-	CreatedAt     time.Time  `gorm:"autoCreateTime"`
-	StartedAt     *time.Time `gorm:""`
-	EndedAt       *time.Time `gorm:""`
+	Bindings *string `gorm:"type:text"`
+	// OutputSchema is the run's snapshot of this step's output schema (JSON text),
+	// NULL for a free-text step.
+	OutputSchema  *string `gorm:"type:text"`
+	Status        string  `gorm:"type:varchar(32);not null"`
+	TaskID        *uint64 `gorm:"column:task_id;index"`
+	TaskRunID     *uint64 `gorm:"column:task_run_id;index"`
+	OutputSummary *string `gorm:"type:text"`
+	// Structured is the validated structured-output value the accepted run
+	// produced, as JSON text; NULL for a free-text step or a failed validation.
+	Structured   *string    `gorm:"type:text"`
+	ErrorMessage *string    `gorm:"type:text"`
+	CreatedAt    time.Time  `gorm:"autoCreateTime"`
+	StartedAt    *time.Time `gorm:""`
+	EndedAt      *time.Time `gorm:""`
 }
 
 func (workflowStepRunRow) TableName() string { return "workflow_step_run" }
@@ -273,8 +279,10 @@ func toWorkflowStepRun(row *workflowStepRunReadRow) *coreworkflow.StepRun {
 		AgentRevision:     row.Row.AgentRevision,
 		Prompt:            row.Row.Prompt,
 		Bindings:          decodeStepBindings(row.Row.Bindings),
+		OutputSchema:      row.Row.OutputSchema,
 		Status:            row.Row.Status,
 		OutputSummary:     row.Row.OutputSummary,
+		Structured:        row.Row.Structured,
 		ErrorMessage:      row.Row.ErrorMessage,
 		CreatedAt:         row.Row.CreatedAt,
 		StartedAt:         row.Row.StartedAt,
@@ -677,6 +685,7 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 				AgentRevision:     steps[i].AgentRevision,
 				Prompt:            steps[i].Prompt,
 				Bindings:          encodeStepBindings(steps[i].Bindings),
+				OutputSchema:      steps[i].OutputSchema,
 				Status:            steps[i].Status,
 				CreatedAt:         now,
 			}
@@ -759,6 +768,13 @@ func stepTransitionUpdates(ctx context.Context, tx *gorm.DB, in coreworkflow.Tra
 			updates["output_summary"] = nil
 		} else {
 			updates["output_summary"] = *in.OutputSummary
+		}
+	}
+	if in.Structured != nil {
+		if *in.Structured == "" {
+			updates["structured"] = nil
+		} else {
+			updates["structured"] = *in.Structured
 		}
 	}
 	if in.ErrorMessage != nil {

@@ -200,6 +200,7 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		StartedAt:        req.StartedAt,
 		EndedAt:          req.EndedAt,
 		Output:           req.Output,
+		Structured:       req.Structured,
 		ErrorMessage:     req.ErrorMessage,
 		SessionID:        req.SessionID,
 		PromptTokens:     req.PromptTokens,

@@ -63,9 +63,12 @@ OpenAI Chat 与 Responses 用 `response_format` `json_schema`、Anthropic 用单
 强制工具、Ollama 用 `format`——并且 Client 会对候选值统一校验一次（即便 native）。
 一次运行通过 `RunPromptOpts.Output`/`RunLoopOpts.Output` 请求它：循环自由运行，
 当模型给出无工具调用的答案后，运行时再重发一次受约束的调用把这个已定型的答案
-渲染成值，在 `RunResult.Structured` 上返回。将该值持久化到 TaskRun 以及 Workflow
-消费方仍待完成（[结构化输出](design/结构化输出.md)第 4 阶段），已推迟的 prompted
-兜底亦然。工具参数的 JSON schema 是另一项能力；参见
+渲染成值，在 `RunResult.Structured` 上返回。Workflow 的 `agent_task` 步骤会
+消费它：步骤可声明 `output_schema`（超出子集则发布期拒绝），步骤的 Task 携带
+它使运行受约束，校验后的值持久化到 TaskRun 并折到步骤运行上，且步骤只在运行
+返回了通过校验的值时才成功——否则步骤失败。仍待完成：类型化 `/structured/...`
+路由与规划器（自适应 Workflow）、Portal 对 `output_schema` 的步骤表单编辑器,
+以及已推迟的 prompted 兜底。工具参数的 JSON schema 是另一项能力；参见
 [LLM 契约](../../internal/core/llm/llm.go)。
 
 ## Task、结果与工作区连续性

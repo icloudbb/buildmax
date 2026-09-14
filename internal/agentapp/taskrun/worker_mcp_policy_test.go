@@ -49,7 +49,7 @@ func TestWorkerRunRejectsStdioMCPBeforeModelCall(t *testing.T) {
 
 	run := &coretask.Run{ID: "run1", Input: "do the work"}
 	_, err = runAgentTask(ctx, run, dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome,
-		"sid-worker", nil, model, ManagedInference{}, nil, "", "", nil, nil, "", "", nil)
+		"sid-worker", nil, model, ManagedInference{}, nil, "", "", nil, nil, "", "", nil, nil)
 	if err == nil {
 		t.Fatal("worker run with a stdio MCP server must fail")
 	}

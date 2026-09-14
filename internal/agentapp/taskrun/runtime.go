@@ -6,6 +6,7 @@ package taskrun
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -49,9 +50,13 @@ type RunScope struct {
 
 // runResult is the evidence taskrun persists and reports after execution.
 type runResult struct {
-	EndTime          time.Time
-	OutputStr        string
-	Output           []byte
+	EndTime   time.Time
+	OutputStr string
+	Output    []byte
+	// Structured is the validated structured-output value as JSON text, nil when
+	// the run requested no output schema or the value did not validate. See
+	// docs/design/structured-output.md.
+	Structured       *string
 	PromptTokens     *int
 	CompletionTokens *int
 	// TracePath locates this run's durable trace inside run-global storage,
@@ -421,11 +426,12 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	}
 	agentRun, err := runAgentTask(ctx, run, dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID),
-		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants)
+		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants, task.OutputSchema)
 	result := runResult{
 		EndTime:          time.Now().UTC(),
 		OutputStr:        string(agentRun.output),
 		Output:           agentRun.output,
+		Structured:       agentRun.structured,
 		PromptTokens:     agentRun.promptTokens,
 		CompletionTokens: agentRun.completionTokens,
 		TracePath:        traceRelPath(dirs.runGlobal, agentRun.tracePath),
@@ -498,6 +504,7 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *coretask.Task, run
 // the same fields.
 type agentRunOutput struct {
 	output           []byte
+	structured       *string
 	promptTokens     *int
 	completionTokens *int
 	// tracePath is the trace file's absolute path on the worker's disk, before
@@ -539,7 +546,7 @@ func runProvenance(run *coretask.Run) agentapp.RunProvenance {
 	}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
@@ -602,7 +609,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 		// has to be closed and its lock dropped before anything reads the
 		// bundle back off disk.
 		defer app.CloseSession(sess)
-		out, err = app.RunPrompt(ctx, sess, run.Input, agentapp.RunPromptOpts{Stream: sink})
+		out, err = app.RunPrompt(ctx, sess, run.Input, agentapp.RunPromptOpts{Stream: sink, Output: outputSchemaFor(outputSchema)})
 		return err
 	})
 	if streamSender != nil {
@@ -623,10 +630,34 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 	completionTokens := out.CompletionTokens
 	return agentRunOutput{
 		output:           []byte(out.Reply),
+		structured:       structuredValueJSON(out.Structured),
 		promptTokens:     &promptTokens,
 		completionTokens: &completionTokens,
 		tracePath:        out.TracePath,
 	}, nil
+}
+
+// structuredValueJSON is the validated structured value as JSON text to persist,
+// or nil when the run requested no output schema or the model's answer did not
+// validate. Only a validated value is stored; a typed failure leaves the column
+// nil, which is how a Workflow node that required output learns the run did not
+// satisfy its schema (docs/design/structured-output.md §9).
+func structuredValueJSON(s *llm.Structured) *string {
+	if s == nil || s.Err != nil || len(s.Value) == 0 {
+		return nil
+	}
+	v := string(s.Value)
+	return &v
+}
+
+// outputSchemaFor turns the task's stored schema text into the run's output
+// request, or nil for a free-text task. The name is stable; providers that
+// require one use it (docs/design/structured-output.md §7).
+func outputSchemaFor(schema *string) *llm.OutputSchema {
+	if schema == nil || *schema == "" {
+		return nil
+	}
+	return &llm.OutputSchema{Name: "output", Schema: json.RawMessage(*schema)}
 }
 
 // traceRelPath converts a trace's absolute path into the key it is uploaded
@@ -742,9 +773,10 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 // docs/design/task-workspace-checkpoints.md §4.
 func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status coretask.RunStatus, errMessage string, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) error {
 	req := &workerclient.PatchTaskRunRequest{
-		Status:  string(status),
-		EndedAt: &result.EndTime,
-		Output:  &result.OutputStr,
+		Status:     string(status),
+		EndedAt:    &result.EndTime,
+		Output:     &result.OutputStr,
+		Structured: result.Structured,
 	}
 	if result.PromptTokens != nil {
 		req.PromptTokens = result.PromptTokens

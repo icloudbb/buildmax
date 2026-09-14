@@ -35,8 +35,10 @@ so a lost terminal callback or a Server restart no longer strands a run. A step
 may bind an earlier step's whole output into its input as labelled, untrusted
 context, so a multi-step Workflow can pass one Agent's result to the next, and
 the Portal step form authors those bindings directly rather than only through
-advanced JSON; the typed `nodes`/`bindings` contract, input and output schemas,
-and Workflow's use of structured output remain open.
+advanced JSON. A step may also declare an `output_schema`: its run is constrained
+to that schema, the validated value is persisted, and the step succeeds only on a
+value that validates (see the shared runtime below). The typed `nodes`/`bindings`
+contract, input schemas, and typed `/structured/...` routing remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including
@@ -90,9 +92,14 @@ the candidate once, even for a native provider. A run requests it through
 `RunPromptOpts.Output`/`RunLoopOpts.Output`: the loop runs free, and once the
 model produces a no-tool-call answer the runtime re-issues one constrained call
 to render that settled answer as the value, returned on `RunResult.Structured`.
-Persisting the value on a TaskRun and the Workflow consumer remain open (Phase 4
-of [structured output](design/structured-output.md)), as does the deferred
-prompted fallback. Tool-argument JSON schemas are a separate capability; see
+A Workflow `agent_task` step consumes it: a step may declare an `output_schema`
+(rejected at publication if outside the subset), the step's Task carries it so
+the run is constrained, the validated value is persisted on the TaskRun and
+folded onto the step run, and the step succeeds only when the run returned a
+value that validated — otherwise the step fails. Still open: typed `/structured/...`
+routing and planners (adaptive Workflow), the Portal step-form editor for
+`output_schema`, and the deferred prompted fallback. Tool-argument JSON schemas
+are a separate capability; see
 [`internal/core/llm/llm.go`](../internal/core/llm/llm.go).
 
 ## Tasks, Results, And Workspace Continuity

@@ -97,21 +97,27 @@ type Task struct {
 	// ScheduleID is an optional origin relation for a Task a recurring time
 	// trigger created. Like ConversationID and IssueID it is an origin, never the
 	// Task's ownership or authorization boundary.
-	ScheduleID            *string    `json:"schedule_id,omitempty"`
-	Status                string     `json:"status"`
-	Input                 string     `json:"input"`
-	Title                 string     `json:"title,omitempty"`
-	TitlePromptTokens     int        `json:"title_prompt_tokens,omitempty"`
-	TitleCompletionTokens int        `json:"title_completion_tokens,omitempty"`
-	Output                *string    `json:"output,omitempty"`
-	CreatedBy             string     `json:"created_by"`
-	CreatedAt             time.Time  `json:"created_at"`
-	StartedAt             *time.Time `json:"started_at,omitempty"`
-	EndedAt               *time.Time `json:"ended_at,omitempty"`
-	ErrorMessage          *string    `json:"error_message,omitempty"`
-	SessionID             *string    `json:"session_id,omitempty"`
-	LastRunID             *string    `json:"last_run_id,omitempty"`
-	AgentID               *string    `json:"agent_id,omitempty"`
+	ScheduleID            *string `json:"schedule_id,omitempty"`
+	Status                string  `json:"status"`
+	Input                 string  `json:"input"`
+	Title                 string  `json:"title,omitempty"`
+	TitlePromptTokens     int     `json:"title_prompt_tokens,omitempty"`
+	TitleCompletionTokens int     `json:"title_completion_tokens,omitempty"`
+	Output                *string `json:"output,omitempty"`
+	// OutputSchema is a JSON Schema (in the shared subset) that this Task's runs
+	// must satisfy as their final answer. Set by a caller that needs a
+	// machine-readable result — a Workflow node with an output_schema; nil for a
+	// free-text Task. It rides the Task because Continue reuses it across runs.
+	// See docs/design/structured-output.md.
+	OutputSchema *string    `json:"output_schema,omitempty"`
+	CreatedBy    string     `json:"created_by"`
+	CreatedAt    time.Time  `json:"created_at"`
+	StartedAt    *time.Time `json:"started_at,omitempty"`
+	EndedAt      *time.Time `json:"ended_at,omitempty"`
+	ErrorMessage *string    `json:"error_message,omitempty"`
+	SessionID    *string    `json:"session_id,omitempty"`
+	LastRunID    *string    `json:"last_run_id,omitempty"`
+	AgentID      *string    `json:"agent_id,omitempty"`
 	// WorkspaceHeadCheckpointID points at the latest checkpoint accepted as this
 	// Task's recoverable workspace: its initial seed, then each successful
 	// result. It is a database pointer among immutable checkpoints, never a
@@ -133,22 +139,27 @@ type Run struct {
 	// linear history. It is fixed when the run is created, so later updates to
 	// Task.LastRunID cannot change where this run restores its session from.
 	// Nil for the Task's first run.
-	PreviousTaskRunID *string    `json:"previous_task_run_id,omitempty"`
-	Input             string     `json:"input"`
-	CreatedBy         string     `json:"created_by,omitempty"`
-	CreatedByType     string     `json:"created_by_type,omitempty"`
-	TriggerSource     string     `json:"trigger_source,omitempty"`
-	Status            string     `json:"status"`
-	Output            *string    `json:"output,omitempty"`
-	ErrorMessage      *string    `json:"error_message,omitempty"`
-	StartedAt         *time.Time `json:"started_at,omitempty"`
-	EndedAt           *time.Time `json:"ended_at,omitempty"`
-	SessionID         *string    `json:"session_id,omitempty"`
-	WorkerType        string     `json:"worker_type,omitempty"`
-	K8sJobName        *string    `json:"k8s_job_name,omitempty"`
-	K8sJobCreatedAt   *time.Time `json:"k8s_job_created_at,omitempty"`
-	PromptTokens      *int       `json:"prompt_tokens,omitempty"`
-	CompletionTokens  *int       `json:"completion_tokens,omitempty"`
+	PreviousTaskRunID *string `json:"previous_task_run_id,omitempty"`
+	Input             string  `json:"input"`
+	CreatedBy         string  `json:"created_by,omitempty"`
+	CreatedByType     string  `json:"created_by_type,omitempty"`
+	TriggerSource     string  `json:"trigger_source,omitempty"`
+	Status            string  `json:"status"`
+	Output            *string `json:"output,omitempty"`
+	// Structured is the validated machine-readable answer as JSON text, set only
+	// when the run requested an output schema and the value validated. Nil for a
+	// free-text run, or when the model's answer did not satisfy the schema. See
+	// docs/design/structured-output.md.
+	Structured       *string    `json:"structured,omitempty"`
+	ErrorMessage     *string    `json:"error_message,omitempty"`
+	StartedAt        *time.Time `json:"started_at,omitempty"`
+	EndedAt          *time.Time `json:"ended_at,omitempty"`
+	SessionID        *string    `json:"session_id,omitempty"`
+	WorkerType       string     `json:"worker_type,omitempty"`
+	K8sJobName       *string    `json:"k8s_job_name,omitempty"`
+	K8sJobCreatedAt  *time.Time `json:"k8s_job_created_at,omitempty"`
+	PromptTokens     *int       `json:"prompt_tokens,omitempty"`
+	CompletionTokens *int       `json:"completion_tokens,omitempty"`
 	// TracePath locates this run's durable trace inside run-global storage,
 	// e.g. "traces/<session>/rt_….jsonl". Nil when no trace was written — the
 	// run failed before an agent started, or tracing was disabled.
@@ -284,6 +295,10 @@ type CreateInput struct {
 	// first call's task instead of a duplicate. See AdmitTask and
 	// docs/design/workflow-runtime.md §11.
 	AdmissionKey string
+	// OutputSchema is a JSON Schema (shared subset) the task's runs must satisfy
+	// as their final answer, or nil for free text. See
+	// docs/design/structured-output.md.
+	OutputSchema *string
 }
 
 // UpdateInput updates a task to the given status with optional fields.
@@ -318,6 +333,7 @@ type TransitionRunInput struct {
 	StartedAt        *time.Time
 	EndedAt          *time.Time
 	Output           *string
+	Structured       *string
 	ErrorMessage     *string
 	SessionID        *string
 	PromptTokens     *int
