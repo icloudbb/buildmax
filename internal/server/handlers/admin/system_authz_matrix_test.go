@@ -57,6 +57,8 @@ var adminRoutes = []adminCase{
 	{"GET", "/api/admin/users/{user_id}"},
 	{"POST", "/api/admin/users/{user_id}/login-code"},
 	{"PUT", "/api/admin/users/{user_id}/state"},
+	{"GET", "/api/admin/users/{user_id}/identities"},
+	{"DELETE", "/api/admin/users/{user_id}/identities/{identity_id}"},
 	{"GET", "/api/admin/users/{user_id}/sessions"},
 	{"DELETE", "/api/admin/users/{user_id}/sessions"},
 	{"DELETE", "/api/admin/users/{user_id}/sessions/{session_id}"},

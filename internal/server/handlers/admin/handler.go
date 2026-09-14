@@ -10,6 +10,7 @@ package admin
 
 import (
 	"net/http"
+	"time"
 
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
@@ -27,16 +28,17 @@ type Config struct {
 	JWTSecret        string
 	DefaultQuotaTier string
 
-	Users         coreidentity.UserStore
-	LoginCodes    coreidentity.LoginCodeStore
-	RefreshTokens coreidentity.RefreshTokenStore
-	Sessions      coreidentity.AuthSessionStore
-	Spaces        corespace.Store
-	Grants        coreidentity.SystemGrantStore
-	Audits        coreaudit.Store
-	Models        coregw.ModelStore
-	Schema        coreschema.Store
-	TaskRuns      coretask.RunStore
+	Users              coreidentity.UserStore
+	LoginCodes         coreidentity.LoginCodeStore
+	RefreshTokens      coreidentity.RefreshTokenStore
+	Sessions           coreidentity.AuthSessionStore
+	ExternalIdentities coreidentity.ExternalIdentityStore
+	Spaces             corespace.Store
+	Grants             coreidentity.SystemGrantStore
+	Audits             coreaudit.Store
+	Models             coregw.ModelStore
+	Schema             coreschema.Store
+	TaskRuns           coretask.RunStore
 
 	Quota *quota.Service
 	// Plugins publishes releases and manages catalog entries. Nil is a
@@ -53,7 +55,18 @@ type Config struct {
 	// internal/config so the decision about which fields may be shown lives
 	// next to the struct.
 	RedactedConfig any
+	// OIDCStatus reports the live SSO provider health for the system view. Nil
+	// means SSO is not configured. It is a closure so this package needs no
+	// import of the OIDC provider; bootstrap adapts the provider into it. Unlike
+	// a dependency probe, a degraded provider does not make the deployment
+	// not-ready: an IdP fetch is retryable and must not fail /readyz.
+	OIDCStatus OIDCStatusFunc
 }
+
+// OIDCStatusFunc reports the SSO provider's current health: whether discovery
+// has succeeded, when it last did, and the last error's message (already safe
+// to show).
+type OIDCStatusFunc func() (available bool, lastRefresh time.Time, lastError string)
 
 type Handler struct{ cfg Config }
 
@@ -87,6 +100,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Stored-flag transitions are a state sub-resource, not RPC actions. See
 	// the route conventions in docs/contribute/architecture/server.md
 	mux.HandleFunc("PUT /api/admin/users/{user_id}/state", h.setAdminUserStateHandler)
+	mux.HandleFunc("GET /api/admin/users/{user_id}/identities", h.listAdminUserIdentitiesHandler)
+	mux.HandleFunc("DELETE /api/admin/users/{user_id}/identities/{identity_id}", h.unlinkAdminUserIdentityHandler)
 	mux.HandleFunc("GET /api/admin/users/{user_id}/sessions", h.listAdminUserSessionsHandler)
 	mux.HandleFunc("DELETE /api/admin/users/{user_id}/sessions", h.revokeAdminUserSessionsHandler)
 	mux.HandleFunc("DELETE /api/admin/users/{user_id}/sessions/{session_id}", h.revokeAdminUserSessionHandler)

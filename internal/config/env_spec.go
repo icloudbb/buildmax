@@ -101,6 +101,7 @@ var envVars = []EnvVar{
 	{Name: EnvKeyBuildmaxMinIOSecretKey, Description: "Override for storage.minio.secret_key in server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxConversationAPIKey, Description: "Override for conversation.model.api_key in server.yaml", WorkerNeeds: true, DirectLLMOnly: true},
 	{Name: EnvKeyBuildmaxCoordinationRedisPassword, Description: "Override for coordination.redis.password in server.yaml; the multi-replica coordination backend"},
+	{Name: EnvKeyBuildmaxOIDCClientSecret, Description: "Override for oidc.client_secret in server.yaml; the confidential OIDC client's secret, injected at deploy time"},
 	{Name: EnvKeyBuildmaxCORSOrigin, Description: "Override for cors_origin in server.yaml; set where the Portal's host port is chosen"},
 	// The three model-selection overrides are read by the server, which decides
 	// the transport and resolves the catalog, and delivered to each worker per

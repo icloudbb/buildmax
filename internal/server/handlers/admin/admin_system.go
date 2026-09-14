@@ -64,6 +64,20 @@ type AdminSystemResponse struct {
 	TaskRuns           map[string]int `json:"task_runs"`
 	SystemAdmins       int            `json:"system_admins"`
 	ServerTime         time.Time      `json:"server_time"`
+	// OIDC is the live SSO provider health. Nil when SSO is not configured. It
+	// is separate from Dependencies because a degraded IdP does not make the
+	// deployment not-ready — the fetch is retryable.
+	OIDC *adminOIDCStatus `json:"oidc,omitempty"`
+}
+
+// adminOIDCStatus is what an operator reads to tell "SSO is off" from "SSO is on
+// but the IdP is unreachable right now". It carries no secret: the last error is
+// a go-oidc message, and issuer/client live in the redacted config view.
+type adminOIDCStatus struct {
+	Configured  bool       `json:"configured"`
+	Available   bool       `json:"available"`
+	LastRefresh *time.Time `json:"last_refresh,omitempty"`
+	LastError   string     `json:"last_error,omitempty"`
 }
 
 type adminSchemaMigration struct {
@@ -112,6 +126,17 @@ func (h *Handler) adminSystemHandler(w http.ResponseWriter, r *http.Request) {
 			out.Ready = false
 		}
 		out.Dependencies = append(out.Dependencies, adminDependency{Name: dep.Name, Status: status})
+	}
+
+	// SSO health is reported apart from the readiness dependencies: a momentarily
+	// unreachable IdP is retryable and must not make the deployment not-ready.
+	if h.cfg.OIDCStatus != nil {
+		available, lastRefresh, lastErr := h.cfg.OIDCStatus()
+		st := &adminOIDCStatus{Configured: true, Available: available, LastError: lastErr}
+		if !lastRefresh.IsZero() {
+			st.LastRefresh = &lastRefresh
+		}
+		out.OIDC = st
 	}
 
 	// Each remaining read is best-effort. A status page that returns 500

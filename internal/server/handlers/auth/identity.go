@@ -30,15 +30,21 @@ func (i jwtIssuer) Mint(userID, sessionID string, now time.Time) (string, time.D
 // handlers in this package build theirs.
 func (h *Handler) identityService() *identitysvc.Service {
 	return &identitysvc.Service{
-		Users:              h.cfg.Users,
-		Passwords:          h.cfg.Passwords,
-		LoginCodes:         h.cfg.LoginCodes,
-		RefreshTokens:      h.cfg.RefreshTokens,
-		Sessions:           h.cfg.Sessions,
-		Tokens:             jwtIssuer{secret: h.cfg.JWTSecret, ttl: h.accessTokenTTL()},
-		RefreshTTL:         h.refreshTokenTTL(),
-		RotationGrace:      h.refreshRotationGrace(),
-		SessionAbsoluteTTL: h.sessionAbsoluteTTL(),
-		Audit:              h.cfg.Audit,
+		Users:               h.cfg.Users,
+		Passwords:           h.cfg.Passwords,
+		LoginCodes:          h.cfg.LoginCodes,
+		RefreshTokens:       h.cfg.RefreshTokens,
+		Sessions:            h.cfg.Sessions,
+		ExternalIdentities:  h.cfg.ExternalIdentities,
+		Grants:              h.cfg.Grants,
+		LocalLogin:          h.cfg.LocalLogin,
+		Provisioning:        h.cfg.Provisioning,
+		AllowedEmailDomains: h.cfg.AllowedEmailDomains,
+		DefaultQuotaTier:    h.cfg.DefaultQuotaTier,
+		Tokens:              jwtIssuer{secret: h.cfg.JWTSecret, ttl: h.accessTokenTTL()},
+		RefreshTTL:          h.refreshTokenTTL(),
+		RotationGrace:       h.refreshRotationGrace(),
+		SessionAbsoluteTTL:  h.sessionAbsoluteTTL(),
+		Audit:               h.cfg.Audit,
 	}
 }

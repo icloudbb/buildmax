@@ -19,6 +19,7 @@ import (
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
+	infraoidc "github.com/icloudbb/buildmax/internal/infra/oidc"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	accountroutes "github.com/icloudbb/buildmax/internal/server/handlers/account"
 	"github.com/icloudbb/buildmax/internal/server/handlers/admin"
@@ -52,6 +53,23 @@ type Config struct {
 	// AllowSignup opens POST /api/auth/otp to self-registration. False — the
 	// zero value — means accounts are created by an operator.
 	AllowSignup bool
+	// LocalLogin gates native password/login-code sign-in: "all" (default),
+	// "system_admins", or "off". Advertised at GET /api/auth/methods.
+	LocalLogin string
+	// OIDCEnabled and OIDCDisplayName advertise SSO at GET /api/auth/methods.
+	// They carry no secret: the issuer, client, and policy stay server-side.
+	OIDCEnabled     bool
+	OIDCDisplayName string
+	// OIDCProvider drives the browser sign-in flow. Nil when SSO is not
+	// configured. OIDCSessionMaxAge, OIDCProvisioning, and OIDCAllowedEmailDomains
+	// parameterize the session ceiling and just-in-time provisioning.
+	OIDCProvider            *infraoidc.Provider
+	OIDCSessionMaxAge       time.Duration
+	OIDCProvisioning        string
+	OIDCAllowedEmailDomains []string
+	// PublicBaseURL is the externally reachable origin the OIDC redirect URI and
+	// post-login Portal redirect are built from.
+	PublicBaseURL string
 
 	// Token lifetimes. Zero means the model package's default. The access
 	// token is signed and unstored, so its lifetime is the window in which a
@@ -68,19 +86,20 @@ type Config struct {
 	SessionAbsoluteTTL time.Duration
 
 	// Stores
-	UserStore         coreidentity.UserStore
-	LoginCodeStore    coreidentity.LoginCodeStore
-	PasswordStore     coreidentity.PasswordStore
-	RefreshTokenStore coreidentity.RefreshTokenStore
-	AuthSessionStore  coreidentity.AuthSessionStore
-	SpaceStore        corespace.Store
-	WorkflowStore     coreworkflow.Store
-	AgentStore        agentdef.Store
-	IssueStore        coreissue.Store
-	IssueCommentStore coreissue.CommentStore
-	TaskStore         coretask.Store
-	TaskRunStore      coretask.RunStore
-	ScheduleStore     coreschedule.Store
+	UserStore             coreidentity.UserStore
+	LoginCodeStore        coreidentity.LoginCodeStore
+	PasswordStore         coreidentity.PasswordStore
+	RefreshTokenStore     coreidentity.RefreshTokenStore
+	AuthSessionStore      coreidentity.AuthSessionStore
+	ExternalIdentityStore coreidentity.ExternalIdentityStore
+	SpaceStore            corespace.Store
+	WorkflowStore         coreworkflow.Store
+	AgentStore            agentdef.Store
+	IssueStore            coreissue.Store
+	IssueCommentStore     coreissue.CommentStore
+	TaskStore             coretask.Store
+	TaskRunStore          coretask.RunStore
+	ScheduleStore         coreschedule.Store
 	// LLMCallStore reads the managed call ledger. Nil leaves the ledger
 	// unreadable over HTTP, which is what a deployment with no database has.
 	LLMCallStore             coregw.CallStore
@@ -160,6 +179,9 @@ type Config struct {
 	// admin status reports them so an operator sees what /readyz sees without
 	// needing to reach it.
 	DependencyProbes []admin.DependencyProbe
+	// OIDCStatus reports the live SSO provider health for the admin system view.
+	// Nil means SSO is not configured. Bootstrap adapts the provider into it.
+	OIDCStatus admin.OIDCStatusFunc
 	// RedactedConfig is the operator-facing view of server.yaml, built by
 	// internal/config so that the decision about which fields may be shown
 	// lives next to the struct. Nil means the deployment reports none.

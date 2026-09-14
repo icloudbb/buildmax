@@ -27,6 +27,20 @@ export interface OtpRequestResponse {
   message: string
 }
 
+/**
+ * Which ways in the deployment offers, from GET /api/auth/methods. It carries
+ * no issuer, client, or policy: only what the sign-in page needs to decide
+ * whether to show local inputs, an SSO button, or both.
+ */
+export interface AuthMethods {
+  /** "all", "system_admins", or "off". */
+  local_login: string
+  oidc: {
+    enabled: boolean
+    display_name?: string
+  }
+}
+
 /** Legacy: user is the top-level owner. Kept for API compatibility. */
 export interface ApiWorkspace {
   id: string

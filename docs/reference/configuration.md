@@ -73,6 +73,7 @@ value alone.
 | `BUILDMAX_STORAGE_MINIO_SECRET_KEY` | `storage.minio.secret_key` |
 | `BUILDMAX_CONVERSATION_MODEL_API_KEY` | `conversation.model.api_key` |
 | `BUILDMAX_COORDINATION_REDIS_PASSWORD` | `coordination.redis.password` |
+| `BUILDMAX_OIDC_CLIENT_SECRET` | `oidc.client_secret` |
 
 The split to aim for: **`server.yaml` carries shape and non-secret values; the
 environment carries credentials.** That is exactly how
@@ -766,6 +767,16 @@ log_level: info
 port: 5678
 jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in production
 # allow_signup: true                 # default false; accounts are created with `buildmax-server user create`
+# local_login: all                   # all (default) | system_admins (break-glass) | off; gates native password/code login
+# oidc:                              # corporate sign-in over OpenID Connect (Okta first); see docs/deploy/authentication.md
+#   enabled: true
+#   display_name: Okta
+#   issuer: https://example.okta.com  # https; the only URL trust root
+#   client_id: 0oaExampleClientId
+#   client_secret: ""                 # inject via BUILDMAX_OIDC_CLIENT_SECRET
+#   provisioning: jit                 # jit (default, needs allowed_email_domains) | existing_only
+#   allowed_email_domains: [example.com]
+#   session_max_age: 12h              # SSO session ceiling; default 12h
 access_token_ttl: 15m                # signed; the server checks the session it names each request, so this is the max replay window
 refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
 refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
@@ -884,6 +895,13 @@ buildmax-server user login-code alice@example.com
 The same code is how someone who forgot their password gets back in. Login
 attempts are not rate limited; see the warning in that document before exposing
 a server to an untrusted network.
+
+A deployment can also enable corporate sign-in over OpenID Connect with the
+`oidc` block (Okta is the first supported provider), and gate native login with
+`local_login` (`all`, `system_admins`, or `off`) independently of SSO. The
+client secret is injected through `BUILDMAX_OIDC_CLIENT_SECRET`. Setup and the
+account-linking rules are in
+[deploy/authentication.md](../deploy/authentication.md).
 
 The worker reads the same `server.yaml` and needs at minimum `worker.server_url`
 (or `BUILDMAX_SERVER_URL`), `workspaces_dir`, and the `storage` block — it talks

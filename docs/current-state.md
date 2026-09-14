@@ -325,8 +325,15 @@ creating an account does not itself issue a credential. Each login opens a
 durable session (`auth_session`) that the request guard checks every call, so
 logout, administrator revocation, and disablement stop an already-issued access
 token within its short lifetime rather than at expiry; sessions also carry an
-absolute lifetime. SSO is not implemented. See the
-[identity service](../internal/service/identity/account.go) and
+absolute lifetime. Corporate sign-in over OpenID Connect is implemented: a
+deployment configures an `oidc` block (Okta is the first supported provider), and
+a verified sign-in links to an account by `(issuer, subject)` — reusing an
+existing link, linking an operator-created account by verified email, or creating
+one just in time within `allowed_email_domains`. Native password and login-code
+sign-in are gated independently by `local_login` (`all`, `system_admins`, `off`).
+The pinned real-Okta end-to-end and key/secret-rotation drills are not yet done.
+See the [identity service](../internal/service/identity/account.go), the
+[OIDC provider](../internal/infra/oidc/provider.go), and the
 [Space service](../internal/service/space/service.go).
 
 `buildmax admin` provides authenticated administrator, account, and model-catalog

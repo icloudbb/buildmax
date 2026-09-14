@@ -84,6 +84,15 @@ func toAuditEvent(row *auditEventReadRow) *coreaudit.Event {
 
 // RecordAuditEvent appends one event.
 func (s *Store) RecordAuditEvent(ctx context.Context, in coreaudit.Event) error {
+	return writeAuditEvent(ctx, s.db.WithContext(ctx), in)
+}
+
+// writeAuditEvent inserts one audit row on the given handle, which may be a
+// transaction. It is what lets a state change and the record of it commit
+// together: an event written on the same tx as the change it describes cannot
+// lag behind or be lost while the change stands. RecordAuditEvent is the
+// best-effort, own-connection form; a caller that needs atomicity passes its tx.
+func writeAuditEvent(ctx context.Context, tx *gorm.DB, in coreaudit.Event) error {
 	publicID, err := util.NewPublicID()
 	if err != nil {
 		return err
@@ -92,7 +101,7 @@ func (s *Store) RecordAuditEvent(ctx context.Context, in coreaudit.Event) error 
 	// evidence, so an unresolvable space is not a reason to lose the record.
 	var spaceKey *uint64
 	if in.SpaceID != "" {
-		key, err := lookupKey(ctx, s.db, "space", in.SpaceID)
+		key, err := lookupKey(ctx, tx, "space", in.SpaceID)
 		if err != nil && !errors.Is(err, apierr.ErrNotFound) {
 			return err
 		}
@@ -119,7 +128,7 @@ func (s *Store) RecordAuditEvent(ctx context.Context, in coreaudit.Event) error 
 		Detail:     truncateDetail(in.Detail),
 		CreatedAt:  time.Now().UTC(),
 	}
-	return s.db.WithContext(ctx).Create(&row).Error
+	return tx.Create(&row).Error
 }
 
 // truncateDetail bounds the one free-text column. Detail is meant for a role

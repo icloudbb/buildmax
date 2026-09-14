@@ -36,6 +36,19 @@ const (
 	// enabling reverses the state and nothing else.
 	UserDisabled = "user.disabled"
 	UserEnabled  = "user.enabled"
+	// UserExternalIdentityLinked records a BuildMax account being bound to a
+	// verified identity at an external IdP — on a first SSO sign-in that matched
+	// an existing account by email, or as part of just-in-time provisioning. The
+	// detail names the issuer, never the subject or email: the trail says an
+	// account gained a corporate login, not which directory entry it was. Written
+	// in the same transaction as the link, because the record of who an account
+	// answers to should not be able to lag or be lost behind the change itself.
+	UserExternalIdentityLinked = "user.external_identity_linked"
+	// UserExternalIdentityUnlinked records an administrator removing such a link,
+	// which is permitted only while the account is disabled and is recorded
+	// atomically with the deletion. Unlinking removes the binding, never the
+	// account, its memberships, its work, or its history.
+	UserExternalIdentityUnlinked = "user.external_identity_unlinked"
 	// SessionsRevoked records every live session of one account being
 	// retired at once. It is separate from user.logout, which is a person
 	// ending their own.

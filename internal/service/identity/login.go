@@ -14,6 +14,7 @@ package identity
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -69,7 +70,24 @@ func (e *InvalidCredential) Error() string { return "invalid " + e.Method }
 const (
 	MethodPassword  = "password"
 	MethodLoginCode = "login_code"
+	// MethodOIDC opens a session from a verified SSO sign-in. There is no local
+	// credential; the (issuer, subject) association is the proof.
+	MethodOIDC = "oidc"
 )
+
+// Local-login modes. They mirror the config values; the service takes the
+// string so it stays free of the config package.
+const (
+	LocalLoginAll          = "all"
+	LocalLoginSystemAdmins = "system_admins"
+	LocalLoginOff          = "off"
+)
+
+// ErrLocalLoginNotAllowed means native password or login-code sign-in is not
+// available to this caller: the deployment turned it off, or restricted it to
+// System Administrators and this account is not one. It is one message for both
+// so it does not reveal whether the account holds a grant.
+var ErrLocalLoginNotAllowed = apierr.New(apierr.KindForbidden, "native login is not available")
 
 // TokenIssuer mints the access half of a session.
 type TokenIssuer interface {
@@ -88,6 +106,30 @@ type Service struct {
 	// already-issued access token, and the absolute expiry caps how long a login
 	// may live regardless of refresh activity.
 	Sessions coreidentity.AuthSessionStore
+
+	// ExternalIdentities links accounts to verified IdP identities. Nil when SSO
+	// is not configured, which is what the association path checks before running.
+	ExternalIdentities coreidentity.ExternalIdentityStore
+	// Provisioning decides a first sign-in with no linked account: ProvisioningJIT
+	// (create) or ProvisioningExistingOnly (refuse). Empty means jit.
+	Provisioning string
+	// AllowedEmailDomains bounds JIT provisioning: a verified email creates an
+	// account only when its domain is in this list, compared canonically and
+	// exactly. Required non-empty for jit; an empty list refuses rather than
+	// meaning "every domain".
+	AllowedEmailDomains []string
+	// DefaultQuotaTier is the tier a JIT account is created under, so a
+	// provisioned account matches an operator-created one. Empty leaves it to the
+	// store's default.
+	DefaultQuotaTier string
+	// LocalLogin gates native password/login-code sign-in: LocalLoginAll (the
+	// default when empty), LocalLoginSystemAdmins, or LocalLoginOff. It does not
+	// affect SSO.
+	LocalLogin string
+	// Grants resolves whether an account is a System Administrator, for the
+	// system_admins local-login mode. Nil makes system_admins refuse everyone,
+	// which is the safe reading of "restricted but I cannot check".
+	Grants coreidentity.SystemGrantStore
 
 	Tokens     TokenIssuer
 	RefreshTTL time.Duration
@@ -182,25 +224,36 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (*LoginResult, error)
 	if user.Disabled() {
 		return nil, ErrDisabled
 	}
+	// Native login can be narrowed independently of SSO. Checked after the
+	// credential verifies and the account is known: refusing earlier would answer
+	// an unauthenticated caller, and only now can "system admins only" be decided.
+	if err := s.enforceLocalLogin(ctx, user); err != nil {
+		return nil, err
+	}
 
-	platform := cmd.Platform
+	absoluteTTL := s.SessionAbsoluteTTL
+	if absoluteTTL <= 0 {
+		absoluteTTL = coreidentity.SessionAbsoluteTTLDefault
+	}
+	return s.openSession(ctx, user, method, cmd.Platform, absoluteTTL)
+}
+
+// openSession mints a session, access token, and refresh token for an account
+// whose right to sign in has already been decided. Login and SSO share it: the
+// difference between them is what proves the account, not what a session is.
+//
+// With a session store the session is a durable record the guard checks and an
+// absolute expiry caps; without one (a deployment with no database) the id is
+// minted inline so the access token still carries a sid, and the guard, which
+// has no session store either, simply does not check it.
+func (s *Service) openSession(ctx context.Context, user *coreidentity.User, method, platform string, absoluteTTL time.Duration) (*LoginResult, error) {
 	if platform == "" {
 		platform = "unknown"
 	}
 	now := s.now()
-	// Every login opens its own session. Signing in from a second machine
-	// therefore does not disturb the first, and revoking one leaves the other
-	// alone -- which is the whole point of tracking sessions rather than users.
-	// With a session store the session is a durable record the guard checks and
-	// an absolute expiry caps; without one (a deployment with no database) the id
-	// is minted inline so the access token still carries a sid, and the guard,
-	// which has no session store either, simply does not check it.
 	var sessionID string
+	var err error
 	if s.Sessions != nil {
-		absoluteTTL := s.SessionAbsoluteTTL
-		if absoluteTTL <= 0 {
-			absoluteTTL = coreidentity.SessionAbsoluteTTLDefault
-		}
 		sessionID, err = s.Sessions.CreateSession(ctx, coreidentity.NewAuthSession{
 			UserID:            user.ID,
 			Platform:          platform,
@@ -297,4 +350,49 @@ func (s *Service) verifyLoginCode(ctx context.Context, email, otp string) (*core
 		}
 	}
 	return user, nil
+}
+
+// enforceLocalLogin applies the local_login mode to an account that has just
+// proved a native credential. all admits everyone; off admits no one; and
+// system_admins admits only an account with an active admin grant — refusing
+// everyone when there is no grant store to ask, which is the safe reading of
+// "restricted but uncheckable".
+func (s *Service) enforceLocalLogin(ctx context.Context, user *coreidentity.User) error {
+	switch s.LocalLogin {
+	case "", LocalLoginAll:
+		return nil
+	case LocalLoginOff:
+		return ErrLocalLoginNotAllowed
+	case LocalLoginSystemAdmins:
+		if s.Grants == nil {
+			return ErrLocalLoginNotAllowed
+		}
+		roles, err := s.Grants.ActiveSystemRoles(ctx, user.ID)
+		if err != nil {
+			return fmt.Errorf("read system roles: %w", err)
+		}
+		if slices.Contains(roles, coreidentity.SystemRoleAdmin) {
+			return nil
+		}
+		return ErrLocalLoginNotAllowed
+	default:
+		// An unknown mode is a misconfiguration; fail closed rather than admitting
+		// everyone under a value nobody defined.
+		return ErrLocalLoginNotAllowed
+	}
+}
+
+// StartSSOSession opens a session for an account a verified SSO sign-in has
+// already resolved and authorized. There is no credential to check here: the
+// association service decided the account and refused a disabled one, so this is
+// the session half of Login without the credential half. sessionMaxAge caps the
+// SSO session, deliberately shorter than a native login's absolute TTL.
+func (s *Service) StartSSOSession(ctx context.Context, user coreidentity.User, platform string, sessionMaxAge time.Duration) (*LoginResult, error) {
+	if s.Users == nil || s.Tokens == nil {
+		return nil, ErrNotConfigured
+	}
+	if sessionMaxAge <= 0 {
+		sessionMaxAge = coreidentity.SessionAbsoluteTTLDefault
+	}
+	return s.openSession(ctx, &user, MethodOIDC, platform, sessionMaxAge)
 }

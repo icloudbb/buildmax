@@ -29,6 +29,7 @@ import (
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
+	infraoidc "github.com/icloudbb/buildmax/internal/infra/oidc"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	"github.com/icloudbb/buildmax/internal/server/handlers"
 	workerroutes "github.com/icloudbb/buildmax/internal/server/handlers/worker"
@@ -63,6 +64,20 @@ type AuthConfig struct {
 	JWTSecret   string // Required for login when UserStore is set
 	AllowSignup bool   // Open POST /api/auth/otp to self-registration; closed by default
 	CORSOrigin  string // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	// LocalLogin gates native password/login-code sign-in: "all" (default),
+	// "system_admins", or "off". Advertised at GET /api/auth/methods.
+	LocalLogin string
+	// OIDCEnabled and OIDCDisplayName advertise SSO at GET /api/auth/methods.
+	OIDCEnabled     bool
+	OIDCDisplayName string
+	// OIDCProvider drives the browser sign-in flow. Nil when SSO is not
+	// configured, which makes the /api/auth/oidc/* routes answer 404.
+	OIDCProvider *infraoidc.Provider
+	// OIDCSessionMaxAge caps an SSO session; OIDCProvisioning and
+	// OIDCAllowedEmailDomains parameterize just-in-time account creation.
+	OIDCSessionMaxAge       time.Duration
+	OIDCProvisioning        string
+	OIDCAllowedEmailDomains []string
 	// PublicBaseURL is the externally reachable origin at which people open
 	// BuildMax. Artifact share links are rendered against it; empty refuses
 	// share creation rather than emitting an unreachable link.
@@ -78,25 +93,26 @@ type AuthConfig struct {
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
-	UserStore           coreidentity.UserStore
-	LoginCodeStore      coreidentity.LoginCodeStore
-	PasswordStore       coreidentity.PasswordStore
-	RefreshTokenStore   coreidentity.RefreshTokenStore
-	AuthSessionStore    coreidentity.AuthSessionStore
-	SpaceStore          corespace.Store
-	WorkflowStore       coreworkflow.Store
-	AgentStore          agentdef.Store
-	IssueStore          coreissue.Store
-	IssueCommentStore   coreissue.CommentStore
-	TaskStore           coretask.Store
-	TaskRunStore        coretask.RunStore
-	ScheduleStore       coreschedule.Store
-	LLMCallStore        coregw.CallStore
-	UserWebhookKeyStore coreidentity.UserWebhookKeyStore
-	AuditStore          coreaudit.Store
-	SystemGrantStore    coreidentity.SystemGrantStore
-	SchemaStore         coreschema.Store
-	LLMModelStore       coregw.ModelStore
+	UserStore             coreidentity.UserStore
+	LoginCodeStore        coreidentity.LoginCodeStore
+	PasswordStore         coreidentity.PasswordStore
+	RefreshTokenStore     coreidentity.RefreshTokenStore
+	AuthSessionStore      coreidentity.AuthSessionStore
+	ExternalIdentityStore coreidentity.ExternalIdentityStore
+	SpaceStore            corespace.Store
+	WorkflowStore         coreworkflow.Store
+	AgentStore            agentdef.Store
+	IssueStore            coreissue.Store
+	IssueCommentStore     coreissue.CommentStore
+	TaskStore             coretask.Store
+	TaskRunStore          coretask.RunStore
+	ScheduleStore         coreschedule.Store
+	LLMCallStore          coregw.CallStore
+	UserWebhookKeyStore   coreidentity.UserWebhookKeyStore
+	AuditStore            coreaudit.Store
+	SystemGrantStore      coreidentity.SystemGrantStore
+	SchemaStore           coreschema.Store
+	LLMModelStore         coregw.ModelStore
 	// ArtifactStore records durable files. Nil leaves the artifact routes
 	// answering 503, which is what a deployment with no database has.
 	ArtifactStore coreartifact.Store
@@ -199,6 +215,9 @@ type Config struct {
 	// RedactedConfig is the operator-facing view of server.yaml. Nil means the
 	// admin configuration route answers 503.
 	RedactedConfig any
+	// OIDCStatus reports the live SSO provider health for the admin system view.
+	// Nil means SSO is not configured. Bootstrap adapts the provider into it.
+	OIDCStatus admin.OIDCStatusFunc
 	// Readiness lists the dependency probes GET /readyz runs. Empty means the
 	// endpoint reports ready without verifying anything, and says so by
 	// returning an empty check list.
@@ -329,6 +348,14 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 	return handlers.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
 		AllowSignup:              cfg.Auth.AllowSignup,
+		LocalLogin:               cfg.Auth.LocalLogin,
+		OIDCEnabled:              cfg.Auth.OIDCEnabled,
+		OIDCDisplayName:          cfg.Auth.OIDCDisplayName,
+		OIDCProvider:             cfg.Auth.OIDCProvider,
+		OIDCSessionMaxAge:        cfg.Auth.OIDCSessionMaxAge,
+		OIDCProvisioning:         cfg.Auth.OIDCProvisioning,
+		OIDCAllowedEmailDomains:  cfg.Auth.OIDCAllowedEmailDomains,
+		PublicBaseURL:            cfg.Auth.PublicBaseURL,
 		CORSOrigin:               cfg.Auth.CORSOrigin,
 		AccessTokenTTL:           cfg.Auth.AccessTokenTTL,
 		RefreshTokenTTL:          cfg.Auth.RefreshTokenTTL,
@@ -349,11 +376,13 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		Deployment:               cfg.Deployment,
 		DependencyProbes:         dependencyProbes(cfg.Readiness),
 		RedactedConfig:           cfg.RedactedConfig,
+		OIDCStatus:               cfg.OIDCStatus,
 		Audit:                    cfg.Audit,
 		LoginCodeStore:           cfg.Stores.LoginCodeStore,
 		PasswordStore:            cfg.Stores.PasswordStore,
 		RefreshTokenStore:        cfg.Stores.RefreshTokenStore,
 		AuthSessionStore:         cfg.Stores.AuthSessionStore,
+		ExternalIdentityStore:    cfg.Stores.ExternalIdentityStore,
 		SpaceStore:               cfg.Stores.SpaceStore,
 		WorkflowStore:            cfg.Stores.WorkflowStore,
 		AgentStore:               cfg.Stores.AgentStore,

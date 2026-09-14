@@ -21,6 +21,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/infra/db"
 	"github.com/icloudbb/buildmax/internal/infra/k8s"
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
+	infraoidc "github.com/icloudbb/buildmax/internal/infra/oidc"
 	infrasecret "github.com/icloudbb/buildmax/internal/infra/secret"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	httpserver "github.com/icloudbb/buildmax/internal/server"
@@ -80,6 +81,17 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// did not choose.
 	if err := sc.Coordination.Validate(); err != nil {
 		return fmt.Errorf("coordination configuration: %w", err)
+	}
+
+	// Fail closed on a login configuration that would refuse everyone or run an
+	// unbounded just-in-time provisioning, rather than discovering it at the
+	// first sign-in.
+	if err := sc.ValidateAuth(); err != nil {
+		return fmt.Errorf("authentication configuration: %w", err)
+	}
+	if sc.LocalLoginMode() == config.LocalLoginOff && !sc.OIDC.Enabled {
+		slog.Warn("no login method is enabled — local_login is off and oidc is disabled; no one can sign in",
+			"local_login", sc.LocalLoginMode())
 	}
 
 	workspacesDir, err := resolveWorkspacesDir(sc.WorkspacesDir)
@@ -523,6 +535,35 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 	if err != nil {
 		return httpserver.Config{}, err
 	}
+	// SSO provider: built only when configured, and warmed off the startup path so
+	// a momentarily unreachable IdP surfaces as degraded rather than blocking the
+	// server from starting. Its health is reported to the admin system view apart
+	// from the readiness probes, because an IdP fetch is retryable.
+	var oidcStatus admin.OIDCStatusFunc
+	var oidcProvider *infraoidc.Provider
+	if sc.OIDC.Enabled {
+		oidcProvider = infraoidc.New(infraoidc.Config{
+			Issuer:       sc.OIDC.Issuer,
+			ClientID:     sc.OIDC.ClientID,
+			ClientSecret: sc.OIDC.ClientSecret,
+		})
+		provider := oidcProvider
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := provider.Warm(ctx); err != nil {
+				slog.Warn("oidc discovery is not yet reachable; sign-in retries it on demand", "err", err)
+			}
+		}()
+		oidcStatus = func() (bool, time.Time, string) {
+			st := provider.Status()
+			return st.Available, st.LastRefresh, st.LastError
+		}
+	}
+	oidcSessionMaxAge := sc.OIDC.SessionMaxAge
+	if oidcSessionMaxAge <= 0 {
+		oidcSessionMaxAge = config.OIDCSessionMaxAgeDefault
+	}
 	cfg := httpserver.Config{
 		Addr: fmt.Sprintf(":%d", port),
 		// The worker control API is served on its own listener, off the public
@@ -530,16 +571,23 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		WorkerAddr: sc.WorkerAPI.Listen,
 		WorkerTLS:  workerTLS,
 		Auth: httpserver.AuthConfig{
-			JWTSecret:            jwtSecret,
-			AllowSignup:          sc.AllowSignup,
-			CORSOrigin:           sc.CORSOrigin,
-			PublicBaseURL:        sc.PublicBaseURL,
-			QuotaService:         quotaService,
-			DefaultQuotaTier:     sc.DefaultQuotaTier,
-			AccessTokenTTL:       sc.AccessTokenTTL,
-			RefreshTokenTTL:      sc.RefreshTokenTTL,
-			RefreshRotationGrace: sc.RefreshRotationGrace,
-			SessionAbsoluteTTL:   sc.SessionAbsoluteTTL,
+			JWTSecret:               jwtSecret,
+			AllowSignup:             sc.AllowSignup,
+			LocalLogin:              sc.LocalLoginMode(),
+			OIDCEnabled:             sc.OIDC.Enabled,
+			OIDCDisplayName:         sc.OIDC.DisplayName,
+			OIDCProvider:            oidcProvider,
+			OIDCSessionMaxAge:       oidcSessionMaxAge,
+			OIDCProvisioning:        sc.OIDC.Provisioning,
+			OIDCAllowedEmailDomains: sc.OIDC.AllowedEmailDomains,
+			CORSOrigin:              sc.CORSOrigin,
+			PublicBaseURL:           sc.PublicBaseURL,
+			QuotaService:            quotaService,
+			DefaultQuotaTier:        sc.DefaultQuotaTier,
+			AccessTokenTTL:          sc.AccessTokenTTL,
+			RefreshTokenTTL:         sc.RefreshTokenTTL,
+			RefreshRotationGrace:    sc.RefreshRotationGrace,
+			SessionAbsoluteTTL:      sc.SessionAbsoluteTTL,
 		},
 		Stores: httpserver.StoresConfig{
 			UserStore:                st,
@@ -547,6 +595,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			PasswordStore:            st,
 			RefreshTokenStore:        st,
 			AuthSessionStore:         st,
+			ExternalIdentityStore:    st,
 			SpaceStore:               st,
 			WorkflowStore:            st,
 			AgentStore:               st,
@@ -596,6 +645,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		// internal/config, next to the struct it describes.
 		Deployment:     deploymentInfoFor(sc),
 		RedactedConfig: sc.Redacted(),
+		OIDCStatus:     oidcStatus,
 		// The served OpenAPI info.version comes from the one build-version source.
 		Version: config.Version,
 	}

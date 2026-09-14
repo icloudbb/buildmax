@@ -1,6 +1,15 @@
 import { apiFetch, getApiBase, requestJson, throwIfNotOk } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
-import type { PortalSessionResponse, OtpRequestResponse } from "../../lib/api/types"
+import type { AuthMethods, PortalSessionResponse, OtpRequestResponse } from "../../lib/api/types"
+
+/**
+ * Ask which sign-in methods the deployment offers. Unauthenticated: the login
+ * page calls it before anyone is signed in, to decide whether to show local
+ * inputs, an SSO button, or both.
+ */
+export async function getAuthMethods(): Promise<AuthMethods> {
+  return requestJson<AuthMethods>(`${getApiBase()}/api/auth/methods`, { method: "GET" })
+}
 
 /**
  * Create an account, when the deployment allows self-registration.
