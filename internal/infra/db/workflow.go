@@ -80,17 +80,20 @@ func (s *Store) workflowRevisionSelect(ctx context.Context) *gorm.DB {
 }
 
 type workflowRunRow struct {
-	ID               uint64     `gorm:"primaryKey;autoIncrement"`
-	PublicID         string     `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_workflow_run_public_id;not null"`
-	WorkflowID       uint64     `gorm:"column:workflow_id;not null;index:idx_workflow_run_workflow_created,priority:1"`
-	WorkflowRevision int        `gorm:"column:workflow_revision;not null;default:0"`
-	IssueID          *uint64    `gorm:"column:issue_id;index"`
-	Status           string     `gorm:"type:varchar(32);not null"`
-	CreatedBy        uint64     `gorm:"column:created_by;not null"`
-	CreatedAt        time.Time  `gorm:"autoCreateTime;index:idx_workflow_run_workflow_created,priority:2"`
-	StartedAt        *time.Time `gorm:""`
-	EndedAt          *time.Time `gorm:""`
-	ErrorMessage     *string    `gorm:"type:text"`
+	ID               uint64  `gorm:"primaryKey;autoIncrement"`
+	PublicID         string  `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_workflow_run_public_id;not null"`
+	WorkflowID       uint64  `gorm:"column:workflow_id;not null;index:idx_workflow_run_workflow_created,priority:1"`
+	WorkflowRevision int     `gorm:"column:workflow_revision;not null;default:0"`
+	IssueID          *uint64 `gorm:"column:issue_id;index"`
+	// Input is the run's immutable input JSON, validated against the definition's
+	// input_schema at admission. NULL when the definition declares no input_schema.
+	Input        *string    `gorm:"column:input;type:longtext"`
+	Status       string     `gorm:"type:varchar(32);not null"`
+	CreatedBy    uint64     `gorm:"column:created_by;not null"`
+	CreatedAt    time.Time  `gorm:"autoCreateTime;index:idx_workflow_run_workflow_created,priority:2"`
+	StartedAt    *time.Time `gorm:""`
+	EndedAt      *time.Time `gorm:""`
+	ErrorMessage *string    `gorm:"type:text"`
 	// Reconciliation lease and schedule. The due query walks
 	// idx_workflow_run_next_reconcile; idx_workflow_run_lease_expires supports the
 	// expired-lease takeover branch of the same query. All three are nulled when
@@ -238,6 +241,7 @@ func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 		ID:               row.Row.PublicID,
 		WorkflowID:       row.WorkflowPublicID,
 		WorkflowRevision: row.Row.WorkflowRevision,
+		Input:            row.Row.Input,
 		Status:           row.Row.Status,
 		CreatedBy:        row.CreatedByPublicID,
 		CreatedAt:        row.Row.CreatedAt,
@@ -544,6 +548,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,
+		Input:            in.Input,
 		Status:           in.Status,
 		CreatedBy:        in.CreatedBy,
 		CreatedAt:        now,
@@ -551,6 +556,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 	}
 	row := &workflowRunRow{
 		WorkflowRevision: in.WorkflowRevision,
+		Input:            in.Input,
 		Status:           in.Status,
 		CreatedAt:        now,
 		StartedAt:        in.StartedAt,

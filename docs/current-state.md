@@ -41,10 +41,12 @@ value that validates (see the shared runtime below). A definition now declares a
 `"schema_version": 1`, and may declare an `input_schema` (validated against the
 shared JSON Schema subset at publication) and a `result` selector naming the step
 whose output becomes the run result; publication rejects an unknown version, an
-out-of-subset input schema, or a result naming a missing step. Admitting an
-immutable run input against that schema, persisting each step's resolved input and
-full output, RFC 6901 pointer and Artifact bindings, storing the declared result,
-the typed `nodes`/`needs` graph, and typed `/structured/...` routing remain open.
+out-of-subset input schema, or a result naming a missing step. Starting a run now
+admits an immutable input validated against that `input_schema` and freezes it onto
+the run, and the Portal generates the run's input form from the schema. Persisting
+each step's resolved input and full output, RFC 6901 pointer and Artifact bindings,
+storing the declared result, the typed `nodes`/`needs` graph, and typed
+`/structured/...` routing remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including

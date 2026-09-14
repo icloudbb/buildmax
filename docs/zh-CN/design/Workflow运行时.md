@@ -2,7 +2,7 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/workflow-runtime.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-> **受众：** 贡献者、产品评审者与运维人员 · **状态：** 部分实现——已接受的自适应图方向仍在计划中，持久化线性雏形已经交付。带保护的 compare-and-set Run/步骤转换、失败步骤原子收口、幂等 Task 准入、协调租约、线性协调器，以及由 Server 持有的到期 Run 恢复循环均已实现。`Service.Reconcile` 从持久状态中折叠某个步骤终态的 TaskRun、派发下一个步骤并安排该 Run 的下次协调；启动时和周期性扫描能够从回调丢失或 Server 重启中恢复。定义现在带有显式的 `schema_version: 1`，并可声明 `input_schema` 与 `result` 选择器，两者均在发布期校验。不可变 run 输入的准入、持久化每个步骤的已解析输入与完整输出、RFC 6901 指针与 Artifact 绑定、存储声明的结果、类型化 `nodes`/`needs`、运行期受 schema 约束的输入输出、静态 DAG 与自适应控制仍待实现
+> **受众：** 贡献者、产品评审者与运维人员 · **状态：** 部分实现——已接受的自适应图方向仍在计划中，持久化线性雏形已经交付。带保护的 compare-and-set Run/步骤转换、失败步骤原子收口、幂等 Task 准入、协调租约、线性协调器，以及由 Server 持有的到期 Run 恢复循环均已实现。`Service.Reconcile` 从持久状态中折叠某个步骤终态的 TaskRun、派发下一个步骤并安排该 Run 的下次协调；启动时和周期性扫描能够从回调丢失或 Server 重启中恢复。定义现在带有显式的 `schema_version: 1`，并可声明 `input_schema` 与 `result` 选择器，两者均在发布期校验。启动运行时会对照该 `input_schema` 校验调用方输入并冻结到 run 上，且 Portal 依据该模式生成输入表单。持久化每个步骤的已解析输入与完整输出、RFC 6901 指针与 Artifact 绑定、存储声明的结果、类型化 `nodes`/`needs`、运行期受 schema 约束的输出、静态 DAG 与自适应控制仍待实现
 
 相关文档：[路线图](../ROADMAP.md)、[产品愿景](产品愿景.md)、[界面定位](界面定位.md)、[Agent 执行与 Task 线程](Agent执行与Task线程.md)、[Space 治理](Space治理.md)、[统一 Artifact](统一工件.md)、[数据模型](../contribute/architecture/data-model.md)，以及[验证计划](验证计划.md)。
 
@@ -899,7 +899,9 @@ WorkflowRun 和 NodeRun 的 JSON 遵守有边界的大小限制和脱敏规则�
   与指向某个已存在步骤的 `result` 选择器；发布期会拒绝未知版本、超出子集的输入
   模式，或指向不存在步骤的结果。
 - 把草稿指针和已发布指针分离开。
-- 准入不可变的 WorkflowRun 输入。
+- 准入不可变的 WorkflowRun 输入。**已交付：** 启动运行会对照定义的 `input_schema`
+  校验调用方输入并冻结到 run 上；未声明 input_schema 的 workflow 不取输入，且
+  Portal 依据该模式生成运行输入表单。
 - 用 NodeRun 替换掉 StepRun，并持久化解析后的输入/完整的输出；
 - 通过 RFC 6901 指针,暴露文本和 Artifact 绑定关系；
 - 存储声明好的 WorkflowRun 结果；以及

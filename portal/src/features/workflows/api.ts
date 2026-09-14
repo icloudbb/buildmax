@@ -70,11 +70,15 @@ export async function runWorkflow(
   workflowId: string,
   token: string,
   issueId?: string,
+  input?: unknown,
 ): Promise<ApiWorkflowRunDetailResponse> {
+  const body: Record<string, unknown> = {}
+  if (issueId) body.issue_id = issueId
+  if (input !== undefined) body.input = input
   return requestJson<ApiWorkflowRunDetailResponse>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflows/${encodeURIComponent(workflowId)}/runs`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
-    body: JSON.stringify(issueId ? { issue_id: issueId } : {}),
+    body: JSON.stringify(body),
   })
 }
 

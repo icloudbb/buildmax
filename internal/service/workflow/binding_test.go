@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -137,6 +138,51 @@ func TestParseDefinition_ValidatesContract(t *testing.T) {
 			}
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestResolveRunInput(t *testing.T) {
+	const schema = `{"type":"object","additionalProperties":false,"properties":{"topic":{"type":"string"}},"required":["topic"]}`
+	cases := []struct {
+		name    string
+		schema  string
+		raw     string
+		want    string // expected stored input; "" means nil
+		wantErr error
+	}{
+		{name: "no schema and no input", schema: "", raw: "", want: ""},
+		{name: "no schema rejects supplied input", schema: "", raw: `{"topic":"x"}`, wantErr: ErrInvalidRunInput},
+		{name: "schema requires input", schema: schema, raw: "", wantErr: ErrInvalidRunInput},
+		{name: "schema accepts valid input", schema: schema, raw: `{"topic":"markets"}`, want: `{"topic":"markets"}`},
+		{name: "schema rejects invalid input", schema: schema, raw: `{"topic":1}`, wantErr: ErrInvalidRunInput},
+		{name: "schema rejects unknown field", schema: schema, raw: `{"topic":"x","extra":1}`, wantErr: ErrInvalidRunInput},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			def := &coreworkflow.Definition{}
+			if tc.schema != "" {
+				def.InputSchema = json.RawMessage(tc.schema)
+			}
+			got, err := resolveRunInput(def, tc.raw)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("err = %v, want %v", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("err = %v, want nil", err)
+			}
+			if tc.want == "" {
+				if got != nil {
+					t.Fatalf("input = %q, want nil", *got)
+				}
+				return
+			}
+			if got == nil || *got != tc.want {
+				t.Fatalf("input = %v, want %q", got, tc.want)
 			}
 		})
 	}

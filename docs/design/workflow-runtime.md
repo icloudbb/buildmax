@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Immutable run-input admission, persisted resolved input and full output, RFC 6901 pointer and Artifact bindings, the stored run result, typed `nodes`/`needs`, schema-constrained input and output at runtime, static DAGs, and adaptive control remain open
+> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Persisted resolved input and full output, RFC 6901 pointer and Artifact bindings, the stored run result, typed `nodes`/`needs`, schema-constrained output at runtime, static DAGs, and adaptive control remain open
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
@@ -1214,7 +1214,10 @@ even if later product evidence delays R5.
   an existing step; publication rejects an unknown version, an out-of-subset input
   schema, or a result naming a missing step.
 - Separate draft and published pointers.
-- Admit immutable WorkflowRun input.
+- Admit immutable WorkflowRun input. **Shipped:** starting a run validates the
+  caller's input against the definition's `input_schema` and freezes it onto the
+  run; a workflow with no input_schema takes no input, and the Portal generates
+  the run input form from the schema.
 - replace StepRun with NodeRun and persist resolved input/full output;
 - expose text and Artifact bindings through RFC 6901 pointers;
 - store the declared WorkflowRun result; and

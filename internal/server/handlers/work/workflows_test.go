@@ -119,6 +119,17 @@ func TestWorkflowHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("POST direct workflow run rejects input when no input_schema", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/workflows/w_1/runs", strings.NewReader(`{"input":{"x":1}}`))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+		}
+	})
+
 	t.Run("POST create workflow forbidden for member", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/workflows", strings.NewReader(`{"name":"WF 3","description":"Desc","definition":"{\"schema_version\":1,\"steps\":[{\"step_id\":\"s1\",\"type\":\"agent_task\",\"target_agent_id\":\"a_1\",\"prompt\":\"do it\"}]}"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", workflowTestSecret))

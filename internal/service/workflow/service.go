@@ -36,6 +36,7 @@ var (
 	ErrUnsupportedSchemaVersion   = apierr.New(apierr.KindInvalid, "unsupported workflow schema_version: only schema_version 1 is supported")
 	ErrInvalidInputSchema         = apierr.New(apierr.KindInvalid, "invalid workflow input_schema: must be within the supported JSON Schema subset")
 	ErrInvalidResult              = apierr.New(apierr.KindInvalid, "invalid workflow result: from_step must name an existing step")
+	ErrInvalidRunInput            = apierr.New(apierr.KindInvalid, "invalid workflow run input: it must be JSON satisfying the workflow input_schema, and is only accepted when the workflow declares one")
 	ErrInvalidStepType            = apierr.New(apierr.KindInvalid, "invalid workflow step type")
 	ErrInvalidStepID              = apierr.New(apierr.KindInvalid, "invalid workflow step_id")
 	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow step binding: name and from_step are required, names are unique within a step, and from_step must be an earlier step")
@@ -115,6 +116,10 @@ type StartWorkflowRunCmd struct {
 	UserID     string
 	WorkflowID string
 	IssueID    *string
+	// Input is the caller-supplied run input JSON. It is validated against the
+	// workflow's input_schema and frozen onto the run; empty means no input, which
+	// a workflow that declares an input_schema rejects.
+	Input string
 }
 
 func (s *Service) ListWorkflows(ctx context.Context, spaceID string) ([]coreworkflow.Workflow, error) {
@@ -366,11 +371,16 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err := s.validateIssueForRun(ctx, cmd.SpaceID, workflow.ID, cmd.IssueID); err != nil {
 		return nil, nil, err
 	}
+	runInput, err := resolveRunInput(def, cmd.Input)
+	if err != nil {
+		return nil, nil, err
+	}
 	now := time.Now().UTC()
 	run, err := s.Workflows.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
 		WorkflowID:       workflow.ID,
 		WorkflowRevision: workflow.Revision,
 		IssueID:          cmd.IssueID,
+		Input:            runInput,
 		Status:           string(coreworkflow.RunStatusRunning),
 		CreatedBy:        cmd.UserID,
 		StartedAt:        &now,
@@ -824,6 +834,33 @@ func outputSchemaSnapshot(schema json.RawMessage) *string {
 	}
 	s := string(schema)
 	return &s
+}
+
+// resolveRunInput validates a caller's run input against the definition's
+// input_schema and returns the JSON text to freeze onto the run. A workflow
+// with an input_schema requires input that satisfies it; a workflow without one
+// takes no input, so any supplied input is rejected rather than silently dropped.
+func resolveRunInput(def *coreworkflow.Definition, raw string) (*string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if len(bytes.TrimSpace(def.InputSchema)) == 0 {
+		if trimmed != "" {
+			return nil, ErrInvalidRunInput
+		}
+		return nil, nil
+	}
+	if trimmed == "" {
+		return nil, ErrInvalidRunInput
+	}
+	schema, err := jsonschema.Compile(def.InputSchema)
+	if err != nil {
+		// The schema was validated at publication, so a failure here is a stored
+		// contract that regressed; surface it rather than accepting unvalidated input.
+		return nil, apierr.Detail(ErrInvalidInputSchema, "%v", err)
+	}
+	if err := schema.Validate(json.RawMessage(trimmed)); err != nil {
+		return nil, apierr.Detail(ErrInvalidRunInput, "%v", err)
+	}
+	return &trimmed, nil
 }
 
 func parseDefinition(raw string) (*coreworkflow.Definition, error) {

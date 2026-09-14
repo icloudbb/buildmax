@@ -1,9 +1,11 @@
 package work
 
 import (
-	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"encoding/json"
 	"net/http"
 	"time"
+
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
@@ -43,16 +45,17 @@ type workflowRevisionListResponse struct {
 }
 
 type workflowRunResponse struct {
-	ID               string     `json:"id"`
-	WorkflowID       string     `json:"workflow_id"`
-	WorkflowRevision int        `json:"workflow_revision,omitempty"`
-	IssueID          *string    `json:"issue_id,omitempty"`
-	Status           string     `json:"status"`
-	CreatedBy        string     `json:"created_by"`
-	CreatedAt        time.Time  `json:"created_at"`
-	StartedAt        *time.Time `json:"started_at,omitempty"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	ErrorMessage     *string    `json:"error_message,omitempty"`
+	ID               string          `json:"id"`
+	WorkflowID       string          `json:"workflow_id"`
+	WorkflowRevision int             `json:"workflow_revision,omitempty"`
+	IssueID          *string         `json:"issue_id,omitempty"`
+	Status           string          `json:"status"`
+	CreatedBy        string          `json:"created_by"`
+	CreatedAt        time.Time       `json:"created_at"`
+	StartedAt        *time.Time      `json:"started_at,omitempty"`
+	EndedAt          *time.Time      `json:"ended_at,omitempty"`
+	ErrorMessage     *string         `json:"error_message,omitempty"`
+	Input            json.RawMessage `json:"input,omitempty"`
 }
 
 type workflowStepRunResponse struct {
@@ -106,6 +109,8 @@ type patchWorkflowRequest struct {
 
 type createWorkflowRunRequest struct {
 	IssueID *string `json:"issue_id,omitempty"`
+	// Input is the run's input, validated against the workflow's input_schema.
+	Input json.RawMessage `json:"input,omitempty"`
 }
 
 func workflowToResponse(workflow coreworkflow.Workflow) workflowResponse {
@@ -148,7 +153,17 @@ func workflowRunToResponse(run coreworkflow.Run) workflowRunResponse {
 		StartedAt:        run.StartedAt,
 		EndedAt:          run.EndedAt,
 		ErrorMessage:     run.ErrorMessage,
+		Input:            rawJSONOrNil(run.Input),
 	}
+}
+
+// rawJSONOrNil surfaces a run's stored input JSON as raw JSON, not a quoted
+// string, and omits it entirely when the run carried no input.
+func rawJSONOrNil(s *string) json.RawMessage {
+	if s == nil {
+		return nil
+	}
+	return json.RawMessage(*s)
 }
 
 func workflowStepRunToResponse(step coreworkflow.StepRun) workflowStepRunResponse {
@@ -431,6 +446,7 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 		UserID:     userID,
 		WorkflowID: workflowID,
 		IssueID:    req.IssueID,
+		Input:      string(req.Input),
 	})
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {

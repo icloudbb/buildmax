@@ -766,7 +766,8 @@
           "created_at": {"type": "string", "format": "date-time"},
           "started_at": {"type": "string", "format": "date-time"},
           "ended_at": {"type": "string", "format": "date-time"},
-          "error_message": {"type": "string"}
+          "error_message": {"type": "string"},
+          "input": {"type": "object", "description": "The run's immutable input, validated against the workflow input_schema."}
         },
         "required": ["id", "workflow_id", "conversation_id", "status", "created_by", "created_at"]
       },
@@ -4130,7 +4131,7 @@
         "summary": "Start a workflow run",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "workflow_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "requestBody": {"required": false, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "requestBody": {"required": false, "content": {"application/json": {"schema": {"type": "object", "properties": {"issue_id": {"type": "string"}, "input": {"type": "object", "description": "Run input, validated against the workflow input_schema; required when the workflow declares one."}}}}}},
         "responses": {
           "201": {
             "description": "Created",

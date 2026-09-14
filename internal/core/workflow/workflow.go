@@ -144,14 +144,17 @@ type Run struct {
 	WorkflowID string `json:"workflow_id"`
 	// WorkflowRevision is the workflow revision this run expanded. It is 0 for
 	// runs started before workflows recorded revisions.
-	WorkflowRevision int        `json:"workflow_revision,omitempty"`
-	IssueID          *string    `json:"issue_id,omitempty"`
-	Status           string     `json:"status"`
-	CreatedBy        string     `json:"created_by"`
-	CreatedAt        time.Time  `json:"created_at"`
-	StartedAt        *time.Time `json:"started_at,omitempty"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	ErrorMessage     *string    `json:"error_message,omitempty"`
+	WorkflowRevision int     `json:"workflow_revision,omitempty"`
+	IssueID          *string `json:"issue_id,omitempty"`
+	// Input is the run's immutable input JSON, validated against the definition's
+	// input_schema at admission. Nil when the definition declares no input_schema.
+	Input        *string    `json:"input,omitempty"`
+	Status       string     `json:"status"`
+	CreatedBy    string     `json:"created_by"`
+	CreatedAt    time.Time  `json:"created_at"`
+	StartedAt    *time.Time `json:"started_at,omitempty"`
+	EndedAt      *time.Time `json:"ended_at,omitempty"`
+	ErrorMessage *string    `json:"error_message,omitempty"`
 	// Reconciliation scheduling and ownership. ReconcileOwner and LeaseExpiresAt
 	// are a bounded lease that reduces duplicate reconciliation work; they are not
 	// the correctness mechanism. NextReconcileAt is when this run next wants a
@@ -251,9 +254,12 @@ type CreateRunInput struct {
 	WorkflowID       string
 	WorkflowRevision int
 	IssueID          *string
-	Status           string
-	CreatedBy        string
-	StartedAt        *time.Time
+	// Input is the run's immutable input JSON, already validated against the
+	// definition's input_schema. Nil when the definition declares no input_schema.
+	Input     *string
+	Status    string
+	CreatedBy string
+	StartedAt *time.Time
 }
 
 type UpdateInput struct {

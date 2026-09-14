@@ -266,6 +266,49 @@ func TestWorkflowStepRunBindingsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestWorkflowRunInputRoundTrip(t *testing.T) {
+	s, userID, _, workflowID := workflowFixture(t, "workflow-run-input@example.com")
+	ctx := context.Background()
+	t.Cleanup(func() {
+		s.db.Exec(`DELETE wr FROM workflow_run wr
+			JOIN workflow w ON w.id = wr.workflow_id WHERE w.public_id = ?`, workflowID)
+	})
+
+	input := `{"topic":"markets"}`
+	withInput, err := s.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
+		WorkflowID: workflowID,
+		Input:      &input,
+		Status:     string(coreworkflow.RunStatusRunning),
+		CreatedBy:  userID,
+	})
+	if err != nil {
+		t.Fatalf("CreateWorkflowRun with input: %v", err)
+	}
+	got, err := s.GetWorkflowRun(ctx, withInput.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflowRun: %v", err)
+	}
+	if got.Input == nil || *got.Input != input {
+		t.Fatalf("input = %v, want %q", got.Input, input)
+	}
+
+	noInput, err := s.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
+		WorkflowID: workflowID,
+		Status:     string(coreworkflow.RunStatusRunning),
+		CreatedBy:  userID,
+	})
+	if err != nil {
+		t.Fatalf("CreateWorkflowRun without input: %v", err)
+	}
+	got, err = s.GetWorkflowRun(ctx, noInput.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflowRun: %v", err)
+	}
+	if got.Input != nil {
+		t.Fatalf("input = %q, want nil", *got.Input)
+	}
+}
+
 func TestWorkflowStepRunTransition_CAS(t *testing.T) {
 	s, _, steps := workflowRunFixture(t, 1)
 	ctx := context.Background()
