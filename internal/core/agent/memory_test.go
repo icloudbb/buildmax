@@ -151,7 +151,7 @@ func TestRunLoop_MemoryIndexPrecedesSessionState(t *testing.T) {
 	h.notes = []Note{{Text: "durable fact", WrittenIteration: 1}}
 	_ = h.Append(llm.Message{Role: "user", Content: "hello"})
 
-	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+	_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),
@@ -200,7 +200,7 @@ func TestRunLoop_NoMemoryBlockWhenEmpty(t *testing.T) {
 			h := &statefulHistory{}
 			_ = h.Append(llm.Message{Role: "user", Content: "hello"})
 
-			_, _, err := RunLoop(context.Background(), RunLoopOpts{
+			_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 				LLMClient:    client,
 				SystemPrompt: testSystemPrompt,
 				ToolRegistry: newTestToolRegistry(),

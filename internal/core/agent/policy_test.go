@@ -189,7 +189,7 @@ func TestLoopGuard(t *testing.T) {
 	if err := sess.Append(llm.Message{Role: "user", Content: "ping forever"}); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err := RunLoop(ctx, RunLoopOpts{
+	_, _, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(tool),

@@ -425,6 +425,10 @@ type RunResult struct {
 	// RunPromptOpts.Digest asked for one and the turn earned something to say.
 	// It is not part of the conversation and never reaches the model again.
 	Digest TurnDigest
+	// Structured is the validated machine-readable answer, set only when the run
+	// requested output via RunPromptOpts.Output. Nil for a free-text run. See
+	// docs/design/structured-output.md.
+	Structured *cllm.Structured
 }
 
 // RunUsage is the current context occupancy and token/cost accounting for an
@@ -1066,6 +1070,11 @@ type RunPromptOpts struct {
 	// somewhere to show it sets this; see turn_digest.go for what it produces
 	// and what keeps it from running on turns it could not describe.
 	Digest bool
+	// Output asks the run for a machine-readable final answer matching the
+	// schema, returned on RunResult.Structured. Nil is free text. It costs one
+	// extra constrained model call at the end of the run (structured-output.md
+	// §5). See RunLoopOpts.Output.
+	Output *cllm.OutputSchema
 }
 
 // traceRunContext is the trace identity a running tool inherits when it starts
@@ -1194,7 +1203,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 			// Zero stats, because a blocked prompt never reached the model:
 			// the turn spent nothing, and the session totals below are what
 			// earlier turns already cost.
-			return a.runResult(sess, client, modelName, recorder, agent.RunStats{}, start, reason), nil
+			return a.runResult(sess, client, modelName, recorder, agent.RunStats{}, start, reason, nil), nil
 		}
 	}
 
@@ -1223,7 +1232,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		ctx = agent.CtxWithMemoryStore(ctx, pm)
 	}
 
-	reply, stats, err := agent.RunLoop(ctx, agent.RunLoopOpts{
+	reply, stats, structured, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:    client,
 		Pricing:      a.pricingFor(sess),
 		SystemPrompt: systemPrompt,
@@ -1246,6 +1255,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		SessionID:        sess.ID(),
 		Workspace:        a.workspace.Root(),
 		RedactResult:     a.secretRedactor.RedactExact,
+		Output:           opts.Output,
 	})
 	// Failed runs still leave a complete trace (RunLoop emits run_end with the
 	// error), so carry TraceID out even on the error paths — a failed run is
@@ -1267,7 +1277,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		if _, finalizeErr := a.finalizeTurn(sess, nil, stats); finalizeErr != nil {
 			slog.Warn("could not record what the failed turn spent", "err", finalizeErr)
 		}
-		return a.runResult(sess, client, modelName, recorder, stats, start, ""), fmt.Errorf("agent: %w", err)
+		return a.runResult(sess, client, modelName, recorder, stats, start, "", nil), fmt.Errorf("agent: %w", err)
 	}
 	// Before finalizing, so what the digest spends is persisted by the same
 	// metadata write as the turn's own usage rather than waiting for a next
@@ -1283,9 +1293,9 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		digest = got
 	}
 	if _, err := a.finalizeTurn(sess, client, stats); err != nil {
-		return a.runResult(sess, client, modelName, recorder, stats, start, reply), err
+		return a.runResult(sess, client, modelName, recorder, stats, start, reply, structured), err
 	}
-	result := a.runResult(sess, client, modelName, recorder, stats, start, reply)
+	result := a.runResult(sess, client, modelName, recorder, stats, start, reply, structured)
 	result.Digest = digest
 	return result, nil
 }
@@ -1298,7 +1308,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 // Everything here is already known when a run fails. sess carries the totals
 // Finalize has just folded this turn's usage into, so a caller reading them
 // after a failure sees the tokens the provider actually charged for.
-func (a *AgentApp) runResult(sess *SessionContext, client cllm.LLMClient, modelName string, recorder *trace.Recorder, stats agent.RunStats, start time.Time, reply string) RunResult {
+func (a *AgentApp) runResult(sess *SessionContext, client cllm.LLMClient, modelName string, recorder *trace.Recorder, stats agent.RunStats, start time.Time, reply string, structured *cllm.Structured) RunResult {
 	var contextWindow int
 	if client != nil {
 		contextWindow = client.ContextWindow()
@@ -1325,6 +1335,7 @@ func (a *AgentApp) runResult(sess *SessionContext, client cllm.LLMClient, modelN
 		ModelName:             modelName,
 		TraceID:               recorder.RunID(),
 		TracePath:             recorder.Path(),
+		Structured:            structured,
 	}
 }
 

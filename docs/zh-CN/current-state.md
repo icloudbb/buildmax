@@ -61,9 +61,11 @@ schema 会按 [`internal/core/jsonschema`](../../internal/core/jsonschema) 中�
 失败——回到 `Completion.Structured`。每个提供商都映射到各自的原生机制——
 OpenAI Chat 与 Responses 用 `response_format` `json_schema`、Anthropic 用单个
 强制工具、Ollama 用 `format`——并且 Client 会对候选值统一校验一次（即便 native）。
-将其接入一次运行的最终答案和某个消费方，以及已推迟的 prompted 兜底，仍待完成
-（[结构化输出](design/结构化输出.md)第 3-4 阶段）。工具参数的 JSON schema
-是另一项能力；参见
+一次运行通过 `RunPromptOpts.Output`/`RunLoopOpts.Output` 请求它：循环自由运行，
+当模型给出无工具调用的答案后，运行时再重发一次受约束的调用把这个已定型的答案
+渲染成值，在 `RunResult.Structured` 上返回。将该值持久化到 TaskRun 以及 Workflow
+消费方仍待完成（[结构化输出](design/结构化输出.md)第 4 阶段），已推迟的 prompted
+兜底亦然。工具参数的 JSON schema 是另一项能力；参见
 [LLM 契约](../../internal/core/llm/llm.go)。
 
 ## Task、结果与工作区连续性

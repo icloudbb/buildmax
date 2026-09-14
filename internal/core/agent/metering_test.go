@@ -25,7 +25,7 @@ func TestRunLoop_CompactionIsPriced(t *testing.T) {
 
 	comp := &pricedCompactor{usage: llm.Usage{PromptTokens: 3000, CompletionTokens: 200}}
 	var compacted []Event
-	_, stats, err := RunLoop(context.Background(), RunLoopOpts{
+	_, stats, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),

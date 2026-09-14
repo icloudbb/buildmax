@@ -69,23 +69,30 @@ type mockLLMClient struct {
 	mu        sync.Mutex
 	calls     int
 	responses []mockResponse // per-call response
+	// outputs records req.Output seen on each call, so a test can assert which
+	// call carried a structured-output request.
+	outputs []*llm.OutputSchema
 }
 
 type mockResponse struct {
 	content   string
 	toolCalls []llm.ToolCall
 	usage     llm.Usage
+	// structured, when set, is returned on the completion as if the Client had
+	// validated it — for exercising the structured-output extraction call.
+	structured *llm.Structured
 }
 
 func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.outputs = append(m.outputs, req.Output)
 	if m.calls >= len(m.responses) {
 		return llm.Completion{}, nil
 	}
 	r := m.responses[m.calls]
 	m.calls++
-	return llm.Completion{Content: r.content, ToolCalls: r.toolCalls, Usage: r.usage}, nil
+	return llm.Completion{Content: r.content, ToolCalls: r.toolCalls, Usage: r.usage, Structured: r.structured}, nil
 }
 
 func (m *mockLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
@@ -149,7 +156,8 @@ func runLoopWithUserMsg(ctx context.Context, llmClient llm.LLMClient, registry l
 	for _, opt := range opts {
 		opt(&o)
 	}
-	return RunLoop(ctx, o)
+	reply, stats, _, err := RunLoop(ctx, o)
+	return reply, stats, err
 }
 
 // TestProcessWithSession_NoToolCall asserts that when the LLM returns final content with no tool_calls,
@@ -428,7 +436,7 @@ func TestProcessWithSession_MaxIterationsExceeded(t *testing.T) {
 	if err := sess.Append(llm.Message{Role: "user", Content: "ping"}); err != nil {
 		t.Fatal(err)
 	}
-	_, stats, err := RunLoop(ctx, RunLoopOpts{
+	_, stats, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(mockTool),
@@ -588,7 +596,7 @@ func TestRunLoop_CancellationReturnsLastContent(t *testing.T) {
 	if err := sess.Append(llm.Message{Role: "user", Content: "do something"}); err != nil {
 		t.Fatal(err)
 	}
-	reply, _, err := RunLoop(ctx, RunLoopOpts{
+	reply, _, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    cancellingClient,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(tool),
@@ -677,7 +685,7 @@ func TestMultimodalToolResultReachesTheHistory(t *testing.T) {
 		{content: "done"},
 	}}
 	history := newTestBuffer()
-	if _, _, err := RunLoop(context.Background(), RunLoopOpts{
+	if _, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient: client, ToolRegistry: newTestToolRegistry(tool), History: history, MaxIter: 3,
 	}); err != nil {
 		t.Fatalf("RunLoop: %v", err)
@@ -709,7 +717,7 @@ func TestTextOnlyToolResultCarriesNoParts(t *testing.T) {
 		{content: "done"},
 	}}
 	history := newTestBuffer()
-	if _, _, err := RunLoop(context.Background(), RunLoopOpts{
+	if _, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient: client, ToolRegistry: newTestToolRegistry(&mockTool{name: "echo", result: "plain"}),
 		History: history, MaxIter: 3,
 	}); err != nil {

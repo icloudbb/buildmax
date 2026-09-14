@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/结构化输出.md)
 
-> **Audience:** contributors, product designers, and operators · **Status:** accepted — Phases 1-2 (the runtime contract and all provider mappings except the deferred prompted fallback) in progress. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
+> **Audience:** contributors, product designers, and operators · **Status:** accepted — Phases 1-3 in progress: the runtime contract, all provider mappings (except the deferred prompted fallback), and the run boundary. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
 
 Related: [workflow runtime](workflow-runtime.md),
 [agent execution and Task threads](agent-execution-and-task-threads.md),
@@ -310,16 +310,28 @@ design. It stays the documented floor (§7, §14.2) and is added when a consumer
 needs it, per Occam's razor. A model with no mechanism will then validate against
 the runtime's own validator.
 
-**Phase 3 — the run boundary.** `RunLoopOpts.Output`, applied to the
-terminating answer (§5), returning `Structured` beside the reply; the TaskRun
-structured field and its persistence.
+**Phase 3 — the run boundary.** `RunLoopOpts.Output` (and `RunPromptOpts.Output`
+above it), applied to the terminating answer by re-issuing one constrained call
+once the model produces a no-tool-call answer (§5), returning the validated
+`Structured` beside the reply on `RunResult`. Re-issue on termination rather than
+sending `Output` on every turn is what keeps structured output from fighting tool
+use on a provider that maps it to a forced tool: the loop runs free, and only the
+settled answer is rendered as the value.
+
+The **TaskRun structured field and its persistence move to Phase 4**: nothing
+sets `Output` on a TaskRun until the Workflow consumer does, so persisting the
+value belongs with the producer that writes it rather than as an always-null
+column added ahead of need (Occam's razor). Phase 3 is the reusable run-level
+primitive; a direct caller that sets `RunPromptOpts.Output` already receives the
+value on `RunResult.Structured`.
 
 **Phase 4 — the consumers.** Workflow `output_schema` enforcement, typed routes,
-and planner/map reading `/structured/...`; the Task result envelope's structured
-field. This is the R5 Workflow work this record unblocks.
+and planner/map reading `/structured/...`; the TaskRun structured column and its
+persistence; the Task result envelope's structured field. This is the R5 Workflow
+work this record unblocks, and it lands the persistence beside the first producer.
 
 Phases 1–3 are the shared primitive; Phase 4 is its first real consumer and
-lands with the Workflow slices that need it.
+lands with the Workflow slices that need it, including where the value is stored.
 
 ## 13. Verification
 

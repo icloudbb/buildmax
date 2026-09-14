@@ -249,13 +249,21 @@ type RunLoopOpts struct {
 	// leaves results unredacted, which is what every surface with no Secret
 	// grants passes. See docs/design/space-secrets.md §12.
 	RedactResult func(string) string
+	// Output, when set, asks the run for a machine-readable final answer that
+	// satisfies the schema. It constrains only the terminating answer, not the
+	// tool-calling turns on the way there: once the model produces an answer with
+	// no tool calls, RunLoop makes one additional constrained call to render that
+	// answer as the structured value (docs/design/structured-output.md §5). Nil is
+	// free text — today's behavior. The value comes back from RunLoop beside the
+	// reply, validated or a typed failure.
+	Output *llm.OutputSchema
 }
 
 // RunLoop runs the LLM loop once: build messages from history, call LLM, handle tool_calls, append to history, repeat until final reply.
 // It is used by Agent.processLoop (with session history) and by conversation.Run (with DB-backed history).
 // When ctx is cancelled mid-run, RunLoop returns the last assistant content produced (if any) and a nil error,
 // so callers receive a partial result rather than an empty failure.
-func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStats, err error) {
+func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStats, structured *llm.Structured, err error) {
 	opts.EventSink = serializedSink(opts.EventSink)
 	var s RunStats
 	// Installed before any tool can run. A subagent reports its totals here
@@ -288,7 +296,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		// what this iteration reasons about — and before compaction, so it counts
 		// toward the context pressure that decides whether to compact.
 		if err := injectPendingInput(ctx, opts, i+1); err != nil {
-			return "", s, err
+			return "", s, nil, err
 		}
 
 		history := opts.History.HistoryMessages()
@@ -303,7 +311,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 					case errors.Is(cerr, ErrCompactionNotPersisted):
 						// The summary landed nowhere, so the next turn would
 						// re-send the messages it covers as if it never ran.
-						return "", s, cerr
+						return "", s, nil, cerr
 					case cerr != nil:
 						slog.Warn("context compaction failed, falling back to trim", "err", cerr)
 					case res.Compacted():
@@ -325,13 +333,13 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 				slog.Warn("agent run interrupted by context cancellation", "iter", i+1, "turns", len(assistantTexts))
 				emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s})
 				fireRunEndHook(ctx, opts, s, nil)
-				return strings.Join(assistantTexts, "\n\n"), s, nil
+				return strings.Join(assistantTexts, "\n\n"), s, nil, nil
 			}
 			slog.Error("LLM call failed", "err", err)
 			runErr := fmt.Errorf("llm call: %w", err)
 			emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s, Err: runErr})
 			fireRunEndHook(ctx, opts, s, runErr)
-			return "", s, runErr
+			return "", s, nil, runErr
 		}
 		callCost := s.addCall(completion.Usage, opts.Pricing)
 
@@ -362,16 +370,24 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		if len(toolCalls) == 0 {
 			slog.Debug("agent reply", "content", content)
 			if err := opts.History.Append(completion.AssistantMessage()); err != nil {
-				return "", s, err
+				return "", s, nil, err
+			}
+			// The model reached a terminating answer. When the run asked for
+			// structured output, render that settled answer as the schema value
+			// with one more constrained call (§5) — done here, not on the loop's
+			// calls, so it never fights tool use on a provider that maps output to
+			// a forced tool.
+			if opts.Output != nil {
+				structured = extractStructured(ctx, opts, effectiveSysPrompt, &s)
 			}
 			emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s})
 			fireRunEndHook(ctx, opts, s, nil)
-			return strings.Join(assistantTexts, "\n\n"), s, nil
+			return strings.Join(assistantTexts, "\n\n"), s, structured, nil
 		}
 
 		slog.Debug("tool calls", "n", len(toolCalls), "content", content, "calls", toolCallsSummary(toolCalls))
 		if err := opts.History.Append(completion.AssistantMessage()); err != nil {
-			return "", s, err
+			return "", s, nil, err
 		}
 
 		// Tools that write durable state stamp entries with the iteration they were written at.
@@ -382,13 +398,13 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		// totals, including whatever a delegation spent on the way.
 		s.absorb(delegated.Drain())
 		if err != nil {
-			return "", s, err
+			return "", s, nil, err
 		}
 	}
 	slog.Warn("agent max iterations exceeded", "max", opts.MaxIter)
 	emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s, Err: ErrMaxIterations})
 	fireRunEndHook(ctx, opts, s, ErrMaxIterations)
-	return "", s, ErrMaxIterations
+	return "", s, nil, ErrMaxIterations
 }
 
 // injectPendingInput appends every message waiting in opts.PendingInput to the
@@ -487,24 +503,7 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 	// Durable session state is rendered fresh on every call and placed after the messages, so
 	// it is never subject to trimming and never accumulates in the history. An empty block
 	// renders nothing, which is what a run that keeps no state should cost.
-	var notes []Note
-	var todos []Todo
-	if nh, ok := opts.History.(NotesHistory); ok {
-		notes, todos = nh.Notes(), nh.Todos()
-	}
-	// Shared memory first, then this session's state: memory is older, wider
-	// context, and what the current task decided stays closest to generation.
-	// Both are rebuilt per call, so another session's committed write is
-	// visible on the next iteration rather than at the end of the run.
-	var stateMsg []llm.Message
-	if opts.Memory != nil {
-		if block := RenderMemoryIndex(opts.Memory.Index()); block != "" {
-			stateMsg = append(stateMsg, llm.Message{Role: "user", Content: block})
-		}
-	}
-	if block := RenderSessionState(opts.Invariants, notes, todos); block != "" {
-		stateMsg = append(stateMsg, llm.Message{Role: "user", Content: block})
-	}
+	stateMsg := sessionStateMessages(opts)
 
 	systemTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt}) + EstimateTokens(stateMsg)
 	contextWindow := opts.LLMClient.ContextWindow()
@@ -522,8 +521,7 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 		CacheReadTokens:  stats.CacheReadTokens,
 		CacheWriteTokens: stats.CacheWriteTokens,
 	})
-	messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, history...)
-	messages = append(messages, stateMsg...)
+	messages := assembleMessages(systemPrompt, history, stateMsg)
 	// The loop is the one caller whose prefix is sent again on the next
 	// iteration, which is what makes a cache write here worth its price.
 	call := llm.Request{Messages: messages, Tools: opts.ToolRegistry.GetDefs(), Profile: llm.ProfileAgentTurn}
@@ -539,6 +537,65 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 		return opts.LLMClient.ChatCompletionStreaming(ctx, call, onDelta)
 	}
 	return opts.LLMClient.ChatCompletionBlocking(ctx, call)
+}
+
+// sessionStateMessages renders the durable state placed after the history on
+// every call: shared memory first, then this session's invariants, notes, and
+// todos. Both are rebuilt per call so another session's committed write is
+// visible on the next call rather than at the end of the run.
+func sessionStateMessages(opts RunLoopOpts) []llm.Message {
+	var notes []Note
+	var todos []Todo
+	if nh, ok := opts.History.(NotesHistory); ok {
+		notes, todos = nh.Notes(), nh.Todos()
+	}
+	var stateMsg []llm.Message
+	if opts.Memory != nil {
+		if block := RenderMemoryIndex(opts.Memory.Index()); block != "" {
+			stateMsg = append(stateMsg, llm.Message{Role: "user", Content: block})
+		}
+	}
+	if block := RenderSessionState(opts.Invariants, notes, todos); block != "" {
+		stateMsg = append(stateMsg, llm.Message{Role: "user", Content: block})
+	}
+	return stateMsg
+}
+
+// assembleMessages builds the request message list: the system prompt, the
+// history, then the durable state block that must never be trimmed.
+func assembleMessages(systemPrompt string, history, stateMsg []llm.Message) []llm.Message {
+	messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, history...)
+	return append(messages, stateMsg...)
+}
+
+// extractStructured makes the one additional call that renders the run's settled
+// answer as the schema-constrained value (docs/design/structured-output.md §5).
+// It runs after the model produced a terminating answer, so history already
+// carries that answer; the model is asked only to express it in the required
+// shape. No tools are offered — the run is reporting, not acting — and the call
+// does not stream, since a half-built value is never presented (§10). The Client
+// validates the result, so this returns a validated value or a typed failure;
+// a transport error becomes a typed failure too, because the text answer already
+// stands and a broken extraction must not fail the whole run.
+func extractStructured(ctx context.Context, opts RunLoopOpts, systemPrompt string, stats *RunStats) *llm.Structured {
+	history := opts.History.HistoryMessages()
+	if cw := opts.LLMClient.ContextWindow(); cw > 0 {
+		sysTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt})
+		history = TrimHistory(history, sysTokens, cw, 0)
+	}
+	messages := assembleMessages(systemPrompt, history, sessionStateMessages(opts))
+	// ProfileProbe: this prefix is never sent again, so it must not pay to write
+	// a cache it can only read from.
+	call := llm.Request{Messages: messages, Profile: llm.ProfileProbe, Output: opts.Output}
+	completion, err := opts.LLMClient.ChatCompletionBlocking(ctx, call)
+	if err != nil {
+		return &llm.Structured{Err: &llm.StructuredError{Message: "structured-output extraction call failed: " + err.Error()}}
+	}
+	stats.addCall(completion.Usage, opts.Pricing)
+	if completion.Structured == nil {
+		return &llm.Structured{Err: &llm.StructuredError{Message: "provider returned no structured value"}}
+	}
+	return completion.Structured
 }
 
 // pendingCall is one tool call moving through the four stages below. Workers

@@ -86,10 +86,13 @@ validated value, its mode, whether the provider enforced it, or a typed failure 
 comes back on `Completion.Structured`. Every provider maps it to its native
 mechanism — OpenAI Chat and Responses to `response_format` `json_schema`,
 Anthropic to a single forced tool, Ollama to `format` — and the Client validates
-the candidate once, even for a native provider. Wiring it into a run's final
-answer and a consumer, and the deferred prompted fallback, remain open (Phases
-3-4 of [structured output](design/structured-output.md)). Tool-argument JSON
-schemas are a separate capability; see
+the candidate once, even for a native provider. A run requests it through
+`RunPromptOpts.Output`/`RunLoopOpts.Output`: the loop runs free, and once the
+model produces a no-tool-call answer the runtime re-issues one constrained call
+to render that settled answer as the value, returned on `RunResult.Structured`.
+Persisting the value on a TaskRun and the Workflow consumer remain open (Phase 4
+of [structured output](design/structured-output.md)), as does the deferred
+prompted fallback. Tool-argument JSON schemas are a separate capability; see
 [`internal/core/llm/llm.go`](../internal/core/llm/llm.go).
 
 ## Tasks, Results, And Workspace Continuity
