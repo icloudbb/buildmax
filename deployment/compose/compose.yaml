@@ -87,6 +87,11 @@ services:
       # path a Kubernetes Secret uses.
       BUILDMAX_JWT_SECRET: ${BUILDMAX_JWT_SECRET:?run ./generate-env.sh first}
       BUILDMAX_DATABASE_PASSWORD: ${BUILDMAX_DATABASE_PASSWORD}
+      # The browser reaches everything through the gateway, so HTTP is same-origin
+      # and needs no CORS. The WebSocket upgrader still checks the request Origin
+      # against this, though, and the default is a dev origin — so it must name the
+      # gateway's origin (the port that publishes it) or the /ws upgrade is refused.
+      BUILDMAX_CORS_ORIGIN: http://localhost:${BUILDMAX_PORTAL_PORT:-8080}
       # Optional: without it the Portal loads but conversations cannot run.
       BUILDMAX_CONVERSATION_MODEL_API_KEY: ${BUILDMAX_CONVERSATION_MODEL_API_KEY:-}
     volumes:
