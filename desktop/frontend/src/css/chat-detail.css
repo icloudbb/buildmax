@@ -233,6 +233,10 @@
 }
 
 .page-chat__tool-call-name {
+  /* Keep the tool name intact: the ancestor's word-break: break-word plus flex
+     compression would otherwise split it mid-word ("Writ e") at narrow widths. */
+  flex-shrink: 0;
+  white-space: nowrap;
   color: var(--color-text-muted);
   font-weight: 600;
 }

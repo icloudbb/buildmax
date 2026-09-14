@@ -77,7 +77,6 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 
 ## Exploratory Runs / 探索性运行记录
 
-- [English: Desktop, Portal, server, and worker continuity — 2026-09-13](contribute/exploratory-runs/2026-09-13-cross-surface-task-continuity.md) · [中文：Desktop、Portal、server 与 worker 连续性 — 2026-09-13](zh-CN/contribute/exploratory-runs/2026-09-13-cross-surface-task-continuity.md)
 - [English: Exploratory Run Records](contribute/exploratory-runs/README.md) · [中文：探索式测试记录](zh-CN/contribute/exploratory-runs/README.md)
 
 ## Design Records / 设计记录
@@ -161,6 +160,7 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: Add PluginInstall staging and the autonomous-acquisition policy gate](backlog/84-plugin-install-staging-and-policy.md) · 中文：—
 - [English: Add the immediate capability handoff orchestration](backlog/86-plugin-capability-handoff-orchestration.md) · 中文：—
 - [English: Prove Task-scoped autonomous install end to end](backlog/88-plugin-handoff-deployment-evidence.md) · 中文：—
+- [English: Show the continued run's own input in the Run trace panel](backlog/90-continued-taskrun-input-trace.md) · 中文：—
 - [English: BuildMax Backlog](backlog/README.md) · 中文：—
 - [English: Backlog Task Template](backlog/TEMPLATE.md) · 中文：—
 
@@ -176,3 +176,4 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: Sign in over OpenID Connect](changelog/added/oidc-sign-in.md) · 中文：—
 - [English: SSO account linking](changelog/added/oidc-account-linking.md) · 中文：—
 - [English: Workflow step output schema](changelog/added/workflow-step-output-schema.md) · 中文：—
+- [English: Desktop tool-call card name wrapping](changelog/fixed/desktop-tool-card-name-wrap.md) · 中文：—
