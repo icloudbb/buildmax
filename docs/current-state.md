@@ -36,7 +36,7 @@ may bind an earlier step's whole output into its input as labelled, untrusted
 context, so a multi-step Workflow can pass one Agent's result to the next, and
 the Portal step form authors those bindings directly rather than only through
 advanced JSON; the typed `nodes`/`bindings` contract, input and output schemas,
-and structured output remain open.
+and Workflow's use of structured output remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including
@@ -79,9 +79,18 @@ model catalog; a server-rejected credential is treated as an expired login, and
 [`internal/interface/auth/models.go`](../internal/interface/auth/models.go) and
 its [tests](../internal/interface/auth/models_test.go).
 
-The shared LLM request contract does not yet expose a provider-neutral
-structured-output schema. Tool-argument JSON schemas are a separate capability;
-see [`internal/core/llm/llm.go`](../internal/core/llm/llm.go).
+The shared LLM request contract exposes a provider-neutral structured-output
+schema: a `Request.Output` schema is validated against the shared subset in
+[`internal/core/jsonschema`](../internal/core/jsonschema), and the result — the
+validated value, its mode, whether the provider enforced it, or a typed failure —
+comes back on `Completion.Structured`. Every provider maps it to its native
+mechanism — OpenAI Chat and Responses to `response_format` `json_schema`,
+Anthropic to a single forced tool, Ollama to `format` — and the Client validates
+the candidate once, even for a native provider. Wiring it into a run's final
+answer and a consumer, and the deferred prompted fallback, remain open (Phases
+3-4 of [structured output](design/structured-output.md)). Tool-argument JSON
+schemas are a separate capability; see
+[`internal/core/llm/llm.go`](../internal/core/llm/llm.go).
 
 ## Tasks, Results, And Workspace Continuity
 

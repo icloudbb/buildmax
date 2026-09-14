@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -42,7 +43,8 @@ func newOpenAIChatAdapter(cfg Config) *openAIChatAdapter {
 
 func (a *openAIChatAdapter) name() string { return cllm.ProviderOpenAICompatible }
 
-func (a *openAIChatAdapter) buildRequest(messages []cllm.Message, tools []cllm.ToolDef) openai.ChatCompletionRequest {
+func (a *openAIChatAdapter) buildRequest(req cllm.Request) openai.ChatCompletionRequest {
+	messages, tools := req.Messages, req.Tools
 	openaiMsgs := make([]openai.ChatCompletionMessage, 0, len(messages))
 	for _, m := range messages {
 		openaiMsgs = append(openaiMsgs, toOpenAIMessage(m))
@@ -59,12 +61,25 @@ func (a *openAIChatAdapter) buildRequest(messages []cllm.Message, tools []cllm.T
 	for _, t := range tools {
 		openaiTools = append(openaiTools, toOpenAITool(t))
 	}
-	return openai.ChatCompletionRequest{
+	built := openai.ChatCompletionRequest{
 		Model:     a.model,
 		Messages:  openaiMsgs,
 		Tools:     openaiTools,
 		MaxTokens: a.maxTokens,
 	}
+	if req.Output != nil {
+		// json_schema with strict is this protocol's native structured-output
+		// mechanism. The Client re-validates the result regardless.
+		built.ResponseFormat = &openai.ChatCompletionResponseFormat{
+			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
+			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
+				Name:   req.Output.Name,
+				Schema: json.RawMessage(req.Output.Schema),
+				Strict: true,
+			},
+		}
+	}
+	return built
 }
 
 func toOpenAIMessage(m cllm.Message) openai.ChatCompletionMessage {
@@ -197,8 +212,7 @@ func openAIAPIError(err error) error {
 }
 
 func (a *openAIChatAdapter) blocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
-	messages, tools := req.Messages, req.Tools
-	resp, err := a.client.CreateChatCompletion(ctx, a.buildRequest(messages, tools))
+	resp, err := a.client.CreateChatCompletion(ctx, a.buildRequest(req))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("chat completion: %w", openAIAPIError(err))
 	}
@@ -209,17 +223,17 @@ func (a *openAIChatAdapter) blocking(ctx context.Context, req cllm.Request) (cll
 	// This protocol carries no reasoning state, so a completion from it never
 	// sets ProviderState.
 	return cllm.Completion{
-		Content:   msg.Content,
-		ToolCalls: toToolCalls(msg.ToolCalls),
-		Usage:     chatUsage(resp.Usage),
+		Content:    msg.Content,
+		ToolCalls:  toToolCalls(msg.ToolCalls),
+		Usage:      chatUsage(resp.Usage),
+		Structured: nativeCandidate(req, msg.Content),
 	}, nil
 }
 
 func (a *openAIChatAdapter) streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
-	messages, tools := req.Messages, req.Tools
 	var streamUsage cllm.Usage
 	ctx = context.WithValue(ctx, streamUsageKey, &streamUsage)
-	stream, err := a.client.CreateChatCompletionStream(ctx, a.buildRequest(messages, tools))
+	stream, err := a.client.CreateChatCompletionStream(ctx, a.buildRequest(req))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("chat completion stream: %w", openAIAPIError(err))
 	}
@@ -255,8 +269,9 @@ func (a *openAIChatAdapter) streaming(ctx context.Context, req cllm.Request, onD
 		}
 	}
 	return cllm.Completion{
-		Content:   fullContent.String(),
-		ToolCalls: accum.toolCalls(),
-		Usage:     streamUsage,
+		Content:    fullContent.String(),
+		ToolCalls:  accum.toolCalls(),
+		Usage:      streamUsage,
+		Structured: nativeCandidate(req, fullContent.String()),
 	}, nil
 }

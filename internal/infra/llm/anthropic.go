@@ -132,7 +132,78 @@ func (a *anthropicAdapter) buildParams(req cllm.Request) (anthropic.MessageNewPa
 			Effort: anthropic.OutputConfigEffort(a.reasoning),
 		}
 	}
+	if req.Output != nil {
+		// This protocol has no response-format field, so structured output is one
+		// forced tool whose input schema is the output schema; the tool input is
+		// the value (structured-output.md §7). Forcing it replaces any other tools:
+		// the terminating answer reports, it does not act.
+		name := structuredToolName(req.Output)
+		schema, _ := objectifyForToolInput(req.Output.Schema)
+		tool := anthropic.ToolParam{
+			Name:        name,
+			Description: anthropic.String("Return the final answer as data matching the required schema."),
+			InputSchema: anthropicInputSchema(schema),
+		}
+		params.Tools = []anthropic.ToolUnionParam{{OfTool: &tool}}
+		params.ToolChoice = anthropic.ToolChoiceParamOfTool(name)
+	}
 	return params, nil
+}
+
+// structuredToolName is the forced tool's name: the caller's schema name when it
+// gave one, or a stable default this protocol can always send.
+func structuredToolName(output *cllm.OutputSchema) string {
+	if output.Name != "" {
+		return output.Name
+	}
+	return "structured_output"
+}
+
+// objectifyForToolInput adapts an output schema to a tool input schema, which
+// this protocol requires to be an object. An object schema is used directly; any
+// other subset schema (a scalar or array at the top) is wrapped under a single
+// "value" property, and the caller unwraps it. The bool reports the wrap.
+func objectifyForToolInput(raw json.RawMessage) (any, bool) {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) == nil {
+		var typ string
+		if json.Unmarshal(fields["type"], &typ) == nil && typ == "object" {
+			return raw, false
+		}
+	}
+	return map[string]any{
+		"type":                 "object",
+		"properties":           map[string]any{"value": raw},
+		"required":             []string{"value"},
+		"additionalProperties": false,
+	}, true
+}
+
+// anthropicStructured reads the forced tool's input back as the candidate value.
+// It never validates — the Client does that once for every provider — but it
+// reports a typed failure when the model did not make the forced call.
+func anthropicStructured(blocks []anthropic.ContentBlockUnion, output *cllm.OutputSchema) *cllm.Structured {
+	name := structuredToolName(output)
+	_, wrapped := objectifyForToolInput(output.Schema)
+	for _, block := range blocks {
+		use, ok := block.AsAny().(anthropic.ToolUseBlock)
+		if !ok || use.Name != name {
+			continue
+		}
+		value := json.RawMessage(use.Input)
+		if wrapped {
+			var obj map[string]json.RawMessage
+			if err := json.Unmarshal(value, &obj); err != nil || obj["value"] == nil {
+				break
+			}
+			value = obj["value"]
+		}
+		return &cllm.Structured{Value: value, Mode: cllm.StructuredForcedTool, Enforced: true}
+	}
+	return &cllm.Structured{
+		Mode: cllm.StructuredForcedTool,
+		Err:  &cllm.StructuredError{Message: "model did not return the forced structured-output tool call"},
+	}
 }
 
 // anthropicMessages converts canonical history into the system parameter and a
@@ -482,12 +553,14 @@ func (a *anthropicAdapter) blocking(ctx context.Context, req cllm.Request) (cllm
 		return cllm.Completion{}, fmt.Errorf("messages: %w", anthropicError(err))
 	}
 	content, toolCalls := anthropicContent(message.Content)
-	return cllm.Completion{
+	completion := cllm.Completion{
 		Content:       content,
 		ToolCalls:     toolCalls,
 		Usage:         anthropicUsage(message.Usage),
 		ProviderState: anthropicProviderState(message.Content),
-	}, nil
+	}
+	applyAnthropicStructured(req, message.Content, &completion)
+	return completion, nil
 }
 
 func (a *anthropicAdapter) streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
@@ -524,10 +597,23 @@ func (a *anthropicAdapter) streaming(ctx context.Context, req cllm.Request, onDe
 		return cllm.Completion{Content: delivered.String()}, fmt.Errorf("messages stream: %w", anthropicError(err))
 	}
 	content, toolCalls := anthropicContent(message.Content)
-	return cllm.Completion{
+	completion := cllm.Completion{
 		Content:       content,
 		ToolCalls:     toolCalls,
 		Usage:         anthropicUsage(message.Usage),
 		ProviderState: anthropicProviderState(message.Content),
-	}, nil
+	}
+	applyAnthropicStructured(req, message.Content, &completion)
+	return completion, nil
+}
+
+// applyAnthropicStructured moves the forced tool's input onto Structured when
+// the request asked for output. The forced call is the run reporting its answer,
+// not a tool for the caller to run, so it is removed from ToolCalls.
+func applyAnthropicStructured(req cllm.Request, blocks []anthropic.ContentBlockUnion, completion *cllm.Completion) {
+	if req.Output == nil {
+		return
+	}
+	completion.ToolCalls = nil
+	completion.Structured = anthropicStructured(blocks, req.Output)
 }

@@ -77,9 +77,12 @@ func ollamaBaseURL(raw string) string {
 // --- Wire types -------------------------------------------------------------
 
 type ollamaChatRequest struct {
-	Model     string          `json:"model"`
-	Messages  []ollamaMessage `json:"messages"`
-	Tools     []ollamaTool    `json:"tools,omitempty"`
+	Model    string          `json:"model"`
+	Messages []ollamaMessage `json:"messages"`
+	Tools    []ollamaTool    `json:"tools,omitempty"`
+	// Format is this protocol's native structured-output mechanism: a JSON Schema
+	// the daemon constrains output to. Empty is unconstrained free text.
+	Format    json.RawMessage `json:"format,omitempty"`
 	Stream    bool            `json:"stream"`
 	Think     bool            `json:"think,omitempty"`
 	KeepAlive string          `json:"keep_alive,omitempty"`
@@ -135,11 +138,16 @@ type ollamaChatResponse struct {
 
 // --- Request construction ---------------------------------------------------
 
-func (a *ollamaAdapter) buildRequest(messages []cllm.Message, tools []cllm.ToolDef, stream bool) ollamaChatRequest {
+func (a *ollamaAdapter) buildRequest(req cllm.Request, stream bool) ollamaChatRequest {
+	var format json.RawMessage
+	if req.Output != nil {
+		format = json.RawMessage(req.Output.Schema)
+	}
 	return ollamaChatRequest{
 		Model:     a.model,
-		Messages:  a.ollamaMessages(messages),
-		Tools:     ollamaTools(tools),
+		Messages:  a.ollamaMessages(req.Messages),
+		Tools:     ollamaTools(req.Tools),
+		Format:    format,
 		Stream:    stream,
 		Think:     config.ReasoningEnabled(a.reasoning),
 		KeepAlive: a.keepAlive,
@@ -324,8 +332,7 @@ func ollamaUsage(resp ollamaChatResponse) cllm.Usage {
 // --- Calls ------------------------------------------------------------------
 
 func (a *ollamaAdapter) blocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
-	messages, tools := req.Messages, req.Tools
-	body, err := a.post(ctx, "/api/chat", a.buildRequest(messages, tools, false))
+	body, err := a.post(ctx, "/api/chat", a.buildRequest(req, false))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("chat: %w", err)
 	}
@@ -342,15 +349,15 @@ func (a *ollamaAdapter) blocking(ctx context.Context, req cllm.Request) (cllm.Co
 	// replays nothing, so state no one sends back would be state to migrate for
 	// nothing. The transcript keeps the answer, as it does on Anthropic.
 	return cllm.Completion{
-		Content:   resp.Message.Content,
-		ToolCalls: toolCallsFrom(resp.Message.ToolCalls, priorToolCalls(messages)),
-		Usage:     ollamaUsage(resp),
+		Content:    resp.Message.Content,
+		ToolCalls:  toolCallsFrom(resp.Message.ToolCalls, priorToolCalls(req.Messages)),
+		Usage:      ollamaUsage(resp),
+		Structured: nativeCandidate(req, resp.Message.Content),
 	}, nil
 }
 
 func (a *ollamaAdapter) streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
-	messages, tools := req.Messages, req.Tools
-	body, err := a.post(ctx, "/api/chat", a.buildRequest(messages, tools, true))
+	body, err := a.post(ctx, "/api/chat", a.buildRequest(req, true))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("chat stream: %w", err)
 	}
@@ -389,9 +396,10 @@ func (a *ollamaAdapter) streaming(ctx context.Context, req cllm.Request, onDelta
 		}
 	}
 	return cllm.Completion{
-		Content:   content.String(),
-		ToolCalls: toolCallsFrom(calls, priorToolCalls(messages)),
-		Usage:     usage,
+		Content:    content.String(),
+		ToolCalls:  toolCallsFrom(calls, priorToolCalls(req.Messages)),
+		Usage:      usage,
+		Structured: nativeCandidate(req, content.String()),
 	}, nil
 }
 

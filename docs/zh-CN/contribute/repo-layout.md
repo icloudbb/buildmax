@@ -131,6 +131,8 @@ internal/
 │   │                   对象不存在时，一个 store 会怎么说
 │   ├── llm/            LLM 契约（Message、ToolDef、ToolCall、Usage、LLMClient）、
 │   │                   Tool 契约、ToolRegistry，以及工具策略
+│   ├── jsonschema/     结构化输出与 Workflow 输入 Schema 共用的 JSON Schema
+│   │                   子集：子集编译期检查与取值校验
 │   ├── hook/           hook 配置的形状、其事件与传输方式
 │   ├── mcp/            mcp.json 文档的形状及其校验规则
 │   ├── agent/          工具调用循环、事件、hook、沙箱契约

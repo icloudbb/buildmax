@@ -183,7 +183,9 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (
 	}
 	if err != nil {
 		err = wrapLLMError(err)
+		return
 	}
+	finalizeStructured(req, &completion)
 	return
 }
 
@@ -216,7 +218,9 @@ func (c *Client) ChatCompletionStreaming(ctx context.Context, req cllm.Request, 
 	}
 	if err != nil {
 		err = wrapLLMError(err)
+		return
 	}
+	finalizeStructured(req, &completion)
 	return
 }
 

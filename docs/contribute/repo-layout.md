@@ -135,6 +135,9 @@ internal/
 │   │                   row or object a caller named is not there
 │   ├── llm/            LLM contracts (Message, ToolDef, ToolCall, Usage, LLMClient),
 │   │                   the Tool contract, ToolRegistry, and tool policy
+│   ├── jsonschema/     The JSON Schema subset structured output and Workflow
+│   │                   input schemas share: compile-time subset check and value
+│   │                   validation
 │   ├── hook/           The hooks configuration shape, its events and transports
 │   ├── mcp/            The mcp.json document shape and its validation rules
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract

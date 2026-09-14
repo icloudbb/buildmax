@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/结构化输出.md)
 
-> **Audience:** contributors, product designers, and operators · **Status:** proposed — direction for discussion, implementation not started. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
+> **Audience:** contributors, product designers, and operators · **Status:** accepted — Phases 1-2 (the runtime contract and all provider mappings except the deferred prompted fallback) in progress. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
 
 Related: [workflow runtime](workflow-runtime.md),
 [agent execution and Task threads](agent-execution-and-task-threads.md),
@@ -118,7 +118,6 @@ Two additions to `internal/core/llm`, provider-neutral:
 type OutputSchema struct {
     Name   string          // a stable name for the schema (some providers require one)
     Schema json.RawMessage // the JSON Schema, in the supported subset (§6)
-    Strict bool            // true: the value must validate; false: best-effort shape
 }
 
 type Request struct {
@@ -180,11 +179,14 @@ both a human-readable transcript and one typed result.
 
 ## 6. The Schema Subset
 
-The contract accepts the **same JSON Schema subset Workflow already defines for
-its input schemas** ([workflow runtime §6.1](workflow-runtime.md)), so a schema
-authored for a Workflow node's `output_schema` validates identically here.
-Publication of a Workflow that declares an output schema fails if the schema
-leaves the subset, exactly as an unsupported input schema does today.
+The contract accepts a **single named JSON Schema subset that both this contract
+and Workflow's `input_schema` reference** ([workflow runtime §6.1](workflow-runtime.md)),
+defined once so a definition validates identically at both boundaries and cannot
+drift between them (§15 D1). Neither boundary has implemented its subset yet, so
+this is one shared definition, not two byte-identical copies. A schema authored
+for a Workflow node's `output_schema` validates identically here. Publication of
+a Workflow that declares an output schema fails if the schema leaves the subset,
+exactly as an unsupported input schema does today.
 
 The subset is documented with the API when implemented. It is deliberately
 narrow first — objects, a fixed set of scalar types, enums, arrays, `required`,
@@ -300,8 +302,13 @@ consumers together, with no compatibility interpreter for the old shapes.
 scripted provider. No consumer yet; `Output` nil is unchanged behavior.
 
 **Phase 2 — the other providers.** Anthropic `forced_tool` and Ollama `format`,
-plus the `prompted` fallback and honest `Mode`/`Enforced` reporting. A model
-with no mechanism validates against the runtime's own validator.
+with honest `Mode`/`Enforced` reporting. The `prompted` fallback is **deferred**:
+all four current providers have a native mechanism, so nothing exercises it, and
+its trigger (a provider with no mechanism, or capability detection for an
+OpenAI-compatible endpoint that rejects `response_format`) is its own unresolved
+design. It stays the documented floor (§7, §14.2) and is added when a consumer
+needs it, per Occam's razor. A model with no mechanism will then validate against
+the runtime's own validator.
 
 **Phase 3 — the run boundary.** `RunLoopOpts.Output`, applied to the
 terminating answer (§5), returning `Structured` beside the reply; the TaskRun
@@ -371,16 +378,36 @@ runtime — not a Portal parser — to validate before a node succeeds
 
 ## 15. Open Questions
 
-- The exact schema subset keywords for the first version, pinned with the API,
-  and whether it is byte-identical to Workflow's input-schema subset or a named
-  shared subset both reference.
-- Whether `Strict` (validate-or-fail) versus best-effort shape is worth two
-  modes, or whether the contract is always validate-or-typed-failure with
-  `Enforced` carrying the nuance.
+### Decided
+
+- **D1 — one named shared subset.** The schema subset is a single named
+  definition that both this contract and Workflow's `input_schema` reference
+  (§6), not two byte-identical copies. Neither boundary has implemented its
+  subset yet, so there is nothing to reconcile — the definition is authored once
+  and both reference it, which is why §14.4's drift concern does not arise. The
+  first-version keywords are objects, the scalar types
+  (`string`/`number`/`integer`/`boolean`), `enum`, `array` with `items`,
+  `required`, `additionalProperties: false`, and `description` (needed for both
+  Portal form generation and prompt rendering). Keywords with no cross-provider
+  mapping or no runtime check — `oneOf`/`anyOf`/`allOf`, `$ref`,
+  `patternProperties`, `format` validation — are out of the first version and
+  added only when a consumer needs one (§14.3).
+- **D2 — no `Strict` field; always validate-or-typed-failure.** The contract has
+  a single behavior: the runtime validates the candidate value against the
+  schema and returns either the validated value or a typed failure (§9). There
+  is no best-effort shape mode. `Enforced` (§8) already carries the only nuance
+  that matters — whether the provider guaranteed the shape (`native`,
+  `forced_tool`) or the value only survived the runtime's own validation after a
+  `prompted` fallback. A "best-effort" value that does not fail on an off-schema
+  result would give a consumer nothing trustworthy, so it is not worth a second
+  mode.
+
+### Still open
+
 - How a run requests structured output for its *final* answer without the model
   emitting the forced-tool call too early on a provider that maps to a tool —
   i.e. the prompt/stop conditions that keep §5's "final answer only" true in
-  practice.
+  practice. Resolved when the Anthropic `forced_tool` mapping lands (Phase 2).
 - Whether the Task result envelope's structured field needs its own retention
   and redaction rules distinct from the text output, given it may carry
   extracted data.
