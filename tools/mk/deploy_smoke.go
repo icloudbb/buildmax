@@ -271,7 +271,10 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 	if err := waitForHTTP(ctx, client, target.apiBase+"/healthz", 90*time.Second); err != nil {
 		return err
 	}
-	if err := expectHTTPStatus(ctx, client, target.portalURL, http.StatusOK); err != nil {
+	// Wait rather than assert once: the gateway that fronts the Portal may still
+	// be warming up (or re-resolving a just-recreated upstream) right after the
+	// stack comes up, which is a transient 502, not a failure.
+	if err := waitForHTTP(ctx, client, target.portalURL, 60*time.Second); err != nil {
 		return fmt.Errorf("portal: %w", err)
 	}
 	portalConfig, err := requestText(ctx, client, http.MethodGet, strings.TrimRight(target.portalURL, "/")+"/config.js", "", nil, http.StatusOK)
