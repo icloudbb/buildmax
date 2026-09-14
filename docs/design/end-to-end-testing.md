@@ -450,6 +450,37 @@ so the server exits and crash-loops until the database is reachable. That
 asymmetry is intended — a candidate that cannot reach its database at boot has
 nothing to serve — and it is not what this probe exercises.
 
+### 6.5 Losing Object Storage
+
+The object-storage probe (`kindStorageDenialProbe` in `tools/mk`) is §6.4's twin
+for the other stateful dependency: `/readyz` probes real bucket reachability
+(`persist.ListFiles` against a sentinel prefix), so when the server loses object
+storage at runtime the `object_storage` check fails, the pod leaves the Service
+without being restarted, and it recovers on its own — bucket intact — once
+access returns.
+
+The interruption needs the same two steps as the database, and for the same
+reason: a deny-all `NetworkPolicy` on the MinIO pod blocks new connections, but
+the S3 client's established keep-alive connection is grandfathered through and
+reused, so the readiness probe never notices. MinIO has no session-kill to
+borrow the way MySQL does, so the probe drops the connection by bouncing MinIO
+in place — a `SIGTERM` to its PID 1 exits the container and the kubelet restarts
+it in the same pod, so the emptyDir bucket survives while the server's
+reconnection hits the policy. MinIO restarts quickly and has no readiness gate,
+so it is serving again by the time the policy is removed, and recovery is a fast
+reconnection. Blocking access rather than deleting the pod is what lets recovery
+find the same bucket: a lost emptyDir would leave a fresh MinIO with no bucket,
+which the running server — it creates the bucket at startup — would not restore.
+That the `object_storage` check returns healthy after recovery is itself the
+evidence the bucket came back with its contents, since the probe lists the
+bucket rather than assuming it.
+
+The worker's write path under a storage denial — a run that fails with an
+operator-understandable cause and leaves no artifact record that claims a
+missing object is downloadable — is a distinct case this probe does not cover;
+it needs a run driven to an artifact write while the worker's storage is denied,
+and is left for a later addition.
+
 ## 7. AI Agent Workflow
 
 The harness is a first-class tool for code-changing agents, not merely a CI

@@ -396,6 +396,9 @@ func kindSmoke() error {
 	if err := kindDBOutageProbe(); err != nil {
 		return err
 	}
+	if err := kindStorageDenialProbe(); err != nil {
+		return err
+	}
 	printSmokeLogin(target)
 	return nil
 }
