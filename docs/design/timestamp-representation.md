@@ -166,9 +166,9 @@ dual-read path is exactly what Alpha exists to avoid.
 Two things the inventory did not predict. `Note.WrittenAt` and `Todo.WrittenAt`
 in `internal/core/agent` were never instants — they count loop iterations — and
 are now `WrittenIteration`, which is what D7 asks of a name. And the Portal's
-`StoredSession.expiresAt` stays a number: it is a deadline the browser computes
-from `expires_in` and keeps in `localStorage`, not a stored instant on any of
-the three layers this record governs.
+access-token expiry deadline stays a number: it is computed from `expires_in`
+and held with the access token in module memory, not persisted as an instant in
+any of the three layers this record governs.
 
 ## 6. Existing Databases
 

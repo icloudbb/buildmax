@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/proposals/system-administration-operations.md)
 >
-> **Audience:** contributors, operators, and security reviewers · **Status:** proposal — under discussion
+> **Audience:** contributors, operators, and security reviewers · **Status:** proposal — under discussion; core administration plus OIDC diagnostics and external-identity administration ship, while the later operational slices remain open
 >
 > **Opened:** 2026-09-05
 
@@ -37,8 +37,8 @@ BuildMax has deployment-scoped system administration. Its grant integrity,
 Administrators page, first-level navigation, account and Space pagination,
 redacted configuration display, and model creation have since shipped. This
 proposal remains open for the broader operating contract, not those completed
-slices. Status was reconciled against code at `97d5fbc7`; this was not a new
-MySQL or browser qualification run.
+slices. Status was rechecked against the current tree on 2026-09-14; this was
+not a new MySQL or browser qualification run.
 
 The remaining gaps are concrete:
 
@@ -100,9 +100,9 @@ lists history and grants/revokes by account email; Overview shows the caller's
 grant and a collapsible redacted configuration. Accounts and Spaces paginate,
 and account details have a stable route. Account filters include platform and
 last-login date bounds. Portal lists live login chains by session ID, platform,
-creation, last rotation, and expiry, and can revoke one or all. This revokes
-refresh tokens, not already-issued access tokens. Model creation is available
-in Portal.
+creation, last rotation, and expiry, and can revoke one or all. Revocation now
+retires the durable session and its refresh tokens, so already-issued access
+tokens fail on their next guarded request. Model creation is available in Portal.
 
 Evidence anchors include `portal/src/features/admin`, `portal/src/layout/Sidebar.tsx`,
 `portal/e2e/admin.spec.ts`, and the MySQL concurrency tests in
@@ -112,10 +112,10 @@ a claim that every later phase's acceptance criteria have passed.
 ### 2.3 Documentation Status
 
 The operator authentication guide now describes Portal grant management and
-single and bulk session revocation. It still identifies self-service session
-management, login throttling, and enterprise identity as unbuilt. Keep current
-behavior there; this proposal owns only the remaining choices and their
-acceptance conditions.
+single and bulk session revocation plus the shipped OIDC browser flow. It still
+identifies self-service session management, login throttling, native-client
+OIDC, and real-provider qualification as unbuilt. Keep current behavior there;
+this proposal owns only the remaining choices and their acceptance conditions.
 
 ## 3. Decision Boundary
 
@@ -163,8 +163,9 @@ be passed into `SpaceAction` or used as a fallback when Space authorization fail
 
 - A universal superuser that bypasses Space membership.
 - Custom roles, arbitrary permissions, or per-resource ACLs in this slice.
-- OIDC, SAML, SCIM, MFA, and service accounts. The
-  [enterprise identity proposal](../design/enterprise-identity-and-access.md) owns those.
+- SAML, SCIM, MFA, and service accounts. The accepted
+  [enterprise identity design](../design/enterprise-identity-and-access.md) owns
+  identity protocols; its OIDC browser slice is already shipped.
 - Account hard deletion or Space deletion. Both require data-ownership,
   retention, and audit decisions first.
 - Editing `server.yaml` from Portal. It is process-start configuration and has
@@ -591,11 +592,15 @@ multi-instance consistency decision.
 
 ### Phase 6: Enterprise Identity Follow-On
 
-After the enterprise identity proposal is accepted, administration may gain:
+The accepted enterprise-identity work has already added:
 
-- OIDC connection state and callback diagnostics;
+- redacted OIDC configuration plus live discovery/connection diagnostics; and
+- external-identity inspection and unlinking, with disable-before-unlink
+  enforced and audited.
+
+The remaining possible administration work is:
+
 - SCIM provisioning and deprovisioning status;
-- identity-link inspection without exposing provider tokens;
 - administrator MFA or step-up authentication for destructive actions;
 - a real `system_observer` role if an operations-only caller is identified;
 - service-account lifecycle if unattended callers need a supported credential.
@@ -953,5 +958,5 @@ Acceptance should not create a parallel System Administration design. Instead:
 - place the agreed sequencing in `docs/ROADMAP.md`, with the early phases
   naturally supporting the R3 candidate operator journey;
 - create focused implementation Issues or pull requests for each phase;
-- keep enterprise identity decisions in their own proposal and later design;
+- keep enterprise identity decisions in their accepted design record;
 - delete this proposal once its durable decisions have moved.

@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/proposals/risk-driven-e2e-expansion.md)
 >
-> **Audience:** maintainers, contributors, release operators, and verification authors · **Status:** proposal — under discussion
+> **Audience:** maintainers, contributors, release operators, and verification authors · **Status:** proposal — under discussion; the graceful worker-loss and dependency-readiness kind probes proposed here have shipped, while the remaining increment and candidate evidence are still open
 >
 > **Opened:** 2026-09-13
 
@@ -46,9 +46,9 @@ increment**, with four rules:
 
 1. Do not expand Portal CRUD and presentation happy paths merely to increase
    browser-test breadth.
-2. Add deterministic deployment cases for worker loss, Server restart and
-   reconnect, dependency denial and recovery, and cancellation after partial
-   work.
+2. Keep the shipped graceful worker-loss and dependency-readiness cases as
+   regressions, then add Server restart/reconnect, worker write denial, and
+   cancellation after partial work.
 3. Prove the supported worker contract against candidate artifacts, including
    the negative paths that must fail closed.
 4. Bind every new case to one critical journey, one independently observable
@@ -76,15 +76,19 @@ The existing suite is broad on normal operation:
   responsive layouts, accessibility, and dependency presentation states;
 - Compose and kind smoke cover ordinary direct and managed execution, storage,
   a real worker, Artifact retrieval, retry, authorization denial,
-  cancellation, and a Bash confinement probe.
+  cancellation, a Bash confinement probe, graceful worker loss, and runtime
+  MySQL/object-storage readiness degradation and recovery.
 
 That baseline leaves a different class of risk. A successful run does not prove
 what happens when a process disappears, a dependency refuses an operation, or
 a durable result must survive a restart. The roadmap identifies candidate
 worker proof, durable reconciliation, and lifecycle recovery as R0–R2. The
-Beta readiness record still has no completed worker-loss, database-outage,
-storage-denial, paired-restore, upgrade, rollback, or credential-rotation
-evidence.
+The repository now has repeatable kind evidence for the common graceful
+worker-loss path and for MySQL and object-storage readiness outage/recovery.
+Those are development-environment regressions, not a filled-in candidate
+record: the Beta readiness rows remain `Not run`, and worker write denial,
+paired restore, upgrade, rollback, and credential rotation still have no such
+proof.
 
 One known cancellation limit makes the distinction concrete. The current
 deployment smoke stalls the first model call, so it proves that cancellation
@@ -113,9 +117,10 @@ The constraints today are:
   test loop;
 - the deterministic model harness must remain credential-free and must not
   infer replies from prompts;
-- Compose is the preferred owned failure-injection environment, while kind is
-  required when the claim depends on ingress, Kubernetes Jobs, or pod
-  lifecycle;
+- use the lowest owned failure-injection environment that proves the claim. The
+  shipped readiness probes require kind because they depend on pod network,
+  Service removal, and Kubernetes Jobs; Compose remains suitable for failures
+  that do not need those boundaries;
 - release-candidate restore, upgrade, rollback, TLS, and credential rotation
   require external, production-shaped dependencies and cannot be claimed by a
   local mock stack;
@@ -240,13 +245,13 @@ the immutable images and deployed configuration.
 
 ### 8.2 Kind Lifecycle
 
-Add two deterministic journeys:
+The first of these two deterministic journeys is partially delivered:
 
-1. **Hard worker loss:** terminate a Kubernetes worker Job after claim and
-   before terminal report. The liveness path settles the run as `FAILED` within
-   the configured bound, names lost worker contact, preserves available
-   evidence, performs no hidden retry, and permits an explicit Retry as a new
-   TaskRun.
+1. **Worker loss:** the shipped kind probe terminates a Kubernetes worker Job
+   after claim and before terminal report and proves a durable, diagnosable
+   `FAILED` result. Job deletion delivers `SIGTERM`, so this is the graceful
+   rollout/eviction/drain path; the silent hard-loss liveness reaper remains
+   covered at store level and is not misrepresented as deployed proof.
 2. **Server restart and reconnect:** restart the serving path while a direct
    Task or foreground turn is observable. After reconnect, durable state
    reconstructs the same work without duplicate TaskRuns, outputs, Artifacts,
@@ -257,16 +262,20 @@ real-MySQL contract as authority. The end-to-end case adds only what those tests
 cannot prove: deployed worker updates, Server restart, and multi-replica
 recovery without duplicate execution.
 
-### 8.3 Compose Dependency Failures
+### 8.3 Dependency Failures
 
-Add targeted controls for:
+Two targeted controls have shipped in kind because the claim depends on pod
+network and readiness behavior:
 
 - temporary MySQL unavailability, covering readiness failure and recovery
-  without rebuilding the Server;
+  without rebuilding the Server; and
+- object-storage read/readiness denial followed by recovery, preserving the
+  original bucket.
+
+The following controls remain open:
+
 - object-storage write denial, covering honest run failure and the absence of a
   phantom downloadable Artifact;
-- object-storage read denial followed by recovery, covering honest readiness or
-  System Status and readability of the original stored object afterwards;
 - graceful Server shutdown while work is in flight, covering drain behavior and
   restart without a stranded running record.
 
@@ -322,10 +331,12 @@ convenience:
    concurrent turns, Redis failure, and the shipped Workflow recovery loop in
    the candidate topology. The existing real-MySQL contracts remain the
    authority for reconciliation semantics.
-4. **Add kind lifecycle journeys.** Implement hard worker loss, Server restart,
-   reconnect, and Workflow recovery across the deployed process boundary.
-5. **Add Compose dependency journeys.** Implement MySQL, object-storage, and
-   shutdown controls with deterministic classification.
+4. **Add kind lifecycle journeys.** The graceful worker-loss path is shipped;
+   Server restart, reconnect, Workflow recovery in the deployed topology, and
+   any reproducible silent-hard-loss proof remain.
+5. **Add dependency journeys.** The kind MySQL and object-storage readiness
+   outage/recovery probes are shipped. Worker object-storage write denial and
+   shutdown-under-load remain, with placement chosen by the boundary they need.
 6. **Add partial-work cancellation.** Land the minimum run-scoped harness
    capability and the preservation/forbidden-side-effect assertions.
 7. **Rehearse the pinned candidate.** Execute the Beta readiness operator,
@@ -408,6 +419,10 @@ later prove which immutable candidate or environment passed.
 
 The proposed increment is complete when:
 
+Current progress satisfies only the graceful worker-loss and dependency-
+readiness portions below. It does not complete this proposal or any candidate
+row.
+
 - the verification matrix maps every V01–V20 journey to exact evidence or an
   explicit gap;
 - candidate worker probes exercise Bash enforcement, process limits, hook and
@@ -450,9 +465,10 @@ The maintainers should decide these before implementation tasks are admitted:
 1. Should the first accepted slice include the verification matrix, or should
    that matrix land independently as already-approved verification-program
    maintenance?
-2. Should Compose failure cases extend `deployment-smoke.yml` as another matrix
-   cell, or run in a separate workflow with a different duration and ownership
-   policy?
+2. Should the remaining worker-write and shutdown failure cases extend
+   `deployment-smoke.yml` as another matrix cell, or run in a separate workflow
+   with a different duration and ownership policy? The readiness outage probes
+   already belong to kind because they assert pod-network and Service behavior.
 3. What is the smallest safe run-scoped model control identifier available
    before the worker begins model execution?
 4. Which Server restart journey is first: a direct Task, a foreground

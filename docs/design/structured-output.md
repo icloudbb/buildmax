@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/结构化输出.md)
 
-> **Audience:** contributors, product designers, and operators · **Status:** accepted — Phases 1-4 in progress: the runtime contract, all provider mappings (except the deferred prompted fallback), the run boundary, and the Workflow consumer (a step's `output_schema`, enforcement, and persistence). Typed `/structured/...` routing and the Portal editor remain a follow-up. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
+> **Audience:** contributors, product designers, and operators · **Status:** partially implemented — Phases 1-4 are shipped: the runtime contract, all current provider mappings, the run boundary, and the Workflow consumer (a step's `output_schema`, enforcement, and persistence). The prompted fallback, typed `/structured/...` routing, and the Portal editor remain follow-ups. Recorded as an R5 prerequisite by [orchestration and continuity decisions](orchestration-and-continuity-decisions.md) §7 and named in [`ROADMAP.md`](../ROADMAP.md) R5; this record is its design.
 
 Related: [workflow runtime](workflow-runtime.md),
 [agent execution and Task threads](agent-execution-and-task-threads.md),
@@ -52,31 +52,26 @@ The boundary is the same one Workflow already draws: **the model proposes a
 value; the runtime validates it against the declared schema and records it.** A
 value that does not validate is not silently accepted.
 
-This unblocks what several accepted designs are waiting on: Workflow's typed
-routes, bounded planners, and evaluator loops
-([workflow runtime §13](workflow-runtime.md)), whose node output envelope carries
-a `structured` field that is `null` until this contract exists
-([workflow runtime §9](workflow-runtime.md)), and a richer Task result than free
-text.
+This has supplied the shared primitive that Workflow's typed routes, bounded
+planners, and evaluator loops are waiting on
+([workflow runtime §13](workflow-runtime.md)). Linear Workflow steps can already
+declare `output_schema`, and the validated value is persisted on TaskRun and
+step-run state; the versioned node envelope and typed control flow remain open.
 
 ## 2. Problem And Current Baseline
 
-The shared runtime cannot ask a model for a machine-checkable answer.
+The shared runtime now asks a model for a machine-checkable final answer through
+`llm.Request.Output` and returns `Completion.Structured`. `internal/core/jsonschema`
+owns the common supported subset and validation. OpenAI Chat and Responses map
+it to strict `json_schema`, Anthropic uses a forced synthetic tool, and Ollama
+uses `format`; `RunLoopOpts.Output` and `RunPromptOpts.Output` apply the contract
+only after tool use has settled. A Workflow step may publish `output_schema`,
+which is snapshotted onto its Task, enforced by the worker runtime, and persisted
+on TaskRun and Workflow step-run state.
 
-- `internal/core/llm.Request` carries `Messages`, `Tools`, `Profile`, and
-  `CacheScope` — no output schema.
-- `internal/core/llm.Completion` carries `Content`, `ToolCalls`, `Usage`, and
-  `ProviderState` — no structured value.
-- No adapter (`anthropic.go`, `ollama.go`, `openai_chat.go`,
-  `openai_responses.go`) builds a `response_format`, a forced `tool_choice`, a
-  `format`, or any JSON-mode field. A grep for those keywords across the LLM
-  packages returns nothing.
-
-So every answer is free text. A consumer that needs a value parses the text and
-hopes. Workflow's adaptive tier is designed around a `structured` field it can
-trust, and it stays `null`; a Task result cannot carry a typed outcome. This is
-the one missing primitive under both the adaptive-Workflow and the
-richer-result-envelope directions.
+The remaining baseline gaps are the documented `prompted` fallback for a
+provider with no usable native mechanism, typed JSON-pointer dataflow and
+adaptive control consumers, and a Portal editor for authoring the schema.
 
 ## 3. Goals And Non-Goals
 
@@ -90,9 +85,9 @@ richer-result-envelope directions.
   natively, coerced through a forced tool, or only prompted-and-parsed — never
   a claim of enforcement that did not happen.
 - The structured value is additive to the text output and does not suppress it.
-- A supported, documented JSON Schema subset, shared with Workflow's existing
-  input-schema subset so a definition validates once and means the same thing at
-  both boundaries.
+- A supported, documented JSON Schema subset used by the shipped Workflow
+  `output_schema` and reserved for the future `input_schema`, so definitions do
+  not acquire two validation meanings.
 - Validation lives in the runtime, once, so a Portal parser or a Workflow
   handler never re-implements it.
 
@@ -179,16 +174,15 @@ both a human-readable transcript and one typed result.
 
 ## 6. The Schema Subset
 
-The contract accepts a **single named JSON Schema subset that both this contract
-and Workflow's `input_schema` reference** ([workflow runtime §6.1](workflow-runtime.md)),
-defined once so a definition validates identically at both boundaries and cannot
-drift between them (§15 D1). Neither boundary has implemented its subset yet, so
-this is one shared definition, not two byte-identical copies. A schema authored
-for a Workflow node's `output_schema` validates identically here. Publication of
-a Workflow that declares an output schema fails if the schema leaves the subset,
-exactly as an unsupported input schema does today.
+The contract accepts a **single named JSON Schema subset** implemented in
+`internal/core/jsonschema`, not copied between consumers. The shared Agent
+contract and Workflow's shipped `output_schema` publication use it today; the
+future `input_schema` must reference the same definition
+([workflow runtime §6.1](workflow-runtime.md)). A Workflow publication fails when
+its output schema leaves the subset. This keeps validation identical across the
+implemented boundaries and prevents a future input boundary from drifting (§15 D1).
 
-The subset is documented with the API when implemented. It is deliberately
+The subset is documented with the API. It is deliberately
 narrow first — objects, a fixed set of scalar types, enums, arrays, `required`,
 and `additionalProperties: false` — because every keyword must be expressible in
 every provider's native mechanism *and* checkable by the runtime's own
@@ -204,8 +198,8 @@ Each adapter maps `Output` to its provider's native mechanism and reports the
 |---|---|---|
 | OpenAI (chat and responses) | `response_format: {type: "json_schema", …, strict: true}` | `native` |
 | Anthropic | a single forced tool whose input schema is the output schema, `tool_choice` pinned to it; the tool input is the value | `forced_tool` |
-| Ollama | `format` set to the JSON Schema (or `json` when only object-ness is needed) | `native` where the model honors it, else `prompted` |
-| any without a usable mechanism | schema rendered into the prompt, output parsed | `prompted` |
+| Ollama | `format` set to the JSON Schema (or `json` when only object-ness is needed) | `native` |
+| future provider without a usable mechanism | schema rendered into the prompt, output parsed; deferred today | `prompted` |
 
 The adapter is the only place that knows the provider mechanism. Above it, a
 caller sees `Structured` with a `Mode` and an `Enforced` flag and never branches
@@ -278,12 +272,12 @@ settles. No new streaming protocol is introduced.
 
 - **Agent runtime:** `RunLoopOpts.Output` requests it; `RunLoop` returns the
   validated `Structured` beside the text reply (§5).
-- **TaskRun:** the run's output envelope gains a `structured` field beside the
+- **TaskRun:** the run's output envelope has a `structured` field beside the
   text output. This is the `structured` that [workflow runtime §9](workflow-runtime.md)
   reserves; it is `null` for a run that did not request output. The `xxxRow`
-  structs in `internal/infra/db` remain the schema source of truth; a nullable
-  structured column is added when this lands.
-- **Workflow:** an `agent_task` node's `output_schema` becomes a real
+  structs in `internal/infra/db` remain the schema source of truth; the nullable
+  structured column is shipped.
+- **Workflow:** a linear `agent_task` step's `output_schema` is a real
   constraint. The runtime validates the node's structured output before the node
   succeeds, and a typed route or planner reads `/structured/...` from the
   envelope ([workflow runtime §13.1–§13.2](workflow-runtime.md)). No Portal
@@ -297,12 +291,13 @@ settles. No new streaming protocol is introduced.
 BuildMax is Alpha; each phase changes the `llm` types, the adapters, and the
 consumers together, with no compatibility interpreter for the old shapes.
 
-**Phase 1 — the runtime contract.** Add `OutputSchema`/`Structured` to
-`internal/core/llm`, the runtime validator over the §6 subset, and the OpenAI `native` mapping in the two OpenAI adapters. Prove request→validated-value on a
-scripted provider. No consumer yet; `Output` nil is unchanged behavior.
+**Phase 1 — the runtime contract (shipped).** `OutputSchema`/`Structured` are in
+`internal/core/llm`, the §6 validator is in `internal/core/jsonschema`, and both
+OpenAI adapters implement the `native` mapping. Scripted-provider tests prove
+request-to-validated-value behavior. `Output` nil remains unchanged behavior.
 
-**Phase 2 — the other providers.** Anthropic `forced_tool` and Ollama `format`,
-with honest `Mode`/`Enforced` reporting. The `prompted` fallback is **deferred**:
+**Phase 2 — the other providers (shipped).** Anthropic `forced_tool` and Ollama
+`format` ship with honest `Mode`/`Enforced` reporting. The `prompted` fallback is **deferred**:
 all four current providers have a native mechanism, so nothing exercises it, and
 its trigger (a provider with no mechanism, or capability detection for an
 OpenAI-compatible endpoint that rejects `response_format`) is its own unresolved
@@ -310,10 +305,11 @@ design. It stays the documented floor (§7, §14.2) and is added when a consumer
 needs it, per Occam's razor. A model with no mechanism will then validate against
 the runtime's own validator.
 
-**Phase 3 — the run boundary.** `RunLoopOpts.Output` (and `RunPromptOpts.Output`
-above it), applied to the terminating answer by re-issuing one constrained call
-once the model produces a no-tool-call answer (§5), returning the validated
-`Structured` beside the reply on `RunResult`. Re-issue on termination rather than
+**Phase 3 — the run boundary (shipped).** `RunLoopOpts.Output` (and
+`RunPromptOpts.Output` above it) is applied to the terminating answer by
+re-issuing one constrained call once the model produces a no-tool-call answer
+(§5), returning the validated `Structured` beside the reply on `RunResult`.
+Re-issue on termination rather than
 sending `Output` on every turn is what keeps structured output from fighting tool
 use on a provider that maps it to a forced tool: the loop runs free, and only the
 settled answer is rendered as the value.
@@ -325,7 +321,7 @@ column added ahead of need (Occam's razor). Phase 3 is the reusable run-level
 primitive; a direct caller that sets `RunPromptOpts.Output` already receives the
 value on `RunResult.Structured`.
 
-**Phase 4 — the Workflow consumer and persistence.** A Workflow `agent_task`
+**Phase 4 — the Workflow consumer and persistence (shipped).** A Workflow `agent_task`
 step declares an `output_schema` (rejected at publication if outside the subset,
 §6), snapshotted onto the step run so a later edit cannot change an in-flight
 step. The step's Task carries the schema (`Task.OutputSchema`), so the worker run
@@ -345,8 +341,8 @@ still binds an upstream step's whole output, with no pointer selection. They
 belong with the adaptive-Workflow work in [workflow runtime §13](workflow-runtime.md)
 and build on the persisted structured value this phase establishes.
 
-Phases 1–3 are the shared primitive; Phase 4 is its first real consumer and lands
-the persistence where the value is stored.
+Phases 1–3 are the shared primitive; Phase 4 is its first real consumer and
+landed the persistence where the value is stored.
 
 ## 13. Verification
 
@@ -354,10 +350,11 @@ the persistence where the value is stored.
   `required`, `additionalProperties: false` — accepts valid values and rejects
   each violation with a typed error; a `native` provider's value is still
   re-validated.
-- **Adapter mapping (scripted provider):** each `Mode` is exercised —
-  `native` request carries `response_format`; `forced_tool` adds and forces one
-  synthetic tool and reads its arguments; `prompted` renders the schema and
-  parses; each reports the right `Mode`/`Enforced`.
+- **Adapter mapping (scripted provider):** the implemented modes are exercised —
+  `native` requests carry the provider schema field; `forced_tool` adds and
+  forces one synthetic tool and reads its arguments; each reports the right
+  `Mode`/`Enforced`. Prompt rendering/parsing becomes required when the deferred
+  `prompted` adapter path is implemented.
 - **Run boundary:** a run that calls tools then returns a schema-constrained
   answer yields both the whole-turn text and a validated `Structured`; an
   off-schema answer yields a typed failure, not a value.
@@ -365,8 +362,9 @@ the persistence where the value is stored.
   validated value; an invalid value follows the node's retry/fail policy and no
   undeclared route edge executes (the existing
   [workflow verification](workflow-runtime.md) case, now real).
-- **Enforcement honesty:** a `prompted` run records `Enforced=false`, and a
-  consumer that demands enforcement treats it as a failure.
+- **Enforcement honesty:** implemented mappings report their actual enforcement;
+  the deferred `prompted` path must record `Enforced=false`, and a consumer that
+  demands enforcement must treat it as a failure.
 - Real-model behavior (how reliably a given model honors a schema) is measured
   by evaluation, never asserted by a deterministic test.
 
@@ -408,10 +406,11 @@ runtime — not a Portal parser — to validate before a node succeeds
 ### Decided
 
 - **D1 — one named shared subset.** The schema subset is a single named
-  definition that both this contract and Workflow's `input_schema` reference
-  (§6), not two byte-identical copies. Neither boundary has implemented its
-  subset yet, so there is nothing to reconcile — the definition is authored once
-  and both reference it, which is why §14.4's drift concern does not arise. The
+  definition used by this contract and Workflow's `output_schema`; the future
+  `input_schema` must reference it too (§6), not copy it.
+  `internal/core/jsonschema` is that one implementation; Workflow publication
+  and the LLM runtime both use it, which is why §14.4's drift concern does not
+  arise. The
   first-version keywords are objects, the scalar types
   (`string`/`number`/`integer`/`boolean`), `enum`, `array` with `items`,
   `required`, `additionalProperties: false`, and `description` (needed for both
@@ -431,10 +430,9 @@ runtime — not a Portal parser — to validate before a node succeeds
 
 ### Still open
 
-- How a run requests structured output for its *final* answer without the model
-  emitting the forced-tool call too early on a provider that maps to a tool —
-  i.e. the prompt/stop conditions that keep §5's "final answer only" true in
-  practice. Resolved when the Anthropic `forced_tool` mapping lands (Phase 2).
+- Whether a future prompted fallback needs capability detection for
+  OpenAI-compatible endpoints that reject `response_format`, or should exist
+  only for a provider with no native mapping.
 - Whether the Task result envelope's structured field needs its own retention
   and redaction rules distinct from the text output, given it may carry
   extracted data.

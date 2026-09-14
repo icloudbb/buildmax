@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. Typed `nodes`/`bindings`, schema-constrained input and output, static DAGs, and adaptive control remain open
+> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. A linear step may also declare and persist a validated `output_schema` result. Typed `nodes`/`bindings`, `input_schema`, JSON-pointer selection, static DAGs, routes, waits, and adaptive control remain open
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
@@ -83,7 +83,9 @@ The current implementation has useful foundations:
 
 It is not the runtime designed here, but its execution plane is now durable.
 The current definition is an ordered `steps` array with static prompts and no
-typed input or result contract. A step may bind an earlier step's whole output
+typed input contract or versioned node-result envelope. A step may declare an
+`output_schema`; the shared runtime validates the final value and persists it on
+the TaskRun and step run. A step may also bind an earlier step's whole output
 into its input as labelled untrusted data — the linear precursor of §6's
 bindings — reading the full output from that step's TaskRun rather than the
 500-rune summary the step retains for display. Advancement is a reconciliation
@@ -91,9 +93,9 @@ over durable facts: Task admission is idempotent under a stable key, a bounded
 lease reduces duplicate passes, guarded compare-and-set transitions are the
 correctness mechanism, and a Server-owned recovery loop finishes a run stranded
 by a lost callback or a restart. What remains missing against the target is the
-typed contract itself: `input_schema`, the versioned `nodes` and typed
+remaining typed contract: `input_schema`, the versioned `nodes` and typed
 `bindings` with JSON Pointer selection, DAG `needs`, routes and waits, and
-structured output.
+consumers of the shipped structured value.
 
 The current Agent snapshot is also not execution authority. Workflow copies the
 old Agent instructions into Task user input while Task admission and the worker
@@ -572,11 +574,12 @@ accepted TaskRun. The coordinator does not copy arbitrary files into a later
 workspace. A later Agent receives references as data and accesses an Artifact
 through the normal authorized capability.
 
-`structured` is absent or `null` until the shared Agent runtime implements a
-provider-neutral structured-output contract. When present, the runtime—not a
-Portal parser—validates it against the node's `output_schema` before the node
-can succeed. A route or planner that requires structured output cannot publish
-until the runtime supports its declared schema.
+`structured` is absent or `null` when the step declares no `output_schema`.
+For a declared schema, the shared Agent runtime—not a Portal parser—validates
+the value before the linear step can succeed and persists it on both the
+TaskRun and step run. The versioned node envelope shown above, JSON-pointer
+bindings, routes, and planners are still target-state work; they will consume
+the already validated value rather than introduce another parser.
 
 The accepted successful attempt appends the logical node output once. Failed
 attempt outputs remain on their TaskRuns for diagnosis but never overwrite the
@@ -1231,7 +1234,8 @@ interpreters or preserve stale table shapes as a compatibility layer.
 ### Phase 4: Bounded Policy And Typed Decisions
 
 - Add Workflow-owned retry and node/run timeouts.
-- Add provider-neutral structured Agent output in the shared runtime.
+- Consume the shipped provider-neutral structured Agent output in typed routes
+  and decision nodes.
 - Add typed conditional routes and visible decisions.
 - Add aggregate usage/cost policy and operational metrics.
 

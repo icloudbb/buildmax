@@ -2,17 +2,17 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/proposals/client-sessions-and-api-credentials.md)
 >
-> **Audience:** contributors, product reviewers, operators, and security reviewers · **Status:** proposal — under discussion
+> **Audience:** contributors, product reviewers, operators, and security reviewers · **Status:** proposal — narrowed by implementation: durable human sessions, Portal cookie auth, and native secret storage ship; machine credentials, scopes/audiences, signing-key rotation, and self-service remain under discussion
 >
 > **Opened:** 2026-08-24
 
-Related: [roadmap](../ROADMAP.md) P3 and P4,
+Related: [roadmap](../ROADMAP.md) R5,
 [deployment authentication](../deploy/authentication.md),
 [managed LLM gateway design](../design/llm-gateway.md),
 [client modes design](../design/client-modes.md),
 [worker run token design](../design/worker-run-token.md),
 [data model](../contribute/architecture/data-model.md), and the
-[enterprise identity and access proposal](../design/enterprise-identity-and-access.md).
+[enterprise identity and access design](../design/enterprise-identity-and-access.md).
 
 ## Contents
 
@@ -37,9 +37,11 @@ Related: [roadmap](../ROADMAP.md) P3 and P4,
 
 ## Decision Question
 
-After an interactive login, should BuildMax return a third long-lived token in
-addition to the access token and refresh token so that CLI/TUI and Desktop can
-keep calling the managed LLM gateway?
+The implemented human-session path has answered the original question: BuildMax
+does not return a third long-lived gateway token after login. The remaining
+proposal question is which explicit credential, if any, a supported unattended
+caller should receive, and which audience, scopes, ownership, expiry, and
+rotation contract make that authority safe.
 
 The likely direction is:
 
@@ -51,9 +53,10 @@ The likely direction is:
 > obtains a short-lived, audience-restricted token on demand rather than a
 > long-lived gateway token at login.
 
-This is not an accepted roadmap commitment. It makes the credential boundary
-concrete enough to accept, change, or reject before the current Alpha login
-shape hardens into an API other clients depend on.
+The human-session half is implemented through the accepted
+[enterprise identity and access](../design/enterprise-identity-and-access.md)
+record. PATs, service accounts, gateway token exchange, and signing-key rotation
+remain proposals and are not roadmap commitments.
 
 ## Problem And Current Context
 
@@ -89,15 +92,15 @@ would increase that exposure without improving session continuity.
 
 ### Interactive Login
 
-`POST /api/login` accepts a password or an operator-issued, single-use login
-code. Either proof creates a new session ID and returns:
+`POST /api/auth/login` accepts a password or an operator-issued, single-use
+login code. Either proof creates a durable `auth_session` and returns:
 
 - `access_token`, plus the legacy duplicate field `token`;
 - `refresh_token` when a refresh-token store is configured;
 - `expires_in`; and
 - the user's public identity fields.
 
-Each login creates its own session. The refresh token is an opaque random
+Each login creates its own session with an absolute lifetime. The refresh token is an opaque random
 secret stored only as a SHA-256 hash in `user_refresh_token`. Rotation spends
 the presented row and creates a replacement in the same `session_id` chain.
 Reuse outside `refresh_rotation_grace` revokes the whole chain and records an
@@ -110,15 +113,15 @@ The defaults are:
 | `access_token_ttl` | 7 days | How long an unstored access JWT remains usable |
 | `refresh_token_ttl` | 30 days | How long the current refresh-token row may be exchanged |
 | `refresh_rotation_grace` | 30 seconds | How long a spent token may be exchanged again by a racing client process |
+| `session_absolute_ttl` | 90 days | Hard ceiling for a native/password/login-code session regardless of refresh activity |
 
-Rotation assigns each replacement `now + refresh_token_ttl`. The 30-day value
-is therefore an inactivity window, not an absolute session lifetime. A client
-that refreshes regularly can keep the session alive indefinitely.
+Rotation assigns each replacement `now + refresh_token_ttl`, but cannot extend
+the durable session beyond `session_absolute_ttl` (90 days by default).
 
-Logout revokes the refresh-token chain. It does not invalidate an access token
-already issued from that chain. Disabling the account is immediate because
-every authenticated route resolves the user row and refuses a non-null
-`disabled_at`.
+Logout revokes the durable session and its refresh-token chain. The request
+guard resolves the `sid` on every authenticated call, so logout, administrator
+revocation, absolute expiry, and account disablement stop an already-issued
+access token on its next request.
 
 ### Access Token Shape
 
@@ -128,7 +131,7 @@ The user JWT currently contains:
 |---|---|
 | `sub` | User public ID |
 | `typ` | `access` |
-| `sid` | Refresh-token session chain |
+| `sid` | Durable `auth_session` |
 | `jti`, `iat`, `exp` | Registered token identity and lifetime claims |
 
 It has no enforced issuer, audience, client identity, or scopes. `typ` prevents
@@ -170,9 +173,9 @@ the Server URL and non-secret user metadata. The shared credential is also why
 the server has a rotation grace window: two processes may read and exchange the
 same refresh token concurrently.
 
-Portal stores both credentials in `localStorage` and coordinates refreshes
-inside one browser tab. That is a different threat model from a native client
-and should not force the native storage design.
+Portal keeps the renewable refresh credential in a Secure, HttpOnly,
+SameSite=Strict cookie and the short-lived access token only in memory. Browser
+JavaScript cannot read the refresh token; refresh and logout use the cookie.
 
 ### Worker Authentication
 
@@ -227,8 +230,8 @@ rotation today but not audience or scope restriction. See
 - Give scripts and services an explicit machine-credential path with scopes,
   expiry, ownership, and individual revocation.
 - Preserve the run-scoped worker credential and direct local mode.
-- Leave room for the OIDC direction being evaluated by the enterprise identity
-  proposal without making OIDC a prerequisite for current private deployments.
+- Preserve the shipped OIDC browser flow and the independently configurable
+  native-login posture without making OIDC mandatory for private deployments.
 - Keep Space membership and System Administrator grants as server-derived
   authorization, not claims a client may invent.
 
@@ -395,10 +398,8 @@ longer needs a broad grace window solely because every process reads one file.
 
 ### Current Password And Login-Code Flow
 
-Until enterprise identity is accepted and implemented:
-
 1. CLI or Desktop sends the password or operator-issued login code to
-   `POST /api/login` over TLS.
+   `POST /api/auth/login` over TLS.
 2. The server creates an explicit client session and returns an access token
    plus rotating refresh token.
 3. The client moves the refresh token into its secret store and keeps the
@@ -417,10 +418,10 @@ login cannot renew. A deployment presenting managed inference as an operator
 service should require the session store rather than turn a seven-day access
 token into its availability mechanism.
 
-### Future Native OIDC Flow
+### Future Native-Client OIDC Flow
 
-The enterprise identity proposal's likely direction is native OIDC. If
-accepted:
+Portal OIDC is shipped. Native CLI/Desktop OIDC and browserless device
+authorization remain future work:
 
 - Desktop and a terminal with a usable browser open the system browser and use
   Authorization Code with PKCE and an exact registered redirect;
@@ -439,18 +440,10 @@ Native browser and device guidance is standardized in
 
 ### Portal Session
 
-Portal should share the server-side session model but not blindly share the
-native storage mechanism. Its current `localStorage` refresh token is available
-to JavaScript in the origin. When deployment topology permits, the safer target
-is a same-origin Backend-for-Frontend or server session using a `Secure`,
-`HttpOnly`, and appropriate `SameSite` cookie, with CSRF protection. A browser
-client that continues to hold tokens directly still needs short scopes and
-lifetimes plus refresh rotation. See
-[RFC 10017](https://www.rfc-editor.org/info/rfc10017/).
-
-Whether Portal moves to a cookie/BFF model is a separate implementation and
-deployment decision; it should not block removing refresh secrets from native
-client files.
+Portal now shares the server-side session model and uses a same-origin Secure,
+HttpOnly, SameSite=Strict refresh cookie; its access token remains only in
+memory. Browser JavaScript cannot read the renewable credential, and the
+durable session supplies per-request revocation.
 
 ## Machine Credentials
 
@@ -515,28 +508,30 @@ and scope boundary: one TaskRun plus its server state.
 ## Data Model Implications
 
 The Alpha policy permits fixing stored shapes everywhere at once rather than
-preserving an incorrect contract. If this direction is accepted, the likely
-relational model is:
+preserving an incorrect contract. The human-session row below is implemented;
+the machine-credential rows remain proposed.
 
 ### `auth_session`
 
-One row per human login:
+**Shipped:** one row per human login:
 
 | Field | Purpose |
 |---|---|
 | Public ID | Stable `sid` and API handle |
 | User ID | Session owner |
-| Client ID and platform | Enforced client class rather than an informational label |
-| Device name | User-recognizable session listing |
-| Created, last-used | Lifecycle and diagnostics |
-| Idle expiry | Maximum inactivity before refresh is refused |
+| Platform and auth method | Surface and proof that opened the session; currently informational |
+| Created, last-seen | Lifecycle and throttled activity diagnostics |
 | Absolute expiry | Maximum lifetime regardless of rotation |
-| Revoked time and reason | Immediate session retirement and audit context |
+| Revoked time | Immediate session retirement |
 
 `user_refresh_token` rows reference this session and keep token hash,
 rotation/replacement, expiry, use, and revocation evidence. The session row
 answers listing and revocation without reconstructing a family from every
 rotation row.
+
+An enforced client ID, user-recognizable device name, separate session idle
+expiry, and a stored revocation reason remain proposed additions rather than
+fields the current row already has.
 
 ### `personal_access_token`
 
@@ -569,17 +564,17 @@ configuration and must be evaluated with the deployment model.
 
 ## HTTP API Implications
 
-Exact routes become authoritative only in
-`internal/server/handlers/routes.go`. A likely API shape is:
+Exact routes are authoritative in `internal/server/handlers/routes.go`. The
+shipped human-session routes and proposed self-service/machine routes are:
 
 ```text
-POST   /api/login
-POST   /api/token/refresh
-POST   /api/logout
+POST   /api/auth/login                 # shipped
+POST   /api/auth/refresh               # shipped
+POST   /api/auth/logout                # shipped
 
-GET    /api/sessions
-DELETE /api/sessions/{session_id}
-DELETE /api/sessions
+GET    /api/sessions                   # proposed self-service
+DELETE /api/sessions/{session_id}      # proposed self-service
+DELETE /api/sessions                   # proposed self-service
 
 POST   /api/personal-access-tokens
 GET    /api/personal-access-tokens
@@ -597,7 +592,7 @@ together, the legacy duplicate `token` response field can be removed instead of
 being preserved indefinitely.
 
 Every authenticated route declares its allowed credential types, audience, and
-required scopes. A PAT presented to `/api/token/refresh`, a gateway-only token
+required scopes. A PAT presented to `/api/auth/refresh`, a gateway-only token
 presented to an Issue route, a user access token presented to a worker route, or
 a run token presented to a user route all fail before resource authorization.
 
@@ -642,9 +637,9 @@ owner, not in personal session settings.
 |---|---|---|---|
 | Add a third long-lived token to every login | Superficially simple for clients | Duplicates refresh responsibility, creates hidden machine authority, ambiguous logout and audit, large leak window | Reject |
 | Use a static PAT for TUI/Desktop | No refresh implementation needed | Interactive clients hold a directly usable long-lived secret; weak reuse detection and session UX | Reject |
-| Keep access + rotating refresh, one API audience | Smallest change; current clients already refresh | A leaked access token can cross API areas allowed by its scopes; secure storage and session state still needed | Viable first slice |
+| Keep access + rotating refresh, one API audience | Smallest change; current clients already refresh | A leaked access token can cross API areas allowed by its scopes | Shipped base; audience/scope hardening remains |
 | Add on-demand gateway token exchange | Strong audience separation and short LLM credential | More protocol, caching, failure, and discovery behavior | Preferred hardening after the base session model |
-| Make every access token stateful | Immediate revocation | Database/cache check on every request and availability coupling | Partly favored: check explicit session state where a session store exists |
+| Make every access token stateful | Immediate revocation | Database read on every guarded request and availability coupling | Shipped through the durable session check |
 | Sender-constrain native tokens with DPoP | Stolen token alone is less useful | Key lifecycle and cross-platform implementation complexity; same-process compromise can use the key | Later hardening if deployment evidence justifies it |
 | Add PATs only | Solves personal scripting with a small principal model | Encourages human-owned automation; does not solve Space-owned services | Useful when a real scripting use case exists |
 | Add service accounts first | Correct owner for shared automation | Larger authorization, provisioning, and UI surface | Wait for a Space-owned automation requirement |
@@ -676,8 +671,9 @@ made:
   `UpdateLoginMeta`.
 - `docs/design/llm-gateway.md` listed refresh versus a scoped client token as an
   open question, and called the access token a 24-hour JWT. Corrected: refresh
-  is implemented and the default is seven days; the unresolved parts are secure
-  storage, absolute lifetime, audience/scope, and machine identity.
+  is implemented and the configured default is seven days. Secure native
+  storage and absolute session lifetime have since shipped; audience/scope and
+  machine identity remain unresolved.
 - The P3 roadmap sentence could be read as saying CLI, TUI, Desktop, and task
   runs all use a per-run credential. Corrected: only task runs use run tokens,
   and interactive clients use the human session.
@@ -686,14 +682,12 @@ made:
 
 ### Stage 1: Harden The Existing Two-Token Session
 
-- Add explicit session state and absolute expiry.
-- Shorten the access-token default.
-- Add and enforce issuer, audience, client, and scope claims.
-- Separate CLI and Desktop sessions.
-- Move native refresh secrets behind a credential-store interface.
-- Add self-service session listing and revocation.
-- Define signing-key rotation.
-- Correct current documentation and OpenAPI drift.
+Shipped: explicit session state and absolute expiry, per-request session
+enforcement, independently created client sessions, the native credential-store
+interface, the Portal cookie flow, administrator listing/revocation, and current
+documentation/OpenAPI. Open: shorter configured access-token defaults,
+issuer/audience/client/scope enforcement, self-service session management, and
+signing-key rotation.
 
 This stage changes no managed-mode product semantics: login still selects the
 deployment's models, gateway calls remain user-attributed, and direct mode still
@@ -701,9 +695,9 @@ requires no Server.
 
 ### Stage 2: Enterprise Interactive Login
 
-If the enterprise identity proposal is accepted, add external-browser OIDC with
-PKCE and Device Authorization for browserless terminals. Both create the same
-BuildMax session from Stage 1.
+Portal external-browser OIDC with PKCE is shipped and creates the same durable
+BuildMax session. Native CLI/Desktop browser flow and Device Authorization for
+browserless terminals remain open.
 
 ### Stage 3: Explicit Machine Identity
 
@@ -724,30 +718,22 @@ deployment topology, or an external API product justifies their complexity.
    a deployment entitlement needed even while model selection stays global?
 3. What access, refresh-idle, session-absolute, and PAT lifetimes are the
    supported defaults and operator-configurable limits?
-4. Must logout invalidate the current access token immediately through a
-   session-state check, or is a short expiry sufficient for some deployments?
-5. Is an OS secret store a requirement for supported managed mode, or is a
-   visible `0600` file fallback supported on headless systems?
-6. Should Portal move to a cookie/BFF session, or remain a token-holding browser
-   client?
-7. Which first PAT scopes correspond to an actual supported automation use
+4. Which first PAT scopes correspond to an actual supported automation use
    case? Is managed inference one of them?
-8. Is unattended authority owned by a person, a Space, or the deployment, and
+5. Is unattended authority owned by a person, a Space, or the deployment, and
    therefore is a PAT sufficient or is a service account required?
-9. Should signing keys be separated by user and run token type, and where does
+6. Should signing keys be separated by user and run token type, and where does
    a private deployment keep the verification key ring during rotation?
-10. Does OIDC/device authorization move ahead of its current post-Beta roadmap
-    position because native managed clients need enterprise login, or remain a
-    later identity milestone?
+7. Do native managed clients need browser OIDC and Device Authorization, or can
+   the shipped Portal SSO plus native local login remain the supported split?
 
 ## Evidence Needed For A Decision
 
-- A threat-model walkthrough for token theft from `auth.json`, local
-  model-selected commands, hooks, MCP servers, browser JavaScript, logs, and
-  worker environments.
-- A cross-platform spike proving a single-binary CLI can use Keychain,
-  Credential Manager, and a practical Linux/headless fallback without adding a
-  Node requirement.
+- A threat-model walkthrough for token theft from the OS credential store or
+  reported fallback file, local model-selected commands, hooks, MCP servers,
+  browser JavaScript, logs, and worker environments.
+- Continued cross-platform qualification of the shipped Keychain, Credential
+  Manager, Secret Service, and reported `0600` fallback behavior.
 - Concurrency tests for multiple CLI processes refreshing one session, including
   a lost refresh response and replay outside the grace window.
 - Route-matrix tests covering credential type, audience, scope, account disable,
@@ -756,21 +742,21 @@ deployment topology, or an external API product justifies their complexity.
   sessions or in-flight runs.
 - Product evidence for the first non-interactive caller before choosing PAT,
   service account, or both.
-- An end-to-end native OIDC and device-flow trial if the enterprise identity
-  proposal is accepted.
+- An end-to-end native OIDC and device-flow trial if native managed clients are
+  selected as a supported SSO surface.
 
 ## Likely Destination If Accepted
 
-An accepted decision would:
+The human-session decisions already live in the accepted enterprise-identity
+design. An accepted decision on the remaining machine-credential scope would:
 
-- add a durable client-session and credential specification under
-  `docs/design/`;
-- update the P3/P4 roadmap with the selected stages and evidence gates;
+- add the selected PAT and/or service-account contract to a durable design
+  record;
+- update the roadmap with only the selected machine-identity and key-rotation
+  stages and evidence gates;
 - update deployment authentication, configuration, support, CLI, Desktop,
   Portal, data-model, and OpenAPI documentation alongside implementation;
-- create focused implementation Issues for session state, native secret
-  storage, access-token claims and route scopes, session UX, and signing-key
-  rotation; and
-- leave PATs, service accounts, gateway token exchange, and OIDC/device
-  authorization as separate implementation Issues only when their corresponding
-  product decisions are accepted.
+- create focused implementation work for access-token claims and route scopes,
+  signing-key rotation, and the selected machine credentials; and
+- leave unselected PAT, service-account, gateway-exchange, and native
+  OIDC/device directions unimplemented.
