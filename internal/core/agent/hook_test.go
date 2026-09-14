@@ -68,7 +68,7 @@ func TestHook_PreToolUseBlock(t *testing.T) {
 	}
 	hooks := &recordingHookRunner{blockOn: HookPreToolUse, reason: "forbidden path"}
 	var deniedReasons []string
-	_, _, err := RunLoop(ctx, RunLoopOpts{
+	_, _, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(tool),
@@ -128,7 +128,7 @@ func TestHook_PreToolUseAllowFiresPostHook(t *testing.T) {
 		t.Fatal(err)
 	}
 	hooks := &recordingHookRunner{}
-	_, _, err := RunLoop(ctx, RunLoopOpts{
+	_, _, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(tool),
@@ -180,7 +180,7 @@ func TestHook_StopFiresOnSuccess(t *testing.T) {
 	if err := sess.Append(llm.Message{Role: "user", Content: "hello"}); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err := RunLoop(ctx, RunLoopOpts{
+	_, _, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),
@@ -217,7 +217,7 @@ func TestHook_StopFailureFiresOnMaxIter(t *testing.T) {
 	if err := sess.Append(llm.Message{Role: "user", Content: "ping"}); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err := RunLoop(ctx, RunLoopOpts{
+	_, _, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(tool),
@@ -251,7 +251,7 @@ func TestHook_SubagentStopFiresWhenIsSubagent(t *testing.T) {
 	if err := sess.Append(llm.Message{Role: "user", Content: "do it"}); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err := RunLoop(ctx, RunLoopOpts{
+	_, _, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),
@@ -293,7 +293,7 @@ func TestHook_PostToolUseFailureFiresOnToolError(t *testing.T) {
 	if err := sess.Append(llm.Message{Role: "user", Content: "try"}); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err := RunLoop(ctx, RunLoopOpts{
+	_, _, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(tool),
@@ -338,7 +338,7 @@ func TestHook_NotificationApprovalLifecycle(t *testing.T) {
 	if err := sess.Append(llm.Message{Role: "user", Content: "go"}); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err := RunLoop(ctx, RunLoopOpts{
+	_, _, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(tool),
@@ -405,7 +405,7 @@ func TestHook_NilRunnerIsAllowed(t *testing.T) {
 	if err := sess.Append(llm.Message{Role: "user", Content: "hi"}); err != nil {
 		t.Fatal(err)
 	}
-	reply, _, err := RunLoop(ctx, RunLoopOpts{
+	reply, _, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),

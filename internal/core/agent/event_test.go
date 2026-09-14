@@ -49,7 +49,7 @@ func (r *recordingEventSink) last() Event {
 func runWithSink(ctx context.Context, llmClient llm.LLMClient, reg llm.ToolRegistry, sink func(Event), tools ...llm.Tool) (string, RunStats, error) {
 	buf := newTestBuffer()
 	_ = buf.Append(llm.Message{Role: "user", Content: "go"})
-	return RunLoop(ctx, RunLoopOpts{
+	reply, stats, _, err := RunLoop(ctx, RunLoopOpts{
 		LLMClient:    llmClient,
 		SystemPrompt: "test",
 		ToolRegistry: reg,
@@ -57,6 +57,7 @@ func runWithSink(ctx context.Context, llmClient llm.LLMClient, reg llm.ToolRegis
 		History:      buf,
 		EventSink:    sink,
 	})
+	return reply, stats, err
 }
 
 // --- Test 1: simple final reply ---
@@ -144,7 +145,7 @@ func TestEvents_PolicyDeny(t *testing.T) {
 
 	buf := newTestBuffer()
 	_ = buf.Append(llm.Message{Role: "user", Content: "go"})
-	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+	_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: "test",
 		ToolRegistry: newTestToolRegistry(tool),
@@ -224,7 +225,7 @@ func TestEvents_ContextCompacted(t *testing.T) {
 	_ = buf.Append(llm.Message{Role: "user", Content: "go"})
 
 	rec := &recordingEventSink{}
-	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+	_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    smallCW,
 		SystemPrompt: "test",
 		ToolRegistry: newTestToolRegistry(),
@@ -260,7 +261,7 @@ func TestEvents_MaxIter(t *testing.T) {
 
 	buf := newTestBuffer()
 	_ = buf.Append(llm.Message{Role: "user", Content: "go"})
-	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+	_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    mock,
 		SystemPrompt: "test",
 		ToolRegistry: newTestToolRegistry(tool),

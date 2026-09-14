@@ -196,7 +196,7 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 		}
 	}
 
-	reply, stats, err := coreagent.RunLoop(ctx, coreagent.RunLoopOpts{
+	reply, stats, _, err := coreagent.RunLoop(ctx, coreagent.RunLoopOpts{
 		LLMClient:        client,
 		SystemPrompt:     opts.SystemPrompt,
 		ToolRegistry:     registry,

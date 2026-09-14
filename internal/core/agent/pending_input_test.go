@@ -41,7 +41,7 @@ func TestRunLoopInjectsPendingInputAtIterationBoundary(t *testing.T) {
 	history := newTestBuffer()
 	_ = history.Append(llm.Message{Role: "user", Content: "first prompt"})
 
-	reply, _, err := RunLoop(context.Background(), RunLoopOpts{
+	reply, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		ToolRegistry: newTestToolRegistry(tool),
 		MaxIter:      5,
@@ -96,7 +96,7 @@ func TestRunLoopEmitsUserInputEvent(t *testing.T) {
 
 	var mu sync.Mutex
 	var injected []Event
-	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+	_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		ToolRegistry: newTestToolRegistry(tool),
 		MaxIter:      5,
@@ -137,7 +137,7 @@ func TestRunLoopPendingInputGoesThroughTheUserPromptHook(t *testing.T) {
 
 	var blocked []Event
 	var mu sync.Mutex
-	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+	_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		ToolRegistry: newTestToolRegistry(tool),
 		MaxIter:      5,
@@ -175,7 +175,7 @@ func TestRunLoopWithoutPendingInputIsUnchanged(t *testing.T) {
 	history := newTestBuffer()
 	_ = history.Append(llm.Message{Role: "user", Content: "hello"})
 
-	if _, _, err := RunLoop(context.Background(), RunLoopOpts{
+	if _, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		ToolRegistry: newTestToolRegistry(),
 		MaxIter:      3,
@@ -196,7 +196,7 @@ func TestRunLoopSkipsBlankPendingInput(t *testing.T) {
 	client := &mockLLMClient{responses: []mockResponse{{content: "done"}}}
 	history := newTestBuffer()
 
-	if _, _, err := RunLoop(context.Background(), RunLoopOpts{
+	if _, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		ToolRegistry: newTestToolRegistry(),
 		MaxIter:      3,

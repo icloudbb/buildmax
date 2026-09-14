@@ -46,7 +46,7 @@ func (c *orderedCompactor) Compact(ctx context.Context, msgs []llm.Message) (str
 
 func runWithCheckpointer(t *testing.T, client llm.LLMClient, h MessageHistory, comp ContextCompactor, cp StateCheckpointer) {
 	t.Helper()
-	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+	_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),
@@ -130,7 +130,7 @@ func TestCheckpoint_SkippedWhenHookBlocksCompaction(t *testing.T) {
 	comp := &factCompactor{}
 	fillToThreshold(&h.compactingHistory)
 
-	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+	_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),

@@ -108,7 +108,7 @@ func fillerMessage() llm.Message {
 
 func runOnce(t *testing.T, client llm.LLMClient, h MessageHistory, comp ContextCompactor) {
 	t.Helper()
-	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+	_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),
@@ -326,7 +326,7 @@ func TestCompaction_PersistFailureStopsTheRun(t *testing.T) {
 	_ = h.Append(llm.Message{Role: "user", Content: strings.Repeat("x", 2000)})
 	fillToThreshold(h)
 
-	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+	_, _, _, err := RunLoop(context.Background(), RunLoopOpts{
 		LLMClient:    client,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),

@@ -224,7 +224,7 @@ func executeRun(ctx context.Context, llmClient llm.LLMClient, in turnRunInput, p
 	tools := llm.NewToolRegistry()
 	tools.AppendTools(prepared.toolsList...)
 
-	reply, _, err := agent.RunLoop(ctx, agent.RunLoopOpts{
+	reply, _, _, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:        llmClient,
 		SystemPrompt:     currentSystemPrompt(),
 		ToolRegistry:     tools,
