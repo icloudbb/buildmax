@@ -35,6 +35,21 @@
 .modal--large {
   max-width: 600px;
   min-height: 320px;
+  /* Cap a large modal to the viewport (its overlay adds 1rem margin each side)
+     and let its body scroll, so a tall form's footer -- its primary actions --
+     stays reachable instead of overflowing off the bottom of the screen. The
+     narrow-width sheet below does the same for small viewports. */
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal--large .modal__scroll-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .modal--large .modal__body {

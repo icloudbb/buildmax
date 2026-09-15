@@ -187,6 +187,7 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: Workflow static DAG needs](changelog/changed/workflow-static-dag-needs.md) · 中文：—
 - [English: Workflow run graph view](changelog/added/workflow-run-graph-view.md) · 中文：—
 - [English: Workflow run result](changelog/added/workflow-run-result.md) · 中文：—
+- [English: Large modal footer reachable](changelog/fixed/large-modal-footer-reachable.md) · 中文：—
 - [English: Desktop tool-call card name wrapping](changelog/fixed/desktop-tool-card-name-wrap.md) · 中文：—
 - [English: Cross-origin sign-in CORS credentials](changelog/fixed/cors-credentials-cross-origin.md) · 中文：—
 - [English: Portal reload Space fallback](changelog/fixed/portal-reload-space-fallback.md) · 中文：—
