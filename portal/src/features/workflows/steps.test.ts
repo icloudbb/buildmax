@@ -64,6 +64,31 @@ describe("stepsToDefinition / parseDefinition", () => {
     expect(JSON.parse(stepsToDefinition([step()])).schema_version).toBe(1)
   })
 
+  it("emits the nested agent and input wire shape", () => {
+    const node = JSON.parse(stepsToDefinition([step({ id: "a", targetAgentId: "agt_1", prompt: "Do it." })])).nodes[0]
+    expect(node.agent).toEqual({ id: "agt_1" })
+    expect(node.input).toEqual({ instruction: "Do it." })
+    expect(node).not.toHaveProperty("target_agent_id")
+    expect(node).not.toHaveProperty("prompt")
+  })
+
+  it("carries issue_access through parse and serialize", () => {
+    expect(stepsToDefinition([step()])).not.toContain("issue_access")
+    const wire = stepsToDefinition([step({ issueAccess: "required" })])
+    expect(JSON.parse(wire).nodes[0].issue_access).toBe("required")
+    expect(parseDefinition(wire)?.steps[0].issueAccess).toBe("required")
+  })
+
+  it("nests a node's bindings under input", () => {
+    const wire = JSON.parse(
+      stepsToDefinition([
+        step({ id: "a" }),
+        step({ id: "b", bindings: [{ name: "r", source: "node.a.output", pointer: "/text" }] }),
+      ]),
+    )
+    expect(wire.nodes[1].input.bindings).toEqual([{ name: "r", source: "node.a.output", pointer: "/text" }])
+  })
+
   it("carries policy.max_parallel_nodes through parse and serialize", () => {
     expect(stepsToDefinition([step()])).not.toContain("policy")
     const wire = stepsToDefinition([step()], 3)

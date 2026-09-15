@@ -53,6 +53,11 @@ export interface WorkflowStepDraft {
    * for a root, so a hand-authored DAG round-trips without being flattened.
    */
   needs?: string[]
+  /** The node's Issue access mode: "none" (default), "if_bound", or "required".
+   *  The step form does not edit it yet; advanced JSON does, and carrying it here
+   *  keeps a hand-authored value from being stripped on save. `undefined` is
+   *  treated as "none". */
+  issueAccess?: string
   targetAgentId: string
   prompt: string
   bindings?: WorkflowStepBinding[]
@@ -142,17 +147,20 @@ export function stepsToDefinition(steps: WorkflowStepDraft[], maxParallelNodes: 
           id: step.id,
           type: step.type,
           ...(needs.length > 0 ? { needs } : {}),
-          target_agent_id: step.targetAgentId,
-          prompt: step.prompt,
-          ...(step.bindings && step.bindings.length > 0
-            ? {
-                bindings: step.bindings.map((binding) => ({
-                  name: binding.name,
-                  source: binding.source,
-                  pointer: binding.pointer,
-                })),
-              }
-            : {}),
+          ...(step.issueAccess && step.issueAccess !== "none" ? { issue_access: step.issueAccess } : {}),
+          agent: { id: step.targetAgentId },
+          input: {
+            instruction: step.prompt,
+            ...(step.bindings && step.bindings.length > 0
+              ? {
+                  bindings: step.bindings.map((binding) => ({
+                    name: binding.name,
+                    source: binding.source,
+                    pointer: binding.pointer,
+                  })),
+                }
+              : {}),
+          },
         }
       }),
     },
@@ -197,15 +205,18 @@ export function parseDefinition(definition: string): ParsedWorkflowDefinition | 
       maxParallelNodes: typeof limit === "number" ? limit : null,
       steps: parsed.nodes.map((node): WorkflowStepDraft => {
         const record = typeof node === "object" && node != null ? (node as Record<string, unknown>) : {}
+        const agent = typeof record.agent === "object" && record.agent != null ? (record.agent as Record<string, unknown>) : {}
+        const input = typeof record.input === "object" && record.input != null ? (record.input as Record<string, unknown>) : {}
         return {
           id: typeof record.id === "string" && record.id.trim() ? record.id : newStepId(),
           type: typeof record.type === "string" && record.type.trim() ? record.type : AGENT_TASK_STEP_TYPE,
           // Absent `needs` is an explicit root ([]), not a form node, so a parsed
           // definition round-trips without the linear default rewriting its graph.
           needs: parseNeeds(record.needs),
-          targetAgentId: typeof record.target_agent_id === "string" ? record.target_agent_id : "",
-          prompt: typeof record.prompt === "string" ? record.prompt : "",
-          bindings: parseStepBindings(record.bindings),
+          issueAccess: typeof record.issue_access === "string" ? record.issue_access : undefined,
+          targetAgentId: typeof agent.id === "string" ? agent.id : "",
+          prompt: typeof input.instruction === "string" ? input.instruction : "",
+          bindings: parseStepBindings(input.bindings),
         }
       }),
     }

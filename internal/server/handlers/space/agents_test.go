@@ -119,7 +119,7 @@ func TestDeleteAgentRefusedWhilePublishedWorkflowUsesIt(t *testing.T) {
 			ID:         "w_1",
 			SpaceID:    spaceID,
 			Name:       "Nightly report",
-			Definition: `{"schema_version":1,"nodes":[{"id":"s","type":"agent_task","target_agent_id":"a_1","prompt":"p"}]}`,
+			Definition: `{"schema_version":1,"nodes":[{"id":"s","type":"agent_task","agent":{"id":"a_1"},"input":{"instruction":"p"}}]}`,
 			Status:     coreworkflow.StatusPublished,
 		}},
 	}

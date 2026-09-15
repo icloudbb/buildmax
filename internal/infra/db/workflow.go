@@ -143,8 +143,11 @@ type workflowNodeRunRow struct {
 	// Needs is the run's snapshot of this node's dependency edges as a JSON array
 	// of node ids, NULL for a root node. Readiness is decided from these edges,
 	// not from node_index.
-	Needs  *string `gorm:"column:needs;type:text"`
-	Prompt string  `gorm:"type:text;not null"`
+	Needs *string `gorm:"column:needs;type:text"`
+	// IssueAccess is the run's snapshot of this node's Issue access mode: none,
+	// if_bound, or required. Empty on rows written before nodes carried it.
+	IssueAccess string `gorm:"column:issue_access;type:varchar(16);not null;default:''"`
+	Prompt      string `gorm:"type:text;not null"`
 	// Bindings is the run's snapshot of this node's input bindings as a JSON
 	// array, NULL when the node binds nothing.
 	Bindings *string `gorm:"type:text"`
@@ -296,6 +299,7 @@ func toWorkflowNodeRun(row *workflowNodeRunReadRow) *coreworkflow.NodeRun {
 		AgentRevision:     row.Row.AgentRevision,
 		Prompt:            row.Row.Prompt,
 		Needs:             decodeNodeNeeds(row.Row.Needs),
+		IssueAccess:       row.Row.IssueAccess,
 		Bindings:          decodeStepBindings(row.Row.Bindings),
 		OutputSchema:      row.Row.OutputSchema,
 		Status:            row.Row.Status,
@@ -734,6 +738,7 @@ func (s *Store) CreateWorkflowNodeRuns(ctx context.Context, workflowRunID string
 				AgentRevision:     steps[i].AgentRevision,
 				Prompt:            steps[i].Prompt,
 				Needs:             encodeNodeNeeds(steps[i].Needs),
+				IssueAccess:       steps[i].IssueAccess,
 				Bindings:          encodeStepBindings(steps[i].Bindings),
 				OutputSchema:      steps[i].OutputSchema,
 				Status:            steps[i].Status,

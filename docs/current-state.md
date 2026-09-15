@@ -412,11 +412,14 @@ Space approval workflows remain unimplemented and deliberately out of scope;
 that is not evidence of an unfinished invitation or ownership-transfer feature.
 
 Workflow definitions are a graph of `agent_task` nodes joined by `needs` edges,
-with versioned definitions and durable run/node records. A node can constrain its
-result with `output_schema`, and a pointer binding can pass a selected value from
-the run input or a predecessor node's output into a node's input. The definition
-contract still has no typed conditional routing, concurrent dispatch of ready
-nodes, manual approval, or loops
+with versioned definitions and durable run/node records. A node names its Agent
+under `agent` and its task under `input` (`instruction` plus pointer `bindings`),
+and its `issue_access` (`none`, `if_bound`, or `required`) decides whether its
+Task receives the run's Issue — `required` also refuses a run that has none. A
+node can constrain its result with `output_schema`, and a pointer binding can
+pass a selected value from the run input or a predecessor node's output into a
+node's input. The definition contract still has no typed conditional routing,
+manual approval, or loops
 ([`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go)).
 
 Portal and inbound webhook execution are assembled. Telegram remains channel

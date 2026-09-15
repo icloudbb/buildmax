@@ -731,6 +731,7 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `node_index` | `bigint` | 否 | 在定义拓扑序中的位置；稳定的展示顺序，而非执行权威 |
 | `node_type` | `varchar(32)` | 否 | `agent_task` |
 | `needs` | `text` | 是 | JSON 数组，列出必须先成功的节点 id；根节点为 `NULL` |
+| `issue_access` | `varchar(16)` | 否 | 节点的 Issue 访问模式：`none`、`if_bound` 或 `required`；早于该列之前写入的行为空 |
 | `target_agent_id` | `bigint unsigned` | 是 | 该节点所运行的 `agent.id` |
 | `agent_name` | `varchar(255)` | 否 | 运行开始时捕获的 Agent 名称；早于 node run 开始快照 Agent 之前写入的行为空 |
 | `agent_description` | `text` | 否 | 运行开始时捕获的 Agent 描述 |

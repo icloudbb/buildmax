@@ -66,6 +66,7 @@ type workflowNodeRunResponse struct {
 	NodeIndex         int        `json:"node_index"`
 	NodeType          string     `json:"node_type"`
 	Needs             []string   `json:"needs,omitempty"`
+	IssueAccess       string     `json:"issue_access,omitempty"`
 	TargetAgentID     *string    `json:"target_agent_id,omitempty"`
 	AgentName         string     `json:"agent_name,omitempty"`
 	AgentDescription  string     `json:"agent_description,omitempty"`
@@ -178,6 +179,7 @@ func workflowNodeRunToResponse(step coreworkflow.NodeRun) workflowNodeRunRespons
 		NodeIndex:         step.NodeIndex,
 		NodeType:          step.NodeType,
 		Needs:             step.Needs,
+		IssueAccess:       step.IssueAccess,
 		TargetAgentID:     step.TargetAgentID,
 		AgentName:         step.AgentName,
 		AgentDescription:  step.AgentDescription,

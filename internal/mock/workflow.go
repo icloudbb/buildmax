@@ -205,6 +205,7 @@ func (m *MockWorkflowStore) CreateWorkflowNodeRuns(_ context.Context, workflowRu
 			NodeIndex:         steps[i].NodeIndex,
 			NodeType:          steps[i].NodeType,
 			Needs:             steps[i].Needs,
+			IssueAccess:       steps[i].IssueAccess,
 			TargetAgentID:     steps[i].TargetAgentID,
 			AgentName:         steps[i].AgentName,
 			AgentDescription:  steps[i].AgentDescription,

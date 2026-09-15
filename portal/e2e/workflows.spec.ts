@@ -27,7 +27,7 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
     description: "Created by the Portal browser tests to exercise the workflow views.",
     definition: JSON.stringify({
       schema_version: 1,
-      nodes: [{ id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" }],
+      nodes: [{ id: "only", type: "agent_task", agent: { id: agent.id }, input: { instruction: "Reply with exactly: deployment smoke ok" } }],
     }),
   })
   reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`])
@@ -79,8 +79,8 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
         {
           id: "only",
           type: "agent_task",
-          target_agent_id: agent.id,
-          prompt: "Reply with exactly: deployment smoke ok",
+          agent: { id: agent.id },
+          input: { instruction: "Reply with exactly: deployment smoke ok" },
         },
       ],
     }),
@@ -162,7 +162,7 @@ test("a workflow with an input_schema runs from its generated input form", async
         required: ["topic"],
       },
       nodes: [
-        { id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" },
+        { id: "only", type: "agent_task", agent: { id: agent.id }, input: { instruction: "Reply with exactly: deployment smoke ok" } },
       ],
     }),
   })
@@ -222,14 +222,16 @@ test("a workflow binds one step's output into the next step's input", async ({ p
     definition: JSON.stringify({
       schema_version: 1,
       nodes: [
-        { id: "collect", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" },
+        { id: "collect", type: "agent_task", agent: { id: agent.id }, input: { instruction: "Reply with exactly: deployment smoke ok" } },
         {
           id: "summarize",
           type: "agent_task",
           needs: ["collect"],
-          target_agent_id: agent.id,
-          prompt: "Summarize the research below.",
-          bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }],
+          agent: { id: agent.id },
+          input: {
+            instruction: "Summarize the research below.",
+            bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }],
+          },
         },
       ],
     }),

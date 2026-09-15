@@ -77,7 +77,7 @@ test("advanced JSON mode is checked against the same validation as the step form
   await definitionField.fill(
     JSON.stringify({
       schema_version: 1,
-      nodes: [{ id: "s1", type: "shell_command", target_agent_id: agent.id, prompt: "rm -rf /" }],
+      nodes: [{ id: "s1", type: "shell_command", agent: { id: agent.id }, input: { instruction: "rm -rf /" } }],
     })
   )
 
@@ -90,7 +90,7 @@ test("advanced JSON mode is checked against the same validation as the step form
   await definitionField.fill(
     JSON.stringify({
       schema_version: 1,
-      nodes: [{ id: "s1", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" }],
+      nodes: [{ id: "s1", type: "agent_task", agent: { id: agent.id }, input: { instruction: "Reply with exactly: deployment smoke ok" } }],
     })
   )
   await expect(submit).toBeEnabled()

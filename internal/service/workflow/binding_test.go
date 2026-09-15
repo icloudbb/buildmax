@@ -23,52 +23,52 @@ func TestParseDefinition_ValidatesBindings(t *testing.T) {
 	}{
 		{
 			name: "binds a predecessor node output at a pointer",
-			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"id":"b","type":"agent_task","needs":["a"],"target_agent_id":"x","prompt":"p","bindings":[{"name":"r","source":"node.a.output","pointer":"/text"}]}]}`,
+			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}},{"id":"b","type":"agent_task","needs":["a"],"agent":{"id":"x"},"input":{"instruction":"p","bindings":[{"name":"r","source":"node.a.output","pointer":"/text"}]}}]}`,
 		},
 		{
 			name: "binds the workflow input with the whole-value pointer",
-			raw:  `{"schema_version":1,"input_schema":{"type":"object","additionalProperties":false,"properties":{"topic":{"type":"string"}}},"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"t","source":"workflow.input","pointer":"/topic"}]}]}`,
+			raw:  `{"schema_version":1,"input_schema":{"type":"object","additionalProperties":false,"properties":{"topic":{"type":"string"}}},"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p","bindings":[{"name":"t","source":"workflow.input","pointer":"/topic"}]}}]}`,
 		},
 		{
 			name:    "source names a missing step",
-			raw:     `{"schema_version":1,"nodes":[{"id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","source":"node.a.output","pointer":""}]}]}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"b","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p","bindings":[{"name":"r","source":"node.a.output","pointer":""}]}}]}`,
 			wantErr: true,
 		},
 		{
 			name:    "source names a later step",
-			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","source":"node.b.output","pointer":""}]},{"id":"b","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p","bindings":[{"name":"r","source":"node.b.output","pointer":""}]}},{"id":"b","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}}]}`,
 			wantErr: true,
 		},
 		{
 			// b and c are independent roots; c reads b's output but does not need it,
 			// so b is not a predecessor of c and the binding is rejected.
 			name:    "source names an existing non-predecessor node",
-			raw:     `{"schema_version":1,"nodes":[{"id":"b","type":"agent_task","target_agent_id":"x","prompt":"p"},{"id":"c","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","source":"node.b.output","pointer":""}]}]}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"b","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}},{"id":"c","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p","bindings":[{"name":"r","source":"node.b.output","pointer":""}]}}]}`,
 			wantErr: true,
 		},
 		{
 			name:    "source names itself",
-			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","source":"node.a.output","pointer":""}]}]}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p","bindings":[{"name":"r","source":"node.a.output","pointer":""}]}}]}`,
 			wantErr: true,
 		},
 		{
 			name:    "unknown source",
-			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","source":"node.a.text","pointer":""}]}]}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}},{"id":"b","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p","bindings":[{"name":"r","source":"node.a.text","pointer":""}]}}]}`,
 			wantErr: true,
 		},
 		{
 			name:    "invalid pointer",
-			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","source":"node.a.output","pointer":"text"}]}]}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}},{"id":"b","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p","bindings":[{"name":"r","source":"node.a.output","pointer":"text"}]}}]}`,
 			wantErr: true,
 		},
 		{
 			name:    "duplicate binding name",
-			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"r","source":"node.a.output","pointer":"/text"},{"name":"r","source":"node.a.output","pointer":"/text"}]}]}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}},{"id":"b","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p","bindings":[{"name":"r","source":"node.a.output","pointer":"/text"},{"name":"r","source":"node.a.output","pointer":"/text"}]}}]}`,
 			wantErr: true,
 		},
 		{
 			name:    "empty binding name",
-			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"id":"b","type":"agent_task","target_agent_id":"x","prompt":"p","bindings":[{"name":"","source":"node.a.output","pointer":""}]}]}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}},{"id":"b","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p","bindings":[{"name":"","source":"node.a.output","pointer":""}]}}]}`,
 			wantErr: true,
 		},
 	}
@@ -95,19 +95,19 @@ func TestParseDefinition_ValidatesGraph(t *testing.T) {
 	}{
 		{
 			name: "cycle",
-			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","needs":["b"],"target_agent_id":"x","prompt":"p"},{"id":"b","type":"agent_task","needs":["a"],"target_agent_id":"x","prompt":"p"}]}`,
+			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","needs":["b"],"agent":{"id":"x"},"input":{"instruction":"p"}},{"id":"b","type":"agent_task","needs":["a"],"agent":{"id":"x"},"input":{"instruction":"p"}}]}`,
 		},
 		{
 			name: "needs an unknown node",
-			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","needs":["ghost"],"target_agent_id":"x","prompt":"p"}]}`,
+			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","needs":["ghost"],"agent":{"id":"x"},"input":{"instruction":"p"}}]}`,
 		},
 		{
 			name: "needs itself",
-			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","needs":["a"],"target_agent_id":"x","prompt":"p"}]}`,
+			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","needs":["a"],"agent":{"id":"x"},"input":{"instruction":"p"}}]}`,
 		},
 		{
 			name: "empty need entry",
-			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"},{"id":"b","type":"agent_task","needs":[""],"target_agent_id":"x","prompt":"p"}]}`,
+			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}},{"id":"b","type":"agent_task","needs":[""],"agent":{"id":"x"},"input":{"instruction":"p"}}]}`,
 		},
 	}
 	for _, tc := range cases {
@@ -122,7 +122,7 @@ func TestParseDefinition_ValidatesGraph(t *testing.T) {
 // TestParseDefinition_ValidatesPolicy proves a definition-set concurrency limit
 // must be positive and within the deployment ceiling.
 func TestParseDefinition_ValidatesPolicy(t *testing.T) {
-	node := `"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]`
+	node := `"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}}]`
 	if _, err := parseDefinition(`{"schema_version":1,"policy":{"max_parallel_nodes":4},` + node + `}`); err != nil {
 		t.Fatalf("valid policy rejected: %v", err)
 	}
@@ -146,6 +146,33 @@ func TestParseDefinition_ValidatesPolicy(t *testing.T) {
 	}
 }
 
+// TestParseDefinition_ValidatesIssueAccess proves issue_access defaults to none,
+// accepts the three modes, and rejects anything else.
+func TestParseDefinition_ValidatesIssueAccess(t *testing.T) {
+	node := func(access string) string {
+		field := ""
+		if access != "" {
+			field = `"issue_access":"` + access + `",`
+		}
+		return `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task",` + field + `"agent":{"id":"x"},"input":{"instruction":"p"}}]}`
+	}
+	def, err := parseDefinition(node(""))
+	if err != nil {
+		t.Fatalf("absent issue_access rejected: %v", err)
+	}
+	if def.Nodes[0].IssueAccess != coreworkflow.IssueAccessNone {
+		t.Fatalf("absent issue_access = %q, want defaulted to none", def.Nodes[0].IssueAccess)
+	}
+	for _, ok := range []string{"none", "if_bound", "required"} {
+		if _, err := parseDefinition(node(ok)); err != nil {
+			t.Fatalf("issue_access %q rejected: %v", ok, err)
+		}
+	}
+	if _, err := parseDefinition(node("maybe")); !errors.Is(err, ErrInvalidIssueAccess) {
+		t.Fatalf("issue_access maybe: err = %v, want ErrInvalidIssueAccess", err)
+	}
+}
+
 func TestParseDefinition_ValidatesOutputSchema(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -154,15 +181,15 @@ func TestParseDefinition_ValidatesOutputSchema(t *testing.T) {
 	}{
 		{
 			name: "absent output_schema is free text",
-			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}}]}`,
 		},
 		{
 			name: "schema in the supported subset",
-			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","output_schema":{"type":"object","additionalProperties":false,"properties":{"n":{"type":"integer"}},"required":["n"]}}]}`,
+			raw:  `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"},"output_schema":{"type":"object","additionalProperties":false,"properties":{"n":{"type":"integer"}},"required":["n"]}}]}`,
 		},
 		{
 			name:    "schema outside the subset is rejected",
-			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p","output_schema":{"type":"string","pattern":"x"}}]}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"},"output_schema":{"type":"string","pattern":"x"}}]}`,
 			wantErr: true,
 		},
 	}
@@ -187,31 +214,31 @@ func TestParseDefinition_ValidatesContract(t *testing.T) {
 	}{
 		{
 			name: "declares schema_version, input_schema, and result",
-			raw:  `{"schema_version":1,"input_schema":{"type":"object","additionalProperties":false,"properties":{"topic":{"type":"string"}},"required":["topic"]},"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}],"result":{"source":"node.a.output","pointer":"/text"}}`,
+			raw:  `{"schema_version":1,"input_schema":{"type":"object","additionalProperties":false,"properties":{"topic":{"type":"string"}},"required":["topic"]},"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}}],"result":{"source":"node.a.output","pointer":"/text"}}`,
 		},
 		{
 			name:    "missing schema_version is rejected",
-			raw:     `{"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+			raw:     `{"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}}]}`,
 			wantErr: ErrUnsupportedSchemaVersion,
 		},
 		{
 			name:    "unknown schema_version is rejected",
-			raw:     `{"schema_version":2,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+			raw:     `{"schema_version":2,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}}]}`,
 			wantErr: ErrUnsupportedSchemaVersion,
 		},
 		{
 			name:    "input_schema outside the subset is rejected",
-			raw:     `{"schema_version":1,"input_schema":{"type":"string","pattern":"x"},"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]}`,
+			raw:     `{"schema_version":1,"input_schema":{"type":"string","pattern":"x"},"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}}]}`,
 			wantErr: ErrInvalidInputSchema,
 		},
 		{
 			name:    "result selecting a missing step is rejected",
-			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}],"result":{"source":"node.b.output","pointer":""}}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}}],"result":{"source":"node.b.output","pointer":""}}`,
 			wantErr: ErrInvalidResult,
 		},
 		{
 			name:    "result with a non-node source is rejected",
-			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}],"result":{"source":"workflow.input","pointer":""}}`,
+			raw:     `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"x"},"input":{"instruction":"p"}}],"result":{"source":"workflow.input","pointer":""}}`,
 			wantErr: ErrInvalidResult,
 		},
 	}
@@ -383,8 +410,8 @@ func TestStartWorkflowRun_BindsUpstreamOutputIntoDownstreamInput(t *testing.T) {
 			SpaceID: "tm_1",
 			Name:    "WF",
 			Definition: `{"schema_version":1,"nodes":[` +
-				`{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect"},` +
-				`{"id":"summarize","type":"agent_task","needs":["collect"],"target_agent_id":"a_2","prompt":"write-the-summary","bindings":[{"name":"research","source":"node.collect.output","pointer":"/text"}]}` +
+				`{"id":"collect","type":"agent_task","agent":{"id":"a_1"},"input":{"instruction":"collect"}},` +
+				`{"id":"summarize","type":"agent_task","needs":["collect"],"agent":{"id":"a_2"},"input":{"instruction":"write-the-summary","bindings":[{"name":"research","source":"node.collect.output","pointer":"/text"}]}}` +
 				`]}`,
 			Status: coreworkflow.StatusPublished,
 		}},
@@ -458,7 +485,7 @@ func TestStartWorkflowRun_StoresDeclaredResult(t *testing.T) {
 			SpaceID: "tm_1",
 			Name:    "WF",
 			Definition: `{"schema_version":1,"nodes":[` +
-				`{"id":"only","type":"agent_task","target_agent_id":"a_1","prompt":"do the work"}` +
+				`{"id":"only","type":"agent_task","agent":{"id":"a_1"},"input":{"instruction":"do the work"}}` +
 				`],"result":{"source":"node.only.output","pointer":"/text"}}`,
 			Status: coreworkflow.StatusPublished,
 		}},

@@ -191,8 +191,11 @@ type NodeRun struct {
 	// Needs is the run's snapshot of this node's dependency edges (the ids of the
 	// nodes that must succeed before it becomes ready), taken at start so a later
 	// definition edit cannot change what an in-flight run waits on.
-	Needs         []string `json:"needs,omitempty"`
-	TargetAgentID *string  `json:"target_agent_id,omitempty"`
+	Needs []string `json:"needs,omitempty"`
+	// IssueAccess is the run's snapshot of this node's Issue access mode, so a
+	// later definition edit cannot change what an in-flight node's Task can reach.
+	IssueAccess   string  `json:"issue_access,omitempty"`
+	TargetAgentID *string `json:"target_agent_id,omitempty"`
 	// AgentName, AgentDescription, and AgentInstructions capture the target agent
 	// definition as it was when the run started, so later edits to the agent cannot
 	// change what a step in flight sends to the model.
@@ -290,20 +293,61 @@ type DefinitionNode struct {
 	// Needs lists the ids of the nodes that must succeed before this one becomes
 	// ready. It forms a directed acyclic graph; array position is not control
 	// flow. An empty list is a root that is ready at run start.
-	Needs         []string `json:"needs,omitempty"`
-	TargetAgentID string   `json:"target_agent_id"`
-	Prompt        string   `json:"prompt"`
-	// Bindings feed selected values into this node's input. Each names a value
-	// (Name) taken from a source (the run's input, or a transitive predecessor
-	// node's output envelope) at an RFC 6901 pointer. The bound value reaches the
-	// Task as labelled untrusted context, never the agent's instructions.
-	Bindings []StepBinding `json:"bindings,omitempty"`
+	Needs []string `json:"needs,omitempty"`
+	// Agent names the Agent this node runs as.
+	Agent NodeAgent `json:"agent"`
+	// Input is the node's task instruction and the values bound into it.
+	Input NodeInput `json:"input"`
+	// IssueAccess controls whether this node's Task receives the run's Issue.
+	// One of "none" (default), "if_bound", or "required". Empty means "none".
+	IssueAccess string `json:"issue_access,omitempty"`
 	// OutputSchema, when set, is a JSON Schema (in the shared subset) the node's
 	// agent run must satisfy as its final answer. Publication rejects a schema
 	// outside the subset. The node succeeds only when the run returns a value
 	// that validates against it. Empty leaves the node free text. See
 	// docs/design/structured-output.md.
 	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
+}
+
+// NodeAgent names the Agent a node runs as. Revision, when set, pins a specific
+// Agent revision; zero leaves the node on the Agent's current definition, which
+// the run still snapshots at start. Revision-pinning at publication is a later
+// slice, so a zero revision is accepted today.
+type NodeAgent struct {
+	ID       string `json:"id"`
+	Revision int    `json:"revision,omitempty"`
+}
+
+// NodeInput is a node's task instruction and the values bound into it.
+type NodeInput struct {
+	Instruction string `json:"instruction"`
+	// Bindings feed selected values into this node's input. Each names a value
+	// (Name) taken from a source (the run's input, or a transitive predecessor
+	// node's output envelope) at an RFC 6901 pointer. The bound value reaches the
+	// Task as labelled untrusted context, never the agent's instructions.
+	Bindings []StepBinding `json:"bindings,omitempty"`
+}
+
+// IssueAccess is how a node relates to the run's Issue. IssueAccessNone gives the
+// node's Task no Issue relation; IssueAccessIfBound gives it the run's Issue when
+// the run has one; IssueAccessRequired additionally makes run admission fail when
+// the run has no Issue. This makes Issue capability an explicit per-node choice
+// instead of silently granting or withholding it everywhere.
+const (
+	IssueAccessNone     = "none"
+	IssueAccessIfBound  = "if_bound"
+	IssueAccessRequired = "required"
+)
+
+// ValidIssueAccess reports whether s is a supported issue_access value. The empty
+// string is not valid here; the parser defaults it to IssueAccessNone first.
+func ValidIssueAccess(s string) bool {
+	switch s {
+	case IssueAccessNone, IssueAccessIfBound, IssueAccessRequired:
+		return true
+	default:
+		return false
+	}
 }
 
 // BindingSourceWorkflowInput is the binding source that selects into the run's
@@ -400,6 +444,7 @@ type CreateNodeRunInput struct {
 	NodeIndex         int
 	NodeType          string
 	Needs             []string
+	IssueAccess       string
 	TargetAgentID     *string
 	AgentName         string
 	AgentDescription  string

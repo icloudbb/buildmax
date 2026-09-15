@@ -42,6 +42,8 @@ var (
 	ErrInvalidNodeID              = apierr.New(apierr.KindInvalid, "invalid workflow node id: each node needs a unique non-empty id")
 	ErrInvalidNeeds               = apierr.New(apierr.KindInvalid, "invalid workflow node needs: each entry must name a distinct existing node, the edges must form a directed acyclic graph, and a node may not need itself")
 	ErrInvalidPolicy              = apierr.New(apierr.KindInvalid, "invalid workflow policy: max_parallel_nodes must be between 1 and the deployment maximum")
+	ErrInvalidIssueAccess         = apierr.New(apierr.KindInvalid, "invalid workflow node issue_access: must be none, if_bound, or required")
+	ErrIssueRequired              = apierr.New(apierr.KindInvalid, "workflow run requires an issue: a node declares issue_access required but the run has none")
 	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow node binding: a unique name, a source of workflow.input or node.<id>.output naming a predecessor node, and a valid RFC 6901 pointer are required")
 	ErrInvalidOutputSchema        = apierr.New(apierr.KindInvalid, "invalid workflow node output_schema: must be within the supported JSON Schema subset")
 	ErrInvalidTargetAgent         = apierr.New(apierr.KindInvalid, "invalid target agent")
@@ -321,7 +323,7 @@ func (s *Service) PublishedWorkflowsUsingAgent(ctx context.Context, spaceID, age
 			continue
 		}
 		for j := range def.Nodes {
-			if def.Nodes[j].TargetAgentID == agentID {
+			if def.Nodes[j].Agent.ID == agentID {
 				using = append(using, workflows[i])
 				break
 			}
@@ -387,6 +389,11 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err := s.validateIssueForRun(ctx, cmd.SpaceID, workflow.ID, cmd.IssueID); err != nil {
 		return nil, nil, err
 	}
+	// A node with issue_access "required" cannot run without an Issue, so admission
+	// fails now rather than dispatching a run that must strand that node.
+	if (cmd.IssueID == nil || *cmd.IssueID == "") && definitionRequiresIssue(def) {
+		return nil, nil, ErrIssueRequired
+	}
 	runInput, err := resolveRunInput(def, cmd.Input)
 	if err != nil {
 		return nil, nil, err
@@ -418,20 +425,21 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	}
 	stepsIn := make([]coreworkflow.CreateNodeRunInput, len(def.Nodes))
 	for i := range def.Nodes {
-		target := def.Nodes[i].TargetAgentID
+		target := def.Nodes[i].Agent.ID
 		agent := agents[target]
 		stepsIn[i] = coreworkflow.CreateNodeRunInput{
 			NodeID:            def.Nodes[i].ID,
 			NodeIndex:         topoIndex[def.Nodes[i].ID],
 			NodeType:          def.Nodes[i].Type,
 			Needs:             def.Nodes[i].Needs,
+			IssueAccess:       def.Nodes[i].IssueAccess,
 			TargetAgentID:     &target,
 			AgentName:         agent.Name,
 			AgentDescription:  agent.Description,
 			AgentInstructions: agent.Instructions,
 			AgentRevision:     agent.Revision,
-			Prompt:            def.Nodes[i].Prompt,
-			Bindings:          def.Nodes[i].Bindings,
+			Prompt:            def.Nodes[i].Input.Instruction,
+			Bindings:          def.Nodes[i].Input.Bindings,
 			OutputSchema:      outputSchemaSnapshot(def.Nodes[i].OutputSchema),
 			Status:            string(coreworkflow.NodeRunStatusPending),
 		}
@@ -842,6 +850,13 @@ func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, ru
 		return nil, "", "", err
 	}
 	input := buildWorkflowTaskInput(agent, step.Prompt, bound)
+	// issue_access decides whether this node's Task carries the run's Issue: none
+	// withholds it, if_bound and required attach the run's Issue when it has one
+	// (admission already guaranteed one exists for a required node).
+	var issueID *string
+	if step.IssueAccess == coreworkflow.IssueAccessIfBound || step.IssueAccess == coreworkflow.IssueAccessRequired {
+		issueID = run.IssueID
+	}
 	// Admit rather than plain-create so a retried or concurrent dispatch of this
 	// step — including recovery of the crash window between admitting the task
 	// and linking it onto the step run — resolves to the one task instead of
@@ -853,6 +868,7 @@ func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, ru
 		SpaceID:       spaceID,
 		Input:         input,
 		AgentID:       &agentID,
+		IssueID:       issueID,
 		CreatedByType: coretask.RunCreatedByTypeUser,
 		TriggerSource: coretask.RunTriggerSourceWorkflowStep,
 		AdmissionKey:  workflowTaskAdmissionKey(step.WorkflowRunID, step.NodeID),
@@ -942,6 +958,17 @@ func resolveRunInput(def *coreworkflow.Definition, raw string) (*string, error) 
 	return &trimmed, nil
 }
 
+// definitionRequiresIssue reports whether any node declares issue_access
+// "required", so a run without an Issue cannot satisfy the definition.
+func definitionRequiresIssue(def *coreworkflow.Definition) bool {
+	for i := range def.Nodes {
+		if def.Nodes[i].IssueAccess == coreworkflow.IssueAccessRequired {
+			return true
+		}
+	}
+	return false
+}
+
 func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 	var def coreworkflow.Definition
 	if err := json.Unmarshal([]byte(raw), &def); err != nil {
@@ -978,8 +1005,8 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 		node := &def.Nodes[i]
 		node.ID = strings.TrimSpace(node.ID)
 		node.Type = strings.TrimSpace(node.Type)
-		node.TargetAgentID = strings.TrimSpace(node.TargetAgentID)
-		node.Prompt = strings.TrimSpace(node.Prompt)
+		node.Agent.ID = strings.TrimSpace(node.Agent.ID)
+		node.Input.Instruction = strings.TrimSpace(node.Input.Instruction)
 		if node.ID == "" {
 			return nil, ErrInvalidNodeID
 		}
@@ -990,8 +1017,19 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 		if node.Type != coreworkflow.NodeTypeAgentTask {
 			return nil, ErrInvalidNodeType
 		}
-		if node.TargetAgentID == "" || node.Prompt == "" {
+		if node.Agent.ID == "" || node.Input.Instruction == "" {
 			return nil, ErrInvalidDefinition
+		}
+		if node.Agent.Revision < 0 {
+			return nil, apierr.Detail(ErrInvalidDefinition, "node %q agent.revision cannot be negative", node.ID)
+		}
+		// issue_access defaults to none and must be one of the supported modes, so a
+		// node's Issue capability is an explicit, validated choice.
+		if node.IssueAccess == "" {
+			node.IssueAccess = coreworkflow.IssueAccessNone
+		}
+		if !coreworkflow.ValidIssueAccess(node.IssueAccess) {
+			return nil, apierr.Detail(ErrInvalidIssueAccess, "node %q: %q", node.ID, node.IssueAccess)
 		}
 		for j := range node.Needs {
 			node.Needs[j] = strings.TrimSpace(node.Needs[j])
@@ -999,9 +1037,9 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 				return nil, ErrInvalidNeeds
 			}
 		}
-		bindingNames := make(map[string]struct{}, len(node.Bindings))
-		for j := range node.Bindings {
-			b := &node.Bindings[j]
+		bindingNames := make(map[string]struct{}, len(node.Input.Bindings))
+		for j := range node.Input.Bindings {
+			b := &node.Input.Bindings[j]
 			b.Name = strings.TrimSpace(b.Name)
 			b.Source = strings.TrimSpace(b.Source)
 			b.Pointer = strings.TrimSpace(b.Pointer)
@@ -1043,8 +1081,8 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 	// fact about real predecessor output.
 	for i := range def.Nodes {
 		node := &def.Nodes[i]
-		for j := range node.Bindings {
-			b := &node.Bindings[j]
+		for j := range node.Input.Bindings {
+			b := &node.Input.Bindings[j]
 			from, ok := coreworkflow.ParseNodeOutputSource(b.Source)
 			if !ok {
 				continue // workflow.input, already validated
@@ -1087,7 +1125,7 @@ func (s *Service) resolveDefinitionAgents(ctx context.Context, spaceID string, d
 	}
 	agents := make(map[string]agentdef.Agent, len(def.Nodes))
 	for i := range def.Nodes {
-		agentID := def.Nodes[i].TargetAgentID
+		agentID := def.Nodes[i].Agent.ID
 		if _, ok := agents[agentID]; ok {
 			continue
 		}

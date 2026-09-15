@@ -307,11 +307,13 @@ Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，
 Space 审批流程仍未实现且明确不在范围内；这不能被视为邀请或所有权转移功能未完成。
 
 Workflow 定义是由 `needs` 边连接的 `agent_task` 节点组成的图，具有版本化定义和持久
-Run/节点记录。一次运行会一次性分发所有就绪节点，受 `policy.max_parallel_nodes`
-（1 到部署上限，未声明时用上限）约束；失败为 fail-fast：阻塞待执行节点、取消并行运行的
-兄弟节点并结束运行。节点可以通过 `output_schema` 约束结果，指针绑定可以把运行输入或前驱
-节点输出中选取的值传入某个节点的输入。定义契约仍没有类型化条件路由、人工审批或循环
-（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
+Run/节点记录。节点在 `agent` 下命名其 Agent，在 `input` 下给出任务（`instruction` 加
+指针 `bindings`），并以 `issue_access`（`none`、`if_bound`、`required`）决定其 Task 是否
+接收运行的 Issue——`required` 还会拒绝没有 Issue 的运行。一次运行会一次性分发所有就绪节点，
+受 `policy.max_parallel_nodes`（1 到部署上限，未声明时用上限）约束；失败为 fail-fast：
+阻塞待执行节点、取消并行运行的兄弟节点并结束运行。节点可以通过 `output_schema` 约束结果，
+指针绑定可以把运行输入或前驱节点输出中选取的值传入某个节点的输入。定义契约仍没有类型化
+条件路由、人工审批或循环（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
 
 Portal 与入站 webhook 执行已组装。Telegram 仍只是渠道词汇，
 webhook 回调发送器未组装进 Server。周期性 schedule 通过 `schedule` 触发来源与

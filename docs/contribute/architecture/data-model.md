@@ -1179,6 +1179,7 @@ the node's dependency edges, and readiness is decided from those edges, not from
 | `node_index` | `bigint` | no | Position in the definition's topological order; a stable display order, not the execution authority |
 | `node_type` | `varchar(32)` | no | `agent_task` |
 | `needs` | `text` | yes | JSON array of the node ids that must succeed before this node runs; `NULL` for a root |
+| `issue_access` | `varchar(16)` | no | The node's Issue access mode: `none`, `if_bound`, or `required`; empty on rows written before nodes carried it |
 | `target_agent_id` | `bigint unsigned` | yes | `agent.id` to run the node as |
 | `agent_name` | `varchar(255)` | no | Agent name captured when the run started; empty on rows written before node runs snapshotted their agent |
 | `agent_description` | `text` | no | Agent description captured when the run started |
