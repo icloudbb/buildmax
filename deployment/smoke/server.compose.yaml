@@ -8,6 +8,12 @@ workspaces_dir: /data/workspaces
 # into a broken one after a handful of smokes. Quota behaviour is not what these
 # suites verify.
 default_quota_tier: pro
+# The browser suite signs in once and replays that one saved session across every
+# spec over the whole run. A refresh token is single-use and rotating, so a
+# replay after the default 30s grace reads as reuse and revokes the session. A
+# grace that spans a suite lets the shared session survive it. Test-only: the
+# committed default stays 30s.
+refresh_rotation_grace: 1h
 
 database:
   host: mysql

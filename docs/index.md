@@ -77,7 +77,6 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 
 ## Exploratory Runs / 探索性运行记录
 
-- [English: Desktop, Portal, server, and worker continuity — 2026-09-13](contribute/exploratory-runs/2026-09-13-cross-surface-task-continuity.md) · [中文：Desktop、Portal、server 与 worker 连续性 — 2026-09-13](zh-CN/contribute/exploratory-runs/2026-09-13-cross-surface-task-continuity.md)
 - [English: Exploratory Run Records](contribute/exploratory-runs/README.md) · [中文：探索式测试记录](zh-CN/contribute/exploratory-runs/README.md)
 
 ## Design Records / 设计记录
@@ -150,6 +149,7 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: Enterprise Capability Requirements Inventory](proposals/enterprise-capability-requirements.md) · [中文：企业功能要求盘点](zh-CN/proposals/enterprise-capability-requirements.md)
 - [English: Issue Topic Coordination and Agent Blackboard](proposals/issue-topic-coordination.md) · [中文：Issue 主题协调与 Agent 黑板](zh-CN/proposals/issue-topic-coordination.md)
 - [English: Local Issue Work Bridge](proposals/local-issue-work-bridge.md) · [中文：本地 Issue 工作桥接](zh-CN/proposals/local-issue-work-bridge.md)
+- [English: Personnel Deactivation And Execution Authority](proposals/personnel-deactivation-lifecycle.md) · [中文：人员停用与执行权限](zh-CN/proposals/personnel-deactivation-lifecycle.md)
 - [English: Risk-Driven End-to-End Verification Expansion](proposals/risk-driven-e2e-expansion.md) · [中文：风险驱动的端到端验证扩展](zh-CN/proposals/risk-driven-e2e-expansion.md)
 - [English: Session Trees, Agent Mailboxes, and Branched Workspaces](proposals/session-tree-and-agent-mailbox.md) · [中文：Session 树、Agent 邮箱与分支工作区](zh-CN/proposals/session-tree-and-agent-mailbox.md)
 - [English: Single-Maintainer Agent Development Workflow](proposals/single-maintainer-agent-development.md) · [中文：单一维护者的 Agent 开发工作流](zh-CN/proposals/single-maintainer-agent-development.md)
@@ -161,6 +161,7 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: Add PluginInstall staging and the autonomous-acquisition policy gate](backlog/84-plugin-install-staging-and-policy.md) · 中文：—
 - [English: Add the immediate capability handoff orchestration](backlog/86-plugin-capability-handoff-orchestration.md) · 中文：—
 - [English: Prove Task-scoped autonomous install end to end](backlog/88-plugin-handoff-deployment-evidence.md) · 中文：—
+- [English: Show the continued run's own input in the Run trace panel](backlog/90-continued-taskrun-input-trace.md) · 中文：—
 - [English: BuildMax Backlog](backlog/README.md) · 中文：—
 - [English: Backlog Task Template](backlog/TEMPLATE.md) · 中文：—
 
@@ -181,3 +182,7 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: Workflow node runs](changelog/changed/workflow-node-runs.md) · 中文：—
 - [English: Workflow pointer bindings](changelog/changed/workflow-pointer-bindings.md) · 中文：—
 - [English: Workflow run result](changelog/added/workflow-run-result.md) · 中文：—
+- [English: Desktop tool-call card name wrapping](changelog/fixed/desktop-tool-card-name-wrap.md) · 中文：—
+- [English: Cross-origin sign-in CORS credentials](changelog/fixed/cors-credentials-cross-origin.md) · 中文：—
+- [English: Portal reload Space fallback](changelog/fixed/portal-reload-space-fallback.md) · 中文：—
+- [English: Compose single-origin gateway](changelog/changed/compose-single-origin-gateway.md) · 中文：—

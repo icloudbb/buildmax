@@ -63,7 +63,7 @@ function normalizeSpaceName(space: { name: string; personal_for_user_id?: string
 }
 
 export function SpaceProvider({ children }: { children: ReactNode }) {
-  const { token, user } = useAuth()
+  const { token, user, status } = useAuth()
   // null means "not yet successfully fetched", distinct from [] meaning the
   // account genuinely has no Spaces. See deriveResourceState.
   const [spacesData, setSpacesData] = useState<SpaceSummary[] | null>(null)
@@ -110,8 +110,15 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
   }, [token])
 
   useEffect(() => {
+    // Wait for the session restore to settle before fetching or clearing. On a
+    // reload the token is briefly null while it is exchanged from the refresh
+    // cookie; acting on that transient anonymous window would clear the stored
+    // Space selection, and then a Space list that also fails to load would have
+    // no id left to fall back on — leaving a whole-page error where the shell
+    // should still render the space with an "unavailable" label.
+    if (status !== "ready") return
     void refetchSpaces()
-  }, [refetchSpaces])
+  }, [refetchSpaces, status])
 
   useEffect(() => {
     if (!token || !currentSpaceId) {

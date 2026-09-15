@@ -2,7 +2,7 @@
 
 > **翻译说明：** 本文是[英文原文](../../proposals/system-administration-operations.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-> **受众：** 贡献者、运维人员与安全审查者 · **状态：** 提案 — 讨论中
+> **受众：** 贡献者、运维人员与安全审查者 · **状态：** 提案 — 讨论中；核心管理、OIDC 诊断与外部身份管理已经交付，后续运维切片仍待完成
 >
 > **讨论开始：** 2026-09-05
 
@@ -29,7 +29,7 @@
 
 ## 1. 问题
 
-BuildMax 已有部署范围的系统管理。授权完整性、Administrators 页面、一级导航、账户和 Space 分页、脱敏配置展示及模型创建均已实现。本提案继续讨论更完整的运维约定，不再把这些切片算作待办。本次状态对齐基于 `97d5fbc7` 的代码，并非新增 MySQL 或浏览器资格验证。
+BuildMax 已有部署范围的系统管理。授权完整性、Administrators 页面、一级导航、账户和 Space 分页、脱敏配置展示及模型创建均已实现。本提案继续讨论更完整的运维约定，不再把这些切片算作待办。状态已于 2026-09-14 对照当前代码树复核；本次并非新增 MySQL 或浏览器资格验证。
 
 剩余缺口如下：
 
@@ -72,13 +72,13 @@ buildmax-server user login-code <email>
 
 ### 2.2 Portal
 
-`portal/src/pages/admin/AdminSettings.tsx` 提供七个区块：Overview、Administrators、Accounts、Spaces、Models、Plugins 和 Audit。已确认管理员可从侧边栏一级入口进入。授权页可查看历史，并按账户邮箱授予／撤销；Overview 显示调用者授权及可折叠的脱敏配置。Accounts 和 Spaces 已分页，账户详情有稳定路由，筛选支持平台及最近登录日期。Portal 按 Session ID、平台、创建时间、最近轮换和到期时间列出有效登录链，并可撤销一个或全部；这会撤销 refresh token，不会撤销已签发的 access token。Portal 也已支持模型创建。
+`portal/src/pages/admin/AdminSettings.tsx` 提供七个区块：Overview、Administrators、Accounts、Spaces、Models、Plugins 和 Audit。已确认管理员可从侧边栏一级入口进入。授权页可查看历史，并按账户邮箱授予／撤销；Overview 显示调用者授权及可折叠的脱敏配置。Accounts 和 Spaces 已分页，账户详情有稳定路由，筛选支持平台及最近登录日期。Portal 按 Session ID、平台、创建时间、最近轮换和到期时间列出有效登录链，并可撤销一个或全部；撤销现在会同时终止持久 Session 及 refresh token，因此已签发的 access token 会在下一次经过守卫的请求中失败。Portal 也已支持模型创建。
 
 代码与证据位置包括 `portal/src/features/admin`、`portal/src/layout/Sidebar.tsx`、`portal/e2e/admin.spec.ts`，以及 `internal/infra/db/system_grant_test.go` 中的 MySQL 并发测试。页面或测试存在，不代表后续阶段的全部验收条件都已通过。
 
 ### 2.3 文档状态
 
-运维认证指南现已描述 Portal 授权管理及单个／全部 Session 撤销，并继续标明用户自助 Session 管理、登录限流及企业身份尚未实现。当前行为放在指南中；本提案只负责剩余选择及其验收条件。
+运维认证指南现已描述 Portal 授权管理、单个／全部 Session 撤销，以及已交付的 OIDC 浏览器流程；它继续标明用户自助 Session 管理、登录限流、原生客户端 OIDC 与真实提供商资格验证尚未实现。当前行为放在指南中；本提案只负责剩余选择及其验收条件。
 
 ## 3. 决策边界
 
@@ -107,7 +107,7 @@ System Administrator 并不是角色层级的顶端。它是一条独立于 Spac
 
 - 一个绕过 Space 成员身份的通用超级用户。
 - 本次切片中不引入自定义角色、任意权限或按资源的 ACL。
-- OIDC、SAML、SCIM、MFA 和服务账户。这些由[企业身份提案](../design/企业身份与访问.md)负责。
+- SAML、SCIM、MFA 和服务账户。身份协议由获采纳的[企业身份设计](../design/企业身份与访问.md)负责；其中 OIDC 浏览器切片已经交付。
 - 账户的硬删除或 Space 删除。两者都需要先做出数据归属、保留期限和审计方面的决策。
 - 从 Portal 编辑 `server.yaml`。它是进程启动时的配置，没有可供多副本共享的写入目标。
 - 一个原始日志查看器。日志可能包含端点、prompt 和凭据，这仍然是部署可观测性系统的职责。
@@ -407,11 +407,14 @@ Portal 不需要打包任意的本地目录。浏览器接受一个已经准备�
 
 ### 阶段 6：企业身份后续工作
 
-在企业身份提案被接受之后，管理功能可能会新增：
+获采纳的企业身份工作已经增加：
 
-- OIDC 连接状态和回调诊断；
+- 脱敏的 OIDC 配置，以及实时 discovery/连接诊断；
+- 外部身份查看与解除关联，并强制、审计“先禁用再解除”。
+
+仍可能增加的管理工作包括：
+
 - SCIM 的开通和撤销状态；
-- 身份关联信息的查看，而不暴露供应商 token；
 - 针对破坏性操作的管理员 MFA 或二次强化认证；
 - 如果确实识别出一个仅需只读运营权限的调用者，则引入一个真正的 `system_observer` 角色；
 - 如果存在需要受支持凭据的无人值守调用者，则引入服务账户的生命周期管理。
@@ -675,5 +678,5 @@ git diff --check
 - 把授权正确性和已选定的运维界面决策，加入 `docs/design/system-administration.md`；
 - 把商定的实现顺序放入 `docs/ROADMAP.md`，其中较早的阶段自然会支持 R3 候选版本运维流程；
 - 为每一个阶段创建聚焦的实现 Issue 或 Pull Request；
-- 让企业身份相关的决策保留在它自己的提案和之后的设计文档中；
+- 让企业身份相关的决策保留在已接受的设计记录中；
 - 一旦其中可持久保留的决策已经迁移完毕，就删除这份提案。

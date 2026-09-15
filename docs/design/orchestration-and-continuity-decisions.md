@@ -23,7 +23,7 @@ Created: 2026-09-06
 - [4. Workspace Continuity — Checkpoints Only](#4-workspace-continuity--checkpoints-only)
 - [5. Sub-Points Settled](#5-sub-points-settled)
 - [6. Terminology — Space](#6-terminology--space)
-- [7. Structured Output — On The Roadmap](#7-structured-output--on-the-roadmap)
+- [7. Structured Output — Implemented Foundation](#7-structured-output--implemented-foundation)
 - [8. Actions](#8-actions)
 - [9. Deferred And Evidence-Gated](#9-deferred-and-evidence-gated)
 
@@ -140,13 +140,15 @@ shipped as its own dedicated pull request rather than folded into any other.
 Older records that still read "Team" name the term that was replaced, not a
 second concept.
 
-## 7. Structured Output — On The Roadmap
+## 7. Structured Output — Implemented Foundation
 
 **Decision.** A provider-neutral structured-output contract in the shared Agent
-runtime is added as a named roadmap item. It is the shared prerequisite for
-Workflow's typed routes, planners, and evaluators and for a richer Task result
-envelope; today the runtime has no such contract and the Task result is
-free text. It is recorded under R5 in [`ROADMAP.md`](../ROADMAP.md).
+runtime is a named roadmap prerequisite for Workflow's typed routes, planners,
+evaluators, and richer Task results. That foundation is now implemented:
+provider mappings, final-answer validation, TaskRun persistence, and a linear
+Workflow step's `output_schema` consumer ship. Typed bindings and adaptive
+control remain under R5. See [structured output](structured-output.md) for the
+current implementation boundary.
 
 ## 8. Actions
 
@@ -154,7 +156,8 @@ Landed with this record (one pull request):
 
 1. Withdraw `task-workspace-continuity.md` and remove its design-README row,
    leaving `task-workspace-checkpoints.md` as the single continuity record.
-2. Add the structured-output roadmap item under R5.
+2. Add the structured-output roadmap item under R5. Its shared runtime and
+   first Workflow consumer subsequently shipped; typed dataflow remains.
 
 Tracked as separate, dedicated changes:
 

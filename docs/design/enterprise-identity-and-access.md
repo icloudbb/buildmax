@@ -9,10 +9,11 @@
 > **Primary domain:** Trust and Security
 
 This record supersedes the retired *Enterprise Identity And Access* proposal. It
-keeps that paper's direction and evidence — repository behavior inspected at
-`cceba61c` against OpenID Connect Core/Discovery, OAuth 2.0 Security BCP, and the
-browser/native guidance linked below — and records three decisions taken on
-acceptance:
+keeps that paper's direction and evidence — the original repository behavior
+inspected at `cceba61c` against OpenID Connect Core/Discovery, OAuth 2.0 Security
+BCP, and the browser/native guidance linked below — and records three decisions
+taken on acceptance. The shipped status and current-code table were rechecked
+against the working tree on 2026-09-14.
 
 1. **Native and SSO are an emergent, validated posture, not a mode enum.** The
    switch is the two orthogonal knobs `oidc.enabled` and `local_login`, not a new
@@ -24,8 +25,9 @@ acceptance:
    implemented; no SAML field, column, or config exists today. The extension path
    is recorded in §8a so adding SAML is addition, not rework.
 
-The open items in §19 are the per-deployment inputs each build slice still needs,
-not questions about whether to build. Git history keeps the full proposal.
+The open items in §19 are the per-deployment inputs for the remaining provider
+qualification and native-client slices, not questions about whether to build.
+Git history keeps the full proposal.
 
 Related: [roadmap](../ROADMAP.md) R5,
 [current state](../current-state.md),
@@ -68,21 +70,24 @@ qualification (§17, §20) is still open.
 
 The design rests on three kinds of evidence:
 
-1. Repository behavior was inspected at `cceba61c`, including account and
-   refresh-token stores, authentication services and handlers, the central
-   access guard, Space membership and invitations, audit, configuration,
-   Portal login/session code, and their tests.
-2. Current documentation says SSO is absent, login is not rate limited, Space
-   membership is the resource boundary, System Administrator is a separate
-   deployment authority, and local execution does not require a Server.
+1. The originating evidence inspected repository behavior at `cceba61c`,
+   including account and refresh-token stores, authentication services and
+   handlers, the central access guard, Space membership and invitations, audit,
+   configuration, Portal login/session code, and their tests. The implemented
+   status and §3 were rechecked against the current tree on 2026-09-14.
+2. Current documentation and code show the shipped OIDC browser flow, the lack
+   of an application-owned login rate limiter, Space membership as the resource
+   boundary, System Administrator as a separate deployment authority, and local
+   execution that does not require a Server.
 3. The protocol baseline is OpenID Connect Core and Discovery, OAuth 2.0
    Security Best Current Practice, and the browser/native guidance linked in
    this record.
 
-The direction is settled, but a target identity provider, offboarding
-service-level objective, and native-client requirement are still
-per-deployment inputs, not details an implementation should guess. They gate
-each build slice and are listed in §19; they do not reopen whether to build.
+The direction is settled and Okta is the named target provider, but the real
+provider test tenant, offboarding service-level objective, and native-client
+requirement are still per-deployment inputs, not details an implementation
+should guess. They gate the remaining qualification and native-client slices
+and are listed in §19; they do not reopen whether to build.
 
 ## 2. Essential User Outcome
 
@@ -107,18 +112,18 @@ The following is current code, not inferred future behavior:
 
 | Concern | Current fact | Design consequence |
 |---|---|---|
-| Account identity | `user` has one unique email, optional password, disablement, and no external-identity link | Add association; do not overload email with issuer identity |
-| Account creation | `CreateUser` atomically creates the account, personal Space, and owner membership | JIT provisioning must preserve that invariant in one transaction |
-| Login | `/api/auth/login` accepts a password or operator-issued single-use code | OIDC becomes another proof that opens the same BuildMax session, not another authorization plane |
-| Access token | HMAC JWT carries `sub`, `typ`, `sid`, `jti`, `iat`, and `exp`; default lifetime is seven days | Shorten the bearer window and make `sid` refer to authoritative session state |
-| Refresh token | Opaque, hashed, rotating rows grouped by `session_id`; rotation resets a 30-day inactivity window | Add absolute expiry and authentication provenance; retain rotation |
-| Revocation | Logout/revoke retires refresh rows, but an issued access JWT remains usable until expiry | A durable session check is required for prompt logout and provider-session revocation |
+| Account identity | `external_identity` binds unique `(issuer, subject)` to a user; an administrator can inspect or unlink it after disabling the account | The stable identity is the provider pair; verified email is used only for first association or JIT provisioning |
+| Account creation | Native `CreateUser` and OIDC JIT provisioning atomically create the account, personal Space, owner membership, and—when applicable—the identity link | Both creation paths preserve the same account invariant |
+| Login | `/api/auth/login` accepts a password or operator-issued single-use code; `/api/auth/oidc/*` implements the browser OIDC flow | Every proof opens the same BuildMax session and authorization plane |
+| Access token | HMAC JWT carries `sub`, `typ`, `sid`, `jti`, `iat`, and `exp`; the configured default lifetime remains seven days, and the guard checks the `sid` session on every request | Durable session state already bounds logout and revocation; a shorter bearer default remains an open hardening choice |
+| Refresh token | Opaque, hashed, rotating rows belong to an `auth_session`; inactivity expiry is subordinate to the session's absolute expiry | Retain rotation and the absolute session ceiling |
+| Revocation | Logout and administrator revocation retire the `auth_session` and its refresh rows; the guard rejects an access JWT tied to that session on the next request | The durable session is the revocation authority |
 | Account disablement | Every authenticated route re-reads `user.disabled_at` | Offboarding through BuildMax disablement is immediate at the user API boundary |
-| Portal storage | Access and refresh tokens are stored in `localStorage` | The browser flow must stop exposing the renewable credential to JavaScript |
+| Portal storage | The refresh token is delivered in a `Secure`, `HttpOnly`, `SameSite=Strict` cookie; the access token is held in memory | The renewable credential is not exposed to Portal JavaScript |
 | Authorization | The central guard derives Space roles and System Administrator grants from database state | Ignore IdP role/group claims in the first slice |
 | Invitation | A Space invitation targets an account that already exists | Existing-only onboarding can invite before first SSO login; JIT users become invitable only after provisioning |
-| Audit | Login and authority events exist, but writes are generally best-effort | Identity association changes need a stronger atomic record before a compliance claim |
-| Deployment | Portal and API normally share one public origin; multi-replica Server uses shared database/Redis | The callback and temporary browser state must work across replicas without process-local affinity |
+| Audit | Identity link, JIT creation, and unlink events are written transactionally with their identity changes; ordinary login and many other events remain best-effort | The identity lifecycle has an atomic record, but the broader audit system still does not justify a compliance claim |
+| Deployment | Portal and API normally share one public origin; the signed Server-owned OIDC transaction cookie and shared database work without process-local callback affinity | Multi-replica behavior exists in code; deployed real-provider qualification remains open |
 | Local surfaces | CLI/TUI and Desktop run locally without any Server; signed-in mode is optional | Corporate SSO must not make local execution depend on the Server |
 
 An IdP disabling a person is not currently visible to BuildMax. OIDC alone does
@@ -484,7 +489,7 @@ one or more Spaces already express the required ownership boundaries.
 
 ## 10. HTTP API And Portal Changes
 
-Proposed public routes:
+Shipped public routes:
 
 ```text
 GET  /api/auth/methods
@@ -746,12 +751,11 @@ deployment limit even when local login is restricted.
 
 ## 17. Delivery And Verification
 
-The direction is accepted, but no backlog item is created until a concrete
-deployment settles the Phase 0 inputs in §19. Each slice below becomes an
-independently reviewable backlog task once its dependencies and acceptance
-criteria are settled:
+Phases 1 and 2 are implemented. The remaining Phase 3 qualification and any
+native-client work become independently reviewable tasks only when the relevant
+deployment inputs and acceptance criteria in §19 are settled:
 
-### Phase 0 — evidence and decision
+### Phase 0 — evidence and decision (partly settled)
 
 - Name the first supported IdP and record its Discovery, claim, client-auth,
   logout, and test-environment behavior.
@@ -760,17 +764,19 @@ criteria are settled:
   is usable.
 - Threat-model the exact deployment and approve the configuration contract.
 
-### Phase 1 — session and Portal credential foundation
+### Phase 1 — session and Portal credential foundation (implemented)
 
 - Add `auth_session`, require active `sid`, add absolute expiry, and migrate
   current session listing/revocation onto it.
-- Shorten the default access-token lifetime.
+- Open hardening choice: shorten the configured default access-token lifetime;
+  it remains seven days while the durable session guard provides prompt
+  revocation.
 - Move Portal refresh delivery to the HttpOnly cookie adapter for existing
   password and login-code flows; remove auth tokens from `localStorage`.
 - Force existing sessions to reauthenticate during the schema transition
   rather than inventing unverifiable authentication provenance.
 
-### Phase 2 — OIDC login and association
+### Phase 2 — OIDC login and association (implemented)
 
 - Add config validation, Discovery/JWKS caching, browser transaction, callback,
   claim validation, `external_identity`, existing-only association, and JIT
@@ -778,9 +784,9 @@ criteria are settled:
 - Add Portal method discovery and SSO presentation.
 - Add atomic identity-link audit and admin read/recovery surfaces.
 
-### Phase 3 — operations and qualification
+### Phase 3 — operations and qualification (open)
 
-- Add redacted status and degraded diagnostics.
+- Redacted OIDC status and degraded diagnostics are implemented.
 - Exercise IdP outage, JWKS rotation, client-secret rotation, issuer-change
   refusal, break glass, disablement, and rollback.
 - Update current state, authentication/configuration/operator documentation,
@@ -829,8 +835,9 @@ forms of evidence are required before claiming support for that provider.
 
 ## 19. Open Per-Deployment Inputs
 
-The direction is accepted, but these per-deployment facts gate each build slice
-and are still missing:
+The direction is accepted. The list below records which deployment facts have
+been resolved and which still gate the remaining qualification or native-client
+slices:
 
 1. **Target provider.** **Chosen: Okta.** It supplies exact-issuer Discovery,
    PKCE S256, a verified `email`/`email_verified`, standard UserInfo, and a
@@ -867,7 +874,8 @@ tools usually have SSO” are not enough.
 ## 20. Documentation And Delivery Status
 
 This record is the accepted direction; the originating proposal is retired to Git
-history. Phase 1 (durable sessions and the Portal cookie credential) and Phase 2
+history. Phase 1's durable-session and Portal-cookie foundation (with the
+configured access-token default still seven days) and Phase 2
 (OIDC login and association, with **Okta** the named target provider) are
 implemented: the `oidc` configuration and the orthogonal `local_login` knob; a
 Discovery/JWKS provider with asymmetric-only ID-token verification; the

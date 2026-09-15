@@ -137,7 +137,7 @@ binary rollback fixture, and credential rotation — several of which land as th
 R3 operator journey. Real-MySQL coverage for
 [quota windows](https://github.com/icloudbb/buildmax/issues/498) and cross-Space
 store scoping, and the deployed worker-loss, database-outage, and
-object-storage-denial drills, are done. Retire plans for removed mechanisms,
+object-storage-readiness outage/recovery drills, are done. Retire plans for removed mechanisms,
 including the old result-delivery queue, rather than recreate them for a
 checklist.
 
@@ -211,13 +211,15 @@ untrusted repositories, or workers holding high-value credentials; do not make
 a particular CNI or proxy an unconditional BuildMax dependency without that
 evidence.
 
-Corporate SSO has an accepted direction in the
-[enterprise identity and access](design/enterprise-identity-and-access.md) design
-record (OIDC, external-identity linking, and a native-versus-SSO posture), but no
-ordered R5 slice and nothing implemented. Each build slice waits on the
-per-deployment inputs that record names — chiefly a target provider, an
-offboarding bound, the JIT domain policy, and whether native connected clients
-are required.
+Corporate SSO now has both an accepted direction and its first two implemented
+phases in the [enterprise identity and access](design/enterprise-identity-and-access.md)
+record: durable revocable sessions, the Portal's HttpOnly refresh cookie,
+OIDC authorization-code login, external-identity linking, bounded JIT
+provisioning, and the independent native-login posture. Phase 3 remains an R5
+qualification slice and waits on a reproducible real-Okta tenant plus the
+per-deployment offboarding, rotation, outage, and break-glass inputs named by
+that record. Native CLI/Desktop OIDC and device authorization are still outside
+the shipped browser flow.
 
 After the Beta gate, evaluate and deliver the previously unplanned local and
 plugin follow-ons in this order. Each step still needs its stated evidence; an
@@ -242,9 +244,11 @@ ordered place here is not permission to skip a proposal's acceptance decision.
    operator journey.
 
 Workflow expansion starts with reconciliation and typed dataflow before graph
-breadth. A provider-neutral structured-output contract in the shared runtime is
-a prerequisite for typed routes, planners, evaluators, and richer Task results.
-Channel names or partial adapters do not count as delivered integrations.
+breadth. The provider-neutral structured-output runtime contract, provider
+mappings, TaskRun persistence, and linear Workflow `output_schema` consumer are
+implemented. Typed JSON-pointer bindings, routes, planners, evaluators, and the
+Portal schema editor remain the next consumers; channel names or partial
+adapters do not count as delivered integrations.
 
 Design: [Workflow runtime](design/workflow-runtime.md) and
 [orchestration and continuity decisions](design/orchestration-and-continuity-decisions.md).

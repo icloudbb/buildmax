@@ -49,15 +49,15 @@ channel — BuildMax has none, by design (`internal/core/identity/login_code.go`
 this document keeps them that way rather than blurring them into one
 invitation flow.**
 
-- **Creating an account is `system_admin`'s job.** It already has exactly one
-  authoritative path — `POST /api/admin/users` /
-  `buildmax-server user create`, per
-  [system-administration.md](./system-administration.md) — and this document
-  does not add a second one. A space-scoped call that could also mint an
-  account would mean two places decide who gets to exist in the deployment,
-  and the newer of the two would eventually drift from the older one's rules
-  (quota tier defaults, disablement, audit) the way any duplicated
-  authoritative implementation does — exactly what
+- **Creating an account is a deployment identity concern.** An operator can use
+  `POST /api/admin/users` / `buildmax-server user create`, per
+  [system-administration.md](./system-administration.md), and an OIDC deployment
+  can use the bounded JIT path in
+  [enterprise identity and access](./enterprise-identity-and-access.md). This
+  document adds neither path. A space-scoped call that could also mint an
+  account would create another place that decides who gets to exist in the
+  deployment and would eventually drift from the identity service's rules
+  (domain policy, personal Space, disablement, audit) — exactly what
   [AGENTS.md](../../AGENTS.md)'s ownership-boundary rule exists to prevent.
 - **Bringing an existing account into a space is the space owner's (or admin's)
   job.** That is what "invitation" means in the rest of this document: an
@@ -66,11 +66,12 @@ invitation flow.**
   if that email already has an account.
 
 The consequence stated plainly: **a space owner who wants to bring in someone
-who has never used BuildMax cannot do it alone.** They ask a `system_admin` to
-create the account first (or hold that grant themselves, as the person who
-bootstraps a small deployment usually does), then invite the resulting
-address. This document treats that as the correct shape, not as unfinished
-work — see §4.1 and §6 for why, and for what closing it fully would have cost.
+who has never used BuildMax cannot do it alone.** An operator creates the
+account first, or an enabled OIDC JIT policy creates it on that person's first
+successful corporate login; only then can the owner invite the resulting
+address. This document treats that separation as the correct shape, not as
+unfinished work — see §4.1 and §6 for why, and for what closing it inside the
+Space boundary would have cost.
 
 What the split does buy back is real: because a space-scoped invitation can
 never create an account, it also never has to decide what credential to hand
@@ -79,18 +80,15 @@ prevent a space owner from minting a login for a stranger's account is not
 needed at all once account creation is somebody else's job. Simpler and
 harder to get wrong beat one fewer manual step.
 
-It also happens to be the right shape for a future BuildMax does not build
-today. SSO is explicitly deferred (`docs/ROADMAP.md`,
-[enterprise-deployment.md](./enterprise-deployment.md) §6), but whenever it
-arrives it will be exactly this: a second, IdP-driven way to create an
-account, just-in-time on first assertion, standing beside
-`system_admin`'s manual one rather than replacing it. Because §5.1 only ever
-asks "does this email already have an account" and never asks "who created
-it" or "how," that day requires no change here — an SSO-provisioned account
-is invitable the moment it exists, the same as one a `system_admin` typed in
-by hand. A design that let space invitation create accounts would instead have
-had to grow a third opinion about identity provisioning to keep up; keeping
-the two authorities apart from the start avoids that entirely.
+The shipped OIDC JIT path now validates that boundary. It is a second,
+IdP-driven way to create an account on first assertion, standing beside the
+operator's manual path rather than replacing it. Because §5.1 only asks "does
+this email already have an account" and never asks "who created it" or "how,"
+OIDC shipped without changing this lifecycle: an SSO-provisioned account is
+invitable the moment it exists, the same as an operator-created account. A
+design that let Space invitation create accounts would instead need a third
+opinion about identity provisioning; keeping account and membership authority
+apart avoids that entirely.
 
 Given that split, three things are still broken:
 
@@ -375,14 +373,13 @@ question of an owner minting a credential for a stranger's account.
   [system-administration.md](./system-administration.md), which still
   applies whenever an account is created and still requires an operator to
   deliver a code out of band.
-- **Bulk invitation, CSV import, or SSO-driven provisioning.** No evidence of
-  demand yet; build from an observed deployment's need, not speculatively —
-  the same restraint [space-governance.md](./space-governance.md) §11 states
-  for custom roles applies here. SSO itself is deferred deployment-wide
-  (`docs/ROADMAP.md`, [enterprise-deployment.md](./enterprise-deployment.md)
-  §6); §1 records why building it later needs no change to this document —
-  it would be a second account-creation path beside `system_admin`'s, and
-  §5.1 never looks past "does this account exist."
+- **Bulk invitation, CSV import, or invitation-driven account creation.** No
+  evidence of demand yet; build from an observed deployment's need, not
+  speculatively — the same restraint
+  [space-governance.md](./space-governance.md) §11 states for custom roles
+  applies here. Deployment-scoped OIDC JIT provisioning now ships separately;
+  §1 records why it required no change to this lifecycle: §5.1 never looks
+  past "does this account exist."
 - **Custom roles, or any role beyond owner/admin/member.** Unchanged from
   [space-governance.md](./space-governance.md) §6.
 - **Cross-space invitation acceptance UI beyond the minimum.** Portal work here

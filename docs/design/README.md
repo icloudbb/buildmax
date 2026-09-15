@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/设计文档索引.md)
 
-> **Audience:** contributors · **Status:** current · **Progress reviewed:** 2026-09-13
+> **Audience:** contributors · **Status:** current · **Progress reviewed:** 2026-09-14
 
 Why BuildMax is built the way it is. These are **rationale, not user
 documentation** — when a design ships something configurable, the user-facing
@@ -72,7 +72,7 @@ remaining list. Update this snapshot when either changes.
 | [Managed LLM gateway](llm-gateway.md) | Active plan | Partial | Managed inference, model resolution, usage, and quota boundaries |
 | [Prompt cache control](prompt-cache-control.md) | Active plan | Partial | Provider-native prompt caching and its telemetry |
 | [Parallel tool execution](parallel-tool-execution.md) | Active plan | Complete | Safe concurrency for read-only tools and subagents |
-| [Structured output](structured-output.md) | Active plan | Not started | Provider-neutral schema-constrained model results |
+| [Structured output](structured-output.md) | Active plan | Partial | Provider-neutral schema-constrained model results; runtime, providers, run persistence, and the linear Workflow consumer ship, while prompted fallback and typed routing remain |
 | [ACP interoperability boundary](acp-interoperability.md) | Direction | Decision only | How BuildMax may expose its native Agent Core to ACP clients without making ACP an internal or external-executor contract |
 | [Client modes: local and managed](client-modes.md) | Specification | Complete | Login-derived mode selection, model inventory, and usage attribution |
 | [LLM provider adapters](llm-provider-adapters.md) | Specification | Complete | Canonical messages and provider protocol differences |
@@ -125,7 +125,7 @@ remaining list. Update this snapshot when either changes.
 | [Tool permissions](tool-permissions.md) | Active plan | Complete | Runtime tool allow, deny, and approval policy |
 | [Sandbox boundaries](sandbox-boundaries.md) | Specification | Complete | Local and worker command containment boundaries |
 | [Worker run token](worker-run-token.md) | Specification | Complete | The run-scoped credential accepted by worker routes |
-| [Enterprise identity and access](enterprise-identity-and-access.md) | Direction | Not started | OIDC corporate sign-in, external-identity linking, sessions, and the native-versus-SSO posture |
+| [Enterprise identity and access](enterprise-identity-and-access.md) | Direction | Partial | Durable sessions, Portal cookie auth, OIDC sign-in and external-identity linking ship; real-provider rotation, outage, offboarding, and break-glass qualification remain |
 
 ## Operations and Deployment
 

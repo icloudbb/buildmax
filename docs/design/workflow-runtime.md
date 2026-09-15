@@ -83,7 +83,9 @@ The current implementation has useful foundations:
 
 It is not the runtime designed here, but its execution plane is now durable.
 The current definition is an ordered `steps` array with static prompts and no
-typed input or result contract. A step may bind a value selected from the run
+typed input contract or versioned node-result envelope. A step may declare an
+`output_schema`; the shared runtime validates the final value and persists it on
+the TaskRun and node run. A step may also bind a value selected from the run
 input or an earlier step's output envelope (text, structured output, or an
 Artifact reference) at an RFC 6901 pointer into its input as labelled untrusted
 data — the linear precursor of §6's bindings — reading the full output the
@@ -93,9 +95,10 @@ over durable facts: Task admission is idempotent under a stable key, a bounded
 lease reduces duplicate passes, guarded compare-and-set transitions are the
 correctness mechanism, and a Server-owned recovery loop finishes a run stranded
 by a lost callback or a restart. What remains missing against the target is the
-typed contract itself: `input_schema`, the versioned `nodes` and typed
-`bindings` with JSON Pointer selection, DAG `needs`, routes and waits, and
-structured output.
+graph itself: the versioned `nodes` shape with DAG `needs`, routes and waits,
+runtime schema-constrained output, and adaptive control. The `input_schema`,
+per-node result envelope, and pointer `bindings` with a `result` selector have
+shipped over the ordered `steps` form.
 
 The current Agent snapshot is also not execution authority. Workflow copies the
 old Agent instructions into Task user input while Task admission and the worker
@@ -574,11 +577,12 @@ accepted TaskRun. The coordinator does not copy arbitrary files into a later
 workspace. A later Agent receives references as data and accesses an Artifact
 through the normal authorized capability.
 
-`structured` is absent or `null` until the shared Agent runtime implements a
-provider-neutral structured-output contract. When present, the runtime—not a
-Portal parser—validates it against the node's `output_schema` before the node
-can succeed. A route or planner that requires structured output cannot publish
-until the runtime supports its declared schema.
+`structured` is absent or `null` when the step declares no `output_schema`.
+For a declared schema, the shared Agent runtime—not a Portal parser—validates
+the value before the linear step can succeed and persists it on both the
+TaskRun and step run. The versioned node envelope shown above, JSON-pointer
+bindings, routes, and planners are still target-state work; they will consume
+the already validated value rather than introduce another parser.
 
 The accepted successful attempt appends the logical node output once. Failed
 attempt outputs remain on their TaskRuns for diagnosis but never overwrite the
@@ -1257,7 +1261,8 @@ interpreters or preserve stale table shapes as a compatibility layer.
 ### Phase 4: Bounded Policy And Typed Decisions
 
 - Add Workflow-owned retry and node/run timeouts.
-- Add provider-neutral structured Agent output in the shared runtime.
+- Consume the shipped provider-neutral structured Agent output in typed routes
+  and decision nodes.
 - Add typed conditional routes and visible decisions.
 - Add aggregate usage/cost policy and operational metrics.
 

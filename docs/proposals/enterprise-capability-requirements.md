@@ -381,7 +381,9 @@ discovery slices are the seams it exposes: a complete leaver journey across
 sessions and unattended work; a quota/suspension journey across admission and
 in-flight execution; and an incident journey from detection through recovery
 and audit. These are discovery hypotheses, not a competing priority queue; the
-current roadmap still governs delivery order.
+current roadmap still governs delivery order. The first seam is now framed for
+review in [personnel deactivation and execution authority](personnel-deactivation-lifecycle.md);
+that proposal does not make it accepted or ready backlog work.
 
 Before accepting a requirement, require a named journey and accountable owner,
 a bounded implementation scope with identified ownership and failure behavior,
