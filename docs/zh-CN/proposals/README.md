@@ -34,6 +34,7 @@
 |---|---|---|---|
 | [风险驱动的端到端验证扩展](risk-driven-e2e-expansion.md) | 验证 | 哪一小组新增端到端旅程最能降低剩余 Beta 风险，以及每个旅程应由哪一层边界证明？ | 优雅 worker 丢失及 MySQL/对象存储 readiness 中断恢复探针已交付；Server 重启/重连、worker 写拒绝、部分工作取消与统一候选证据仍待完成 |
 | [企业功能要求盘点](enterprise-capability-requirements.md) | 运维与部署 | 企业部署可能需要哪些候选要求，应以什么证据逐项验证？ | 仅盘点要求；关联既有基础，不定义企业版或功能边界 |
+| [人员停用与执行权限](personnel-deactivation-lifecycle.md) | 运维与部署 | 移除账户或 Space 权限时，哪些凭证和无人值守执行应停止、多久内停止，以及哪些内容继续归 Space 所有？ | 已对照当前账户、Schedule、TaskRun、Workflow 和 Space 行为提出契约；统一生命周期尚未实现 |
 | [单一维护者的 Agent 开发工作流](single-maintainer-agent-development.md) | 验证 | 一位维护者如何借助编码 Agent 提升被接受的开发吞吐量，同时不成为工作流瓶颈？ | 支撑流程的构件已经存在，但就绪性复核、租约、变更范围验证与独立验收尚未形成闭环 |
 | [系统管理操作](system-administration-operations.md) | 运维与部署 | 运维 CLI 与 Portal 应如何为管理和运行时健康提供安全且一致的结果？ | 核心管理界面、OIDC 诊断与外部身份管理已交付；事务审计、CLI Session 对齐、配额分配与更丰富的运行时操作仍待完成 |
 | [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md) | 信任与安全 | 交互式、原生与无人值守客户端应获得哪些凭证？ | 持久 Session 状态、绝对过期、逐请求撤销、Portal cookie 认证与原生 OS Secret 存储已交付；scope、签名密钥轮换、自助管理、PAT 与服务账号仍待决定 |
