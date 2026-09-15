@@ -36,12 +36,13 @@ var (
 	ErrInvalidDefinition          = apierr.New(apierr.KindInvalid, "invalid workflow definition")
 	ErrUnsupportedSchemaVersion   = apierr.New(apierr.KindInvalid, "unsupported workflow schema_version: only schema_version 1 is supported")
 	ErrInvalidInputSchema         = apierr.New(apierr.KindInvalid, "invalid workflow input_schema: must be within the supported JSON Schema subset")
-	ErrInvalidResult              = apierr.New(apierr.KindInvalid, "invalid workflow result: source must be node.<id>.output naming an existing step, with a valid RFC 6901 pointer")
+	ErrInvalidResult              = apierr.New(apierr.KindInvalid, "invalid workflow result: source must be node.<id>.output naming an existing node, with a valid RFC 6901 pointer")
 	ErrInvalidRunInput            = apierr.New(apierr.KindInvalid, "invalid workflow run input: it must be JSON satisfying the workflow input_schema, and is only accepted when the workflow declares one")
-	ErrInvalidNodeType            = apierr.New(apierr.KindInvalid, "invalid workflow step type")
-	ErrInvalidStepID              = apierr.New(apierr.KindInvalid, "invalid workflow step_id")
-	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow step binding: a unique name, a source of workflow.input or node.<id>.output naming an earlier step, and a valid RFC 6901 pointer are required")
-	ErrInvalidOutputSchema        = apierr.New(apierr.KindInvalid, "invalid workflow step output_schema: must be within the supported JSON Schema subset")
+	ErrInvalidNodeType            = apierr.New(apierr.KindInvalid, "invalid workflow node type")
+	ErrInvalidNodeID              = apierr.New(apierr.KindInvalid, "invalid workflow node id: each node needs a unique non-empty id")
+	ErrInvalidNeeds               = apierr.New(apierr.KindInvalid, "invalid workflow node needs: each entry must name a distinct existing node, the edges must form a directed acyclic graph, and a node may not need itself")
+	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow node binding: a unique name, a source of workflow.input or node.<id>.output naming a predecessor node, and a valid RFC 6901 pointer are required")
+	ErrInvalidOutputSchema        = apierr.New(apierr.KindInvalid, "invalid workflow node output_schema: must be within the supported JSON Schema subset")
 	ErrInvalidTargetAgent         = apierr.New(apierr.KindInvalid, "invalid target agent")
 	ErrInvalidWorkflowStatus      = apierr.New(apierr.KindInvalid, "invalid workflow status")
 	ErrWorkflowNotPublished       = apierr.New(apierr.KindInvalid, "workflow not published")
@@ -318,8 +319,8 @@ func (s *Service) PublishedWorkflowsUsingAgent(ctx context.Context, spaceID, age
 		if err != nil {
 			continue
 		}
-		for j := range def.Steps {
-			if def.Steps[j].TargetAgentID == agentID {
+		for j := range def.Nodes {
+			if def.Nodes[j].TargetAgentID == agentID {
 				using = append(using, workflows[i])
 				break
 			}
@@ -402,22 +403,35 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err != nil {
 		return nil, nil, err
 	}
-	stepsIn := make([]coreworkflow.CreateNodeRunInput, len(def.Steps))
-	for i := range def.Steps {
-		target := def.Steps[i].TargetAgentID
+	// The graph decides execution order: a node run's index is its position in the
+	// definition's deterministic topological order, so listing node runs by index
+	// shows them consistent with their dependencies. Publication already proved the
+	// graph is a DAG, so BuildGraph cannot fail here.
+	graph, err := coreworkflow.BuildGraph(def.Nodes)
+	if err != nil {
+		return nil, nil, err
+	}
+	topoIndex := make(map[string]int, len(def.Nodes))
+	for idx, id := range graph.Order() {
+		topoIndex[id] = idx
+	}
+	stepsIn := make([]coreworkflow.CreateNodeRunInput, len(def.Nodes))
+	for i := range def.Nodes {
+		target := def.Nodes[i].TargetAgentID
 		agent := agents[target]
 		stepsIn[i] = coreworkflow.CreateNodeRunInput{
-			NodeID:            def.Steps[i].StepID,
-			NodeIndex:         i,
-			NodeType:          def.Steps[i].Type,
+			NodeID:            def.Nodes[i].ID,
+			NodeIndex:         topoIndex[def.Nodes[i].ID],
+			NodeType:          def.Nodes[i].Type,
+			Needs:             def.Nodes[i].Needs,
 			TargetAgentID:     &target,
 			AgentName:         agent.Name,
 			AgentDescription:  agent.Description,
 			AgentInstructions: agent.Instructions,
 			AgentRevision:     agent.Revision,
-			Prompt:            def.Steps[i].Prompt,
-			Bindings:          def.Steps[i].Bindings,
-			OutputSchema:      outputSchemaSnapshot(def.Steps[i].OutputSchema),
+			Prompt:            def.Nodes[i].Prompt,
+			Bindings:          def.Nodes[i].Bindings,
+			OutputSchema:      outputSchemaSnapshot(def.Nodes[i].OutputSchema),
 			Status:            string(coreworkflow.NodeRunStatusPending),
 		}
 	}
@@ -628,13 +642,12 @@ func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, s
 		// schema, so the node fails with a reason rather than the run's empty one.
 		errorMessage = util.Ptr("step required structured output but the run did not return a value satisfying its output_schema")
 	}
-	// One transaction ends the run: the step goes terminal, every later step
+	// One transaction ends the run fail-fast: the node goes terminal, every node
 	// still pending is blocked, and the run goes terminal -- so a crash cannot
-	// leave a failed step under a run that still reads as running.
+	// leave a failed node under a run that still reads as running.
 	_, err := s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 		WorkflowRunID: run.ID,
 		NodeRunID:     step.ID,
-		NodeIndex:     step.NodeIndex,
 		NodeExpected:  coreworkflow.NodeRunStatusRunning,
 		NodeStatus:    stepStatus,
 		RunExpected:   coreworkflow.RunStatusRunning,
@@ -673,9 +686,33 @@ func firstStepWithStatus(steps []coreworkflow.NodeRun, status coreworkflow.NodeR
 	return nil
 }
 
+// nodeReady reports whether a pending node may now start: every node it needs
+// has succeeded. Failure is fail-fast and terminates the whole run, so a node
+// whose need ended in any non-success status is never reached.
+func nodeReady(node coreworkflow.NodeRun, statusByID map[string]coreworkflow.NodeRunStatus) bool {
+	for _, need := range node.Needs {
+		if statusByID[need] != coreworkflow.NodeRunStatusSucceeded {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.NodeRun) (*coreworkflow.NodeRun, error) {
+	// Readiness -- not array position -- decides what runs next: a pending node is
+	// dispatched only when every node it needs has succeeded. steps arrive in
+	// topological order, so the first ready pending node is a deterministic choice.
+	statusByID := make(map[string]coreworkflow.NodeRunStatus, len(steps))
+	for i := range steps {
+		statusByID[steps[i].NodeID] = coreworkflow.NodeRunStatus(steps[i].Status)
+	}
+	pendingRemains := false
 	for i := range steps {
 		if steps[i].Status != string(coreworkflow.NodeRunStatusPending) {
+			continue
+		}
+		pendingRemains = true
+		if !nodeReady(steps[i], statusByID) {
 			continue
 		}
 		if spaceID == "" {
@@ -697,7 +734,6 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 			_, _ = s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 				WorkflowRunID: run.ID,
 				NodeRunID:     steps[i].ID,
-				NodeIndex:     steps[i].NodeIndex,
 				NodeExpected:  coreworkflow.NodeRunStatusPending,
 				NodeStatus:    coreworkflow.NodeRunStatusFailed,
 				RunExpected:   coreworkflow.RunStatusRunning,
@@ -721,8 +757,14 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 		}
 		return &steps[i], nil
 	}
+	if pendingRemains {
+		// Pending nodes remain but none is ready: their predecessors are still in
+		// flight. Nothing to dispatch this pass; a later pass advances the run once
+		// a predecessor finishes. The run is not done, so it must not succeed here.
+		return nil, nil
+	}
 	endedAt := time.Now().UTC()
-	// Every step is terminal and none is pending: the run succeeds. Resolve its
+	// Every node is terminal and none is pending: the run succeeds. Resolve its
 	// declared result from the finished node outputs so the run carries one
 	// authoritative answer, stored in the same transaction that ends it.
 	result, err := s.resolveRunResult(ctx, run, steps)
@@ -904,38 +946,42 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 			return nil, apierr.Detail(ErrInvalidInputSchema, "%v", err)
 		}
 	}
-	if len(def.Steps) == 0 {
+	if len(def.Nodes) == 0 {
 		return nil, ErrInvalidDefinition
 	}
-	seen := make(map[string]struct{}, len(def.Steps))
-	for i := range def.Steps {
-		step := &def.Steps[i]
-		step.StepID = strings.TrimSpace(step.StepID)
-		step.Type = strings.TrimSpace(step.Type)
-		step.TargetAgentID = strings.TrimSpace(step.TargetAgentID)
-		step.Prompt = strings.TrimSpace(step.Prompt)
-		if step.StepID == "" {
-			return nil, ErrInvalidStepID
+	// First pass: canonicalize every node's scalar fields, enforce unique ids, and
+	// validate binding shape (name, pointer). Binding-source reachability and the
+	// `needs` edges are graph properties, checked after the graph is built, so the
+	// error for a bad edge or a non-predecessor binding is precise.
+	ids := make(map[string]struct{}, len(def.Nodes))
+	for i := range def.Nodes {
+		node := &def.Nodes[i]
+		node.ID = strings.TrimSpace(node.ID)
+		node.Type = strings.TrimSpace(node.Type)
+		node.TargetAgentID = strings.TrimSpace(node.TargetAgentID)
+		node.Prompt = strings.TrimSpace(node.Prompt)
+		if node.ID == "" {
+			return nil, ErrInvalidNodeID
 		}
-		if _, ok := seen[step.StepID]; ok {
-			return nil, ErrInvalidStepID
+		if _, ok := ids[node.ID]; ok {
+			return nil, ErrInvalidNodeID
 		}
-		if step.Type != coreworkflow.NodeTypeAgentTask {
+		ids[node.ID] = struct{}{}
+		if node.Type != coreworkflow.NodeTypeAgentTask {
 			return nil, ErrInvalidNodeType
 		}
-		if step.TargetAgentID == "" || step.Prompt == "" {
+		if node.TargetAgentID == "" || node.Prompt == "" {
 			return nil, ErrInvalidDefinition
 		}
-		// Each binding names a value, a source, and an RFC 6901 pointer into that
-		// source. The source is the run input or an earlier node's output -- a
-		// "node.<id>.output" source is validated against the prior step ids gathered
-		// so far, before this step's id joins them, which rejects a source naming a
-		// missing step, a later one, or the step itself in one membership test. The
-		// pointer only has to be syntactically valid at publication; whether it
-		// resolves is a run-time fact about real predecessor output.
-		bindingNames := make(map[string]struct{}, len(step.Bindings))
-		for j := range step.Bindings {
-			b := &step.Bindings[j]
+		for j := range node.Needs {
+			node.Needs[j] = strings.TrimSpace(node.Needs[j])
+			if node.Needs[j] == "" {
+				return nil, ErrInvalidNeeds
+			}
+		}
+		bindingNames := make(map[string]struct{}, len(node.Bindings))
+		for j := range node.Bindings {
+			b := &node.Bindings[j]
 			b.Name = strings.TrimSpace(b.Name)
 			b.Source = strings.TrimSpace(b.Source)
 			b.Pointer = strings.TrimSpace(b.Pointer)
@@ -947,12 +993,8 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 			}
 			bindingNames[b.Name] = struct{}{}
 			if b.Source != coreworkflow.BindingSourceWorkflowInput {
-				fromStep, ok := coreworkflow.ParseNodeOutputSource(b.Source)
-				if !ok {
+				if _, ok := coreworkflow.ParseNodeOutputSource(b.Source); !ok {
 					return nil, apierr.Detail(ErrInvalidBinding, "binding %q has an unknown source %q", b.Name, b.Source)
-				}
-				if _, ok := seen[fromStep]; !ok {
-					return nil, apierr.Detail(ErrInvalidBinding, "binding %q reads from unknown or later step %q", b.Name, fromStep)
 				}
 			}
 			if err := coreworkflow.ValidatePointer(b.Pointer); err != nil {
@@ -962,25 +1004,48 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 		// An output schema must be in the shared subset, so a published workflow
 		// cannot declare a constraint the runtime cannot enforce
 		// (docs/design/structured-output.md §6). Absent means free text.
-		if len(bytes.TrimSpace(step.OutputSchema)) > 0 {
-			if _, err := jsonschema.Compile(step.OutputSchema); err != nil {
+		if len(bytes.TrimSpace(node.OutputSchema)) > 0 {
+			if _, err := jsonschema.Compile(node.OutputSchema); err != nil {
 				return nil, apierr.Detail(ErrInvalidOutputSchema, "%v", err)
 			}
 		}
-		seen[step.StepID] = struct{}{}
 	}
-	// The declared run result, when present, selects an existing step's output at
-	// a valid pointer, the same grammar as a binding. Every step id is in seen
-	// now, so a forward or missing reference is rejected here.
+	// The `needs` edges must form a DAG whose every edge names an existing node.
+	// The built graph is the authority for what runs before what, replacing array
+	// position, and answers the binding-reachability question below.
+	graph, err := coreworkflow.BuildGraph(def.Nodes)
+	if err != nil {
+		return nil, apierr.Detail(ErrInvalidNeeds, "%v", err)
+	}
+	// A binding that reads a node's output may only name a transitive predecessor:
+	// the graph guarantees that node has run before this one, so the value exists.
+	// The pointer is only checked syntactically; whether it resolves is a run-time
+	// fact about real predecessor output.
+	for i := range def.Nodes {
+		node := &def.Nodes[i]
+		for j := range node.Bindings {
+			b := &node.Bindings[j]
+			from, ok := coreworkflow.ParseNodeOutputSource(b.Source)
+			if !ok {
+				continue // workflow.input, already validated
+			}
+			if !graph.IsPredecessor(node.ID, from) {
+				return nil, apierr.Detail(ErrInvalidBinding, "binding %q reads from %q, which is not a predecessor of node %q", b.Name, from, node.ID)
+			}
+		}
+	}
+	// The declared run result, when present, selects an existing node's output at
+	// a valid pointer, the same grammar as a binding. With no conditional routes in
+	// the first graph slice every node runs, so an existing node is reachable.
 	if def.Result != nil {
 		def.Result.Source = strings.TrimSpace(def.Result.Source)
 		def.Result.Pointer = strings.TrimSpace(def.Result.Pointer)
-		fromStep, ok := coreworkflow.ParseNodeOutputSource(def.Result.Source)
+		from, ok := coreworkflow.ParseNodeOutputSource(def.Result.Source)
 		if !ok {
 			return nil, apierr.Detail(ErrInvalidResult, "result source %q must be node.<id>.output", def.Result.Source)
 		}
-		if _, ok := seen[fromStep]; !ok {
-			return nil, apierr.Detail(ErrInvalidResult, "result reads from unknown step %q", fromStep)
+		if _, ok := ids[from]; !ok {
+			return nil, apierr.Detail(ErrInvalidResult, "result reads from unknown node %q", from)
 		}
 		if err := coreworkflow.ValidatePointer(def.Result.Pointer); err != nil {
 			return nil, apierr.Detail(ErrInvalidResult, "%v", err)
@@ -1000,9 +1065,9 @@ func (s *Service) resolveDefinitionAgents(ctx context.Context, spaceID string, d
 	if s.Agents == nil {
 		return nil, ErrInvalidTargetAgent
 	}
-	agents := make(map[string]agentdef.Agent, len(def.Steps))
-	for i := range def.Steps {
-		agentID := def.Steps[i].TargetAgentID
+	agents := make(map[string]agentdef.Agent, len(def.Nodes))
+	for i := range def.Nodes {
+		agentID := def.Nodes[i].TargetAgentID
 		if _, ok := agents[agentID]; ok {
 			continue
 		}

@@ -27,7 +27,7 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
     description: "Created by the Portal browser tests to exercise the workflow views.",
     definition: JSON.stringify({
       schema_version: 1,
-      steps: [{ step_id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" }],
+      nodes: [{ id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" }],
     }),
   })
   reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`])
@@ -75,9 +75,9 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
     description: "Created by the Portal browser tests to exercise workflow execution.",
     definition: JSON.stringify({
       schema_version: 1,
-      steps: [
+      nodes: [
         {
-          step_id: "only",
+          id: "only",
           type: "agent_task",
           target_agent_id: agent.id,
           prompt: "Reply with exactly: deployment smoke ok",
@@ -161,8 +161,8 @@ test("a workflow with an input_schema runs from its generated input form", async
         properties: { topic: { type: "string" } },
         required: ["topic"],
       },
-      steps: [
-        { step_id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" },
+      nodes: [
+        { id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" },
       ],
     }),
   })
@@ -221,11 +221,12 @@ test("a workflow binds one step's output into the next step's input", async ({ p
     description: "Created by the Portal browser tests to exercise step output binding.",
     definition: JSON.stringify({
       schema_version: 1,
-      steps: [
-        { step_id: "collect", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" },
+      nodes: [
+        { id: "collect", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" },
         {
-          step_id: "summarize",
+          id: "summarize",
           type: "agent_task",
+          needs: ["collect"],
           target_agent_id: agent.id,
           prompt: "Summarize the research below.",
           bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }],

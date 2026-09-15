@@ -169,17 +169,23 @@ type Run struct {
 	NextReconcileAt *time.Time `json:"next_reconcile_at,omitempty"`
 }
 
-// NodeRun is one durable node execution record under a workflow run. The linear
-// precursor authors nodes as ordered `steps`; NodeID carries the authoring
-// step's id, and NodeIndex is its position, so the graph term (node) names the
-// runtime record while the definition keeps the `steps` shape until Phase 3.
+// NodeRun is one durable node execution record under a workflow run. NodeID is
+// the authoring node's id and NodeIndex is its position in the definition's
+// deterministic topological order, so listing node runs by index shows them
+// consistent with their dependencies. Needs is the run's snapshot of the node's
+// `needs` edges: readiness is decided from these persisted edges, not from
+// array position.
 type NodeRun struct {
-	ID            string  `json:"id"`
-	WorkflowRunID string  `json:"workflow_run_id"`
-	NodeID        string  `json:"node_id"`
-	NodeIndex     int     `json:"node_index"`
-	NodeType      string  `json:"node_type"`
-	TargetAgentID *string `json:"target_agent_id,omitempty"`
+	ID            string `json:"id"`
+	WorkflowRunID string `json:"workflow_run_id"`
+	NodeID        string `json:"node_id"`
+	NodeIndex     int    `json:"node_index"`
+	NodeType      string `json:"node_type"`
+	// Needs is the run's snapshot of this node's dependency edges (the ids of the
+	// nodes that must succeed before it becomes ready), taken at start so a later
+	// definition edit cannot change what an in-flight run waits on.
+	Needs         []string `json:"needs,omitempty"`
+	TargetAgentID *string  `json:"target_agent_id,omitempty"`
 	// AgentName, AgentDescription, and AgentInstructions capture the target agent
 	// definition as it was when the run started, so later edits to the agent cannot
 	// change what a step in flight sends to the model.
@@ -228,10 +234,14 @@ type Definition struct {
 	// immutable input must satisfy at admission and that drives the Portal input
 	// form. Absent means the run takes no declared input. Publication rejects a
 	// schema outside the subset.
-	InputSchema json.RawMessage  `json:"input_schema,omitempty"`
-	Steps       []DefinitionStep `json:"steps"`
-	// Result, when set, selects the WorkflowRun result from one step's output
-	// envelope. The selected step must exist. Absent leaves the run without a
+	InputSchema json.RawMessage `json:"input_schema,omitempty"`
+	// Nodes is the definition's unordered set of nodes. JSON represents it as an
+	// array, but array position is not control flow: a node's dependencies come
+	// from its `needs` edges, and the execution order is the topological order of
+	// the resulting DAG.
+	Nodes []DefinitionNode `json:"nodes"`
+	// Result, when set, selects the WorkflowRun result from one node's output
+	// envelope. The selected node must exist. Absent leaves the run without a
 	// declared result.
 	Result *ResultSelector `json:"result,omitempty"`
 }
@@ -245,21 +255,25 @@ type ResultSelector struct {
 	Pointer string `json:"pointer"`
 }
 
-// DefinitionStep describes one step in a workflow definition.
-type DefinitionStep struct {
-	StepID        string `json:"step_id"`
-	Type          string `json:"type"`
-	TargetAgentID string `json:"target_agent_id"`
-	Prompt        string `json:"prompt"`
-	// Bindings feed selected values into this step's input. Each names a value
-	// (Name) taken from a source (the run's input, or an earlier step's output
-	// envelope) at an RFC 6901 pointer. The bound value reaches the Task as
-	// labelled untrusted context, never the agent's instructions.
+// DefinitionNode describes one node in a workflow definition's DAG.
+type DefinitionNode struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	// Needs lists the ids of the nodes that must succeed before this one becomes
+	// ready. It forms a directed acyclic graph; array position is not control
+	// flow. An empty list is a root that is ready at run start.
+	Needs         []string `json:"needs,omitempty"`
+	TargetAgentID string   `json:"target_agent_id"`
+	Prompt        string   `json:"prompt"`
+	// Bindings feed selected values into this node's input. Each names a value
+	// (Name) taken from a source (the run's input, or a transitive predecessor
+	// node's output envelope) at an RFC 6901 pointer. The bound value reaches the
+	// Task as labelled untrusted context, never the agent's instructions.
 	Bindings []StepBinding `json:"bindings,omitempty"`
-	// OutputSchema, when set, is a JSON Schema (in the shared subset) the step's
+	// OutputSchema, when set, is a JSON Schema (in the shared subset) the node's
 	// agent run must satisfy as its final answer. Publication rejects a schema
-	// outside the subset. The step succeeds only when the run returns a value
-	// that validates against it. Empty leaves the step free text. See
+	// outside the subset. The node succeeds only when the run returns a value
+	// that validates against it. Empty leaves the node free text. See
 	// docs/design/structured-output.md.
 	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
 }
@@ -357,6 +371,7 @@ type CreateNodeRunInput struct {
 	NodeID            string
 	NodeIndex         int
 	NodeType          string
+	Needs             []string
 	TargetAgentID     *string
 	AgentName         string
 	AgentDescription  string
@@ -403,15 +418,15 @@ type TransitionNodeRunInput struct {
 	EndedAt        *time.Time
 }
 
-// FinalizeFailedRunInput ends a run because one step ended badly. In one
-// transaction the store moves the step to NodeStatus (failed or canceled),
-// blocks every later step still pending, and moves the run to RunStatus. Both
-// moves are guarded: nothing is written unless the step is at NodeExpected and
-// both transitions are valid.
+// FinalizeFailedRunInput ends a run because one node ended badly. In one
+// transaction the store moves the node to NodeStatus (failed or canceled),
+// blocks every node still pending, and moves the run to RunStatus. Failure is
+// fail-fast: the run terminates, so every not-yet-started node is blocked
+// regardless of graph position. Both moves are guarded: nothing is written
+// unless the node is at NodeExpected and both transitions are valid.
 type FinalizeFailedRunInput struct {
 	WorkflowRunID string
 	NodeRunID     string
-	NodeIndex     int
 	NodeExpected  NodeRunStatus
 	NodeStatus    NodeRunStatus
 	RunExpected   RunStatus

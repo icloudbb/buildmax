@@ -718,17 +718,19 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 
 ### `workflow_node_run`
 
-一次 Workflow 运行中的一个节点。是 Workflow 引擎与 Tier 2 之间的桥梁。线性雏形把
-节点撰写为有序的 `steps`；`node_id` 承载所撰写步骤的 id，`node_index` 是它的位置。
+一次 Workflow 运行中的一个节点。是 Workflow 引擎与 Tier 2 之间的桥梁。`node_id`
+是所撰写节点的 id；`node_index` 是它在定义确定性拓扑序中的位置。`needs` 是该次运行
+对节点依赖边的快照，就绪与否由这些边而非 `node_index` 决定。
 
 | 列 | 类型 | 可空 | 说明 |
 |---|---|---|---|
 | `id` | `bigint unsigned` | 否 | 内部主键 |
 | `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一。Go 字段为 `NodeRunID` |
 | `workflow_run_id` | `bigint unsigned` | 否 | `workflow_run.id` |
-| `node_id` | `varchar(128)` | 否 | 在 Workflow 定义中作为步骤 id 撰写的节点标识符，不是对某一行的引用 |
-| `node_index` | `bigint` | 否 | 在线性计划中的位置；即执行顺序 |
+| `node_id` | `varchar(128)` | 否 | 在 Workflow 定义中撰写的节点标识符，不是对某一行的引用 |
+| `node_index` | `bigint` | 否 | 在定义拓扑序中的位置；稳定的展示顺序，而非执行权威 |
 | `node_type` | `varchar(32)` | 否 | `agent_task` |
+| `needs` | `text` | 是 | JSON 数组，列出必须先成功的节点 id；根节点为 `NULL` |
 | `target_agent_id` | `bigint unsigned` | 是 | 该节点所运行的 `agent.id` |
 | `agent_name` | `varchar(255)` | 否 | 运行开始时捕获的 Agent 名称；早于 node run 开始快照 Agent 之前写入的行为空 |
 | `agent_description` | `text` | 否 | 运行开始时捕获的 Agent 描述 |

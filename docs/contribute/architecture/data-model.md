@@ -1165,17 +1165,20 @@ Each step run creates a Space-owned Task directly (`task.space_id`, no
 ### `workflow_node_run`
 
 One node of one workflow run. The bridge between the workflow engine and Tier 2.
-The linear precursor authors nodes as ordered `steps`; `node_id` carries the
-authoring step's id and `node_index` its position.
+`node_id` is the authoring node's id; `node_index` is its position in the
+definition's deterministic topological order. `needs` is the run's snapshot of
+the node's dependency edges, and readiness is decided from those edges, not from
+`node_index`.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique. The Go field is `NodeRunID` |
 | `workflow_run_id` | `bigint unsigned` | no | `workflow_run.id` |
-| `node_id` | `varchar(128)` | no | Node identifier authored in the workflow definition as a step id, not a reference to a row |
-| `node_index` | `bigint` | no | Position in the linear plan; the execution order |
+| `node_id` | `varchar(128)` | no | Node identifier authored in the workflow definition, not a reference to a row |
+| `node_index` | `bigint` | no | Position in the definition's topological order; a stable display order, not the execution authority |
 | `node_type` | `varchar(32)` | no | `agent_task` |
+| `needs` | `text` | yes | JSON array of the node ids that must succeed before this node runs; `NULL` for a root |
 | `target_agent_id` | `bigint unsigned` | yes | `agent.id` to run the node as |
 | `agent_name` | `varchar(255)` | no | Agent name captured when the run started; empty on rows written before node runs snapshotted their agent |
 | `agent_description` | `text` | no | Agent description captured when the run started |

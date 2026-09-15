@@ -52,7 +52,12 @@ Artifact references) and an RFC 6901 `pointer` into it, instead of injecting the
 upstream output. A definition may declare a `result` selector (the same source/pointer
 grammar naming a step's output); a succeeding run resolves it once and stores it as the
 run's authoritative `result_json`, surfaced on the run and the issue it belongs to. The
-typed `nodes`/`needs` graph and typed `/structured/...` routing remain open.
+definition now describes a graph of `nodes` joined by `needs` edges: a node becomes
+ready when every node it needs has succeeded, so dependencies — not list position —
+decide the order, and publication rejects a cyclic graph, a `needs` edge to a missing
+node, or a binding that reads a node which is not a predecessor. Execution stays
+fail-fast and dispatches one ready node at a time; concurrent dispatch of ready nodes
+and typed `/structured/...` routing remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. A Server can now expire old run traces on an operator-set retention
@@ -403,12 +408,13 @@ yank catalog releases.
 Space approval workflows remain unimplemented and deliberately out of scope;
 that is not evidence of an unfinished invitation or ownership-transfer feature.
 
-Workflow definitions remain linear `agent_task` steps. They have versioned
-definitions and durable run/step records. A step can constrain its result with
-`output_schema`, and an untyped binding can pass an earlier step's whole output
-to a later one. The definition contract still has no typed input schema or
-JSON-Pointer binding selection, branching, parallel graph, manual approval, or
-loops ([`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go)).
+Workflow definitions are a graph of `agent_task` nodes joined by `needs` edges,
+with versioned definitions and durable run/node records. A node can constrain its
+result with `output_schema`, and a pointer binding can pass a selected value from
+the run input or a predecessor node's output into a node's input. The definition
+contract still has no typed conditional routing, concurrent dispatch of ready
+nodes, manual approval, or loops
+([`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go)).
 
 Portal and inbound webhook execution are assembled. Telegram remains channel
 vocabulary, and the webhook callback sender is not assembled into the Server.

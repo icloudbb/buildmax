@@ -23,7 +23,7 @@ func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
 		SpaceID:    "tm_1",
 		UserID:     "u1",
 		Name:       "WF",
-		Definition: `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`,
+		Definition: `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`,
 	})
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
@@ -42,7 +42,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 			ID:          "w_1",
 			SpaceID:     "tm_1",
 			Name:        "WF",
-			Definition:  `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
+			Definition:  `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"id":"summarize","type":"agent_task","needs":["collect"],"target_agent_id":"a_2","prompt":"summarize"}]}`,
 			Description: "desc",
 			Status:      coreworkflow.StatusPublished,
 		}},
@@ -116,13 +116,114 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	}
 }
 
+// TestStartWorkflowRun_DiamondRespectsNeeds proves the graph -- not array
+// position -- decides execution: a fan-out node's two dependents each wait on
+// it, and the fan-in node runs only after both dependents succeed. Concurrency
+// is one in this slice, so exactly one node runs at a time in topological order.
+func TestStartWorkflowRun_DiamondRespectsNeeds(t *testing.T) {
+	workflowStore := &mock.MockWorkflowStore{
+		Workflows: []coreworkflow.Workflow{{
+			ID:      "w_1",
+			SpaceID: "tm_1",
+			Name:    "Diamond",
+			Definition: `{"schema_version":1,"nodes":[` +
+				`{"id":"research","type":"agent_task","target_agent_id":"a_1","prompt":"research"},` +
+				`{"id":"analyze","type":"agent_task","needs":["research"],"target_agent_id":"a_1","prompt":"analyze"},` +
+				`{"id":"summarize","type":"agent_task","needs":["research"],"target_agent_id":"a_1","prompt":"summarize"},` +
+				`{"id":"report","type":"agent_task","needs":["analyze","summarize"],"target_agent_id":"a_1","prompt":"report"}` +
+				`]}`,
+			Status: coreworkflow.StatusPublished,
+		}},
+	}
+	taskRuns := &mock.MockTaskRunStore{}
+	agentStore := &mock.MockAgentStore{Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "Agent", Instructions: "work"}}}
+	svc := &Service{
+		Workflows:   workflowStore,
+		Agents:      agentStore,
+		TaskRuns:    taskRuns,
+		TaskService: &task.Service{Agents: agentStore, Tasks: &mock.MockTaskStore{}, TaskRuns: taskRuns},
+	}
+	ctx := context.Background()
+	run, _, err := svc.StartWorkflowRun(ctx, StartWorkflowRunCmd{SpaceID: "tm_1", UserID: "u1", WorkflowID: "w_1"})
+	if err != nil {
+		t.Fatalf("StartWorkflowRun: %v", err)
+	}
+
+	// runningNode returns the single node currently running, asserting exactly one
+	// is (concurrency is one), and the set of nodes still pending.
+	runningNode := func() (coreworkflow.NodeRun, map[string]string) {
+		steps, err := workflowStore.ListWorkflowNodeRuns(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("ListWorkflowNodeRuns: %v", err)
+		}
+		var running []coreworkflow.NodeRun
+		status := make(map[string]string, len(steps))
+		for _, s := range steps {
+			status[s.NodeID] = s.Status
+			if s.Status == string(coreworkflow.NodeRunStatusRunning) {
+				running = append(running, s)
+			}
+		}
+		if len(running) != 1 {
+			t.Fatalf("running nodes = %v, want exactly 1 (status=%v)", running, status)
+		}
+		return running[0], status
+	}
+	succeed := func(node coreworkflow.NodeRun) {
+		out := node.NodeID + " done"
+		taskRuns.Runs = append(taskRuns.Runs, coretask.Run{ID: *node.TaskRunID, TaskID: *node.TaskID, Status: string(coretask.RunStatusSucceeded), Output: &out})
+		if err := svc.HandleTaskRunTerminal(ctx, coretask.RunTerminalInfo{TaskRunID: *node.TaskRunID, TaskID: *node.TaskID, UserID: "u1", Status: string(coretask.RunStatusSucceeded), Output: &out}); err != nil {
+			t.Fatalf("HandleTaskRunTerminal %s: %v", node.NodeID, err)
+		}
+	}
+
+	// research runs first as the only root.
+	first, _ := runningNode()
+	if first.NodeID != "research" {
+		t.Fatalf("first running node = %q, want research", first.NodeID)
+	}
+	succeed(first)
+
+	// A dependent runs next; report must still be pending until both dependents
+	// finish, proving the fan-in waits on every predecessor.
+	second, status := runningNode()
+	if second.NodeID != "analyze" && second.NodeID != "summarize" {
+		t.Fatalf("second running node = %q, want a research dependent", second.NodeID)
+	}
+	if status["report"] != string(coreworkflow.NodeRunStatusPending) {
+		t.Fatalf("report status = %q, want pending while a dependent is unfinished", status["report"])
+	}
+	succeed(second)
+
+	third, status := runningNode()
+	if third.NodeID == "report" {
+		t.Fatalf("report ran before both dependents finished (status=%v)", status)
+	}
+	succeed(third)
+
+	// Both dependents done: report is the last node to run.
+	last, _ := runningNode()
+	if last.NodeID != "report" {
+		t.Fatalf("last running node = %q, want report", last.NodeID)
+	}
+	succeed(last)
+
+	final, err := workflowStore.GetWorkflowRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflowRun: %v", err)
+	}
+	if final.Status != string(coreworkflow.RunStatusSucceeded) {
+		t.Fatalf("run status = %q, want succeeded", final.Status)
+	}
+}
+
 func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{{
 			ID:         "w_1",
 			SpaceID:    "tm_1",
 			Name:       "WF",
-			Definition: `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
+			Definition: `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"id":"summarize","type":"agent_task","needs":["collect"],"target_agent_id":"a_2","prompt":"summarize"}]}`,
 			Status:     coreworkflow.StatusPublished,
 			Revision:   3,
 		}},
@@ -213,7 +314,7 @@ func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 		Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "Agent 1", Revision: 1}},
 	}
 	svc := &Service{Workflows: workflowStore, Agents: agentStore}
-	first := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
+	first := `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
 	created, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
 		SpaceID: "tm_1", UserID: "u1", Name: "WF", Definition: first,
 	})
@@ -224,7 +325,7 @@ func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 		t.Fatalf("created revision = %d, want 1", created.Revision)
 	}
 
-	second := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
+	second := `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
 	updated, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
 		SpaceID: "tm_1", UserID: "u2", WorkflowID: created.ID, Definition: &second,
 	})
@@ -263,7 +364,7 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 		Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "Agent 1", Revision: 1}},
 	}
 	svc := &Service{Workflows: workflowStore, Agents: agentStore}
-	first := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
+	first := `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
 	created, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
 		SpaceID: "tm_1", UserID: "u1", Name: "WF", Definition: first,
 	})
@@ -276,7 +377,7 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
-	second := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
+	second := `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
 	if _, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
 		SpaceID: "tm_1", UserID: "u1", WorkflowID: created.ID, Definition: &second,
 	}); err != nil {
@@ -311,7 +412,7 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 // a TaskRun already in flight completes, but a later workflow step cannot
 // create a new Task for an agent deleted in the meantime.
 func TestDeletedAgent_RunFinishesButNextStepIsRefused(t *testing.T) {
-	definition := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`
+	definition := `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"id":"summarize","type":"agent_task","needs":["collect"],"target_agent_id":"a_2","prompt":"summarize"}]}`
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{{
 			ID:         "w_1",
@@ -393,8 +494,8 @@ func TestDeletedAgent_RunFinishesButNextStepIsRefused(t *testing.T) {
 }
 
 func TestPublishedWorkflowsUsingAgent(t *testing.T) {
-	using := `{"schema_version":1,"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_1","prompt":"p"}]}`
-	other := `{"schema_version":1,"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_2","prompt":"p"}]}`
+	using := `{"schema_version":1,"nodes":[{"id":"s","type":"agent_task","target_agent_id":"a_1","prompt":"p"}]}`
+	other := `{"schema_version":1,"nodes":[{"id":"s","type":"agent_task","target_agent_id":"a_2","prompt":"p"}]}`
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{
 			{ID: "w_pub", SpaceID: "tm_1", Name: "Published", Definition: using, Status: coreworkflow.StatusPublished},
@@ -441,7 +542,7 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 			ID:         "w_1",
 			SpaceID:    "tm_1",
 			Name:       "WF",
-			Definition: `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
+			Definition: `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"id":"summarize","type":"agent_task","needs":["collect"],"target_agent_id":"a_2","prompt":"summarize"}]}`,
 			Status:     coreworkflow.StatusPublished,
 		}},
 	}
@@ -508,7 +609,7 @@ func twoStepReconcileSvc(t *testing.T) (svc *Service, workflowStore *mock.MockWo
 			ID:         "w_1",
 			SpaceID:    "tm_1",
 			Name:       "WF",
-			Definition: `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
+			Definition: `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"id":"summarize","type":"agent_task","needs":["collect"],"target_agent_id":"a_2","prompt":"summarize"}]}`,
 			Status:     coreworkflow.StatusPublished,
 		}},
 	}

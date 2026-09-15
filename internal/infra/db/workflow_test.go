@@ -28,7 +28,7 @@ func workflowRunFixture(t *testing.T, n int) (*Store, string, []string) {
 	}
 	userID, spaceID := secretTestSpace(t, s, "workflow-transition@example.com")
 
-	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "", `{"schema_version":1,"steps":[]}`)
+	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "", `{"schema_version":1,"nodes":[]}`)
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
@@ -88,7 +88,7 @@ func workflowFixture(t *testing.T, email string) (s *Store, userID, spaceID, wor
 		t.Fatalf("New: %v", err)
 	}
 	userID, spaceID = secretTestSpace(t, s, email)
-	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "desc", `{"schema_version":1,"steps":[]}`)
+	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "desc", `{"schema_version":1,"nodes":[]}`)
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestWorkflowRevisionContention(t *testing.T) {
 
 	// Sequential advancement: an edit from revision 1 commits as revision 2, and
 	// the winning row and the appended revision agree on every content field.
-	name2, desc2, def2 := "renamed", "new desc", `{"schema_version":1,"steps":[{"one":1}]}`
+	name2, desc2, def2 := "renamed", "new desc", `{"schema_version":1,"nodes":[{"one":1}]}`
 	updated, err := s.UpdateWorkflow(ctx, wfID, spaceID, coreworkflow.UpdateInput{
 		Name: &name2, Description: &desc2, Definition: &def2, Status: ptrStr(coreworkflow.StatusPublished),
 		ExpectedRevision: 1, UpdatedBy: userID,
@@ -363,7 +363,6 @@ func TestFinalizeFailedWorkflowRun_BlocksLaterSteps(t *testing.T) {
 	applied, err := s.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 		WorkflowRunID: runID,
 		NodeRunID:     steps[0],
-		NodeIndex:     0,
 		NodeExpected:  coreworkflow.NodeRunStatusRunning,
 		NodeStatus:    coreworkflow.NodeRunStatusFailed,
 		RunExpected:   coreworkflow.RunStatusRunning,

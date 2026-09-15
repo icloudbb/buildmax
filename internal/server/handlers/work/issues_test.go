@@ -48,7 +48,7 @@ func TestIssueHandlers(t *testing.T) {
 		Agents: []agentdef.Agent{{ID: agentID, UserID: "u1", SpaceID: personalSpaceID, Name: "Agent 1"}},
 	}
 	workflows := &mock.MockWorkflowStore{
-		Workflows: []coreworkflow.Workflow{{ID: workflowID, SpaceID: personalSpaceID, Name: "Workflow 1", Definition: `{"schema_version":1,"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: coreworkflow.StatusPublished}},
+		Workflows: []coreworkflow.Workflow{{ID: workflowID, SpaceID: personalSpaceID, Name: "Workflow 1", Definition: `{"schema_version":1,"nodes":[{"id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: coreworkflow.StatusPublished}},
 	}
 	tasks := &mock.MockTaskStore{}
 	spaces := &mock.MockSpaceStore{

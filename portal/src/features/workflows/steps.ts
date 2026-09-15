@@ -44,6 +44,15 @@ export interface WorkflowStepBinding {
 export interface WorkflowStepDraft {
   id: string
   type: string
+  /**
+   * The ids of the nodes that must succeed before this one runs -- the `needs`
+   * edges of the definition's DAG. `undefined` marks a node the step form
+   * created: the form authors a linear chain, so such a node's effective needs
+   * are the node directly above it (see {@link effectiveNeeds}). A value read
+   * from advanced JSON is preserved verbatim, including an explicit empty array
+   * for a root, so a hand-authored DAG round-trips without being flattened.
+   */
+  needs?: string[]
   targetAgentId: string
   prompt: string
   bindings?: WorkflowStepBinding[]
@@ -51,6 +60,50 @@ export interface WorkflowStepDraft {
 
 export interface ParsedWorkflowDefinition {
   steps: WorkflowStepDraft[]
+}
+
+/**
+ * The needs edges a node actually has. A node parsed from JSON carries its own
+ * `needs` (possibly empty); a node the form created carries none, and the form
+ * authors a linear chain, so its effective need is the node directly above it.
+ * Serialization and validation both read edges through here so the definition
+ * they emit and the definition they check agree.
+ */
+export function effectiveNeeds(steps: WorkflowStepDraft[], index: number): string[] {
+  const step = steps[index]
+  if (step.needs !== undefined) return step.needs
+  return index > 0 ? [steps[index - 1].id] : []
+}
+
+/**
+ * Maps each node id to the set of its transitive predecessors -- every node
+ * that must run before it -- from the effective needs edges. A binding may read
+ * only a predecessor's output, and this mirrors the server's graph so Save
+ * stays disabled for a definition the server would reject.
+ */
+function transitivePredecessors(steps: WorkflowStepDraft[]): Map<string, Set<string>> {
+  const byId = new Map(steps.map((s) => [s.id, s]))
+  const preds = new Map<string, Set<string>>()
+  const resolve = (id: string, stack: Set<string>): Set<string> => {
+    const cached = preds.get(id)
+    if (cached) return cached
+    const set = new Set<string>()
+    if (stack.has(id)) return set // a cycle: stop rather than recurse forever
+    stack.add(id)
+    const index = steps.findIndex((s) => s.id === id)
+    if (index >= 0) {
+      for (const need of effectiveNeeds(steps, index)) {
+        if (!byId.has(need)) continue
+        set.add(need)
+        for (const p of resolve(need, stack)) set.add(p)
+      }
+    }
+    stack.delete(id)
+    preds.set(id, set)
+    return set
+  }
+  for (const s of steps) resolve(s.id, new Set())
+  return preds
 }
 
 /** A step's id is generated, not typed -- there is no meaning to a person
@@ -76,21 +129,25 @@ export function stepsToDefinition(steps: WorkflowStepDraft[]): string {
   return JSON.stringify(
     {
       schema_version: WORKFLOW_SCHEMA_VERSION,
-      steps: steps.map((step) => ({
-        step_id: step.id,
-        type: step.type,
-        target_agent_id: step.targetAgentId,
-        prompt: step.prompt,
-        ...(step.bindings && step.bindings.length > 0
-          ? {
-              bindings: step.bindings.map((binding) => ({
-                name: binding.name,
-                source: binding.source,
-                pointer: binding.pointer,
-              })),
-            }
-          : {}),
-      })),
+      nodes: steps.map((step, index) => {
+        const needs = effectiveNeeds(steps, index)
+        return {
+          id: step.id,
+          type: step.type,
+          ...(needs.length > 0 ? { needs } : {}),
+          target_agent_id: step.targetAgentId,
+          prompt: step.prompt,
+          ...(step.bindings && step.bindings.length > 0
+            ? {
+                bindings: step.bindings.map((binding) => ({
+                  name: binding.name,
+                  source: binding.source,
+                  pointer: binding.pointer,
+                })),
+              }
+            : {}),
+        }
+      }),
     },
     null,
     2,
@@ -126,14 +183,17 @@ function parseStepBindings(value: unknown): WorkflowStepBinding[] | undefined {
  */
 export function parseDefinition(definition: string): ParsedWorkflowDefinition | null {
   try {
-    const parsed = JSON.parse(definition) as { steps?: unknown }
-    if (!Array.isArray(parsed.steps)) return null
+    const parsed = JSON.parse(definition) as { nodes?: unknown }
+    if (!Array.isArray(parsed.nodes)) return null
     return {
-      steps: parsed.steps.map((step): WorkflowStepDraft => {
-        const record = typeof step === "object" && step != null ? (step as Record<string, unknown>) : {}
+      steps: parsed.nodes.map((node): WorkflowStepDraft => {
+        const record = typeof node === "object" && node != null ? (node as Record<string, unknown>) : {}
         return {
-          id: typeof record.step_id === "string" && record.step_id.trim() ? record.step_id : newStepId(),
+          id: typeof record.id === "string" && record.id.trim() ? record.id : newStepId(),
           type: typeof record.type === "string" && record.type.trim() ? record.type : AGENT_TASK_STEP_TYPE,
+          // Absent `needs` is an explicit root ([]), not a form node, so a parsed
+          // definition round-trips without the linear default rewriting its graph.
+          needs: parseNeeds(record.needs),
           targetAgentId: typeof record.target_agent_id === "string" ? record.target_agent_id : "",
           prompt: typeof record.prompt === "string" ? record.prompt : "",
           bindings: parseStepBindings(record.bindings),
@@ -143,6 +203,15 @@ export function parseDefinition(definition: string): ParsedWorkflowDefinition | 
   } catch {
     return null
   }
+}
+
+/** Reads a node's `needs` as a string array, keeping malformed entries (as
+ *  empty strings) so server validation surfaces the mistake. An absent `needs`
+ *  is a root, represented as an explicit empty array to distinguish it from a
+ *  form-created node. */
+function parseNeeds(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map((entry) => (typeof entry === "string" ? entry : ""))
 }
 
 /** A validation problem with the step list. `index` is -1 for a problem with
@@ -164,6 +233,8 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
     return errors
   }
   const seenIds = new Set<string>()
+  const allIds = new Set(steps.map((s) => s.id))
+  const preds = transitivePredecessors(steps)
   steps.forEach((step, index) => {
     if (!step.id.trim()) {
       errors.push({ index, message: "This step is missing its id." })
@@ -171,6 +242,18 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
       errors.push({ index, message: `Step id "${step.id}" is used by more than one step.` })
     }
     seenIds.add(step.id)
+    // Each needs edge must name another existing node, and the edges cannot form
+    // a cycle -- a node reachable from itself. These only fire for a hand-authored
+    // DAG; the linear form derives valid edges from order.
+    for (const need of effectiveNeeds(steps, index)) {
+      if (need === step.id) {
+        errors.push({ index, message: `Step "${step.id}" cannot depend on itself.` })
+      } else if (!allIds.has(need)) {
+        errors.push({ index, message: `Step "${step.id}" depends on unknown step "${need}".` })
+      } else if (preds.get(need)?.has(step.id)) {
+        errors.push({ index, message: `Steps "${step.id}" and "${need}" depend on each other.` })
+      }
+    }
     if (step.type !== AGENT_TASK_STEP_TYPE) {
       errors.push({
         index,
@@ -185,12 +268,12 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
     if (!step.prompt.trim()) {
       errors.push({ index, message: "This step needs a prompt." })
     }
-    // A binding selects from the run input or an earlier step's output at a
-    // pointer. A node source can only name a step that already ran, each name on
+    // A binding selects from the run input or a predecessor node's output at a
+    // pointer. A node source can only name a transitive predecessor, each name on
     // a step is distinct, and a pointer is empty or begins with "/" -- the same
     // rules the server enforces, checked here so Save stays disabled for a
     // definition the server would reject.
-    const earlierIds = new Set(steps.slice(0, index).map((s) => s.id))
+    const predIds = preds.get(step.id) ?? new Set<string>()
     const bindingNames = new Set<string>()
     step.bindings?.forEach((binding) => {
       const name = binding.name.trim()
@@ -207,8 +290,8 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
         const fromStep = parseNodeOutputSource(binding.source)
         if (fromStep === null) {
           errors.push({ index, message: `Input binding "${label}" has an unknown source.` })
-        } else if (!earlierIds.has(fromStep)) {
-          errors.push({ index, message: `Input binding "${label}" must read from the workflow input or an earlier step.` })
+        } else if (!predIds.has(fromStep)) {
+          errors.push({ index, message: `Input binding "${label}" must read from the workflow input or a step this one depends on.` })
         }
       }
       if (binding.pointer && !binding.pointer.startsWith("/")) {

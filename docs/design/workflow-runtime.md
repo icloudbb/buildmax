@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A step binding selects a value from the run input or an earlier step's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer, and a definition may declare a `result` selector whose value a succeeding run stores and surfaces on the run and its issue. This completes the Phase 2 data contract; typed `nodes`/`needs`, schema-constrained output at runtime, static DAGs, and adaptive control remain open
+> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A node binding selects a value from the run input or a predecessor node's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer, and a definition may declare a `result` selector whose value a succeeding run stores and surfaces on the run and its issue. The definition is now a graph: `nodes` joined by DAG `needs` decide execution order (array position does not), publication validates acyclicity, edge existence, and predecessor-only bindings, and failure is fail-fast. Still open in the graph engine are concurrent dispatch of ready nodes within a parallelism limit (the reconciler dispatches one at a time today), typed routes, runtime schema-constrained routing, and adaptive control
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
@@ -81,24 +81,26 @@ The current implementation has useful foundations:
 - manual and Issue-originated runs exist; and
 - Portal can author a linear definition and inspect its runs.
 
-It is not the runtime designed here, but its execution plane is now durable.
-The current definition is an ordered `steps` array with static prompts and no
-typed input contract or versioned node-result envelope. A step may declare an
+It is not yet the full runtime designed here, but its execution plane is durable
+and its definition is now a graph. The definition is a set of `nodes` joined by
+DAG `needs` edges: a node becomes ready when every node it needs has succeeded,
+so dependencies — not array position — decide execution order, and publication
+rejects a cyclic graph, a `needs` edge to a missing node, or a binding that reads
+a node which is not a transitive predecessor. A node may declare an
 `output_schema`; the shared runtime validates the final value and persists it on
-the TaskRun and node run. A step may also bind a value selected from the run
-input or an earlier step's output envelope (text, structured output, or an
+the TaskRun and node run. A node may also bind a value selected from the run
+input or a predecessor node's output envelope (text, structured output, or an
 Artifact reference) at an RFC 6901 pointer into its input as labelled untrusted
-data — the linear precursor of §6's bindings — reading the full output the
-upstream node run persisted when it succeeded and the accepted TaskRun's
-attributed Artifacts. Advancement is a reconciliation
+data, reading the full output the upstream node run persisted when it succeeded
+and the accepted TaskRun's attributed Artifacts. Advancement is a reconciliation
 over durable facts: Task admission is idempotent under a stable key, a bounded
 lease reduces duplicate passes, guarded compare-and-set transitions are the
 correctness mechanism, and a Server-owned recovery loop finishes a run stranded
-by a lost callback or a restart. What remains missing against the target is the
-graph itself: the versioned `nodes` shape with DAG `needs`, routes and waits,
-runtime schema-constrained output, and adaptive control. The `input_schema`,
-per-node result envelope, and pointer `bindings` with a `result` selector have
-shipped over the ordered `steps` form.
+by a lost callback or a restart. What remains against the target is the rest of
+the graph engine: concurrent dispatch of ready nodes within a parallelism limit,
+typed routes and waits, runtime schema-constrained routing, and adaptive control.
+Failure is fail-fast and the reconciler dispatches one ready node at a time
+today.
 
 The current Agent snapshot is also not execution authority. Workflow copies the
 old Agent instructions into Task user input while Task admission and the worker
@@ -1252,11 +1254,21 @@ interpreters or preserve stale table shapes as a compatibility layer.
 
 ### Phase 3: Static DAG
 
-- Replace array position as execution authority with `needs`.
-- Dispatch all ready nodes within concurrency limits.
+- Replace array position as execution authority with `needs`. **Shipped:** the
+  definition is a set of `nodes` with DAG `needs`; a node run snapshots its edges;
+  readiness is decided from them; publication validates acyclicity, edge
+  existence, and predecessor-only bindings; a run records each node's index from
+  the deterministic topological order.
+- Dispatch all ready nodes within concurrency limits. **Open:** the reconciler
+  still dispatches one ready node at a time; concurrent dispatch and a
+  Workflow/Space parallelism limit are the next slice.
 - implement deterministic fan-out/fan-in and fail-fast blocked semantics;
-- add full publication validation and a read-only graph; and
-- retain the linear form as the simplest DAG, not a separate engine.
+  fail-fast is shipped (a node failure blocks every pending node and ends the
+  run); concurrent fan-in/fan-out lands with concurrent dispatch.
+- add full publication validation and a read-only graph; publication validation
+  is shipped, the read-only graph view is open.
+- retain the linear form as the simplest DAG, not a separate engine. **Shipped:**
+  the Portal step form authors a linear chain that serializes to `nodes`/`needs`.
 
 ### Phase 4: Bounded Policy And Typed Decisions
 

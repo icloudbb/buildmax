@@ -305,9 +305,9 @@ Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，
 
 Space 审批流程仍未实现且明确不在范围内；这不能被视为邀请或所有权转移功能未完成。
 
-Workflow 定义仍是线性的 `agent_task` 步骤，具有版本化定义和持久 Run/步骤记录。
-步骤可以通过 `output_schema` 约束结果，也可以通过非类型化绑定把前序步骤的完整输出传给
-后续步骤。定义契约仍没有类型化输入 schema 或 JSON Pointer 绑定选择，也没有分支、并行图、
+Workflow 定义是由 `needs` 边连接的 `agent_task` 节点组成的图，具有版本化定义和持久
+Run/节点记录。节点可以通过 `output_schema` 约束结果，指针绑定可以把运行输入或前驱节点
+输出中选取的值传入某个节点的输入。定义契约仍没有类型化条件路由、就绪节点并发分发、
 人工审批或循环（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
 
 Portal 与入站 webhook 执行已组装。Telegram 仍只是渠道词汇，

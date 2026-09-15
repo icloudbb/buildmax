@@ -140,7 +140,11 @@ type workflowNodeRunRow struct {
 	AgentDescription  string `gorm:"column:agent_description;type:text;not null"`
 	AgentInstructions string `gorm:"column:agent_instructions;type:longtext;not null"`
 	AgentRevision     int    `gorm:"column:agent_revision;not null;default:0"`
-	Prompt            string `gorm:"type:text;not null"`
+	// Needs is the run's snapshot of this node's dependency edges as a JSON array
+	// of node ids, NULL for a root node. Readiness is decided from these edges,
+	// not from node_index.
+	Needs  *string `gorm:"column:needs;type:text"`
+	Prompt string  `gorm:"type:text;not null"`
 	// Bindings is the run's snapshot of this node's input bindings as a JSON
 	// array, NULL when the node binds nothing.
 	Bindings *string `gorm:"type:text"`
@@ -291,6 +295,7 @@ func toWorkflowNodeRun(row *workflowNodeRunReadRow) *coreworkflow.NodeRun {
 		AgentInstructions: row.Row.AgentInstructions,
 		AgentRevision:     row.Row.AgentRevision,
 		Prompt:            row.Row.Prompt,
+		Needs:             decodeNodeNeeds(row.Row.Needs),
 		Bindings:          decodeStepBindings(row.Row.Bindings),
 		OutputSchema:      row.Row.OutputSchema,
 		Status:            row.Row.Status,
@@ -343,6 +348,34 @@ func decodeStepBindings(encoded *string) []coreworkflow.StepBinding {
 		return nil
 	}
 	return bindings
+}
+
+// encodeNodeNeeds serializes a node's snapshotted dependency ids to the JSON
+// text the row stores, or nil for a root node so the column stays NULL.
+func encodeNodeNeeds(needs []string) *string {
+	if len(needs) == 0 {
+		return nil
+	}
+	encoded, err := json.Marshal(needs)
+	if err != nil {
+		// A list of strings cannot fail to marshal; treat an impossible error as a
+		// root node rather than panicking a store write.
+		return nil
+	}
+	return util.Ptr(string(encoded))
+}
+
+// decodeNodeNeeds parses the stored needs JSON. A NULL, empty, or unparseable
+// column yields no needs.
+func decodeNodeNeeds(encoded *string) []string {
+	if encoded == nil || *encoded == "" {
+		return nil
+	}
+	var needs []string
+	if err := json.Unmarshal([]byte(*encoded), &needs); err != nil {
+		return nil
+	}
+	return needs
 }
 
 func toWorkflowNodeRuns(rows []workflowNodeRunReadRow) []coreworkflow.NodeRun {
@@ -700,6 +733,7 @@ func (s *Store) CreateWorkflowNodeRuns(ctx context.Context, workflowRunID string
 				AgentInstructions: steps[i].AgentInstructions,
 				AgentRevision:     steps[i].AgentRevision,
 				Prompt:            steps[i].Prompt,
+				Needs:             encodeNodeNeeds(steps[i].Needs),
 				Bindings:          encodeStepBindings(steps[i].Bindings),
 				OutputSchema:      steps[i].OutputSchema,
 				Status:            steps[i].Status,
@@ -862,13 +896,14 @@ func (s *Store) TransitionWorkflowNodeRun(ctx context.Context, in coreworkflow.T
 	return updated, err
 }
 
-// FinalizeFailedWorkflowRun ends a run because one step ended badly. In one
-// transaction it moves the step to its terminal status, blocks every later step
-// still pending, and moves the run to its terminal status. The step move is a
-// guarded CAS: a false result means the step was no longer at its expected
-// status, so another actor finished it first and nothing is written. The run
-// move is guarded too, so a run a concurrent cancel already finalized keeps that
-// outcome.
+// FinalizeFailedWorkflowRun ends a run because one node ended badly. In one
+// transaction it moves the node to its terminal status, blocks every node still
+// pending, and moves the run to its terminal status. Failure is fail-fast: the
+// run terminates, so every not-yet-started node is blocked regardless of graph
+// position. The node move is a guarded CAS: a false result means the node was no
+// longer at its expected status, so another actor finished it first and nothing
+// is written. The run move is guarded too, so a run a concurrent cancel already
+// finalized keeps that outcome.
 func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.FinalizeFailedRunInput) (bool, error) {
 	if !coreworkflow.ValidNodeRunTransition(in.NodeExpected, in.NodeStatus) {
 		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidNodeRunTransition, in.NodeExpected, in.NodeStatus)
@@ -918,11 +953,12 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 		if err != nil {
 			return err
 		}
-		// Block every later step still pending. The status filter makes this a
-		// guarded bulk pending -> blocked, which is a valid transition.
+		// Block every node still pending -- fail-fast terminates the run, so nothing
+		// else may start. The status filter makes this a guarded bulk
+		// pending -> blocked, which is a valid transition.
 		if err := tx.Model(&workflowNodeRunRow{}).
-			Where("workflow_run_id = ? AND node_index > ? AND status = ?",
-				runKey, in.NodeIndex, string(coreworkflow.NodeRunStatusPending)).
+			Where("workflow_run_id = ? AND status = ?",
+				runKey, string(coreworkflow.NodeRunStatusPending)).
 			Update("status", string(coreworkflow.NodeRunStatusBlocked)).Error; err != nil {
 			return err
 		}
