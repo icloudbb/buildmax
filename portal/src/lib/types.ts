@@ -184,6 +184,8 @@ export interface WorkflowNodeRun {
   nodeId: string
   nodeIndex: number
   nodeType: string
+  needs?: string[] | null
+  issueAccess?: string | null
   targetAgentId?: string | null
   agentRevision?: number | null
   agentName?: string | null

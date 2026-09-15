@@ -83,7 +83,7 @@ func newReconcileEnv(t *testing.T) *reconcileEnv {
 	}
 
 	definition := fmt.Sprintf(
-		`{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":%q,"prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":%q,"prompt":"summarize"}]}`,
+		`{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","agent":{"id":%q},"input":{"instruction":"collect data"}},{"id":"summarize","type":"agent_task","needs":["collect"],"agent":{"id":%q},"input":{"instruction":"summarize"}}]}`,
 		agentA.ID, agentB.ID)
 	wf, err := svc.CreateWorkflow(ctx, CreateWorkflowCmd{
 		SpaceID: space.ID, UserID: user.ID, Name: "WF", Definition: definition,

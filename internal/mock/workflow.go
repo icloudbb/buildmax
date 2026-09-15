@@ -204,6 +204,8 @@ func (m *MockWorkflowStore) CreateWorkflowNodeRuns(_ context.Context, workflowRu
 			NodeID:            steps[i].NodeID,
 			NodeIndex:         steps[i].NodeIndex,
 			NodeType:          steps[i].NodeType,
+			Needs:             steps[i].Needs,
+			IssueAccess:       steps[i].IssueAccess,
 			TargetAgentID:     steps[i].TargetAgentID,
 			AgentName:         steps[i].AgentName,
 			AgentDescription:  steps[i].AgentDescription,
@@ -343,11 +345,18 @@ func (m *MockWorkflowStore) FinalizeFailedWorkflowRun(_ context.Context, in core
 	if !stepApplied {
 		return false, nil
 	}
+	// Fail-fast: block every node still pending in this run, regardless of graph
+	// position, and cancel every sibling still running, since the run is
+	// terminating.
 	for i := range m.NodeRuns {
-		if m.NodeRuns[i].WorkflowRunID == in.WorkflowRunID &&
-			m.NodeRuns[i].NodeIndex > in.NodeIndex &&
-			m.NodeRuns[i].Status == string(coreworkflow.NodeRunStatusPending) {
+		if m.NodeRuns[i].WorkflowRunID != in.WorkflowRunID {
+			continue
+		}
+		if m.NodeRuns[i].Status == string(coreworkflow.NodeRunStatusPending) {
 			m.NodeRuns[i].Status = string(coreworkflow.NodeRunStatusBlocked)
+		} else if m.NodeRuns[i].Status == string(coreworkflow.NodeRunStatusRunning) && m.NodeRuns[i].ID != in.NodeRunID {
+			m.NodeRuns[i].Status = string(coreworkflow.NodeRunStatusCanceled)
+			m.NodeRuns[i].EndedAt = in.EndedAt
 		}
 	}
 	for i := range m.Runs {

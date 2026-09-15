@@ -27,7 +27,7 @@ func TestWorkflowHandlers(t *testing.T) {
 			SpaceID:     spaceID,
 			Name:        "WF",
 			Description: "desc",
-			Definition:  `{"schema_version":1,"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`,
+			Definition:  `{"schema_version":1,"nodes":[{"id":"s1","type":"agent_task","agent":{"id":"a_1"},"input":{"instruction":"do it"}}]}`,
 			Status:      coreworkflow.StatusPublished,
 			CreatedBy:   "u1",
 			CreatedAt:   time.Unix(100, 0).UTC(),
@@ -85,7 +85,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	})
 
 	t.Run("POST create workflow", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/workflows", strings.NewReader(`{"name":"WF 2","description":"Desc","definition":"{\"schema_version\":1,\"steps\":[{\"step_id\":\"s1\",\"type\":\"agent_task\",\"target_agent_id\":\"a_1\",\"prompt\":\"do it\"}]}"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/workflows", strings.NewReader(`{"name":"WF 2","description":"Desc","definition":"{\"schema_version\":1,\"nodes\":[{\"id\":\"s1\",\"type\":\"agent_task\",\"agent\":{\"id\":\"a_1\"},\"input\":{\"instruction\":\"do it\"}}]}"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -131,7 +131,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	})
 
 	t.Run("POST create workflow forbidden for member", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/workflows", strings.NewReader(`{"name":"WF 3","description":"Desc","definition":"{\"schema_version\":1,\"steps\":[{\"step_id\":\"s1\",\"type\":\"agent_task\",\"target_agent_id\":\"a_1\",\"prompt\":\"do it\"}]}"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/workflows", strings.NewReader(`{"name":"WF 3","description":"Desc","definition":"{\"schema_version\":1,\"nodes\":[{\"id\":\"s1\",\"type\":\"agent_task\",\"agent\":{\"id\":\"a_1\"},\"input\":{\"instruction\":\"do it\"}}]}"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", workflowTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()

@@ -28,7 +28,7 @@ func workflowRunFixture(t *testing.T, n int) (*Store, string, []string) {
 	}
 	userID, spaceID := secretTestSpace(t, s, "workflow-transition@example.com")
 
-	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "", `{"schema_version":1,"steps":[]}`)
+	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "", `{"schema_version":1,"nodes":[]}`)
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
@@ -88,7 +88,7 @@ func workflowFixture(t *testing.T, email string) (s *Store, userID, spaceID, wor
 		t.Fatalf("New: %v", err)
 	}
 	userID, spaceID = secretTestSpace(t, s, email)
-	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "desc", `{"schema_version":1,"steps":[]}`)
+	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "desc", `{"schema_version":1,"nodes":[]}`)
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestWorkflowRevisionContention(t *testing.T) {
 
 	// Sequential advancement: an edit from revision 1 commits as revision 2, and
 	// the winning row and the appended revision agree on every content field.
-	name2, desc2, def2 := "renamed", "new desc", `{"schema_version":1,"steps":[{"one":1}]}`
+	name2, desc2, def2 := "renamed", "new desc", `{"schema_version":1,"nodes":[{"one":1}]}`
 	updated, err := s.UpdateWorkflow(ctx, wfID, spaceID, coreworkflow.UpdateInput{
 		Name: &name2, Description: &desc2, Definition: &def2, Status: ptrStr(coreworkflow.StatusPublished),
 		ExpectedRevision: 1, UpdatedBy: userID,
@@ -363,7 +363,6 @@ func TestFinalizeFailedWorkflowRun_BlocksLaterSteps(t *testing.T) {
 	applied, err := s.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 		WorkflowRunID: runID,
 		NodeRunID:     steps[0],
-		NodeIndex:     0,
 		NodeExpected:  coreworkflow.NodeRunStatusRunning,
 		NodeStatus:    coreworkflow.NodeRunStatusFailed,
 		RunExpected:   coreworkflow.RunStatusRunning,
@@ -394,5 +393,52 @@ func TestFinalizeFailedWorkflowRun_BlocksLaterSteps(t *testing.T) {
 	}
 	if run.Status != string(coreworkflow.RunStatusFailed) {
 		t.Errorf("run status = %s, want failed", run.Status)
+	}
+}
+
+// TestFinalizeFailedWorkflowRun_CancelsRunningSiblings proves fail-fast under
+// concurrency: when one running node fails, a sibling that was running
+// concurrently is canceled (not left running) and the remaining pending node is
+// blocked, all in one transaction.
+func TestFinalizeFailedWorkflowRun_CancelsRunningSiblings(t *testing.T) {
+	s, runID, steps := workflowRunFixture(t, 3)
+	ctx := context.Background()
+
+	// Start two nodes concurrently, then fail the first.
+	for _, id := range []string{steps[0], steps[1]} {
+		if _, err := s.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+			NodeRunID:      id,
+			ExpectedStatus: coreworkflow.NodeRunStatusPending,
+			NewStatus:      coreworkflow.NodeRunStatusRunning,
+		}); err != nil {
+			t.Fatalf("start node: %v", err)
+		}
+	}
+	now := time.Now().UTC()
+	applied, err := s.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
+		WorkflowRunID: runID,
+		NodeRunID:     steps[0],
+		NodeExpected:  coreworkflow.NodeRunStatusRunning,
+		NodeStatus:    coreworkflow.NodeRunStatusFailed,
+		RunExpected:   coreworkflow.RunStatusRunning,
+		RunStatus:     coreworkflow.RunStatusFailed,
+		EndedAt:       &now,
+	})
+	if err != nil || !applied {
+		t.Fatalf("finalize = %v, %v; want true, nil", applied, err)
+	}
+	got, err := s.ListWorkflowNodeRuns(ctx, runID)
+	if err != nil {
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
+	}
+	want := []string{
+		string(coreworkflow.NodeRunStatusFailed),   // the node that failed
+		string(coreworkflow.NodeRunStatusCanceled), // the running sibling
+		string(coreworkflow.NodeRunStatusBlocked),  // the pending node
+	}
+	for i := range got {
+		if got[i].Status != want[i] {
+			t.Errorf("node %d status = %s, want %s", i, got[i].Status, want[i])
+		}
 	}
 }

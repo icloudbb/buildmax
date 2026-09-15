@@ -194,6 +194,8 @@ export interface ApiWorkflowNodeRun {
   node_id: string
   node_index: number
   node_type: string
+  needs?: string[] | null
+  issue_access?: string | null
   target_agent_id?: string | null
   agent_name?: string | null
   agent_description?: string | null

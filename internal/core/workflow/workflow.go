@@ -17,6 +17,13 @@ const (
 	// runtime accepts. A definition must declare it explicitly; publication rejects
 	// any other value so a stored plan always names the contract it was written for.
 	DefinitionSchemaVersion = 1
+
+	// MaxParallelNodesCeiling is the deployment maximum for how many nodes of one
+	// run may execute at once. A definition's policy may set a lower bound but not
+	// exceed this; it is the Space/deployment limit §6.2 requires ready nodes to
+	// stay within, and it caps a run's concurrent worker Tasks regardless of graph
+	// width. A definition that names no limit runs up to this ceiling.
+	MaxParallelNodesCeiling = 8
 )
 
 // RunStatus is the lifecycle status of one workflow run. NodeRunStatus is one
@@ -169,16 +176,25 @@ type Run struct {
 	NextReconcileAt *time.Time `json:"next_reconcile_at,omitempty"`
 }
 
-// NodeRun is one durable node execution record under a workflow run. The linear
-// precursor authors nodes as ordered `steps`; NodeID carries the authoring
-// step's id, and NodeIndex is its position, so the graph term (node) names the
-// runtime record while the definition keeps the `steps` shape until Phase 3.
+// NodeRun is one durable node execution record under a workflow run. NodeID is
+// the authoring node's id and NodeIndex is its position in the definition's
+// deterministic topological order, so listing node runs by index shows them
+// consistent with their dependencies. Needs is the run's snapshot of the node's
+// `needs` edges: readiness is decided from these persisted edges, not from
+// array position.
 type NodeRun struct {
-	ID            string  `json:"id"`
-	WorkflowRunID string  `json:"workflow_run_id"`
-	NodeID        string  `json:"node_id"`
-	NodeIndex     int     `json:"node_index"`
-	NodeType      string  `json:"node_type"`
+	ID            string `json:"id"`
+	WorkflowRunID string `json:"workflow_run_id"`
+	NodeID        string `json:"node_id"`
+	NodeIndex     int    `json:"node_index"`
+	NodeType      string `json:"node_type"`
+	// Needs is the run's snapshot of this node's dependency edges (the ids of the
+	// nodes that must succeed before it becomes ready), taken at start so a later
+	// definition edit cannot change what an in-flight run waits on.
+	Needs []string `json:"needs,omitempty"`
+	// IssueAccess is the run's snapshot of this node's Issue access mode, so a
+	// later definition edit cannot change what an in-flight node's Task can reach.
+	IssueAccess   string  `json:"issue_access,omitempty"`
 	TargetAgentID *string `json:"target_agent_id,omitempty"`
 	// AgentName, AgentDescription, and AgentInstructions capture the target agent
 	// definition as it was when the run started, so later edits to the agent cannot
@@ -228,12 +244,37 @@ type Definition struct {
 	// immutable input must satisfy at admission and that drives the Portal input
 	// form. Absent means the run takes no declared input. Publication rejects a
 	// schema outside the subset.
-	InputSchema json.RawMessage  `json:"input_schema,omitempty"`
-	Steps       []DefinitionStep `json:"steps"`
-	// Result, when set, selects the WorkflowRun result from one step's output
-	// envelope. The selected step must exist. Absent leaves the run without a
+	InputSchema json.RawMessage `json:"input_schema,omitempty"`
+	// Policy, when set, carries run-wide execution policy. Absent leaves every
+	// field at its default.
+	Policy *DefinitionPolicy `json:"policy,omitempty"`
+	// Nodes is the definition's unordered set of nodes. JSON represents it as an
+	// array, but array position is not control flow: a node's dependencies come
+	// from its `needs` edges, and the execution order is the topological order of
+	// the resulting DAG.
+	Nodes []DefinitionNode `json:"nodes"`
+	// Result, when set, selects the WorkflowRun result from one node's output
+	// envelope. The selected node must exist. Absent leaves the run without a
 	// declared result.
 	Result *ResultSelector `json:"result,omitempty"`
+}
+
+// DefinitionPolicy is the run-wide execution policy of a workflow definition.
+type DefinitionPolicy struct {
+	// MaxParallelNodes bounds how many of a run's nodes may execute at once. Zero
+	// (absent) means no definition-set limit, so the run uses the deployment
+	// ceiling. Publication rejects a value above MaxParallelNodesCeiling.
+	MaxParallelNodes int `json:"max_parallel_nodes,omitempty"`
+}
+
+// MaxParallelNodes is the effective concurrency limit for a run of this
+// definition: the policy's value when it set one, otherwise the deployment
+// ceiling. It is always in [1, MaxParallelNodesCeiling].
+func (d *Definition) MaxParallelNodes() int {
+	if d.Policy != nil && d.Policy.MaxParallelNodes > 0 {
+		return d.Policy.MaxParallelNodes
+	}
+	return MaxParallelNodesCeiling
 }
 
 // ResultSelector selects the WorkflowRun result from one step's output envelope,
@@ -245,23 +286,68 @@ type ResultSelector struct {
 	Pointer string `json:"pointer"`
 }
 
-// DefinitionStep describes one step in a workflow definition.
-type DefinitionStep struct {
-	StepID        string `json:"step_id"`
-	Type          string `json:"type"`
-	TargetAgentID string `json:"target_agent_id"`
-	Prompt        string `json:"prompt"`
-	// Bindings feed selected values into this step's input. Each names a value
-	// (Name) taken from a source (the run's input, or an earlier step's output
-	// envelope) at an RFC 6901 pointer. The bound value reaches the Task as
-	// labelled untrusted context, never the agent's instructions.
-	Bindings []StepBinding `json:"bindings,omitempty"`
-	// OutputSchema, when set, is a JSON Schema (in the shared subset) the step's
+// DefinitionNode describes one node in a workflow definition's DAG.
+type DefinitionNode struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	// Needs lists the ids of the nodes that must succeed before this one becomes
+	// ready. It forms a directed acyclic graph; array position is not control
+	// flow. An empty list is a root that is ready at run start.
+	Needs []string `json:"needs,omitempty"`
+	// Agent names the Agent this node runs as.
+	Agent NodeAgent `json:"agent"`
+	// Input is the node's task instruction and the values bound into it.
+	Input NodeInput `json:"input"`
+	// IssueAccess controls whether this node's Task receives the run's Issue.
+	// One of "none" (default), "if_bound", or "required". Empty means "none".
+	IssueAccess string `json:"issue_access,omitempty"`
+	// OutputSchema, when set, is a JSON Schema (in the shared subset) the node's
 	// agent run must satisfy as its final answer. Publication rejects a schema
-	// outside the subset. The step succeeds only when the run returns a value
-	// that validates against it. Empty leaves the step free text. See
+	// outside the subset. The node succeeds only when the run returns a value
+	// that validates against it. Empty leaves the node free text. See
 	// docs/design/structured-output.md.
 	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
+}
+
+// NodeAgent names the Agent a node runs as. Revision, when set, pins a specific
+// Agent revision; zero leaves the node on the Agent's current definition, which
+// the run still snapshots at start. Revision-pinning at publication is a later
+// slice, so a zero revision is accepted today.
+type NodeAgent struct {
+	ID       string `json:"id"`
+	Revision int    `json:"revision,omitempty"`
+}
+
+// NodeInput is a node's task instruction and the values bound into it.
+type NodeInput struct {
+	Instruction string `json:"instruction"`
+	// Bindings feed selected values into this node's input. Each names a value
+	// (Name) taken from a source (the run's input, or a transitive predecessor
+	// node's output envelope) at an RFC 6901 pointer. The bound value reaches the
+	// Task as labelled untrusted context, never the agent's instructions.
+	Bindings []StepBinding `json:"bindings,omitempty"`
+}
+
+// IssueAccess is how a node relates to the run's Issue. IssueAccessNone gives the
+// node's Task no Issue relation; IssueAccessIfBound gives it the run's Issue when
+// the run has one; IssueAccessRequired additionally makes run admission fail when
+// the run has no Issue. This makes Issue capability an explicit per-node choice
+// instead of silently granting or withholding it everywhere.
+const (
+	IssueAccessNone     = "none"
+	IssueAccessIfBound  = "if_bound"
+	IssueAccessRequired = "required"
+)
+
+// ValidIssueAccess reports whether s is a supported issue_access value. The empty
+// string is not valid here; the parser defaults it to IssueAccessNone first.
+func ValidIssueAccess(s string) bool {
+	switch s {
+	case IssueAccessNone, IssueAccessIfBound, IssueAccessRequired:
+		return true
+	default:
+		return false
+	}
 }
 
 // BindingSourceWorkflowInput is the binding source that selects into the run's
@@ -357,6 +443,8 @@ type CreateNodeRunInput struct {
 	NodeID            string
 	NodeIndex         int
 	NodeType          string
+	Needs             []string
+	IssueAccess       string
 	TargetAgentID     *string
 	AgentName         string
 	AgentDescription  string
@@ -403,15 +491,16 @@ type TransitionNodeRunInput struct {
 	EndedAt        *time.Time
 }
 
-// FinalizeFailedRunInput ends a run because one step ended badly. In one
-// transaction the store moves the step to NodeStatus (failed or canceled),
-// blocks every later step still pending, and moves the run to RunStatus. Both
-// moves are guarded: nothing is written unless the step is at NodeExpected and
-// both transitions are valid.
+// FinalizeFailedRunInput ends a run because one node ended badly. In one
+// transaction the store moves the node to NodeStatus (failed or canceled),
+// blocks every node still pending, cancels every sibling still running, and
+// moves the run to RunStatus. Failure is fail-fast: the run terminates, so no
+// not-yet-started node runs and no in-flight sibling is left under a terminal
+// run. The node and run moves are guarded: nothing is written unless the node
+// is at NodeExpected and both transitions are valid.
 type FinalizeFailedRunInput struct {
 	WorkflowRunID string
 	NodeRunID     string
-	NodeIndex     int
 	NodeExpected  NodeRunStatus
 	NodeStatus    NodeRunStatus
 	RunExpected   RunStatus

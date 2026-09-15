@@ -60,7 +60,7 @@ func TestWorkflowCreateAndPublishAreAudited(t *testing.T) {
 		},
 		Audit: audit.NewRecorder(events),
 	}
-	def := `{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect"}]}`
+	def := `{"schema_version":1,"nodes":[{"id":"collect","type":"agent_task","agent":{"id":"a_1"},"input":{"instruction":"collect"}}]}`
 	created, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
 		SpaceID: "tm_1", UserID: "u_1", Name: "WF", Definition: def,
 	})

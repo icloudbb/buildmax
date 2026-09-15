@@ -204,7 +204,7 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 
 	fx.workflows.Workflows = []coreworkflow.Workflow{{
 		ID: wfID, SpaceID: fx.personalID, Name: "WF",
-		Definition: `{"schema_version":1,"steps":[]}`, Status: coreworkflow.StatusPublished,
+		Definition: `{"schema_version":1,"nodes":[]}`, Status: coreworkflow.StatusPublished,
 	}}
 	fx.workflows.Runs = []coreworkflow.Run{{
 		ID: workflowRunID, WorkflowID: wfID,

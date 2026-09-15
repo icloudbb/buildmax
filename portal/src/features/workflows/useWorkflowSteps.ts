@@ -40,6 +40,10 @@ export interface WorkflowStepsState {
  */
 export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   const [steps, setSteps] = useState<WorkflowStepDraft[]>([])
+  // maxParallelNodes preserves the definition's policy.max_parallel_nodes across
+  // parse and serialize. The step form does not edit it yet; advanced JSON does,
+  // and carrying it here keeps that value from being stripped on save.
+  const [maxParallelNodes, setMaxParallelNodes] = useState<number | null>(null)
   const [advanced, setAdvanced] = useState(false)
   const [definitionText, setDefinitionTextRaw] = useState("")
   const [definitionParseError, setDefinitionParseError] = useState<string | null>(null)
@@ -47,6 +51,7 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   const hydrate = useCallback((definition: string) => {
     const parsed = parseDefinition(definition)
     setSteps(parsed?.steps ?? [])
+    setMaxParallelNodes(parsed?.maxParallelNodes ?? null)
     setDefinitionTextRaw(definition)
     setDefinitionParseError(parsed ? null : "This workflow's saved definition is not valid JSON.")
     setAdvanced(!parsed)
@@ -113,6 +118,7 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     const parsed = parseDefinition(text)
     if (parsed) {
       setSteps(parsed.steps)
+      setMaxParallelNodes(parsed.maxParallelNodes)
       setDefinitionParseError(null)
     } else {
       setDefinitionParseError("This isn't valid JSON yet.")
@@ -129,17 +135,18 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
         return
       }
       setSteps(parsed.steps)
+      setMaxParallelNodes(parsed.maxParallelNodes)
       setDefinitionParseError(null)
       setAdvanced(false)
       return
     }
-    setDefinitionTextRaw(stepsToDefinition(steps))
+    setDefinitionTextRaw(stepsToDefinition(steps, maxParallelNodes))
     setDefinitionParseError(null)
     setAdvanced(true)
-  }, [advanced, definitionText, steps])
+  }, [advanced, definitionText, steps, maxParallelNodes])
 
   const errors = useMemo(() => validateSteps(steps, agents), [steps, agents])
-  const definition = useMemo(() => stepsToDefinition(steps), [steps])
+  const definition = useMemo(() => stepsToDefinition(steps, maxParallelNodes), [steps, maxParallelNodes])
 
   return {
     steps,

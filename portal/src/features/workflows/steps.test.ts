@@ -11,46 +11,97 @@ function step(over: Partial<WorkflowStepDraft> = {}): WorkflowStepDraft {
 }
 
 describe("stepsToDefinition / parseDefinition", () => {
-  it("round-trips a step through the wire shape", () => {
-    const original = [step()]
-    const parsed = parseDefinition(stepsToDefinition(original))
-    expect(parsed?.steps).toEqual(original)
+  it("round-trips a step through the wire shape, making the linear chain explicit", () => {
+    // A form-authored step carries no needs; serialization derives the linear
+    // chain, so it comes back as an explicit root ([]).
+    const parsed = parseDefinition(stepsToDefinition([step()]))
+    expect(parsed?.steps).toEqual([{ ...step(), needs: [] }])
   })
 
   it("says no rather than guessing when the JSON does not parse", () => {
     expect(parseDefinition("{not json")).toBeNull()
   })
 
-  it("says no when there is no steps array at all", () => {
-    expect(parseDefinition(JSON.stringify({ notSteps: [] }))).toBeNull()
+  it("says no when there is no nodes array at all", () => {
+    expect(parseDefinition(JSON.stringify({ notNodes: [] }))).toBeNull()
   })
 
-  it("reads a step's type verbatim rather than defaulting it to agent_task", () => {
+  it("reads a node's type verbatim rather than defaulting it to agent_task", () => {
     // An unsupported type from hand-edited JSON has to survive parsing so
     // validateSteps can catch it -- silently coercing it here would hide the
     // exact mistake the advanced mode exists to let a reader see.
     const parsed = parseDefinition(
-      JSON.stringify({ steps: [{ step_id: "s1", type: "shell_command", target_agent_id: "a_1", prompt: "x" }] }),
+      JSON.stringify({ nodes: [{ id: "s1", type: "shell_command", target_agent_id: "a_1", prompt: "x" }] }),
     )
     expect(parsed?.steps[0].type).toBe("shell_command")
   })
 
-  it("generates an id for a step whose JSON left it out", () => {
-    const parsed = parseDefinition(JSON.stringify({ steps: [{ target_agent_id: "a_1", prompt: "x" }] }))
+  it("generates an id for a node whose JSON left it out", () => {
+    const parsed = parseDefinition(JSON.stringify({ nodes: [{ target_agent_id: "a_1", prompt: "x" }] }))
     expect(parsed?.steps[0].id).toBeTruthy()
   })
 
-  it("round-trips a step's input bindings so advanced JSON does not drop them", () => {
+  it("round-trips a node's needs and bindings so advanced JSON does not drop them", () => {
     const original = [
-      step({ id: "collect" }),
-      step({ id: "summarize", bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }] }),
+      step({ id: "collect", needs: [] }),
+      step({
+        id: "summarize",
+        needs: ["collect"],
+        bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }],
+      }),
     ]
     const parsed = parseDefinition(stepsToDefinition(original))
     expect(parsed?.steps).toEqual(original)
   })
 
+  it("emits needs edges in the wire shape for a linear chain", () => {
+    const wire = JSON.parse(stepsToDefinition([step({ id: "a" }), step({ id: "b" })]))
+    expect(wire.nodes[0].needs).toBeUndefined()
+    expect(wire.nodes[1].needs).toEqual(["a"])
+  })
+
   it("declares the schema version the runtime requires", () => {
     expect(JSON.parse(stepsToDefinition([step()])).schema_version).toBe(1)
+  })
+
+  it("emits the nested agent and input wire shape", () => {
+    const node = JSON.parse(stepsToDefinition([step({ id: "a", targetAgentId: "agt_1", prompt: "Do it." })])).nodes[0]
+    expect(node.agent).toEqual({ id: "agt_1" })
+    expect(node.input).toEqual({ instruction: "Do it." })
+    expect(node).not.toHaveProperty("target_agent_id")
+    expect(node).not.toHaveProperty("prompt")
+  })
+
+  it("carries a pinned agent.revision through parse and serialize", () => {
+    expect(JSON.parse(stepsToDefinition([step()])).nodes[0].agent).toEqual({ id: "a_1" })
+    const wire = stepsToDefinition([step({ agentRevision: 3 })])
+    expect(JSON.parse(wire).nodes[0].agent).toEqual({ id: "a_1", revision: 3 })
+    expect(parseDefinition(wire)?.steps[0].agentRevision).toBe(3)
+  })
+
+  it("carries issue_access through parse and serialize", () => {
+    expect(stepsToDefinition([step()])).not.toContain("issue_access")
+    const wire = stepsToDefinition([step({ issueAccess: "required" })])
+    expect(JSON.parse(wire).nodes[0].issue_access).toBe("required")
+    expect(parseDefinition(wire)?.steps[0].issueAccess).toBe("required")
+  })
+
+  it("nests a node's bindings under input", () => {
+    const wire = JSON.parse(
+      stepsToDefinition([
+        step({ id: "a" }),
+        step({ id: "b", bindings: [{ name: "r", source: "node.a.output", pointer: "/text" }] }),
+      ]),
+    )
+    expect(wire.nodes[1].input.bindings).toEqual([{ name: "r", source: "node.a.output", pointer: "/text" }])
+  })
+
+  it("carries policy.max_parallel_nodes through parse and serialize", () => {
+    expect(stepsToDefinition([step()])).not.toContain("policy")
+    const wire = stepsToDefinition([step()], 3)
+    expect(JSON.parse(wire).policy).toEqual({ max_parallel_nodes: 3 })
+    expect(parseDefinition(wire)?.maxParallelNodes).toBe(3)
+    expect(parseDefinition(stepsToDefinition([step()]))?.maxParallelNodes).toBeNull()
   })
 
   it("emits bindings in the wire snake_case shape only when a step has them", () => {
@@ -129,12 +180,44 @@ describe("validateSteps", () => {
       step({ id: "collect", bindings: [{ name: "x", source: "node.summarize.output", pointer: "" }] }),
       step({ id: "summarize" }),
     ]
-    expect(validateSteps(steps, agents).some((e) => e.index === 0 && /earlier step/.test(e.message))).toBe(true)
+    expect(validateSteps(steps, agents).some((e) => e.index === 0 && /depends on/.test(e.message))).toBe(true)
   })
 
   it("refuses a binding to the step itself", () => {
     const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", source: "node.b.output", pointer: "" }] })]
-    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /earlier step/.test(e.message))).toBe(true)
+    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /depends on/.test(e.message))).toBe(true)
+  })
+
+  it("refuses a binding to an existing node that is not a predecessor", () => {
+    // Two explicit roots: b reads a's output but does not depend on it.
+    const steps = [
+      step({ id: "a", needs: [] }),
+      step({ id: "b", needs: [], bindings: [{ name: "x", source: "node.a.output", pointer: "" }] }),
+    ]
+    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /depends on/.test(e.message))).toBe(true)
+  })
+
+  it("accepts a binding to a transitive predecessor across a fan-in", () => {
+    // report depends on analyze, which depends on collect; report may read collect.
+    const steps = [
+      step({ id: "collect", needs: [] }),
+      step({ id: "analyze", needs: ["collect"] }),
+      step({ id: "report", needs: ["analyze"], bindings: [{ name: "r", source: "node.collect.output", pointer: "/text" }] }),
+    ]
+    expect(validateSteps(steps, agents)).toEqual([])
+  })
+
+  it("rejects a needs cycle", () => {
+    const steps = [
+      step({ id: "a", needs: ["b"] }),
+      step({ id: "b", needs: ["a"] }),
+    ]
+    expect(validateSteps(steps, agents).some((e) => /depend on each other/.test(e.message))).toBe(true)
+  })
+
+  it("rejects a needs edge to an unknown node", () => {
+    const steps = [step({ id: "a", needs: ["ghost"] })]
+    expect(validateSteps(steps, agents).some((e) => /unknown step/.test(e.message))).toBe(true)
   })
 
   it("refuses a binding with no name", () => {

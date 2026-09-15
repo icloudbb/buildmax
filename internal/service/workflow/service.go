@@ -36,12 +36,17 @@ var (
 	ErrInvalidDefinition          = apierr.New(apierr.KindInvalid, "invalid workflow definition")
 	ErrUnsupportedSchemaVersion   = apierr.New(apierr.KindInvalid, "unsupported workflow schema_version: only schema_version 1 is supported")
 	ErrInvalidInputSchema         = apierr.New(apierr.KindInvalid, "invalid workflow input_schema: must be within the supported JSON Schema subset")
-	ErrInvalidResult              = apierr.New(apierr.KindInvalid, "invalid workflow result: source must be node.<id>.output naming an existing step, with a valid RFC 6901 pointer")
+	ErrInvalidResult              = apierr.New(apierr.KindInvalid, "invalid workflow result: source must be node.<id>.output naming an existing node, with a valid RFC 6901 pointer")
 	ErrInvalidRunInput            = apierr.New(apierr.KindInvalid, "invalid workflow run input: it must be JSON satisfying the workflow input_schema, and is only accepted when the workflow declares one")
-	ErrInvalidNodeType            = apierr.New(apierr.KindInvalid, "invalid workflow step type")
-	ErrInvalidStepID              = apierr.New(apierr.KindInvalid, "invalid workflow step_id")
-	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow step binding: a unique name, a source of workflow.input or node.<id>.output naming an earlier step, and a valid RFC 6901 pointer are required")
-	ErrInvalidOutputSchema        = apierr.New(apierr.KindInvalid, "invalid workflow step output_schema: must be within the supported JSON Schema subset")
+	ErrInvalidNodeType            = apierr.New(apierr.KindInvalid, "invalid workflow node type")
+	ErrInvalidNodeID              = apierr.New(apierr.KindInvalid, "invalid workflow node id: each node needs a unique non-empty id")
+	ErrInvalidNeeds               = apierr.New(apierr.KindInvalid, "invalid workflow node needs: each entry must name a distinct existing node, the edges must form a directed acyclic graph, and a node may not need itself")
+	ErrInvalidPolicy              = apierr.New(apierr.KindInvalid, "invalid workflow policy: max_parallel_nodes must be between 1 and the deployment maximum")
+	ErrInvalidIssueAccess         = apierr.New(apierr.KindInvalid, "invalid workflow node issue_access: must be none, if_bound, or required")
+	ErrInvalidAgentRevision       = apierr.New(apierr.KindInvalid, "invalid workflow node agent revision: the pinned revision does not exist")
+	ErrIssueRequired              = apierr.New(apierr.KindInvalid, "workflow run requires an issue: a node declares issue_access required but the run has none")
+	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow node binding: a unique name, a source of workflow.input or node.<id>.output naming a predecessor node, and a valid RFC 6901 pointer are required")
+	ErrInvalidOutputSchema        = apierr.New(apierr.KindInvalid, "invalid workflow node output_schema: must be within the supported JSON Schema subset")
 	ErrInvalidTargetAgent         = apierr.New(apierr.KindInvalid, "invalid target agent")
 	ErrInvalidWorkflowStatus      = apierr.New(apierr.KindInvalid, "invalid workflow status")
 	ErrWorkflowNotPublished       = apierr.New(apierr.KindInvalid, "workflow not published")
@@ -189,19 +194,43 @@ func (s *Service) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflowCmd) (*c
 		Status:      nil,
 		UpdatedBy:   cmd.UserID,
 	}
-	if cmd.Definition != nil {
-		if strings.TrimSpace(*cmd.Definition) == "" {
-			return nil, ErrWorkflowDefinitionRequired
-		}
-		if _, _, err := s.parseAndValidateDefinition(ctx, cmd.SpaceID, *cmd.Definition); err != nil {
-			return nil, err
-		}
+	if cmd.Definition != nil && strings.TrimSpace(*cmd.Definition) == "" {
+		return nil, ErrWorkflowDefinitionRequired
 	}
 	if cmd.Status != nil {
 		if !isValidWorkflowStatus(*cmd.Status) {
 			return nil, ErrInvalidWorkflowStatus
 		}
 		in.Status = cmd.Status
+	}
+	// Publishing pins the definition's agent revisions and canonicalizes it, so a
+	// published plan names immutable Agent revisions a later run uses without
+	// resolving "latest". Any other status change validates the incoming
+	// definition without rewriting it.
+	if cmd.Status != nil && *cmd.Status == coreworkflow.StatusPublished {
+		raw := ""
+		if cmd.Definition != nil {
+			raw = *cmd.Definition
+		} else {
+			current, err := s.GetWorkflow(ctx, cmd.SpaceID, cmd.WorkflowID)
+			if err != nil {
+				return nil, err
+			}
+			raw = current.Definition
+		}
+		def, agents, err := s.parseAndValidateDefinition(ctx, cmd.SpaceID, raw)
+		if err != nil {
+			return nil, err
+		}
+		pinned, err := pinDefinitionAgents(def, agents)
+		if err != nil {
+			return nil, err
+		}
+		in.Definition = &pinned
+	} else if cmd.Definition != nil {
+		if _, _, err := s.parseAndValidateDefinition(ctx, cmd.SpaceID, *cmd.Definition); err != nil {
+			return nil, err
+		}
 	}
 	// The update is guarded on the revision the service observed. A restore pins
 	// the revision it read; a plain edit observes the current one now, so two
@@ -318,8 +347,8 @@ func (s *Service) PublishedWorkflowsUsingAgent(ctx context.Context, spaceID, age
 		if err != nil {
 			continue
 		}
-		for j := range def.Steps {
-			if def.Steps[j].TargetAgentID == agentID {
+		for j := range def.Nodes {
+			if def.Nodes[j].Agent.ID == agentID {
 				using = append(using, workflows[i])
 				break
 			}
@@ -385,6 +414,11 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err := s.validateIssueForRun(ctx, cmd.SpaceID, workflow.ID, cmd.IssueID); err != nil {
 		return nil, nil, err
 	}
+	// A node with issue_access "required" cannot run without an Issue, so admission
+	// fails now rather than dispatching a run that must strand that node.
+	if (cmd.IssueID == nil || *cmd.IssueID == "") && definitionRequiresIssue(def) {
+		return nil, nil, ErrIssueRequired
+	}
 	runInput, err := resolveRunInput(def, cmd.Input)
 	if err != nil {
 		return nil, nil, err
@@ -402,22 +436,39 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err != nil {
 		return nil, nil, err
 	}
-	stepsIn := make([]coreworkflow.CreateNodeRunInput, len(def.Steps))
-	for i := range def.Steps {
-		target := def.Steps[i].TargetAgentID
-		agent := agents[target]
+	// The graph decides execution order: a node run's index is its position in the
+	// definition's deterministic topological order, so listing node runs by index
+	// shows them consistent with their dependencies. Publication already proved the
+	// graph is a DAG, so BuildGraph cannot fail here.
+	graph, err := coreworkflow.BuildGraph(def.Nodes)
+	if err != nil {
+		return nil, nil, err
+	}
+	topoIndex := make(map[string]int, len(def.Nodes))
+	for idx, id := range graph.Order() {
+		topoIndex[id] = idx
+	}
+	stepsIn := make([]coreworkflow.CreateNodeRunInput, len(def.Nodes))
+	for i := range def.Nodes {
+		target := def.Nodes[i].Agent.ID
+		snap, err := s.resolveNodeAgentSnapshot(ctx, def.Nodes[i], agents)
+		if err != nil {
+			return nil, nil, err
+		}
 		stepsIn[i] = coreworkflow.CreateNodeRunInput{
-			NodeID:            def.Steps[i].StepID,
-			NodeIndex:         i,
-			NodeType:          def.Steps[i].Type,
+			NodeID:            def.Nodes[i].ID,
+			NodeIndex:         topoIndex[def.Nodes[i].ID],
+			NodeType:          def.Nodes[i].Type,
+			Needs:             def.Nodes[i].Needs,
+			IssueAccess:       def.Nodes[i].IssueAccess,
 			TargetAgentID:     &target,
-			AgentName:         agent.Name,
-			AgentDescription:  agent.Description,
-			AgentInstructions: agent.Instructions,
-			AgentRevision:     agent.Revision,
-			Prompt:            def.Steps[i].Prompt,
-			Bindings:          def.Steps[i].Bindings,
-			OutputSchema:      outputSchemaSnapshot(def.Steps[i].OutputSchema),
+			AgentName:         snap.name,
+			AgentDescription:  snap.description,
+			AgentInstructions: snap.instructions,
+			AgentRevision:     snap.revision,
+			Prompt:            def.Nodes[i].Input.Instruction,
+			Bindings:          def.Nodes[i].Input.Bindings,
+			OutputSchema:      outputSchemaSnapshot(def.Nodes[i].OutputSchema),
 			Status:            string(coreworkflow.NodeRunStatusPending),
 		}
 	}
@@ -540,103 +591,102 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 	if err != nil {
 		return err
 	}
-	// A step already running folds first: its TaskRun decides whether the run
-	// advances, fails, or is still working.
-	if running := firstStepWithStatus(steps, coreworkflow.NodeRunStatusRunning); running != nil {
-		taskRun, err := s.stepTaskRun(ctx, running)
+	// Fold every running node whose TaskRun has finished. Failure is fail-fast: the
+	// first node that ended badly finalizes the whole run and returns, so no later
+	// dispatch happens. A node still executing keeps the run active for a later
+	// pass. Concurrency means several nodes may be running at once, so this folds
+	// them all rather than only the first.
+	active := false
+	for i := range steps {
+		if steps[i].Status != string(coreworkflow.NodeRunStatusRunning) {
+			continue
+		}
+		taskRun, err := s.stepTaskRun(ctx, &steps[i])
 		if err != nil {
 			return err
 		}
 		if taskRun == nil || !coretask.RunStatusTerminal(taskRun.Status) {
-			// Still executing (or not yet observable): look again later.
-			*nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
-			return nil
+			active = true
+			continue
 		}
-		return s.foldTerminalStep(ctx, run, *running, taskRun, now, nextReconcileAt)
+		schemaUnsatisfied := steps[i].OutputSchema != nil && taskRun.Structured == nil
+		if taskRun.Status == string(coretask.RunStatusSucceeded) && !schemaUnsatisfied {
+			if err := s.applyNodeSuccess(ctx, steps[i], taskRun, now); err != nil {
+				return err
+			}
+			continue
+		}
+		// This node ended badly, so the run ends fail-fast. finalizeFailedFromNode
+		// blocks the pending nodes and cancels the running siblings in one
+		// transaction, so nothing else starts and no node is left running.
+		return s.finalizeFailedFromNode(ctx, run, steps[i], taskRun, schemaUnsatisfied, now)
 	}
-	// No step is running: dispatch the next pending one, or finalize the run
-	// when none remains. dispatchNextStep re-admits by the stable key, so a step
+	// Re-read after folding successes, then dispatch the ready nodes up to the
+	// concurrency limit. dispatchReadyNodes re-admits by the stable key, so a node
 	// whose Task was admitted before a crash is linked rather than duplicated.
-	dispatched, err := s.dispatchNextStep(ctx, "", run.CreatedBy, run, steps)
+	steps, err = s.Workflows.ListWorkflowNodeRuns(ctx, workflowRunID)
 	if err != nil {
 		return err
 	}
-	if dispatched != nil {
+	def, err := s.runDefinition(ctx, run)
+	if err != nil {
+		return err
+	}
+	dispatched, dispatchActive, err := s.dispatchReadyNodes(ctx, "", run.CreatedBy, run, steps, def.MaxParallelNodes())
+	if err != nil {
+		return err
+	}
+	if active || dispatchActive || dispatched > 0 {
 		*nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
 	}
 	return nil
 }
 
-// foldTerminalStep records a running step's finished TaskRun as the step's
-// outcome and moves the run forward: a success advances to the next step, a
-// failure or cancel ends the run. The transitions are the same guarded moves
-// the callback path used; only the source of the terminal facts changed from a
-// pushed payload to the read TaskRun.
-func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, step coreworkflow.NodeRun, taskRun *coretask.Run, now time.Time, nextReconcileAt **time.Time) error {
-	// A step that declared an output schema succeeds only when the run returned a
-	// value that validated against it: an otherwise-successful run with no
-	// structured value did not satisfy the node's contract, so the step fails
-	// rather than passing an absent value downstream (docs/design/structured-output.md
-	// §9, workflow-runtime §13.1). The runtime already validated the value; a
-	// present taskRun.Structured is a validated one.
-	schemaUnsatisfied := step.OutputSchema != nil && taskRun.Structured == nil
-	if taskRun.Status == string(coretask.RunStatusSucceeded) && !schemaUnsatisfied {
-		applied, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
-			NodeRunID:      step.ID,
-			ExpectedStatus: coreworkflow.NodeRunStatusRunning,
-			NewStatus:      coreworkflow.NodeRunStatusSucceeded,
-			TaskRunID:      &taskRun.ID,
-			// Persist the node's full output onto the run record, so downstream
-			// bindings and the run result read it without re-reading the Task plane.
-			Output:     taskRun.Output,
-			Structured: taskRun.Structured,
-			EndedAt:    &now,
-		})
-		if err != nil {
-			return err
-		}
-		if !applied {
-			// The step was no longer running -- a concurrent pass or cancel
-			// already finished it. Nothing to dispatch.
-			return nil
-		}
-		steps, err := s.Workflows.ListWorkflowNodeRuns(ctx, run.ID)
-		if err != nil {
-			return err
-		}
-		dispatched, err := s.dispatchNextStep(ctx, "", run.CreatedBy, run, steps)
-		if err != nil {
-			return err
-		}
-		if dispatched != nil {
-			*nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
-		}
-		return nil
-	}
-	// A canceled step stops the run the same way a failed one does, but it is
-	// not a failure: someone stopped this work on purpose, and a run labelled
-	// failed would send whoever reads it looking for a fault that never happened.
-	stepStatus := coreworkflow.NodeRunStatusFailed
+// applyNodeSuccess records a finished node's success and its output. A node that
+// declared an output schema succeeds only when the run returned a value that
+// validated against it; that case is decided by the caller, which folds an
+// unsatisfied schema as a failure instead. A false apply (a concurrent pass or
+// cancel already finished the node) is not an error: there is nothing to do.
+func (s *Service) applyNodeSuccess(ctx context.Context, node coreworkflow.NodeRun, taskRun *coretask.Run, now time.Time) error {
+	_, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+		NodeRunID:      node.ID,
+		ExpectedStatus: coreworkflow.NodeRunStatusRunning,
+		NewStatus:      coreworkflow.NodeRunStatusSucceeded,
+		TaskRunID:      &taskRun.ID,
+		// Persist the node's full output onto the run record, so downstream bindings
+		// and the run result read it without re-reading the Task plane.
+		Output:     taskRun.Output,
+		Structured: taskRun.Structured,
+		EndedAt:    &now,
+	})
+	return err
+}
+
+// finalizeFailedFromNode ends a run because one node finished badly. A canceled
+// node stops the run the same way a failed one does, but it is not a failure:
+// someone stopped this work on purpose, and a run labelled failed would send
+// whoever reads it looking for a fault that never happened. In one transaction
+// the store moves the node terminal, blocks every pending node, cancels every
+// running sibling, and moves the run terminal -- so a crash cannot leave a
+// failed node under a run that still reads as running.
+func (s *Service) finalizeFailedFromNode(ctx context.Context, run *coreworkflow.Run, node coreworkflow.NodeRun, taskRun *coretask.Run, schemaUnsatisfied bool, now time.Time) error {
+	nodeStatus := coreworkflow.NodeRunStatusFailed
 	runStatus := coreworkflow.RunStatusFailed
 	if taskRun.Status == string(coretask.RunStatusCanceled) {
-		stepStatus = coreworkflow.NodeRunStatusCanceled
+		nodeStatus = coreworkflow.NodeRunStatusCanceled
 		runStatus = coreworkflow.RunStatusCanceled
 	}
 	errorMessage := taskRun.ErrorMessage
 	if schemaUnsatisfied && taskRun.Status == string(coretask.RunStatusSucceeded) {
 		// The run finished, but its answer did not satisfy the declared output
 		// schema, so the node fails with a reason rather than the run's empty one.
-		errorMessage = util.Ptr("step required structured output but the run did not return a value satisfying its output_schema")
+		errorMessage = util.Ptr("node required structured output but the run did not return a value satisfying its output_schema")
 	}
-	// One transaction ends the run: the step goes terminal, every later step
-	// still pending is blocked, and the run goes terminal -- so a crash cannot
-	// leave a failed step under a run that still reads as running.
 	_, err := s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 		WorkflowRunID: run.ID,
-		NodeRunID:     step.ID,
-		NodeIndex:     step.NodeIndex,
+		NodeRunID:     node.ID,
 		NodeExpected:  coreworkflow.NodeRunStatusRunning,
-		NodeStatus:    stepStatus,
+		NodeStatus:    nodeStatus,
 		RunExpected:   coreworkflow.RunStatusRunning,
 		RunStatus:     runStatus,
 		TaskRunID:     &taskRun.ID,
@@ -663,41 +713,71 @@ func (s *Service) stepTaskRun(ctx context.Context, step *coreworkflow.NodeRun) (
 	return s.TaskRuns.GetTaskRun(ctx, *step.TaskRunID)
 }
 
-// firstStepWithStatus returns the first step in the given status, or nil.
-func firstStepWithStatus(steps []coreworkflow.NodeRun, status coreworkflow.NodeRunStatus) *coreworkflow.NodeRun {
-	for i := range steps {
-		if steps[i].Status == string(status) {
-			return &steps[i]
+// nodeReady reports whether a pending node may now start: every node it needs
+// has succeeded. Failure is fail-fast and terminates the whole run, so a node
+// whose need ended in any non-success status is never reached.
+func nodeReady(node coreworkflow.NodeRun, statusByID map[string]coreworkflow.NodeRunStatus) bool {
+	for _, need := range node.Needs {
+		if statusByID[need] != coreworkflow.NodeRunStatusSucceeded {
+			return false
 		}
 	}
-	return nil
+	return true
 }
 
-func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.NodeRun) (*coreworkflow.NodeRun, error) {
+// dispatchReadyNodes starts every pending node whose needs have all succeeded,
+// up to limit nodes running at once, and finalizes the run as succeeded when no
+// node remains pending or running. It returns how many nodes it dispatched and
+// whether the run is still active (a node is running or a pending node is only
+// waiting on the concurrency limit), so the caller can schedule the next pass.
+//
+// Readiness -- not array position -- decides what runs: a pending node starts
+// only when every node it needs has succeeded. steps arrive in topological
+// order, so a deterministic prefix of the ready nodes is chosen when the limit
+// binds.
+func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.NodeRun, limit int) (dispatched int, active bool, err error) {
+	statusByID := make(map[string]coreworkflow.NodeRunStatus, len(steps))
+	running := 0
+	for i := range steps {
+		statusByID[steps[i].NodeID] = coreworkflow.NodeRunStatus(steps[i].Status)
+		if steps[i].Status == string(coreworkflow.NodeRunStatusRunning) {
+			running++
+		}
+	}
+	pendingRemains := false
 	for i := range steps {
 		if steps[i].Status != string(coreworkflow.NodeRunStatusPending) {
 			continue
 		}
+		pendingRemains = true
+		if !nodeReady(steps[i], statusByID) {
+			continue
+		}
+		if running >= limit {
+			// A ready node is waiting only on the concurrency limit, so the run is
+			// still active even though nothing was dispatched for it this pass.
+			active = true
+			break
+		}
 		if spaceID == "" {
 			workflow, err := s.Workflows.GetWorkflow(ctx, run.WorkflowID)
 			if err != nil {
-				return nil, err
+				return dispatched, active, err
 			}
 			if workflow == nil {
-				return nil, ErrWorkflowNotFound
+				return dispatched, active, ErrWorkflowNotFound
 			}
 			spaceID = workflow.SpaceID
 		}
 		startedAt := time.Now().UTC()
 		taskItem, taskRunID, resolvedInput, err := s.createStepTask(ctx, spaceID, userID, run, steps[i], steps)
 		if err != nil {
-			// The step never started, so it fails from pending and the run ends
-			// with it -- one transaction, the same path a running step's failure
-			// takes.
+			// The node never started, so it fails from pending and the run ends with
+			// it -- one transaction that also blocks the pending nodes and cancels the
+			// running siblings, the same path a running node's failure takes.
 			_, _ = s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 				WorkflowRunID: run.ID,
 				NodeRunID:     steps[i].ID,
-				NodeIndex:     steps[i].NodeIndex,
 				NodeExpected:  coreworkflow.NodeRunStatusPending,
 				NodeStatus:    coreworkflow.NodeRunStatusFailed,
 				RunExpected:   coreworkflow.RunStatusRunning,
@@ -706,7 +786,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 				StartedAt:     &startedAt,
 				EndedAt:       &startedAt,
 			})
-			return nil, err
+			return dispatched, false, err
 		}
 		if _, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
 			NodeRunID:      steps[i].ID,
@@ -717,17 +797,27 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 			ResolvedInput:  &resolvedInput,
 			StartedAt:      &startedAt,
 		}); err != nil {
-			return nil, err
+			return dispatched, active, err
 		}
-		return &steps[i], nil
+		dispatched++
+		running++
+	}
+	if running > 0 {
+		active = true
+	}
+	if pendingRemains || running > 0 {
+		// Work remains: either nodes are running or pending nodes are waiting on
+		// their predecessors or the limit. The run is not done, so it must not
+		// succeed here.
+		return dispatched, active, nil
 	}
 	endedAt := time.Now().UTC()
-	// Every step is terminal and none is pending: the run succeeds. Resolve its
+	// Every node is terminal and none is pending: the run succeeds. Resolve its
 	// declared result from the finished node outputs so the run carries one
 	// authoritative answer, stored in the same transaction that ends it.
 	result, err := s.resolveRunResult(ctx, run, steps)
 	if err != nil {
-		return nil, err
+		return dispatched, active, err
 	}
 	if _, err := s.Workflows.TransitionWorkflowRun(ctx, coreworkflow.TransitionRunInput{
 		WorkflowRunID:  run.ID,
@@ -736,9 +826,9 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 		EndedAt:        &endedAt,
 		Result:         result,
 	}); err != nil {
-		return nil, err
+		return dispatched, active, err
 	}
-	return nil, nil
+	return dispatched, false, nil
 }
 
 // stepAgent returns the agent definition a step must run with. Steps recorded since
@@ -788,6 +878,13 @@ func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, ru
 		return nil, "", "", err
 	}
 	input := buildWorkflowTaskInput(agent, step.Prompt, bound)
+	// issue_access decides whether this node's Task carries the run's Issue: none
+	// withholds it, if_bound and required attach the run's Issue when it has one
+	// (admission already guaranteed one exists for a required node).
+	var issueID *string
+	if step.IssueAccess == coreworkflow.IssueAccessIfBound || step.IssueAccess == coreworkflow.IssueAccessRequired {
+		issueID = run.IssueID
+	}
 	// Admit rather than plain-create so a retried or concurrent dispatch of this
 	// step — including recovery of the crash window between admitting the task
 	// and linking it onto the step run — resolves to the one task instead of
@@ -799,6 +896,7 @@ func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, ru
 		SpaceID:       spaceID,
 		Input:         input,
 		AgentID:       &agentID,
+		IssueID:       issueID,
 		CreatedByType: coretask.RunCreatedByTypeUser,
 		TriggerSource: coretask.RunTriggerSourceWorkflowStep,
 		AdmissionKey:  workflowTaskAdmissionKey(step.WorkflowRunID, step.NodeID),
@@ -888,6 +986,35 @@ func resolveRunInput(def *coreworkflow.Definition, raw string) (*string, error) 
 	return &trimmed, nil
 }
 
+// pinDefinitionAgents returns def's canonical JSON with every node's
+// agent.revision set: a zero (unset, "latest") revision is pinned to the agent's
+// current revision, and a revision already set is kept. Publishing calls this so
+// the stored plan names immutable Agent revisions and a later run never resolves
+// "latest".
+func pinDefinitionAgents(def *coreworkflow.Definition, agents map[string]agentdef.Agent) (string, error) {
+	for i := range def.Nodes {
+		if def.Nodes[i].Agent.Revision == 0 {
+			def.Nodes[i].Agent.Revision = agents[def.Nodes[i].Agent.ID].Revision
+		}
+	}
+	encoded, err := json.Marshal(def)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+// definitionRequiresIssue reports whether any node declares issue_access
+// "required", so a run without an Issue cannot satisfy the definition.
+func definitionRequiresIssue(def *coreworkflow.Definition) bool {
+	for i := range def.Nodes {
+		if def.Nodes[i].IssueAccess == coreworkflow.IssueAccessRequired {
+			return true
+		}
+	}
+	return false
+}
+
 func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 	var def coreworkflow.Definition
 	if err := json.Unmarshal([]byte(raw), &def); err != nil {
@@ -904,38 +1031,61 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 			return nil, apierr.Detail(ErrInvalidInputSchema, "%v", err)
 		}
 	}
-	if len(def.Steps) == 0 {
+	// A definition-set concurrency limit must be positive and within the
+	// deployment ceiling, so a published plan cannot ask for more parallelism than
+	// the runtime allows. Absent leaves the run at the ceiling.
+	if def.Policy != nil && def.Policy.MaxParallelNodes != 0 {
+		if def.Policy.MaxParallelNodes < 1 || def.Policy.MaxParallelNodes > coreworkflow.MaxParallelNodesCeiling {
+			return nil, ErrInvalidPolicy
+		}
+	}
+	if len(def.Nodes) == 0 {
 		return nil, ErrInvalidDefinition
 	}
-	seen := make(map[string]struct{}, len(def.Steps))
-	for i := range def.Steps {
-		step := &def.Steps[i]
-		step.StepID = strings.TrimSpace(step.StepID)
-		step.Type = strings.TrimSpace(step.Type)
-		step.TargetAgentID = strings.TrimSpace(step.TargetAgentID)
-		step.Prompt = strings.TrimSpace(step.Prompt)
-		if step.StepID == "" {
-			return nil, ErrInvalidStepID
+	// First pass: canonicalize every node's scalar fields, enforce unique ids, and
+	// validate binding shape (name, pointer). Binding-source reachability and the
+	// `needs` edges are graph properties, checked after the graph is built, so the
+	// error for a bad edge or a non-predecessor binding is precise.
+	ids := make(map[string]struct{}, len(def.Nodes))
+	for i := range def.Nodes {
+		node := &def.Nodes[i]
+		node.ID = strings.TrimSpace(node.ID)
+		node.Type = strings.TrimSpace(node.Type)
+		node.Agent.ID = strings.TrimSpace(node.Agent.ID)
+		node.Input.Instruction = strings.TrimSpace(node.Input.Instruction)
+		if node.ID == "" {
+			return nil, ErrInvalidNodeID
 		}
-		if _, ok := seen[step.StepID]; ok {
-			return nil, ErrInvalidStepID
+		if _, ok := ids[node.ID]; ok {
+			return nil, ErrInvalidNodeID
 		}
-		if step.Type != coreworkflow.NodeTypeAgentTask {
+		ids[node.ID] = struct{}{}
+		if node.Type != coreworkflow.NodeTypeAgentTask {
 			return nil, ErrInvalidNodeType
 		}
-		if step.TargetAgentID == "" || step.Prompt == "" {
+		if node.Agent.ID == "" || node.Input.Instruction == "" {
 			return nil, ErrInvalidDefinition
 		}
-		// Each binding names a value, a source, and an RFC 6901 pointer into that
-		// source. The source is the run input or an earlier node's output -- a
-		// "node.<id>.output" source is validated against the prior step ids gathered
-		// so far, before this step's id joins them, which rejects a source naming a
-		// missing step, a later one, or the step itself in one membership test. The
-		// pointer only has to be syntactically valid at publication; whether it
-		// resolves is a run-time fact about real predecessor output.
-		bindingNames := make(map[string]struct{}, len(step.Bindings))
-		for j := range step.Bindings {
-			b := &step.Bindings[j]
+		if node.Agent.Revision < 0 {
+			return nil, apierr.Detail(ErrInvalidDefinition, "node %q agent.revision cannot be negative", node.ID)
+		}
+		// issue_access defaults to none and must be one of the supported modes, so a
+		// node's Issue capability is an explicit, validated choice.
+		if node.IssueAccess == "" {
+			node.IssueAccess = coreworkflow.IssueAccessNone
+		}
+		if !coreworkflow.ValidIssueAccess(node.IssueAccess) {
+			return nil, apierr.Detail(ErrInvalidIssueAccess, "node %q: %q", node.ID, node.IssueAccess)
+		}
+		for j := range node.Needs {
+			node.Needs[j] = strings.TrimSpace(node.Needs[j])
+			if node.Needs[j] == "" {
+				return nil, ErrInvalidNeeds
+			}
+		}
+		bindingNames := make(map[string]struct{}, len(node.Input.Bindings))
+		for j := range node.Input.Bindings {
+			b := &node.Input.Bindings[j]
 			b.Name = strings.TrimSpace(b.Name)
 			b.Source = strings.TrimSpace(b.Source)
 			b.Pointer = strings.TrimSpace(b.Pointer)
@@ -947,12 +1097,8 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 			}
 			bindingNames[b.Name] = struct{}{}
 			if b.Source != coreworkflow.BindingSourceWorkflowInput {
-				fromStep, ok := coreworkflow.ParseNodeOutputSource(b.Source)
-				if !ok {
+				if _, ok := coreworkflow.ParseNodeOutputSource(b.Source); !ok {
 					return nil, apierr.Detail(ErrInvalidBinding, "binding %q has an unknown source %q", b.Name, b.Source)
-				}
-				if _, ok := seen[fromStep]; !ok {
-					return nil, apierr.Detail(ErrInvalidBinding, "binding %q reads from unknown or later step %q", b.Name, fromStep)
 				}
 			}
 			if err := coreworkflow.ValidatePointer(b.Pointer); err != nil {
@@ -962,25 +1108,48 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 		// An output schema must be in the shared subset, so a published workflow
 		// cannot declare a constraint the runtime cannot enforce
 		// (docs/design/structured-output.md §6). Absent means free text.
-		if len(bytes.TrimSpace(step.OutputSchema)) > 0 {
-			if _, err := jsonschema.Compile(step.OutputSchema); err != nil {
+		if len(bytes.TrimSpace(node.OutputSchema)) > 0 {
+			if _, err := jsonschema.Compile(node.OutputSchema); err != nil {
 				return nil, apierr.Detail(ErrInvalidOutputSchema, "%v", err)
 			}
 		}
-		seen[step.StepID] = struct{}{}
 	}
-	// The declared run result, when present, selects an existing step's output at
-	// a valid pointer, the same grammar as a binding. Every step id is in seen
-	// now, so a forward or missing reference is rejected here.
+	// The `needs` edges must form a DAG whose every edge names an existing node.
+	// The built graph is the authority for what runs before what, replacing array
+	// position, and answers the binding-reachability question below.
+	graph, err := coreworkflow.BuildGraph(def.Nodes)
+	if err != nil {
+		return nil, apierr.Detail(ErrInvalidNeeds, "%v", err)
+	}
+	// A binding that reads a node's output may only name a transitive predecessor:
+	// the graph guarantees that node has run before this one, so the value exists.
+	// The pointer is only checked syntactically; whether it resolves is a run-time
+	// fact about real predecessor output.
+	for i := range def.Nodes {
+		node := &def.Nodes[i]
+		for j := range node.Input.Bindings {
+			b := &node.Input.Bindings[j]
+			from, ok := coreworkflow.ParseNodeOutputSource(b.Source)
+			if !ok {
+				continue // workflow.input, already validated
+			}
+			if !graph.IsPredecessor(node.ID, from) {
+				return nil, apierr.Detail(ErrInvalidBinding, "binding %q reads from %q, which is not a predecessor of node %q", b.Name, from, node.ID)
+			}
+		}
+	}
+	// The declared run result, when present, selects an existing node's output at
+	// a valid pointer, the same grammar as a binding. With no conditional routes in
+	// the first graph slice every node runs, so an existing node is reachable.
 	if def.Result != nil {
 		def.Result.Source = strings.TrimSpace(def.Result.Source)
 		def.Result.Pointer = strings.TrimSpace(def.Result.Pointer)
-		fromStep, ok := coreworkflow.ParseNodeOutputSource(def.Result.Source)
+		from, ok := coreworkflow.ParseNodeOutputSource(def.Result.Source)
 		if !ok {
 			return nil, apierr.Detail(ErrInvalidResult, "result source %q must be node.<id>.output", def.Result.Source)
 		}
-		if _, ok := seen[fromStep]; !ok {
-			return nil, apierr.Detail(ErrInvalidResult, "result reads from unknown step %q", fromStep)
+		if _, ok := ids[from]; !ok {
+			return nil, apierr.Detail(ErrInvalidResult, "result reads from unknown node %q", from)
 		}
 		if err := coreworkflow.ValidatePointer(def.Result.Pointer); err != nil {
 			return nil, apierr.Detail(ErrInvalidResult, "%v", err)
@@ -1000,9 +1169,9 @@ func (s *Service) resolveDefinitionAgents(ctx context.Context, spaceID string, d
 	if s.Agents == nil {
 		return nil, ErrInvalidTargetAgent
 	}
-	agents := make(map[string]agentdef.Agent, len(def.Steps))
-	for i := range def.Steps {
-		agentID := def.Steps[i].TargetAgentID
+	agents := make(map[string]agentdef.Agent, len(def.Nodes))
+	for i := range def.Nodes {
+		agentID := def.Nodes[i].Agent.ID
 		if _, ok := agents[agentID]; ok {
 			continue
 		}
@@ -1015,7 +1184,48 @@ func (s *Service) resolveDefinitionAgents(ctx context.Context, spaceID string, d
 		}
 		agents[agentID] = *agent
 	}
+	// A node that pins an agent revision must name one that exists. Pinning is
+	// per-node (two nodes may pin different revisions of one agent), so this is a
+	// per-node check, not a per-agent one.
+	for i := range def.Nodes {
+		rev := def.Nodes[i].Agent.Revision
+		if rev <= 0 {
+			continue
+		}
+		got, err := s.Agents.GetAgentRevision(ctx, def.Nodes[i].Agent.ID, rev)
+		if err != nil {
+			return nil, err
+		}
+		if got == nil {
+			return nil, apierr.Detail(ErrInvalidAgentRevision, "node %q pins agent %q revision %d", def.Nodes[i].ID, def.Nodes[i].Agent.ID, rev)
+		}
+	}
 	return agents, nil
+}
+
+// nodeAgentSnapshot is the agent content a node run freezes at start.
+type nodeAgentSnapshot struct {
+	name, description, instructions string
+	revision                        int
+}
+
+// resolveNodeAgentSnapshot returns the agent content a node run should capture. A
+// node that pins a revision captures that immutable revision's content; a node on
+// "latest" captures the agent's current definition. Either way the run keeps the
+// content, so a later Agent edit cannot change what a dispatched node sends.
+func (s *Service) resolveNodeAgentSnapshot(ctx context.Context, node coreworkflow.DefinitionNode, agents map[string]agentdef.Agent) (nodeAgentSnapshot, error) {
+	if node.Agent.Revision > 0 {
+		rev, err := s.Agents.GetAgentRevision(ctx, node.Agent.ID, node.Agent.Revision)
+		if err != nil {
+			return nodeAgentSnapshot{}, err
+		}
+		if rev == nil {
+			return nodeAgentSnapshot{}, apierr.Detail(ErrInvalidAgentRevision, "node %q pins agent %q revision %d", node.ID, node.Agent.ID, node.Agent.Revision)
+		}
+		return nodeAgentSnapshot{name: rev.Name, description: rev.Description, instructions: rev.Instructions, revision: rev.Revision}, nil
+	}
+	a := agents[node.Agent.ID]
+	return nodeAgentSnapshot{name: a.Name, description: a.Description, instructions: a.Instructions, revision: a.Revision}, nil
 }
 
 func isValidWorkflowStatus(status string) bool {

@@ -171,6 +171,8 @@ export function apiWorkflowNodeRunToWorkflowNodeRun(api: ApiWorkflowNodeRun): Wo
     nodeId: api.node_id,
     nodeIndex: api.node_index,
     nodeType: api.node_type,
+    needs: api.needs ?? null,
+    issueAccess: api.issue_access ?? null,
     targetAgentId: api.target_agent_id ?? null,
     agentRevision: api.agent_revision ?? null,
     agentName: api.agent_name ?? null,

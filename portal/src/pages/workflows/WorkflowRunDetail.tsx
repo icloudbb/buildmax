@@ -6,7 +6,7 @@ import {
   apiWorkflowNodeRunToWorkflowNodeRun,
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
-import { getWorkflow, getWorkflowRunDetail } from "../../features/workflows"
+import { getWorkflow, getWorkflowRunDetail, WorkflowGraph } from "../../features/workflows"
 import { navigate } from "../../router"
 import { useApp } from "../../contexts/AppContext"
 import { ApiRequestError } from "../../lib/api/client"
@@ -185,6 +185,24 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
               </div>
             ) : null}
           </section>
+
+          {steps.length > 0 ? (
+            <section className="issues-page__panel">
+              <div className="issues-page__toolbar">
+                <h2 className="issues-page__section-title">Graph</h2>
+                <span className="page-activity__meta">execution order by dependency</span>
+              </div>
+              <WorkflowGraph
+                nodes={steps.map((step) => ({
+                  id: step.nodeId,
+                  status: step.status,
+                  needs: step.needs,
+                  sublabel: step.agentName ?? step.targetAgentId ?? undefined,
+                  onOpen: step.taskId ? () => navigate({ name: "task", spaceId, taskId: step.taskId! }) : undefined,
+                }))}
+              />
+            </section>
+          ) : null}
 
           <section className="issues-page__panel">
             <div className="issues-page__toolbar">

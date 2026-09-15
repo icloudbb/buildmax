@@ -271,9 +271,9 @@ func ensureWorkflow(ctx context.Context, client *http.Client, target smokeTarget
 			return nil
 		}
 	}
-	// One agent_task step is the minimum a definition will validate with, and it
+	// One agent_task node is the minimum a definition will validate with, and it
 	// must target a real agent in this space — hence the agent is seeded first.
-	def := fmt.Sprintf(`{"steps":[{"step_id":"draft","type":"agent_task","target_agent_id":%q,"prompt":"Draft the release notes from the merged changes."}]}`, agentID)
+	def := fmt.Sprintf(`{"schema_version":1,"nodes":[{"id":"draft","type":"agent_task","agent":{"id":%q},"input":{"instruction":"Draft the release notes from the merged changes."}}]}`, agentID)
 	body := map[string]any{"name": name, "description": description, "definition": def}
 	var created fxWorkflow
 	if err := requestJSON(ctx, client, http.MethodPost, base, token, body, &created, http.StatusCreated); err != nil {

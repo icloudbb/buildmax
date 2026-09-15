@@ -231,7 +231,7 @@ func ensureFixtureWorkflows(ctx context.Context, client *http.Client, base, toke
 	for _, spec := range []struct{ name, status string }{{"QA Draft Plan", "draft"}, {"QA Release Review", "published"}, {"QA Archived Plan", "archived"}} {
 		id := byName[spec.name]
 		if id == "" {
-			definition := fmt.Sprintf(`{"steps":[{"step_id":"draft","type":"agent_task","target_agent_id":%q,"prompt":"Draft a concise QA plan."},{"step_id":"review","type":"agent_task","target_agent_id":%q,"prompt":"Review the previous result for missing criteria."}]}`, writer, reviewer)
+			definition := fmt.Sprintf(`{"schema_version":1,"nodes":[{"id":"draft","type":"agent_task","agent":{"id":%q},"input":{"instruction":"Draft a concise QA plan."}},{"id":"review","type":"agent_task","needs":["draft"],"agent":{"id":%q},"input":{"instruction":"Review the previous result for missing criteria."}}]}`, writer, reviewer)
 			var created fxWorkflow
 			if err := requestJSON(ctx, client, http.MethodPost, base+"/workflows", token, map[string]string{"name": spec.name, "description": "Synthetic two-step QA workflow.", "definition": definition}, &created, http.StatusCreated); err != nil {
 				return "", err

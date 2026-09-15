@@ -242,3 +242,100 @@
   font-weight: 400;
   color: var(--muted, #57606a);
 }
+
+/* Read-only workflow DAG (WorkflowGraph). Node boxes are laid out left-to-right
+   by dependency depth; edges are an SVG layer behind them. */
+.wf-graph__scroll {
+  overflow: auto;
+  padding: 0.25rem;
+}
+
+.wf-graph {
+  position: relative;
+}
+
+.wf-graph__edges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wf-graph__edge {
+  stroke: var(--color-border, #d0d7de);
+  stroke-width: 2;
+}
+
+.wf-graph__node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--color-border, #d0d7de);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: var(--color-bg-elevated, #fff);
+  color: var(--color-text, #1f2328);
+  text-align: left;
+  font: inherit;
+  overflow: hidden;
+}
+
+button.wf-graph__node {
+  cursor: pointer;
+}
+
+button.wf-graph__node:hover {
+  background: var(--color-bg-hover, #f6f8fa);
+}
+
+button.wf-graph__node:focus-visible {
+  outline: 2px solid var(--color-focus-ring, #0969da);
+  outline-offset: 1px;
+}
+
+.wf-graph__node-id {
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wf-graph__node-sub {
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #57606a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wf-graph__node-status {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted, #57606a);
+}
+
+.wf-graph__node--succeeded {
+  border-left-color: var(--color-success, #1a7f37);
+}
+
+.wf-graph__node--running {
+  border-left-color: var(--color-accent, #0969da);
+}
+
+.wf-graph__node--failed {
+  border-left-color: var(--color-danger, #d1242f);
+}
+
+.wf-graph__node--blocked {
+  border-left-color: var(--color-warning, #9a6700);
+}
+
+.wf-graph__node--canceled,
+.wf-graph__node--pending,
+.wf-graph__node--unknown {
+  border-left-color: var(--color-border, #d0d7de);
+}
