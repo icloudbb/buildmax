@@ -56,6 +56,7 @@ type workflowRunResponse struct {
 	EndedAt          *time.Time      `json:"ended_at,omitempty"`
 	ErrorMessage     *string         `json:"error_message,omitempty"`
 	Input            json.RawMessage `json:"input,omitempty"`
+	Result           json.RawMessage `json:"result,omitempty"`
 }
 
 type workflowNodeRunResponse struct {
@@ -155,6 +156,7 @@ func workflowRunToResponse(run coreworkflow.Run) workflowRunResponse {
 		EndedAt:          run.EndedAt,
 		ErrorMessage:     run.ErrorMessage,
 		Input:            rawJSONOrNil(run.Input),
+		Result:           rawJSONOrNil(run.Result),
 	}
 }
 

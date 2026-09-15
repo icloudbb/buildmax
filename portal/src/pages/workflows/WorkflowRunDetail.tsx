@@ -176,6 +176,14 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
               {refreshedLabel ? <div><strong>Last refreshed:</strong> {refreshedLabel}</div> : null}
               {run.errorMessage ? <div className="modal__error">{run.errorMessage}</div> : null}
             </div>
+            {run.result != null ? (
+              <div className="workflow-run-page__result">
+                <span className="issues-page__field-label">Result</span>
+                <pre className="workflow-page__step-output">
+                  {typeof run.result === "string" ? run.result : JSON.stringify(run.result, null, 2)}
+                </pre>
+              </div>
+            ) : null}
           </section>
 
           <section className="issues-page__panel">

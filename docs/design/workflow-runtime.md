@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A step binding selects a value from the run input or an earlier step's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer. The stored run result, typed `nodes`/`needs`, schema-constrained output at runtime, static DAGs, and adaptive control remain open
+> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A step binding selects a value from the run input or an earlier step's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer, and a definition may declare a `result` selector whose value a succeeding run stores and surfaces on the run and its issue. This completes the Phase 2 data contract; typed `nodes`/`needs`, schema-constrained output at runtime, static DAGs, and adaptive control remain open
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
@@ -1234,7 +1234,13 @@ even if later product evidence delays R5.
   validates the source and pointer syntax, and resolution reads the persisted
   node output and the accepted TaskRun's attributed Artifacts.
 - store the declared WorkflowRun result; and
-- project one result into Issue and optional Conversation surfaces.
+- project one result into Issue and optional Conversation surfaces. **Shipped:**
+  a definition may declare a `result` selector (`source` + RFC 6901 `pointer`,
+  the binding grammar) naming a step's output; a succeeding run resolves it once
+  and stores it independently on the run as `result_json`, immutable once set,
+  and the run and the issue flow that lists it surface that one result while
+  keeping the node Task/TaskRun provenance. (A workflow run has no Conversation
+  link yet, so the optional Conversation projection is not wired.)
 
 BuildMax is Alpha. Change domain models, row structs, handlers, OpenAPI,
 Portal, tests, and documentation together. Do not maintain both definition

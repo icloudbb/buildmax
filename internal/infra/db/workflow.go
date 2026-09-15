@@ -87,8 +87,11 @@ type workflowRunRow struct {
 	IssueID          *uint64 `gorm:"column:issue_id;index"`
 	// Input is the run's immutable input JSON, validated against the definition's
 	// input_schema at admission. NULL when the definition declares no input_schema.
-	Input        *string    `gorm:"column:input;type:longtext"`
-	Status       string     `gorm:"type:varchar(32);not null"`
+	Input  *string `gorm:"column:input;type:longtext"`
+	Status string  `gorm:"type:varchar(32);not null"`
+	// ResultJSON is the run's declared result, written when it succeeds; NULL
+	// when the definition declares no result selector or the run did not succeed.
+	ResultJSON   *string    `gorm:"column:result_json;type:longtext"`
 	CreatedBy    uint64     `gorm:"column:created_by;not null"`
 	CreatedAt    time.Time  `gorm:"autoCreateTime;index:idx_workflow_run_workflow_created,priority:2"`
 	StartedAt    *time.Time `gorm:""`
@@ -248,6 +251,7 @@ func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 		WorkflowRevision: row.Row.WorkflowRevision,
 		Input:            row.Row.Input,
 		Status:           row.Row.Status,
+		Result:           row.Row.ResultJSON,
 		CreatedBy:        row.CreatedByPublicID,
 		CreatedAt:        row.Row.CreatedAt,
 		StartedAt:        row.Row.StartedAt,
@@ -729,7 +733,7 @@ func (s *Store) CreateWorkflowNodeRuns(ctx context.Context, workflowRunID string
 // always written; the rest only when supplied. A move to a terminal status also
 // clears the reconciliation lease and schedule, so a finished run leaves the due
 // set and no owner keeps a lease on it.
-func runStatusUpdates(status coreworkflow.RunStatus, startedAt, endedAt *time.Time, errorMessage *string) map[string]interface{} {
+func runStatusUpdates(status coreworkflow.RunStatus, startedAt, endedAt *time.Time, errorMessage, result *string) map[string]interface{} {
 	updates := map[string]interface{}{"status": string(status)}
 	if coreworkflow.RunStatusTerminal(status) {
 		updates["reconcile_owner"] = nil
@@ -744,6 +748,9 @@ func runStatusUpdates(status coreworkflow.RunStatus, startedAt, endedAt *time.Ti
 	}
 	if errorMessage != nil {
 		updates["error_message"] = *errorMessage
+	}
+	if result != nil {
+		updates["result_json"] = *result
 	}
 	return updates
 }
@@ -822,7 +829,7 @@ func (s *Store) TransitionWorkflowRun(ctx context.Context, in coreworkflow.Trans
 	}
 	res := s.db.WithContext(ctx).Model(&workflowRunRow{}).
 		Where("public_id = ? AND status = ?", id, string(in.ExpectedStatus)).
-		Updates(runStatusUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.ErrorMessage))
+		Updates(runStatusUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.ErrorMessage, in.Result))
 	if res.Error != nil {
 		return false, res.Error
 	}
@@ -922,7 +929,7 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 
 		// The run always goes terminal here, so runStatusUpdates also clears its
 		// reconciliation lease and schedule.
-		runUpdates := runStatusUpdates(in.RunStatus, nil, in.EndedAt, in.ErrorMessage)
+		runUpdates := runStatusUpdates(in.RunStatus, nil, in.EndedAt, in.ErrorMessage, nil)
 		return tx.Model(&workflowRunRow{}).
 			Where("public_id = ? AND status = ?", runID, string(in.RunExpected)).
 			Updates(runUpdates).Error

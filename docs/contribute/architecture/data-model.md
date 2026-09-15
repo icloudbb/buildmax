@@ -1133,7 +1133,9 @@ revision cannot unpublish a workflow spaces are running.
 | `workflow_id` | `bigint unsigned` | no | `workflow.id` |
 | `workflow_revision` | `bigint` | no | The revision this run expanded; 0 for runs started before workflows recorded revisions |
 | `issue_id` | `bigint unsigned` | yes | Issue this run advances |
+| `input` | `longtext` | yes | The run's immutable input JSON, validated against the definition's `input_schema` at admission; NULL when the definition declares no input schema |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled` — lowercase, unlike `task` |
+| `result_json` | `longtext` | yes | The run's declared result, resolved from a node output when the run succeeded; NULL when the definition declares no result selector or the run did not succeed |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `started_at` | `datetime(6)` | yes | |

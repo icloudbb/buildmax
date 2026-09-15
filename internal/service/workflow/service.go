@@ -36,7 +36,7 @@ var (
 	ErrInvalidDefinition          = apierr.New(apierr.KindInvalid, "invalid workflow definition")
 	ErrUnsupportedSchemaVersion   = apierr.New(apierr.KindInvalid, "unsupported workflow schema_version: only schema_version 1 is supported")
 	ErrInvalidInputSchema         = apierr.New(apierr.KindInvalid, "invalid workflow input_schema: must be within the supported JSON Schema subset")
-	ErrInvalidResult              = apierr.New(apierr.KindInvalid, "invalid workflow result: from_step must name an existing step")
+	ErrInvalidResult              = apierr.New(apierr.KindInvalid, "invalid workflow result: source must be node.<id>.output naming an existing step, with a valid RFC 6901 pointer")
 	ErrInvalidRunInput            = apierr.New(apierr.KindInvalid, "invalid workflow run input: it must be JSON satisfying the workflow input_schema, and is only accepted when the workflow declares one")
 	ErrInvalidNodeType            = apierr.New(apierr.KindInvalid, "invalid workflow step type")
 	ErrInvalidStepID              = apierr.New(apierr.KindInvalid, "invalid workflow step_id")
@@ -722,11 +722,19 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 		return &steps[i], nil
 	}
 	endedAt := time.Now().UTC()
+	// Every step is terminal and none is pending: the run succeeds. Resolve its
+	// declared result from the finished node outputs so the run carries one
+	// authoritative answer, stored in the same transaction that ends it.
+	result, err := s.resolveRunResult(ctx, run, steps)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := s.Workflows.TransitionWorkflowRun(ctx, coreworkflow.TransitionRunInput{
 		WorkflowRunID:  run.ID,
 		ExpectedStatus: coreworkflow.RunStatusRunning,
 		NewStatus:      coreworkflow.RunStatusSucceeded,
 		EndedAt:        &endedAt,
+		Result:         result,
 	}); err != nil {
 		return nil, err
 	}
@@ -961,12 +969,21 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 		}
 		seen[step.StepID] = struct{}{}
 	}
-	// The declared run result, when present, must select an existing step. Every
-	// step id is in seen now, so a forward or missing reference is rejected here.
+	// The declared run result, when present, selects an existing step's output at
+	// a valid pointer, the same grammar as a binding. Every step id is in seen
+	// now, so a forward or missing reference is rejected here.
 	if def.Result != nil {
-		def.Result.FromStep = strings.TrimSpace(def.Result.FromStep)
-		if _, ok := seen[def.Result.FromStep]; !ok {
-			return nil, ErrInvalidResult
+		def.Result.Source = strings.TrimSpace(def.Result.Source)
+		def.Result.Pointer = strings.TrimSpace(def.Result.Pointer)
+		fromStep, ok := coreworkflow.ParseNodeOutputSource(def.Result.Source)
+		if !ok {
+			return nil, apierr.Detail(ErrInvalidResult, "result source %q must be node.<id>.output", def.Result.Source)
+		}
+		if _, ok := seen[fromStep]; !ok {
+			return nil, apierr.Detail(ErrInvalidResult, "result reads from unknown step %q", fromStep)
+		}
+		if err := coreworkflow.ValidatePointer(def.Result.Pointer); err != nil {
+			return nil, apierr.Detail(ErrInvalidResult, "%v", err)
 		}
 	}
 	return &def, nil
@@ -1139,6 +1156,63 @@ func (s *Service) nodeArtifacts(ctx context.Context, taskRunID string) ([]corewo
 		})
 	}
 	return out, nil
+}
+
+// resolveRunResult resolves the run's declared result from the finished node
+// outputs: the definition's result selector names a node output envelope and a
+// pointer into it, the same grammar bindings use. Returns nil when the
+// definition declares no result. A selector that does not resolve against the
+// real outputs fails the run's completion rather than storing a wrong answer.
+func (s *Service) resolveRunResult(ctx context.Context, run *coreworkflow.Run, steps []coreworkflow.NodeRun) (*string, error) {
+	def, err := s.runDefinition(ctx, run)
+	if err != nil {
+		return nil, err
+	}
+	if def == nil || def.Result == nil {
+		return nil, nil
+	}
+	byNID := make(map[string]*coreworkflow.NodeRun, len(steps))
+	for i := range steps {
+		byNID[steps[i].NodeID] = &steps[i]
+	}
+	doc, err := s.bindingSourceDocument(ctx, run, def.Result.Source, byNID)
+	if err != nil {
+		return nil, err
+	}
+	selected, err := coreworkflow.ResolvePointer(doc, def.Result.Pointer)
+	if err != nil {
+		return nil, apierr.Detail(ErrInvalidResult, "%s%s: %v", def.Result.Source, def.Result.Pointer, err)
+	}
+	out := string(selected)
+	return &out, nil
+}
+
+// runDefinition parses the definition a run expanded: the pinned revision it
+// recorded, or the workflow's current definition when the run predates recorded
+// revisions. It is read only when a run completes, to resolve the declared
+// result.
+func (s *Service) runDefinition(ctx context.Context, run *coreworkflow.Run) (*coreworkflow.Definition, error) {
+	var raw string
+	if run.WorkflowRevision > 0 {
+		rev, err := s.Workflows.GetWorkflowRevision(ctx, run.WorkflowID, run.WorkflowRevision)
+		if err != nil {
+			return nil, err
+		}
+		if rev != nil {
+			raw = rev.Definition
+		}
+	}
+	if raw == "" {
+		wf, err := s.Workflows.GetWorkflow(ctx, run.WorkflowID)
+		if err != nil {
+			return nil, err
+		}
+		if wf == nil {
+			return nil, ErrWorkflowNotFound
+		}
+		raw = wf.Definition
+	}
+	return parseDefinition(raw)
 }
 
 // renderBoundValue turns a selected JSON value into the text injected as bound

@@ -703,7 +703,9 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `workflow_id` | `bigint unsigned` | 否 | `workflow.id` |
 | `workflow_revision` | `bigint` | 否 | 此次运行展开时所用的修订号；早于 Workflow 开始记录修订之前的运行为 0 |
 | `issue_id` | `bigint unsigned` | 是 | 此次运行所推进的 Issue |
+| `input` | `longtext` | 是 | 本次运行不可变的输入 JSON，准入时对照定义的 `input_schema` 校验；定义未声明 input schema 时为 NULL |
 | `status` | `varchar(32)` | 否 | `pending`、`running`、`succeeded`、`failed`、`canceled`——与 `task` 不同，为小写 |
+| `result_json` | `longtext` | 是 | 本次运行声明的结果，运行成功时从某个节点输出解析得到；定义未声明 result 选择器或运行未成功时为 NULL |
 | `created_by` | `bigint unsigned` | 否 | `user.id` |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 | `started_at` | `datetime(6)` | 是 | |

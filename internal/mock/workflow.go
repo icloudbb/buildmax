@@ -240,6 +240,9 @@ func (m *MockWorkflowStore) TransitionWorkflowRun(_ context.Context, in corework
 		if in.ErrorMessage != nil {
 			m.Runs[i].ErrorMessage = in.ErrorMessage
 		}
+		if in.Result != nil {
+			m.Runs[i].Result = in.Result
+		}
 		if coreworkflow.RunStatusTerminal(in.NewStatus) {
 			clearRunLease(&m.Runs[i])
 		}

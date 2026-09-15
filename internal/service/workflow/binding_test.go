@@ -119,7 +119,7 @@ func TestParseDefinition_ValidatesContract(t *testing.T) {
 	}{
 		{
 			name: "declares schema_version, input_schema, and result",
-			raw:  `{"schema_version":1,"input_schema":{"type":"object","additionalProperties":false,"properties":{"topic":{"type":"string"}},"required":["topic"]},"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}],"result":{"from_step":"a"}}`,
+			raw:  `{"schema_version":1,"input_schema":{"type":"object","additionalProperties":false,"properties":{"topic":{"type":"string"}},"required":["topic"]},"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}],"result":{"source":"node.a.output","pointer":"/text"}}`,
 		},
 		{
 			name:    "missing schema_version is rejected",
@@ -138,7 +138,12 @@ func TestParseDefinition_ValidatesContract(t *testing.T) {
 		},
 		{
 			name:    "result selecting a missing step is rejected",
-			raw:     `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}],"result":{"from_step":"b"}}`,
+			raw:     `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}],"result":{"source":"node.b.output","pointer":""}}`,
+			wantErr: ErrInvalidResult,
+		},
+		{
+			name:    "result with a non-node source is rejected",
+			raw:     `{"schema_version":1,"steps":[{"step_id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}],"result":{"source":"workflow.input","pointer":""}}`,
 			wantErr: ErrInvalidResult,
 		},
 	}
@@ -372,5 +377,56 @@ func TestStartWorkflowRun_BindsUpstreamOutputIntoDownstreamInput(t *testing.T) {
 	instructions := summarizeInput[:strings.Index(summarizeInput, "write-the-summary")]
 	if strings.Contains(instructions, "END-MARKER") {
 		t.Fatal("bound output leaked into the agent identity/instructions region")
+	}
+}
+
+// TestStartWorkflowRun_StoresDeclaredResult proves a succeeding run resolves its
+// declared result selector against the finished node output and stores it on the
+// run as one authoritative answer.
+func TestStartWorkflowRun_StoresDeclaredResult(t *testing.T) {
+	workflowStore := &mock.MockWorkflowStore{
+		Workflows: []coreworkflow.Workflow{{
+			ID:      "w_1",
+			SpaceID: "tm_1",
+			Name:    "WF",
+			Definition: `{"schema_version":1,"steps":[` +
+				`{"step_id":"only","type":"agent_task","target_agent_id":"a_1","prompt":"do the work"}` +
+				`],"result":{"source":"node.only.output","pointer":"/text"}}`,
+			Status: coreworkflow.StatusPublished,
+		}},
+	}
+	taskStore := &mock.MockTaskStore{}
+	taskRuns := &mock.MockTaskRunStore{}
+	agentStore := &mock.MockAgentStore{Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "Worker", Instructions: "work"}}}
+	svc := &Service{
+		Workflows:   workflowStore,
+		Agents:      agentStore,
+		TaskRuns:    taskRuns,
+		TaskService: &task.Service{Agents: agentStore, Tasks: taskStore, TaskRuns: taskRuns},
+	}
+	run, steps, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{SpaceID: "tm_1", UserID: "u1", WorkflowID: "w_1"})
+	if err != nil {
+		t.Fatalf("StartWorkflowRun: %v", err)
+	}
+	output := "the final answer"
+	taskRuns.Runs = append(taskRuns.Runs, coretask.Run{
+		ID:     *steps[0].TaskRunID,
+		TaskID: *steps[0].TaskID,
+		Status: string(coretask.RunStatusSucceeded),
+		Output: &output,
+	})
+	if err := svc.Reconcile(context.Background(), run.ID); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	got, _, err := svc.GetWorkflowRunDetail(context.Background(), "tm_1", run.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflowRunDetail: %v", err)
+	}
+	if got.Status != string(coreworkflow.RunStatusSucceeded) {
+		t.Fatalf("status = %q, want succeeded", got.Status)
+	}
+	// The /text pointer selects the output text, stored as the JSON string it is.
+	if got.Result == nil || *got.Result != `"the final answer"` {
+		t.Fatalf("result = %v, want %q", got.Result, `"the final answer"`)
 	}
 }

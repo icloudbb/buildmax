@@ -174,6 +174,7 @@ export interface WorkflowRun {
   startedAt?: string | null
   endedAt?: string | null
   errorMessage?: string | null
+  result?: unknown | null
   createdLabel: string
 }
 

@@ -571,7 +571,9 @@
                     "created_at": {"type": "string", "format": "date-time"},
                     "started_at": {"type": "string", "format": "date-time"},
                     "ended_at": {"type": "string", "format": "date-time"},
-                    "error_message": {"type": "string"}
+                    "error_message": {"type": "string"},
+                    "input": {"type": "object", "description": "The run's immutable input, validated against the workflow input_schema."},
+                    "result": {"description": "The run's declared result, resolved from a node output when the run succeeded."}
                   },
                   "required": ["id", "workflow_id", "conversation_id", "status", "created_by", "created_at"]
                 },
@@ -768,7 +770,8 @@
           "started_at": {"type": "string", "format": "date-time"},
           "ended_at": {"type": "string", "format": "date-time"},
           "error_message": {"type": "string"},
-          "input": {"type": "object", "description": "The run's immutable input, validated against the workflow input_schema."}
+          "input": {"type": "object", "description": "The run's immutable input, validated against the workflow input_schema."},
+          "result": {"description": "The run's declared result, resolved from a node output when the run succeeded; present only when the definition declares a result selector."}
         },
         "required": ["id", "workflow_id", "conversation_id", "status", "created_by", "created_at"]
       },

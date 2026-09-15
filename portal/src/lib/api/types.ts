@@ -185,6 +185,7 @@ export interface ApiWorkflowRun {
   started_at?: string | null
   ended_at?: string | null
   error_message?: string | null
+  result?: unknown
 }
 
 export interface ApiWorkflowNodeRun {

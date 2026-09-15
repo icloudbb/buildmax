@@ -159,6 +159,7 @@ export function apiWorkflowRunToWorkflowRun(api: ApiWorkflowRun): WorkflowRun {
     startedAt: api.started_at ?? null,
     endedAt: api.ended_at ?? null,
     errorMessage: api.error_message ?? null,
+    result: api.result ?? null,
     createdLabel: formatRelativeTime(api.created_at),
   }
 }

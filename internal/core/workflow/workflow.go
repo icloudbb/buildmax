@@ -148,9 +148,14 @@ type Run struct {
 	IssueID          *string `json:"issue_id,omitempty"`
 	// Input is the run's immutable input JSON, validated against the definition's
 	// input_schema at admission. Nil when the definition declares no input_schema.
-	Input        *string    `json:"input,omitempty"`
-	Status       string     `json:"status"`
-	CreatedBy    string     `json:"created_by"`
+	Input     *string `json:"input,omitempty"`
+	Status    string  `json:"status"`
+	CreatedBy string  `json:"created_by"`
+	// Result is the run's declared result JSON: the value the definition's result
+	// selector resolved to when the run succeeded, stored independently of the
+	// node runs so a reader has one authoritative answer. Nil when the definition
+	// declares no result or the run did not succeed. Immutable once set.
+	Result       *string    `json:"result,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	StartedAt    *time.Time `json:"started_at,omitempty"`
 	EndedAt      *time.Time `json:"ended_at,omitempty"`
@@ -225,14 +230,19 @@ type Definition struct {
 	// schema outside the subset.
 	InputSchema json.RawMessage  `json:"input_schema,omitempty"`
 	Steps       []DefinitionStep `json:"steps"`
-	// Result, when set, selects the WorkflowRun result from one step's output. The
-	// selected step must exist. Absent leaves the run without a declared result.
+	// Result, when set, selects the WorkflowRun result from one step's output
+	// envelope. The selected step must exist. Absent leaves the run without a
+	// declared result.
 	Result *ResultSelector `json:"result,omitempty"`
 }
 
-// ResultSelector names the step whose output becomes the WorkflowRun result.
+// ResultSelector selects the WorkflowRun result from one step's output envelope,
+// with the same source/pointer grammar as a StepBinding. Source must name a
+// step's output ("node.<node_id>.output"); Pointer is an RFC 6901 pointer into
+// that envelope, empty for the whole value.
 type ResultSelector struct {
-	FromStep string `json:"from_step"`
+	Source  string `json:"source"`
+	Pointer string `json:"pointer"`
 }
 
 // DefinitionStep describes one step in a workflow definition.
@@ -368,6 +378,10 @@ type TransitionRunInput struct {
 	StartedAt      *time.Time
 	EndedAt        *time.Time
 	ErrorMessage   *string
+	// Result is the run's declared result JSON, written when the run moves to
+	// succeeded. Nil leaves the column untouched, so a definition with no result
+	// selector or a non-success transition stores nothing.
+	Result *string
 }
 
 // TransitionNodeRunInput atomically moves a node run from ExpectedStatus to

@@ -49,8 +49,10 @@ the full resolved input its node received and the complete output its accepted T
 produced. A step input binding now selects a value with a `source` (`workflow.input`
 or an earlier step's `node.<id>.output` envelope of text, structured output, and
 Artifact references) and an RFC 6901 `pointer` into it, instead of injecting the whole
-upstream output. Storing the declared result, the typed `nodes`/`needs` graph, and
-typed `/structured/...` routing remain open.
+upstream output. A definition may declare a `result` selector (the same source/pointer
+grammar naming a step's output); a succeeding run resolves it once and stores it as the
+run's authoritative `result_json`, surfaced on the run and the issue it belongs to. The
+typed `nodes`/`needs` graph and typed `/structured/...` routing remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including
