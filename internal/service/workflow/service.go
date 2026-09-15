@@ -37,7 +37,7 @@ var (
 	ErrInvalidInputSchema         = apierr.New(apierr.KindInvalid, "invalid workflow input_schema: must be within the supported JSON Schema subset")
 	ErrInvalidResult              = apierr.New(apierr.KindInvalid, "invalid workflow result: from_step must name an existing step")
 	ErrInvalidRunInput            = apierr.New(apierr.KindInvalid, "invalid workflow run input: it must be JSON satisfying the workflow input_schema, and is only accepted when the workflow declares one")
-	ErrInvalidStepType            = apierr.New(apierr.KindInvalid, "invalid workflow step type")
+	ErrInvalidNodeType            = apierr.New(apierr.KindInvalid, "invalid workflow step type")
 	ErrInvalidStepID              = apierr.New(apierr.KindInvalid, "invalid workflow step_id")
 	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow step binding: name and from_step are required, names are unique within a step, and from_step must be an earlier step")
 	ErrInvalidOutputSchema        = apierr.New(apierr.KindInvalid, "invalid workflow step output_schema: must be within the supported JSON Schema subset")
@@ -322,7 +322,7 @@ func (s *Service) ListWorkflowRuns(ctx context.Context, spaceID, workflowID stri
 	return s.Workflows.ListWorkflowRunsByWorkflow(ctx, workflow.ID, limit, offset)
 }
 
-func (s *Service) GetWorkflowRunDetail(ctx context.Context, spaceID, workflowRunID string) (*coreworkflow.Run, []coreworkflow.StepRun, error) {
+func (s *Service) GetWorkflowRunDetail(ctx context.Context, spaceID, workflowRunID string) (*coreworkflow.Run, []coreworkflow.NodeRun, error) {
 	if s.Workflows == nil {
 		return nil, nil, ErrWorkflowsNotConfigured
 	}
@@ -340,14 +340,14 @@ func (s *Service) GetWorkflowRunDetail(ctx context.Context, spaceID, workflowRun
 	if workflow == nil {
 		return nil, nil, ErrWorkflowNotFound
 	}
-	steps, err := s.Workflows.ListWorkflowStepRuns(ctx, workflowRunID)
+	steps, err := s.Workflows.ListWorkflowNodeRuns(ctx, workflowRunID)
 	if err != nil {
 		return nil, nil, err
 	}
 	return run, steps, nil
 }
 
-func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd) (*coreworkflow.Run, []coreworkflow.StepRun, error) {
+func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd) (*coreworkflow.Run, []coreworkflow.NodeRun, error) {
 	if s.Workflows == nil {
 		return nil, nil, ErrWorkflowsNotConfigured
 	}
@@ -388,14 +388,14 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err != nil {
 		return nil, nil, err
 	}
-	stepsIn := make([]coreworkflow.CreateStepRunInput, len(def.Steps))
+	stepsIn := make([]coreworkflow.CreateNodeRunInput, len(def.Steps))
 	for i := range def.Steps {
 		target := def.Steps[i].TargetAgentID
 		agent := agents[target]
-		stepsIn[i] = coreworkflow.CreateStepRunInput{
-			StepID:            def.Steps[i].StepID,
-			StepIndex:         i,
-			StepType:          def.Steps[i].Type,
+		stepsIn[i] = coreworkflow.CreateNodeRunInput{
+			NodeID:            def.Steps[i].StepID,
+			NodeIndex:         i,
+			NodeType:          def.Steps[i].Type,
 			TargetAgentID:     &target,
 			AgentName:         agent.Name,
 			AgentDescription:  agent.Description,
@@ -404,10 +404,10 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 			Prompt:            def.Steps[i].Prompt,
 			Bindings:          def.Steps[i].Bindings,
 			OutputSchema:      outputSchemaSnapshot(def.Steps[i].OutputSchema),
-			Status:            string(coreworkflow.StepRunStatusPending),
+			Status:            string(coreworkflow.NodeRunStatusPending),
 		}
 	}
-	if _, err := s.Workflows.CreateWorkflowStepRuns(ctx, run.ID, stepsIn); err != nil {
+	if _, err := s.Workflows.CreateWorkflowNodeRuns(ctx, run.ID, stepsIn); err != nil {
 		return nil, nil, err
 	}
 	// Dispatch the first step through the reconciler, so start, callback, and
@@ -417,7 +417,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err := s.Reconcile(ctx, run.ID); err != nil {
 		return nil, nil, err
 	}
-	stepRuns, err := s.Workflows.ListWorkflowStepRuns(ctx, run.ID)
+	stepRuns, err := s.Workflows.ListWorkflowNodeRuns(ctx, run.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -446,12 +446,12 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info coretask.RunTe
 	if s.Workflows == nil {
 		return nil
 	}
-	stepRun, err := s.Workflows.GetWorkflowStepRunByTaskRunID(ctx, info.TaskRunID)
+	stepRun, err := s.Workflows.GetWorkflowNodeRunByTaskRunID(ctx, info.TaskRunID)
 	if err != nil {
 		return err
 	}
 	if stepRun == nil {
-		stepRun, err = s.Workflows.GetWorkflowStepRunByTaskID(ctx, info.TaskID)
+		stepRun, err = s.Workflows.GetWorkflowNodeRunByTaskID(ctx, info.TaskID)
 		if err != nil || stepRun == nil {
 			return err
 		}
@@ -522,13 +522,13 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 	if run == nil {
 		return nil
 	}
-	steps, err := s.Workflows.ListWorkflowStepRuns(ctx, workflowRunID)
+	steps, err := s.Workflows.ListWorkflowNodeRuns(ctx, workflowRunID)
 	if err != nil {
 		return err
 	}
 	// A step already running folds first: its TaskRun decides whether the run
 	// advances, fails, or is still working.
-	if running := firstStepWithStatus(steps, coreworkflow.StepRunStatusRunning); running != nil {
+	if running := firstStepWithStatus(steps, coreworkflow.NodeRunStatusRunning); running != nil {
 		taskRun, err := s.stepTaskRun(ctx, running)
 		if err != nil {
 			return err
@@ -558,7 +558,7 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 // failure or cancel ends the run. The transitions are the same guarded moves
 // the callback path used; only the source of the terminal facts changed from a
 // pushed payload to the read TaskRun.
-func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, step coreworkflow.StepRun, taskRun *coretask.Run, now time.Time, nextReconcileAt **time.Time) error {
+func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, step coreworkflow.NodeRun, taskRun *coretask.Run, now time.Time, nextReconcileAt **time.Time) error {
 	// A step that declared an output schema succeeds only when the run returned a
 	// value that validated against it: an otherwise-successful run with no
 	// structured value did not satisfy the node's contract, so the step fails
@@ -567,14 +567,16 @@ func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, s
 	// present taskRun.Structured is a validated one.
 	schemaUnsatisfied := step.OutputSchema != nil && taskRun.Structured == nil
 	if taskRun.Status == string(coretask.RunStatusSucceeded) && !schemaUnsatisfied {
-		applied, err := s.Workflows.TransitionWorkflowStepRun(ctx, coreworkflow.TransitionStepRunInput{
-			StepRunID:      step.ID,
-			ExpectedStatus: coreworkflow.StepRunStatusRunning,
-			NewStatus:      coreworkflow.StepRunStatusSucceeded,
+		applied, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+			NodeRunID:      step.ID,
+			ExpectedStatus: coreworkflow.NodeRunStatusRunning,
+			NewStatus:      coreworkflow.NodeRunStatusSucceeded,
 			TaskRunID:      &taskRun.ID,
-			OutputSummary:  summarizeOutput(taskRun.Output),
-			Structured:     taskRun.Structured,
-			EndedAt:        &now,
+			// Persist the node's full output onto the run record, so downstream
+			// bindings and the run result read it without re-reading the Task plane.
+			Output:     taskRun.Output,
+			Structured: taskRun.Structured,
+			EndedAt:    &now,
 		})
 		if err != nil {
 			return err
@@ -584,7 +586,7 @@ func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, s
 			// already finished it. Nothing to dispatch.
 			return nil
 		}
-		steps, err := s.Workflows.ListWorkflowStepRuns(ctx, run.ID)
+		steps, err := s.Workflows.ListWorkflowNodeRuns(ctx, run.ID)
 		if err != nil {
 			return err
 		}
@@ -600,10 +602,10 @@ func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, s
 	// A canceled step stops the run the same way a failed one does, but it is
 	// not a failure: someone stopped this work on purpose, and a run labelled
 	// failed would send whoever reads it looking for a fault that never happened.
-	stepStatus := coreworkflow.StepRunStatusFailed
+	stepStatus := coreworkflow.NodeRunStatusFailed
 	runStatus := coreworkflow.RunStatusFailed
 	if taskRun.Status == string(coretask.RunStatusCanceled) {
-		stepStatus = coreworkflow.StepRunStatusCanceled
+		stepStatus = coreworkflow.NodeRunStatusCanceled
 		runStatus = coreworkflow.RunStatusCanceled
 	}
 	errorMessage := taskRun.ErrorMessage
@@ -617,10 +619,10 @@ func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, s
 	// leave a failed step under a run that still reads as running.
 	_, err := s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 		WorkflowRunID: run.ID,
-		StepRunID:     step.ID,
-		StepIndex:     step.StepIndex,
-		StepExpected:  coreworkflow.StepRunStatusRunning,
-		StepStatus:    stepStatus,
+		NodeRunID:     step.ID,
+		NodeIndex:     step.NodeIndex,
+		NodeExpected:  coreworkflow.NodeRunStatusRunning,
+		NodeStatus:    stepStatus,
 		RunExpected:   coreworkflow.RunStatusRunning,
 		RunStatus:     runStatus,
 		TaskRunID:     &taskRun.ID,
@@ -637,7 +639,7 @@ func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, s
 // but no reader is a wiring bug, not a transient state: without the reader the
 // step can never be folded and the run strands, so it errors loudly rather than
 // masquerading as still-executing.
-func (s *Service) stepTaskRun(ctx context.Context, step *coreworkflow.StepRun) (*coretask.Run, error) {
+func (s *Service) stepTaskRun(ctx context.Context, step *coreworkflow.NodeRun) (*coretask.Run, error) {
 	if step.TaskRunID == nil || *step.TaskRunID == "" {
 		return nil, nil
 	}
@@ -648,7 +650,7 @@ func (s *Service) stepTaskRun(ctx context.Context, step *coreworkflow.StepRun) (
 }
 
 // firstStepWithStatus returns the first step in the given status, or nil.
-func firstStepWithStatus(steps []coreworkflow.StepRun, status coreworkflow.StepRunStatus) *coreworkflow.StepRun {
+func firstStepWithStatus(steps []coreworkflow.NodeRun, status coreworkflow.NodeRunStatus) *coreworkflow.NodeRun {
 	for i := range steps {
 		if steps[i].Status == string(status) {
 			return &steps[i]
@@ -657,9 +659,9 @@ func firstStepWithStatus(steps []coreworkflow.StepRun, status coreworkflow.StepR
 	return nil
 }
 
-func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.StepRun) (*coreworkflow.StepRun, error) {
+func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.NodeRun) (*coreworkflow.NodeRun, error) {
 	for i := range steps {
-		if steps[i].Status != string(coreworkflow.StepRunStatusPending) {
+		if steps[i].Status != string(coreworkflow.NodeRunStatusPending) {
 			continue
 		}
 		if spaceID == "" {
@@ -673,17 +675,17 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 			spaceID = workflow.SpaceID
 		}
 		startedAt := time.Now().UTC()
-		taskItem, taskRunID, err := s.createStepTask(ctx, spaceID, userID, steps[i], steps)
+		taskItem, taskRunID, resolvedInput, err := s.createStepTask(ctx, spaceID, userID, steps[i], steps)
 		if err != nil {
 			// The step never started, so it fails from pending and the run ends
 			// with it -- one transaction, the same path a running step's failure
 			// takes.
 			_, _ = s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 				WorkflowRunID: run.ID,
-				StepRunID:     steps[i].ID,
-				StepIndex:     steps[i].StepIndex,
-				StepExpected:  coreworkflow.StepRunStatusPending,
-				StepStatus:    coreworkflow.StepRunStatusFailed,
+				NodeRunID:     steps[i].ID,
+				NodeIndex:     steps[i].NodeIndex,
+				NodeExpected:  coreworkflow.NodeRunStatusPending,
+				NodeStatus:    coreworkflow.NodeRunStatusFailed,
 				RunExpected:   coreworkflow.RunStatusRunning,
 				RunStatus:     coreworkflow.RunStatusFailed,
 				ErrorMessage:  ptrError(err),
@@ -692,12 +694,13 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 			})
 			return nil, err
 		}
-		if _, err := s.Workflows.TransitionWorkflowStepRun(ctx, coreworkflow.TransitionStepRunInput{
-			StepRunID:      steps[i].ID,
-			ExpectedStatus: coreworkflow.StepRunStatusPending,
-			NewStatus:      coreworkflow.StepRunStatusRunning,
+		if _, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+			NodeRunID:      steps[i].ID,
+			ExpectedStatus: coreworkflow.NodeRunStatusPending,
+			NewStatus:      coreworkflow.NodeRunStatusRunning,
 			TaskID:         &taskItem.ID,
 			TaskRunID:      &taskRunID,
+			ResolvedInput:  &resolvedInput,
 			StartedAt:      &startedAt,
 		}); err != nil {
 			return nil, err
@@ -722,7 +725,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 // before that fall back to the agent definition as it stands now, deleted or not:
 // the run was authorized when it started, and refusing to finish it because the
 // agent has since been deleted would strand it half done.
-func (s *Service) stepAgent(ctx context.Context, spaceID, agentID string, step coreworkflow.StepRun) (*agentdef.Agent, error) {
+func (s *Service) stepAgent(ctx context.Context, spaceID, agentID string, step coreworkflow.NodeRun) (*agentdef.Agent, error) {
 	if step.AgentName != "" || step.AgentInstructions != "" {
 		return &agentdef.Agent{
 			ID:           agentID,
@@ -746,21 +749,21 @@ func (s *Service) stepAgent(ctx context.Context, spaceID, agentID string, step c
 	return agent, nil
 }
 
-func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, step coreworkflow.StepRun, siblings []coreworkflow.StepRun) (*coretask.Task, string, error) {
+func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, step coreworkflow.NodeRun, siblings []coreworkflow.NodeRun) (*coretask.Task, string, string, error) {
 	agentID := ""
 	if step.TargetAgentID != nil {
 		agentID = *step.TargetAgentID
 	}
 	if agentID == "" {
-		return nil, "", ErrInvalidTargetAgent
+		return nil, "", "", ErrInvalidTargetAgent
 	}
 	agent, err := s.stepAgent(ctx, spaceID, agentID, step)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
-	bound, err := s.resolveStepBindings(ctx, step, siblings)
+	bound, err := s.resolveStepBindings(step, siblings)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	input := buildWorkflowTaskInput(agent, step.Prompt, bound)
 	// Admit rather than plain-create so a retried or concurrent dispatch of this
@@ -776,17 +779,17 @@ func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, st
 		AgentID:       &agentID,
 		CreatedByType: coretask.RunCreatedByTypeUser,
 		TriggerSource: coretask.RunTriggerSourceWorkflowStep,
-		AdmissionKey:  workflowTaskAdmissionKey(step.WorkflowRunID, step.StepID),
+		AdmissionKey:  workflowTaskAdmissionKey(step.WorkflowRunID, step.NodeID),
 		OutputSchema:  step.OutputSchema,
 	})
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	runID := ""
 	if taskItem.LastRunID != nil {
 		runID = *taskItem.LastRunID
 	}
-	return taskItem, runID, nil
+	return taskItem, runID, input, nil
 }
 
 func (s *Service) validateIssueForRun(ctx context.Context, spaceID, workflowID string, issueID *string) error {
@@ -895,8 +898,8 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 		if _, ok := seen[step.StepID]; ok {
 			return nil, ErrInvalidStepID
 		}
-		if step.Type != coreworkflow.StepTypeAgentTask {
-			return nil, ErrInvalidStepType
+		if step.Type != coreworkflow.NodeTypeAgentTask {
+			return nil, ErrInvalidNodeType
 		}
 		if step.TargetAgentID == "" || step.Prompt == "" {
 			return nil, ErrInvalidDefinition
@@ -980,18 +983,6 @@ func isValidWorkflowStatus(status string) bool {
 	}
 }
 
-func summarizeOutput(output *string) *string {
-	if output == nil {
-		return nil
-	}
-	value := strings.TrimSpace(*output)
-	if value == "" {
-		return nil
-	}
-	value = util.ClipRunes(value, 500)
-	return util.Ptr(value)
-}
-
 func ptrError(err error) *string {
 	if err == nil {
 		return nil
@@ -999,13 +990,13 @@ func ptrError(err error) *string {
 	return util.Ptr(err.Error())
 }
 
-// workflowTaskAdmissionKey names the logical node a step's task belongs to, so
-// every dispatch of the same step — first attempt, retry, or crash recovery —
-// admits under one key and cannot duplicate the task. The future graph term is
-// node_id; the linear precursor's step_id is that node. See
-// docs/design/workflow-runtime.md §11.
-func workflowTaskAdmissionKey(workflowRunID, stepID string) string {
-	return fmt.Sprintf("workflow/%s/node/%s", workflowRunID, stepID)
+// workflowTaskAdmissionKey names the logical node a node run's task belongs to,
+// so every dispatch of the same node — first attempt, retry, or crash recovery —
+// admits under one key and cannot duplicate the task. The key segment is the
+// node run's node_id, which the linear precursor authors as the definition
+// step's id. See docs/design/workflow-runtime.md §11.
+func workflowTaskAdmissionKey(workflowRunID, nodeID string) string {
+	return fmt.Sprintf("workflow/%s/node/%s", workflowRunID, nodeID)
 }
 
 // boundOutput is one earlier step's output resolved for a downstream step's
@@ -1017,45 +1008,34 @@ type boundOutput struct {
 }
 
 // resolveStepBindings reads, for each of step's bindings, the whole output of
-// the earlier step it names. The definition was validated at publication and at
-// run start, so a binding always names a real earlier step; a miss here is a
-// bug, not user error.
-func (s *Service) resolveStepBindings(ctx context.Context, step coreworkflow.StepRun, siblings []coreworkflow.StepRun) ([]boundOutput, error) {
+// the earlier node it names. A binding only ever names an earlier node, which
+// the linear runtime has already run to success before this node dispatches, so
+// its full output was persisted onto the node run at success and is read from
+// there rather than the Task plane. The definition was validated at publication
+// and at run start, so a binding always names a real earlier node; a miss here
+// is a bug, not user error, and a bound node with no text yields the empty
+// string.
+func (s *Service) resolveStepBindings(step coreworkflow.NodeRun, siblings []coreworkflow.NodeRun) ([]boundOutput, error) {
 	if len(step.Bindings) == 0 {
 		return nil, nil
 	}
-	bySID := make(map[string]*coreworkflow.StepRun, len(siblings))
+	byNID := make(map[string]*coreworkflow.NodeRun, len(siblings))
 	for i := range siblings {
-		bySID[siblings[i].StepID] = &siblings[i]
+		byNID[siblings[i].NodeID] = &siblings[i]
 	}
 	bound := make([]boundOutput, 0, len(step.Bindings))
 	for _, b := range step.Bindings {
-		src, ok := bySID[b.FromStep]
+		src, ok := byNID[b.FromStep]
 		if !ok {
 			return nil, apierr.Detail(ErrInvalidBinding, "binding %q references unknown step %q", b.Name, b.FromStep)
 		}
-		output, err := s.stepOutput(ctx, src)
-		if err != nil {
-			return nil, err
+		output := ""
+		if src.Output != nil {
+			output = *src.Output
 		}
 		bound = append(bound, boundOutput{Name: b.Name, FromStep: b.FromStep, Output: output})
 	}
 	return bound, nil
-}
-
-// stepOutput returns the full output of a step's accepted TaskRun -- the whole
-// text the Agent produced, not the truncated display summary. An unset output is
-// the empty string: an earlier step can legitimately succeed without producing
-// text.
-func (s *Service) stepOutput(ctx context.Context, step *coreworkflow.StepRun) (string, error) {
-	taskRun, err := s.stepTaskRun(ctx, step)
-	if err != nil {
-		return "", err
-	}
-	if taskRun == nil || taskRun.Output == nil {
-		return "", nil
-	}
-	return *taskRun.Output, nil
 }
 
 // buildWorkflowTaskInput assembles a step's Task input: the agent identity and

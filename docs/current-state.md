@@ -43,10 +43,12 @@ shared JSON Schema subset at publication) and a `result` selector naming the ste
 whose output becomes the run result; publication rejects an unknown version, an
 out-of-subset input schema, or a result naming a missing step. Starting a run now
 admits an immutable input validated against that `input_schema` and freezes it onto
-the run, and the Portal generates the run's input form from the schema. Persisting
-each step's resolved input and full output, RFC 6901 pointer and Artifact bindings,
-storing the declared result, the typed `nodes`/`needs` graph, and typed
-`/structured/...` routing remain open.
+the run, and the Portal generates the run's input form from the schema. Each per-step
+record is now a `WorkflowNodeRun` (`node_id`, `node_index`, `node_type`) that persists
+the full resolved input its node received and the complete output its accepted TaskRun
+produced; downstream bindings read that persisted node output. RFC 6901 pointer and
+Artifact bindings, storing the declared result, the typed `nodes`/`needs` graph, and
+typed `/structured/...` routing remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. Trace retention and candidate failure/recovery evidence remain open. Shared Redis coordination is implemented, including
@@ -103,7 +105,7 @@ to render that settled answer as the value, returned on `RunResult.Structured`.
 A Workflow `agent_task` step consumes it: a step may declare an `output_schema`
 (rejected at publication if outside the subset), the step's Task carries it so
 the run is constrained, the validated value is persisted on the TaskRun and
-folded onto the step run, and the step succeeds only when the run returned a
+folded onto the node run, and the step succeeds only when the run returned a
 value that validated — otherwise the step fails. Still open: typed `/structured/...`
 routing and planners (adaptive Workflow), the Portal step-form editor for
 `output_schema`, and the deferred prompted fallback. Tool-argument JSON schemas
@@ -285,9 +287,9 @@ The database coverage is broader than the previous assessment reported:
 The guarded transitions prevent illegal terminal rewrites and make failed-step,
 later-step blocking, and failed-run finalization atomic. Workflow step dispatch
 now admits its Task idempotently through `AdmitTask`, keyed
-`workflow/<workflow_run_id>/node/<step_id>` and unique within the space, so a
+`workflow/<workflow_run_id>/node/<node_id>` and unique within the space, so a
 retried or concurrent dispatch — the crash window between admitting the Task and
-linking it onto the step run — resolves to the one Task instead of duplicating
+linking it onto the node run — resolves to the one Task instead of duplicating
 the agent's execution. The store also discovers due non-terminal runs and hands
 out a bounded, takeover-safe reconciliation lease, so the durable state a
 reconciler needs exists. A concurrent Workflow edit now loses a compare-and-set

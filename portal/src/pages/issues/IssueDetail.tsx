@@ -12,7 +12,7 @@ import {
   apiIssueToIssue,
   apiTaskToTask,
   apiWorkflowRunToWorkflowRun,
-  apiWorkflowStepRunToWorkflowStepRun,
+  apiWorkflowNodeRunToWorkflowNodeRun,
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
 import { getAgents } from "../../features/agents"
@@ -59,7 +59,7 @@ function mapIssueFlow(api: ApiIssueFlowResponse): IssueFlow {
     workflow: api.workflow ? apiWorkflowToWorkflow(api.workflow) : null,
     runs: api.runs.map((item) => ({
       run: apiWorkflowRunToWorkflowRun(item.run),
-      steps: item.steps.map(apiWorkflowStepRunToWorkflowStepRun),
+      steps: item.steps.map(apiWorkflowNodeRunToWorkflowNodeRun),
     })),
     agentTasks: api.agent_tasks.map(apiTaskToTask),
     latestResult: api.latest_result ? apiIssueOutputToIssueOutput(api.latest_result) : null,

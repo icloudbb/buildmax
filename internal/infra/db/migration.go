@@ -149,6 +149,23 @@ var migrations = []Migration{
 			return m.DropColumn(&issueRow{}, "assignee_id")
 		},
 	},
+	{
+		// A WorkflowRun's per-step records became node runs: the row struct is now
+		// workflowNodeRunRow (table workflow_node_run) with node_id/node_index/
+		// node_type and the persisted resolved_input/output columns. AutoMigrate
+		// builds the new table from the struct; this drops the old
+		// workflow_step_run. At Alpha there is no data to preserve, so runs
+		// recorded under the old table are abandoned rather than migrated -- the
+		// new table starts empty. See docs/design/workflow-runtime.md §19.
+		ID: "workflow_step_run_to_node_run",
+		Apply: func(ctx context.Context, db *gorm.DB) error {
+			m := db.WithContext(ctx).Migrator()
+			if m.HasTable("workflow_step_run") {
+				return m.DropTable("workflow_step_run")
+			}
+			return nil
+		},
+	},
 }
 
 // runMigrations applies every migration this binary knows and the database has

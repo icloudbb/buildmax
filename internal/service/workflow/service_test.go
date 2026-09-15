@@ -79,7 +79,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	if len(steps) != 2 {
 		t.Fatalf("steps len = %d, want 2", len(steps))
 	}
-	if steps[0].Status != string(coreworkflow.StepRunStatusRunning) {
+	if steps[0].Status != string(coreworkflow.NodeRunStatusRunning) {
 		t.Fatalf("step[0] status = %q, want running", steps[0].Status)
 	}
 	if steps[0].TaskRunID == nil {
@@ -104,14 +104,14 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("HandleTaskRunTerminal first step: %v", err)
 	}
-	updatedSteps, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	updatedSteps, err := workflowStore.ListWorkflowNodeRuns(context.Background(), run.ID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
-	if updatedSteps[0].Status != string(coreworkflow.StepRunStatusSucceeded) {
+	if updatedSteps[0].Status != string(coreworkflow.NodeRunStatusSucceeded) {
 		t.Fatalf("step[0] status = %q, want succeeded", updatedSteps[0].Status)
 	}
-	if updatedSteps[1].Status != string(coreworkflow.StepRunStatusRunning) {
+	if updatedSteps[1].Status != string(coreworkflow.NodeRunStatusRunning) {
 		t.Fatalf("step[1] status = %q, want running", updatedSteps[1].Status)
 	}
 }
@@ -188,11 +188,11 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 		t.Fatalf("HandleTaskRunTerminal: %v", err)
 	}
 
-	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	updated, err := workflowStore.ListWorkflowNodeRuns(context.Background(), run.ID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
-	if updated[1].Status != string(coreworkflow.StepRunStatusRunning) {
+	if updated[1].Status != string(coreworkflow.NodeRunStatusRunning) {
 		t.Fatalf("step[1] status = %q, want running", updated[1].Status)
 	}
 	if len(taskStore.List) != 2 {
@@ -367,11 +367,11 @@ func TestDeletedAgent_RunFinishesButNextStepIsRefused(t *testing.T) {
 	}); err != task.ErrAgentNotFound {
 		t.Fatalf("HandleTaskRunTerminal err = %v, want ErrAgentNotFound", err)
 	}
-	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	updated, err := workflowStore.ListWorkflowNodeRuns(context.Background(), run.ID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
-	if updated[1].Status != string(coreworkflow.StepRunStatusFailed) {
+	if updated[1].Status != string(coreworkflow.NodeRunStatusFailed) {
 		t.Fatalf("step[1] status = %q, want failed after admission refusal", updated[1].Status)
 	}
 	if len(taskStore.List) != 1 {
@@ -414,19 +414,19 @@ func TestPublishedWorkflowsUsingAgent(t *testing.T) {
 	}
 }
 
-func TestStepAgent_FallsBackToLiveAgentForLegacyStepRun(t *testing.T) {
+func TestStepAgent_FallsBackToLiveAgentForLegacyNodeRun(t *testing.T) {
 	agentStore := &mock.MockAgentStore{
 		Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "Collector", Instructions: "collect"}},
 	}
 	svc := &Service{Agents: agentStore}
-	agent, err := svc.stepAgent(context.Background(), "tm_1", "a_1", coreworkflow.StepRun{})
+	agent, err := svc.stepAgent(context.Background(), "tm_1", "a_1", coreworkflow.NodeRun{})
 	if err != nil {
 		t.Fatalf("stepAgent: %v", err)
 	}
 	if agent.Name != "Collector" || agent.Instructions != "collect" {
 		t.Fatalf("agent = %q/%q, want Collector/collect", agent.Name, agent.Instructions)
 	}
-	if _, err := svc.stepAgent(context.Background(), "tm_other", "a_1", coreworkflow.StepRun{}); err != ErrInvalidTargetAgent {
+	if _, err := svc.stepAgent(context.Background(), "tm_other", "a_1", coreworkflow.NodeRun{}); err != ErrInvalidTargetAgent {
 		t.Fatalf("cross-space stepAgent err = %v, want ErrInvalidTargetAgent", err)
 	}
 }
@@ -479,14 +479,14 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 		t.Fatalf("HandleTaskRunTerminal: %v", err)
 	}
 
-	updatedSteps, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	updatedSteps, err := workflowStore.ListWorkflowNodeRuns(context.Background(), run.ID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
-	if updatedSteps[0].Status != string(coreworkflow.StepRunStatusCanceled) {
+	if updatedSteps[0].Status != string(coreworkflow.NodeRunStatusCanceled) {
 		t.Errorf("step[0] status = %q, want canceled", updatedSteps[0].Status)
 	}
-	if updatedSteps[1].Status != string(coreworkflow.StepRunStatusBlocked) {
+	if updatedSteps[1].Status != string(coreworkflow.NodeRunStatusBlocked) {
 		t.Errorf("step[1] status = %q, want blocked — a canceled step must not start the next one", updatedSteps[1].Status)
 	}
 	updatedRun, err := workflowStore.GetWorkflowRun(context.Background(), run.ID)
@@ -501,7 +501,7 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 // twoStepReconcileSvc builds a service over in-memory doubles for a published
 // two-step workflow, starts a run, and returns the handles a reconciliation test
 // drives. The started run has step 0 running against its TaskRun.
-func twoStepReconcileSvc(t *testing.T) (svc *Service, workflowStore *mock.MockWorkflowStore, taskStore *mock.MockTaskStore, taskRuns *mock.MockTaskRunStore, run *coreworkflow.Run, steps []coreworkflow.StepRun) {
+func twoStepReconcileSvc(t *testing.T) (svc *Service, workflowStore *mock.MockWorkflowStore, taskStore *mock.MockTaskStore, taskRuns *mock.MockTaskRunStore, run *coreworkflow.Run, steps []coreworkflow.NodeRun) {
 	t.Helper()
 	workflowStore = &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{{
@@ -561,14 +561,14 @@ func TestReconcile_RecoversLostCallback(t *testing.T) {
 		t.Fatalf("Reconcile: %v", err)
 	}
 
-	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	updated, err := workflowStore.ListWorkflowNodeRuns(context.Background(), run.ID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
-	if updated[0].Status != string(coreworkflow.StepRunStatusSucceeded) {
+	if updated[0].Status != string(coreworkflow.NodeRunStatusSucceeded) {
 		t.Fatalf("step[0] status = %q, want succeeded from persisted state", updated[0].Status)
 	}
-	if updated[1].Status != string(coreworkflow.StepRunStatusRunning) {
+	if updated[1].Status != string(coreworkflow.NodeRunStatusRunning) {
 		t.Fatalf("step[1] status = %q, want running after recovery", updated[1].Status)
 	}
 }
@@ -595,11 +595,11 @@ func TestReconcile_UnwiredTaskRunReaderErrors(t *testing.T) {
 	if err := svc.Reconcile(context.Background(), run.ID); err == nil {
 		t.Fatal("Reconcile with no TaskRun reader succeeded, want an error")
 	}
-	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	updated, err := workflowStore.ListWorkflowNodeRuns(context.Background(), run.ID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
-	if updated[0].Status != string(coreworkflow.StepRunStatusRunning) {
+	if updated[0].Status != string(coreworkflow.NodeRunStatusRunning) {
 		t.Fatalf("step[0] status = %q, want still running (unfolded)", updated[0].Status)
 	}
 }
@@ -629,16 +629,16 @@ func TestReconcile_IdempotentDoesNotDoubleDispatch(t *testing.T) {
 	if len(taskStore.List) != 2 {
 		t.Fatalf("tasks created = %d, want 2 (no double dispatch)", len(taskStore.List))
 	}
-	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	updated, err := workflowStore.ListWorkflowNodeRuns(context.Background(), run.ID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
-	if updated[0].Status != string(coreworkflow.StepRunStatusSucceeded) {
+	if updated[0].Status != string(coreworkflow.NodeRunStatusSucceeded) {
 		t.Fatalf("step[0] status = %q, want succeeded", updated[0].Status)
 	}
 	runningCount := 0
 	for i := range updated {
-		if updated[i].Status == string(coreworkflow.StepRunStatusRunning) {
+		if updated[i].Status == string(coreworkflow.NodeRunStatusRunning) {
 			runningCount++
 		}
 	}
@@ -671,14 +671,14 @@ func TestReconcile_FailedTaskRunFailsRunAndBlocksLaterSteps(t *testing.T) {
 		t.Fatalf("Reconcile: %v", err)
 	}
 
-	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
+	updated, err := workflowStore.ListWorkflowNodeRuns(context.Background(), run.ID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
-	if updated[0].Status != string(coreworkflow.StepRunStatusFailed) {
+	if updated[0].Status != string(coreworkflow.NodeRunStatusFailed) {
 		t.Fatalf("step[0] status = %q, want failed", updated[0].Status)
 	}
-	if updated[1].Status != string(coreworkflow.StepRunStatusBlocked) {
+	if updated[1].Status != string(coreworkflow.NodeRunStatusBlocked) {
 		t.Fatalf("step[1] status = %q, want blocked after an upstream failure", updated[1].Status)
 	}
 	// No task was dispatched for the blocked step.

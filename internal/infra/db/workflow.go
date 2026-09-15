@@ -123,33 +123,38 @@ func (s *Store) workflowRunSelect(ctx context.Context) *gorm.DB {
 		Joins("INNER JOIN `user` cb ON cb.id = workflow_run.created_by")
 }
 
-type workflowStepRunRow struct {
+type workflowNodeRunRow struct {
 	ID            uint64  `gorm:"primaryKey;autoIncrement"`
-	PublicID      string  `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_workflow_step_run_public_id;not null"`
-	WorkflowRunID uint64  `gorm:"column:workflow_run_id;not null;index:idx_step_run_run_index,priority:1"`
-	StepID        string  `gorm:"column:step_id;type:varchar(128);not null"`
-	StepIndex     int     `gorm:"column:step_index;not null;index:idx_step_run_run_index,priority:2"`
-	StepType      string  `gorm:"column:step_type;type:varchar(32);not null"`
+	PublicID      string  `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_workflow_node_run_public_id;not null"`
+	WorkflowRunID uint64  `gorm:"column:workflow_run_id;not null;index:idx_node_run_run_index,priority:1"`
+	NodeID        string  `gorm:"column:node_id;type:varchar(128);not null"`
+	NodeIndex     int     `gorm:"column:node_index;not null;index:idx_node_run_run_index,priority:2"`
+	NodeType      string  `gorm:"column:node_type;type:varchar(32);not null"`
 	TargetAgentID *uint64 `gorm:"column:target_agent_id;index"`
 	// Agent definition captured when the run started; empty on rows written before
-	// step runs snapshotted their agent.
+	// node runs snapshotted their agent.
 	AgentName         string `gorm:"column:agent_name;type:varchar(255);not null"`
 	AgentDescription  string `gorm:"column:agent_description;type:text;not null"`
 	AgentInstructions string `gorm:"column:agent_instructions;type:longtext;not null"`
 	AgentRevision     int    `gorm:"column:agent_revision;not null;default:0"`
 	Prompt            string `gorm:"type:text;not null"`
-	// Bindings is the run's snapshot of this step's input bindings as a JSON
-	// array, NULL when the step binds nothing.
+	// Bindings is the run's snapshot of this node's input bindings as a JSON
+	// array, NULL when the node binds nothing.
 	Bindings *string `gorm:"type:text"`
-	// OutputSchema is the run's snapshot of this step's output schema (JSON text),
-	// NULL for a free-text step.
-	OutputSchema  *string `gorm:"type:text"`
-	Status        string  `gorm:"type:varchar(32);not null"`
-	TaskID        *uint64 `gorm:"column:task_id;index"`
-	TaskRunID     *uint64 `gorm:"column:task_run_id;index"`
-	OutputSummary *string `gorm:"type:text"`
+	// OutputSchema is the run's snapshot of this node's output schema (JSON text),
+	// NULL for a free-text node.
+	OutputSchema *string `gorm:"type:text"`
+	Status       string  `gorm:"type:varchar(32);not null"`
+	TaskID       *uint64 `gorm:"column:task_id;index"`
+	TaskRunID    *uint64 `gorm:"column:task_run_id;index"`
+	// ResolvedInput is the full Task input the node received, captured when it
+	// started; NULL until the node is dispatched.
+	ResolvedInput *string `gorm:"column:resolved_input;type:longtext"`
+	// Output is the node's full output text, captured when it succeeded; NULL
+	// until then, or when the node produced no text.
+	Output *string `gorm:"column:output;type:longtext"`
 	// Structured is the validated structured-output value the accepted run
-	// produced, as JSON text; NULL for a free-text step or a failed validation.
+	// produced, as JSON text; NULL for a free-text node or a failed validation.
 	Structured   *string    `gorm:"type:text"`
 	ErrorMessage *string    `gorm:"type:text"`
 	CreatedAt    time.Time  `gorm:"autoCreateTime"`
@@ -157,30 +162,30 @@ type workflowStepRunRow struct {
 	EndedAt      *time.Time `gorm:""`
 }
 
-func (workflowStepRunRow) TableName() string { return "workflow_step_run" }
+func (workflowNodeRunRow) TableName() string { return "workflow_node_run" }
 
-// workflowStepRunReadRow is the row plus the handles its references resolve to.
+// workflowNodeRunReadRow is the row plus the handles its references resolve to.
 // A pointer field is one a LEFT JOIN may leave NULL.
-type workflowStepRunReadRow struct {
-	Row                 workflowStepRunRow `gorm:"embedded"`
+type workflowNodeRunReadRow struct {
+	Row                 workflowNodeRunRow `gorm:"embedded"`
 	WorkflowRunPublicID string             `gorm:"column:workflow_run_public_id"`
 	TargetAgentPublicID *string            `gorm:"column:target_agent_public_id"`
 	TaskPublicID        *string            `gorm:"column:task_public_id"`
 	TaskRunPublicID     *string            `gorm:"column:task_run_public_id"`
 }
 
-func (s *Store) workflowStepRunSelect(ctx context.Context) *gorm.DB {
-	return workflowStepRunSelectTx(s.db.WithContext(ctx))
+func (s *Store) workflowNodeRunSelect(ctx context.Context) *gorm.DB {
+	return workflowNodeRunSelectTx(s.db.WithContext(ctx))
 }
 
-func workflowStepRunSelectTx(tx *gorm.DB) *gorm.DB {
-	return tx.Model(&workflowStepRunRow{}).
-		Select("workflow_step_run.*, wr.public_id AS workflow_run_public_id, a.public_id AS target_agent_public_id, " +
+func workflowNodeRunSelectTx(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&workflowNodeRunRow{}).
+		Select("workflow_node_run.*, wr.public_id AS workflow_run_public_id, a.public_id AS target_agent_public_id, " +
 			"t.public_id AS task_public_id, r.public_id AS task_run_public_id").
-		Joins("INNER JOIN workflow_run wr ON wr.id = workflow_step_run.workflow_run_id").
-		Joins("LEFT JOIN agent a ON a.id = workflow_step_run.target_agent_id").
-		Joins("LEFT JOIN task t ON t.id = workflow_step_run.task_id").
-		Joins("LEFT JOIN task_run r ON r.id = workflow_step_run.task_run_id")
+		Joins("INNER JOIN workflow_run wr ON wr.id = workflow_node_run.workflow_run_id").
+		Joins("LEFT JOIN agent a ON a.id = workflow_node_run.target_agent_id").
+		Joins("LEFT JOIN task t ON t.id = workflow_node_run.task_id").
+		Joins("LEFT JOIN task_run r ON r.id = workflow_node_run.task_run_id")
 }
 
 func toWorkflow(row *workflowReadRow) *coreworkflow.Workflow {
@@ -267,16 +272,16 @@ func toWorkflowRuns(rows []workflowRunReadRow) []coreworkflow.Run {
 	return out
 }
 
-func toWorkflowStepRun(row *workflowStepRunReadRow) *coreworkflow.StepRun {
+func toWorkflowNodeRun(row *workflowNodeRunReadRow) *coreworkflow.NodeRun {
 	if row == nil {
 		return nil
 	}
-	out := &coreworkflow.StepRun{
+	out := &coreworkflow.NodeRun{
 		ID:                row.Row.PublicID,
 		WorkflowRunID:     row.WorkflowRunPublicID,
-		StepID:            row.Row.StepID,
-		StepIndex:         row.Row.StepIndex,
-		StepType:          row.Row.StepType,
+		NodeID:            row.Row.NodeID,
+		NodeIndex:         row.Row.NodeIndex,
+		NodeType:          row.Row.NodeType,
 		AgentName:         row.Row.AgentName,
 		AgentDescription:  row.Row.AgentDescription,
 		AgentInstructions: row.Row.AgentInstructions,
@@ -285,7 +290,8 @@ func toWorkflowStepRun(row *workflowStepRunReadRow) *coreworkflow.StepRun {
 		Bindings:          decodeStepBindings(row.Row.Bindings),
 		OutputSchema:      row.Row.OutputSchema,
 		Status:            row.Row.Status,
-		OutputSummary:     row.Row.OutputSummary,
+		ResolvedInput:     row.Row.ResolvedInput,
+		Output:            row.Row.Output,
 		Structured:        row.Row.Structured,
 		ErrorMessage:      row.Row.ErrorMessage,
 		CreatedAt:         row.Row.CreatedAt,
@@ -335,10 +341,10 @@ func decodeStepBindings(encoded *string) []coreworkflow.StepBinding {
 	return bindings
 }
 
-func toWorkflowStepRuns(rows []workflowStepRunReadRow) []coreworkflow.StepRun {
-	out := make([]coreworkflow.StepRun, len(rows))
+func toWorkflowNodeRuns(rows []workflowNodeRunReadRow) []coreworkflow.NodeRun {
+	out := make([]coreworkflow.NodeRun, len(rows))
 	for i := range rows {
-		out[i] = *toWorkflowStepRun(&rows[i])
+		out[i] = *toWorkflowNodeRun(&rows[i])
 	}
 	return out
 }
@@ -652,7 +658,7 @@ func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*core
 	return toWorkflowRun(&run), nil
 }
 
-func (s *Store) ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]coreworkflow.StepRun, error) {
+func (s *Store) ListWorkflowNodeRuns(ctx context.Context, workflowRunID string) ([]coreworkflow.NodeRun, error) {
 	runKey, err := lookupKey(ctx, s.db, "workflow_run", workflowRunID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
@@ -660,31 +666,31 @@ func (s *Store) ListWorkflowStepRuns(ctx context.Context, workflowRunID string) 
 	if err != nil {
 		return nil, err
 	}
-	var list []workflowStepRunReadRow
-	err = s.workflowStepRunSelect(ctx).
-		Where("workflow_step_run.workflow_run_id = ?", runKey).
-		Order("workflow_step_run.step_index ASC, workflow_step_run.created_at ASC").
+	var list []workflowNodeRunReadRow
+	err = s.workflowNodeRunSelect(ctx).
+		Where("workflow_node_run.workflow_run_id = ?", runKey).
+		Order("workflow_node_run.node_index ASC, workflow_node_run.created_at ASC").
 		Find(&list).Error
-	return toWorkflowStepRuns(list), err
+	return toWorkflowNodeRuns(list), err
 }
 
-func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []coreworkflow.CreateStepRunInput) ([]coreworkflow.StepRun, error) {
+func (s *Store) CreateWorkflowNodeRuns(ctx context.Context, workflowRunID string, steps []coreworkflow.CreateNodeRunInput) ([]coreworkflow.NodeRun, error) {
 	if len(steps) == 0 {
-		return []coreworkflow.StepRun{}, nil
+		return []coreworkflow.NodeRun{}, nil
 	}
 	now := time.Now().UTC()
 	runKey, err := lookupKey(ctx, s.db, "workflow_run", workflowRunID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]coreworkflow.StepRun, len(steps))
+	out := make([]coreworkflow.NodeRun, len(steps))
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for i := range steps {
-			row := &workflowStepRunRow{
+			row := &workflowNodeRunRow{
 				WorkflowRunID:     runKey,
-				StepID:            steps[i].StepID,
-				StepIndex:         steps[i].StepIndex,
-				StepType:          steps[i].StepType,
+				NodeID:            steps[i].NodeID,
+				NodeIndex:         steps[i].NodeIndex,
+				NodeType:          steps[i].NodeType,
 				AgentName:         steps[i].AgentName,
 				AgentDescription:  steps[i].AgentDescription,
 				AgentInstructions: steps[i].AgentInstructions,
@@ -702,11 +708,11 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 				}
 				row.TargetAgentID = &agentKey
 			}
-			if err := createWithPublicID(ctx, tx, "uq_workflow_step_run_public_id",
+			if err := createWithPublicID(ctx, tx, "uq_workflow_node_run_public_id",
 				func(id string) { row.PublicID = id }, row); err != nil {
 				return err
 			}
-			out[i] = *toWorkflowStepRun(&workflowStepRunReadRow{
+			out[i] = *toWorkflowNodeRun(&workflowNodeRunReadRow{
 				Row:                 *row,
 				WorkflowRunPublicID: canonicalPublicID(workflowRunID),
 				TargetAgentPublicID: optionalCanonicalPublicID(steps[i].TargetAgentID),
@@ -745,7 +751,7 @@ func runStatusUpdates(status coreworkflow.RunStatus, startedAt, endedAt *time.Ti
 // stepTransitionUpdates builds the column writes a step transition lands,
 // resolving the task and task-run handles to their row keys. An empty string
 // clears a handle; nil leaves it untouched.
-func stepTransitionUpdates(ctx context.Context, tx *gorm.DB, in coreworkflow.TransitionStepRunInput) (map[string]interface{}, error) {
+func stepTransitionUpdates(ctx context.Context, tx *gorm.DB, in coreworkflow.TransitionNodeRunInput) (map[string]interface{}, error) {
 	updates := map[string]interface{}{"status": string(in.NewStatus)}
 	if in.TaskID != nil {
 		if *in.TaskID == "" {
@@ -769,11 +775,18 @@ func stepTransitionUpdates(ctx context.Context, tx *gorm.DB, in coreworkflow.Tra
 			updates["task_run_id"] = key
 		}
 	}
-	if in.OutputSummary != nil {
-		if *in.OutputSummary == "" {
-			updates["output_summary"] = nil
+	if in.ResolvedInput != nil {
+		if *in.ResolvedInput == "" {
+			updates["resolved_input"] = nil
 		} else {
-			updates["output_summary"] = *in.OutputSummary
+			updates["resolved_input"] = *in.ResolvedInput
+		}
+	}
+	if in.Output != nil {
+		if *in.Output == "" {
+			updates["output"] = nil
+		} else {
+			updates["output"] = *in.Output
 		}
 	}
 	if in.Structured != nil {
@@ -816,11 +829,11 @@ func (s *Store) TransitionWorkflowRun(ctx context.Context, in coreworkflow.Trans
 	return res.RowsAffected > 0, nil
 }
 
-func (s *Store) TransitionWorkflowStepRun(ctx context.Context, in coreworkflow.TransitionStepRunInput) (bool, error) {
-	if !coreworkflow.ValidStepRunTransition(in.ExpectedStatus, in.NewStatus) {
-		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidStepRunTransition, in.ExpectedStatus, in.NewStatus)
+func (s *Store) TransitionWorkflowNodeRun(ctx context.Context, in coreworkflow.TransitionNodeRunInput) (bool, error) {
+	if !coreworkflow.ValidNodeRunTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidNodeRunTransition, in.ExpectedStatus, in.NewStatus)
 	}
-	id, ok := util.CanonicalPublicID(in.StepRunID)
+	id, ok := util.CanonicalPublicID(in.NodeRunID)
 	if !ok {
 		return false, nil
 	}
@@ -830,7 +843,7 @@ func (s *Store) TransitionWorkflowStepRun(ctx context.Context, in coreworkflow.T
 		if err != nil {
 			return err
 		}
-		res := tx.Model(&workflowStepRunRow{}).
+		res := tx.Model(&workflowNodeRunRow{}).
 			Where("public_id = ? AND status = ?", id, string(in.ExpectedStatus)).
 			Updates(updates)
 		if res.Error != nil {
@@ -850,13 +863,13 @@ func (s *Store) TransitionWorkflowStepRun(ctx context.Context, in coreworkflow.T
 // move is guarded too, so a run a concurrent cancel already finalized keeps that
 // outcome.
 func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.FinalizeFailedRunInput) (bool, error) {
-	if !coreworkflow.ValidStepRunTransition(in.StepExpected, in.StepStatus) {
-		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidStepRunTransition, in.StepExpected, in.StepStatus)
+	if !coreworkflow.ValidNodeRunTransition(in.NodeExpected, in.NodeStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidNodeRunTransition, in.NodeExpected, in.NodeStatus)
 	}
 	if !coreworkflow.ValidRunStatusTransition(in.RunExpected, in.RunStatus) {
 		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidRunTransition, in.RunExpected, in.RunStatus)
 	}
-	stepID, ok := util.CanonicalPublicID(in.StepRunID)
+	stepID, ok := util.CanonicalPublicID(in.NodeRunID)
 	if !ok {
 		return false, nil
 	}
@@ -866,7 +879,7 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 	}
 	stepApplied := false
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		stepUpdates := map[string]interface{}{"status": string(in.StepStatus)}
+		stepUpdates := map[string]interface{}{"status": string(in.NodeStatus)}
 		if in.TaskRunID != nil && *in.TaskRunID != "" {
 			key, err := lookupKey(ctx, tx, "task_run", *in.TaskRunID)
 			if err != nil {
@@ -883,8 +896,8 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 		if in.EndedAt != nil {
 			stepUpdates["ended_at"] = *in.EndedAt
 		}
-		res := tx.Model(&workflowStepRunRow{}).
-			Where("public_id = ? AND status = ?", stepID, string(in.StepExpected)).
+		res := tx.Model(&workflowNodeRunRow{}).
+			Where("public_id = ? AND status = ?", stepID, string(in.NodeExpected)).
 			Updates(stepUpdates)
 		if res.Error != nil {
 			return res.Error
@@ -900,10 +913,10 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 		}
 		// Block every later step still pending. The status filter makes this a
 		// guarded bulk pending -> blocked, which is a valid transition.
-		if err := tx.Model(&workflowStepRunRow{}).
-			Where("workflow_run_id = ? AND step_index > ? AND status = ?",
-				runKey, in.StepIndex, string(coreworkflow.StepRunStatusPending)).
-			Update("status", string(coreworkflow.StepRunStatusBlocked)).Error; err != nil {
+		if err := tx.Model(&workflowNodeRunRow{}).
+			Where("workflow_run_id = ? AND node_index > ? AND status = ?",
+				runKey, in.NodeIndex, string(coreworkflow.NodeRunStatusPending)).
+			Update("status", string(coreworkflow.NodeRunStatusBlocked)).Error; err != nil {
 			return err
 		}
 
@@ -1017,19 +1030,19 @@ func (s *Store) ReleaseWorkflowRunLease(ctx context.Context, in coreworkflow.Rel
 	return res.RowsAffected == 1, nil
 }
 
-func (s *Store) GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*coreworkflow.StepRun, error) {
-	return s.getWorkflowStepRunByOwner(ctx, "task", "workflow_step_run.task_id", taskID)
+func (s *Store) GetWorkflowNodeRunByTaskID(ctx context.Context, taskID string) (*coreworkflow.NodeRun, error) {
+	return s.getWorkflowNodeRunByOwner(ctx, "task", "workflow_node_run.task_id", taskID)
 }
 
-func (s *Store) GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*coreworkflow.StepRun, error) {
-	return s.getWorkflowStepRunByOwner(ctx, "task_run", "workflow_step_run.task_run_id", taskRunID)
+func (s *Store) GetWorkflowNodeRunByTaskRunID(ctx context.Context, taskRunID string) (*coreworkflow.NodeRun, error) {
+	return s.getWorkflowNodeRunByOwner(ctx, "task_run", "workflow_node_run.task_run_id", taskRunID)
 }
 
-// getWorkflowStepRunByOwner finds the step run that produced a task or a run.
+// getWorkflowNodeRunByOwner finds the step run that produced a task or a run.
 //
 // table and col reach a query as text, so both stay constants from this package
 // and never values from a request.
-func (s *Store) getWorkflowStepRunByOwner(ctx context.Context, table, col, publicID string) (*coreworkflow.StepRun, error) {
+func (s *Store) getWorkflowNodeRunByOwner(ctx context.Context, table, col, publicID string) (*coreworkflow.NodeRun, error) {
 	key, err := lookupKey(ctx, s.db, table, publicID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
@@ -1037,13 +1050,13 @@ func (s *Store) getWorkflowStepRunByOwner(ctx context.Context, table, col, publi
 	if err != nil {
 		return nil, err
 	}
-	var step workflowStepRunReadRow
-	err = s.workflowStepRunSelect(ctx).Where(col+" = ?", key).Take(&step).Error
+	var step workflowNodeRunReadRow
+	err = s.workflowNodeRunSelect(ctx).Where(col+" = ?", key).Take(&step).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return toWorkflowStepRun(&step), nil
+	return toWorkflowNodeRun(&step), nil
 }

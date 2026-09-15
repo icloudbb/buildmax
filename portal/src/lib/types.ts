@@ -177,12 +177,12 @@ export interface WorkflowRun {
   createdLabel: string
 }
 
-export interface WorkflowStepRun {
+export interface WorkflowNodeRun {
   id: string
   workflowRunId: string
-  stepId: string
-  stepIndex: number
-  stepType: string
+  nodeId: string
+  nodeIndex: number
+  nodeType: string
   targetAgentId?: string | null
   agentRevision?: number | null
   agentName?: string | null
@@ -192,7 +192,8 @@ export interface WorkflowStepRun {
   status: "pending" | "running" | "succeeded" | "failed" | "canceled" | "blocked"
   taskId?: string | null
   taskRunId?: string | null
-  outputSummary?: string | null
+  resolvedInput?: string | null
+  output?: string | null
   errorMessage?: string | null
   createdAt: string
   startedAt?: string | null
@@ -201,7 +202,7 @@ export interface WorkflowStepRun {
 
 export interface IssueFlowRun {
   run: WorkflowRun
-  steps: WorkflowStepRun[]
+  steps: WorkflowNodeRun[]
 }
 
 export interface OutputSource {
@@ -210,8 +211,8 @@ export interface OutputSource {
   taskRunId?: string
   conversationId?: string
   workflowRunId?: string | null
-  workflowStepRunId?: string | null
-  workflowStepId?: string | null
+  workflowNodeRunId?: string | null
+  workflowNodeId?: string | null
 }
 
 export interface IssueOutput {

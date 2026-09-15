@@ -93,7 +93,7 @@ func TestWorkflowRestartRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartWorkflowRun: %v", err)
 	}
-	if steps[0].Status != string(coreworkflow.StepRunStatusRunning) || steps[0].TaskRunID == nil {
+	if steps[0].Status != string(coreworkflow.NodeRunStatusRunning) || steps[0].TaskRunID == nil {
 		t.Fatalf("step[0] = %+v, want running with a task run", steps[0])
 	}
 
@@ -113,17 +113,17 @@ func TestWorkflowRestartRecovery(t *testing.T) {
 	loop.WithClock(func() time.Time { return time.Now().UTC().Add(time.Hour) })
 	loop.sweep(ctx)
 
-	after, err := store.ListWorkflowStepRuns(ctx, run.ID)
+	after, err := store.ListWorkflowNodeRuns(ctx, run.ID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
-	if after[0].Status != string(coreworkflow.StepRunStatusSucceeded) {
+	if after[0].Status != string(coreworkflow.NodeRunStatusSucceeded) {
 		t.Errorf("step[0] status = %q, want succeeded after recovery", after[0].Status)
 	}
-	if after[0].OutputSummary == nil || *after[0].OutputSummary != out {
-		t.Errorf("step[0] summary = %v, want %q", after[0].OutputSummary, out)
+	if after[0].Output == nil || *after[0].Output != out {
+		t.Errorf("step[0] summary = %v, want %q", after[0].Output, out)
 	}
-	if after[1].Status != string(coreworkflow.StepRunStatusRunning) {
+	if after[1].Status != string(coreworkflow.NodeRunStatusRunning) {
 		t.Errorf("step[1] status = %q, want running (next step dispatched)", after[1].Status)
 	}
 	if _, total, err := store.ListTasksByAgent(ctx, space.ID, agentB.ID, 0, 0); err != nil {

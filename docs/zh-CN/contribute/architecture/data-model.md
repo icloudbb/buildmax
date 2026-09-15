@@ -55,7 +55,7 @@ erDiagram
     issue ||--o{ workflow_run : "tracked by"
 
     agent ||--o{ task : executes
-    agent ||--o{ workflow_step_run : "targeted by"
+    agent ||--o{ workflow_node_run : "targeted by"
     agent ||--o{ agent_revision : "versioned by"
     workflow ||--o{ workflow_revision : "versioned by"
 
@@ -67,8 +67,8 @@ erDiagram
     space ||--o{ artifact : keeps
 
     workflow ||--o{ workflow_run : "instantiated as"
-    workflow_run ||--o{ workflow_step_run : "expands to"
-    workflow_step_run ||--o| task : "delegates to"
+    workflow_run ||--o{ workflow_node_run : "expands to"
+    workflow_node_run ||--o| task : "delegates to"
 ```
 
 身份、授权和平台相关的表：
@@ -398,7 +398,7 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 
 索引：主键 `id`；索引 `deleted_at`；索引 `space_id`；索引 `user_id`；唯一索引 `public_id`。
 
-删除只写入 `deleted_at`，不执行 `DELETE`。Task、WorkflowStepRun 和修订都通过 ID 引用 Agent，移除行会让它们全部变成悬空引用，并让仍在进行的 WorkflowRun 在下一步失败。因此读取分为两类：`GetAgent` 和列表查询只查看存活 Agent，避免用已删除 Agent 启动新工作；`GetAgentIncludingDeleted` 则解析已有记录的引用。若 `published` Workflow 仍引用某 Agent，删除会被拒绝并返回 `409`——该 Workflow 仍可运行，否则错误会在下次运行时才暴露，而不是在删除时暴露。草稿和归档 Workflow 不阻止删除，因为两者都不能启动运行，而且发布时会重新验证 Agent。
+删除只写入 `deleted_at`，不执行 `DELETE`。Task、WorkflowNodeRun 和修订都通过 ID 引用 Agent，移除行会让它们全部变成悬空引用，并让仍在进行的 WorkflowRun 在下一步失败。因此读取分为两类：`GetAgent` 和列表查询只查看存活 Agent，避免用已删除 Agent 启动新工作；`GetAgentIncludingDeleted` 则解析已有记录的引用。若 `published` Workflow 仍引用某 Agent，删除会被拒绝并返回 `409`——该 Workflow 仍可运行，否则错误会在下次运行时才暴露，而不是在删除时暴露。草稿和归档 Workflow 不阻止删除，因为两者都不能启动运行，而且发布时会重新验证 Agent。
 
 `plugins` 指定目录插件，而不指定发布版本：版本和摘要来自 Space 的 `plugin_activation` 行，因此将插件切换到新版本始终只需修改一处。不从 Space 的激活项隐式继承任何插件——未指定插件的 Agent 不加载插件——列表存储前去除首尾空白、去重并排序，因此重排同一集合不会追加修订。采用 JSON 列而非关联表，是因为不查询其内部：选择整体写入、整体读取，“哪些 Agent 指定了此插件”通过扫描一个 Space 的 Agent 得出。
 
@@ -714,34 +714,36 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 
 每个 step run 都会直接创建一个 Space 所有的 Task（`task.space_id`，无 `conversation_id`）；一次运行的进度是通过其各步骤的 `task_id` / `task_run_id` 读取的，而不是通过 Conversation。
 
-### `workflow_step_run`
+### `workflow_node_run`
 
-一次 Workflow 运行中的一个步骤。是 Workflow 引擎与 Tier 2 之间的桥梁。
+一次 Workflow 运行中的一个节点。是 Workflow 引擎与 Tier 2 之间的桥梁。线性雏形把
+节点撰写为有序的 `steps`；`node_id` 承载所撰写步骤的 id，`node_index` 是它的位置。
 
 | 列 | 类型 | 可空 | 说明 |
 |---|---|---|---|
 | `id` | `bigint unsigned` | 否 | 内部主键 |
-| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一。Go 字段为 `StepRunID` |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一。Go 字段为 `NodeRunID` |
 | `workflow_run_id` | `bigint unsigned` | 否 | `workflow_run.id` |
-| `step_id` | `varchar(128)` | 否 | 在 Workflow 定义中撰写的步骤标识符，不是对某一行的引用 |
-| `step_index` | `bigint` | 否 | 在线性计划中的位置；即执行顺序 |
-| `step_type` | `varchar(32)` | 否 | `agent_task` |
-| `target_agent_id` | `bigint unsigned` | 是 | 该步骤所运行的 `agent.id` |
-| `agent_name` | `varchar(255)` | 否 | 运行开始时捕获的 Agent 名称；早于 step run 开始快照 Agent 之前写入的行为空 |
+| `node_id` | `varchar(128)` | 否 | 在 Workflow 定义中作为步骤 id 撰写的节点标识符，不是对某一行的引用 |
+| `node_index` | `bigint` | 否 | 在线性计划中的位置；即执行顺序 |
+| `node_type` | `varchar(32)` | 否 | `agent_task` |
+| `target_agent_id` | `bigint unsigned` | 是 | 该节点所运行的 `agent.id` |
+| `agent_name` | `varchar(255)` | 否 | 运行开始时捕获的 Agent 名称；早于 node run 开始快照 Agent 之前写入的行为空 |
 | `agent_description` | `text` | 否 | 运行开始时捕获的 Agent 描述 |
 | `agent_instructions` | `longtext` | 否 | 运行开始时捕获的 Agent 指令 |
 | `agent_revision` | `bigint` | 否 | 快照来自的 `agent_revision.revision`；早于修订功能存在的行为 0 |
-| `prompt` | `text` | 否 | 此步骤渲染后的 prompt |
+| `prompt` | `text` | 否 | 此节点渲染后的 prompt |
 | `status` | `varchar(32)` | 否 | `pending`、`running`、`succeeded`、`failed`、`canceled`、`blocked` |
-| `task_id` | `bigint unsigned` | 是 | 此步骤创建的 Tier 2 Task |
+| `task_id` | `bigint unsigned` | 是 | 此节点创建的 Tier 2 Task |
 | `task_run_id` | `bigint unsigned` | 是 | 具体的那次尝试 |
-| `output_summary` | `text` | 是 | 步骤输出的前 500 个字符，用于展示；不会传递给下一步 |
+| `resolved_input` | `longtext` | 是 | 节点启动时收到的完整 Task 输入 |
+| `output` | `longtext` | 是 | 节点成功时捕获的完整输出文本；供下游绑定读取 |
 | `error_message` | `text` | 是 | |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 | `started_at` | `datetime(6)` | 是 | |
 | `ended_at` | `datetime(6)` | 是 | |
 
-索引：主键 `id`；(`workflow_run_id`, `step_index`) 上的索引 `idx_step_run_run_index`；索引 `target_agent_id`；索引 `task_id`；索引 `task_run_id`；唯一索引 `public_id`。
+索引：主键 `id`；(`workflow_run_id`, `node_index`) 上的索引 `idx_node_run_run_index`；索引 `target_agent_id`；索引 `task_id`；索引 `task_run_id`；唯一索引 `public_id`。
 
 三个 `agent_*` 列为整次运行固定了 Agent 定义。各步骤是随着前一个 Task 运行进入终态才依次派发的，因此如果没有这几列，两个步骤之间对 Agent 的一次编辑，就会改变后一个步骤发送给模型的内容。
 

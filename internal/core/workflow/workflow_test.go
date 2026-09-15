@@ -30,25 +30,25 @@ func TestValidRunStatusTransition(t *testing.T) {
 	}
 }
 
-func TestValidStepRunTransition(t *testing.T) {
-	allowed := map[StepRunStatus][]StepRunStatus{
-		StepRunStatusPending: {StepRunStatusRunning, StepRunStatusBlocked, StepRunStatusFailed, StepRunStatusCanceled},
-		StepRunStatusRunning: {StepRunStatusSucceeded, StepRunStatusFailed, StepRunStatusCanceled},
+func TestValidNodeRunTransition(t *testing.T) {
+	allowed := map[NodeRunStatus][]NodeRunStatus{
+		NodeRunStatusPending: {NodeRunStatusRunning, NodeRunStatusBlocked, NodeRunStatusFailed, NodeRunStatusCanceled},
+		NodeRunStatusRunning: {NodeRunStatusSucceeded, NodeRunStatusFailed, NodeRunStatusCanceled},
 	}
-	all := []StepRunStatus{
-		StepRunStatusPending, StepRunStatusRunning, StepRunStatusSucceeded,
-		StepRunStatusFailed, StepRunStatusCanceled, StepRunStatusBlocked,
+	all := []NodeRunStatus{
+		NodeRunStatusPending, NodeRunStatusRunning, NodeRunStatusSucceeded,
+		NodeRunStatusFailed, NodeRunStatusCanceled, NodeRunStatusBlocked,
 	}
 	for _, from := range all {
-		ok := make(map[StepRunStatus]bool)
+		ok := make(map[NodeRunStatus]bool)
 		for _, to := range allowed[from] {
 			ok[to] = true
-			if !ValidStepRunTransition(from, to) {
+			if !ValidNodeRunTransition(from, to) {
 				t.Errorf("%s -> %s should be allowed", from, to)
 			}
 		}
 		for _, to := range all {
-			if !ok[to] && ValidStepRunTransition(from, to) {
+			if !ok[to] && ValidNodeRunTransition(from, to) {
 				t.Errorf("%s -> %s should be refused", from, to)
 			}
 		}
@@ -64,12 +64,12 @@ func TestStatusTerminal(t *testing.T) {
 			t.Errorf("%s run should be terminal", s)
 		}
 	}
-	if StepRunStatusTerminal(StepRunStatusPending) || StepRunStatusTerminal(StepRunStatusRunning) {
+	if NodeRunStatusTerminal(NodeRunStatusPending) || NodeRunStatusTerminal(NodeRunStatusRunning) {
 		t.Error("pending/running steps are not terminal")
 	}
 	// Blocked is terminal alongside the natural ends.
-	for _, s := range []StepRunStatus{StepRunStatusSucceeded, StepRunStatusFailed, StepRunStatusCanceled, StepRunStatusBlocked} {
-		if !StepRunStatusTerminal(s) {
+	for _, s := range []NodeRunStatus{NodeRunStatusSucceeded, NodeRunStatusFailed, NodeRunStatusCanceled, NodeRunStatusBlocked} {
+		if !NodeRunStatusTerminal(s) {
 			t.Errorf("%s step should be terminal", s)
 		}
 	}

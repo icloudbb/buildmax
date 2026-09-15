@@ -187,12 +187,12 @@ export interface ApiWorkflowRun {
   error_message?: string | null
 }
 
-export interface ApiWorkflowStepRun {
+export interface ApiWorkflowNodeRun {
   id: string
   workflow_run_id: string
-  step_id: string
-  step_index: number
-  step_type: string
+  node_id: string
+  node_index: number
+  node_type: string
   target_agent_id?: string | null
   agent_name?: string | null
   agent_description?: string | null
@@ -202,7 +202,8 @@ export interface ApiWorkflowStepRun {
   status: string
   task_id?: string | null
   task_run_id?: string | null
-  output_summary?: string | null
+  resolved_input?: string | null
+  output?: string | null
   error_message?: string | null
   created_at: string
   started_at?: string | null
@@ -216,12 +217,12 @@ export interface ApiWorkflowRunListResponse {
 
 export interface ApiWorkflowRunDetailResponse {
   run: ApiWorkflowRun
-  steps: ApiWorkflowStepRun[]
+  steps: ApiWorkflowNodeRun[]
 }
 
 export interface ApiIssueFlowRun {
   run: ApiWorkflowRun
-  steps: ApiWorkflowStepRun[]
+  steps: ApiWorkflowNodeRun[]
 }
 
 export interface ApiOutputSource {
@@ -230,8 +231,8 @@ export interface ApiOutputSource {
   task_run_id?: string
   conversation_id?: string
   workflow_run_id?: string | null
-  workflow_step_run_id?: string | null
-  workflow_step_id?: string | null
+  workflow_node_run_id?: string | null
+  workflow_node_id?: string | null
 }
 
 export interface ApiIssueOutput {

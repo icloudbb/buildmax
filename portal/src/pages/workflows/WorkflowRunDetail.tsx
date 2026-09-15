@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react"
-import type { Workflow, WorkflowRun, WorkflowStepRun } from "../../lib/types"
+import type { Workflow, WorkflowRun, WorkflowNodeRun } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import {
   apiWorkflowRunToWorkflowRun,
-  apiWorkflowStepRunToWorkflowStepRun,
+  apiWorkflowNodeRunToWorkflowNodeRun,
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
 import { getWorkflow, getWorkflowRunDetail } from "../../features/workflows"
@@ -22,7 +22,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
   const { setEntityLabel } = useApp()
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [run, setRun] = useState<WorkflowRun | null>(null)
-  const [steps, setSteps] = useState<WorkflowStepRun[]>([])
+  const [steps, setSteps] = useState<WorkflowNodeRun[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,7 +49,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
       const detail = await getWorkflowRunDetail(spaceId, workflowRunId, token)
       const mappedRun = apiWorkflowRunToWorkflowRun(detail.run)
       setRun(mappedRun)
-      setSteps(detail.steps.map(apiWorkflowStepRunToWorkflowStepRun))
+      setSteps(detail.steps.map(apiWorkflowNodeRunToWorkflowNodeRun))
       const workflowApi = await getWorkflow(spaceId, detail.run.workflow_id, token)
       setWorkflow(apiWorkflowToWorkflow(workflowApi))
       setLastRefreshedAt(Date.now())
@@ -190,11 +190,11 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                 {steps.map((step) => (
                   <li key={step.id} className="workflow-page__step">
                     <div className="workflow-page__step-head">
-                      <strong>{step.stepId}</strong>
+                      <strong>{step.nodeId}</strong>
                       <span className="issues-page__status">{step.status}</span>
                     </div>
                     <div className="workflow-page__step-body">
-                      <div className="page-activity__meta">{step.stepType}</div>
+                      <div className="page-activity__meta">{step.nodeType}</div>
                       <div>{step.prompt}</div>
                       {step.targetAgentId ? (
                         <div className="page-activity__meta">
@@ -225,7 +225,13 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                           </button>
                         </div>
                       ) : null}
-                      {step.outputSummary ? <pre className="workflow-page__step-output">{step.outputSummary}</pre> : null}
+                      {step.resolvedInput ? (
+                        <details className="workflow-run-page__step-agent">
+                          <summary className="page-activity__meta">Resolved input this node received</summary>
+                          <pre className="workflow-page__step-output">{step.resolvedInput}</pre>
+                        </details>
+                      ) : null}
+                      {step.output ? <pre className="workflow-page__step-output">{step.output}</pre> : null}
                       {step.errorMessage ? <p className="modal__error">{step.errorMessage}</p> : null}
                     </div>
                   </li>

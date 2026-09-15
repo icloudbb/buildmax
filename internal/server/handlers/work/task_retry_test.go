@@ -160,11 +160,11 @@ func TestRetryTaskRefusesAWorkflowStep(t *testing.T) {
 		TaskID: retryTaskID,
 		Input:  "review the migration plan",
 		Status: string(coretask.RunStatusFailed),
-	}, &mock.MockWorkflowStore{StepRuns: []coreworkflow.StepRun{{
+	}, &mock.MockWorkflowStore{NodeRuns: []coreworkflow.NodeRun{{
 		ID:            "wsr_1",
 		WorkflowRunID: "wr_1",
 		TaskID:        util.Ptr(retryTaskID),
-		Status:        string(coreworkflow.StepRunStatusFailed),
+		Status:        string(coreworkflow.NodeRunStatusFailed),
 	}}})
 
 	rec := postRetry(t, mux)

@@ -15,7 +15,7 @@ type MockWorkflowStore struct {
 	Workflows []coreworkflow.Workflow
 	Revisions []coreworkflow.Revision
 	Runs      []coreworkflow.Run
-	StepRuns  []coreworkflow.StepRun
+	NodeRuns  []coreworkflow.NodeRun
 }
 
 func (m *MockWorkflowStore) appendRevision(w *coreworkflow.Workflow, createdBy string) {
@@ -185,9 +185,9 @@ func (m *MockWorkflowStore) GetWorkflowRun(_ context.Context, workflowRunID stri
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) ListWorkflowStepRuns(_ context.Context, workflowRunID string) ([]coreworkflow.StepRun, error) {
-	var out []coreworkflow.StepRun
-	for _, step := range m.StepRuns {
+func (m *MockWorkflowStore) ListWorkflowNodeRuns(_ context.Context, workflowRunID string) ([]coreworkflow.NodeRun, error) {
+	var out []coreworkflow.NodeRun
+	for _, step := range m.NodeRuns {
 		if step.WorkflowRunID == workflowRunID {
 			out = append(out, step)
 		}
@@ -195,15 +195,15 @@ func (m *MockWorkflowStore) ListWorkflowStepRuns(_ context.Context, workflowRunI
 	return out, nil
 }
 
-func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRunID string, steps []coreworkflow.CreateStepRunInput) ([]coreworkflow.StepRun, error) {
-	out := make([]coreworkflow.StepRun, len(steps))
+func (m *MockWorkflowStore) CreateWorkflowNodeRuns(_ context.Context, workflowRunID string, steps []coreworkflow.CreateNodeRunInput) ([]coreworkflow.NodeRun, error) {
+	out := make([]coreworkflow.NodeRun, len(steps))
 	for i := range steps {
-		out[i] = coreworkflow.StepRun{
-			ID:                fmt.Sprintf("wsr_mock_%d", len(m.StepRuns)+1),
+		out[i] = coreworkflow.NodeRun{
+			ID:                fmt.Sprintf("wsr_mock_%d", len(m.NodeRuns)+1),
 			WorkflowRunID:     workflowRunID,
-			StepID:            steps[i].StepID,
-			StepIndex:         steps[i].StepIndex,
-			StepType:          steps[i].StepType,
+			NodeID:            steps[i].NodeID,
+			NodeIndex:         steps[i].NodeIndex,
+			NodeType:          steps[i].NodeType,
 			TargetAgentID:     steps[i].TargetAgentID,
 			AgentName:         steps[i].AgentName,
 			AgentDescription:  steps[i].AgentDescription,
@@ -214,7 +214,7 @@ func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRu
 			Status:            steps[i].Status,
 			CreatedAt:         time.Now().UTC(),
 		}
-		m.StepRuns = append(m.StepRuns, out[i])
+		m.NodeRuns = append(m.NodeRuns, out[i])
 	}
 	return out, nil
 }
@@ -248,51 +248,58 @@ func (m *MockWorkflowStore) TransitionWorkflowRun(_ context.Context, in corework
 	return false, nil
 }
 
-func (m *MockWorkflowStore) TransitionWorkflowStepRun(_ context.Context, in coreworkflow.TransitionStepRunInput) (bool, error) {
-	if !coreworkflow.ValidStepRunTransition(in.ExpectedStatus, in.NewStatus) {
-		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidStepRunTransition, in.ExpectedStatus, in.NewStatus)
+func (m *MockWorkflowStore) TransitionWorkflowNodeRun(_ context.Context, in coreworkflow.TransitionNodeRunInput) (bool, error) {
+	if !coreworkflow.ValidNodeRunTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidNodeRunTransition, in.ExpectedStatus, in.NewStatus)
 	}
-	for i := range m.StepRuns {
-		if m.StepRuns[i].ID != in.StepRunID {
+	for i := range m.NodeRuns {
+		if m.NodeRuns[i].ID != in.NodeRunID {
 			continue
 		}
-		if m.StepRuns[i].Status != string(in.ExpectedStatus) {
+		if m.NodeRuns[i].Status != string(in.ExpectedStatus) {
 			return false, nil
 		}
-		m.StepRuns[i].Status = string(in.NewStatus)
+		m.NodeRuns[i].Status = string(in.NewStatus)
 		if in.TaskID != nil {
 			if *in.TaskID == "" {
-				m.StepRuns[i].TaskID = nil
+				m.NodeRuns[i].TaskID = nil
 			} else {
-				m.StepRuns[i].TaskID = in.TaskID
+				m.NodeRuns[i].TaskID = in.TaskID
 			}
 		}
 		if in.TaskRunID != nil {
 			if *in.TaskRunID == "" {
-				m.StepRuns[i].TaskRunID = nil
+				m.NodeRuns[i].TaskRunID = nil
 			} else {
-				m.StepRuns[i].TaskRunID = in.TaskRunID
+				m.NodeRuns[i].TaskRunID = in.TaskRunID
 			}
 		}
-		if in.OutputSummary != nil {
-			if *in.OutputSummary == "" {
-				m.StepRuns[i].OutputSummary = nil
+		if in.ResolvedInput != nil {
+			if *in.ResolvedInput == "" {
+				m.NodeRuns[i].ResolvedInput = nil
 			} else {
-				m.StepRuns[i].OutputSummary = in.OutputSummary
+				m.NodeRuns[i].ResolvedInput = in.ResolvedInput
+			}
+		}
+		if in.Output != nil {
+			if *in.Output == "" {
+				m.NodeRuns[i].Output = nil
+			} else {
+				m.NodeRuns[i].Output = in.Output
 			}
 		}
 		if in.ErrorMessage != nil {
 			if *in.ErrorMessage == "" {
-				m.StepRuns[i].ErrorMessage = nil
+				m.NodeRuns[i].ErrorMessage = nil
 			} else {
-				m.StepRuns[i].ErrorMessage = in.ErrorMessage
+				m.NodeRuns[i].ErrorMessage = in.ErrorMessage
 			}
 		}
 		if in.StartedAt != nil {
-			m.StepRuns[i].StartedAt = in.StartedAt
+			m.NodeRuns[i].StartedAt = in.StartedAt
 		}
 		if in.EndedAt != nil {
-			m.StepRuns[i].EndedAt = in.EndedAt
+			m.NodeRuns[i].EndedAt = in.EndedAt
 		}
 		return true, nil
 	}
@@ -300,32 +307,32 @@ func (m *MockWorkflowStore) TransitionWorkflowStepRun(_ context.Context, in core
 }
 
 func (m *MockWorkflowStore) FinalizeFailedWorkflowRun(_ context.Context, in coreworkflow.FinalizeFailedRunInput) (bool, error) {
-	if !coreworkflow.ValidStepRunTransition(in.StepExpected, in.StepStatus) {
-		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidStepRunTransition, in.StepExpected, in.StepStatus)
+	if !coreworkflow.ValidNodeRunTransition(in.NodeExpected, in.NodeStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidNodeRunTransition, in.NodeExpected, in.NodeStatus)
 	}
 	if !coreworkflow.ValidRunStatusTransition(in.RunExpected, in.RunStatus) {
 		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidRunTransition, in.RunExpected, in.RunStatus)
 	}
 	stepApplied := false
-	for i := range m.StepRuns {
-		if m.StepRuns[i].ID != in.StepRunID {
+	for i := range m.NodeRuns {
+		if m.NodeRuns[i].ID != in.NodeRunID {
 			continue
 		}
-		if m.StepRuns[i].Status != string(in.StepExpected) {
+		if m.NodeRuns[i].Status != string(in.NodeExpected) {
 			return false, nil
 		}
-		m.StepRuns[i].Status = string(in.StepStatus)
+		m.NodeRuns[i].Status = string(in.NodeStatus)
 		if in.TaskRunID != nil && *in.TaskRunID != "" {
-			m.StepRuns[i].TaskRunID = in.TaskRunID
+			m.NodeRuns[i].TaskRunID = in.TaskRunID
 		}
 		if in.ErrorMessage != nil {
-			m.StepRuns[i].ErrorMessage = in.ErrorMessage
+			m.NodeRuns[i].ErrorMessage = in.ErrorMessage
 		}
 		if in.StartedAt != nil {
-			m.StepRuns[i].StartedAt = in.StartedAt
+			m.NodeRuns[i].StartedAt = in.StartedAt
 		}
 		if in.EndedAt != nil {
-			m.StepRuns[i].EndedAt = in.EndedAt
+			m.NodeRuns[i].EndedAt = in.EndedAt
 		}
 		stepApplied = true
 		break
@@ -333,11 +340,11 @@ func (m *MockWorkflowStore) FinalizeFailedWorkflowRun(_ context.Context, in core
 	if !stepApplied {
 		return false, nil
 	}
-	for i := range m.StepRuns {
-		if m.StepRuns[i].WorkflowRunID == in.WorkflowRunID &&
-			m.StepRuns[i].StepIndex > in.StepIndex &&
-			m.StepRuns[i].Status == string(coreworkflow.StepRunStatusPending) {
-			m.StepRuns[i].Status = string(coreworkflow.StepRunStatusBlocked)
+	for i := range m.NodeRuns {
+		if m.NodeRuns[i].WorkflowRunID == in.WorkflowRunID &&
+			m.NodeRuns[i].NodeIndex > in.NodeIndex &&
+			m.NodeRuns[i].Status == string(coreworkflow.NodeRunStatusPending) {
+			m.NodeRuns[i].Status = string(coreworkflow.NodeRunStatusBlocked)
 		}
 	}
 	for i := range m.Runs {
@@ -456,19 +463,19 @@ func (m *MockWorkflowStore) ReleaseWorkflowRunLease(_ context.Context, in corewo
 	return false, nil
 }
 
-func (m *MockWorkflowStore) GetWorkflowStepRunByTaskID(_ context.Context, taskID string) (*coreworkflow.StepRun, error) {
-	for i := range m.StepRuns {
-		if m.StepRuns[i].TaskID != nil && *m.StepRuns[i].TaskID == taskID {
-			return &m.StepRuns[i], nil
+func (m *MockWorkflowStore) GetWorkflowNodeRunByTaskID(_ context.Context, taskID string) (*coreworkflow.NodeRun, error) {
+	for i := range m.NodeRuns {
+		if m.NodeRuns[i].TaskID != nil && *m.NodeRuns[i].TaskID == taskID {
+			return &m.NodeRuns[i], nil
 		}
 	}
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) GetWorkflowStepRunByTaskRunID(_ context.Context, taskRunID string) (*coreworkflow.StepRun, error) {
-	for i := range m.StepRuns {
-		if m.StepRuns[i].TaskRunID != nil && *m.StepRuns[i].TaskRunID == taskRunID {
-			return &m.StepRuns[i], nil
+func (m *MockWorkflowStore) GetWorkflowNodeRunByTaskRunID(_ context.Context, taskRunID string) (*coreworkflow.NodeRun, error) {
+	for i := range m.NodeRuns {
+		if m.NodeRuns[i].TaskRunID != nil && *m.NodeRuns[i].TaskRunID == taskRunID {
+			return &m.NodeRuns[i], nil
 		}
 	}
 	return nil, nil

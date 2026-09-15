@@ -211,10 +211,10 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 		IssueID: util.Ptr("i_1"),
 		Status:  string(coreworkflow.RunStatusSucceeded), CreatedBy: "u1", CreatedAt: time.Unix(300, 0).UTC(),
 	}}
-	fx.workflows.StepRuns = []coreworkflow.StepRun{{
+	fx.workflows.NodeRuns = []coreworkflow.NodeRun{{
 		ID: stepRunID, WorkflowRunID: workflowRunID,
-		StepID: stepID, StepIndex: 0, StepType: coreworkflow.StepTypeAgentTask,
-		Status: string(coreworkflow.StepRunStatusSucceeded),
+		NodeID: stepID, NodeIndex: 0, NodeType: coreworkflow.NodeTypeAgentTask,
+		Status: string(coreworkflow.NodeRunStatusSucceeded),
 		TaskID: &taskID, TaskRunID: &runID, CreatedAt: time.Unix(305, 0).UTC(),
 	}}
 	fx.tasks.List = []coretask.Task{{
@@ -242,11 +242,11 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 	if src.WorkflowRunID == nil || *src.WorkflowRunID != workflowRunID {
 		t.Fatalf("workflow_run_id = %v", src.WorkflowRunID)
 	}
-	if src.WorkflowStepRunID == nil || *src.WorkflowStepRunID != stepRunID {
-		t.Fatalf("workflow_step_run_id = %v", src.WorkflowStepRunID)
+	if src.WorkflowNodeRunID == nil || *src.WorkflowNodeRunID != stepRunID {
+		t.Fatalf("workflow_node_run_id = %v", src.WorkflowNodeRunID)
 	}
-	if src.WorkflowStepID == nil || *src.WorkflowStepID != stepID {
-		t.Fatalf("workflow_step_id = %v", src.WorkflowStepID)
+	if src.WorkflowNodeID == nil || *src.WorkflowNodeID != stepID {
+		t.Fatalf("workflow_node_id = %v", src.WorkflowNodeID)
 	}
 }
 

@@ -582,9 +582,9 @@
                     "properties": {
                       "id": {"type": "string"},
                       "workflow_run_id": {"type": "string"},
-                      "step_id": {"type": "string"},
-                      "step_index": {"type": "integer"},
-                      "step_type": {"type": "string"},
+                      "node_id": {"type": "string"},
+                      "node_index": {"type": "integer"},
+                      "node_type": {"type": "string"},
                       "target_agent_id": {"type": "string"},
                       "agent_name": {"type": "string"},
                       "agent_description": {"type": "string"},
@@ -594,7 +594,8 @@
                       "status": {"type": "string"},
                       "task_id": {"type": "string"},
                       "task_run_id": {"type": "string"},
-                      "output_summary": {"type": "string"},
+                      "resolved_input": {"type": "string"},
+                      "output": {"type": "string"},
                       "error_message": {"type": "string"},
                       "created_at": {"type": "string", "format": "date-time"},
                       "started_at": {"type": "string", "format": "date-time"},
@@ -603,9 +604,9 @@
                     "required": [
                       "id",
                       "workflow_run_id",
-                      "step_id",
-                      "step_index",
-                      "step_type",
+                      "node_id",
+                      "node_index",
+                      "node_type",
                       "prompt",
                       "status",
                       "created_at"
@@ -658,8 +659,8 @@
                   "task_run_id": {"type": "string"},
                   "conversation_id": {"type": "string"},
                   "workflow_run_id": {"type": "string"},
-                  "workflow_step_run_id": {"type": "string"},
-                  "workflow_step_id": {"type": "string"}
+                  "workflow_node_run_id": {"type": "string"},
+                  "workflow_node_id": {"type": "string"}
                 },
                 "required": ["source_type"]
               },
@@ -687,8 +688,8 @@
                     "task_run_id": {"type": "string"},
                     "conversation_id": {"type": "string"},
                     "workflow_run_id": {"type": "string"},
-                    "workflow_step_run_id": {"type": "string"},
-                    "workflow_step_id": {"type": "string"}
+                    "workflow_node_run_id": {"type": "string"},
+                    "workflow_node_id": {"type": "string"}
                   },
                   "required": ["source_type"]
                 },
@@ -771,14 +772,14 @@
         },
         "required": ["id", "workflow_id", "conversation_id", "status", "created_by", "created_at"]
       },
-      "WorkflowStepRun": {
+      "WorkflowNodeRun": {
         "type": "object",
         "properties": {
           "id": {"type": "string"},
           "workflow_run_id": {"type": "string"},
-          "step_id": {"type": "string"},
-          "step_index": {"type": "integer"},
-          "step_type": {"type": "string"},
+          "node_id": {"type": "string"},
+          "node_index": {"type": "integer"},
+          "node_type": {"type": "string"},
           "target_agent_id": {"type": "string"},
           "agent_name": {"type": "string"},
           "agent_description": {"type": "string"},
@@ -788,7 +789,8 @@
           "status": {"type": "string"},
           "task_id": {"type": "string"},
           "task_run_id": {"type": "string"},
-          "output_summary": {"type": "string"},
+          "resolved_input": {"type": "string"},
+          "output": {"type": "string"},
           "error_message": {"type": "string"},
           "created_at": {"type": "string", "format": "date-time"},
           "started_at": {"type": "string", "format": "date-time"},
@@ -797,9 +799,9 @@
         "required": [
           "id",
           "workflow_run_id",
-          "step_id",
-          "step_index",
-          "step_type",
+          "node_id",
+          "node_index",
+          "node_type",
           "prompt",
           "status",
           "created_at"
@@ -3843,7 +3845,7 @@
                   "type": "object",
                   "properties": {
                     "run": {"$ref": "#/components/schemas/WorkflowRun"},
-                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowStepRun"}}
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}}
                   }
                 }
               }
@@ -4141,7 +4143,7 @@
                   "type": "object",
                   "properties": {
                     "run": {"$ref": "#/components/schemas/WorkflowRun"},
-                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowStepRun"}}
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}}
                   }
                 }
               }
@@ -4173,7 +4175,7 @@
                   "type": "object",
                   "properties": {
                     "run": {"$ref": "#/components/schemas/WorkflowRun"},
-                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowStepRun"}}
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}}
                   }
                 }
               }

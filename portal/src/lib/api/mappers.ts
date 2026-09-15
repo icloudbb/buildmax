@@ -14,7 +14,7 @@ import type {
   ApiWorkflow,
   ApiWorkflowRevision,
   ApiWorkflowRun,
-  ApiWorkflowStepRun,
+  ApiWorkflowNodeRun,
 } from "./types"
 import type {
   Agent,
@@ -27,7 +27,7 @@ import type {
   Workflow,
   WorkflowRevision,
   WorkflowRun,
-  WorkflowStepRun,
+  WorkflowNodeRun,
 } from "../types"
 
 /** Format an RFC 3339 instant as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
@@ -163,23 +163,24 @@ export function apiWorkflowRunToWorkflowRun(api: ApiWorkflowRun): WorkflowRun {
   }
 }
 
-export function apiWorkflowStepRunToWorkflowStepRun(api: ApiWorkflowStepRun): WorkflowStepRun {
+export function apiWorkflowNodeRunToWorkflowNodeRun(api: ApiWorkflowNodeRun): WorkflowNodeRun {
   return {
     id: api.id,
     workflowRunId: api.workflow_run_id,
-    stepId: api.step_id,
-    stepIndex: api.step_index,
-    stepType: api.step_type,
+    nodeId: api.node_id,
+    nodeIndex: api.node_index,
+    nodeType: api.node_type,
     targetAgentId: api.target_agent_id ?? null,
     agentRevision: api.agent_revision ?? null,
     agentName: api.agent_name ?? null,
     agentDescription: api.agent_description ?? null,
     agentInstructions: api.agent_instructions ?? null,
     prompt: api.prompt,
-    status: api.status as WorkflowStepRun["status"],
+    status: api.status as WorkflowNodeRun["status"],
     taskId: api.task_id ?? null,
     taskRunId: api.task_run_id ?? null,
-    outputSummary: api.output_summary ?? null,
+    resolvedInput: api.resolved_input ?? null,
+    output: api.output ?? null,
     errorMessage: api.error_message ?? null,
     createdAt: api.created_at,
     startedAt: api.started_at ?? null,
@@ -228,8 +229,8 @@ export function apiOutputSourceToOutputSource(api: ApiOutputSource): OutputSourc
     taskRunId: api.task_run_id,
     conversationId: api.conversation_id,
     workflowRunId: api.workflow_run_id ?? null,
-    workflowStepRunId: api.workflow_step_run_id ?? null,
-    workflowStepId: api.workflow_step_id ?? null,
+    workflowNodeRunId: api.workflow_node_run_id ?? null,
+    workflowNodeId: api.workflow_node_id ?? null,
   }
 }
 

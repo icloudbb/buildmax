@@ -16,8 +16,8 @@ type outputSourceResponse struct {
 	TaskRunID         string  `json:"task_run_id,omitempty"`
 	ConversationID    string  `json:"conversation_id,omitempty"`
 	WorkflowRunID     *string `json:"workflow_run_id,omitempty"`
-	WorkflowStepRunID *string `json:"workflow_step_run_id,omitempty"`
-	WorkflowStepID    *string `json:"workflow_step_id,omitempty"`
+	WorkflowNodeRunID *string `json:"workflow_node_run_id,omitempty"`
+	WorkflowNodeID    *string `json:"workflow_node_id,omitempty"`
 }
 
 type issueOutputResponse struct {
@@ -44,7 +44,7 @@ type issueOutputResponse struct {
 func (h *Handler) aggregateIssueOutputs(
 	ctx context.Context,
 	agentTasks []coretask.Task,
-	stepsByTaskID map[string]coreworkflow.StepRun,
+	stepsByTaskID map[string]coreworkflow.NodeRun,
 ) ([]issueOutputResponse, *issueOutputResponse) {
 	// Never nil: the flow response serializes this as a JSON array, and a reader
 	// distinguishes "no outputs" from a missing field.
@@ -70,7 +70,7 @@ func (h *Handler) aggregateIssueOutputs(
 func (h *Handler) artifactOutputs(
 	ctx context.Context,
 	agentTasks []coretask.Task,
-	stepsByTaskID map[string]coreworkflow.StepRun,
+	stepsByTaskID map[string]coreworkflow.NodeRun,
 ) []issueOutputResponse {
 	if h.cfg.Artifacts == nil || !h.cfg.Artifacts.Available() {
 		return nil
@@ -114,8 +114,8 @@ func (h *Handler) artifactOutputs(
 		}
 		if step, ok := stepsByTaskID[t.ID]; ok {
 			source.WorkflowRunID = util.Ptr(step.WorkflowRunID)
-			source.WorkflowStepRunID = util.Ptr(step.ID)
-			source.WorkflowStepID = util.Ptr(step.StepID)
+			source.WorkflowNodeRunID = util.Ptr(step.ID)
+			source.WorkflowNodeID = util.Ptr(step.NodeID)
 		}
 		for i := range artifacts {
 			a := artifacts[i]

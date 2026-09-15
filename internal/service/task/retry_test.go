@@ -117,11 +117,11 @@ func TestRetryRunRefusesATaskThatNeverRan(t *testing.T) {
 // dispatching the next step of a workflow run that has already ended.
 func TestRetryRunRefusesAWorkflowStepTask(t *testing.T) {
 	svc, runs := retryFixture(string(coretask.RunStatusFailed))
-	svc.WorkflowSteps = &mock.MockWorkflowStore{StepRuns: []coreworkflow.StepRun{{
+	svc.WorkflowSteps = &mock.MockWorkflowStore{NodeRuns: []coreworkflow.NodeRun{{
 		ID:            "wsr_1",
 		WorkflowRunID: "wr_1",
 		TaskID:        util.Ptr("t_1"),
-		Status:        string(coreworkflow.StepRunStatusFailed),
+		Status:        string(coreworkflow.NodeRunStatusFailed),
 	}}}
 
 	_, err := svc.RetryRun(context.Background(), RetryRunCmd{UserID: "u1", TaskID: "t_1"})

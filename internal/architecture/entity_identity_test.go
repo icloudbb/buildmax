@@ -54,7 +54,7 @@ var opaqueColumns = map[string]string{
 // numericRelationExempt are columns whose name ends in _id but which are not
 // references at all.
 var numericRelationExempt = map[string]bool{
-	"workflow_step_run.step_id": true, // authored inside a workflow definition
+	"workflow_node_run.node_id": true, // authored inside a workflow definition
 	"schema_migration.id":       true, // the migration's permanent authored name
 }
 

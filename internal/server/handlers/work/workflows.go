@@ -58,12 +58,12 @@ type workflowRunResponse struct {
 	Input            json.RawMessage `json:"input,omitempty"`
 }
 
-type workflowStepRunResponse struct {
+type workflowNodeRunResponse struct {
 	ID                string     `json:"id"`
 	WorkflowRunID     string     `json:"workflow_run_id"`
-	StepID            string     `json:"step_id"`
-	StepIndex         int        `json:"step_index"`
-	StepType          string     `json:"step_type"`
+	NodeID            string     `json:"node_id"`
+	NodeIndex         int        `json:"node_index"`
+	NodeType          string     `json:"node_type"`
 	TargetAgentID     *string    `json:"target_agent_id,omitempty"`
 	AgentName         string     `json:"agent_name,omitempty"`
 	AgentDescription  string     `json:"agent_description,omitempty"`
@@ -73,7 +73,8 @@ type workflowStepRunResponse struct {
 	Status            string     `json:"status"`
 	TaskID            *string    `json:"task_id,omitempty"`
 	TaskRunID         *string    `json:"task_run_id,omitempty"`
-	OutputSummary     *string    `json:"output_summary,omitempty"`
+	ResolvedInput     *string    `json:"resolved_input,omitempty"`
+	Output            *string    `json:"output,omitempty"`
 	ErrorMessage      *string    `json:"error_message,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 	StartedAt         *time.Time `json:"started_at,omitempty"`
@@ -91,7 +92,7 @@ type workflowRunListResponse struct {
 
 type workflowRunDetailResponse struct {
 	Run   workflowRunResponse       `json:"run"`
-	Steps []workflowStepRunResponse `json:"steps"`
+	Steps []workflowNodeRunResponse `json:"steps"`
 }
 
 type createWorkflowRequest struct {
@@ -166,13 +167,13 @@ func rawJSONOrNil(s *string) json.RawMessage {
 	return json.RawMessage(*s)
 }
 
-func workflowStepRunToResponse(step coreworkflow.StepRun) workflowStepRunResponse {
-	return workflowStepRunResponse{
+func workflowNodeRunToResponse(step coreworkflow.NodeRun) workflowNodeRunResponse {
+	return workflowNodeRunResponse{
 		ID:                step.ID,
 		WorkflowRunID:     step.WorkflowRunID,
-		StepID:            step.StepID,
-		StepIndex:         step.StepIndex,
-		StepType:          step.StepType,
+		NodeID:            step.NodeID,
+		NodeIndex:         step.NodeIndex,
+		NodeType:          step.NodeType,
 		TargetAgentID:     step.TargetAgentID,
 		AgentName:         step.AgentName,
 		AgentDescription:  step.AgentDescription,
@@ -182,7 +183,8 @@ func workflowStepRunToResponse(step coreworkflow.StepRun) workflowStepRunRespons
 		Status:            step.Status,
 		TaskID:            step.TaskID,
 		TaskRunID:         step.TaskRunID,
-		OutputSummary:     step.OutputSummary,
+		ResolvedInput:     step.ResolvedInput,
+		Output:            step.Output,
 		ErrorMessage:      step.ErrorMessage,
 		CreatedAt:         step.CreatedAt,
 		StartedAt:         step.StartedAt,
@@ -416,9 +418,9 @@ func (h *Handler) getWorkflowRunHandler(w http.ResponseWriter, r *http.Request) 
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_workflow_run", "space_id", spaceID, "workflow_run_id", runID)
 		return
 	}
-	stepOut := make([]workflowStepRunResponse, len(steps))
+	stepOut := make([]workflowNodeRunResponse, len(steps))
 	for i := range steps {
-		stepOut[i] = workflowStepRunToResponse(steps[i])
+		stepOut[i] = workflowNodeRunToResponse(steps[i])
 	}
 	httputil.WriteJSON(w, http.StatusOK, workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut})
 }
@@ -455,9 +457,9 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_workflow_run", "space_id", spaceID, "workflow_id", workflowID)
 		return
 	}
-	stepOut := make([]workflowStepRunResponse, len(steps))
+	stepOut := make([]workflowNodeRunResponse, len(steps))
 	for i := range steps {
-		stepOut[i] = workflowStepRunToResponse(steps[i])
+		stepOut[i] = workflowNodeRunToResponse(steps[i])
 	}
 	httputil.WriteJSON(w, http.StatusCreated, workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut})
 }
@@ -503,9 +505,9 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_workflow_run", "space_id", spaceID, "issue_id", issueID)
 		return
 	}
-	stepOut := make([]workflowStepRunResponse, len(steps))
+	stepOut := make([]workflowNodeRunResponse, len(steps))
 	for i := range steps {
-		stepOut[i] = workflowStepRunToResponse(steps[i])
+		stepOut[i] = workflowNodeRunToResponse(steps[i])
 	}
 	httputil.WriteJSON(w, http.StatusCreated, workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut})
 }
