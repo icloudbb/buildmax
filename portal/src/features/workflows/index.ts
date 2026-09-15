@@ -11,6 +11,7 @@ export {
   restoreWorkflowRevision,
 } from "./api"
 export { WorkflowStepsEditor } from "./StepsEditor"
+export { WorkflowGraph, type GraphNode } from "./WorkflowGraph"
 export { WorkflowRunInputForm } from "./RunInputForm"
 export {
   parseInputSchema,
