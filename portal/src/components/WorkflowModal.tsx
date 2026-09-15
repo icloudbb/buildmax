@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { BaseModal } from "@buildmax/gui"
 import type { Agent } from "../lib/types"
 import { newStep, stepsToDefinition, useWorkflowSteps, WorkflowStepsEditor } from "../features/workflows"
@@ -36,8 +36,18 @@ export function WorkflowModal({ open, agents = [], loading, error, onClose, onSu
     hydrate,
   } = useWorkflowSteps(agents)
 
+  // Initialize the form once per open, not on every `agents` change: the agent
+  // list can load or refetch after the dialog is open, and re-running this would
+  // wipe the name, description, and step the user has already filled in -- which
+  // left the Create button stuck disabled.
+  const initializedForOpen = useRef(false)
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      initializedForOpen.current = false
+      return
+    }
+    if (initializedForOpen.current) return
+    initializedForOpen.current = true
     setName("")
     setDescription("")
     hydrate(stepsToDefinition([newStep(agents[0]?.id ?? "")]))
