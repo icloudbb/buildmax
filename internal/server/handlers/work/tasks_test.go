@@ -41,7 +41,7 @@ func TestGetTaskResolvesWorkflowOrigin(t *testing.T) {
 			Spaces:    spaces,
 			Tasks:     &mock.MockTaskStore{List: []coretask.Task{task}},
 			Workflows: &mock.MockWorkflowStore{
-				StepRuns: []coreworkflow.StepRun{{ID: "wsr_1", WorkflowRunID: "wr_1", TaskID: util.Ptr("t_wf")}},
+				NodeRuns: []coreworkflow.NodeRun{{ID: "wsr_1", WorkflowRunID: "wr_1", TaskID: util.Ptr("t_wf")}},
 			},
 		})
 		mux := http.NewServeMux()
@@ -70,7 +70,7 @@ func TestGetTaskResolvesWorkflowOrigin(t *testing.T) {
 			Spaces:    spaces,
 			Tasks:     &mock.MockTaskStore{List: []coretask.Task{task}},
 			Workflows: &mock.MockWorkflowStore{
-				StepRuns: []coreworkflow.StepRun{{ID: "wsr_2", WorkflowRunID: "wr_2", TaskID: util.Ptr("t_issue")}},
+				NodeRuns: []coreworkflow.NodeRun{{ID: "wsr_2", WorkflowRunID: "wr_2", TaskID: util.Ptr("t_issue")}},
 			},
 		})
 		mux := http.NewServeMux()

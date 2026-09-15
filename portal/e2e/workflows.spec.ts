@@ -26,6 +26,7 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
     name,
     description: "Created by the Portal browser tests to exercise the workflow views.",
     definition: JSON.stringify({
+      schema_version: 1,
       steps: [{ step_id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" }],
     }),
   })
@@ -73,6 +74,7 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
     name: tagged("Workflow run probe"),
     description: "Created by the Portal browser tests to exercise workflow execution.",
     definition: JSON.stringify({
+      schema_version: 1,
       steps: [
         {
           step_id: "only",
@@ -138,6 +140,67 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
   )
 })
 
+test("a workflow with an input_schema runs from its generated input form", async ({ page }) => {
+  test.setTimeout(RUN_TIMEOUT_MS + 60_000)
+
+  const current = await session(page)
+
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
+    name: tagged("Workflow input agent"),
+    description: "Created by the Portal browser tests.",
+    instructions: "Reply with exactly: deployment smoke ok",
+  })
+  const workflow = await postJSON<{ id: string }>(page, `${current.space}/workflows`, current, {
+    name: tagged("Workflow input probe"),
+    description: "Created by the Portal browser tests to exercise run input.",
+    definition: JSON.stringify({
+      schema_version: 1,
+      input_schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: { topic: { type: "string" } },
+        required: ["topic"],
+      },
+      steps: [
+        { step_id: "only", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" },
+      ],
+    }),
+  })
+  await patchJSON(page, `${current.space}/workflows/${encodeURIComponent(workflow.id)}`, current, {
+    status: "published",
+  })
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`])
+
+  await page.goto(`/#/spaces/${current.spaceId}/workflows/${workflow.id}`)
+  await expect(page.getByRole("heading", { name: "Workflow Detail" })).toBeVisible()
+  // The form is generated from input_schema, so the required field is present and
+  // the run cannot start until it is filled.
+  const input = page.locator(".workflow-run-input input[type='text']")
+  await expect(input).toBeVisible()
+  await input.fill("markets")
+  await page.getByRole("button", { name: "Run Workflow" }).click()
+
+  // The run view is reached after the POST, and the run's stored input is the
+  // proof the generated form's value crossed the boundary and was admitted.
+  await expect(page.getByRole("heading", { name: "Workflow Run", exact: true })).toBeVisible()
+  await expect
+    .poll(
+      async () => {
+        const runs = await page.request.get(`${current.space}/workflows/${encodeURIComponent(workflow.id)}/runs`, {
+          headers: { Authorization: `Bearer ${current.token}` },
+        })
+        if (!runs.ok()) return `HTTP ${runs.status()}`
+        const body = (await runs.json()) as { runs: { id: string; status: string; input?: { topic?: string } }[] }
+        const run = body.runs[0]
+        if (!run) return "no run"
+        if (run.status === "failed") return "failed"
+        return `${run.status}:${run.input?.topic ?? ""}`
+      },
+      { timeout: RUN_TIMEOUT_MS, intervals: [2000] }
+    )
+    .toBe("succeeded:markets")
+})
+
 test("a workflow binds one step's output into the next step's input", async ({ page }) => {
   test.setTimeout(RUN_TIMEOUT_MS + 60_000)
 
@@ -157,6 +220,7 @@ test("a workflow binds one step's output into the next step's input", async ({ p
     name: tagged("Workflow binding probe"),
     description: "Created by the Portal browser tests to exercise step output binding.",
     definition: JSON.stringify({
+      schema_version: 1,
       steps: [
         { step_id: "collect", type: "agent_task", target_agent_id: agent.id, prompt: "Reply with exactly: deployment smoke ok" },
         {
@@ -164,7 +228,7 @@ test("a workflow binds one step's output into the next step's input", async ({ p
           type: "agent_task",
           target_agent_id: agent.id,
           prompt: "Summarize the research below.",
-          bindings: [{ name: "research", from_step: "collect" }],
+          bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }],
         },
       ],
     }),

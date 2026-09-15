@@ -20,6 +20,10 @@ import {
   updateWorkflow,
   useWorkflowSteps,
   WorkflowStepsEditor,
+  WorkflowRunInputForm,
+  parseInputSchema,
+  buildInputValue,
+  type InputFormValues,
 } from "../../features/workflows"
 import { RevisionHistory } from "../../components/RevisionHistory"
 import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
@@ -62,6 +66,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
+  const [inputValues, setInputValues] = useState<InputFormValues>({})
   const [error, setError] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState<ResourceUnavailableKind | null>(null)
   // null means "not yet successfully fetched", distinct from [] meaning the
@@ -74,6 +79,12 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   const [restoreRevisionError, setRestoreRevisionError] = useState<{ revision: number; message: string } | null>(null)
   const canManageWorkflowsState = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
   const canManageWorkflows = isAllowed(canManageWorkflowsState)
+  // A run's input form is generated from the workflow's input_schema; a workflow
+  // that declares none takes no input and the form is absent.
+  const inputFields = useMemo(
+    () => (workflow ? (parseInputSchema(workflow.definition)?.fields ?? []) : []),
+    [workflow],
+  )
 
   const load = useCallback(async () => {
     if (!token || !spaceId) {
@@ -204,9 +215,18 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
 
   function handleRunWorkflow() {
     if (!token || !spaceId || !workflow) return
+    let input: unknown
+    if (inputFields.length > 0) {
+      const built = buildInputValue(inputFields, inputValues)
+      if (built.errors.length > 0) {
+        setError(built.errors.join(" "))
+        return
+      }
+      input = built.value
+    }
     setRunning(true)
     setError(null)
-    runWorkflow(spaceId, workflow.id, token)
+    runWorkflow(spaceId, workflow.id, token, undefined, input)
       .then((detail) => {
         const mappedRun = apiWorkflowRunToWorkflowRun(detail.run)
         setRuns((prev) => [mappedRun, ...prev.filter((run) => run.id !== mappedRun.id)])
@@ -293,6 +313,14 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       </div>
 
       {error ? <p className="page-activity__empty">{error}</p> : null}
+      {workflow && inputFields.length > 0 ? (
+        <WorkflowRunInputForm
+          fields={inputFields}
+          values={inputValues}
+          disabled={running || workflow.status !== "published"}
+          onChange={(fieldName, value) => setInputValues((prev) => ({ ...prev, [fieldName]: value }))}
+        />
+      ) : null}
       {canManageWorkflowsState === "denied" ? (
         <p className="page-activity__empty">
           This workflow is read-only for your role. You can still inspect it here, and you can run it when it is `published`.

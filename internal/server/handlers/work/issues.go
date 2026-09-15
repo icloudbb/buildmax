@@ -48,7 +48,7 @@ type issueListResponse struct {
 
 type issueFlowRunResponse struct {
 	Run   workflowRunResponse       `json:"run"`
-	Steps []workflowStepRunResponse `json:"steps"`
+	Steps []workflowNodeRunResponse `json:"steps"`
 }
 
 type issueFlowResponse struct {
@@ -303,9 +303,9 @@ func (h *Handler) issueFlowToResponse(ctx context.Context, flow *issueFlow) issu
 
 	runOut := make([]issueFlowRunResponse, len(flow.Runs))
 	for i := range flow.Runs {
-		steps := make([]workflowStepRunResponse, len(flow.Runs[i].Steps))
+		steps := make([]workflowNodeRunResponse, len(flow.Runs[i].Steps))
 		for j := range flow.Runs[i].Steps {
-			steps[j] = workflowStepRunToResponse(flow.Runs[i].Steps[j])
+			steps[j] = workflowNodeRunToResponse(flow.Runs[i].Steps[j])
 		}
 		runOut[i] = issueFlowRunResponse{Run: workflowRunToResponse(flow.Runs[i].Run), Steps: steps}
 	}

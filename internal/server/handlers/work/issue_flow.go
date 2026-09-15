@@ -29,13 +29,13 @@ type issueFlow struct {
 	AgentTasks []coretask.Task
 	// StepsByTaskID lets the output aggregation attribute a task's result to
 	// the step that dispatched it.
-	StepsByTaskID map[string]coreworkflow.StepRun
+	StepsByTaskID map[string]coreworkflow.NodeRun
 	TotalRuns     int
 }
 
 type issueFlowRun struct {
 	Run   coreworkflow.Run
-	Steps []coreworkflow.StepRun
+	Steps []coreworkflow.NodeRun
 }
 
 // loadIssueFlow gathers the view. A failure names the query that failed,
@@ -45,7 +45,7 @@ func (h *Handler) loadIssueFlow(ctx context.Context, spaceID, issueID string, li
 	if err != nil {
 		return nil, err
 	}
-	flow := &issueFlow{Issue: *issue, StepsByTaskID: map[string]coreworkflow.StepRun{}}
+	flow := &issueFlow{Issue: *issue, StepsByTaskID: map[string]coreworkflow.NodeRun{}}
 
 	// The hierarchy is two levels deep, so an issue has a parent or children,
 	// never both. Neither failing is worth losing the page over: a flow view
@@ -80,7 +80,7 @@ func (h *Handler) loadIssueFlow(ctx context.Context, spaceID, issueID string, li
 	flow.TotalRuns = total
 	flow.Runs = make([]issueFlowRun, len(runs))
 	for i := range runs {
-		steps, err := h.cfg.Workflows.ListWorkflowStepRuns(ctx, runs[i].ID)
+		steps, err := h.cfg.Workflows.ListWorkflowNodeRuns(ctx, runs[i].ID)
 		if err != nil {
 			return nil, fmt.Errorf("load steps for workflow run %s: %w", runs[i].ID, err)
 		}

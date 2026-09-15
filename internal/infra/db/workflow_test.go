@@ -28,12 +28,12 @@ func workflowRunFixture(t *testing.T, n int) (*Store, string, []string) {
 	}
 	userID, spaceID := secretTestSpace(t, s, "workflow-transition@example.com")
 
-	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "", `{"steps":[]}`)
+	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "", `{"schema_version":1,"steps":[]}`)
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
 	t.Cleanup(func() {
-		s.db.Exec(`DELETE wsr FROM workflow_step_run wsr
+		s.db.Exec(`DELETE wsr FROM workflow_node_run wsr
 			JOIN workflow_run wr ON wr.id = wsr.workflow_run_id
 			JOIN workflow w ON w.id = wr.workflow_id WHERE w.public_id = ?`, wf.ID)
 		s.db.Exec(`DELETE wr FROM workflow_run wr
@@ -52,19 +52,19 @@ func workflowRunFixture(t *testing.T, n int) (*Store, string, []string) {
 	if err != nil {
 		t.Fatalf("CreateWorkflowRun: %v", err)
 	}
-	stepsIn := make([]coreworkflow.CreateStepRunInput, n)
+	stepsIn := make([]coreworkflow.CreateNodeRunInput, n)
 	for i := range stepsIn {
-		stepsIn[i] = coreworkflow.CreateStepRunInput{
-			StepID:    string(rune('a' + i)),
-			StepIndex: i,
-			StepType:  coreworkflow.StepTypeAgentTask,
+		stepsIn[i] = coreworkflow.CreateNodeRunInput{
+			NodeID:    string(rune('a' + i)),
+			NodeIndex: i,
+			NodeType:  coreworkflow.NodeTypeAgentTask,
 			Prompt:    "do",
-			Status:    string(coreworkflow.StepRunStatusPending),
+			Status:    string(coreworkflow.NodeRunStatusPending),
 		}
 	}
-	steps, err := s.CreateWorkflowStepRuns(ctx, run.ID, stepsIn)
+	steps, err := s.CreateWorkflowNodeRuns(ctx, run.ID, stepsIn)
 	if err != nil {
-		t.Fatalf("CreateWorkflowStepRuns: %v", err)
+		t.Fatalf("CreateWorkflowNodeRuns: %v", err)
 	}
 	ids := make([]string, len(steps))
 	for i := range steps {
@@ -88,7 +88,7 @@ func workflowFixture(t *testing.T, email string) (s *Store, userID, spaceID, wor
 		t.Fatalf("New: %v", err)
 	}
 	userID, spaceID = secretTestSpace(t, s, email)
-	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "desc", `{"steps":[]}`)
+	wf, err := s.CreateWorkflow(ctx, spaceID, userID, "wf", "desc", `{"schema_version":1,"steps":[]}`)
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestWorkflowRevisionContention(t *testing.T) {
 
 	// Sequential advancement: an edit from revision 1 commits as revision 2, and
 	// the winning row and the appended revision agree on every content field.
-	name2, desc2, def2 := "renamed", "new desc", `{"steps":[{"one":1}]}`
+	name2, desc2, def2 := "renamed", "new desc", `{"schema_version":1,"steps":[{"one":1}]}`
 	updated, err := s.UpdateWorkflow(ctx, wfID, spaceID, coreworkflow.UpdateInput{
 		Name: &name2, Description: &desc2, Definition: &def2, Status: ptrStr(coreworkflow.StatusPublished),
 		ExpectedRevision: 1, UpdatedBy: userID,
@@ -232,28 +232,28 @@ func slicesContains(s []string, v string) bool {
 	return false
 }
 
-// TestWorkflowStepRunBindingsRoundTrip proves a step's snapshotted input
+// TestWorkflowNodeRunBindingsRoundTrip proves a step's snapshotted input
 // bindings survive the store: they persist to the bindings column and read back
 // intact, and a step that binds nothing reads back with none.
-func TestWorkflowStepRunBindingsRoundTrip(t *testing.T) {
+func TestWorkflowNodeRunBindingsRoundTrip(t *testing.T) {
 	s, runID, _ := workflowRunFixture(t, 0)
 	ctx := context.Background()
 
-	stepsIn := []coreworkflow.CreateStepRunInput{
-		{StepID: "collect", StepIndex: 0, StepType: coreworkflow.StepTypeAgentTask, Prompt: "do", Status: string(coreworkflow.StepRunStatusPending)},
+	stepsIn := []coreworkflow.CreateNodeRunInput{
+		{NodeID: "collect", NodeIndex: 0, NodeType: coreworkflow.NodeTypeAgentTask, Prompt: "do", Status: string(coreworkflow.NodeRunStatusPending)},
 		{
-			StepID: "summarize", StepIndex: 1, StepType: coreworkflow.StepTypeAgentTask, Prompt: "do",
-			Status:   string(coreworkflow.StepRunStatusPending),
-			Bindings: []coreworkflow.StepBinding{{Name: "research", FromStep: "collect"}},
+			NodeID: "summarize", NodeIndex: 1, NodeType: coreworkflow.NodeTypeAgentTask, Prompt: "do",
+			Status:   string(coreworkflow.NodeRunStatusPending),
+			Bindings: []coreworkflow.StepBinding{{Name: "research", Source: "node.collect.output", Pointer: "/text"}},
 		},
 	}
-	if _, err := s.CreateWorkflowStepRuns(ctx, runID, stepsIn); err != nil {
-		t.Fatalf("CreateWorkflowStepRuns: %v", err)
+	if _, err := s.CreateWorkflowNodeRuns(ctx, runID, stepsIn); err != nil {
+		t.Fatalf("CreateWorkflowNodeRuns: %v", err)
 	}
 
-	got, err := s.ListWorkflowStepRuns(ctx, runID)
+	got, err := s.ListWorkflowNodeRuns(ctx, runID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("steps = %d, want 2", len(got))
@@ -261,20 +261,64 @@ func TestWorkflowStepRunBindingsRoundTrip(t *testing.T) {
 	if len(got[0].Bindings) != 0 {
 		t.Errorf("step[0] bindings = %v, want none", got[0].Bindings)
 	}
-	if len(got[1].Bindings) != 1 || got[1].Bindings[0].Name != "research" || got[1].Bindings[0].FromStep != "collect" {
-		t.Errorf("step[1] bindings = %v, want [{research collect}]", got[1].Bindings)
+	if len(got[1].Bindings) != 1 || got[1].Bindings[0].Name != "research" ||
+		got[1].Bindings[0].Source != "node.collect.output" || got[1].Bindings[0].Pointer != "/text" {
+		t.Errorf("step[1] bindings = %v, want [{research node.collect.output /text}]", got[1].Bindings)
 	}
 }
 
-func TestWorkflowStepRunTransition_CAS(t *testing.T) {
+func TestWorkflowRunInputRoundTrip(t *testing.T) {
+	s, userID, _, workflowID := workflowFixture(t, "workflow-run-input@example.com")
+	ctx := context.Background()
+	t.Cleanup(func() {
+		s.db.Exec(`DELETE wr FROM workflow_run wr
+			JOIN workflow w ON w.id = wr.workflow_id WHERE w.public_id = ?`, workflowID)
+	})
+
+	input := `{"topic":"markets"}`
+	withInput, err := s.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
+		WorkflowID: workflowID,
+		Input:      &input,
+		Status:     string(coreworkflow.RunStatusRunning),
+		CreatedBy:  userID,
+	})
+	if err != nil {
+		t.Fatalf("CreateWorkflowRun with input: %v", err)
+	}
+	got, err := s.GetWorkflowRun(ctx, withInput.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflowRun: %v", err)
+	}
+	if got.Input == nil || *got.Input != input {
+		t.Fatalf("input = %v, want %q", got.Input, input)
+	}
+
+	noInput, err := s.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
+		WorkflowID: workflowID,
+		Status:     string(coreworkflow.RunStatusRunning),
+		CreatedBy:  userID,
+	})
+	if err != nil {
+		t.Fatalf("CreateWorkflowRun without input: %v", err)
+	}
+	got, err = s.GetWorkflowRun(ctx, noInput.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflowRun: %v", err)
+	}
+	if got.Input != nil {
+		t.Fatalf("input = %q, want nil", *got.Input)
+	}
+}
+
+func TestWorkflowNodeRunTransition_CAS(t *testing.T) {
 	s, _, steps := workflowRunFixture(t, 1)
 	ctx := context.Background()
 
 	// A valid transition from the expected status applies.
-	applied, err := s.TransitionWorkflowStepRun(ctx, coreworkflow.TransitionStepRunInput{
-		StepRunID:      steps[0],
-		ExpectedStatus: coreworkflow.StepRunStatusPending,
-		NewStatus:      coreworkflow.StepRunStatusRunning,
+	applied, err := s.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+		NodeRunID:      steps[0],
+		ExpectedStatus: coreworkflow.NodeRunStatusPending,
+		NewStatus:      coreworkflow.NodeRunStatusRunning,
 	})
 	if err != nil || !applied {
 		t.Fatalf("pending->running = %v, %v; want true, nil", applied, err)
@@ -282,23 +326,23 @@ func TestWorkflowStepRunTransition_CAS(t *testing.T) {
 
 	// The same transition again finds the step no longer pending: no write, no
 	// error -- another actor won.
-	applied, err = s.TransitionWorkflowStepRun(ctx, coreworkflow.TransitionStepRunInput{
-		StepRunID:      steps[0],
-		ExpectedStatus: coreworkflow.StepRunStatusPending,
-		NewStatus:      coreworkflow.StepRunStatusRunning,
+	applied, err = s.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+		NodeRunID:      steps[0],
+		ExpectedStatus: coreworkflow.NodeRunStatusPending,
+		NewStatus:      coreworkflow.NodeRunStatusRunning,
 	})
 	if err != nil || applied {
 		t.Fatalf("stale pending->running = %v, %v; want false, nil", applied, err)
 	}
 
 	// An illegal transition is a programming error, not a lost race.
-	_, err = s.TransitionWorkflowStepRun(ctx, coreworkflow.TransitionStepRunInput{
-		StepRunID:      steps[0],
-		ExpectedStatus: coreworkflow.StepRunStatusRunning,
-		NewStatus:      coreworkflow.StepRunStatusPending,
+	_, err = s.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+		NodeRunID:      steps[0],
+		ExpectedStatus: coreworkflow.NodeRunStatusRunning,
+		NewStatus:      coreworkflow.NodeRunStatusPending,
 	})
-	if !errors.Is(err, coreworkflow.ErrInvalidStepRunTransition) {
-		t.Fatalf("running->pending err = %v, want ErrInvalidStepRunTransition", err)
+	if !errors.Is(err, coreworkflow.ErrInvalidNodeRunTransition) {
+		t.Fatalf("running->pending err = %v, want ErrInvalidNodeRunTransition", err)
 	}
 }
 
@@ -308,20 +352,20 @@ func TestFinalizeFailedWorkflowRun_BlocksLaterSteps(t *testing.T) {
 
 	// Start the first step, then fail it: the run fails and every later step
 	// still pending is blocked, atomically.
-	if _, err := s.TransitionWorkflowStepRun(ctx, coreworkflow.TransitionStepRunInput{
-		StepRunID:      steps[0],
-		ExpectedStatus: coreworkflow.StepRunStatusPending,
-		NewStatus:      coreworkflow.StepRunStatusRunning,
+	if _, err := s.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+		NodeRunID:      steps[0],
+		ExpectedStatus: coreworkflow.NodeRunStatusPending,
+		NewStatus:      coreworkflow.NodeRunStatusRunning,
 	}); err != nil {
 		t.Fatalf("start step 0: %v", err)
 	}
 	now := time.Now().UTC()
 	applied, err := s.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 		WorkflowRunID: runID,
-		StepRunID:     steps[0],
-		StepIndex:     0,
-		StepExpected:  coreworkflow.StepRunStatusRunning,
-		StepStatus:    coreworkflow.StepRunStatusFailed,
+		NodeRunID:     steps[0],
+		NodeIndex:     0,
+		NodeExpected:  coreworkflow.NodeRunStatusRunning,
+		NodeStatus:    coreworkflow.NodeRunStatusFailed,
 		RunExpected:   coreworkflow.RunStatusRunning,
 		RunStatus:     coreworkflow.RunStatusFailed,
 		EndedAt:       &now,
@@ -330,14 +374,14 @@ func TestFinalizeFailedWorkflowRun_BlocksLaterSteps(t *testing.T) {
 		t.Fatalf("finalize = %v, %v; want true, nil", applied, err)
 	}
 
-	got, err := s.ListWorkflowStepRuns(ctx, runID)
+	got, err := s.ListWorkflowNodeRuns(ctx, runID)
 	if err != nil {
-		t.Fatalf("ListWorkflowStepRuns: %v", err)
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
 	want := []string{
-		string(coreworkflow.StepRunStatusFailed),
-		string(coreworkflow.StepRunStatusBlocked),
-		string(coreworkflow.StepRunStatusBlocked),
+		string(coreworkflow.NodeRunStatusFailed),
+		string(coreworkflow.NodeRunStatusBlocked),
+		string(coreworkflow.NodeRunStatusBlocked),
 	}
 	for i := range got {
 		if got[i].Status != want[i] {

@@ -83,7 +83,7 @@ func newReconcileEnv(t *testing.T) *reconcileEnv {
 	}
 
 	definition := fmt.Sprintf(
-		`{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":%q,"prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":%q,"prompt":"summarize"}]}`,
+		`{"schema_version":1,"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":%q,"prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":%q,"prompt":"summarize"}]}`,
 		agentA.ID, agentB.ID)
 	wf, err := svc.CreateWorkflow(ctx, CreateWorkflowCmd{
 		SpaceID: space.ID, UserID: user.ID, Name: "WF", Definition: definition,
@@ -105,7 +105,7 @@ func newReconcileEnv(t *testing.T) *reconcileEnv {
 	}
 }
 
-func (e *reconcileEnv) startRun(t *testing.T) (*coreworkflow.Run, []coreworkflow.StepRun) {
+func (e *reconcileEnv) startRun(t *testing.T) (*coreworkflow.Run, []coreworkflow.NodeRun) {
 	t.Helper()
 	run, steps, err := e.svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
 		SpaceID: e.spaceID, UserID: e.userID, WorkflowID: e.wfID,
@@ -116,7 +116,7 @@ func (e *reconcileEnv) startRun(t *testing.T) (*coreworkflow.Run, []coreworkflow
 	return run, steps
 }
 
-func (e *reconcileEnv) steps(t *testing.T, runID string) []coreworkflow.StepRun {
+func (e *reconcileEnv) steps(t *testing.T, runID string) []coreworkflow.NodeRun {
 	t.Helper()
 	_, steps, err := e.svc.GetWorkflowRunDetail(context.Background(), e.spaceID, runID)
 	if err != nil {
@@ -138,10 +138,10 @@ func (e *reconcileEnv) run(t *testing.T, runID string) *coreworkflow.Run {
 // transitions (PENDING->SCHEDULED->RUNNING->terminal), so a reconciliation folds
 // a terminal fact the real store actually produced rather than one written by
 // hand.
-func (e *reconcileEnv) driveTaskRunTerminal(t *testing.T, step coreworkflow.StepRun, terminal coretask.RunStatus, output, errMsg *string) {
+func (e *reconcileEnv) driveTaskRunTerminal(t *testing.T, step coreworkflow.NodeRun, terminal coretask.RunStatus, output, errMsg *string) {
 	t.Helper()
 	if step.TaskRunID == nil {
-		t.Fatalf("step %q has no task run to drive", step.StepID)
+		t.Fatalf("step %q has no task run to drive", step.NodeID)
 	}
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -190,7 +190,7 @@ func (e *reconcileEnv) tasksForAgent(t *testing.T, agentID string) int {
 func TestWorkflowReconcileSucceedsThroughBothSteps(t *testing.T) {
 	e := newReconcileEnv(t)
 	run, steps := e.startRun(t)
-	if steps[0].Status != string(coreworkflow.StepRunStatusRunning) {
+	if steps[0].Status != string(coreworkflow.NodeRunStatusRunning) {
 		t.Fatalf("step[0] status = %q, want running", steps[0].Status)
 	}
 
@@ -203,13 +203,13 @@ func TestWorkflowReconcileSucceedsThroughBothSteps(t *testing.T) {
 	}
 
 	after0 := e.steps(t, run.ID)
-	if after0[0].Status != string(coreworkflow.StepRunStatusSucceeded) {
+	if after0[0].Status != string(coreworkflow.NodeRunStatusSucceeded) {
 		t.Fatalf("step[0] status = %q, want succeeded", after0[0].Status)
 	}
-	if after0[0].OutputSummary == nil || *after0[0].OutputSummary != out0 {
-		t.Fatalf("step[0] summary = %v, want %q", after0[0].OutputSummary, out0)
+	if after0[0].Output == nil || *after0[0].Output != out0 {
+		t.Fatalf("step[0] summary = %v, want %q", after0[0].Output, out0)
 	}
-	if after0[1].Status != string(coreworkflow.StepRunStatusRunning) {
+	if after0[1].Status != string(coreworkflow.NodeRunStatusRunning) {
 		t.Fatalf("step[1] status = %q, want running (next step dispatched)", after0[1].Status)
 	}
 	if e.tasksForAgent(t, e.agentB) != 1 {
@@ -223,7 +223,7 @@ func TestWorkflowReconcileSucceedsThroughBothSteps(t *testing.T) {
 		t.Fatalf("Reconcile after step 1: %v", err)
 	}
 	after1 := e.steps(t, run.ID)
-	if after1[1].Status != string(coreworkflow.StepRunStatusSucceeded) {
+	if after1[1].Status != string(coreworkflow.NodeRunStatusSucceeded) {
 		t.Fatalf("step[1] status = %q, want succeeded", after1[1].Status)
 	}
 	if final := e.run(t, run.ID); final.Status != string(coreworkflow.RunStatusSucceeded) {
@@ -244,10 +244,10 @@ func TestWorkflowReconcileFailedTaskRunFailsRun(t *testing.T) {
 	}
 
 	after := e.steps(t, run.ID)
-	if after[0].Status != string(coreworkflow.StepRunStatusFailed) {
+	if after[0].Status != string(coreworkflow.NodeRunStatusFailed) {
 		t.Fatalf("step[0] status = %q, want failed", after[0].Status)
 	}
-	if after[1].Status != string(coreworkflow.StepRunStatusBlocked) {
+	if after[1].Status != string(coreworkflow.NodeRunStatusBlocked) {
 		t.Fatalf("step[1] status = %q, want blocked", after[1].Status)
 	}
 	if final := e.run(t, run.ID); final.Status != string(coreworkflow.RunStatusFailed) {
@@ -270,10 +270,10 @@ func TestWorkflowReconcileCanceledTaskRunCancelsRun(t *testing.T) {
 	}
 
 	after := e.steps(t, run.ID)
-	if after[0].Status != string(coreworkflow.StepRunStatusCanceled) {
+	if after[0].Status != string(coreworkflow.NodeRunStatusCanceled) {
 		t.Fatalf("step[0] status = %q, want canceled", after[0].Status)
 	}
-	if after[1].Status != string(coreworkflow.StepRunStatusBlocked) {
+	if after[1].Status != string(coreworkflow.NodeRunStatusBlocked) {
 		t.Fatalf("step[1] status = %q, want blocked", after[1].Status)
 	}
 	if final := e.run(t, run.ID); final.Status != string(coreworkflow.RunStatusCanceled) {
@@ -314,12 +314,12 @@ func TestWorkflowReconcileConcurrentPassesHaveOneOutcome(t *testing.T) {
 	}
 
 	after := e.steps(t, run.ID)
-	if after[0].Status != string(coreworkflow.StepRunStatusSucceeded) {
+	if after[0].Status != string(coreworkflow.NodeRunStatusSucceeded) {
 		t.Fatalf("step[0] status = %q, want succeeded once", after[0].Status)
 	}
 	running := 0
 	for i := range after {
-		if after[i].Status == string(coreworkflow.StepRunStatusRunning) {
+		if after[i].Status == string(coreworkflow.NodeRunStatusRunning) {
 			running++
 		}
 	}

@@ -70,7 +70,9 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   const addBinding = useCallback((stepIndex: number) => {
     setSteps((prev) =>
       prev.map((step, i) =>
-        i === stepIndex ? { ...step, bindings: [...(step.bindings ?? []), { name: "", fromStep: "" }] } : step,
+        i === stepIndex
+          ? { ...step, bindings: [...(step.bindings ?? []), { name: "", source: "", pointer: "" }] }
+          : step,
       ),
     )
   }, [])

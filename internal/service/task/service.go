@@ -40,7 +40,7 @@ var (
 // optional: a deployment with no workflow store has no workflow steps, so a nil
 // lookup means nothing to protect rather than an unanswered question.
 type WorkflowStepLookup interface {
-	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*coreworkflow.StepRun, error)
+	GetWorkflowNodeRunByTaskID(ctx context.Context, taskID string) (*coreworkflow.NodeRun, error)
 }
 
 // QuotaChecker is the narrow quota surface needed by task workflows.
@@ -338,7 +338,7 @@ func (s *Service) refuseWorkflowStepRetry(ctx context.Context, taskID string) er
 	if s.WorkflowSteps == nil {
 		return nil
 	}
-	step, err := s.WorkflowSteps.GetWorkflowStepRunByTaskID(ctx, taskID)
+	step, err := s.WorkflowSteps.GetWorkflowNodeRunByTaskID(ctx, taskID)
 	if err != nil {
 		return err
 	}

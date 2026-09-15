@@ -1,4 +1,5 @@
 import type { Agent } from "../../lib/types"
+import { nodeOutputSource, WORKFLOW_INPUT_SOURCE } from "./steps"
 import type { StepError, WorkflowStepBinding, WorkflowStepDraft } from "./steps"
 
 interface WorkflowStepsEditorProps {
@@ -136,16 +137,16 @@ export function WorkflowStepsEditor({
                   />
                 </label>
                 {(() => {
-                  // A binding reads an earlier step's whole output into this
-                  // step's prompt under a name, so it can only point at a step
-                  // above this one. On the first step there is nothing earlier
-                  // to bind, so the control does not appear at all.
+                  // A binding selects a value from the workflow input or an
+                  // earlier step's output envelope at an RFC 6901 pointer, and
+                  // feeds it into this step's prompt under a name. A node source
+                  // can only name a step above this one; the workflow input is
+                  // always available, so the control shows on every step.
                   const earlierSteps = steps.slice(0, index)
                   const bindings = step.bindings ?? []
-                  if (bindings.length === 0 && earlierSteps.length === 0) return null
                   return (
                     <div className="workflow-page__step-bindings">
-                      <span className="issues-page__field-label">Inputs from earlier steps</span>
+                      <span className="issues-page__field-label">Inputs from the workflow input and earlier steps</span>
                       {bindings.map((binding, bindingIndex) => (
                         <div key={bindingIndex} className="workflow-page__binding">
                           <input
@@ -158,18 +159,27 @@ export function WorkflowStepsEditor({
                           />
                           <select
                             className="issues-page__input"
-                            aria-label={`Input ${bindingIndex + 1} source step`}
-                            value={binding.fromStep}
+                            aria-label={`Input ${bindingIndex + 1} source`}
+                            value={binding.source}
                             disabled={disabled}
-                            onChange={(e) => onChangeBinding(index, bindingIndex, { fromStep: e.target.value })}
+                            onChange={(e) => onChangeBinding(index, bindingIndex, { source: e.target.value })}
                           >
-                            <option value="">Select an earlier step</option>
+                            <option value="">Select a source</option>
+                            <option value={WORKFLOW_INPUT_SOURCE}>Workflow input</option>
                             {earlierSteps.map((earlier, earlierIndex) => (
-                              <option key={earlier.id} value={earlier.id}>
-                                Step {earlierIndex + 1} ({earlier.id})
+                              <option key={earlier.id} value={nodeOutputSource(earlier.id)}>
+                                Step {earlierIndex + 1} output ({earlier.id})
                               </option>
                             ))}
                           </select>
+                          <input
+                            className="issues-page__input"
+                            aria-label={`Input ${bindingIndex + 1} pointer`}
+                            placeholder="pointer, e.g. /text (empty = whole value)"
+                            value={binding.pointer}
+                            disabled={disabled}
+                            onChange={(e) => onChangeBinding(index, bindingIndex, { pointer: e.target.value })}
+                          />
                           {!disabled ? (
                             <button
                               type="button"
@@ -181,7 +191,7 @@ export function WorkflowStepsEditor({
                           ) : null}
                         </div>
                       ))}
-                      {!disabled && earlierSteps.length > 0 ? (
+                      {!disabled ? (
                         <button
                           type="button"
                           className="page-activity__action-btn"

@@ -201,3 +201,44 @@
     grid-template-columns: 1fr;
   }
 }
+
+.workflow-run-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0.6rem 0 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+}
+
+.workflow-run-input__title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.workflow-run-input__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.workflow-run-input__field--boolean {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.workflow-run-input__label {
+  font-weight: 600;
+}
+
+.workflow-run-input__required {
+  color: var(--danger, #d1242f);
+}
+
+.workflow-run-input__description {
+  font-weight: 400;
+  color: var(--muted, #57606a);
+}

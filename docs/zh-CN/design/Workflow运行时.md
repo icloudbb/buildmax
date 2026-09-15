@@ -2,7 +2,7 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/workflow-runtime.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-> **受众：** 贡献者、产品评审者与运维人员 · **状态：** 部分实现——已接受的自适应图方向仍在计划中，持久化线性雏形已经交付。带保护的 compare-and-set Run/步骤转换、失败步骤原子收口、幂等 Task 准入、协调租约、线性协调器，以及由 Server 持有的到期 Run 恢复循环均已实现。`Service.Reconcile` 从持久状态中折叠某个步骤终态的 TaskRun、派发下一个步骤并安排该 Run 的下次协调；启动时和周期性扫描能够从回调丢失或 Server 重启中恢复。线性步骤还可以声明并持久化经过校验的 `output_schema` 结果。类型化 `nodes`/`bindings`、`input_schema`、JSON Pointer 选择、静态 DAG、路由、等待与自适应控制仍待实现
+> **受众：** 贡献者、产品评审者与运维人员 · **状态：** 部分实现——已接受的自适应图方向仍在计划中，持久化线性雏形已经交付。带保护的 compare-and-set Run/步骤转换、失败步骤原子收口、幂等 Task 准入、协调租约、线性协调器，以及由 Server 持有的到期 Run 恢复循环均已实现。`Service.Reconcile` 从持久状态中折叠某个步骤终态的 TaskRun、派发下一个步骤并安排该 Run 的下次协调；启动时和周期性扫描能够从回调丢失或 Server 重启中恢复。定义现在带有显式的 `schema_version: 1`，并可声明 `input_schema` 与 `result` 选择器，两者均在发布期校验。启动运行时会对照该 `input_schema` 校验调用方输入并冻结到 run 上，且 Portal 依据该模式生成输入表单。每一条按步的记录都是 `WorkflowNodeRun`，会持久化其节点收到的完整已解析输入，以及被接受的 TaskRun 产出的完整输出。步骤绑定通过 `source`（`workflow.input` 或某个更早步骤的输出信封：文本、结构化输出、Artifact 引用）加一个 RFC 6901 `pointer` 选取值，且定义可声明一个 `result` 选择器，运行成功时把其取到的值存到 run 上并在 run 及其 issue 上展示。至此 Phase 2 数据契约完成；类型化 `nodes`/`needs`、运行期受 schema 约束的输出、静态 DAG 与自适应控制仍待实现
 
 相关文档：[路线图](../ROADMAP.md)、[产品愿景](产品愿景.md)、[界面定位](界面定位.md)、[Agent 执行与 Task 线程](Agent执行与Task线程.md)、[Space 治理](Space治理.md)、[统一 Artifact](统一工件.md)、[数据模型](../contribute/architecture/data-model.md)，以及[验证计划](验证计划.md)。
 
@@ -64,7 +64,7 @@ Workflow 运行时是以下事项的权威来源：
 - 手动发起的运行,以及由 Issue 发起的运行都已经存在；以及
 - Portal 可以编写一个线性的定义,并查看它的运行情况。
 
-但这还不是本文档要设计的那个运行时，不过它的执行平面如今已经是持久的了。当前的定义是一个带静态提示词、没有类型化输入契约或版本化节点结果信封的有序 `steps` 数组。步骤可以声明 `output_schema`；共享运行时会校验最终值，并把它持久化到 TaskRun 与步骤运行。步骤还可以把前一个步骤的完整输出绑定到自己的输入中，作为带标签的不可信数据——这是 §6 中 bindings 的线性雏形——它读取的是那个步骤 TaskRun 上的完整输出，而不是步骤为展示而保留的 500 字符摘要。推进是一次基于持久事实的协调：Task 准入在一个稳定键下是幂等的，一个有边界的租约减少重复的协调轮次，带保护的 compare-and-set 转换是正确性机制，而一个由 Server 拥有的恢复循环会去收尾那些因回调丢失或重启而搁浅的运行。相对目标而言仍然缺失的是：`input_schema`、带 JSON Pointer 选取的版本化 `nodes` 与类型化 `bindings`、DAG 的 `needs`、路由与等待，以及对已交付结构化值的消费方。
+但这还不是本文档要设计的那个运行时，不过它的执行平面如今已经是持久的了。当前的定义是一个带静态提示词、没有类型化输入契约或版本化节点结果信封的有序 `steps` 数组。步骤可以声明 `output_schema`；共享运行时会校验最终值，并把它持久化到 TaskRun 与节点运行。步骤还可以把从 run 输入或更早步骤的输出信封（文本、结构化输出或 Artifact 引用）里、按 RFC 6901 指针选取的值绑定到自己的输入中，作为带标签的不可信数据——这是 §6 中 bindings 的线性雏形——它读取的是上游节点运行在成功时持久化下来的完整输出，以及被接受的 TaskRun 归属的 Artifact。推进是一次基于持久事实的协调：Task 准入在一个稳定键下是幂等的，一个有边界的租约减少重复的协调轮次，带保护的 compare-and-set 转换是正确性机制，而一个由 Server 拥有的恢复循环会去收尾那些因回调丢失或重启而搁浅的运行。相对目标而言仍然缺失的是图本身：带 DAG `needs` 的版本化 `nodes` 形态、路由与等待、运行期受 schema 约束的输出，以及自适应控制。`input_schema`、按节点的结果信封，以及带 `result` 选择器的指针 `bindings`，都已在有序 `steps` 形态上交付。
 
 当前的 Agent 快照同样不具备执行权威性。Workflow 会把旧版本的 Agent 指令复制进 Task 的用户输入中，而 Task 准入和 worker 又可能重新解析出最新的 Agent 系统指令。于是一次编辑就可能出现这样的组合：旧指令作为不可信的用户内容，与新指令作为可信的系统策略混在一起。而本文档设想的目标设计,会锁定一个 Agent 修订版本，并在整个共享运行时中都使用它。
 
@@ -413,7 +413,7 @@ stateDiagram-v2
 }
 ```
 
-`text` 是这次 TaskRun 完整的输出内容，而不是当前那种展示用的摘要。`artifacts` 包含的是明确归属于这次被接受的 TaskRun 的、稳定的 Artifact 引用。协调器不会把任意文件复制到后续的工作区里。后续的 Agent 收到的只是作为数据的引用，并通过正常的、经过授权的能力去访问一个 Artifact。
+`text` 是这次 TaskRun 完整的输出内容，而不是被截断的摘要。`artifacts` 包含的是明确归属于这次被接受的 TaskRun 的、稳定的 Artifact 引用。协调器不会把任意文件复制到后续的工作区里。后续的 Agent 收到的只是作为数据的引用，并通过正常的、经过授权的能力去访问一个 Artifact。
 
 步骤没有声明 `output_schema` 时，`structured` 字段缺失或为 `null`。一旦声明，值会由共享 Agent 运行时——而不是 Portal 解析器——校验，之后线性步骤才能成功，并持久化到 TaskRun 与步骤运行。上面展示的版本化节点信封、JSON Pointer 绑定、路由和规划器仍属于目标状态工作；它们会消费已经校验的值，而不会引入第二套解析器。
 
@@ -894,13 +894,30 @@ WorkflowRun 和 NodeRun 的 JSON 遵守有边界的大小限制和脱敏规则�
 
 ### 阶段 2：切换到带版本的数据契约
 
-- 用 `schema_version: 1` 替换掉不带版本号的 `steps` 定义。
+- 用 `schema_version: 1` 替换掉不带版本号的 `steps` 定义。**已交付：** 定义必须
+  声明 `schema_version: 1`，并可声明 `input_schema`（对照共享 JSON Schema 子集编译）
+  与指向某个已存在步骤的 `result` 选择器；发布期会拒绝未知版本、超出子集的输入
+  模式，或指向不存在步骤的结果。
 - 把草稿指针和已发布指针分离开。
-- 准入不可变的 WorkflowRun 输入。
-- 用 NodeRun 替换掉 StepRun，并持久化解析后的输入/完整的输出；
-- 通过 RFC 6901 指针,暴露文本和 Artifact 绑定关系；
+- 准入不可变的 WorkflowRun 输入。**已交付：** 启动运行会对照定义的 `input_schema`
+  校验调用方输入并冻结到 run 上；未声明 input_schema 的 workflow 不取输入，且
+  Portal 依据该模式生成运行输入表单。
+- 用 NodeRun 替换掉 StepRun，并持久化解析后的输入/完整的输出。**已交付：**
+  每一条按步的运行记录都是 `WorkflowNodeRun`（`node_id`、`node_index`、
+  `node_type`）；每条节点运行都会存储它启动时收到的完整 Task 输入，以及被
+  接受的 TaskRun 产出的完整输出（取代原先被截断的摘要），下游绑定读取已持久化
+  的节点输出，而不再回头读取 Task 层。
+- 通过 RFC 6901 指针,暴露文本和 Artifact 绑定关系。**已交付：** 步骤绑定通过
+  `source`（`workflow.input` 或某个更早步骤的 `node.<id>.output`）加一个 RFC 6901
+  `pointer` 选取值——文本、结构化输出，或 `/artifacts` 下的 Artifact 引用——不再注入
+  上游的整段输出；发布期校验 source 与 pointer 语法，解析时读取持久化的节点输出以及被
+  接受的 TaskRun 归属的 Artifact。
 - 存储声明好的 WorkflowRun 结果；以及
-- 把一个结果投影进 Issue 界面,以及可选的 Conversation 界面。
+- 把一个结果投影进 Issue 界面,以及可选的 Conversation 界面。**已交付：** 定义可声明
+  一个 `result` 选择器（`source` + RFC 6901 `pointer`，与绑定同一套语法）指向某步骤的
+  输出；运行成功时解析一次并作为 `result_json` 独立存到 run 上，一经写入即不可变，run
+  详情与列出它的 issue flow 都会展示这一个结果，同时保留节点 Task/TaskRun 的溯源。（
+  Workflow 运行目前还没有 Conversation 关联，故可选的 Conversation 投影尚未接线。）
 
 BuildMax 处于 Alpha 阶段。要把领域模型、行结构体、handler、OpenAPI、Portal、测试和文档一起改动。不要同时维护两套定义解释器，也不要把陈旧的表结构当作兼容层保留下来。
 

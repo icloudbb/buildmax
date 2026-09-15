@@ -351,7 +351,7 @@ func (h *Handler) resolveTaskWorkflowRunID(ctx context.Context, t *coretask.Task
 	if h.cfg.Workflows == nil || (t.IssueID != nil && *t.IssueID != "") || t.ConversationID != "" {
 		return nil
 	}
-	step, err := h.cfg.Workflows.GetWorkflowStepRunByTaskID(ctx, t.ID)
+	step, err := h.cfg.Workflows.GetWorkflowNodeRunByTaskID(ctx, t.ID)
 	if err != nil || step == nil {
 		return nil
 	}

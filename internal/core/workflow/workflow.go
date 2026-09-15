@@ -11,17 +11,22 @@ const (
 	StatusPublished = "published"
 	StatusArchived  = "archived"
 
-	StepTypeAgentTask = "agent_task"
+	NodeTypeAgentTask = "agent_task"
+
+	// DefinitionSchemaVersion is the only workflow definition contract version the
+	// runtime accepts. A definition must declare it explicitly; publication rejects
+	// any other value so a stored plan always names the contract it was written for.
+	DefinitionSchemaVersion = 1
 )
 
-// RunStatus is the lifecycle status of one workflow run. StepRunStatus is one
+// RunStatus is the lifecycle status of one workflow run. NodeRunStatus is one
 // step's status within that run. Both are the canonical execution-plane state
 // machine for workflows, the analog of coretask.RunStatus, and every move
 // between their values goes through the transition helpers below so an illegal
 // or concurrent change is refused at the store rather than silently written.
 type RunStatus string
 
-type StepRunStatus string
+type NodeRunStatus string
 
 const (
 	RunStatusPending   RunStatus = "pending"
@@ -32,14 +37,14 @@ const (
 )
 
 const (
-	StepRunStatusPending   StepRunStatus = "pending"
-	StepRunStatusRunning   StepRunStatus = "running"
-	StepRunStatusSucceeded StepRunStatus = "succeeded"
-	StepRunStatusFailed    StepRunStatus = "failed"
-	StepRunStatusCanceled  StepRunStatus = "canceled"
-	// StepRunStatusBlocked is terminal: an earlier step ended badly, so this
+	NodeRunStatusPending   NodeRunStatus = "pending"
+	NodeRunStatusRunning   NodeRunStatus = "running"
+	NodeRunStatusSucceeded NodeRunStatus = "succeeded"
+	NodeRunStatusFailed    NodeRunStatus = "failed"
+	NodeRunStatusCanceled  NodeRunStatus = "canceled"
+	// NodeRunStatusBlocked is terminal: an earlier step ended badly, so this
 	// still-pending step will never run.
-	StepRunStatusBlocked StepRunStatus = "blocked"
+	NodeRunStatusBlocked NodeRunStatus = "blocked"
 )
 
 // RunStatusTerminal reports whether a run in this status has finished; a
@@ -60,11 +65,11 @@ func TerminalRunStatuses() []RunStatus {
 	return []RunStatus{RunStatusSucceeded, RunStatusFailed, RunStatusCanceled}
 }
 
-// StepRunStatusTerminal reports whether a step run has finished. Blocked is
+// NodeRunStatusTerminal reports whether a step run has finished. Blocked is
 // terminal alongside the three natural ends: a blocked step is never revisited.
-func StepRunStatusTerminal(s StepRunStatus) bool {
+func NodeRunStatusTerminal(s NodeRunStatus) bool {
 	switch s {
-	case StepRunStatusSucceeded, StepRunStatusFailed, StepRunStatusCanceled, StepRunStatusBlocked:
+	case NodeRunStatusSucceeded, NodeRunStatusFailed, NodeRunStatusCanceled, NodeRunStatusBlocked:
 		return true
 	default:
 		return false
@@ -85,17 +90,17 @@ func ValidRunStatusTransition(from, to RunStatus) bool {
 	}
 }
 
-// ValidStepRunTransition reports whether a step run may move directly from one
+// ValidNodeRunTransition reports whether a step run may move directly from one
 // status to another. A pending step may start (running), be blocked by an
 // earlier failure, or fail outright when its task cannot be created; a running
 // step ends succeeded, failed, or canceled. Terminal statuses are immutable.
-func ValidStepRunTransition(from, to StepRunStatus) bool {
+func ValidNodeRunTransition(from, to NodeRunStatus) bool {
 	switch from {
-	case StepRunStatusPending:
-		return to == StepRunStatusRunning || to == StepRunStatusBlocked ||
-			to == StepRunStatusFailed || to == StepRunStatusCanceled
-	case StepRunStatusRunning:
-		return to == StepRunStatusSucceeded || to == StepRunStatusFailed || to == StepRunStatusCanceled
+	case NodeRunStatusPending:
+		return to == NodeRunStatusRunning || to == NodeRunStatusBlocked ||
+			to == NodeRunStatusFailed || to == NodeRunStatusCanceled
+	case NodeRunStatusRunning:
+		return to == NodeRunStatusSucceeded || to == NodeRunStatusFailed || to == NodeRunStatusCanceled
 	default:
 		return false
 	}
@@ -139,14 +144,22 @@ type Run struct {
 	WorkflowID string `json:"workflow_id"`
 	// WorkflowRevision is the workflow revision this run expanded. It is 0 for
 	// runs started before workflows recorded revisions.
-	WorkflowRevision int        `json:"workflow_revision,omitempty"`
-	IssueID          *string    `json:"issue_id,omitempty"`
-	Status           string     `json:"status"`
-	CreatedBy        string     `json:"created_by"`
-	CreatedAt        time.Time  `json:"created_at"`
-	StartedAt        *time.Time `json:"started_at,omitempty"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	ErrorMessage     *string    `json:"error_message,omitempty"`
+	WorkflowRevision int     `json:"workflow_revision,omitempty"`
+	IssueID          *string `json:"issue_id,omitempty"`
+	// Input is the run's immutable input JSON, validated against the definition's
+	// input_schema at admission. Nil when the definition declares no input_schema.
+	Input     *string `json:"input,omitempty"`
+	Status    string  `json:"status"`
+	CreatedBy string  `json:"created_by"`
+	// Result is the run's declared result JSON: the value the definition's result
+	// selector resolved to when the run succeeded, stored independently of the
+	// node runs so a reader has one authoritative answer. Nil when the definition
+	// declares no result or the run did not succeed. Immutable once set.
+	Result       *string    `json:"result,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	StartedAt    *time.Time `json:"started_at,omitempty"`
+	EndedAt      *time.Time `json:"ended_at,omitempty"`
+	ErrorMessage *string    `json:"error_message,omitempty"`
 	// Reconciliation scheduling and ownership. ReconcileOwner and LeaseExpiresAt
 	// are a bounded lease that reduces duplicate reconciliation work; they are not
 	// the correctness mechanism. NextReconcileAt is when this run next wants a
@@ -156,13 +169,16 @@ type Run struct {
 	NextReconcileAt *time.Time `json:"next_reconcile_at,omitempty"`
 }
 
-// StepRun is one durable step execution record under a workflow run.
-type StepRun struct {
+// NodeRun is one durable node execution record under a workflow run. The linear
+// precursor authors nodes as ordered `steps`; NodeID carries the authoring
+// step's id, and NodeIndex is its position, so the graph term (node) names the
+// runtime record while the definition keeps the `steps` shape until Phase 3.
+type NodeRun struct {
 	ID            string  `json:"id"`
 	WorkflowRunID string  `json:"workflow_run_id"`
-	StepID        string  `json:"step_id"`
-	StepIndex     int     `json:"step_index"`
-	StepType      string  `json:"step_type"`
+	NodeID        string  `json:"node_id"`
+	NodeIndex     int     `json:"node_index"`
+	NodeType      string  `json:"node_type"`
 	TargetAgentID *string `json:"target_agent_id,omitempty"`
 	// AgentName, AgentDescription, and AgentInstructions capture the target agent
 	// definition as it was when the run started, so later edits to the agent cannot
@@ -172,17 +188,26 @@ type StepRun struct {
 	AgentInstructions string `json:"agent_instructions,omitempty"`
 	AgentRevision     int    `json:"agent_revision,omitempty"`
 	Prompt            string `json:"prompt"`
-	// Bindings is the run's snapshot of this step's input bindings, taken at start
-	// so a later definition edit cannot change what an in-flight step receives.
+	// Bindings is the run's snapshot of this node's input bindings, taken at start
+	// so a later definition edit cannot change what an in-flight node receives.
 	Bindings []StepBinding `json:"bindings,omitempty"`
-	// OutputSchema is the run's snapshot of this step's output schema, taken at
-	// start so a later definition edit cannot change what an in-flight step must
-	// satisfy. Nil for a free-text step.
-	OutputSchema  *string `json:"output_schema,omitempty"`
-	Status        string  `json:"status"`
-	TaskID        *string `json:"task_id,omitempty"`
-	TaskRunID     *string `json:"task_run_id,omitempty"`
-	OutputSummary *string `json:"output_summary,omitempty"`
+	// OutputSchema is the run's snapshot of this node's output schema, taken at
+	// start so a later definition edit cannot change what an in-flight node must
+	// satisfy. Nil for a free-text node.
+	OutputSchema *string `json:"output_schema,omitempty"`
+	Status       string  `json:"status"`
+	TaskID       *string `json:"task_id,omitempty"`
+	TaskRunID    *string `json:"task_run_id,omitempty"`
+	// ResolvedInput is the full Task input this node received -- its prompt with
+	// every binding materialized -- captured when the node started so the run
+	// record shows exactly what the agent was given. Nil until the node is
+	// dispatched.
+	ResolvedInput *string `json:"resolved_input,omitempty"`
+	// Output is the node's full output: the whole text its accepted TaskRun
+	// produced, not a truncated summary, so downstream bindings and the run
+	// result read it without re-reading the Task plane. Nil until the node
+	// succeeds, or when it produced no text.
+	Output *string `json:"output,omitempty"`
 	// Structured is the validated structured-output value the accepted run
 	// produced, as JSON text. Nil for a free-text step, or when the value did not
 	// validate (which fails the step).
@@ -195,7 +220,29 @@ type StepRun struct {
 
 // Definition is the parsed structure of a workflow definition JSON.
 type Definition struct {
-	Steps []DefinitionStep `json:"steps"`
+	// SchemaVersion names the definition contract this plan is written for. It must
+	// equal DefinitionSchemaVersion; publication refuses anything else rather than
+	// guessing an unversioned shape.
+	SchemaVersion int `json:"schema_version"`
+	// InputSchema, when set, is a JSON Schema (in the shared subset) that a run's
+	// immutable input must satisfy at admission and that drives the Portal input
+	// form. Absent means the run takes no declared input. Publication rejects a
+	// schema outside the subset.
+	InputSchema json.RawMessage  `json:"input_schema,omitempty"`
+	Steps       []DefinitionStep `json:"steps"`
+	// Result, when set, selects the WorkflowRun result from one step's output
+	// envelope. The selected step must exist. Absent leaves the run without a
+	// declared result.
+	Result *ResultSelector `json:"result,omitempty"`
+}
+
+// ResultSelector selects the WorkflowRun result from one step's output envelope,
+// with the same source/pointer grammar as a StepBinding. Source must name a
+// step's output ("node.<node_id>.output"); Pointer is an RFC 6901 pointer into
+// that envelope, empty for the whole value.
+type ResultSelector struct {
+	Source  string `json:"source"`
+	Pointer string `json:"pointer"`
 }
 
 // DefinitionStep describes one step in a workflow definition.
@@ -204,10 +251,10 @@ type DefinitionStep struct {
 	Type          string `json:"type"`
 	TargetAgentID string `json:"target_agent_id"`
 	Prompt        string `json:"prompt"`
-	// Bindings feed an earlier step's output into this step's input. Each names a
-	// value (Name) taken from the whole output of a prior step (FromStep). The
-	// bound output reaches the Task as labelled untrusted context, never the
-	// agent's instructions.
+	// Bindings feed selected values into this step's input. Each names a value
+	// (Name) taken from a source (the run's input, or an earlier step's output
+	// envelope) at an RFC 6901 pointer. The bound value reaches the Task as
+	// labelled untrusted context, never the agent's instructions.
 	Bindings []StepBinding `json:"bindings,omitempty"`
 	// OutputSchema, when set, is a JSON Schema (in the shared subset) the step's
 	// agent run must satisfy as its final answer. Publication rejects a schema
@@ -217,21 +264,78 @@ type DefinitionStep struct {
 	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
 }
 
-// StepBinding binds one earlier step's output into a downstream step's input
-// under a name. The whole upstream output is bound; there is no selection or
-// templating in this contract.
+// BindingSourceWorkflowInput is the binding source that selects into the run's
+// immutable input JSON. The only other source is an earlier node's output,
+// named by NodeOutputSource / parsed by ParseNodeOutputSource.
+const BindingSourceWorkflowInput = "workflow.input"
+
+// StepBinding binds a value selected from a source at an RFC 6901 pointer into a
+// downstream step's input under a name.
+//
+// Source is either "workflow.input" (the run's frozen input) or
+// "node.<node_id>.output" (an earlier node's output envelope: text, structured,
+// artifacts, task_id, task_run_id). Pointer is an RFC 6901 JSON Pointer into
+// that value; the empty string selects the whole value. There is no JSONPath,
+// filter, function, or template evaluation in this contract.
 type StepBinding struct {
-	Name     string `json:"name"`
-	FromStep string `json:"from_step"`
+	Name    string `json:"name"`
+	Source  string `json:"source"`
+	Pointer string `json:"pointer"`
+}
+
+// NodeOutputSource is the binding source string that selects an earlier node's
+// output envelope by its node id.
+func NodeOutputSource(nodeID string) string {
+	return "node." + nodeID + ".output"
+}
+
+// ParseNodeOutputSource returns the node id a "node.<node_id>.output" source
+// names, or ("", false) when source is not that shape. The node id may itself
+// contain dots, so only the fixed "node." prefix and ".output" suffix are
+// stripped.
+func ParseNodeOutputSource(source string) (string, bool) {
+	const prefix, suffix = "node.", ".output"
+	if len(source) <= len(prefix)+len(suffix) {
+		return "", false
+	}
+	if source[:len(prefix)] != prefix || source[len(source)-len(suffix):] != suffix {
+		return "", false
+	}
+	return source[len(prefix) : len(source)-len(suffix)], true
+}
+
+// NodeOutputEnvelope is the addressable value of a node's output that a
+// downstream binding selects into with an RFC 6901 pointer. It is built from an
+// accepted node run: the full output text, the validated structured value (or
+// null), the Artifact references the accepted TaskRun produced, and the Task and
+// TaskRun handles.
+type NodeOutputEnvelope struct {
+	Text       string               `json:"text"`
+	Structured json.RawMessage      `json:"structured"`
+	Artifacts  []NodeOutputArtifact `json:"artifacts"`
+	TaskID     string               `json:"task_id,omitempty"`
+	TaskRunID  string               `json:"task_run_id,omitempty"`
+}
+
+// NodeOutputArtifact is one stable Artifact reference in a node output envelope.
+// It carries only the reference a downstream Agent needs to open the Artifact
+// through its normal authorized capability, never the bytes.
+type NodeOutputArtifact struct {
+	ID        string `json:"id"`
+	Path      string `json:"path,omitempty"`
+	MediaType string `json:"media_type,omitempty"`
 }
 
 type CreateRunInput struct {
 	WorkflowID       string
 	WorkflowRevision int
 	IssueID          *string
-	Status           string
-	CreatedBy        string
-	StartedAt        *time.Time
+	// Input is the run's immutable input JSON, already validated against the
+	// definition's input_schema. Nil when the definition declares no input_schema.
+	Input     *string
+	Status    string
+	CreatedBy string
+	StartedAt *time.Time
 }
 
 type UpdateInput struct {
@@ -249,10 +353,10 @@ type UpdateInput struct {
 	UpdatedBy string
 }
 
-type CreateStepRunInput struct {
-	StepID            string
-	StepIndex         int
-	StepType          string
+type CreateNodeRunInput struct {
+	NodeID            string
+	NodeIndex         int
+	NodeType          string
 	TargetAgentID     *string
 	AgentName         string
 	AgentDescription  string
@@ -274,19 +378,25 @@ type TransitionRunInput struct {
 	StartedAt      *time.Time
 	EndedAt        *time.Time
 	ErrorMessage   *string
+	// Result is the run's declared result JSON, written when the run moves to
+	// succeeded. Nil leaves the column untouched, so a definition with no result
+	// selector or a non-success transition stores nothing.
+	Result *string
 }
 
-// TransitionStepRunInput atomically moves a step run from ExpectedStatus to
+// TransitionNodeRunInput atomically moves a node run from ExpectedStatus to
 // NewStatus, carrying the fields that land with a status change. The store
-// writes nothing unless the step's current status is ExpectedStatus and the
-// move is a ValidStepRunTransition.
-type TransitionStepRunInput struct {
-	StepRunID      string
-	ExpectedStatus StepRunStatus
-	NewStatus      StepRunStatus
+// writes nothing unless the node's current status is ExpectedStatus and the
+// move is a ValidNodeRunTransition. ResolvedInput lands with the move to
+// running; Output and Structured land with the move to succeeded.
+type TransitionNodeRunInput struct {
+	NodeRunID      string
+	ExpectedStatus NodeRunStatus
+	NewStatus      NodeRunStatus
 	TaskID         *string
 	TaskRunID      *string
-	OutputSummary  *string
+	ResolvedInput  *string
+	Output         *string
 	Structured     *string
 	ErrorMessage   *string
 	StartedAt      *time.Time
@@ -294,16 +404,16 @@ type TransitionStepRunInput struct {
 }
 
 // FinalizeFailedRunInput ends a run because one step ended badly. In one
-// transaction the store moves the step to StepStatus (failed or canceled),
+// transaction the store moves the step to NodeStatus (failed or canceled),
 // blocks every later step still pending, and moves the run to RunStatus. Both
-// moves are guarded: nothing is written unless the step is at StepExpected and
+// moves are guarded: nothing is written unless the step is at NodeExpected and
 // both transitions are valid.
 type FinalizeFailedRunInput struct {
 	WorkflowRunID string
-	StepRunID     string
-	StepIndex     int
-	StepExpected  StepRunStatus
-	StepStatus    StepRunStatus
+	NodeRunID     string
+	NodeIndex     int
+	NodeExpected  NodeRunStatus
+	NodeStatus    NodeRunStatus
 	RunExpected   RunStatus
 	RunStatus     RunStatus
 	TaskRunID     *string
@@ -349,14 +459,14 @@ type Store interface {
 	ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]Run, int, error)
 	ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]Run, int, error)
 	GetWorkflowRun(ctx context.Context, workflowRunID string) (*Run, error)
-	ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]StepRun, error)
-	CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []CreateStepRunInput) ([]StepRun, error)
-	// TransitionWorkflowRun and TransitionWorkflowStepRun apply one guarded
+	ListWorkflowNodeRuns(ctx context.Context, workflowRunID string) ([]NodeRun, error)
+	CreateWorkflowNodeRuns(ctx context.Context, workflowRunID string, steps []CreateNodeRunInput) ([]NodeRun, error)
+	// TransitionWorkflowRun and TransitionWorkflowNodeRun apply one guarded
 	// status change each; a false result means the row was not at the expected
 	// status, so another actor won the transition. FinalizeFailedWorkflowRun
 	// ends a run and blocks its remaining steps in one transaction.
 	TransitionWorkflowRun(ctx context.Context, in TransitionRunInput) (bool, error)
-	TransitionWorkflowStepRun(ctx context.Context, in TransitionStepRunInput) (bool, error)
+	TransitionWorkflowNodeRun(ctx context.Context, in TransitionNodeRunInput) (bool, error)
 	FinalizeFailedWorkflowRun(ctx context.Context, in FinalizeFailedRunInput) (bool, error)
 	// ListDueWorkflowRuns returns non-terminal runs that need a reconciliation
 	// pass at now -- their scheduled time has arrived or their lease expired --
@@ -369,8 +479,8 @@ type Store interface {
 	ClaimWorkflowRunLease(ctx context.Context, in ClaimLeaseInput) (bool, error)
 	RenewWorkflowRunLease(ctx context.Context, in RenewLeaseInput) (bool, error)
 	ReleaseWorkflowRunLease(ctx context.Context, in ReleaseLeaseInput) (bool, error)
-	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*StepRun, error)
-	GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*StepRun, error)
+	GetWorkflowNodeRunByTaskID(ctx context.Context, taskID string) (*NodeRun, error)
+	GetWorkflowNodeRunByTaskRunID(ctx context.Context, taskRunID string) (*NodeRun, error)
 	// ListWorkflowRevisions returns a workflow's revisions, newest first, with
 	// the total count.
 	ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]Revision, int, error)

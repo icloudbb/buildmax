@@ -1,9 +1,11 @@
 package work
 
 import (
-	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"encoding/json"
 	"net/http"
 	"time"
+
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
@@ -43,24 +45,26 @@ type workflowRevisionListResponse struct {
 }
 
 type workflowRunResponse struct {
-	ID               string     `json:"id"`
-	WorkflowID       string     `json:"workflow_id"`
-	WorkflowRevision int        `json:"workflow_revision,omitempty"`
-	IssueID          *string    `json:"issue_id,omitempty"`
-	Status           string     `json:"status"`
-	CreatedBy        string     `json:"created_by"`
-	CreatedAt        time.Time  `json:"created_at"`
-	StartedAt        *time.Time `json:"started_at,omitempty"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	ErrorMessage     *string    `json:"error_message,omitempty"`
+	ID               string          `json:"id"`
+	WorkflowID       string          `json:"workflow_id"`
+	WorkflowRevision int             `json:"workflow_revision,omitempty"`
+	IssueID          *string         `json:"issue_id,omitempty"`
+	Status           string          `json:"status"`
+	CreatedBy        string          `json:"created_by"`
+	CreatedAt        time.Time       `json:"created_at"`
+	StartedAt        *time.Time      `json:"started_at,omitempty"`
+	EndedAt          *time.Time      `json:"ended_at,omitempty"`
+	ErrorMessage     *string         `json:"error_message,omitempty"`
+	Input            json.RawMessage `json:"input,omitempty"`
+	Result           json.RawMessage `json:"result,omitempty"`
 }
 
-type workflowStepRunResponse struct {
+type workflowNodeRunResponse struct {
 	ID                string     `json:"id"`
 	WorkflowRunID     string     `json:"workflow_run_id"`
-	StepID            string     `json:"step_id"`
-	StepIndex         int        `json:"step_index"`
-	StepType          string     `json:"step_type"`
+	NodeID            string     `json:"node_id"`
+	NodeIndex         int        `json:"node_index"`
+	NodeType          string     `json:"node_type"`
 	TargetAgentID     *string    `json:"target_agent_id,omitempty"`
 	AgentName         string     `json:"agent_name,omitempty"`
 	AgentDescription  string     `json:"agent_description,omitempty"`
@@ -70,7 +74,8 @@ type workflowStepRunResponse struct {
 	Status            string     `json:"status"`
 	TaskID            *string    `json:"task_id,omitempty"`
 	TaskRunID         *string    `json:"task_run_id,omitempty"`
-	OutputSummary     *string    `json:"output_summary,omitempty"`
+	ResolvedInput     *string    `json:"resolved_input,omitempty"`
+	Output            *string    `json:"output,omitempty"`
 	ErrorMessage      *string    `json:"error_message,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 	StartedAt         *time.Time `json:"started_at,omitempty"`
@@ -88,7 +93,7 @@ type workflowRunListResponse struct {
 
 type workflowRunDetailResponse struct {
 	Run   workflowRunResponse       `json:"run"`
-	Steps []workflowStepRunResponse `json:"steps"`
+	Steps []workflowNodeRunResponse `json:"steps"`
 }
 
 type createWorkflowRequest struct {
@@ -106,6 +111,8 @@ type patchWorkflowRequest struct {
 
 type createWorkflowRunRequest struct {
 	IssueID *string `json:"issue_id,omitempty"`
+	// Input is the run's input, validated against the workflow's input_schema.
+	Input json.RawMessage `json:"input,omitempty"`
 }
 
 func workflowToResponse(workflow coreworkflow.Workflow) workflowResponse {
@@ -148,16 +155,27 @@ func workflowRunToResponse(run coreworkflow.Run) workflowRunResponse {
 		StartedAt:        run.StartedAt,
 		EndedAt:          run.EndedAt,
 		ErrorMessage:     run.ErrorMessage,
+		Input:            rawJSONOrNil(run.Input),
+		Result:           rawJSONOrNil(run.Result),
 	}
 }
 
-func workflowStepRunToResponse(step coreworkflow.StepRun) workflowStepRunResponse {
-	return workflowStepRunResponse{
+// rawJSONOrNil surfaces a run's stored input JSON as raw JSON, not a quoted
+// string, and omits it entirely when the run carried no input.
+func rawJSONOrNil(s *string) json.RawMessage {
+	if s == nil {
+		return nil
+	}
+	return json.RawMessage(*s)
+}
+
+func workflowNodeRunToResponse(step coreworkflow.NodeRun) workflowNodeRunResponse {
+	return workflowNodeRunResponse{
 		ID:                step.ID,
 		WorkflowRunID:     step.WorkflowRunID,
-		StepID:            step.StepID,
-		StepIndex:         step.StepIndex,
-		StepType:          step.StepType,
+		NodeID:            step.NodeID,
+		NodeIndex:         step.NodeIndex,
+		NodeType:          step.NodeType,
 		TargetAgentID:     step.TargetAgentID,
 		AgentName:         step.AgentName,
 		AgentDescription:  step.AgentDescription,
@@ -167,7 +185,8 @@ func workflowStepRunToResponse(step coreworkflow.StepRun) workflowStepRunRespons
 		Status:            step.Status,
 		TaskID:            step.TaskID,
 		TaskRunID:         step.TaskRunID,
-		OutputSummary:     step.OutputSummary,
+		ResolvedInput:     step.ResolvedInput,
+		Output:            step.Output,
 		ErrorMessage:      step.ErrorMessage,
 		CreatedAt:         step.CreatedAt,
 		StartedAt:         step.StartedAt,
@@ -186,7 +205,12 @@ func newWorkflowService(cfg Config, tasks *task.Service) *workflow.Service {
 		Issues:      cfg.Issues,
 		TaskService: tasks,
 		TaskRuns:    tasks.TaskRuns,
-		Audit:       cfg.Audit,
+		// Artifacts is left nil here: this service dispatches only the run's first
+		// step from the HTTP path, and a first step has no predecessor to bind a
+		// node output or Artifact from. Reconciliation of later steps -- which can
+		// bind Artifacts -- runs on the terminal-callback and recovery services,
+		// which are wired with the artifact store.
+		Audit: cfg.Audit,
 	}
 }
 
@@ -401,9 +425,9 @@ func (h *Handler) getWorkflowRunHandler(w http.ResponseWriter, r *http.Request) 
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_workflow_run", "space_id", spaceID, "workflow_run_id", runID)
 		return
 	}
-	stepOut := make([]workflowStepRunResponse, len(steps))
+	stepOut := make([]workflowNodeRunResponse, len(steps))
 	for i := range steps {
-		stepOut[i] = workflowStepRunToResponse(steps[i])
+		stepOut[i] = workflowNodeRunToResponse(steps[i])
 	}
 	httputil.WriteJSON(w, http.StatusOK, workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut})
 }
@@ -431,6 +455,7 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 		UserID:     userID,
 		WorkflowID: workflowID,
 		IssueID:    req.IssueID,
+		Input:      string(req.Input),
 	})
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {
@@ -439,9 +464,9 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_workflow_run", "space_id", spaceID, "workflow_id", workflowID)
 		return
 	}
-	stepOut := make([]workflowStepRunResponse, len(steps))
+	stepOut := make([]workflowNodeRunResponse, len(steps))
 	for i := range steps {
-		stepOut[i] = workflowStepRunToResponse(steps[i])
+		stepOut[i] = workflowNodeRunToResponse(steps[i])
 	}
 	httputil.WriteJSON(w, http.StatusCreated, workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut})
 }
@@ -487,9 +512,9 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_workflow_run", "space_id", spaceID, "issue_id", issueID)
 		return
 	}
-	stepOut := make([]workflowStepRunResponse, len(steps))
+	stepOut := make([]workflowNodeRunResponse, len(steps))
 	for i := range steps {
-		stepOut[i] = workflowStepRunToResponse(steps[i])
+		stepOut[i] = workflowNodeRunToResponse(steps[i])
 	}
 	httputil.WriteJSON(w, http.StatusCreated, workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut})
 }

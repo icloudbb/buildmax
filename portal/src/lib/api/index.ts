@@ -33,7 +33,7 @@ export type {
   ApiWorkflowRun,
   ApiWorkflowRunListResponse,
   ApiWorkflowRunDetailResponse,
-  ApiWorkflowStepRun,
+  ApiWorkflowNodeRun,
 } from "./types"
 export {
   apiAgentToAgent,
@@ -41,5 +41,5 @@ export {
   apiIssueToIssue,
   apiWorkflowToWorkflow,
   apiWorkflowRunToWorkflowRun,
-  apiWorkflowStepRunToWorkflowStepRun,
+  apiWorkflowNodeRunToWorkflowNodeRun,
 } from "./mappers"

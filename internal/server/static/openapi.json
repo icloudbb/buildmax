@@ -571,7 +571,9 @@
                     "created_at": {"type": "string", "format": "date-time"},
                     "started_at": {"type": "string", "format": "date-time"},
                     "ended_at": {"type": "string", "format": "date-time"},
-                    "error_message": {"type": "string"}
+                    "error_message": {"type": "string"},
+                    "input": {"type": "object", "description": "The run's immutable input, validated against the workflow input_schema."},
+                    "result": {"description": "The run's declared result, resolved from a node output when the run succeeded."}
                   },
                   "required": ["id", "workflow_id", "conversation_id", "status", "created_by", "created_at"]
                 },
@@ -582,9 +584,9 @@
                     "properties": {
                       "id": {"type": "string"},
                       "workflow_run_id": {"type": "string"},
-                      "step_id": {"type": "string"},
-                      "step_index": {"type": "integer"},
-                      "step_type": {"type": "string"},
+                      "node_id": {"type": "string"},
+                      "node_index": {"type": "integer"},
+                      "node_type": {"type": "string"},
                       "target_agent_id": {"type": "string"},
                       "agent_name": {"type": "string"},
                       "agent_description": {"type": "string"},
@@ -594,7 +596,8 @@
                       "status": {"type": "string"},
                       "task_id": {"type": "string"},
                       "task_run_id": {"type": "string"},
-                      "output_summary": {"type": "string"},
+                      "resolved_input": {"type": "string"},
+                      "output": {"type": "string"},
                       "error_message": {"type": "string"},
                       "created_at": {"type": "string", "format": "date-time"},
                       "started_at": {"type": "string", "format": "date-time"},
@@ -603,9 +606,9 @@
                     "required": [
                       "id",
                       "workflow_run_id",
-                      "step_id",
-                      "step_index",
-                      "step_type",
+                      "node_id",
+                      "node_index",
+                      "node_type",
                       "prompt",
                       "status",
                       "created_at"
@@ -658,8 +661,8 @@
                   "task_run_id": {"type": "string"},
                   "conversation_id": {"type": "string"},
                   "workflow_run_id": {"type": "string"},
-                  "workflow_step_run_id": {"type": "string"},
-                  "workflow_step_id": {"type": "string"}
+                  "workflow_node_run_id": {"type": "string"},
+                  "workflow_node_id": {"type": "string"}
                 },
                 "required": ["source_type"]
               },
@@ -687,8 +690,8 @@
                     "task_run_id": {"type": "string"},
                     "conversation_id": {"type": "string"},
                     "workflow_run_id": {"type": "string"},
-                    "workflow_step_run_id": {"type": "string"},
-                    "workflow_step_id": {"type": "string"}
+                    "workflow_node_run_id": {"type": "string"},
+                    "workflow_node_id": {"type": "string"}
                   },
                   "required": ["source_type"]
                 },
@@ -766,18 +769,20 @@
           "created_at": {"type": "string", "format": "date-time"},
           "started_at": {"type": "string", "format": "date-time"},
           "ended_at": {"type": "string", "format": "date-time"},
-          "error_message": {"type": "string"}
+          "error_message": {"type": "string"},
+          "input": {"type": "object", "description": "The run's immutable input, validated against the workflow input_schema."},
+          "result": {"description": "The run's declared result, resolved from a node output when the run succeeded; present only when the definition declares a result selector."}
         },
         "required": ["id", "workflow_id", "conversation_id", "status", "created_by", "created_at"]
       },
-      "WorkflowStepRun": {
+      "WorkflowNodeRun": {
         "type": "object",
         "properties": {
           "id": {"type": "string"},
           "workflow_run_id": {"type": "string"},
-          "step_id": {"type": "string"},
-          "step_index": {"type": "integer"},
-          "step_type": {"type": "string"},
+          "node_id": {"type": "string"},
+          "node_index": {"type": "integer"},
+          "node_type": {"type": "string"},
           "target_agent_id": {"type": "string"},
           "agent_name": {"type": "string"},
           "agent_description": {"type": "string"},
@@ -787,7 +792,8 @@
           "status": {"type": "string"},
           "task_id": {"type": "string"},
           "task_run_id": {"type": "string"},
-          "output_summary": {"type": "string"},
+          "resolved_input": {"type": "string"},
+          "output": {"type": "string"},
           "error_message": {"type": "string"},
           "created_at": {"type": "string", "format": "date-time"},
           "started_at": {"type": "string", "format": "date-time"},
@@ -796,9 +802,9 @@
         "required": [
           "id",
           "workflow_run_id",
-          "step_id",
-          "step_index",
-          "step_type",
+          "node_id",
+          "node_index",
+          "node_type",
           "prompt",
           "status",
           "created_at"
@@ -3842,7 +3848,7 @@
                   "type": "object",
                   "properties": {
                     "run": {"$ref": "#/components/schemas/WorkflowRun"},
-                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowStepRun"}}
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}}
                   }
                 }
               }
@@ -4130,7 +4136,7 @@
         "summary": "Start a workflow run",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "workflow_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "requestBody": {"required": false, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "requestBody": {"required": false, "content": {"application/json": {"schema": {"type": "object", "properties": {"issue_id": {"type": "string"}, "input": {"type": "object", "description": "Run input, validated against the workflow input_schema; required when the workflow declares one."}}}}}},
         "responses": {
           "201": {
             "description": "Created",
@@ -4140,7 +4146,7 @@
                   "type": "object",
                   "properties": {
                     "run": {"$ref": "#/components/schemas/WorkflowRun"},
-                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowStepRun"}}
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}}
                   }
                 }
               }
@@ -4172,7 +4178,7 @@
                   "type": "object",
                   "properties": {
                     "run": {"$ref": "#/components/schemas/WorkflowRun"},
-                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowStepRun"}}
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}}
                   }
                 }
               }

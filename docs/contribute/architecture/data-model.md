@@ -122,7 +122,7 @@ erDiagram
 
     agent ||--o{ task : executes
     agent ||--o{ schedule : "fired by"
-    agent ||--o{ workflow_step_run : "targeted by"
+    agent ||--o{ workflow_node_run : "targeted by"
     agent ||--o{ agent_revision : "versioned by"
     workflow ||--o{ workflow_revision : "versioned by"
     schedule ||--o{ task : "fires"
@@ -135,8 +135,8 @@ erDiagram
     space ||--o{ artifact : keeps
 
     workflow ||--o{ workflow_run : "instantiated as"
-    workflow_run ||--o{ workflow_step_run : "expands to"
-    workflow_step_run ||--o| task : "delegates to"
+    workflow_run ||--o{ workflow_node_run : "expands to"
+    workflow_node_run ||--o| task : "delegates to"
 ```
 
 Identity, authorization, and platform tables:
@@ -788,7 +788,7 @@ The durable unit of background work. One task, many attempts.
 | `agent_id` | `bigint unsigned` | yes | `agent.id` this task runs as |
 | `workspace_head_checkpoint_id` | `bigint unsigned` | yes | `workspace_checkpoint.id` accepted as the Task's recoverable workspace; its seed, then each successful result. Null until the first run commits one |
 | `plugin_environment_head_id` | `bigint unsigned` | yes | Immutable Plugin environment the next Continue uses; null for a Task that installs nothing autonomously |
-| `admission_key` | `varchar(191)` | yes | A coordinator's stable idempotency key, unique within the space; `NULL` for the ordinary task no coordinator replays. A Workflow node dispatch uses `workflow/<workflow_run_id>/node/<step_id>` |
+| `admission_key` | `varchar(191)` | yes | A coordinator's stable idempotency key, unique within the space; `NULL` for the ordinary task no coordinator replays. A Workflow node dispatch uses `workflow/<workflow_run_id>/node/<node_id>` |
 | `admission_fingerprint` | `char(64)` | yes | Digest of the admitted payload, compared on replay to tell an identical admission from a conflicting reuse of the same key; `NULL` when `admission_key` is |
 
 Indexes: PK `id`; index `agent_id`; index `conversation_id`; index `issue_id`;
@@ -1133,7 +1133,9 @@ revision cannot unpublish a workflow spaces are running.
 | `workflow_id` | `bigint unsigned` | no | `workflow.id` |
 | `workflow_revision` | `bigint` | no | The revision this run expanded; 0 for runs started before workflows recorded revisions |
 | `issue_id` | `bigint unsigned` | yes | Issue this run advances |
+| `input` | `longtext` | yes | The run's immutable input JSON, validated against the definition's `input_schema` at admission; NULL when the definition declares no input schema |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled` — lowercase, unlike `task` |
+| `result_json` | `longtext` | yes | The run's declared result, resolved from a node output when the run succeeded; NULL when the definition declares no result selector or the run did not succeed |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `started_at` | `datetime(6)` | yes | |
@@ -1160,35 +1162,38 @@ Each step run creates a Space-owned Task directly (`task.space_id`, no
 `conversation_id`); a run's progress is read from its steps' `task_id` /
 `task_run_id`, not from a Conversation.
 
-### `workflow_step_run`
+### `workflow_node_run`
 
-One step of one workflow run. The bridge between the workflow engine and Tier 2.
+One node of one workflow run. The bridge between the workflow engine and Tier 2.
+The linear precursor authors nodes as ordered `steps`; `node_id` carries the
+authoring step's id and `node_index` its position.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `char(20) ascii_bin` | no | Public handle, unique. The Go field is `StepRunID` |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique. The Go field is `NodeRunID` |
 | `workflow_run_id` | `bigint unsigned` | no | `workflow_run.id` |
-| `step_id` | `varchar(128)` | no | Step identifier authored in the workflow definition, not a reference to a row |
-| `step_index` | `bigint` | no | Position in the linear plan; the execution order |
-| `step_type` | `varchar(32)` | no | `agent_task` |
-| `target_agent_id` | `bigint unsigned` | yes | `agent.id` to run the step as |
-| `agent_name` | `varchar(255)` | no | Agent name captured when the run started; empty on rows written before step runs snapshotted their agent |
+| `node_id` | `varchar(128)` | no | Node identifier authored in the workflow definition as a step id, not a reference to a row |
+| `node_index` | `bigint` | no | Position in the linear plan; the execution order |
+| `node_type` | `varchar(32)` | no | `agent_task` |
+| `target_agent_id` | `bigint unsigned` | yes | `agent.id` to run the node as |
+| `agent_name` | `varchar(255)` | no | Agent name captured when the run started; empty on rows written before node runs snapshotted their agent |
 | `agent_description` | `text` | no | Agent description captured when the run started |
 | `agent_instructions` | `longtext` | no | Agent instructions captured when the run started |
 | `agent_revision` | `bigint` | no | The `agent_revision.revision` the snapshot came from; 0 when it predates revisions |
-| `prompt` | `text` | no | Rendered prompt for this step |
+| `prompt` | `text` | no | Rendered prompt for this node |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled`, `blocked` |
-| `task_id` | `bigint unsigned` | yes | The Tier 2 task this step created |
+| `task_id` | `bigint unsigned` | yes | The Tier 2 task this node created |
 | `task_run_id` | `bigint unsigned` | yes | The specific attempt |
-| `output_summary` | `text` | yes | First 500 runes of the step output, for display; it is not passed to the next step |
+| `resolved_input` | `longtext` | yes | The full Task input the node received, captured when it started |
+| `output` | `longtext` | yes | The node's full output text, captured when it succeeded; read by downstream bindings |
 | `error_message` | `text` | yes | |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `started_at` | `datetime(6)` | yes | |
 | `ended_at` | `datetime(6)` | yes | |
 
-Indexes: PK `id`; index `idx_step_run_run_index` on (`workflow_run_id`,
-`step_index`); index `target_agent_id`; index `task_id`; index `task_run_id`;
+Indexes: PK `id`; index `idx_node_run_run_index` on (`workflow_run_id`,
+`node_index`); index `target_agent_id`; index `task_id`; index `task_run_id`;
 unique `public_id`.
 
 The three `agent_*` columns pin the agent definition for the whole run. Steps are

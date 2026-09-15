@@ -177,6 +177,11 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: Sign in over OpenID Connect](changelog/added/oidc-sign-in.md) · 中文：—
 - [English: SSO account linking](changelog/added/oidc-account-linking.md) · 中文：—
 - [English: Workflow step output schema](changelog/added/workflow-step-output-schema.md) · 中文：—
+- [English: Workflow definition schema version](changelog/changed/workflow-definition-schema-version.md) · 中文：—
+- [English: Workflow run input](changelog/added/workflow-run-input.md) · 中文：—
+- [English: Workflow node runs](changelog/changed/workflow-node-runs.md) · 中文：—
+- [English: Workflow pointer bindings](changelog/changed/workflow-pointer-bindings.md) · 中文：—
+- [English: Workflow run result](changelog/added/workflow-run-result.md) · 中文：—
 - [English: Desktop tool-call card name wrapping](changelog/fixed/desktop-tool-card-name-wrap.md) · 中文：—
 - [English: Cross-origin sign-in CORS credentials](changelog/fixed/cors-credentials-cross-origin.md) · 中文：—
 - [English: Portal reload Space fallback](changelog/fixed/portal-reload-space-fallback.md) · 中文：—
