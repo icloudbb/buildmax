@@ -59,6 +59,10 @@ export interface WorkflowStepDraft {
    *  treated as "none". */
   issueAccess?: string
   targetAgentId: string
+  /** The pinned agent revision, when the definition names one (publication pins
+   *  it). Carried through parse and serialize so editing a published definition
+   *  in the form does not drop the pin. `undefined` means "latest". */
+  agentRevision?: number
   prompt: string
   bindings?: WorkflowStepBinding[]
 }
@@ -148,7 +152,7 @@ export function stepsToDefinition(steps: WorkflowStepDraft[], maxParallelNodes: 
           type: step.type,
           ...(needs.length > 0 ? { needs } : {}),
           ...(step.issueAccess && step.issueAccess !== "none" ? { issue_access: step.issueAccess } : {}),
-          agent: { id: step.targetAgentId },
+          agent: { id: step.targetAgentId, ...(step.agentRevision ? { revision: step.agentRevision } : {}) },
           input: {
             instruction: step.prompt,
             ...(step.bindings && step.bindings.length > 0
@@ -215,6 +219,7 @@ export function parseDefinition(definition: string): ParsedWorkflowDefinition | 
           needs: parseNeeds(record.needs),
           issueAccess: typeof record.issue_access === "string" ? record.issue_access : undefined,
           targetAgentId: typeof agent.id === "string" ? agent.id : "",
+          agentRevision: typeof agent.revision === "number" ? agent.revision : undefined,
           prompt: typeof input.instruction === "string" ? input.instruction : "",
           bindings: parseStepBindings(input.bindings),
         }

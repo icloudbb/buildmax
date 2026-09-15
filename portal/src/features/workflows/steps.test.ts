@@ -72,6 +72,13 @@ describe("stepsToDefinition / parseDefinition", () => {
     expect(node).not.toHaveProperty("prompt")
   })
 
+  it("carries a pinned agent.revision through parse and serialize", () => {
+    expect(JSON.parse(stepsToDefinition([step()])).nodes[0].agent).toEqual({ id: "a_1" })
+    const wire = stepsToDefinition([step({ agentRevision: 3 })])
+    expect(JSON.parse(wire).nodes[0].agent).toEqual({ id: "a_1", revision: 3 })
+    expect(parseDefinition(wire)?.steps[0].agentRevision).toBe(3)
+  })
+
   it("carries issue_access through parse and serialize", () => {
     expect(stepsToDefinition([step()])).not.toContain("issue_access")
     const wire = stepsToDefinition([step({ issueAccess: "required" })])

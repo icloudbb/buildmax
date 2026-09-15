@@ -1269,7 +1269,9 @@ interpreters or preserve stale table shapes as a compatibility layer.
   the running siblings, and ends the run (worker Task cancellation of those
   siblings is Phase 4 §12.4).
 - add full publication validation and a read-only graph; publication validation
-  is shipped, the read-only graph view is open.
+  is shipped, including pinning each node's Agent to a revision (an unset one to
+  the Agent's current revision) so a run never resolves "latest"; the read-only
+  graph view is open.
 - retain the linear form as the simplest DAG, not a separate engine. **Shipped:**
   the Portal step form authors a linear chain that serializes to `nodes`/`needs`.
 

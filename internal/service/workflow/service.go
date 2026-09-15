@@ -43,6 +43,7 @@ var (
 	ErrInvalidNeeds               = apierr.New(apierr.KindInvalid, "invalid workflow node needs: each entry must name a distinct existing node, the edges must form a directed acyclic graph, and a node may not need itself")
 	ErrInvalidPolicy              = apierr.New(apierr.KindInvalid, "invalid workflow policy: max_parallel_nodes must be between 1 and the deployment maximum")
 	ErrInvalidIssueAccess         = apierr.New(apierr.KindInvalid, "invalid workflow node issue_access: must be none, if_bound, or required")
+	ErrInvalidAgentRevision       = apierr.New(apierr.KindInvalid, "invalid workflow node agent revision: the pinned revision does not exist")
 	ErrIssueRequired              = apierr.New(apierr.KindInvalid, "workflow run requires an issue: a node declares issue_access required but the run has none")
 	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow node binding: a unique name, a source of workflow.input or node.<id>.output naming a predecessor node, and a valid RFC 6901 pointer are required")
 	ErrInvalidOutputSchema        = apierr.New(apierr.KindInvalid, "invalid workflow node output_schema: must be within the supported JSON Schema subset")
@@ -193,19 +194,43 @@ func (s *Service) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflowCmd) (*c
 		Status:      nil,
 		UpdatedBy:   cmd.UserID,
 	}
-	if cmd.Definition != nil {
-		if strings.TrimSpace(*cmd.Definition) == "" {
-			return nil, ErrWorkflowDefinitionRequired
-		}
-		if _, _, err := s.parseAndValidateDefinition(ctx, cmd.SpaceID, *cmd.Definition); err != nil {
-			return nil, err
-		}
+	if cmd.Definition != nil && strings.TrimSpace(*cmd.Definition) == "" {
+		return nil, ErrWorkflowDefinitionRequired
 	}
 	if cmd.Status != nil {
 		if !isValidWorkflowStatus(*cmd.Status) {
 			return nil, ErrInvalidWorkflowStatus
 		}
 		in.Status = cmd.Status
+	}
+	// Publishing pins the definition's agent revisions and canonicalizes it, so a
+	// published plan names immutable Agent revisions a later run uses without
+	// resolving "latest". Any other status change validates the incoming
+	// definition without rewriting it.
+	if cmd.Status != nil && *cmd.Status == coreworkflow.StatusPublished {
+		raw := ""
+		if cmd.Definition != nil {
+			raw = *cmd.Definition
+		} else {
+			current, err := s.GetWorkflow(ctx, cmd.SpaceID, cmd.WorkflowID)
+			if err != nil {
+				return nil, err
+			}
+			raw = current.Definition
+		}
+		def, agents, err := s.parseAndValidateDefinition(ctx, cmd.SpaceID, raw)
+		if err != nil {
+			return nil, err
+		}
+		pinned, err := pinDefinitionAgents(def, agents)
+		if err != nil {
+			return nil, err
+		}
+		in.Definition = &pinned
+	} else if cmd.Definition != nil {
+		if _, _, err := s.parseAndValidateDefinition(ctx, cmd.SpaceID, *cmd.Definition); err != nil {
+			return nil, err
+		}
 	}
 	// The update is guarded on the revision the service observed. A restore pins
 	// the revision it read; a plain edit observes the current one now, so two
@@ -426,7 +451,10 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	stepsIn := make([]coreworkflow.CreateNodeRunInput, len(def.Nodes))
 	for i := range def.Nodes {
 		target := def.Nodes[i].Agent.ID
-		agent := agents[target]
+		snap, err := s.resolveNodeAgentSnapshot(ctx, def.Nodes[i], agents)
+		if err != nil {
+			return nil, nil, err
+		}
 		stepsIn[i] = coreworkflow.CreateNodeRunInput{
 			NodeID:            def.Nodes[i].ID,
 			NodeIndex:         topoIndex[def.Nodes[i].ID],
@@ -434,10 +462,10 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 			Needs:             def.Nodes[i].Needs,
 			IssueAccess:       def.Nodes[i].IssueAccess,
 			TargetAgentID:     &target,
-			AgentName:         agent.Name,
-			AgentDescription:  agent.Description,
-			AgentInstructions: agent.Instructions,
-			AgentRevision:     agent.Revision,
+			AgentName:         snap.name,
+			AgentDescription:  snap.description,
+			AgentInstructions: snap.instructions,
+			AgentRevision:     snap.revision,
 			Prompt:            def.Nodes[i].Input.Instruction,
 			Bindings:          def.Nodes[i].Input.Bindings,
 			OutputSchema:      outputSchemaSnapshot(def.Nodes[i].OutputSchema),
@@ -958,6 +986,24 @@ func resolveRunInput(def *coreworkflow.Definition, raw string) (*string, error) 
 	return &trimmed, nil
 }
 
+// pinDefinitionAgents returns def's canonical JSON with every node's
+// agent.revision set: a zero (unset, "latest") revision is pinned to the agent's
+// current revision, and a revision already set is kept. Publishing calls this so
+// the stored plan names immutable Agent revisions and a later run never resolves
+// "latest".
+func pinDefinitionAgents(def *coreworkflow.Definition, agents map[string]agentdef.Agent) (string, error) {
+	for i := range def.Nodes {
+		if def.Nodes[i].Agent.Revision == 0 {
+			def.Nodes[i].Agent.Revision = agents[def.Nodes[i].Agent.ID].Revision
+		}
+	}
+	encoded, err := json.Marshal(def)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
 // definitionRequiresIssue reports whether any node declares issue_access
 // "required", so a run without an Issue cannot satisfy the definition.
 func definitionRequiresIssue(def *coreworkflow.Definition) bool {
@@ -1138,7 +1184,48 @@ func (s *Service) resolveDefinitionAgents(ctx context.Context, spaceID string, d
 		}
 		agents[agentID] = *agent
 	}
+	// A node that pins an agent revision must name one that exists. Pinning is
+	// per-node (two nodes may pin different revisions of one agent), so this is a
+	// per-node check, not a per-agent one.
+	for i := range def.Nodes {
+		rev := def.Nodes[i].Agent.Revision
+		if rev <= 0 {
+			continue
+		}
+		got, err := s.Agents.GetAgentRevision(ctx, def.Nodes[i].Agent.ID, rev)
+		if err != nil {
+			return nil, err
+		}
+		if got == nil {
+			return nil, apierr.Detail(ErrInvalidAgentRevision, "node %q pins agent %q revision %d", def.Nodes[i].ID, def.Nodes[i].Agent.ID, rev)
+		}
+	}
 	return agents, nil
+}
+
+// nodeAgentSnapshot is the agent content a node run freezes at start.
+type nodeAgentSnapshot struct {
+	name, description, instructions string
+	revision                        int
+}
+
+// resolveNodeAgentSnapshot returns the agent content a node run should capture. A
+// node that pins a revision captures that immutable revision's content; a node on
+// "latest" captures the agent's current definition. Either way the run keeps the
+// content, so a later Agent edit cannot change what a dispatched node sends.
+func (s *Service) resolveNodeAgentSnapshot(ctx context.Context, node coreworkflow.DefinitionNode, agents map[string]agentdef.Agent) (nodeAgentSnapshot, error) {
+	if node.Agent.Revision > 0 {
+		rev, err := s.Agents.GetAgentRevision(ctx, node.Agent.ID, node.Agent.Revision)
+		if err != nil {
+			return nodeAgentSnapshot{}, err
+		}
+		if rev == nil {
+			return nodeAgentSnapshot{}, apierr.Detail(ErrInvalidAgentRevision, "node %q pins agent %q revision %d", node.ID, node.Agent.ID, node.Agent.Revision)
+		}
+		return nodeAgentSnapshot{name: rev.Name, description: rev.Description, instructions: rev.Instructions, revision: rev.Revision}, nil
+	}
+	a := agents[node.Agent.ID]
+	return nodeAgentSnapshot{name: a.Name, description: a.Description, instructions: a.Instructions, revision: a.Revision}, nil
 }
 
 func isValidWorkflowStatus(status string) bool {
