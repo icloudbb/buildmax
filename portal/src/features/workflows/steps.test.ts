@@ -64,6 +64,14 @@ describe("stepsToDefinition / parseDefinition", () => {
     expect(JSON.parse(stepsToDefinition([step()])).schema_version).toBe(1)
   })
 
+  it("carries policy.max_parallel_nodes through parse and serialize", () => {
+    expect(stepsToDefinition([step()])).not.toContain("policy")
+    const wire = stepsToDefinition([step()], 3)
+    expect(JSON.parse(wire).policy).toEqual({ max_parallel_nodes: 3 })
+    expect(parseDefinition(wire)?.maxParallelNodes).toBe(3)
+    expect(parseDefinition(stepsToDefinition([step()]))?.maxParallelNodes).toBeNull()
+  })
+
   it("emits bindings in the wire snake_case shape only when a step has them", () => {
     expect(stepsToDefinition([step()])).not.toContain("bindings")
     const wire = stepsToDefinition([

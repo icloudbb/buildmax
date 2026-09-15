@@ -118,15 +118,16 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 
 // TestStartWorkflowRun_DiamondRespectsNeeds proves the graph -- not array
 // position -- decides execution: a fan-out node's two dependents each wait on
-// it, and the fan-in node runs only after both dependents succeed. Concurrency
-// is one in this slice, so exactly one node runs at a time in topological order.
+// it, and the fan-in node runs only after both dependents succeed. A
+// max_parallel_nodes of 1 pins the run to one node at a time, so this isolates
+// readiness from concurrency.
 func TestStartWorkflowRun_DiamondRespectsNeeds(t *testing.T) {
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{{
 			ID:      "w_1",
 			SpaceID: "tm_1",
 			Name:    "Diamond",
-			Definition: `{"schema_version":1,"nodes":[` +
+			Definition: `{"schema_version":1,"policy":{"max_parallel_nodes":1},"nodes":[` +
 				`{"id":"research","type":"agent_task","target_agent_id":"a_1","prompt":"research"},` +
 				`{"id":"analyze","type":"agent_task","needs":["research"],"target_agent_id":"a_1","prompt":"analyze"},` +
 				`{"id":"summarize","type":"agent_task","needs":["research"],"target_agent_id":"a_1","prompt":"summarize"},` +
@@ -214,6 +215,158 @@ func TestStartWorkflowRun_DiamondRespectsNeeds(t *testing.T) {
 	}
 	if final.Status != string(coreworkflow.RunStatusSucceeded) {
 		t.Fatalf("run status = %q, want succeeded", final.Status)
+	}
+}
+
+// concurrencySvc builds a service over mock stores with one agent (a_1) and one
+// published workflow, and returns the service, its workflow store, its task-run
+// store, and the started run's id. It is the harness the concurrency tests drive
+// by making node TaskRuns terminal and re-reconciling.
+func concurrencySvc(t *testing.T, definition string) (*Service, *mock.MockWorkflowStore, *mock.MockTaskRunStore, string) {
+	t.Helper()
+	workflowStore := &mock.MockWorkflowStore{Workflows: []coreworkflow.Workflow{{
+		ID: "w_1", SpaceID: "tm_1", Name: "WF", Definition: definition, Status: coreworkflow.StatusPublished,
+	}}}
+	taskRuns := &mock.MockTaskRunStore{}
+	agentStore := &mock.MockAgentStore{Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "Agent", Instructions: "work"}}}
+	svc := &Service{
+		Workflows:   workflowStore,
+		Agents:      agentStore,
+		TaskRuns:    taskRuns,
+		TaskService: &task.Service{Agents: agentStore, Tasks: &mock.MockTaskStore{}, TaskRuns: taskRuns},
+	}
+	run, _, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{SpaceID: "tm_1", UserID: "u1", WorkflowID: "w_1"})
+	if err != nil {
+		t.Fatalf("StartWorkflowRun: %v", err)
+	}
+	return svc, workflowStore, taskRuns, run.ID
+}
+
+// nodesByStatus groups a run's node ids by status for concise assertions.
+func nodesByStatus(t *testing.T, store *mock.MockWorkflowStore, runID string) map[string][]string {
+	t.Helper()
+	steps, err := store.ListWorkflowNodeRuns(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
+	}
+	out := map[string][]string{}
+	for _, s := range steps {
+		out[s.Status] = append(out[s.Status], s.NodeID)
+	}
+	return out
+}
+
+// finishNode makes the given node's TaskRun terminal with status and folds it.
+func finishNode(t *testing.T, svc *Service, store *mock.MockWorkflowStore, taskRuns *mock.MockTaskRunStore, runID, nodeID, status string) {
+	t.Helper()
+	steps, err := store.ListWorkflowNodeRuns(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
+	}
+	for _, s := range steps {
+		if s.NodeID != nodeID {
+			continue
+		}
+		if s.TaskRunID == nil {
+			t.Fatalf("node %q has no task run to finish (status %q)", nodeID, s.Status)
+		}
+		out := nodeID + " out"
+		taskRuns.Runs = append(taskRuns.Runs, coretask.Run{ID: *s.TaskRunID, TaskID: *s.TaskID, Status: status, Output: &out})
+		if err := svc.HandleTaskRunTerminal(context.Background(), coretask.RunTerminalInfo{TaskRunID: *s.TaskRunID, TaskID: *s.TaskID, UserID: "u1", Status: status, Output: &out}); err != nil {
+			t.Fatalf("HandleTaskRunTerminal %s: %v", nodeID, err)
+		}
+		return
+	}
+	t.Fatalf("node %q not found", nodeID)
+}
+
+// TestReconcile_ConcurrentDispatchDiamond proves a fan-out dispatches both ready
+// dependents at once and the fan-in waits for both.
+func TestReconcile_ConcurrentDispatchDiamond(t *testing.T) {
+	svc, store, taskRuns, runID := concurrencySvc(t, `{"schema_version":1,"nodes":[`+
+		`{"id":"research","type":"agent_task","target_agent_id":"a_1","prompt":"r"},`+
+		`{"id":"analyze","type":"agent_task","needs":["research"],"target_agent_id":"a_1","prompt":"a"},`+
+		`{"id":"summarize","type":"agent_task","needs":["research"],"target_agent_id":"a_1","prompt":"s"},`+
+		`{"id":"report","type":"agent_task","needs":["analyze","summarize"],"target_agent_id":"a_1","prompt":"rep"}`+
+		`]}`)
+
+	finishNode(t, svc, store, taskRuns, runID, "research", string(coretask.RunStatusSucceeded))
+	// Both dependents dispatch together; report waits.
+	got := nodesByStatus(t, store, runID)
+	if len(got["running"]) != 2 {
+		t.Fatalf("running = %v, want analyze and summarize both running", got["running"])
+	}
+	if len(got["pending"]) != 1 || got["pending"][0] != "report" {
+		t.Fatalf("pending = %v, want [report]", got["pending"])
+	}
+
+	finishNode(t, svc, store, taskRuns, runID, "analyze", string(coretask.RunStatusSucceeded))
+	if got := nodesByStatus(t, store, runID); len(got["running"]) != 1 || got["running"][0] != "summarize" {
+		t.Fatalf("after analyze, running = %v, want [summarize] (report must wait on summarize)", got["running"])
+	}
+	finishNode(t, svc, store, taskRuns, runID, "summarize", string(coretask.RunStatusSucceeded))
+	if got := nodesByStatus(t, store, runID); len(got["running"]) != 1 || got["running"][0] != "report" {
+		t.Fatalf("after both dependents, running = %v, want [report]", got["running"])
+	}
+	finishNode(t, svc, store, taskRuns, runID, "report", string(coretask.RunStatusSucceeded))
+	if run, _ := store.GetWorkflowRun(context.Background(), runID); run.Status != string(coreworkflow.RunStatusSucceeded) {
+		t.Fatalf("run status = %q, want succeeded", run.Status)
+	}
+}
+
+// TestReconcile_ConcurrencyLimitBinds proves max_parallel_nodes caps how many
+// ready nodes run at once, and a freed slot admits the next ready node.
+func TestReconcile_ConcurrencyLimitBinds(t *testing.T) {
+	svc, store, taskRuns, runID := concurrencySvc(t, `{"schema_version":1,"policy":{"max_parallel_nodes":2},"nodes":[`+
+		`{"id":"a","type":"agent_task","target_agent_id":"a_1","prompt":"a"},`+
+		`{"id":"b","type":"agent_task","target_agent_id":"a_1","prompt":"b"},`+
+		`{"id":"c","type":"agent_task","target_agent_id":"a_1","prompt":"c"}`+
+		`]}`)
+
+	// Three roots, limit 2: two run, one waits on the limit.
+	got := nodesByStatus(t, store, runID)
+	if len(got["running"]) != 2 || len(got["pending"]) != 1 {
+		t.Fatalf("initial running=%v pending=%v, want 2 running and 1 pending", got["running"], got["pending"])
+	}
+	waiting := got["pending"][0]
+	// Finishing a running node frees the slot for the waiting one.
+	finishNode(t, svc, store, taskRuns, runID, got["running"][0], string(coretask.RunStatusSucceeded))
+	after := nodesByStatus(t, store, runID)
+	if len(after["running"]) != 2 {
+		t.Fatalf("after freeing a slot, running=%v, want 2", after["running"])
+	}
+	found := false
+	for _, id := range after["running"] {
+		if id == waiting {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the waiting node %q did not start after a slot freed (running=%v)", waiting, after["running"])
+	}
+}
+
+// TestReconcile_FailFastCancelsRunningSiblings proves one node's failure ends the
+// run and cancels the siblings that were running concurrently.
+func TestReconcile_FailFastCancelsRunningSiblings(t *testing.T) {
+	svc, store, taskRuns, runID := concurrencySvc(t, `{"schema_version":1,"nodes":[`+
+		`{"id":"a","type":"agent_task","target_agent_id":"a_1","prompt":"a"},`+
+		`{"id":"b","type":"agent_task","target_agent_id":"a_1","prompt":"b"}`+
+		`]}`)
+	if got := nodesByStatus(t, store, runID); len(got["running"]) != 2 {
+		t.Fatalf("initial running=%v, want a and b both running", got["running"])
+	}
+	finishNode(t, svc, store, taskRuns, runID, "a", string(coretask.RunStatusFailed))
+	run, _ := store.GetWorkflowRun(context.Background(), runID)
+	if run.Status != string(coreworkflow.RunStatusFailed) {
+		t.Fatalf("run status = %q, want failed", run.Status)
+	}
+	got := nodesByStatus(t, store, runID)
+	if len(got["failed"]) != 1 || got["failed"][0] != "a" {
+		t.Fatalf("failed = %v, want [a]", got["failed"])
+	}
+	if len(got["canceled"]) != 1 || got["canceled"][0] != "b" {
+		t.Fatalf("canceled = %v, want [b] (the running sibling)", got["canceled"])
 	}
 }
 

@@ -119,6 +119,33 @@ func TestParseDefinition_ValidatesGraph(t *testing.T) {
 	}
 }
 
+// TestParseDefinition_ValidatesPolicy proves a definition-set concurrency limit
+// must be positive and within the deployment ceiling.
+func TestParseDefinition_ValidatesPolicy(t *testing.T) {
+	node := `"nodes":[{"id":"a","type":"agent_task","target_agent_id":"x","prompt":"p"}]`
+	if _, err := parseDefinition(`{"schema_version":1,"policy":{"max_parallel_nodes":4},` + node + `}`); err != nil {
+		t.Fatalf("valid policy rejected: %v", err)
+	}
+	if _, err := parseDefinition(`{"schema_version":1,` + node + `}`); err != nil {
+		t.Fatalf("absent policy rejected: %v", err)
+	}
+	for _, bad := range []string{"0", "-1", "9999"} {
+		raw := `{"schema_version":1,"policy":{"max_parallel_nodes":` + bad + `},` + node + `}`
+		// max_parallel_nodes 0 is treated as absent (valid); only <0 or above the
+		// ceiling is rejected.
+		_, err := parseDefinition(raw)
+		if bad == "0" {
+			if err != nil {
+				t.Fatalf("max_parallel_nodes 0 (absent) rejected: %v", err)
+			}
+			continue
+		}
+		if !errors.Is(err, ErrInvalidPolicy) {
+			t.Fatalf("max_parallel_nodes %s: err = %v, want ErrInvalidPolicy", bad, err)
+		}
+	}
+}
+
 func TestParseDefinition_ValidatesOutputSchema(t *testing.T) {
 	cases := []struct {
 		name    string

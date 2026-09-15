@@ -395,3 +395,50 @@ func TestFinalizeFailedWorkflowRun_BlocksLaterSteps(t *testing.T) {
 		t.Errorf("run status = %s, want failed", run.Status)
 	}
 }
+
+// TestFinalizeFailedWorkflowRun_CancelsRunningSiblings proves fail-fast under
+// concurrency: when one running node fails, a sibling that was running
+// concurrently is canceled (not left running) and the remaining pending node is
+// blocked, all in one transaction.
+func TestFinalizeFailedWorkflowRun_CancelsRunningSiblings(t *testing.T) {
+	s, runID, steps := workflowRunFixture(t, 3)
+	ctx := context.Background()
+
+	// Start two nodes concurrently, then fail the first.
+	for _, id := range []string{steps[0], steps[1]} {
+		if _, err := s.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+			NodeRunID:      id,
+			ExpectedStatus: coreworkflow.NodeRunStatusPending,
+			NewStatus:      coreworkflow.NodeRunStatusRunning,
+		}); err != nil {
+			t.Fatalf("start node: %v", err)
+		}
+	}
+	now := time.Now().UTC()
+	applied, err := s.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
+		WorkflowRunID: runID,
+		NodeRunID:     steps[0],
+		NodeExpected:  coreworkflow.NodeRunStatusRunning,
+		NodeStatus:    coreworkflow.NodeRunStatusFailed,
+		RunExpected:   coreworkflow.RunStatusRunning,
+		RunStatus:     coreworkflow.RunStatusFailed,
+		EndedAt:       &now,
+	})
+	if err != nil || !applied {
+		t.Fatalf("finalize = %v, %v; want true, nil", applied, err)
+	}
+	got, err := s.ListWorkflowNodeRuns(ctx, runID)
+	if err != nil {
+		t.Fatalf("ListWorkflowNodeRuns: %v", err)
+	}
+	want := []string{
+		string(coreworkflow.NodeRunStatusFailed),   // the node that failed
+		string(coreworkflow.NodeRunStatusCanceled), // the running sibling
+		string(coreworkflow.NodeRunStatusBlocked),  // the pending node
+	}
+	for i := range got {
+		if got[i].Status != want[i] {
+			t.Errorf("node %d status = %s, want %s", i, got[i].Status, want[i])
+		}
+	}
+}

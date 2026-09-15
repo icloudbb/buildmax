@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A node binding selects a value from the run input or a predecessor node's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer, and a definition may declare a `result` selector whose value a succeeding run stores and surfaces on the run and its issue. The definition is now a graph: `nodes` joined by DAG `needs` decide execution order (array position does not), publication validates acyclicity, edge existence, and predecessor-only bindings, and failure is fail-fast. Still open in the graph engine are concurrent dispatch of ready nodes within a parallelism limit (the reconciler dispatches one at a time today), typed routes, runtime schema-constrained routing, and adaptive control
+> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable graph runtime is landing incrementally. Guarded compare-and-set run/node transitions, atomic failed-node finalization, idempotent Task admission, the reconciliation lease, the graph reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds finished nodes from durable state, dispatches the ready nodes, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A node binding selects a value from the run input or a predecessor node's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer, and a definition may declare a `result` selector whose value a succeeding run stores and surfaces on the run and its issue. The definition is now a graph: `nodes` joined by DAG `needs` decide execution order (array position does not), publication validates acyclicity, edge existence, and predecessor-only bindings. Each reconciliation pass dispatches every ready node, bounded by `policy.max_parallel_nodes` and a deployment ceiling, so independent branches run in parallel; failure is fail-fast and cancels the siblings running alongside the failed node. Still open in the graph engine are typed routes, runtime schema-constrained routing, and adaptive control
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
@@ -96,11 +96,12 @@ and the accepted TaskRun's attributed Artifacts. Advancement is a reconciliation
 over durable facts: Task admission is idempotent under a stable key, a bounded
 lease reduces duplicate passes, guarded compare-and-set transitions are the
 correctness mechanism, and a Server-owned recovery loop finishes a run stranded
-by a lost callback or a restart. What remains against the target is the rest of
-the graph engine: concurrent dispatch of ready nodes within a parallelism limit,
-typed routes and waits, runtime schema-constrained routing, and adaptive control.
-Failure is fail-fast and the reconciler dispatches one ready node at a time
-today.
+by a lost callback or a restart. Each pass folds every finished node and
+dispatches every ready node, bounded by `policy.max_parallel_nodes` and the
+deployment ceiling, so independent branches run in parallel; failure is fail-fast
+and also cancels the siblings running alongside the failed node. What remains
+against the target is the rest of the graph engine: typed routes and waits,
+runtime schema-constrained routing, and adaptive control.
 
 The current Agent snapshot is also not execution authority. Workflow copies the
 old Agent instructions into Task user input while Task admission and the worker
@@ -1259,12 +1260,14 @@ interpreters or preserve stale table shapes as a compatibility layer.
   readiness is decided from them; publication validates acyclicity, edge
   existence, and predecessor-only bindings; a run records each node's index from
   the deterministic topological order.
-- Dispatch all ready nodes within concurrency limits. **Open:** the reconciler
-  still dispatches one ready node at a time; concurrent dispatch and a
-  Workflow/Space parallelism limit are the next slice.
-- implement deterministic fan-out/fan-in and fail-fast blocked semantics;
-  fail-fast is shipped (a node failure blocks every pending node and ends the
-  run); concurrent fan-in/fan-out lands with concurrent dispatch.
+- Dispatch all ready nodes within concurrency limits. **Shipped:** the reconciler
+  folds every finished node and dispatches every ready node each pass, bounded by
+  `policy.max_parallel_nodes` and the deployment ceiling `MaxParallelNodesCeiling`.
+- implement deterministic fan-out/fan-in and fail-fast blocked semantics.
+  **Shipped:** a fan-out dispatches its ready dependents together, a fan-in waits
+  for all its predecessors, and a node failure blocks every pending node, cancels
+  the running siblings, and ends the run (worker Task cancellation of those
+  siblings is Phase 4 §12.4).
 - add full publication validation and a read-only graph; publication validation
   is shipped, the read-only graph view is open.
 - retain the linear form as the simplest DAG, not a separate engine. **Shipped:**

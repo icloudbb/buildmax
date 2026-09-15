@@ -41,6 +41,7 @@ var (
 	ErrInvalidNodeType            = apierr.New(apierr.KindInvalid, "invalid workflow node type")
 	ErrInvalidNodeID              = apierr.New(apierr.KindInvalid, "invalid workflow node id: each node needs a unique non-empty id")
 	ErrInvalidNeeds               = apierr.New(apierr.KindInvalid, "invalid workflow node needs: each entry must name a distinct existing node, the edges must form a directed acyclic graph, and a node may not need itself")
+	ErrInvalidPolicy              = apierr.New(apierr.KindInvalid, "invalid workflow policy: max_parallel_nodes must be between 1 and the deployment maximum")
 	ErrInvalidBinding             = apierr.New(apierr.KindInvalid, "invalid workflow node binding: a unique name, a source of workflow.input or node.<id>.output naming a predecessor node, and a valid RFC 6901 pointer are required")
 	ErrInvalidOutputSchema        = apierr.New(apierr.KindInvalid, "invalid workflow node output_schema: must be within the supported JSON Schema subset")
 	ErrInvalidTargetAgent         = apierr.New(apierr.KindInvalid, "invalid target agent")
@@ -554,102 +555,102 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 	if err != nil {
 		return err
 	}
-	// A step already running folds first: its TaskRun decides whether the run
-	// advances, fails, or is still working.
-	if running := firstStepWithStatus(steps, coreworkflow.NodeRunStatusRunning); running != nil {
-		taskRun, err := s.stepTaskRun(ctx, running)
+	// Fold every running node whose TaskRun has finished. Failure is fail-fast: the
+	// first node that ended badly finalizes the whole run and returns, so no later
+	// dispatch happens. A node still executing keeps the run active for a later
+	// pass. Concurrency means several nodes may be running at once, so this folds
+	// them all rather than only the first.
+	active := false
+	for i := range steps {
+		if steps[i].Status != string(coreworkflow.NodeRunStatusRunning) {
+			continue
+		}
+		taskRun, err := s.stepTaskRun(ctx, &steps[i])
 		if err != nil {
 			return err
 		}
 		if taskRun == nil || !coretask.RunStatusTerminal(taskRun.Status) {
-			// Still executing (or not yet observable): look again later.
-			*nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
-			return nil
+			active = true
+			continue
 		}
-		return s.foldTerminalStep(ctx, run, *running, taskRun, now, nextReconcileAt)
+		schemaUnsatisfied := steps[i].OutputSchema != nil && taskRun.Structured == nil
+		if taskRun.Status == string(coretask.RunStatusSucceeded) && !schemaUnsatisfied {
+			if err := s.applyNodeSuccess(ctx, steps[i], taskRun, now); err != nil {
+				return err
+			}
+			continue
+		}
+		// This node ended badly, so the run ends fail-fast. finalizeFailedFromNode
+		// blocks the pending nodes and cancels the running siblings in one
+		// transaction, so nothing else starts and no node is left running.
+		return s.finalizeFailedFromNode(ctx, run, steps[i], taskRun, schemaUnsatisfied, now)
 	}
-	// No step is running: dispatch the next pending one, or finalize the run
-	// when none remains. dispatchNextStep re-admits by the stable key, so a step
+	// Re-read after folding successes, then dispatch the ready nodes up to the
+	// concurrency limit. dispatchReadyNodes re-admits by the stable key, so a node
 	// whose Task was admitted before a crash is linked rather than duplicated.
-	dispatched, err := s.dispatchNextStep(ctx, "", run.CreatedBy, run, steps)
+	steps, err = s.Workflows.ListWorkflowNodeRuns(ctx, workflowRunID)
 	if err != nil {
 		return err
 	}
-	if dispatched != nil {
+	def, err := s.runDefinition(ctx, run)
+	if err != nil {
+		return err
+	}
+	dispatched, dispatchActive, err := s.dispatchReadyNodes(ctx, "", run.CreatedBy, run, steps, def.MaxParallelNodes())
+	if err != nil {
+		return err
+	}
+	if active || dispatchActive || dispatched > 0 {
 		*nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
 	}
 	return nil
 }
 
-// foldTerminalStep records a running step's finished TaskRun as the step's
-// outcome and moves the run forward: a success advances to the next step, a
-// failure or cancel ends the run. The transitions are the same guarded moves
-// the callback path used; only the source of the terminal facts changed from a
-// pushed payload to the read TaskRun.
-func (s *Service) foldTerminalStep(ctx context.Context, run *coreworkflow.Run, step coreworkflow.NodeRun, taskRun *coretask.Run, now time.Time, nextReconcileAt **time.Time) error {
-	// A step that declared an output schema succeeds only when the run returned a
-	// value that validated against it: an otherwise-successful run with no
-	// structured value did not satisfy the node's contract, so the step fails
-	// rather than passing an absent value downstream (docs/design/structured-output.md
-	// §9, workflow-runtime §13.1). The runtime already validated the value; a
-	// present taskRun.Structured is a validated one.
-	schemaUnsatisfied := step.OutputSchema != nil && taskRun.Structured == nil
-	if taskRun.Status == string(coretask.RunStatusSucceeded) && !schemaUnsatisfied {
-		applied, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
-			NodeRunID:      step.ID,
-			ExpectedStatus: coreworkflow.NodeRunStatusRunning,
-			NewStatus:      coreworkflow.NodeRunStatusSucceeded,
-			TaskRunID:      &taskRun.ID,
-			// Persist the node's full output onto the run record, so downstream
-			// bindings and the run result read it without re-reading the Task plane.
-			Output:     taskRun.Output,
-			Structured: taskRun.Structured,
-			EndedAt:    &now,
-		})
-		if err != nil {
-			return err
-		}
-		if !applied {
-			// The step was no longer running -- a concurrent pass or cancel
-			// already finished it. Nothing to dispatch.
-			return nil
-		}
-		steps, err := s.Workflows.ListWorkflowNodeRuns(ctx, run.ID)
-		if err != nil {
-			return err
-		}
-		dispatched, err := s.dispatchNextStep(ctx, "", run.CreatedBy, run, steps)
-		if err != nil {
-			return err
-		}
-		if dispatched != nil {
-			*nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
-		}
-		return nil
-	}
-	// A canceled step stops the run the same way a failed one does, but it is
-	// not a failure: someone stopped this work on purpose, and a run labelled
-	// failed would send whoever reads it looking for a fault that never happened.
-	stepStatus := coreworkflow.NodeRunStatusFailed
+// applyNodeSuccess records a finished node's success and its output. A node that
+// declared an output schema succeeds only when the run returned a value that
+// validated against it; that case is decided by the caller, which folds an
+// unsatisfied schema as a failure instead. A false apply (a concurrent pass or
+// cancel already finished the node) is not an error: there is nothing to do.
+func (s *Service) applyNodeSuccess(ctx context.Context, node coreworkflow.NodeRun, taskRun *coretask.Run, now time.Time) error {
+	_, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+		NodeRunID:      node.ID,
+		ExpectedStatus: coreworkflow.NodeRunStatusRunning,
+		NewStatus:      coreworkflow.NodeRunStatusSucceeded,
+		TaskRunID:      &taskRun.ID,
+		// Persist the node's full output onto the run record, so downstream bindings
+		// and the run result read it without re-reading the Task plane.
+		Output:     taskRun.Output,
+		Structured: taskRun.Structured,
+		EndedAt:    &now,
+	})
+	return err
+}
+
+// finalizeFailedFromNode ends a run because one node finished badly. A canceled
+// node stops the run the same way a failed one does, but it is not a failure:
+// someone stopped this work on purpose, and a run labelled failed would send
+// whoever reads it looking for a fault that never happened. In one transaction
+// the store moves the node terminal, blocks every pending node, cancels every
+// running sibling, and moves the run terminal -- so a crash cannot leave a
+// failed node under a run that still reads as running.
+func (s *Service) finalizeFailedFromNode(ctx context.Context, run *coreworkflow.Run, node coreworkflow.NodeRun, taskRun *coretask.Run, schemaUnsatisfied bool, now time.Time) error {
+	nodeStatus := coreworkflow.NodeRunStatusFailed
 	runStatus := coreworkflow.RunStatusFailed
 	if taskRun.Status == string(coretask.RunStatusCanceled) {
-		stepStatus = coreworkflow.NodeRunStatusCanceled
+		nodeStatus = coreworkflow.NodeRunStatusCanceled
 		runStatus = coreworkflow.RunStatusCanceled
 	}
 	errorMessage := taskRun.ErrorMessage
 	if schemaUnsatisfied && taskRun.Status == string(coretask.RunStatusSucceeded) {
 		// The run finished, but its answer did not satisfy the declared output
 		// schema, so the node fails with a reason rather than the run's empty one.
-		errorMessage = util.Ptr("step required structured output but the run did not return a value satisfying its output_schema")
+		errorMessage = util.Ptr("node required structured output but the run did not return a value satisfying its output_schema")
 	}
-	// One transaction ends the run fail-fast: the node goes terminal, every node
-	// still pending is blocked, and the run goes terminal -- so a crash cannot
-	// leave a failed node under a run that still reads as running.
 	_, err := s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 		WorkflowRunID: run.ID,
-		NodeRunID:     step.ID,
+		NodeRunID:     node.ID,
 		NodeExpected:  coreworkflow.NodeRunStatusRunning,
-		NodeStatus:    stepStatus,
+		NodeStatus:    nodeStatus,
 		RunExpected:   coreworkflow.RunStatusRunning,
 		RunStatus:     runStatus,
 		TaskRunID:     &taskRun.ID,
@@ -676,16 +677,6 @@ func (s *Service) stepTaskRun(ctx context.Context, step *coreworkflow.NodeRun) (
 	return s.TaskRuns.GetTaskRun(ctx, *step.TaskRunID)
 }
 
-// firstStepWithStatus returns the first step in the given status, or nil.
-func firstStepWithStatus(steps []coreworkflow.NodeRun, status coreworkflow.NodeRunStatus) *coreworkflow.NodeRun {
-	for i := range steps {
-		if steps[i].Status == string(status) {
-			return &steps[i]
-		}
-	}
-	return nil
-}
-
 // nodeReady reports whether a pending node may now start: every node it needs
 // has succeeded. Failure is fail-fast and terminates the whole run, so a node
 // whose need ended in any non-success status is never reached.
@@ -698,13 +689,24 @@ func nodeReady(node coreworkflow.NodeRun, statusByID map[string]coreworkflow.Nod
 	return true
 }
 
-func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.NodeRun) (*coreworkflow.NodeRun, error) {
-	// Readiness -- not array position -- decides what runs next: a pending node is
-	// dispatched only when every node it needs has succeeded. steps arrive in
-	// topological order, so the first ready pending node is a deterministic choice.
+// dispatchReadyNodes starts every pending node whose needs have all succeeded,
+// up to limit nodes running at once, and finalizes the run as succeeded when no
+// node remains pending or running. It returns how many nodes it dispatched and
+// whether the run is still active (a node is running or a pending node is only
+// waiting on the concurrency limit), so the caller can schedule the next pass.
+//
+// Readiness -- not array position -- decides what runs: a pending node starts
+// only when every node it needs has succeeded. steps arrive in topological
+// order, so a deterministic prefix of the ready nodes is chosen when the limit
+// binds.
+func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.NodeRun, limit int) (dispatched int, active bool, err error) {
 	statusByID := make(map[string]coreworkflow.NodeRunStatus, len(steps))
+	running := 0
 	for i := range steps {
 		statusByID[steps[i].NodeID] = coreworkflow.NodeRunStatus(steps[i].Status)
+		if steps[i].Status == string(coreworkflow.NodeRunStatusRunning) {
+			running++
+		}
 	}
 	pendingRemains := false
 	for i := range steps {
@@ -715,22 +717,28 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 		if !nodeReady(steps[i], statusByID) {
 			continue
 		}
+		if running >= limit {
+			// A ready node is waiting only on the concurrency limit, so the run is
+			// still active even though nothing was dispatched for it this pass.
+			active = true
+			break
+		}
 		if spaceID == "" {
 			workflow, err := s.Workflows.GetWorkflow(ctx, run.WorkflowID)
 			if err != nil {
-				return nil, err
+				return dispatched, active, err
 			}
 			if workflow == nil {
-				return nil, ErrWorkflowNotFound
+				return dispatched, active, ErrWorkflowNotFound
 			}
 			spaceID = workflow.SpaceID
 		}
 		startedAt := time.Now().UTC()
 		taskItem, taskRunID, resolvedInput, err := s.createStepTask(ctx, spaceID, userID, run, steps[i], steps)
 		if err != nil {
-			// The step never started, so it fails from pending and the run ends
-			// with it -- one transaction, the same path a running step's failure
-			// takes.
+			// The node never started, so it fails from pending and the run ends with
+			// it -- one transaction that also blocks the pending nodes and cancels the
+			// running siblings, the same path a running node's failure takes.
 			_, _ = s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
 				WorkflowRunID: run.ID,
 				NodeRunID:     steps[i].ID,
@@ -742,7 +750,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 				StartedAt:     &startedAt,
 				EndedAt:       &startedAt,
 			})
-			return nil, err
+			return dispatched, false, err
 		}
 		if _, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
 			NodeRunID:      steps[i].ID,
@@ -753,15 +761,19 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 			ResolvedInput:  &resolvedInput,
 			StartedAt:      &startedAt,
 		}); err != nil {
-			return nil, err
+			return dispatched, active, err
 		}
-		return &steps[i], nil
+		dispatched++
+		running++
 	}
-	if pendingRemains {
-		// Pending nodes remain but none is ready: their predecessors are still in
-		// flight. Nothing to dispatch this pass; a later pass advances the run once
-		// a predecessor finishes. The run is not done, so it must not succeed here.
-		return nil, nil
+	if running > 0 {
+		active = true
+	}
+	if pendingRemains || running > 0 {
+		// Work remains: either nodes are running or pending nodes are waiting on
+		// their predecessors or the limit. The run is not done, so it must not
+		// succeed here.
+		return dispatched, active, nil
 	}
 	endedAt := time.Now().UTC()
 	// Every node is terminal and none is pending: the run succeeds. Resolve its
@@ -769,7 +781,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 	// authoritative answer, stored in the same transaction that ends it.
 	result, err := s.resolveRunResult(ctx, run, steps)
 	if err != nil {
-		return nil, err
+		return dispatched, active, err
 	}
 	if _, err := s.Workflows.TransitionWorkflowRun(ctx, coreworkflow.TransitionRunInput{
 		WorkflowRunID:  run.ID,
@@ -778,9 +790,9 @@ func (s *Service) dispatchNextStep(ctx context.Context, spaceID, userID string, 
 		EndedAt:        &endedAt,
 		Result:         result,
 	}); err != nil {
-		return nil, err
+		return dispatched, active, err
 	}
-	return nil, nil
+	return dispatched, false, nil
 }
 
 // stepAgent returns the agent definition a step must run with. Steps recorded since
@@ -944,6 +956,14 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 	if len(bytes.TrimSpace(def.InputSchema)) > 0 {
 		if _, err := jsonschema.Compile(def.InputSchema); err != nil {
 			return nil, apierr.Detail(ErrInvalidInputSchema, "%v", err)
+		}
+	}
+	// A definition-set concurrency limit must be positive and within the
+	// deployment ceiling, so a published plan cannot ask for more parallelism than
+	// the runtime allows. Absent leaves the run at the ceiling.
+	if def.Policy != nil && def.Policy.MaxParallelNodes != 0 {
+		if def.Policy.MaxParallelNodes < 1 || def.Policy.MaxParallelNodes > coreworkflow.MaxParallelNodesCeiling {
+			return nil, ErrInvalidPolicy
 		}
 	}
 	if len(def.Nodes) == 0 {

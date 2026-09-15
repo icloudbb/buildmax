@@ -962,6 +962,17 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 			Update("status", string(coreworkflow.NodeRunStatusBlocked)).Error; err != nil {
 			return err
 		}
+		// Cancel every sibling still running: with concurrent dispatch other nodes
+		// may be in flight when one fails, and the run is ending, so they are
+		// canceled (not failed -- they did not fault) rather than left running under
+		// a terminal run. Their worker Tasks are not stopped here; a late terminal
+		// callback folds into an already-canceled node and is ignored.
+		if err := tx.Model(&workflowNodeRunRow{}).
+			Where("workflow_run_id = ? AND status = ? AND public_id <> ?",
+				runKey, string(coreworkflow.NodeRunStatusRunning), stepID).
+			Updates(map[string]interface{}{"status": string(coreworkflow.NodeRunStatusCanceled), "ended_at": in.EndedAt}).Error; err != nil {
+			return err
+		}
 
 		// The run always goes terminal here, so runStatusUpdates also clears its
 		// reconciliation lease and schedule.

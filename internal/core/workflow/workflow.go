@@ -17,6 +17,13 @@ const (
 	// runtime accepts. A definition must declare it explicitly; publication rejects
 	// any other value so a stored plan always names the contract it was written for.
 	DefinitionSchemaVersion = 1
+
+	// MaxParallelNodesCeiling is the deployment maximum for how many nodes of one
+	// run may execute at once. A definition's policy may set a lower bound but not
+	// exceed this; it is the Space/deployment limit §6.2 requires ready nodes to
+	// stay within, and it caps a run's concurrent worker Tasks regardless of graph
+	// width. A definition that names no limit runs up to this ceiling.
+	MaxParallelNodesCeiling = 8
 )
 
 // RunStatus is the lifecycle status of one workflow run. NodeRunStatus is one
@@ -235,6 +242,9 @@ type Definition struct {
 	// form. Absent means the run takes no declared input. Publication rejects a
 	// schema outside the subset.
 	InputSchema json.RawMessage `json:"input_schema,omitempty"`
+	// Policy, when set, carries run-wide execution policy. Absent leaves every
+	// field at its default.
+	Policy *DefinitionPolicy `json:"policy,omitempty"`
 	// Nodes is the definition's unordered set of nodes. JSON represents it as an
 	// array, but array position is not control flow: a node's dependencies come
 	// from its `needs` edges, and the execution order is the topological order of
@@ -244,6 +254,24 @@ type Definition struct {
 	// envelope. The selected node must exist. Absent leaves the run without a
 	// declared result.
 	Result *ResultSelector `json:"result,omitempty"`
+}
+
+// DefinitionPolicy is the run-wide execution policy of a workflow definition.
+type DefinitionPolicy struct {
+	// MaxParallelNodes bounds how many of a run's nodes may execute at once. Zero
+	// (absent) means no definition-set limit, so the run uses the deployment
+	// ceiling. Publication rejects a value above MaxParallelNodesCeiling.
+	MaxParallelNodes int `json:"max_parallel_nodes,omitempty"`
+}
+
+// MaxParallelNodes is the effective concurrency limit for a run of this
+// definition: the policy's value when it set one, otherwise the deployment
+// ceiling. It is always in [1, MaxParallelNodesCeiling].
+func (d *Definition) MaxParallelNodes() int {
+	if d.Policy != nil && d.Policy.MaxParallelNodes > 0 {
+		return d.Policy.MaxParallelNodes
+	}
+	return MaxParallelNodesCeiling
 }
 
 // ResultSelector selects the WorkflowRun result from one step's output envelope,
@@ -420,10 +448,11 @@ type TransitionNodeRunInput struct {
 
 // FinalizeFailedRunInput ends a run because one node ended badly. In one
 // transaction the store moves the node to NodeStatus (failed or canceled),
-// blocks every node still pending, and moves the run to RunStatus. Failure is
-// fail-fast: the run terminates, so every not-yet-started node is blocked
-// regardless of graph position. Both moves are guarded: nothing is written
-// unless the node is at NodeExpected and both transitions are valid.
+// blocks every node still pending, cancels every sibling still running, and
+// moves the run to RunStatus. Failure is fail-fast: the run terminates, so no
+// not-yet-started node runs and no in-flight sibling is left under a terminal
+// run. The node and run moves are guarded: nothing is written unless the node
+// is at NodeExpected and both transitions are valid.
 type FinalizeFailedRunInput struct {
 	WorkflowRunID string
 	NodeRunID     string

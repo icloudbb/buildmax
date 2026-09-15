@@ -60,6 +60,10 @@ export interface WorkflowStepDraft {
 
 export interface ParsedWorkflowDefinition {
   steps: WorkflowStepDraft[]
+  /** The definition's `policy.max_parallel_nodes`, or null when absent. Carried
+   *  through parse and serialize so a hand-authored concurrency limit is not
+   *  stripped when the definition round-trips through the step model. */
+  maxParallelNodes: number | null
 }
 
 /**
@@ -125,10 +129,13 @@ export function newStep(agentId = ""): WorkflowStepDraft {
   }
 }
 
-export function stepsToDefinition(steps: WorkflowStepDraft[]): string {
+export function stepsToDefinition(steps: WorkflowStepDraft[], maxParallelNodes: number | null = null): string {
   return JSON.stringify(
     {
       schema_version: WORKFLOW_SCHEMA_VERSION,
+      ...(maxParallelNodes && maxParallelNodes > 0
+        ? { policy: { max_parallel_nodes: maxParallelNodes } }
+        : {}),
       nodes: steps.map((step, index) => {
         const needs = effectiveNeeds(steps, index)
         return {
@@ -183,9 +190,11 @@ function parseStepBindings(value: unknown): WorkflowStepBinding[] | undefined {
  */
 export function parseDefinition(definition: string): ParsedWorkflowDefinition | null {
   try {
-    const parsed = JSON.parse(definition) as { nodes?: unknown }
+    const parsed = JSON.parse(definition) as { nodes?: unknown; policy?: { max_parallel_nodes?: unknown } }
     if (!Array.isArray(parsed.nodes)) return null
+    const limit = parsed.policy?.max_parallel_nodes
     return {
+      maxParallelNodes: typeof limit === "number" ? limit : null,
       steps: parsed.nodes.map((node): WorkflowStepDraft => {
         const record = typeof node === "object" && node != null ? (node as Record<string, unknown>) : {}
         return {

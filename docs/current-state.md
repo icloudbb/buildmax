@@ -28,8 +28,8 @@ confinement, worker API isolation, stdio MCP fail-closed, process limits, and
 the hook boundary) to its evidence, with Bash and worker API isolation proven
 through the deployed worker path. Immutable-candidate qualification through the
 operator journey stays the separate Beta gate. Worker-wide network
-egress is a documented, accepted limit for the first private Beta. The linear
-Workflow reconciler now folds terminal facts and dispatches from durable state,
+egress is a documented, accepted limit for the first private Beta. The graph
+Workflow reconciler now folds terminal facts and dispatches ready nodes from durable state,
 and a Server-owned recovery loop sweeps due runs at startup and on an interval,
 so a lost terminal callback or a Server restart no longer strands a run. A step
 may bind an earlier step's whole output into its input as labelled, untrusted
@@ -55,9 +55,11 @@ run's authoritative `result_json`, surfaced on the run and the issue it belongs 
 definition now describes a graph of `nodes` joined by `needs` edges: a node becomes
 ready when every node it needs has succeeded, so dependencies — not list position —
 decide the order, and publication rejects a cyclic graph, a `needs` edge to a missing
-node, or a binding that reads a node which is not a predecessor. Execution stays
-fail-fast and dispatches one ready node at a time; concurrent dispatch of ready nodes
-and typed `/structured/...` routing remain open.
+node, or a binding that reads a node which is not a predecessor. A run dispatches every
+ready node at once, bounded by `policy.max_parallel_nodes` (1 to the deployment
+ceiling, which also applies when a definition names no limit). Failure stays fail-fast:
+one node's failure blocks the pending nodes, cancels the siblings running alongside it,
+and ends the run. Typed `/structured/...` routing remains open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. A Server can now expire old run traces on an operator-set retention
@@ -319,14 +321,15 @@ the agent's execution. The store also discovers due non-terminal runs and hands
 out a bounded, takeover-safe reconciliation lease, so the durable state a
 reconciler needs exists. A concurrent Workflow edit now loses a compare-and-set
 and receives a conflict rather than overwriting a newer definition or leaking a
-duplicate-key error. The linear reconciler now exists:
+duplicate-key error. The graph reconciler now exists:
 [`Service.Reconcile`](../internal/service/workflow/service.go) claims that lease,
-reads the run and its steps, folds a running step's terminal TaskRun — read from
-the TaskRun store, not a pushed callback — into the guarded step and run
-transitions, dispatches the next pending step by re-admitting its Task under the
-stable key (recovering the crash window between admitting a Task and linking it),
-and sets the run's next reconcile time while work remains.
-`StartWorkflowRun` dispatches its first step through the same `Reconcile`, and
+reads the run and its nodes, folds every running node whose TaskRun has finished
+— read from the TaskRun store, not a pushed callback — into the guarded node and
+run transitions, dispatches every ready node (up to `policy.max_parallel_nodes`)
+by re-admitting each Task under the stable key (recovering the crash window
+between admitting a Task and linking it), and sets the run's next reconcile time
+while work remains.
+`StartWorkflowRun` dispatches its first nodes through the same `Reconcile`, and
 `HandleTaskRunTerminal` is now only a wake-up that maps the finished TaskRun to
 its run and reconciles, so a lost callback loses a wake-up rather than the
 outcome and a later `Reconcile` recovers it from persisted state alone. A

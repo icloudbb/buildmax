@@ -24,7 +24,7 @@ worker 契约——已关闭：[信任保障](design/信任保障.md) §6.1 把�
 worker API 隔离、stdio MCP 失败关闭、进程限制与 hook 边界）映射到其证据，其中 Bash
 与 worker API 隔离经真实部署 worker 路径证明。经由运维旅程的不可变候选资格认证仍是
 单独的 Beta 关卡。整个 worker 的出站网络是首个私有 Beta 已记录并接受的限制。
-线性 Workflow 协调器现在从持久状态折叠终态事实并分发后续步骤；Server 自有恢复循环在
+图 Workflow 协调器现在从持久状态折叠终态事实并分发就绪节点；Server 自有恢复循环在
 启动时及之后定期扫描到期 Run，因此丢失终态 callback 或 Server 重启不再让 Workflow
 永久搁置。步骤可把前序步骤的完整输出作为带标签的不可信上下文绑定到输入，Portal 步骤
 表单也能直接编辑这些绑定。步骤还可声明 `output_schema`：运行受该 schema 约束，已验证
@@ -224,7 +224,7 @@ CI 提供固定版本的 `mysql:8.0` 服务。默认测试在没有 DSN 时仍�
 | Workflow 受保护的 Run/步骤转换与原子失败收口 | [workflow_test.go](../../internal/infra/db/workflow_test.go) |
 | Workflow Task 幂等接纳、重放、负载冲突、Space 作用域与并发获胜者 | [task_admission_test.go](../../internal/infra/db/task_admission_test.go) |
 | Workflow 到期 Run 发现，以及协调租约在竞争下的领取、续租与释放 | [workflow_reconciliation_test.go](../../internal/infra/db/workflow_reconciliation_test.go) |
-| 线性协调器折叠终态 TaskRun：步骤推进、最终成功、失败/取消区分、后续步骤阻塞、callback 丢失恢复与并发协调的单一结果 | [reconcile_mysql_test.go](../../internal/service/workflow/reconcile_mysql_test.go)、[service_test.go](../../internal/service/workflow/service_test.go) |
+| 图协调器折叠终态 TaskRun：节点推进、最终成功、失败/取消区分、并发派发与并行上限、失败时阻塞待执行并取消并行兄弟、callback 丢失恢复与并发协调的单一结果 | [reconcile_mysql_test.go](../../internal/service/workflow/reconcile_mysql_test.go)、[service_test.go](../../internal/service/workflow/service_test.go) |
 | Server 自有 Workflow 恢复循环：启动扫描、逐 Run 协调、到期扫描错误容忍、Start/Stop 生命周期，以及因 callback 丢失而搁置的 Run 在重启后恢复 | [workflow_recovery_test.go](../../internal/server/scheduler/workflow_recovery_test.go)、[workflow_restart_recovery_mysql_test.go](../../internal/server/scheduler/workflow_restart_recovery_mysql_test.go) |
 | 步骤输出绑定：发布校验、Run 绑定快照往返存储，以及使用上游完整输出作为带标签不可信输入来分发下游步骤 | [binding_test.go](../../internal/service/workflow/binding_test.go)、[workflow_test.go](../../internal/infra/db/workflow_test.go) |
 | 编辑与竞争下使用 compare-and-set 推进 Workflow 修订 | [workflow_test.go](../../internal/infra/db/workflow_test.go) |
@@ -245,10 +245,11 @@ Workflow 步骤分发现在通过 `AdmitTask` 幂等接纳 Task，以
 Workflow 编辑现在会在 compare-and-set 上失败并得到冲突，而不是覆盖更新的定义或泄漏重复键
 错误。
 
-线性协调器已经实现：[`Service.Reconcile`](../../internal/service/workflow/service.go) 领取租约，
-读取 Run 与步骤，从 TaskRun 存储而不是 callback 中读取并折叠运行中步骤的终态 TaskRun，
-通过稳定键重新接纳 Task 来分发下一个待处理步骤，并在仍有工作时设置下次协调时间。
-`StartWorkflowRun` 使用同一个 `Reconcile` 分发第一步；`HandleTaskRunTerminal` 现在只负责
+图协调器已经实现：[`Service.Reconcile`](../../internal/service/workflow/service.go) 领取租约，
+读取 Run 与节点，从 TaskRun 存储而不是 callback 中读取并折叠每个已完成的运行中节点，
+通过稳定键重新接纳各 Task 来分发所有就绪节点（至多 `policy.max_parallel_nodes` 个），
+并在仍有工作时设置下次协调时间。
+`StartWorkflowRun` 使用同一个 `Reconcile` 分发起始节点；`HandleTaskRunTerminal` 现在只负责
 唤醒并触发协调，因此 callback 丢失只会丢一次唤醒，后续协调仍能完全根据持久事实恢复。
 Server 自有的 [`WorkflowRecoveryLoop`](../../internal/server/scheduler/workflow_recovery.go)
 会在启动时扫描一次，之后按固定间隔扫描到期 Run；每个副本都会运行它，由协调租约而不是
@@ -306,9 +307,11 @@ Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，
 Space 审批流程仍未实现且明确不在范围内；这不能被视为邀请或所有权转移功能未完成。
 
 Workflow 定义是由 `needs` 边连接的 `agent_task` 节点组成的图，具有版本化定义和持久
-Run/节点记录。节点可以通过 `output_schema` 约束结果，指针绑定可以把运行输入或前驱节点
-输出中选取的值传入某个节点的输入。定义契约仍没有类型化条件路由、就绪节点并发分发、
-人工审批或循环（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
+Run/节点记录。一次运行会一次性分发所有就绪节点，受 `policy.max_parallel_nodes`
+（1 到部署上限，未声明时用上限）约束；失败为 fail-fast：阻塞待执行节点、取消并行运行的
+兄弟节点并结束运行。节点可以通过 `output_schema` 约束结果，指针绑定可以把运行输入或前驱
+节点输出中选取的值传入某个节点的输入。定义契约仍没有类型化条件路由、人工审批或循环
+（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
 
 Portal 与入站 webhook 执行已组装。Telegram 仍只是渠道词汇，
 webhook 回调发送器未组装进 Server。周期性 schedule 通过 `schedule` 触发来源与
