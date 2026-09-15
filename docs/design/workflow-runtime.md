@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. RFC 6901 pointer and Artifact bindings, the stored run result, typed `nodes`/`needs`, schema-constrained output at runtime, static DAGs, and adaptive control remain open
+> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable linear precursor has shipped. Guarded compare-and-set run/step transitions, atomic failed-step finalization, idempotent Task admission, the reconciliation lease, the linear reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds a step's terminal TaskRun from durable state, dispatches the next step, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A step binding selects a value from the run input or an earlier step's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer. The stored run result, typed `nodes`/`needs`, schema-constrained output at runtime, static DAGs, and adaptive control remain open
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
@@ -83,10 +83,12 @@ The current implementation has useful foundations:
 
 It is not the runtime designed here, but its execution plane is now durable.
 The current definition is an ordered `steps` array with static prompts and no
-typed input or result contract. A step may bind an earlier step's whole output
-into its input as labelled untrusted data — the linear precursor of §6's
-bindings — reading the full output the upstream node run persisted when it
-succeeded. Advancement is a reconciliation
+typed input or result contract. A step may bind a value selected from the run
+input or an earlier step's output envelope (text, structured output, or an
+Artifact reference) at an RFC 6901 pointer into its input as labelled untrusted
+data — the linear precursor of §6's bindings — reading the full output the
+upstream node run persisted when it succeeded and the accepted TaskRun's
+attributed Artifacts. Advancement is a reconciliation
 over durable facts: Task admission is idempotent under a stable key, a bounded
 lease reduces duplicate passes, guarded compare-and-set transitions are the
 correctness mechanism, and a Server-owned recovery loop finishes a run stranded
@@ -1224,7 +1226,13 @@ even if later product evidence delays R5.
   received when it started and the whole output its accepted TaskRun produced,
   replacing the truncated summary, and downstream bindings read the persisted
   node output rather than re-reading the Task plane.
-- expose text and Artifact bindings through RFC 6901 pointers;
+- expose text and Artifact bindings through RFC 6901 pointers. **Shipped:** a
+  step binding selects a value with `source` (`workflow.input` or an earlier
+  step's `node.<id>.output`) and an RFC 6901 `pointer` into that value's
+  envelope -- text, structured output, or an Artifact reference under
+  `/artifacts` -- instead of injecting the whole upstream output; publication
+  validates the source and pointer syntax, and resolution reads the persisted
+  node output and the accepted TaskRun's attributed Artifacts.
 - store the declared WorkflowRun result; and
 - project one result into Issue and optional Conversation surfaces.
 

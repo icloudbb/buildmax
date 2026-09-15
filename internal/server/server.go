@@ -443,8 +443,9 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info coretask.
 			// Reconcile from the terminal callback reads the finished step's
 			// TaskRun to fold it; without this reader it can never observe a
 			// terminal step and every run strands in running.
-			TaskRuns: cfg.Stores.TaskRunStore,
-			Audit:    cfg.Audit,
+			TaskRuns:  cfg.Stores.TaskRunStore,
+			Artifacts: cfg.Stores.ArtifactStore,
+			Audit:     cfg.Audit,
 		}
 	}
 	var runReporter *issue.RunReporter

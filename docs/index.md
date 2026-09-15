@@ -179,3 +179,4 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: Workflow definition schema version](changelog/changed/workflow-definition-schema-version.md) · 中文：—
 - [English: Workflow run input](changelog/added/workflow-run-input.md) · 中文：—
 - [English: Workflow node runs](changelog/changed/workflow-node-runs.md) · 中文：—
+- [English: Workflow pointer bindings](changelog/changed/workflow-pointer-bindings.md) · 中文：—

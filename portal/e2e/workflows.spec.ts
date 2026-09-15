@@ -228,7 +228,7 @@ test("a workflow binds one step's output into the next step's input", async ({ p
           type: "agent_task",
           target_agent_id: agent.id,
           prompt: "Summarize the research below.",
-          bindings: [{ name: "research", from_step: "collect" }],
+          bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }],
         },
       ],
     }),

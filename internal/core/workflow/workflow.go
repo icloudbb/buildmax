@@ -241,10 +241,10 @@ type DefinitionStep struct {
 	Type          string `json:"type"`
 	TargetAgentID string `json:"target_agent_id"`
 	Prompt        string `json:"prompt"`
-	// Bindings feed an earlier step's output into this step's input. Each names a
-	// value (Name) taken from the whole output of a prior step (FromStep). The
-	// bound output reaches the Task as labelled untrusted context, never the
-	// agent's instructions.
+	// Bindings feed selected values into this step's input. Each names a value
+	// (Name) taken from a source (the run's input, or an earlier step's output
+	// envelope) at an RFC 6901 pointer. The bound value reaches the Task as
+	// labelled untrusted context, never the agent's instructions.
 	Bindings []StepBinding `json:"bindings,omitempty"`
 	// OutputSchema, when set, is a JSON Schema (in the shared subset) the step's
 	// agent run must satisfy as its final answer. Publication rejects a schema
@@ -254,12 +254,66 @@ type DefinitionStep struct {
 	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
 }
 
-// StepBinding binds one earlier step's output into a downstream step's input
-// under a name. The whole upstream output is bound; there is no selection or
-// templating in this contract.
+// BindingSourceWorkflowInput is the binding source that selects into the run's
+// immutable input JSON. The only other source is an earlier node's output,
+// named by NodeOutputSource / parsed by ParseNodeOutputSource.
+const BindingSourceWorkflowInput = "workflow.input"
+
+// StepBinding binds a value selected from a source at an RFC 6901 pointer into a
+// downstream step's input under a name.
+//
+// Source is either "workflow.input" (the run's frozen input) or
+// "node.<node_id>.output" (an earlier node's output envelope: text, structured,
+// artifacts, task_id, task_run_id). Pointer is an RFC 6901 JSON Pointer into
+// that value; the empty string selects the whole value. There is no JSONPath,
+// filter, function, or template evaluation in this contract.
 type StepBinding struct {
-	Name     string `json:"name"`
-	FromStep string `json:"from_step"`
+	Name    string `json:"name"`
+	Source  string `json:"source"`
+	Pointer string `json:"pointer"`
+}
+
+// NodeOutputSource is the binding source string that selects an earlier node's
+// output envelope by its node id.
+func NodeOutputSource(nodeID string) string {
+	return "node." + nodeID + ".output"
+}
+
+// ParseNodeOutputSource returns the node id a "node.<node_id>.output" source
+// names, or ("", false) when source is not that shape. The node id may itself
+// contain dots, so only the fixed "node." prefix and ".output" suffix are
+// stripped.
+func ParseNodeOutputSource(source string) (string, bool) {
+	const prefix, suffix = "node.", ".output"
+	if len(source) <= len(prefix)+len(suffix) {
+		return "", false
+	}
+	if source[:len(prefix)] != prefix || source[len(source)-len(suffix):] != suffix {
+		return "", false
+	}
+	return source[len(prefix) : len(source)-len(suffix)], true
+}
+
+// NodeOutputEnvelope is the addressable value of a node's output that a
+// downstream binding selects into with an RFC 6901 pointer. It is built from an
+// accepted node run: the full output text, the validated structured value (or
+// null), the Artifact references the accepted TaskRun produced, and the Task and
+// TaskRun handles.
+type NodeOutputEnvelope struct {
+	Text       string               `json:"text"`
+	Structured json.RawMessage      `json:"structured"`
+	Artifacts  []NodeOutputArtifact `json:"artifacts"`
+	TaskID     string               `json:"task_id,omitempty"`
+	TaskRunID  string               `json:"task_run_id,omitempty"`
+}
+
+// NodeOutputArtifact is one stable Artifact reference in a node output envelope.
+// It carries only the reference a downstream Agent needs to open the Artifact
+// through its normal authorized capability, never the bytes.
+type NodeOutputArtifact struct {
+	ID        string `json:"id"`
+	Path      string `json:"path,omitempty"`
+	MediaType string `json:"media_type,omitempty"`
 }
 
 type CreateRunInput struct {

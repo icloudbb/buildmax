@@ -46,8 +46,10 @@ admits an immutable input validated against that `input_schema` and freezes it o
 the run, and the Portal generates the run's input form from the schema. Each per-step
 record is now a `WorkflowNodeRun` (`node_id`, `node_index`, `node_type`) that persists
 the full resolved input its node received and the complete output its accepted TaskRun
-produced; downstream bindings read that persisted node output. RFC 6901 pointer and
-Artifact bindings, storing the declared result, the typed `nodes`/`needs` graph, and
+produced. A step input binding now selects a value with a `source` (`workflow.input`
+or an earlier step's `node.<id>.output` envelope of text, structured output, and
+Artifact references) and an RFC 6901 `pointer` into it, instead of injecting the whole
+upstream output. Storing the declared result, the typed `nodes`/`needs` graph, and
 typed `/structured/...` routing remain open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression

@@ -203,7 +203,12 @@ func newWorkflowService(cfg Config, tasks *task.Service) *workflow.Service {
 		Issues:      cfg.Issues,
 		TaskService: tasks,
 		TaskRuns:    tasks.TaskRuns,
-		Audit:       cfg.Audit,
+		// Artifacts is left nil here: this service dispatches only the run's first
+		// step from the HTTP path, and a first step has no predecessor to bind a
+		// node output or Artifact from. Reconciliation of later steps -- which can
+		// bind Artifacts -- runs on the terminal-callback and recovery services,
+		// which are wired with the artifact store.
+		Audit: cfg.Audit,
 	}
 }
 

@@ -244,7 +244,7 @@ func TestWorkflowNodeRunBindingsRoundTrip(t *testing.T) {
 		{
 			NodeID: "summarize", NodeIndex: 1, NodeType: coreworkflow.NodeTypeAgentTask, Prompt: "do",
 			Status:   string(coreworkflow.NodeRunStatusPending),
-			Bindings: []coreworkflow.StepBinding{{Name: "research", FromStep: "collect"}},
+			Bindings: []coreworkflow.StepBinding{{Name: "research", Source: "node.collect.output", Pointer: "/text"}},
 		},
 	}
 	if _, err := s.CreateWorkflowNodeRuns(ctx, runID, stepsIn); err != nil {
@@ -261,8 +261,9 @@ func TestWorkflowNodeRunBindingsRoundTrip(t *testing.T) {
 	if len(got[0].Bindings) != 0 {
 		t.Errorf("step[0] bindings = %v, want none", got[0].Bindings)
 	}
-	if len(got[1].Bindings) != 1 || got[1].Bindings[0].Name != "research" || got[1].Bindings[0].FromStep != "collect" {
-		t.Errorf("step[1] bindings = %v, want [{research collect}]", got[1].Bindings)
+	if len(got[1].Bindings) != 1 || got[1].Bindings[0].Name != "research" ||
+		got[1].Bindings[0].Source != "node.collect.output" || got[1].Bindings[0].Pointer != "/text" {
+		t.Errorf("step[1] bindings = %v, want [{research node.collect.output /text}]", got[1].Bindings)
 	}
 }
 

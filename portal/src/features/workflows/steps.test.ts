@@ -41,7 +41,10 @@ describe("stepsToDefinition / parseDefinition", () => {
   })
 
   it("round-trips a step's input bindings so advanced JSON does not drop them", () => {
-    const original = [step({ id: "collect" }), step({ id: "summarize", bindings: [{ name: "research", fromStep: "collect" }] })]
+    const original = [
+      step({ id: "collect" }),
+      step({ id: "summarize", bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }] }),
+    ]
     const parsed = parseDefinition(stepsToDefinition(original))
     expect(parsed?.steps).toEqual(original)
   })
@@ -52,8 +55,11 @@ describe("stepsToDefinition / parseDefinition", () => {
 
   it("emits bindings in the wire snake_case shape only when a step has them", () => {
     expect(stepsToDefinition([step()])).not.toContain("bindings")
-    const wire = stepsToDefinition([step({ id: "b", bindings: [{ name: "r", fromStep: "a" }] })])
-    expect(wire).toContain(`"from_step": "a"`)
+    const wire = stepsToDefinition([
+      step({ id: "b", bindings: [{ name: "r", source: "node.a.output", pointer: "/text" }] }),
+    ])
+    expect(wire).toContain(`"source": "node.a.output"`)
+    expect(wire).toContain(`"pointer": "/text"`)
   })
 })
 
@@ -103,37 +109,59 @@ describe("validateSteps", () => {
   })
 
   // The form and the advanced JSON both run this, so these mirror the server's
-  // binding rules exactly: an input names a distinct value read from a step
-  // that already ran.
-  it("accepts a binding to an earlier step", () => {
-    const steps = [step({ id: "collect" }), step({ id: "summarize", bindings: [{ name: "research", fromStep: "collect" }] })]
+  // binding rules exactly: an input names a distinct value read from the
+  // workflow input or an earlier step's output at a pointer.
+  it("accepts a binding to an earlier step output", () => {
+    const steps = [
+      step({ id: "collect" }),
+      step({ id: "summarize", bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }] }),
+    ]
+    expect(validateSteps(steps, agents)).toEqual([])
+  })
+
+  it("accepts a binding to the workflow input on the first step", () => {
+    const steps = [step({ id: "a", bindings: [{ name: "topic", source: "workflow.input", pointer: "/topic" }] })]
     expect(validateSteps(steps, agents)).toEqual([])
   })
 
   it("refuses a binding to a later step", () => {
-    const steps = [step({ id: "collect", bindings: [{ name: "x", fromStep: "summarize" }] }), step({ id: "summarize" })]
+    const steps = [
+      step({ id: "collect", bindings: [{ name: "x", source: "node.summarize.output", pointer: "" }] }),
+      step({ id: "summarize" }),
+    ]
     expect(validateSteps(steps, agents).some((e) => e.index === 0 && /earlier step/.test(e.message))).toBe(true)
   })
 
   it("refuses a binding to the step itself", () => {
-    const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", fromStep: "b" }] })]
+    const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", source: "node.b.output", pointer: "" }] })]
     expect(validateSteps(steps, agents).some((e) => e.index === 1 && /earlier step/.test(e.message))).toBe(true)
   })
 
   it("refuses a binding with no name", () => {
-    const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "  ", fromStep: "a" }] })]
+    const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "  ", source: "node.a.output", pointer: "" }] })]
     expect(validateSteps(steps, agents).some((e) => e.index === 1 && /needs a name/.test(e.message))).toBe(true)
   })
 
-  it("refuses a binding with no source step chosen", () => {
-    const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", fromStep: "" }] })]
-    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /earlier step/.test(e.message))).toBe(true)
+  it("refuses a binding with no source chosen", () => {
+    const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", source: "", pointer: "" }] })]
+    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /needs a source/.test(e.message))).toBe(true)
+  })
+
+  it("refuses a pointer that does not begin with a slash", () => {
+    const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", source: "node.a.output", pointer: "text" }] })]
+    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /pointer must/.test(e.message))).toBe(true)
   })
 
   it("refuses two bindings sharing a name on one step", () => {
     const steps = [
       step({ id: "a" }),
-      step({ id: "b", bindings: [{ name: "x", fromStep: "a" }, { name: "x", fromStep: "a" }] }),
+      step({
+        id: "b",
+        bindings: [
+          { name: "x", source: "node.a.output", pointer: "/text" },
+          { name: "x", source: "node.a.output", pointer: "/text" },
+        ],
+      }),
     ]
     expect(validateSteps(steps, agents).filter((e) => /more than once/.test(e.message))).toHaveLength(1)
   })

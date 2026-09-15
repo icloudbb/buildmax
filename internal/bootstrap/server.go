@@ -209,6 +209,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 		Issues:      store,
 		TaskService: scheduleAdmitter,
 		TaskRuns:    store,
+		Artifacts:   store,
 	}
 	recovery, err := scheduler.NewWorkflowRecoveryLoop(workflowRecovery, 0)
 	if err != nil {

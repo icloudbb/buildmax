@@ -119,24 +119,23 @@ test("the step form authors an input binding to an earlier step, and it persists
   await dialog.getByLabel("Name").fill(tagged("Workflow binding form"))
 
   const stepCards = dialog.locator(".workflow-page__step")
-  // Step 1 is the source the second step reads from. A binding control cannot
-  // exist here: there is no earlier step to bind.
+  // Step 1 is the source the second step reads from.
   await stepCards.nth(0).getByLabel("Agent").selectOption({ label: `${agentName} (${agent.id})` })
   await stepCards.nth(0).getByLabel("Prompt").fill("Reply with exactly: deployment smoke ok")
-  await expect(stepCards.nth(0).getByRole("button", { name: "Add input" })).toHaveCount(0)
 
   await dialog.getByRole("button", { name: "Add Agent Step" }).click()
   await stepCards.nth(1).getByLabel("Agent").selectOption({ label: `${agentName} (${agent.id})` })
   await stepCards.nth(1).getByLabel("Prompt").fill("Summarize the research below.")
 
-  // The generated id is the value the source-step select carries, so read it
-  // off step 1's card rather than assuming it.
+  // The generated id is baked into the source value (node.<id>.output), so read
+  // it off step 1's card rather than assuming it.
   const step1IdText = await stepCards.nth(0).getByText(/^id: step_/).textContent()
   const step1Id = step1IdText!.replace(/^id:\s*/, "").trim()
 
   await stepCards.nth(1).getByRole("button", { name: "Add input" }).click()
   await stepCards.nth(1).getByLabel("Input 1 name").fill("research")
-  await stepCards.nth(1).getByLabel("Input 1 source step").selectOption(step1Id)
+  await stepCards.nth(1).getByLabel("Input 1 source").selectOption(`node.${step1Id}.output`)
+  await stepCards.nth(1).getByLabel("Input 1 pointer").fill("/text")
 
   const submit = dialog.getByRole("button", { name: "Create workflow" })
   await expect(submit).toBeEnabled()
@@ -148,6 +147,6 @@ test("the step form authors an input binding to an earlier step, and it persists
   // reopened in advanced JSON, carries the wire shape the runtime reads.
   await page.getByRole("button", { name: "Advanced: edit raw JSON" }).click()
   await expect(page.getByLabel(/^Definition \(JSON\)/)).toHaveValue(
-    new RegExp(`"from_step":\\s*"${step1Id}"`)
+    new RegExp(`"source":\\s*"node.${step1Id}.output"`)
   )
 })

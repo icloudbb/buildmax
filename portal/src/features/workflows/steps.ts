@@ -13,12 +13,32 @@ export const AGENT_TASK_STEP_TYPE = "agent_task"
  *  the server rejects any other value. */
 export const WORKFLOW_SCHEMA_VERSION = 1
 
-/** A binding feeds an earlier step's whole output into this step's input under
- *  a name. The step form authors it directly; it also round-trips through
+/** The binding source that selects into the run's immutable input JSON. */
+export const WORKFLOW_INPUT_SOURCE = "workflow.input"
+
+/** Builds/parses the "node.<id>.output" binding source that selects an earlier
+ *  step's output envelope. The id may contain dots, so only the fixed prefix and
+ *  suffix are stripped -- mirrors the server's ParseNodeOutputSource. */
+export function nodeOutputSource(stepId: string): string {
+  return `node.${stepId}.output`
+}
+
+export function parseNodeOutputSource(source: string): string | null {
+  const prefix = "node."
+  const suffix = ".output"
+  if (source.length <= prefix.length + suffix.length) return null
+  if (!source.startsWith(prefix) || !source.endsWith(suffix)) return null
+  return source.slice(prefix.length, source.length - suffix.length)
+}
+
+/** A binding selects a value from a source (the run input, or an earlier step's
+ *  output envelope) at an RFC 6901 pointer, and feeds it into this step's input
+ *  under a name. The step form authors it directly; it also round-trips through
  *  advanced JSON mode so a definition authored there is not silently stripped. */
 export interface WorkflowStepBinding {
   name: string
-  fromStep: string
+  source: string
+  pointer: string
 }
 
 export interface WorkflowStepDraft {
@@ -62,7 +82,13 @@ export function stepsToDefinition(steps: WorkflowStepDraft[]): string {
         target_agent_id: step.targetAgentId,
         prompt: step.prompt,
         ...(step.bindings && step.bindings.length > 0
-          ? { bindings: step.bindings.map((binding) => ({ name: binding.name, from_step: binding.fromStep })) }
+          ? {
+              bindings: step.bindings.map((binding) => ({
+                name: binding.name,
+                source: binding.source,
+                pointer: binding.pointer,
+              })),
+            }
           : {}),
       })),
     },
@@ -82,7 +108,8 @@ function parseStepBindings(value: unknown): WorkflowStepBinding[] | undefined {
     return [
       {
         name: typeof record.name === "string" ? record.name : "",
-        fromStep: typeof record.from_step === "string" ? record.from_step : "",
+        source: typeof record.source === "string" ? record.source : "",
+        pointer: typeof record.pointer === "string" ? record.pointer : "",
       },
     ]
   })
@@ -158,10 +185,11 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
     if (!step.prompt.trim()) {
       errors.push({ index, message: "This step needs a prompt." })
     }
-    // A binding feeds an earlier step's whole output into this step, so it can
-    // only name a step that already ran, and each name on a step is distinct --
-    // the same rules the server enforces, checked here so Save stays disabled
-    // for a definition the server would reject.
+    // A binding selects from the run input or an earlier step's output at a
+    // pointer. A node source can only name a step that already ran, each name on
+    // a step is distinct, and a pointer is empty or begins with "/" -- the same
+    // rules the server enforces, checked here so Save stays disabled for a
+    // definition the server would reject.
     const earlierIds = new Set(steps.slice(0, index).map((s) => s.id))
     const bindingNames = new Set<string>()
     step.bindings?.forEach((binding) => {
@@ -173,10 +201,18 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
         errors.push({ index, message: `Input binding "${name}" is defined more than once on this step.` })
       }
       bindingNames.add(name)
-      if (!binding.fromStep) {
-        errors.push({ index, message: `Input binding "${label}" needs an earlier step to read from.` })
-      } else if (!earlierIds.has(binding.fromStep)) {
-        errors.push({ index, message: `Input binding "${label}" must read from an earlier step.` })
+      if (!binding.source) {
+        errors.push({ index, message: `Input binding "${label}" needs a source.` })
+      } else if (binding.source !== WORKFLOW_INPUT_SOURCE) {
+        const fromStep = parseNodeOutputSource(binding.source)
+        if (fromStep === null) {
+          errors.push({ index, message: `Input binding "${label}" has an unknown source.` })
+        } else if (!earlierIds.has(fromStep)) {
+          errors.push({ index, message: `Input binding "${label}" must read from the workflow input or an earlier step.` })
+        }
+      }
+      if (binding.pointer && !binding.pointer.startsWith("/")) {
+        errors.push({ index, message: `Input binding "${label}" pointer must be empty or begin with "/".` })
       }
     })
   })
