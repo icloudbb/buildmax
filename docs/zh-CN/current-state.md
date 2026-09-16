@@ -277,8 +277,13 @@ Server 自有的小时级清理会删除结束时间早于截止点的 Run 轨�
 角色变更、所有权转移和成员级恢复均已实现。注册默认关闭；创建账号本身不发放凭证。
 每次登录都会开启一个持久 Session（`auth_session`），请求守卫在每次调用时都会检查它，
 因此登出、管理员撤销和禁用会让已签发的访问令牌在下一次请求立即停止；Session 还带有一个
-绝对寿命。Portal 把可续期的 refresh 凭证保存在 Secure、HttpOnly、SameSite=Strict Cookie
-中，只在内存中持有短期 access token；CLI 与 Desktop 继续使用 JSON 凭证流程。
+绝对寿命。禁用账户由 `internal/service/accountlifecycle` 编排:提交账户闸门、撤销 Session、
+可选地退役该账户的 webhook key（`retire_webhook_keys`,用于离职而非临时暂停）、暂停该账户
+的 schedule、取消其在途 run,并把闸门结果与这些清理计数分开上报;重新启用只重开闸门,
+不复活其中任何一项。`GET /api/admin/users/{user_id}/deactivation-impact` 在变更提交前投影
+这一影响——只含计数与 id,绝不含 Space 内容。Portal 把可续期的 refresh 凭证保存在
+Secure、HttpOnly、SameSite=Strict Cookie 中,只在内存中持有短期 access token;CLI 与
+Desktop 继续使用 JSON 凭证流程。
 基于 OpenID Connect 的企业登录已实现：
 部署配置一个 `oidc` 块（首个支持的提供方为 Okta），一次已验证的登录按 `(issuer, subject)`
 关联到账号——复用已有链接、以已验证邮箱关联运维创建的账号，或在 `allowed_email_domains`

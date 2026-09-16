@@ -164,8 +164,17 @@ func TestEligibilityCancelPersistsReasonWithoutRequester(t *testing.T) {
 	if found == nil {
 		t.Fatal("the active run was not listed for eligibility")
 	}
-	if found.SpaceID != conv.SpaceID || found.CreatedBy != user {
-		t.Errorf("ref = %+v, want space %q initiator %q", *found, conv.SpaceID, user)
+	if found.SpaceID != conv.SpaceID || found.CreatedBy != user || found.Status != string(coretask.RunStatusPending) {
+		t.Errorf("ref = %+v, want space %q initiator %q status PENDING", *found, conv.SpaceID, user)
+	}
+
+	// The per-creator scan a deactivation uses finds the same run.
+	byCreator, err := s.ListActiveTaskRunsByCreator(ctx, user)
+	if err != nil {
+		t.Fatalf("ListActiveTaskRunsByCreator: %v", err)
+	}
+	if !containsRef(byCreator, runID) {
+		t.Error("the run was not listed for its creator")
 	}
 
 	// A reconciler-driven cancel: no requester, a recorded reason.
@@ -213,6 +222,15 @@ func TestEligibilityCancelPersistsReasonWithoutRequester(t *testing.T) {
 	if stored.CancelReason != coretask.CancelReasonCreatorDisabled {
 		t.Errorf("cancel_reason after settling = %q, want creator_disabled preserved", stored.CancelReason)
 	}
+}
+
+func containsRef(refs []coretask.ActiveRunRef, taskRunID string) bool {
+	for _, r := range refs {
+		if r.TaskRunID == taskRunID {
+			return true
+		}
+	}
+	return false
 }
 
 func containsRun(runs []coretask.Run, taskRunID string) bool {

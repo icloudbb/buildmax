@@ -9,6 +9,7 @@ import (
 	spaceroutes "github.com/icloudbb/buildmax/internal/server/handlers/space"
 	"github.com/icloudbb/buildmax/internal/server/handlers/work"
 	"github.com/icloudbb/buildmax/internal/server/handlers/worker"
+	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
 	agentsvc "github.com/icloudbb/buildmax/internal/service/agent"
 	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
@@ -31,6 +32,24 @@ func eligibilityChecker(users coreidentity.UserStore, spaces corespace.Store) el
 		return nil
 	}
 	return eligibility.New(users, spaces)
+}
+
+// accountLifecycle assembles the deactivation service from the stores this
+// handler holds, or nil when there is no account store to gate on. The optional
+// stores fall through as nil, which the service reads as "nothing of this kind
+// to clean up."
+func (h *Handler) accountLifecycle() *accountlifecycle.Service {
+	if h.cfg.UserStore == nil {
+		return nil
+	}
+	return &accountlifecycle.Service{
+		Users:     h.cfg.UserStore,
+		Sessions:  h.cfg.AuthSessionStore,
+		Webhooks:  h.cfg.UserWebhookKeyStore,
+		Schedules: h.cfg.ScheduleStore,
+		Runs:      h.cfg.TaskRunStore,
+		Spaces:    h.cfg.SpaceStore,
+	}
 }
 
 // guard answers who is calling and whether they may proceed.
@@ -73,6 +92,7 @@ func (h *Handler) buildAdminHandler() *admin.Handler {
 		Schema:             h.cfg.SchemaStore,
 		TaskRuns:           h.cfg.TaskRunStore,
 		Quota:              h.cfg.QuotaService,
+		Lifecycle:          h.accountLifecycle(),
 		Audit:              h.cfg.Audit,
 		Deployment:         h.cfg.Deployment,
 		DependencyProbes:   h.cfg.DependencyProbes,

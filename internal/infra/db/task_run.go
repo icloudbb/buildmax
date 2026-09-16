@@ -658,18 +658,8 @@ func (s *Store) ListActiveTaskRunsForEligibility(ctx context.Context, afterID st
 	if limit <= 0 {
 		limit = 100
 	}
-	type refRow struct {
-		TaskRunPublicID   string `gorm:"column:task_run_public_id"`
-		SpacePublicID     string `gorm:"column:space_public_id"`
-		CreatedByPublicID string `gorm:"column:created_by_public_id"`
-		ID                uint64 `gorm:"column:id"`
-	}
-	q := s.db.WithContext(ctx).Model(&taskRunRow{}).
-		Select("task_run.id AS id, task_run.public_id AS task_run_public_id, "+
-			"sp.public_id AS space_public_id, task_run.created_by AS created_by_public_id").
-		Joins("INNER JOIN task t ON t.id = task_run.task_id").
-		Joins("INNER JOIN space sp ON sp.id = t.space_id").
-		Where("task_run.status IN ? AND task_run.cancel_requested_at IS NULL", coretask.ActiveRunStatuses())
+	q := activeRunRefSelect(s.db.WithContext(ctx)).
+		Where("task_run.cancel_requested_at IS NULL")
 	if afterID != "" {
 		if key, ok := util.CanonicalPublicID(afterID); ok {
 			var last taskRunRow
@@ -678,8 +668,39 @@ func (s *Store) ListActiveTaskRunsForEligibility(ctx context.Context, afterID st
 			}
 		}
 	}
+	return scanActiveRunRefs(q.Order("task_run.id ASC").Limit(limit))
+}
+
+// ListActiveTaskRunsByCreator returns every active run a given account
+// initiated, with its Space and status. It is the per-account scan a deactivation
+// uses to cancel that account's in-flight work and to project the impact of
+// doing so; unlike the reconciler's scan it includes runs already asked to stop,
+// so an impact count reflects all active work.
+func (s *Store) ListActiveTaskRunsByCreator(ctx context.Context, createdBy string) ([]coretask.ActiveRunRef, error) {
+	return scanActiveRunRefs(activeRunRefSelect(s.db.WithContext(ctx)).
+		Where("task_run.created_by = ?", createdBy).
+		Order("task_run.id ASC"))
+}
+
+func activeRunRefSelect(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&taskRunRow{}).
+		Select("task_run.id AS id, task_run.public_id AS task_run_public_id, "+
+			"sp.public_id AS space_public_id, task_run.created_by AS created_by_public_id, task_run.status AS status").
+		Joins("INNER JOIN task t ON t.id = task_run.task_id").
+		Joins("INNER JOIN space sp ON sp.id = t.space_id").
+		Where("task_run.status IN ?", coretask.ActiveRunStatuses())
+}
+
+func scanActiveRunRefs(q *gorm.DB) ([]coretask.ActiveRunRef, error) {
+	type refRow struct {
+		TaskRunPublicID   string `gorm:"column:task_run_public_id"`
+		SpacePublicID     string `gorm:"column:space_public_id"`
+		CreatedByPublicID string `gorm:"column:created_by_public_id"`
+		Status            string `gorm:"column:status"`
+		ID                uint64 `gorm:"column:id"`
+	}
 	var refs []refRow
-	if err := q.Order("task_run.id ASC").Limit(limit).Find(&refs).Error; err != nil {
+	if err := q.Find(&refs).Error; err != nil {
 		return nil, err
 	}
 	out := make([]coretask.ActiveRunRef, 0, len(refs))
@@ -688,6 +709,7 @@ func (s *Store) ListActiveTaskRunsForEligibility(ctx context.Context, afterID st
 			TaskRunID: refs[i].TaskRunPublicID,
 			SpaceID:   refs[i].SpacePublicID,
 			CreatedBy: refs[i].CreatedByPublicID,
+			Status:    refs[i].Status,
 		})
 	}
 	return out, nil

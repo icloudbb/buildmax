@@ -105,6 +105,18 @@ func (f *fakeScheduleStore) UpdateSchedule(_ context.Context, in coreschedule.Up
 	return &cp, nil
 }
 
+func (f *fakeScheduleStore) ListEnabledSchedulesByCreator(_ context.Context, createdBy string) ([]coreschedule.Schedule, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []coreschedule.Schedule
+	for _, sc := range f.schedules {
+		if sc.Enabled && sc.CreatedBy == createdBy {
+			out = append(out, *sc)
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeScheduleStore) CreateSchedule(context.Context, *coreschedule.CreateInput) (*coreschedule.Schedule, error) {
 	return nil, nil
 }

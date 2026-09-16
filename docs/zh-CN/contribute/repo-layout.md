@@ -189,6 +189,8 @@ internal/
 │   │                   admin 路由都调用它
 │   ├── systemadmin/    谁持有部署范围的角色；最后一位持有者规则依赖
 │   │                   调用者的权限本身来触发，而非一个标志位
+│   ├── accountlifecycle/ 编排账户停用/启用及其收尾——session、webhook key、
+│   │                   schedule、在途 run——并计算停用影响投影
 │   ├── identity/       什么能证明调用者是谁：验证一个凭证并开启它
 │   │                   换来的 session
 │   ├── issue/          Issue service

@@ -129,6 +129,10 @@ type Store interface {
 	// DueSchedules returns enabled schedules whose NextFireAt is at or before
 	// now, oldest due time first, capped at limit.
 	DueSchedules(ctx context.Context, now time.Time, limit int) ([]Schedule, error)
+	// ListEnabledSchedulesByCreator returns every enabled schedule a given
+	// account created, across Spaces. A deactivation pauses these at once rather
+	// than waiting for each to reach its next fire time.
+	ListEnabledSchedulesByCreator(ctx context.Context, createdBy string) ([]Schedule, error)
 	// ClaimSchedule atomically advances NextFireAt. A false result means the
 	// schedule changed under the caller — another replica claimed it, or it was
 	// disabled or edited — and this caller must not fire it.

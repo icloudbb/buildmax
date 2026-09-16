@@ -255,6 +255,17 @@ func (s *Store) DueSchedules(ctx context.Context, now time.Time, limit int) ([]c
 	return toSchedules(list), err
 }
 
+// ListEnabledSchedulesByCreator returns every enabled schedule a given account
+// created, across Spaces. A deactivation pauses these at once rather than waiting
+// for each to reach its next fire time, and a deactivation impact counts them.
+func (s *Store) ListEnabledSchedulesByCreator(ctx context.Context, createdBy string) ([]coreschedule.Schedule, error) {
+	var list []scheduleReadRow
+	err := s.scheduleSelect(ctx).
+		Where("cb.public_id = ? AND schedule.enabled = ?", createdBy, true).
+		Order("schedule.id ASC").Find(&list).Error
+	return toSchedules(list), err
+}
+
 // ClaimSchedule advances next_fire_at only when the schedule is still enabled and
 // its next_fire_at still equals ExpectedNextFireAt. The conditional update rests
 // on the server serializing two writes to one row, so exactly one of several

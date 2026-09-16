@@ -372,7 +372,14 @@ transfer, and member-scoped recovery are implemented. Signup defaults off;
 creating an account does not itself issue a credential. Each login opens a
 durable session (`auth_session`) that the request guard checks every call, so
 logout, administrator revocation, and disablement stop an already-issued access
-token on its next request; sessions also carry an absolute lifetime. Portal
+token on its next request; sessions also carry an absolute lifetime. Disabling an
+account is orchestrated by `internal/service/accountlifecycle`: it commits the
+account gate, revokes sessions, optionally retires the account's webhook keys
+(`retire_webhook_keys`, for a leaver rather than a suspension), pauses the
+account's schedules, and cancels its in-flight runs, reporting the gate result
+alongside those cleanup counts; re-enabling reopens the gate and resurrects none
+of it. `GET /api/admin/users/{user_id}/deactivation-impact` projects that impact
+— counts and ids only, never Space content — before the change commits. Portal
 keeps the renewable refresh credential in a Secure,
 HttpOnly, SameSite=Strict cookie and holds the short-lived access token only in
 memory; CLI and Desktop retain the JSON credential flow. Corporate sign-in over

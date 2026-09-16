@@ -7,6 +7,7 @@ import (
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
@@ -155,6 +156,51 @@ func TestDueSchedulesReturnsOnlyEnabledAndDue(t *testing.T) {
 	}
 	if present[future.ID] {
 		t.Errorf("a future schedule was returned as due")
+	}
+}
+
+// A deactivation pauses a creator's enabled schedules at once, so it needs every
+// enabled schedule that account created regardless of due time, and none that are
+// already paused or belong to someone else.
+func TestListEnabledSchedulesByCreator(t *testing.T) {
+	s, ctx := newTestStore(t)
+	f := newScheduleFixture(t, s, "sched-creator")
+	now := time.Unix(1_800_000_000, 0).UTC()
+
+	enabledFuture := newTestSchedule(t, s, f, now.Add(time.Hour), true)
+	paused := newTestSchedule(t, s, f, now.Add(time.Hour), false)
+
+	// A second account's enabled schedule in the same Space must not appear.
+	otherUser := newTestUser(t, s, "sched-creator-other")
+	if _, err := s.AddSpaceMember(ctx, f.spaceID, otherUser, corespace.RoleMember); err != nil {
+		t.Fatalf("AddSpaceMember: %v", err)
+	}
+	otherSched, err := s.CreateSchedule(ctx, &coreschedule.CreateInput{
+		SpaceID: f.spaceID, AgentID: f.agentID, CreatedBy: otherUser,
+		Name: "theirs", Input: "x", CronExpr: "0 9 * * *", Timezone: "UTC",
+		Enabled: true, NextFireAt: now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateSchedule other: %v", err)
+	}
+	t.Cleanup(func() { _ = s.db.Delete(&scheduleRow{}, "public_id = ?", canonicalPublicID(otherSched.ID)).Error })
+
+	got, err := s.ListEnabledSchedulesByCreator(ctx, f.userID)
+	if err != nil {
+		t.Fatalf("ListEnabledSchedulesByCreator: %v", err)
+	}
+	present := map[string]bool{}
+	for _, sc := range got {
+		present[sc.ID] = true
+	}
+	if !present[enabledFuture.ID] {
+		t.Error("an enabled schedule the account created was not returned")
+	}
+	if present[paused.ID] {
+		t.Error("a paused schedule was returned")
+	}
+	if present[otherSched.ID] {
+		t.Error("another account's schedule was returned")
 	}
 }
 

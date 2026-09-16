@@ -2404,15 +2404,50 @@
         }
       }
     },
+    "/api/admin/users/{user_id}/deactivation-impact": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Project what disabling an account would stop",
+        "description": "Metadata and counts only: live sessions and webhook keys, memberships and roles, sole-owned Spaces, enabled schedules, active runs by status, and the cancellation bound. It never reads a Space's contents.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "live_sessions": {"type": "integer"},
+                    "webhook_keys": {"type": "integer"},
+                    "memberships": {"type": "array", "items": {"type": "object", "properties": {"space_id": {"type": "string"}, "role": {"type": "string"}}}},
+                    "sole_owned_space_ids": {"type": "array", "items": {"type": "string"}},
+                    "enabled_schedules": {"type": "integer"},
+                    "active_runs_by_status": {"type": "object", "additionalProperties": {"type": "integer"}},
+                    "cancellation_bound": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
     "/api/admin/users/{user_id}/state": {
       "put": {
         "tags": ["admin"],
         "summary": "Set an account's disabled state",
+        "description": "Disabling commits the account gate first, then quiets the account's sessions, webhook keys (when retire_webhook_keys is set), schedules, and in-flight runs. The response reports the reloaded account alongside the cleanup counts.",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "requestBody": {
           "required": true,
-          "content": {"application/json": {"schema": {"type": "object", "required": ["disabled"], "properties": {"disabled": {"type": "boolean"}}}}}
+          "content": {"application/json": {"schema": {"type": "object", "required": ["disabled"], "properties": {"disabled": {"type": "boolean"}, "retire_webhook_keys": {"type": "boolean"}}}}}
         },
         "responses": {
           "200": {
@@ -2421,7 +2456,14 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {"id": {"type": "string"}, "disabled": {"type": "boolean"}}
+                  "properties": {
+                    "id": {"type": "string"},
+                    "disabled": {"type": "boolean"},
+                    "sessions_revoked": {"type": "integer"},
+                    "webhook_keys_retired": {"type": "integer"},
+                    "schedules_paused": {"type": "integer"},
+                    "runs_canceled": {"type": "integer"}
+                  }
                 }
               }
             }

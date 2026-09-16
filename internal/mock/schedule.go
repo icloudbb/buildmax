@@ -118,6 +118,16 @@ func (m *MockScheduleStore) DueSchedules(_ context.Context, now time.Time, limit
 	return out, nil
 }
 
+func (m *MockScheduleStore) ListEnabledSchedulesByCreator(_ context.Context, createdBy string) ([]coreschedule.Schedule, error) {
+	var out []coreschedule.Schedule
+	for i := range m.Schedules {
+		if m.Schedules[i].Enabled && m.Schedules[i].CreatedBy == createdBy {
+			out = append(out, m.Schedules[i])
+		}
+	}
+	return out, nil
+}
+
 func (m *MockScheduleStore) ClaimSchedule(_ context.Context, in coreschedule.ClaimInput) (bool, error) {
 	for i := range m.Schedules {
 		if m.Schedules[i].ID != in.ScheduleID {

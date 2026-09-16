@@ -342,13 +342,15 @@ type ClaimInput struct {
 
 // TransitionRunInput atomically moves a run from ExpectedStatus to
 // NewStatus and projects the accepted state onto its task.
-// ActiveRunRef identifies a run still in an active status together with the two
-// facts an eligibility check needs — its initiator and its Space — without
-// loading the whole run. It is what the eligibility reconciler scans.
+// ActiveRunRef identifies a run still in an active status together with the
+// facts a cleanup or projection needs — its initiator, its Space, and its
+// status — without loading the whole run. It is what the eligibility reconciler
+// scans and what a deactivation impact counts.
 type ActiveRunRef struct {
 	TaskRunID string
 	SpaceID   string
 	CreatedBy string
+	Status    string
 }
 
 type TransitionRunInput struct {
@@ -457,6 +459,11 @@ type RunStore interface {
 	// GetActiveTaskRunByTask returns the task's run in PENDING, SCHEDULED, or
 	// RUNNING, or (nil, nil) when the task has none. A task holds at most one.
 	GetActiveTaskRunByTask(ctx context.Context, taskID string) (*Run, error)
+	// ListActiveTaskRunsByCreator returns every active run a given account
+	// initiated, with its Space and status. It is the per-account scan a
+	// deactivation uses to cancel that account's in-flight work and to project
+	// the impact of doing so.
+	ListActiveTaskRunsByCreator(ctx context.Context, createdBy string) ([]ActiveRunRef, error)
 	// RequestTaskRunCancel records who asked a run to stop, why, and when, on a
 	// run that has not reached a terminal status. requestedBy is empty when a
 	// background reconciler, not a person, asked. Returns false when the run is

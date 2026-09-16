@@ -12,6 +12,7 @@ import (
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	"github.com/icloudbb/buildmax/internal/mock"
+	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
 	"github.com/icloudbb/buildmax/internal/service/audit"
 	"github.com/icloudbb/buildmax/internal/testsupport"
 )
@@ -90,6 +91,38 @@ func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 	refresh := f.do(t, "POST", "/api/auth/token/refresh", "", `{"refresh_token":"`+plaintext+`"}`)
 	if refresh.Code == http.StatusOK {
 		t.Errorf("a disabled account refreshed into a new access token: %s", refresh.Body.String())
+	}
+}
+
+// TestDeactivationImpactReportsCountsOnly: an operator can preview what a
+// disable would stop, and the projection carries counts and ids, never content.
+func TestDeactivationImpactReportsCountsOnly(t *testing.T) {
+	f := newDisableFixture(t)
+	f.seedSession(t, "portal")
+	if _, _, err := f.keys.CreateKey(t.Context(), f.target.ID, "ci"); err != nil {
+		t.Fatalf("CreateKey: %v", err)
+	}
+
+	rec := f.do(t, "GET", "/api/admin/users/"+f.target.ID+"/deactivation-impact", adminUser, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var impact struct {
+		LiveSessions      int    `json:"live_sessions"`
+		WebhookKeys       int    `json:"webhook_keys"`
+		CancellationBound string `json:"cancellation_bound"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &impact); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if impact.LiveSessions != 1 {
+		t.Errorf("live_sessions = %d, want 1", impact.LiveSessions)
+	}
+	if impact.WebhookKeys != 1 {
+		t.Errorf("webhook_keys = %d, want 1", impact.WebhookKeys)
+	}
+	if impact.CancellationBound == "" {
+		t.Error("cancellation_bound not reported")
 	}
 }
 
@@ -354,6 +387,12 @@ func newDisableFixture(t *testing.T) *disableFixture {
 		LoginCodes:    f.codes,
 		RefreshTokens: f.refresh,
 		Sessions:      f.sessions,
+		Lifecycle: &accountlifecycle.Service{
+			Users:    users,
+			Sessions: f.sessions,
+			Webhooks: f.keys,
+			Spaces:   &mock.MockSpaceStore{},
+		},
 		// Present so the webhook route reaches its credential check rather
 		// than answering "not configured" first.
 		Audits: f.audits,

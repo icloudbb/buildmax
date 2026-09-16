@@ -166,10 +166,29 @@ func (m *MockTaskRunStore) ListActiveTaskRunsForEligibility(_ context.Context, a
 				break
 			}
 		}
-		out = append(out, coretask.ActiveRunRef{TaskRunID: r.ID, SpaceID: spaceID, CreatedBy: r.CreatedBy})
+		out = append(out, coretask.ActiveRunRef{TaskRunID: r.ID, SpaceID: spaceID, CreatedBy: r.CreatedBy, Status: r.Status})
 		if limit > 0 && len(out) >= limit {
 			break
 		}
+	}
+	return out, nil
+}
+
+func (m *MockTaskRunStore) ListActiveTaskRunsByCreator(_ context.Context, createdBy string) ([]coretask.ActiveRunRef, error) {
+	var out []coretask.ActiveRunRef
+	for i := range m.Runs {
+		r := m.Runs[i]
+		if r.CreatedBy != createdBy || coretask.RunStatusTerminal(r.Status) {
+			continue
+		}
+		spaceID := ""
+		for j := range m.TaskList {
+			if m.TaskList[j].ID == r.TaskID {
+				spaceID = m.TaskList[j].SpaceID
+				break
+			}
+		}
+		out = append(out, coretask.ActiveRunRef{TaskRunID: r.ID, SpaceID: spaceID, CreatedBy: r.CreatedBy, Status: r.Status})
 	}
 	return out, nil
 }

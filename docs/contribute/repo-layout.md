@@ -201,6 +201,9 @@ internal/
 │   │                   records; the shell and the admin route both call it
 │   ├── systemadmin/    Who holds a deployment-scoped role; the last-holder
 │   │                   rule turns on the caller's authority, not a flag
+│   ├── accountlifecycle/ Sequences an account disable/enable and its cleanup —
+│   │                   sessions, webhook keys, schedules, in-flight runs — and
+│   │                   projects the deactivation impact
 │   ├── identity/       What proves who a caller is: verifying a credential and
 │   │                   opening the session it earns
 │   ├── issue/          Issue service

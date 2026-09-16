@@ -106,6 +106,10 @@ func (s *spyTaskRunStore) RequestTaskRunCancel(_ context.Context, _, _, _ string
 	return false, nil
 }
 
+func (s *spyTaskRunStore) ListActiveTaskRunsByCreator(_ context.Context, _ string) ([]coretask.ActiveRunRef, error) {
+	return nil, nil
+}
+
 func (s *spyTaskRunStore) TransitionTaskRun(_ context.Context, in coretask.TransitionRunInput) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
