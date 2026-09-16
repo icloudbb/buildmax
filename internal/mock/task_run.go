@@ -145,6 +145,35 @@ func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, re
 	return false, nil
 }
 
+func (m *MockTaskRunStore) ListActiveTaskRunsForEligibility(_ context.Context, afterID string, limit int) ([]coretask.ActiveRunRef, error) {
+	var out []coretask.ActiveRunRef
+	seen := afterID == ""
+	for i := range m.Runs {
+		r := m.Runs[i]
+		if !seen {
+			if r.ID == afterID {
+				seen = true
+			}
+			continue
+		}
+		if coretask.RunStatusTerminal(r.Status) || r.CancelRequestedAt != nil {
+			continue
+		}
+		spaceID := ""
+		for j := range m.TaskList {
+			if m.TaskList[j].ID == r.TaskID {
+				spaceID = m.TaskList[j].SpaceID
+				break
+			}
+		}
+		out = append(out, coretask.ActiveRunRef{TaskRunID: r.ID, SpaceID: spaceID, CreatedBy: r.CreatedBy})
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
 func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in coretask.TransitionRunInput) (bool, error) {
 	if !coretask.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
 		return false, coretask.ErrInvalidRunTransition

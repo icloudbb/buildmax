@@ -166,6 +166,13 @@ func RunServer(ctx context.Context, portOverride int) error {
 	reaper := scheduler.NewStaleRunReaper(store, sc.Worker.RunTimeout, 0)
 	reaper.Start()
 
+	// Stops work already under way once its initiator loses authority: the
+	// admission gates refuse new work, but a run already handed to a worker is
+	// only reachable by this durable backstop, which re-checks eligibility and
+	// requests cancellation.
+	eligibilityReconciler := scheduler.NewEligibilityReconciler(store, elig, 0)
+	eligibilityReconciler.Start()
+
 	// Nil unless the operator set a retention window, so a deployment that
 	// never chose one keeps every event.
 	retainer := scheduler.NewAuditRetainer(store, store, sc.Audit.RetentionDays, 0)
@@ -245,7 +252,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	case err := <-serveErr:
 		// The listener failed before any signal — a taken port, a bad address.
 		// Nothing has started serving, so there is nothing to drain.
-		shutdownServer(context.Background(), targetsFor(s, sched, dispatcher, cleaner, reaper, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
+		shutdownServer(context.Background(), targetsFor(s, sched, dispatcher, cleaner, reaper, eligibilityReconciler, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
 		return err
 	case <-signalCtx.Done():
 	}
@@ -255,7 +262,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// handler that is already running one.
 	stopSignals()
 	slog.Info("shutdown requested", "grace", sc.ShutdownGrace)
-	shutdownServer(ctx, targetsFor(s, sched, dispatcher, cleaner, reaper, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
+	shutdownServer(ctx, targetsFor(s, sched, dispatcher, cleaner, reaper, eligibilityReconciler, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
 
 	slog.Info("server stopped")
 	return <-serveErr
@@ -290,7 +297,7 @@ type shutdownTargets struct {
 }
 
 // targetsFor names what RunServer started in the order the ladder stops it.
-func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *scheduler.ScheduleDispatcher, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer, traceRetainer *scheduler.TraceRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper, recovery *scheduler.WorkflowRecoveryLoop) shutdownTargets {
+func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *scheduler.ScheduleDispatcher, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, eligibilityReconciler *scheduler.EligibilityReconciler, retainer *scheduler.AuditRetainer, traceRetainer *scheduler.TraceRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper, recovery *scheduler.WorkflowRecoveryLoop) shutdownTargets {
 	return shutdownTargets{
 		server:    s,
 		scheduler: namedStop{name: "scheduler", stop: func(ctx context.Context) { sched.Stop(ctx) }},
@@ -308,6 +315,7 @@ func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *sc
 			{name: "trace retainer", stop: ignoringContext(traceRetainer.Stop)},
 			{name: "artifact retainer", stop: ignoringContext(artifacts.Stop)},
 			{name: "stale run reaper", stop: ignoringContext(reaper.Stop)},
+			{name: "eligibility reconciler", stop: ignoringContext(eligibilityReconciler.Stop)},
 			{name: "credential cleaner", stop: ignoringContext(cleaner.Stop)},
 		},
 	}

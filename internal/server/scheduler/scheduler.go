@@ -23,8 +23,11 @@ func componentLog(name string) *slog.Logger { return slog.With("component", name
 func (s *Scheduler) log() *slog.Logger         { return componentLog("scheduler") }
 func (c *CredentialCleaner) log() *slog.Logger { return componentLog("credential_cleaner") }
 func (c *StaleRunReaper) log() *slog.Logger    { return componentLog("stale_run_reaper") }
-func (a *AuditRetainer) log() *slog.Logger     { return componentLog("audit_retention") }
-func (a *ArtifactRetainer) log() *slog.Logger  { return componentLog("artifact_retention") }
+func (c *EligibilityReconciler) log() *slog.Logger {
+	return componentLog("eligibility_reconciler")
+}
+func (a *AuditRetainer) log() *slog.Logger    { return componentLog("audit_retention") }
+func (a *ArtifactRetainer) log() *slog.Logger { return componentLog("artifact_retention") }
 func (c *CheckpointOrphanSweeper) log() *slog.Logger {
 	return componentLog("checkpoint_orphan_sweeper")
 }

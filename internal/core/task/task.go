@@ -342,6 +342,15 @@ type ClaimInput struct {
 
 // TransitionRunInput atomically moves a run from ExpectedStatus to
 // NewStatus and projects the accepted state onto its task.
+// ActiveRunRef identifies a run still in an active status together with the two
+// facts an eligibility check needs — its initiator and its Space — without
+// loading the whole run. It is what the eligibility reconciler scans.
+type ActiveRunRef struct {
+	TaskRunID string
+	SpaceID   string
+	CreatedBy string
+}
+
 type TransitionRunInput struct {
 	TaskRunID        string
 	ExpectedStatus   RunStatus

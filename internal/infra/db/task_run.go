@@ -649,6 +649,50 @@ func (s *Store) ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Tim
 	return out, nil
 }
 
+// ListActiveTaskRunsForEligibility returns runs still in an active status that
+// have no cancel request yet, each with its initiator and Space, so the
+// eligibility reconciler can re-check authority and cancel work whose initiator
+// lost it. It is a bounded scan ordered by id; the caller pages by passing the
+// last id it saw as afterID (empty for the first page).
+func (s *Store) ListActiveTaskRunsForEligibility(ctx context.Context, afterID string, limit int) ([]coretask.ActiveRunRef, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	type refRow struct {
+		TaskRunPublicID   string `gorm:"column:task_run_public_id"`
+		SpacePublicID     string `gorm:"column:space_public_id"`
+		CreatedByPublicID string `gorm:"column:created_by_public_id"`
+		ID                uint64 `gorm:"column:id"`
+	}
+	q := s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Select("task_run.id AS id, task_run.public_id AS task_run_public_id, "+
+			"sp.public_id AS space_public_id, task_run.created_by AS created_by_public_id").
+		Joins("INNER JOIN task t ON t.id = task_run.task_id").
+		Joins("INNER JOIN space sp ON sp.id = t.space_id").
+		Where("task_run.status IN ? AND task_run.cancel_requested_at IS NULL", coretask.ActiveRunStatuses())
+	if afterID != "" {
+		if key, ok := util.CanonicalPublicID(afterID); ok {
+			var last taskRunRow
+			if err := s.db.WithContext(ctx).Select("id").Where("public_id = ?", key).First(&last).Error; err == nil {
+				q = q.Where("task_run.id > ?", last.ID)
+			}
+		}
+	}
+	var refs []refRow
+	if err := q.Order("task_run.id ASC").Limit(limit).Find(&refs).Error; err != nil {
+		return nil, err
+	}
+	out := make([]coretask.ActiveRunRef, 0, len(refs))
+	for i := range refs {
+		out = append(out, coretask.ActiveRunRef{
+			TaskRunID: refs[i].TaskRunPublicID,
+			SpaceID:   refs[i].SpacePublicID,
+			CreatedBy: refs[i].CreatedByPublicID,
+		})
+	}
+	return out, nil
+}
+
 // MarkTaskRunSeen records that this run's worker is still reporting.
 //
 // The status guard is what makes the column mean "last seen while working": a
