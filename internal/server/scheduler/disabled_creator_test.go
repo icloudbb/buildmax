@@ -2,13 +2,13 @@ package scheduler
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/mock"
 )
 
@@ -34,16 +34,16 @@ func enabledMember(userID string) eligibility.Checker {
 //
 // Withdrawing authority — disabling the account, or removing it from the run's
 // Space — has to stop work it queued, or the change means "stops signing in"
-// rather than "stops acting". The run fails at dispatch rather than being left
-// with no worker coming for it: a run nobody will ever pick up, sitting in a
-// queue with no explanation, is worse than a terminal one that says why.
+// rather than "stops acting". The run reaches CANCELED, not FAILED: nothing went
+// wrong, the account may no longer act, and the reason records which withdrawal
+// it was.
 func TestSchedulerDoesNotDispatchForAnIneligibleInitiator(t *testing.T) {
 	disabledAt := time.Unix(1, 0).UTC()
 
 	tests := []struct {
-		name    string
-		elig    eligibility.Checker
-		wantMsg string
+		name       string
+		elig       eligibility.Checker
+		wantReason string
 	}{
 		{
 			name: "disabled account",
@@ -55,7 +55,7 @@ func TestSchedulerDoesNotDispatchForAnIneligibleInitiator(t *testing.T) {
 					{SpaceID: "tm_test", UserID: "u_gone", Role: corespace.RoleMember},
 				}},
 			),
-			wantMsg: "disabled",
+			wantReason: coretask.CancelReasonCreatorDisabled,
 		},
 		{
 			name: "removed from the space",
@@ -65,7 +65,7 @@ func TestSchedulerDoesNotDispatchForAnIneligibleInitiator(t *testing.T) {
 				}},
 				&mock.MockSpaceStore{}, // enabled, but no membership row
 			),
-			wantMsg: "not a member",
+			wantReason: coretask.CancelReasonCreatorNotMember,
 		},
 	}
 
@@ -92,11 +92,11 @@ func TestSchedulerDoesNotDispatchForAnIneligibleInitiator(t *testing.T) {
 			if spy.lastUpdateStatus == nil {
 				t.Fatal("the run was left with no explanation")
 			}
-			if spy.lastUpdateStatus.status != "FAILED" {
-				t.Errorf("status = %q, want FAILED", spy.lastUpdateStatus.status)
+			if spy.lastUpdateStatus.status != string(coretask.RunStatusCanceled) {
+				t.Errorf("status = %q, want CANCELED", spy.lastUpdateStatus.status)
 			}
-			if spy.lastUpdateStatus.errorMessage == nil || !strings.Contains(*spy.lastUpdateStatus.errorMessage, tc.wantMsg) {
-				t.Errorf("the run should say why it did not start, got %v", spy.lastUpdateStatus.errorMessage)
+			if spy.lastUpdateStatus.cancelReason != tc.wantReason {
+				t.Errorf("cancel_reason = %q, want %q", spy.lastUpdateStatus.cancelReason, tc.wantReason)
 			}
 		})
 	}

@@ -233,7 +233,7 @@ func TestCancelDoesNotWriteATerminalStatus(t *testing.T) {
 	canceller := newTestUser(t, s, "cancel-request-user")
 	startTaskRunForTest(t, s, ctx, runID)
 
-	accepted, err := s.RequestTaskRunCancel(ctx, runID, canceller, time.Now().UTC())
+	accepted, err := s.RequestTaskRunCancel(ctx, runID, canceller, coretask.CancelReasonUserRequested, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("RequestTaskRunCancel: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestCancelRacingAReportLeavesOneConsistentOutcome(t *testing.T) {
 	// Odd callers report the outcome, even callers ask to stop, all at once.
 	race(t, func(i int) (bool, error) {
 		if i%2 == 0 {
-			return s.RequestTaskRunCancel(ctx, runID, canceller, time.Now().UTC())
+			return s.RequestTaskRunCancel(ctx, runID, canceller, coretask.CancelReasonUserRequested, time.Now().UTC())
 		}
 		return s.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 			TaskRunID:      runID,
@@ -342,7 +342,7 @@ func TestCancelIsRefusedOnAFinishedRun(t *testing.T) {
 		t.Fatalf("TransitionTaskRun to SUCCEEDED: updated=%v err=%v", updated, err)
 	}
 
-	accepted, err := s.RequestTaskRunCancel(ctx, runID, canceller, time.Now().UTC())
+	accepted, err := s.RequestTaskRunCancel(ctx, runID, canceller, coretask.CancelReasonUserRequested, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("RequestTaskRunCancel: %v", err)
 	}

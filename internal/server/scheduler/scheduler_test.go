@@ -32,6 +32,7 @@ type spyTaskRunStore struct {
 		status       string
 		endedAt      *time.Time
 		errorMessage *string
+		cancelReason string
 	}
 }
 
@@ -101,7 +102,7 @@ func (s *spyTaskRunStore) GetActiveTaskRunByTask(_ context.Context, _ string) (*
 	return nil, nil
 }
 
-func (s *spyTaskRunStore) RequestTaskRunCancel(_ context.Context, _, _ string, _ time.Time) (bool, error) {
+func (s *spyTaskRunStore) RequestTaskRunCancel(_ context.Context, _, _, _ string, _ time.Time) (bool, error) {
 	return false, nil
 }
 
@@ -121,13 +122,18 @@ func (s *spyTaskRunStore) TransitionTaskRun(_ context.Context, in coretask.Trans
 		return false, nil
 	}
 	run.Status = string(in.NewStatus)
-	if in.NewStatus == coretask.RunStatusFailed {
+	if in.NewStatus == coretask.RunStatusFailed || in.NewStatus == coretask.RunStatusCanceled {
+		cancelReason := ""
+		if in.CancelReason != nil {
+			cancelReason = *in.CancelReason
+		}
 		s.lastUpdateStatus = &struct {
 			taskRunID    string
 			status       string
 			endedAt      *time.Time
 			errorMessage *string
-		}{in.TaskRunID, string(in.NewStatus), in.EndedAt, in.ErrorMessage}
+			cancelReason string
+		}{in.TaskRunID, string(in.NewStatus), in.EndedAt, in.ErrorMessage, cancelReason}
 	}
 	return true, nil
 }

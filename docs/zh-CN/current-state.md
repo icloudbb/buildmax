@@ -323,7 +323,8 @@ webhook 回调发送器未组装进 Server。周期性 schedule 通过 `schedule
 每个到期时刻跨副本只认领一次，错过的触发合并为一次补触发，连续五次触发失败，或
 创建者已不能在该 Space 运行工作（被停用，或被移出该 Space）时，暂停该 schedule。
 Portal 在 Agent 详情页创建和管理 schedule，并在
-Schedules 页面列出 Space 内的全部 schedule；暂停原因只写日志，不展示。它们不是
+Schedules 页面列出 Space 内的全部 schedule；暂停原因已记录在 schedule 上
+（`pause_reason`），但 Portal 尚未展示。它们不是
 对话渠道（[`internal/core/schedule`](../../internal/core/schedule/schedule.go)、
 [`internal/server/scheduler`](../../internal/server/scheduler)、
 [设计记录](design/定时Agent执行.md)）。Space 插件激活支持 skill/subagent 内容，

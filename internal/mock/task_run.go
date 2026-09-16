@@ -127,7 +127,7 @@ func (m *MockTaskRunStore) GetActiveTaskRunByTask(_ context.Context, taskID stri
 	return nil, nil
 }
 
-func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, requestedBy string, requestedAt time.Time) (bool, error) {
+func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, requestedBy, reason string, requestedAt time.Time) (bool, error) {
 	for i := range m.Runs {
 		if m.Runs[i].ID != taskRunID {
 			continue
@@ -136,7 +136,10 @@ func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, re
 			return false, nil
 		}
 		m.Runs[i].CancelRequestedAt = &requestedAt
-		m.Runs[i].CancelRequestedBy = &requestedBy
+		m.Runs[i].CancelReason = reason
+		if requestedBy != "" {
+			m.Runs[i].CancelRequestedBy = &requestedBy
+		}
 		return true, nil
 	}
 	return false, nil
@@ -174,6 +177,9 @@ func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in coretask.Tr
 		}
 		if in.TracePath != nil {
 			m.Runs[i].TracePath = in.TracePath
+		}
+		if in.CancelReason != nil {
+			m.Runs[i].CancelReason = *in.CancelReason
 		}
 		return true, m.syncTaskFromRun(ctx, in.TaskRunID)
 	}

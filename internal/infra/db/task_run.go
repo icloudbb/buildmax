@@ -55,6 +55,7 @@ type taskRunRow struct {
 	// until its own worker reports the outcome.
 	CancelRequestedAt *time.Time `gorm:"column:cancel_requested_at;index"`
 	CancelRequestedBy *uint64    `gorm:"column:cancel_requested_by"`
+	CancelReason      string     `gorm:"column:cancel_reason;type:varchar(32);not null;default:''"`
 	// RetryOfTaskRunID names the run this one repeats. A nullable column rather
 	// than a trigger_source detail because the question a reader asks is which
 	// run this repeated, and a source string cannot answer it.
@@ -163,6 +164,7 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		SandboxNetworkTier:             row.Row.SandboxNetworkTier,
 		SandboxFilesystemTier:          row.Row.SandboxFilesystemTier,
 		CancelRequestedAt:              row.Row.CancelRequestedAt,
+		CancelReason:                   row.Row.CancelReason,
 		LastSeenAt:                     row.Row.LastSeenAt,
 		CreatedAt:                      row.Row.CreatedAt,
 		IdempotencyKey:                 row.Row.IdempotencyKey,
@@ -200,6 +202,7 @@ type taskRunUpdate struct {
 	tracePath        *string
 	promptTokens     *int
 	completionTokens *int
+	cancelReason     *string
 }
 
 // buildTaskRunUpdates renders the update into GORM's column map. A nil field
@@ -233,6 +236,9 @@ func buildTaskRunUpdates(in taskRunUpdate) map[string]interface{} {
 	}
 	if in.completionTokens != nil {
 		updates["completion_tokens"] = *in.completionTokens
+	}
+	if in.cancelReason != nil {
+		updates["cancel_reason"] = *in.cancelReason
 	}
 	return updates
 }
@@ -589,21 +595,27 @@ func (s *Store) GetActiveTaskRunByTask(ctx context.Context, taskID string) (*cor
 // worker reports an outcome, so writing CANCELED here would describe a run that
 // is still executing, and the worker's own report would overwrite it moments
 // later.
-func (s *Store) RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy string, requestedAt time.Time) (bool, error) {
+func (s *Store) RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy, reason string, requestedAt time.Time) (bool, error) {
 	id, ok := util.CanonicalPublicID(taskRunID)
 	if !ok {
 		return false, nil
 	}
-	requester, err := lookupKey(ctx, s.db, "user", requestedBy)
-	if err != nil {
-		return false, err
+	updates := map[string]any{
+		"cancel_requested_at": requestedAt,
+		"cancel_reason":       reason,
+	}
+	// A background reconciler asks with no name; the reason carries why. A person
+	// asking resolves to their row so "who stopped this" has an answer.
+	if requestedBy != "" {
+		requester, err := lookupKey(ctx, s.db, "user", requestedBy)
+		if err != nil {
+			return false, err
+		}
+		updates["cancel_requested_by"] = requester
 	}
 	result := s.db.WithContext(ctx).Model(&taskRunRow{}).
 		Where("public_id = ? AND status IN ? AND cancel_requested_at IS NULL", id, coretask.ActiveRunStatuses()).
-		Updates(map[string]interface{}{
-			"cancel_requested_at": requestedAt,
-			"cancel_requested_by": requester,
-		})
+		Updates(updates)
 	if result.Error != nil {
 		return false, result.Error
 	}
@@ -719,6 +731,7 @@ func (s *Store) TransitionTaskRun(ctx context.Context, in coretask.TransitionRun
 				tracePath:        in.TracePath,
 				promptTokens:     in.PromptTokens,
 				completionTokens: in.CompletionTokens,
+				cancelReason:     in.CancelReason,
 			}))
 		if result.Error != nil {
 			return result.Error

@@ -434,7 +434,8 @@ into one catch-up, and pauses a schedule after five consecutive failed firings
 or when its creator can no longer run work in the Space — disabled, or removed
 from it. Portal creates and manages schedules on the
 Agent detail page and lists every schedule in a Space on a Schedules page; the
-pause reason is logged, not shown. They are not a conversation channel
+pause reason is recorded on the schedule (`pause_reason`) but not yet shown in
+Portal. They are not a conversation channel
 ([`internal/core/schedule`](../internal/core/schedule/schedule.go),
 [`internal/server/scheduler`](../internal/server/scheduler),
 [design](design/scheduled-agent-execution.md)). Space plugin activation supports skill/subagent content but rejects

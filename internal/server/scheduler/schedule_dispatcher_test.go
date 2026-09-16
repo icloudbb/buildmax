@@ -95,6 +95,11 @@ func (f *fakeScheduleStore) UpdateSchedule(_ context.Context, in coreschedule.Up
 	}
 	if in.Enabled != nil {
 		sc.Enabled = *in.Enabled
+		if *in.Enabled {
+			sc.PauseReason = ""
+		} else if in.PauseReason != nil {
+			sc.PauseReason = *in.PauseReason
+		}
 	}
 	cp := *sc
 	return &cp, nil
@@ -288,8 +293,9 @@ func TestDispatcherPausesIneligibleCreator(t *testing.T) {
 	disabledAt := t0.Add(-time.Hour)
 
 	tests := []struct {
-		name string
-		elig eligibility.Checker
+		name       string
+		elig       eligibility.Checker
+		wantReason string
 	}{
 		{
 			name: "disabled creator",
@@ -299,6 +305,7 @@ func TestDispatcherPausesIneligibleCreator(t *testing.T) {
 					{SpaceID: "space1", UserID: "user1", Role: corespace.RoleMember},
 				}},
 			),
+			wantReason: coreschedule.PauseReasonCreatorDisabled,
 		},
 		{
 			name: "creator removed from the space",
@@ -306,6 +313,7 @@ func TestDispatcherPausesIneligibleCreator(t *testing.T) {
 				fakeUserStore{user: &coreidentity.User{ID: "user1"}},
 				&mock.MockSpaceStore{}, // enabled, but no membership row
 			),
+			wantReason: coreschedule.PauseReasonCreatorNotMember,
 		},
 	}
 
@@ -322,8 +330,12 @@ func TestDispatcherPausesIneligibleCreator(t *testing.T) {
 			if admitter.count() != 0 {
 				t.Errorf("a Task was admitted for an ineligible creator: %d, want 0", admitter.count())
 			}
-			if store.get("sched1").Enabled {
+			stored := store.get("sched1")
+			if stored.Enabled {
 				t.Error("schedule still enabled after its creator was found ineligible")
+			}
+			if stored.PauseReason != tc.wantReason {
+				t.Errorf("pause_reason = %q, want %q", stored.PauseReason, tc.wantReason)
 			}
 		})
 	}

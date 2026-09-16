@@ -251,8 +251,15 @@ func (s *Scheduler) pollOnce() {
 		case errors.Is(err, eligibility.ErrUnavailable):
 			s.log().WarnContext(ctx, "could not verify run eligibility; the worker will re-check", "err", err)
 		default:
-			s.log().WarnContext(ctx, "run initiator is no longer eligible; marking run FAILED", "user_id", run.CreatedBy, "err", err)
-			s.failRun(ctx, run.ID, err)
+			// Authority withdrawn while the run waited is a cancellation, not a
+			// failure: nothing went wrong, the account may no longer act. The run
+			// keeps whatever it had; it just never started.
+			reason := coretask.CancelReasonCreatorNotMember
+			if errors.Is(err, eligibility.ErrAccountDisabled) {
+				reason = coretask.CancelReasonCreatorDisabled
+			}
+			s.log().WarnContext(ctx, "run initiator is no longer eligible; canceling", "user_id", run.CreatedBy, "reason", reason, "err", err)
+			s.cancelRun(ctx, run.ID, coretask.RunStatusScheduled, reason, err)
 			return
 		}
 	}
@@ -321,6 +328,34 @@ func (s *Scheduler) runTokenFor(run *coretask.Run, task *coretask.Task) (string,
 		TaskRunID: run.ID,
 		TaskID:    task.ID,
 	})
+}
+
+// cancelRun records that a claimed run will not start because its initiator's
+// authority was withdrawn. It moves the run terminal as CANCELED with a reason,
+// distinct from failRun's FAILED, so a person reading it is not sent looking for
+// a fault that never happened. A run that already reached a terminal status is
+// left alone, the same guard failRun uses.
+func (s *Scheduler) cancelRun(ctx context.Context, taskRunID string, expected coretask.RunStatus, reason string, cause error) {
+	msg := cause.Error()
+	if len(msg) > maxErrorMessageLength {
+		msg = msg[:maxErrorMessageLength]
+	}
+	endedAt := time.Now().UTC()
+	updated, err := s.taskRuns.TransitionTaskRun(ctx, coretask.TransitionRunInput{
+		TaskRunID:      taskRunID,
+		ExpectedStatus: expected,
+		NewStatus:      coretask.RunStatusCanceled,
+		EndedAt:        &endedAt,
+		ErrorMessage:   &msg,
+		CancelReason:   &reason,
+	})
+	if err != nil {
+		s.log().ErrorContext(ctx, "could not set run to CANCELED", "err", err)
+		return
+	}
+	if !updated {
+		s.log().InfoContext(ctx, "run outcome changed while recording cancellation")
+	}
 }
 
 // failRun records a dispatch failure.

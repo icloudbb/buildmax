@@ -153,7 +153,7 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 		// A stored expression that no longer parses can never fire; pause it so the
 		// dispatcher stops reaching it every tick.
 		log.WarnContext(ctx, "invalid cron on a stored schedule; pausing", "err", err)
-		d.pause(ctx, s.ID, log)
+		d.pause(ctx, s.ID, coreschedule.PauseReasonInvalidCron, log)
 		return
 	}
 
@@ -183,8 +183,12 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 		case errors.Is(err, eligibility.ErrUnavailable):
 			log.WarnContext(ctx, "could not verify schedule creator eligibility; firing anyway", "err", err)
 		default:
-			log.InfoContext(ctx, "schedule creator is no longer eligible; pausing", "user_id", s.CreatedBy, "err", err)
-			d.pause(ctx, s.ID, log)
+			reason := coreschedule.PauseReasonCreatorNotMember
+			if errors.Is(err, eligibility.ErrAccountDisabled) {
+				reason = coreschedule.PauseReasonCreatorDisabled
+			}
+			log.InfoContext(ctx, "schedule creator is no longer eligible; pausing", "user_id", s.CreatedBy, "reason", reason, "err", err)
+			d.pause(ctx, s.ID, reason, log)
 			return
 		}
 	}
@@ -211,7 +215,7 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 		if s.ConsecutiveFailures+1 >= d.maxFailures {
 			log.WarnContext(ctx, "schedule paused after consecutive failures",
 				"consecutive_failures", s.ConsecutiveFailures+1)
-			d.pause(ctx, s.ID, log)
+			d.pause(ctx, s.ID, coreschedule.PauseReasonConsecutiveFailures, log)
 		}
 		return
 	}
@@ -224,13 +228,13 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 	log.InfoContext(ctx, "schedule fired", "task_id", task.ID, "next_fire_at", next)
 }
 
-// pause disables a schedule. The pause itself is the durable record; the reason
-// is logged. Surfacing a pause reason to the operator is a later, Portal-facing
-// slice.
-func (d *ScheduleDispatcher) pause(ctx context.Context, scheduleID string, log *slog.Logger) {
+// pause disables a schedule and records why, so an operator can tell an
+// automatic pause from one they applied. The pause itself is the authority; the
+// reason is diagnostic.
+func (d *ScheduleDispatcher) pause(ctx context.Context, scheduleID, reason string, log *slog.Logger) {
 	disabled := false
 	if _, err := d.schedules.UpdateSchedule(ctx, coreschedule.UpdateInput{
-		ScheduleID: scheduleID, Enabled: &disabled,
+		ScheduleID: scheduleID, Enabled: &disabled, PauseReason: &reason,
 	}); err != nil {
 		log.WarnContext(ctx, "pause schedule failed", "err", err)
 	}

@@ -45,7 +45,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 		t.Fatalf("active run = %+v, want the task's pending run %s", active, runID)
 	}
 
-	requested, err := s.RequestTaskRunCancel(ctx, runID, cancelTestUser, time.Unix(1_800_000_000, 0).UTC())
+	requested, err := s.RequestTaskRunCancel(ctx, runID, cancelTestUser, coretask.CancelReasonUserRequested, time.Unix(1_800_000_000, 0).UTC())
 	if err != nil {
 		t.Fatalf("RequestTaskRunCancel: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	}
 	// A second request must not overwrite the first: the stored name is whoever
 	// asked, and the stored time is what the backstop measures against.
-	again, err := s.RequestTaskRunCancel(ctx, runID, newTestUser(t, s, "cancel-other"), time.Unix(1_800_009_999, 0).UTC())
+	again, err := s.RequestTaskRunCancel(ctx, runID, newTestUser(t, s, "cancel-other"), coretask.CancelReasonUserRequested, time.Unix(1_800_009_999, 0).UTC())
 	if err != nil {
 		t.Fatalf("RequestTaskRunCancel again: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	}); err != nil || !updated {
 		t.Fatalf("TransitionTaskRun to CANCELED: updated=%v err=%v", updated, err)
 	}
-	if got, err := s.RequestTaskRunCancel(ctx, runID, cancelTestUser, time.Unix(1_800_000_200, 0).UTC()); err != nil || got {
+	if got, err := s.RequestTaskRunCancel(ctx, runID, cancelTestUser, coretask.CancelReasonUserRequested, time.Unix(1_800_000_200, 0).UTC()); err != nil || got {
 		t.Errorf("RequestTaskRunCancel on a finished run = %v, %v; want false, nil", got, err)
 	}
 	after, err := s.ListCancelRequestedTaskRuns(ctx, time.Unix(1_800_000_300, 0).UTC(), 10)

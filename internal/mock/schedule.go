@@ -80,6 +80,11 @@ func (m *MockScheduleStore) UpdateSchedule(_ context.Context, in coreschedule.Up
 		}
 		if in.Enabled != nil {
 			m.Schedules[i].Enabled = *in.Enabled
+			if *in.Enabled {
+				m.Schedules[i].PauseReason = ""
+			} else if in.PauseReason != nil {
+				m.Schedules[i].PauseReason = *in.PauseReason
+			}
 		}
 		if in.NextFireAt != nil {
 			m.Schedules[i].NextFireAt = *in.NextFireAt
