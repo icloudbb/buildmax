@@ -175,6 +175,9 @@ internal/
 │   │                   legal set of transitions, run output, and delivery
 │   ├── identity/       Who a caller is: the account, its credentials, its
 │   │                   rotating sessions, and the deployment roles it holds
+│   ├── eligibility/    May this account run work in this Space right now: the
+│   │                   account-not-disabled and still-a-member gate the durable
+│   │                   dispatch paths share with the HTTP guard
 │   ├── schema/         What a database says has been done to it: the applied
 │   │                   migrations infra/db reports and the admin route reads
 │   ├── session/        Local session model; persistence lives in agentapp

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
@@ -144,13 +145,20 @@ func RunServer(ctx context.Context, portOverride int) error {
 		return err
 	}
 
+	// One eligibility check behind every durable dispatch path: an account that
+	// is not disabled and still a member of the run's Space. The HTTP guard
+	// enforces the same two facts on human requests; this reaches the Schedule,
+	// Workflow, and worker-dispatch paths that never pass through a handler. See
+	// docs/proposals/personnel-deactivation-lifecycle.md §7.
+	elig := eligibility.New(store, store)
+
 	sched, err := scheduler.NewScheduler(store, runner, runTokenMinter(sc, jwtSecret))
 	if err != nil {
 		return fmt.Errorf("scheduler: %w", err)
 	}
-	// So that work queued by an account an administrator has disabled does not
-	// start after the disable.
-	sched.WithUserStore(store).Start()
+	// So that work queued by an account an administrator has disabled, or a
+	// member a Space owner has removed, does not start after the change.
+	sched.WithEligibility(elig).Start()
 
 	cleaner := scheduler.NewCredentialCleaner(store, 0)
 	cleaner.Start()
@@ -194,9 +202,10 @@ func RunServer(ctx context.Context, portOverride int) error {
 	if err != nil {
 		return fmt.Errorf("schedule dispatcher: %w", err)
 	}
-	// So a schedule whose creator an administrator disabled pauses rather than
-	// minting Tasks that would only fail at dispatch.
-	dispatcher.WithUserStore(store).Start()
+	// So a schedule whose creator an administrator disabled, or an owner removed
+	// from the Space, pauses rather than minting Tasks that would only fail at
+	// dispatch.
+	dispatcher.WithEligibility(elig).Start()
 
 	// Recovers Workflow runs stranded by a lost terminal callback or a Server
 	// restart: each sweep reconciles due runs from durable state. It reuses the

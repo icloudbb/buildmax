@@ -47,12 +47,17 @@ func runOnce(t *testing.T, spy *spyTaskRunStore, runner WorkerRunner, mint MintR
 	s.Stop(context.Background())
 }
 
-// TestRunTokenClaimsComeFromTheTask is the property the whole credential rests
-// on: a worker's identity is assembled from what the server already knows about
-// the run, so nothing a worker or its model does can change who a call is
-// attributed to or whose models it may reach.
-func TestRunTokenClaimsComeFromTheTask(t *testing.T) {
+// TestRunTokenClaimsComeFromTheRunInitiator is the property the whole credential
+// rests on: a worker's identity is assembled from what the server already knows
+// about the run, so nothing a worker or its model does can change who a call is
+// attributed to or whose models it may reach. The user claim is the run's own
+// initiator, not the Task creator, so a Continue by a colleague runs under that
+// colleague — see the personnel-deactivation proposal, Invariant 3.
+func TestRunTokenClaimsComeFromTheRunInitiator(t *testing.T) {
 	spy := newSpyTaskRunStore("r_token12345678901234")
+	// A later run initiated by a different member than the one who created the
+	// Task: the token must carry the initiator, with the Space from the Task.
+	spy.pendingRun.CreatedBy = "u_continuer"
 	runner := &recordingRunner{}
 
 	var got authtoken.RunClaims
@@ -69,7 +74,7 @@ func TestRunTokenClaimsComeFromTheTask(t *testing.T) {
 		t.Errorf("worker received token %q", token)
 	}
 	want := authtoken.RunClaims{
-		UserID:    "u_test",
+		UserID:    "u_continuer",
 		SpaceID:   "tm_test",
 		TaskRunID: "r_token12345678901234",
 		TaskID:    "t_test",

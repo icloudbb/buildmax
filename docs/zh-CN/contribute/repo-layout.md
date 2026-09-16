@@ -164,6 +164,8 @@ internal/
 │   │                   合法的一套状态转移、run 输出与投递
 │   ├── identity/       调用者是谁：账户、其凭证、其轮换的 session，以及
 │   │                   它持有的部署角色
+│   ├── eligibility/    此账户现在能否在此 Space 运行工作：账户未停用且仍是
+│   │                   成员这一闸门，供各持久派发路径与 HTTP guard 共用
 │   ├── schema/         数据库自陈已发生过什么：infra/db 报告的已应用
 │   │                   迁移，以及 admin 路由读取的内容
 │   ├── session/        本地 session 模型；持久化实现放在 agentapp 里

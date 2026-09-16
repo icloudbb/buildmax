@@ -42,6 +42,7 @@ func newSpyTaskRunStore(taskRunID string) *spyTaskRunStore {
 			TaskID:    "t_test",
 			Input:     "input",
 			Status:    "PENDING",
+			CreatedBy: "u_test",
 			CreatedAt: time.Now().UTC(),
 		},
 		task: &coretask.Task{

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	buildmaxlog "github.com/icloudbb/buildmax/internal/infra/log"
 	"github.com/icloudbb/buildmax/internal/server/authtoken"
@@ -34,11 +34,6 @@ const (
 	maxErrorMessageLength = 500
 )
 
-// errCreatorDisabled is the reason recorded on a run whose creator was disabled
-// before it was dispatched. It is written into the run's error_message, which is
-// where a run explains itself.
-var errCreatorDisabled = errors.New("the account that created this run has been disabled")
-
 // MintRunToken signs the credential a worker presents for one run's managed
 // inference calls.
 //
@@ -50,10 +45,10 @@ type MintRunToken func(authtoken.RunClaims) (string, error)
 // Scheduler polls the task run store for PENDING runs and runs the worker via the configured runner.
 type Scheduler struct {
 	taskRuns coretask.RunStore
-	// users answers whether the account that created a run may still have work
-	// executed for it. Nil means the check is skipped, which is what a
-	// deployment with no user store has.
-	users        coreidentity.UserStore
+	// eligible answers whether the account that initiated a run may still have
+	// work executed for it in the run's Space. Nil skips the check, which is what
+	// a deployment that wires no authority stores has.
+	eligible     eligibility.Checker
 	runner       WorkerRunner
 	mintRunToken MintRunToken
 	pollInterval time.Duration
@@ -110,35 +105,16 @@ func NewSchedulerWithPollInterval(taskRunStore coretask.RunStore, runner WorkerR
 	}, nil
 }
 
-// WithUserStore lets the scheduler refuse work for a disabled account.
+// WithEligibility lets the scheduler refuse work whose initiating account has
+// been disabled, deleted, or removed from the run's Space since it was queued.
 //
 // It is a setter rather than a constructor parameter because the check is
-// optional: a deployment with no user store schedules exactly as it did before,
-// and the three existing call sites do not have to learn about accounts to keep
-// compiling.
-func (s *Scheduler) WithUserStore(users coreidentity.UserStore) *Scheduler {
-	s.users = users
+// optional: a deployment that wires no authority stores schedules exactly as it
+// did before, and the existing call sites do not have to learn about accounts to
+// keep compiling.
+func (s *Scheduler) WithEligibility(c eligibility.Checker) *Scheduler {
+	s.eligible = c
 	return s
-}
-
-// creatorIsDisabled reports whether the account that asked for this run has
-// been disabled since it was queued.
-//
-// A store failure answers false. Refusing to run a space's work because the user
-// table was briefly unreachable would turn a database blip into lost work,
-// which is a worse failure than one run starting for an account disabled a
-// moment ago — the run's own credential is scoped to that run and expiring, and
-// the account's sessions are already gone.
-func (s *Scheduler) creatorIsDisabled(ctx context.Context, run *coretask.Run) bool {
-	if s.users == nil || run.CreatedBy == "" {
-		return false
-	}
-	user, err := s.users.GetUser(ctx, run.CreatedBy)
-	if err != nil {
-		s.log().WarnContext(ctx, "could not check the run creator's account", "err", err)
-		return false
-	}
-	return user != nil && user.Disabled()
 }
 
 // Start launches the poll loop in a background goroutine.
@@ -244,21 +220,46 @@ func (s *Scheduler) pollOnce() {
 	// From here the run is ours, so its id goes on the context once and
 	// every record below -- including failRun's -- carries it.
 	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
-	// Work queued by an account that has since been disabled does not
-	// start. It fails here rather than being left PENDING for the same
-	// reason the credential failure below does: a run nobody will ever
-	// dispatch, sitting in a queue with no explanation, is worse than a
-	// terminal one that says why. There is no CANCELED status to use —
-	// see docs/design/system-administration.md section 8.
-	if s.creatorIsDisabled(ctx, run) {
-		s.log().WarnContext(ctx, "run creator is disabled; marking run FAILED", "user_id", run.CreatedBy)
-		s.failRun(ctx, run.ID, errCreatorDisabled)
-		return
+
+	// The task carries the Space this run belongs to, which the eligibility
+	// check and the run token both need. Load it once, when either wants it.
+	var task *coretask.Task
+	if s.eligible != nil || s.mintRunToken != nil {
+		_, t, err := s.taskRuns.GetTaskRunWithTask(ctx, run.ID)
+		if err != nil {
+			s.log().ErrorContext(ctx, "could not load the task behind this run; marking run FAILED", "err", err)
+			s.failRun(ctx, run.ID, fmt.Errorf("load the task behind this run: %w", err))
+			return
+		}
+		if t == nil {
+			s.failRun(ctx, run.ID, fmt.Errorf("run %s has no task", run.ID))
+			return
+		}
+		task = t
+	}
+
+	// Work whose initiating account was disabled, deleted, or removed from the
+	// Space while it waited does not start: authority withdrawn after queueing
+	// must not be spent. It fails here rather than being left with no worker
+	// coming for it — a run nobody will dispatch, with no explanation, is worse
+	// than a terminal one that says why. A store outage leaves eligibility
+	// unknown; rather than lose the run or spend authority on a guess, dispatch
+	// and let the worker's own fetch re-check once the store is reachable.
+	if s.eligible != nil && run.CreatedBy != "" {
+		switch err := s.eligible.Check(ctx, run.CreatedBy, task.SpaceID); {
+		case err == nil:
+		case errors.Is(err, eligibility.ErrUnavailable):
+			s.log().WarnContext(ctx, "could not verify run eligibility; the worker will re-check", "err", err)
+		default:
+			s.log().WarnContext(ctx, "run initiator is no longer eligible; marking run FAILED", "user_id", run.CreatedBy, "err", err)
+			s.failRun(ctx, run.ID, err)
+			return
+		}
 	}
 	// A run that cannot be given its credential fails here rather than
 	// starting and failing at its first inference call, where the cause
 	// would read as a model error instead of a dispatch one.
-	runToken, err := s.runTokenFor(ctx, run)
+	runToken, err := s.runTokenFor(run, task)
 	if err != nil {
 		s.log().ErrorContext(ctx, "could not mint a run token; marking run FAILED", "err", err)
 		s.failRun(ctx, run.ID, err)
@@ -302,22 +303,20 @@ func (s *Scheduler) dispatch(ctx context.Context, run coretask.Run, runToken str
 
 // runTokenFor builds this run's gateway credential from server state.
 //
-// Returns "" when the deployment mints none. The claims come from the task, not
-// from the run alone, because the space and the owner are what the gateway
-// authorizes against and only the task carries them.
-func (s *Scheduler) runTokenFor(ctx context.Context, run *coretask.Run) (string, error) {
+// Returns "" when the deployment mints none. The user claim is the run's own
+// initiator, not the Task creator: a Continue by another member runs under that
+// member, and disabling the original Task creator does not re-attribute a later
+// run to them. The Space comes from the Task, which is what the gateway
+// authorizes against.
+func (s *Scheduler) runTokenFor(run *coretask.Run, task *coretask.Task) (string, error) {
 	if s.mintRunToken == nil {
 		return "", nil
-	}
-	_, task, err := s.taskRuns.GetTaskRunWithTask(ctx, run.ID)
-	if err != nil {
-		return "", fmt.Errorf("load the task behind this run: %w", err)
 	}
 	if task == nil {
 		return "", fmt.Errorf("run %s has no task", run.ID)
 	}
 	return s.mintRunToken(authtoken.RunClaims{
-		UserID:    task.CreatedBy,
+		UserID:    run.CreatedBy,
 		SpaceID:   task.SpaceID,
 		TaskRunID: run.ID,
 		TaskID:    task.ID,

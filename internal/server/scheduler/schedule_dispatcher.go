@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	schedulesvc "github.com/icloudbb/buildmax/internal/service/schedule"
@@ -47,9 +47,10 @@ type ScheduleAdmitter interface {
 type ScheduleDispatcher struct {
 	schedules coreschedule.Store
 	admitter  ScheduleAdmitter
-	// users answers whether a schedule's creator is still enabled. Nil skips the
-	// check, which is what a deployment with no user store has.
-	users       coreidentity.UserStore
+	// eligible answers whether a schedule's creator may still run work in its
+	// Space. Nil skips the check, which is what a deployment that wires no
+	// authority stores has.
+	eligible    eligibility.Checker
 	interval    time.Duration
 	maxFailures int
 	// now is the clock, injectable so a test can drive due times and catch-up
@@ -82,11 +83,11 @@ func NewScheduleDispatcher(schedules coreschedule.Store, admitter ScheduleAdmitt
 	}, nil
 }
 
-// WithUserStore lets the dispatcher pause a schedule whose creator was disabled,
-// rather than minting Tasks that would fail at dispatch. Optional, like the run
-// scheduler's own creator check.
-func (d *ScheduleDispatcher) WithUserStore(users coreidentity.UserStore) *ScheduleDispatcher {
-	d.users = users
+// WithEligibility lets the dispatcher pause a schedule whose creator was
+// disabled or removed from its Space, rather than minting Tasks that would fail
+// at dispatch. Optional, like the run scheduler's own check.
+func (d *ScheduleDispatcher) WithEligibility(c eligibility.Checker) *ScheduleDispatcher {
+	d.eligible = c
 	return d
 }
 
@@ -172,12 +173,20 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 	}
 
 	// Checked after the claim so exactly one caller reaches it: a schedule whose
-	// creator was disabled pauses rather than minting Tasks that would only fail
-	// at dispatch.
-	if d.creatorDisabled(ctx, s.CreatedBy) {
-		log.InfoContext(ctx, "schedule creator is disabled; pausing", "user_id", s.CreatedBy)
-		d.pause(ctx, s.ID, log)
-		return
+	// creator can no longer run work in this Space pauses rather than minting
+	// Tasks that would only fail at dispatch. A store outage leaves eligibility
+	// unknown; fire anyway rather than pause a space's schedule over a blip, the
+	// same trade-off the run scheduler makes.
+	if d.eligible != nil && s.CreatedBy != "" {
+		switch err := d.eligible.Check(ctx, s.CreatedBy, s.SpaceID); {
+		case err == nil:
+		case errors.Is(err, eligibility.ErrUnavailable):
+			log.WarnContext(ctx, "could not verify schedule creator eligibility; firing anyway", "err", err)
+		default:
+			log.InfoContext(ctx, "schedule creator is no longer eligible; pausing", "user_id", s.CreatedBy, "err", err)
+			d.pause(ctx, s.ID, log)
+			return
+		}
 	}
 
 	agentID := s.AgentID
@@ -225,19 +234,4 @@ func (d *ScheduleDispatcher) pause(ctx context.Context, scheduleID string, log *
 	}); err != nil {
 		log.WarnContext(ctx, "pause schedule failed", "err", err)
 	}
-}
-
-// creatorDisabled reports whether the account that owns a schedule has been
-// disabled. A store failure answers false: a brief lookup failure should not
-// pause a space's schedule, the same trade-off the run scheduler makes.
-func (d *ScheduleDispatcher) creatorDisabled(ctx context.Context, userID string) bool {
-	if d.users == nil || userID == "" {
-		return false
-	}
-	user, err := d.users.GetUser(ctx, userID)
-	if err != nil {
-		d.log().WarnContext(ctx, "could not check the schedule creator's account", "err", err)
-		return false
-	}
-	return user != nil && user.Disabled()
 }

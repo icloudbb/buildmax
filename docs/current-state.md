@@ -431,7 +431,8 @@ Recurring schedules run an Agent on the Task plane through a `schedule` trigger
 source and the `/api/spaces/{space_id}/schedules` API, dispatched by a resident
 loop that claims each due time once across replicas, coalesces missed firings
 into one catch-up, and pauses a schedule after five consecutive failed firings
-or when its creator is disabled. Portal creates and manages schedules on the
+or when its creator can no longer run work in the Space — disabled, or removed
+from it. Portal creates and manages schedules on the
 Agent detail page and lists every schedule in a Space on a Schedules page; the
 pause reason is logged, not shown. They are not a conversation channel
 ([`internal/core/schedule`](../internal/core/schedule/schedule.go),
