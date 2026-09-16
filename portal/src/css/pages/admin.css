@@ -329,3 +329,69 @@
     align-items: stretch;
   }
 }
+
+/* The guided-deactivation modal: an impact summary the operator reads before
+   the account gate commits. Counts and ids only — never a space's contents. */
+.admin-detail__muted {
+  margin: 0.5rem 0;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.9rem;
+}
+
+.admin-detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.admin-impact {
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.admin-impact li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 6rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 0.5rem;
+  background: var(--panel-bg);
+}
+
+.admin-impact li span {
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.8rem;
+}
+
+.admin-impact li strong {
+  font-size: 1.1rem;
+}
+
+.admin-impact__warn {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-danger, #c53030);
+  color: var(--color-danger, #c53030);
+  font-size: 0.9rem;
+}
+
+.admin-impact__choice {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+.admin-impact__choice input {
+  margin-top: 0.2rem;
+}

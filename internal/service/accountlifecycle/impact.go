@@ -58,6 +58,12 @@ func (s *Service) Impact(ctx context.Context, userID string) (Impact, error) {
 			return Impact{}, err
 		}
 		for i := range spaces {
+			// A personal Space is bound to the account and is not part of an
+			// offboarding: it is never handed to a successor, so it counts as
+			// neither a shared membership nor a sole-owned Space here.
+			if spaces[i].PersonalForUserID != nil {
+				continue
+			}
 			members, err := s.Spaces.ListSpaceMembers(ctx, spaces[i].ID)
 			if err != nil {
 				return Impact{}, err

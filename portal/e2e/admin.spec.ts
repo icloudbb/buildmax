@@ -124,6 +124,30 @@ test("creating an account walks the operator into issuing its login code", async
   await expect(page.locator(".settings-section__error")).toHaveCount(0)
 })
 
+test("disabling an account previews its impact before committing", async ({ page }) => {
+  // A throwaway account so the disable does not touch the operator or the shared
+  // fixtures. Created through the same UI the joiner test exercises.
+  await page.goto("/#/admin/accounts")
+  const email = `leaver-${Date.now()}@example.com`
+  await page.getByLabel("Email for the new account").fill(email)
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+  await expect(page.getByRole("heading", { name: email })).toBeVisible()
+
+  // Disable opens the guided impact preview rather than committing immediately.
+  await page.getByRole("button", { name: "Disable", exact: true }).click()
+  const dialog = page.getByRole("dialog")
+  await expect(dialog.getByText(`Disable ${email}?`)).toBeVisible()
+  // The impact loads as counts, never content.
+  await expect(dialog.locator(".admin-impact")).toBeVisible()
+
+  await dialog.getByRole("button", { name: "Disable account" }).click()
+
+  // The account is disabled and the outcome is reported; enabling is now offered.
+  await expect(page.getByText(`${email} is disabled.`)).toBeVisible()
+  await expect(page.getByRole("button", { name: "Enable" })).toBeVisible()
+  await expect(page.locator(".settings-section__error")).toHaveCount(0)
+})
+
 test("an administrator can add a model through the Portal", async ({ page }) => {
   await page.goto("/#/admin/models")
   await expect(page.getByRole("heading", { name: "Add a model" })).toBeVisible()

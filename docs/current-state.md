@@ -384,7 +384,10 @@ account gate, revokes sessions, optionally retires the account's webhook keys
 account's schedules, and cancels its in-flight runs, reporting the gate result
 alongside those cleanup counts; re-enabling reopens the gate and resurrects none
 of it. `GET /api/admin/users/{user_id}/deactivation-impact` projects that impact
-— counts and ids only, never Space content — before the change commits. Portal
+— counts and ids only, never Space content — before the change commits. Portal's
+admin area presents that projection as a guided preview when an operator
+disables an account (with the suspension-versus-leaver choice), and offers owner
+recovery as a "Make owner" action in the admin Spaces view. Portal
 keeps the renewable refresh credential in a Secure,
 HttpOnly, SameSite=Strict cookie and holds the short-lived access token only in
 memory; CLI and Desktop retain the JSON credential flow. Corporate sign-in over

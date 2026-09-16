@@ -13,6 +13,8 @@ import (
 	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
 )
 
+func strPtr(s string) *string { return &s }
+
 func newService(t *testing.T) (*accountlifecycle.Service, *mock.MockUserStore, *mock.MockScheduleStore, *mock.MockTaskRunStore) {
 	t.Helper()
 	users := &mock.MockUserStore{ByID: map[string]*coreidentity.User{
@@ -35,8 +37,16 @@ func newService(t *testing.T) (*accountlifecycle.Service, *mock.MockUserStore, *
 		Schedules: schedules,
 		Runs:      runs,
 		Spaces: &mock.MockSpaceStore{
-			Spaces:  []corespace.Space{{ID: "sp1"}},
-			Members: []corespace.Member{{SpaceID: "sp1", UserID: "u1", Role: corespace.RoleOwner}},
+			Spaces: []corespace.Space{
+				{ID: "sp1"},
+				// A personal space u1 solely owns: it must not count as an
+				// offboarding membership or a sole-owned shared space.
+				{ID: "personal", PersonalForUserID: strPtr("u1")},
+			},
+			Members: []corespace.Member{
+				{SpaceID: "sp1", UserID: "u1", Role: corespace.RoleOwner},
+				{SpaceID: "personal", UserID: "u1", Role: corespace.RoleOwner},
+			},
 		},
 		Now: func() time.Time { return time.Unix(1000, 0).UTC() },
 	}

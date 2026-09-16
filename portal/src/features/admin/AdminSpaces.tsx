@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { ApiAdminSpace, ApiAdminSpaceDetail } from "../../lib/api/types"
+import type { ApiAdminSpace, ApiAdminSpaceDetail, ApiAdminSpaceMember } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { getAdminSpace, listAdminSpaces } from "./api"
+import { getAdminSpace, listAdminSpaces, recoverSpaceOwner } from "./api"
 
 const PAGE_SIZE = 50
 
@@ -20,7 +20,40 @@ export function AdminSpaces({ token }: { token: string | null }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ApiAdminSpaceDetail | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const detailRef = useRef<HTMLElement | null>(null)
+
+  // Recover a shared space whose owners are all disabled by promoting an enabled
+  // member. The server enforces the "every owner disabled" precondition and
+  // refuses otherwise, so a mistaken click on a healthy space is a stated
+  // refusal, not a silent transfer.
+  async function makeOwner(space: ApiAdminSpaceDetail, member: ApiAdminSpaceMember): Promise<void> {
+    if (!token) return
+    const who = member.email || member.user_id
+    if (
+      !window.confirm(
+        `Make ${who} the owner of ${space.name}?\n\n` +
+          "Ownership recovery is allowed only when every current owner is disabled. " +
+          "The disabled owner is demoted to admin. No membership is created, and you gain " +
+          "no access to the space's contents.",
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      await recoverSpaceOwner(token, space.id, member.user_id)
+      setNotice(`${who} is now the owner of ${space.name}.`)
+      setSelected(await getAdminSpace(token, space.id))
+    } catch (err) {
+      setError(getErrorMessage(err, "Ownership recovery did not complete"))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   // The detail panel renders below the list, so on a long list it opens off
   // screen and the click reads as having done nothing.
@@ -163,17 +196,29 @@ export function AdminSpaces({ token }: { token: string | null }) {
             <p className="admin-empty">This deployment reports no quota.</p>
           )}
 
+          {notice ? <p className="admin-notice">{notice}</p> : null}
           <ul className="admin-list">
             {selected.members.map((member) => (
               <li key={member.user_id} className="admin-list__row">
                 <span className="admin-list__main">{member.email || member.user_id}</span>
                 <span className="admin-pill">{member.role}</span>
+                {!selected.personal && member.role !== "owner" ? (
+                  <button
+                    type="button"
+                    className="admin-button"
+                    disabled={busy}
+                    onClick={() => void makeOwner(selected, member)}
+                  >
+                    Make owner
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>
           <p className="admin-scope-note">
             Members and capacity, not work. Issues, conversations, files, artifacts, and
-            run traces stay behind membership.
+            run traces stay behind membership. "Make owner" recovers a space whose owners are
+            all disabled; the server refuses it while any owner can still sign in.
           </p>
         </section>
       ) : null}

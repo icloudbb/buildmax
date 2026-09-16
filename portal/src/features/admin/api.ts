@@ -16,6 +16,7 @@ import type {
   ApiAdminUserDetail,
   ApiAdminUsersResponse,
   ApiAuditEventsResponse,
+  ApiDeactivationImpact,
   ApiPluginReleasesResponse,
   ApiPluginsResponse,
   ApiSystemGrant,
@@ -123,9 +124,26 @@ export function setAdminUserDisabled(
   token: string,
   userId: string,
   disabled: boolean,
+  opts?: { retireWebhookKeys?: boolean },
 ): Promise<ApiAdminUserAfterDisable> {
   return send<ApiAdminUserAfterDisable>("PUT", `/users/${encodeURIComponent(userId)}/state`, token, {
     disabled,
+    retire_webhook_keys: opts?.retireWebhookKeys ?? false,
+  })
+}
+
+/** What disabling this account would stop, as counts and ids only. */
+export function getDeactivationImpact(token: string, userId: string): Promise<ApiDeactivationImpact> {
+  return get<ApiDeactivationImpact>(`/users/${encodeURIComponent(userId)}/deactivation-impact`, token)
+}
+
+/**
+ * Recover a shared Space whose owners are all disabled by promoting an enabled
+ * member. Refused by the server unless every recorded owner is disabled.
+ */
+export function recoverSpaceOwner(token: string, spaceId: string, successorId: string): Promise<void> {
+  return send<void>("PUT", `/spaces/${encodeURIComponent(spaceId)}/owner`, token, {
+    successor_id: successorId,
   })
 }
 
