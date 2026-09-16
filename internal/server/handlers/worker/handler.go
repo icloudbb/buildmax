@@ -13,6 +13,7 @@ import (
 	"net/http"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
@@ -41,6 +42,12 @@ type Config struct {
 
 	TaskRuns coretask.RunStore
 	Agents   agentdef.Store
+	// Eligible re-checks, when a worker fetches its run, that the run's initiator
+	// may still run work in its Space. It closes the race where an account is
+	// disabled or removed between the scheduler's dispatch check and the worker
+	// starting. Nil skips the check, matching a deployment that wires no
+	// authority stores. See docs/proposals/personnel-deactivation-lifecycle.md §7.
+	Eligible eligibility.Checker
 	// Spaces resolves a run's space default sandbox tiers -- what an agent that
 	// declares neither inherits. Nil means no space falls through beyond the
 	// agent's own declaration.

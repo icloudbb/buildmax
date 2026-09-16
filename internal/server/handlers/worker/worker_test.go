@@ -10,6 +10,8 @@ import (
 	"time"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
@@ -86,6 +88,49 @@ func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
 	}
 	if !got.Run.CancelRequested {
 		t.Errorf("cancel_requested = false for a run that was asked to stop; body = %s", w.Body.String())
+	}
+}
+
+// A worker fetching its run re-checks the initiator's authority: if the account
+// was disabled or removed from the Space after dispatch, the run is asked to
+// stop at fetch, with the reason recorded, so it never begins executing.
+func TestGetWorkerTaskRunHandler_ReChecksEligibilityAtFetch(t *testing.T) {
+	const taskRunID, space = "run-elig", "tm_1"
+	disabledAt := time.Unix(1, 0).UTC()
+	runs := &mock.MockTaskRunStore{
+		Runs: []coretask.Run{{
+			ID: taskRunID, TaskID: "task-1", Input: "input",
+			Status: string(coretask.RunStatusScheduled), CreatedBy: "u_gone",
+		}},
+		TaskList: []coretask.Task{{ID: "task-1", SpaceID: space, CreatedBy: "u_gone"}},
+	}
+	users := &mock.MockUserStore{ByID: map[string]*coreidentity.User{
+		"u_gone": {ID: "u_gone", DisabledAt: &disabledAt},
+	}}
+	spaces := &mock.MockSpaceStore{Members: []corespace.Member{
+		{SpaceID: space, UserID: "u_gone", Role: corespace.RoleMember},
+	}}
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Eligible: eligibility.New(users, spaces)})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+taskRunID, nil)
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var got workerclient.GetTaskRunResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !got.Run.CancelRequested {
+		t.Errorf("cancel_requested = false for a disabled initiator; body = %s", w.Body.String())
+	}
+	if runs.Runs[0].CancelReason != coretask.CancelReasonCreatorDisabled {
+		t.Errorf("cancel_reason = %q, want creator_disabled", runs.Runs[0].CancelReason)
 	}
 }
 

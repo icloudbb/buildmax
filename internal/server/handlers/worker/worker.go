@@ -3,11 +3,13 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
@@ -32,6 +34,28 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	if run == nil || task == nil {
 		httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		return
+	}
+	// Re-check the initiator's authority at the moment the worker starts. It
+	// closes the race where the account was disabled or removed from the Space
+	// between the scheduler's dispatch check and here: record a cancel with the
+	// reason and hand the worker a CancelRequested run, which it honors by
+	// stopping and reporting CANCELED. A store outage leaves authority unknown;
+	// let the run proceed rather than stop it on a guess — the reconciler will
+	// revisit it.
+	cancelRequested := run.CancelRequestedAt != nil
+	if h.cfg.Eligible != nil && !coretask.RunStatusTerminal(run.Status) && run.CreatedBy != "" && !cancelRequested {
+		switch err := h.cfg.Eligible.Check(r.Context(), run.CreatedBy, task.SpaceID); {
+		case err == nil, errors.Is(err, eligibility.ErrUnavailable):
+		default:
+			reason := coretask.CancelReasonCreatorNotMember
+			if errors.Is(err, eligibility.ErrAccountDisabled) {
+				reason = coretask.CancelReasonCreatorDisabled
+			}
+			if _, cErr := h.cfg.TaskRuns.RequestTaskRunCancel(r.Context(), run.ID, "", reason, time.Now().UTC()); cErr != nil {
+				componentLog().Warn("worker handler: could not record cancel for an ineligible run", "task_run_id", taskRunID, "err", cErr)
+			}
+			cancelRequested = true
+		}
 	}
 	h.recordSeen(r, run)
 	spaceInstructions := ""
@@ -81,8 +105,9 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			Input:             run.Input,
 			Status:            run.Status,
 			// The worker polls this route while it executes, so this field is
-			// how a cancel reaches a run that is already under way.
-			CancelRequested: run.CancelRequestedAt != nil,
+			// how a cancel reaches a run that is already under way — including
+			// one this fetch just canceled for an initiator that lost authority.
+			CancelRequested: cancelRequested,
 			CreatedAt:       run.CreatedAt,
 		},
 		Task: workerclient.TaskRunTask{

@@ -16,9 +16,22 @@ import (
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 	"github.com/icloudbb/buildmax/internal/service/task"
 
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/server/access"
 )
+
+// eligibilityChecker builds the run-initiator authority check the worker route
+// re-runs at fetch, or nil when either authority store is absent so the handler
+// skips the check rather than refusing every run.
+func eligibilityChecker(users coreidentity.UserStore, spaces corespace.Store) eligibility.Checker {
+	if users == nil || spaces == nil {
+		return nil
+	}
+	return eligibility.New(users, spaces)
+}
 
 // guard answers who is calling and whether they may proceed.
 //
@@ -75,11 +88,15 @@ func (h *Handler) buildAdminHandler() *admin.Handler {
 // package is told what to call, not who is listening.
 func (h *Handler) buildWorkerHandler() *worker.Handler {
 	return worker.New(worker.Config{
-		JWTSecret:     h.cfg.JWTSecret,
-		WorkerLLM:     h.cfg.WorkerLLM,
-		TaskRuns:      h.cfg.TaskRunStore,
-		Agents:        h.cfg.AgentStore,
-		Spaces:        h.cfg.SpaceStore,
+		JWTSecret: h.cfg.JWTSecret,
+		WorkerLLM: h.cfg.WorkerLLM,
+		TaskRuns:  h.cfg.TaskRunStore,
+		Agents:    h.cfg.AgentStore,
+		Spaces:    h.cfg.SpaceStore,
+		// Re-checks the initiator's authority when the worker starts, closing the
+		// race between dispatch and worker start. Nil-safe: a config missing
+		// either store yields a nil checker the handler skips.
+		Eligible:      eligibilityChecker(h.cfg.UserStore, h.cfg.SpaceStore),
 		Gateway:       h.cfg.LLMGateway,
 		Artifacts:     h.artifacts,
 		Issues:        h.workerIssueAccess(),
