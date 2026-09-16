@@ -15,6 +15,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/service/conversation"
 	issuesvc "github.com/icloudbb/buildmax/internal/service/issue"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
+	"github.com/icloudbb/buildmax/internal/service/spacerecovery"
 	"github.com/icloudbb/buildmax/internal/service/task"
 
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
@@ -49,6 +50,18 @@ func (h *Handler) accountLifecycle() *accountlifecycle.Service {
 		Schedules: h.cfg.ScheduleStore,
 		Runs:      h.cfg.TaskRunStore,
 		Spaces:    h.cfg.SpaceStore,
+	}
+}
+
+// spaceRecovery assembles the disabled-owner-only ownership recovery, or nil
+// when the account or Space store is absent.
+func (h *Handler) spaceRecovery() *spacerecovery.Service {
+	if h.cfg.UserStore == nil || h.cfg.SpaceStore == nil {
+		return nil
+	}
+	return &spacerecovery.Service{
+		Spaces: h.cfg.SpaceStore,
+		Users:  h.cfg.UserStore,
 	}
 }
 
@@ -93,6 +106,7 @@ func (h *Handler) buildAdminHandler() *admin.Handler {
 		TaskRuns:           h.cfg.TaskRunStore,
 		Quota:              h.cfg.QuotaService,
 		Lifecycle:          h.accountLifecycle(),
+		SpaceRecovery:      h.spaceRecovery(),
 		Audit:              h.cfg.Audit,
 		Deployment:         h.cfg.Deployment,
 		DependencyProbes:   h.cfg.DependencyProbes,

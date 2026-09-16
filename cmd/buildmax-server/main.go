@@ -59,6 +59,17 @@ func main() {
 		return
 	}
 
+	// `space` is break glass for a shared space whose owners can all no longer
+	// sign in: it recovers ownership from here, next to the database, when the
+	// public Server or IdP is unavailable.
+	if len(os.Args) > 1 && os.Args[1] == "space" {
+		if err := bootstrap.RunSpaceCommand(ctx, os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	// `run-token` mints one run's credential for hand-driving a worker route.
 	// It signs with the deployment's key, so it runs here rather than anywhere a
 	// client could reach.
@@ -97,5 +108,6 @@ Flags:
 	fmt.Fprint(out, "\n"+bootstrap.UserCommandUsage)
 	fmt.Fprint(out, "\n"+bootstrap.ModelCommandUsage)
 	fmt.Fprint(out, "\n"+bootstrap.AdminCommandUsage)
+	fmt.Fprint(out, "\n"+bootstrap.SpaceCommandUsage)
 	fmt.Fprint(out, "\n"+bootstrap.RunTokenCommandUsage)
 }

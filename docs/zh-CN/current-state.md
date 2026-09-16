@@ -274,7 +274,11 @@ Server 自有的小时级清理会删除结束时间早于截止点的 Run 轨�
 ## 账号、Space 与扩展界面
 
 账号创建、一次性登录码、密码登录、系统管理员授权、面向已有账号的 Space 邀请、
-角色变更、所有权转移和成员级恢复均已实现。注册默认关闭；创建账号本身不发放凭证。
+角色变更、所有权转移和成员级恢复均已实现。当一个共享 Space 记录在案的 owner 全部
+被停用时,由 System Administrator 通过 `PUT /api/admin/spaces/{space_id}/owner`
+(或 break-glass 命令 `buildmax-server space recover-owner`)恢复:把一名已启用成员
+提升为 owner,拒绝个人 Space 或仍能登录的 owner,不创建成员资格,并记录
+`space.ownership_recovered`。注册默认关闭；创建账号本身不发放凭证。
 每次登录都会开启一个持久 Session（`auth_session`），请求守卫在每次调用时都会检查它，
 因此登出、管理员撤销和禁用会让已签发的访问令牌在下一次请求立即停止；Session 还带有一个
 绝对寿命。禁用账户由 `internal/service/accountlifecycle` 编排:提交账户闸门、撤销 Session、

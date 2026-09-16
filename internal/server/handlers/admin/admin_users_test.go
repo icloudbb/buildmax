@@ -11,9 +11,11 @@ import (
 
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"github.com/icloudbb/buildmax/internal/mock"
 	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
 	"github.com/icloudbb/buildmax/internal/service/audit"
+	"github.com/icloudbb/buildmax/internal/service/spacerecovery"
 	"github.com/icloudbb/buildmax/internal/testsupport"
 )
 
@@ -91,6 +93,48 @@ func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 	refresh := f.do(t, "POST", "/api/auth/token/refresh", "", `{"refresh_token":"`+plaintext+`"}`)
 	if refresh.Code == http.StatusOK {
 		t.Errorf("a disabled account refreshed into a new access token: %s", refresh.Body.String())
+	}
+}
+
+// TestRecoverSpaceOwnershipPromotesSuccessor: an operator recovers a shared
+// space whose only owner is disabled by naming an enabled member, and the move
+// is recorded as ownership_recovered — not an ordinary transfer.
+func TestRecoverSpaceOwnershipPromotesSuccessor(t *testing.T) {
+	f := newDisableFixture(t)
+	seedUser(t, f.users, "u_successor", "successor@example.com")
+	f.users.DisableForTest(f.target.ID, time.Unix(1, 0).UTC())
+	f.spaces.Spaces = []corespace.Space{{ID: "tm_orphan", Name: "Orphan"}}
+	f.spaces.Members = []corespace.Member{
+		{SpaceID: "tm_orphan", UserID: f.target.ID, Role: corespace.RoleOwner},
+		{SpaceID: "tm_orphan", UserID: "u_successor", Role: corespace.RoleMember},
+	}
+
+	rec := f.do(t, "PUT", "/api/admin/spaces/tm_orphan/owner", adminUser, `{"successor_id":"u_successor"}`)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("got %d, want 204: %s", rec.Code, rec.Body.String())
+	}
+	if got := corespace.EffectiveRoleOf(f.spaces.Members, "u_successor"); got != corespace.RoleOwner {
+		t.Errorf("successor role = %q, want owner", got)
+	}
+	if !slices.Contains(f.actions(), coreaudit.SpaceOwnershipRecovered) {
+		t.Errorf("actions = %v, want a %s event", f.actions(), coreaudit.SpaceOwnershipRecovered)
+	}
+}
+
+// An owner who can still sign in is refused: they can transfer ownership
+// themselves, so recovery is not theirs to invoke.
+func TestRecoverSpaceOwnershipRefusesWhenOwnerActive(t *testing.T) {
+	f := newDisableFixture(t)
+	seedUser(t, f.users, "u_successor", "successor@example.com")
+	f.spaces.Spaces = []corespace.Space{{ID: "tm_healthy", Name: "Healthy"}}
+	f.spaces.Members = []corespace.Member{
+		{SpaceID: "tm_healthy", UserID: f.target.ID, Role: corespace.RoleOwner}, // enabled
+		{SpaceID: "tm_healthy", UserID: "u_successor", Role: corespace.RoleMember},
+	}
+
+	rec := f.do(t, "PUT", "/api/admin/spaces/tm_healthy/owner", adminUser, `{"successor_id":"u_successor"}`)
+	if rec.Code != http.StatusConflict {
+		t.Errorf("got %d, want 409: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -374,6 +418,7 @@ func newDisableFixture(t *testing.T) *disableFixture {
 		refresh:  refresh,
 		codes:    &mock.MockLoginCodeStore{},
 		keys:     &mock.MockUserWebhookKeyStore{},
+		spaces:   &mock.MockSpaceStore{},
 		audits:   &mock.MockAuditStore{},
 	}
 	f.admin = seedUser(t, users, adminUser, "admin@example.com")
@@ -383,7 +428,7 @@ func newDisableFixture(t *testing.T) *disableFixture {
 		JWTSecret:     testSecret,
 		Grants:        grants,
 		Users:         users,
-		Spaces:        &mock.MockSpaceStore{},
+		Spaces:        f.spaces,
 		LoginCodes:    f.codes,
 		RefreshTokens: f.refresh,
 		Sessions:      f.sessions,
@@ -391,8 +436,9 @@ func newDisableFixture(t *testing.T) *disableFixture {
 			Users:    users,
 			Sessions: f.sessions,
 			Webhooks: f.keys,
-			Spaces:   &mock.MockSpaceStore{},
+			Spaces:   f.spaces,
 		},
+		SpaceRecovery: &spacerecovery.Service{Spaces: f.spaces, Users: users},
 		// Present so the webhook route reaches its credential check rather
 		// than answering "not configured" first.
 		Audits: f.audits,
@@ -425,6 +471,7 @@ type disableFixture struct {
 	refresh   *mock.MockRefreshTokenStore
 	codes     *mock.MockLoginCodeStore
 	keys      *mock.MockUserWebhookKeyStore
+	spaces    *mock.MockSpaceStore
 	audits    *mock.MockAuditStore
 	admin     *coreidentity.User
 	target    *coreidentity.User

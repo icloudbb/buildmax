@@ -2700,6 +2700,25 @@
         }
       }
     },
+    "/api/admin/spaces/{space_id}/owner": {
+      "put": {
+        "tags": ["admin"],
+        "summary": "Recover a shared space's ownership",
+        "description": "Promotes an enabled member to owner when every recorded owner of the shared space is disabled. Not a general transfer: it refuses a personal space, a space whose owner can still sign in, and a successor who is not already an enabled member. Metadata only; it never reads the space's contents.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["successor_id"], "properties": {"successor_id": {"type": "string"}}}}}
+        },
+        "responses": {
+          "204": {"description": "Ownership recovered"},
+          "400": {"description": "A personal space, or a successor who is not a member", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "Space not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "An owner can still sign in, or the successor is disabled", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
     "/api/admin/grants": {
       "get": {
         "tags": ["admin"],

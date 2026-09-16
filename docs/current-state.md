@@ -368,7 +368,12 @@ candidate's chosen retention and capacity policy has been exercised.
 
 Account creation, single-use login codes, password sign-in, system administrator
 grants, Space invitations to existing accounts, role changes, ownership
-transfer, and member-scoped recovery are implemented. Signup defaults off;
+transfer, and member-scoped recovery are implemented. A shared Space whose
+recorded owners are all disabled is recovered by a System Administrator with
+`PUT /api/admin/spaces/{space_id}/owner` (or `buildmax-server space
+recover-owner` for break glass): it promotes an enabled member to owner, refuses
+a personal Space or a still-signable owner, creates no membership, and records
+`space.ownership_recovered`. Signup defaults off;
 creating an account does not itself issue a credential. Each login opens a
 durable session (`auth_session`) that the request guard checks every call, so
 logout, administrator revocation, and disablement stop an already-issued access

@@ -23,6 +23,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/service/audit"
 	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
 	"github.com/icloudbb/buildmax/internal/service/quota"
+	"github.com/icloudbb/buildmax/internal/service/spacerecovery"
 )
 
 type Config struct {
@@ -47,6 +48,9 @@ type Config struct {
 	// revoking sessions inline, which is what a deployment without the wired
 	// service has.
 	Lifecycle *accountlifecycle.Service
+	// SpaceRecovery performs disabled-owner-only ownership recovery. Nil answers
+	// the recovery route as not configured.
+	SpaceRecovery *spacerecovery.Service
 	// Plugins publishes releases and manages catalog entries. Nil is a
 	// deployment with no Marketplace, which every route here reports rather
 	// than pretending an empty catalog.
@@ -121,6 +125,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/audit-events/export", h.exportAdminAuditEventsHandler)
 	mux.HandleFunc("GET /api/admin/spaces", h.listAdminSpacesHandler)
 	mux.HandleFunc("GET /api/admin/spaces/{space_id}", h.getAdminSpaceHandler)
+	// The owner is a state sub-resource: recovery sets it when every recorded
+	// owner is disabled. Not a general transfer — see the service's preconditions.
+	mux.HandleFunc("PUT /api/admin/spaces/{space_id}/owner", h.recoverSpaceOwnershipHandler)
 	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)
 	mux.HandleFunc("POST /api/admin/llm/models", h.createAdminModelHandler)
 	mux.HandleFunc("PUT /api/admin/llm/models/{model_id}/state", h.setAdminModelStateHandler)
