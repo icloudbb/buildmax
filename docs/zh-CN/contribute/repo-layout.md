@@ -164,6 +164,8 @@ internal/
 │   │                   合法的一套状态转移、run 输出与投递
 │   ├── identity/       调用者是谁：账户、其凭证、其轮换的 session，以及
 │   │                   它持有的部署角色
+│   ├── eligibility/    此账户现在能否在此 Space 运行工作：账户未停用且仍是
+│   │                   成员这一闸门，供各持久派发路径与 HTTP guard 共用
 │   ├── schema/         数据库自陈已发生过什么：infra/db 报告的已应用
 │   │                   迁移，以及 admin 路由读取的内容
 │   ├── session/        本地 session 模型；持久化实现放在 agentapp 里
@@ -187,6 +189,10 @@ internal/
 │   │                   admin 路由都调用它
 │   ├── systemadmin/    谁持有部署范围的角色；最后一位持有者规则依赖
 │   │                   调用者的权限本身来触发，而非一个标志位
+│   ├── accountlifecycle/ 编排账户停用/启用及其收尾——session、webhook key、
+│   │                   schedule、在途 run——并计算停用影响投影
+│   ├── spacerecovery/  仅限"owner 全部停用"时的所有权恢复:把一名已启用成员提升
+│   │                   为 owner
 │   ├── identity/       什么能证明调用者是谁：验证一个凭证并开启它
 │   │                   换来的 session
 │   ├── issue/          Issue service

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
@@ -144,19 +145,33 @@ func RunServer(ctx context.Context, portOverride int) error {
 		return err
 	}
 
+	// One eligibility check behind every durable dispatch path: an account that
+	// is not disabled and still a member of the run's Space. The HTTP guard
+	// enforces the same two facts on human requests; this reaches the Schedule,
+	// Workflow, and worker-dispatch paths that never pass through a handler. See
+	// docs/proposals/personnel-deactivation-lifecycle.md §7.
+	elig := eligibility.New(store, store)
+
 	sched, err := scheduler.NewScheduler(store, runner, runTokenMinter(sc, jwtSecret))
 	if err != nil {
 		return fmt.Errorf("scheduler: %w", err)
 	}
-	// So that work queued by an account an administrator has disabled does not
-	// start after the disable.
-	sched.WithUserStore(store).Start()
+	// So that work queued by an account an administrator has disabled, or a
+	// member a Space owner has removed, does not start after the change.
+	sched.WithEligibility(elig).Start()
 
 	cleaner := scheduler.NewCredentialCleaner(store, 0)
 	cleaner.Start()
 
 	reaper := scheduler.NewStaleRunReaper(store, sc.Worker.RunTimeout, 0)
 	reaper.Start()
+
+	// Stops work already under way once its initiator loses authority: the
+	// admission gates refuse new work, but a run already handed to a worker is
+	// only reachable by this durable backstop, which re-checks eligibility and
+	// requests cancellation.
+	eligibilityReconciler := scheduler.NewEligibilityReconciler(store, elig, 0)
+	eligibilityReconciler.Start()
 
 	// Nil unless the operator set a retention window, so a deployment that
 	// never chose one keeps every event.
@@ -194,9 +209,10 @@ func RunServer(ctx context.Context, portOverride int) error {
 	if err != nil {
 		return fmt.Errorf("schedule dispatcher: %w", err)
 	}
-	// So a schedule whose creator an administrator disabled pauses rather than
-	// minting Tasks that would only fail at dispatch.
-	dispatcher.WithUserStore(store).Start()
+	// So a schedule whose creator an administrator disabled, or an owner removed
+	// from the Space, pauses rather than minting Tasks that would only fail at
+	// dispatch.
+	dispatcher.WithEligibility(elig).Start()
 
 	// Recovers Workflow runs stranded by a lost terminal callback or a Server
 	// restart: each sweep reconciles due runs from durable state. It reuses the
@@ -236,7 +252,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	case err := <-serveErr:
 		// The listener failed before any signal — a taken port, a bad address.
 		// Nothing has started serving, so there is nothing to drain.
-		shutdownServer(context.Background(), targetsFor(s, sched, dispatcher, cleaner, reaper, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
+		shutdownServer(context.Background(), targetsFor(s, sched, dispatcher, cleaner, reaper, eligibilityReconciler, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
 		return err
 	case <-signalCtx.Done():
 	}
@@ -246,7 +262,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// handler that is already running one.
 	stopSignals()
 	slog.Info("shutdown requested", "grace", sc.ShutdownGrace)
-	shutdownServer(ctx, targetsFor(s, sched, dispatcher, cleaner, reaper, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
+	shutdownServer(ctx, targetsFor(s, sched, dispatcher, cleaner, reaper, eligibilityReconciler, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
 
 	slog.Info("server stopped")
 	return <-serveErr
@@ -281,7 +297,7 @@ type shutdownTargets struct {
 }
 
 // targetsFor names what RunServer started in the order the ladder stops it.
-func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *scheduler.ScheduleDispatcher, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer, traceRetainer *scheduler.TraceRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper, recovery *scheduler.WorkflowRecoveryLoop) shutdownTargets {
+func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *scheduler.ScheduleDispatcher, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, eligibilityReconciler *scheduler.EligibilityReconciler, retainer *scheduler.AuditRetainer, traceRetainer *scheduler.TraceRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper, recovery *scheduler.WorkflowRecoveryLoop) shutdownTargets {
 	return shutdownTargets{
 		server:    s,
 		scheduler: namedStop{name: "scheduler", stop: func(ctx context.Context) { sched.Stop(ctx) }},
@@ -299,6 +315,7 @@ func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *sc
 			{name: "trace retainer", stop: ignoringContext(traceRetainer.Stop)},
 			{name: "artifact retainer", stop: ignoringContext(artifacts.Stop)},
 			{name: "stale run reaper", stop: ignoringContext(reaper.Stop)},
+			{name: "eligibility reconciler", stop: ignoringContext(eligibilityReconciler.Stop)},
 			{name: "credential cleaner", stop: ignoringContext(cleaner.Stop)},
 		},
 	}

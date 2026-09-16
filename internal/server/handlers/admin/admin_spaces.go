@@ -5,7 +5,9 @@ import (
 	"strings"
 	"time"
 
+	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/service/spacerecovery"
 )
 
 // AdminSpace is one space as an administrator sees it: metadata only.
@@ -96,6 +98,52 @@ func (h *Handler) listAdminSpacesHandler(w http.ResponseWriter, r *http.Request)
 		})
 	}
 	httputil.WriteJSON(w, http.StatusOK, AdminSpacesResponse{Spaces: out, Total: total})
+}
+
+// recoverSpaceOwnerRequest is the body of PUT /api/admin/spaces/{space_id}/owner.
+type recoverSpaceOwnerRequest struct {
+	SuccessorID string `json:"successor_id"`
+}
+
+// recoverSpaceOwnershipHandler serves PUT /api/admin/spaces/{space_id}/owner:
+// the disabled-owner-only recovery that promotes an enabled member to owner. It
+// is metadata-only — the operator names a successor and never reads the Space's
+// contents.
+func (h *Handler) recoverSpaceOwnershipHandler(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := h.guard().SystemAdmin(w, r)
+	if !ok {
+		return
+	}
+	if h.cfg.SpaceRecovery == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "space recovery not configured")
+		return
+	}
+	spaceID, ok := httputil.PathValue(w, r, "space_id")
+	if !ok {
+		return
+	}
+	var req recoverSpaceOwnerRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	successor := strings.TrimSpace(req.SuccessorID)
+	demotedOwner, err := h.cfg.SpaceRecovery.RecoverOwnership(r.Context(), spacerecovery.RecoverCmd{
+		SpaceID:     spaceID,
+		SuccessorID: successor,
+	})
+	if err != nil {
+		if httputil.WriteServiceError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_recover_space_ownership", "space_id", spaceID)
+		return
+	}
+	if h.cfg.Audit != nil {
+		// Actor is the administrator, target the successor, detail the disabled
+		// owner that was demoted — the trail names all three.
+		h.cfg.Audit.UserAction(r.Context(), actorID, spaceID, coreaudit.SpaceOwnershipRecovered, "user", successor, demotedOwner)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // getAdminSpaceHandler serves GET /api/admin/spaces/{space_id}.

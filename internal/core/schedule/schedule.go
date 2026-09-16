@@ -13,6 +13,24 @@ import (
 	"time"
 )
 
+// Pause reasons record why a schedule is disabled, so an operator sees whether
+// they paused it or the system did. Empty on an enabled schedule; enabling
+// clears it.
+const (
+	// PauseReasonManual is a person disabling the schedule.
+	PauseReasonManual = "manual"
+	// PauseReasonCreatorDisabled is the schedule's creator account being disabled.
+	PauseReasonCreatorDisabled = "creator_disabled"
+	// PauseReasonCreatorNotMember is the creator being removed from the Space.
+	PauseReasonCreatorNotMember = "creator_not_member"
+	// PauseReasonConsecutiveFailures is the dispatcher pausing after a run of
+	// firings that could not admit a Task.
+	PauseReasonConsecutiveFailures = "consecutive_failures"
+	// PauseReasonInvalidCron is a stored cron expression that no longer parses,
+	// so the schedule can never compute a next fire time.
+	PauseReasonInvalidCron = "invalid_cron"
+)
+
 // Schedule is a Space-owned recurring time trigger for one Agent.
 type Schedule struct {
 	ID        string `json:"id"`
@@ -30,6 +48,9 @@ type Schedule struct {
 	// Enabled false is a paused schedule: it keeps its row and its NextFireAt but
 	// the dispatcher does not claim it.
 	Enabled bool `json:"enabled"`
+	// PauseReason records why a paused schedule is paused; empty when enabled. It
+	// is diagnostic, not authority: the dispatcher gates on Enabled, not on this.
+	PauseReason string `json:"pause_reason,omitempty"`
 	// NextFireAt is the UTC instant the dispatcher claims on and the
 	// compare-and-swap target that makes a firing exactly-once (§7).
 	NextFireAt time.Time  `json:"next_fire_at"`
@@ -71,6 +92,10 @@ type UpdateInput struct {
 	Timezone   *string
 	Enabled    *bool
 	NextFireAt *time.Time
+	// PauseReason is written only alongside disabling. Enabling the schedule
+	// clears it regardless, so a re-enabled schedule never carries a stale
+	// reason; the store enforces that so no caller has to remember it.
+	PauseReason *string
 }
 
 // ClaimInput advances a due Schedule's NextFireAt only when it still equals
@@ -104,6 +129,10 @@ type Store interface {
 	// DueSchedules returns enabled schedules whose NextFireAt is at or before
 	// now, oldest due time first, capped at limit.
 	DueSchedules(ctx context.Context, now time.Time, limit int) ([]Schedule, error)
+	// ListEnabledSchedulesByCreator returns every enabled schedule a given
+	// account created, across Spaces. A deactivation pauses these at once rather
+	// than waiting for each to reach its next fire time.
+	ListEnabledSchedulesByCreator(ctx context.Context, createdBy string) ([]Schedule, error)
 	// ClaimSchedule atomically advances NextFireAt. A false result means the
 	// schedule changed under the caller — another replica claimed it, or it was
 	// disabled or edited — and this caller must not fire it.

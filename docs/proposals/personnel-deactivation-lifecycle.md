@@ -161,6 +161,26 @@ scoped owner recovery. This is the recommended option.
 
 ## 6. Recommended Contract
 
+Two authority axes of different natures underlie the whole contract, and keeping
+them distinct is what makes recovery predictable:
+
+- **Deployment-wide account disablement is a reversible gate over retained
+  state.** Memberships, Space data, and webhook keys are all kept and simply
+  refused while `disabled_at` holds. Enabling reopens them with no resurrection
+  step: the memberships were never removed, so they are effective again at once.
+  A disabled account keeps its unique email: `email` stays a unique key, so the
+  address cannot be registered to a second account while the first exists. The
+  same person returns by re-enabling that account, not by creating a new one,
+  and an email is never rebound to a different person. Freeing an address would
+  require account deletion, which stays a non-goal (§13).
+- **One-Space membership removal is a destructive change to a single
+  relationship.** The `space_member` row is deleted, so a later re-invitation is
+  a fresh join with a new `created_at`, not a restoration of the prior one.
+
+Eligibility ANDs the two facts: the account is not disabled *and* a membership
+row exists. Treat disablement as reversible suspension and removal as a
+deleted-then-new relationship; do not expect the two to be symmetric.
+
 The same resource has different treatment under deployment-wide account
 disablement and one-Space membership removal:
 
@@ -181,10 +201,11 @@ disablement and one-Space membership removal:
 
 The leaver flow distinguishes **suspension** from **credential retirement** only
 as an operator choice, not as another account state. Both use `disabled_at` as
-the gate. Suspension may retain denied webhook keys for later deliberate
-reactivation. The guided leaver path defaults to revoking those keys because an
-integration that must outlive a person needs a separately designed machine
-principal, not a forgotten personal credential.
+the gate. This is decided, not left open: a temporary suspension **retains** the
+denied webhook keys so a deliberate re-enable restores the integration
+unchanged, while the guided leaver path **permanently retires** them. The
+default is retirement because an integration that must outlive a person needs a
+separately designed machine principal, not a forgotten personal credential.
 
 IdP-only offboarding remains bounded rather than immediate. Without SCIM or a
 validated provider logout channel, BuildMax learns nothing when Okta disables a
@@ -323,6 +344,14 @@ membership transition and audit, then invokes the shared cleanup capability for
 that user and Space. Account disablement invokes the deployment-wide form. The
 eligibility check is shared; neither service imports the other's orchestration.
 
+Removal stays a hard delete of the single `space_member` row, matching the
+current store. A departure's provenance lives in the paired
+`space.member_removed`/`space.member_added` audit events, not in a retained or
+soft-deleted row, so a returning member is a new row with a new `created_at`,
+consistent with explicit, non-resurrecting restoration (Invariant 6). No
+soft-delete column is added: nothing in this contract needs one, and a retained
+row would collide with the `space_member` unique index on `(space_id, user_id)`.
+
 ## 11. Delivery Slices
 
 Each slice is independently reviewable after the proposal is accepted:
@@ -368,6 +397,15 @@ a PENDING run, a RUNNING run, and a multi-step WorkflowRun. The test must show
 the exact state after account disablement, after owner recovery, and after a
 deliberate re-enable.
 
+A second acceptance scenario exercises the Space axis symmetrically to the
+re-enable path. A member with an enabled Schedule, a PENDING run, and a RUNNING
+run in one shared Space is removed from it. The test must show that Space's
+derived work paused or canceled with reason `creator_not_member`, that the same
+person's work and access in the other Space is untouched, that Space-owned
+results stay readable to remaining members, and that a later re-invitation
+produces a fresh membership with a new `created_at` that resurrects none of the
+paused Schedules or canceled runs.
+
 ## 13. Non-Goals
 
 - SCIM, SAML, directory synchronization, or IdP group-to-Space mapping.
@@ -389,13 +427,11 @@ deliberate re-enable.
 1. Is the worker poll plus cancel-grace bound acceptable for the first named
    enterprise deployment, or must the runner also delete/terminate the worker
    after a shorter emergency bound?
-2. Does temporary account suspension need webhook integrations to resume, or
-   should every disable permanently revoke account-scoped machine credentials?
-3. Is disabled-owner-only System Administrator recovery acceptable, or must
+2. Is disabled-owner-only System Administrator recovery acceptable, or must
    every deployment require a second Space owner before offboarding?
-4. Does the target deployment require managed CLI/Desktop SSO, adding native
+3. Does the target deployment require managed CLI/Desktop SSO, adding native
    Session and local credential cleanup to the same journey?
-5. At what observed cardinality would the eligibility reconciler need a durable
+4. At what observed cardinality would the eligibility reconciler need a durable
    work queue rather than bounded SQL scans?
 
 Acceptance requires a named operator and target deployment, an agreed

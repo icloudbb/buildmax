@@ -86,6 +86,17 @@ const (
 	RunTriggerSourceSchedule = "schedule"
 )
 
+// Cancel reasons record why a run was canceled, so a canceled run explains
+// itself beyond the terminal status. Immutable once first recorded.
+const (
+	// CancelReasonUserRequested is a person stopping the run.
+	CancelReasonUserRequested = "user_requested"
+	// CancelReasonCreatorDisabled is the run's initiating account being disabled.
+	CancelReasonCreatorDisabled = "creator_disabled"
+	// CancelReasonCreatorNotMember is the initiator being removed from the Space.
+	CancelReasonCreatorNotMember = "creator_not_member"
+)
+
 // Task holds the user-visible state for a background task.
 type Task struct {
 	ID string `json:"id"`
@@ -170,8 +181,13 @@ type Run struct {
 	// honors it and reports CANCELED. Nil means nobody has asked.
 	CancelRequestedAt *time.Time `json:"cancel_requested_at,omitempty"`
 	// CancelRequestedBy is the user who asked. A space's runs can be stopped by
-	// anyone on the space, so "why did this stop" needs a name to answer.
+	// anyone on the space, so "why did this stop" needs a name to answer. Empty
+	// when a background reconciler, not a person, requested the cancel.
 	CancelRequestedBy *string `json:"cancel_requested_by,omitempty"`
+	// CancelReason records why a canceled run was canceled — a person, or an
+	// authority withdrawal (creator disabled or removed from the Space). Empty on
+	// a run that was not canceled. Immutable once set.
+	CancelReason string `json:"cancel_reason,omitempty"`
 	// RetryOfTaskRunID names the run this one repeats. Nil for every run that
 	// carries its own instructions. The lineage is one level deep by record but
 	// unbounded by use: retrying a retry points at the run it repeated, not at
@@ -326,6 +342,17 @@ type ClaimInput struct {
 
 // TransitionRunInput atomically moves a run from ExpectedStatus to
 // NewStatus and projects the accepted state onto its task.
+// ActiveRunRef identifies a run still in an active status together with the
+// facts a cleanup or projection needs — its initiator, its Space, and its
+// status — without loading the whole run. It is what the eligibility reconciler
+// scans and what a deactivation impact counts.
+type ActiveRunRef struct {
+	TaskRunID string
+	SpaceID   string
+	CreatedBy string
+	Status    string
+}
+
 type TransitionRunInput struct {
 	TaskRunID        string
 	ExpectedStatus   RunStatus
@@ -339,6 +366,11 @@ type TransitionRunInput struct {
 	PromptTokens     *int
 	CompletionTokens *int
 	TracePath        *string
+	// CancelReason is written when NewStatus is CANCELED and the row has no
+	// reason yet — the direct PENDING→CANCELED an eligibility refusal takes.
+	// A run canceled through RequestTaskRunCancel already carries its reason, so
+	// the reaper settling it later leaves this nil.
+	CancelReason *string
 }
 
 // Store provides task persistence. Tasks belong to a space and may optionally
@@ -427,12 +459,18 @@ type RunStore interface {
 	// GetActiveTaskRunByTask returns the task's run in PENDING, SCHEDULED, or
 	// RUNNING, or (nil, nil) when the task has none. A task holds at most one.
 	GetActiveTaskRunByTask(ctx context.Context, taskID string) (*Run, error)
-	// RequestTaskRunCancel records who asked a run to stop, and when, on a run
-	// that has not reached a terminal status. Returns false when the run is
-	// already terminal or already carries a request, so a second cancel
-	// neither resets the clock the backstop measures nor overwrites the name
-	// of whoever asked first.
-	RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy string, requestedAt time.Time) (bool, error)
+	// ListActiveTaskRunsByCreator returns every active run a given account
+	// initiated, with its Space and status. It is the per-account scan a
+	// deactivation uses to cancel that account's in-flight work and to project
+	// the impact of doing so.
+	ListActiveTaskRunsByCreator(ctx context.Context, createdBy string) ([]ActiveRunRef, error)
+	// RequestTaskRunCancel records who asked a run to stop, why, and when, on a
+	// run that has not reached a terminal status. requestedBy is empty when a
+	// background reconciler, not a person, asked. Returns false when the run is
+	// already terminal or already carries a request, so a second cancel neither
+	// resets the clock the backstop measures nor overwrites the first reason or
+	// the name of whoever asked first.
+	RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy, reason string, requestedAt time.Time) (bool, error)
 	// TransitionTaskRun atomically updates a run only when its current status
 	// matches ExpectedStatus, then updates the task projection in the same
 	// transaction. A false result means another actor won the transition.

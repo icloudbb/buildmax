@@ -127,7 +127,7 @@ func (m *MockTaskRunStore) GetActiveTaskRunByTask(_ context.Context, taskID stri
 	return nil, nil
 }
 
-func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, requestedBy string, requestedAt time.Time) (bool, error) {
+func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, requestedBy, reason string, requestedAt time.Time) (bool, error) {
 	for i := range m.Runs {
 		if m.Runs[i].ID != taskRunID {
 			continue
@@ -136,10 +136,61 @@ func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, re
 			return false, nil
 		}
 		m.Runs[i].CancelRequestedAt = &requestedAt
-		m.Runs[i].CancelRequestedBy = &requestedBy
+		m.Runs[i].CancelReason = reason
+		if requestedBy != "" {
+			m.Runs[i].CancelRequestedBy = &requestedBy
+		}
 		return true, nil
 	}
 	return false, nil
+}
+
+func (m *MockTaskRunStore) ListActiveTaskRunsForEligibility(_ context.Context, afterID string, limit int) ([]coretask.ActiveRunRef, error) {
+	var out []coretask.ActiveRunRef
+	seen := afterID == ""
+	for i := range m.Runs {
+		r := m.Runs[i]
+		if !seen {
+			if r.ID == afterID {
+				seen = true
+			}
+			continue
+		}
+		if coretask.RunStatusTerminal(r.Status) || r.CancelRequestedAt != nil {
+			continue
+		}
+		spaceID := ""
+		for j := range m.TaskList {
+			if m.TaskList[j].ID == r.TaskID {
+				spaceID = m.TaskList[j].SpaceID
+				break
+			}
+		}
+		out = append(out, coretask.ActiveRunRef{TaskRunID: r.ID, SpaceID: spaceID, CreatedBy: r.CreatedBy, Status: r.Status})
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (m *MockTaskRunStore) ListActiveTaskRunsByCreator(_ context.Context, createdBy string) ([]coretask.ActiveRunRef, error) {
+	var out []coretask.ActiveRunRef
+	for i := range m.Runs {
+		r := m.Runs[i]
+		if r.CreatedBy != createdBy || coretask.RunStatusTerminal(r.Status) {
+			continue
+		}
+		spaceID := ""
+		for j := range m.TaskList {
+			if m.TaskList[j].ID == r.TaskID {
+				spaceID = m.TaskList[j].SpaceID
+				break
+			}
+		}
+		out = append(out, coretask.ActiveRunRef{TaskRunID: r.ID, SpaceID: spaceID, CreatedBy: r.CreatedBy, Status: r.Status})
+	}
+	return out, nil
 }
 
 func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in coretask.TransitionRunInput) (bool, error) {
@@ -174,6 +225,9 @@ func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in coretask.Tr
 		}
 		if in.TracePath != nil {
 			m.Runs[i].TracePath = in.TracePath
+		}
+		if in.CancelReason != nil {
+			m.Runs[i].CancelReason = *in.CancelReason
 		}
 		return true, m.syncTaskFromRun(ctx, in.TaskRunID)
 	}

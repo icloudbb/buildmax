@@ -9,16 +9,61 @@ import (
 	spaceroutes "github.com/icloudbb/buildmax/internal/server/handlers/space"
 	"github.com/icloudbb/buildmax/internal/server/handlers/work"
 	"github.com/icloudbb/buildmax/internal/server/handlers/worker"
+	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
 	agentsvc "github.com/icloudbb/buildmax/internal/service/agent"
 	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
 	issuesvc "github.com/icloudbb/buildmax/internal/service/issue"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
+	"github.com/icloudbb/buildmax/internal/service/spacerecovery"
 	"github.com/icloudbb/buildmax/internal/service/task"
 
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/server/access"
 )
+
+// eligibilityChecker builds the run-initiator authority check the worker route
+// re-runs at fetch, or nil when either authority store is absent so the handler
+// skips the check rather than refusing every run.
+func eligibilityChecker(users coreidentity.UserStore, spaces corespace.Store) eligibility.Checker {
+	if users == nil || spaces == nil {
+		return nil
+	}
+	return eligibility.New(users, spaces)
+}
+
+// accountLifecycle assembles the deactivation service from the stores this
+// handler holds, or nil when there is no account store to gate on. The optional
+// stores fall through as nil, which the service reads as "nothing of this kind
+// to clean up."
+func (h *Handler) accountLifecycle() *accountlifecycle.Service {
+	if h.cfg.UserStore == nil {
+		return nil
+	}
+	return &accountlifecycle.Service{
+		Users:     h.cfg.UserStore,
+		Sessions:  h.cfg.AuthSessionStore,
+		Webhooks:  h.cfg.UserWebhookKeyStore,
+		Schedules: h.cfg.ScheduleStore,
+		Runs:      h.cfg.TaskRunStore,
+		Spaces:    h.cfg.SpaceStore,
+	}
+}
+
+// spaceRecovery assembles the disabled-owner-only ownership recovery, or nil
+// when the account or Space store is absent.
+func (h *Handler) spaceRecovery() *spacerecovery.Service {
+	if h.cfg.UserStore == nil || h.cfg.SpaceStore == nil {
+		return nil
+	}
+	return &spacerecovery.Service{
+		Spaces: h.cfg.SpaceStore,
+		Users:  h.cfg.UserStore,
+	}
+}
 
 // guard answers who is calling and whether they may proceed.
 //
@@ -60,6 +105,8 @@ func (h *Handler) buildAdminHandler() *admin.Handler {
 		Schema:             h.cfg.SchemaStore,
 		TaskRuns:           h.cfg.TaskRunStore,
 		Quota:              h.cfg.QuotaService,
+		Lifecycle:          h.accountLifecycle(),
+		SpaceRecovery:      h.spaceRecovery(),
 		Audit:              h.cfg.Audit,
 		Deployment:         h.cfg.Deployment,
 		DependencyProbes:   h.cfg.DependencyProbes,
@@ -75,11 +122,15 @@ func (h *Handler) buildAdminHandler() *admin.Handler {
 // package is told what to call, not who is listening.
 func (h *Handler) buildWorkerHandler() *worker.Handler {
 	return worker.New(worker.Config{
-		JWTSecret:     h.cfg.JWTSecret,
-		WorkerLLM:     h.cfg.WorkerLLM,
-		TaskRuns:      h.cfg.TaskRunStore,
-		Agents:        h.cfg.AgentStore,
-		Spaces:        h.cfg.SpaceStore,
+		JWTSecret: h.cfg.JWTSecret,
+		WorkerLLM: h.cfg.WorkerLLM,
+		TaskRuns:  h.cfg.TaskRunStore,
+		Agents:    h.cfg.AgentStore,
+		Spaces:    h.cfg.SpaceStore,
+		// Re-checks the initiator's authority when the worker starts, closing the
+		// race between dispatch and worker start. Nil-safe: a config missing
+		// either store yields a nil checker the handler skips.
+		Eligible:      eligibilityChecker(h.cfg.UserStore, h.cfg.SpaceStore),
 		Gateway:       h.cfg.LLMGateway,
 		Artifacts:     h.artifacts,
 		Issues:        h.workerIssueAccess(),

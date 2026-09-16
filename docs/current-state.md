@@ -368,11 +368,26 @@ candidate's chosen retention and capacity policy has been exercised.
 
 Account creation, single-use login codes, password sign-in, system administrator
 grants, Space invitations to existing accounts, role changes, ownership
-transfer, and member-scoped recovery are implemented. Signup defaults off;
+transfer, and member-scoped recovery are implemented. A shared Space whose
+recorded owners are all disabled is recovered by a System Administrator with
+`PUT /api/admin/spaces/{space_id}/owner` (or `buildmax-server space
+recover-owner` for break glass): it promotes an enabled member to owner, refuses
+a personal Space or a still-signable owner, creates no membership, and records
+`space.ownership_recovered`. Signup defaults off;
 creating an account does not itself issue a credential. Each login opens a
 durable session (`auth_session`) that the request guard checks every call, so
 logout, administrator revocation, and disablement stop an already-issued access
-token on its next request; sessions also carry an absolute lifetime. Portal
+token on its next request; sessions also carry an absolute lifetime. Disabling an
+account is orchestrated by `internal/service/accountlifecycle`: it commits the
+account gate, revokes sessions, optionally retires the account's webhook keys
+(`retire_webhook_keys`, for a leaver rather than a suspension), pauses the
+account's schedules, and cancels its in-flight runs, reporting the gate result
+alongside those cleanup counts; re-enabling reopens the gate and resurrects none
+of it. `GET /api/admin/users/{user_id}/deactivation-impact` projects that impact
+— counts and ids only, never Space content — before the change commits. Portal's
+admin area presents that projection as a guided preview when an operator
+disables an account (with the suspension-versus-leaver choice), and offers owner
+recovery as a "Make owner" action in the admin Spaces view. Portal
 keeps the renewable refresh credential in a Secure,
 HttpOnly, SameSite=Strict cookie and holds the short-lived access token only in
 memory; CLI and Desktop retain the JSON credential flow. Corporate sign-in over
@@ -431,9 +446,11 @@ Recurring schedules run an Agent on the Task plane through a `schedule` trigger
 source and the `/api/spaces/{space_id}/schedules` API, dispatched by a resident
 loop that claims each due time once across replicas, coalesces missed firings
 into one catch-up, and pauses a schedule after five consecutive failed firings
-or when its creator is disabled. Portal creates and manages schedules on the
+or when its creator can no longer run work in the Space — disabled, or removed
+from it. Portal creates and manages schedules on the
 Agent detail page and lists every schedule in a Space on a Schedules page; the
-pause reason is logged, not shown. They are not a conversation channel
+pause reason is recorded on the schedule (`pause_reason`) but not yet shown in
+Portal. They are not a conversation channel
 ([`internal/core/schedule`](../internal/core/schedule/schedule.go),
 [`internal/server/scheduler`](../internal/server/scheduler),
 [design](design/scheduled-agent-execution.md)). Space plugin activation supports skill/subagent content but rejects

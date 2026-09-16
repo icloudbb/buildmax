@@ -274,11 +274,22 @@ Server 自有的小时级清理会删除结束时间早于截止点的 Run 轨�
 ## 账号、Space 与扩展界面
 
 账号创建、一次性登录码、密码登录、系统管理员授权、面向已有账号的 Space 邀请、
-角色变更、所有权转移和成员级恢复均已实现。注册默认关闭；创建账号本身不发放凭证。
+角色变更、所有权转移和成员级恢复均已实现。当一个共享 Space 记录在案的 owner 全部
+被停用时,由 System Administrator 通过 `PUT /api/admin/spaces/{space_id}/owner`
+(或 break-glass 命令 `buildmax-server space recover-owner`)恢复:把一名已启用成员
+提升为 owner,拒绝个人 Space 或仍能登录的 owner,不创建成员资格,并记录
+`space.ownership_recovered`。注册默认关闭；创建账号本身不发放凭证。
 每次登录都会开启一个持久 Session（`auth_session`），请求守卫在每次调用时都会检查它，
 因此登出、管理员撤销和禁用会让已签发的访问令牌在下一次请求立即停止；Session 还带有一个
-绝对寿命。Portal 把可续期的 refresh 凭证保存在 Secure、HttpOnly、SameSite=Strict Cookie
-中，只在内存中持有短期 access token；CLI 与 Desktop 继续使用 JSON 凭证流程。
+绝对寿命。禁用账户由 `internal/service/accountlifecycle` 编排:提交账户闸门、撤销 Session、
+可选地退役该账户的 webhook key（`retire_webhook_keys`,用于离职而非临时暂停）、暂停该账户
+的 schedule、取消其在途 run,并把闸门结果与这些清理计数分开上报;重新启用只重开闸门,
+不复活其中任何一项。`GET /api/admin/users/{user_id}/deactivation-impact` 在变更提交前投影
+这一影响——只含计数与 id,绝不含 Space 内容。Portal 管理区在操作员停用账户时把该
+投影作为引导式预览呈现(含"暂停 vs 离职"选择),并在管理端 Spaces 视图提供
+"Make owner"的所有权恢复操作。Portal 把可续期的 refresh 凭证保存在
+Secure、HttpOnly、SameSite=Strict Cookie 中,只在内存中持有短期 access token;CLI 与
+Desktop 继续使用 JSON 凭证流程。
 基于 OpenID Connect 的企业登录已实现：
 部署配置一个 `oidc` 块（首个支持的提供方为 Okta），一次已验证的登录按 `(issuer, subject)`
 关联到账号——复用已有链接、以已验证邮箱关联运维创建的账号，或在 `allowed_email_domains`
@@ -320,9 +331,11 @@ Agent 不会改变已发布计划的运行内容。一次运行会一次性分�
 Portal 与入站 webhook 执行已组装。Telegram 仍只是渠道词汇，
 webhook 回调发送器未组装进 Server。周期性 schedule 通过 `schedule` 触发来源与
 `/api/spaces/{space_id}/schedules` API 在 Task 平面上运行 Agent，由常驻循环分发：
-每个到期时刻跨副本只认领一次，错过的触发合并为一次补触发，连续五次触发失败或
-创建者被禁用时暂停该 schedule。Portal 在 Agent 详情页创建和管理 schedule，并在
-Schedules 页面列出 Space 内的全部 schedule；暂停原因只写日志，不展示。它们不是
+每个到期时刻跨副本只认领一次，错过的触发合并为一次补触发，连续五次触发失败，或
+创建者已不能在该 Space 运行工作（被停用，或被移出该 Space）时，暂停该 schedule。
+Portal 在 Agent 详情页创建和管理 schedule，并在
+Schedules 页面列出 Space 内的全部 schedule；暂停原因已记录在 schedule 上
+（`pause_reason`），但 Portal 尚未展示。它们不是
 对话渠道（[`internal/core/schedule`](../../internal/core/schedule/schedule.go)、
 [`internal/server/scheduler`](../../internal/server/scheduler)、
 [设计记录](design/定时Agent执行.md)）。Space 插件激活支持 skill/subagent 内容，

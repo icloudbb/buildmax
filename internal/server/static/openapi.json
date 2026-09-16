@@ -117,6 +117,7 @@
           "cron_expr": { "type": "string" },
           "timezone": { "type": "string" },
           "enabled": { "type": "boolean" },
+          "pause_reason": { "type": "string" },
           "next_fire_at": { "type": "string", "format": "date-time" },
           "last_fire_at": { "type": "string", "format": "date-time", "nullable": true },
           "last_task_id": { "type": "string", "nullable": true },
@@ -162,6 +163,7 @@
           "status": { "type": "string" },
           "output": { "type": "string", "nullable": true },
           "error_message": { "type": "string", "nullable": true },
+          "cancel_reason": { "type": "string" },
           "created_by": { "type": "string" },
           "trigger_source": { "type": "string" },
           "created_at": { "type": "string", "format": "date-time" },
@@ -2402,15 +2404,50 @@
         }
       }
     },
+    "/api/admin/users/{user_id}/deactivation-impact": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Project what disabling an account would stop",
+        "description": "Metadata and counts only: live sessions and webhook keys, memberships and roles, sole-owned Spaces, enabled schedules, active runs by status, and the cancellation bound. It never reads a Space's contents.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "live_sessions": {"type": "integer"},
+                    "webhook_keys": {"type": "integer"},
+                    "memberships": {"type": "array", "items": {"type": "object", "properties": {"space_id": {"type": "string"}, "role": {"type": "string"}}}},
+                    "sole_owned_space_ids": {"type": "array", "items": {"type": "string"}},
+                    "enabled_schedules": {"type": "integer"},
+                    "active_runs_by_status": {"type": "object", "additionalProperties": {"type": "integer"}},
+                    "cancellation_bound": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
     "/api/admin/users/{user_id}/state": {
       "put": {
         "tags": ["admin"],
         "summary": "Set an account's disabled state",
+        "description": "Disabling commits the account gate first, then quiets the account's sessions, webhook keys (when retire_webhook_keys is set), schedules, and in-flight runs. The response reports the reloaded account alongside the cleanup counts.",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "requestBody": {
           "required": true,
-          "content": {"application/json": {"schema": {"type": "object", "required": ["disabled"], "properties": {"disabled": {"type": "boolean"}}}}}
+          "content": {"application/json": {"schema": {"type": "object", "required": ["disabled"], "properties": {"disabled": {"type": "boolean"}, "retire_webhook_keys": {"type": "boolean"}}}}}
         },
         "responses": {
           "200": {
@@ -2419,7 +2456,14 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {"id": {"type": "string"}, "disabled": {"type": "boolean"}}
+                  "properties": {
+                    "id": {"type": "string"},
+                    "disabled": {"type": "boolean"},
+                    "sessions_revoked": {"type": "integer"},
+                    "webhook_keys_retired": {"type": "integer"},
+                    "schedules_paused": {"type": "integer"},
+                    "runs_canceled": {"type": "integer"}
+                  }
                 }
               }
             }
@@ -2653,6 +2697,25 @@
             "description": "Space not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
+        }
+      }
+    },
+    "/api/admin/spaces/{space_id}/owner": {
+      "put": {
+        "tags": ["admin"],
+        "summary": "Recover a shared space's ownership",
+        "description": "Promotes an enabled member to owner when every recorded owner of the shared space is disabled. Not a general transfer: it refuses a personal space, a space whose owner can still sign in, and a successor who is not already an enabled member. Metadata only; it never reads the space's contents.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["successor_id"], "properties": {"successor_id": {"type": "string"}}}}}
+        },
+        "responses": {
+          "204": {"description": "Ownership recovered"},
+          "400": {"description": "A personal space, or a successor who is not a member", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "Space not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "An owner can still sign in, or the successor is disabled", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
         }
       }
     },

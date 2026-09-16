@@ -193,3 +193,7 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: Cross-origin sign-in CORS credentials](changelog/fixed/cors-credentials-cross-origin.md) · 中文：—
 - [English: Portal reload Space fallback](changelog/fixed/portal-reload-space-fallback.md) · 中文：—
 - [English: Compose single-origin gateway](changelog/changed/compose-single-origin-gateway.md) · 中文：—
+- [English: Personnel deactivation eligibility gate](changelog/changed/personnel-deactivation-eligibility-gate.md) · 中文：—
+- [English: Account deactivation impact and orchestration](changelog/added/account-deactivation-impact-and-orchestration.md) · 中文：—
+- [English: Space owner recovery](changelog/added/space-owner-recovery.md) · 中文：—
+- [English: Portal guided deactivation](changelog/added/portal-guided-deactivation.md) · 中文：—

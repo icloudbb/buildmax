@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ApiAdminSession, ApiAdminUser, ApiAdminUserDetail } from "../../lib/api/types"
+import { DeactivationImpactModal } from "./DeactivationImpactModal"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { navigate } from "../../router"
 import { pageWindow } from "./pagination"
@@ -94,6 +95,7 @@ export function AdminAccounts({
   }, [selected])
   const [newEmail, setNewEmail] = useState("")
   const [busy, setBusy] = useState(false)
+  const [disableTarget, setDisableTarget] = useState<ApiAdminUser | null>(null)
   const [loginCode, setLoginCode] = useState<string | null>(null)
   const [offset, setOffset] = useState(0)
   const [filters, setFilters] = useState<AccountFilters>(emptyFilters)
@@ -206,15 +208,21 @@ export function AdminAccounts({
     load(query, 0, next)
   }
 
-  function confirmDisable(user: ApiAdminUser): boolean {
-    return window.confirm(
-      `Disable ${user.email}?\n\n` +
-        "Every credential this account holds stops working immediately: password, " +
-        "login code, refresh token, the access token it is already carrying, and its " +
-        "webhook keys. Live sessions are revoked and queued work will not start.\n\n" +
-        "This is not deletion. Enabling reverses the state and nothing else — " +
-        "sessions stay revoked.",
+  // Disabling is a guided, orchestrated step: the operator previews the impact
+  // and chooses suspension vs leaver in the modal, then this runs the disable and
+  // reports what its cleanup did.
+  function runDisable(user: ApiAdminUser, retireWebhookKeys: boolean): void {
+    act(
+      () => setAdminUserDisabled(token!, user.id, true, { retireWebhookKeys }),
+      (after) => {
+        const parts = [`${after.sessions_revoked} session${after.sessions_revoked === 1 ? "" : "s"} revoked`]
+        if (after.schedules_paused) parts.push(`${after.schedules_paused} schedule${after.schedules_paused === 1 ? "" : "s"} paused`)
+        if (after.runs_canceled) parts.push(`${after.runs_canceled} run${after.runs_canceled === 1 ? "" : "s"} canceled`)
+        if (after.webhook_keys_retired) parts.push(`${after.webhook_keys_retired} webhook key${after.webhook_keys_retired === 1 ? "" : "s"} retired`)
+        return `${after.email} is disabled. ${parts.join(", ")}.`
+      },
     )
+    setDisableTarget(null)
   }
 
   return (
@@ -576,15 +584,7 @@ export function AdminAccounts({
                 type="button"
                 className="admin-button admin-button--danger"
                 disabled={busy}
-                onClick={() => {
-                  if (!confirmDisable(selected)) return
-                  act(
-                    () => setAdminUserDisabled(token!, selected.id, true),
-                    (user) =>
-                      `${user.email} is disabled. ${user.sessions_revoked} session token` +
-                      `${user.sessions_revoked === 1 ? "" : "s"} revoked.`,
-                  )
-                }}
+                onClick={() => setDisableTarget(selected)}
               >
                 Disable
               </button>
@@ -592,6 +592,17 @@ export function AdminAccounts({
           </div>
         </section>
       ) : null}
+
+      <DeactivationImpactModal
+        open={disableTarget !== null}
+        user={disableTarget}
+        token={token ?? ""}
+        busy={busy}
+        onCancel={() => setDisableTarget(null)}
+        onConfirm={(retireWebhookKeys) => {
+          if (disableTarget) runDisable(disableTarget, retireWebhookKeys)
+        }}
+      />
     </div>
   )
 }

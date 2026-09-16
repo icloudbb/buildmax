@@ -19,9 +19,11 @@ import (
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/server/access"
+	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
 	"github.com/icloudbb/buildmax/internal/service/audit"
 	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
 	"github.com/icloudbb/buildmax/internal/service/quota"
+	"github.com/icloudbb/buildmax/internal/service/spacerecovery"
 )
 
 type Config struct {
@@ -41,6 +43,14 @@ type Config struct {
 	TaskRuns           coretask.RunStore
 
 	Quota *quota.Service
+	// Lifecycle sequences an account disable/enable and its cleanup, and computes
+	// the deactivation-impact projection. Nil falls back to setting the gate and
+	// revoking sessions inline, which is what a deployment without the wired
+	// service has.
+	Lifecycle *accountlifecycle.Service
+	// SpaceRecovery performs disabled-owner-only ownership recovery. Nil answers
+	// the recovery route as not configured.
+	SpaceRecovery *spacerecovery.Service
 	// Plugins publishes releases and manages catalog entries. Nil is a
 	// deployment with no Marketplace, which every route here reports rather
 	// than pretending an empty catalog.
@@ -97,6 +107,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/users", h.createAdminUserHandler)
 	mux.HandleFunc("GET /api/admin/users/{user_id}", h.getAdminUserHandler)
 	mux.HandleFunc("POST /api/admin/users/{user_id}/login-code", h.issueAdminLoginCodeHandler)
+	// Read-only projection of what disabling this account would stop and what
+	// needs a successor, before the state change commits. Metadata and counts
+	// only; it never reads a Space's contents.
+	mux.HandleFunc("GET /api/admin/users/{user_id}/deactivation-impact", h.deactivationImpactHandler)
 	// Stored-flag transitions are a state sub-resource, not RPC actions. See
 	// the route conventions in docs/contribute/architecture/server.md
 	mux.HandleFunc("PUT /api/admin/users/{user_id}/state", h.setAdminUserStateHandler)
@@ -111,6 +125,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/audit-events/export", h.exportAdminAuditEventsHandler)
 	mux.HandleFunc("GET /api/admin/spaces", h.listAdminSpacesHandler)
 	mux.HandleFunc("GET /api/admin/spaces/{space_id}", h.getAdminSpaceHandler)
+	// The owner is a state sub-resource: recovery sets it when every recorded
+	// owner is disabled. Not a general transfer — see the service's preconditions.
+	mux.HandleFunc("PUT /api/admin/spaces/{space_id}/owner", h.recoverSpaceOwnershipHandler)
 	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)
 	mux.HandleFunc("POST /api/admin/llm/models", h.createAdminModelHandler)
 	mux.HandleFunc("PUT /api/admin/llm/models/{model_id}/state", h.setAdminModelStateHandler)

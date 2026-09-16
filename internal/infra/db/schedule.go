@@ -28,6 +28,7 @@ type scheduleRow struct {
 	// "enabled rows whose next_fire_at has arrived, oldest first", and the
 	// composite index serves both the filter and the order.
 	Enabled             bool       `gorm:"not null;index:idx_schedule_due,priority:1"`
+	PauseReason         string     `gorm:"column:pause_reason;type:varchar(32);not null;default:''"`
 	NextFireAt          time.Time  `gorm:"column:next_fire_at;not null;index:idx_schedule_due,priority:2"`
 	LastFireAt          *time.Time `gorm:"column:last_fire_at"`
 	LastTaskID          *uint64    `gorm:"column:last_task_id;index"`
@@ -75,6 +76,7 @@ func toSchedule(row *scheduleReadRow) *coreschedule.Schedule {
 		CronExpr:            row.Row.CronExpr,
 		Timezone:            row.Row.Timezone,
 		Enabled:             row.Row.Enabled,
+		PauseReason:         row.Row.PauseReason,
 		NextFireAt:          row.Row.NextFireAt,
 		LastFireAt:          row.Row.LastFireAt,
 		ConsecutiveFailures: row.Row.ConsecutiveFailures,
@@ -195,6 +197,14 @@ func (s *Store) UpdateSchedule(ctx context.Context, in coreschedule.UpdateInput)
 	}
 	if in.Enabled != nil {
 		updates["enabled"] = *in.Enabled
+		// Enabling clears the reason so a re-enabled schedule never reads as paused
+		// for a cause that no longer holds. Disabling records the reason the caller
+		// gave, or none for a plain disable.
+		if *in.Enabled {
+			updates["pause_reason"] = ""
+		} else if in.PauseReason != nil {
+			updates["pause_reason"] = *in.PauseReason
+		}
 	}
 	if in.NextFireAt != nil {
 		updates["next_fire_at"] = in.NextFireAt.UTC()
@@ -242,6 +252,17 @@ func (s *Store) DueSchedules(ctx context.Context, now time.Time, limit int) ([]c
 	err := s.scheduleSelect(ctx).
 		Where("schedule.enabled = ? AND schedule.next_fire_at <= ?", true, now.UTC()).
 		Order("schedule.next_fire_at ASC").Limit(limit).Find(&list).Error
+	return toSchedules(list), err
+}
+
+// ListEnabledSchedulesByCreator returns every enabled schedule a given account
+// created, across Spaces. A deactivation pauses these at once rather than waiting
+// for each to reach its next fire time, and a deactivation impact counts them.
+func (s *Store) ListEnabledSchedulesByCreator(ctx context.Context, createdBy string) ([]coreschedule.Schedule, error) {
+	var list []scheduleReadRow
+	err := s.scheduleSelect(ctx).
+		Where("cb.public_id = ? AND schedule.enabled = ?", createdBy, true).
+		Order("schedule.id ASC").Find(&list).Error
 	return toSchedules(list), err
 }
 

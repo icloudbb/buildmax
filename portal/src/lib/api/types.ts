@@ -764,9 +764,32 @@ export interface ApiAdminSessionsRevoked {
   revoked: number
 }
 
-/** An account plus what a disable did to its sessions. */
+/** An account plus what a disable's orchestrated cleanup did. */
 export interface ApiAdminUserAfterDisable extends ApiAdminUser {
   sessions_revoked: number
+  webhook_keys_retired?: number
+  schedules_paused?: number
+  runs_canceled?: number
+}
+
+/** One Space an account belongs to and the role it holds there. */
+export interface ApiDeactivationMembership {
+  space_id: string
+  role: string
+}
+
+/**
+ * What disabling an account would stop, as counts and ids only — never Space
+ * content. Read before committing the change.
+ */
+export interface ApiDeactivationImpact {
+  live_sessions: number
+  webhook_keys: number
+  memberships: ApiDeactivationMembership[]
+  sole_owned_space_ids: string[]
+  enabled_schedules: number
+  active_runs_by_status: Record<string, number>
+  cancellation_bound: string
 }
 
 export interface ApiAdminDependency {

@@ -141,6 +141,12 @@ func (s *Service) Update(ctx context.Context, cmd UpdateCmd) (*coreschedule.Sche
 		Timezone:   cmd.Timezone,
 		Enabled:    cmd.Enabled,
 	}
+	// A person disabling their own schedule is a manual pause. Enabling clears the
+	// reason in the store, so it is only set here when disabling.
+	if cmd.Enabled != nil && !*cmd.Enabled {
+		manual := coreschedule.PauseReasonManual
+		in.PauseReason = &manual
+	}
 	if cmd.CronExpr != nil || cmd.Timezone != nil {
 		cronExpr := existing.CronExpr
 		if cmd.CronExpr != nil {

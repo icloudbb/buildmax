@@ -80,6 +80,11 @@ func (m *MockScheduleStore) UpdateSchedule(_ context.Context, in coreschedule.Up
 		}
 		if in.Enabled != nil {
 			m.Schedules[i].Enabled = *in.Enabled
+			if *in.Enabled {
+				m.Schedules[i].PauseReason = ""
+			} else if in.PauseReason != nil {
+				m.Schedules[i].PauseReason = *in.PauseReason
+			}
 		}
 		if in.NextFireAt != nil {
 			m.Schedules[i].NextFireAt = *in.NextFireAt
@@ -108,6 +113,16 @@ func (m *MockScheduleStore) DueSchedules(_ context.Context, now time.Time, limit
 			if limit > 0 && len(out) >= limit {
 				break
 			}
+		}
+	}
+	return out, nil
+}
+
+func (m *MockScheduleStore) ListEnabledSchedulesByCreator(_ context.Context, createdBy string) ([]coreschedule.Schedule, error) {
+	var out []coreschedule.Schedule
+	for i := range m.Schedules {
+		if m.Schedules[i].Enabled && m.Schedules[i].CreatedBy == createdBy {
+			out = append(out, m.Schedules[i])
 		}
 	}
 	return out, nil

@@ -8,9 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/mock"
 	tasksvc "github.com/icloudbb/buildmax/internal/service/task"
 )
 
@@ -92,9 +95,26 @@ func (f *fakeScheduleStore) UpdateSchedule(_ context.Context, in coreschedule.Up
 	}
 	if in.Enabled != nil {
 		sc.Enabled = *in.Enabled
+		if *in.Enabled {
+			sc.PauseReason = ""
+		} else if in.PauseReason != nil {
+			sc.PauseReason = *in.PauseReason
+		}
 	}
 	cp := *sc
 	return &cp, nil
+}
+
+func (f *fakeScheduleStore) ListEnabledSchedulesByCreator(_ context.Context, createdBy string) ([]coreschedule.Schedule, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []coreschedule.Schedule
+	for _, sc := range f.schedules {
+		if sc.Enabled && sc.CreatedBy == createdBy {
+			out = append(out, *sc)
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeScheduleStore) CreateSchedule(context.Context, *coreschedule.CreateInput) (*coreschedule.Schedule, error) {
@@ -277,25 +297,58 @@ func TestDispatcherPausesAfterConsecutiveFailures(t *testing.T) {
 	}
 }
 
-// A schedule whose creator was disabled pauses rather than admitting a Task that
-// would only fail at dispatch.
-func TestDispatcherPausesDisabledCreator(t *testing.T) {
+// A schedule whose creator can no longer run work in its Space — disabled, or
+// removed from the Space — pauses rather than admitting a Task that would only
+// fail at dispatch.
+func TestDispatcherPausesIneligibleCreator(t *testing.T) {
 	t0 := time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC)
-	sched := hourlySchedule(t0)
-	store := newFakeScheduleStore(sched)
-	admitter := &fakeAdmitter{}
 	disabledAt := t0.Add(-time.Hour)
-	users := fakeUserStore{user: &coreidentity.User{ID: "user1", DisabledAt: &disabledAt}}
-	d := newTestDispatcher(t, store, admitter, t0)
-	d.WithUserStore(users)
 
-	d.fireOne(context.Background(), *sched, t0)
-
-	if admitter.count() != 0 {
-		t.Errorf("a Task was admitted for a disabled creator: %d, want 0", admitter.count())
+	tests := []struct {
+		name       string
+		elig       eligibility.Checker
+		wantReason string
+	}{
+		{
+			name: "disabled creator",
+			elig: eligibility.New(
+				fakeUserStore{user: &coreidentity.User{ID: "user1", DisabledAt: &disabledAt}},
+				&mock.MockSpaceStore{Members: []corespace.Member{
+					{SpaceID: "space1", UserID: "user1", Role: corespace.RoleMember},
+				}},
+			),
+			wantReason: coreschedule.PauseReasonCreatorDisabled,
+		},
+		{
+			name: "creator removed from the space",
+			elig: eligibility.New(
+				fakeUserStore{user: &coreidentity.User{ID: "user1"}},
+				&mock.MockSpaceStore{}, // enabled, but no membership row
+			),
+			wantReason: coreschedule.PauseReasonCreatorNotMember,
+		},
 	}
-	stored := store.get("sched1")
-	if stored.Enabled {
-		t.Error("schedule still enabled after its creator was found disabled")
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sched := hourlySchedule(t0)
+			store := newFakeScheduleStore(sched)
+			admitter := &fakeAdmitter{}
+			d := newTestDispatcher(t, store, admitter, t0)
+			d.WithEligibility(tc.elig)
+
+			d.fireOne(context.Background(), *sched, t0)
+
+			if admitter.count() != 0 {
+				t.Errorf("a Task was admitted for an ineligible creator: %d, want 0", admitter.count())
+			}
+			stored := store.get("sched1")
+			if stored.Enabled {
+				t.Error("schedule still enabled after its creator was found ineligible")
+			}
+			if stored.PauseReason != tc.wantReason {
+				t.Errorf("pause_reason = %q, want %q", stored.PauseReason, tc.wantReason)
+			}
+		})
 	}
 }

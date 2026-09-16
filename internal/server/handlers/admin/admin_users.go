@@ -10,6 +10,7 @@ import (
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
 )
 
 // AdminUser is one account as an administrator sees it.
@@ -294,14 +295,19 @@ func (h *Handler) issueAdminLoginCodeHandler(w http.ResponseWriter, r *http.Requ
 	httputil.WriteJSON(w, http.StatusOK, AdminLoginCodeResponse{Code: code, ExpiresAt: expiresAt})
 }
 
-// setAdminUserDisabledHandler serves the disable and enable routes.
 // setUserStateRequest is the body of PUT /api/admin/users/{user_id}/state.
 type setUserStateRequest struct {
 	Disabled bool `json:"disabled"`
+	// RetireWebhookKeys asks a disable to permanently revoke the account's
+	// webhook keys rather than keep them for a deliberate return. The guided
+	// leaver flow sets it; a plain suspension leaves it false. Ignored on enable.
+	RetireWebhookKeys bool `json:"retire_webhook_keys,omitempty"`
 }
 
-// setAdminUserStateHandler sets the account's stored `disabled` flag. See
-// the route conventions in docs/contribute/architecture/server.md
+// setAdminUserStateHandler sets the account's stored `disabled` flag and, on
+// disable, quiets the account's sessions, credentials, schedules, and in-flight
+// runs through the account-lifecycle service. See the route conventions in
+// docs/contribute/architecture/server.md
 func (h *Handler) setAdminUserStateHandler(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {
@@ -309,6 +315,10 @@ func (h *Handler) setAdminUserStateHandler(w http.ResponseWriter, r *http.Reques
 	}
 	user, ok := h.adminTargetUser(w, r)
 	if !ok {
+		return
+	}
+	if h.cfg.Lifecycle == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "account lifecycle not configured")
 		return
 	}
 	var req setUserStateRequest
@@ -325,38 +335,19 @@ func (h *Handler) setAdminUserStateHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var disabledAt *time.Time
 	action := coreaudit.UserEnabled
+	var cleanup accountlifecycle.DisableResult
 	if disable {
-		now := time.Now().UTC()
-		disabledAt = &now
 		action = coreaudit.UserDisabled
-	}
-	if err := h.cfg.Users.SetUserDisabled(r.Context(), user.ID, disabledAt); err != nil {
-		if errors.Is(err, coreidentity.ErrUserNotFound) {
-			httputil.WriteJSONError(w, http.StatusNotFound, "account not found")
+		res, err := h.cfg.Lifecycle.Disable(r.Context(), user.ID, accountlifecycle.DisableOptions{
+			RetireWebhookKeys: req.RetireWebhookKeys,
+		})
+		if !h.handleLifecycleError(w, err, user.ID) {
 			return
 		}
-		if errors.Is(err, coreidentity.ErrSystemGrantLastHolder) {
-			httputil.WriteJSONError(w, http.StatusConflict,
-				"this account is the deployment's last system administrator; grant another before disabling it")
-			return
-		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "user_id", user.ID)
+		cleanup = res
+	} else if err := h.cfg.Lifecycle.Enable(r.Context(), user.ID); !h.handleLifecycleError(w, err, user.ID) {
 		return
-	}
-
-	revoked := int64(0)
-	if disable && h.cfg.Sessions != nil {
-		// Every session, and its refresh tokens, retired now rather than left to
-		// expire. The access token cannot be revoked directly; what stops it is
-		// the guard's session check refusing on the next request.
-		n, err := h.cfg.Sessions.RevokeUserSessions(r.Context(), user.ID, time.Now().UTC())
-		if err != nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "revoke_sessions")
-			return
-		}
-		revoked = n
 	}
 	h.recordAdminUserAction(r, actorID, action, user.ID, "")
 
@@ -365,10 +356,51 @@ func (h *Handler) setAdminUserStateHandler(w http.ResponseWriter, r *http.Reques
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "reload")
 		return
 	}
+	// The gate result (the reloaded account) is reported alongside the cleanup
+	// counts but is distinct from them: a nonzero cleanup that partially failed
+	// still leaves the gate committed, so an operator reads the two separately.
 	httputil.WriteJSON(w, http.StatusOK, struct {
 		AdminUser
-		SessionsRevoked int64 `json:"sessions_revoked"`
-	}{AdminUser: toAdminUser(*updated), SessionsRevoked: revoked})
+		accountlifecycle.DisableResult
+	}{AdminUser: toAdminUser(*updated), DisableResult: cleanup})
+}
+
+// handleLifecycleError maps the account gate's errors to responses and reports
+// whether the caller may continue. A nil error continues.
+func (h *Handler) handleLifecycleError(w http.ResponseWriter, err error, userID string) bool {
+	switch {
+	case err == nil:
+		return true
+	case errors.Is(err, coreidentity.ErrUserNotFound):
+		httputil.WriteJSONError(w, http.StatusNotFound, "account not found")
+	case errors.Is(err, coreidentity.ErrSystemGrantLastHolder):
+		httputil.WriteJSONError(w, http.StatusConflict,
+			"this account is the deployment's last system administrator; grant another before disabling it")
+	default:
+		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "user_id", userID)
+	}
+	return false
+}
+
+// deactivationImpactHandler serves GET /api/admin/users/{user_id}/deactivation-impact.
+func (h *Handler) deactivationImpactHandler(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.guard().SystemAdmin(w, r); !ok {
+		return
+	}
+	user, ok := h.adminTargetUser(w, r)
+	if !ok {
+		return
+	}
+	if h.cfg.Lifecycle == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "account lifecycle not configured")
+		return
+	}
+	impact, err := h.cfg.Lifecycle.Impact(r.Context(), user.ID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_deactivation_impact", "user_id", user.ID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, impact)
 }
 
 // revokeAdminUserSessionsHandler serves DELETE /api/admin/users/{user_id}/sessions.

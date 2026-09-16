@@ -529,7 +529,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// backstop measures, and it stays true whichever of the two paths below the
 	// run turns out to be on.
 	now := time.Now().UTC()
-	requested, err := h.cfg.TaskRuns.RequestTaskRunCancel(r.Context(), run.ID, userID, now)
+	requested, err := h.cfg.TaskRuns.RequestTaskRunCancel(r.Context(), run.ID, userID, coretask.CancelReasonUserRequested, now)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.ID)
 		return

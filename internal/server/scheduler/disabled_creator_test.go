@@ -2,11 +2,13 @@ package scheduler
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/mock"
 )
 
@@ -16,61 +18,100 @@ func runnerCalls(r *recordingRunner) int {
 	return calls
 }
 
-// TestSchedulerDoesNotDispatchForADisabledAccount.
+// enabledMember builds authority stores where userID is an enabled account and a
+// member of the spy's task space, so it is eligible.
+func enabledMember(userID string) eligibility.Checker {
+	users := &mock.MockUserStore{ByID: map[string]*coreidentity.User{
+		userID: {ID: userID, Email: userID + "@example.com"},
+	}}
+	spaces := &mock.MockSpaceStore{Members: []corespace.Member{
+		{SpaceID: "tm_test", UserID: userID, Role: corespace.RoleMember},
+	}}
+	return eligibility.New(users, spaces)
+}
+
+// TestSchedulerDoesNotDispatchForAnIneligibleInitiator.
 //
-// Disabling an account has to stop work it queued, or "disable" means "stops
-// signing in" rather than "stops acting". The run fails at dispatch rather than
-// being left PENDING: a run nobody will ever pick up, sitting in a queue with
-// no explanation, is worse than a terminal one that says why.
-func TestSchedulerDoesNotDispatchForADisabledAccount(t *testing.T) {
-	taskRunID := "r_disabled12345678901234"
-	spy := newSpyTaskRunStore(taskRunID)
-	spy.pendingRun.CreatedBy = "u_disabled"
-
-	users := &mock.MockUserStore{}
+// Withdrawing authority — disabling the account, or removing it from the run's
+// Space — has to stop work it queued, or the change means "stops signing in"
+// rather than "stops acting". The run reaches CANCELED, not FAILED: nothing went
+// wrong, the account may no longer act, and the reason records which withdrawal
+// it was.
+func TestSchedulerDoesNotDispatchForAnIneligibleInitiator(t *testing.T) {
 	disabledAt := time.Unix(1, 0).UTC()
-	users.ByID = map[string]*coreidentity.User{
-		"u_disabled": {ID: "u_disabled", Email: "gone@example.com", DisabledAt: &disabledAt},
-	}
-	runner := &recordingRunner{}
 
-	s, err := NewSchedulerWithPollInterval(spy, runner, nil, 10*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name       string
+		elig       eligibility.Checker
+		wantReason string
+	}{
+		{
+			name: "disabled account",
+			elig: eligibility.New(
+				&mock.MockUserStore{ByID: map[string]*coreidentity.User{
+					"u_gone": {ID: "u_gone", DisabledAt: &disabledAt},
+				}},
+				&mock.MockSpaceStore{Members: []corespace.Member{
+					{SpaceID: "tm_test", UserID: "u_gone", Role: corespace.RoleMember},
+				}},
+			),
+			wantReason: coretask.CancelReasonCreatorDisabled,
+		},
+		{
+			name: "removed from the space",
+			elig: eligibility.New(
+				&mock.MockUserStore{ByID: map[string]*coreidentity.User{
+					"u_gone": {ID: "u_gone", Email: "here@example.com"},
+				}},
+				&mock.MockSpaceStore{}, // enabled, but no membership row
+			),
+			wantReason: coretask.CancelReasonCreatorNotMember,
+		},
 	}
-	s.WithUserStore(users).Start()
-	time.Sleep(25 * time.Millisecond)
-	s.Stop(context.Background())
 
-	if runnerCalls(runner) != 0 {
-		t.Errorf("a worker was spawned for a disabled account: %d", runnerCalls(runner))
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			spy := newSpyTaskRunStore("r_disabled12345678901234")
+			spy.pendingRun.CreatedBy = "u_gone"
+			runner := &recordingRunner{}
 
-	spy.mu.Lock()
-	defer spy.mu.Unlock()
-	if spy.lastUpdateStatus == nil {
-		t.Fatal("the run was left PENDING with no explanation")
-	}
-	if spy.lastUpdateStatus.status != "FAILED" {
-		t.Errorf("status = %q, want FAILED", spy.lastUpdateStatus.status)
-	}
-	if spy.lastUpdateStatus.errorMessage == nil || !strings.Contains(*spy.lastUpdateStatus.errorMessage, "disabled") {
-		t.Errorf("the run should say why it did not start, got %v", spy.lastUpdateStatus.errorMessage)
+			s, err := NewSchedulerWithPollInterval(spy, runner, nil, 10*time.Millisecond)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.WithEligibility(tc.elig).Start()
+			time.Sleep(25 * time.Millisecond)
+			s.Stop(context.Background())
+
+			if runnerCalls(runner) != 0 {
+				t.Errorf("a worker was spawned for an ineligible initiator: %d", runnerCalls(runner))
+			}
+
+			spy.mu.Lock()
+			defer spy.mu.Unlock()
+			if spy.lastUpdateStatus == nil {
+				t.Fatal("the run was left with no explanation")
+			}
+			if spy.lastUpdateStatus.status != string(coretask.RunStatusCanceled) {
+				t.Errorf("status = %q, want CANCELED", spy.lastUpdateStatus.status)
+			}
+			if spy.lastUpdateStatus.cancelReason != tc.wantReason {
+				t.Errorf("cancel_reason = %q, want %q", spy.lastUpdateStatus.cancelReason, tc.wantReason)
+			}
+		})
 	}
 }
 
-// TestSchedulerDispatchesForAnEnabledAccount is the other half: the guard must
-// not stop ordinary work, including when the deployment wires no user store at
-// all.
-func TestSchedulerDispatchesForAnEnabledAccount(t *testing.T) {
+// TestSchedulerDispatchesForAnEligibleInitiator is the other half: the guard must
+// not stop ordinary work, including when the deployment wires no eligibility
+// check at all.
+func TestSchedulerDispatchesForAnEligibleInitiator(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		users coreidentity.UserStore
+		name string
+		elig eligibility.Checker
 	}{
-		{"enabled account", &mock.MockUserStore{ByID: map[string]*coreidentity.User{
-			"u_active": {ID: "u_active", Email: "here@example.com"},
-		}}},
-		{"no user store", nil},
+		{"enabled member", enabledMember("u_active")},
+		{"no eligibility check", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			spy := newSpyTaskRunStore("r_active123456789012345")
@@ -81,7 +122,7 @@ func TestSchedulerDispatchesForAnEnabledAccount(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.WithUserStore(tc.users).Start()
+			s.WithEligibility(tc.elig).Start()
 			time.Sleep(25 * time.Millisecond)
 			s.Stop(context.Background())
 
