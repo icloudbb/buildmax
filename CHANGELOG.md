@@ -14,6 +14,187 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.13] - 2026-09-17
+
+### Added
+
+- A System Administrator can preview what disabling an account would stop with
+  `GET /api/admin/users/{user_id}/deactivation-impact` — live sessions, webhook
+  keys, memberships and roles, sole-owned Spaces, enabled schedules, active runs
+  by status, and the cancellation bound, as counts and ids only, never Space
+  content. Disabling an account (`PUT .../state`) now commits the account gate
+  and then, in one orchestrated step, revokes sessions, pauses the account's
+  schedules, cancels its in-flight runs, and — when `retire_webhook_keys` is set
+  for a leaver rather than a suspension — permanently retires its webhook keys;
+  the response reports the gate result alongside those cleanup counts.
+
+- SSO account linking: a new `external_identity` table binds a BuildMax account
+  to a verified `(issuer, subject)` at the IdP, and an association step resolves
+  a verified sign-in to its account — reusing an existing link, linking an
+  operator-created account by verified email, refusing a takeover, or creating an
+  account just in time within `allowed_email_domains`. A System Administrator can
+  list an account's identity links and, while the account is disabled, unlink one
+  (`GET`/`DELETE /api/admin/users/{user_id}/identities`); linking and unlinking
+  are recorded in the same transaction as the change. The browser sign-in flow
+  that drives this lands in a following change.
+
+- Corporate sign-in over OpenID Connect is now usable end to end (Okta the first
+  supported provider): a "Sign in with <provider>" button on the Portal takes the
+  browser through `GET /api/auth/oidc/start` and `…/callback`, which verifies the
+  ID token, links or provisions the account, and opens the same session a
+  password login would. Native password and login-code sign-in are gated
+  independently by `local_login` (`all`, `system_admins`, `off`), so a deployment
+  can run SSO only, both, or keep a break-glass path for operators. See
+  [deploy/authentication.md](../../deploy/authentication.md). The pinned
+  real-Okta qualification and secret/key-rotation drills are still to come.
+
+- Groundwork for corporate sign-in over OpenID Connect: a server `oidc` block
+  (issuer, client, `provisioning`, `allowed_email_domains`, `session_max_age`),
+  a `local_login` knob (`all`, `system_admins`, `off`) that gates native
+  password and login-code sign-in independently of SSO, and a new unauthenticated
+  `GET /api/auth/methods` that reports the enabled sign-in methods. The client
+  secret is injected with `BUILDMAX_OIDC_CLIENT_SECRET` and never served; the
+  admin system view reports the provider's live health. The browser login flow
+  itself lands in a following change.
+
+- Disabling an account in the Portal admin area now opens a guided impact
+  preview first: it shows what the disable would stop — live sessions, webhook
+  keys, memberships, enabled schedules, and active runs — warns when a shared
+  space would be left with no enabled owner, states how long already-running
+  work may take to stop, and lets the operator choose a temporary suspension or a
+  leaver whose webhook keys are retired. Confirming reports what the cleanup did.
+  The admin Spaces view gains a "Make owner" action that recovers a shared space
+  whose owners are all disabled by promoting an enabled member.
+
+- A System Administrator can recover a shared Space whose recorded owners are
+  all disabled by promoting an enabled member to owner, with
+  `PUT /api/admin/spaces/{space_id}/owner` or, for break glass when the Server
+  or IdP is unavailable, `buildmax-server space recover-owner <space_id>
+  <successor_email>`. It refuses a personal Space, a Space whose owner can still
+  sign in, and a successor who is not already an enabled member; it creates no
+  membership and grants the operator no access to the Space's contents; and it
+  records a `space.ownership_recovered` audit event naming the disabled owner,
+  the successor, and the actor.
+
+- A workflow run now shows a read-only graph of its nodes laid out left to
+  right by dependency, with each node colored by status and linking to its Task.
+  It reads the run's node records, so the picture matches exactly what ran.
+
+- A Workflow run now takes an immutable input validated against the workflow's
+  `input_schema` at admission and frozen onto the run; the Portal generates a run
+  input form from that schema, and a workflow without one runs with no input as
+  before.
+
+- A workflow definition may declare a `result` selector (a `source` and RFC 6901
+  `pointer` into a step's output, like an input binding); a succeeding run resolves
+  it once and stores it as the run's authoritative result, surfaced on the run
+  detail and on the issue the run belongs to.
+
+- A Workflow `agent_task` step can declare an `output_schema` (a JSON Schema in
+  the supported subset): the step's run is constrained to return a machine-readable
+  answer matching it, the validated value is persisted on the run and step, and
+  the step succeeds only when the answer validates — otherwise it fails.
+
+### Changed
+
+- The Compose bundle now serves the Portal and the API through one gateway on a
+  single origin (as the Kubernetes deployment already does), so the session
+  cookie's same-origin check is satisfied and sign-in works out of the box; open
+  the same published port as before.
+
+- Server sessions are now durable and checked on every request: logout,
+  administrator revocation, and account disablement stop an already-issued
+  access token within the access-token window instead of at its expiry. Access
+  tokens default to 15 minutes and sessions have a 90-day absolute lifetime
+  (`access_token_ttl`, `session_absolute_ttl`). Existing sessions must sign in
+  again after the upgrade.
+
+- Unattended Agent work now stops when its initiator loses authority — the
+  account is disabled or removed from the run's Space. A run that has not started
+  no longer starts a worker and instead reaches `CANCELED` (not `FAILED`) with a
+  `cancel_reason` of `creator_disabled` or `creator_not_member`; a run already
+  under way is asked to stop by a background reconciler and by the worker's own
+  re-check when it fetches its run. A schedule whose creator lost authority
+  pauses with a matching `pause_reason`. A run's managed-inference token is now
+  attributed to the run's own initiator rather than the original Task creator, so
+  a Continue by a colleague runs under that colleague.
+
+- The Portal now keeps its refresh credential in a Secure, HttpOnly,
+  SameSite=Strict cookie the browser manages instead of in `localStorage`, and
+  holds only a short-lived access token in memory. New `/api/auth/portal/{login,
+  session,logout}` routes deliver it; native CLI and Desktop clients keep using
+  the JSON `/api/auth/*` routes. Serve the Portal and API from one origin (a
+  reverse proxy in production; the dev server proxies `/api` automatically).
+
+- Publishing a workflow now pins each node's Agent to a specific revision:
+  a node that names no `agent.revision` is pinned to the Agent's current
+  revision, and the pinned number is stored in the published definition. A run
+  started later snapshots that revision's content, so editing an Agent no longer
+  changes what an already-published plan runs. Publication rejects a node that
+  pins a revision the Agent never had.
+
+- A workflow run now dispatches every ready node at once instead of one at a
+  time, so independent branches of the graph execute in parallel. A definition
+  may cap the parallelism with `policy.max_parallel_nodes` (1 to the deployment
+  maximum); absent, a run uses the deployment ceiling. Failure stays fail-fast:
+  one node's failure now also cancels the siblings that were running alongside
+  it and ends the run.
+
+- A Workflow definition must now declare `"schema_version": 1`, and may declare
+  an `input_schema` and a `result` selector; publication rejects an unknown
+  version, an input schema outside the supported subset, or a result naming a
+  step that does not exist.
+
+- A workflow node now names its Agent under `agent` (`{"id": …}`) and its task
+  under `input` (`{"instruction": …, "bindings": […]}`) instead of the flat
+  `target_agent_id`, `prompt`, and `bindings` fields, and it declares an
+  `issue_access` mode. `none` (the default) gives the node's Task no Issue
+  relation; `if_bound` attaches the run's Issue when it has one; `required`
+  additionally refuses to start a run that has no Issue. This makes each node's
+  Issue capability an explicit choice and replaces the earlier flat node shape;
+  existing definitions must be re-authored.
+
+- A workflow run's per-step records are now node runs: the API and Portal
+  expose `node_id`, `node_index`, and `node_type`, each run records the full
+  resolved input its node received and its complete output (replacing the
+  truncated output summary), and the run detail shows both.
+
+- Workflow step input bindings now select a value from a source (`workflow.input`
+  or an earlier step's `node.<id>.output` envelope of text, structured output, and
+  Artifact references) at an RFC 6901 JSON Pointer, instead of injecting an
+  earlier step's whole output; the step editor authors a source and pointer per
+  input.
+
+- A workflow definition now describes a graph of `nodes` joined by `needs`
+  edges instead of an ordered `steps` array: a node becomes ready when every
+  node it needs has succeeded, so dependencies — not list position — decide the
+  order. Publication rejects a graph that is not acyclic, a `needs` edge to a
+  missing node, or an input binding that reads a node which is not one of its
+  predecessors. Execution stays fail-fast (one node's failure blocks the rest)
+  and dispatches one ready node at a time for now. This replaces the earlier
+  `steps`/`step_id` shape; existing definitions must be re-authored as
+  `nodes`/`id`.
+
+### Fixed
+
+- Fixed cross-origin sign-in: the server's CORS responses now set
+  `Access-Control-Allow-Credentials: true`, so a deployment that serves the
+  Portal and the API on different origins (such as the Compose bundle) can send
+  the session cookie and complete login, which the browser had been blocking.
+
+- Desktop tool-call cards no longer break the tool name mid-word at narrow
+  window widths, keeping short transcripts scannable.
+
+- A large dialog whose content is taller than the window — such as the New
+  Workflow form with a step and its input bindings — now caps its height and
+  scrolls its body, so the footer buttons (for example Create workflow) stay
+  reachable instead of overflowing off the bottom of the screen.
+
+- Fixed the Portal showing a whole-page error, instead of the app shell with a
+  "Space unavailable" label, when the Space list failed to load on a reload — the
+  session restore's brief unauthenticated window had cleared the remembered Space
+  before the list was even fetched.
+
 ## [0.2.0-alpha.12] - 2026-09-13
 
 ### Added
@@ -2945,7 +3126,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.12...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.13...HEAD
+[0.2.0-alpha.13]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.12...v0.2.0-alpha.13
 [0.2.0-alpha.12]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.11...v0.2.0-alpha.12
 [0.2.0-alpha.11]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.10...v0.2.0-alpha.11
 [0.2.0-alpha.10]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.9...v0.2.0-alpha.10
