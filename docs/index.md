@@ -169,29 +169,3 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 ## Changelog / 变更日志
 
 - [English: Changelog Entries](changelog/README.md) · [中文：变更日志条目](zh-CN/changelog/README.md)
-- [English: OIDC account linking](changelog/added/oidc-account-linking.md) · 中文：—
-- [English: OIDC sign-in](changelog/added/oidc-sign-in.md) · 中文：—
-- [English: OIDC SSO configuration](changelog/added/oidc-sso-config.md) · 中文：—
-- [English: Durable authentication sessions](changelog/changed/durable-auth-sessions.md) · 中文：—
-- [English: Portal cookie sessions](changelog/changed/portal-cookie-session.md) · 中文：—
-- [English: Workflow step output schema](changelog/added/workflow-step-output-schema.md) · 中文：—
-- [English: Workflow definition schema version](changelog/changed/workflow-definition-schema-version.md) · 中文：—
-- [English: Workflow run input](changelog/added/workflow-run-input.md) · 中文：—
-- [English: Workflow node runs](changelog/changed/workflow-node-runs.md) · 中文：—
-- [English: Workflow pointer bindings](changelog/changed/workflow-pointer-bindings.md) · 中文：—
-- [English: Workflow agent revision pinning](changelog/changed/workflow-agent-revision-pinning.md) · 中文：—
-- [English: Workflow node agent/input/issue_access](changelog/changed/workflow-node-agent-input-issue-access.md) · 中文：—
-- [English: Workflow concurrent node dispatch](changelog/changed/workflow-concurrent-node-dispatch.md) · 中文：—
-- [English: Workflow static DAG needs](changelog/changed/workflow-static-dag-needs.md) · 中文：—
-- [English: Workflow run graph view](changelog/added/workflow-run-graph-view.md) · 中文：—
-- [English: Workflow run result](changelog/added/workflow-run-result.md) · 中文：—
-- [English: Large modal footer reachable](changelog/fixed/large-modal-footer-reachable.md) · 中文：—
-- [English: Desktop tool-call card name wrapping](changelog/fixed/desktop-tool-card-name-wrap.md) · 中文：—
-- [English: Cross-origin sign-in CORS credentials](changelog/fixed/cors-credentials-cross-origin.md) · 中文：—
-- [English: Portal reload Space fallback](changelog/fixed/portal-reload-space-fallback.md) · 中文：—
-- [English: Last-admin concurrent revoke and disable](changelog/fixed/last-admin-concurrent-revoke-disable.md) · 中文：—
-- [English: Compose single-origin gateway](changelog/changed/compose-single-origin-gateway.md) · 中文：—
-- [English: Personnel deactivation eligibility gate](changelog/changed/personnel-deactivation-eligibility-gate.md) · 中文：—
-- [English: Account deactivation impact and orchestration](changelog/added/account-deactivation-impact-and-orchestration.md) · 中文：—
-- [English: Space owner recovery](changelog/added/space-owner-recovery.md) · 中文：—
-- [English: Portal guided deactivation](changelog/added/portal-guided-deactivation.md) · 中文：—
