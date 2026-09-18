@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -11,6 +12,17 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// lastHolderTx runs the last-holder guard at READ COMMITTED. The guard
+// serializes a revoke and a concurrent disable behind a FOR UPDATE lock on the
+// role's live grants, then decides on a count of the effective holders. Under
+// MySQL's default REPEATABLE READ that count is a consistent read from the
+// snapshot taken at the transaction's first read — established before the lock
+// was granted — so the loser of the race still sees the winner's holder as
+// effective and both proceed, emptying the role. READ COMMITTED gives each read
+// the latest committed data, so the count taken after the lock reflects the
+// change the lock was waited on.
+var lastHolderTx = &sql.TxOptions{Isolation: sql.LevelReadCommitted}
 
 // systemGrantRow is one deployment-scoped authority held by one user.
 //
@@ -216,7 +228,7 @@ func (s *Store) RevokeSystemRole(ctx context.Context, userID, role string, now t
 			return coreidentity.ErrSystemGrantLastHolder
 		}
 		return nil
-	})
+	}, lastHolderTx)
 	if errors.Is(err, coreidentity.ErrSystemGrantLastHolder) {
 		return false, err
 	}
