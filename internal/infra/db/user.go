@@ -143,6 +143,9 @@ func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *
 	if !ok {
 		return coreidentity.ErrUserNotFound
 	}
+	// lastHolderTx (READ COMMITTED) so ensureNotLastSystemHolder counts the
+	// committed effective holders after its FOR UPDATE lock is granted, not the
+	// snapshot from before a racing revoke committed.
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if disabledAt != nil {
 			if err := ensureNotLastSystemHolder(ctx, tx, id); err != nil {
@@ -168,7 +171,7 @@ func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *
 			}
 		}
 		return nil
-	})
+	}, lastHolderTx)
 }
 
 // UserByEmail returns the user with the given email, or (nil, nil) when not found.
