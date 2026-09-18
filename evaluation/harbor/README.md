@@ -21,13 +21,14 @@ with no Python or Node, as [AGENTS.md](../../AGENTS.md) requires.
 | Path | What it is |
 |---|---|
 | `pins.json` | Every version a result depends on besides the subject. Read by Go (`pins.go`) and by a human. |
+| [`runtime-flow-memo.zh-CN.md`](runtime-flow-memo.zh-CN.md) | Chinese implementation memo tracing a Job from `harbor run` through environment setup, Agent execution, verification, import, and the Kubernetes boundary. |
 | `pins.go` | Loader and validator for the above. Refuses a floating dataset ref. |
 | `src/buildmax_harbor/agent.py` | The class Harbor loads. Uploads the CLI, writes a trial home, runs one prompt, collects the trace. |
 | `src/buildmax_harbor/settings.py` | Renders the trial home's `settings.yaml`. Imports no Harbor code. |
 | `src/buildmax_harbor/envelope.py` | Reads BuildMax's print-mode result envelope. Imports no Harbor code. |
 | `tests/` | Covers the two harness-free modules, so the credential rendering is checkable without installing Harbor. |
 | `run.go` | Builds the `harbor run` command from the pins and starts it. The same builder writes the reproduction command on every bundle. |
-| `job.go` | Reads a finished Harbor job directory: one `results.json` and `config.json` per trial. |
+| `job.go` | Reads a finished Harbor job directory: one `result.json` and `config.json` per trial. |
 | `convert.go` | Turns those into the BuildMax trial contract: subject manifest, status, verdict, usage. |
 | `import.go` | Writes the result as a bundle tree the rest of `evaluation/` can read. |
 
