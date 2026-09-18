@@ -5,5 +5,6 @@
   password login would. Native password and login-code sign-in are gated
   independently by `local_login` (`all`, `system_admins`, `off`), so a deployment
   can run SSO only, both, or keep a break-glass path for operators. See
-  [deploy/authentication.md](../../deploy/authentication.md). The pinned
-  real-Okta qualification and secret/key-rotation drills are still to come.
+  [deploy/authentication.md](https://github.com/icloudbb/buildmax/blob/main/docs/deploy/authentication.md).
+  The pinned real-Okta qualification and secret/key-rotation drills are still to
+  come.
