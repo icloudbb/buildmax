@@ -174,9 +174,6 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 - [English: OIDC SSO configuration](changelog/added/oidc-sso-config.md) · 中文：—
 - [English: Durable authentication sessions](changelog/changed/durable-auth-sessions.md) · 中文：—
 - [English: Portal cookie sessions](changelog/changed/portal-cookie-session.md) · 中文：—
-- [English: OpenID Connect SSO configuration](changelog/added/oidc-sso-config.md) · 中文：—
-- [English: Sign in over OpenID Connect](changelog/added/oidc-sign-in.md) · 中文：—
-- [English: SSO account linking](changelog/added/oidc-account-linking.md) · 中文：—
 - [English: Workflow step output schema](changelog/added/workflow-step-output-schema.md) · 中文：—
 - [English: Workflow definition schema version](changelog/changed/workflow-definition-schema-version.md) · 中文：—
 - [English: Workflow run input](changelog/added/workflow-run-input.md) · 中文：—
