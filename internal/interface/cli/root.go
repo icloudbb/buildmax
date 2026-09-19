@@ -67,6 +67,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newIssueCommand())
 	root.AddCommand(newAgentCommand())
 	root.AddCommand(newTaskCommand())
+	root.AddCommand(newArtifactCommand())
 	root.AddCommand(newAdminCommand())
 	root.AddCommand(newPluginCommand())
 	root.AddCommand(newModelsCommand())
@@ -89,7 +90,7 @@ const (
 // registered on the root is local.
 var serverCommandNames = map[string]bool{
 	"login": true, "logout": true, "me": true,
-	"issue": true, "agent": true, "task": true,
+	"issue": true, "agent": true, "task": true, "artifact": true,
 	"admin": true, "plugin": true, "usage": true,
 }
 

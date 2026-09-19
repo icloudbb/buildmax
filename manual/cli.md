@@ -37,6 +37,7 @@ buildmax <command> [flags]
 | `buildmax issue start <id>` | Work a space issue in this session: the agent can read it and report back |
 | `buildmax agent trigger <agent>` | Start an agent run on the server; input from `-m` or stdin, `--space` to disambiguate |
 | `buildmax task status <id>` | Show a task's status, and its output once it finishes; `--space` to disambiguate |
+| `buildmax artifact publish <file>` | Upload a file as an artifact and print its id; `--space`, `--title`, `--share` |
 | `buildmax admin list` | List deployment administrators; `--all` includes revoked grants (System Administrator only) |
 | `buildmax admin grant <email>` | Grant deployment-administrator authority to an existing account |
 | `buildmax admin revoke <email>` | Revoke an account's administrator authority (refuses the last one) |
@@ -275,6 +276,20 @@ no separate start step; `task status` shows the output once the run finishes.
 
 Managing agents — creating them, editing instructions, revisions — stays in
 Portal. These commands trigger and read.
+
+### `buildmax artifact`
+
+`buildmax artifact publish` uploads a file to the server and prints its id, so a
+result produced here has a durable handle instead of living only in a workspace.
+
+```bash
+buildmax artifact publish ./report.pdf --title "Weekly report"
+buildmax artifact publish ./out.log --space tm_9Fh3... --share
+```
+
+Without `--space` the artifact goes to your personal space; `--share` also mints
+a public link. The printed id is the exact string to name after `Artifacts:` in
+an issue comment, so an agent can publish a result and point the thread at it.
 
 ### `buildmax admin`
 

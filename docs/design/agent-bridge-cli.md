@@ -319,9 +319,11 @@ The command surface changes the *mechanism* of Agent Server access, not the
    `buildmax issue comment` (posts a `local_agent` report via `CommentOnIssue`),
    `buildmax agent trigger` and `buildmax task status` (the trigger-and-observe
    loop, via `TriggerAgent`/`GetTask` with `FindAgent`/`FindTask` fanning out
-   across spaces since there is no ambient space), and the `--help` command
-   groups (Server vs Local, `groupTopLevelCommands` in root.go). Remaining:
-   `task create`, `run status`, `workflow run`, `artifact publish`.
+   across spaces since there is no ambient space), `buildmax artifact publish`
+   (uploads a file via `PublishArtifact` over `httpclient.UploadFile`, printing
+   the id usable in an `Artifacts:` reference), and the `--help` command groups
+   (Server vs Local, `groupTopLevelCommands` in root.go). Remaining:
+   `task create`, `run status`, `workflow run`.
 3. **Worker bridge.** Run the bridge socket in `internal/agentapp/taskrun`,
    export `BUILDMAX_BRIDGE_SOCK` through `withRunEnv`, allow it past
    `FilterWorkerEnv` in `internal/config/env_spec.go`, and proxy to the worker
