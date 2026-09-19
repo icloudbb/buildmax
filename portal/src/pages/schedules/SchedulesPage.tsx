@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { Button } from "@buildmax/gui"
 import type { ApiSchedule } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -107,9 +108,9 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
           </p>
         </div>
         {canCreate && !creating ? (
-          <button type="button" className="page-activity__action-btn" onClick={() => setCreating(true)}>
+          <Button variant="primary" onClick={() => setCreating(true)}>
             New schedule
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -138,19 +139,15 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
       )}
       {actionError ? <Alert tone="error" message={actionError} /> : null}
 
-      <section className="issues-page__panel">
+      <section className="issues-page__panel" aria-label="Schedule list">
         <div className="issues-page__toolbar">
-          <h2 className="issues-page__section-title">All Schedules</h2>
-          <span className="page-activity__meta">{countLabel}</span>
+          {schedulesData !== null ? <span className="page-activity__meta">{countLabel}</span> : null}
         </div>
 
         {schedulesState.kind === "loading" ? (
           <p className="page-activity__empty">Loading…</p>
         ) : schedulesState.kind === "readyEmpty" ? (
-          <EmptyState
-            message="No schedules yet. Create one to run an agent on a timetable."
-            action={canCreate && !creating ? { label: "New schedule", onClick: () => setCreating(true) } : undefined}
-          />
+          <EmptyState message="No schedules yet. Schedule an agent to run at a set time." />
         ) : schedulesState.kind === "error" || schedulesState.kind === "forbidden" || schedulesState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
             {(schedulesData ?? []).map((s) => {
@@ -186,14 +183,14 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
                       </span>
                     ) : null}
                     {canManage ? (
-                      <button
-                        type="button"
-                        className="page-activity__action-btn"
+                      <Button
+                        variant="secondary"
+                        size="compact"
                         disabled={busyId === s.id}
                         onClick={() => toggleEnabled(s)}
                       >
                         {s.enabled ? "Pause" : "Resume"}
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
                 </li>

@@ -37,6 +37,10 @@ Portal owns the cloud/space lane:
 - Pages live under `portal/src/pages/*`.
 - API calls live under `portal/src/features/*/api.ts` and `portal/src/lib/api`.
 - Shared presentation components come from `@buildmax/gui`.
+- The shared `Button` and `IconButton` own action appearance, target size, focus,
+  and busy state. Portal owns placement and permission decisions. Collection
+  creation stays in the header, while an empty state explains what is missing.
+  Issue Detail opens in read mode with its result and next action before editing.
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
   `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
   conversation streaming.

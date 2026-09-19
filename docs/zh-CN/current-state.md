@@ -353,8 +353,13 @@ Harbor 适配器均已实现。[evaluation/suite](../../evaluation/suite)包含�
 本次未运行真实模型评估或 Terminal-Bench 协议，不报告分数。
 
 Portal 浏览器测试现已覆盖独立 Task 线程、工作区、规范 Space 路由、加载/错误/权限状态、
-响应式布局、无障碍与运行来源。Desktop 有 bridge 与
-[浏览器 UI 测试](../../desktop/frontend/e2e)，并在 macOS 和 Windows CI 中运行打包应用
+响应式布局、无障碍与运行来源。Portal 页面系统的第一阶段让 Issues、Agents、Workflows
+和 Schedules 的集合页只在页头提供创建入口；共享按钮组件统一操作优先级与忙碌状态；
+Issue 详情先显示阅读摘要，再进入编辑；Workflow Run 把结果放在技术元数据之前。
+其他 Portal 页面仍有局部按钮样式，后续阶段继续迁移。
+新 Issue 的第二次写入失败时，Portal 会指向已创建的 Issue 并阻止重复提交；
+一次写入原子创建全部字段仍待实现。
+Desktop 有 bridge 与 [浏览器 UI 测试](../../desktop/frontend/e2e)，并在 macOS 和 Windows CI 中运行打包应用
 启动冒烟。启动冒烟证明构建出的 bundle 能启动并短暂存活，但不会驱动或视觉检查原生窗口。
 Portal 路由仍采用直接导入，当前源码没有路由级懒加载。本次未重新测量 bundle 大小或吞吐量。
 

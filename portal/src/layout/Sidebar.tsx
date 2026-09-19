@@ -202,7 +202,9 @@ export function SidebarNavContent({
     <>
       <nav className="sidebar__nav" aria-label="Primary">
         <div className="sidebar__section">
-          {!collapsed ? (
+          {route.name === "admin" ? (
+            <div className="sidebar__space-display" aria-label="Current scope">{collapsed ? "D" : "Deployment"}</div>
+          ) : !collapsed ? (
             <div className="sidebar__space-switcher">
               <div className="sidebar__space-head">
                 <label
@@ -263,7 +265,7 @@ export function SidebarNavContent({
             </div>
           )}
         </div>
-        <div className="sidebar__group">
+        {route.name !== "admin" ? <><div className="sidebar__group">
           <span className="sidebar__group-label">Work</span>
           <button
             type="button"
@@ -335,7 +337,14 @@ export function SidebarNavContent({
             <SettingsIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Space settings</span>
           </button>
-        </div>
+        </div></> : <div className="sidebar__group">
+          <button type="button" className="sidebar__nav-item" disabled={!currentSpaceId} onClick={() => {
+            if (currentSpaceId) go({ name: "chat", spaceId: currentSpaceId })
+          }}>
+            <NewChatIcon className="sidebar__nav-icon" aria-hidden />
+            <span className="sidebar__nav-item-text">Back to space</span>
+          </button>
+        </div>}
         {isSystemAdmin && (
           // Deployment administration is a global-scope destination, not a Space
           // one: it stays a first-level nav item (per prior decision below) but
@@ -379,7 +388,7 @@ export function SidebarNavContent({
               </div>
             </div>
             <div className="sidebar__user-menu-divider" role="separator" />
-            {!collapsed && currentSpace ? (
+            {!collapsed && currentSpace && route.name !== "admin" ? (
               <>
                 <div className="sidebar__user-menu-space" role="none">
                   <span className="sidebar__user-menu-space-label">Current space</span>

@@ -64,9 +64,7 @@ test("the space Schedules page lists a schedule and its agent", async ({ page })
 
   await page.goto(`/#/spaces/${current.spaceId}/schedules`)
   await expect(page.getByRole("heading", { name: "Schedules", exact: true })).toBeVisible()
-  const panel = page.locator(".issues-page__panel").filter({
-    has: page.getByRole("heading", { name: "All Schedules" }),
-  })
+  const panel = page.getByRole("region", { name: "Schedule list" })
   await expect(panel.getByText(name, { exact: true })).toBeVisible()
   // The overview names the owning agent, which is its reason to exist over the
   // per-agent tab.
@@ -88,7 +86,8 @@ test("a schedule can be created from the space Schedules page", async ({ page })
   reportLeftovers(current.spaceId, [`agent ${agent.id}`])
 
   await page.goto(`/#/spaces/${current.spaceId}/schedules`)
-  await page.getByRole("button", { name: "New schedule" }).first().click()
+  await expect(page.getByRole("button", { name: "New schedule" })).toHaveCount(1)
+  await page.getByRole("button", { name: "New schedule" }).click()
 
   const name = tagged("Created from overview")
   await page.getByLabel("Agent").selectOption({ label: agentName })
@@ -98,9 +97,7 @@ test("a schedule can be created from the space Schedules page", async ({ page })
   await page.getByLabel("Timezone").fill("UTC")
   await page.getByRole("button", { name: "Create schedule" }).click()
 
-  const panel = page.locator(".issues-page__panel").filter({
-    has: page.getByRole("heading", { name: "All Schedules" }),
-  })
+  const panel = page.getByRole("region", { name: "Schedule list" })
   await expect(panel.getByText(name, { exact: true })).toBeVisible()
   await expect(panel.getByText(agentName, { exact: true })).toBeVisible()
 })

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { Button } from "@buildmax/gui"
 import type { Agent } from "../../lib/types"
 import type { ApiSecret, ApiTask } from "../../lib/api/types"
 import { listSecrets } from "../../features/spaceSecrets/api"
@@ -235,9 +236,9 @@ export function AgentList({ token, spaceId }: AgentListProps) {
         </div>
         <div className="page-activity__actions">
           {canManageAgents ? (
-            <button
-              type="button"
-              className="page-activity__action-btn agent-list__create-btn"
+            <Button
+              variant="primary"
+              className="agent-list__create-btn"
               onClick={() => {
                 setError(null)
                 setModalOpen(true)
@@ -245,7 +246,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
               aria-label="Create agent"
             >
               Create agent
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -298,7 +299,6 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                   ? 'No agents yet. Click "Create agent" to add one.'
                   : "No agents are available in this space yet. Space owners and admins can add one when you're ready to share a reusable agent."
               }
-              action={canManageAgents ? { label: "Create agent", onClick: () => setModalOpen(true) } : undefined}
             />
           ) : agentsState.kind === "error" || agentsState.kind === "forbidden" || agentsState.kind === "notFound" ? null : (
             <div className="agent-list__grid">

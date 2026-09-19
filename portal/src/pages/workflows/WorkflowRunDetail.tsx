@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react"
+import { Button, ButtonLink } from "@buildmax/gui"
 import type { Workflow, WorkflowRun, WorkflowNodeRun } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { statusLabel } from "../../lib/statusLabels"
 import {
   apiWorkflowRunToWorkflowRun,
   apiWorkflowNodeRunToWorkflowNodeRun,
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
 import { getWorkflow, getWorkflowRunDetail, WorkflowGraph } from "../../features/workflows"
-import { navigate } from "../../router"
+import { buildHash, navigate } from "../../router"
 import { useApp } from "../../contexts/AppContext"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
@@ -126,30 +128,26 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
     <div className="page-activity">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Workflow Run</h1>
+          <h1 className="page-activity__title">{workflow?.name ?? "Workflow run"}</h1>
           <p className="page-activity__subtitle">
-            Inspect step-by-step workflow execution in a dedicated run view.
+            {run ? `${statusLabel(run.status)} · ${run.createdLabel}` : "Workflow run"}
           </p>
         </div>
         <div className="page-activity__actions">
-          <button
-            type="button"
-            className="page-activity__action-btn"
+          <Button
+            variant="tertiary"
+            busy={refreshing}
             disabled={loading || refreshing}
             onClick={() => {
               void load(true)
             }}
           >
-            {refreshing ? "Refreshing…" : "Refresh"}
-          </button>
+            Refresh
+          </Button>
           {workflow ? (
-            <button
-              type="button"
-              className="page-activity__action-btn"
-              onClick={() => navigate({ name: "workflow", spaceId, workflowId: workflow.id })}
-            >
+            <ButtonLink variant="tertiary" href={buildHash({ name: "workflow", spaceId, workflowId: workflow.id })}>
               Back to Workflow
-            </button>
+            </ButtonLink>
           ) : null}
         </div>
       </div>
@@ -158,9 +156,19 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
         <div className="workflow-run-page__grid">
           <section className="issues-page__panel">
             <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">{workflow?.name ?? run.workflowId}</h2>
-              <span className="issues-page__status">{run.status}</span>
+              <h2 className="issues-page__section-title">Result</h2>
+              <span className="issues-page__status">{statusLabel(run.status)}</span>
             </div>
+            {run.result != null ? (
+              <div className="workflow-run-page__result">
+                <pre className="workflow-page__step-output">
+                  {typeof run.result === "string" ? run.result : JSON.stringify(run.result, null, 2)}
+                </pre>
+              </div>
+            ) : <p className="page-activity__meta">{isLive ? "The run is in progress. Its result will appear here." : "No result was produced."}</p>}
+            {run.errorMessage ? <p className="modal__error" role="alert">{run.errorMessage}</p> : null}
+            <details className="workflow-run-page__diagnostics">
+              <summary>Run details</summary>
             <div className="workflow-run-page__meta">
               <div><strong>Run ID:</strong> {run.id}</div>
               {run.workflowRevision ? (
@@ -174,16 +182,8 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                 <strong>Mode:</strong> {isLive ? "Live updates enabled" : "Final snapshot"}
               </div>
               {refreshedLabel ? <div><strong>Last refreshed:</strong> {refreshedLabel}</div> : null}
-              {run.errorMessage ? <div className="modal__error">{run.errorMessage}</div> : null}
             </div>
-            {run.result != null ? (
-              <div className="workflow-run-page__result">
-                <span className="issues-page__field-label">Result</span>
-                <pre className="workflow-page__step-output">
-                  {typeof run.result === "string" ? run.result : JSON.stringify(run.result, null, 2)}
-                </pre>
-              </div>
-            ) : null}
+            </details>
           </section>
 
           {steps.length > 0 ? (
@@ -217,10 +217,10 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                   <li key={step.id} className="workflow-page__step">
                     <div className="workflow-page__step-head">
                       <strong>{step.nodeId}</strong>
-                      <span className="issues-page__status">{step.status}</span>
+                      <span className="issues-page__status">{statusLabel(step.status)}</span>
                     </div>
                     <div className="workflow-page__step-body">
-                      <div className="page-activity__meta">{step.nodeType}</div>
+                      <div className="page-activity__meta">{statusLabel(step.nodeType)}</div>
                       <div>{step.prompt}</div>
                       {step.targetAgentId ? (
                         <div className="page-activity__meta">

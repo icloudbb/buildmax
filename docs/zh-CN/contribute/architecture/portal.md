@@ -30,6 +30,9 @@ Portal 负责云端/Space 使用场景：
 - 页面位于 `portal/src/pages/*`。
 - API 调用位于 `portal/src/features/*/api.ts` 和 `portal/src/lib/api`。
 - 共享展示组件来自 `@buildmax/gui`。
+- 共享 `Button` 和 `IconButton` 负责操作的外观、点击区域、焦点和忙碌状态。
+  Portal 负责位置与权限判断。集合页在页头提供创建入口，空状态说明当前缺少什么。
+  Issue 详情默认展示阅读视图，结果与下一步操作先于编辑表单。
 - 横切状态位于 `portal/src/contexts/`：`AppContext`、`AuthContext`、`SpaceContext`，以及承载 Conversation 流式传输的 `WebSocketContext`。
 - HTTP 层是 `portal/src/lib/api/`（`client`、`mappers`、`types`，以及用于流式传输的 `sse` 和 `ws`）。
 - `portal/src/features/conversations/` 绘制对话记录，并在同一线程中为 Conversation 启动的每个后台 Task 显示一张卡片。卡片从 tasks 路由读取，socket 每次报告失效通知时都会重新加载，因此运行产出了什么不依赖 Tier 1 对它撰写的摘要。`thread.ts` 决定顺序。

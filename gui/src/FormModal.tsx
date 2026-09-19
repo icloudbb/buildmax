@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react"
 import { BaseModal } from "./BaseModal"
+import { Button } from "./Button"
 
 export interface FormModalSelectOption {
   value: string
@@ -263,30 +264,31 @@ export function FormModal({
       ) : null}
       <div className="modal__actions">
         {dangerAction ? (
-          <button
+          <Button
             type="button"
-            className="modal__btn modal__btn--danger"
+            variant="danger"
             onClick={dangerAction.onClick}
             disabled={loading || dangerAction.disabled}
           >
             {dangerAction.disabled ? `${dangerAction.label}…` : dangerAction.label}
-          </button>
+          </Button>
         ) : null}
-        <button
+        <Button
           type="button"
-          className="modal__btn modal__btn--secondary"
+          variant="secondary"
           onClick={onClose}
           disabled={loading}
         >
           {cancelLabel}
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          className="modal__btn modal__btn--secondary"
+          variant="primary"
+          busy={loading}
           disabled={loading || hasMissingRequiredField}
         >
-          {loading ? `${submitLabel}…` : submitLabel}
-        </button>
+          {submitLabel}
+        </Button>
       </div>
     </>
   )

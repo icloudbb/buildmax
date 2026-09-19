@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { BaseModal } from "@buildmax/gui"
+import { BaseModal, Button } from "@buildmax/gui"
 import type { ApiSpaceMember } from "../lib/api/types"
 import type { Agent, Issue, Workflow } from "../lib/types"
 
@@ -12,6 +12,8 @@ interface IssueModalProps {
   loading: boolean
   allowWorkflowAssignment?: boolean
   error: string | null
+  partiallyCreatedId?: string | null
+  onOpenPartial: () => void
   onClose: () => void
   onSubmit: (values: {
     title: string
@@ -35,6 +37,8 @@ export function IssueModal({
   loading,
   allowWorkflowAssignment = true,
   error,
+  partiallyCreatedId,
+  onOpenPartial,
   onClose,
   onSubmit,
 }: IssueModalProps) {
@@ -85,9 +89,9 @@ export function IssueModal({
           <label className="issues-page__field">
             <span className="issues-page__field-label">Status</span>
             <select className="issues-page__select" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
-              <option value="todo">todo</option>
-              <option value="in_progress">in_progress</option>
-              <option value="done">done</option>
+              <option value="todo">To do</option>
+              <option value="in_progress">In progress</option>
+              <option value="done">Done</option>
             </select>
           </label>
           <div className="issue-detail-page__split">
@@ -131,27 +135,31 @@ export function IssueModal({
             </p>
           ) : null}
           <div className="modal__actions">
-            <button type="button" className="modal__btn modal__btn--secondary" onClick={onClose} disabled={loading}>
+            <Button variant="secondary" onClick={onClose} disabled={loading}>
               Cancel
-            </button>
-            <button
-              type="button"
-              className="modal__btn modal__btn--secondary"
-              disabled={loading || !title.trim()}
-              onClick={() => {
-                const [executorKind, executorID] = executorValue ? executorValue.split(":") : ["", ""]
-                onSubmit({
-                  title: title.trim(),
-                  description,
-                  status,
-                  owner_id: ownerValue,
-                  executor_kind: (executorKind as "agent" | "workflow" | "") || "",
-                  executor_id: executorID || "",
-                })
-              }}
-            >
-              {loading ? "Creating issue…" : "Create issue"}
-            </button>
+            </Button>
+            {partiallyCreatedId ? (
+              <Button variant="primary" onClick={onOpenPartial}>Open created issue</Button>
+            ) : (
+              <Button
+                variant="primary"
+                busy={loading}
+                disabled={!title.trim()}
+                onClick={() => {
+                  const [executorKind, executorID] = executorValue ? executorValue.split(":") : ["", ""]
+                  onSubmit({
+                    title: title.trim(),
+                    description,
+                    status,
+                    owner_id: ownerValue,
+                    executor_kind: (executorKind as "agent" | "workflow" | "") || "",
+                    executor_id: executorID || "",
+                  })
+                }}
+              >
+                Create issue
+              </Button>
+            )}
           </div>
         </div>
       </div>

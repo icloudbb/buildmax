@@ -1,7 +1,7 @@
 .issues-page__panel {
   padding: 1rem;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   background: var(--color-bg-elevated);
 }
 
@@ -21,7 +21,7 @@
 
 .issues-page__section-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--font-size-section);
   font-weight: 600;
   color: var(--color-text);
 }
@@ -157,6 +157,38 @@
   gap: 0.75rem;
 }
 
+.issue-detail-page__summary {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.issue-detail-page__summary .issues-page__toolbar {
+  margin-bottom: 0;
+}
+
+.issue-detail-page__description {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.issue-detail-page__summary .issues-page__meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.issue-detail-page__outcome {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
 /* --- Issue Detail tabs: Overview / Discussion / Results / Runs ---
    Same shape as .agent-detail__tab* -- kept as separate rules, scoped to this
    page, rather than sharing agent-detail's classes across pages. */
@@ -209,9 +241,7 @@
   .issue-detail-page__panel { animation: none; }
 }
 
-/* Save and Run sit together at the bottom of the Issue form: they act on the
-   same fields, but Save only persists while Run schedules and spends quota,
-   so each button keeps its own disabled reason and feedback beside it. */
+/* The read view owns Run; the edit form owns Save and Cancel. */
 .issues-page__form-actions {
   display: flex;
   flex-wrap: wrap;

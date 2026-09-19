@@ -1,6 +1,7 @@
 /* BuildMax Portal — entry point: imports all partials in order */
 
 @import '@buildmax/gui/theme.css';
+@import '@buildmax/gui/button.css';
 @import '@buildmax/gui/widgets.css';
 @import '@buildmax/gui/drawer.css';
 @import './css/base.css';

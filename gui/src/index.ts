@@ -1,5 +1,6 @@
 export { ThemeProvider, useTheme, type Theme } from "./ThemeContext"
 export { ThemeToggle } from "./ThemeToggle"
+export { Button, ButtonLink, IconButton, type ButtonProps, type ButtonLinkProps, type IconButtonProps, type ButtonVariant, type ButtonSize } from "./Button"
 export { BaseModal, type BaseModalProps } from "./BaseModal"
 export { Drawer, type DrawerProps } from "./Drawer"
 export {

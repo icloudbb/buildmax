@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import type { Agent } from "../lib/types"
-import { BaseModal } from "@buildmax/gui"
+import { BaseModal, Button } from "@buildmax/gui"
 
 interface RunAgentModalProps {
   open: boolean
@@ -65,22 +65,21 @@ export function RunAgentModal({
         ) : null}
       </div>
       <div className="modal__actions">
-        <button
-          type="button"
-          className="modal__btn modal__btn--secondary"
+        <Button
+          variant="secondary"
           onClick={onClose}
           disabled={loading}
         >
           Cancel
-        </button>
-        <button
-          type="button"
-          className="modal__btn modal__btn--secondary"
+        </Button>
+        <Button
+          variant="primary"
+          busy={loading}
           onClick={handleSubmit}
           disabled={loading || input.trim() === ""}
         >
-          {loading ? "Starting…" : "Start"}
-        </button>
+          Start
+        </Button>
       </div>
     </BaseModal>
   )

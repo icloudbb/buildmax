@@ -34,12 +34,14 @@ test("Issues and Issue Detail reflow to one column with reachable actions", asyn
   reportLeftovers(current.spaceId, [`issue ${issue.id}`])
 
   await page.goto(`/#/spaces/${current.spaceId}/issues`)
-  await expect(page.getByRole("button", { name: "New Issue" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "New Issue" })).toHaveCount(1)
   await expectNoHorizontalOverflow(page)
 
   await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
-  await expect(page.getByRole("button", { name: "Back to Issues" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Save" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Back to Issues" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Edit issue" })).toBeVisible()
+  await page.getByRole("button", { name: "Edit issue" }).click()
+  await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible()
   // The detail grid already collapses to one column before Narrow width (see
   // the comment in issues.css); confirm that is still true right down at 390.
   const columns = await page

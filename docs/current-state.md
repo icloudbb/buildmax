@@ -484,9 +484,17 @@ That scope cannot qualify all supported surfaces. Historical oracle/canary
 reports are not a benchmark result for this revision; this review ran neither
 real-model evaluation nor a Terminal-Bench protocol and reports no score.
 
-Portal browser tests now cover direct Task threads, workspaces, canonical Space
+Portal browser tests cover direct Task threads, workspaces, canonical Space
 routes, loading/error/permission states, responsive layouts, accessibility, and
-run provenance. Desktop has bridge and browser-based UI suites under
+run provenance. The first Portal page-system slice makes collection creation a
+single header action on Issues, Agents, Workflows, and Schedules; shared buttons handle action priority
+and busy state; Issue Detail opens with a read-first summary and separate editing;
+Workflow Run places the result before technical metadata. Other Portal pages
+still have local button styles while migration continues.
+If the second write of a new Issue fails, Portal shows the created Issue's
+address and prevents duplicate submission; creating every field atomically
+remains open.
+Desktop has bridge and browser-based UI suites under
 [`desktop/frontend/e2e`](../desktop/frontend/e2e), plus a packaged-application
 launch smoke on macOS and Windows CI. The launch smoke proves that the built
 bundle starts and stays alive briefly; it does not drive or visually inspect the

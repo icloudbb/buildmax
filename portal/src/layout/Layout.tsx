@@ -67,7 +67,7 @@ export function Layout({
           <MenuIcon className="shell__menu-icon" />
         </button>
         <div className="shell__compact-title">
-          <span className="shell__compact-space">{currentSpace?.name ?? unresolvedSpaceLabel(spacesState)}</span>
+          <span className="shell__compact-space">{route.name === "admin" ? "Deployment" : currentSpace?.name ?? unresolvedSpaceLabel(spacesState)}</span>
           <span className="shell__compact-page">{pageTitle}</span>
         </div>
       </header>

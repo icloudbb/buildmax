@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { BaseModal } from "@buildmax/gui"
+import { BaseModal, Button } from "@buildmax/gui"
 import type { Agent } from "../lib/types"
 import { newStep, stepsToDefinition, useWorkflowSteps, WorkflowStepsEditor } from "../features/workflows"
 
@@ -94,17 +94,18 @@ export function WorkflowModal({ open, agents = [], loading, error, onClose, onSu
             </p>
           ) : null}
           <div className="modal__actions">
-            <button type="button" className="modal__btn modal__btn--secondary" onClick={onClose} disabled={loading}>
+            <Button variant="secondary" onClick={onClose} disabled={loading}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="modal__btn modal__btn--secondary"
+              variant="primary"
+              busy={loading}
               disabled={!canSubmit}
               onClick={() => onSubmit({ name: name.trim(), description, definition })}
             >
-              {loading ? "Creating workflow…" : "Create workflow"}
-            </button>
+              Create workflow
+            </Button>
           </div>
         </div>
       </div>

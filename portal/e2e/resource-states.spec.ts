@@ -25,6 +25,8 @@ import { session } from "./fixtures"
 
 const AUDIT_EVENTS = /\/api\/spaces\/[^/]+\/audit-events(\?|$)/
 const SPACE_MEMBERS = /\/api\/spaces\/[^/]+\/members(\?|$)/
+const ISSUE_CREATE = /\/api\/spaces\/[^/]+\/issues$/
+const ISSUE_PATCH = /\/api\/spaces\/[^/]+\/issues\/e2e-created-issue$/
 
 function fail(route: Route): Promise<void> {
   return route.fulfill({
@@ -107,4 +109,34 @@ test("a failed role lookup renders permission 'failed', never a silent denial", 
 
   await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible()
   await expect(page.getByText(/Couldn't verify your role in this space/)).toBeVisible()
+})
+
+test("a failed Issue setup after creation names the created object and prevents a duplicate", async ({ page }) => {
+  const current = await session(page)
+  let creates = 0
+  await page.route(ISSUE_CREATE, async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    creates += 1
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({ id: "e2e-created-issue", version: 1 }),
+    })
+  })
+  await page.route(ISSUE_PATCH, async (route) => {
+    if (route.request().method() !== "PATCH") return route.continue()
+    await fail(route)
+  })
+
+  await page.goto(`/#/spaces/${current.spaceId}/issues`)
+  await page.getByRole("button", { name: "New Issue" }).click()
+  const dialog = page.getByRole("dialog", { name: "New Issue" })
+  await dialog.getByLabel("Title").fill("Partial setup probe")
+  await dialog.getByLabel("Status").selectOption("in_progress")
+  await dialog.getByRole("button", { name: "Create issue" }).click()
+
+  await expect(dialog.getByRole("alert")).toContainText("Issue was created, but its details were not saved")
+  await expect(dialog.getByRole("button", { name: "Create issue" })).toHaveCount(0)
+  await expect(dialog.getByRole("button", { name: "Open created issue" })).toBeVisible()
+  expect(creates).toBe(1)
 })

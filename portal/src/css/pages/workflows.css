@@ -133,6 +133,17 @@
   color: var(--color-text);
 }
 
+.workflow-run-page__diagnostics {
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.workflow-run-page__diagnostics summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 0.65rem;
+}
+
 .revision-history {
   display: flex;
   flex-direction: column;
@@ -298,17 +309,13 @@ button.wf-graph__node:focus-visible {
 .wf-graph__node-id {
   font-weight: 600;
   font-size: 0.85rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .wf-graph__node-sub {
   font-size: 0.72rem;
   color: var(--color-text-muted, #57606a);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .wf-graph__node-status {

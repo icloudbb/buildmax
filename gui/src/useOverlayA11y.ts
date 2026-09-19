@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react"
+import { useLayoutEffect, useRef, type RefObject } from "react"
 import { lockBodyScroll, unlockBodyScroll } from "./bodyScrollLock"
 
 const FOCUSABLE_SELECTOR =
@@ -21,30 +21,32 @@ export interface UseOverlayA11yOptions {
  * the same accessible overlay contract from one implementation.
  */
 export function useOverlayA11y({ open, onClose, containerRef }: UseOverlayA11yOptions) {
-  useEffect(() => {
+  const onCloseRef = useRef(onClose)
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  useLayoutEffect(() => {
     if (!open) return
 
     const opener = document.activeElement as HTMLElement | null
     lockBodyScroll()
 
-    // A timer, not requestAnimationFrame: rAF is paused for a backgrounded or
-    // not-yet-visible tab, which would leave focus management silently
-    // inert — the container has just been rendered, so waiting a tick for it
-    // to exist in the DOM is enough either way.
-    const timer = setTimeout(() => {
-      const container = containerRef.current
-      if (!container) return
+    // The effect runs after the dialog has committed to the DOM. Focus now so
+    // a delayed opener focus cannot steal focus from the user's first keypress.
+    const container = containerRef.current
+    if (container) {
       const [first] = focusableElements(container)
       if (first) {
         first.focus()
       } else {
         container.focus()
       }
-    }, 0)
+    }
 
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key !== "Tab") return
@@ -74,10 +76,9 @@ export function useOverlayA11y({ open, onClose, containerRef }: UseOverlayA11yOp
     document.addEventListener("keydown", handleKey)
 
     return () => {
-      clearTimeout(timer)
       document.removeEventListener("keydown", handleKey)
       unlockBodyScroll()
       opener?.focus?.()
     }
-  }, [open, onClose, containerRef])
+  }, [open, containerRef])
 }
