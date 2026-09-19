@@ -86,12 +86,14 @@ function GridIcon() {
   );
 }
 
-// TabsIcon — collapse panes back into one tabbed pane.
-function TabsIcon() {
+// SplitRightIcon — the split-right glyph, reused here for collapsing a grid
+// back into one pane. A single frame divided left from right reads cleaner than
+// a tab-strip drawing at this size.
+function SplitRightIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="3" y="7" width="18" height="14" rx="1" />
-      <path d="M7 7V4h5v3M12 4h5v3" />
+      <rect x="3" y="3" width="18" height="18" rx="1" />
+      <path d="M12 3v18" />
     </svg>
   );
 }
@@ -1037,7 +1039,7 @@ export default function App() {
                   aria-label={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
                   onClick={toggleGrid}
                 >
-                  <span aria-hidden>{totalPanes > 1 ? <TabsIcon /> : <GridIcon />}</span>
+                  <span aria-hidden>{totalPanes > 1 ? <SplitRightIcon /> : <GridIcon />}</span>
                 </button>
               )}
               <ThemeStatusButton />
