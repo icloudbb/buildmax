@@ -345,3 +345,64 @@ func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]
 	}
 	return out, nil
 }
+
+// SearchLLMCalls returns the calls matching filter, newest first, and the total
+// that match it before the page window is applied.
+//
+// The order is accepted_at DESC so the page window rides the accepted_at index
+// and an administrator sees the most recent spend first — the opposite of the
+// per-run read, where following a single run in the order it happened is the
+// point.
+func (s *Store) SearchLLMCalls(ctx context.Context, filter coregw.CallFilter, limit, offset int) ([]coregw.Call, int, error) {
+	var total int64
+	count := applyLLMCallFilter(s.db.WithContext(ctx).Model(&llmCallRow{}).
+		Joins("LEFT JOIN `user` u ON u.id = llm_call.user_id"), filter)
+	if err := count.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []llmCallReadRow
+	err := applyLLMCallFilter(s.llmCallSelect(ctx), filter).
+		Order("llm_call.accepted_at DESC").
+		Limit(limit).Offset(offset).
+		Find(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]coregw.Call, 0, len(rows))
+	for i := range rows {
+		out = append(out, *toLLMCall(&rows[i]))
+	}
+	return out, int(total), nil
+}
+
+// applyLLMCallFilter adds the filter's bounds to a query. It is shared by the
+// count and the page so the two can never disagree on what matches.
+//
+// The user bound is on the joined public id rather than a resolved key: an
+// unparseable id matches nothing rather than erroring, which keeps a mistyped
+// filter a narrow answer instead of a failed request.
+func applyLLMCallFilter(q *gorm.DB, filter coregw.CallFilter) *gorm.DB {
+	if filter.UserID != "" {
+		if id, ok := util.CanonicalPublicID(filter.UserID); ok {
+			q = q.Where("u.public_id = ?", id)
+		} else {
+			q = q.Where("1 = 0")
+		}
+	}
+	if filter.Model != "" {
+		q = q.Where("llm_call.model = ?", filter.Model)
+	}
+	if filter.Status != "" {
+		q = q.Where("llm_call.status = ?", filter.Status)
+	}
+	if filter.Surface != "" {
+		q = q.Where("llm_call.surface = ?", filter.Surface)
+	}
+	if !filter.Since.IsZero() {
+		q = q.Where("llm_call.accepted_at >= ?", filter.Since)
+	}
+	if !filter.Until.IsZero() {
+		q = q.Where("llm_call.accepted_at <= ?", filter.Until)
+	}
+	return q
+}

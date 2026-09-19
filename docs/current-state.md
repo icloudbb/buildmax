@@ -415,6 +415,10 @@ worker delivery implementations, with run-scoped authorization. Their presence
 does not isolate delivered secrets from the worker process that consumes them.
 
 System administration, quota, audit, role checks, and Space lifecycle UI exist.
+The administration area also reads the managed LLM call ledger across every
+Space through `GET /api/admin/llm/calls` — model, tokens, cost, and status per
+call, filtered by user, model, status, surface, and time, and carrying no
+prompts or generated content.
 Remaining administration gaps include transactional authority audit, admin CLI
 Session listing/revocation parity, quota-tier assignment, and runtime metadata
 for queue/worker diagnosis. These are tracked in the

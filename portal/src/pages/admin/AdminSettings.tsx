@@ -3,6 +3,7 @@ import {
   AdminAccounts,
   AdminAdministrators,
   AdminAudit,
+  AdminLLMCalls,
   AdminModels,
   AdminOverview,
   AdminPlugins,
@@ -25,6 +26,7 @@ export type AdminSection =
   | "accounts"
   | "spaces"
   | "models"
+  | "calls"
   | "plugins"
   | "audit"
 
@@ -45,6 +47,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { id: "accounts", label: "Accounts", icon: AgentsIcon },
   { id: "spaces", label: "Spaces", icon: IssueIcon },
   { id: "models", label: "Models", icon: ToolboxIcon },
+  { id: "calls", label: "LLM calls", icon: UsageIcon },
   { id: "plugins", label: "Plugins", icon: ToolboxIcon },
   { id: "audit", label: "Audit", icon: UsageIcon },
 ]
@@ -118,6 +121,7 @@ export function AdminSettings({ section, userId }: { section: AdminSection; user
         {section === "accounts" ? <AdminAccounts token={token} selectedUserId={userId} /> : null}
         {section === "spaces" ? <AdminSpaces token={token} /> : null}
         {section === "models" ? <AdminModels token={token} /> : null}
+        {section === "calls" ? <AdminLLMCalls token={token} /> : null}
         {section === "plugins" ? <AdminPlugins token={token} /> : null}
         {section === "audit" ? <AdminAudit token={token} currentUserId={user?.id} /> : null}
       </div>

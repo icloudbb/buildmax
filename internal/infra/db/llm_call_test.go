@@ -304,6 +304,85 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 	}
 }
 
+// TestSearchLLMCalls covers the deployment-wide read: it spans users, orders
+// newest first, and each filter narrows independently.
+//
+// Every seeded row shares one model that no other test uses, so the assertions
+// stay deterministic against a store other tests also write to.
+func TestSearchLLMCalls(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	model := "search-" + testPublicID(t)
+	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "model = ?", model) })
+
+	userA := newTestUser(t, s, "search-a")
+	userB := newTestUser(t, s, "search-b")
+
+	seed := func(user, status, surface string, acceptedUnix int64) string {
+		t.Helper()
+		call := sampleLLMCall()
+		call.UserID = ptrString(user)
+		call.ClientCallID = nil
+		call.Model = model
+		call.Status = status
+		call.Surface = surface
+		call.AcceptedAt = time.Unix(acceptedUnix, 0).UTC()
+		opened, err := s.OpenLLMCall(ctx, call)
+		if err != nil {
+			t.Fatalf("OpenLLMCall: %v", err)
+		}
+		return opened.ID
+	}
+
+	c1 := seed(userA, coregw.CallStatusSucceeded, coregw.CallSurfaceWorker, 1_000)
+	c2 := seed(userA, coregw.CallStatusFailed, coregw.CallSurfaceCLI, 2_000)
+	c3 := seed(userB, coregw.CallStatusSucceeded, coregw.CallSurfaceWorker, 3_000)
+
+	ids := func(calls []coregw.Call) []string {
+		out := make([]string, len(calls))
+		for i, c := range calls {
+			out[i] = c.ID
+		}
+		return out
+	}
+	assert := func(name string, filter coregw.CallFilter, limit, offset, wantTotal int, wantOrder []string) {
+		t.Helper()
+		filter.Model = model
+		got, total, err := s.SearchLLMCalls(ctx, filter, limit, offset)
+		if err != nil {
+			t.Fatalf("%s: SearchLLMCalls: %v", name, err)
+		}
+		if total != wantTotal {
+			t.Errorf("%s: total = %d, want %d", name, total, wantTotal)
+		}
+		if !reflect.DeepEqual(ids(got), wantOrder) {
+			t.Errorf("%s: order = %v, want %v", name, ids(got), wantOrder)
+		}
+	}
+
+	// Newest first, and spanning both users — the read the per-run route cannot do.
+	assert("all", coregw.CallFilter{}, 50, 0, 3, []string{c3, c2, c1})
+	assert("by user", coregw.CallFilter{UserID: userA}, 50, 0, 2, []string{c2, c1})
+	assert("by status", coregw.CallFilter{Status: coregw.CallStatusSucceeded}, 50, 0, 2, []string{c3, c1})
+	assert("by surface", coregw.CallFilter{Surface: coregw.CallSurfaceCLI}, 50, 0, 1, []string{c2})
+	assert("by window", coregw.CallFilter{Since: time.Unix(1_500, 0).UTC(), Until: time.Unix(2_500, 0).UTC()}, 50, 0, 1, []string{c2})
+
+	// The page window rides the count: total is every match, not the page size.
+	assert("first page", coregw.CallFilter{}, 2, 0, 3, []string{c3, c2})
+	assert("second page", coregw.CallFilter{}, 2, 2, 3, []string{c1})
+
+	// An unparseable user id matches nothing rather than erroring.
+	assert("bad user id", coregw.CallFilter{UserID: "not a public id"}, 50, 0, 0, []string{})
+}
+
 func TestGetLLMCallMissing(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
