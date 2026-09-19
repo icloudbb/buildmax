@@ -1,0 +1,32 @@
+/* Terminal (shell) tab rendering — one xterm pane per terminal tab, filling the
+   workspace tab content region and hidden when its tab is not active (see the
+   desktop-workspace-tabs proposal). */
+
+.terminal-pane {
+  position: absolute;
+  inset: 0;
+  padding: 0.25rem 0.5rem;
+  background: #1e1e1e;
+}
+
+.terminal-pane--hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* A pane's terminal viewport: the positioned parent the portalled .terminal-pane
+   fills. One per pane whose active tab is a terminal. */
+.terminal-slot {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Off-screen home for terminals whose tab is not currently visible. They stay
+   mounted here so their emulator and scrollback persist. */
+.terminal-park {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}

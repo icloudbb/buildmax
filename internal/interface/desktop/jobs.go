@@ -183,6 +183,8 @@ func (a *App) DeliverNextJobEvent(projectID, sessionID string) (bool, error) {
 		app:       a,
 		ctx:       ctx,
 		projectID: projectID,
+		sessionID: sessionID,
+		key:       runKey(projectID, sessionID),
 		onStart: func(sess *agentapp.SessionContext) {
 			a.emit(ctx, eventJobDelivery, &JobDeliveryPayload{
 				ProjectID: projectID,
@@ -193,7 +195,7 @@ func (a *App) DeliverNextJobEvent(projectID, sessionID string) (bool, error) {
 			})
 		},
 	}
-	return a.scheduler.StartEvent(ctx, projectID, sessionID, a.hostForProject(projectID, lc), pop, lc)
+	return a.scheduler.StartEvent(ctx, runKey(projectID, sessionID), sessionID, a.hostForProject(projectID, lc), pop, lc)
 }
 
 // PendingJobDeliveries reports how many parked deliveries wait for a session.

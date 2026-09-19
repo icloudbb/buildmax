@@ -48,16 +48,25 @@ func (noopLifecycle) TurnError(error)                  {}
 func (noopLifecycle) Dequeued(string, []string)        {}
 func (noopLifecycle) Done(agentapp.RunResult, error)   {}
 
-// occupyProject holds key's run slot busy with a blocking fake run and returns
-// that run's context plus a release func. The run is released at test cleanup if
-// the test did not release it. It needs no AgentApp: SendMessageStream on a busy
-// key only enqueues, and the scheduler never resolves the host.
-func occupyProject(t *testing.T, app *App, key string) (context.Context, func()) {
+// occupyProject holds a project's new-chat run slot (session "") busy. See
+// occupySession.
+func occupyProject(t *testing.T, app *App, project string) (context.Context, func()) {
+	t.Helper()
+	return occupySession(t, app, project, "")
+}
+
+// occupySession holds one session's run slot busy with a blocking fake run and
+// returns that run's context plus a release func. It reserves under the same key
+// SendMessageStream(project, session, …) uses, so a follow-up prompt for that
+// session queues behind it while other sessions stay free. The run is released at
+// test cleanup if the test did not. It needs no AgentApp: a send on a busy key
+// only enqueues, and the scheduler never resolves the host.
+func occupySession(t *testing.T, app *App, project, session string) (context.Context, func()) {
 	t.Helper()
 	host := &blockingHost{release: make(chan struct{}), ctxCh: make(chan context.Context, 1)}
 	host2 := host
-	if _, err := app.scheduler.Submit(context.Background(), key, "", "occupy", func() (agentapp.RunHost, error) { return host2, nil }, noopLifecycle{}); err != nil {
-		t.Fatalf("occupy %s: %v", key, err)
+	if _, err := app.scheduler.Submit(context.Background(), runKey(project, session), session, "occupy", func() (agentapp.RunHost, error) { return host2, nil }, noopLifecycle{}); err != nil {
+		t.Fatalf("occupy %s/%s: %v", project, session, err)
 	}
 	var runCtx context.Context
 	select {
@@ -71,13 +80,19 @@ func occupyProject(t *testing.T, app *App, key string) (context.Context, func())
 	return runCtx, release
 }
 
-// waitNotBusy blocks until key has no run in flight.
-func waitNotBusy(t *testing.T, app *App, key string) {
+// waitNotBusy blocks until the project's new-chat run slot has no run in flight.
+func waitNotBusy(t *testing.T, app *App, project string) {
+	t.Helper()
+	waitSessionNotBusy(t, app, project, "")
+}
+
+// waitSessionNotBusy blocks until one session's run slot has no run in flight.
+func waitSessionNotBusy(t *testing.T, app *App, project, session string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
-	for app.scheduler.Busy(key) {
+	for app.scheduler.Busy(runKey(project, session)) {
 		if time.Now().After(deadline) {
-			t.Fatalf("run slot for %s never released", key)
+			t.Fatalf("run slot for %s/%s never released", project, session)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}

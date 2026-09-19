@@ -530,6 +530,28 @@
   border-color: var(--color-text-muted);
 }
 
+/* Session info toggle — an icon button beside the context gauge. */
+.chat-status-bar__info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem;
+  border: none;
+  background: none;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.chat-status-bar__info:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover, rgba(0, 0, 0, 0.05));
+}
+
+.chat-status-bar__info--active {
+  color: var(--color-accent, #4a9eff);
+}
+
 /* ── Model selector ─────────────────────────────────────────────────────── */
 
 .model-selector {

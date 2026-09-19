@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/icloudbb/buildmax/internal/agentapp"
 	"github.com/icloudbb/buildmax/internal/config"
@@ -34,14 +35,14 @@ func TestApp_Shutdown_noop(t *testing.T) {
 
 func TestApp_CancelRun_requires_project_id(t *testing.T) {
 	app := NewApp()
-	if err := app.CancelRun(""); err == nil {
+	if err := app.CancelRun("", ""); err == nil {
 		t.Fatal("CancelRun(\"\") = nil, want error")
 	}
 }
 
 func TestApp_CancelRun_no_inflight_run_is_noop(t *testing.T) {
 	app := NewApp()
-	if err := app.CancelRun("p_does_not_exist"); err != nil {
+	if err := app.CancelRun("p_does_not_exist", ""); err != nil {
 		t.Fatalf("CancelRun on idle project: %v", err)
 	}
 }
@@ -52,7 +53,7 @@ func TestApp_CancelRun_cancels_registered_context(t *testing.T) {
 	// Hold a run in flight, then verify CancelRun cancels its context.
 	runCtx, _ := occupyProject(t, app, "p_test")
 
-	if err := app.CancelRun("p_test"); err != nil {
+	if err := app.CancelRun("p_test", ""); err != nil {
 		t.Fatalf("CancelRun: %v", err)
 	}
 	if runCtx.Err() == nil {
@@ -62,7 +63,7 @@ func TestApp_CancelRun_cancels_registered_context(t *testing.T) {
 	// A second CancelRun, once the run has drained, is a no-op rather than an
 	// error or a panic.
 	waitNotBusy(t, app, "p_test")
-	if err := app.CancelRun("p_test"); err != nil {
+	if err := app.CancelRun("p_test", ""); err != nil {
 		t.Fatalf("second CancelRun: %v", err)
 	}
 }
@@ -91,7 +92,7 @@ func TestApp_SendMessageStream_queues_while_busy(t *testing.T) {
 		t.Errorf("second queued position = %d, want 2", pos)
 	}
 
-	got := app.QueuedMessages("p_busy")
+	got := app.QueuedMessages("p_busy", "")
 	want := []string{"follow-up", "and another"}
 	if len(got) != len(want) {
 		t.Fatalf("QueuedMessages = %v, want %v", got, want)
@@ -100,6 +101,61 @@ func TestApp_SendMessageStream_queues_while_busy(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("QueuedMessages[%d] = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+// A new chat (empty session id) announces the real id it creates through a
+// session-adopted event, so the pending new-chat tab can adopt it even while
+// other sessions stream. It fires in OnStart, before the model-less run fails.
+func TestApp_NewChat_emits_session_adopted(t *testing.T) {
+	app, rec, projectID := newJobsTestApp(t)
+
+	if _, err := app.SendMessageStream(projectID, "", "hello"); err != nil {
+		t.Fatalf("SendMessageStream: %v", err)
+	}
+
+	deadline := time.Now().Add(15 * time.Second)
+	var ids []string
+	for time.Now().Before(deadline) {
+		ids = rec.adoptedSessionIDs()
+		if len(ids) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(ids) == 0 {
+		t.Fatal("no session-adopted event for a new chat")
+	}
+	if ids[0] == "" {
+		t.Fatal("adopted session id is empty")
+	}
+}
+
+// Two sessions in one project run at once, and each has its own queue: a
+// follow-up for one does not appear behind the other.
+func TestApp_SendMessageStream_isolates_sessions(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BUILDMAX_HOME", dir)
+	app := NewApp()
+	app.Startup(context.Background())
+
+	// Both sessions hold their own run slot concurrently — occupying the second
+	// would block or fail if runs were serialized per project.
+	occupySession(t, app, "p_iso", "sess-a")
+	occupySession(t, app, "p_iso", "sess-b")
+
+	pos, err := app.SendMessageStream("p_iso", "sess-a", "for a")
+	if err != nil {
+		t.Fatalf("SendMessageStream: %v", err)
+	}
+	if pos != 1 {
+		t.Errorf("queued position = %d, want 1", pos)
+	}
+	if got := app.QueuedMessages("p_iso", "sess-a"); len(got) != 1 || got[0] != "for a" {
+		t.Errorf("session a queue = %v, want [for a]", got)
+	}
+	if got := app.QueuedMessages("p_iso", "sess-b"); len(got) != 0 {
+		t.Errorf("session b queue = %v, want empty", got)
 	}
 }
 
@@ -116,10 +172,10 @@ func TestApp_CancelRun_drops_queued_messages(t *testing.T) {
 	if _, err := app.SendMessageStream("p_busy", "", "queued behind the run"); err != nil {
 		t.Fatalf("SendMessageStream while busy: %v", err)
 	}
-	if err := app.CancelRun("p_busy"); err != nil {
+	if err := app.CancelRun("p_busy", ""); err != nil {
 		t.Fatalf("CancelRun: %v", err)
 	}
-	if got := app.QueuedMessages("p_busy"); len(got) != 0 {
+	if got := app.QueuedMessages("p_busy", ""); len(got) != 0 {
 		t.Errorf("QueuedMessages after cancel = %v, want empty", got)
 	}
 }

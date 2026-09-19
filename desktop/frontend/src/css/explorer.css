@@ -1,0 +1,76 @@
+/* Explorer sidebar section (see the desktop-workspace-tabs proposal): a
+   project-scoped index of the workspace with Directory and Changes modes. It
+   sits below Projects in the sidebar and only browses — clicks open center
+   tabs. */
+
+.explorer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border);
+}
+
+.explorer__header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.explorer__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted, #888);
+}
+
+.explorer__modes {
+  display: flex;
+  gap: 1px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.explorer__mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--color-text-subtle);
+  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  cursor: pointer;
+}
+
+.explorer__mode-btn--active {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.explorer__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.explorer__tree,
+.explorer__changes {
+  padding: 0.25rem 0;
+}
+
+.explorer__changes {
+  display: flex;
+  flex-direction: column;
+}
+
+.explorer__hint {
+  padding: 0.75rem 0.6rem;
+  color: var(--color-text-subtle);
+  font-size: 0.8rem;
+}
+
+.explorer__hint--error {
+  color: var(--color-error, #dc2626);
+}

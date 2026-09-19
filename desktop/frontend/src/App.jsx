@@ -1,32 +1,37 @@
-import { compareRecent, formatToolArgs, shortToolArgs, toolDisplayName } from './lib/format';
-import { addLiveToolCall, addLiveToolResult, appendAssistantForNextLLM, buildToolResultMap, mergeRunStatus } from './lib/messages';
+import { compareRecent } from './lib/format';
 import { getApp } from './lib/app';
-import { ChatInput } from './components/ChatInput';
-import { Inspector } from './components/Inspector';
 import { HomeDashboard } from './components/HomeDashboard';
-import { MarkdownMessage } from './components/MarkdownMessage';
 import { CreateProjectModal } from './components/Modals';
 import { ProjectItem } from './components/ProjectItem';
+import { TerminalHost } from './components/TerminalHost';
+import { ChatSession } from './components/ChatSession';
+import { TabBar } from './components/TabBar';
+import { Explorer } from './components/Explorer';
+import { FileView } from './components/FileView';
+import { DiffView } from './components/DiffView';
+import { activeTab, tabIdentity } from './lib/tabs';
+import {
+  emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
+  splitRight, splitDown, moveTab, allTabs, pruneForPersist, isWorkspace,
+} from './lib/panes';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import Markdown from 'react-markdown';
-import { Avatar, ChatComposer, ChatThread, ThemeProvider, useTheme } from '@buildmax/gui';
-import { EventsOn, EventsOff } from './lib/wailsRuntime';
+import { Avatar, ThemeProvider, useTheme } from '@buildmax/gui';
+import { EventsOn } from './lib/wailsRuntime';
 import LoginPage from './LoginPage';
 
-// Inspector column layout is a per-machine preference, remembered across runs.
-// Storage can be unavailable (private windows, cleared data), so every access
-// is guarded and falls back to the default.
-const INSPECTOR_MIN_WIDTH = 260;
-const INSPECTOR_MAX_WIDTH = 720;
-const INSPECTOR_DEFAULT_WIDTH = 340;
+// Sidebar layout is a per-machine preference, remembered across runs. Storage
+// can be unavailable (private windows, cleared data), so every access is guarded
+// and falls back to the default.
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 480;
 const SIDEBAR_DEFAULT_WIDTH = 288;
-const LS_INSPECTOR = 'bm.desktop.inspector';
-const LS_INSPECTOR_WIDTH = 'bm.desktop.inspectorWidth';
 const LS_SIDEBAR_COLLAPSED = 'bm.desktop.sidebarCollapsed';
 const LS_SIDEBAR_WIDTH = 'bm.desktop.sidebarWidth';
+// Workspace layout is remembered per project (terminals excluded — their PTYs do
+// not survive a restart). Restoring reopens the chat, file, and diff tabs and the
+// pane grid the user last left.
+const workspaceStorageKey = (projectId) => `bm.desktop.workspace.${projectId}`;
 
 function readStored(key, fallback) {
   try {
@@ -43,12 +48,6 @@ function writeStored(key, value) {
   } catch {
     /* storage may be unavailable; the preference just does not persist */
   }
-}
-
-function clampInspectorWidth(w) {
-  const n = Number(w);
-  if (!Number.isFinite(n)) return INSPECTOR_DEFAULT_WIDTH;
-  return Math.min(INSPECTOR_MAX_WIDTH, Math.max(INSPECTOR_MIN_WIDTH, n));
 }
 
 function clampSidebarWidth(w) {
@@ -74,36 +73,6 @@ function MoonIcon() {
   );
 }
 
-// Inspector toolbar icons — line icons matching the app's SVG icon style
-// (24-grid, currentColor stroke). Folder for the file tree, a page with +/- for
-// the diff, a circled i for info.
-function FilesIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-    </svg>
-  );
-}
-
-function ChangesIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="5" y="3" width="14" height="18" rx="2" />
-      <path d="M12 7v4M10 9h4M10 16h4" />
-    </svg>
-  );
-}
-
-function InfoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5" />
-      <circle cx="12" cy="7.75" r="0.6" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
 // Theme toggle lives in the user menu, not the header: switching light/dark is a
 // rare action. Rendered inside ThemeProvider, so it reads the live theme. The
 // icon and label name the destination — moon to go dark, sun to go light.
@@ -125,18 +94,16 @@ function ThemeMenuItem() {
 
 export default function App() {
   const [sessions, setSessions] = useState([]);
+  // The primary selected session: it drives which project is active and what the
+  // sidebar/Explorer follow. Each chat tab owns its own run state (see
+  // ChatSession); this is only the selection, not a live transcript.
   const [selectedId, setSelectedId] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [sessionTitle, setSessionTitle] = useState('');
-  // What the last rewind or fork left behind, shown at the end of the
-  // transcript. It is about the move, not about the conversation, so it is not
-  // a message and is not persisted.
-  const [historyNotice, setHistoryNotice] = useState(null);
   // Said once when a project is opened: a memory file that will not load, or
   // a project registered beside one whose folder has moved. Neither is an
   // error, and both are invisible if nobody says them here.
   const [projectNotices, setProjectNotices] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Errors from project/session management (rename, delete, open); chat errors
+  // live in their own tab.
   const [error, setError] = useState(null);
   const [wailsReady, setWailsReady] = useState(false);
   const [authStatus, setAuthStatus] = useState(null);
@@ -150,62 +117,17 @@ export default function App() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
 
-  // Right-hand inspector column: which content it shows and whether it is open,
-  // widened, or expanded to fill the main area. `open`/`view` persist; a run
-  // starts un-expanded. Width and the left-sidebar collapse are per-machine
-  // preferences too. `expanded` is a transient review state, not remembered.
-  const [inspector, setInspector] = useState(() => {
-    const saved = readStored(LS_INSPECTOR, null);
-    return {
-      open: saved?.open === true,
-      view: ['files', 'diff', 'info'].includes(saved?.view) ? saved.view : 'diff',
-      expanded: false,
-    };
-  });
-  const [inspectorWidth, setInspectorWidth] = useState(() =>
-    clampInspectorWidth(readStored(LS_INSPECTOR_WIDTH, INSPECTOR_DEFAULT_WIDTH)),
-  );
   const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
+  const [workspace, setWorkspace] = useState(emptyWorkspace);
+  // The pane currently under a tab being dragged, highlighted as the drop target.
+  const [dropPane, setDropPane] = useState(null);
+  const [explorerMode, setExplorerMode] = useState('directory'); // 'directory' | 'changes'
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     clampSidebarWidth(readStored(LS_SIDEBAR_WIDTH, SIDEBAR_DEFAULT_WIDTH)),
   );
 
-  useEffect(() => { writeStored(LS_INSPECTOR, { open: inspector.open, view: inspector.view }); }, [inspector.open, inspector.view]);
-  useEffect(() => { writeStored(LS_INSPECTOR_WIDTH, inspectorWidth); }, [inspectorWidth]);
   useEffect(() => { writeStored(LS_SIDEBAR_COLLAPSED, leftCollapsed); }, [leftCollapsed]);
   useEffect(() => { writeStored(LS_SIDEBAR_WIDTH, sidebarWidth); }, [sidebarWidth]);
-
-  const openInspector = useCallback((view) => {
-    setInspector((s) => ({ ...s, open: true, view: view ?? s.view }));
-  }, []);
-  // The toolbar icons toggle: clicking the active view (when not expanded)
-  // closes the column rather than reopening the same thing.
-  const toggleInspectorView = useCallback((view) => {
-    setInspector((s) => (
-      s.open && s.view === view && !s.expanded
-        ? { ...s, open: false, expanded: false }
-        : { ...s, open: true, view }
-    ));
-  }, []);
-  const closeInspector = useCallback(() => {
-    setInspector((s) => ({ ...s, open: false, expanded: false }));
-  }, []);
-  const toggleInspectorExpand = useCallback(() => {
-    setInspector((s) => ({ ...s, open: true, expanded: !s.expanded }));
-  }, []);
-
-  const startInspectorResize = useCallback((e) => {
-    e.preventDefault();
-    const onMove = (ev) => setInspectorWidth(clampInspectorWidth(window.innerWidth - ev.clientX));
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      document.body.style.userSelect = '';
-    };
-    document.body.style.userSelect = 'none';
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }, []);
 
   const startSidebarResize = useCallback((e) => {
     e.preventDefault();
@@ -226,9 +148,6 @@ export default function App() {
   // cleared once a session is created). For existing sessions the project is
   // derived from session.workspace.
   const [newChatProject, setNewChatProject] = useState(null);
-
-  const historyRef = useRef(null);
-  const streamingContentRef = useRef('');
 
   useEffect(() => {
     if (!userMenuOpen) return;
@@ -270,10 +189,6 @@ export default function App() {
     return projects.find((p) => p.id === sess.project_id) ?? null;
   }, [selectedId, newChatProject, sessions, projects]);
 
-  const currentSession = useMemo(() => (
-    selectedId ? sessions.find((s) => s.id === selectedId) ?? null : null
-  ), [selectedId, sessions]);
-
   const projectById = useMemo(() => {
     const map = new Map();
     for (const p of projects) map.set(p.id, p);
@@ -295,205 +210,17 @@ export default function App() {
       .slice(0, 6);
   }, [projects]);
 
-  const EV_STREAM_DELTA = 'desktop/stream-delta';
-  const EV_STREAM_DONE = 'desktop/stream-done';
-  const EV_STREAM_ERROR = 'desktop/stream-error';
   const EV_APPROVAL_REQUEST = 'desktop/approval-request';
-  const EV_LLM_START = 'desktop/llm-start';
-  const EV_TOOL_START = 'desktop/tool-start';
-  const EV_TOOL_END = 'desktop/tool-end';
-  const EV_RUN_STATUS = 'desktop/run-status';
-  const EV_MESSAGE_DEQUEUED = 'desktop/message-dequeued';
-  const EV_MESSAGE_BLOCKED = 'desktop/message-blocked';
-  const EV_JOB_DELIVERY = 'desktop/job-delivery';
-  const EV_JOB_DELIVERY_PENDING = 'desktop/job-delivery-pending';
-  const EV_TURN_DIGEST = 'desktop/turn-digest';
 
+  // Approval prompts are project-level (the approval handler is per project, not
+  // per session). Each chat tab shows the pending request while it is running; a
+  // response resolves it for the project.
   const [approvalRequest, setApprovalRequest] = useState(null);
-  const [toolActivity, setToolActivity] = useState('');
-  const [runStatus, setRunStatus] = useState(null);
-  // Prompts typed during a run, waiting for their own turn. The Go side owns the
-  // real queue; this mirrors it so the transcript can show what is still waiting.
-  const [queuedMessages, setQueuedMessages] = useState([]);
-  // What the last finished turn is worth telling the user: a recap of what it
-  // did, and the answer it expects next. Held apart from `messages` on purpose —
-  // stream-done reloads that list from the session, and neither of these is in
-  // the session or ever goes back to the model.
-  const [turnDigest, setTurnDigest] = useState(null);
 
   useEffect(() => {
-    const unsubDelta = EventsOn(EV_STREAM_DELTA, (delta) => {
-      if (typeof delta !== 'string') return;
-      streamingContentRef.current += delta;
-      setMessages((prev) => {
-        const next = [...prev];
-        const last = next[next.length - 1];
-        if (last?.role === 'assistant') {
-          next[next.length - 1] = { ...last, content: streamingContentRef.current };
-        }
-        return next;
-      });
-    });
-    const unsubDone = EventsOn(EV_STREAM_DONE, (payload) => {
-      const reply = payload?.reply ?? streamingContentRef.current;
-      const sessionId = payload?.session_id ?? '';
-      streamingContentRef.current = '';
-      setToolActivity('');
-      setRunStatus({
-        context_tokens: payload?.context_tokens ?? 0,
-        context_window: payload?.context_window ?? 0,
-        prompt_tokens: payload?.prompt_tokens ?? 0,
-        completion_tokens: payload?.completion_tokens ?? 0,
-        total_prompt_tokens: payload?.total_prompt_tokens ?? 0,
-        total_completion_tokens: payload?.total_completion_tokens ?? 0,
-      });
-      setMessages((prev) => {
-        const next = [...prev];
-        const last = next[next.length - 1];
-        if (last?.role === 'assistant') {
-          // Cancellation before any model output: drop the empty placeholder
-          // so the UI does not leave a blank assistant bubble behind.
-          if (!reply) return next.slice(0, -1);
-          next[next.length - 1] = { ...last, content: reply };
-        }
-        return next;
-      });
-      setNewChatProject(null);
-      setSelectedId(sessionId || null);
-      if (sessionId) {
-        getApp()?.GetSession(sessionId).then((detail) => {
-          setMessages(detail?.messages ?? []);
-          setSessionTitle(detail?.title?.trim() || 'Chat');
-        }).catch(() => {});
-      }
-      getApp()?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
-      // The run goroutine only emits stream-done once the queue is drained.
-      setQueuedMessages([]);
-      setLoading(false);
-    });
-    const unsubError = EventsOn(EV_STREAM_ERROR, (payload) => {
-      streamingContentRef.current = '';
-      setToolActivity('');
-      setError(payload?.message ?? 'Stream error');
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === 'assistant' && last?.content === '') return prev.slice(0, -1);
-        return prev;
-      });
-      setLoading(false);
-    });
-    const unsubApproval = EventsOn(EV_APPROVAL_REQUEST, (payload) => {
-      setApprovalRequest(payload);
-    });
-    const unsubLLMStart = EventsOn(EV_LLM_START, () => {
-      streamingContentRef.current = '';
-      setMessages((prev) => appendAssistantForNextLLM(prev));
-    });
-    const unsubToolStart = EventsOn(EV_TOOL_START, (payload) => {
-      const name = payload?.tool_name ?? '';
-      const args = payload?.args ? shortToolArgs(payload.args) : '';
-      setToolActivity(args ? `⚙ ${name} (${args})` : `⚙ ${name}`);
-      if (payload?.tool_call_id) {
-        setMessages((prev) => addLiveToolCall(prev, {
-          id: payload.tool_call_id,
-          name,
-          arguments: payload?.args || '',
-        }));
-      }
-    });
-    const unsubToolEnd = EventsOn(EV_TOOL_END, (payload) => {
-      setToolActivity('');
-      setMessages((prev) => addLiveToolResult(prev, payload));
-    });
-    const unsubRunStatus = EventsOn(EV_RUN_STATUS, (payload) => {
-      setRunStatus((prev) => mergeRunStatus(prev, payload));
-    });
-    // A queued prompt starting its own turn: move it out of the waiting list and
-    // into the transcript as a sent message, and keep the run indicator on.
-    const unsubDequeued = EventsOn(EV_MESSAGE_DEQUEUED, (payload) => {
-      setQueuedMessages(payload?.queued ?? []);
-      const prompt = payload?.prompt ?? '';
-      if (!prompt) return;
-      setError(null);
-      setLoading(true);
-      streamingContentRef.current = '';
-      setMessages((prev) => [...prev, { role: 'user', content: prompt }]);
-    });
-    // A hook refused a queued message. The run is still going, so this reports the
-    // one message and leaves the loading state alone.
-    const unsubBlocked = EventsOn(EV_MESSAGE_BLOCKED, (payload) => {
-      setQueuedMessages(payload?.queued ?? []);
-      setError(`Message blocked by hook: ${payload?.reason ?? 'no reason given'}`);
-    });
-    // A background delivery turn is starting: mark why the agent is about to
-    // speak unprompted. The placeholder is replaced by the persisted envelope
-    // message when stream-done reloads the session.
-    const unsubJobDelivery = EventsOn(EV_JOB_DELIVERY, (payload) => {
-      setError(null);
-      setLoading(true);
-      streamingContentRef.current = '';
-      setMessages((prev) => [...prev, {
-        role: 'user',
-        source: payload?.source || 'background_event',
-        content: `⟳ ${payload?.source ?? 'background event'} from ${payload?.job_id ?? ''} — ${payload?.title ?? ''}`,
-      }]);
-    });
-    // Emitted once per turn, and only when the turn earned something to say.
-    const unsubTurnDigest = EventsOn(EV_TURN_DIGEST, (payload) => {
-      setTurnDigest({
-        recap: payload?.recap ?? '',
-        suggestion: payload?.suggestion ?? '',
-      });
-    });
-    return () => {
-      EventsOff(EV_STREAM_DELTA, EV_STREAM_DONE, EV_STREAM_ERROR, EV_APPROVAL_REQUEST, EV_LLM_START, EV_TOOL_START, EV_TOOL_END, EV_RUN_STATUS, EV_MESSAGE_DEQUEUED, EV_MESSAGE_BLOCKED, EV_JOB_DELIVERY, EV_TURN_DIGEST);
-      unsubTurnDigest?.();
-      unsubDelta?.();
-      unsubDone?.();
-      unsubError?.();
-      unsubApproval?.();
-      unsubLLMStart?.();
-      unsubToolStart?.();
-      unsubToolEnd?.();
-      unsubRunStatus?.();
-      unsubDequeued?.();
-      unsubBlocked?.();
-      unsubJobDelivery?.();
-    };
+    const unsub = EventsOn(EV_APPROVAL_REQUEST, (payload) => setApprovalRequest(payload));
+    return () => unsub?.();
   }, []);
-
-  // Pull parked background deliveries whenever this session is on screen and
-  // idle. The Go side parks per session and cannot know what is on screen;
-  // this effect is that knowledge. Re-running on `loading` flips also drains
-  // several parked events one turn at a time.
-  useEffect(() => {
-    if (loading || !wailsReady || !currentProject) return undefined;
-    const app = getApp();
-    if (!app?.DeliverNextJobEvent) return undefined;
-    const pull = () => {
-      app.DeliverNextJobEvent(currentProject.id, selectedId || '').catch(() => {});
-    };
-    pull();
-    const unsub = EventsOn(EV_JOB_DELIVERY_PENDING, (p) => {
-      if (p?.project_id === currentProject.id && (p?.session_id ?? '') === (selectedId || '')) pull();
-    });
-    return unsub;
-  }, [loading, wailsReady, currentProject, selectedId]);
-
-  // The queue lives per project on the Go side; re-read it when the visible
-  // project changes so a queue built before a switch is still shown after it.
-  useEffect(() => {
-    const a = getApp();
-    if (!a || !currentProject?.id || typeof a.QueuedMessages !== 'function') {
-      setQueuedMessages([]);
-      return;
-    }
-    let stale = false;
-    a.QueuedMessages(currentProject.id)
-      .then((list) => { if (!stale) setQueuedMessages(list ?? []); })
-      .catch(() => {});
-    return () => { stale = true; };
-  }, [currentProject?.id]);
 
   useEffect(() => {
     if (getApp()) { setWailsReady(true); return; }
@@ -509,6 +236,195 @@ export default function App() {
       .then((status) => setAuthStatus(status))
       .catch(() => setAuthStatus({ logged_in: false }));
   }, [wailsReady, app]);
+
+  // Center workspace tabs: each chat tab is one session, terminals/file/diff are
+  // peer tabs. A chat tab carries a `sessionId` ('' for a not-yet-sent new chat);
+  // its `ref` is the session id, or `new-N` for a new chat that keeps its identity
+  // across adoption so the ChatSession is not remounted.
+  const termSeqRef = useRef(0);
+  const newChatSeqRef = useRef(0);
+  // Which project the current `workspace` belongs to, so the save effect writes
+  // it under the right key even across the switch that swaps it out.
+  const workspaceProjectRef = useRef(null);
+
+  // openChatTabInto focuses an existing chat tab for a session, else opens one.
+  const openChatTabInto = (ws, sessionId, title) => {
+    for (const row of ws.rows) {
+      for (const pane of row.panes) {
+        const t = pane.tabs.find((x) => x.kind === 'chat' && (x.sessionId ?? '') === sessionId);
+        if (t) return focusPaneTab(ws, pane.id, t.key);
+      }
+    }
+    return openInFocused(ws, { kind: 'chat', ref: sessionId, sessionId, title: title || 'Chat' });
+  };
+  // openNewChatInto keeps at most one not-yet-sent new chat per project (new chats
+  // serialize on the same run key), focusing it if present.
+  const openNewChatInto = (ws) => {
+    for (const row of ws.rows) {
+      for (const pane of row.panes) {
+        const t = pane.tabs.find((x) => x.kind === 'chat' && (x.sessionId ?? '') === '');
+        if (t) return focusPaneTab(ws, pane.id, t.key);
+      }
+    }
+    newChatSeqRef.current += 1;
+    return openInFocused(ws, { kind: 'chat', ref: `new-${newChatSeqRef.current}`, sessionId: '', title: 'New Chat' });
+  };
+  // updateTabField patches one tab (matched by key) across the grid.
+  const updateTabField = (ws, key, patch) => ({
+    ...ws,
+    rows: ws.rows.map((row) => ({
+      ...row,
+      panes: row.panes.map((p) => ({
+        ...p,
+        tabs: p.tabs.map((t) => (t.key === key ? { ...t, ...patch } : t)),
+      })),
+    })),
+  });
+
+  // On a project switch, reap the old project's terminals, restore that project's
+  // saved layout (or a fresh workspace), and make sure the selected session — or a
+  // new chat — has a focused tab.
+  useEffect(() => {
+    setWorkspace((prev) => {
+      allTabs(prev)
+        .filter((t) => t.kind === 'terminal')
+        .forEach((t) => getApp()?.TerminalClose?.(t.ref));
+      workspaceProjectRef.current = currentProject?.id ?? null;
+      if (!currentProject) return emptyWorkspace;
+      const saved = readStored(workspaceStorageKey(currentProject.id), null);
+      let ws = isWorkspace(saved) ? saved : emptyWorkspace;
+      if (selectedId) {
+        const title = sessions.find((s) => s.id === selectedId)?.title?.trim() || 'Chat';
+        ws = openChatTabInto(ws, selectedId, title);
+      } else {
+        ws = openNewChatInto(ws);
+      }
+      return ws;
+    });
+    // Reseed only when the active project changes; selectedId is read fresh above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProject?.id]);
+
+  // Persist the current project's layout (terminals excluded) whenever it
+  // changes, keyed by the project the workspace belongs to.
+  useEffect(() => {
+    const pid = workspaceProjectRef.current;
+    if (!pid) return;
+    writeStored(workspaceStorageKey(pid), pruneForPersist(workspace));
+  }, [workspace]);
+
+  // A new chat adopts its real session id from the first event of the run it
+  // launched: record it on the tab (its key stays stable so the ChatSession is
+  // not remounted) and refresh the sidebar.
+  const handleSessionAdopted = useCallback((tab, realId) => {
+    setWorkspace((s) => updateTabField(s, tab.key, { sessionId: realId }));
+    getApp()?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
+  }, []);
+  const handleTabTitle = useCallback((tab, title) => {
+    setWorkspace((s) => updateTabField(s, tab.key, { title }));
+  }, []);
+  const refreshSessions = useCallback(() => {
+    getApp()?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
+  }, []);
+  const openSessionTab = useCallback((sessionId) => {
+    setSelectedId(sessionId);
+    setWorkspace((s) => openChatTabInto(s, sessionId, 'Chat'));
+  }, []);
+
+  const openTerminalTab = useCallback(async () => {
+    const a = getApp();
+    if (!a?.TerminalOpen || !currentProject) return;
+    try {
+      const id = await a.TerminalOpen(currentProject.id);
+      termSeqRef.current += 1;
+      setWorkspace((s) => openInFocused(s, { kind: 'terminal', ref: id, title: `Terminal ${termSeqRef.current}` }));
+    } catch {
+      // Opening a shell can fail (e.g. unsupported platform); leave the tabs.
+    }
+  }, [currentProject]);
+
+  const selectCenterTab = useCallback((paneId, key) => setWorkspace((s) => focusPaneTab(s, paneId, key)), []);
+  const focusCenterPane = useCallback((paneId) => setWorkspace((s) => focusPane(s, paneId)), []);
+  const splitCenterRight = useCallback((paneId) => setWorkspace((s) => splitRight(focusPane(s, paneId))), []);
+  const splitCenterDown = useCallback((paneId) => setWorkspace((s) => splitDown(focusPane(s, paneId))), []);
+  // A tab dragged from one pane's strip and dropped on another pane. Held in
+  // state (set once on drag start) so drop handlers read it without a ref.
+  const [dragTab, setDragTab] = useState(null);
+  const moveCenterTab = useCallback((fromPane, key, toPane) => {
+    setWorkspace((s) => moveTab(s, fromPane, key, toPane));
+  }, []);
+
+  // Terminals live in TerminalHost, portalled into the slot of the pane that
+  // shows them (see TerminalHost). Each pane whose active tab is a terminal
+  // registers its slot element here by pane id (read from data-pane on attach);
+  // the slot map is state so the target computation reads it during render.
+  const [termSlots, setTermSlots] = useState(() => new Map());
+  const setSlotEl = useCallback((paneId, el) => {
+    setTermSlots((prev) => {
+      if (el) {
+        if (prev.get(paneId) === el) return prev;
+        const next = new Map(prev);
+        next.set(paneId, el);
+        return next;
+      }
+      if (!prev.has(paneId)) return prev;
+      const next = new Map(prev);
+      next.delete(paneId);
+      return next;
+    });
+  }, []);
+  // A stable ref callback (React 19 cleanup form) so it is not re-attached each
+  // render and never reads a ref during render.
+  const slotRef = useCallback((el) => {
+    if (!el) return undefined;
+    const paneId = el.dataset.pane;
+    setSlotEl(paneId, el);
+    return () => setSlotEl(paneId, null);
+  }, [setSlotEl]);
+  const [termParkEl, setTermParkEl] = useState(null);
+  const setTermPark = useCallback((el) => setTermParkEl(el), []);
+
+  // Every open terminal and where it should be portalled: into its pane's slot
+  // when it is that pane's active tab, otherwise parked (mounted but hidden).
+  const terminalTargets = useMemo(() => {
+    const out = [];
+    for (const row of workspace.rows) {
+      for (const pane of row.panes) {
+        for (const t of pane.tabs) {
+          if (t.kind !== 'terminal') continue;
+          const isActive = pane.activeKey === t.key;
+          out.push({ id: t.ref, active: isActive, target: isActive ? (termSlots.get(pane.id) ?? null) : null });
+        }
+      }
+    }
+    return out;
+  }, [workspace, termSlots]);
+  const closeCenterTab = useCallback((paneId, key) => {
+    setWorkspace((s) => {
+      const tab = allTabs(s).find((t) => t.key === key);
+      if (tab?.kind === 'terminal') getApp()?.TerminalClose?.(tab.ref);
+      return closePaneTab(s, paneId, key);
+    });
+  }, []);
+
+  // The Explorer opens file and diff content as tabs in the focused pane. A
+  // single browse click opens a preview tab, which the next browse click
+  // replaces; a double-click pins a durable tab (see tabs.js / panes.js).
+  const openFileTab = useCallback((path, pinned = false) => {
+    const tab = { kind: 'file', ref: path, title: path.split('/').pop() || path, preview: !pinned };
+    setWorkspace((s) => {
+      const opened = openInFocused(s, tab);
+      return pinned ? pinPaneTab(opened, opened.focused, tabIdentity(tab)) : opened;
+    });
+  }, []);
+  const openDiffTab = useCallback((path, pinned = false) => {
+    const tab = { kind: 'diff', ref: path, title: `${path.split('/').pop() || path} (diff)`, preview: !pinned };
+    setWorkspace((s) => {
+      const opened = openInFocused(s, tab);
+      return pinned ? pinPaneTab(opened, opened.focused, tabIdentity(tab)) : opened;
+    });
+  }, []);
+  const pinCenterTab = useCallback((paneId, key) => setWorkspace((s) => pinPaneTab(s, paneId, key)), []);
 
   // The login is the mode. Without one the agent runs here against the models in
   // settings.yaml, which needs no server and therefore no sign-in first — so the
@@ -527,16 +443,6 @@ export default function App() {
       .catch(() => setProjectsLoaded(true));
   }, [wailsReady, app, workbenchReady]);
 
-  useEffect(() => {
-    if (!wailsReady || !app || !currentProject) {
-      setRunStatus(null);
-      return;
-    }
-    app.GetRunStatus(currentProject.id, selectedId || '')
-      .then((status) => setRunStatus(status ?? null))
-      .catch(() => setRunStatus(null));
-  }, [wailsReady, app, currentProject, selectedId]);
-
   // Signing out returns the app to local mode, which is a working state rather
   // than a locked door: the workbench stays open on settings.yaml's models.
   function handleLogout() {
@@ -547,91 +453,27 @@ export default function App() {
       .catch(() => setAuthStatus(signedOut));
   }
 
-  // reloadSession is also how a rewind refreshes the transcript: the session id
-  // does not change, so nothing else would re-read it.
-  const reloadSession = useCallback((id) => {
-    if (!app || !id) return;
-    app.GetSession(id)
-      .then((detail) => {
-        setMessages(detail?.messages ?? []);
-        setSessionTitle(detail?.title?.trim() || 'Chat');
-      })
-      .catch((err) => setError(err?.message ?? String(err)));
-  }, [app]);
-
-  useEffect(() => {
-    if (selectedId === null) {
-      setMessages([]);
-      setSessionTitle(newChatProject ? 'New Chat' : '');
-      return;
-    }
-    if (!app) return;
-    setError(null);
-    reloadSession(selectedId);
-  }, [selectedId, app, newChatProject, reloadSession]);
-
-  useEffect(() => {
-    if (historyRef.current) {
-      historyRef.current.scrollTop = historyRef.current.scrollHeight;
-    }
-  }, [messages]);
-
+  // Selecting a session makes it the primary selection and opens (or focuses) its
+  // chat tab. Across a project switch the tab is opened by the reseed effect,
+  // which reads the fresh selectedId.
   function handleSelectSession(sessionId) {
     setNewChatProject(null);
-    setHistoryNotice(null);
+    const sess = sessions.find((s) => s.id === sessionId);
     setSelectedId(sessionId);
-    // A digest belongs to one turn of one conversation; it does not follow the
-    // user to another.
-    setTurnDigest(null);
-  }
-
-  function handleRewound(report) {
-    reloadSession(selectedId);
-    setHistoryNotice({ kind: 'rewind', text: report });
-    // The turn the digest described is no longer the last one, and the question
-    // the suggestion answered may have been rewound away.
-    setTurnDigest(null);
-  }
-
-  // A fork is a different session, so this navigates to it. The notice is set
-  // after the switch rather than through handleSelectSession, which clears it.
-  function handleForked(newSessionId, report) {
-    setNewChatProject(null);
-    setSelectedId(newSessionId);
-    setHistoryNotice({ kind: 'fork', text: report });
-    // Not routed through handleSelectSession, so the digest is dropped here too.
-    setTurnDigest(null);
-    app?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
-  }
-
-  // A compaction rewrites the session's model-visible history in place, so the
-  // transcript and the context gauge both re-read. The notice says what it did.
-  function handleCompacted(result) {
-    reloadSession(selectedId);
-    const summarized = result?.summarized ?? 0;
-    const text = summarized > 0
-      ? `Summarized ${summarized} message${summarized === 1 ? '' : 's'}, kept ${result?.kept ?? 0}. Context now ${result?.after_tokens ?? 0} tokens (was ${result?.before_tokens ?? 0}).`
-      : (result?.reason || 'Nothing to compact yet.');
-    setHistoryNotice({ kind: 'compact', text });
-    setTurnDigest(null);
-    if (app && selectedId) {
-      app.GetRunStatus(currentProject?.id ?? '', selectedId)
-        .then((status) => setRunStatus((prev) => mergeRunStatus(prev, status)))
-        .catch(() => {});
+    if (sess && sess.project_id === currentProject?.id) {
+      setWorkspace((s) => openChatTabInto(s, sessionId, sess.title?.trim() || 'Chat'));
     }
   }
-
 
   function handleNewChatInProject(project) {
     setProjectNotices([]);
     app?.ProjectNotices?.(project.id)
       .then((lines) => setProjectNotices(lines ?? []))
       .catch(() => {});
+    const sameProject = project.id === currentProject?.id;
     setNewChatProject(project);
     setSelectedId(null);
-    setMessages([]);
-    setSessionTitle('New Chat');
-    setTurnDigest(null);
+    if (sameProject) setWorkspace((s) => openNewChatInto(s));
   }
 
   async function handleOpenProjectFolder(name, folderPath) {
@@ -677,22 +519,46 @@ export default function App() {
         setSessions((prev) => prev.filter((s) => s.project_id !== id));
       }
       setProjects((prev) => prev.filter((p) => p.id !== id));
-      // If the deleted project was in use, clear the chat area.
+      // If the deleted project was in use, clear the workspace (it resets when
+      // currentProject becomes null).
       if (currentProject?.id === id) {
         setNewChatProject(null);
         setSelectedId(null);
-        setMessages([]);
       }
     } catch (err) {
       setError(err?.message ?? String(err));
     }
   }
 
+  // closeSessionTabs removes any chat tab bound to a session (used when it is
+  // deleted), keeping the project's workspace otherwise intact.
+  const closeSessionTabs = useCallback((sessionIds) => {
+    const drop = new Set(sessionIds);
+    setWorkspace((s) => {
+      const matches = [];
+      s.rows.forEach((r) => r.panes.forEach((p) => p.tabs.forEach((t) => {
+        if (t.kind === 'chat' && drop.has(t.sessionId ?? '')) matches.push([p.id, t.key]);
+      })));
+      let ws = matches.reduce((acc, [pid, key]) => closePaneTab(acc, pid, key), s);
+      if (!allTabs(ws).some((t) => t.kind === 'chat')) ws = openNewChatInto(ws);
+      return ws;
+    });
+  }, []);
+
   async function handleRenameSession(id, title) {
     try {
       await app.RenameSession(id, title);
       setSessions((prev) => prev.map((s) => s.id === id ? { ...s, title } : s));
-      if (selectedId === id) setSessionTitle(title || 'Chat');
+      setWorkspace((s) => ({
+        ...s,
+        rows: s.rows.map((row) => ({
+          ...row,
+          panes: row.panes.map((p) => ({
+            ...p,
+            tabs: p.tabs.map((t) => (t.kind === 'chat' && (t.sessionId ?? '') === id ? { ...t, title: title || 'Chat' } : t)),
+          })),
+        })),
+      }));
     } catch (err) {
       setError(err?.message ?? String(err));
     }
@@ -702,10 +568,10 @@ export default function App() {
     try {
       await app.DeleteSession(id);
       setSessions((prev) => prev.filter((s) => s.id !== id));
+      closeSessionTabs([id]);
       if (selectedId === id) {
         setSelectedId(null);
-        setMessages([]);
-        setSessionTitle(newChatProject ? 'New Chat' : '');
+        if (currentProject) setNewChatProject(currentProject);
       }
     } catch (err) {
       setError(err?.message ?? String(err));
@@ -736,10 +602,9 @@ export default function App() {
       }
       const deletedSet = new Set(deleted ?? visibleIds);
       setSessions((prev) => prev.filter((s) => !deletedSet.has(s.id)));
+      closeSessionTabs([...deletedSet]);
       if (selectedId && deletedSet.has(selectedId)) {
         setSelectedId(null);
-        setMessages([]);
-        setSessionTitle('');
         if (currentProject?.id === project.id) setNewChatProject(project);
       }
     } catch (err) {
@@ -755,61 +620,6 @@ export default function App() {
       await app.RespondApproval(req.project_id, decision);
     } catch (err) {
       console.error('RespondApproval failed:', err);
-    }
-  }
-
-  async function handleSend(prompt) {
-    if (!prompt?.trim() || !app || !currentProject) return;
-    const trimmed = prompt.trim();
-
-    // While a run is in flight the message is queued rather than refused. Ask the
-    // Go side first: it owns the queue, and its answer says which of the two happened.
-    if (loading) {
-      try {
-        const position = await app.SendMessageStream(currentProject.id, selectedId || '', trimmed);
-        if (position > 0) setQueuedMessages((prev) => [...prev, trimmed]);
-      } catch (err) {
-        setError(err?.message ?? String(err));
-      }
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setHistoryNotice(null);
-    // The recap described the previous turn and the suggestion answered the
-    // question it asked. Both are spent the moment a new turn starts.
-    setTurnDigest(null);
-    streamingContentRef.current = '';
-    setRunStatus((prev) => ({ ...(prev ?? {}), prompt_tokens: 0, completion_tokens: 0 }));
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', content: trimmed },
-      { role: 'assistant', content: '' },
-    ]);
-    try {
-      await app.SendMessageStream(currentProject.id, selectedId || '', trimmed);
-    } catch (err) {
-      setError(err?.message ?? String(err));
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === 'assistant' && last?.content === '') return prev.slice(0, -1);
-        return prev;
-      });
-      setLoading(false);
-    }
-  }
-
-  async function handleCancel() {
-    if (!loading || !app || !currentProject) return;
-    // Stopping discards the queue on both sides — see App.CancelRun.
-    setQueuedMessages([]);
-    try {
-      await app.CancelRun(currentProject.id);
-    } catch (err) {
-      // Cancellation is best-effort; surface unexpected failures but do not
-      // block UI state — the in-flight run will still complete via stream-done.
-      console.error('CancelRun failed:', err);
     }
   }
 
@@ -865,118 +675,70 @@ export default function App() {
     );
   }
 
-  const toolResults = buildToolResultMap(messages);
+  // The focused pane's active tab drives the sidebar highlight and what the
+  // Explorer resolves its workspace against — the focused chat's session, or the
+  // primary selection when the focus is not a chat.
+  const focusedPaneObj = workspace.rows.flatMap((r) => r.panes).find((p) => p.id === workspace.focused);
+  const focusedActiveTab = focusedPaneObj ? focusedPaneObj.tabs.find((t) => t.key === focusedPaneObj.activeKey) : null;
+  const focusedChatSessionId = focusedActiveTab?.kind === 'chat' ? (focusedActiveTab.sessionId ?? '') : (selectedId || '');
+  const highlightSessionId = focusedActiveTab?.kind === 'chat' ? (focusedActiveTab.sessionId || null) : selectedId;
 
-  const threadItems = messages.flatMap((m, i) => {
-    if (m.role === 'tool') return [];
-    const toolCallLines = (m.tool_calls || []).map((tc, j) => {
-      const result = toolResults.get(tc.id);
-      const state = result ? (result.ok ? 'success' : 'error') : 'pending';
-      const args = shortToolArgs(tc.arguments);
-      return (
-        <details key={tc.id || j} className={`page-chat__tool-call page-chat__tool-call--${state}`}>
-          <summary>
-            <span className="page-chat__tool-call-dot" aria-hidden />
-            <span className="page-chat__tool-call-name">{toolDisplayName(tc.name)}</span>
-            {args && <span className="page-chat__tool-call-args">({args})</span>}
-          </summary>
-          {tc.arguments && (
-            <pre className="page-chat__tool-call-block">{formatToolArgs(tc.arguments)}</pre>
-          )}
-          {result?.content && (
-            <div className="page-chat__tool-call-result">
-              <MarkdownMessage content={result.content} />
-            </div>
-          )}
-        </details>
-      );
-    });
-    // A user-role message with a source is a background event, not the
-    // user's words: label it and collapse the envelope behind a summary.
-    if (m.source) {
-      return [{
-        id: `message-${i}`,
-        role: m.role,
-        label: 'Background',
-        hideAvatar: true,
-        body: (
-          <details className="page-chat__msg-content">
-            <summary>⟳ {m.source}</summary>
-            {m.content ? <MarkdownMessage content={m.content} /> : null}
-          </details>
-        ),
-      }];
-    }
-    return [{
-      id: `message-${i}`,
-      role: m.role,
-      label: m.role === 'user' ? 'You' : m.role,
-      hideAvatar: true,
-      body: (
-        <div className="page-chat__msg-content">
-          {m.content ? <MarkdownMessage content={m.content} /> : null}
-          {toolCallLines}
-        </div>
-      ),
-    }];
-  });
+  // One pane's content: the active tab decides what shows. A chat tab renders a
+  // ChatSession keyed to its own session, so several run at once; every terminal
+  // stays mounted (portalled by TerminalHost) so scrollback survives.
+  const renderPaneContent = (pane) => {
+    const active = activeTab(pane);
+    return (
+      <>
+        {active?.kind === 'chat' && (
+          <ChatSession
+            key={active.key}
+            projectId={currentProject.id}
+            projectName={currentProject.name}
+            defaultWorkspace={currentProject.default_workspace}
+            sessions={sessions}
+            tab={active}
+            app={app}
+            approvalRequest={approvalRequest}
+            onRespond={handleRespond}
+            onSessionAdopted={handleSessionAdopted}
+            onSessionsChanged={refreshSessions}
+            onTitle={handleTabTitle}
+            onOpenSession={openSessionTab}
+            onShowChanges={() => setExplorerMode('changes')}
+          />
+        )}
+        {active?.kind === 'file' && (
+          <FileView
+            projectID={currentProject.id}
+            sessionID={focusedChatSessionId}
+            path={active.ref}
+            app={app}
+          />
+        )}
+        {active?.kind === 'diff' && (
+          <DiffView
+            projectID={currentProject.id}
+            sessionID={focusedChatSessionId}
+            path={active.ref}
+            app={app}
+          />
+        )}
+        {active?.kind === 'terminal' && (
+          <div className="terminal-slot" data-pane={pane.id} ref={slotRef} />
+        )}
+        {!active && (
+          <div className="workspace-pane__empty">Open a file, diff, or terminal here.</div>
+        )}
+      </>
+    );
+  };
 
-  for (const [i, line] of projectNotices.entries()) {
-    threadItems.push({
-      id: `project-notice-${i}`,
-      role: 'notice',
-      label: 'Project',
-      hideAvatar: true,
-      body: <div className="page-chat__msg-content">{line}</div>,
-    });
-  }
+  const totalPanes = workspace.rows.reduce((n, r) => n + r.panes.length, 0);
 
-  if (historyNotice) {
-    threadItems.push({
-      id: 'history-notice',
-      role: 'system',
-      label: historyNotice.kind === 'fork' ? 'Forked'
-        : historyNotice.kind === 'compact' ? 'Compacted'
-        : 'Rewound',
-      hideAvatar: true,
-      body: <div className="page-chat__msg-content page-chat__history-notice">{historyNotice.text}</div>,
-    });
-  }
-
-  // Queued messages sit at the end of the transcript, dimmed: typed and accepted,
-  // but not sent to the model yet.
-  for (const [i, queued] of queuedMessages.entries()) {
-    threadItems.push({
-      id: `queued-${i}`,
-      role: 'user',
-      label: 'You (queued)',
-      hideAvatar: true,
-      body: (
-        <div className="page-chat__msg-content page-chat__msg-content--queued">
-          <MarkdownMessage content={queued} />
-        </div>
-      ),
-    });
-  }
-
-  // The recap closes the transcript as a notice, not a message: it is shown to
-  // the user and never said to the agent.
-  if (turnDigest?.recap) {
-    threadItems.push({
-      id: 'turn-recap',
-      role: 'notice',
-      label: 'Turn recap',
-      hideAvatar: true,
-      body: <div className="page-chat__recap">{turnDigest.recap}</div>,
-    });
-  }
-
-  const inspectorOpen = !!currentProject && inspector.open;
-  const inspectorExpanded = inspectorOpen && inspector.expanded;
   const shellClass = [
     'shell',
     leftCollapsed ? 'shell--left-collapsed' : '',
-    inspectorExpanded ? 'shell--inspector-expanded' : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -1037,7 +799,7 @@ export default function App() {
                       project={proj}
                       sessions={sessionsByProject[proj.id] ?? []}
                       isActive={currentProject?.id === proj.id}
-                      selectedSessionId={selectedId}
+                      selectedSessionId={highlightSessionId}
                       onSelectSession={handleSelectSession}
                       onNewChat={() => handleNewChatInProject(proj)}
                       onRename={handleRenameProject}
@@ -1060,6 +822,18 @@ export default function App() {
                 </>
               )}
             </nav>
+
+            {currentProject && (
+              <Explorer
+                projectID={currentProject.id}
+                sessionID={focusedChatSessionId}
+                app={app}
+                mode={explorerMode}
+                onModeChange={setExplorerMode}
+                onOpenFile={openFileTab}
+                onOpenDiff={openDiffTab}
+              />
+            )}
 
             <div className="sidebar__footer" ref={userMenuRef}>
               <button
@@ -1127,45 +901,37 @@ export default function App() {
               )}
               <div className="shell__top-titles">
                 <span className="shell__title">
-                  {currentProject ? (sessionTitle || 'New Chat') : 'Home'}
+                  {currentProject ? (focusedActiveTab?.title || currentProject.name) : 'Home'}
                 </span>
               </div>
               {currentProject && (
-                <div className="inspector-tabs" role="group" aria-label="Inspector views">
+                <div className="inspector-tabs" role="group" aria-label="Workspace actions">
                   <button
                     type="button"
                     className="inspector-tabs__btn"
-                    aria-pressed={inspectorOpen && inspector.view === 'files'}
-                    onClick={() => toggleInspectorView('files')}
-                    title="Files"
-                    aria-label="Files"
+                    onClick={openTerminalTab}
+                    title="New terminal"
+                    aria-label="New terminal"
                   >
-                    <span className="inspector-tabs__icon"><FilesIcon /></span>
-                  </button>
-                  <button
-                    type="button"
-                    className="inspector-tabs__btn"
-                    aria-pressed={inspectorOpen && inspector.view === 'diff'}
-                    onClick={() => toggleInspectorView('diff')}
-                    title="Changes"
-                    aria-label="Changes"
-                  >
-                    <span className="inspector-tabs__icon"><ChangesIcon /></span>
-                  </button>
-                  <button
-                    type="button"
-                    className="inspector-tabs__btn"
-                    aria-pressed={inspectorOpen && inspector.view === 'info'}
-                    onClick={() => toggleInspectorView('info')}
-                    title="Session info"
-                    aria-label="Session info"
-                  >
-                    <span className="inspector-tabs__icon"><InfoIcon /></span>
+                    <span className="inspector-tabs__icon" aria-hidden>{'>_'}</span>
                   </button>
                 </div>
               )}
             </div>
             <div className="shell__content">
+              {(error || projectNotices.length > 0) && (
+                <div className="workspace-banners">
+                  {projectNotices.map((line, i) => (
+                    <div key={`notice-${i}`} className="workspace-banner">{line}</div>
+                  ))}
+                  {error && (
+                    <div className="workspace-banner workspace-banner--error">
+                      <span>{error}</span>
+                      <button type="button" onClick={() => setError(null)} aria-label="Dismiss">✕</button>
+                    </div>
+                  )}
+                </div>
+              )}
               {!currentProject ? (
                 <HomeDashboard
                   recentSessions={recentSessions}
@@ -1176,75 +942,64 @@ export default function App() {
                   onCreateProject={() => setShowCreateModal(true)}
                 />
               ) : (
-                <div className="page-chat">
-                  <ChatThread
-                    historyRef={historyRef}
-                    ariaLabel="Conversation history"
-                    items={threadItems}
-                    emptyText="Type a message below to start a new chat."
-                  />
-                  <section className="page-chat__input" aria-label="Send a message">
-                    <ChatInput
-                      onSend={handleSend}
-                      onCancel={handleCancel}
-                      loading={loading}
-                      error={error}
-                      onDismissError={() => setError(null)}
-                      currentProject={currentProject}
-                      app={app}
-                      approvalRequest={approvalRequest}
-                      onRespond={handleRespond}
-                      toolActivity={toolActivity}
-                      runStatus={runStatus}
-                      suggestion={turnDigest?.suggestion ?? ''}
-                      onAcceptSuggestion={() => setTurnDigest(null)}
-                      sessionId={selectedId || ''}
-                      onOpenInspector={openInspector}
-                      onRewound={handleRewound}
-                      onForked={handleForked}
-                      onCompacted={handleCompacted}
-                      onCommandError={(msg) => setError(msg)}
-                      onRunStatusContext={(status) => {
-                        setRunStatus((prev) => ({
-                          ...(status ?? {}),
-                          prompt_tokens: prev?.prompt_tokens ?? 0,
-                          completion_tokens: prev?.completion_tokens ?? 0,
-                          total_prompt_tokens: prev?.total_prompt_tokens ?? status?.total_prompt_tokens ?? 0,
-                          total_completion_tokens: prev?.total_completion_tokens ?? status?.total_completion_tokens ?? 0,
-                        }));
-                      }}
-                    />
-                  </section>
+                <div className="workspace-grid">
+                  {workspace.rows.map((row) => (
+                    <div key={row.id} className="workspace-grid__row">
+                      {row.panes.map((pane) => {
+                        const focused = pane.id === workspace.focused;
+                        const paneClass = [
+                          'workspace-pane',
+                          totalPanes > 1 && focused ? 'workspace-pane--focused' : '',
+                          dropPane === pane.id ? 'workspace-pane--drop' : '',
+                        ].filter(Boolean).join(' ');
+                        return (
+                          <div
+                            key={pane.id}
+                            className={paneClass}
+                            onMouseDownCapture={() => focusCenterPane(pane.id)}
+                            onDragOver={(e) => {
+                              if (!dragTab) return;
+                              e.preventDefault();
+                              if (dropPane !== pane.id) setDropPane(pane.id);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const d = dragTab;
+                              setDropPane(null);
+                              setDragTab(null);
+                              if (d) moveCenterTab(d.fromPane, d.key, pane.id);
+                            }}
+                          >
+                            <TabBar
+                              tabs={pane.tabs}
+                              activeKey={pane.activeKey}
+                              onSelect={(key) => selectCenterTab(pane.id, key)}
+                              onClose={(key) => closeCenterTab(pane.id, key)}
+                              onPin={(key) => pinCenterTab(pane.id, key)}
+                              onSplitRight={() => splitCenterRight(pane.id)}
+                              onSplitDown={() => splitCenterDown(pane.id)}
+                              onTabDragStart={(key) => setDragTab({ fromPane: pane.id, key })}
+                              onTabDragEnd={() => { setDragTab(null); setDropPane(null); }}
+                            />
+                            <div className="workspace-pane__content">
+                              {renderPaneContent(pane)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           </main>
-
-          {inspectorOpen && (
-            <>
-              <div
-                className="inspector-resizer"
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize inspector"
-                onMouseDown={startInspectorResize}
-              />
-              <Inspector
-                view={inspector.view}
-                expanded={inspector.expanded}
-                width={inspector.expanded ? null : inspectorWidth}
-                projectID={currentProject.id}
-                sessionID={selectedId || ''}
-                projectName={currentProject.name}
-                workspace={currentSession?.workspace || currentProject.default_workspace}
-                app={app}
-                onToggleExpand={toggleInspectorExpand}
-                onClose={closeInspector}
-              />
-            </>
-          )}
         </div>
       </div>
+
+      {/* Terminals are portalled into their pane's slot from here, so they stay
+          mounted across tab switches, pane moves, and grid re-tiling. */}
+      <div className="terminal-park" ref={setTermPark} aria-hidden />
+      <TerminalHost terminals={terminalTargets} park={termParkEl} />
 
       {showCreateModal && (
         <CreateProjectModal
