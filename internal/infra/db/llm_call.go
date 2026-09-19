@@ -354,6 +354,7 @@ func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]
 // per-run read, where following a single run in the order it happened is the
 // point.
 func (s *Store) SearchLLMCalls(ctx context.Context, filter coregw.CallFilter, limit, offset int) ([]coregw.Call, int, error) {
+	limit, offset = clampPage(limit, offset)
 	var total int64
 	count := applyLLMCallFilter(s.db.WithContext(ctx).Model(&llmCallRow{}).
 		Joins("LEFT JOIN `user` u ON u.id = llm_call.user_id"), filter)
