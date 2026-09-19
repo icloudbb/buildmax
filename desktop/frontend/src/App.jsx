@@ -74,6 +74,28 @@ function MoonIcon() {
   );
 }
 
+// GridIcon — tile tabs into a grid of panes.
+function GridIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="3" width="8" height="8" rx="1" />
+      <rect x="13" y="3" width="8" height="8" rx="1" />
+      <rect x="3" y="13" width="8" height="8" rx="1" />
+      <rect x="13" y="13" width="8" height="8" rx="1" />
+    </svg>
+  );
+}
+
+// TabsIcon — collapse panes back into one tabbed pane.
+function TabsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="7" width="18" height="14" rx="1" />
+      <path d="M7 7V4h5v3M12 4h5v3" />
+    </svg>
+  );
+}
+
 // Theme toggle lives in the workspace status bar, always visible while a project
 // is open — more reachable than the user menu, which hides with the sidebar. Its
 // own component so it can call useTheme from inside ThemeProvider. The icon names
@@ -1007,7 +1029,6 @@ export default function App() {
                   <span aria-hidden>{'>_'}</span>
                 </button>
               )}
-              <ThemeStatusButton />
               {currentProject && canToggleGrid && (
                 <button
                   type="button"
@@ -1016,10 +1037,10 @@ export default function App() {
                   aria-label={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
                   onClick={toggleGrid}
                 >
-                  <span aria-hidden>{totalPanes > 1 ? '□' : '▦'}</span>
-                  {totalPanes > 1 ? ' Tabs' : ' Grid'}
+                  <span aria-hidden>{totalPanes > 1 ? <TabsIcon /> : <GridIcon />}</span>
                 </button>
               )}
+              <ThemeStatusButton />
             </div>
           </main>
         </div>
