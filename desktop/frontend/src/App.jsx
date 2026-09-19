@@ -411,8 +411,8 @@ export default function App() {
     return unsub;
   }, [loading, wailsReady, currentProject, selectedId]);
 
-  // The queue lives per project on the Go side; re-read it when the visible
-  // project changes so a queue built before a switch is still shown after it.
+  // The queue lives per session on the Go side; re-read it when the visible
+  // session changes so a queue built before a switch is still shown after it.
   useEffect(() => {
     const a = getApp();
     if (!a || !currentProject?.id || typeof a.QueuedMessages !== 'function') {
@@ -420,11 +420,11 @@ export default function App() {
       return;
     }
     let stale = false;
-    a.QueuedMessages(currentProject.id)
+    a.QueuedMessages(currentProject.id, selectedId || '')
       .then((list) => { if (!stale) setQueuedMessages(list ?? []); })
       .catch(() => {});
     return () => { stale = true; };
-  }, [currentProject?.id]);
+  }, [currentProject?.id, selectedId]);
 
   useEffect(() => {
     if (getApp()) { setWailsReady(true); return; }
@@ -885,7 +885,7 @@ export default function App() {
     // Stopping discards the queue on both sides — see App.CancelRun.
     setQueuedMessages([]);
     try {
-      await app.CancelRun(currentProject.id);
+      await app.CancelRun(currentProject.id, selectedId || '');
     } catch (err) {
       // Cancellation is best-effort; surface unexpected failures but do not
       // block UI state — the in-flight run will still complete via stream-done.

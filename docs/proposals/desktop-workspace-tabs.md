@@ -195,8 +195,8 @@ pane-independent, so a tab can move between panes without disturbing its content
 - Scope tabs to the active project, matching the existing project/session model
   and the local-project workspace boundary.
 - Keep the surface ready for split/grid layout without making that a new concept.
-- Keep the concurrency boundary honest: multiple *running* agent tabs remain
-  gated on workspace isolation, not enabled by tabs.
+- Key runs per session so agent tabs can run concurrently, and leave isolating
+  concurrent writers (a per-session worktree) to the user (§12).
 
 ## 6. Non-Goals
 
@@ -207,7 +207,9 @@ pane-independent, so a tab can move between panes without disturbing its content
   scope.
 - A remote or server-side terminal, or SSH into a worker or Space. Terminals are
   local only (§11, §14).
-- Multiple concurrent writers to one workspace without isolation (§12).
+- Platform-enforced workspace isolation between concurrent agent runs. Runs are
+  keyed per session so they *can* run at once; keeping two from clobbering one
+  workspace (a per-session worktree) is the user's call (§12).
 - Replacing the Agent's Bash tool with the user terminal (§11.4).
 - A persistent terminal daemon, or reconstructing terminal scrollback across app
   restarts.
@@ -250,12 +252,13 @@ A tab renders a backing — a session, a PTY, a file, a diff — that exists
 independently of which pane shows it. This keeps split/grid a layout concern and
 lets a tab move between panes without losing state.
 
-### 7.6 Human parallelism is free; writer parallelism is not
+### 7.6 Human parallelism is free; writer safety is the user's
 
 Several tabs, and several read-only or idle activities, are safe to show at once.
-Several *running* agent tabs that write one workspace are not, until isolation
-exists. The surface may always show many tabs; the runtime gates concurrent
-writers (§12).
+Runs are keyed per session, so several agent tabs may also run at once; whether
+that is *safe* depends on whether they share a workspace, which the user controls
+with a per-session worktree. The surface expresses the concurrency; the user owns
+isolating writers (§12).
 
 ### 7.7 Prototype to learn, propose to decide
 
@@ -287,7 +290,7 @@ Each kind shares the tab surface but not its backing:
 
 | Kind | Backing | Driver | Concurrency | Persistence |
 |---|---|---|---|---|
-| Chat | Agent session + run | User prompt, then the Agent Loop | Writers gated on isolation (§12) | Existing session persistence |
+| Chat | Agent session + run | User prompt, then the Agent Loop | One run per session; sessions run concurrently, the user isolates writers (§12) | Existing session persistence |
 | Terminal | Interactive local PTY | The user, keystroke by keystroke | Freely parallel (isolated processes) | None across restart |
 | File | A workspace file's content | Read, plus edit-and-save on text files | Freely parallel; a save writes to disk | None; re-read from disk |
 | Diff | One changed file's diff | Read | Freely parallel (read) | None; derived from workspace state |
@@ -372,19 +375,26 @@ slice keeps the terminal private to the user.
 
 ## 12. Concurrency and the Agent-Writer Boundary
 
-Opening and reading several chat tabs is a UI change, not a runtime-safety change.
-The restriction that at most one Agent runs per Project exists because several
-Agents writing one workspace corrupt each other's state
-([session-tree](session-tree-and-agent-mailbox.md) §2.4). Lifting it safely
-requires per-activity workspace isolation — worktrees or snapshots — which the
-session-tree and workspace direction owns. This proposal does not duplicate that
-work and does not let tabs pretend the limit is gone.
+Runs are keyed per session, not per project: one run per session is in flight at a
+time (a second prompt to the same session queues), and different sessions in a
+project run **concurrently**. Opening several chat tabs and letting them run at
+once is therefore a real capability, not just a viewing convenience.
 
-Until isolation lands, the runtime still serializes writers: several chat tabs may
-be open, but only one runs a writing turn at a time, and the UI must say so.
-Terminal, file, and diff tabs carry no such limit — terminals are isolated
-processes, a file save is a direct user-authored write to disk, and diff tabs are
-read-only — so they parallelize freely today.
+The remaining hazard is two agents writing one workspace and corrupting each
+other's state ([session-tree](session-tree-and-agent-mailbox.md) §2.4). Rather
+than have the platform forbid concurrency until it can force isolation, this
+design leaves isolation to the **user**, who already has the tool for it: a
+session may run in its own Git worktree distinct from the project default
+(`session.Meta.Workspace`, which the Desktop file bindings already resolve
+per session). A user who runs two agents in one shared workspace owns that
+choice, exactly as they would running two terminals against it. The platform's
+job is to key runs per session so the surface can express the concurrency, and to
+route each run's stream events (tagged with their `session_id`) to the right chat
+tab; deciding when concurrent runs are safe is the user's.
+
+Terminal, file, and diff tabs carry no writer question either — terminals are
+isolated processes, a file save is a direct user-authored write to disk, and diff
+tabs are read-only — so they parallelize freely.
 
 ## 13. Persistence and Lifecycle
 
@@ -429,9 +439,9 @@ emulator unboundedly. File and diff tabs read bounded content and hold no proces
 
 ### 14.4 Cost
 
-Terminal, file, and diff tabs spend no model tokens. Chat-tab parallelism, when it
-arrives, multiplies token spend and is governed by the budgets the session-tree
-proposal contemplates. The tab surface itself introduces no new cost.
+Terminal, file, and diff tabs spend no model tokens. Chat-tab parallelism now
+lets several runs spend tokens at once; that spend is the user's to govern, as
+running several agents always is. The tab surface itself introduces no new cost.
 
 ## 15. Split and Grid Layout
 
@@ -547,8 +557,9 @@ the smallest set of kinds that proves the model:
   inspector's Files and Changes.
 
 The initial prototype excluded more; since built on top of it are the pane grid
-(§15), per-project layout persistence (§13), and file editing. Still excluded:
-concurrent agent-tab runs, sandbox opt-in, and Agent observation of a terminal.
+(§15), per-project layout persistence (§13), file editing, and concurrent chat
+tabs (runs keyed per session, §12). Still excluded: sandbox opt-in and Agent
+observation of a terminal.
 
 The terminal transport already exists as an exploratory prototype from this
 paper's earlier draft: a Go PTY session manager
@@ -581,20 +592,21 @@ target. The prototype validates the transport, not the surface.
 - Preview-versus-pinned tab behavior.
 - Reopen a project's chat, file, and diff tabs across restart.
 
-### Phase 3: Multiple sessions and the writer boundary
+### Phase 3: Multiple concurrent chat tabs
 
-- Several chat tabs open and switchable, still serializing writers.
-- Make the single-writer limit visible in the UI.
+- Several chat tabs open, switchable, and each running its own session
+  concurrently: runs keyed per session, every stream event tagged with its
+  `session_id` and routed to its tab.
+- Isolation between concurrent writers is the user's, via a per-session worktree
+  (§12).
 
 ### Phase 4: Split and grid
 
 - Tile the center into panes; move tabs between panes.
 - Keep every backing pane-independent.
 
-### Phase 5: Concurrent agent tabs and refinements (gated on isolation)
+### Phase 5: Refinements
 
-- Only after per-activity workspace isolation from the session-tree/workspace
-  direction is accepted and built.
 - Optional terminal sandbox opt-in; optional, explicitly-decided Agent observation
   of a terminal. (File editing has since been built — see §13.)
 
@@ -646,8 +658,8 @@ The Phase 1 slice must show that:
 
 ### Concurrency and layout
 
-- What is the minimum workspace-isolation capability that makes concurrent agent
-  tabs safe, and does it come from the session-tree work unchanged?
+- Resolved: concurrent agent tabs run per session; isolating writers is the user's
+  responsibility via a per-session worktree, not a platform-forced gate (§12).
 - Resolved: the grid layout is persisted per project (terminals excluded); see §13.
 
 ### Evidence needed before acceptance
@@ -669,8 +681,9 @@ If evidence supports the direction:
    in a Local Experience design record, alongside
    [surface positioning](../design/surface-positioning.md) and the
    [Desktop architecture](../contribute/architecture/desktop.md).
-2. Add its sequence to [ROADMAP.md](../ROADMAP.md), with an explicit boundary
-   against the workspace-isolation work that gates concurrent agent tabs.
+2. Add its sequence to [ROADMAP.md](../ROADMAP.md), noting that concurrent agent
+   tabs run per session with user-owned worktree isolation, and how that relates
+   to the session-tree workspace work.
 3. Create implementation issues for the tab surface, the Explorer, the terminal
    tab, file and diff tabs, and any split/grid or sandbox opt-in.
 4. Update the Desktop and surface-positioning architecture documents and the user
@@ -691,8 +704,8 @@ The candidate direction is:
 > terminal, file, and diff — fed by a project-scoped Explorer sidebar with
 > Directory and Changes modes. The sidebar indexes the workspace; a click opens a
 > content tab; the center holds what the user is doing. The tab is the one new
-> concept, split/grid is a later layout over it, and concurrent running agent tabs
-> are gated on the workspace isolation the session-tree direction owns. The
+> concept, split/grid is a later layout over it, and agent tabs run concurrently
+> per session with the user owning writer isolation via a per-session worktree. The
 > terminal is one tab kind, not a special surface.
 
 This offers more than a bolted-on terminal and less than an extensible editor

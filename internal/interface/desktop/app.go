@@ -52,13 +52,31 @@ type ReplyPayload struct {
 	TotalCacheWriteTokens int `json:"total_cache_write_tokens"`
 }
 
+// Every streamed event below carries the SessionID of the run it belongs to, so
+// the frontend can route it to the right chat tab when several sessions run at
+// once. Only ReplyPayload's id comes from the run result; the rest are stamped
+// from the run's live session (see desktopRun).
+
+// StreamDeltaPayload is one chunk of assistant text (event desktop/stream-delta).
+type StreamDeltaPayload struct {
+	SessionID string `json:"session_id"`
+	Delta     string `json:"delta"`
+}
+
+// LLMStartPayload marks the start of a model call (event desktop/llm-start).
+type LLMStartPayload struct {
+	SessionID string `json:"session_id"`
+}
+
 // StreamErrorPayload is emitted when streaming fails (event desktop/stream-error).
 type StreamErrorPayload struct {
-	Message string `json:"message"`
+	SessionID string `json:"session_id"`
+	Message   string `json:"message"`
 }
 
 // ToolStartPayload is emitted when a tool call begins executing.
 type ToolStartPayload struct {
+	SessionID  string `json:"session_id"`
 	ToolCallID string `json:"tool_call_id"`
 	ToolName   string `json:"tool_name"`
 	Args       string `json:"args"`
@@ -66,6 +84,7 @@ type ToolStartPayload struct {
 
 // ToolEndPayload is emitted when a tool call finishes or is denied.
 type ToolEndPayload struct {
+	SessionID  string `json:"session_id"`
 	ToolCallID string `json:"tool_call_id"`
 	ToolName   string `json:"tool_name"`
 	DurationMs int64  `json:"duration_ms,omitempty"`
@@ -75,32 +94,35 @@ type ToolEndPayload struct {
 }
 
 type RunStatusPayload struct {
-	ContextTokens         int `json:"context_tokens"`
-	ContextWindow         int `json:"context_window"`
-	PromptTokens          int `json:"prompt_tokens"`
-	CompletionTokens      int `json:"completion_tokens"`
-	TotalPromptTokens     int `json:"total_prompt_tokens"`
-	TotalCompletionTokens int `json:"total_completion_tokens"`
-	CacheReadTokens       int `json:"cache_read_tokens"`
-	CacheWriteTokens      int `json:"cache_write_tokens"`
-	TotalCacheReadTokens  int `json:"total_cache_read_tokens"`
-	TotalCacheWriteTokens int `json:"total_cache_write_tokens"`
+	SessionID             string `json:"session_id"`
+	ContextTokens         int    `json:"context_tokens"`
+	ContextWindow         int    `json:"context_window"`
+	PromptTokens          int    `json:"prompt_tokens"`
+	CompletionTokens      int    `json:"completion_tokens"`
+	TotalPromptTokens     int    `json:"total_prompt_tokens"`
+	TotalCompletionTokens int    `json:"total_completion_tokens"`
+	CacheReadTokens       int    `json:"cache_read_tokens"`
+	CacheWriteTokens      int    `json:"cache_write_tokens"`
+	TotalCacheReadTokens  int    `json:"total_cache_read_tokens"`
+	TotalCacheWriteTokens int    `json:"total_cache_write_tokens"`
 }
 
 // MessageDequeuedPayload is emitted just before a queued prompt starts its own turn
 // (event desktop/message-dequeued), so the transcript can show it as sent.
 type MessageDequeuedPayload struct {
-	Prompt string   `json:"prompt"`
-	Queued []string `json:"queued"`
+	SessionID string   `json:"session_id"`
+	Prompt    string   `json:"prompt"`
+	Queued    []string `json:"queued"`
 }
 
 // MessageBlockedPayload is emitted when a hook refuses a queued prompt
 // (event desktop/message-blocked). It reports one message, not the end of the
 // run — the run carries on with what it already had.
 type MessageBlockedPayload struct {
-	Prompt string   `json:"prompt"`
-	Reason string   `json:"reason"`
-	Queued []string `json:"queued"`
+	SessionID string   `json:"session_id"`
+	Prompt    string   `json:"prompt"`
+	Reason    string   `json:"reason"`
+	Queued    []string `json:"queued"`
 }
 
 // TurnDigestPayload is what the finished turn is worth telling the user, and
@@ -111,6 +133,7 @@ type MessageBlockedPayload struct {
 // It deliberately does not travel in the message list: stream-done reloads the
 // thread from the session, and neither of these is in the session.
 type TurnDigestPayload struct {
+	SessionID string `json:"session_id"`
 	// Recap is a short account of what the turn did, or "" when it earned none.
 	Recap string `json:"recap"`
 	// Suggestion is the answer the user is likely about to give, or "" when the
@@ -150,9 +173,10 @@ type App struct {
 	mu               sync.Mutex
 	agentApps        map[string]*agentapp.AgentApp      // keyed by project ID
 	approvalHandlers map[string]*DesktopApprovalHandler // keyed by project ID
-	// scheduler serializes runs per project: one run in flight at a time,
-	// prompts submitted meanwhile queued and drained as their own turns, the
-	// session held for a run's life, and cancellation that discards the queue.
+	// scheduler serializes runs per session (see runKey): one run per session in
+	// flight at a time, prompts submitted meanwhile queued and drained as their
+	// own turns, the session held for a run's life, and cancellation that
+	// discards the queue. Different sessions run concurrently.
 	scheduler *agentapp.RunScheduler
 	// pendingJobEvents park requested background deliveries per
 	// project+session (see deliveryKey) until the frontend pulls them with
@@ -785,25 +809,31 @@ func (a *App) RespondApproval(projectID string, decision string) {
 	}
 }
 
-// desktopStreamSink emits each delta to the frontend.
+// desktopStreamSink emits each delta to the frontend, tagged with the run's live
+// session id so the frontend routes it to the right chat tab. session is read at
+// emit time because a brand-new chat only learns its id once the run starts.
 type desktopStreamSink struct {
-	ctx  context.Context
-	emit uiEmitter
+	ctx     context.Context
+	emit    uiEmitter
+	session func() string
 }
 
 func (s *desktopStreamSink) OnDelta(delta string) {
-	s.emit(s.ctx, eventStreamDelta, delta)
+	s.emit(s.ctx, eventStreamDelta, &StreamDeltaPayload{SessionID: s.session(), Delta: delta})
 }
 
 // desktopEventSink returns an agent.EventSink that forwards tool events to the frontend via Wails events.
-// queued reports the prompts still waiting behind the running turn, read when a
-// queued prompt joins it so the frontend can show what remains.
-func desktopEventSink(emit uiEmitter, ctx context.Context, queued func() []string) func(agent.Event) {
+// session reports the run's live session id (stamped on every payload for tab
+// routing); queued reports the prompts still waiting behind the running turn,
+// read when a queued prompt joins it so the frontend can show what remains.
+func desktopEventSink(emit uiEmitter, ctx context.Context, session func() string, queued func() []string) func(agent.Event) {
 	return func(e agent.Event) {
+		sid := session()
 		switch e.Kind {
 		case agent.EventLLMStart:
-			emit(ctx, eventLLMStart, nil)
+			emit(ctx, eventLLMStart, &LLMStartPayload{SessionID: sid})
 			emit(ctx, eventRunStatus, &RunStatusPayload{
+				SessionID:        sid,
 				ContextTokens:    e.ContextTokens,
 				ContextWindow:    e.ContextWindow,
 				PromptTokens:     e.PromptTokens,
@@ -813,56 +843,67 @@ func desktopEventSink(emit uiEmitter, ctx context.Context, queued func() []strin
 			})
 		case agent.EventLLMEnd:
 			emit(ctx, eventRunStatus, &RunStatusPayload{
+				SessionID:        sid,
 				PromptTokens:     e.PromptTokens,
 				CompletionTokens: e.CompletionTokens,
 				CacheReadTokens:  e.CacheReadTokens,
 				CacheWriteTokens: e.CacheWriteTokens,
 			})
 		case agent.EventToolStart:
-			emit(ctx, eventToolStart, &ToolStartPayload{ToolCallID: e.ToolCallID, ToolName: e.ToolName, Args: e.ToolArgs})
+			emit(ctx, eventToolStart, &ToolStartPayload{SessionID: sid, ToolCallID: e.ToolCallID, ToolName: e.ToolName, Args: e.ToolArgs})
 		case agent.EventToolEnd:
 			emit(ctx, eventToolEnd, &ToolEndPayload{
+				SessionID:  sid,
 				ToolCallID: e.ToolCallID,
 				ToolName:   e.ToolName,
 				DurationMs: e.ToolDuration.Milliseconds(),
 				IsError:    strings.HasPrefix(e.ToolResult, "error:"),
 			})
 		case agent.EventToolDenied:
-			emit(ctx, eventToolEnd, &ToolEndPayload{ToolCallID: e.ToolCallID, ToolName: e.ToolName, IsError: true, Denied: true, Reason: e.DenyReason})
+			emit(ctx, eventToolEnd, &ToolEndPayload{SessionID: sid, ToolCallID: e.ToolCallID, ToolName: e.ToolName, IsError: true, Denied: true, Reason: e.DenyReason})
 		case agent.EventUserInput:
 			// A queued prompt joined the running turn: it is sent now, not waiting.
-			emit(ctx, eventMessageDequeued, &MessageDequeuedPayload{Prompt: e.Content, Queued: queued()})
+			emit(ctx, eventMessageDequeued, &MessageDequeuedPayload{SessionID: sid, Prompt: e.Content, Queued: queued()})
 		case agent.EventUserInputBlocked:
 			// Its own event, not stream-error: the run is still going, and the
 			// frontend ends the run on stream-error.
 			emit(ctx, eventMessageBlocked, &MessageBlockedPayload{
-				Prompt: e.Content,
-				Reason: e.DenyReason,
-				Queued: queued(),
+				SessionID: sid,
+				Prompt:    e.Content,
+				Reason:    e.DenyReason,
+				Queued:    queued(),
 			})
 		}
 	}
 }
 
-// QueuedMessages returns the prompts waiting behind the project's in-flight run,
-// oldest first. The frontend reads it when it switches back to a project whose
+// runKey is the scheduler key for one session's run. Keying by project+session
+// (not project alone) lets different sessions in a project run concurrently; a
+// brand-new chat keys on an empty session id, so new chats still serialize until
+// one earns an id. It matches deliveryKey's shape on purpose.
+func runKey(projectID, sessionID string) string { return projectID + "\x00" + sessionID }
+
+// QueuedMessages returns the prompts waiting behind a session's in-flight run,
+// oldest first. The frontend reads it when it switches back to a chat tab whose
 // queue events it was not mounted for.
-func (a *App) QueuedMessages(projectID string) []string {
+func (a *App) QueuedMessages(projectID, sessionID string) []string {
 	if projectID == "" {
 		return nil
 	}
-	return a.scheduler.Queued(projectID)
+	return a.scheduler.Queued(runKey(projectID, sessionID))
 }
 
 // SendMessageStream runs a prompt in the given project and session with streaming.
 // It returns immediately and emits desktop/stream-delta, then desktop/stream-done
-// or desktop/stream-error. sessionID may be empty to start a new session.
+// or desktop/stream-error, each tagged with the run's session id. sessionID may
+// be empty to start a new session.
 //
-// At most one run per project may be in flight. A prompt submitted while one is
-// active is queued and runs as its own turn once the current one finishes; the
-// return value is that prompt's 1-based position in the queue, and 0 when the
-// prompt started a run of its own. The position comes back as a return value
-// rather than an event because it answers the caller's own call.
+// At most one run per session may be in flight (see runKey). A prompt submitted
+// while that session's run is active is queued and runs as its own turn once the
+// current one finishes; the return value is that prompt's 1-based position in the
+// queue, and 0 when the prompt started a run of its own. Runs in different
+// sessions of the same project proceed concurrently — the user owns keeping them
+// from clobbering each other (e.g. a per-session worktree).
 func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error) {
 	if projectID == "" {
 		return 0, fmt.Errorf("project ID required")
@@ -876,12 +917,12 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 	if ctx == nil {
 		return 0, fmt.Errorf("app not ready")
 	}
-	lc := &desktopRun{app: a, ctx: ctx, projectID: projectID, touchLastUsed: true}
+	lc := &desktopRun{app: a, ctx: ctx, projectID: projectID, sessionID: sessionID, key: runKey(projectID, sessionID), touchLastUsed: true}
 	// The scheduler resolves the host only if it commits to a run; a prompt that
 	// queues behind an in-flight run resolves nothing, preserving the old
 	// "queue without re-resolving the project" behaviour. A resolution failure —
 	// project or AgentApp — is reported as this call's error.
-	return a.scheduler.Submit(ctx, projectID, sessionID, prompt, a.hostForProject(projectID, lc), lc)
+	return a.scheduler.Submit(ctx, lc.key, sessionID, prompt, a.hostForProject(projectID, lc), lc)
 }
 
 // hostForProject resolves the project's AgentApp and binds its approval handler
@@ -902,11 +943,12 @@ func (a *App) hostForProject(projectID string, lc *desktopRun) agentapp.HostFunc
 // emitTurnDigest sends the finished turn's recap and suggestion, if it produced
 // either. Silence when it produced neither: an event carrying two empty strings
 // would make the frontend clear a recap the user is still reading.
-func (a *App) emitTurnDigest(ctx context.Context, out agentapp.RunResult) {
+func (a *App) emitTurnDigest(ctx context.Context, sessionID string, out agentapp.RunResult) {
 	if out.Digest.Empty() {
 		return
 	}
 	a.emit(ctx, eventTurnDigest, &TurnDigestPayload{
+		SessionID:  sessionID,
 		Recap:      out.Digest.Recap,
 		Suggestion: out.Digest.Suggestion,
 	})
@@ -929,7 +971,7 @@ func replyPayload(out agentapp.RunResult) *ReplyPayload {
 	}
 }
 
-// CancelRun cancels the in-flight run for the given project, if any.
+// CancelRun cancels the in-flight run for the given project and session, if any.
 // Cancellation is cooperative: the agent loop returns the partial assistant
 // reply produced so far and emits desktop/stream-done as a normal completion.
 // Calling CancelRun when no run is in flight is a no-op.
@@ -937,10 +979,10 @@ func replyPayload(out agentapp.RunResult) *ReplyPayload {
 // Stopping also discards anything queued behind the run. Those prompts were
 // written for work the user has just called off; delivering them afterwards would
 // restart it in their name.
-func (a *App) CancelRun(projectID string) error {
+func (a *App) CancelRun(projectID, sessionID string) error {
 	if projectID == "" {
 		return fmt.Errorf("project ID required")
 	}
-	a.scheduler.Cancel(projectID)
+	a.scheduler.Cancel(runKey(projectID, sessionID))
 	return nil
 }

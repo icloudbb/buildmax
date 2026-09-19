@@ -180,8 +180,9 @@ func TestDesktopParksRequestedDeliveries(t *testing.T) {
 		t.Fatal("no job-delivery-pending nudge emitted")
 	}
 
-	// While a run is in flight the parked event stays parked.
-	_, release := occupyProject(t, app, projectID)
+	// While that session's own run is in flight the parked event stays parked.
+	// Runs are keyed per session now, so it is sess-a's slot that must be busy.
+	_, release := occupySession(t, app, projectID, "sess-a")
 	started, err := app.DeliverNextJobEvent(projectID, "sess-a")
 	if err != nil || started {
 		t.Fatalf("busy delivery = %v, %v; want false, nil", started, err)
@@ -190,7 +191,7 @@ func TestDesktopParksRequestedDeliveries(t *testing.T) {
 		t.Fatal("busy delivery consumed the parked event")
 	}
 	release()
-	waitNotBusy(t, app, projectID)
+	waitSessionNotBusy(t, app, projectID, "sess-a")
 
 	// Idle delivery starts a turn. This test app has no model configured, so
 	// the turn fails — through the normal stream-error path — but the parked
@@ -205,7 +206,7 @@ func TestDesktopParksRequestedDeliveries(t *testing.T) {
 	if app.PendingJobDeliveries(projectID, "sess-a") != 0 {
 		t.Fatal("delivery not consumed")
 	}
-	waitNotBusy(t, app, projectID)
+	waitSessionNotBusy(t, app, projectID, "sess-a")
 	sawDelivery := false
 	for _, name := range rec.eventNames() {
 		if name == eventJobDelivery {
