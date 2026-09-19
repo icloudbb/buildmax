@@ -21,14 +21,15 @@ test("Issue Detail organizes into Overview, Discussion, Results, and Runs tabs",
   reportLeftovers(current.spaceId, [`issue ${issue.id}`])
 
   await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
-  await expect(page.getByRole("heading", { name: "Issue Detail", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible()
 
-  // Overview is the default tab: the persistable form and the latest outcome,
-  // and nothing from the other three tabs.
+  // Overview opens in read mode. Editing is a deliberate action; the latest
+  // outcome is available before any form fields.
   const tabs = page.getByRole("navigation", { name: "Issue sections" })
   await expect(tabs.getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "true")
   const titleField = page.getByLabel("Title")
-  await expect(titleField).toHaveValue(title)
+  await expect(titleField).toHaveCount(0)
+  await expect(page.getByText("No result yet.")).toBeVisible()
   await expect(page.getByRole("heading", { name: "Latest Outcome", exact: true })).toBeVisible()
   await expect(page.getByText("No execution runs recorded for this issue yet.")).toBeVisible()
   await expect(page.getByRole("heading", { name: "Discussion", exact: true })).toHaveCount(0)
@@ -52,6 +53,7 @@ test("Issue Detail organizes into Overview, Discussion, Results, and Runs tabs",
   await expect(page.getByRole("heading", { name: "Results", exact: true })).toHaveCount(0)
 
   await tabs.getByRole("button", { name: "Overview" }).click()
+  await page.getByRole("button", { name: "Edit issue" }).click()
   await expect(titleField).toHaveValue(title)
 })
 
@@ -65,18 +67,21 @@ test("saving an Issue never starts a run", async ({ page }) => {
   reportLeftovers(current.spaceId, [`issue ${issue.id}`])
 
   await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
+  await page.getByRole("button", { name: "Edit issue" }).click()
   const titleField = page.getByLabel("Title")
   await expect(titleField).toHaveValue(title)
 
   const description = page.getByLabel("Description")
   await description.fill("Edited by the Portal browser tests.")
-  await page.getByRole("button", { name: "Save" }).click()
+  await page.getByRole("button", { name: "Save changes" }).click()
   await expect(page.getByText("Saved.", { exact: true })).toBeVisible()
 
   // Reloading re-fetches from the API rather than trusting the form's own
   // state, so this proves the edit actually persisted server-side.
   await page.reload()
+  await page.getByRole("button", { name: "Edit issue" }).click()
   await expect(description).toHaveValue("Edited by the Portal browser tests.")
+  await page.getByRole("button", { name: "Cancel" }).click()
 
   // And it never scheduled a run: the Runs tab is still empty.
   const tabs = page.getByRole("navigation", { name: "Issue sections" })

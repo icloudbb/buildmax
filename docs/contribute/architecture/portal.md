@@ -37,6 +37,18 @@ Portal owns the cloud/space lane:
 - Pages live under `portal/src/pages/*`.
 - API calls live under `portal/src/features/*/api.ts` and `portal/src/lib/api`.
 - Shared presentation components come from `@buildmax/gui`.
+- The shared `Button` and `IconButton` own action appearance, target size, focus,
+  and busy state. Portal owns placement and permission decisions. Collection
+  creation stays in the header, while an empty state explains what is missing.
+  Issue Detail opens in read mode with its result and next action before editing.
+  Task Detail and conversation task cards use the same action roles; the Chat
+  start page owns its heading and keyboard-operated tabs.
+  Workflow Detail assigns one primary action per lifecycle view: Publish for
+  drafts, Run for published read mode, and Save while editing a published flow.
+  Agent Detail does the same for Run, configuration Save, and schedule creation;
+  its tabs are keyboard operated and schedule cards own their retry state.
+  Artifacts own upload as the collection action; detail and sharing controls
+  use the shared action roles, and preview retry stays inside the preview.
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
   `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
   conversation streaming.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { BaseModal } from "@buildmax/gui"
+import { BaseModal, Button } from "@buildmax/gui"
 import type {
   ApiRunProvenance,
   ApiTaskRunLLMCall,
@@ -681,9 +681,9 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
         )}
       </div>
       <div className="modal__actions">
-        <button type="button" className="modal__btn modal__btn--secondary" onClick={onClose}>
+        <Button variant="secondary" onClick={onClose}>
           Close
-        </button>
+        </Button>
       </div>
     </BaseModal>
   )

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react"
+import { Button, ButtonLink } from "@buildmax/gui"
 import type { ApiArtifact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
 import { downloadAuthenticated } from "../../lib/download"
-import { navigate } from "../../router"
+import { buildHash, navigate } from "../../router"
 import { useAuth } from "../../contexts/AuthContext"
 import { useApp } from "../../contexts/AppContext"
 import { useSpace } from "../../contexts/SpaceContext"
@@ -43,7 +44,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState<"download" | "delete" | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
 
   const load = useCallback(() => {
@@ -87,28 +88,28 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
 
   async function onDownload() {
     if (!artifact || !token) return
-    setBusy(true)
+    setBusyAction("download")
     setError(null)
     try {
       await downloadAuthenticated(artifactContentUrl(artifact.id), token, artifact.filename)
     } catch (err) {
       setError(getErrorMessage(err, "Download failed"))
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
   async function onDelete() {
     if (!artifact || !token) return
     if (!confirmArtifactDeletion(artifact)) return
-    setBusy(true)
+    setBusyAction("delete")
     setError(null)
     try {
       await deleteArtifact(artifact.id, token)
       navigate({ name: "artifacts", spaceId: artifact?.space_id ?? currentSpaceId! })
     } catch (err) {
       setError(getErrorMessage(err, "Delete failed"))
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
@@ -145,17 +146,11 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
         ) : null}
         <div className="page-activity__actions">
           {!notFound ? (
-            <button type="button" className="page-activity__action-btn" onClick={load}>
+            <Button variant="secondary" onClick={load}>
               Try again
-            </button>
+            </Button>
           ) : null}
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            onClick={() => navigate({ name: "artifacts", spaceId: currentSpaceId! })}
-          >
-            Back to artifacts
-          </button>
+          {currentSpaceId ? <ButtonLink variant="tertiary" href={buildHash({ name: "artifacts", spaceId: currentSpaceId })}>Back to artifacts</ButtonLink> : null}
         </div>
       </div>
     )
@@ -173,30 +168,26 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
           </p>
         </div>
         <div className="page-activity__actions">
-          <button
-            type="button"
-            className="page-activity__action-btn"
+          <Button
+            variant={artifact.preview === "none" ? "primary" : "secondary"}
             onClick={() => void onDownload()}
-            disabled={busy}
+            busy={busyAction === "download"}
+            disabled={busyAction !== null}
           >
             Download
-          </button>
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            onClick={() => setShareOpen(true)}
-          >
+          </Button>
+          <Button variant="secondary" onClick={() => setShareOpen(true)}>
             Share
-          </button>
+          </Button>
           {canDelete ? (
-            <button
-              type="button"
-              className="page-activity__action-btn"
+            <Button
+              variant="danger"
               onClick={() => void onDelete()}
-              disabled={busy}
+              busy={busyAction === "delete"}
+              disabled={busyAction !== null}
             >
               Delete
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>

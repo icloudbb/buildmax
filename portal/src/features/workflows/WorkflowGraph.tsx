@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+import { statusLabel } from "../../lib/statusLabels"
 
 /** One node to draw. `needs` are the ids this node depends on (its inbound
  *  edges). `onOpen`, when set, makes the node a button that opens its detail. */
@@ -16,8 +17,8 @@ export interface Positioned extends GraphNode {
   y: number
 }
 
-const NODE_W = 168
-const NODE_H = 52
+const NODE_W = 220
+const NODE_H = 104
 const COL_GAP = 56
 const ROW_GAP = 20
 const PAD = 8
@@ -113,7 +114,7 @@ export function WorkflowGraph({ nodes, emptyLabel = "No nodes to graph." }: { no
             <>
               <span className="wf-graph__node-id">{node.label ?? node.id}</span>
               {node.sublabel ? <span className="wf-graph__node-sub">{node.sublabel}</span> : null}
-              {node.status ? <span className="wf-graph__node-status">{node.status}</span> : null}
+              {node.status ? <span className="wf-graph__node-status">{statusLabel(node.status)}</span> : null}
             </>
           )
           return node.onOpen ? (

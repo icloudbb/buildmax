@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import type { FormModalFieldConfig } from "@buildmax/gui"
+import { Button, type FormModalFieldConfig } from "@buildmax/gui"
 import type { Agent } from "../lib/types"
 import type { ApiSecret, ApiSecretConsumption } from "../lib/api/types"
 import { AGENT_GROUP_META, agentFields, buildAgentDefinition, type AgentDefinitionInput } from "../features/agents"
@@ -191,22 +191,8 @@ export function AgentConfigForm({
 
       {canManage ? (
         <div className="agent-config__actions">
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            disabled={disabled || nameEmpty}
-            onClick={handleSubmit}
-          >
-            {saving ? "Saving…" : "Save changes"}
-          </button>
-          <button
-            type="button"
-            className="agent-config__delete"
-            disabled={deleting || saving}
-            onClick={handleDelete}
-          >
-            {deleting ? "Deleting…" : "Delete agent"}
-          </button>
+          <Button variant="primary" busy={saving} disabled={disabled || deleting || nameEmpty} onClick={handleSubmit}>Save changes</Button>
+          <Button variant="danger" busy={deleting} disabled={saving} onClick={handleDelete}>Delete agent</Button>
         </div>
       ) : (
         <p className="page-activity__empty">This agent is read-only for your role.</p>

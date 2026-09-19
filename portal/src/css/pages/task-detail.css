@@ -24,7 +24,7 @@
 .task-thread__header-actions {
   display: flex;
   gap: 0.4rem;
-  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 /* Chat history — scrollable message list, takes remaining space */
@@ -52,7 +52,7 @@
 }
 
 .page-chat__error {
-  color: #b91c1c;
+  color: var(--color-danger);
   margin-top: 0.5rem;
 }
 
@@ -318,15 +318,15 @@
 }
 
 .task-card--running {
-  border-left-color: #b45309;
+  border-left-color: var(--color-status-running);
 }
 
 .task-card--done {
-  border-left-color: #15803d;
+  border-left-color: var(--color-status-success);
 }
 
 .task-card--failed {
-  border-left-color: #b91c1c;
+  border-left-color: var(--color-danger);
 }
 
 .task-card__head {
@@ -344,15 +344,15 @@
 }
 
 .task-card__status--running {
-  color: #b45309;
+  color: var(--color-status-running);
 }
 
 .task-card__status--done {
-  color: #15803d;
+  color: var(--color-status-success);
 }
 
 .task-card__status--failed {
-  color: #b91c1c;
+  color: var(--color-danger);
 }
 
 .task-card__title {
@@ -369,7 +369,7 @@
 
 .task-card__error {
   margin: 0;
-  color: #b91c1c;
+  color: var(--color-danger);
   font-size: 0.9rem;
   overflow-wrap: anywhere;
 }
@@ -391,13 +391,6 @@
   display: flex;
   gap: 0.4rem;
   flex-wrap: wrap;
-}
-
-/* The file being read, among the run's files. */
-.page-activity__action-btn--active {
-  border-color: var(--color-text-muted);
-  background: var(--color-bg-muted);
-  font-weight: 600;
 }
 
 .task-card__file-list {
@@ -439,13 +432,8 @@
 }
 
 .task-details__link {
-  border: none;
-  background: none;
-  padding: 0;
-  font: inherit;
   font-size: 0.8rem;
   color: var(--color-link);
-  cursor: pointer;
   text-align: left;
 }
 
@@ -460,11 +448,6 @@
   margin-top: 0.85rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--color-border);
-}
-
-.page-activity__action-btn--sm {
-  padding: 0.25rem 0.55rem;
-  font-size: 0.78rem;
 }
 
 /* Working indicator: three dots that bounce while a run is in flight, standing

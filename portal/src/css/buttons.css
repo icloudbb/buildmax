@@ -1,10 +1,5 @@
-/* Shared .btn component.
-
-   Eleven call sites across the app use `.btn` / `.btn--*` (modals, secrets,
-   webhook keys, task detail), but the class had no rules — every one rendered
-   as the browser's default button. This defines the component those call sites
-   were already written against. Kept close to the gui `.modal__btn` look so the
-   modals that use it read as one system. */
+/* Legacy Portal button rules for pages still awaiting migration to
+   @buildmax/gui/Button. Remove these rules as the remaining callers move. */
 
 .btn {
   display: inline-flex;

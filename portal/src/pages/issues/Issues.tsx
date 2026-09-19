@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { Button } from "@buildmax/gui"
 import type { Agent, Issue } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { statusLabel } from "../../lib/statusLabels"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../lib/api/mappers"
 import { createIssue, getIssues, updateIssue } from "../../features/issues"
 import { getAgents } from "../../features/agents"
@@ -40,6 +42,7 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
   // Distinct from listError: the create-issue mutation's own error, shown
   // inside IssueModal rather than as a page-level Alert.
   const [createError, setCreateError] = useState<string | null>(null)
+  const [partiallyCreatedId, setPartiallyCreatedId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -149,7 +152,7 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
     return `${start}-${end} of ${total}`
   }, [page, total])
 
-  function handleCreate(values: {
+  async function handleCreate(values: {
     title: string
     description?: string
     status: Issue["status"]
@@ -160,34 +163,39 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
     if (!token || !spaceId) return
     setSaving(true)
     setCreateError(null)
-    createIssue(spaceId, { title: values.title, description: values.description }, token)
-      .then(async (created) => {
-        const needsPatch =
-          values.status !== "todo" ||
-          values.owner_id !== "" ||
-          values.executor_kind !== "" ||
-          values.executor_id !== ""
-        if (needsPatch) {
-          await updateIssue(
-            spaceId,
-            created.id,
-            {
-              version: created.version,
-              status: values.status,
-              owner_id: values.owner_id,
-              executor_kind: values.executor_kind,
-              executor_id: values.executor_id,
-            },
-            token,
-          )
+    setPartiallyCreatedId(null)
+    try {
+      const created = await createIssue(spaceId, { title: values.title, description: values.description }, token)
+      const needsPatch =
+        values.status !== "todo" ||
+        values.owner_id !== "" ||
+        values.executor_kind !== "" ||
+        values.executor_id !== ""
+      if (needsPatch) {
+        try {
+          await updateIssue(spaceId, created.id, {
+            version: created.version,
+            status: values.status,
+            owner_id: values.owner_id,
+            executor_kind: values.executor_kind,
+            executor_id: values.executor_id,
+          }, token)
+        } catch (err) {
+          // Creation has already committed. Preserve the new object's address
+          // and do not offer another Create, which would make a duplicate.
+          setPartiallyCreatedId(created.id)
+          setCreateError(`Issue was created, but its details were not saved: ${getErrorMessage(err, "Update failed")}. Open it to finish setup.`)
+          void fetchIssues()
+          return
         }
-        setCreateOpen(false)
-        // Success lands on the created issue, not back on the list: the reader
-        // created one specific object and wants to see it.
-        navigate({ name: "issue", spaceId, issueId: created.id })
-      })
-      .catch((err) => setCreateError(getErrorMessage(err, "Failed to create issue")))
-      .finally(() => setSaving(false))
+      }
+      setCreateOpen(false)
+      navigate({ name: "issue", spaceId, issueId: created.id })
+    } catch (err) {
+      setCreateError(getErrorMessage(err, "Failed to create issue"))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -200,16 +208,16 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
           </p>
         </div>
         <div className="page-activity__actions">
-          <button
-            type="button"
-            className="page-activity__action-btn"
+          <Button
+            variant="primary"
             onClick={() => {
               setCreateError(null)
+              setPartiallyCreatedId(null)
               setCreateOpen(true)
             }}
           >
             New Issue
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -235,19 +243,15 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
         <p className="page-activity__empty">Checking whether you can assign workflows…</p>
       ) : null}
 
-      <section className="issues-page__panel">
+      <section className="issues-page__panel" aria-label="Issue list">
         <div className="issues-page__toolbar">
-          <h2 className="issues-page__section-title">All Issues</h2>
-          <span className="page-activity__meta">{pageLabel}</span>
+          {issuesData !== null ? <span className="page-activity__meta">{pageLabel}</span> : null}
         </div>
 
         {issuesState.kind === "loading" ? (
           <p className="page-activity__empty">Loading…</p>
         ) : issuesState.kind === "readyEmpty" ? (
-          <EmptyState
-            message="No issues yet. Create one to track a work item, ownership, and progress for this space."
-            action={{ label: "New Issue", onClick: () => setCreateOpen(true) }}
-          />
+          <EmptyState message="No issues yet. Create one to track work, ownership, and progress in this space." />
         ) : issuesState.kind === "error" || issuesState.kind === "forbidden" || issuesState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
             {(issuesData ?? []).map((issue) => (
@@ -276,7 +280,7 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
                         {issue.commentCount} comment{issue.commentCount === 1 ? "" : "s"}
                       </span>
                     ) : null}
-                    <span className="issues-page__status">{issue.status}</span>
+                    <span className="issues-page__status">{statusLabel(issue.status)}</span>
                     <span className="page-activity__meta">
                       {assigneeLabel(issue)}
                     </span>
@@ -288,13 +292,13 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
                     {/* Children load on expand rather than with the page: a
                         board of parents would otherwise pay for every
                         breakdown nobody opened. */}
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
+                    <Button
+                      variant="tertiary"
+                      size="compact"
                       onClick={() => toggleChildren(issue.id)}
                     >
                       {expanded[issue.id] ? "Hide sub-issues" : "Show sub-issues"}
-                    </button>
+                    </Button>
                     {expanded[issue.id] ? (
                       children[issue.id] === undefined ? (
                         <p className="page-activity__empty">Loading…</p>
@@ -311,7 +315,7 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
                                   <span className="issues-page__row-title">{child.title}</span>
                                 </span>
                                 <span className="issues-page__row-side">
-                                  <span className="issues-page__status">{child.status}</span>
+                                  <span className="issues-page__status">{statusLabel(child.status)}</span>
                                   <span className="page-activity__meta">{assigneeLabel(child)}</span>
                                 </span>
                               </button>
@@ -327,27 +331,25 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
           </ul>
         )}
 
-        <div className="issues-page__pagination">
-          <button
-            type="button"
-            className="page-activity__action-btn"
+        {issuesData !== null && totalPages > 1 ? <div className="issues-page__pagination">
+          <Button
+            variant="secondary"
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
             Previous
-          </button>
+          </Button>
           <span className="page-activity__meta">
             Page {page} / {totalPages}
           </span>
-          <button
-            type="button"
-            className="page-activity__action-btn"
+          <Button
+            variant="secondary"
             disabled={page >= totalPages}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           >
             Next
-          </button>
-        </div>
+          </Button>
+        </div> : null}
       </section>
 
       <IssueModal
@@ -359,9 +361,16 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
         loading={saving}
         allowWorkflowAssignment={canAssignWorkflow}
         error={createOpen ? createError : null}
+        partiallyCreatedId={partiallyCreatedId}
+        onOpenPartial={() => {
+          if (!partiallyCreatedId) return
+          setCreateOpen(false)
+          navigate({ name: "issue", spaceId, issueId: partiallyCreatedId })
+        }}
         onClose={() => {
           setCreateOpen(false)
           setCreateError(null)
+          setPartiallyCreatedId(null)
         }}
         onSubmit={handleCreate}
       />

@@ -133,6 +133,17 @@
   color: var(--color-text);
 }
 
+.workflow-run-page__diagnostics {
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.workflow-run-page__diagnostics summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 0.65rem;
+}
+
 .revision-history {
   display: flex;
   flex-direction: column;
@@ -298,17 +309,13 @@ button.wf-graph__node:focus-visible {
 .wf-graph__node-id {
   font-weight: 600;
   font-size: 0.85rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .wf-graph__node-sub {
   font-size: 0.72rem;
   color: var(--color-text-muted, #57606a);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .wf-graph__node-status {
@@ -372,39 +379,6 @@ button.wf-graph__node:focus-visible {
   align-items: center;
   gap: 0.6rem;
   margin-top: 0.4rem;
-}
-
-.workflow-detail__history-chip {
-  font: inherit;
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 0.1rem 0.6rem;
-  cursor: pointer;
-}
-
-.workflow-detail__history-chip:hover {
-  border-color: var(--color-text-muted);
-  background: var(--color-bg-muted);
-}
-
-.page-activity__action-btn--primary {
-  color: var(--color-primary-text);
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-}
-
-.page-activity__action-btn--primary:hover {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  opacity: 0.9;
-}
-
-.page-activity__action-btn--primary:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .workflow-detail__banner {

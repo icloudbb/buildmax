@@ -1,8 +1,10 @@
 import type { ReactNode } from "react"
+import { Button, type ButtonVariant } from "@buildmax/gui"
 
 export interface EmptyStateAction {
   label: string
   onClick: () => void
+  variant?: ButtonVariant
 }
 
 export interface EmptyStateProps {
@@ -20,9 +22,9 @@ export function EmptyState({ message, action, children }: EmptyStateProps) {
       <p className="state-empty__message">{message}</p>
       {children}
       {action && (
-        <button type="button" className="btn btn--primary" onClick={action.onClick}>
+        <Button variant={action.variant ?? "primary"} onClick={action.onClick}>
           {action.label}
-        </button>
+        </Button>
       )}
     </div>
   )

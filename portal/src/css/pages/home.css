@@ -25,7 +25,7 @@
 
 .page-new-chat__title {
   margin: 0 0 0.25rem;
-  font-size: 1.5rem;
+  font-size: var(--font-size-page);
   color: var(--color-text);
 }
 
@@ -33,12 +33,6 @@
   margin: 0 0 1.25rem;
   font-size: 0.95rem;
   color: var(--color-text-muted);
-}
-
-.page-new-chat__error {
-  margin: 0.75rem 0 0;
-  font-size: 0.85rem;
-  color: #c00;
 }
 
 .page-new-chat__tabs {
@@ -58,6 +52,7 @@
 }
 
 .page-new-chat__tab {
+  min-height: 44px;
   padding: 0.6rem 1.25rem;
   border: none;
   border-bottom: 2px solid transparent;
@@ -71,6 +66,11 @@
 
 .page-new-chat__tab:hover {
   color: var(--color-text);
+}
+
+.page-new-chat__tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 
 .page-new-chat__tab--active {

@@ -353,8 +353,21 @@ Harbor 适配器均已实现。[evaluation/suite](../../evaluation/suite)包含�
 本次未运行真实模型评估或 Terminal-Bench 协议，不报告分数。
 
 Portal 浏览器测试现已覆盖独立 Task 线程、工作区、规范 Space 路由、加载/错误/权限状态、
-响应式布局、无障碍与运行来源。Desktop 有 bridge 与
-[浏览器 UI 测试](../../desktop/frontend/e2e)，并在 macOS 和 Windows CI 中运行打包应用
+响应式布局、无障碍与运行来源。Portal 页面系统的第一阶段让 Issues、Agents、Workflows
+和 Schedules 的集合页只在页头提供创建入口；共享按钮组件统一操作优先级与忙碌状态；
+Issue 详情先显示阅读摘要，再进入编辑；Workflow Run 把结果放在技术元数据之前。
+Task 详情和对话中的 Task 卡片也采用共享操作层级与面向用户的运行状态；Chat 有可见标题、
+方向键标签页与 Files 链接。其他 Portal 页面仍有局部按钮样式，后续阶段继续迁移。
+对话中的 Task 操作失败时，错误保留在对应卡片上；Task 列表加载失败时，可就近重试，
+对话内容仍可阅读。
+Workflow 详情也采用共享操作层级，按生命周期视图只显示一个主要操作，并以可读文案展示状态。
+Agent 详情的运行、保存和删除操作也采用同一层级；标签栏支持方向键和窄屏横向滚动。
+Agent 的 schedule 在已触发 Task 加载失败时展示错误并可就地重试。
+Artifacts 的上传、下载、分享和删除也使用共享操作层级。列表成功加载后才显示数量；
+制品名称是链接，预览加载失败时可就地重试。
+新 Issue 的第二次写入失败时，Portal 会指向已创建的 Issue 并阻止重复提交；
+一次写入原子创建全部字段仍待实现。
+Desktop 有 bridge 与 [浏览器 UI 测试](../../desktop/frontend/e2e)，并在 macOS 和 Windows CI 中运行打包应用
 启动冒烟。启动冒烟证明构建出的 bundle 能启动并短暂存活，但不会驱动或视觉检查原生窗口。
 Portal 路由仍采用直接导入，当前源码没有路由级懒加载。本次未重新测量 bundle 大小或吞吐量。
 

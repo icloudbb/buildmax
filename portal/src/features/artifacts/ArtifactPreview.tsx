@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { Button } from "@buildmax/gui"
 import type { ApiArtifact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { artifactLabel } from "./display"
@@ -22,6 +23,7 @@ export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewPro
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!artifact || !token) return
@@ -53,7 +55,7 @@ export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewPro
       cancelled = true
       if (created) URL.revokeObjectURL(created)
     }
-  }, [artifact, token])
+  }, [artifact, token, reloadKey])
 
   if (!artifact) return null
 
@@ -70,17 +72,18 @@ export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewPro
       {overlaid ? (
         <div className="artifact-preview__head">
           <span className="artifact-preview__title">{artifactLabel(artifact)}</span>
-          <button type="button" className="page-activity__action-btn" onClick={onClose}>
+          <Button variant="tertiary" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </div>
       ) : null}
       <div className="artifact-preview__body">
         {loading ? <p className="page-activity__empty">Loading…</p> : null}
         {error ? (
-          <p className="settings-section__error" role="alert">
-            {error}
-          </p>
+          <div className="artifact-preview__error" role="alert">
+            <p className="settings-section__error">{error}</p>
+            <Button variant="secondary" size="compact" onClick={() => setReloadKey((current) => current + 1)}>Retry preview</Button>
+          </div>
         ) : null}
         {!loading && !error ? (
           <ArtifactContentView

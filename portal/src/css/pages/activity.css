@@ -2,7 +2,7 @@
 
 .page-activity__title {
   margin: 0 0 0.25rem;
-  font-size: 1.5rem;
+  font-size: var(--font-size-page);
   color: var(--color-text);
 }
 
@@ -113,7 +113,7 @@
 }
 
 .page-activity__meta {
-  font-size: 0.8rem;
+  font-size: var(--font-size-meta);
   color: var(--color-text-subtle);
 }
 

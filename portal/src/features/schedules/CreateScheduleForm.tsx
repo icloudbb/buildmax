@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Button } from "@buildmax/gui"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { createSchedule } from "./api"
 
@@ -101,12 +102,12 @@ export function CreateScheduleForm({ token, spaceId, agentId, agents, onCreated,
       </label>
       {err ? <p className="agent-schedules__error" role="alert">{err}</p> : null}
       <div className="agent-schedules__form-actions">
-        <button type="submit" className="page-activity__action-btn" disabled={busy || noAgents}>
-          {busy ? "Creating…" : "Create schedule"}
-        </button>
-        <button type="button" className="page-activity__action-btn" onClick={onCancel} disabled={busy}>
+        <Button type="submit" variant="primary" busy={busy} disabled={noAgents}>
+          Create schedule
+        </Button>
+        <Button variant="secondary" onClick={onCancel} disabled={busy}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   )

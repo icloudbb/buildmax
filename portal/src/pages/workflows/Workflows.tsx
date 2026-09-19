@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { Button } from "@buildmax/gui"
 import type { Agent, Workflow } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { statusLabel } from "../../lib/statusLabels"
 import {
   apiAgentToAgent,
   apiWorkflowToWorkflow,
@@ -103,16 +105,15 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
         </div>
         <div className="page-activity__actions">
           {canManageWorkflows ? (
-            <button
-              type="button"
-              className="page-activity__action-btn"
+            <Button
+              variant="primary"
               onClick={() => {
                 setCreateError(null)
                 setCreateOpen(true)
               }}
             >
               New Workflow
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -139,10 +140,9 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
         <p className="page-activity__empty">Checking whether you can manage workflows…</p>
       ) : null}
 
-      <section className="issues-page__panel">
+      <section className="issues-page__panel" aria-label="Workflow list">
         <div className="issues-page__toolbar">
-          <h2 className="issues-page__section-title">All Workflows</h2>
-          <span className="page-activity__meta">{workflowCountLabel}</span>
+          {workflowsData !== null ? <span className="page-activity__meta">{workflowCountLabel}</span> : null}
         </div>
 
         {workflowsState.kind === "loading" ? (
@@ -154,7 +154,6 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
                 ? "No workflows yet. Create one to define a reusable execution plan for this space."
                 : "No workflows are available in this space yet. Space owners and admins can publish one when a shared process is ready."
             }
-            action={canManageWorkflows ? { label: "New Workflow", onClick: () => setCreateOpen(true) } : undefined}
           />
         ) : workflowsState.kind === "error" || workflowsState.kind === "forbidden" || workflowsState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
@@ -172,7 +171,7 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
                     </span>
                   </span>
                   <span className="issues-page__row-side">
-                    <span className="issues-page__status">{workflow.status}</span>
+                    <span className="issues-page__status">{statusLabel(workflow.status)}</span>
                     <span className="page-activity__meta">{workflow.updatedLabel}</span>
                   </span>
                 </button>

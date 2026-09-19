@@ -29,8 +29,6 @@ describe("useOverlayA11y", () => {
   it("moves focus into the container on open", async () => {
     render(<Harness onClose={() => {}} />)
     fireEvent.click(screen.getByText("opener"))
-    // The hook moves focus on a timer, which fires on the next macrotask.
-    await new Promise((resolve) => setTimeout(resolve, 0))
     expect(document.activeElement).toBe(screen.getByText("first"))
   })
 
@@ -59,6 +57,23 @@ describe("useOverlayA11y", () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     fireEvent.keyDown(document, { key: "Escape" })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps focus in an open overlay when its close callback changes", async () => {
+    const firstClose = vi.fn()
+    const latestClose = vi.fn()
+    const { rerender } = render(<Harness onClose={firstClose} />)
+    fireEvent.click(screen.getByText("opener"))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    screen.getByText("last").focus()
+
+    rerender(<Harness onClose={latestClose} />)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(document.activeElement).toBe(screen.getByText("last"))
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(latestClose).toHaveBeenCalledTimes(1)
+    expect(firstClose).not.toHaveBeenCalled()
   })
 
   it("restores focus to the opener once open goes false", async () => {

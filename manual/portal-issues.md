@@ -5,12 +5,24 @@ tracked and handed to an agent. This page walks through both.
 
 ## Start a conversation
 
-**Home** is the front door. Type what you want done in the composer — for example,
+**Chat** is the front door. Type what you want done in the composer — for example,
 *"Help me analyze last month's sales data"* — and send it (Enter to send,
 Shift+Enter for a new line). A conversation can answer you directly, or, when the
 work is bigger, start background work and show you the result when it's ready.
 
-Recent conversations are listed on Home so you can pick one back up.
+Recent conversations are listed on Chat so you can pick one back up.
+Use the **Recent Conversations** and **Files** tabs to switch between the list
+and a link to the space's working files; Left and Right Arrow switch tabs when
+one has keyboard focus. A background task started by a conversation appears
+in the thread with its status and output. Its card offers **Stop** while it is
+running, **Run again** when it ends, and **Run details** for the trace.
+If its action fails, the card keeps the error visible. If the task list cannot
+load, Chat shows a warning and **Retry tasks** without hiding the conversation.
+
+When you run an agent directly, its Task page keeps the input and output for
+each turn together. **Continue** sends new instructions; **Retry last run**
+repeats the previous turn. **Details** holds the run's origin, timing, ID, and
+trace, while the page header uses readable status words such as **Done**.
 
 ## Create an issue
 
@@ -28,6 +40,10 @@ Issues can be nested: from an issue you can add **sub-issues** to break the work
 down. Sub-issue status is tracked independently — closing a parent while
 sub-issues are still open is allowed and never rolls their status up.
 
+If the Issue is created but saving its initial status, owner, or executor fails,
+the dialog says that the Issue already exists and offers **Open created issue**
+to finish setup. It does not offer a second Create action for the same Issue.
+
 You can discuss an issue in its comments, where both people and agents leave notes.
 
 ## Owner, executor, and running the work
@@ -44,12 +60,13 @@ be set at once:
   - **A workflow** — a published [workflow](portal-agents-workflows.md) can
     run its steps for the issue.
 
-**Save** only records the owner and executor you chose. It never starts a run
+Choose **Edit issue** to change fields, then **Save changes**. Saving only records
+the fields you chose. It never starts a run
 and never spends your space's execution quota — you can change either as often
 as you like while you get the issue ready.
 
-Once an agent or workflow executor is set, a **Run Workflow** or **Run Agent**
-button appears next to Save. That button is the only thing that schedules a
+Once an agent or workflow executor is saved, **Run workflow** or **Run agent**
+appears on the read view. That button is the only thing that schedules a
 background run on a worker: it materializes the space's files, runs the agent,
 writes any outputs, and reports back — without tying up your browser. A
 successful Run takes you straight to the run it started.
@@ -57,6 +74,11 @@ successful Run takes you straight to the run it started.
 ## Issue Detail
 
 Open an issue to see its detail view, split into four tabs:
+
+The title, status, owner, executor, and latest result appear before the tabs and
+the edit form. Select **Edit issue** when you need to change fields. Run is
+available from the read view, so an unsaved executor change cannot start the
+wrong work.
 
 - **Overview** — the owner and executor, status, description, sub-issues, and
   a summary of the most recent run.

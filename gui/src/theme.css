@@ -19,6 +19,24 @@
   --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.18);
   --color-primary: #1a1a1a;
   --color-primary-text: #fff;
+  --color-primary-hover: #363636;
+  --color-focus: #424242;
+  --color-danger: #b42318;
+  --color-danger-text: #fff;
+  --color-status-running: #92400e;
+  --color-status-success: #166534;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --font-size-body: 1rem;
+  --font-size-meta: 0.8rem;
+  --font-size-section: 1rem;
+  --font-size-page: 1.5rem;
+  --radius-control: 8px;
+  --radius-panel: 12px;
 }
 
 [data-theme="dark"] {
@@ -39,4 +57,10 @@
   --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5);
   --color-primary: #e0e0e0;
   --color-primary-text: #1a1a1a;
+  --color-primary-hover: #fff;
+  --color-focus: #e0e0e0;
+  --color-danger: #ff8e85;
+  --color-danger-text: #1a1a1a;
+  --color-status-running: #fbbf24;
+  --color-status-success: #86efac;
 }

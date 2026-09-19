@@ -5,12 +5,21 @@ Agent 的方式。本页会介绍两者。
 
 ## 开始一段对话
 
-**Home** 是入口。在编辑框中输入你想完成的工作——例如
+**Chat** 是入口。在编辑框中输入你想完成的工作——例如
 *"Help me analyze last month's sales data"*——然后发送（Enter 发送，
 Shift+Enter 换行）。一段对话可以直接回答你，或者，当工作规模更大时，
 启动后台工作并在结果就绪时展示给你。
 
-最近的对话会列在 Home 上，方便你重新接续。
+最近的对话会列在 Chat 上，方便你重新接续。
+**Recent Conversations** 与 **Files** 标签页分别展示对话列表和 Space 工作文件的入口；
+键盘焦点位于标签时，可用左右方向键切换。对话启动的后台 Task 会在对话中显示状态与输出；
+运行时可用 **Stop**，结束后可用 **Run again**，**Run details** 用于查看轨迹。
+操作失败时，错误会留在对应卡片上；Task 列表无法加载时，Chat 会显示提示与
+**Retry tasks**，但仍保留对话内容。
+
+直接运行 Agent 时，Task 页面按轮次展示输入与输出。**Continue** 发送新指令；
+**Retry last run** 重复上一轮。**Details** 收纳来源、时间、ID 和轨迹；
+页头使用 **Done** 等可读状态词。
 
 ## 创建一个 Issue
 
@@ -28,6 +37,9 @@ Issue 可以嵌套：你可以从一个 Issue 添加**子 Issue**来分解工作
 子 Issue 的状态独立跟踪——在子 Issue 仍未关闭时关闭父 Issue 是允许的，
 并且绝不会把它们的状态向上汇总。
 
+如果 Issue 已创建，但初始状态、Owner 或 Executor 保存失败，弹窗会明确说明该 Issue
+已经存在，并提供 **Open created issue** 继续设置；此时不会再次提供创建按钮。
+
 你可以在 Issue 的评论中讨论它，人和 Agent 都会在那里留下笔记。
 
 ## Owner、Executor 与运行工作
@@ -41,17 +53,20 @@ Owner 与 Executor 是两个相互独立的选择，可以同时都设置、只�
   - **An agent** —— 一个已保存的 [Agent](Agent与工作流.md) 可以在后台运行该 Issue。
   - **A workflow** —— 一个已发布的 [Workflow](Agent与工作流.md) 可以为该 Issue 运行其步骤。
 
-**Save** 只会记录你选择的 Owner 与 Executor。它绝不会启动一次运行，
+选择 **Edit issue** 修改字段，再点 **Save changes**。保存只会记录你选择的字段，绝不会启动一次运行，
 也不会消耗你 space 的执行配额——在把 Issue 准备好之前，你可以随意更改两者。
 
-一旦 Executor 被设置为某个 Agent 或 Workflow，Save 旁边就会出现
-**Run Workflow** 或 **Run Agent** 按钮。只有这个按钮才会在 worker 上安排一次
+一旦 Executor 被保存为某个 Agent 或 Workflow，阅读视图就会显示
+**Run workflow** 或 **Run agent** 按钮。只有这个按钮才会在 worker 上安排一次
 后台运行：它会物化 space 的文件、运行 Agent、写入任何输出，并汇报结果——
 而不会占用你的浏览器。成功发起的 Run 会直接把你带到它启动的那次运行。
 
 ## Issue 详情
 
 打开一个 Issue 查看它的详情视图，其中分为四个标签页：
+
+标题、状态、Owner、Executor 和最近结果先于标签页与编辑表单显示。需要修改时选择
+**Edit issue**。Run 位于阅读视图，未保存的 Executor 更改不会启动错误的工作。
 
 - **Overview** —— Owner 与 Executor、状态、描述、子 Issue，以及最近一次运行的摘要。
 - **Discussion** —— 评论线程，人和 Agent 都会在那里留下笔记。

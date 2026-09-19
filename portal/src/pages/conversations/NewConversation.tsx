@@ -1,6 +1,6 @@
-import { useState } from "react"
-import { ChatComposer } from "@buildmax/gui"
-import { navigate } from "../../router"
+import { useRef, useState, type KeyboardEvent } from "react"
+import { ButtonLink, ChatComposer } from "@buildmax/gui"
+import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { cn } from "../../lib/cn"
 import { createConversation } from "../../features/conversations"
@@ -32,6 +32,28 @@ export function NewConversation({
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<NewConversationTab>("conversations")
+  const tabRefs = useRef<Record<NewConversationTab, HTMLButtonElement | null>>({ conversations: null, files: null })
+
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, tab: NewConversationTab) {
+    let next: NewConversationTab
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowLeft":
+        next = tab === "conversations" ? "files" : "conversations"
+        break
+      case "Home":
+        next = "conversations"
+        break
+      case "End":
+        next = "files"
+        break
+      default:
+        return
+    }
+    event.preventDefault()
+    setActiveTab(next)
+    tabRefs.current[next]?.focus()
+  }
 
   async function handleSend() {
     const input = prompt.trim()
@@ -60,6 +82,7 @@ export function NewConversation({
 
   return (
     <div className="page-new-chat">
+      <h1 className="page-new-chat__title">Chat</h1>
       <p className="page-new-chat__subtitle">
         Start a new conversation. Describe what you want to accomplish and the agent will work on it.
       </p>
@@ -81,24 +104,30 @@ export function NewConversation({
       <div className="page-new-chat__tabs">
         <div className="page-new-chat__tab-list" role="tablist" aria-label="Recent conversations and files">
           <button
+            ref={(element) => { tabRefs.current.conversations = element }}
             type="button"
             role="tab"
             aria-selected={activeTab === "conversations"}
+            tabIndex={activeTab === "conversations" ? 0 : -1}
             aria-controls="new-chat-tabpanel-conversations"
             id="new-chat-tab-conversations"
             className={cn("page-new-chat__tab", activeTab === "conversations" && "page-new-chat__tab--active")}
             onClick={() => setActiveTab("conversations")}
+            onKeyDown={(event) => handleTabKeyDown(event, "conversations")}
           >
             Recent Conversations
           </button>
           <button
+            ref={(element) => { tabRefs.current.files = element }}
             type="button"
             role="tab"
             aria-selected={activeTab === "files"}
+            tabIndex={activeTab === "files" ? 0 : -1}
             aria-controls="new-chat-tabpanel-files"
             id="new-chat-tab-files"
             className={cn("page-new-chat__tab", activeTab === "files" && "page-new-chat__tab--active")}
             onClick={() => setActiveTab("files")}
+            onKeyDown={(event) => handleTabKeyDown(event, "files")}
           >
             Files
           </button>
@@ -172,13 +201,9 @@ export function NewConversation({
                 This space&apos;s working files live in Files, so an agent
                 started here can already read anything uploaded there.
               </p>
-              <button
-                type="button"
-                className="page-activity__action-btn"
-                onClick={() => navigate({ name: "explore", spaceId })}
-              >
+              <ButtonLink variant="secondary" href={buildHash({ name: "explore", spaceId })}>
                 Open Files
-              </button>
+              </ButtonLink>
             </div>
           )}
         </div>

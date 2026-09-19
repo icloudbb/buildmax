@@ -65,10 +65,8 @@ test("a plain dialog (Create Space) has no WCAG A/AA violations", async ({ page 
 test("a tabbed surface (the Create Agent dialog's tabs) has no WCAG A/AA violations", async ({ page }) => {
   const current = await session(page)
   await page.goto(`/#/spaces/${current.spaceId}/agents`)
-  // An empty agents list renders a second "Create agent" button in its empty
-  // state as well as the one in the page header (AgentList.tsx), so scope to the
-  // header to open the dialog deterministically whether or not agents exist.
-  await page.locator(".page-activity__head").getByRole("button", { name: "Create agent" }).click()
+  await expect(page.getByRole("button", { name: "Create agent", exact: true })).toHaveCount(1)
+  await page.getByRole("button", { name: "Create agent", exact: true }).click()
   await expect(page.getByRole("dialog", { name: "New Agent" })).toBeVisible()
   await expect(page.getByRole("tablist")).toBeVisible()
 

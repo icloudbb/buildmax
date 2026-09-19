@@ -9,6 +9,9 @@ test("an administrator can open the deployment overview by URL", async ({ page }
   await page.goto("/#/admin")
 
   await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible()
+  await expect(page.getByLabel("Sidebar").getByLabel("Current scope")).toHaveText("Deployment")
+  await expect(page.getByLabel("Sidebar").getByRole("combobox")).toHaveCount(0)
+  await expect(page.getByLabel("Sidebar").getByRole("button", { name: "Back to space" })).toBeVisible()
   await expect(page.getByRole("heading", { name: "Health" })).toBeVisible()
 
   // The status is answered rather than falling into the error branch. Whether
@@ -88,15 +91,14 @@ test("the last-login range filter narrows the account list", async ({ page }) =>
   await page.goto("/#/admin/accounts")
   await expect(page.getByRole("button", { name: email! }).first()).toBeVisible()
 
-  const dayString = (offsetDays: number): string => {
-    const d = new Date()
-    d.setDate(d.getDate() + offsetDays)
-    return d.toISOString().slice(0, 10)
-  }
+  // Use a UTC date safely beyond the local/UTC day boundary. Adding one local
+  // calendar day before converting to ISO can still produce today's UTC date
+  // just after midnight in Singapore.
+  const futureDay = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-  // Nobody can have signed in tomorrow, so the whole list must drop out. This is
+  // Nobody can have signed in on this future date, so the whole list drops out. This is
   // what proves the date input is converted to a real instant and sent.
-  await page.getByLabel("Signed in after").fill(dayString(1))
+  await page.getByLabel("Signed in after").fill(futureDay)
   await expect(page.getByText("No accounts match")).toBeVisible()
   await expect(page.getByRole("button", { name: email! })).toHaveCount(0)
 

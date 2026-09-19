@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { BaseModal } from "@buildmax/gui"
+import { BaseModal, Button, ButtonLink } from "@buildmax/gui"
 import type { Agent, Workflow, WorkflowRevision, WorkflowRun } from "../../lib/types"
-import { navigate } from "../../router"
+import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
@@ -34,6 +34,7 @@ import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { isAllowed } from "../../state/permissionState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 import { useApp } from "../../contexts/AppContext"
+import { statusLabel } from "../../lib/statusLabels"
 
 interface WorkflowDetailProps {
   token: string | null
@@ -169,7 +170,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         revision: rev.revision,
         createdBy: rev.createdBy,
         createdLabel: rev.createdLabel,
-        summary: `${rev.name} · ${rev.status}`,
+        summary: `${rev.name} · ${statusLabel(rev.status)}`,
       })) ?? null,
     [revisionsData]
   )
@@ -331,7 +332,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
             {workflow ? workflow.name : "Workflow Detail"}
             {workflow ? (
               <span className={`workflow-status-pill workflow-status-pill--${workflow.status}`}>
-                {workflow.status}
+                {statusLabel(workflow.status)}
               </span>
             ) : null}
           </h1>
@@ -341,68 +342,43 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
           {workflow ? (
             <div className="workflow-detail__meta">
               <span className="page-activity__meta workflow-detail-page__run-id">{workflow.id}</span>
-              <button type="button" className="workflow-detail__history-chip" onClick={() => setHistoryOpen(true)}>
+              <Button variant="tertiary" size="compact" onClick={() => setHistoryOpen(true)}>
                 v{workflow.revision} · History
-              </button>
+              </Button>
             </div>
           ) : null}
         </div>
         <div className="page-activity__actions">
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            onClick={() => navigate({ name: "workflows", spaceId })}
-          >
+          <ButtonLink variant="tertiary" href={buildHash({ name: "workflows", spaceId })}>
             Back to Workflows
-          </button>
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            disabled={loading}
-            onClick={() => {
-              void load()
-            }}
-          >
+          </ButtonLink>
+          <Button variant="tertiary" disabled={loading} onClick={() => void load()}>
             Refresh
-          </button>
+          </Button>
           {authoring ? (
             <>
               {canManageWorkflows && editing && workflow?.status === "published" ? (
-                <button type="button" className="page-activity__action-btn" disabled={saving} onClick={discardEdits}>
+                <Button variant="secondary" disabled={saving} onClick={discardEdits}>
                   Cancel
-                </button>
+                </Button>
               ) : null}
               {canManageWorkflows ? (
-                <button type="button" className="page-activity__action-btn" disabled={saveDisabled} onClick={handleSave}>
-                  {saving ? "Saving…" : "Save"}
-                </button>
+                <Button variant={workflow?.status === "published" ? "primary" : "secondary"} busy={saving} disabled={saveDisabled} onClick={handleSave}>Save</Button>
               ) : null}
               {canManageWorkflows && workflow?.status !== "published" ? (
-                <button
-                  type="button"
-                  className="page-activity__action-btn page-activity__action-btn--primary"
-                  disabled={saveDisabled}
-                  onClick={handlePublish}
-                >
+                <Button variant="primary" busy={saving} disabled={saveDisabled} onClick={handlePublish}>
                   Publish
-                </button>
+                </Button>
               ) : null}
             </>
           ) : (
             <>
               {canManageWorkflows ? (
-                <button type="button" className="page-activity__action-btn" onClick={() => setEditing(true)}>
+                <Button variant="secondary" onClick={() => setEditing(true)}>
                   Edit
-                </button>
+                </Button>
               ) : null}
-              <button
-                type="button"
-                className="page-activity__action-btn page-activity__action-btn--primary"
-                disabled={running || loading || workflow == null || workflow.status !== "published"}
-                onClick={handleRunClick}
-              >
-                {running ? "Running…" : "Run Workflow"}
-              </button>
+              <Button variant="primary" busy={running} disabled={loading || workflow == null || workflow.status !== "published"} onClick={handleRunClick}>Run Workflow</Button>
             </>
           )}
         </div>
@@ -425,7 +401,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         <>
           {workflow.status !== "published" ? (
             <p className="workflow-detail__banner">
-              This workflow is currently `{workflow.status}`. Publish it before manual runs or issue assignment.
+              This workflow is currently {statusLabel(workflow.status)}. Publish it before manual runs or issue assignment.
             </p>
           ) : (
             <p className="workflow-detail__banner">
@@ -529,7 +505,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
                       onClick={() => navigate({ name: "workflowRun", spaceId, workflowRunId: run.id })}
                     >
                       <span>
-                        <strong>{run.status}</strong>
+                        <strong>{statusLabel(run.status)}</strong>
                         <span className="page-activity__meta workflow-detail-page__run-id">{run.id}</span>
                       </span>
                       <span className="page-activity__meta">{run.createdLabel}</span>
@@ -559,17 +535,10 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         />
         {error ? <p className="page-activity__empty">{error}</p> : null}
         <div className="workflow-page__inline-actions">
-          <button
-            type="button"
-            className="page-activity__action-btn page-activity__action-btn--primary"
-            disabled={running || workflow == null || workflow.status !== "published"}
-            onClick={handleRunWorkflow}
-          >
-            {running ? "Running…" : "Start run"}
-          </button>
-          <button type="button" className="page-activity__action-btn" disabled={running} onClick={() => setRunModalOpen(false)}>
+          <Button variant="primary" busy={running} disabled={workflow == null || workflow.status !== "published"} onClick={handleRunWorkflow}>Start run</Button>
+          <Button variant="secondary" disabled={running} onClick={() => setRunModalOpen(false)}>
             Cancel
-          </button>
+          </Button>
         </div>
       </BaseModal>
 

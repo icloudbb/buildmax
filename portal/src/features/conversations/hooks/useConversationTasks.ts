@@ -4,6 +4,7 @@ import { useWebSocket } from "../../../contexts/WebSocketContext"
 import { SOCKET_OPEN_EVENT } from "../../../lib/api/ws"
 import { getErrorMessage } from "../../../lib/errorMessage"
 import type { ApiTask } from "../../../lib/api/types"
+import type { RequestErrorKind } from "../../../state/resourceState"
 import { cancelTask, getTasks, retryTask } from "../../tasks/api"
 
 interface UseConversationTasksOptions {
@@ -19,9 +20,11 @@ interface MessageCompletedPayload {
 export interface ConversationTaskCards {
   tasks: ApiTask[]
   tasksError: string | null
+  tasksErrorKind: RequestErrorKind | null
+  retryLoad: () => void
   /** The task whose stop or retry is in flight, if any. */
   busyTaskId: string | null
-  actionError: string | null
+  actionError: { taskId: string; message: string } | null
   traceRunId: string | null
   stop: (taskId: string) => void
   retry: (taskId: string) => void
@@ -49,6 +52,7 @@ export function useConversationTasks({
   const {
     data: tasks,
     error: tasksError,
+    errorKind: tasksErrorKind,
     refetch,
   } = useFetch(() => getTasks(spaceId!, conversationId, token!), [spaceId, conversationId, token], {
     enabled: !!(token && spaceId && conversationId),
@@ -56,7 +60,7 @@ export function useConversationTasks({
   })
 
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<{ taskId: string; message: string } | null>(null)
   const [traceRunId, setTraceRunId] = useState<string | null>(null)
 
   const refetchRef = useRef(refetch)
@@ -97,7 +101,7 @@ export function useConversationTasks({
       setBusyTaskId(taskId)
       setActionError(null)
       action(spaceId, taskId, token)
-        .catch((err) => setActionError(getErrorMessage(err, failed)))
+        .catch((err) => setActionError({ taskId, message: getErrorMessage(err, failed) }))
         .finally(() => {
           setBusyTaskId(null)
           refetchRef.current()
@@ -118,6 +122,8 @@ export function useConversationTasks({
   return {
     tasks: tasks ?? [],
     tasksError,
+    tasksErrorKind,
+    retryLoad: refetch,
     busyTaskId,
     actionError,
     traceRunId,

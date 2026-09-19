@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
+import { Button, ButtonLink } from "@buildmax/gui"
 import type { Agent, AgentRevision } from "../../lib/types"
 import type { ApiSecret, ApiTask } from "../../lib/api/types"
-import { navigate } from "../../router"
+import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
@@ -67,6 +68,31 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   // agent genuinely has no revisions. See deriveResourceState.
   const [revisionsData, setRevisionsData] = useState<AgentRevision[] | null>(null)
   const [tab, setTab] = useState<Tab>("overview")
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: Tab) {
+    const index = TABS.findIndex((entry) => entry.id === current)
+    let nextIndex: number
+    switch (event.key) {
+      case "ArrowRight":
+        nextIndex = (index + 1) % TABS.length
+        break
+      case "ArrowLeft":
+        nextIndex = (index - 1 + TABS.length) % TABS.length
+        break
+      case "Home":
+        nextIndex = 0
+        break
+      case "End":
+        nextIndex = TABS.length - 1
+        break
+      default:
+        return
+    }
+    event.preventDefault()
+    setTab(TABS[nextIndex].id)
+    tabRefs.current[nextIndex]?.focus()
+  }
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -312,47 +338,48 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           <div>
             <h1 className="page-activity__title">
               {agent?.name ?? "Agent"}
-              {stats.running ? <span className="agent-detail__running">running</span> : null}
+              {stats.running ? <span className="agent-detail__running">Running</span> : null}
             </h1>
             {agent?.description ? <p className="agent-detail__desc">{agent.description}</p> : null}
           </div>
         </div>
         <div className="page-activity__actions">
-          <button type="button" className="page-activity__action-btn" onClick={() => navigate({ name: "agents", spaceId })}>
+          <ButtonLink variant="tertiary" href={buildHash({ name: "agents", spaceId })}>
             Back to Agents
-          </button>
-          {canManage ? (
-            <button type="button" className="page-activity__action-btn" onClick={() => setTab("config")}>
-              Edit config
-            </button>
+          </ButtonLink>
+          {tab !== "config" || !canManage ? (
+            <Button
+              variant={tab === "schedules" && canManageSchedules ? "secondary" : "primary"}
+              disabled={!agent}
+              onClick={() => {
+                setRunError(null)
+                setRunOpen(true)
+              }}
+            >
+              Run agent
+            </Button>
           ) : null}
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            disabled={!agent}
-            onClick={() => {
-              setRunError(null)
-              setRunOpen(true)
-            }}
-          >
-            Run agent
-          </button>
         </div>
       </div>
 
       {agent && (
         <>
           <nav className="agent-detail__tabs" aria-label="Agent sections" role="tablist">
-            {TABS.map((t) => (
+            {TABS.map((t, index) => (
               <button
                 key={t.id}
+                ref={(element) => { tabRefs.current[index] = element }}
                 type="button"
                 role="tab"
                 className={
                   t.id === tab ? "agent-detail__tab agent-detail__tab--active" : "agent-detail__tab"
                 }
                 aria-selected={t.id === tab}
+                aria-controls={t.id === tab ? `agent-panel-${t.id}` : undefined}
+                id={`agent-tab-${t.id}`}
+                tabIndex={t.id === tab ? 0 : -1}
                 onClick={() => setTab(t.id)}
+                onKeyDown={(event) => handleTabKeyDown(event, t.id)}
               >
                 {t.label}
                 {t.id === "runs" && tasks.length > 0 ? (
@@ -366,16 +393,16 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           </nav>
 
           {tab === "overview" ? (
-            <section className="agent-detail__panel">
+            <section className="agent-detail__panel" role="tabpanel" id="agent-panel-overview" aria-labelledby="agent-tab-overview">
               {secretWarnings > 0 ? (
                 <div className="agent-detail__banner" role="alert">
                   <span>
                     ⚠ {secretWarnings} secret grant{secretWarnings === 1 ? "" : "s"} no longer resolve.
                   </span>
                   {canManage ? (
-                    <button type="button" className="page-activity__action-btn" onClick={() => setTab("config")}>
+                    <Button variant="secondary" onClick={() => setTab("config")}>
                       Fix in config
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
               ) : null}
@@ -396,9 +423,9 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
               <div className="agent-detail__section-head">
                 <h2 className="issues-page__section-title">Recent runs</h2>
                 {tasks.length > 3 ? (
-                  <button type="button" className="page-activity__action-btn" onClick={() => setTab("runs")}>
+                  <Button variant="tertiary" onClick={() => setTab("runs")}>
                     View all
-                  </button>
+                  </Button>
                 ) : null}
               </div>
               {renderRunsTable(tasks.slice(0, 3))}
@@ -406,7 +433,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           ) : null}
 
           {tab === "config" ? (
-            <section className="agent-detail__panel">
+            <section className="agent-detail__panel" role="tabpanel" id="agent-panel-config" aria-labelledby="agent-tab-config">
               <AgentConfigForm
                 agent={agent}
                 secrets={secrets}
@@ -423,14 +450,14 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           ) : null}
 
           {tab === "runs" ? (
-            <section className="agent-detail__panel">
+            <section className="agent-detail__panel" role="tabpanel" id="agent-panel-runs" aria-labelledby="agent-tab-runs">
               <p className="page-activity__subtitle">Each run is a durable Task thread. Select one to open it.</p>
               {renderRunsTable(tasks)}
             </section>
           ) : null}
 
           {tab === "schedules" ? (
-            <section className="agent-detail__panel">
+            <section className="agent-detail__panel" role="tabpanel" id="agent-panel-schedules" aria-labelledby="agent-tab-schedules">
               {token ? (
                 <SchedulesSection token={token} spaceId={spaceId} agentId={agent.id} canManage={canManageSchedules} />
               ) : null}
@@ -438,7 +465,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           ) : null}
 
           {tab === "revisions" ? (
-            <section className="agent-detail__panel">
+            <section className="agent-detail__panel" role="tabpanel" id="agent-panel-revisions" aria-labelledby="agent-tab-revisions">
               <RevisionHistory
                 title="Configuration history"
                 state={revisionsState}

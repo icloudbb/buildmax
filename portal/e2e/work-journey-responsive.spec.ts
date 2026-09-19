@@ -19,9 +19,19 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 test("the New Chat page has no horizontal overflow and its composer and tabs are reachable", async ({ page }) => {
   await session(page)
 
+  await expect(page.getByRole("heading", { name: "Chat", level: 1 })).toBeVisible()
   await expect(page.getByRole("textbox", { name: "What would you like to do?" })).toBeVisible()
-  await expect(page.getByRole("tab", { name: "Recent Conversations" })).toBeVisible()
-  await expect(page.getByRole("tab", { name: "Files" })).toBeVisible()
+  const conversationsTab = page.getByRole("tab", { name: "Recent Conversations" })
+  const filesTab = page.getByRole("tab", { name: "Files" })
+  await expect(conversationsTab).toBeVisible()
+  await expect(filesTab).toBeVisible()
+  await conversationsTab.focus()
+  await page.keyboard.press("ArrowRight")
+  await expect(filesTab).toHaveAttribute("aria-selected", "true")
+  await expect(filesTab).toBeFocused()
+  await expect(page.getByRole("link", { name: "Open Files" })).toBeVisible()
+  await page.keyboard.press("ArrowLeft")
+  await expect(conversationsTab).toBeFocused()
   await expectNoHorizontalOverflow(page)
 })
 
@@ -34,18 +44,37 @@ test("Issues and Issue Detail reflow to one column with reachable actions", asyn
   reportLeftovers(current.spaceId, [`issue ${issue.id}`])
 
   await page.goto(`/#/spaces/${current.spaceId}/issues`)
-  await expect(page.getByRole("button", { name: "New Issue" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "New Issue" })).toHaveCount(1)
   await expectNoHorizontalOverflow(page)
 
   await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
-  await expect(page.getByRole("button", { name: "Back to Issues" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Save" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Back to Issues" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Edit issue" })).toBeVisible()
+  await page.getByRole("button", { name: "Edit issue" }).click()
+  await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible()
   // The detail grid already collapses to one column before Narrow width (see
   // the comment in issues.css); confirm that is still true right down at 390.
   const columns = await page
     .locator(".issue-detail-page__grid")
     .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length)
   expect(columns).toBe(1)
+  await expectNoHorizontalOverflow(page)
+})
+
+test("Agent sections scroll within their tablist without widening the page", async ({ page }) => {
+  const current = await session(page)
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
+    name: tagged("Narrow agent tabs"),
+    description: "Created by the Portal browser tests.",
+    instructions: "Reply with exactly: deployment smoke ok",
+  })
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`])
+  await page.goto(`/#/spaces/${current.spaceId}/agents/${agent.id}`)
+
+  const tabs = page.locator(".agent-detail__tabs")
+  await expect(tabs.getByRole("tab", { name: "Overview" })).toBeVisible()
+  await expect(tabs.getByRole("tab", { name: /Revisions/ })).toBeAttached()
+  expect(await tabs.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
   await expectNoHorizontalOverflow(page)
 })
 

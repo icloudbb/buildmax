@@ -1,6 +1,6 @@
 import { expect, test, type Route } from "@playwright/test"
 
-import { session } from "./fixtures"
+import { postJSON, reportLeftovers, session } from "./fixtures"
 
 /**
  * The failure half of the resource-state model in
@@ -16,15 +16,17 @@ import { session } from "./fixtures"
  * the states its unit tests derive (state/resourceState.test.ts) and no
  * integration test until now exercised through a real page.
  *
- * The audit trail is the subject because it renders the whole vocabulary --
+ * The audit trail is one subject because it renders the whole vocabulary --
  * Alert error/stale plus the permission `failed` hint (features/audit/
  * SpaceAuditSection.tsx) -- from one owner-only section, and it is where the
- * e2e assessment saw an unexplained load hang. These tests create no server
- * data: the responses are faked, so nothing is left behind.
+ * e2e assessment saw an unexplained load hang. Conversation cases create a
+ * disposable conversation and intercept its task responses to exercise failures.
  */
 
 const AUDIT_EVENTS = /\/api\/spaces\/[^/]+\/audit-events(\?|$)/
 const SPACE_MEMBERS = /\/api\/spaces\/[^/]+\/members(\?|$)/
+const ISSUE_CREATE = /\/api\/spaces\/[^/]+\/issues$/
+const ISSUE_PATCH = /\/api\/spaces\/[^/]+\/issues\/e2e-created-issue$/
 
 function fail(route: Route): Promise<void> {
   return route.fulfill({
@@ -107,4 +109,94 @@ test("a failed role lookup renders permission 'failed', never a silent denial", 
 
   await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible()
   await expect(page.getByText(/Couldn't verify your role in this space/)).toBeVisible()
+})
+
+test("a failed Issue setup after creation names the created object and prevents a duplicate", async ({ page }) => {
+  const current = await session(page)
+  let creates = 0
+  await page.route(ISSUE_CREATE, async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    creates += 1
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({ id: "e2e-created-issue", version: 1 }),
+    })
+  })
+  await page.route(ISSUE_PATCH, async (route) => {
+    if (route.request().method() !== "PATCH") return route.continue()
+    await fail(route)
+  })
+
+  await page.goto(`/#/spaces/${current.spaceId}/issues`)
+  await page.getByRole("button", { name: "New Issue" }).click()
+  const dialog = page.getByRole("dialog", { name: "New Issue" })
+  await dialog.getByLabel("Title").fill("Partial setup probe")
+  await dialog.getByLabel("Status").selectOption("in_progress")
+  await dialog.getByRole("button", { name: "Create issue" }).click()
+
+  await expect(dialog.getByRole("alert")).toContainText("Issue was created, but its details were not saved")
+  await expect(dialog.getByRole("button", { name: "Create issue" })).toHaveCount(0)
+  await expect(dialog.getByRole("button", { name: "Open created issue" })).toBeVisible()
+  expect(creates).toBe(1)
+})
+
+test("a failed conversation Task retry remains visible after the button stops being busy", async ({ page }) => {
+  const current = await session(page)
+  const conversation = await postJSON<{ conversation_id: string }>(
+    page, `${current.space}/conversations`, current, { channel: "portal" }
+  )
+  reportLeftovers(current.spaceId, [`conversation ${conversation.conversation_id}`])
+  const taskId = "e2e-card-task"
+  await page.route(new RegExp(`/conversations/${conversation.conversation_id}/tasks$`), (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify([{
+      id: taskId,
+      title: "Retry feedback probe",
+      input: "Probe",
+      output: "Finished output",
+      status: "SUCCEEDED",
+      created_at: new Date().toISOString(),
+    }]),
+  }))
+  let attempts = 0
+  await page.route(new RegExp(`/tasks/${taskId}/retry$`), async (route) => {
+    attempts += 1
+    await fail(route)
+  })
+
+  await page.goto(`/#/spaces/${current.spaceId}/chat/${conversation.conversation_id}`)
+  const card = page.locator(".task-card").filter({ hasText: "Retry feedback probe" })
+  await expect(card).toBeVisible()
+  const retry = card.getByRole("button", { name: "Run again" })
+  await retry.click()
+  await expect(retry).toBeEnabled()
+  await expect(card.getByText("injected failure")).toBeVisible()
+  expect(attempts).toBe(1)
+})
+
+test("a failed conversation Task list offers a retry without hiding the conversation", async ({ page }) => {
+  const current = await session(page)
+  const conversation = await postJSON<{ conversation_id: string }>(
+    page, `${current.space}/conversations`, current, { channel: "portal" }
+  )
+  reportLeftovers(current.spaceId, [`conversation ${conversation.conversation_id}`])
+  let calls = 0
+  let recover = false
+  await page.route(new RegExp(`/conversations/${conversation.conversation_id}/tasks$`), async (route) => {
+    calls += 1
+    if (!recover) return fail(route)
+    await route.fulfill({ status: 200, contentType: "application/json", body: "[]" })
+  })
+
+  await page.goto(`/#/spaces/${current.spaceId}/chat/${conversation.conversation_id}`)
+  const alert = page.locator(".state-alert--error")
+  await expect(alert).toContainText("Background tasks: injected failure")
+  await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible()
+  const callsBeforeRetry = calls
+  recover = true
+  await alert.getByRole("button", { name: "Retry tasks" }).click()
+  await expect(alert).toHaveCount(0)
+  expect(calls).toBeGreaterThan(callsBeforeRetry)
 })

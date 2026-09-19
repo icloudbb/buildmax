@@ -18,6 +18,7 @@
       "import": "./dist/index.js"
     },
     "./theme.css": "./dist/theme.css",
+    "./button.css": "./dist/button.css",
     "./modal.css": "./dist/modal.css",
     "./drawer.css": "./dist/drawer.css",
     "./widgets.css": "./dist/widgets.css"
@@ -37,7 +38,7 @@
     "vitest": "^5.0.0"
   },
   "scripts": {
-    "build": "vite build && cp src/theme.css dist/theme.css && cp src/modal.css dist/modal.css && cp src/drawer.css dist/drawer.css && cp src/widgets.css dist/widgets.css && npm run build:types",
+    "build": "vite build && cp src/theme.css dist/theme.css && cp src/button.css dist/button.css && cp src/modal.css dist/modal.css && cp src/drawer.css dist/drawer.css && cp src/widgets.css dist/widgets.css && npm run build:types",
     "build:types": "tsc --emitDeclarationOnly --outDir dist --rootDir src",
     "dev": "vite build --watch",
     "test": "tsc --noEmit -p tsconfig.test.json && vitest run"

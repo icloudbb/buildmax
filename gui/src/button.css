@@ -1,0 +1,111 @@
+.bm-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0.55rem 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.bm-button__content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.bm-button[aria-busy="true"] .bm-button__content { opacity: 0; }
+
+.bm-button[aria-busy="true"]::after {
+  content: "";
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid transparent;
+  border-top-color: var(--bm-button-spinner);
+  border-right-color: var(--bm-button-spinner);
+  border-radius: 50%;
+  animation: bm-button-spin 700ms linear infinite;
+}
+
+@keyframes bm-button-spin { to { transform: rotate(360deg); } }
+
+.bm-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.bm-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bm-button--primary {
+  --bm-button-spinner: var(--color-primary-text);
+  color: var(--color-primary-text);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.bm-button--primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.bm-button--secondary {
+  --bm-button-spinner: var(--color-text);
+  color: var(--color-text);
+  background: var(--color-bg-elevated);
+  border-color: var(--color-input-border);
+}
+
+.bm-button--secondary:hover:not(:disabled),
+.bm-button--tertiary:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+}
+
+.bm-button--tertiary {
+  --bm-button-spinner: var(--color-text);
+  color: var(--color-text);
+  background: transparent;
+  border-color: transparent;
+}
+
+.bm-button--danger {
+  --bm-button-spinner: var(--color-danger);
+  color: var(--color-danger);
+  background: var(--color-bg-elevated);
+  border-color: var(--color-danger);
+}
+
+.bm-button--danger:hover:not(:disabled) {
+  color: var(--color-danger-text);
+  background: var(--color-danger);
+}
+
+.bm-button--compact {
+  padding-inline: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.bm-button--icon {
+  width: 44px;
+  padding: 0;
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bm-button { transition: none; }
+  .bm-button[aria-busy="true"]::after { animation: none; border-color: var(--bm-button-spinner); }
+}

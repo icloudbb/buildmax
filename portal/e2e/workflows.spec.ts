@@ -34,9 +34,8 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
 
   await page.goto(`/#/spaces/${current.spaceId}/workflows`)
   await expect(page.getByRole("heading", { name: "Workflows", exact: true })).toBeVisible()
-  const list = page.locator(".issues-page__panel").filter({
-    has: page.getByRole("heading", { name: "All Workflows" }),
-  })
+  await expect(page.getByRole("button", { name: "New Workflow" })).toHaveCount(1)
+  const list = page.getByRole("region", { name: "Workflow list" })
   await expect(list.getByText(name, { exact: true })).toBeVisible()
 
   // The detail route carries the id, so linking to it is the same claim as
@@ -87,7 +86,8 @@ test("the detail page composes by lifecycle state: authoring when draft, operati
   // primary action is Publish, with no manual Run, because the runtime refuses
   // to run an unpublished definition.
   await expect(page.getByRole("heading", { name: "Definition" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Publish" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Publish" })).toHaveClass(/bm-button--primary/)
+  await expect(page.getByRole("button", { name: "Save" })).toHaveClass(/bm-button--secondary/)
   await expect(page.getByRole("button", { name: "Run Workflow" })).toHaveCount(0)
 
   // Publishing flips the page to the operating layout: Plan and Recent Runs lead
@@ -95,8 +95,9 @@ test("the detail page composes by lifecycle state: authoring when draft, operati
   await page.getByRole("button", { name: "Publish" }).click()
   await expect(page.getByRole("heading", { name: "Plan", exact: true })).toBeVisible()
   await expect(page.getByRole("heading", { name: "Recent Runs" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Run Workflow" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Edit" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Run Workflow" })).toHaveClass(/bm-button--primary/)
+  await expect(page.getByRole("button", { name: "Edit" })).toHaveClass(/bm-button--secondary/)
+  await expect(page.getByText("Published", { exact: true }).first()).toBeVisible()
   await expect(page.getByRole("heading", { name: "Definition" })).toHaveCount(0)
 
   // Version history is on-demand secondary information reached from the header,
@@ -106,7 +107,7 @@ test("the detail page composes by lifecycle state: authoring when draft, operati
   await expect(history).toBeVisible()
   // Each revision row summarizes as "<name> · <status>"; publishing created a
   // second revision, so the published one is listed here.
-  await expect(history.getByText(new RegExp(`${name} · published`)).first()).toBeVisible()
+  await expect(history.getByText(new RegExp(`${name} · Published`)).first()).toBeVisible()
   await page.keyboard.press("Escape")
   await expect(history).toBeHidden()
 
@@ -183,7 +184,7 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
   await page.goto(`/#/spaces/${current.spaceId}/workflow-runs/${runId}`)
   // exact: the panel below carries the workflow's own name, and this run's
   // workflow is called "Workflow run probe …", which a substring match finds too.
-  await expect(page.getByRole("heading", { name: "Workflow Run", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Workflow run probe")
   await expect(page.getByText("Workflow run not found.")).toHaveCount(0)
 
   // What the run view is for: which step ran, how it ended, and what it
@@ -194,7 +195,7 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
   })
   const step = steps.locator(".workflow-page__step").first()
   await expect(step.getByText("only", { exact: true })).toBeVisible()
-  await expect(step.locator(".issues-page__status")).toHaveText("succeeded")
+  await expect(step.locator(".issues-page__status")).toHaveText("Succeeded")
   // The direct child, not any descendant: the agent's instructions are drawn in
   // the same kind of block inside a disclosure, and they say what was asked
   // rather than what came back. Matching both would pass on a step that
@@ -252,7 +253,7 @@ test("a workflow with an input_schema runs from its generated input form", async
 
   // The run view is reached after the POST, and the run's stored input is the
   // proof the generated form's value crossed the boundary and was admitted.
-  await expect(page.getByRole("heading", { name: "Workflow Run", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Workflow input probe")
   await expect
     .poll(
       async () => {
@@ -337,5 +338,5 @@ test("a workflow binds one step's output into the next step's input", async ({ p
     has: page.getByRole("heading", { name: "Steps" }),
   })
   const stepStatuses = steps.locator(".workflow-page__step .issues-page__status")
-  await expect(stepStatuses).toHaveText(["succeeded", "succeeded"])
+  await expect(stepStatuses).toHaveText(["Succeeded", "Succeeded"])
 })

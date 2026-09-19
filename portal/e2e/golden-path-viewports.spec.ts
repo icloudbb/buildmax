@@ -125,7 +125,7 @@ test("switch Space, start Chat, open an Issue's latest run, browse Files, and re
 
     // --- Open an Issue and its latest run ---
     await page.goto(`/#/spaces/${current.spaceId}/issues/${issueId}`)
-    await expect(page.getByRole("heading", { name: "Issue Detail" })).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Viewport golden path")
     // Discussion is its own tab, not part of the default Overview.
     await page.getByRole("navigation", { name: "Issue sections" }).getByRole("button", { name: "Discussion" }).click()
     await page.locator(".issue-discussion__actions").getByRole("button", { name: "Run details" }).first().click()

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Avatar, BaseModal, ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
+import { Avatar, BaseModal, Button, ButtonLink, ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
 import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
@@ -9,12 +9,13 @@ import { cancelTask, continueTask, getTask, getTaskRuns, retryTask, streamTaskOu
 import { getAgent } from "../../features/agents"
 import { RunTraceModal, runInputLabel } from "../../features/runs"
 import { runStatusLabel } from "../../features/conversations/thread"
-import { navigate } from "../../router"
+import { buildHash, navigate } from "../../router"
 import type { ApiTask, ApiTaskRun } from "../../lib/api/types"
 import type { BreadcrumbCrumb } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
+import { statusLabel } from "../../lib/statusLabels"
 
 interface TaskDetailProps {
   token: string | null
@@ -324,35 +325,22 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
           <h1 className="page-activity__title">{task?.title || "Task"}</h1>
           <p className="page-activity__subtitle">
             {agentName ? `${agentName} · ` : ""}
-            {task?.status?.toLowerCase() || "loading"}
+            {task ? runStatusLabel(task.status) : "Loading"}
           </p>
         </div>
         <div className="task-thread__header-actions">
           {running ? (
-            <button type="button" className="page-activity__action-btn" disabled={stopping} onClick={handleStop}>
-              {stopping ? "Stopping..." : "Stop"}
-            </button>
+            <Button variant="danger" busy={stopping} onClick={handleStop}>Stop</Button>
           ) : runs.length > 0 ? (
-            <button type="button" className="page-activity__action-btn" disabled={retrying} onClick={handleRetry}>
-              {retrying ? "Retrying..." : "Retry last run"}
-            </button>
+            <Button variant="secondary" busy={retrying} onClick={handleRetry}>Retry last run</Button>
           ) : null}
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            aria-haspopup="dialog"
-            onClick={() => setDetailsOpen(true)}
-          >
+          <Button variant="tertiary" aria-haspopup="dialog" onClick={() => setDetailsOpen(true)}>
             Details
-          </button>
+          </Button>
           {task?.agent_id ? (
-            <button
-              type="button"
-              className="page-activity__action-btn"
-              onClick={() => navigate({ name: "agent", spaceId, agentId: task.agent_id! })}
-            >
+            <ButtonLink variant="tertiary" href={buildHash({ name: "agent", spaceId, agentId: task.agent_id })}>
               Open agent
-            </button>
+            </ButtonLink>
           ) : null}
         </div>
       </header>
@@ -369,13 +357,9 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
             <dt>Agent</dt>
             <dd>
               {task.agent_id ? (
-                <button
-                  type="button"
-                  className="task-details__link"
-                  onClick={() => navigate({ name: "agent", spaceId, agentId: task.agent_id! })}
-                >
+                <a className="task-details__link" href={buildHash({ name: "agent", spaceId, agentId: task.agent_id })}>
                   {agentName ?? "Agent"}
-                </button>
+                </a>
               ) : (
                 "—"
               )}
@@ -383,7 +367,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
             <dt>Status</dt>
             <dd>{runStatusLabel(task.status)}</dd>
             <dt>Trigger</dt>
-            <dd>{runs[0]?.trigger_source ?? "—"}</dd>
+            <dd>{runs[0]?.trigger_source ? statusLabel(runs[0].trigger_source) : "—"}</dd>
             <dt>Started</dt>
             <dd>{fmtWhen(task.started_at)}</dd>
             <dt>Ended</dt>
@@ -398,13 +382,9 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
               <>
                 <dt>Issue</dt>
                 <dd>
-                  <button
-                    type="button"
-                    className="task-details__link"
-                    onClick={() => navigate({ name: "issue", spaceId, issueId: task.issue_id! })}
-                  >
+                  <a className="task-details__link" href={buildHash({ name: "issue", spaceId, issueId: task.issue_id })}>
                     Open issue
-                  </button>
+                  </a>
                 </dd>
               </>
             ) : null}
@@ -412,29 +392,25 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
               <>
                 <dt>Conversation</dt>
                 <dd>
-                  <button
-                    type="button"
-                    className="task-details__link"
-                    onClick={() => navigate({ name: "chat", spaceId, conversationId: task.conversation_id! })}
-                  >
+                  <a className="task-details__link" href={buildHash({ name: "chat", spaceId, conversationId: task.conversation_id })}>
                     Open conversation
-                  </button>
+                  </a>
                 </dd>
               </>
             ) : null}
           </dl>
           <div className="task-details__actions">
             {traceRun ? (
-              <button
-                type="button"
-                className="page-activity__action-btn page-activity__action-btn--sm"
+              <Button
+                variant="tertiary"
+                size="compact"
                 onClick={() => {
                   setDetailsOpen(false)
                   setTraceRunId(traceRun)
                 }}
               >
                 View trace
-              </button>
+              </Button>
             ) : null}
           </div>
           </div>

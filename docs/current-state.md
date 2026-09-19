@@ -484,9 +484,29 @@ That scope cannot qualify all supported surfaces. Historical oracle/canary
 reports are not a benchmark result for this revision; this review ran neither
 real-model evaluation nor a Terminal-Bench protocol and reports no score.
 
-Portal browser tests now cover direct Task threads, workspaces, canonical Space
+Portal browser tests cover direct Task threads, workspaces, canonical Space
 routes, loading/error/permission states, responsive layouts, accessibility, and
-run provenance. Desktop has bridge and browser-based UI suites under
+run provenance. The first Portal page-system slice makes collection creation a
+single header action on Issues, Agents, Workflows, and Schedules; shared buttons handle action priority
+and busy state; Issue Detail opens with a read-first summary and separate editing;
+Workflow Run places the result before technical metadata. Other Portal pages
+still have local button styles while migration continues. Task Detail and
+conversation task cards now use the shared action roles and human run status;
+Chat has a visible heading, arrow-key tabs, and a Files link.
+Failed conversation task actions stay visible on their card, and a task-list
+failure offers a local retry while keeping the conversation readable.
+Workflow Detail now uses the shared action roles for editing and running,
+with one primary action per lifecycle view and readable status labels.
+Agent Detail uses the same roles for Run, Save, and Delete, and its tablist
+supports arrow keys and narrow-screen scrolling. Agent schedules name a failed
+triggered-task load and offer local retry.
+Artifacts use the same Upload, Download, Share, and Delete action roles. The
+collection waits for a successful load before stating a count, artifact names
+are links, and a failed preview offers local retry.
+If the second write of a new Issue fails, Portal shows the created Issue's
+address and prevents duplicate submission; creating every field atomically
+remains open.
+Desktop has bridge and browser-based UI suites under
 [`desktop/frontend/e2e`](../desktop/frontend/e2e), plus a packaged-application
 launch smoke on macOS and Windows CI. The launch smoke proves that the built
 bundle starts and stays alive briefly; it does not drive or visually inspect the
