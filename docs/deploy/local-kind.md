@@ -103,9 +103,11 @@ scenarios and **BuildMax QA Pagination** for long lists.
 | Agents and Workflows | Personal Docs Writer/Release Notes; shared QA Writer/QA Reviewer; two-step draft, published, and archived Workflows, with lifecycle revision history |
 | Files | Five files under `fixtures/`: nested Markdown, CSV, JSON, Unicode filename, and empty text |
 | Artifacts | Synthetic text, HTML sandbox preview, and binary download fixtures |
-| Space settings | Nonempty Agent instructions and active/disabled Secrets containing explicitly fake values; API changes also populate audit events |
+| Space settings | Nonempty Agent instructions and active/disabled Secrets containing explicitly fake values; account webhook keys; API changes also populate audit events |
 | Plugins and Marketplace | The three `sample-plugins/` published to the deployment catalog, one activated in BuildMax QA and the rest left available to activate |
-| Pagination | Separate Space with 105 Issues (35 per status), including a 25-comment thread |
+| Schedules | Recurring agent schedules with varied cron expressions and timezones, some paused (in BuildMax QA Pagination) |
+| Pagination and volume | Separate Space with 105 Issues (35 per status) including a 25-comment thread, plus long lists to page and scroll: 12 agents, 9 workflows across all three statuses, 60 artifacts (past the "Load more" threshold), 8 extra secrets, and 8 schedules |
+| Admin scale | 60 synthetic accounts (roughly one in eight disabled) so the Accounts page spans more than one page and its status filter has a cohort; each also gets a personal Space |
 | Execution (`--runs`) | Conversation transcript, a Task with Continue and Retry, Issue Agent result, two-step Workflow result, worker traces and workspace checkpoints |
 
 ```bash
@@ -124,7 +126,9 @@ fixture conversation's first message. Lists are paginated fully and missing
 comments are matched individually by body, so an interrupted comment seed can
 resume. Existing Issue statuses, descriptions, file contents, Agent definitions,
 and member roles are preserved. Fixture Issue assignments, Workflow lifecycle
-states, and Secret states are reconciled; empty Space instructions are filled.
+states, Secret states, schedule paused/enabled state, and account disabled state
+are reconciled; empty Space instructions are filled. Webhook keys and bulk
+accounts are matched by name and email so a rerun adds only what is missing.
 An already-published plugin version and an existing activation are left as they
 are rather than republished.
 Do not rename fixture resources if you want them reused. These are named test

@@ -134,13 +134,25 @@ func seedTeamFixtures(ctx context.Context, client *http.Client, target smokeTarg
 	if err := ensureFixtureArtifacts(ctx, client, base, token); err != nil {
 		return err
 	}
-	if err := ensureFixturePagination(ctx, client, target, token); err != nil {
+	pagID, err := ensureFixturePagination(ctx, client, target, token)
+	if err != nil {
+		return err
+	}
+	// The pagination Space concentrates the long lists: agents, workflows,
+	// artifacts, secrets, and schedules in volume, so the curated QA Space stays
+	// readable while every list surface still has a page to page through.
+	if err := seedPaginationBulk(ctx, client, target, pagID, token); err != nil {
 		return err
 	}
 	if err := ensureFixtureSecrets(ctx, client, base, token); err != nil {
 		return err
 	}
 	if err := seedPluginFixtures(ctx, client, target, team.ID, token); err != nil {
+		return err
+	}
+	// Bulk accounts need System Administrator authority, which the plugin
+	// fixtures grant Alice, so this follows them and reuses her token.
+	if err := seedFixtureAccounts(ctx, client, target, token); err != nil {
 		return err
 	}
 	var instructions struct {
@@ -319,7 +331,19 @@ func ensureFixtureFiles(ctx context.Context, client *http.Client, base, token st
 	return nil
 }
 
+// fixtureSecret is one synthetic Secret and the state it must end in.
+type fixtureSecret struct {
+	name  string
+	state string
+}
+
 func ensureFixtureSecrets(ctx context.Context, client *http.Client, base, token string) error {
+	return ensureSecrets(ctx, client, base, token, []fixtureSecret{{"fixture-demo", "active"}, {"fixture-disabled", "disabled"}})
+}
+
+// ensureSecrets reconciles a set of Secrets by name, creating any that are
+// missing and moving each to its target state. The values are explicitly fake.
+func ensureSecrets(ctx context.Context, client *http.Client, base, token string, specs []fixtureSecret) error {
 	type secret struct {
 		ID    string `json:"id"`
 		Name  string `json:"name"`
@@ -331,7 +355,7 @@ func ensureFixtureSecrets(ctx context.Context, client *http.Client, base, token 
 	if err := requestJSON(ctx, client, http.MethodGet, base+"/secrets", token, nil, &existing, http.StatusOK); err != nil {
 		return err
 	}
-	for _, spec := range []struct{ name, state string }{{"fixture-demo", "active"}, {"fixture-disabled", "disabled"}} {
+	for _, spec := range specs {
 		var found secret
 		for _, s := range existing.Secrets {
 			if s.Name == spec.name {
@@ -353,10 +377,10 @@ func ensureFixtureSecrets(ctx context.Context, client *http.Client, base, token 
 	return nil
 }
 
-func ensureFixturePagination(ctx context.Context, client *http.Client, target smokeTarget, token string) error {
+func ensureFixturePagination(ctx context.Context, client *http.Client, target smokeTarget, token string) (string, error) {
 	var spaces []fxSpace
 	if err := requestJSON(ctx, client, http.MethodGet, target.apiBase+"/api/spaces", token, nil, &spaces, http.StatusOK); err != nil {
-		return err
+		return "", err
 	}
 	var space fxSpace
 	for _, candidate := range spaces {
@@ -367,7 +391,7 @@ func ensureFixturePagination(ctx context.Context, client *http.Client, target sm
 	}
 	if space.ID == "" {
 		if err := requestJSON(ctx, client, http.MethodPost, target.apiBase+"/api/spaces", token, map[string]string{"name": "BuildMax QA Pagination"}, &space, http.StatusCreated); err != nil {
-			return err
+			return "", err
 		}
 	}
 	specs := make([]fixtureIssue, 105)
@@ -377,7 +401,10 @@ func ensureFixturePagination(ctx context.Context, client *http.Client, target sm
 	for i := 0; i < 25; i++ {
 		specs[0].comments = append(specs[0].comments, fmt.Sprintf("Pagination fixture comment %02d: verify the complete discussion is reachable.", i+1))
 	}
-	return ensureIssues(ctx, client, target, space.ID, token, "QA Pagination", specs)
+	if err := ensureIssues(ctx, client, target, space.ID, token, "QA Pagination", specs); err != nil {
+		return "", err
+	}
+	return space.ID, nil
 }
 
 func ensureFixtureArtifacts(ctx context.Context, client *http.Client, base, token string) error {
@@ -399,25 +426,30 @@ func ensureFixtureArtifacts(ctx context.Context, client *http.Client, base, toke
 		if seen[file.name] {
 			continue
 		}
-		var body bytes.Buffer
-		writer := multipart.NewWriter(&body)
-		part, err := writer.CreateFormFile("file", file.name)
-		if err != nil {
-			return err
-		}
-		if _, err := io.WriteString(part, file.content); err != nil {
-			return err
-		}
-		if err := writer.Close(); err != nil {
-			return err
-		}
-		response, err := request(ctx, client, http.MethodPost, base+"/artifacts", token, writer.FormDataContentType(), &body, http.StatusCreated)
-		if err != nil {
-			return err
-		}
-		if err := response.Close(); err != nil {
+		if err := uploadFixtureArtifact(ctx, client, base, token, file.name, file.content); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// uploadFixtureArtifact posts one artifact through the space's multipart upload.
+func uploadFixtureArtifact(ctx context.Context, client *http.Client, base, token, name, content string) error {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", name)
+	if err != nil {
+		return err
+	}
+	if _, err := io.WriteString(part, content); err != nil {
+		return err
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
+	response, err := request(ctx, client, http.MethodPost, base+"/artifacts", token, writer.FormDataContentType(), &body, http.StatusCreated)
+	if err != nil {
+		return err
+	}
+	return response.Close()
 }

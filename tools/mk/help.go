@@ -539,9 +539,12 @@ func helpTopics() []helpTopic {
 					"environment on the server and restarting it; the committed config is untouched.",
 				"`fixtures` seeds four accounts, personal and shared QA spaces, membership\n" +
 					"roles and an invitation, assigned and nested issues, comments, workflows,\n" +
-					"files, artifacts, and synthetic secrets. It grants Alice System Administrator\n" +
-					"authority and publishes the sample plugins to the Marketplace, with one\n" +
-					"activated in the QA space. A separate space exercises pagination.\n" +
+					"files, artifacts, synthetic secrets, schedules, and account webhook keys. It\n" +
+					"grants Alice System Administrator authority and publishes the sample plugins\n" +
+					"to the Marketplace, with one activated in the QA space. A separate space\n" +
+					"carries the long lists — many agents, workflows, artifacts, secrets, and\n" +
+					"schedules — and 105 issues for pagination, and it seeds a cohort of\n" +
+					"synthetic accounts so the admin Accounts page pages and filters.\n" +
 					"Reruns reuse named resources and fill missing data. `fixtures --runs` also\n" +
 					"creates a conversation, Task Continue/Retry history, and Issue Agent/Workflow\n" +
 					"results. Execution requires the reference free mock configuration; it refuses\n" +
