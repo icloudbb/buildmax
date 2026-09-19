@@ -74,21 +74,22 @@ function MoonIcon() {
   );
 }
 
-// Theme toggle lives in the user menu, not the header: switching light/dark is a
-// rare action. Rendered inside ThemeProvider, so it reads the live theme. The
-// icon and label name the destination — moon to go dark, sun to go light.
-function ThemeMenuItem() {
+// Theme toggle lives in the workspace status bar, always visible while a project
+// is open — more reachable than the user menu, which hides with the sidebar. Its
+// own component so it can call useTheme from inside ThemeProvider. The icon names
+// the destination — moon to go dark, sun to go light.
+function ThemeStatusButton() {
   const { theme, toggleTheme } = useTheme();
   const dark = theme === 'dark';
   return (
     <button
       type="button"
-      className="sidebar__user-menu-item sidebar__user-menu-item--icon"
-      role="menuitem"
+      className="workspace-statusbar__btn"
+      title={dark ? 'Light mode' : 'Dark mode'}
+      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
       onClick={toggleTheme}
     >
-      <span className="sidebar__user-menu-icon">{dark ? <SunIcon /> : <MoonIcon />}</span>
-      <span>{dark ? 'Light mode' : 'Dark mode'}</span>
+      <span aria-hidden>{dark ? <SunIcon /> : <MoonIcon />}</span>
     </button>
   );
 }
@@ -871,7 +872,6 @@ export default function App() {
                     {localMode ? 'Models from settings.yaml' : authStatus.email}
                   </div>
                   <div className="sidebar__user-menu-divider" />
-                  <ThemeMenuItem />
                   <button
                     type="button"
                     className="sidebar__user-menu-item"
@@ -1000,6 +1000,7 @@ export default function App() {
                   >
                     <span aria-hidden>{'>_'}</span>
                   </button>
+                  <ThemeStatusButton />
                   {canToggleGrid && (
                     <button
                       type="button"
