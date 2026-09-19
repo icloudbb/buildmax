@@ -417,6 +417,14 @@
 
 /* File preview pane */
 
+.file-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .file-view__header {
   flex-shrink: 0;
   display: flex;

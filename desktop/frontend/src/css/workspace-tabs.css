@@ -17,6 +17,16 @@
   flex-direction: column;
 }
 
+/* File and diff tabs fill the content region as a flex column so their inner
+   scroll areas (.file-view__code, .diff-code) size correctly. */
+.diff-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .workspace-tabs__bar {
   display: flex;
   align-items: stretch;

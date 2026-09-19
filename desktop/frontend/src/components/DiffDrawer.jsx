@@ -1,8 +1,7 @@
-import { useTheme } from '@buildmax/gui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { buildDiffTree, displayDiffPath, highlightDiffRows, parsePatchLines, splitPathForDisplay, statusGlyph, statusTitle, truncateMiddleText } from '../lib/format';
-import { highlightToLines } from '../lib/highlight';
+import { buildDiffTree, displayDiffPath, splitPathForDisplay, statusGlyph, truncateMiddleText } from '../lib/format';
 import { usePaneResize } from '../lib/usePaneResize';
+import { FilePatch } from './FilePatch';
 
 const TREE_VIEW_KEY = 'bm.desktop.diffTreeView';
 
@@ -34,12 +33,10 @@ function flattenVisibleFiles(nodes, collapsed, out = []) {
 // dialog chrome. Narrow, the two panes stack (list over patch); expanded, CSS
 // lays them side by side.
 export function DiffPanel({ projectID, sessionID, app }) {
-  const { theme } = useTheme();
   const [diff, setDiff] = useState(null);
   const [error, setError] = useState(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [focusedPane, setFocusedPane] = useState('list');
-  const [highlightedRows, setHighlightedRows] = useState(null);
   const [treeMode, setTreeMode] = useState(readTreeMode);
   const [collapsed, setCollapsed] = useState(() => new Set());
   const rootRef = useRef(null);
@@ -88,19 +85,6 @@ export function DiffPanel({ projectID, sessionID, app }) {
       return next;
     });
   }, []);
-
-  // Highlighting is per-hunk (see highlightDiffRows), so it's recomputed
-  // whenever the selected file or theme changes; parsePatchLines below always
-  // renders immediately, and this swaps in tokenized rows once ready.
-  useEffect(() => {
-    let cancelled = false;
-    setHighlightedRows(null);
-    if (!selected || selected.binary || !selected.patch) return undefined;
-    highlightDiffRows(parsePatchLines(selected.patch), selected.path, theme, highlightToLines)
-      .then((rows) => { if (!cancelled) setHighlightedRows(rows); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [selected, theme]);
 
   // Arrow keys move within the file list once the panel has focus; Left/Right
   // move between the list and the patch. The panel is a focusable region, not a
@@ -239,44 +223,7 @@ export function DiffPanel({ projectID, sessionID, app }) {
           aria-label="Diff content"
           onClick={() => setFocusedPane('content')}
         >
-          {selected ? (
-            <>
-              <div className="diff-drawer__viewer-header">
-                <span className={`diff-drawer__status diff-drawer__status--${selected.status}`}>
-                  {statusGlyph(selected.status)}
-                </span>
-                <span className="diff-drawer__viewer-path">{displayDiffPath(selected)}</span>
-                <span className="diff-drawer__viewer-kind">{statusTitle(selected.status)}</span>
-              </div>
-              {selected.binary ? (
-                <p className="diff-drawer__empty">Binary file changed.</p>
-              ) : selected.patch ? (
-                <div className="diff-code" role="table">
-                  {(highlightedRows ?? parsePatchLines(selected.patch)).map((row, idx) => (
-                    <div key={idx} className={`diff-code__row diff-code__row--${row.kind}`} role="row">
-                      <span className="diff-code__line" role="cell">{row.oldLine}</span>
-                      <span className="diff-code__line" role="cell">{row.newLine}</span>
-                      <code className="diff-code__text" role="cell">
-                        {row.tokens
-                          ? row.tokens.map((t, i) => <span key={i} style={{ color: t.color }}>{t.content}</span>)
-                          // Line-content kinds carry a leading +/-/space diff marker that
-                          // highlighted tokens never include (stripped before tokenizing);
-                          // strip it here too so the text doesn't shift once tokens arrive.
-                          : ((row.kind === 'add' || row.kind === 'del' || row.kind === 'context' ? row.text.slice(1) : row.text) || ' ')}
-                      </code>
-                    </div>
-                  ))}
-                  {selected.truncated && (
-                    <div className="diff-code__truncated">Diff truncated.</div>
-                  )}
-                </div>
-              ) : (
-                <p className="diff-drawer__empty">No text diff available.</p>
-              )}
-            </>
-          ) : (
-            <p className="diff-drawer__empty">Select a changed file.</p>
-          )}
+          <FilePatch file={selected} />
         </section>
       </div>
     </div>

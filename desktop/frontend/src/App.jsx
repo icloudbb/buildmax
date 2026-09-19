@@ -9,6 +9,9 @@ import { CreateProjectModal } from './components/Modals';
 import { ProjectItem } from './components/ProjectItem';
 import { TerminalPane } from './components/TerminalPane';
 import { TabBar } from './components/TabBar';
+import { Explorer } from './components/Explorer';
+import { FileView } from './components/FileView';
+import { DiffView } from './components/DiffView';
 import { emptyTabs, openTab, closeTab, focusTab, activeTab } from './lib/tabs';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -563,7 +566,18 @@ export default function App() {
     });
   }, []);
 
-  const activeCenterKind = activeTab(center)?.kind ?? null;
+  // The Explorer opens file and diff content as center tabs. A browse click
+  // opens a preview tab, which the next browse click replaces (see tabs.js).
+  const openFileTab = useCallback((path) => {
+    setCenter((s) => openTab(s, { kind: 'file', ref: path, title: path.split('/').pop() || path, preview: true }));
+  }, []);
+  const openDiffTab = useCallback((path) => {
+    setCenter((s) => openTab(s, { kind: 'diff', ref: path, title: `${path.split('/').pop() || path} (diff)`, preview: true }));
+  }, []);
+
+  const active = activeTab(center);
+  const activeCenterKind = active?.kind ?? null;
+  const activeCenterRef = active?.ref ?? '';
 
   // The login is the mode. Without one the agent runs here against the models in
   // settings.yaml, which needs no server and therefore no sign-in first — so the
@@ -1116,6 +1130,16 @@ export default function App() {
               )}
             </nav>
 
+            {currentProject && (
+              <Explorer
+                projectID={currentProject.id}
+                sessionID={selectedId || ''}
+                app={app}
+                onOpenFile={openFileTab}
+                onOpenDiff={openDiffTab}
+              />
+            )}
+
             <div className="sidebar__footer" ref={userMenuRef}>
               <button
                 type="button"
@@ -1289,6 +1313,22 @@ export default function App() {
                           />
                         </section>
                       </div>
+                    )}
+                    {activeCenterKind === 'file' && (
+                      <FileView
+                        projectID={currentProject.id}
+                        sessionID={selectedId || ''}
+                        path={activeCenterRef}
+                        app={app}
+                      />
+                    )}
+                    {activeCenterKind === 'diff' && (
+                      <DiffView
+                        projectID={currentProject.id}
+                        sessionID={selectedId || ''}
+                        path={activeCenterRef}
+                        app={app}
+                      />
                     )}
                     {center.tabs
                       .filter((t) => t.kind === 'terminal')
