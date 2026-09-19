@@ -484,8 +484,11 @@ whichever pane shows it (`TerminalHost`), so a dragged terminal keeps its
 scrollback and cursor — the DOM node is relocated, never recreated. This is why
 the model insists a backing is decoupled from its pane.
 
-A status bar below the grid carries, at its far right, a single control that
-**toggles** between the two shapes so neither has to be built by hand: from one
+A status bar spans the bottom of the workspace as a global surface — present on
+the Home screen and in a project alike, carrying the theme toggle everywhere and
+the workspace controls when a project is open. At its far right sits a single
+control that **toggles** between the two shapes so neither has to be built by
+hand: from one
 tabbed pane it *tiles* every tab into its own pane laid out in a near-square grid
 (`tile`), and from a grid it *collapses* every pane back into one tabbed pane in
 reading order (`collapse`). Both are pure operations on the same model, and

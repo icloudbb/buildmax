@@ -935,7 +935,6 @@ export default function App() {
                   onCreateProject={() => setShowCreateModal(true)}
                 />
               ) : (
-                <>
                 <div className={`workspace-grid${totalPanes > 1 ? ' workspace-grid--split' : ''}`}>
                   {workspace.rows.map((row) => (
                     <div key={row.id} className="workspace-grid__row">
@@ -984,37 +983,42 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-                <div className="workspace-statusbar">
-                  <span className="workspace-statusbar__status">
-                    {currentProject.name}
-                    {totalPanes > 1
-                      ? ` · ${totalPanes} panes`
-                      : (focusedActiveTab?.title ? ` · ${focusedActiveTab.title}` : '')}
-                  </span>
-                  <button
-                    type="button"
-                    className="workspace-statusbar__btn"
-                    onClick={openTerminalTab}
-                    title="New terminal"
-                    aria-label="New terminal"
-                  >
-                    <span aria-hidden>{'>_'}</span>
-                  </button>
-                  <ThemeStatusButton />
-                  {canToggleGrid && (
-                    <button
-                      type="button"
-                      className="workspace-statusbar__btn"
-                      title={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
-                      aria-label={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
-                      onClick={toggleGrid}
-                    >
-                      <span aria-hidden>{totalPanes > 1 ? '□' : '▦'}</span>
-                      {totalPanes > 1 ? ' Tabs' : ' Grid'}
-                    </button>
-                  )}
-                </div>
-                </>
+              )}
+            </div>
+            {/* The status bar is a global first-class surface: present on Home and
+                in a project alike. Theme lives here always; the workspace controls
+                (new terminal, grid/tab) appear only with a project open. */}
+            <div className="workspace-statusbar">
+              <span className="workspace-statusbar__status">
+                {currentProject
+                  ? `${currentProject.name}${totalPanes > 1
+                    ? ` · ${totalPanes} panes`
+                    : (focusedActiveTab?.title ? ` · ${focusedActiveTab.title}` : '')}`
+                  : 'Home'}
+              </span>
+              {currentProject && (
+                <button
+                  type="button"
+                  className="workspace-statusbar__btn"
+                  onClick={openTerminalTab}
+                  title="New terminal"
+                  aria-label="New terminal"
+                >
+                  <span aria-hidden>{'>_'}</span>
+                </button>
+              )}
+              <ThemeStatusButton />
+              {currentProject && canToggleGrid && (
+                <button
+                  type="button"
+                  className="workspace-statusbar__btn"
+                  title={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
+                  aria-label={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
+                  onClick={toggleGrid}
+                >
+                  <span aria-hidden>{totalPanes > 1 ? '□' : '▦'}</span>
+                  {totalPanes > 1 ? ' Tabs' : ' Grid'}
+                </button>
               )}
             </div>
           </main>
