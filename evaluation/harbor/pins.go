@@ -1,5 +1,5 @@
 // Package harbor holds what BuildMax needs to be measured by Harbor against
-// Terminal-Bench 2.1: the versions a result depends on, and the Python agent
+// Terminal-Bench 4.0: the versions a result depends on, and the Python agent
 // Harbor loads to run the built CLI inside a task container.
 //
 // Harbor owns task materialization and official verification. BuildMax does not
@@ -26,7 +26,7 @@ const SchemaVersion = 1
 //
 // It exists because a benchmark score is only a measurement if the thing that
 // produced it can be named. Harbor, the dataset, and this adapter all move
-// independently of BuildMax, and a run that recorded only "Terminal-Bench 2.1"
+// independently of BuildMax, and a run that recorded only "Terminal-Bench 4.0"
 // could not tell a product regression from a dataset correction or a harness
 // upgrade.
 type Pins struct {
@@ -44,10 +44,12 @@ type Pins struct {
 // It is pinned rather than chosen per run because its job is comparison against
 // itself: a subset picked fresh each time measures a different thing every
 // time, and the first question after a canary is always whether something got
-// worse. The tasks are chosen to exercise different paths through the adapter —
-// a build toolchain, git, a served process, plain data work, and something
-// compute-bound enough to fail — rather than to sample capability. Six tasks
-// cannot estimate a score and are not meant to.
+// worse. The tasks are five cheap, Linux-only Terminal-Bench 4.0 tasks spanning
+// different task domains — media, finance/operations, and science — whose
+// reference solutions the oracle passes and which finish promptly under a cheap
+// model, chosen so a real-model run gives a fast local regression signal rather
+// than a leaderboard score. Five tasks cannot estimate a score and are not
+// meant to.
 type Canary struct {
 	Tasks []string `json:"tasks"`
 }

@@ -5,9 +5,11 @@
 > **Audience:** contributors, operators, and product designers · **Status:**
 > partly implemented — the [section 18](#18-vertical-slice-implementation-plan) vertical slice has
 > shipped for the CLI and worker surfaces; conversation and deployment adapters
-> and phase 2 onward are planned. The Terminal-Bench 2.1 adapter and importer
-> are built and pinned, and have run the oracle smoke and a one-task canary end
-> to end. No wider run exists, so there is no Terminal-Bench score yet
+> and phase 2 onward are planned. The Terminal-Bench 4.0 adapter and importer
+> are built and pinned, and run a five-task local regression subset end to end
+> with a real model (gpt-5.6-luna solves none of these hard tasks, which is the
+> expected pipeline-regression signal, not a score). No wider run exists, so
+> there is no Terminal-Bench score yet
 >
 > **Accepted:** 2026-08-22 · **Roadmap:** R4 post-Beta product-quality measurement
 
@@ -519,6 +521,14 @@ portability. Harbor is evaluated separately because its strongest role is a cont
 public-benchmark bridge.
 
 ### 14.2 Public benchmark roles
+
+> **Update (2026-09-19):** the pinned target has advanced to Terminal-Bench 4.0
+> (`terminal-bench/terminal-bench`, 66 tasks), and `pins.json` is the source of
+> truth for the harness, dataset digest, and canary. The canary is now used as a
+> small local regression subset — five cheap, Linux-only tasks run with a real
+> model to catch a product regression — rather than a step toward a leaderboard
+> score. The 2.1 rationale below is retained as the decision record for why
+> Terminal-Bench was selected; the version-specific counts in it describe 2.1.
 
 Terminal-Bench 2.1 is the first external capability benchmark and the accepted
 Harbor integration target. Version 2.1 replaces 2.0 as BuildMax's baseline: its

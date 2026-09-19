@@ -173,7 +173,7 @@ grader,以及适配器——都改在 `./make test` 中运行,这样一个什么
 [evaluation/README.md](../../../evaluation/README.md)。
 
 `./make eval harbor` 报告的是一个外部坐标,而不是产生一个新坐标。Harbor
-运行 Terminal-Bench 2.1,由它的验证器决定每一个结果;导入过程读取那次
+运行 Terminal-Bench 4.0,由它的验证器决定每一个结果;导入过程读取那次
 已完成的作业,并按同一份契约归档,因此一个外部结果和一次本地运行携带
 相同的 subject 元组、相同的失败分类,以及相同的带不确定性的通过率。
 它是在度量而不是把关——一个 subject 没有解出的任务,就是一个分数。

@@ -2,7 +2,7 @@
     "task_name": "terminal-bench/broken-env",
     "trial_name": "broken-env__ddd4444",
     "trial_uri": "package://terminal-bench/broken-env",
-    "source": "terminal-bench/terminal-bench-2-1",
+    "source": "terminal-bench/terminal-bench",
     "task_checksum": "3333333333333333333333333333333333333333333333333333333333333333",
     "agent_info": {
         "name": "buildmax",

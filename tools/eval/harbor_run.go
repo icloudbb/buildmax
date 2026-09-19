@@ -177,7 +177,7 @@ func (o harborRunOptions) spec(pins harbor.Pins, extra []string) (harbor.RunSpec
 	case o.all, o.limit > 0:
 		// The whole dataset, or as much of it as --limit allows.
 	default:
-		// No default selection. The dataset is 89 tasks and every attempt costs
+		// No default selection. The dataset is 66 tasks and every attempt costs
 		// money, so the expensive run is the one a caller has to ask for.
 		return spec, fmt.Errorf("select tasks with --task, --canary, --limit, or --all")
 	}

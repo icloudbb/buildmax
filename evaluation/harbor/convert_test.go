@@ -454,12 +454,12 @@ func TestEveryBundleNamesTheSameSubject(t *testing.T) {
 	}
 }
 
-// Filing a 2.0 run under the 2.1 pin would produce exactly the comparison
+// Filing a 3.0 run under the 4.0 pin would produce exactly the comparison
 // section 14.2 forbids: the two differ by corrected tasks, not only by the
 // agent.
 func TestAJobFromAnotherDatasetIsRefused(t *testing.T) {
 	pins, trials := fixtureTrials(t)
-	other := "terminal-bench/terminal-bench-2"
+	other := "terminal-bench/terminal-bench-3"
 	trials[0].Result.Source = &other
 
 	_, err := Convert(trials, pins, testOptions())
@@ -546,7 +546,7 @@ func TestTheReproductionCommandIsDeterministic(t *testing.T) {
 
 	for _, want := range []string{
 		"harbor run",
-		"terminal-bench/terminal-bench-2-1@sha256:",
+		"terminal-bench/terminal-bench@sha256:",
 		"buildmax_harbor.agent:Buildmax",
 		// Qualified, because that is what the filter matches: Harbor lists a
 		// packaged task as <org>/<name> and refuses a bare one.

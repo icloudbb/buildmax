@@ -5,7 +5,7 @@ How to measure a BuildMax build, and what you get back.
 There are two paths. They share one contract, one bundle format, and one report
 renderer, and they answer different questions:
 
-| | Local suite | Harbor / Terminal-Bench |
+| | Local suite | Harbor / Terminal-Bench 4.0 |
 |---|---|---|
 | Question | How reliably does a model drive behaviour this repository wrote? | How does BuildMax compare with Codex and Claude Code? |
 | Runs | `./make eval` | Harbor runs it; `./make eval harbor` files the result |
@@ -96,7 +96,7 @@ reports a dimension without deciding the outcome.
 not the file. `trace` is for what state cannot show — that a boundary held, that
 a tool was never reached, that the run did not take fifty attempts to get there.
 
-## Harbor / Terminal-Bench
+## Harbor / Terminal-Bench 4.0
 
 Harbor owns the tasks, the containers, and the verdict; BuildMax is one of its
 agents. See [harbor/README.md](harbor/README.md) for the flags, the agent

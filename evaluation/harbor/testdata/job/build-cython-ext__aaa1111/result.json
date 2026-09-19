@@ -4,7 +4,7 @@
     "trial_name": "build-cython-ext__aaa1111",
     "trial_uri": "package://terminal-bench/build-cython-ext",
     "task_id": {"org": "terminal-bench", "name": "build-cython-ext", "ref": "latest"},
-    "source": "terminal-bench/terminal-bench-2-1",
+    "source": "terminal-bench/terminal-bench",
     "task_checksum": "1111111111111111111111111111111111111111111111111111111111111111",
     "config": {"trial_name": "build-cython-ext__aaa1111"},
     "agent_info": {
