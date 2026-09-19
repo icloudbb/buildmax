@@ -86,7 +86,8 @@ test("the detail page composes by lifecycle state: authoring when draft, operati
   // primary action is Publish, with no manual Run, because the runtime refuses
   // to run an unpublished definition.
   await expect(page.getByRole("heading", { name: "Definition" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Publish" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Publish" })).toHaveClass(/bm-button--primary/)
+  await expect(page.getByRole("button", { name: "Save" })).toHaveClass(/bm-button--secondary/)
   await expect(page.getByRole("button", { name: "Run Workflow" })).toHaveCount(0)
 
   // Publishing flips the page to the operating layout: Plan and Recent Runs lead
@@ -94,8 +95,9 @@ test("the detail page composes by lifecycle state: authoring when draft, operati
   await page.getByRole("button", { name: "Publish" }).click()
   await expect(page.getByRole("heading", { name: "Plan", exact: true })).toBeVisible()
   await expect(page.getByRole("heading", { name: "Recent Runs" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Run Workflow" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Edit" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Run Workflow" })).toHaveClass(/bm-button--primary/)
+  await expect(page.getByRole("button", { name: "Edit" })).toHaveClass(/bm-button--secondary/)
+  await expect(page.getByText("Published", { exact: true }).first()).toBeVisible()
   await expect(page.getByRole("heading", { name: "Definition" })).toHaveCount(0)
 
   // Version history is on-demand secondary information reached from the header,
@@ -105,7 +107,7 @@ test("the detail page composes by lifecycle state: authoring when draft, operati
   await expect(history).toBeVisible()
   // Each revision row summarizes as "<name> · <status>"; publishing created a
   // second revision, so the published one is listed here.
-  await expect(history.getByText(new RegExp(`${name} · published`)).first()).toBeVisible()
+  await expect(history.getByText(new RegExp(`${name} · Published`)).first()).toBeVisible()
   await page.keyboard.press("Escape")
   await expect(history).toBeHidden()
 

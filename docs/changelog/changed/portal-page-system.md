@@ -2,4 +2,5 @@
   details with the result and next step before editing, and shows Workflow run
   results before diagnostics. Task actions and conversation task cards use the
   shared button roles and readable run status; Chat tabs support arrow keys,
-  and conversation Task failures provide local feedback and retry.
+  and conversation Task failures provide local feedback and retry. Workflow
+  editing and running use the same action roles and readable status labels.

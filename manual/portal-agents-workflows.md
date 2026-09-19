@@ -40,14 +40,13 @@ Open **Workflows** in the sidebar and choose **New Workflow**. A workflow is a
 reusable, step-by-step execution plan you can run manually or assign to an issue.
 Build it from **steps**:
 
-- Use **Add Step** to add a step. Every step is an Agent step -- the only kind
+- Use **Add Agent Step** to add a step. Every step is an Agent step -- the only kind
   the runtime executes today -- so there is nothing else to choose; each one
   just targets an **agent** and carries a **prompt** describing what that step
   should do.
 - Steps run in order; the plan is currently a linear sequence.
-- A step's id is generated for you, not typed. It only matters for tracing a
-  specific run back to the step that produced it, so it stays out of the way
-  here and shows up where that tracing happens.
+- A step's id is generated for you, not typed. The editor shows it as small
+  technical detail so you can trace a run back to the step that produced it.
 - **Advanced: edit raw JSON** shows the same definition as JSON, for exact
   inspection or a change the step form does not cover yet. It is not a second
   way to build the same workflow side by side with the form -- Save checks
@@ -64,6 +63,10 @@ A workflow has a status:
 - **Archived** — retired from use.
 
 Set the status from the workflow's detail view.
+Drafts show **Publish** as the main action and **Save** as a separate way to
+keep editing. A published workflow shows **Run Workflow**; **Edit** opens the
+definition, where **Save** writes a new revision. **History** holds earlier
+versions. Step removal and input removal use destructive controls in the editor.
 
 ### Run a workflow
 

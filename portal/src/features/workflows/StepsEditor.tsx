@@ -1,4 +1,5 @@
 import type { Agent } from "../../lib/types"
+import { Button } from "@buildmax/gui"
 import { nodeOutputSource, WORKFLOW_INPUT_SOURCE } from "./steps"
 import type { StepError, WorkflowStepBinding, WorkflowStepDraft } from "./steps"
 
@@ -53,13 +54,13 @@ export function WorkflowStepsEditor({
         <h3 className="issues-page__section-title">Steps</h3>
         <div className="workflow-page__builder-actions">
           {!disabled && !advanced ? (
-            <button type="button" className="page-activity__action-btn" onClick={onAddStep}>
+            <Button variant="secondary" onClick={onAddStep}>
               Add Agent Step
-            </button>
+            </Button>
           ) : null}
-          <button type="button" className="page-activity__action-btn" onClick={onToggleAdvanced}>
+          <Button variant="tertiary" onClick={onToggleAdvanced}>
             {advanced ? "Hide advanced JSON" : "Advanced: edit raw JSON"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -100,14 +101,9 @@ export function WorkflowStepsEditor({
                   <strong>Agent Step {index + 1}</strong>
                   <span className="page-activity__meta workflow-page__step-id">id: {step.id}</span>
                   {!disabled ? (
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
-                      disabled={steps.length === 1}
-                      onClick={() => onRemoveStep(index)}
-                    >
+                    <Button variant="danger" size="compact" disabled={steps.length === 1} onClick={() => onRemoveStep(index)}>
                       Remove
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
                 <label className="issues-page__field">
@@ -181,24 +177,16 @@ export function WorkflowStepsEditor({
                             onChange={(e) => onChangeBinding(index, bindingIndex, { pointer: e.target.value })}
                           />
                           {!disabled ? (
-                            <button
-                              type="button"
-                              className="page-activity__action-btn"
-                              onClick={() => onRemoveBinding(index, bindingIndex)}
-                            >
+                            <Button variant="danger" size="compact" onClick={() => onRemoveBinding(index, bindingIndex)}>
                               Remove input
-                            </button>
+                            </Button>
                           ) : null}
                         </div>
                       ))}
                       {!disabled ? (
-                        <button
-                          type="button"
-                          className="page-activity__action-btn"
-                          onClick={() => onAddBinding(index)}
-                        >
+                        <Button variant="secondary" size="compact" onClick={() => onAddBinding(index)}>
                           Add input
-                        </button>
+                        </Button>
                       ) : null}
                     </div>
                   )

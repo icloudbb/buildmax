@@ -495,6 +495,8 @@ conversation task cards now use the shared action roles and human run status;
 Chat has a visible heading, arrow-key tabs, and a Files link.
 Failed conversation task actions stay visible on their card, and a task-list
 failure offers a local retry while keeping the conversation readable.
+Workflow Detail now uses the shared action roles for editing and running,
+with one primary action per lifecycle view and readable status labels.
 If the second write of a new Issue fails, Portal shows the created Issue's
 address and prevents duplicate submission; creating every field atomically
 remains open.

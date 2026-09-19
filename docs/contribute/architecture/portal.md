@@ -43,6 +43,8 @@ Portal owns the cloud/space lane:
   Issue Detail opens in read mode with its result and next action before editing.
   Task Detail and conversation task cards use the same action roles; the Chat
   start page owns its heading and keyboard-operated tabs.
+  Workflow Detail assigns one primary action per lifecycle view: Publish for
+  drafts, Run for published read mode, and Save while editing a published flow.
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
   `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
   conversation streaming.

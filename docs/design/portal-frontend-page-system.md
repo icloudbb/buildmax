@@ -207,7 +207,9 @@ and deployment scope in Administration. A second slice brings the same action
 roles and human run status to Task Detail and conversation task cards, and gives
 the Chat start page a visible heading, keyboard-operated tabs, and a real Files
 link. Chat also keeps failed Task actions attached to their card and names a
-failed Task-list load without hiding the conversation. Other detail and
+failed Task-list load without hiding the conversation. Workflow Detail now
+uses the shared actions and readable lifecycle labels, with Publish, Run,
+or Save taking priority according to the visible mode. Other detail and
 management pages, legacy button removal, atomic Issue
 creation, and independent operator review remain. Each further slice needs its
 own observable outcome and verification.
