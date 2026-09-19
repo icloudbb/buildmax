@@ -33,6 +33,7 @@ buildmax <command> [flags]
 | `buildmax issue list` | List the issues you own, across every space you are in; `--status`, `--limit` |
 | `buildmax issue show <id>` | Show one issue: what it asks for, its sub-issues, and recent discussion |
 | `buildmax issue status <id> <status>` | Move an issue to `todo`, `in_progress`, or `done` |
+| `buildmax issue comment <id>` | Post a report on an issue; body from `-m` or stdin |
 | `buildmax issue start <id>` | Work a space issue in this session: the agent can read it and report back |
 | `buildmax admin list` | List deployment administrators; `--all` includes revoked grants (System Administrator only) |
 | `buildmax admin grant <email>` | Grant deployment-administrator authority to an existing account |
@@ -204,6 +205,18 @@ Read one before starting:
 ```bash
 buildmax issue show i_7Kq2...
 ```
+
+Post a report on one, signed in as you:
+
+```bash
+buildmax issue comment i_7Kq2... -m "adapter written and tested"
+git log --oneline | buildmax issue comment i_7Kq2...   # body from stdin
+```
+
+The comment is recorded as a **local agent report** (see below): the same
+statement the in-process report tool makes, reachable by any agent that can run
+a command. Status, owner, and sub-issues stay yours to change with
+`buildmax issue status`.
 
 To work on one, start a session scoped to it:
 

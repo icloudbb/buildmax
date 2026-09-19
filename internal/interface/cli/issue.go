@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"text/tabwriter"
 
@@ -27,7 +28,53 @@ func newIssueCommand() *cobra.Command {
 	cmd.AddCommand(newIssueShowCommand())
 	cmd.AddCommand(newIssueStartCommand())
 	cmd.AddCommand(newIssueStatusCommand())
+	cmd.AddCommand(newIssueCommentCommand())
 	return cmd
+}
+
+func newIssueCommentCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "comment <issue-id>",
+		Short: "Post a report on an issue",
+		Long: "Posts one comment on an issue you can reach, signed in as you.\n\n" +
+			"This is the report path a command can reach: an agent working here can\n" +
+			"run it to say what happened, the same statement the in-process report\n" +
+			"tool makes. The comment is recorded as a local agent report. Status,\n" +
+			"owner, and sub-issues stay yours to change with `buildmax issue status`.\n\n" +
+			"Give the body with -m, or leave it off to read the body from stdin.",
+		Args: cobra.ExactArgs(1),
+		RunE: runIssueComment,
+	}
+	cmd.Flags().StringP("message", "m", "", "the comment body; read from stdin when omitted")
+	return cmd
+}
+
+func runIssueComment(cmd *cobra.Command, args []string) error {
+	body, _ := cmd.Flags().GetString("message")
+	if strings.TrimSpace(body) == "" {
+		read, err := io.ReadAll(cmd.InOrStdin())
+		if err != nil {
+			return fmt.Errorf("read comment body from stdin: %w", err)
+		}
+		body = string(read)
+	}
+	if strings.TrimSpace(body) == "" {
+		return fmt.Errorf("empty comment: give a body with -m or on stdin")
+	}
+	serverURL, token, err := issueSessionFor(cmd)
+	if err != nil {
+		return err
+	}
+	c := client.NewClient(serverURL)
+	space, issue, err := c.FindIssue(cmd.Context(), token, args[0])
+	if err != nil {
+		return err
+	}
+	if err := c.CommentOnIssue(cmd.Context(), token, space.ID, issue.ID, body); err != nil {
+		return fmt.Errorf("post comment: %w", err)
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Commented on %s.\n", issue.ID)
+	return nil
 }
 
 func newIssueStartCommand() *cobra.Command {

@@ -244,6 +244,30 @@ func (c *localIssueClient) Report(ctx context.Context, in tool.IssueReport) erro
 	return nil
 }
 
+// CommentOnIssue posts one comment on an issue, claimed as local_agent.
+//
+// This is the CLI's report path — the same statement the in-process
+// ReportToIssue tool makes, reachable by any executor that can run a command.
+// It is local_agent, not agent, for the reason Report is: a machine this
+// deployment did not schedule, so the thread says so. The server bounds the
+// body and, for a run, the count; this client adds no limit of its own.
+func (c *Client) CommentOnIssue(ctx context.Context, token, spaceID, issueID, body string) error {
+	payload, err := json.Marshal(createCommentPayload{Body: body, AuthorKind: coreissue.CommentAuthorLocalAgent})
+	if err != nil {
+		return err
+	}
+	path := "/api/spaces/" + url.PathEscape(spaceID) + "/issues/" + url.PathEscape(issueID) + "/comments"
+	resp, err := c.do(ctx, http.MethodPost, token, path, "application/json", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		return httpclient.DecodeError(resp, "POST "+path)
+	}
+	return nil
+}
+
 // FindIssue reports which of the caller's spaces holds an issue, and the issue.
 //
 // One request per space until one answers, because the server addresses an issue

@@ -124,6 +124,51 @@ func TestLocalIssueClientReportsAsALocalAgent(t *testing.T) {
 	}
 }
 
+// CommentOnIssue is the CLI's report path: it posts to the issue's comment
+// route as local_agent, so a comment a command makes reads the same as one the
+// in-process tool makes.
+func TestCommentOnIssuePostsLocalAgent(t *testing.T) {
+	var got map[string]any
+	var path string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		path = r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Errorf("decode: %v", err)
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"ic_1"}`))
+	}))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).CommentOnIssue(t.Context(), "tok", "tm_1", "i_1", "adapter shipped"); err != nil {
+		t.Fatalf("CommentOnIssue: %v", err)
+	}
+	if path != "/api/spaces/tm_1/issues/i_1/comments" {
+		t.Fatalf("path = %q", path)
+	}
+	if got["author_kind"] != coreissue.CommentAuthorLocalAgent {
+		t.Fatalf("author_kind = %v, want %q", got["author_kind"], coreissue.CommentAuthorLocalAgent)
+	}
+	if got["body"] != "adapter shipped" {
+		t.Fatalf("body = %v", got["body"])
+	}
+}
+
+// A non-2xx from the comment route is surfaced as an error, not swallowed.
+func TestCommentOnIssueSurfacesAnError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":"run comment budget exhausted"}`))
+	}))
+	defer srv.Close()
+	if err := NewClient(srv.URL).CommentOnIssue(t.Context(), "tok", "tm_1", "i_1", "one too many"); err == nil {
+		t.Fatal("a 429 was read as success")
+	}
+}
+
 // 201 is what this route answers. A client that only accepted 200 or 204 would
 // report every successful post as a failure.
 func TestLocalIssueClientAcceptsCreated(t *testing.T) {
