@@ -43,22 +43,6 @@
   overflow-y: auto;
 }
 
-.shell__top-titles {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-  flex: 1;
-}
-
-.shell__title {
-  font-weight: 600;
-  font-size: 0.95rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Home screen shown when no project is active */
 
 .page-home {

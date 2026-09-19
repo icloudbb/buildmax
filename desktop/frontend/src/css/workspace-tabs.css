@@ -71,7 +71,7 @@
   white-space: nowrap;
 }
 
-.workspace-statusbar__toggle {
+.workspace-statusbar__btn {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -86,7 +86,7 @@
   border-radius: 4px;
 }
 
-.workspace-statusbar__toggle:hover {
+.workspace-statusbar__btn:hover {
   background: var(--color-border);
   color: var(--color-text, inherit);
 }

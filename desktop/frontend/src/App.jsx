@@ -898,8 +898,8 @@ export default function App() {
           />
 
           <main className="shell__main">
-            <div className="shell__top">
-              {leftCollapsed && (
+            {leftCollapsed && (
+              <div className="shell__top">
                 <button
                   type="button"
                   className="shell__sidebar-toggle"
@@ -909,26 +909,8 @@ export default function App() {
                 >
                   ☰
                 </button>
-              )}
-              <div className="shell__top-titles">
-                <span className="shell__title">
-                  {currentProject ? (focusedActiveTab?.title || currentProject.name) : 'Home'}
-                </span>
               </div>
-              {currentProject && (
-                <div className="inspector-tabs" role="group" aria-label="Workspace actions">
-                  <button
-                    type="button"
-                    className="inspector-tabs__btn"
-                    onClick={openTerminalTab}
-                    title="New terminal"
-                    aria-label="New terminal"
-                  >
-                    <span className="inspector-tabs__icon" aria-hidden>{'>_'}</span>
-                  </button>
-                </div>
-              )}
-            </div>
+            )}
             <div className="shell__content">
               {(error || projectNotices.length > 0) && (
                 <div className="workspace-banners">
@@ -1004,12 +986,24 @@ export default function App() {
                 </div>
                 <div className="workspace-statusbar">
                   <span className="workspace-statusbar__status">
-                    {totalPanes > 1 ? `${totalPanes} panes` : (focusedActiveTab?.title || '')}
+                    {currentProject.name}
+                    {totalPanes > 1
+                      ? ` · ${totalPanes} panes`
+                      : (focusedActiveTab?.title ? ` · ${focusedActiveTab.title}` : '')}
                   </span>
+                  <button
+                    type="button"
+                    className="workspace-statusbar__btn"
+                    onClick={openTerminalTab}
+                    title="New terminal"
+                    aria-label="New terminal"
+                  >
+                    <span aria-hidden>{'>_'}</span>
+                  </button>
                   {canToggleGrid && (
                     <button
                       type="button"
-                      className="workspace-statusbar__toggle"
+                      className="workspace-statusbar__btn"
                       title={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
                       aria-label={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
                       onClick={toggleGrid}
