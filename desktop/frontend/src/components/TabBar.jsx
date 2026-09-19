@@ -76,7 +76,7 @@ export function TabBar({
               aria-label="Split pane down"
               onClick={onSplitDown}
             >
-              ⤓
+              ⊟
             </button>
           )}
         </div>

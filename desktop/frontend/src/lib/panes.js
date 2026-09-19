@@ -142,6 +142,50 @@ export function allTabs(ws) {
   return ws.rows.flatMap((row) => row.panes.flatMap((p) => p.tabs));
 }
 
+// collapse gathers every tab across the grid into a single pane, in reading
+// order, and drops the other panes and rows: one click back from a grid to a
+// tabbed pane, the inverse of tile. The focused pane's active tab stays active
+// if it survives; otherwise the last tab is shown.
+export function collapse(ws) {
+  const tabs = allPanes(ws).flatMap((p) => p.tabs);
+  const focused = focusedPane(ws);
+  const row = ws.rows.find((r) => r.panes.some((p) => p.id === focused.id)) ?? ws.rows[0];
+  const activeKey = tabs.some((t) => t.key === focused.activeKey)
+    ? focused.activeKey
+    : (tabs.length ? tabs[tabs.length - 1].key : null);
+  return {
+    rows: [{ id: row.id, panes: [{ id: focused.id, tabs, activeKey }] }],
+    focused: focused.id,
+    seq: ws.seq,
+  };
+}
+
+// tile spreads every open tab into its own pane, laid out in a near-square grid,
+// so a person can see them all at once instead of splitting and dragging by
+// hand. It is the inverse of collapse. Every pane and row gets a fresh id from
+// the monotonic seq, so no id repeats one a terminal portal or a later split may
+// reuse. The tab that was active stays focused.
+export function tile(ws) {
+  const tabs = allPanes(ws).flatMap((p) => p.tabs);
+  if (tabs.length <= 1) return ws;
+  const focusedKey = focusedPane(ws).activeKey;
+  const cols = Math.ceil(Math.sqrt(tabs.length));
+  let seq = ws.seq;
+  const rows = [];
+  for (let i = 0; i < tabs.length; i += cols) {
+    seq += 1;
+    const rowId = `row-${seq}`;
+    const panes = tabs.slice(i, i + cols).map((t) => {
+      seq += 1;
+      return { id: `pane-${seq}`, tabs: [t], activeKey: t.key };
+    });
+    rows.push({ id: rowId, panes });
+  }
+  const all = rows.flatMap((r) => r.panes);
+  const focused = (all.find((p) => p.activeKey === focusedKey) ?? all[0]).id;
+  return { rows, focused, seq };
+}
+
 // pruneForPersist strips what cannot be restored after a restart — terminal
 // tabs, whose PTYs are gone — then drops any pane or row that leaves empty, so a
 // saved layout never reopens a dead shell or a blank pane. Returns null when

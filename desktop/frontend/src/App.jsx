@@ -13,6 +13,7 @@ import { activeTab, tabIdentity } from './lib/tabs';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
   splitRight, splitDown, moveTab, allTabs, pruneForPersist, isWorkspace,
+  collapse, tile,
 } from './lib/panes';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -73,21 +74,22 @@ function MoonIcon() {
   );
 }
 
-// Theme toggle lives in the user menu, not the header: switching light/dark is a
-// rare action. Rendered inside ThemeProvider, so it reads the live theme. The
-// icon and label name the destination — moon to go dark, sun to go light.
-function ThemeMenuItem() {
+// Theme toggle lives in the workspace status bar, always visible while a project
+// is open — more reachable than the user menu, which hides with the sidebar. Its
+// own component so it can call useTheme from inside ThemeProvider. The icon names
+// the destination — moon to go dark, sun to go light.
+function ThemeStatusButton() {
   const { theme, toggleTheme } = useTheme();
   const dark = theme === 'dark';
   return (
     <button
       type="button"
-      className="sidebar__user-menu-item sidebar__user-menu-item--icon"
-      role="menuitem"
+      className="workspace-statusbar__btn"
+      title={dark ? 'Light mode' : 'Dark mode'}
+      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
       onClick={toggleTheme}
     >
-      <span className="sidebar__user-menu-icon">{dark ? <SunIcon /> : <MoonIcon />}</span>
-      <span>{dark ? 'Light mode' : 'Dark mode'}</span>
+      <span aria-hidden>{dark ? <SunIcon /> : <MoonIcon />}</span>
     </button>
   );
 }
@@ -347,6 +349,13 @@ export default function App() {
   const focusCenterPane = useCallback((paneId) => setWorkspace((s) => focusPane(s, paneId)), []);
   const splitCenterRight = useCallback((paneId) => setWorkspace((s) => splitRight(focusPane(s, paneId))), []);
   const splitCenterDown = useCallback((paneId) => setWorkspace((s) => splitDown(focusPane(s, paneId))), []);
+  // One-click switch between a single tabbed pane and a grid of panes: tile every
+  // tab into its own pane, or collapse them all back into one, so a full grid
+  // never has to be assembled or torn down tab by tab.
+  const toggleGrid = useCallback(() => setWorkspace((s) => {
+    const panes = s.rows.reduce((n, r) => n + r.panes.length, 0);
+    return panes > 1 ? collapse(s) : tile(s);
+  }), []);
   // A tab dragged from one pane's strip and dropped on another pane. Held in
   // state (set once on drag start) so drop handlers read it without a ref.
   const [dragTab, setDragTab] = useState(null);
@@ -735,6 +744,9 @@ export default function App() {
   };
 
   const totalPanes = workspace.rows.reduce((n, r) => n + r.panes.length, 0);
+  // The grid toggle is worth showing only when there is something to rearrange:
+  // more than one pane to collapse, or more than one tab to tile.
+  const canToggleGrid = totalPanes > 1 || allTabs(workspace).length > 1;
 
   const shellClass = [
     'shell',
@@ -860,7 +872,6 @@ export default function App() {
                     {localMode ? 'Models from settings.yaml' : authStatus.email}
                   </div>
                   <div className="sidebar__user-menu-divider" />
-                  <ThemeMenuItem />
                   <button
                     type="button"
                     className="sidebar__user-menu-item"
@@ -887,8 +898,8 @@ export default function App() {
           />
 
           <main className="shell__main">
-            <div className="shell__top">
-              {leftCollapsed && (
+            {leftCollapsed && (
+              <div className="shell__top">
                 <button
                   type="button"
                   className="shell__sidebar-toggle"
@@ -898,26 +909,8 @@ export default function App() {
                 >
                   ☰
                 </button>
-              )}
-              <div className="shell__top-titles">
-                <span className="shell__title">
-                  {currentProject ? (focusedActiveTab?.title || currentProject.name) : 'Home'}
-                </span>
               </div>
-              {currentProject && (
-                <div className="inspector-tabs" role="group" aria-label="Workspace actions">
-                  <button
-                    type="button"
-                    className="inspector-tabs__btn"
-                    onClick={openTerminalTab}
-                    title="New terminal"
-                    aria-label="New terminal"
-                  >
-                    <span className="inspector-tabs__icon" aria-hidden>{'>_'}</span>
-                  </button>
-                </div>
-              )}
-            </div>
+            )}
             <div className="shell__content">
               {(error || projectNotices.length > 0) && (
                 <div className="workspace-banners">
@@ -942,7 +935,7 @@ export default function App() {
                   onCreateProject={() => setShowCreateModal(true)}
                 />
               ) : (
-                <div className="workspace-grid">
+                <div className={`workspace-grid${totalPanes > 1 ? ' workspace-grid--split' : ''}`}>
                   {workspace.rows.map((row) => (
                     <div key={row.id} className="workspace-grid__row">
                       {row.panes.map((pane) => {
@@ -990,6 +983,42 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+            {/* The status bar is a global first-class surface: present on Home and
+                in a project alike. Theme lives here always; the workspace controls
+                (new terminal, grid/tab) appear only with a project open. */}
+            <div className="workspace-statusbar">
+              <span className="workspace-statusbar__status">
+                {currentProject
+                  ? `${currentProject.name}${totalPanes > 1
+                    ? ` · ${totalPanes} panes`
+                    : (focusedActiveTab?.title ? ` · ${focusedActiveTab.title}` : '')}`
+                  : 'Home'}
+              </span>
+              {currentProject && (
+                <button
+                  type="button"
+                  className="workspace-statusbar__btn"
+                  onClick={openTerminalTab}
+                  title="New terminal"
+                  aria-label="New terminal"
+                >
+                  <span aria-hidden>{'>_'}</span>
+                </button>
+              )}
+              <ThemeStatusButton />
+              {currentProject && canToggleGrid && (
+                <button
+                  type="button"
+                  className="workspace-statusbar__btn"
+                  title={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
+                  aria-label={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
+                  onClick={toggleGrid}
+                >
+                  <span aria-hidden>{totalPanes > 1 ? '□' : '▦'}</span>
+                  {totalPanes > 1 ? ' Tabs' : ' Grid'}
+                </button>
               )}
             </div>
           </main>

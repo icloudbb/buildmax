@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
   splitRight, splitDown, moveTab, focusedPane, allTabs, pruneForPersist, isWorkspace,
+  collapse, tile,
 } from './panes';
 
 // openTab (via openInFocused) computes each tab's `key`, so tests open by path.
@@ -148,6 +149,49 @@ describe('workspace persistence', () => {
     expect(isWorkspace({ rows: [], focused: 'x', seq: 1 })).toBe(false);
     expect(isWorkspace({ rows: [{ id: 'r', panes: [] }], focused: 'x', seq: 1 })).toBe(false);
     expect(isWorkspace(emptyWorkspace)).toBe(true);
+  });
+});
+
+describe('grid / tab toggle', () => {
+  const four = () => {
+    let ws = open(emptyWorkspace, 'a');
+    ws = open(ws, 'b');
+    ws = open(ws, 'c');
+    ws = open(ws, 'd');
+    return ws;
+  };
+
+  it('tiles every tab into its own pane in a near-square grid', () => {
+    const ws = tile(four());
+    expect(paneCount(ws)).toBe(4);
+    expect(ws.rows.length).toBe(2);
+    expect(ws.rows.every((r) => r.panes.length === 2)).toBe(true);
+    expect(ws.rows.flatMap((r) => r.panes).every((p) => p.tabs.length === 1)).toBe(true);
+    expect(allTabs(ws).map((t) => t.ref)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('keeps the active tab focused after tiling and gives every pane a unique growing id', () => {
+    const ws = tile(four());
+    expect(focusedPane(ws).tabs[0].ref).toBe('d');
+    const ids = ws.rows.flatMap((r) => [r.id, ...r.panes.map((p) => p.id)]);
+    expect(new Set(ids).size).toBe(ids.length);
+    // seq covers every id assigned, so a later split cannot reuse one.
+    expect(ws.seq).toBeGreaterThanOrEqual(4);
+    expect(isWorkspace(ws)).toBe(true);
+  });
+
+  it('does not tile a single tab', () => {
+    const ws = open(emptyWorkspace, 'only');
+    expect(tile(ws)).toBe(ws);
+  });
+
+  it('collapses a grid back into one pane holding every tab in order', () => {
+    const ws = collapse(tile(four()));
+    expect(paneCount(ws)).toBe(1);
+    expect(ws.rows.length).toBe(1);
+    expect(allTabs(ws).map((t) => t.ref)).toEqual(['a', 'b', 'c', 'd']);
+    const active = focusedPane(ws).tabs.find((t) => t.ref === 'd');
+    expect(focusedPane(ws).activeKey).toBe(active.key);
   });
 });
 

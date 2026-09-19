@@ -56,51 +56,6 @@
   color: var(--color-text);
 }
 
-/* ── Shell toolbar: inspector view switch ───────────────────────────────── */
-
-.inspector-tabs {
-  display: flex;
-  align-items: center;
-  gap: 0.15rem;
-  flex-shrink: 0;
-}
-
-.inspector-tabs__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.9rem;
-  height: 1.9rem;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.inspector-tabs__btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text);
-}
-
-.inspector-tabs__btn[aria-pressed='true'] {
-  background: var(--color-bg-hover);
-  border-color: var(--color-border);
-  color: var(--color-text);
-}
-
-.inspector-tabs__icon {
-  display: inline-flex;
-  line-height: 1;
-}
-
-.inspector-tabs__icon svg {
-  width: 1.05rem;
-  height: 1.05rem;
-  display: block;
-}
-
 /* ── Resize handles (sidebar | chat | inspector) ────────────────────────── */
 
 .inspector-resizer,
