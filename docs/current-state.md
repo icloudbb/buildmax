@@ -447,10 +447,10 @@ source and the `/api/spaces/{space_id}/schedules` API, dispatched by a resident
 loop that claims each due time once across replicas, coalesces missed firings
 into one catch-up, and pauses a schedule after five consecutive failed firings
 or when its creator can no longer run work in the Space — disabled, or removed
-from it. Portal creates and manages schedules on the
-Agent detail page and lists every schedule in a Space on a Schedules page; the
-pause reason is recorded on the schedule (`pause_reason`) but not yet shown in
-Portal. They are not a conversation channel
+from it. Portal creates and manages schedules on both the Agent detail page and
+the Space-wide Schedules page (which lists every schedule and picks the Agent to
+run); the pause reason is recorded on the schedule (`pause_reason`) but not yet
+shown in Portal. They are not a conversation channel
 ([`internal/core/schedule`](../internal/core/schedule/schedule.go),
 [`internal/server/scheduler`](../internal/server/scheduler),
 [design](design/scheduled-agent-execution.md)). Space plugin activation supports skill/subagent content but rejects

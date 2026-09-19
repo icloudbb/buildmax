@@ -72,3 +72,35 @@ test("the space Schedules page lists a schedule and its agent", async ({ page })
   // per-agent tab.
   await expect(panel.getByText(agentName, { exact: true })).toBeVisible()
 })
+
+// The overview is also a creation surface: a member can add a schedule here,
+// choosing which agent runs it, without opening the agent first. This drives the
+// form through the browser to prove the picker and submit path, not just the API.
+test("a schedule can be created from the space Schedules page", async ({ page }) => {
+  const current = await session(page)
+
+  const agentName = tagged("Overview create agent")
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
+    name: agentName,
+    description: "Created by the Portal browser tests.",
+    instructions: "Reply with exactly: deployment smoke ok",
+  })
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`])
+
+  await page.goto(`/#/spaces/${current.spaceId}/schedules`)
+  await page.getByRole("button", { name: "New schedule" }).first().click()
+
+  const name = tagged("Created from overview")
+  await page.getByLabel("Agent").selectOption({ label: agentName })
+  await page.getByLabel("Name (optional)").fill(name)
+  await page.getByLabel("Prompt").fill("Summarize the new issues")
+  await page.getByLabel("Cron expression").fill("15 7 * * *")
+  await page.getByLabel("Timezone").fill("UTC")
+  await page.getByRole("button", { name: "Create schedule" }).click()
+
+  const panel = page.locator(".issues-page__panel").filter({
+    has: page.getByRole("heading", { name: "All Schedules" }),
+  })
+  await expect(panel.getByText(name, { exact: true })).toBeVisible()
+  await expect(panel.getByText(agentName, { exact: true })).toBeVisible()
+})

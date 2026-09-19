@@ -4,8 +4,8 @@ import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiTaskToTask } from "../../lib/api/mappers"
 import { runStatusLabel, runStatusTone } from "../conversations/thread"
+import { CreateScheduleForm } from "./CreateScheduleForm"
 import {
-  createSchedule,
   deleteSchedule,
   listScheduleTasks,
   listSchedules,
@@ -101,86 +101,6 @@ export function SchedulesSection({ token, spaceId, agentId, canManage }: Schedul
         </ul>
       )}
     </div>
-  )
-}
-
-function CreateScheduleForm({
-  token,
-  spaceId,
-  agentId,
-  onCreated,
-  onCancel,
-}: {
-  token: string
-  spaceId: string
-  agentId: string
-  onCreated: () => Promise<void>
-  onCancel: () => void
-}) {
-  const [name, setName] = useState("")
-  const [input, setInput] = useState("")
-  const [cronExpr, setCronExpr] = useState("")
-  const [timezone, setTimezone] = useState("UTC")
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  async function submit() {
-    if (!input.trim() || !cronExpr.trim() || !timezone.trim()) {
-      setErr("Input, cron expression, and timezone are required.")
-      return
-    }
-    setBusy(true)
-    setErr(null)
-    try {
-      await createSchedule(
-        spaceId,
-        { agent_id: agentId, name: name.trim(), input, cron_expr: cronExpr.trim(), timezone: timezone.trim() },
-        token,
-      )
-      await onCreated()
-    } catch (e) {
-      setErr(getErrorMessage(e, "Failed to create schedule"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form
-      className="agent-schedules__form"
-      onSubmit={(e) => {
-        e.preventDefault()
-        void submit()
-      }}
-    >
-      <label className="agent-schedules__label">
-        Name (optional)
-        <input className="agent-schedules__input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nightly summary" />
-      </label>
-      <label className="agent-schedules__label">
-        Prompt
-        <textarea className="agent-schedules__input" value={input} onChange={(e) => setInput(e.target.value)} rows={3} placeholder="Summarize the new issues" />
-      </label>
-      <label className="agent-schedules__label">
-        Cron expression
-        <input className="agent-schedules__input" value={cronExpr} onChange={(e) => setCronExpr(e.target.value)} placeholder="0 9 * * *" />
-        <span className="agent-schedules__hint">Five fields: minute hour day-of-month month day-of-week. Example: 0 9 * * * is 09:00 daily.</span>
-      </label>
-      <label className="agent-schedules__label">
-        Timezone
-        <input className="agent-schedules__input" value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="Asia/Shanghai" />
-        <span className="agent-schedules__hint">An IANA timezone name; the cron time is read in it.</span>
-      </label>
-      {err ? <p className="agent-schedules__error" role="alert">{err}</p> : null}
-      <div className="agent-schedules__form-actions">
-        <button type="submit" className="page-activity__action-btn" disabled={busy}>
-          {busy ? "Creating…" : "Create schedule"}
-        </button>
-        <button type="button" className="page-activity__action-btn" onClick={onCancel} disabled={busy}>
-          Cancel
-        </button>
-      </div>
-    </form>
   )
 }
 
