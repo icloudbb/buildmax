@@ -267,6 +267,7 @@ internal/
 │   │   ├── artifact/   以不透明 ID 寻址的 Artifact；space 来自该记录本身
 │   │   ├── auth/       建立一个 session：登录、刷新、登出、密码
 │   │   ├── auditexport/  space 与 admin 审计路由共用的 CSV 导出
+│   │   ├── llmcallview/  为一行调用账本计价，供 space 与 admin 路由共用
 │   │   ├── llmhttp/    通过 HTTP 暴露的受管网关，供 space 与 worker 路由共用
 │   │   ├── runterminal/  向任何在关注它的人宣布一次 run 已完成
 │   │   ├── space/       一个 space 拥有什么：成员、agent、用量、审计

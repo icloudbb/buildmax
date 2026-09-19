@@ -1,6 +1,7 @@
 export { AdminAccounts } from "./AdminAccounts"
 export { AdminAdministrators } from "./AdminAdministrators"
 export { AdminAudit } from "./AdminAudit"
+export { AdminLLMCalls } from "./AdminLLMCalls"
 export { AdminModels } from "./AdminModels"
 export { AdminOverview } from "./AdminOverview"
 export { AdminPlugins } from "./AdminPlugins"

@@ -54,7 +54,9 @@ test("choosing a destination in the drawer navigates and closes it", async ({ pa
 test("a tabbed dialog becomes a full-height sheet with a horizontal, arrow-key tablist", async ({ page }) => {
   const current = await session(page)
   await page.goto(`/#/spaces/${current.spaceId}/agents`)
-  await page.getByRole("button", { name: "Create agent" }).click()
+  // exact: agents named "…create agent…" render cards whose accessible name
+  // matches this substring, so a seeded list makes the bare locator ambiguous.
+  await page.getByRole("button", { name: "Create agent", exact: true }).click()
 
   const dialog = page.getByRole("dialog", { name: "New Agent" })
   await expect(dialog).toBeVisible()

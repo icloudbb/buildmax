@@ -49,6 +49,9 @@ func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID strin
 	}
 	return out, nil
 }
+func (l *llmStubLedger) SearchLLMCalls(context.Context, coregw.CallFilter, int, int) ([]coregw.Call, int, error) {
+	return nil, 0, nil
+}
 
 const llmTestSecret = "test-llm-secret"
 

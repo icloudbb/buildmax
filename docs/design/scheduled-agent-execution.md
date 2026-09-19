@@ -250,12 +250,14 @@ relation, exactly as it carries optional `issue_id` and `workflow_step_run_id`
   `cron_expr` and `timezone` are validated at write time; an invalid expression
   is a `KindInvalid` refusal, never a row that fails silently at fire time.
 
-- **Portal.** Schedules are created and managed on the Agent detail page,
-  where a section lists that Agent's schedules with next and last fire, enabled
-  state, Enable/Disable, Delete, and the Tasks each schedule created. A
-  Space-wide **Schedules** page in the sidebar shows every schedule across
-  Agents so an owner can see what unattended automation is running and pause
-  it; creation happens from the Agent.
+- **Portal.** The Agent detail page has a Schedules section that lists that
+  Agent's schedules with next and last fire, enabled state, Enable/Disable,
+  Delete, the Tasks each schedule created, and a form to add one for that Agent.
+  The Space-wide **Schedules** page in the sidebar shows every schedule across
+  Agents so an owner can see what unattended automation is running and pause it,
+  and also creates one there — the same form, plus a picker for which Agent
+  runs it. Both entry points share one create form and the `manage_schedules`
+  member capability; editing an existing schedule stays on its Agent.
 
 - **Deleting a schedule** removes only the trigger. Tasks it already created are
   independent execution history and are untouched — they are not the

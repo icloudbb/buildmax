@@ -4,6 +4,7 @@ import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getAgents } from "../../features/agents"
 import { listSchedules, updateSchedule } from "../../features/schedules/api"
+import { CreateScheduleForm, type ScheduleAgentOption } from "../../features/schedules/CreateScheduleForm"
 import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { Alert } from "../../components/state/Alert"
 import { EmptyState } from "../../components/state/EmptyState"
@@ -22,9 +23,10 @@ function formatWhen(iso: string | null | undefined): string {
 }
 
 // This is the space-wide overview: every schedule across every agent, so an
-// owner can see what unattended automation is running. A schedule is created
-// and edited on its agent's detail page; here a member can only pause or resume
-// one and open its agent. See docs/design/scheduled-agent-execution.md.
+// owner can see what unattended automation is running. A member can create a
+// schedule here (picking which agent runs it), pause or resume one, and open its
+// agent; editing an existing schedule stays on the agent's detail page. See
+// docs/design/scheduled-agent-execution.md.
 export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
   const { currentUserRole } = useSpace()
   // Any member may manage schedules (manage_schedules is member-tier), so the
@@ -33,14 +35,23 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
     currentUserRole === "owner" || currentUserRole === "admin" || currentUserRole === "member"
   )
   const canManage = isAllowed(canManageState)
+  // Creating needs a token to call the API; the pause/resume actions already do.
+  const canCreate = canManage && !!token
 
   // null means "not yet successfully fetched", distinct from [] (no schedules).
   const [schedulesData, setSchedulesData] = useState<ApiSchedule[] | null>(null)
-  const [agentNames, setAgentNames] = useState<Record<string, string>>({})
+  const [agents, setAgents] = useState<ScheduleAgentOption[]>([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<RequestError | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+
+  // The overview lets any member pick which agent a new schedule runs.
+  const agentNames = useMemo(
+    () => Object.fromEntries(agents.map((a) => [a.id, a.name])),
+    [agents]
+  )
 
   const fetchSchedules = useCallback(() => {
     if (!token || !spaceId) {
@@ -52,9 +63,9 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
     setLoading(true)
     setListError(null)
     return Promise.all([listSchedules(spaceId, token), getAgents(spaceId, token)])
-      .then(([scheduleRes, agents]) => {
+      .then(([scheduleRes, agentList]) => {
         setSchedulesData(scheduleRes.schedules)
-        setAgentNames(Object.fromEntries(agents.map((a) => [a.id, a.name])))
+        setAgents(agentList.map((a) => ({ id: a.id, name: a.name })))
       })
       // schedulesData from a prior fetch is left in place, so a failed refresh
       // reads as Stale rather than wiping the list.
@@ -92,10 +103,28 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
         <div>
           <h1 className="page-activity__title">Schedules</h1>
           <p className="page-activity__subtitle">
-            Every recurring schedule in this space. Create or edit one on its agent&apos;s page.
+            Every recurring schedule in this space. Each runs one agent on a cron timetable.
           </p>
         </div>
+        {canCreate && !creating ? (
+          <button type="button" className="page-activity__action-btn" onClick={() => setCreating(true)}>
+            New schedule
+          </button>
+        ) : null}
       </div>
+
+      {canCreate && creating ? (
+        <CreateScheduleForm
+          token={token as string}
+          spaceId={spaceId}
+          agents={agents}
+          onCreated={async () => {
+            setCreating(false)
+            await fetchSchedules()
+          }}
+          onCancel={() => setCreating(false)}
+        />
+      ) : null}
 
       {(schedulesState.kind === "error" ||
         schedulesState.kind === "forbidden" ||
@@ -118,7 +147,10 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
         {schedulesState.kind === "loading" ? (
           <p className="page-activity__empty">Loading…</p>
         ) : schedulesState.kind === "readyEmpty" ? (
-          <EmptyState message="No schedules yet. Open an agent and add one to run it on a timetable." />
+          <EmptyState
+            message="No schedules yet. Create one to run an agent on a timetable."
+            action={canCreate && !creating ? { label: "New schedule", onClick: () => setCreating(true) } : undefined}
+          />
         ) : schedulesState.kind === "error" || schedulesState.kind === "forbidden" || schedulesState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
             {(schedulesData ?? []).map((s) => {

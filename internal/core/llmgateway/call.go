@@ -128,6 +128,29 @@ type CallOutcome struct {
 	Usage *CallUsage
 }
 
+// CallFilter narrows a deployment-wide ledger read. A zero value matches every
+// call; each set field is one more bound.
+//
+// There is no space field because the ledger has no space column: a call is
+// attributed to a person, and a run's space is reached through its task run.
+// The reader who applies this filter is a deployment administrator, which is why
+// it can span users at all.
+type CallFilter struct {
+	// UserID is the caller's public id. A call the server made on its own
+	// behalf has none and is matched only by an empty UserID.
+	UserID string
+	// Model is what the caller asked for, matched exactly, not the upstream
+	// model that served it.
+	Model string
+	// Status is one of the CallStatus constants.
+	Status string
+	// Surface is one of the CallSurface constants.
+	Surface string
+	// Since and Until bound accepted_at inclusively. A zero time is no bound.
+	Since time.Time
+	Until time.Time
+}
+
 // CallStore persists the managed call ledger.
 type CallStore interface {
 	// OpenLLMCall records an accepted call before the upstream request starts.
@@ -147,4 +170,8 @@ type CallStore interface {
 	// A run belongs to exactly one space, so authorizing the run authorizes its
 	// ledger; the caller must have established that before asking.
 	ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]Call, error)
+	// SearchLLMCalls returns the calls matching filter, newest first, and the
+	// total count matching it regardless of the page window. It spans every user
+	// and space, so only a deployment administrator may reach it.
+	SearchLLMCalls(ctx context.Context, filter CallFilter, limit, offset int) ([]Call, int, error)
 }
