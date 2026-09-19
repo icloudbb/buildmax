@@ -12,6 +12,7 @@ import (
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
 	"github.com/icloudbb/buildmax/internal/service/task"
+	"github.com/icloudbb/buildmax/internal/service/workflow"
 )
 
 var (
@@ -22,6 +23,7 @@ var (
 // Service is the single Tier 1 orchestration entry point for portal turns.
 type Service struct {
 	TaskService       *task.Service
+	WorkflowService   *workflow.Service
 	ConversationStore coreconv.Store
 	MessageStore      coreconv.MessageStore
 	LLMClient         llm.LLMClient
@@ -93,16 +95,17 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 	spaceID := s.fetchSpaceID(ctx, cmd.ConversationID, cmd.Channel)
 
 	runInput := turnRunInput{
-		ConversationID: cmd.ConversationID,
-		Message:        cmd.Message,
-		Channel:        cmd.Channel,
-		UserID:         cmd.UserID,
-		SpaceID:        spaceID,
-		TaskService:    s.taskServiceForChannel(cmd.Channel),
-		AgentSummaries: s.fetchAgentSummaries(ctx, spaceID, cmd.Channel),
-		TitleGenerator: s.TitleGenerator,
-		StreamSink:     cmd.StreamSink,
-		Fence:          cmd.Fence,
+		ConversationID:  cmd.ConversationID,
+		Message:         cmd.Message,
+		Channel:         cmd.Channel,
+		UserID:          cmd.UserID,
+		SpaceID:         spaceID,
+		TaskService:     s.taskServiceForChannel(cmd.Channel),
+		WorkflowService: s.workflowServiceForChannel(cmd.Channel),
+		AgentSummaries:  s.fetchAgentSummaries(ctx, spaceID, cmd.Channel),
+		TitleGenerator:  s.TitleGenerator,
+		StreamSink:      cmd.StreamSink,
+		Fence:           cmd.Fence,
 	}
 	reply, err := runConversationTurn(ctx, s.ConversationStore, s.MessageStore, s.LLMClient, runInput)
 	return ConversationResult{Reply: reply}, err
@@ -113,6 +116,13 @@ func (s *Service) taskServiceForChannel(channel string) *task.Service {
 		return nil
 	}
 	return s.TaskService
+}
+
+func (s *Service) workflowServiceForChannel(channel string) *workflow.Service {
+	if channel == convchannel.ChannelSystem {
+		return nil
+	}
+	return s.WorkflowService
 }
 
 // fetchSpaceID looks up the conversation's space once so StartTask and agent listing share it.

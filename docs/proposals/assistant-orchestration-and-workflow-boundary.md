@@ -572,6 +572,63 @@ Workflow. A trace contains contingent decisions and data, not a safe reusable
 contract. Conversion must produce a reviewable draft with typed inputs,
 bindings, limits, Agent revisions, and side-effect policy.
 
+### 9.5 Invoking A Callable Unit From The Conversation Surface
+
+The principle in section 1 — Agent, delegation, and Workflow all execute
+through Task and TaskRun — has a consequence for the foreground conversation
+that the current tool surface does not yet honor. From the caller's side, a
+direct Agent Task and a Workflow run are the same shape: a typed objective
+admitted onto Task and TaskRun that yields a durable, observable result. The
+foreground surface should treat "run this Agent" and "run this Workflow" as two
+ways to launch a **callable unit**, not two unrelated features.
+
+Today they are asymmetric. The foreground conversation agent builds four Task
+tools — start, list, get, and continue a Task — and nothing else. It has no
+Workflow tool and no Issue tool; in fact no Agent tier exposes a Workflow tool
+at all, because Workflows are created and run only through the Portal API and
+the reconciler. A foreground agent asked to run a Space's published Workflow
+can neither see it nor start it, even though the Workflow is a callable unit
+that already lands on the same Task plane the agent uses for a direct Task.
+
+The recommendation is to give the conversation surface **invoke-and-observe**
+access to Workflows, mirroring the Task tools, and to withhold authoring:
+
+| Foreground capability | Task-tool analog | What it does |
+|---|---|---|
+| List Workflows | List Tasks | Enumerate the Space's published Workflows with their input contract |
+| Run Workflow | Start Task | Start a run of one published Workflow with typed input |
+| Get Workflow run | Get Task | Read a run's status, result, and node states |
+
+These are logical capabilities, not committed LLM-facing tool names, on the
+same footing as the delegation capabilities in section 8.2. Four constraints
+are load-bearing:
+
+- Only a published Workflow is a callable unit. A draft or archived definition
+  is not listable or runnable from the conversation.
+- The model must supply input that conforms to the Workflow's published input
+  schema. Invocation validates the input and returns a typed failure the model
+  can correct, never a silent or untyped error — the same validate-or-typed
+  result rule the run boundary already applies to structured output.
+- Issue linkage is an explicit, optional parameter. The conversation does not
+  infer an Issue from its own context, preserving the rule that a Conversation
+  may originate work without becoming its ownership or authorization parent.
+- The run is an ordinary WorkflowRun on the Space's Task plane. The
+  conversation observes durable state; it does not own or mutate node
+  execution. This is the same authority boundary section 11.4 requires of
+  delegation.
+
+Authoring stays out. A conversational tool that emitted a Workflow definition
+would erase the very property that distinguishes a Workflow from an Agent trace
+(section 9.2): a diffable plan reviewed before it can run. Authoring belongs to
+the discovery-then-hardening path in section 9.4 — a foreground agent may
+propose a reviewable draft, but activation remains a human publish action, not
+a tool call.
+
+The same asymmetry exists for Issue, the primary user-facing work object, which
+also has no conversation tool. Extending the identical invoke-and-observe
+treatment to Issue is the obvious next symmetry once the Workflow surface is
+proven, but it is out of scope for this section.
+
 ## 10. Options
 
 ### 10.1 Option A: Continue With Workflow-First Product Development
@@ -883,6 +940,12 @@ Portal terminology together. This proposal is then retired.
    an Agent skill, or neither?
 10. Which parts of the accepted Workflow reconciler can coordinate dynamic
     child Tasks without merging Assistant and Workflow semantics?
+11. Should every published Workflow be visible to the foreground conversation
+    agent, or should a Space curate which Workflows the conversation may list
+    and start (section 9.5)?
+12. Does returning a Workflow's full input schema inline scale for listing, or
+    should the surface return a compact descriptor and fetch the schema
+    separately when the agent commits to a run (section 9.5)?
 
 ## 16. Likely Destination
 

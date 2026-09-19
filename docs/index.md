@@ -170,3 +170,4 @@ Jump / 快速跳转：[开始](#start--开始) · [部署](#deployment--部署) 
 
 - [English: Changelog Entries](changelog/README.md) · [中文：变更日志条目](zh-CN/changelog/README.md)
 - [English: Terminal-Bench 4.0 evaluation target](changelog/changed/terminal-bench-4-target.md) · 中文：—
+- [English: Portal chat can run workflows](changelog/added/chat-run-workflows.md) · 中文：—

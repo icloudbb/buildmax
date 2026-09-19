@@ -227,7 +227,11 @@ Foreground time, tool, permission, and resource budgets, the context Tier 1 may
 read, and a validated ExecutionSpec are all open.
 
 Deferred safely because Tier 1 is already bounded in practice: ten iterations, a
-non-interactive policy, and four task tools with no filesystem or shell access.
+non-interactive policy, and a small set of task and workflow tools with no
+filesystem or shell access. It starts and observes durable work — background
+tasks, and published workflow runs it may list, start, and read — but cannot
+touch the filesystem or shell, and cannot author a workflow (see
+[assistant orchestration and the workflow boundary §9.5](../proposals/assistant-orchestration-and-workflow-boundary.md#95-invoking-a-callable-unit-from-the-conversation-surface)).
 The budget becomes a **prerequisite** the moment Tier 1 is allowed to read space
 files, issues, and results — not before.
 

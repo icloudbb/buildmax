@@ -210,7 +210,10 @@ Agent，而 Workflow、Issue 和 Task 路由则都会显式地指定一个。Spa
 校验的 ExecutionSpec，这些目前都还是开放问题。
 
 之所以可以安全地延后，是因为 Tier 1 在实践中已经受到了限制：最多十轮迭代、
-非交互式策略，以及四个没有文件系统或 shell 访问权限的 Task 工具。一旦
+非交互式策略，以及一小组没有文件系统或 shell 访问权限的 Task 与 Workflow
+工具。它启动并观察持久化的工作——后台 Task，以及它可以列出、启动和读取的已发布
+Workflow run——但无法触及文件系统或 shell，也无法创作 Workflow（见
+[助理编排与 Workflow 边界 §9.5](../proposals/assistant-orchestration-and-workflow-boundary.md#95-从对话界面调用一个可调用单元)）。一旦
 Tier 1 被允许读取 Space 的文件、Issue 和结果，这个预算就会立刻变成一个
 **前提条件**——但在那之前不必着急。
 

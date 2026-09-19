@@ -14,6 +14,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/service/conversation"
 	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
 	"github.com/icloudbb/buildmax/internal/service/task"
+	"github.com/icloudbb/buildmax/internal/service/workflow"
 )
 
 type conversationListResponse struct {
@@ -99,9 +100,10 @@ func (h *Handler) conversationService() *conversation.Service {
 	return h.conversations
 }
 
-func newConversationService(cfg Config, tasks *task.Service) *conversation.Service {
+func newConversationService(cfg Config, tasks *task.Service, workflows *workflow.Service) *conversation.Service {
 	return &conversation.Service{
 		TaskService:       tasks,
+		WorkflowService:   workflows,
 		ConversationStore: cfg.Conversations,
 		MessageStore:      cfg.Messages,
 		LLMClient:         cfg.ConversationLLM,
