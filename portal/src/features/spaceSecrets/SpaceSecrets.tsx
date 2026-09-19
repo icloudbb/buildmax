@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { getInitials } from "@buildmax/gui"
+import { Button, IconButton, getInitials } from "@buildmax/gui"
 import type { ApiSecret } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { createSecret, editSecret, listSecrets, setSecretState } from "./api"
@@ -110,9 +110,9 @@ export function SpaceSecrets({
           </p>
         </div>
         {!creating ? (
-          <button className="btn btn--primary" onClick={() => setCreating(true)}>
+          <Button variant="primary" onClick={() => setCreating(true)}>
             New secret
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -277,9 +277,9 @@ function CreateSecretForm({
       <div className="sec-field">
         <div className="sec-field__row">
           <span className="modal__label">Items</span>
-          <button className="btn btn--ghost btn--sm" onClick={() => setRaw(!raw)}>
+          <Button variant="tertiary" size="compact" onClick={() => setRaw(!raw)}>
             {raw ? "Row editor" : "Paste JSON"}
-          </button>
+          </Button>
         </div>
         {raw ? (
           <textarea
@@ -301,12 +301,12 @@ function CreateSecretForm({
       ) : null}
 
       <div className="sec-form__actions">
-        <button className="btn btn--secondary" onClick={onCancel} disabled={busy}>
+        <Button variant="secondary" onClick={onCancel} disabled={busy}>
           Cancel
-        </button>
-        <button className="btn btn--primary" onClick={() => void submit()} disabled={busy}>
-          {busy ? "Saving…" : "Create secret"}
-        </button>
+        </Button>
+        <Button variant="primary" busy={busy} onClick={() => void submit()}>
+          Create secret
+        </Button>
       </div>
     </div>
   )
@@ -346,22 +346,22 @@ function ItemRowsEditor({
               setRows(next)
             }}
           />
-          <button
-            className="sec-item__remove"
+          <IconButton
+            variant="tertiary"
             onClick={() => setRows(rows.filter((_, j) => j !== i))}
             aria-label="Remove item"
             title="Remove item"
           >
             ✕
-          </button>
+          </IconButton>
         </div>
       ))}
-      <button
-        className="btn btn--ghost btn--sm sec-items__add"
+      <Button
+        variant="tertiary" size="compact" className="sec-items__add"
         onClick={() => setRows([...rows, { key: "", value: "" }])}
       >
         + Add item
-      </button>
+      </Button>
     </div>
   )
 }
@@ -422,20 +422,20 @@ function SecretCard({
 
       {!destroyed ? (
         <div className="sec-card__actions">
-          <button className="btn btn--secondary btn--sm" onClick={onToggle}>
+          <Button variant="secondary" size="compact" onClick={onToggle}>
             {open ? "Close" : "Edit items"}
-          </button>
+          </Button>
           {secret.state === "active" ? (
-            <button className="btn btn--ghost btn--sm" onClick={() => void onSetState("disabled")}>
+            <Button variant="tertiary" size="compact" onClick={() => void onSetState("disabled")}>
               Disable
-            </button>
+            </Button>
           ) : (
-            <button className="btn btn--ghost btn--sm" onClick={() => void onSetState("active")}>
+            <Button variant="tertiary" size="compact" onClick={() => void onSetState("active")}>
               Enable
-            </button>
+            </Button>
           )}
-          <button
-            className="btn btn--danger btn--sm sec-card__destroy"
+          <Button
+            variant="danger" size="compact" className="sec-card__destroy"
             onClick={() => {
               if (window.confirm(`Destroy secret "${secret.name}"? This cannot be undone.`)) {
                 void onSetState("destroyed")
@@ -443,7 +443,7 @@ function SecretCard({
             }}
           >
             Destroy
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -526,9 +526,9 @@ function EditItemsForm({
       ) : null}
 
       <div className="sec-form__actions">
-        <button className="btn btn--primary btn--sm" onClick={() => void submit()} disabled={busy}>
-          {busy ? "Saving…" : "Save items"}
-        </button>
+        <Button variant="primary" size="compact" busy={busy} onClick={() => void submit()}>
+          Save items
+        </Button>
       </div>
     </div>
   )

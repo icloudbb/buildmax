@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
 import { CopyButton } from "./CopyButton"
@@ -8,7 +9,6 @@ import {
   type WebhookKeyMeta,
   type CreateWebhookKeyResponse,
 } from "../features/webhookKeys/api"
-import { cn } from "../lib/cn"
 
 interface WebhookKeysSectionProps {
   token: string | null
@@ -88,18 +88,14 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
           </p>
           <div className="settings-webhook__new-key-row">
             <code className="settings-webhook__new-key-value">{newKey.key}</code>
-            <CopyButton
-              value={newKey.key}
-              className="settings-webhook__btn settings-webhook__btn--copy"
-            />
+            <CopyButton value={newKey.key} />
           </div>
-          <button
-            type="button"
-            className="settings-webhook__btn settings-webhook__btn--secondary"
+          <Button
+            variant="secondary"
             onClick={handleCloseNewKey}
           >
             Done
-          </button>
+          </Button>
         </div>
       )}
 
@@ -112,14 +108,12 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
           onChange={(e) => setKeyName(e.target.value)}
           disabled={creating}
         />
-        <button
-          type="button"
-          className="settings-webhook__btn settings-webhook__btn--primary"
+        <Button
+          variant="primary" busy={creating}
           onClick={handleCreateKey}
-          disabled={creating}
         >
-          {creating ? "Creating…" : "Create key"}
-        </button>
+          Create key
+        </Button>
       </div>
 
       {loading ? (
@@ -134,17 +128,15 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
               <span className="settings-webhook__key-meta">
                 {new Date(k.created_at).toLocaleString()}
               </span>
-              <button
-                type="button"
-                className={cn(
-                  "settings-webhook__btn settings-webhook__btn--danger",
-                  revokingId === k.id && "settings-webhook__btn--busy"
-                )}
-                onClick={() => handleRevoke(k.id)}
+              <Button
+                variant="danger"
+                size="compact"
+                busy={revokingId === k.id}
                 disabled={revokingId !== null}
+                onClick={() => handleRevoke(k.id)}
               >
-                {revokingId === k.id ? "Revoking…" : "Revoke"}
-              </button>
+                Revoke
+              </Button>
             </li>
           ))}
         </ul>

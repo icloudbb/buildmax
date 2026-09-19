@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { BaseModal } from "@buildmax/gui"
+import { Button, BaseModal } from "@buildmax/gui"
 import { useAuth } from "../contexts/AuthContext"
 import { useSpace } from "../contexts/SpaceContext"
 import { createSpace } from "../features/spaces/api"
@@ -64,9 +64,8 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
             </p>
           ) : null}
           <div className="space-settings-page__dialog-actions">
-            <button
-              type="button"
-              className="space-settings-page__secondary-btn"
+            <Button
+              variant="secondary"
               disabled={creating}
               onClick={() => {
                 setSpaceName("")
@@ -75,15 +74,14 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
               }}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className="page-activity__action-btn"
-              disabled={creating || !spaceName.trim()}
+            </Button>
+            <Button
+              variant="primary" busy={creating}
+              disabled={!spaceName.trim()}
               onClick={() => void handleCreate()}
             >
-              {creating ? "Creating..." : "Create Space"}
-            </button>
+              Create Space
+            </Button>
           </div>
         </div>
       </div>

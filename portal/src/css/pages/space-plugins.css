@@ -99,17 +99,6 @@
 
 /* Actions */
 .tp-card__actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.tp-btn {
-  font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
-  color: var(--color-primary-text); background: var(--color-primary);
-  border: 1px solid var(--color-primary); border-radius: 7px; padding: 6px 13px;
-}
-.tp-btn:hover { opacity: 0.9; }
-.tp-btn:disabled { opacity: 0.5; cursor: default; }
-.tp-btn--ghost {
-  color: var(--color-text); background: transparent; border-color: var(--color-input-border);
-}
-.tp-btn--ghost:hover { background: var(--color-bg-hover); opacity: 1; }
 
 /* Expanded detail */
 .tp-detail {

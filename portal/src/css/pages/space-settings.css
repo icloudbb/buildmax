@@ -145,21 +145,6 @@
   color: var(--color-text-muted);
 }
 
-.space-settings-page__remove-btn {
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-bg-elevated);
-  color: var(--color-text);
-  padding: 0.35rem 0.7rem;
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.space-settings-page__remove-btn:hover:not(:disabled) {
-  background: var(--color-bg-hover);
-}
-
 .space-settings-page__dialog {
   display: grid;
   gap: 0.85rem;
@@ -171,21 +156,6 @@
   gap: 0.65rem;
 }
 
-.space-settings-page__secondary-btn {
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-bg-elevated);
-  color: var(--color-text);
-  padding: 0.5rem 0.9rem;
-  font: inherit;
-  font-size: 0.88rem;
-  cursor: pointer;
-}
-
-.space-settings-page__secondary-btn:hover:not(:disabled) {
-  background: var(--color-bg-hover);
-}
-
 .space-settings-page__role-select {
   border: 1px solid var(--color-border);
   border-radius: 999px;
@@ -194,11 +164,6 @@
   padding: 0.3rem 0.6rem;
   font: inherit;
   font-size: 0.8rem;
-}
-
-.space-settings-page__transfer-btn {
-  font-size: 0.8rem;
-  padding: 0.35rem 0.7rem;
 }
 
 .space-settings-page__subheading {

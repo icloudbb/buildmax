@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { ApiAuditEvent } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -130,22 +131,19 @@ export function SpaceAuditSection({
           record is an action on it, and an export that left no trace would be
           the one way to consult the trail without appearing in it. */}
       <div className="audit-export">
-        <button
-          type="button"
-          className="page-activity__action-btn"
+        <Button
+          variant="secondary" busy={exporting}
           onClick={() => exportTrail("csv")}
-          disabled={exporting}
         >
-          {exporting ? "Exporting…" : "Export CSV"}
-        </button>
-        <button
-          type="button"
-          className="page-activity__action-btn"
+          Export CSV
+        </Button>
+        <Button
+          variant="secondary"
           onClick={() => exportTrail("jsonl")}
           disabled={exporting}
         >
           Export JSONL
-        </button>
+        </Button>
         <span className="settings-section__hint">
           The whole trail, not the page below. Exports are themselves recorded.
         </span>
@@ -180,14 +178,13 @@ export function SpaceAuditSection({
       {loading ? <p className="page-activity__empty">Loading…</p> : null}
 
       {eventsState.kind !== "forbidden" && eventsState.kind !== "notFound" && events.length < total ? (
-        <button
-          type="button"
-          className="page-activity__action-btn"
+        <Button
+          variant="secondary"
           onClick={() => load(events.length)}
           disabled={loading}
         >
           Show older ({total - events.length} more)
-        </button>
+        </Button>
       ) : null}
     </section>
   )

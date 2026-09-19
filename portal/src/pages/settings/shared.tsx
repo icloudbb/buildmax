@@ -31,7 +31,7 @@ import ToolboxIcon from "../../icons/toolbox.svg?react"
 import AgentsIcon from "../../icons/agents.svg?react"
 import IssueIcon from "../../icons/issue.svg?react"
 import ShieldIcon from "../../icons/shield.svg?react"
-import { BaseModal } from "@buildmax/gui"
+import { Button, BaseModal } from "@buildmax/gui"
 
 export type AccountSection = "general" | "usage" | "webhook" | "invitations"
 export type SpaceSection =
@@ -220,13 +220,13 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
           </p>
         ) : null}
         {status ? <p className="settings-section__muted">{status}</p> : null}
-        <button
+        <Button
           type="submit"
-          className="login-page__submit"
-          disabled={saving || !token || newPassword === ""}
+          variant="primary" busy={saving}
+          disabled={!token || newPassword === ""}
         >
-          {saving ? "Saving…" : "Save password"}
-        </button>
+          Save password
+        </Button>
       </form>
     </section>
   )
@@ -496,13 +496,12 @@ export function SpaceMembersSection({
             {members.length} member{members.length === 1 ? "" : "s"}
           </span>
           {canInvite ? (
-            <button
-              type="button"
-              className="page-activity__action-btn"
+            <Button
+              variant="primary"
               onClick={() => navigate({ name: "space", spaceId, section: "memberNew" })}
             >
               Invite
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -558,34 +557,29 @@ export function SpaceMembersSection({
                     <span className="space-settings-page__role">{member.role}</span>
                   )}
                   {canManageThisRow && member.role !== "owner" ? (
-                    <button
-                      type="button"
-                      className="space-settings-page__secondary-btn space-settings-page__transfer-btn"
+                    <Button
+                      variant="secondary" size="compact"
                       disabled={changingRoleUserId === member.user_id}
                       onClick={() => void onTransferOwnership(member.user_id)}
                     >
                       Make owner
-                    </button>
+                    </Button>
                   ) : null}
                   {canManageThisRow ? (
-                    <button
-                      type="button"
-                      className="space-settings-page__secondary-btn"
-                      disabled={issuingLoginCodeUserId === member.user_id}
+                    <Button
+                      variant="secondary" size="compact" busy={issuingLoginCodeUserId === member.user_id}
                       onClick={() => void onIssueLoginCode(member.user_id)}
                     >
-                      {issuingLoginCodeUserId === member.user_id ? "Issuing..." : "Login code"}
-                    </button>
+                      Login code
+                    </Button>
                   ) : null}
                   {canManageThisRow ? (
-                    <button
-                      type="button"
-                      className="space-settings-page__remove-btn"
-                      disabled={removingUserId === member.user_id}
+                    <Button
+                      variant="danger" size="compact" busy={removingUserId === member.user_id}
                       onClick={() => void onRemoveMember(member.user_id)}
                     >
-                      {removingUserId === member.user_id ? "Removing..." : "Remove"}
-                    </button>
+                      Remove
+                    </Button>
                   ) : null}
                 </div>
                 {issuedLoginCode && issuedLoginCode.userId === member.user_id ? (
@@ -647,14 +641,12 @@ export function SpaceMembersSection({
                     </span>
                   </div>
                   <div className="space-settings-page__member-actions">
-                    <button
-                      type="button"
-                      className="space-settings-page__remove-btn"
-                      disabled={revokingInvitationId === invitation.id}
+                    <Button
+                      variant="danger" size="compact" busy={revokingInvitationId === invitation.id}
                       onClick={() => void onRevokeInvitation(invitation.id)}
                     >
-                      {revokingInvitationId === invitation.id ? "Revoking..." : "Revoke"}
-                    </button>
+                      Revoke
+                    </Button>
                   </div>
                   {revokeError?.invitationId === invitation.id ? (
                     <p className="settings-section__error" role="alert">
@@ -752,22 +744,20 @@ export function SpaceInviteMemberDialog({
             </p>
           ) : null}
           <div className="space-settings-page__dialog-actions">
-            <button
-              type="button"
-              className="space-settings-page__secondary-btn"
+            <Button
+              variant="secondary"
               disabled={saving}
               onClick={onClose}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className="page-activity__action-btn"
-              disabled={saving || !email.trim()}
+            </Button>
+            <Button
+              variant="primary" busy={saving}
+              disabled={!email.trim()}
               onClick={() => void onSubmit()}
             >
-              {saving ? "Inviting..." : "Send Invite"}
-            </button>
+              Send Invite
+            </Button>
           </div>
         </div>
       </div>
@@ -835,14 +825,12 @@ export function AccountInvitationsSection({
                 </span>
               </div>
               <div className="space-settings-page__member-actions">
-                <button
-                  type="button"
-                  className="page-activity__action-btn"
-                  disabled={acceptingInvitationId === invitation.id}
+                <Button
+                  variant="primary" size="compact" busy={acceptingInvitationId === invitation.id}
                   onClick={() => void onAccept(invitation.id)}
                 >
-                  {acceptingInvitationId === invitation.id ? "Accepting..." : "Accept"}
-                </button>
+                  Accept
+                </Button>
               </div>
             </li>
           ))}
