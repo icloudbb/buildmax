@@ -37,6 +37,9 @@ Portal 负责云端/Space 使用场景：
   Workflow 详情按生命周期视图安排主要操作：草稿发布、已发布阅读视图运行、编辑已发布版本时保存。
   Agent 详情同样安排运行、配置保存和创建 schedule 的优先级；标签页支持键盘操作，schedule 卡片自身管理重试状态。
   Artifacts 列表以上传为主要操作；详情及分享控件使用共享操作层级，预览在本区块内重试。
+  Administration、Space 设置、Files、Marketplace 和登录页使用相同层级。Portal CSS 不再定义
+  任何按钮的几何、颜色或焦点规则：页面传给 `Button` 的 class 只用于定位。进行中的操作设置
+  `busy`，而不是替换按钮文案。
 - 横切状态位于 `portal/src/contexts/`：`AppContext`、`AuthContext`、`SpaceContext`，以及承载 Conversation 流式传输的 `WebSocketContext`。
 - HTTP 层是 `portal/src/lib/api/`（`client`、`mappers`、`types`，以及用于流式传输的 `sse` 和 `ws`）。
 - `portal/src/features/conversations/` 绘制对话记录，并在同一线程中为 Conversation 启动的每个后台 Task 显示一张卡片。卡片从 tasks 路由读取，socket 每次报告失效通知时都会重新加载，因此运行产出了什么不依赖 Tier 1 对它撰写的摘要。`thread.ts` 决定顺序。

@@ -8,3 +8,6 @@
   local retry when triggered tasks fail to load.
   Artifacts now use the shared action roles, navigable names, truthful counts,
   and local preview retry.
+  Administration, Space settings, Files, Marketplace, sign-in, and the rest of
+  Issue detail follow the same roles, and buttons keep their label and width
+  while an action is in flight.

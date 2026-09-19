@@ -49,6 +49,10 @@ Portal owns the cloud/space lane:
   its tabs are keyboard operated and schedule cards own their retry state.
   Artifacts own upload as the collection action; detail and sharing controls
   use the shared action roles, and preview retry stays inside the preview.
+  Administration, Space settings, Files, Marketplace, and sign-in use the same
+  roles. Portal CSS defines no button geometry, color, or focus rule of its own:
+  a page passes a class to `Button` only for placement. An in-flight action sets
+  `busy` rather than swapping its label.
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
   `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
   conversation streaming.
