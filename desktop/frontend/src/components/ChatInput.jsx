@@ -133,7 +133,7 @@ export function ContextDonut({ status }) {
 
 // --- ChatInput ---
 
-export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onShowInfo, onShowChanges }) {
+export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onShowInfo, onShowChanges, infoOpen, onToggleInfo }) {
   const [prompt, setPrompt] = useState('');
 
   // Palette state.
@@ -469,6 +469,23 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
         )}
 
         <ContextDonut status={runStatus} />
+
+        {onToggleInfo && (
+          <button
+            type="button"
+            className={`chat-status-bar__info ${infoOpen ? 'chat-status-bar__info--active' : ''}`}
+            onClick={onToggleInfo}
+            aria-pressed={!!infoOpen}
+            title="Session info"
+            aria-label="Session info"
+          >
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v5" />
+              <circle cx="12" cy="7.75" r="0.6" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+        )}
 
         <div className="chat-status-bar__spacer" />
 

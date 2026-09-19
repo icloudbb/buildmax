@@ -69,18 +69,6 @@ function MoonIcon() {
   );
 }
 
-// Workspace toolbar icon — a line icon matching the app's SVG icon style
-// (24-grid, currentColor stroke): a circled i for session info.
-function InfoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5" />
-      <circle cx="12" cy="7.75" r="0.6" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
 // Theme toggle lives in the user menu, not the header: switching light/dark is a
 // rare action. Rendered inside ThemeProvider, so it reads the live theme. The
 // icon and label name the destination — moon to go dark, sun to go light.
@@ -1143,16 +1131,6 @@ export default function App() {
                   <button
                     type="button"
                     className="inspector-tabs__btn"
-                    aria-pressed={infoOpen}
-                    onClick={() => setInfoOpen((v) => !v)}
-                    title="Session info"
-                    aria-label="Session info"
-                  >
-                    <span className="inspector-tabs__icon"><InfoIcon /></span>
-                  </button>
-                  <button
-                    type="button"
-                    className="inspector-tabs__btn"
                     onClick={openTerminalTab}
                     title="New terminal"
                     aria-label="New terminal"
@@ -1233,6 +1211,8 @@ export default function App() {
                             sessionId={selectedId || ''}
                             onShowInfo={() => setInfoOpen(true)}
                             onShowChanges={() => setExplorerMode('changes')}
+                            infoOpen={infoOpen}
+                            onToggleInfo={() => setInfoOpen((v) => !v)}
                             onRewound={handleRewound}
                             onForked={handleForked}
                             onCompacted={handleCompacted}
