@@ -272,9 +272,11 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
    层——`internal/infra/runbridge`，在 `bootstrap.RunWorker` 中随运行启动，导出
    `BUILDMAX_BRIDGE_SOCK` 与 `BUILDMAX_TASK_RUN_ID`（Bash 子进程自动继承；二者都不是机密，
    且 `_SOCK`/`_ID` 名称能通过沙箱环境擦除，因此无需改动 `FilterWorkerEnv`）。它只转发
-   `/api/worker/` 路径，且 fail-open（桥接起不来的运行仍能执行）。剩余：CLI 检测
-   `BUILDMAX_BRIDGE_SOCK` 并把 worker 上下文命令经它路由，以及 kind 验证单次运行隔离
-   （一次运行的桥接无法触达另一次运行的路由——这由 run token 本身保证，桥接只是携带它）。
+   `/api/worker/` 路径，且 fail-open（桥接起不来的运行仍能执行）。CLI 会检测该套接字
+   （`inWorkerRun`）并据此路由：运行内 `buildmax issue comment` 经桥接发到本运行唯一的
+   issue（worker 路由、无 id、受运行预算），并拒绝携带 issue id。剩余：把 `artifact
+   publish`、一个 `issue view` 与 run 状态经桥接路由；kind 验证单次运行隔离（这由 run
+   token 本身保证，桥接只是携带它）。
 4. **退役工具。** 从 `internal/tool` 移除 `GetIssue` / `ReportToIssue`，更新
    `internal/tool/names.go`，并按 §9 削减或退役
    [issue-agent-access.md](./Issue Agent访问.md)。确保 `buildmax` 二进制位于 worker

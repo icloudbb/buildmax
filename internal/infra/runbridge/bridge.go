@@ -53,7 +53,9 @@ func Serve(serverURL, token string, upstream *http.Client) (*Bridge, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create bridge dir: %w", err)
 	}
-	socket := filepath.Join(dir, "bridge.sock")
+	// A short filename: a Unix socket path is bounded (sun_path, ~104 bytes), and
+	// the temp dir already eats much of that budget.
+	socket := filepath.Join(dir, "s")
 	ln, err := net.Listen("unix", socket)
 	if err != nil {
 		_ = os.RemoveAll(dir)

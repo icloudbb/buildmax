@@ -9,8 +9,10 @@ import (
 	"github.com/spf13/cobra"
 
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	"github.com/icloudbb/buildmax/internal/interface/auth"
 	"github.com/icloudbb/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/tool"
 )
 
 func newIssueCommand() *cobra.Command {
@@ -36,13 +38,15 @@ func newIssueCommentCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "comment <issue-id>",
 		Short: "Post a report on an issue",
-		Long: "Posts one comment on an issue you can reach, signed in as you.\n\n" +
-			"This is the report path a command can reach: an agent working here can\n" +
-			"run it to say what happened, the same statement the in-process report\n" +
-			"tool makes. The comment is recorded as a local agent report. Status,\n" +
-			"owner, and sub-issues stay yours to change with `buildmax issue status`.\n\n" +
+		Long: "Posts one comment on an issue as a report of what happened.\n\n" +
+			"This is the report path a command can reach: an agent can run it to say\n" +
+			"what it did, the same statement the in-process report tool makes.\n\n" +
+			"In a local session it takes an issue id and posts as you, recorded as a\n" +
+			"local agent report. Inside a worker run it takes no id — it posts to the\n" +
+			"one issue that run works, through the run bridge, and the run's comment\n" +
+			"budget applies. Status, owner, and sub-issues are never changed here.\n\n" +
 			"Give the body with -m, or leave it off to read the body from stdin.",
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MaximumNArgs(1),
 		RunE: runIssueComment,
 	}
 	cmd.Flags().StringP("message", "m", "", "the comment body; read from stdin when omitted")
@@ -60,6 +64,23 @@ func runIssueComment(cmd *cobra.Command, args []string) error {
 	}
 	if strings.TrimSpace(body) == "" {
 		return fmt.Errorf("empty comment: give a body with -m or on stdin")
+	}
+
+	// Inside a worker run the issue is the one the run works; the worker route
+	// takes no id, so an id here would name an issue the run may not address.
+	if wb := inWorkerRun(); wb != nil {
+		if len(args) > 0 {
+			return fmt.Errorf("inside a run, `issue comment` posts to this run's issue; drop the issue id")
+		}
+		if err := workerclient.NewIssueClient(wb.cfg, wb.taskRunID).Report(cmd.Context(), tool.IssueReport{Body: body}); err != nil {
+			return fmt.Errorf("post comment: %w", err)
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), "Commented on this run's issue.")
+		return nil
+	}
+
+	if len(args) == 0 {
+		return fmt.Errorf("issue id required: buildmax issue comment <issue-id> -m ...")
 	}
 	serverURL, token, err := signedInServer(cmd)
 	if err != nil {
