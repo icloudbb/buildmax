@@ -23,28 +23,6 @@
   display: none;
 }
 
-.page-explore__upload-btn {
-  padding: 0.45rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--color-text);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-input-border);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.page-explore__upload-btn:hover:not(:disabled) {
-  background: var(--color-bg-muted);
-  border-color: var(--color-text-muted);
-}
-
-.page-explore__upload-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .page-explore__upload-msg {
   font-size: 0.85rem;
   color: #16a34a;

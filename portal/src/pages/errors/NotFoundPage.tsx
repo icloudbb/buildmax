@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { navigate } from "../../router"
 import { useSpace } from "../../contexts/SpaceContext"
 
@@ -24,13 +25,12 @@ export function NotFoundPage() {
         </div>
       </div>
       <div className="page-activity__actions">
-        <button
-          type="button"
-          className="page-activity__action-btn"
+        <Button
+          variant="primary"
           onClick={() => currentSpaceId && navigate({ name: "chat", spaceId: currentSpaceId })}
         >
           Back to Chat
-        </button>
+        </Button>
       </div>
     </div>
   )

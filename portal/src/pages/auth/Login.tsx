@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useEffect, useState } from "react"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getAuthMethods, login, loginWithPassword } from "../../features/auth"
@@ -102,9 +103,8 @@ export function Login() {
             )}
 
             {showSSO && (
-              <button
-                type="button"
-                className="login-page__sso"
+              <Button
+                variant="secondary"
                 onClick={() => {
                   // Full-page navigation: the callback sets the refresh cookie and
                   // redirects back, and AuthContext hydrates from it on load.
@@ -113,7 +113,7 @@ export function Login() {
                 disabled={loading}
               >
                 Sign in with {providerName}
-              </button>
+              </Button>
             )}
 
             {showLocal && showSSO && <div className="login-page__divider">or</div>}
@@ -169,13 +169,13 @@ export function Login() {
                   </>
                 )}
 
-                <button
+                <Button
                   type="submit"
-                  className="login-page__submit"
-                  disabled={loading || !canSubmit}
+                  variant="primary" busy={loading}
+                  disabled={!canSubmit}
                 >
-                  {loading ? "Signing in…" : "Sign in"}
-                </button>
+                  Sign in
+                </Button>
                 <button
                   type="button"
                   className="login-page__link"

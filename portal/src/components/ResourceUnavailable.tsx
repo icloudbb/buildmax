@@ -1,3 +1,5 @@
+import { Button } from "@buildmax/gui"
+
 export type ResourceUnavailableKind = "notFound" | "forbidden" | "error"
 
 interface ResourceUnavailableProps {
@@ -55,13 +57,13 @@ export function ResourceUnavailable({
       ) : null}
       <div className="page-activity__actions">
         {kind === "error" ? (
-          <button type="button" className="page-activity__action-btn" onClick={onRetry}>
+          <Button variant="primary" onClick={onRetry}>
             Try again
-          </button>
+          </Button>
         ) : null}
-        <button type="button" className="page-activity__action-btn" onClick={onBack}>
+        <Button variant="secondary" onClick={onBack}>
           {backLabel}
-        </button>
+        </Button>
       </div>
     </div>
   )
