@@ -7,7 +7,9 @@ import { HomeDashboard } from './components/HomeDashboard';
 import { MarkdownMessage } from './components/MarkdownMessage';
 import { CreateProjectModal } from './components/Modals';
 import { ProjectItem } from './components/ProjectItem';
-import { TerminalTabs } from './components/TerminalTabs';
+import { TerminalPane } from './components/TerminalPane';
+import { TabBar } from './components/TabBar';
+import { emptyTabs, openTab, closeTab, focusTab, activeTab } from './lib/tabs';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Markdown from 'react-markdown';
@@ -167,7 +169,7 @@ export default function App() {
     clampInspectorWidth(readStored(LS_INSPECTOR_WIDTH, INSPECTOR_DEFAULT_WIDTH)),
   );
   const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
-  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [center, setCenter] = useState(emptyTabs);
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     clampSidebarWidth(readStored(LS_SIDEBAR_WIDTH, SIDEBAR_DEFAULT_WIDTH)),
   );
@@ -511,6 +513,57 @@ export default function App() {
       .then((status) => setAuthStatus(status))
       .catch(() => setAuthStatus({ logged_in: false }));
   }, [wailsReady, app]);
+
+  // Center workspace tabs: the chat is one tab, terminals are peer tabs. File
+  // and diff tabs are a later slice (see the desktop-workspace-tabs proposal).
+  const chatTabKey = 'chat:current';
+  const termSeqRef = useRef(0);
+
+  // Seed one chat tab per project and reap the previous project's terminals.
+  useEffect(() => {
+    setCenter((prev) => {
+      prev.tabs
+        .filter((t) => t.kind === 'terminal')
+        .forEach((t) => getApp()?.TerminalClose?.(t.ref));
+      if (!currentProject) return emptyTabs;
+      return openTab(emptyTabs, {
+        kind: 'chat', ref: 'current', title: sessionTitle || 'New Chat', closable: false,
+      });
+    });
+    // Reset the tab set only when the active project changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProject?.id]);
+
+  // Keep the chat tab's title in step with the active session.
+  useEffect(() => {
+    setCenter((s) => ({
+      ...s,
+      tabs: s.tabs.map((t) => (t.key === chatTabKey ? { ...t, title: sessionTitle || 'New Chat' } : t)),
+    }));
+  }, [sessionTitle]);
+
+  const openTerminalTab = useCallback(async () => {
+    const a = getApp();
+    if (!a?.TerminalOpen || !currentProject) return;
+    try {
+      const id = await a.TerminalOpen(currentProject.id);
+      termSeqRef.current += 1;
+      setCenter((s) => openTab(s, { kind: 'terminal', ref: id, title: `Terminal ${termSeqRef.current}` }));
+    } catch {
+      // Opening a shell can fail (e.g. unsupported platform); leave the tabs.
+    }
+  }, [currentProject]);
+
+  const selectCenterTab = useCallback((key) => setCenter((s) => focusTab(s, key)), []);
+  const closeCenterTab = useCallback((key) => {
+    setCenter((s) => {
+      const tab = s.tabs.find((t) => t.key === key);
+      if (tab?.kind === 'terminal') getApp()?.TerminalClose?.(tab.ref);
+      return closeTab(s, key);
+    });
+  }, []);
+
+  const activeCenterKind = activeTab(center)?.kind ?? null;
 
   // The login is the mode. Without one the agent runs here against the models in
   // settings.yaml, which needs no server and therefore no sign-in first — so the
@@ -1167,10 +1220,9 @@ export default function App() {
                   <button
                     type="button"
                     className="inspector-tabs__btn"
-                    aria-pressed={terminalOpen}
-                    onClick={() => setTerminalOpen((v) => !v)}
-                    title="Terminal"
-                    aria-label="Terminal"
+                    onClick={openTerminalTab}
+                    title="New terminal"
+                    aria-label="New terminal"
                   >
                     <span className="inspector-tabs__icon" aria-hidden>{'>_'}</span>
                   </button>
@@ -1188,65 +1240,65 @@ export default function App() {
                   onCreateProject={() => setShowCreateModal(true)}
                 />
               ) : (
-                <div className="page-chat">
-                  <ChatThread
-                    historyRef={historyRef}
-                    ariaLabel="Conversation history"
-                    items={threadItems}
-                    emptyText="Type a message below to start a new chat."
+                <div className="workspace-tabs">
+                  <TabBar
+                    tabs={center.tabs}
+                    activeKey={center.activeKey}
+                    onSelect={selectCenterTab}
+                    onClose={closeCenterTab}
                   />
-                  <section className="page-chat__input" aria-label="Send a message">
-                    <ChatInput
-                      onSend={handleSend}
-                      onCancel={handleCancel}
-                      loading={loading}
-                      error={error}
-                      onDismissError={() => setError(null)}
-                      currentProject={currentProject}
-                      app={app}
-                      approvalRequest={approvalRequest}
-                      onRespond={handleRespond}
-                      toolActivity={toolActivity}
-                      runStatus={runStatus}
-                      suggestion={turnDigest?.suggestion ?? ''}
-                      onAcceptSuggestion={() => setTurnDigest(null)}
-                      sessionId={selectedId || ''}
-                      onOpenInspector={openInspector}
-                      onRewound={handleRewound}
-                      onForked={handleForked}
-                      onCompacted={handleCompacted}
-                      onCommandError={(msg) => setError(msg)}
-                      onRunStatusContext={(status) => {
-                        setRunStatus((prev) => ({
-                          ...(status ?? {}),
-                          prompt_tokens: prev?.prompt_tokens ?? 0,
-                          completion_tokens: prev?.completion_tokens ?? 0,
-                          total_prompt_tokens: prev?.total_prompt_tokens ?? status?.total_prompt_tokens ?? 0,
-                          total_completion_tokens: prev?.total_completion_tokens ?? status?.total_completion_tokens ?? 0,
-                        }));
-                      }}
-                    />
-                  </section>
+                  <div className="workspace-tabs__content">
+                    {activeCenterKind === 'chat' && (
+                      <div className="page-chat">
+                        <ChatThread
+                          historyRef={historyRef}
+                          ariaLabel="Conversation history"
+                          items={threadItems}
+                          emptyText="Type a message below to start a new chat."
+                        />
+                        <section className="page-chat__input" aria-label="Send a message">
+                          <ChatInput
+                            onSend={handleSend}
+                            onCancel={handleCancel}
+                            loading={loading}
+                            error={error}
+                            onDismissError={() => setError(null)}
+                            currentProject={currentProject}
+                            app={app}
+                            approvalRequest={approvalRequest}
+                            onRespond={handleRespond}
+                            toolActivity={toolActivity}
+                            runStatus={runStatus}
+                            suggestion={turnDigest?.suggestion ?? ''}
+                            onAcceptSuggestion={() => setTurnDigest(null)}
+                            sessionId={selectedId || ''}
+                            onOpenInspector={openInspector}
+                            onRewound={handleRewound}
+                            onForked={handleForked}
+                            onCompacted={handleCompacted}
+                            onCommandError={(msg) => setError(msg)}
+                            onRunStatusContext={(status) => {
+                              setRunStatus((prev) => ({
+                                ...(status ?? {}),
+                                prompt_tokens: prev?.prompt_tokens ?? 0,
+                                completion_tokens: prev?.completion_tokens ?? 0,
+                                total_prompt_tokens: prev?.total_prompt_tokens ?? status?.total_prompt_tokens ?? 0,
+                                total_completion_tokens: prev?.total_completion_tokens ?? status?.total_completion_tokens ?? 0,
+                              }));
+                            }}
+                          />
+                        </section>
+                      </div>
+                    )}
+                    {center.tabs
+                      .filter((t) => t.kind === 'terminal')
+                      .map((t) => (
+                        <TerminalPane key={t.key} id={t.ref} active={t.key === center.activeKey} />
+                      ))}
+                  </div>
                 </div>
               )}
             </div>
-            {currentProject && terminalOpen && (
-              <div className="shell__terminal">
-                <div className="shell__terminal-header">
-                  <span>Terminal</span>
-                  <button
-                    type="button"
-                    className="shell__terminal-close"
-                    onClick={() => setTerminalOpen(false)}
-                    title="Hide terminal"
-                    aria-label="Hide terminal"
-                  >
-                    ×
-                  </button>
-                </div>
-                <TerminalTabs key={currentProject.id} projectId={currentProject.id} />
-              </div>
-            )}
           </main>
 
           {inspectorOpen && (

@@ -1,120 +1,15 @@
-/* Desktop terminal tabs — the shell-strand surface (see the
-   desktop-terminal-tabs proposal). A bottom panel inside .shell__main holding a
-   tab strip over a stack of xterm panes. */
-
-.shell__terminal {
-  flex: 0 0 auto;
-  height: 300px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  margin-top: 0.5rem;
-  border-top: 1px solid var(--color-border);
-  background: #1e1e1e;
-}
-
-.shell__terminal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.25rem 0.5rem;
-  color: var(--color-text-muted, #aaa);
-  font-size: 0.8rem;
-}
-
-.shell__terminal-close {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0 0.25rem;
-}
-
-.terminal-tabs {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.terminal-tabs__strip {
-  display: flex;
-  align-items: stretch;
-  gap: 2px;
-  padding: 0 0.25rem;
-  overflow-x: auto;
-  flex: 0 0 auto;
-}
-
-.terminal-tabs__tab {
-  display: flex;
-  align-items: center;
-  background: #2a2a2a;
-  border-radius: 4px 4px 0 0;
-  color: #ccc;
-}
-
-.terminal-tabs__tab--active {
-  background: #1e1e1e;
-  color: #fff;
-  box-shadow: inset 0 -2px 0 var(--color-accent, #4a9eff);
-}
-
-.terminal-tabs__tab-btn {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 0.78rem;
-  padding: 0.3rem 0.5rem;
-  white-space: nowrap;
-}
-
-.terminal-tabs__tab-close {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  opacity: 0.6;
-  padding: 0 0.4rem 0 0;
-  font-size: 0.9rem;
-  line-height: 1;
-}
-
-.terminal-tabs__tab-close:hover {
-  opacity: 1;
-}
-
-.terminal-tabs__add {
-  background: none;
-  border: none;
-  color: #ccc;
-  cursor: pointer;
-  font-size: 1rem;
-  padding: 0 0.5rem;
-}
-
-.terminal-tabs__panes {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-}
+/* Terminal (shell) tab rendering — one xterm pane per terminal tab, filling the
+   workspace tab content region and hidden when its tab is not active (see the
+   desktop-workspace-tabs proposal). */
 
 .terminal-pane {
   position: absolute;
   inset: 0;
   padding: 0.25rem 0.5rem;
+  background: #1e1e1e;
 }
 
 .terminal-pane--hidden {
   visibility: hidden;
   pointer-events: none;
-}
-
-.terminal-tabs__empty {
-  padding: 1rem;
-  color: #888;
-  font-size: 0.8rem;
 }

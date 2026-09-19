@@ -6,6 +6,7 @@
 @import './css/inspector.css';
 @import './css/login.css';
 @import './css/terminal.css';
+@import './css/workspace-tabs.css';
 
 * {
   box-sizing: border-box;
