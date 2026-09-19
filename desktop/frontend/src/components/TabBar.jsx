@@ -9,7 +9,10 @@ const KIND_ICON = {
   diff: '±',
 };
 
-export function TabBar({ tabs, activeKey, onSelect, onClose, onPin, onSplit }) {
+export function TabBar({
+  tabs, activeKey, onSelect, onClose, onPin, onSplitRight, onSplitDown,
+  onTabDragStart, onTabDragEnd,
+}) {
   if (tabs.length === 0) return null;
   return (
     <div className="workspace-tabs__bar" role="tablist" aria-label="Open tabs">
@@ -21,6 +24,12 @@ export function TabBar({ tabs, activeKey, onSelect, onClose, onPin, onSplit }) {
             t.key === activeKey ? 'workspace-tabs__tab--active' : '',
             t.preview ? 'workspace-tabs__tab--preview' : '',
           ].filter(Boolean).join(' ')}
+          draggable={!!onTabDragStart}
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            onTabDragStart?.(t.key, e);
+          }}
+          onDragEnd={() => onTabDragEnd?.()}
         >
           <button
             type="button"
@@ -46,16 +55,31 @@ export function TabBar({ tabs, activeKey, onSelect, onClose, onPin, onSplit }) {
           )}
         </div>
       ))}
-      {onSplit && (
-        <button
-          type="button"
-          className="workspace-tabs__split"
-          title="Split right"
-          aria-label="Split editor right"
-          onClick={onSplit}
-        >
-          ◫
-        </button>
+      {(onSplitRight || onSplitDown) && (
+        <div className="workspace-tabs__splits">
+          {onSplitRight && (
+            <button
+              type="button"
+              className="workspace-tabs__split"
+              title="Split right"
+              aria-label="Split pane right"
+              onClick={onSplitRight}
+            >
+              ◫
+            </button>
+          )}
+          {onSplitDown && (
+            <button
+              type="button"
+              className="workspace-tabs__split"
+              title="Split down"
+              aria-label="Split pane down"
+              onClick={onSplitDown}
+            >
+              ⤓
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

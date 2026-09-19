@@ -1,79 +1,114 @@
 import { describe, it, expect } from 'vitest';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
-  splitFocused, focusedPane,
+  splitRight, splitDown, moveTab, focusedPane,
 } from './panes';
 
-const file = (path, preview = false) => ({ kind: 'file', ref: path, title: path, preview });
+// openTab (via openInFocused) computes each tab's `key`, so tests open by path.
+const open = (ws, path, preview = false) => openInFocused(ws, { kind: 'file', ref: path, title: path, preview });
 
-describe('panes workspace model', () => {
+function paneIds(ws) {
+  return ws.rows.map((row) => row.panes.map((p) => p.id));
+}
+
+describe('panes grid model', () => {
   it('opens activities in the focused pane', () => {
-    const ws = openInFocused(emptyWorkspace, file('a.go'));
-    expect(ws.panes).toHaveLength(1);
+    const ws = open(emptyWorkspace, 'a.go');
+    expect(paneCount(ws)).toBe(1);
     expect(focusedPane(ws).activeKey).toBe('file:a.go');
   });
 
-  it('splits into a new focused empty pane after the current one', () => {
-    let ws = openInFocused(emptyWorkspace, file('a.go'));
-    ws = splitFocused(ws);
-    expect(ws.panes).toHaveLength(2);
+  it('splits right into a new focused empty pane in the same row', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = splitRight(ws);
+    expect(paneIds(ws)).toEqual([['pane-1', 'pane-2']]);
     expect(ws.focused).toBe('pane-2');
     expect(focusedPane(ws).tabs).toHaveLength(0);
-    // The original pane keeps its tab.
-    expect(ws.panes[0].activeKey).toBe('file:a.go');
+    expect(ws.rows[0].panes[0].activeKey).toBe('file:a.go');
+  });
+
+  it('splits down into a new row', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = splitDown(ws);
+    expect(paneIds(ws)).toEqual([['pane-1'], ['pane-2']]);
+    expect(ws.focused).toBe('pane-2');
   });
 
   it('lands newly opened activities in the split pane', () => {
-    let ws = openInFocused(emptyWorkspace, file('a.go'));
-    ws = splitFocused(ws);
-    ws = openInFocused(ws, file('b.go'));
-    expect(ws.panes[0].activeKey).toBe('file:a.go');
-    expect(ws.panes[1].activeKey).toBe('file:b.go');
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = splitRight(ws);
+    ws = open(ws, 'b.go');
+    expect(ws.rows[0].panes[0].activeKey).toBe('file:a.go');
+    expect(ws.rows[0].panes[1].activeKey).toBe('file:b.go');
   });
 
   it('reaps an empty pane when focus leaves it', () => {
-    let ws = openInFocused(emptyWorkspace, file('a.go'));
-    ws = splitFocused(ws); // pane-2 empty, focused
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = splitRight(ws);
     ws = focusPaneTab(ws, 'pane-1', 'file:a.go');
-    expect(ws.panes).toHaveLength(1);
+    expect(paneCount(ws)).toBe(1);
     expect(ws.focused).toBe('pane-1');
   });
 
-  it('keeps the empty split pane while it stays focused', () => {
-    let ws = openInFocused(emptyWorkspace, file('a.go'));
-    ws = splitFocused(ws);
-    ws = focusPane(ws, 'pane-2'); // already focused: no-op, not reaped
-    expect(ws.panes).toHaveLength(2);
+  it('reaps an emptied row', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = splitDown(ws); // row-2 / pane-2 empty, focused
+    ws = focusPaneTab(ws, 'pane-1', 'file:a.go');
+    expect(ws.rows).toHaveLength(1);
   });
 
   it('removes a pane when its last tab closes and focuses a neighbour', () => {
-    let ws = openInFocused(emptyWorkspace, file('a.go'));
-    ws = splitFocused(ws);
-    ws = openInFocused(ws, file('b.go'));
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = splitRight(ws);
+    ws = open(ws, 'b.go');
     ws = closePaneTab(ws, 'pane-2', 'file:b.go');
-    expect(ws.panes).toHaveLength(1);
+    expect(paneCount(ws)).toBe(1);
     expect(ws.focused).toBe('pane-1');
   });
 
-  it('keeps a pane that still has tabs after a close', () => {
-    let ws = openInFocused(emptyWorkspace, file('a.go'));
-    ws = openInFocused(ws, file('b.go'));
-    ws = closePaneTab(ws, 'pane-1', 'file:b.go');
-    expect(ws.panes).toHaveLength(1);
-    expect(ws.panes[0].activeKey).toBe('file:a.go');
+  it('moves a tab to another pane and focuses it there', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = open(ws, 'b.go'); // pane-1 has a.go + b.go
+    ws = splitRight(ws); // pane-2 empty, focused
+    ws = moveTab(ws, 'pane-1', 'file:a.go', 'pane-2');
+    expect(ws.rows[0].panes[0].tabs.map((t) => t.key)).toEqual(['file:b.go']);
+    expect(ws.rows[0].panes[1].tabs.map((t) => t.key)).toEqual(['file:a.go']);
+    expect(ws.focused).toBe('pane-2');
+    expect(ws.rows[0].panes[1].activeKey).toBe('file:a.go');
+  });
+
+  it('removes the source pane when a move empties it', () => {
+    let ws = open(emptyWorkspace, 'a.go'); // pane-1: a.go
+    ws = splitRight(ws); // pane-2 empty, focused
+    ws = open(ws, 'b.go'); // pane-2: b.go
+    ws = moveTab(ws, 'pane-1', 'file:a.go', 'pane-2'); // pane-1 empties
+    expect(paneCount(ws)).toBe(1);
+    expect(ws.rows[0].panes[0].tabs.map((t) => t.key)).toEqual(['file:b.go', 'file:a.go']);
+    expect(ws.focused).toBe('pane-2');
+  });
+
+  it('treats a move onto the same pane as a focus', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    const before = ws;
+    ws = moveTab(ws, 'pane-1', 'file:a.go', 'pane-1');
+    expect(paneCount(ws)).toBe(1);
+    expect(ws.rows).toEqual(before.rows);
   });
 
   it('pins a preview tab in its pane', () => {
-    let ws = openInFocused(emptyWorkspace, file('a.go', true));
+    let ws = openInFocused(emptyWorkspace, { kind: 'file', ref: 'a.go', title: 'a.go', preview: true });
     ws = pinPaneTab(ws, 'pane-1', 'file:a.go');
-    expect(ws.panes[0].tabs[0].preview).toBe(false);
+    expect(ws.rows[0].panes[0].tabs[0].preview).toBe(false);
   });
 
-  it('opens the same file independently in two panes', () => {
-    let ws = openInFocused(emptyWorkspace, file('a.go'));
-    ws = splitFocused(ws);
-    ws = openInFocused(ws, file('a.go'));
-    expect(ws.panes[0].tabs).toHaveLength(1);
-    expect(ws.panes[1].tabs).toHaveLength(1);
+  it('keeps the empty split pane while it stays focused', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = splitRight(ws);
+    ws = focusPane(ws, 'pane-2'); // already focused: no-op
+    expect(paneCount(ws)).toBe(2);
   });
 });
+
+function paneCount(ws) {
+  return ws.rows.reduce((n, row) => n + row.panes.length, 0);
+}

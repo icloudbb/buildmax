@@ -7,14 +7,15 @@ import { HomeDashboard } from './components/HomeDashboard';
 import { MarkdownMessage } from './components/MarkdownMessage';
 import { CreateProjectModal } from './components/Modals';
 import { ProjectItem } from './components/ProjectItem';
-import { TerminalPane } from './components/TerminalPane';
+import { TerminalHost } from './components/TerminalHost';
 import { TabBar } from './components/TabBar';
 import { Explorer } from './components/Explorer';
 import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
 import { activeTab, tabIdentity } from './lib/tabs';
 import {
-  emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab, splitFocused,
+  emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
+  splitRight, splitDown, moveTab,
 } from './lib/panes';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -123,6 +124,8 @@ export default function App() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
   const [workspace, setWorkspace] = useState(emptyWorkspace);
+  // The pane currently under a tab being dragged, highlighted as the drop target.
+  const [dropPane, setDropPane] = useState(null);
   const [explorerMode, setExplorerMode] = useState('directory'); // 'directory' | 'changes'
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     clampSidebarWidth(readStored(LS_SIDEBAR_WIDTH, SIDEBAR_DEFAULT_WIDTH)),
@@ -479,7 +482,60 @@ export default function App() {
 
   const selectCenterTab = useCallback((paneId, key) => setWorkspace((s) => focusPaneTab(s, paneId, key)), []);
   const focusCenterPane = useCallback((paneId) => setWorkspace((s) => focusPane(s, paneId)), []);
-  const splitCenterPane = useCallback((paneId) => setWorkspace((s) => splitFocused(focusPane(s, paneId))), []);
+  const splitCenterRight = useCallback((paneId) => setWorkspace((s) => splitRight(focusPane(s, paneId))), []);
+  const splitCenterDown = useCallback((paneId) => setWorkspace((s) => splitDown(focusPane(s, paneId))), []);
+  // A tab dragged from one pane's strip and dropped on another pane. Held in
+  // state (set once on drag start) so drop handlers read it without a ref.
+  const [dragTab, setDragTab] = useState(null);
+  const moveCenterTab = useCallback((fromPane, key, toPane) => {
+    setWorkspace((s) => moveTab(s, fromPane, key, toPane));
+  }, []);
+
+  // Terminals live in TerminalHost, portalled into the slot of the pane that
+  // shows them (see TerminalHost). Each pane whose active tab is a terminal
+  // registers its slot element here by pane id (read from data-pane on attach);
+  // the slot map is state so the target computation reads it during render.
+  const [termSlots, setTermSlots] = useState(() => new Map());
+  const setSlotEl = useCallback((paneId, el) => {
+    setTermSlots((prev) => {
+      if (el) {
+        if (prev.get(paneId) === el) return prev;
+        const next = new Map(prev);
+        next.set(paneId, el);
+        return next;
+      }
+      if (!prev.has(paneId)) return prev;
+      const next = new Map(prev);
+      next.delete(paneId);
+      return next;
+    });
+  }, []);
+  // A stable ref callback (React 19 cleanup form) so it is not re-attached each
+  // render and never reads a ref during render.
+  const slotRef = useCallback((el) => {
+    if (!el) return undefined;
+    const paneId = el.dataset.pane;
+    setSlotEl(paneId, el);
+    return () => setSlotEl(paneId, null);
+  }, [setSlotEl]);
+  const [termParkEl, setTermParkEl] = useState(null);
+  const setTermPark = useCallback((el) => setTermParkEl(el), []);
+
+  // Every open terminal and where it should be portalled: into its pane's slot
+  // when it is that pane's active tab, otherwise parked (mounted but hidden).
+  const terminalTargets = useMemo(() => {
+    const out = [];
+    for (const row of workspace.rows) {
+      for (const pane of row.panes) {
+        for (const t of pane.tabs) {
+          if (t.kind !== 'terminal') continue;
+          const isActive = pane.activeKey === t.key;
+          out.push({ id: t.ref, active: isActive, target: isActive ? (termSlots.get(pane.id) ?? null) : null });
+        }
+      }
+    }
+    return out;
+  }, [workspace, termSlots]);
   const closeCenterTab = useCallback((paneId, key) => {
     setWorkspace((s) => {
       const pane = s.panes.find((p) => p.id === paneId);
@@ -1062,17 +1118,17 @@ export default function App() {
             app={app}
           />
         )}
-        {pane.tabs
-          .filter((t) => t.kind === 'terminal')
-          .map((t) => (
-            <TerminalPane key={t.key} id={t.ref} active={t.key === pane.activeKey} />
-          ))}
+        {active?.kind === 'terminal' && (
+          <div className="terminal-slot" data-pane={pane.id} ref={slotRef} />
+        )}
         {!active && (
           <div className="workspace-pane__empty">Open a file, diff, or terminal here.</div>
         )}
       </>
     );
   };
+
+  const totalPanes = workspace.rows.reduce((n, r) => n + r.panes.length, 0);
 
   const shellClass = [
     'shell',
@@ -1267,39 +1323,64 @@ export default function App() {
                   onCreateProject={() => setShowCreateModal(true)}
                 />
               ) : (
-                <div className="workspace-panes">
-                  {workspace.panes.map((pane) => {
-                    const focused = pane.id === workspace.focused;
-                    const paneClass = [
-                      'workspace-pane',
-                      workspace.panes.length > 1 && focused ? 'workspace-pane--focused' : '',
-                    ].filter(Boolean).join(' ');
-                    return (
-                      <div
-                        key={pane.id}
-                        className={paneClass}
-                        onMouseDownCapture={() => focusCenterPane(pane.id)}
-                      >
-                        <TabBar
-                          tabs={pane.tabs}
-                          activeKey={pane.activeKey}
-                          onSelect={(key) => selectCenterTab(pane.id, key)}
-                          onClose={(key) => closeCenterTab(pane.id, key)}
-                          onPin={(key) => pinCenterTab(pane.id, key)}
-                          onSplit={() => splitCenterPane(pane.id)}
-                        />
-                        <div className="workspace-pane__content">
-                          {renderPaneContent(pane)}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="workspace-grid">
+                  {workspace.rows.map((row) => (
+                    <div key={row.id} className="workspace-grid__row">
+                      {row.panes.map((pane) => {
+                        const focused = pane.id === workspace.focused;
+                        const paneClass = [
+                          'workspace-pane',
+                          totalPanes > 1 && focused ? 'workspace-pane--focused' : '',
+                          dropPane === pane.id ? 'workspace-pane--drop' : '',
+                        ].filter(Boolean).join(' ');
+                        return (
+                          <div
+                            key={pane.id}
+                            className={paneClass}
+                            onMouseDownCapture={() => focusCenterPane(pane.id)}
+                            onDragOver={(e) => {
+                              if (!dragTab) return;
+                              e.preventDefault();
+                              if (dropPane !== pane.id) setDropPane(pane.id);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const d = dragTab;
+                              setDropPane(null);
+                              setDragTab(null);
+                              if (d) moveCenterTab(d.fromPane, d.key, pane.id);
+                            }}
+                          >
+                            <TabBar
+                              tabs={pane.tabs}
+                              activeKey={pane.activeKey}
+                              onSelect={(key) => selectCenterTab(pane.id, key)}
+                              onClose={(key) => closeCenterTab(pane.id, key)}
+                              onPin={(key) => pinCenterTab(pane.id, key)}
+                              onSplitRight={() => splitCenterRight(pane.id)}
+                              onSplitDown={() => splitCenterDown(pane.id)}
+                              onTabDragStart={(key) => setDragTab({ fromPane: pane.id, key })}
+                              onTabDragEnd={() => { setDragTab(null); setDropPane(null); }}
+                            />
+                            <div className="workspace-pane__content">
+                              {renderPaneContent(pane)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           </main>
         </div>
       </div>
+
+      {/* Terminals are portalled into their pane's slot from here, so they stay
+          mounted across tab switches, pane moves, and grid re-tiling. */}
+      <div className="terminal-park" ref={setTermPark} aria-hidden />
+      <TerminalHost terminals={terminalTargets} park={termParkEl} />
 
       {showCreateModal && (
         <CreateProjectModal
