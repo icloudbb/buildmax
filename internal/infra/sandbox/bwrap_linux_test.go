@@ -53,6 +53,33 @@ func TestBwrapArgs_Golden(t *testing.T) {
 	}
 }
 
+// TestBwrapArgs_RunBridgeSocketReExposed asserts the run bridge socket is bound
+// back into the sandbox after the tmpfs masks /tmp — otherwise the `buildmax`
+// command an Agent runs cannot reach the Server through the bridge. The bind is
+// read-write because connect() needs the socket writable, and it names the
+// socket itself so the rest of the worker's /tmp stays hidden.
+func TestBwrapArgs_RunBridgeSocketReExposed(t *testing.T) {
+	sock := "/tmp/buildmax-bridge-1234/s"
+	p := WrapParams{Command: "buildmax issue show", Workspace: "/tmp/ws", RunBridgeSocket: sock}
+	joined := strings.Join(buildBwrapArgs(p), " ")
+	if !strings.Contains(joined, "--tmpfs /tmp") {
+		t.Fatalf("expected the private /tmp tmpfs:\n%s", joined)
+	}
+	bind := "--bind " + sock + " " + sock
+	if !strings.Contains(joined, bind) {
+		t.Errorf("argv missing the bridge socket bind %q\nfull: %s", bind, joined)
+	}
+	// The bind must come after the tmpfs, or it would be masked by it.
+	if strings.Index(joined, bind) < strings.Index(joined, "--tmpfs /tmp") {
+		t.Errorf("bridge socket bound before the tmpfs that masks /tmp:\n%s", joined)
+	}
+	// A run with no bridge adds no such bind.
+	none := strings.Join(buildBwrapArgs(WrapParams{Command: "id", Workspace: "/tmp/ws"}), " ")
+	if strings.Contains(none, "buildmax-bridge") {
+		t.Errorf("a run with no bridge should bind no socket:\n%s", none)
+	}
+}
+
 // TestBwrapArgs_ShellDefault asserts /bin/sh is the default inner shell.
 func TestBwrapArgs_ShellDefault(t *testing.T) {
 	p := WrapParams{Command: "id", Workspace: "/tmp/ws"}

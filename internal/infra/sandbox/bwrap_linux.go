@@ -77,6 +77,14 @@ func buildBwrapArgs(p WrapParams) []string {
 		"--bind", p.Workspace, p.Workspace,
 		"--chdir", p.Workspace,
 	}
+	// Re-expose the run bridge socket after the tmpfs above masked /tmp: it is
+	// how the `buildmax` command an Agent runs reaches the Server, and connect()
+	// needs the socket writable, so bind it read-write. Binding only the socket
+	// keeps the rest of the worker's private /tmp hidden. See
+	// docs/design/agent-bridge-cli.md.
+	if p.RunBridgeSocket != "" {
+		args = append(args, "--bind", p.RunBridgeSocket, p.RunBridgeSocket)
+	}
 	// Additional writable paths from settings.
 	for _, w := range expandPaths(p.Cfg.Filesystem.AllowWrite, p.Workspace) {
 		args = append(args, "--bind", w, w)

@@ -24,8 +24,8 @@
   资源；它尚未进入[路线图](../ROADMAP.md)，将在排期时对应到 R5。
 - status：`implemented` —— 维护者已于 `2026-09-19` 接受：由单一的 `buildmax` 命令入口
   成为 Agent 触达 Server 的方式，**完全取代**进程内的 Issue 工具，而不是与之并存。
-  §11 的第 1–4 阶段已交付：服务端护栏、本地命令入口、worker 桥，以及
-  `GetIssue` / `ReportToIssue` 的退役。第 5 阶段（kind 端到端证明）是剩余的证据。
+  §11 全部已交付：服务端护栏、本地命令入口、worker 桥、`GetIssue` / `ReportToIssue`
+  的退役，以及 kind 端到端证明 —— 后者还发现并修复了沙箱 tmpfs 遮蔽桥套接字的缺陷（§4）。
 - reverses：[issue-agent-access.md](./Issue Agent访问.md) —— 反转其机制（进程内的
   `GetIssue` / `ReportToIssue` 工具），现已移除。其产品边界（本文 §8）保持不变，该
   记录被削减为该边界。
@@ -123,6 +123,12 @@ Worker 进程运行一个小型**桥接（bridge）**：一个位于运行内部
 （[worker-api-network-boundary.md](./Worker API网络边界.md)）。令牌从不进入子进程的
 环境、参数或输出。可用范围恰好是那些 worker 路由：这次运行、它唯一的 Issue、它的
 Artifact、它的密钥、它的托管推理 —— 仅此而已。
+
+套接字位于 `/tmp` 下，而 worker 的 Bash 沙箱会用一个私有 tmpfs 遮蔽 `/tmp`，因此沙箱
+必须把该套接字重新暴露出来，子进程才能触达它：bwrap 后端在 tmpfs 之后把
+`BUILDMAX_BRIDGE_SOCK` 重新绑定进来（`internal/infra/sandbox`）。没有这个绑定，被沙箱
+约束的 Agent 运行的 `buildmax` 命令根本无法拨通桥 —— 这个缺陷只有 kind 端到端运行
+（§11 第 5 阶段）才发现，任何单元测试都发现不了。
 
 上下文选择依据存在性：设置了 `BUILDMAX_BRIDGE_SOCK` → Worker 上下文；否则若有已存储的
 登录 → 本地上下文；两者皆无 → 命令说明它未连接。某上下文不允许的命令（例如运行令牌下的
@@ -295,7 +301,14 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
    镜像无需改动。issue-agent-access.md 已削减为产品边界。
 5. **文档与证据。** 更新 [CLI 参考](../../../manual/cli.md)、
    [当前状态](../current-state.md)、工具清单，并添加一条 changelog 片段；运行 kind
-   端到端路径，展示运行内部的 Agent 使用 CLI 只触达它自己的运行。
+   端到端路径，展示运行内部的 Agent 使用 CLI 只触达它自己的运行。**已交付：** kind
+   运行针对真实 worker pod 证明了两半。正向路径 —— 把 mock 编排为在一次 worker 运行中
+   运行 `buildmax issue comment`；CLI 经桥发布成功（`"Commented on this run's issue."`），
+   评论以 `agent` 身份、带其 `source_task_run_id` 落在该运行自己的 Issue 上。隔离 ——
+   运行内 `buildmax issue show` 读到本运行自己的 Issue，而把 `BUILDMAX_TASK_RUN_ID`
+   改写为另一次运行的同一命令被拒绝 `403 … this run token does not authorize that task
+   run`（`worker/run_token.go`）。该运行首先暴露了 §4 修复的 tmpfs/套接字缺陷；一个
+   bwrap 黄金测试锁定了套接字绑定。
 
 ## 12. 开放问题
 

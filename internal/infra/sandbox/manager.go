@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 
 	"github.com/icloudbb/buildmax/internal/config"
@@ -34,6 +35,12 @@ type WrapParams struct {
 	Workspace string               // absolute cwd; binds writable
 	Cfg       config.SandboxConfig // resolved sandbox config
 	ProxyAddr string               // "127.0.0.1:<port>" or "" when no proxy is running
+	// RunBridgeSocket is the worker run bridge's Unix socket path, when this run
+	// has one. The socket lives under /tmp, which the sandbox masks with a
+	// private tmpfs, so the backend re-exposes just this path — otherwise the
+	// `buildmax` command an Agent runs cannot reach the Server. Empty off the
+	// worker plane. See docs/design/agent-bridge-cli.md.
+	RunBridgeSocket string
 }
 
 // Manager is the SandboxView implementation. Built by NewManager from a
@@ -346,6 +353,9 @@ func (m *Manager) WrapBashCommand(ctx context.Context, command, shell string) (s
 		Workspace: workspace,
 		Cfg:       m.cfg,
 		ProxyAddr: m.ProxyAddress(),
+		// Read per wrap, not at construction: the worker exports it after the
+		// Manager is built, and a run without a bridge leaves it empty.
+		RunBridgeSocket: os.Getenv(config.EnvKeyBuildmaxBridgeSock),
 	})
 }
 

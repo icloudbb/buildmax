@@ -25,10 +25,11 @@
   will be placed against R5 when scheduled.
 - status: `implemented` — the maintainer accepted, on `2026-09-19`, that a single
   `buildmax` command surface becomes the Agent's way to reach the Server, **fully
-  replacing** the in-process Issue tools rather than standing beside them. §11
-  phases 1–4 have shipped: the Server-side guardrails, the local command surface,
-  the worker bridge, and the retirement of `GetIssue` / `ReportToIssue`. Phase 5
-  (the kind end-to-end proof) is the remaining evidence.
+  replacing** the in-process Issue tools rather than standing beside them. All of
+  §11 has shipped: the Server-side guardrails, the local command surface, the
+  worker bridge, the retirement of `GetIssue` / `ReportToIssue`, and the kind
+  end-to-end proof — which also caught and fixed the sandbox tmpfs masking the
+  bridge socket (§4).
 - reverses: [issue-agent-access.md](./issue-agent-access.md) — its mechanism
   (the in-process `GetIssue` / `ReportToIssue` tools), now removed. Its product
   boundary (§8 here) survives unchanged, and that record is reduced to it.
@@ -149,6 +150,13 @@ proxies to the internal worker listener
 never enters the subprocess environment, arguments, or output. Available scope
 is exactly the worker routes: this run, its one Issue, its Artifacts, its
 Secrets, its managed inference — no more.
+
+The socket lives under `/tmp`, which the worker's Bash sandbox masks with a
+private tmpfs, so the sandbox must re-expose exactly that socket for the
+subprocess to reach it: the bwrap backend binds `BUILDMAX_BRIDGE_SOCK` back in
+after the tmpfs (`internal/infra/sandbox`). Without that bind the `buildmax`
+command a sandboxed Agent runs cannot dial the bridge at all — found only by the
+kind end-to-end run (§11 phase 5), not by any unit test.
 
 Context selection is by presence: `BUILDMAX_BRIDGE_SOCK` set → worker context;
 otherwise a stored login → local context; neither → the command explains it is
@@ -365,7 +373,16 @@ The command surface changes the *mechanism* of Agent Server access, not the
 5. **Documentation and evidence.** Update [manual/cli.md](../../manual/cli.md),
    [../current-state.md](../current-state.md), the tool inventory, and add a
    changelog fragment; run the kind end-to-end path to show an Agent inside a
-   run using the CLI to reach only its own run.
+   run using the CLI to reach only its own run. **Shipped:** the kind run proved
+   both halves against a real worker pod. Positive path — the mock was armed to
+   run `buildmax issue comment` in a worker run; the CLI posted through the
+   bridge (`"Commented on this run's issue."`) and the comment landed on that
+   run's own Issue as `agent` with its `source_task_run_id`. Isolation — inside
+   a run, `buildmax issue show` read the run's own Issue, while the same command
+   with `BUILDMAX_TASK_RUN_ID` overridden to another run was refused `403 … this
+   run token does not authorize that task run` (`worker/run_token.go`). The run
+   first surfaced the tmpfs/socket defect fixed in §4; a bwrap golden test locks
+   the socket bind in.
 
 ## 12. Open Questions
 
