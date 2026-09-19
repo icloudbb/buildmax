@@ -13,6 +13,7 @@ import { activeTab, tabIdentity } from './lib/tabs';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
   splitRight, splitDown, moveTab, allTabs, pruneForPersist, isWorkspace,
+  collapse, tile,
 } from './lib/panes';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -347,6 +348,13 @@ export default function App() {
   const focusCenterPane = useCallback((paneId) => setWorkspace((s) => focusPane(s, paneId)), []);
   const splitCenterRight = useCallback((paneId) => setWorkspace((s) => splitRight(focusPane(s, paneId))), []);
   const splitCenterDown = useCallback((paneId) => setWorkspace((s) => splitDown(focusPane(s, paneId))), []);
+  // One-click switch between a single tabbed pane and a grid of panes: tile every
+  // tab into its own pane, or collapse them all back into one, so a full grid
+  // never has to be assembled or torn down tab by tab.
+  const toggleGrid = useCallback(() => setWorkspace((s) => {
+    const panes = s.rows.reduce((n, r) => n + r.panes.length, 0);
+    return panes > 1 ? collapse(s) : tile(s);
+  }), []);
   // A tab dragged from one pane's strip and dropped on another pane. Held in
   // state (set once on drag start) so drop handlers read it without a ref.
   const [dragTab, setDragTab] = useState(null);
@@ -735,6 +743,9 @@ export default function App() {
   };
 
   const totalPanes = workspace.rows.reduce((n, r) => n + r.panes.length, 0);
+  // The grid toggle is worth showing only when there is something to rearrange:
+  // more than one pane to collapse, or more than one tab to tile.
+  const canToggleGrid = totalPanes > 1 || allTabs(workspace).length > 1;
 
   const shellClass = [
     'shell',
@@ -942,6 +953,7 @@ export default function App() {
                   onCreateProject={() => setShowCreateModal(true)}
                 />
               ) : (
+                <>
                 <div className={`workspace-grid${totalPanes > 1 ? ' workspace-grid--split' : ''}`}>
                   {workspace.rows.map((row) => (
                     <div key={row.id} className="workspace-grid__row">
@@ -990,6 +1002,24 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+                <div className="workspace-statusbar">
+                  <span className="workspace-statusbar__status">
+                    {totalPanes > 1 ? `${totalPanes} panes` : (focusedActiveTab?.title || '')}
+                  </span>
+                  {canToggleGrid && (
+                    <button
+                      type="button"
+                      className="workspace-statusbar__toggle"
+                      title={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
+                      aria-label={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
+                      onClick={toggleGrid}
+                    >
+                      <span aria-hidden>{totalPanes > 1 ? '□' : '▦'}</span>
+                      {totalPanes > 1 ? ' Tabs' : ' Grid'}
+                    </button>
+                  )}
+                </div>
+                </>
               )}
             </div>
           </main>

@@ -48,6 +48,49 @@
   gap: 8px;
 }
 
+/* A slim status bar pinned below the grid. Status text sits on the left; the
+   grid/tab toggle sits at the far right. */
+.workspace-statusbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 24px;
+  padding: 0 0.5rem;
+  margin-top: 6px;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #888);
+}
+
+.workspace-statusbar__status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-statusbar__toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  background: none;
+  border: none;
+  padding: 0 0.3rem;
+  height: 20px;
+  color: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.workspace-statusbar__toggle:hover {
+  background: var(--color-border);
+  color: var(--color-text, inherit);
+}
+
 .workspace-grid__row {
   flex: 1 1 0;
   min-height: 0;

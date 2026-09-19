@@ -484,6 +484,14 @@ whichever pane shows it (`TerminalHost`), so a dragged terminal keeps its
 scrollback and cursor — the DOM node is relocated, never recreated. This is why
 the model insists a backing is decoupled from its pane.
 
+A status bar below the grid carries, at its far right, a single control that
+**toggles** between the two shapes so neither has to be built by hand: from one
+tabbed pane it *tiles* every tab into its own pane laid out in a near-square grid
+(`tile`), and from a grid it *collapses* every pane back into one tabbed pane in
+reading order (`collapse`). Both are pure operations on the same model, and
+because backings are pane-independent a tiled terminal keeps its session exactly
+as a dragged one does.
+
 ### 15.2 Deferred: resizable splitters
 
 Panes currently share space equally (flex); a draggable divider to resize them,
