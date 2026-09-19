@@ -242,13 +242,12 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                       ) : null}
 					  {step.taskId ? (
                         <div className="workflow-run-page__step-actions">
-                          <button
-                            type="button"
-                            className="page-activity__action-btn"
+                          <Button
+                            variant="tertiary" size="compact"
 							onClick={() => navigate({ name: "task", spaceId, taskId: step.taskId! })}
                           >
 							Open Task
-                          </button>
+                          </Button>
                         </div>
                       ) : null}
                       {step.resolvedInput ? (
