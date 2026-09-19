@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,20 +33,6 @@ func writeEntry(t *testing.T, category, slug, body string) {
 	}
 	if err := os.WriteFile(filepath.Join(dir, slug+".md"), []byte(body), 0o644); err != nil {
 		t.Fatalf("write %s: %v", slug, err)
-	}
-	// docs/index.md links every document, so a real fragment always has an
-	// index line. Carry it in the fixture the same way, so the fold has the
-	// line it must drop.
-	if err := os.MkdirAll(filepath.Dir(docsIndexFile), 0o755); err != nil {
-		t.Fatalf("create %s: %v", filepath.Dir(docsIndexFile), err)
-	}
-	f, err := os.OpenFile(docsIndexFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
-	if err != nil {
-		t.Fatalf("open %s: %v", docsIndexFile, err)
-	}
-	defer f.Close()
-	if _, err := fmt.Fprintf(f, "- [English: %s](changelog/%s/%s.md) · 中文：—\n", slug, category, slug); err != nil {
-		t.Fatalf("append index line: %v", err)
 	}
 }
 
@@ -124,41 +109,6 @@ func TestReleaseChangelogDropsTheMirrorAndItsLink(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(changelogDir, "added", "a-flag.md")); !os.IsNotExist(err) {
 		t.Errorf("the English entry should be removed by the fold; stat err = %v", err)
-	}
-}
-
-// The fold deletes each English fragment, so it must drop that fragment's line
-// from docs/index.md in the same commit; otherwise the released branch links a
-// file it no longer contains and the docs link test fails. Unrelated index
-// lines survive.
-func TestReleaseChangelogPrunesTheDocsIndex(t *testing.T) {
-	writeChangelog(t, changelogWithLinks)
-	if err := os.MkdirAll(filepath.Dir(docsIndexFile), 0o755); err != nil {
-		t.Fatalf("create %s: %v", filepath.Dir(docsIndexFile), err)
-	}
-	const keeper = "- [English: Repository layout](contribute/repo-layout.md) · 中文：—\n"
-	// A second link to the same fragment under a different title: the index has
-	// carried a document twice before, and the fold must drop both copies.
-	const dup = "- [English: The new flag](changelog/added/a-flag.md) · 中文：—\n"
-	if err := os.WriteFile(docsIndexFile, []byte("# Index\n\n"+keeper+dup), 0o644); err != nil {
-		t.Fatalf("seed %s: %v", docsIndexFile, err)
-	}
-	writeEntry(t, "added", "a-flag", "- A new flag.\n")
-
-	if err := releaseChangelog("v0.3.0"); err != nil {
-		t.Fatalf("releaseChangelog: %v", err)
-	}
-
-	raw, err := os.ReadFile(docsIndexFile)
-	if err != nil {
-		t.Fatalf("read %s: %v", docsIndexFile, err)
-	}
-	got := string(raw)
-	if strings.Contains(got, "changelog/added/a-flag.md") {
-		t.Errorf("%s still links the folded fragment:\n%s", docsIndexFile, got)
-	}
-	if !strings.Contains(got, "contribute/repo-layout.md") {
-		t.Errorf("%s dropped an unrelated line:\n%s", docsIndexFile, got)
 	}
 }
 

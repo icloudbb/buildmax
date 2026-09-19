@@ -19,8 +19,9 @@
 | `design/` | 追问“为什么这样设计”的人 | 按 domain 浏览、以生命周期标记的语义化设计记录 |
 | `proposals/` | 评估潜在未来方向的人 | 尚未承诺实施、跨领域的探索性文章 |
 
-[`docs/index.md`](../../index.md) 是方便紧凑浏览和手机查看的完整双语文件目录。
-`docs/README.md` 继续作为按任务组织的入口，不在其中重复完整清单。
+[`docs/README.md`](../../README.md) 是按任务组织的入口。不再单独维护罗列全部文档的
+清单页：一页列出所有文档几乎会被每次文档改动触碰，在并行开发下频繁冲突。请改为通过
+各目录的 `README.md` 逐层浏览。
 
 判断文档归属的标准是**没有它谁会受阻**，而不是文档类型。
 
@@ -156,7 +157,6 @@ git show <commit>^:docs/path/to/file.md
 | 测试 | 失败条件 |
 |---|---|
 | `TestDocsLinksResolve` | 相对 Markdown 链接指向不存在的文件 |
-| `TestDocsIndexCoversEveryDocument` | `docs/` 下的 Markdown 文件未出现在[单页总览](../../index.md)中 |
 | `TestEnvVarsDocumented` | `config.EnvVars()` 新增的变量未出现在 [reference/configuration.md](../reference/configuration.md) |
 | `TestToolNamesDocumented` | 工具名称常量未出现在 [manual/tools.md](../../../manual/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | `internal/tool/names.go` 声明的工具未出现在贡献者[工具清单](architecture/tools.md) |
