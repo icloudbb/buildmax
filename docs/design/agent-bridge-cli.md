@@ -317,9 +317,11 @@ The command surface changes the *mechanism* of Agent Server access, not the
    auth broker; confirm an Agent's `Bash` subprocess reaches them with the
    user's credential. Highest value, lowest new plumbing. **Shipped so far:**
    `buildmax issue comment` (posts a `local_agent` report via `CommentOnIssue`),
-   and the `--help` command groups (Server vs Local, `groupTopLevelCommands` in
-   root.go). Remaining: `agent trigger`, `task create`, `run status`,
-   `workflow run`, `artifact publish`.
+   `buildmax agent trigger` and `buildmax task status` (the trigger-and-observe
+   loop, via `TriggerAgent`/`GetTask` with `FindAgent`/`FindTask` fanning out
+   across spaces since there is no ambient space), and the `--help` command
+   groups (Server vs Local, `groupTopLevelCommands` in root.go). Remaining:
+   `task create`, `run status`, `workflow run`, `artifact publish`.
 3. **Worker bridge.** Run the bridge socket in `internal/agentapp/taskrun`,
    export `BUILDMAX_BRIDGE_SOCK` through `withRunEnv`, allow it past
    `FilterWorkerEnv` in `internal/config/env_spec.go`, and proxy to the worker

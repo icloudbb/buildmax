@@ -258,9 +258,12 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
 2. **本地命令入口。** 在既有 auth broker 之上，用广度命令（§7）扩展
    `internal/interface/cli` 和 `internal/interface/client`；确认 Agent 的 `Bash`
    子进程能以用户凭据触达它们。价值最高，新增管道最少。**已交付部分：**
-   `buildmax issue comment`（经 `CommentOnIssue` 发一条 `local_agent` 报告），以及
-   `--help` 的命令分组（Server 与 Local，root.go 的 `groupTopLevelCommands`）。剩余：
-   `agent trigger`、`task create`、`run status`、`workflow run`、`artifact publish`。
+   `buildmax issue comment`（经 `CommentOnIssue` 发一条 `local_agent` 报告）、
+   `buildmax agent trigger` 与 `buildmax task status`（触发并观察这对命令，经
+   `TriggerAgent`/`GetTask`，并由 `FindAgent`/`FindTask` 跨 space fan-out——因为没有
+   环境 space），以及 `--help` 的命令分组（Server 与 Local，root.go 的
+   `groupTopLevelCommands`）。剩余：`task create`、`run status`、`workflow run`、
+   `artifact publish`。
 3. **Worker 桥接。** 在 `internal/agentapp/taskrun` 中运行桥接套接字，通过
    `withRunEnv` 导出 `BUILDMAX_BRIDGE_SOCK`，在 `internal/config/env_spec.go` 中允许
    它通过 `FilterWorkerEnv`，并复用 `internal/infra/workerclient` 代理到 worker

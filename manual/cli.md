@@ -35,6 +35,8 @@ buildmax <command> [flags]
 | `buildmax issue status <id> <status>` | Move an issue to `todo`, `in_progress`, or `done` |
 | `buildmax issue comment <id>` | Post a report on an issue; body from `-m` or stdin |
 | `buildmax issue start <id>` | Work a space issue in this session: the agent can read it and report back |
+| `buildmax agent trigger <agent>` | Start an agent run on the server; input from `-m` or stdin, `--space` to disambiguate |
+| `buildmax task status <id>` | Show a task's status, and its output once it finishes; `--space` to disambiguate |
 | `buildmax admin list` | List deployment administrators; `--all` includes revoked grants (System Administrator only) |
 | `buildmax admin grant <email>` | Grant deployment-administrator authority to an existing account |
 | `buildmax admin revoke <email>` | Revoke an account's administrator authority (refuses the last one) |
@@ -251,6 +253,28 @@ That is yours to run, not the agent's. Status is what the space plans around and
 work is finished and you decide. The change carries the version the issue was
 read at; if someone else moved it meanwhile, this refuses instead of
 overwriting them. See [Portal issues](portal-issues.md).
+
+### `buildmax agent` and `buildmax task`
+
+`buildmax agent trigger` starts an agent run on the server and prints the task
+it created; `buildmax task status` follows that task. Together they are the
+trigger-and-observe loop a command can drive — an agent working here can start
+another agent and watch it, without a browser.
+
+```bash
+buildmax agent trigger reviewer -m "review the latest diff"
+buildmax task status tk_9Fh3...          # PENDING / RUNNING / SUCCEEDED / FAILED
+git log -1 | buildmax agent trigger reviewer   # input from stdin
+```
+
+An agent lives in a space. With `--space` the agent (or task) is looked up
+there; without it, your spaces are searched, and an agent name found in more
+than one space is refused so a run never starts against the wrong one — pass
+`--space` to choose. Creating the task starts the agent's first run, so there is
+no separate start step; `task status` shows the output once the run finishes.
+
+Managing agents — creating them, editing instructions, revisions — stays in
+Portal. These commands trigger and read.
 
 ### `buildmax admin`
 

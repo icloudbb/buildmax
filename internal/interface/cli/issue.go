@@ -61,7 +61,7 @@ func runIssueComment(cmd *cobra.Command, args []string) error {
 	if strings.TrimSpace(body) == "" {
 		return fmt.Errorf("empty comment: give a body with -m or on stdin")
 	}
-	serverURL, token, err := issueSessionFor(cmd)
+	serverURL, token, err := signedInServer(cmd)
 	if err != nil {
 		return err
 	}
@@ -232,9 +232,9 @@ func newIssueStatusCommand() *cobra.Command {
 	}
 }
 
-// issueSessionFor resolves the signed-in server and a token for it. Every issue
-// command needs the same three things and fails the same three ways.
-func issueSessionFor(cmd *cobra.Command) (serverURL, token string, err error) {
+// signedInServer resolves the signed-in server and a token for it. Every
+// server command needs the same two things and fails the same three ways.
+func signedInServer(cmd *cobra.Command) (serverURL, token string, err error) {
 	info, err := auth.Info()
 	if err != nil {
 		return "", "", fmt.Errorf("read credentials: %w", err)
@@ -250,7 +250,7 @@ func issueSessionFor(cmd *cobra.Command) (serverURL, token string, err error) {
 }
 
 func runIssueShow(cmd *cobra.Command, args []string) error {
-	serverURL, token, err := issueSessionFor(cmd)
+	serverURL, token, err := signedInServer(cmd)
 	if err != nil {
 		return err
 	}
@@ -319,7 +319,7 @@ func runIssueStatus(cmd *cobra.Command, args []string) error {
 	if !isKnownIssueStatus(status) {
 		return fmt.Errorf("unknown status %q: use todo, in_progress, or done", status)
 	}
-	serverURL, token, err := issueSessionFor(cmd)
+	serverURL, token, err := signedInServer(cmd)
 	if err != nil {
 		return err
 	}

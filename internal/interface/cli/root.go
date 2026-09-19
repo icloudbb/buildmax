@@ -65,6 +65,8 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newSandboxCommand())
 	root.AddCommand(newToolsCommand())
 	root.AddCommand(newIssueCommand())
+	root.AddCommand(newAgentCommand())
+	root.AddCommand(newTaskCommand())
 	root.AddCommand(newAdminCommand())
 	root.AddCommand(newPluginCommand())
 	root.AddCommand(newModelsCommand())
@@ -87,7 +89,8 @@ const (
 // registered on the root is local.
 var serverCommandNames = map[string]bool{
 	"login": true, "logout": true, "me": true,
-	"issue": true, "admin": true, "plugin": true, "usage": true,
+	"issue": true, "agent": true, "task": true,
+	"admin": true, "plugin": true, "usage": true,
 }
 
 // groupTopLevelCommands sorts the registered commands into the two help groups.
