@@ -3,6 +3,41 @@
    tab. Splitting adds a pane; new activities open in the focused pane. Chat
    renders in normal flow; terminal panes fill the region and hide when inactive. */
 
+/* Project notices and management errors, shown above the workspace. */
+.workspace-banners {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.workspace-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #888);
+}
+
+.workspace-banner--error {
+  color: var(--color-danger, #d64545);
+  border-color: var(--color-danger, #d64545);
+}
+
+.workspace-banner button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
 /* The grid: a column of rows, each row a flex-row of panes. Splitting right
    adds a pane to a row; splitting down adds a row. */
 .workspace-grid {

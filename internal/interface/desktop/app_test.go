@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/icloudbb/buildmax/internal/agentapp"
 	"github.com/icloudbb/buildmax/internal/config"
@@ -100,6 +101,33 @@ func TestApp_SendMessageStream_queues_while_busy(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("QueuedMessages[%d] = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+// A new chat (empty session id) announces the real id it creates through a
+// session-adopted event, so the pending new-chat tab can adopt it even while
+// other sessions stream. It fires in OnStart, before the model-less run fails.
+func TestApp_NewChat_emits_session_adopted(t *testing.T) {
+	app, rec, projectID := newJobsTestApp(t)
+
+	if _, err := app.SendMessageStream(projectID, "", "hello"); err != nil {
+		t.Fatalf("SendMessageStream: %v", err)
+	}
+
+	deadline := time.Now().Add(15 * time.Second)
+	var ids []string
+	for time.Now().Before(deadline) {
+		ids = rec.adoptedSessionIDs()
+		if len(ids) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(ids) == 0 {
+		t.Fatal("no session-adopted event for a new chat")
+	}
+	if ids[0] == "" {
+		t.Fatal("adopted session id is empty")
 	}
 }
 

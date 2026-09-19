@@ -396,6 +396,17 @@ Terminal, file, and diff tabs carry no writer question either — terminals are
 isolated processes, a file save is a direct user-authored write to disk, and diff
 tabs are read-only — so they parallelize freely.
 
+Each chat tab is a self-contained `ChatSession` bound to one session: it owns that
+session's transcript and run state and handles only the events tagged with its id.
+A brand-new chat starts with no id and adopts the real one from a dedicated
+`session-adopted` event the backend emits at the run's start (only new-chat runs
+emit it, and at most one new chat exists per project, so the adoption is
+unambiguous even while other sessions stream). One caveat remains: tool-approval
+prompts are keyed per project, not per session, so a pending prompt is shown by
+each of the project's running chat tabs and any of them can answer it — adequate
+because approvals are brief and rare, but session-scoped approvals are a later
+refinement.
+
 ## 13. Persistence and Lifecycle
 
 - A chat tab keeps the session persistence Desktop already has; closing it hides
@@ -635,8 +646,9 @@ The Phase 1 slice must show that:
   The answer orders the phases.
 - Should browse clicks use a single reused preview tab (editor-style), or should
   every click pin a tab?
-- Where does a new session get created from once chat is a tab — the Explorer, the
-  tab bar, or the project list?
+- Resolved: a new chat is created from the project list's new-chat action (and any
+  session opens as a chat tab from the sidebar); at most one not-yet-sent new chat
+  exists per project.
 
 ### Behavior and transport
 

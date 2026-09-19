@@ -45,6 +45,20 @@ func (r *recordingEmitter) jobUpdates() []JobPayload {
 	return out
 }
 
+func (r *recordingEmitter) adoptedSessionIDs() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []string
+	for _, e := range r.events {
+		if e.name == eventSessionAdopted {
+			if p, ok := e.data.(*SessionAdoptedPayload); ok {
+				out = append(out, p.SessionID)
+			}
+		}
+	}
+	return out
+}
+
 func shellJobSpecForTest(command string) job.CommandSpec {
 	if runtime.GOOS == "windows" {
 		return job.CommandSpec{Command: command, Name: "cmd", Args: []string{"/c", command}}

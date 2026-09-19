@@ -24,7 +24,10 @@ type desktopRun struct {
 	// the frontend routes it to the right chat tab. It starts as the submit-time
 	// id ("" for a new chat) and is set to the real id in OnStart.
 	sessionID string
-	handler   agent.ApprovalHandler
+	// wasNew records that this run began as a new chat (empty submit-time id), so
+	// OnStart announces the real id it created for the frontend to adopt.
+	wasNew  bool
+	handler agent.ApprovalHandler
 	// touchLastUsed advances the project's recency stamp after each good turn.
 	// A user prompt does; a background delivery does not, because the user did
 	// not reach for the project.
@@ -47,6 +50,11 @@ func (r *desktopRun) OnStart(sess *agentapp.SessionContext) {
 	// A new chat submits with an empty id; adopt the real one so every event this
 	// run emits is tagged with the session the frontend can route on.
 	r.sessionID = sess.ID()
+	// Announce the created id to the pending new-chat tab before any stream event,
+	// so it adopts the right session even while others run concurrently.
+	if r.wasNew {
+		r.app.emit(r.ctx, eventSessionAdopted, &SessionAdoptedPayload{SessionID: sess.ID()})
+	}
 	if r.onStart != nil {
 		r.onStart(sess)
 	}

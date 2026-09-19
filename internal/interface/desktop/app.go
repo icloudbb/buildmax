@@ -68,6 +68,15 @@ type LLMStartPayload struct {
 	SessionID string `json:"session_id"`
 }
 
+// SessionAdoptedPayload is emitted once, at the start of a run that began as a
+// new chat (empty session id), carrying the real id the run created (event
+// desktop/session-adopted). It fires before any of the run's stream events, and
+// only new-chat runs emit it, so the frontend's pending new-chat tab can adopt
+// the id unambiguously even while other sessions stream concurrently.
+type SessionAdoptedPayload struct {
+	SessionID string `json:"session_id"`
+}
+
 // StreamErrorPayload is emitted when streaming fails (event desktop/stream-error).
 type StreamErrorPayload struct {
 	SessionID string `json:"session_id"`
@@ -145,6 +154,7 @@ const (
 	eventStreamDelta     = "desktop/stream-delta"
 	eventStreamDone      = "desktop/stream-done"
 	eventStreamError     = "desktop/stream-error"
+	eventSessionAdopted  = "desktop/session-adopted"
 	eventLLMStart        = "desktop/llm-start"
 	eventToolStart       = "desktop/tool-start"
 	eventToolEnd         = "desktop/tool-end"
@@ -917,7 +927,7 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 	if ctx == nil {
 		return 0, fmt.Errorf("app not ready")
 	}
-	lc := &desktopRun{app: a, ctx: ctx, projectID: projectID, sessionID: sessionID, key: runKey(projectID, sessionID), touchLastUsed: true}
+	lc := &desktopRun{app: a, ctx: ctx, projectID: projectID, sessionID: sessionID, key: runKey(projectID, sessionID), wasNew: sessionID == "", touchLastUsed: true}
 	// The scheduler resolves the host only if it commits to a run; a prompt that
 	// queues behind an in-flight run resolves nothing, preserving the old
 	// "queue without re-resolving the project" behaviour. A resolution failure —
