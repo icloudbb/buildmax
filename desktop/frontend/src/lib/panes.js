@@ -136,6 +136,46 @@ export function splitDown(ws) {
   return reap({ ...ws, rows, focused: paneId, seq: ws.seq + 1 });
 }
 
+// allTabs lists every open tab across the grid (used to reap terminals, find the
+// chat tab, etc.).
+export function allTabs(ws) {
+  return ws.rows.flatMap((row) => row.panes.flatMap((p) => p.tabs));
+}
+
+// pruneForPersist strips what cannot be restored after a restart — terminal
+// tabs, whose PTYs are gone — then drops any pane or row that leaves empty, so a
+// saved layout never reopens a dead shell or a blank pane. Returns null when
+// nothing worth restoring remains.
+export function pruneForPersist(ws) {
+  const rows = ws.rows
+    .map((row) => ({
+      id: row.id,
+      panes: row.panes
+        .map((p) => {
+          const tabs = p.tabs.filter((t) => t.kind !== 'terminal');
+          const activeKey = tabs.some((t) => t.key === p.activeKey)
+            ? p.activeKey
+            : (tabs.length ? tabs[tabs.length - 1].key : null);
+          return { id: p.id, tabs, activeKey };
+        })
+        .filter((p) => p.tabs.length > 0),
+    }))
+    .filter((row) => row.panes.length > 0);
+  if (rows.length === 0) return null;
+  const ids = rows.flatMap((r) => r.panes).map((p) => p.id);
+  const focused = ids.includes(ws.focused) ? ws.focused : ids[ids.length - 1];
+  return { rows, focused, seq: ws.seq };
+}
+
+// isWorkspace lightly validates a value restored from storage before it is used
+// as workspace state.
+export function isWorkspace(v) {
+  return !!v && Array.isArray(v.rows) && typeof v.focused === 'string' && typeof v.seq === 'number'
+    && v.rows.length > 0
+    && v.rows.every((r) => r && typeof r.id === 'string' && Array.isArray(r.panes) && r.panes.length > 0
+      && r.panes.every((p) => p && typeof p.id === 'string' && Array.isArray(p.tabs)));
+}
+
 // moveTab moves a tab from one pane to another (drag-and-drop). The tab keeps its
 // descriptor — and, because its backing is pane-independent, its live content —
 // so a moved terminal never loses scrollback. Dropping onto the source pane, or

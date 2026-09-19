@@ -15,7 +15,7 @@ import { DiffView } from './components/DiffView';
 import { activeTab, tabIdentity } from './lib/tabs';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
-  splitRight, splitDown, moveTab,
+  splitRight, splitDown, moveTab, allTabs, pruneForPersist, isWorkspace,
 } from './lib/panes';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -32,6 +32,10 @@ const SIDEBAR_MAX_WIDTH = 480;
 const SIDEBAR_DEFAULT_WIDTH = 288;
 const LS_SIDEBAR_COLLAPSED = 'bm.desktop.sidebarCollapsed';
 const LS_SIDEBAR_WIDTH = 'bm.desktop.sidebarWidth';
+// Workspace layout is remembered per project (terminals excluded — their PTYs do
+// not survive a restart). Restoring reopens the chat, file, and diff tabs and the
+// pane grid the user last left.
+const workspaceStorageKey = (projectId) => `bm.desktop.workspace.${projectId}`;
 
 function readStored(key, fallback) {
   try {
@@ -441,29 +445,52 @@ export default function App() {
   // and diff tabs are a later slice (see the desktop-workspace-tabs proposal).
   const chatTabKey = 'chat:current';
   const termSeqRef = useRef(0);
+  // Which project the current `workspace` belongs to, so the save effect writes
+  // it under the right key even across the switch that swaps it out.
+  const workspaceProjectRef = useRef(null);
 
-  // Seed one chat tab per project and reap the previous project's terminals.
+  // On a project switch, reap the old project's terminals, then restore that
+  // project's saved layout (chat/file/diff tabs and the pane grid) or seed a
+  // fresh chat tab. A restored layout always keeps the non-closable chat tab.
   useEffect(() => {
     setWorkspace((prev) => {
-      prev.panes.forEach((p) => p.tabs
+      allTabs(prev)
         .filter((t) => t.kind === 'terminal')
-        .forEach((t) => getApp()?.TerminalClose?.(t.ref)));
+        .forEach((t) => getApp()?.TerminalClose?.(t.ref));
+      workspaceProjectRef.current = currentProject?.id ?? null;
       if (!currentProject) return emptyWorkspace;
-      return openInFocused(emptyWorkspace, {
+      const fresh = openInFocused(emptyWorkspace, {
         kind: 'chat', ref: 'current', title: sessionTitle || 'New Chat', closable: false,
       });
+      const saved = readStored(workspaceStorageKey(currentProject.id), null);
+      if (!isWorkspace(saved)) return fresh;
+      // A restored layout must still carry the chat tab; if an old save lacks it,
+      // fall back to a fresh workspace rather than a chat-less one.
+      if (!allTabs(saved).some((t) => t.key === chatTabKey)) return fresh;
+      return saved;
     });
     // Reset the workspace only when the active project changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
 
+  // Persist the current project's layout (terminals excluded) whenever it
+  // changes, keyed by the project the workspace belongs to.
+  useEffect(() => {
+    const pid = workspaceProjectRef.current;
+    if (!pid) return;
+    writeStored(workspaceStorageKey(pid), pruneForPersist(workspace));
+  }, [workspace]);
+
   // Keep the chat tab's title in step with the active session.
   useEffect(() => {
     setWorkspace((s) => ({
       ...s,
-      panes: s.panes.map((p) => ({
-        ...p,
-        tabs: p.tabs.map((t) => (t.key === chatTabKey ? { ...t, title: sessionTitle || 'New Chat' } : t)),
+      rows: s.rows.map((row) => ({
+        ...row,
+        panes: row.panes.map((p) => ({
+          ...p,
+          tabs: p.tabs.map((t) => (t.key === chatTabKey ? { ...t, title: sessionTitle || 'New Chat' } : t)),
+        })),
       })),
     }));
   }, [sessionTitle]);
@@ -538,8 +565,7 @@ export default function App() {
   }, [workspace, termSlots]);
   const closeCenterTab = useCallback((paneId, key) => {
     setWorkspace((s) => {
-      const pane = s.panes.find((p) => p.id === paneId);
-      const tab = pane?.tabs.find((t) => t.key === key);
+      const tab = allTabs(s).find((t) => t.key === key);
       if (tab?.kind === 'terminal') getApp()?.TerminalClose?.(tab.ref);
       return closePaneTab(s, paneId, key);
     });

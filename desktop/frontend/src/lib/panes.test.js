@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
-  splitRight, splitDown, moveTab, focusedPane,
+  splitRight, splitDown, moveTab, focusedPane, allTabs, pruneForPersist, isWorkspace,
 } from './panes';
 
 // openTab (via openInFocused) computes each tab's `key`, so tests open by path.
@@ -106,6 +106,48 @@ describe('panes grid model', () => {
     ws = splitRight(ws);
     ws = focusPane(ws, 'pane-2'); // already focused: no-op
     expect(paneCount(ws)).toBe(2);
+  });
+});
+
+describe('workspace persistence', () => {
+  const term = (ws) => openInFocused(ws, { kind: 'terminal', ref: 't1', title: 'Terminal 1' });
+
+  it('drops terminal tabs and any pane they emptied', () => {
+    let ws = open(emptyWorkspace, 'a.go'); // pane-1: a.go
+    ws = splitRight(ws); // pane-2 empty, focused
+    ws = term(ws); // pane-2: terminal only
+    const pruned = pruneForPersist(ws);
+    expect(pruned.rows).toHaveLength(1);
+    expect(pruned.rows[0].panes).toHaveLength(1);
+    expect(pruned.rows[0].panes[0].tabs.map((t) => t.kind)).toEqual(['file']);
+  });
+
+  it('keeps file and diff tabs and is a valid workspace', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = openInFocused(ws, { kind: 'diff', ref: 'a.go', title: 'a.go (diff)' });
+    const pruned = pruneForPersist(ws);
+    expect(isWorkspace(pruned)).toBe(true);
+    expect(allTabs(pruned).map((t) => t.kind).sort()).toEqual(['diff', 'file']);
+  });
+
+  it('returns null when only terminals remain', () => {
+    const ws = term(emptyWorkspace);
+    expect(pruneForPersist(ws)).toBeNull();
+  });
+
+  it('reassigns focus if the focused pane was pruned away', () => {
+    let ws = open(emptyWorkspace, 'a.go'); // pane-1: a.go
+    ws = splitRight(ws); // pane-2 empty, focused
+    ws = term(ws); // pane-2: terminal, focused
+    const pruned = pruneForPersist(ws);
+    expect(pruned.focused).toBe('pane-1');
+  });
+
+  it('rejects malformed restored values', () => {
+    expect(isWorkspace(null)).toBe(false);
+    expect(isWorkspace({ rows: [], focused: 'x', seq: 1 })).toBe(false);
+    expect(isWorkspace({ rows: [{ id: 'r', panes: [] }], focused: 'x', seq: 1 })).toBe(false);
+    expect(isWorkspace(emptyWorkspace)).toBe(true);
   });
 });
 

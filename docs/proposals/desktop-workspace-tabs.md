@@ -392,9 +392,11 @@ processes and file/diff tabs are read-only — so they parallelize freely today.
   scrollback is not persisted.
 - A file or diff tab is a derived view; it is re-read from the workspace on open
   and needs no persistence.
-- A project's open tab set may be remembered as UI state so a restart reopens the
-  same chat, file, and diff tabs; terminal tabs start empty, since a dead process
-  cannot be reopened, only a new one started.
+- A project's layout is remembered as UI state (per project, in local storage), so
+  a restart or project switch reopens the same chat, file, and diff tabs in the
+  same pane grid. Terminal tabs are excluded from the save — a dead process cannot
+  be reopened, only a new one started — and any pane left empty by that exclusion
+  is dropped on restore.
 - No tab backing outlives the Desktop process where it should not: sessions
   persist, but PTYs are reaped on shutdown so no shell is orphaned.
 
@@ -459,11 +461,11 @@ whichever pane shows it (`TerminalHost`), so a dragged terminal keeps its
 scrollback and cursor — the DOM node is relocated, never recreated. This is why
 the model insists a backing is decoupled from its pane.
 
-### 15.2 Deferred: resizable splitters and persistence
+### 15.2 Deferred: resizable splitters
 
 Panes currently share space equally (flex); a draggable divider to resize them,
-and arbitrary nested splits beyond rows-of-panes, remain future work. A persisted
-layout is the next slice (see §21).
+and arbitrary nested splits beyond rows-of-panes, remain future work. The layout
+itself is persisted per project (§13).
 
 ## 16. Information Architecture
 
@@ -642,7 +644,7 @@ The Phase 1 slice must show that:
 
 - What is the minimum workspace-isolation capability that makes concurrent agent
   tabs safe, and does it come from the session-tree work unchanged?
-- Does split/grid need a persisted layout, or is it session-only UI state?
+- Resolved: the grid layout is persisted per project (terminals excluded); see §13.
 
 ### Evidence needed before acceptance
 
