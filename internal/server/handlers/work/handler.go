@@ -117,10 +117,10 @@ func New(cfg Config) *Handler {
 	}
 	h := &Handler{cfg: cfg}
 	h.tasks = newTaskService(cfg)
-	h.conversations = newConversationService(cfg, h.tasks)
+	h.workflows = newWorkflowService(cfg, h.tasks)
+	h.conversations = newConversationService(cfg, h.tasks, h.workflows)
 	h.issues = newIssueService(cfg)
 	h.agents = newWorkAgentService(cfg)
-	h.workflows = newWorkflowService(cfg, h.tasks)
 	return h
 }
 

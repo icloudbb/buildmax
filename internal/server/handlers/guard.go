@@ -17,6 +17,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 	"github.com/icloudbb/buildmax/internal/service/spacerecovery"
 	"github.com/icloudbb/buildmax/internal/service/task"
+	"github.com/icloudbb/buildmax/internal/service/workflow"
 
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
@@ -378,15 +379,32 @@ func (h *Handler) buildConversationService() *conversation.Service {
 	if h.cfg.WorkflowStore != nil {
 		workflowSteps = h.cfg.WorkflowStore
 	}
+	taskSvc := &task.Service{
+		Agents:         h.cfg.AgentStore,
+		Tasks:          h.cfg.TaskStore,
+		TaskRuns:       h.cfg.TaskRunStore,
+		QuotaChecker:   quotaChecker,
+		WorkflowSteps:  workflowSteps,
+		TitleGenerator: h.cfg.TitleGenerator,
+	}
+	// The workflow service shares this turn's task service so a run it starts is
+	// admitted onto the same Task plane. Artifacts is left nil: RunWorkflow
+	// dispatches only the run's first node, which has no predecessor to bind an
+	// Artifact from, the same reason newWorkflowService omits it for the HTTP path.
+	var workflowSvc *workflow.Service
+	if h.cfg.WorkflowStore != nil {
+		workflowSvc = &workflow.Service{
+			Workflows:   h.cfg.WorkflowStore,
+			Agents:      h.cfg.AgentStore,
+			Issues:      h.cfg.IssueStore,
+			TaskService: taskSvc,
+			TaskRuns:    h.cfg.TaskRunStore,
+			Audit:       h.cfg.Audit,
+		}
+	}
 	return &conversation.Service{
-		TaskService: &task.Service{
-			Agents:         h.cfg.AgentStore,
-			Tasks:          h.cfg.TaskStore,
-			TaskRuns:       h.cfg.TaskRunStore,
-			QuotaChecker:   quotaChecker,
-			WorkflowSteps:  workflowSteps,
-			TitleGenerator: h.cfg.TitleGenerator,
-		},
+		TaskService:       taskSvc,
+		WorkflowService:   workflowSvc,
 		ConversationStore: h.cfg.ConversationStore,
 		MessageStore:      h.cfg.ConversationMessageStore,
 		LLMClient:         h.cfg.ConversationLLMClient,

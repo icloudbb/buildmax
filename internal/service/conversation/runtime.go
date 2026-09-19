@@ -11,29 +11,34 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/llm"
 	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
 	"github.com/icloudbb/buildmax/internal/service/task"
+	"github.com/icloudbb/buildmax/internal/service/workflow"
 )
 
 const (
 	maxIterations = 10
 	// maxParallelTools matches config.DefaultMaxParallelTools by value rather
 	// than by import: agent.max_parallel_tools is a local surface setting and
-	// no service package reads config. A Portal turn's read-only tools are
-	// ListTasks and GetTask, so the practical ceiling is well under this.
+	// no service package reads config. A Portal turn's read-only tools (ListTasks,
+	// GetTask, ListWorkflows, GetWorkflowRun) are the only ones that overlap, so
+	// the practical ceiling is well under this.
 	maxParallelTools = 4
 )
 
 const systemPromptBase = `You are the user's assistant. You coordinate between the user and background tasks. Reply concisely.
 
 # Decision order
-First evaluate whether the user's request should continue an existing task (use ContinueTask) rather than creating a new one (StartTask). When the user refers to an existing task (e.g. "add to that task", "try again", "what about the last run?"), prefer ContinueTask. Use ListTasks/GetTask to decide when needed.
+First evaluate whether the user's request should continue an existing task (use ContinueTask) rather than creating a new one (StartTask). When the user refers to an existing task (e.g. "add to that task", "try again", "what about the last run?"), prefer ContinueTask. Use ListTasks/GetTask to decide when needed. When the user wants to run a reusable, named multi-step process the space already has, that is a workflow: use ListWorkflows then RunWorkflow rather than StartTask.
 
 # Tools
 - StartTask: create and schedule a new background task (long-running job, analysis). Tell the user it has started. The client presents the task as a deterministic card; do not promise a later assistant message.
 - ListTasks: list recent tasks in the current conversation (up to 10). Use when the user asks what tasks they have or for recent activity.
 - GetTask: get detail for one task by task_id. Use when the user asks about a specific task's status or result.
 - ContinueTask: add a follow-up message to an existing task (new run). Use when the user wants to continue, retry, or add to an existing task.
+- ListWorkflows: list the space's published workflows and the input each needs. Use when the user asks what workflows exist or wants to run one.
+- RunWorkflow: start a run of a published workflow by workflow_id (find it with ListWorkflows), passing input that matches its input_schema. It runs in the background like a task. You cannot create or edit a workflow, only run one.
+- GetWorkflowRun: get the status and result of a workflow run by workflow_run_id.
 
-When starting or continuing a task, tell the user it is running. Do not expose internal IDs.`
+When starting or continuing a task, or running a workflow, tell the user it is running. Do not expose internal IDs.`
 
 func currentSystemPrompt() string {
 	return systemPromptBase + "\n\nToday's date: " + time.Now().Format("2006-01-02") + "."
@@ -41,15 +46,16 @@ func currentSystemPrompt() string {
 
 // turnRunInput configures one conversation turn execution.
 type turnRunInput struct {
-	ConversationID string
-	Message        string
-	Channel        string
-	UserID         string
-	SpaceID        string
-	TaskService    *task.Service
-	AgentSummaries []agentSummary
-	TitleGenerator llm.TitleGenerator
-	StreamSink     llm.StreamSink
+	ConversationID  string
+	Message         string
+	Channel         string
+	UserID          string
+	SpaceID         string
+	TaskService     *task.Service
+	WorkflowService *workflow.Service
+	AgentSummaries  []agentSummary
+	TitleGenerator  llm.TitleGenerator
+	StreamSink      llm.StreamSink
 	// Fence is the conversation lease's token, stamped on every message-history
 	// write this turn makes. Zero disables fencing. See
 	// docs/design/server-coordination.md §7.
@@ -80,6 +86,21 @@ func buildConversationTools(in turnRunInput, sourceMessageID *string) []llm.Tool
 	}
 	if r := newContinueTaskServiceRunner(svc, sourceMessageID); r != nil {
 		tools = append(tools, newContinueTaskTool(in.ConversationID, in.UserID, r))
+	}
+	// Workflow tools are space-scoped: a published Workflow is a callable unit on
+	// the same Task plane, so the foreground turn can invoke and observe one the
+	// way it starts and reads a Task. It cannot author one; that stays a reviewed
+	// publish action. See docs/proposals/assistant-orchestration-and-workflow-boundary.md §9.5.
+	if wf := in.WorkflowService; wf != nil && in.SpaceID != "" {
+		if r := newListWorkflowsServiceRunner(wf, in.SpaceID); r != nil {
+			tools = append(tools, newListWorkflowsTool(r))
+		}
+		if r := newRunWorkflowServiceRunner(wf, in.SpaceID, in.UserID); r != nil {
+			tools = append(tools, newRunWorkflowTool(r))
+		}
+		if r := newGetWorkflowRunServiceRunner(wf, in.SpaceID); r != nil {
+			tools = append(tools, newGetWorkflowRunTool(r))
+		}
 	}
 	return tools
 }
