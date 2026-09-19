@@ -24,6 +24,7 @@ export {
 export { useWorkflowSteps, type WorkflowStepsState } from "./useWorkflowSteps"
 export {
   AGENT_TASK_STEP_TYPE,
+  effectiveNeeds,
   newStep,
   newStepId,
   parseDefinition,

@@ -43,16 +43,80 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
   // reaching it by clicking — and it is the one an operator pastes to a
   // colleague.
   await page.goto(`/#/spaces/${current.spaceId}/workflows/${workflow.id}`)
-  await expect(page.getByRole("heading", { name: "Workflow Detail" })).toBeVisible()
+  // The detail page now titles itself with the workflow's own name, so the
+  // heading is the name rather than a fixed "Workflow Detail" label. A freshly
+  // created workflow is a draft, so it opens in the authoring layout whose
+  // Definition panel is present.
+  await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible()
   // The breadcrumb is the reader's orientation cue, so once the workflow has
-  // loaded it names the workflow rather than its opaque id. The Definition
-  // panel is where the id itself belongs, as secondary metadata.
+  // loaded it names the workflow rather than its opaque id.
   await expect(page.getByLabel("Breadcrumb").getByText(name, { exact: true })).toBeVisible()
-  const definition = page.locator(".issues-page__panel").filter({
+  await expect(page.locator(".issues-page__panel").filter({
     has: page.getByRole("heading", { name: "Definition" }),
-  })
-  await expect(definition.getByText(workflow.id, { exact: true })).toBeVisible()
+  })).toBeVisible()
+  // The id itself lives in the header as secondary metadata, next to the
+  // on-demand history control.
+  await expect(page.getByText(workflow.id, { exact: true }).first()).toBeVisible()
   await expect(page.getByText("Workflow not found.")).toHaveCount(0)
+})
+
+test("the detail page composes by lifecycle state: authoring when draft, operating when published", async ({
+  page,
+}) => {
+  const current = await session(page)
+
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
+    name: tagged("Workflow lifecycle agent"),
+    description: "Created by the Portal browser tests.",
+    instructions: "Reply with exactly: deployment smoke ok",
+  })
+  const name = tagged("Workflow lifecycle probe")
+  const workflow = await postJSON<{ id: string }>(page, `${current.space}/workflows`, current, {
+    name,
+    description: "Created by the Portal browser tests to exercise the state-driven detail layout.",
+    definition: JSON.stringify({
+      schema_version: 1,
+      nodes: [{ id: "only", type: "agent_task", agent: { id: agent.id }, input: { instruction: "Reply with exactly: deployment smoke ok" } }],
+    }),
+  })
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`])
+
+  await page.goto(`/#/spaces/${current.spaceId}/workflows/${workflow.id}`)
+
+  // Draft opens in the authoring layout: the editing form is present and the
+  // primary action is Publish, with no manual Run, because the runtime refuses
+  // to run an unpublished definition.
+  await expect(page.getByRole("heading", { name: "Definition" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Publish" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Run Workflow" })).toHaveCount(0)
+
+  // Publishing flips the page to the operating layout: Plan and Recent Runs lead
+  // the body, Run becomes the primary action, and editing retreats behind Edit.
+  await page.getByRole("button", { name: "Publish" }).click()
+  await expect(page.getByRole("heading", { name: "Plan", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Recent Runs" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Run Workflow" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Edit" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Definition" })).toHaveCount(0)
+
+  // Version history is on-demand secondary information reached from the header,
+  // not a resident column.
+  await page.getByRole("button", { name: /History/ }).click()
+  const history = page.getByRole("dialog", { name: "Version History" })
+  await expect(history).toBeVisible()
+  // Each revision row summarizes as "<name> · <status>"; publishing created a
+  // second revision, so the published one is listed here.
+  await expect(history.getByText(new RegExp(`${name} · published`)).first()).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(history).toBeHidden()
+
+  // Edit reveals the authoring form over the published workflow; Cancel returns
+  // to the operating layout without persisting.
+  await page.getByRole("button", { name: "Edit" }).click()
+  await expect(page.getByRole("heading", { name: "Definition" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible()
+  await page.getByRole("button", { name: "Cancel" }).click()
+  await expect(page.getByRole("heading", { name: "Plan", exact: true })).toBeVisible()
 })
 
 // The worker has to start, run the step's task, and record its output. The API
@@ -172,13 +236,19 @@ test("a workflow with an input_schema runs from its generated input form", async
   reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`])
 
   await page.goto(`/#/spaces/${current.spaceId}/workflows/${workflow.id}`)
-  await expect(page.getByRole("heading", { name: "Workflow Detail" })).toBeVisible()
-  // The form is generated from input_schema, so the required field is present and
-  // the run cannot start until it is filled.
-  const input = page.locator(".workflow-run-input input[type='text']")
+  // A published workflow opens in its operating layout, whose Plan panel leads
+  // the body in place of the editing form.
+  await expect(page.getByRole("heading", { name: "Plan", exact: true })).toBeVisible()
+  // Run opens a drawer that carries the input form generated from input_schema;
+  // the required field is present there and the run cannot start until it is
+  // filled.
+  await page.getByRole("button", { name: "Run Workflow" }).click()
+  const runDialog = page.getByRole("dialog", { name: "Run Workflow" })
+  await expect(runDialog).toBeVisible()
+  const input = runDialog.locator(".workflow-run-input input[type='text']")
   await expect(input).toBeVisible()
   await input.fill("markets")
-  await page.getByRole("button", { name: "Run Workflow" }).click()
+  await runDialog.getByRole("button", { name: "Start run" }).click()
 
   // The run view is reached after the POST, and the run's stored input is the
   // proof the generated form's value crossed the boundary and was admitted.

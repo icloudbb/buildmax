@@ -1134,6 +1134,24 @@ Authoring arrives in this order:
 The primary authoring unit is a semantic form, not raw JSON and not a canvas.
 JSON may remain an advanced view generated from the same validated definition.
 
+The Workflow detail page composes these components by lifecycle state rather
+than showing every affordance at once, because a `draft` and a `published`
+Workflow are used for different things. A `draft` (or `archived`) Workflow opens
+in an authoring layout: the primary action is Publish, the body is the editing
+form and the read-only topology, and manual Run is absent because the runtime
+refuses to run an unpublished definition anyway. A `published` Workflow opens in
+an operating layout: the primary action is Run, editing retreats behind an
+explicit Edit affordance, and the body leads with the read-only topology and
+recent runs rather than an editable form, so a reader does not have to enter an
+edit surface to run or inspect. A member who cannot manage Workflows sees the
+operating layout without the Edit affordance. Run input (item 4's supplied
+input, generated from `input_schema`) is collected in a Run drawer opened by the
+Run action, not rendered inline whenever a schema exists. Revision history is
+secondary information reached on demand from the header, not a resident column;
+restore stays available there. The read-only topology (item 3) reuses the run
+page's DAG rendering; direct canvas manipulation (item 6) remains the separate,
+evidence-gated follow-up and is out of scope for this composition.
+
 The run page answers:
 
 - what input and trigger started the run;
