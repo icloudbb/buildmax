@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
+import { Button } from "@buildmax/gui"
 import type { ApiSchedule, ApiTask } from "../../lib/api/types"
 import { navigate } from "../../router"
+import { Alert } from "../../components/state/Alert"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiTaskToTask } from "../../lib/api/mappers"
 import { runStatusLabel, runStatusTone } from "../conversations/thread"
@@ -48,12 +50,7 @@ export function SchedulesSection({ token, spaceId, agentId, canManage }: Schedul
 
   if (error && schedules === null) {
     return (
-      <div className="agent-detail__banner" role="alert">
-        <span>{error}</span>
-        <button type="button" className="page-activity__action-btn" onClick={() => void load()}>
-          Retry
-        </button>
-      </div>
+      <Alert tone="error" message={error} retry={{ label: "Retry schedules", onClick: () => void load() }} />
     )
   }
 
@@ -62,6 +59,7 @@ export function SchedulesSection({ token, spaceId, agentId, canManage }: Schedul
       <p className="page-activity__subtitle">
         A schedule runs this agent automatically on a cron timetable. Each firing starts a Task.
       </p>
+      {error ? <Alert tone="stale" message={error} retry={{ label: "Retry schedules", onClick: () => void load() }} /> : null}
 
       {canManage ? (
         creating ? (
@@ -76,9 +74,9 @@ export function SchedulesSection({ token, spaceId, agentId, canManage }: Schedul
             onCancel={() => setCreating(false)}
           />
         ) : (
-          <button type="button" className="page-activity__action-btn" onClick={() => setCreating(true)}>
+          <Button variant="primary" onClick={() => setCreating(true)}>
             New schedule
-          </button>
+          </Button>
         )
       ) : null}
 
@@ -117,13 +115,14 @@ function ScheduleCard({
   canManage: boolean
   onChanged: () => Promise<void>
 }) {
-  const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState<"toggle" | "delete" | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [tasks, setTasks] = useState<ApiTask[] | null>(null)
   const [tasksOpen, setTasksOpen] = useState(false)
+  const [tasksLoading, setTasksLoading] = useState(false)
 
   async function toggleEnabled() {
-    setBusy(true)
+    setBusyAction("toggle")
     setErr(null)
     try {
       await updateSchedule(spaceId, schedule.id, { enabled: !schedule.enabled }, token)
@@ -131,34 +130,40 @@ function ScheduleCard({
     } catch (e) {
       setErr(getErrorMessage(e, "Failed to update schedule"))
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
   async function remove() {
     if (!window.confirm(`Delete schedule "${schedule.name || schedule.cron_expr}"? Tasks it already created are kept.`)) return
-    setBusy(true)
+    setBusyAction("delete")
     setErr(null)
     try {
       await deleteSchedule(spaceId, schedule.id, token)
       await onChanged()
     } catch (e) {
       setErr(getErrorMessage(e, "Failed to delete schedule"))
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
-  async function toggleTasks() {
+  async function loadTasks() {
+    setTasksLoading(true)
+    setErr(null)
+    try {
+      const res = await listScheduleTasks(spaceId, schedule.id, token)
+      setTasks(res.tasks)
+    } catch (e) {
+      setErr(getErrorMessage(e, "Failed to load triggered tasks"))
+    } finally {
+      setTasksLoading(false)
+    }
+  }
+
+  function toggleTasks() {
     const next = !tasksOpen
     setTasksOpen(next)
-    if (next && tasks === null) {
-      try {
-        const res = await listScheduleTasks(spaceId, schedule.id, token)
-        setTasks(res.tasks)
-      } catch (e) {
-        setErr(getErrorMessage(e, "Failed to load triggered tasks"))
-      }
-    }
+    if (next && tasks === null) void loadTasks()
   }
 
   return (
@@ -201,24 +206,26 @@ function ScheduleCard({
       {err ? <p className="agent-schedules__error" role="alert">{err}</p> : null}
 
       <div className="agent-schedules__card-actions">
-        <button type="button" className="page-activity__action-btn" onClick={() => void toggleTasks()}>
+        <Button variant="tertiary" size="compact" onClick={toggleTasks}>
           {tasksOpen ? "Hide triggered tasks" : "Show triggered tasks"}
-        </button>
+        </Button>
         {canManage ? (
           <>
-            <button type="button" className="page-activity__action-btn" onClick={() => void toggleEnabled()} disabled={busy}>
+            <Button variant="secondary" size="compact" busy={busyAction === "toggle"} onClick={() => void toggleEnabled()} disabled={busyAction !== null}>
               {schedule.enabled ? "Disable" : "Enable"}
-            </button>
-            <button type="button" className="page-activity__action-btn" onClick={() => void remove()} disabled={busy}>
+            </Button>
+            <Button variant="danger" size="compact" busy={busyAction === "delete"} onClick={() => void remove()} disabled={busyAction !== null}>
               Delete
-            </button>
+            </Button>
           </>
         ) : null}
       </div>
 
       {tasksOpen ? (
-        tasks === null ? (
+        tasksLoading ? (
           <p className="page-activity__empty">Loading…</p>
+        ) : tasks === null ? (
+          <Button variant="secondary" size="compact" onClick={() => void loadTasks()}>Retry triggered tasks</Button>
         ) : tasks.length === 0 ? (
           <p className="page-activity__empty">This schedule has not fired yet.</p>
         ) : (

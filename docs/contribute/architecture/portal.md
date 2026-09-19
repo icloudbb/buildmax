@@ -45,6 +45,8 @@ Portal owns the cloud/space lane:
   start page owns its heading and keyboard-operated tabs.
   Workflow Detail assigns one primary action per lifecycle view: Publish for
   drafts, Run for published read mode, and Save while editing a published flow.
+  Agent Detail does the same for Run, configuration Save, and schedule creation;
+  its tabs are keyboard operated and schedule cards own their retry state.
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
   `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
   conversation streaming.

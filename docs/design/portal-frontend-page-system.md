@@ -209,8 +209,10 @@ the Chat start page a visible heading, keyboard-operated tabs, and a real Files
 link. Chat also keeps failed Task actions attached to their card and names a
 failed Task-list load without hiding the conversation. Workflow Detail now
 uses the shared actions and readable lifecycle labels, with Publish, Run,
-or Save taking priority according to the visible mode. Other detail and
-management pages, legacy button removal, atomic Issue
+or Save taking priority according to the visible mode. Agent Detail and its
+Schedules tab now use the same action roles; the tablist
+works by keyboard, and failed triggered-task loads can be retried in their card.
+Other detail and management pages, legacy button removal, atomic Issue
 creation, and independent operator review remain. Each further slice needs its
 own observable outcome and verification.
 

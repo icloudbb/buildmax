@@ -28,15 +28,64 @@ test("a schedule is listed on its agent's Schedules tab", async ({ page }) => {
   reportLeftovers(current.spaceId, [`agent ${agent.id}`, `schedule ${schedule.id}`])
 
   await page.goto(`/#/spaces/${current.spaceId}/agents/${agent.id}`)
-  // Scope to the agent's own tab bar: the sidebar also has a "Schedules" button
-  // (the space-wide overview), so an unscoped role lookup is ambiguous.
-  await page.locator(".agent-detail__tabs").getByRole("tab", { name: "Schedules", exact: true }).click()
+  // The agent tablist is keyboard operated and scrolls within the page at
+  // narrow widths. Scope it because the sidebar also has Schedules.
+  const tabs = page.locator(".agent-detail__tabs")
+  await tabs.getByRole("tab", { name: "Overview" }).focus()
+  await page.keyboard.press("End")
+  await expect(tabs.getByRole("tab", { name: /Revisions/ })).toBeFocused()
+  await page.keyboard.press("ArrowLeft")
+  await expect(tabs.getByRole("tab", { name: "Schedules", exact: true })).toHaveAttribute("aria-selected", "true")
+  await expect(tabs.getByRole("tab", { name: "Schedules", exact: true })).toBeFocused()
 
   const list = page.locator(".agent-schedules__list")
   await expect(list.getByText(name, { exact: true })).toBeVisible()
   // The cron rule and its enabled state are what tell an operator when it runs.
   await expect(list.getByText("0 9 * * *", { exact: true })).toBeVisible()
   await expect(list.getByText("Enabled", { exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "New schedule" })).toHaveClass(/bm-button--primary/)
+  await expect(page.getByRole("button", { name: "Run agent" })).toHaveClass(/bm-button--secondary/)
+  await expect(list.getByRole("button", { name: "Delete" })).toHaveClass(/bm-button--danger/)
+
+  await tabs.getByRole("tab", { name: "Configuration" }).click()
+  await expect(page.getByRole("button", { name: "Save changes" })).toHaveClass(/bm-button--primary/)
+  await expect(page.getByRole("button", { name: "Delete agent" })).toHaveClass(/bm-button--danger/)
+  await expect(page.getByRole("button", { name: "Run agent" })).toHaveCount(0)
+})
+
+test("a failed triggered-task load can be retried in its schedule card", async ({ page }) => {
+  const current = await session(page)
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
+    name: tagged("Schedule task error agent"),
+    description: "Created by the Portal browser tests.",
+    instructions: "Reply with exactly: deployment smoke ok",
+  })
+  const schedule = await postJSON<{ id: string }>(page, `${current.space}/schedules`, current, {
+    agent_id: agent.id,
+    name: tagged("Schedule task error"),
+    input: "Summarize the new issues",
+    cron_expr: "0 9 * * *",
+    timezone: "UTC",
+  })
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`, `schedule ${schedule.id}`])
+
+  let recover = false
+  await page.route(new RegExp(`/api/spaces/[^/]+/schedules/${schedule.id}/tasks$`), async (route) => {
+    if (recover) return route.continue()
+    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "injected failure" }) })
+  })
+
+  await page.goto(`/#/spaces/${current.spaceId}/agents/${agent.id}`)
+  await page.locator(".agent-detail__tabs").getByRole("tab", { name: "Schedules", exact: true }).click()
+  const card = page.locator(".agent-schedules__card")
+  await card.getByRole("button", { name: "Show triggered tasks" }).click()
+  await expect(card.getByRole("alert")).toContainText("injected failure")
+  await expect(card.getByText("Loading…")).toHaveCount(0)
+
+  recover = true
+  await card.getByRole("button", { name: "Retry triggered tasks" }).click()
+  await expect(card.getByText("This schedule has not fired yet.")).toBeVisible()
+  await expect(card.getByRole("alert")).toHaveCount(0)
 })
 
 // The space-wide overview is the other surface: every schedule across every

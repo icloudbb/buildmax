@@ -497,6 +497,9 @@ Failed conversation task actions stay visible on their card, and a task-list
 failure offers a local retry while keeping the conversation readable.
 Workflow Detail now uses the shared action roles for editing and running,
 with one primary action per lifecycle view and readable status labels.
+Agent Detail uses the same roles for Run, Save, and Delete, and its tablist
+supports arrow keys and narrow-screen scrolling. Agent schedules name a failed
+triggered-task load and offer local retry.
 If the second write of a new Issue fails, Portal shows the created Issue's
 address and prevents duplicate submission; creating every field atomically
 remains open.

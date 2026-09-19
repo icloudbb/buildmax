@@ -36,11 +36,15 @@
 .agent-detail__tabs {
   display: flex;
   gap: 0.25rem;
+  max-width: 100%;
+  overflow-x: auto;
   border-bottom: 1px solid var(--color-border);
   margin: 1.5rem 0;
 }
 
 .agent-detail__tab {
+  flex: none;
+  min-height: 44px;
   padding: 0.55rem 0.9rem;
   border: none;
   background: none;
@@ -54,6 +58,11 @@
 
 .agent-detail__tab:hover {
   color: var(--color-text);
+}
+
+.agent-detail__tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 
 .agent-detail__tab--active {
@@ -301,30 +310,12 @@
 .agent-config__actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.75rem;
 }
 
-.agent-config__delete {
+.agent-config__actions .bm-button:last-child {
   margin-left: auto;
-  font: inherit;
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 0.4rem 0.75rem;
-  cursor: pointer;
-}
-
-.agent-config__delete:hover:not(:disabled) {
-  color: var(--color-text);
-  border-color: var(--color-text-muted);
-  background: var(--color-bg-muted);
-}
-
-.agent-config__delete:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 @media (max-width: 640px) {

@@ -61,6 +61,23 @@ test("Issues and Issue Detail reflow to one column with reachable actions", asyn
   await expectNoHorizontalOverflow(page)
 })
 
+test("Agent sections scroll within their tablist without widening the page", async ({ page }) => {
+  const current = await session(page)
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
+    name: tagged("Narrow agent tabs"),
+    description: "Created by the Portal browser tests.",
+    instructions: "Reply with exactly: deployment smoke ok",
+  })
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`])
+  await page.goto(`/#/spaces/${current.spaceId}/agents/${agent.id}`)
+
+  const tabs = page.locator(".agent-detail__tabs")
+  await expect(tabs.getByRole("tab", { name: "Overview" })).toBeVisible()
+  await expect(tabs.getByRole("tab", { name: /Revisions/ })).toBeAttached()
+  expect(await tabs.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+  await expectNoHorizontalOverflow(page)
+})
+
 async function startAgentRun(page: Page, current: Session): Promise<string> {
   const agentName = tagged("Responsive layout probe")
   const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {

@@ -19,6 +19,9 @@ Agent 和 Workflow 是你分派工作的可复用构建块。Agent 是关于*一
 
 保存定义使其可被分派。你在 Issue 的 Overview 标签页中把一个 Agent 设置为
 该 Issue 的 **Executor**——见 [对话与 Issue](对话与Issue.md)。
+在 Agent 页面，**Run agent** 会启动一个 Task。**Configuration** 标签页提供
+**Save changes** 和 **Delete agent**；标签页也支持左右方向键。窄屏时可横向滚动
+标签栏以进入后面的区块。
 
 ### 版本
 
@@ -83,6 +86,8 @@ IANA 时区（例如 `Asia/Shanghai`）。
 拥有自己的状态、轨迹与 Artifact。该区块列出每个 schedule 的下次与上次触发
 时间和它创建的 Task，并允许你禁用、重新启用或删除它。删除 schedule 会保留
 它已经创建的 Task。
+如果已触发 Task 列表加载失败，schedule 卡片会显示错误并提供
+**Retry triggered tasks**。
 
 连续五次触发都未能启动 Task，或创建者的账号被禁用时，schedule 会自行暂停；
 排除原因后重新启用即可。如果服务器在某个触发时刻处于停机状态，恢复后它会

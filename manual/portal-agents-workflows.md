@@ -21,6 +21,10 @@ Open **Agents** in the sidebar and create a new agent. An agent definition has:
 Save the definition to make it assignable. You set an agent as an issue's
 **Executor** from the issue's Overview tab — see
 [Conversations & issues](portal-issues.md).
+On the agent page, **Run agent** starts a task. The **Configuration** tab has
+**Save changes** and **Delete agent**; the tab row also works with Left and
+Right Arrow keys. On narrow screens, scroll the tab row sideways to reach
+later sections.
 
 ### Versions
 
@@ -90,6 +94,8 @@ Each firing creates an ordinary task for that agent, so it shows up in the task
 list with its own status, trace, and artifacts. The section lists each
 schedule's next and last firing and the tasks it created, and lets you disable,
 re-enable, or delete it. Deleting a schedule keeps the tasks it already created.
+If its triggered-task list fails to load, the schedule card shows the error and
+offers **Retry triggered tasks**.
 
 A schedule pauses itself after five consecutive firings fail to start a task,
 or when its creator's account is disabled; re-enable it once the cause is
