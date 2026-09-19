@@ -11,6 +11,18 @@ Shift+Enter for a new line). A conversation can answer you directly, or, when th
 work is bigger, start background work and show you the result when it's ready.
 
 Recent conversations are listed on Chat so you can pick one back up.
+Use the **Recent Conversations** and **Files** tabs to switch between the list
+and a link to the space's working files; Left and Right Arrow switch tabs when
+one has keyboard focus. A background task started by a conversation appears
+in the thread with its status and output. Its card offers **Stop** while it is
+running, **Run again** when it ends, and **Run details** for the trace.
+If its action fails, the card keeps the error visible. If the task list cannot
+load, Chat shows a warning and **Retry tasks** without hiding the conversation.
+
+When you run an agent directly, its Task page keeps the input and output for
+each turn together. **Continue** sends new instructions; **Retry last run**
+repeats the previous turn. **Details** holds the run's origin, timing, ID, and
+trace, while the page header uses readable status words such as **Done**.
 
 ## Create an issue
 

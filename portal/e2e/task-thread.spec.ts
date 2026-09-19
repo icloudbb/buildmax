@@ -87,6 +87,10 @@ test("running an Agent directly reaches a Task with no Conversation, and Continu
 
   await waitForTaskSucceeded(page, current, taskId)
   await expect(history.locator(".bm-chat-thread__row--assistant").last()).toContainText(REPLY)
+  await expect(page.locator(".task-thread__header .page-activity__subtitle")).toContainText("Done")
+  await expect(page.getByRole("button", { name: "Retry last run" })).toHaveClass(/bm-button--secondary/)
+  await expect(page.getByRole("button", { name: "Details" })).toHaveClass(/bm-button--tertiary/)
+  await expect(page.getByRole("link", { name: "Open agent" })).toBeVisible()
 
   // --- Continue: a new input on the same Task, a new TaskRun. ---
   const followUp = "Second turn, asked as a Continue"

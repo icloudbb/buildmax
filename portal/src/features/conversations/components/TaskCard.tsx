@@ -1,5 +1,6 @@
+import { Button } from "@buildmax/gui"
 import type { ApiTask } from "../../../lib/api/types"
-import { taskRunFailed, taskRunFinished } from "../thread"
+import { runStatusLabel, taskRunFailed, taskRunFinished } from "../thread"
 
 const previewMaxLen = 600
 
@@ -17,26 +18,6 @@ interface TaskCardProps {
 function statusTone(status: string): "running" | "failed" | "done" {
   if (!taskRunFinished(status)) return "running"
   return taskRunFailed(status) ? "failed" : "done"
-}
-
-function statusLabel(status: string): string {
-  switch (status.toUpperCase()) {
-    case "PENDING":
-      return "Queued"
-    case "SCHEDULED":
-      return "Starting"
-    case "RUNNING":
-      return "Running"
-    case "SUCCEEDED":
-    case "SUCCESS":
-      return "Done"
-    case "FAILED":
-      return "Failed"
-    case "CANCELED":
-      return "Stopped"
-    default:
-      return status
-  }
 }
 
 function preview(output: string | null | undefined): string | null {
@@ -71,7 +52,7 @@ export function TaskCard({
   return (
     <article className={`task-card task-card--${tone}`}>
       <header className="task-card__head">
-        <span className={`task-card__status task-card__status--${tone}`}>{statusLabel(task.status)}</span>
+        <span className={`task-card__status task-card__status--${tone}`}>{runStatusLabel(task.status)}</span>
         <span className="task-card__title">{task.title || task.input}</span>
       </header>
       {task.error_message ? <p className="task-card__error">{task.error_message}</p> : null}
@@ -82,41 +63,19 @@ export function TaskCard({
       {error ? <p className="task-card__error">{error}</p> : null}
       <footer className="task-card__actions">
         {!finished ? (
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            disabled={busy}
-            onClick={() => onStop(task.id)}
-          >
-            {busy ? "Stopping…" : "Stop"}
-          </button>
+          <Button variant="danger" size="compact" busy={busy} onClick={() => onStop(task.id)}>Stop</Button>
         ) : (
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            disabled={busy}
-            onClick={() => onRetry(task.id)}
-          >
-            {busy ? "Retrying…" : "Run again"}
-          </button>
+          <Button variant="secondary" size="compact" busy={busy} onClick={() => onRetry(task.id)}>Run again</Button>
         )}
         {task.last_run_id ? (
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            onClick={() => onOpenTrace(task.last_run_id!)}
-          >
+          <Button variant="tertiary" size="compact" onClick={() => onOpenTrace(task.last_run_id!)}>
             Run details
-          </button>
+          </Button>
         ) : null}
         {task.issue_id && onOpenIssue ? (
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            onClick={() => onOpenIssue(task.issue_id!)}
-          >
+          <Button variant="tertiary" size="compact" onClick={() => onOpenIssue(task.issue_id!)}>
             Open issue
-          </button>
+          </Button>
         ) : null}
       </footer>
     </article>

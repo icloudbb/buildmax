@@ -490,7 +490,11 @@ run provenance. The first Portal page-system slice makes collection creation a
 single header action on Issues, Agents, Workflows, and Schedules; shared buttons handle action priority
 and busy state; Issue Detail opens with a read-first summary and separate editing;
 Workflow Run places the result before technical metadata. Other Portal pages
-still have local button styles while migration continues.
+still have local button styles while migration continues. Task Detail and
+conversation task cards now use the shared action roles and human run status;
+Chat has a visible heading, arrow-key tabs, and a Files link.
+Failed conversation task actions stay visible on their card, and a task-list
+failure offers a local retry while keeping the conversation readable.
 If the second write of a new Issue fails, Portal shows the created Issue's
 address and prevents duplicate submission; creating every field atomically
 remains open.

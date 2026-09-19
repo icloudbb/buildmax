@@ -203,10 +203,14 @@ enough for Desktop; Portal owns object vocabulary and page composition.
 
 The first implementation slice covers shared buttons, creation actions in the
 four work collections, read-first Issue Detail, Workflow Run result hierarchy,
-and deployment scope in Administration. Task, Chat, other detail and management
-pages, legacy button removal, atomic Issue creation, and independent operator
-review remain. Each further slice needs its own observable outcome and
-verification.
+and deployment scope in Administration. A second slice brings the same action
+roles and human run status to Task Detail and conversation task cards, and gives
+the Chat start page a visible heading, keyboard-operated tabs, and a real Files
+link. Chat also keeps failed Task actions attached to their card and names a
+failed Task-list load without hiding the conversation. Other detail and
+management pages, legacy button removal, atomic Issue
+creation, and independent operator review remain. Each further slice needs its
+own observable outcome and verification.
 
 ## Options and non-goals
 

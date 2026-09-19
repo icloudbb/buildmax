@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { Button } from "@buildmax/gui"
 
 export interface AlertAction {
   label: string
@@ -52,14 +53,14 @@ export function Alert({ tone, message, retry, navigate, children }: AlertProps) 
       {(retry || navigate) && (
         <div className="state-alert__actions">
           {retry && (
-            <button type="button" className="btn btn--secondary" onClick={retry.onClick}>
+            <Button variant="secondary" onClick={retry.onClick}>
               {retry.label}
-            </button>
+            </Button>
           )}
           {navigate && (
-            <button type="button" className="btn btn--ghost" onClick={navigate.onClick}>
+            <Button variant="tertiary" onClick={navigate.onClick}>
               {navigate.label}
-            </button>
+            </Button>
           )}
         </div>
       )}

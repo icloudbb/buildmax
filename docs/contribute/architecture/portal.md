@@ -41,6 +41,8 @@ Portal owns the cloud/space lane:
   and busy state. Portal owns placement and permission decisions. Collection
   creation stays in the header, while an empty state explains what is missing.
   Issue Detail opens in read mode with its result and next action before editing.
+  Task Detail and conversation task cards use the same action roles; the Chat
+  start page owns its heading and keyboard-operated tabs.
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
   `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
   conversation streaming.

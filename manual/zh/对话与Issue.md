@@ -11,6 +11,15 @@ Shift+Enter 换行）。一段对话可以直接回答你，或者，当工作�
 启动后台工作并在结果就绪时展示给你。
 
 最近的对话会列在 Chat 上，方便你重新接续。
+**Recent Conversations** 与 **Files** 标签页分别展示对话列表和 Space 工作文件的入口；
+键盘焦点位于标签时，可用左右方向键切换。对话启动的后台 Task 会在对话中显示状态与输出；
+运行时可用 **Stop**，结束后可用 **Run again**，**Run details** 用于查看轨迹。
+操作失败时，错误会留在对应卡片上；Task 列表无法加载时，Chat 会显示提示与
+**Retry tasks**，但仍保留对话内容。
+
+直接运行 Agent 时，Task 页面按轮次展示输入与输出。**Continue** 发送新指令；
+**Retry last run** 重复上一轮。**Details** 收纳来源、时间、ID 和轨迹；
+页头使用 **Done** 等可读状态词。
 
 ## 创建一个 Issue
 

@@ -6,6 +6,7 @@ import type { ApiConversationMessage, LoginUser } from "../../../lib/api"
 import type { ConversationTaskCards } from "../hooks/useConversationTasks"
 import { buildConversationThread } from "../thread"
 import { TaskCard } from "./TaskCard"
+import { Alert } from "../../../components/state/Alert"
 
 interface ConversationDetailViewProps {
   historyRef: React.RefObject<HTMLElement | null>
@@ -59,7 +60,7 @@ export function ConversationDetailView({
           <TaskCard
             task={task}
             busy={taskCards.busyTaskId === task.id}
-            error={taskCards.busyTaskId === task.id ? taskCards.actionError : null}
+            error={taskCards.actionError?.taskId === task.id ? taskCards.actionError.message : null}
             onStop={taskCards.stop}
             onRetry={taskCards.retry}
             onOpenTrace={taskCards.openTrace}
@@ -139,6 +140,13 @@ export function ConversationDetailView({
 
   return (
     <div className="page-chat">
+      {taskCards.tasksError ? (
+        <Alert
+          tone={taskCards.tasksErrorKind === "error" && taskCards.tasks.length > 0 ? "stale" : taskCards.tasksErrorKind ?? "error"}
+          message={`Background tasks: ${taskCards.tasksError}`}
+          retry={taskCards.tasksErrorKind === "forbidden" ? undefined : { label: "Retry tasks", onClick: taskCards.retryLoad }}
+        />
+      ) : null}
       <ChatThread
         historyRef={historyRef}
         ariaLabel="Conversation history"
