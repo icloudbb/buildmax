@@ -2,7 +2,7 @@ import { compareRecent, formatToolArgs, shortToolArgs, toolDisplayName } from '.
 import { addLiveToolCall, addLiveToolResult, appendAssistantForNextLLM, buildToolResultMap, mergeRunStatus } from './lib/messages';
 import { getApp } from './lib/app';
 import { ChatInput } from './components/ChatInput';
-import { Inspector } from './components/Inspector';
+import { InfoPanel } from './components/InfoPanel';
 import { HomeDashboard } from './components/HomeDashboard';
 import { MarkdownMessage } from './components/MarkdownMessage';
 import { CreateProjectModal } from './components/Modals';
@@ -20,17 +20,12 @@ import { Avatar, ChatComposer, ChatThread, ThemeProvider, useTheme } from '@buil
 import { EventsOn, EventsOff } from './lib/wailsRuntime';
 import LoginPage from './LoginPage';
 
-// Inspector column layout is a per-machine preference, remembered across runs.
-// Storage can be unavailable (private windows, cleared data), so every access
-// is guarded and falls back to the default.
-const INSPECTOR_MIN_WIDTH = 260;
-const INSPECTOR_MAX_WIDTH = 720;
-const INSPECTOR_DEFAULT_WIDTH = 340;
+// Sidebar layout is a per-machine preference, remembered across runs. Storage
+// can be unavailable (private windows, cleared data), so every access is guarded
+// and falls back to the default.
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 480;
 const SIDEBAR_DEFAULT_WIDTH = 288;
-const LS_INSPECTOR = 'bm.desktop.inspector';
-const LS_INSPECTOR_WIDTH = 'bm.desktop.inspectorWidth';
 const LS_SIDEBAR_COLLAPSED = 'bm.desktop.sidebarCollapsed';
 const LS_SIDEBAR_WIDTH = 'bm.desktop.sidebarWidth';
 
@@ -49,12 +44,6 @@ function writeStored(key, value) {
   } catch {
     /* storage may be unavailable; the preference just does not persist */
   }
-}
-
-function clampInspectorWidth(w) {
-  const n = Number(w);
-  if (!Number.isFinite(n)) return INSPECTOR_DEFAULT_WIDTH;
-  return Math.min(INSPECTOR_MAX_WIDTH, Math.max(INSPECTOR_MIN_WIDTH, n));
 }
 
 function clampSidebarWidth(w) {
@@ -138,21 +127,9 @@ export default function App() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
 
-  // Right-hand inspector column: which content it shows and whether it is open,
-  // widened, or expanded to fill the main area. `open`/`view` persist; a run
-  // starts un-expanded. Width and the left-sidebar collapse are per-machine
-  // preferences too. `expanded` is a transient review state, not remembered.
-  const [inspector, setInspector] = useState(() => {
-    const saved = readStored(LS_INSPECTOR, null);
-    return {
-      open: saved?.open === true,
-      view: ['files', 'diff', 'info'].includes(saved?.view) ? saved.view : 'diff',
-      expanded: false,
-    };
-  });
-  const [inspectorWidth, setInspectorWidth] = useState(() =>
-    clampInspectorWidth(readStored(LS_INSPECTOR_WIDTH, INSPECTOR_DEFAULT_WIDTH)),
-  );
+  // Session Info is a property of the chat tab: a panel shown above the thread
+  // when toggled, from the toolbar or /info. It is not remembered across runs.
+  const [infoOpen, setInfoOpen] = useState(false);
   const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
   const [center, setCenter] = useState(emptyTabs);
   const [explorerMode, setExplorerMode] = useState('directory'); // 'directory' | 'changes'
@@ -160,42 +137,8 @@ export default function App() {
     clampSidebarWidth(readStored(LS_SIDEBAR_WIDTH, SIDEBAR_DEFAULT_WIDTH)),
   );
 
-  useEffect(() => { writeStored(LS_INSPECTOR, { open: inspector.open, view: inspector.view }); }, [inspector.open, inspector.view]);
-  useEffect(() => { writeStored(LS_INSPECTOR_WIDTH, inspectorWidth); }, [inspectorWidth]);
   useEffect(() => { writeStored(LS_SIDEBAR_COLLAPSED, leftCollapsed); }, [leftCollapsed]);
   useEffect(() => { writeStored(LS_SIDEBAR_WIDTH, sidebarWidth); }, [sidebarWidth]);
-
-  const openInspector = useCallback((view) => {
-    setInspector((s) => ({ ...s, open: true, view: view ?? s.view }));
-  }, []);
-  // The toolbar icons toggle: clicking the active view (when not expanded)
-  // closes the column rather than reopening the same thing.
-  const toggleInspectorView = useCallback((view) => {
-    setInspector((s) => (
-      s.open && s.view === view && !s.expanded
-        ? { ...s, open: false, expanded: false }
-        : { ...s, open: true, view }
-    ));
-  }, []);
-  const closeInspector = useCallback(() => {
-    setInspector((s) => ({ ...s, open: false, expanded: false }));
-  }, []);
-  const toggleInspectorExpand = useCallback(() => {
-    setInspector((s) => ({ ...s, open: true, expanded: !s.expanded }));
-  }, []);
-
-  const startInspectorResize = useCallback((e) => {
-    e.preventDefault();
-    const onMove = (ev) => setInspectorWidth(clampInspectorWidth(window.innerWidth - ev.clientX));
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      document.body.style.userSelect = '';
-    };
-    document.body.style.userSelect = 'none';
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }, []);
 
   const startSidebarResize = useCallback((e) => {
     e.preventDefault();
@@ -1023,12 +966,9 @@ export default function App() {
     });
   }
 
-  const inspectorOpen = !!currentProject && inspector.open;
-  const inspectorExpanded = inspectorOpen && inspector.expanded;
   const shellClass = [
     'shell',
     leftCollapsed ? 'shell--left-collapsed' : '',
-    inspectorExpanded ? 'shell--inspector-expanded' : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -1199,8 +1139,8 @@ export default function App() {
                   <button
                     type="button"
                     className="inspector-tabs__btn"
-                    aria-pressed={inspectorOpen && inspector.view === 'info'}
-                    onClick={() => toggleInspectorView('info')}
+                    aria-pressed={infoOpen}
+                    onClick={() => setInfoOpen((v) => !v)}
                     title="Session info"
                     aria-label="Session info"
                   >
@@ -1239,6 +1179,31 @@ export default function App() {
                   <div className="workspace-tabs__content">
                     {activeCenterKind === 'chat' && (
                       <div className="page-chat">
+                        {infoOpen && (
+                          <div className="chat-info" aria-label="Session info">
+                            <div className="chat-info__head">
+                              <span className="chat-info__title">Session info</span>
+                              <button
+                                type="button"
+                                className="chat-info__close"
+                                onClick={() => setInfoOpen(false)}
+                                title="Close"
+                                aria-label="Close session info"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            <div className="chat-info__body">
+                              <InfoPanel
+                                projectID={currentProject.id}
+                                sessionID={selectedId || ''}
+                                projectName={currentProject.name}
+                                workspace={currentSession?.workspace || currentProject.default_workspace}
+                                app={app}
+                              />
+                            </div>
+                          </div>
+                        )}
                         <ChatThread
                           historyRef={historyRef}
                           ariaLabel="Conversation history"
@@ -1261,7 +1226,7 @@ export default function App() {
                             suggestion={turnDigest?.suggestion ?? ''}
                             onAcceptSuggestion={() => setTurnDigest(null)}
                             sessionId={selectedId || ''}
-                            onOpenInspector={openInspector}
+                            onShowInfo={() => setInfoOpen(true)}
                             onShowChanges={() => setExplorerMode('changes')}
                             onRewound={handleRewound}
                             onForked={handleForked}
@@ -1306,30 +1271,6 @@ export default function App() {
               )}
             </div>
           </main>
-
-          {inspectorOpen && (
-            <>
-              <div
-                className="inspector-resizer"
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize inspector"
-                onMouseDown={startInspectorResize}
-              />
-              <Inspector
-                view={inspector.view}
-                expanded={inspector.expanded}
-                width={inspector.expanded ? null : inspectorWidth}
-                projectID={currentProject.id}
-                sessionID={selectedId || ''}
-                projectName={currentProject.name}
-                workspace={currentSession?.workspace || currentProject.default_workspace}
-                app={app}
-                onToggleExpand={toggleInspectorExpand}
-                onClose={closeInspector}
-              />
-            </>
-          )}
         </div>
       </div>
 

@@ -17,6 +17,51 @@
   flex-direction: column;
 }
 
+/* Session info is a property of the chat tab: a bounded, scrollable panel shown
+   above the thread when toggled. */
+.chat-info {
+  flex: 0 0 auto;
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chat-info__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.chat-info__title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #888);
+}
+
+.chat-info__close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+}
+
+.chat-info__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
 /* File and diff tabs fill the content region as a flex column so their inner
    scroll areas (.file-view__code, .diff-code) size correctly. */
 .diff-view {

@@ -133,7 +133,7 @@ export function ContextDonut({ status }) {
 
 // --- ChatInput ---
 
-export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onOpenInspector, onShowChanges }) {
+export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onShowInfo, onShowChanges }) {
   const [prompt, setPrompt] = useState('');
 
   // Palette state.
@@ -290,7 +290,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       case 'tasks': setShowJobs(true); break;
       case 'tools': setShowTools(true); break;
       case 'worktree': setShowWorktree(true); break;
-      case 'info': onOpenInspector?.('info'); break;
+      case 'info': onShowInfo?.(); break;
       case 'rewind':
       case 'fork':
         if (sessionId) setShowHistory(true);
