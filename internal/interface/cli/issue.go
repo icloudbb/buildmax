@@ -232,8 +232,41 @@ func newIssueShowCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <issue-id>",
 		Short: "Show one issue: what it asks for, how it was split up, and what has been said",
-		Args:  cobra.ExactArgs(1),
-		RunE:  runIssueShow,
+		Long: "Shows an issue: its description, sub-issues, and recent discussion.\n\n" +
+			"In a local session it takes an issue id. Inside a worker run it takes no\n" +
+			"id — it reads the one issue that run works, through the run bridge, the\n" +
+			"same view the in-process read tool gives.",
+		Args: cobra.MaximumNArgs(1),
+		RunE: runIssueShow,
+	}
+}
+
+// printRunIssue renders the bounded snapshot the worker issue route returns.
+func printRunIssue(cmd *cobra.Command, snap tool.IssueSnapshot) {
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "%s  (%s)\n", oneLine(snap.Title), snap.Status)
+	if snap.ExecutorKind != "" {
+		fmt.Fprintf(out, "executor %s\n", snap.ExecutorKind)
+	}
+	if strings.TrimSpace(snap.Description) != "" {
+		fmt.Fprintf(out, "\n%s\n", strings.TrimSpace(snap.Description))
+	}
+	if len(snap.Children) > 0 {
+		fmt.Fprintln(out, "\nSub-issues:")
+		for _, child := range snap.Children {
+			fmt.Fprintf(out, "  %-12s %s\n", child.Status, oneLine(child.Title))
+		}
+	}
+	if snap.OmittedComments > 0 {
+		fmt.Fprintf(out, "\nDiscussion (%d older not shown):\n", snap.OmittedComments)
+	} else if len(snap.Comments) > 0 {
+		fmt.Fprintln(out, "\nDiscussion:")
+	}
+	for _, comment := range snap.Comments {
+		fmt.Fprintf(out, "\n  %s — %s\n", comment.AuthorKind, comment.CreatedAt.Local().Format("2006-01-02 15:04"))
+		for _, line := range strings.Split(strings.TrimSpace(comment.Body), "\n") {
+			fmt.Fprintf(out, "    %s\n", line)
+		}
 	}
 }
 
@@ -271,6 +304,22 @@ func signedInServer(cmd *cobra.Command) (serverURL, token string, err error) {
 }
 
 func runIssueShow(cmd *cobra.Command, args []string) error {
+	// Inside a worker run there is one issue — the run's — and the worker route
+	// names it, so an id here would point at an issue the run may not read.
+	if wb := inWorkerRun(); wb != nil {
+		if len(args) > 0 {
+			return fmt.Errorf("inside a run, `issue show` reads this run's issue; drop the issue id")
+		}
+		snap, err := workerclient.NewIssueClient(wb.cfg, wb.taskRunID).Issue(cmd.Context())
+		if err != nil {
+			return fmt.Errorf("read issue: %w", err)
+		}
+		printRunIssue(cmd, snap)
+		return nil
+	}
+	if len(args) == 0 {
+		return fmt.Errorf("issue id required: buildmax issue show <issue-id>")
+	}
 	serverURL, token, err := signedInServer(cmd)
 	if err != nil {
 		return err

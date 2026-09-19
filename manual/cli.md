@@ -212,6 +212,11 @@ Read one before starting:
 buildmax issue show i_7Kq2...
 ```
 
+Inside a worker run, `buildmax issue show` and `buildmax issue comment` take no
+id — they read and report on the one issue that run works, through the run
+bridge — and `buildmax task status` (no id) reports the run's own status. The
+same commands a person runs against a named issue an agent runs against its own.
+
 Post a report on one, signed in as you:
 
 ```bash

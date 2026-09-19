@@ -338,9 +338,13 @@ The command surface changes the *mechanism* of Agent Server access, not the
    accordingly: `buildmax issue comment` inside a run posts to the run's one
    issue through the bridge (worker route, no id, the run budget) and refuses an
    issue id, and `buildmax artifact publish` uploads through the bridge to the
-   run's artifact route, with the space taken from the run token. Remaining: an
-   `issue view` and run status through the bridge; kind proof of single-run
-   isolation (already true by the run token, which the bridge only carries).
+   run's artifact route, with the space taken from the run token. `issue show`
+   and `task status` inside a run take no id and read the run's own issue and
+   status through the bridge. Commands with no worker route — `agent trigger`,
+   `task create`, `workflow run` — stay local-only and fail under a run token,
+   which is the single-run boundary, not a gap. Remaining: kind proof that one
+   run's bridge cannot reach another run's routes (already true by the run
+   token, which the bridge only carries).
 4. **Retire the tools.** Remove `GetIssue` / `ReportToIssue` from
    `internal/tool`, update `internal/tool/names.go`, and reduce or retire
    [issue-agent-access.md](./issue-agent-access.md) per §9. Ensure the

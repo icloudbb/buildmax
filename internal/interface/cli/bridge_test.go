@@ -112,6 +112,60 @@ func TestArtifactPublishRoutesThroughBridgeInWorkerRun(t *testing.T) {
 	}
 }
 
+// Inside a worker run, `issue show` reads the run's one issue through the bridge
+// on the worker issue route.
+func TestIssueShowRoutesThroughBridgeInWorkerRun(t *testing.T) {
+	var gotPath string
+	sock := bridgeStub(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_, _ = w.Write([]byte(`{"title":"Ship it","description":"do the thing","status":"in_progress","children":[],"comments":[]}`))
+	})
+	t.Setenv(config.EnvKeyBuildmaxBridgeSock, sock)
+	t.Setenv(config.EnvKeyBuildmaxTaskRunID, "run-1")
+
+	var out strings.Builder
+	root := NewRootCommand()
+	root.SetArgs([]string{"issue", "show"})
+	root.SetOut(&out)
+	root.SetErr(io.Discard)
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if gotPath != "/api/worker/task-runs/run-1/issue" {
+		t.Fatalf("path = %q, want the worker issue route", gotPath)
+	}
+	if !strings.Contains(out.String(), "Ship it") {
+		t.Fatalf("output did not render the issue:\n%s", out.String())
+	}
+}
+
+// Inside a worker run, `task status` reports the run's own status through the
+// bridge on the worker task-run route.
+func TestTaskStatusRoutesThroughBridgeInWorkerRun(t *testing.T) {
+	var gotPath string
+	sock := bridgeStub(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_, _ = w.Write([]byte(`{"run":{"id":"run-1","task_id":"task-1","status":"RUNNING"},"task":{"id":"task-1","space_id":"tm_1"}}`))
+	})
+	t.Setenv(config.EnvKeyBuildmaxBridgeSock, sock)
+	t.Setenv(config.EnvKeyBuildmaxTaskRunID, "run-1")
+
+	var out strings.Builder
+	root := NewRootCommand()
+	root.SetArgs([]string{"task", "status"})
+	root.SetOut(&out)
+	root.SetErr(io.Discard)
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if gotPath != "/api/worker/task-runs/run-1" {
+		t.Fatalf("path = %q, want the worker task-run route", gotPath)
+	}
+	if !strings.Contains(out.String(), "RUNNING") {
+		t.Fatalf("output did not render the status:\n%s", out.String())
+	}
+}
+
 // An issue id inside a worker run is refused: the run may only address its own
 // issue, which the worker route names for it.
 func TestIssueCommentRefusesIDInWorkerRun(t *testing.T) {
