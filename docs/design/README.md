@@ -72,6 +72,7 @@ remaining list. Update this snapshot when either changes.
 | [Managed LLM gateway](llm-gateway.md) | Active plan | Partial | Managed inference, model resolution, usage, and quota boundaries |
 | [Prompt cache control](prompt-cache-control.md) | Active plan | Partial | Provider-native prompt caching and its telemetry |
 | [Parallel tool execution](parallel-tool-execution.md) | Active plan | Complete | Safe concurrency for read-only tools and subagents |
+| [Agent Bridge CLI](agent-bridge-cli.md) | Direction | Not started | One `buildmax` command surface from Agent to Server, replacing the in-process Issue tools; local user credential and worker run-token bridge |
 | [Structured output](structured-output.md) | Active plan | Partial | Provider-neutral schema-constrained model results; runtime, providers, run persistence, and the linear Workflow consumer ship, while prompted fallback and typed routing remain |
 | [ACP interoperability boundary](acp-interoperability.md) | Direction | Decision only | How BuildMax may expose its native Agent Core to ACP clients without making ACP an internal or external-executor contract |
 | [Client modes: local and managed](client-modes.md) | Specification | Complete | Login-derived mode selection, model inventory, and usage attribution |

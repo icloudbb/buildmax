@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
@@ -193,7 +192,8 @@ func (h *Handler) postRunIssueComment(w http.ResponseWriter, r *http.Request) {
 		IssueID:         *task.IssueID,
 		AuthorKind:      coreissue.CommentAuthorAgent,
 		AuthorID:        agentID,
-		Body:            issueCommentBody(req),
+		Body:            req.Body,
+		ArtifactIDs:     req.ArtifactIDs,
 		SourceTaskID:    &task.ID,
 		SourceTaskRunID: &taskRunID,
 	})
@@ -205,22 +205,4 @@ func (h *Handler) postRunIssueComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"id": comment.ID})
-}
-
-// issueCommentBody appends the artifacts the agent named, by identity. The IDs
-// go in the comment rather than into a relation of their own because no such
-// relation exists: an artifact is reachable by its own handle, and a second
-// weaker reference would be one more thing to keep true.
-func issueCommentBody(req postRunIssueCommentRequest) string {
-	body := strings.TrimSpace(req.Body)
-	ids := make([]string, 0, len(req.ArtifactIDs))
-	for _, id := range req.ArtifactIDs {
-		if trimmed := strings.TrimSpace(id); trimmed != "" {
-			ids = append(ids, trimmed)
-		}
-	}
-	if len(ids) == 0 {
-		return body
-	}
-	return strings.TrimSpace(body + "\n\nArtifacts: " + strings.Join(ids, ", "))
 }

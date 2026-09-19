@@ -98,3 +98,16 @@ func (m *MockIssueCommentStore) CountIssueComments(_ context.Context, issueIDs [
 	}
 	return out, nil
 }
+
+func (m *MockIssueCommentStore) CountIssueCommentsBySourceTaskRun(_ context.Context, taskRunID string) (int, error) {
+	if taskRunID == "" {
+		return 0, nil
+	}
+	total := 0
+	for _, comment := range m.Comments {
+		if comment.SourceTaskRunID != nil && *comment.SourceTaskRunID == taskRunID {
+			total++
+		}
+	}
+	return total, nil
+}

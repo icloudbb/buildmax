@@ -36,6 +36,10 @@
 - touches: `internal/tool`, `internal/agentapp`, `internal/agentapp/taskrun`,
   `internal/service/issue`, `internal/server/handlers/work`,
   `internal/interface/client`
+- superseded_by (mechanism, planned): [agent-bridge-cli.md](./agent-bridge-cli.md)
+  reverses the two-tool mechanism in favour of one `buildmax` command surface;
+  the product boundary in §6 survives there. The tools below remain the shipped
+  path until that record's phases land.
 - created_at: `2026-08-29`
 
 ## 1. Decision
