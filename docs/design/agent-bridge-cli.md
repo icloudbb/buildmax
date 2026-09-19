@@ -326,11 +326,18 @@ The command surface changes the *mechanism* of Agent Server access, not the
    `ListWorkflows`/`GetWorkflowRun` with `FindWorkflow` fanning out), and the
    `--help` command groups (Server vs Local, `groupTopLevelCommands` in
    root.go). Remaining: `task create`, `run status`.
-3. **Worker bridge.** Run the bridge socket in `internal/agentapp/taskrun`,
-   export `BUILDMAX_BRIDGE_SOCK` through `withRunEnv`, allow it past
-   `FilterWorkerEnv` in `internal/config/env_spec.go`, and proxy to the worker
-   listener reusing `internal/infra/workerclient`. Prove single-run isolation:
-   one run's bridge cannot reach another run's routes.
+3. **Worker bridge.** Run a Unix-socket reverse proxy inside the worker run that
+   injects the run token and forwards to the worker listener, so a subprocess
+   reaches the worker API without ever holding the token. **Shipped so far:** the
+   transport — `internal/infra/runbridge`, started in `bootstrap.RunWorker` bound
+   to the run, which exports `BUILDMAX_BRIDGE_SOCK` and `BUILDMAX_TASK_RUN_ID`
+   (the Bash subprocess inherits them; neither is secret, and `_SOCK`/`_ID` names
+   survive sandbox env scrubbing, so no `FilterWorkerEnv` change is needed). It
+   forwards only `/api/worker/` paths and fails open (a run whose bridge cannot
+   start still executes). Remaining: the CLI detecting `BUILDMAX_BRIDGE_SOCK` and
+   routing the worker-context commands through it, and kind proof of single-run
+   isolation (one run's bridge cannot reach another run's routes — already true
+   by the run token, which the bridge only carries).
 4. **Retire the tools.** Remove `GetIssue` / `ReportToIssue` from
    `internal/tool`, update `internal/tool/names.go`, and reduce or retire
    [issue-agent-access.md](./issue-agent-access.md) per §9. Ensure the

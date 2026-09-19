@@ -14,6 +14,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/session"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
+	"github.com/icloudbb/buildmax/internal/infra/runbridge"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 )
 
@@ -258,6 +259,20 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	defer cancelRun(nil)
 	go workerclient.WatchCancel(runCtx, apiCfg, taskRunID, 0, func() { cancelRun(coretask.ErrRunCanceled) })
 	interruptRunOnShutdown(ctx, runCtx, cancelRun)
+
+	// The run bridge lets a subprocess (the buildmax CLI the agent runs through
+	// Bash) reach the worker API without the run token, which was scrubbed from
+	// the environment above. It is a convenience, not a requirement: a run whose
+	// bridge cannot start still executes, and the CLI reports it is not connected.
+	// So a failure here is logged and the run continues. See
+	// docs/design/agent-bridge-cli.md.
+	if bridge, err := runbridge.Serve(serverURL, runToken, httpClient); err != nil {
+		slog.Warn("run bridge did not start; the buildmax CLI will be unavailable in this run", "err", err)
+	} else {
+		defer func() { _ = bridge.Close() }()
+		_ = os.Setenv(config.EnvKeyBuildmaxBridgeSock, bridge.SocketPath())
+		_ = os.Setenv(config.EnvKeyBuildmaxTaskRunID, taskRunID)
+	}
 
 	err = taskrun.RunTask(runCtx, taskrun.RunTaskInput{
 		Task:                   task,

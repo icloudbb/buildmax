@@ -263,6 +263,9 @@ internal/
 │   ├── trace/          Durable run-trace recorder (bounded, redacted JSONL)
 │   ├── k8s/            Kubernetes worker job launcher
 │   ├── workerclient/   Worker-side HTTP client for the server worker API
+│   ├── runbridge/      Per-run Unix-socket reverse proxy to the worker API, so a
+│   │                   subprocess reaches it without holding the run token
+│   │                   (docs/design/agent-bridge-cli.md)
 │   ├── httpclient/     Decodes the server's error envelope for its Go clients
 │   ├── flock/          Advisory file lock the OS releases when the holder exits
 │   ├── git/            Branch, diff, and worktree helpers
