@@ -9,7 +9,7 @@ const KIND_ICON = {
   diff: '±',
 };
 
-export function TabBar({ tabs, activeKey, onSelect, onClose }) {
+export function TabBar({ tabs, activeKey, onSelect, onClose, onPin }) {
   if (tabs.length === 0) return null;
   return (
     <div className="workspace-tabs__bar" role="tablist" aria-label="Open tabs">
@@ -29,6 +29,7 @@ export function TabBar({ tabs, activeKey, onSelect, onClose }) {
             className="workspace-tabs__tab-btn"
             title={t.title}
             onClick={() => onSelect(t.key)}
+            onDoubleClick={() => onPin?.(t.key)}
           >
             <span className="workspace-tabs__tab-icon" aria-hidden>{KIND_ICON[t.kind] ?? ''}</span>
             <span className="workspace-tabs__tab-title">{t.title}</span>

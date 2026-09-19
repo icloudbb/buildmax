@@ -12,7 +12,7 @@ import { TabBar } from './components/TabBar';
 import { Explorer } from './components/Explorer';
 import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
-import { emptyTabs, openTab, closeTab, focusTab, activeTab } from './lib/tabs';
+import { emptyTabs, openTab, closeTab, focusTab, pinTab, activeTab, tabIdentity } from './lib/tabs';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Markdown from 'react-markdown';
@@ -492,14 +492,18 @@ export default function App() {
     });
   }, []);
 
-  // The Explorer opens file and diff content as center tabs. A browse click
-  // opens a preview tab, which the next browse click replaces (see tabs.js).
-  const openFileTab = useCallback((path) => {
-    setCenter((s) => openTab(s, { kind: 'file', ref: path, title: path.split('/').pop() || path, preview: true }));
+  // The Explorer opens file and diff content as center tabs. A single browse
+  // click opens a preview tab, which the next browse click replaces; a
+  // double-click pins a durable tab (see tabs.js).
+  const openFileTab = useCallback((path, pinned = false) => {
+    const tab = { kind: 'file', ref: path, title: path.split('/').pop() || path, preview: !pinned };
+    setCenter((s) => (pinned ? pinTab(openTab(s, tab), tabIdentity(tab)) : openTab(s, tab)));
   }, []);
-  const openDiffTab = useCallback((path) => {
-    setCenter((s) => openTab(s, { kind: 'diff', ref: path, title: `${path.split('/').pop() || path} (diff)`, preview: true }));
+  const openDiffTab = useCallback((path, pinned = false) => {
+    const tab = { kind: 'diff', ref: path, title: `${path.split('/').pop() || path} (diff)`, preview: !pinned };
+    setCenter((s) => (pinned ? pinTab(openTab(s, tab), tabIdentity(tab)) : openTab(s, tab)));
   }, []);
+  const pinCenterTab = useCallback((key) => setCenter((s) => pinTab(s, key)), []);
 
   const active = activeTab(center);
   const activeCenterKind = active?.kind ?? null;
@@ -1175,6 +1179,7 @@ export default function App() {
                     activeKey={center.activeKey}
                     onSelect={selectCenterTab}
                     onClose={closeCenterTab}
+                    onPin={pinCenterTab}
                   />
                   <div className="workspace-tabs__content">
                     {activeCenterKind === 'chat' && (

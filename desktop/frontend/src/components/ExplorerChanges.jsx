@@ -33,6 +33,7 @@ export function ExplorerChanges({ projectID, sessionID, app, onOpenDiff }) {
             type="button"
             className="diff-drawer__file"
             onClick={() => onOpenDiff(f.path)}
+            onDoubleClick={() => onOpenDiff(f.path, true)}
             title={f.path}
           >
             <span className={`diff-drawer__status diff-drawer__status--${f.status}`}>{statusGlyph(f.status)}</span>

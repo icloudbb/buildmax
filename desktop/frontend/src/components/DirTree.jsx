@@ -1,8 +1,8 @@
 // DirTree renders a lazily-expanded workspace directory tree from the state a
 // useWorkspaceDir hook holds. It is presentational: clicking a directory calls
-// toggleDir, clicking a file calls onFileClick(path). Shared by the Explorer
-// tree and the inspector file browser.
-export function DirTree({ byDir, expanded, toggleDir, onFileClick, activePath }) {
+// toggleDir; a single file click calls onFileClick(path) (preview) and a
+// double-click calls onFileOpen(path) (pin).
+export function DirTree({ byDir, expanded, toggleDir, onFileClick, onFileOpen, activePath }) {
   function renderEntries(dir, depth) {
     const node = byDir[dir];
     const pad = { paddingLeft: `${0.5 + depth * 0.85}rem` };
@@ -24,6 +24,7 @@ export function DirTree({ byDir, expanded, toggleDir, onFileClick, activePath })
             className={`file-tree__row ${e.is_dir ? 'file-tree__row--dir' : 'file-tree__row--file'} ${active ? 'file-tree__row--active' : ''}`}
             style={pad}
             onClick={e.is_dir ? () => toggleDir(e.path) : () => onFileClick(e.path)}
+            onDoubleClick={e.is_dir ? undefined : () => onFileOpen?.(e.path)}
             role="button"
             title={e.path}
           >

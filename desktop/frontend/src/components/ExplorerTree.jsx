@@ -7,7 +7,13 @@ export function ExplorerTree({ projectID, sessionID, app, onOpenFile }) {
   const { byDir, expanded, toggleDir } = useWorkspaceDir(projectID, sessionID, app);
   return (
     <div className="explorer__tree" aria-label="Workspace files">
-      <DirTree byDir={byDir} expanded={expanded} toggleDir={toggleDir} onFileClick={onOpenFile} />
+      <DirTree
+        byDir={byDir}
+        expanded={expanded}
+        toggleDir={toggleDir}
+        onFileClick={(path) => onOpenFile(path)}
+        onFileOpen={(path) => onOpenFile(path, true)}
+      />
     </div>
   );
 }

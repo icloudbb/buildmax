@@ -39,6 +39,13 @@ describe('TabBar', () => {
     expect(screen.queryByLabelText('Close New Chat')).toBeNull();
   });
 
+  it('pins a tab on double-click', () => {
+    const onPin = vi.fn();
+    render(<TabBar tabs={tabs} activeKey="chat:s1" onSelect={() => {}} onClose={() => {}} onPin={onPin} />);
+    fireEvent.doubleClick(screen.getByRole('tab', { name: /a\.go/ }));
+    expect(onPin).toHaveBeenCalledWith('file:a.go');
+  });
+
   it('renders nothing when there are no tabs', () => {
     const { container } = render(<TabBar tabs={[]} activeKey={null} onSelect={() => {}} onClose={() => {}} />);
     expect(container.firstChild).toBeNull();
