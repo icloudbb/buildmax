@@ -58,7 +58,6 @@ and nothing under `cmd/` or `internal/` may import it.
 ## Sources Of Truth
 
 - Task-oriented documentation guide: [`docs/README.md`](docs/README.md)
-- Complete bilingual file index: [`docs/index.md`](docs/index.md)
 - Current shipped state: [`docs/current-state.md`](docs/current-state.md)
 - Active priorities: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 - Ready, decomposed work items: [`docs/backlog/`](docs/backlog/README.md)

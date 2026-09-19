@@ -106,9 +106,7 @@ boundaries; do not expose a deployment before reading the
 
 ## Documentation
 
-**[docs/](docs/README.md)** is the task-oriented guide. The
-**[single-page index](docs/index.md)** lists every file with direct English and
-Chinese links for compact browsing.
+**[docs/](docs/README.md)** is the task-oriented guide.
 
 | | |
 |---|---|

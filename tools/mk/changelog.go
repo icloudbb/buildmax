@@ -20,12 +20,6 @@ const changelogDir = "docs/changelog"
 // a release body quotes.
 const changelogFile = "CHANGELOG.md"
 
-// docsIndexFile is the complete file index. It links every document, including
-// each unreleased changelog fragment, so a release that folds and deletes those
-// fragments has to drop their index lines in the same commit or the released
-// branch carries links to files it no longer contains.
-const docsIndexFile = "docs/index.md"
-
 // zhChangelogDir mirrors changelogDir in simplified Chinese: one translated
 // entry per file, each cross-linked to its English original. A release empties
 // it alongside changelogDir (see the directory READMEs). CHANGELOG.md is the
@@ -228,84 +222,17 @@ func releaseChangelog(version string) error {
 		return fmt.Errorf("write %s: %w", changelogFile, err)
 	}
 
-	var indexTargets []string
 	for _, dir := range []string{changelogDir, zhChangelogDir} {
 		for _, category := range changelogCategories {
 			files, _ := filepath.Glob(filepath.Join(dir, category, "*.md"))
 			for _, f := range files {
-				// docs/index.md links English fragments by their path relative
-				// to docs/; the Chinese mirror shows an em dash rather than a
-				// link, so only the English fragments have an index line to drop.
-				if dir == changelogDir {
-					rel, err := filepath.Rel("docs", f)
-					if err != nil {
-						return err
-					}
-					indexTargets = append(indexTargets, filepath.ToSlash(rel))
-				}
 				if err := os.Remove(f); err != nil {
 					return fmt.Errorf("remove %s: %w", f, err)
 				}
 			}
 		}
 	}
-	if err := pruneDocsIndex(indexTargets); err != nil {
-		return err
-	}
 	fmt.Printf("Folded %d entries into %s as %s, and moved the compare links onto it.\n", count, changelogFile, version)
-	return nil
-}
-
-// pruneDocsIndex removes the docs/index.md lines that link the changelog
-// fragments a release just folded and deleted, keyed by the `](<path>)` a link
-// uses. Every folded fragment must have had at least one index line — an
-// architecture test requires the index to cover it — so a fragment matching
-// none means the index had drifted and is reported rather than written, since
-// the fold is otherwise silent. Duplicate lines for one fragment are all
-// dropped: the index has carried a document under two titles before, and
-// leaving half of a folded entry behind is the dangling link this guards.
-func pruneDocsIndex(targets []string) error {
-	if len(targets) == 0 {
-		return nil
-	}
-	raw, err := os.ReadFile(docsIndexFile)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", docsIndexFile, err)
-	}
-	matched := make(map[string]int, len(targets))
-	markers := make(map[string]string, len(targets))
-	for _, t := range targets {
-		markers[t] = "](" + t + ")"
-	}
-	lines := strings.Split(string(raw), "\n")
-	kept := make([]string, 0, len(lines))
-	for _, line := range lines {
-		dropped := false
-		for t, marker := range markers {
-			if strings.Contains(line, marker) {
-				matched[t]++
-				dropped = true
-				break
-			}
-		}
-		if !dropped {
-			kept = append(kept, line)
-		}
-	}
-	var missing []string
-	for _, t := range targets {
-		if matched[t] == 0 {
-			missing = append(missing, t)
-		}
-	}
-	if len(missing) > 0 {
-		sort.Strings(missing)
-		return fmt.Errorf("prune %s: no index line for folded %s; the index and %s had drifted",
-			docsIndexFile, strings.Join(missing, ", "), changelogDir)
-	}
-	if err := os.WriteFile(docsIndexFile, []byte(strings.Join(kept, "\n")), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", docsIndexFile, err)
-	}
 	return nil
 }
 

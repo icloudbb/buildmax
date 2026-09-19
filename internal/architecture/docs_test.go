@@ -2,10 +2,9 @@ package architecture_test
 
 // Documentation constraints. These keep docs/ and the manual/ manual honest about
 // things the code is the source of truth for: every relative link must resolve,
-// every document must appear in the complete index, every environment variable
-// must be documented, every LLM-facing tool name must appear in the user-facing
-// tool guide, every cited file and `./make` command must exist, and every CLI
-// command must reach the reference page.
+// every environment variable must be documented, every LLM-facing tool name must
+// appear in the user-facing tool guide, every cited file and `./make` command
+// must exist, and every CLI command must reach the reference page.
 //
 // Conventions these enforce: docs/contribute/documentation.md.
 
@@ -97,50 +96,6 @@ func TestDocsLinksResolve(t *testing.T) {
 				t.Errorf("%s: broken link %q", rel, m[1])
 			}
 		}
-	}
-}
-
-// TestDocsIndexCoversEveryDocument keeps the mobile-friendly directory
-// complete. Unlike the task-oriented docs/README.md, docs/index.md promises a
-// direct link to every English and translated Markdown file under docs/.
-func TestDocsIndexCoversEveryDocument(t *testing.T) {
-	root := repoRoot(t)
-	indexPath := filepath.Join(root, "docs", "index.md")
-	body, err := os.ReadFile(indexPath)
-	if err != nil {
-		t.Fatalf("read docs/index.md: %v", err)
-	}
-
-	linked := map[string]bool{}
-	for _, m := range markdownLinkRe.FindAllStringSubmatch(string(body), -1) {
-		target := strings.TrimSpace(m[1])
-		if i := strings.Index(target, "#"); i >= 0 {
-			target = target[:i]
-		}
-		if target == "" ||
-			strings.HasPrefix(target, "http://") ||
-			strings.HasPrefix(target, "https://") ||
-			strings.HasPrefix(target, "mailto:") {
-			continue
-		}
-		linked[filepath.Clean(filepath.Join(filepath.Dir(indexPath), filepath.FromSlash(target)))] = true
-	}
-
-	err = filepath.WalkDir(filepath.Join(root, "docs"), func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-		if !linked[path] {
-			rel, _ := filepath.Rel(root, path)
-			t.Errorf("%s is missing from docs/index.md", filepath.ToSlash(rel))
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk docs: %v", err)
 	}
 }
 

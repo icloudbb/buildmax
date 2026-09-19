@@ -79,9 +79,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # docs/index.md links every changelog fragment; the fold deletes the
-          # fragments and drops their index lines, so both go in the commit.
-          git add CHANGELOG.md docs/changelog docs/zh-CN/changelog docs/index.md
+          git add CHANGELOG.md docs/changelog docs/zh-CN/changelog
           git commit -m "Prepare $VERSION for release"
 
           if [[ -n "$remote_sha" ]]; then
