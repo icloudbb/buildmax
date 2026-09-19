@@ -1,8 +1,13 @@
-# Harbor / Terminal-Bench 2.1
+# Harbor / Terminal-Bench 4.0
 
 What BuildMax needs to be measured by [Harbor](https://www.harborframework.com)
-against Terminal-Bench 2.1: the versions a result depends on, and the Python
+against Terminal-Bench 4.0: the versions a result depends on, and the Python
 agent Harbor loads to run the built CLI inside a task container.
+
+The pinned canary is used here as a **local regression subset** — five cheap,
+Linux-only tasks run with a real model to catch a product regression before it
+reaches anything wider. It is not a leaderboard score and is not meant to
+estimate one; comparing against Codex or Claude Code needs the full protocol.
 
 Harbor owns task materialization and official verification. BuildMax does not
 run a second copy of the benchmark and does not re-grade its outcomes. See
@@ -110,36 +115,37 @@ verdict.
 ```shell
 # 0. Prove the environment before spending anything on a model: the oracle runs
 #    each task's own reference solution. Nothing to import from it.
-./make eval harbor run --oracle --limit 5
+./make eval harbor run --oracle --canary
 
 # 1. One task.
 ./make eval harbor run \
-  --task terminal-bench/pypi-server \
+  --task terminal-bench/music-harmony \
   --model anthropic/claude-opus-4-7 \
   --reasoning high
 
-# 2. The canary subset pins.json names -- six tasks chosen to exercise
-#    different paths through the adapter, not to estimate a score.
+# 2. The canary subset pins.json names -- five cheap tasks chosen for a fast
+#    local regression signal with a real model, not to estimate a score.
 ./make eval harbor run --canary --model anthropic/claude-opus-4-7
 
 # 3. The whole dataset, at the leaderboard's five attempts. This is the
 #    expensive one, which is why --all has to be asked for.
 ./make eval harbor run --all --attempts 5 --model anthropic/claude-opus-4-7
 
-# 4. Through a gateway. The window and the prices are passed, because the trial
-#    home holds only what this command puts in it. They sit after `--`, which
-#    is where this command stops reading flags and Harbor starts.
+# 4. The local regression run: the canary subset through a gateway on a cheap
+#    model. The window and the prices are passed, because the trial home holds
+#    only what this command puts in it. They sit after `--`, which is where this
+#    command stops reading flags and Harbor starts. The provider is left to the
+#    adapter, which speaks Chat Completions (openai_compatible) to `openrouter/`.
 export OPENROUTER_API_KEY=...
 ./make eval harbor run --canary \
   --model openrouter/openai/gpt-5.6-luna -- \
-  --ak provider=openai \
   --ak context_window=1050000 \
-  --ak 'pricing={"currency":"USD","input_per_mtok":"0.2","output_per_mtok":"1.2"}'
+  --ak 'pricing={"currency":"USD","input_per_mtok":"0.2","cache_read_per_mtok":"0.02","cache_write_per_mtok":"0.25","output_per_mtok":"1.2"}'
 ```
 
 A run needs a task selection: `--task` (repeatable, or comma-separated),
 `--canary`, `--limit`, or `--all`. There is no default, because the default
-would be 89 tasks at whatever `--attempts` says.
+would be 66 tasks at whatever `--attempts` says.
 
 The model credential is Harbor's to resolve, not this repository's: Harbor reads
 the provider key for the `-m <provider>/<model>` it was given from your
@@ -167,7 +173,7 @@ The command underneath, which `--dry-run` prints in full:
 
 ```shell
 harbor run \
-  -d terminal-bench/terminal-bench-2-1@sha256:<the pinned ref> \
+  -d terminal-bench/terminal-bench@sha256:<the pinned ref> \
   -a buildmax_harbor.agent:Buildmax \
   -m anthropic/claude-opus-4-7 \
   --include-task-name terminal-bench/pypi-server \
@@ -269,23 +275,33 @@ ignored rather than rejected.
 
 ## Status
 
-The oracle smoke and a one-task canary have run; nothing wider has.
+The adapter runs Terminal-Bench 4.0 end to end with a real model over the
+five-task local regression subset. It has not been run wider than that, and
+there is no Terminal-Bench score.
 
-- Oracle smoke, 5 tasks: 5/5, reward 1.0, no exceptions. Docker, the anonymous
-  dataset download, and the task images all work.
-- Canary, `terminal-bench/pypi-server`, one attempt through this adapter: passed
-  in 2m31s, and the job imported into a bundle tree with every field populated —
-  verdict, task checksum as the initial state, model calls from the trace, tool
-  calls and tokens from the envelope, and a reproduction command.
+- Oracle over the subset: each pinned canary task's own reference solution passes
+  (reward 1.0), so a task grades what the agent did rather than its own grader.
+  A nearby candidate, `nextjs-performance`, was dropped because its oracle did
+  not pass here.
+- Real model, `openrouter/openai/gpt-5.6-luna` over `openai_compatible`: all five
+  tasks run end to end — the CLI is uploaded, the agent works the task
+  (`music-harmony` took 34 tool calls, `glycan-ms2-elucidation` finished in 73s
+  on 14), the verifier grades it, and each job imports into a bundle with usage
+  and cost populated. gpt-5.6-luna solved none of them (five rewards of 0), which
+  is the expected signal for a cheap model on hard 4.0 tasks: the subset proves
+  the pipeline and would catch a regression, it does not estimate capability. A
+  one-attempt run costs roughly 0.02–0.20 USD per task.
+- `interleaved-vigenere` was tried in the subset and dropped: under gpt-5.6-luna
+  it ran well past its 900-second budget without settling, a poor fit for a
+  subset meant to finish quickly. It was replaced with `glycan-ms2-elucidation`.
 
-That is evidence the adapter drives the harness for one task. It is not evidence
-about the other 88, about repeated attempts, or about any score. Four things the
-canary found are fixed and described below; expect the first wider run to find
-more.
+Running it needs Docker able to pull the public `harborframework/terminal-bench`
+images. Cost is reported when the run is given a price list — see the `pricing`
+kwarg above. Without one it reads as unavailable, which is the honest answer
+rather than zero.
 
-Cost is reported when the run is given a price list — see the `pricing` kwarg
-below. Without one it reads as unavailable, which is the honest answer rather
-than zero.
+The findings below are from building the adapter against Terminal-Bench 2.1;
+they are the adapter hardening that still holds.
 
 ## What the canary found
 
@@ -319,9 +335,9 @@ appear when a trial goes wrong.
 
 ## Limits
 
-- Linux tasks only. Terminal-Bench 2.1 is Linux; a Windows task would need the
+- Linux tasks only. Terminal-Bench 4.0 is Linux; a Windows task would need the
   container paths resolved per task OS.
-- The uploaded binary is unstripped and around 50 MB. A full 89-task, 5-attempt
+- The uploaded binary is unstripped and around 50 MB. A full 66-task, 5-attempt
   run uploads it once per trial.
 - Community leaderboard submissions for 2.1 are closed at the time of writing;
   only maintainer-run submissions are added. Results here are still comparable

@@ -190,7 +190,7 @@ shaped this way, and [evaluation/README.md](../../evaluation/README.md) for how
 to run it and what a task and a bundle hold.
 
 `./make eval harbor` reports an external coordinate rather than producing one.
-Harbor runs Terminal-Bench 2.1 and its verifier decides every outcome; the
+Harbor runs Terminal-Bench 4.0 and its verifier decides every outcome; the
 import reads the finished job and files it in the same contract, so an external
 result and a local one carry the same subject tuple, the same failure taxonomy,
 and the same pass rate with its uncertainty. It measures rather than gates — a

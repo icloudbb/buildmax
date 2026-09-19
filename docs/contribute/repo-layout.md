@@ -336,7 +336,7 @@ evaluation/
 ├── trace/              Reading a run's durable JSONL trace, under one set of
 │                       bounds, for the adapters, the trace grader, and the
 │                       Harbor importer
-├── harbor/             The external Terminal-Bench 2.1 target: pinned harness,
+├── harbor/             The external Terminal-Bench 4.0 target: pinned harness,
 │                       dataset, and adapter versions, the Python agent Harbor
 │                       loads to run the built CLI in a task container, and the
 │                       importer that files a finished job as trial bundles

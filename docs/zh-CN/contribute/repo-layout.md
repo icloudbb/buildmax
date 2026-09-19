@@ -312,7 +312,7 @@ evaluation/
 │                       一次本地 run 共享同一套算术
 ├── trace/              在同一套边界之下，为 adapter、trace grader 与
 │                       Harbor importer 读取一次 run 的持久化 JSONL trace
-├── harbor/             外部 Terminal-Bench 2.1 目标：已钉定版本的 harness、
+├── harbor/             外部 Terminal-Bench 4.0 目标：已钉定版本的 harness、
 │                       数据集与 adapter 版本，Harbor 用来在一个 task
 │                       容器里运行已构建 CLI 的 Python agent，以及把
 │                       一个已完成的 job 归档成 trial bundle 的 importer

@@ -2,7 +2,7 @@
     "task_name": "terminal-bench/bn-fit-modify",
     "trial_name": "bn-fit-modify__ccc3333",
     "trial_uri": "package://terminal-bench/bn-fit-modify",
-    "source": "terminal-bench/terminal-bench-2-1",
+    "source": "terminal-bench/terminal-bench",
     "task_checksum": "2222222222222222222222222222222222222222222222222222222222222222",
     "agent_info": {
         "name": "buildmax",

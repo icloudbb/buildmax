@@ -16,14 +16,14 @@ func TestCommittedPinsLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadPins: %v", err)
 	}
-	if pins.Dataset.Name != "terminal-bench/terminal-bench-2-1" {
-		t.Errorf("dataset = %q, want the accepted 2.1 target", pins.Dataset.Name)
+	if pins.Dataset.Name != "terminal-bench/terminal-bench" {
+		t.Errorf("dataset = %q, want the accepted 4.0 target", pins.Dataset.Name)
 	}
-	// 2.0 and 2.1 differ by corrected tasks, so a 2.0 score and a 2.1 score are
-	// not comparable as if only the agent had changed. The count is what makes
-	// a silent dataset swap visible.
-	if pins.Dataset.Tasks != 89 {
-		t.Errorf("task count = %d, want 89", pins.Dataset.Tasks)
+	// Terminal-Bench 4.0 dropped and revised tasks from 3.0, so a 3.0 score and
+	// a 4.0 score are not comparable as if only the agent had changed. The count
+	// is what makes a silent dataset swap visible.
+	if pins.Dataset.Tasks != 66 {
+		t.Errorf("task count = %d, want 66", pins.Dataset.Tasks)
 	}
 	if pins.Protocol.Attempts != 5 {
 		t.Errorf("attempts = %d, want the leaderboard's 5", pins.Protocol.Attempts)
@@ -101,7 +101,7 @@ func TestLoadPinsRejectsACanaryTaskTheFilterWouldMiss(t *testing.T) {
 	dir := t.TempDir()
 	body := `{"schema_version":1,
 	  "harbor":{"version":"0.22.0","install":"x"},
-	  "dataset":{"name":"terminal-bench/terminal-bench-2-1","ref":"sha256:abc","tasks":89,"source":"x"},
+	  "dataset":{"name":"terminal-bench/terminal-bench","ref":"sha256:abc","tasks":66,"source":"x"},
 	  "adapter":{"version":1,"import_path":"m:C"},
 	  "protocol":{"attempts":5,"max_retries":3,"source":"x"},
 	  "canary":{"tasks":["pypi-server"]}}`
@@ -119,7 +119,7 @@ func TestLoadPinsRejectsAFloatingDatasetRef(t *testing.T) {
 	dir := t.TempDir()
 	body := `{"schema_version":1,
 	  "harbor":{"version":"0.22.0","install":"uv tool install harbor==0.22.0"},
-	  "dataset":{"name":"terminal-bench/terminal-bench-2-1","ref":"latest","tasks":89,"source":"x"},
+	  "dataset":{"name":"terminal-bench/terminal-bench","ref":"latest","tasks":66,"source":"x"},
 	  "adapter":{"version":1,"import_path":"buildmax_harbor.agent:Buildmax"},
 	  "protocol":{"attempts":5,"max_retries":3,"source":"x"}}`
 	path := filepath.Join(dir, "pins.json")

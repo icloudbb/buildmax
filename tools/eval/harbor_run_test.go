@@ -27,7 +27,7 @@ func builtBinary(t *testing.T) string {
 	return path
 }
 
-// The dataset is 89 tasks and every attempt costs money, so the expensive run
+// The dataset is 66 tasks and every attempt costs money, so the expensive run
 // has to be the one that was asked for.
 func TestARunNeedsATaskSelection(t *testing.T) {
 	opt := harborRunOptions{model: "openrouter/anthropic/claude-sonnet-5", binary: builtBinary(t)}
