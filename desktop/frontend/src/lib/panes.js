@@ -160,16 +160,16 @@ export function collapse(ws) {
   };
 }
 
-// tile spreads every open tab into its own pane, laid out in a near-square grid,
-// so a person can see them all at once instead of splitting and dragging by
-// hand. It is the inverse of collapse. Every pane and row gets a fresh id from
-// the monotonic seq, so no id repeats one a terminal portal or a later split may
-// reuse. The tab that was active stays focused.
+// tile spreads every open tab into its own pane, laid out in a near-square grid
+// capped at three columns, so a person can see them all at once instead of
+// splitting and dragging by hand. It is the inverse of collapse. Every pane and
+// row gets a fresh id from the monotonic seq, so no id repeats one a terminal
+// portal or a later split may reuse. The tab that was active stays focused.
 export function tile(ws) {
   const tabs = allPanes(ws).flatMap((p) => p.tabs);
   if (tabs.length <= 1) return ws;
   const focusedKey = focusedPane(ws).activeKey;
-  const cols = Math.ceil(Math.sqrt(tabs.length));
+  const cols = Math.min(3, Math.ceil(Math.sqrt(tabs.length)));
   let seq = ws.seq;
   const rows = [];
   for (let i = 0; i < tabs.length; i += cols) {

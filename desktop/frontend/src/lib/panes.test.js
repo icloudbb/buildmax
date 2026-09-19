@@ -185,6 +185,16 @@ describe('grid / tab toggle', () => {
     expect(tile(ws)).toBe(ws);
   });
 
+  it('caps the grid at three columns', () => {
+    let ws = emptyWorkspace;
+    for (const ref of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) ws = open(ws, ref);
+    ws = tile(ws);
+    expect(paneCount(ws)).toBe(7);
+    expect(ws.rows.every((r) => r.panes.length <= 3)).toBe(true);
+    // 7 tabs → rows of 3, 3, 1.
+    expect(ws.rows.map((r) => r.panes.length)).toEqual([3, 3, 1]);
+  });
+
   it('collapses a grid back into one pane holding every tab in order', () => {
     const ws = collapse(tile(four()));
     expect(paneCount(ws)).toBe(1);
