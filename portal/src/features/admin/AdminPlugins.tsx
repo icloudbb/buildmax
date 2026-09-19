@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import type { ApiPlugin, ApiPluginRelease } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -95,21 +96,20 @@ export function AdminPlugins({ token }: { token: string | null }) {
                   <span className={archived ? "admin-pill" : "admin-pill admin-pill--ok"}>
                     {archived ? "retired" : "published"}
                   </span>
-                  <button
-                    type="button"
-                    className="admin-button"
+                  <Button
+                    variant="tertiary" size="compact"
                     onClick={() => setExpanded(expanded === entry.name ? null : entry.name)}
                   >
                     {expanded === entry.name ? "Hide releases" : "Releases"}
-                  </button>
-                  <button
-                    type="button"
-                    className={archived ? "admin-button" : "admin-button admin-button--danger"}
-                    disabled={busyName === entry.name}
+                  </Button>
+                  <Button
+                    variant={archived ? "secondary" : "danger"}
+                    size="compact"
+                    busy={busyName === entry.name}
                     onClick={() => toggleArchived(entry)}
                   >
                     {archived ? "Restore" : "Retire"}
-                  </button>
+                  </Button>
                 </li>
               )
             })}
@@ -220,14 +220,13 @@ function PluginReleases({
                   // Packed from a working tree that was not the commit it names.
                   <span className="admin-pill admin-pill--bad">dirty tree</span>
                 ) : null}
-                <button
-                  type="button"
-                  className="admin-button admin-button--danger"
+                <Button
+                  variant="danger" size="compact"
                   disabled={yanked || busyVersion === release.version}
                   onClick={() => yank(release)}
                 >
                   Withdraw
-                </button>
+                </Button>
               </li>
             )
           })}

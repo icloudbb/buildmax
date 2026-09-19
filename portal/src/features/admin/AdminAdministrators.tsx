@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import type { ApiSystemGrant } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -130,9 +131,9 @@ export function AdminAdministrators({ token }: { token: string | null }) {
             aria-label="Account email to grant administrator authority"
             onChange={(e) => setEmail(e.target.value)}
           />
-          <button type="submit" className="admin-button admin-button--primary" disabled={busy}>
+          <Button type="submit" variant="primary" disabled={busy}>
             Grant
-          </button>
+          </Button>
         </form>
 
         <label className="admin-check">
@@ -170,9 +171,8 @@ export function AdminAdministrators({ token }: { token: string | null }) {
                   {g.revoked_at ? ` · revoked ${whenever(g.revoked_at)}` : ""}
                 </span>
                 {!g.revoked_at ? (
-                  <button
-                    type="button"
-                    className="admin-button admin-button--danger"
+                  <Button
+                    variant="danger" size="compact"
                     disabled={busy}
                     onClick={() => {
                       if (confirmRevoke(g)) {
@@ -184,7 +184,7 @@ export function AdminAdministrators({ token }: { token: string | null }) {
                     }}
                   >
                     Revoke
-                  </button>
+                  </Button>
                 ) : null}
               </li>
             ))}

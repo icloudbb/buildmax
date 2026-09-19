@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { ApiAdminModel } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -215,14 +216,14 @@ export function AdminModels({ token }: { token: string | null }) {
                 {entry.name === defaultModel ? (
                   <span className="admin-list__meta">default</span>
                 ) : null}
-                <button
-                  type="button"
-                  className={entry.enabled ? "admin-button admin-button--danger" : "admin-button"}
-                  disabled={busyId === entry.id}
+                <Button
+                  variant={entry.enabled ? "danger" : "secondary"}
+                  size="compact"
+                  busy={busyId === entry.id}
                   onClick={() => toggle(entry)}
                 >
                   {entry.enabled ? "Retire" : "Enable"}
-                </button>
+                </Button>
                 {toggleError?.id === entry.id ? (
                   <p className="settings-section__error" role="alert">
                     {toggleError.message}
@@ -373,13 +374,14 @@ export function AdminModels({ token }: { token: string | null }) {
           </details>
 
           <div className="admin-toolbar">
-            <button
+            <Button
               type="submit"
-              className="admin-button admin-button--primary"
-              disabled={creating || !form.name.trim() || !form.apiURL.trim() || !form.model.trim()}
+              variant="primary"
+              busy={creating}
+              disabled={!form.name.trim() || !form.apiURL.trim() || !form.model.trim()}
             >
-              {creating ? "Adding…" : "Add model"}
-            </button>
+              Add model
+            </Button>
           </div>
         </form>
       </section>

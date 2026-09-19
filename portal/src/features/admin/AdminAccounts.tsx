@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ApiAdminSession, ApiAdminUser, ApiAdminUserDetail } from "../../lib/api/types"
 import { DeactivationImpactModal } from "./DeactivationImpactModal"
@@ -252,9 +253,9 @@ export function AdminAccounts({
             aria-label="Search accounts by email"
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button type="submit" className="admin-button" disabled={loading}>
+          <Button type="submit" variant="secondary" disabled={loading}>
             Search
-          </button>
+          </Button>
         </form>
 
         <div className="admin-toolbar" role="group" aria-label="Filter accounts">
@@ -365,25 +366,23 @@ export function AdminAccounts({
               const page = pageWindow(offset, PAGE_SIZE, total)
               return (
                 <div className="admin-pager">
-                  <button
-                    type="button"
-                    className="admin-button"
+                  <Button
+                    variant="secondary" size="compact"
                     disabled={loading || !page.hasPrev}
                     onClick={() => load(query, page.prevOffset, filters)}
                   >
                     Previous
-                  </button>
+                  </Button>
                   <span className="admin-pager__status">
                     {page.from}&ndash;{page.to} of {total}
                   </span>
-                  <button
-                    type="button"
-                    className="admin-button"
+                  <Button
+                    variant="secondary" size="compact"
                     disabled={loading || !page.hasNext}
                     onClick={() => load(query, page.nextOffset, filters)}
                   >
                     Next
-                  </button>
+                  </Button>
                 </div>
               )
             })()
@@ -417,9 +416,9 @@ export function AdminAccounts({
             aria-label="Email for the new account"
             onChange={(e) => setNewEmail(e.target.value)}
           />
-          <button type="submit" className="admin-button" disabled={busy || !newEmail.trim()}>
+          <Button type="submit" variant="primary" disabled={busy || !newEmail.trim()}>
             Create
-          </button>
+          </Button>
         </form>
       </section>
 
@@ -434,13 +433,12 @@ export function AdminAccounts({
                 {selected.session_count === 1 ? "" : "s"}
               </p>
             </div>
-            <button
-              type="button"
-              className="admin-button"
+            <Button
+              variant="tertiary"
               onClick={() => navigate({ name: "admin", section: "accounts" })}
             >
               Close
-            </button>
+            </Button>
           </div>
 
           {selected.system_roles.length > 0 ? (
@@ -480,9 +478,8 @@ export function AdminAccounts({
                     signed in {whenever(session.created_at)} · last active{" "}
                     {whenever(session.last_rotated_at)} · expires {whenever(session.expires_at)}
                   </span>
-                  <button
-                    type="button"
-                    className="admin-button admin-button--danger"
+                  <Button
+                    variant="danger" size="compact"
                     disabled={busy}
                     onClick={() => {
                       if (
@@ -501,7 +498,7 @@ export function AdminAccounts({
                     }}
                   >
                     Revoke
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -518,9 +515,8 @@ export function AdminAccounts({
           ) : null}
 
           <div className="admin-actions">
-            <button
-              type="button"
-              className="admin-button"
+            <Button
+              variant="secondary"
               disabled={busy || Boolean(selected.disabled_at)}
               onClick={() => {
                 if (
@@ -541,11 +537,10 @@ export function AdminAccounts({
               }}
             >
               Issue a login code
-            </button>
+            </Button>
 
-            <button
-              type="button"
-              className="admin-button"
+            <Button
+              variant="danger"
               disabled={busy}
               onClick={() => {
                 if (
@@ -563,12 +558,11 @@ export function AdminAccounts({
               }}
             >
               Revoke sessions
-            </button>
+            </Button>
 
             {selected.disabled_at ? (
-              <button
-                type="button"
-                className="admin-button admin-button--primary"
+              <Button
+                variant="primary"
                 disabled={busy}
                 onClick={() =>
                   act(
@@ -578,16 +572,15 @@ export function AdminAccounts({
                 }
               >
                 Enable
-              </button>
+              </Button>
             ) : (
-              <button
-                type="button"
-                className="admin-button admin-button--danger"
+              <Button
+                variant="danger"
                 disabled={busy}
                 onClick={() => setDisableTarget(selected)}
               >
                 Disable
-              </button>
+              </Button>
             )}
           </div>
         </section>

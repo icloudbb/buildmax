@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import type { ApiAuditEvent } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -117,44 +118,40 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
             aria-label="Filter by action"
             onChange={(e) => setFilters({ ...filters, action: e.target.value })}
           />
-          <button type="submit" className="admin-button" disabled={loading}>
+          <Button type="submit" variant="secondary" disabled={loading}>
             Search
-          </button>
-          <button
-            type="button"
-            className="admin-button"
+          </Button>
+          <Button
+            variant="secondary"
             onClick={() => apply({ spaceId: "none", actorId: filters.actorId, action: filters.action })}
             title="Logins, grants, and account actions — the events no space-scoped reader can see"
           >
             Deployment only
-          </button>
-          <button
-            type="button"
-            className="admin-button"
+          </Button>
+          <Button
+            variant="tertiary"
             onClick={() => apply({ spaceId: "", actorId: "", action: "" })}
           >
             Clear
-          </button>
+          </Button>
           {/* Exports are recorded in the trail, against the administrator who
               took them — and, when narrowed to one space, in that space's own
               trail as well. */}
-          <button
-            type="button"
-            className="admin-button"
+          <Button
+            variant="secondary"
             onClick={() => exportTrail("csv")}
-            disabled={exporting}
+            busy={exporting}
             title="Download every event matching these filters"
           >
-            {exporting ? "Exporting…" : "Export CSV"}
-          </button>
-          <button
-            type="button"
-            className="admin-button"
+            Export CSV
+          </Button>
+          <Button
+            variant="secondary"
             onClick={() => exportTrail("jsonl")}
             disabled={exporting}
           >
             Export JSONL
-          </button>
+          </Button>
         </form>
 
         {error ? (
@@ -196,14 +193,13 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
         )}
 
         {events.length < total ? (
-          <button
-            type="button"
-            className="admin-button"
+          <Button
+            variant="secondary"
             disabled={loading}
             onClick={() => load(filters, events.length)}
           >
             Load more ({events.length} of {total})
-          </button>
+          </Button>
         ) : null}
       </section>
     </div>

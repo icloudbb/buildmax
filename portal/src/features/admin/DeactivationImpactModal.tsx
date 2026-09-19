@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { BaseModal } from "@buildmax/gui"
+import { Button, BaseModal } from "@buildmax/gui"
 import type { ApiAdminUser, ApiDeactivationImpact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getDeactivationImpact } from "./api"
@@ -135,17 +135,17 @@ export function DeactivationImpactModal({ open, user, token, busy, onCancel, onC
         ) : null}
 
         <div className="admin-detail__actions">
-          <button type="button" className="admin-button" disabled={busy} onClick={onCancel}>
+          <Button variant="secondary" disabled={busy} onClick={onCancel}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="admin-button admin-button--danger"
-            disabled={busy || loading}
+          </Button>
+          <Button
+            variant="danger"
+            busy={busy}
+            disabled={loading}
             onClick={() => onConfirm(retireKeys)}
           >
-            {busy ? "Disabling…" : "Disable account"}
-          </button>
+            Disable account
+          </Button>
         </div>
       </div>
     </BaseModal>
