@@ -104,6 +104,7 @@ func (h *Handler) buildAdminHandler() *admin.Handler {
 		Plugins:            h.cfg.PluginService,
 		Schema:             h.cfg.SchemaStore,
 		TaskRuns:           h.cfg.TaskRunStore,
+		LLMCalls:           h.cfg.LLMCallStore,
 		Quota:              h.cfg.QuotaService,
 		Lifecycle:          h.accountLifecycle(),
 		SpaceRecovery:      h.spaceRecovery(),

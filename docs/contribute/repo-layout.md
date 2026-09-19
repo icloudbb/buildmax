@@ -285,6 +285,7 @@ internal/
 │   │   ├── artifact/   Artifacts, addressed by opaque ID; space comes from the record
 │   │   ├── auth/       Establishing a session: login, refresh, logout, password
 │   │   ├── auditexport/  CSV export shared by the space and admin audit routes
+│   │   ├── llmcallview/  Prices a call ledger row, shared by the space and admin routes
 │   │   ├── llmhttp/    Managed gateway over HTTP, shared by the space and worker routes
 │   │   ├── runterminal/  Announces a finished run to whoever is watching
 │   │   ├── space/       What a space owns: members, agents, usage, audit

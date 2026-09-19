@@ -41,6 +41,10 @@ type Config struct {
 	Models             coregw.ModelStore
 	Schema             coreschema.Store
 	TaskRuns           coretask.RunStore
+	// LLMCalls reads the managed call ledger across every user and space. Nil
+	// reports the ledger as not configured, which is what a deployment with no
+	// database has.
+	LLMCalls coregw.CallStore
 
 	Quota *quota.Service
 	// Lifecycle sequences an account disable/enable and its cleanup, and computes
@@ -131,6 +135,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)
 	mux.HandleFunc("POST /api/admin/llm/models", h.createAdminModelHandler)
 	mux.HandleFunc("PUT /api/admin/llm/models/{model_id}/state", h.setAdminModelStateHandler)
+	mux.HandleFunc("GET /api/admin/llm/calls", h.listAdminLLMCallsHandler)
 	mux.HandleFunc("GET /api/admin/plugins", h.listAdminPluginsHandler)
 	mux.HandleFunc("POST /api/admin/plugins", h.createAdminPluginHandler)
 	mux.HandleFunc("GET /api/admin/plugins/{plugin_name}/releases", h.listAdminPluginReleasesHandler)

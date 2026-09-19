@@ -2,6 +2,7 @@ import { getApiBase, requestJson } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import { downloadAuthenticated } from "../../lib/download"
 import type {
+  ApiAdminLLMCallsResponse,
   ApiAdminLoginCode,
   ApiAdminMe,
   ApiAdminModel,
@@ -260,6 +261,27 @@ export async function exportAdminAuditEvents(
 
 export function listAdminModels(token: string): Promise<ApiAdminModelsResponse> {
   return get<ApiAdminModelsResponse>("/llm/models", token)
+}
+
+/**
+ * The managed call ledger across every user and space — what the deployment
+ * spent on inference, and on which model. Carries no prompts or generated
+ * content: the ledger never held them.
+ */
+export function searchAdminLLMCalls(
+  token: string,
+  options?: {
+    user_id?: string
+    model?: string
+    status?: string
+    surface?: string
+    since?: string
+    until?: string
+    limit?: number
+    offset?: number
+  },
+): Promise<ApiAdminLLMCallsResponse> {
+  return get<ApiAdminLLMCallsResponse>("/llm/calls", token, options)
 }
 
 /** Retires or restores a catalog model. */

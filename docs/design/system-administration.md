@@ -300,6 +300,7 @@ exactly the confusion §4 exists to prevent.
 | `POST /api/admin/llm/models` | Creates a model, encrypting a write-only credential | Credential material in the response |
 | `GET /api/admin/llm/models` | The catalog: name, provider, model, capabilities, enabled | `api_key`, in any form |
 | `PUT /api/admin/llm/models/{model_id}/state` | Sets the model's `enabled` flag, retiring or restoring it | — |
+| `GET /api/admin/llm/calls` | The managed call ledger across every space, filtered by `user_id`, `model`, `status`, `surface`, `since`, `until`, paged | Prompts, tool arguments, generated content — the ledger never held them |
 
 `POST /api/admin/users` returns the created account and **no credential**. An
 operator who wants the person to sign in issues a login code as a second,
@@ -462,9 +463,12 @@ seven sections:
    or quota-tier mutation.
 5. **Models** — list, create with a write-only encrypted credential, enable and
    disable. No read returns the credential.
-6. **Plugins** — catalog and release inspection, retirement, restoration, and
+6. **LLM calls** — the managed call ledger across every Space: model, tokens,
+   cost, and status per call, filtered by user, model, status, and surface. No
+   prompts or generated content.
+7. **Plugins** — catalog and release inspection, retirement, restoration, and
    yanking; Portal publication remains deferred.
-7. **Audit** — cross-Space metadata search/export; time-bound filters remain
+8. **Audit** — cross-Space metadata search/export; time-bound filters remain
    API-only.
 
 Session revocation affects refresh tokens. It does not invalidate an already
@@ -713,6 +717,10 @@ rather than a window onto existing state, and nothing has asked for it yet.
 6. **Models.** Catalog table with enable/disable and a model-creation form.
    The earlier CLI-only addition restriction was superseded by encrypted
    write-only credential handling in the Admin API.
+7. **LLM calls.** A filterable list over `GET /api/admin/llm/calls`, pricing each
+   row from its own rate snapshot the way the space-scoped run view does, and
+   showing the routing (`target_id`, `provider_type`, `upstream_model`) that view
+   hides because here the reader is the operator who set it.
 
 ## 15. Validation
 
