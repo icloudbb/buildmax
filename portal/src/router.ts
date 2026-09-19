@@ -103,6 +103,7 @@ export function parseHash(hash: string, currentSpaceId: string): Route {
     if (parts[1] === "accounts") return { name: "admin", section: "accounts", userId: parts[2] || undefined }
     if (parts[1] === "spaces") return { name: "admin", section: "spaces" }
     if (parts[1] === "models") return { name: "admin", section: "models" }
+    if (parts[1] === "llm-calls") return { name: "admin", section: "calls" }
     if (parts[1] === "plugins") return { name: "admin", section: "plugins" }
     if (parts[1] === "audit") return { name: "admin", section: "audit" }
     return { name: "admin", section: "overview" }
@@ -197,6 +198,8 @@ export function buildHash(route: Route): string {
           return `#/${SEGMENT.admin}/spaces`
         case "models":
           return `#/${SEGMENT.admin}/models`
+        case "calls":
+          return `#/${SEGMENT.admin}/llm-calls`
         case "plugins":
           return `#/${SEGMENT.admin}/plugins`
         case "audit":

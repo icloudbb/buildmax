@@ -847,6 +847,61 @@ export interface ApiAdminModelsResponse {
   default_model?: string
 }
 
+/**
+ * One call's estimated spend, in nano-units of `currency` — one currency unit is
+ * 1e9 of them — so a client sums them exactly. Absent when the model was unpriced
+ * or the provider reported no usage; a zero would read as a free call.
+ */
+export interface ApiAdminLLMCallCost {
+  currency: string
+  uncached: number
+  cache_read: number
+  cache_write: number
+  output: number
+  total: number
+  /** What the same tokens would have cost with no caching, to judge whether it helped. */
+  baseline: number
+}
+
+/**
+ * One managed LLM call as a deployment administrator sees it: accounting and
+ * routing metadata, never prompts, tool arguments, or generated content.
+ */
+export interface ApiAdminLLMCall {
+  id: string
+  user_id?: string
+  task_id?: string
+  task_run_id?: string
+  surface?: string
+  session_id?: string
+  /** What the caller asked for; the three that follow are how it was served. */
+  model?: string
+  target_id?: string
+  provider_type?: string
+  upstream_model?: string
+  streaming: boolean
+  accepted_at: string
+  first_delta_at?: string
+  completed_at?: string
+  status: string
+  error_class?: string
+  attempts?: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+  /** The cached parts of prompt_tokens, not tokens on top of it. */
+  cache_read_tokens?: number
+  cache_write_tokens?: number
+  /** Separates a provider that reported nothing from one that reported zero. */
+  usage_source?: string
+  cost?: ApiAdminLLMCallCost
+}
+
+export interface ApiAdminLLMCallsResponse {
+  calls: ApiAdminLLMCall[]
+  total: number
+}
+
 /** One catalog entry in the private plugin Marketplace. */
 export interface ApiPlugin {
   name: string

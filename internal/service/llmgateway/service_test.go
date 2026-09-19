@@ -115,6 +115,10 @@ func (l *fakeLedger) ListLLMCallsByTaskRun(context.Context, string) ([]coregw.Ca
 	return nil, nil
 }
 
+func (l *fakeLedger) SearchLLMCalls(context.Context, coregw.CallFilter, int, int) ([]coregw.Call, int, error) {
+	return nil, 0, nil
+}
+
 func (l *fakeLedger) only(t *testing.T) (coregw.Call, coregw.CallOutcome) {
 	t.Helper()
 	l.mu.Lock()

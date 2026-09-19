@@ -2886,6 +2886,44 @@
         }
       }
     },
+    "/api/admin/llm/calls": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Search the deployment-wide managed LLM call ledger",
+        "description": "Accounting and diagnostic metadata across every user and space. Carries no prompts, tool arguments, or generated content.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "user_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Calls attributed to one account"},
+          {"name": "model", "in": "query", "required": false, "schema": {"type": "string"}, "description": "The model the caller asked for, matched exactly"},
+          {"name": "status", "in": "query", "required": false, "schema": {"type": "string"}, "description": "ACCEPTED, SUCCEEDED, FAILED, or CANCELED"},
+          {"name": "surface", "in": "query", "required": false, "schema": {"type": "string"}, "description": "server, cli, desktop, or worker"},
+          {"name": "since", "in": "query", "required": false, "schema": {"type": "string", "format": "date-time"}, "description": "Lower bound on accepted_at (RFC 3339)"},
+          {"name": "until", "in": "query", "required": false, "schema": {"type": "string", "format": "date-time"}, "description": "Upper bound on accepted_at (RFC 3339)"}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "calls": {"type": "array", "items": {"type": "object"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "since or until is not an RFC 3339 timestamp",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
     "/api/admin/llm/models": {
       "get": {
         "tags": ["admin"],

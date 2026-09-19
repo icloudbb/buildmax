@@ -309,6 +309,9 @@ Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，
 这些实现不能将已投递的 Secret 与消费它的 worker 进程隔离。
 
 系统管理、配额、审计、角色检查和 Space 生命周期 UI 已存在。
+管理区域还可通过 `GET /api/admin/llm/calls` 读取跨所有 Space 的受管 LLM 调用账本
+——每次调用的模型、token、成本与状态，可按用户、模型、状态、surface 和时间过滤，
+且不含提示词或生成内容。
 管理方面仍缺少权限变更的事务性审计、管理 CLI 的 Session 列出/撤销能力对齐、
 配额层级分配，以及诊断队列与 worker 的运行元数据。
 这些记录在[系统管理操作提案](proposals/system-administration-operations.md)中；
