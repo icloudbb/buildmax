@@ -12,7 +12,10 @@ import { TabBar } from './components/TabBar';
 import { Explorer } from './components/Explorer';
 import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
-import { emptyTabs, openTab, closeTab, focusTab, pinTab, activeTab, tabIdentity } from './lib/tabs';
+import { activeTab, tabIdentity } from './lib/tabs';
+import {
+  emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab, splitFocused,
+} from './lib/panes';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Markdown from 'react-markdown';
@@ -119,7 +122,7 @@ export default function App() {
   // when toggled, from the toolbar or /info. It is not remembered across runs.
   const [infoOpen, setInfoOpen] = useState(false);
   const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
-  const [center, setCenter] = useState(emptyTabs);
+  const [workspace, setWorkspace] = useState(emptyWorkspace);
   const [explorerMode, setExplorerMode] = useState('directory'); // 'directory' | 'changes'
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     clampSidebarWidth(readStored(LS_SIDEBAR_WIDTH, SIDEBAR_DEFAULT_WIDTH)),
@@ -438,24 +441,27 @@ export default function App() {
 
   // Seed one chat tab per project and reap the previous project's terminals.
   useEffect(() => {
-    setCenter((prev) => {
-      prev.tabs
+    setWorkspace((prev) => {
+      prev.panes.forEach((p) => p.tabs
         .filter((t) => t.kind === 'terminal')
-        .forEach((t) => getApp()?.TerminalClose?.(t.ref));
-      if (!currentProject) return emptyTabs;
-      return openTab(emptyTabs, {
+        .forEach((t) => getApp()?.TerminalClose?.(t.ref)));
+      if (!currentProject) return emptyWorkspace;
+      return openInFocused(emptyWorkspace, {
         kind: 'chat', ref: 'current', title: sessionTitle || 'New Chat', closable: false,
       });
     });
-    // Reset the tab set only when the active project changes.
+    // Reset the workspace only when the active project changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
 
   // Keep the chat tab's title in step with the active session.
   useEffect(() => {
-    setCenter((s) => ({
+    setWorkspace((s) => ({
       ...s,
-      tabs: s.tabs.map((t) => (t.key === chatTabKey ? { ...t, title: sessionTitle || 'New Chat' } : t)),
+      panes: s.panes.map((p) => ({
+        ...p,
+        tabs: p.tabs.map((t) => (t.key === chatTabKey ? { ...t, title: sessionTitle || 'New Chat' } : t)),
+      })),
     }));
   }, [sessionTitle]);
 
@@ -465,37 +471,42 @@ export default function App() {
     try {
       const id = await a.TerminalOpen(currentProject.id);
       termSeqRef.current += 1;
-      setCenter((s) => openTab(s, { kind: 'terminal', ref: id, title: `Terminal ${termSeqRef.current}` }));
+      setWorkspace((s) => openInFocused(s, { kind: 'terminal', ref: id, title: `Terminal ${termSeqRef.current}` }));
     } catch {
       // Opening a shell can fail (e.g. unsupported platform); leave the tabs.
     }
   }, [currentProject]);
 
-  const selectCenterTab = useCallback((key) => setCenter((s) => focusTab(s, key)), []);
-  const closeCenterTab = useCallback((key) => {
-    setCenter((s) => {
-      const tab = s.tabs.find((t) => t.key === key);
+  const selectCenterTab = useCallback((paneId, key) => setWorkspace((s) => focusPaneTab(s, paneId, key)), []);
+  const focusCenterPane = useCallback((paneId) => setWorkspace((s) => focusPane(s, paneId)), []);
+  const splitCenterPane = useCallback((paneId) => setWorkspace((s) => splitFocused(focusPane(s, paneId))), []);
+  const closeCenterTab = useCallback((paneId, key) => {
+    setWorkspace((s) => {
+      const pane = s.panes.find((p) => p.id === paneId);
+      const tab = pane?.tabs.find((t) => t.key === key);
       if (tab?.kind === 'terminal') getApp()?.TerminalClose?.(tab.ref);
-      return closeTab(s, key);
+      return closePaneTab(s, paneId, key);
     });
   }, []);
 
-  // The Explorer opens file and diff content as center tabs. A single browse
-  // click opens a preview tab, which the next browse click replaces; a
-  // double-click pins a durable tab (see tabs.js).
+  // The Explorer opens file and diff content as tabs in the focused pane. A
+  // single browse click opens a preview tab, which the next browse click
+  // replaces; a double-click pins a durable tab (see tabs.js / panes.js).
   const openFileTab = useCallback((path, pinned = false) => {
     const tab = { kind: 'file', ref: path, title: path.split('/').pop() || path, preview: !pinned };
-    setCenter((s) => (pinned ? pinTab(openTab(s, tab), tabIdentity(tab)) : openTab(s, tab)));
+    setWorkspace((s) => {
+      const opened = openInFocused(s, tab);
+      return pinned ? pinPaneTab(opened, opened.focused, tabIdentity(tab)) : opened;
+    });
   }, []);
   const openDiffTab = useCallback((path, pinned = false) => {
     const tab = { kind: 'diff', ref: path, title: `${path.split('/').pop() || path} (diff)`, preview: !pinned };
-    setCenter((s) => (pinned ? pinTab(openTab(s, tab), tabIdentity(tab)) : openTab(s, tab)));
+    setWorkspace((s) => {
+      const opened = openInFocused(s, tab);
+      return pinned ? pinPaneTab(opened, opened.focused, tabIdentity(tab)) : opened;
+    });
   }, []);
-  const pinCenterTab = useCallback((key) => setCenter((s) => pinTab(s, key)), []);
-
-  const active = activeTab(center);
-  const activeCenterKind = active?.kind ?? null;
-  const activeCenterRef = active?.ref ?? '';
+  const pinCenterTab = useCallback((paneId, key) => setWorkspace((s) => pinPaneTab(s, paneId, key)), []);
 
   // The login is the mode. Without one the agent runs here against the models in
   // settings.yaml, which needs no server and therefore no sign-in first — so the
@@ -958,6 +969,111 @@ export default function App() {
     });
   }
 
+  // One pane's content: the active tab decides what shows, and every terminal in
+  // the pane stays mounted (hidden when it is not the active tab) so its
+  // scrollback survives tab switches. Chat lives only in the seeded first pane.
+  const renderPaneContent = (pane) => {
+    const active = activeTab(pane);
+    return (
+      <>
+        {active?.kind === 'chat' && (
+          <div className="page-chat">
+            {infoOpen && (
+              <div className="chat-info" aria-label="Session info">
+                <div className="chat-info__head">
+                  <span className="chat-info__title">Session info</span>
+                  <button
+                    type="button"
+                    className="chat-info__close"
+                    onClick={() => setInfoOpen(false)}
+                    title="Close"
+                    aria-label="Close session info"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="chat-info__body">
+                  <InfoPanel
+                    projectID={currentProject.id}
+                    sessionID={selectedId || ''}
+                    projectName={currentProject.name}
+                    workspace={currentSession?.workspace || currentProject.default_workspace}
+                    app={app}
+                  />
+                </div>
+              </div>
+            )}
+            <ChatThread
+              historyRef={historyRef}
+              ariaLabel="Conversation history"
+              items={threadItems}
+              emptyText="Type a message below to start a new chat."
+            />
+            <section className="page-chat__input" aria-label="Send a message">
+              <ChatInput
+                onSend={handleSend}
+                onCancel={handleCancel}
+                loading={loading}
+                error={error}
+                onDismissError={() => setError(null)}
+                currentProject={currentProject}
+                app={app}
+                approvalRequest={approvalRequest}
+                onRespond={handleRespond}
+                toolActivity={toolActivity}
+                runStatus={runStatus}
+                suggestion={turnDigest?.suggestion ?? ''}
+                onAcceptSuggestion={() => setTurnDigest(null)}
+                sessionId={selectedId || ''}
+                onShowInfo={() => setInfoOpen(true)}
+                onShowChanges={() => setExplorerMode('changes')}
+                infoOpen={infoOpen}
+                onToggleInfo={() => setInfoOpen((v) => !v)}
+                onRewound={handleRewound}
+                onForked={handleForked}
+                onCompacted={handleCompacted}
+                onCommandError={(msg) => setError(msg)}
+                onRunStatusContext={(status) => {
+                  setRunStatus((prev) => ({
+                    ...(status ?? {}),
+                    prompt_tokens: prev?.prompt_tokens ?? 0,
+                    completion_tokens: prev?.completion_tokens ?? 0,
+                    total_prompt_tokens: prev?.total_prompt_tokens ?? status?.total_prompt_tokens ?? 0,
+                    total_completion_tokens: prev?.total_completion_tokens ?? status?.total_completion_tokens ?? 0,
+                  }));
+                }}
+              />
+            </section>
+          </div>
+        )}
+        {active?.kind === 'file' && (
+          <FileView
+            projectID={currentProject.id}
+            sessionID={selectedId || ''}
+            path={active.ref}
+            app={app}
+          />
+        )}
+        {active?.kind === 'diff' && (
+          <DiffView
+            projectID={currentProject.id}
+            sessionID={selectedId || ''}
+            path={active.ref}
+            app={app}
+          />
+        )}
+        {pane.tabs
+          .filter((t) => t.kind === 'terminal')
+          .map((t) => (
+            <TerminalPane key={t.key} id={t.ref} active={t.key === pane.activeKey} />
+          ))}
+        {!active && (
+          <div className="workspace-pane__empty">Open a file, diff, or terminal here.</div>
+        )}
+      </>
+    );
+  };
+
   const shellClass = [
     'shell',
     leftCollapsed ? 'shell--left-collapsed' : '',
@@ -1151,107 +1267,33 @@ export default function App() {
                   onCreateProject={() => setShowCreateModal(true)}
                 />
               ) : (
-                <div className="workspace-tabs">
-                  <TabBar
-                    tabs={center.tabs}
-                    activeKey={center.activeKey}
-                    onSelect={selectCenterTab}
-                    onClose={closeCenterTab}
-                    onPin={pinCenterTab}
-                  />
-                  <div className="workspace-tabs__content">
-                    {activeCenterKind === 'chat' && (
-                      <div className="page-chat">
-                        {infoOpen && (
-                          <div className="chat-info" aria-label="Session info">
-                            <div className="chat-info__head">
-                              <span className="chat-info__title">Session info</span>
-                              <button
-                                type="button"
-                                className="chat-info__close"
-                                onClick={() => setInfoOpen(false)}
-                                title="Close"
-                                aria-label="Close session info"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                            <div className="chat-info__body">
-                              <InfoPanel
-                                projectID={currentProject.id}
-                                sessionID={selectedId || ''}
-                                projectName={currentProject.name}
-                                workspace={currentSession?.workspace || currentProject.default_workspace}
-                                app={app}
-                              />
-                            </div>
-                          </div>
-                        )}
-                        <ChatThread
-                          historyRef={historyRef}
-                          ariaLabel="Conversation history"
-                          items={threadItems}
-                          emptyText="Type a message below to start a new chat."
+                <div className="workspace-panes">
+                  {workspace.panes.map((pane) => {
+                    const focused = pane.id === workspace.focused;
+                    const paneClass = [
+                      'workspace-pane',
+                      workspace.panes.length > 1 && focused ? 'workspace-pane--focused' : '',
+                    ].filter(Boolean).join(' ');
+                    return (
+                      <div
+                        key={pane.id}
+                        className={paneClass}
+                        onMouseDownCapture={() => focusCenterPane(pane.id)}
+                      >
+                        <TabBar
+                          tabs={pane.tabs}
+                          activeKey={pane.activeKey}
+                          onSelect={(key) => selectCenterTab(pane.id, key)}
+                          onClose={(key) => closeCenterTab(pane.id, key)}
+                          onPin={(key) => pinCenterTab(pane.id, key)}
+                          onSplit={() => splitCenterPane(pane.id)}
                         />
-                        <section className="page-chat__input" aria-label="Send a message">
-                          <ChatInput
-                            onSend={handleSend}
-                            onCancel={handleCancel}
-                            loading={loading}
-                            error={error}
-                            onDismissError={() => setError(null)}
-                            currentProject={currentProject}
-                            app={app}
-                            approvalRequest={approvalRequest}
-                            onRespond={handleRespond}
-                            toolActivity={toolActivity}
-                            runStatus={runStatus}
-                            suggestion={turnDigest?.suggestion ?? ''}
-                            onAcceptSuggestion={() => setTurnDigest(null)}
-                            sessionId={selectedId || ''}
-                            onShowInfo={() => setInfoOpen(true)}
-                            onShowChanges={() => setExplorerMode('changes')}
-                            infoOpen={infoOpen}
-                            onToggleInfo={() => setInfoOpen((v) => !v)}
-                            onRewound={handleRewound}
-                            onForked={handleForked}
-                            onCompacted={handleCompacted}
-                            onCommandError={(msg) => setError(msg)}
-                            onRunStatusContext={(status) => {
-                              setRunStatus((prev) => ({
-                                ...(status ?? {}),
-                                prompt_tokens: prev?.prompt_tokens ?? 0,
-                                completion_tokens: prev?.completion_tokens ?? 0,
-                                total_prompt_tokens: prev?.total_prompt_tokens ?? status?.total_prompt_tokens ?? 0,
-                                total_completion_tokens: prev?.total_completion_tokens ?? status?.total_completion_tokens ?? 0,
-                              }));
-                            }}
-                          />
-                        </section>
+                        <div className="workspace-pane__content">
+                          {renderPaneContent(pane)}
+                        </div>
                       </div>
-                    )}
-                    {activeCenterKind === 'file' && (
-                      <FileView
-                        projectID={currentProject.id}
-                        sessionID={selectedId || ''}
-                        path={activeCenterRef}
-                        app={app}
-                      />
-                    )}
-                    {activeCenterKind === 'diff' && (
-                      <DiffView
-                        projectID={currentProject.id}
-                        sessionID={selectedId || ''}
-                        path={activeCenterRef}
-                        app={app}
-                      />
-                    )}
-                    {center.tabs
-                      .filter((t) => t.kind === 'terminal')
-                      .map((t) => (
-                        <TerminalPane key={t.key} id={t.ref} active={t.key === center.activeKey} />
-                      ))}
-                  </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

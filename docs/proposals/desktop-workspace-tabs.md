@@ -436,10 +436,34 @@ surface may split into several panes, each showing one tab, tiled so the user se
 multiple activities at once — a file beside its diff, a terminal beneath a chat.
 
 Because a tab's backing is pane-independent (§7.5), tiling only decides which pane
-renders which tab; it changes no backing, lifecycle, or authority. This is
-deferred beyond the first slices, but the model must hold the constraint now:
-every tab kind's backing is decoupled from its pane so that adding panes later
-requires no rework of sessions, PTYs, or file views.
+renders which tab; it changes no backing, lifecycle, or authority. The model holds
+the constraint regardless of layout: every tab kind's backing is decoupled from
+its pane, so adding panes needs no rework of sessions, PTYs, or file views.
+
+### 15.1 Implemented: split into a row of panes
+
+The workspace is a row of panes; each pane is its own tab strip with its own
+active tab, and one pane is *focused*. Newly opened activities — a file or diff
+from the Explorer, a new terminal — land in the focused pane. A **Split right**
+control on a pane's tab strip inserts a new pane beside it and focuses it.
+
+The first cut deliberately **never moves a tab between panes**. Splitting creates
+a *new empty* pane and opens the next activity there, rather than peeling an
+existing tab out of its pane. This keeps the rule that a backing lives in one
+pane for its whole life, which is what lets a terminal's emulator stay mounted
+across every layout change — moving its DOM node between panes would remount
+xterm and lose scrollback. An empty pane is transient: it is reaped as soon as
+focus leaves it, so the layout never accumulates blank panes. Closing a pane's
+last tab removes the pane and focuses a neighbour. Layout is session-only UI
+state; it is not persisted (see §21).
+
+### 15.2 Deferred: moving tabs and true grid
+
+Dragging a tab from one pane into another (§3.4), stacking panes into rows and
+columns rather than a single row, and a persisted layout remain future work.
+Moving a tab across panes needs the mounted-backing question answered first
+(portal the emulator, or accept a remount for non-terminal tabs only); until
+then, re-opening the activity in the target pane is the path.
 
 ## 16. Information Architecture
 

@@ -9,7 +9,7 @@ const KIND_ICON = {
   diff: '±',
 };
 
-export function TabBar({ tabs, activeKey, onSelect, onClose, onPin }) {
+export function TabBar({ tabs, activeKey, onSelect, onClose, onPin, onSplit }) {
   if (tabs.length === 0) return null;
   return (
     <div className="workspace-tabs__bar" role="tablist" aria-label="Open tabs">
@@ -46,6 +46,17 @@ export function TabBar({ tabs, activeKey, onSelect, onClose, onPin }) {
           )}
         </div>
       ))}
+      {onSplit && (
+        <button
+          type="button"
+          className="workspace-tabs__split"
+          title="Split right"
+          aria-label="Split editor right"
+          onClick={onSplit}
+        >
+          ◫
+        </button>
+      )}
     </div>
   );
 }
