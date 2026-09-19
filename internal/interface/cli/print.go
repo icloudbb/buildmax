@@ -157,7 +157,7 @@ func printAppConfig(opts printOptions, source auth.ModelSource) agentapp.AppConf
 		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
-		IssueClient:            opts.Overrides.Issue.ToolClient(),
+		Issue:                  issueContextOf(opts.Overrides.Issue),
 		Surface:                coregw.CallSurfaceCLI,
 		AdditionalSystemPrompt: opts.AdditionalSystemPrompt,
 		SandboxRunOverride:     opts.Overrides.Sandbox,

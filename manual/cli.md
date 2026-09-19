@@ -236,11 +236,12 @@ buildmax issue start i_7Kq2...            # TUI, working that issue
 buildmax issue start i_7Kq2... -p "..."   # one print-mode run
 ```
 
-The agent gains two tools: `GetIssue` reads the issue, its sub-issues, and
-recent discussion; `ReportToIssue` posts a short report on the thread, at most
-three times in a run. Neither can change the issue's status, owner, executor,
-or sub-issues — the agent says what it believes should happen and a person
-decides.
+The agent reads and reports through the `buildmax issue` commands: `buildmax
+issue show <id>` reads the issue, its sub-issues, and recent discussion, and
+`buildmax issue comment <id> -m "..."` posts a short report on the thread. It
+cannot change the issue's status, owner, executor, or sub-issues — the agent
+says what it believes should happen and a person decides. The server bounds a
+report's length and how many a single run may post.
 
 A report from your machine is recorded as a **local agent report**, attributed
 to you, and Portal shows it as reported rather than said. It is not the same as

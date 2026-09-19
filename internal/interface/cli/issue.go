@@ -8,12 +8,24 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/icloudbb/buildmax/internal/agentapp"
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	"github.com/icloudbb/buildmax/internal/interface/auth"
 	"github.com/icloudbb/buildmax/internal/interface/client"
 	"github.com/icloudbb/buildmax/internal/tool"
 )
+
+// issueContextOf tells a local run it is working the session's one Issue, so the
+// prompt points the Agent at `buildmax issue`. It carries the issue id because
+// the local commands take one; a worker run sets its own context from the run
+// token instead. Nil when the session is not scoped to an Issue.
+func issueContextOf(s *auth.IssueSession) *agentapp.IssueContext {
+	if s == nil {
+		return nil
+	}
+	return &agentapp.IssueContext{ID: s.Issue.ID}
+}
 
 func newIssueCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -39,8 +51,8 @@ func newIssueCommentCommand() *cobra.Command {
 		Use:   "comment <issue-id>",
 		Short: "Post a report on an issue",
 		Long: "Posts one comment on an issue as a report of what happened.\n\n" +
-			"This is the report path a command can reach: an agent can run it to say\n" +
-			"what it did, the same statement the in-process report tool makes.\n\n" +
+			"This is how an agent says what it did: it runs this command to post a\n" +
+			"short report on the issue it is working.\n\n" +
 			"In a local session it takes an issue id and posts as you, recorded as a\n" +
 			"local agent report. Inside a worker run it takes no id — it posts to the\n" +
 			"one issue that run works, through the run bridge, and the run's comment\n" +
@@ -234,8 +246,7 @@ func newIssueShowCommand() *cobra.Command {
 		Short: "Show one issue: what it asks for, how it was split up, and what has been said",
 		Long: "Shows an issue: its description, sub-issues, and recent discussion.\n\n" +
 			"In a local session it takes an issue id. Inside a worker run it takes no\n" +
-			"id — it reads the one issue that run works, through the run bridge, the\n" +
-			"same view the in-process read tool gives.",
+			"id — it reads the one issue that run works, through the run bridge.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: runIssueShow,
 	}

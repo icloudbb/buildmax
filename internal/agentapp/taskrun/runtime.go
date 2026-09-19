@@ -202,20 +202,18 @@ func artifactPublisher(cfg workerclient.WorkerAPIClientConfig, taskRunID string)
 	return workerclient.NewArtifactPublisher(cfg, taskRunID, cfg.BaseURL)
 }
 
-// issueClient gives a run the Issue capability, or nil when the run has no
-// Issue or no way to reach a server.
-//
-// The server derives the Issue from the run token and would answer 404 for a
-// run whose task names none. The task is checked here anyway, because a tool
-// that can only fail should never appear in the tool list at all.
-func issueClient(cfg workerclient.WorkerAPIClientConfig, task *coretask.Task, taskRunID string) tool.IssueClient {
-	if cfg.BaseURL == "" || cfg.Token == "" || taskRunID == "" {
+// issueContext says a run is working one Issue, so its prompt points the Agent
+// at `buildmax issue`. It is nil when the run has no Issue or no way to reach a
+// server. The id is left empty: the run bridge resolves the run's one Issue and
+// the worker `buildmax issue` commands take no id.
+func issueContext(cfg workerclient.WorkerAPIClientConfig, task *coretask.Task) *agentapp.IssueContext {
+	if cfg.BaseURL == "" || cfg.Token == "" {
 		return nil
 	}
 	if task == nil || task.IssueID == nil || *task.IssueID == "" {
 		return nil
 	}
-	return workerclient.NewIssueClient(cfg, taskRunID)
+	return &agentapp.IssueContext{}
 }
 
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, execute agent in-process, upload run state to blob, update run and task via updater.
@@ -425,7 +423,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 		effectiveSessionID = *task.SessionID
 	}
 	agentRun, err := runAgentTask(ctx, run, dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
-		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID),
+		artifactPublisher(input.WorkerAPI, run.ID), issueContext(input.WorkerAPI, task),
 		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants, task.OutputSchema)
 	result := runResult{
 		EndTime:          time.Now().UTC(),
@@ -546,7 +544,7 @@ func runProvenance(run *coretask.Run) agentapp.RunProvenance {
 	}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issue *agentapp.IssueContext, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
@@ -570,7 +568,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 			SpaceAgentInstructions:      spaceAgentInstructions,
 			RunProvenance:               runProvenance(run),
 			ArtifactPublisher:           publisher,
-			IssueClient:                 issues,
+			Issue:                       issue,
 			// A worker executes model-chosen shell commands, so it resolves
 			// the stricter worker sandbox baseline whenever it is running
 			// from an image that actually installs the OS backend -- see

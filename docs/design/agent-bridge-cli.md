@@ -23,13 +23,15 @@
 - roadmap_priority: `unscheduled` — this decides how an Agent reaches Server
   resources at all; it does not yet sit in [../ROADMAP.md](../ROADMAP.md) and
   will be placed against R5 when scheduled.
-- status: `accepted direction, not started` — the maintainer accepted, on
-  `2026-09-19`, that a single `buildmax` command surface becomes the Agent's way
-  to reach the Server, **fully replacing** the in-process Issue tools rather than
-  standing beside them. No code has shipped against this record.
+- status: `implemented` — the maintainer accepted, on `2026-09-19`, that a single
+  `buildmax` command surface becomes the Agent's way to reach the Server, **fully
+  replacing** the in-process Issue tools rather than standing beside them. §11
+  phases 1–4 have shipped: the Server-side guardrails, the local command surface,
+  the worker bridge, and the retirement of `GetIssue` / `ReportToIssue`. Phase 5
+  (the kind end-to-end proof) is the remaining evidence.
 - reverses: [issue-agent-access.md](./issue-agent-access.md) — its mechanism
-  (the in-process `GetIssue` / `ReportToIssue` tools). Its product boundary
-  (§8 here) survives unchanged.
+  (the in-process `GetIssue` / `ReportToIssue` tools), now removed. Its product
+  boundary (§8 here) survives unchanged, and that record is reduced to it.
 - follows: [worker-run-token.md](./worker-run-token.md),
   [client-modes.md](./client-modes.md),
   [worker-api-network-boundary.md](./worker-api-network-boundary.md)
@@ -175,8 +177,8 @@ credential.
   (`RunCommentBudget`, counted by `source_task_run_id`) are enforced there — one
   authoritative implementation that binds the runtime tool, the CLI, and any
   future client. The stricter Agent limit does not touch a person's comment,
-  which keeps the universal `CommentBodyLimit`. The tool-layer constants are
-  removed when the tools are.
+  which keeps the universal `CommentBodyLimit`. The tool-layer constants were
+  removed with the tools (§11 phase 4).
 
 ## 6. Credential Handling
 
@@ -281,11 +283,12 @@ The command surface changes the *mechanism* of Agent Server access, not the
 
 ## 9. What This Supersedes
 
-- **[issue-agent-access.md](./issue-agent-access.md)'s mechanism.** When §11
-  ships, the `GetIssue` / `ReportToIssue` tools and their `internal/tool`
-  registration are removed; that record is reduced to the surviving product
-  boundary (§8) or retired, with §8 owning those rules. Until then its tools
-  remain the shipped path and that record stays accurate for current code.
+- **[issue-agent-access.md](./issue-agent-access.md)'s mechanism.** The
+  `GetIssue` / `ReportToIssue` tools and their `internal/tool` registration are
+  removed (§11 phase 4). That record is reduced to the surviving product
+  boundary, which §8 here owns and expresses in the command-surface world; an
+  issue-linked run learns of the command through the `issue` prompt layer, since
+  there is no longer a tool to discover.
 - **The client-command half of
   [../proposals/local-issue-work-bridge.md](../proposals/local-issue-work-bridge.md).**
   That proposal's question of how a local client reads, reports, and returns
@@ -349,7 +352,16 @@ The command surface changes the *mechanism* of Agent Server access, not the
    `internal/tool`, update `internal/tool/names.go`, and reduce or retire
    [issue-agent-access.md](./issue-agent-access.md) per §9. Ensure the
    `buildmax` binary is on `PATH` inside worker images so the surface exists
-   where the Agent runs.
+   where the Agent runs. **Shipped:** the tool structs, their registration, and
+   the tool-layer budget/body-limit constants are gone; the dead `IssueClient`
+   plumbing through `agentapp` and `internal/interface/auth`/`client` is removed
+   (the `tool.IssueClient` port stays — the `buildmax` command uses it over the
+   bridge). An issue-linked run now gets an `issue` system-prompt layer
+   (`agentapp.PromptCapabilities.Issue`) pointing it at `buildmax issue show` /
+   `comment`, the only signal it has that an Issue exists. `buildmax` is already
+   at `/usr/local/bin/buildmax` in `deployment/docker/Dockerfile.buildmax`, so
+   the worker image needs no change. issue-agent-access.md is reduced to the
+   product boundary.
 5. **Documentation and evidence.** Update [manual/cli.md](../../manual/cli.md),
    [../current-state.md](../current-state.md), the tool inventory, and add a
    changelog fragment; run the kind end-to-end path to show an Agent inside a

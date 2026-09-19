@@ -6,23 +6,20 @@ import (
 
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	"github.com/icloudbb/buildmax/internal/interface/client"
-	"github.com/icloudbb/buildmax/internal/tool"
 )
 
 // IssueSession is one local session's link to one space Issue.
 //
-// It carries what the session must be able to say out loud as well as what it
-// needs to call: which server and space the work came from, and which Issue.
-// Work crossing that boundary should be visible before it crosses, not
-// inferable afterwards from a tool call.
-//
-// It lasts one run. The durable form is the local Issue bridge's to design.
+// It carries what the session must be able to say out loud: which server and
+// space the work came from, and which Issue. Work crossing that boundary should
+// be visible before it crosses, not inferable afterwards from a tool call. The
+// Agent reads and reports on the Issue by running `buildmax issue <id>`, so the
+// session holds no in-process client; it lasts one run.
 type IssueSession struct {
 	ServerURL string
 	SpaceID   string
 	SpaceName string
 	Issue     coreissue.Issue
-	Client    tool.IssueClient
 }
 
 // OpenIssueSession scopes this session to one Issue on the server it is signed
@@ -54,15 +51,5 @@ func OpenIssueSession(ctx context.Context, issueID string) (*IssueSession, error
 		SpaceID:   space.ID,
 		SpaceName: space.Name,
 		Issue:     issue,
-		Client:    client.NewIssueClient(info.ServerURL, space.ID, issue.ID, TokenForServer),
 	}, nil
-}
-
-// ToolClient is the Issue capability to hand the runtime, or nil when there is
-// no session. Nil registers no tools, which is what a run with no Issue gets.
-func (s *IssueSession) ToolClient() tool.IssueClient {
-	if s == nil {
-		return nil
-	}
-	return s.Client
 }

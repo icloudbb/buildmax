@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
-	"github.com/icloudbb/buildmax/internal/tool"
 )
 
 // The inbox asks each space the same question and keeps the space alongside each
@@ -95,38 +94,8 @@ func TestListOwnedIssuesReportsASpaceListingFailure(t *testing.T) {
 	}
 }
 
-// The local session reports as local_agent, never as agent: the deployment
-// scheduled nothing, admitted no quota, and recorded no trace for this run.
-func TestLocalIssueClientReportsAsALocalAgent(t *testing.T) {
-	var got map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/comments") {
-			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
-		}
-		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
-			t.Errorf("decode: %v", err)
-		}
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"id":"ic_1"}`))
-	}))
-	defer srv.Close()
-
-	client := NewIssueClient(srv.URL, "tm_1", "i_1", func(string) (string, error) { return "tok", nil })
-	if err := client.Report(t.Context(), tool.IssueReport{Body: "done", ArtifactIDs: []string{"gsyt7at6cjfr33d73mta"}}); err != nil {
-		t.Fatalf("Report: %v", err)
-	}
-	if got["author_kind"] != coreissue.CommentAuthorLocalAgent {
-		t.Fatalf("author_kind = %v, want %q", got["author_kind"], coreissue.CommentAuthorLocalAgent)
-	}
-	body, _ := got["body"].(string)
-	if !strings.Contains(body, "done") || !strings.Contains(body, "gsyt7at6cjfr33d73mta") {
-		t.Fatalf("body = %q", body)
-	}
-}
-
 // CommentOnIssue is the CLI's report path: it posts to the issue's comment
-// route as local_agent, so a comment a command makes reads the same as one the
-// in-process tool makes.
+// route as local_agent.
 func TestCommentOnIssuePostsLocalAgent(t *testing.T) {
 	var got map[string]any
 	var path string
@@ -166,67 +135,6 @@ func TestCommentOnIssueSurfacesAnError(t *testing.T) {
 	defer srv.Close()
 	if err := NewClient(srv.URL).CommentOnIssue(t.Context(), "tok", "tm_1", "i_1", "one too many"); err == nil {
 		t.Fatal("a 429 was read as success")
-	}
-}
-
-// 201 is what this route answers. A client that only accepted 200 or 204 would
-// report every successful post as a failure.
-func TestLocalIssueClientAcceptsCreated(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"id":"ic_1"}`))
-	}))
-	defer srv.Close()
-	client := NewIssueClient(srv.URL, "tm_1", "i_1", func(string) (string, error) { return "tok", nil })
-	if err := client.Report(t.Context(), tool.IssueReport{Body: "done"}); err != nil {
-		t.Fatalf("a 201 was read as a failure: %v", err)
-	}
-}
-
-func TestLocalIssueClientReadsTheIssueChildrenAndThread(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/comments"):
-			_, _ = w.Write([]byte(`{"comments":[{"author_kind":"user","author_id":"u1","body":"start here","created_at":"2026-08-29T00:00:00Z"}],"total":1}`))
-		case r.URL.Query().Get("parent_id") != "":
-			_, _ = w.Write([]byte(`{"issues":[{"id":"i_child","title":"Write the adapter","status":"todo"}],"total":1}`))
-		default:
-			_, _ = w.Write([]byte(`{"id":"i_1","title":"Ship it","description":"the whole thing","status":"in_progress"}`))
-		}
-	}))
-	defer srv.Close()
-
-	client := NewIssueClient(srv.URL, "tm_1", "i_1", func(string) (string, error) { return "tok", nil })
-	snapshot, err := client.Issue(t.Context())
-	if err != nil {
-		t.Fatalf("Issue: %v", err)
-	}
-	if snapshot.Title != "Ship it" || snapshot.Status != "in_progress" {
-		t.Fatalf("snapshot = %+v", snapshot)
-	}
-	if len(snapshot.Children) != 1 || snapshot.Children[0].Title != "Write the adapter" {
-		t.Fatalf("children = %+v", snapshot.Children)
-	}
-	if len(snapshot.Comments) != 1 || snapshot.Comments[0].AuthorKind != "user" {
-		t.Fatalf("comments = %+v", snapshot.Comments)
-	}
-}
-
-// Nothing to scope to means no client, so the caller registers no tools rather
-// than tools that fail on every call.
-func TestNewIssueClientRefusesAnIncompleteScope(t *testing.T) {
-	token := func(string) (string, error) { return "tok", nil }
-	for _, tc := range []struct{ name, server, space, issue string }{
-		{"no server", "", "tm_1", "i_1"},
-		{"no space", "https://s", "", "i_1"},
-		{"no issue", "https://s", "tm_1", ""},
-	} {
-		if got := NewIssueClient(tc.server, tc.space, tc.issue, token); got != nil {
-			t.Errorf("%s: got a client anyway", tc.name)
-		}
-	}
-	if got := NewIssueClient("https://s", "tm_1", "i_1", nil); got != nil {
-		t.Error("no token function: got a client anyway")
 	}
 }
 

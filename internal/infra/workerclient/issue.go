@@ -20,7 +20,7 @@ type issueClient struct {
 //
 // The Issue is not a parameter here either: the server derives it from the run
 // token, so this client cannot be pointed at another Issue even by the code
-// holding it. See docs/design/issue-agent-access.md section 5.3.
+// holding it. See docs/design/agent-bridge-cli.md section 3.
 func NewIssueClient(cfg WorkerAPIClientConfig, taskRunID string) tool.IssueClient {
 	return &issueClient{Cfg: cfg, TaskRunID: taskRunID}
 }

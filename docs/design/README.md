@@ -102,7 +102,7 @@ remaining list. Update this snapshot when either changes.
 | [Portal state and permission feedback](portal-state-and-permission-feedback.md) | Active plan | Partial | Loading, empty, error, stale, and authorization presentation |
 | [Portal data and plugin surfaces](portal-data-and-plugin-surfaces.md) | Specification | Complete | Files, Artifacts, Marketplace, and scoped plugin actions |
 | [Portal responsive and accessible interaction](portal-responsive-and-accessible-interaction.md) | Specification | Complete | Narrow layouts, keyboard behavior, dialogs, and viewport evidence |
-| [Issue agent access](issue-agent-access.md) | Active plan | Complete | Scoped Issue context and reporting for local and worker runs |
+| [Issue agent access](issue-agent-access.md) | Product boundary | Mechanism superseded by [agent-bridge-cli](agent-bridge-cli.md) | What an Agent may assert about the Issue it works |
 | [Space governance](space-governance.md) | Active plan | Complete | Roles, quota, workflow lifecycle, audit, and retention |
 | [System administration](system-administration.md) | Active plan | Complete | Deployment-wide authority and operator surfaces |
 | [Plugin distribution and private marketplace](plugin-marketplace.md) | Active plan | Partial | Publishing, installing, and managing plugins |

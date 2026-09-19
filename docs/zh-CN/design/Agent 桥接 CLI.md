@@ -22,11 +22,13 @@
 
 - roadmap_priority：`unscheduled` —— 本记录决定的是 Agent 究竟如何触达 Server
   资源；它尚未进入[路线图](../ROADMAP.md)，将在排期时对应到 R5。
-- status：`accepted direction, not started` —— 维护者已于 `2026-09-19` 接受：由单一的
-  `buildmax` 命令入口成为 Agent 触达 Server 的方式，**完全取代**进程内的 Issue 工具，
-  而不是与之并存。目前尚无代码据此落地。
+- status：`implemented` —— 维护者已于 `2026-09-19` 接受：由单一的 `buildmax` 命令入口
+  成为 Agent 触达 Server 的方式，**完全取代**进程内的 Issue 工具，而不是与之并存。
+  §11 的第 1–4 阶段已交付：服务端护栏、本地命令入口、worker 桥，以及
+  `GetIssue` / `ReportToIssue` 的退役。第 5 阶段（kind 端到端证明）是剩余的证据。
 - reverses：[issue-agent-access.md](./Issue Agent访问.md) —— 反转其机制（进程内的
-  `GetIssue` / `ReportToIssue` 工具）。其产品边界（本文 §8）保持不变。
+  `GetIssue` / `ReportToIssue` 工具），现已移除。其产品边界（本文 §8）保持不变，该
+  记录被削减为该边界。
 - follows：[worker-run-token.md](./Worker运行令牌.md)、
   [client-modes.md](./客户端模式.md)、
   [worker-api-network-boundary.md](./Worker API网络边界.md)
@@ -142,7 +144,7 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
   在追加 Artifact 引用之前作用于 `agent`/`local_agent` 作者）与每-run 预算
   （`RunCommentBudget`，按 `source_task_run_id` 计数）都在此处强制执行——一个权威实现，
   约束运行时工具、CLI 以及任何未来客户端。这条更严格的 Agent 限制不影响人的评论，人仍受
-  通用的 `CommentBodyLimit`。工具层的常量在工具被移除时一并移除。
+  通用的 `CommentBodyLimit`。工具层的常量已随工具一并移除（§11 第 4 阶段）。
 
 ## 6. 凭据处理
 
@@ -229,10 +231,10 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
 
 ## 9. 本设计取代了什么
 
-- **[issue-agent-access.md](./Issue Agent访问.md) 的机制。** 当 §11 交付时，
-  `GetIssue` / `ReportToIssue` 工具及其 `internal/tool` 注册被移除；该记录被削减为存留
-  的产品边界（§8）或退役，由 §8 拥有那些规则。在此之前，它的工具仍是已交付的通路，
-  该记录对当前代码保持准确。
+- **[issue-agent-access.md](./Issue Agent访问.md) 的机制。**
+  `GetIssue` / `ReportToIssue` 工具及其 `internal/tool` 注册已被移除（§11 第 4 阶段）。
+  该记录被削减为存留的产品边界，由本文 §8 拥有并在命令入口世界中表述；与某个 Issue
+  关联的运行通过 `issue` 提示层得知该命令，因为已不再有可被发现的工具。
 - **[本地 Issue 工作桥接（提案）](../proposals/local-issue-work-bridge.md)
   中的客户端命令部分。** 该提案关于本地客户端如何读取、报告和返回工作的问题，在此得到
   解答。它仍未决的问题（持久的 Issue↔Session 关联、工作区映射、本地结果记录类型）不由
@@ -283,7 +285,14 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
 4. **退役工具。** 从 `internal/tool` 移除 `GetIssue` / `ReportToIssue`，更新
    `internal/tool/names.go`，并按 §9 削减或退役
    [issue-agent-access.md](./Issue Agent访问.md)。确保 `buildmax` 二进制位于 worker
-   镜像内的 `PATH` 上，使该入口在 Agent 运行之处存在。
+   镜像内的 `PATH` 上，使该入口在 Agent 运行之处存在。**已交付：** 工具结构体、它们
+   的注册，以及工具层的预算/正文上限常量都已移除；穿过 `agentapp` 与
+   `internal/interface/auth`/`client` 的失效 `IssueClient` 管线也已移除（`tool.IssueClient`
+   端口保留 —— `buildmax` 命令经桥使用它）。与某个 Issue 关联的运行现在获得一个 `issue`
+   系统提示层（`agentapp.PromptCapabilities.Issue`），指向 `buildmax issue show` / `comment`，
+   这是它得知 Issue 存在的唯一信号。`buildmax` 在
+   `deployment/docker/Dockerfile.buildmax` 中已位于 `/usr/local/bin/buildmax`，故 worker
+   镜像无需改动。issue-agent-access.md 已削减为产品边界。
 5. **文档与证据。** 更新 [CLI 参考](../../../manual/cli.md)、
    [当前状态](../current-state.md)、工具清单，并添加一条 changelog 片段；运行 kind
    端到端路径，展示运行内部的 Agent 使用 CLI 只触达它自己的运行。

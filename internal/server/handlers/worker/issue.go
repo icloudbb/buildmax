@@ -23,7 +23,7 @@ const issueCommentWindow = 20
 //
 // Narrow on purpose. There is no update method here, so no worker route can
 // change an Issue's status, owner, executor, or hierarchy however the run's agent is
-// prompted. See docs/design/issue-agent-access.md section 6.
+// prompted. See docs/design/issue-agent-access.md section 2.
 type IssueAccess interface {
 	GetIssue(ctx context.Context, spaceID, issueID string) (*coreissue.Issue, error)
 	ListChildren(ctx context.Context, spaceID, issueID string) ([]coreissue.Issue, error)
