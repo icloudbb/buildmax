@@ -7,7 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	"github.com/icloudbb/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/tool"
 )
 
 func newArtifactCommand() *cobra.Command {
@@ -49,20 +51,39 @@ func runArtifactPublish(cmd *cobra.Command, args []string) error {
 	if info.IsDir() {
 		return fmt.Errorf("%s is a directory; publish a file", path)
 	}
+	title, _ := cmd.Flags().GetString("title")
+	share, _ := cmd.Flags().GetBool("share")
+	out := cmd.OutOrStdout()
+
+	// Inside a worker run the space is the run's, derived from the run token, so
+	// --space does not apply; the upload goes through the bridge to the worker
+	// route.
+	if wb := inWorkerRun(); wb != nil {
+		pub := workerclient.NewArtifactPublisher(wb.cfg, wb.taskRunID, "")
+		art, err := pub.PublishArtifact(cmd.Context(), tool.ArtifactUpload{
+			Path: path, Filename: filepath.Base(path), Title: title, Share: share,
+		})
+		if err != nil {
+			return fmt.Errorf("publish artifact: %w", err)
+		}
+		fmt.Fprintf(out, "Published %s (%d bytes).\n", art.Filename, art.SizeBytes)
+		fmt.Fprintf(out, "artifact %s\n", art.ArtifactID)
+		if art.ShareURL != "" {
+			fmt.Fprintf(out, "share %s\n", art.ShareURL)
+		}
+		return nil
+	}
+
 	serverURL, token, err := signedInServer(cmd)
 	if err != nil {
 		return err
 	}
 	space, _ := cmd.Flags().GetString("space")
-	title, _ := cmd.Flags().GetString("title")
-	share, _ := cmd.Flags().GetBool("share")
-
 	art, err := client.NewClient(serverURL).PublishArtifact(
 		cmd.Context(), token, space, title, path, filepath.Base(path), share)
 	if err != nil {
 		return fmt.Errorf("publish artifact: %w", err)
 	}
-	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "Published %s (%d bytes).\n", art.Filename, art.SizeBytes)
 	fmt.Fprintf(out, "artifact %s\n", art.ID)
 	if art.ShareURL != "" {

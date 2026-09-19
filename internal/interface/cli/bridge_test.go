@@ -78,6 +78,40 @@ func TestIssueCommentRoutesThroughBridgeInWorkerRun(t *testing.T) {
 	}
 }
 
+// Inside a worker run, `artifact publish` uploads through the bridge to the
+// run's own artifact route, with the space derived from the run token.
+func TestArtifactPublishRoutesThroughBridgeInWorkerRun(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "out.txt")
+	if err := os.WriteFile(file, []byte("result"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	var gotPath, gotFilename string
+	sock := bridgeStub(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if _, hdr, err := r.FormFile("file"); err == nil {
+			gotFilename = hdr.Filename
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"art_1","filename":"out.txt","size_bytes":6}`))
+	})
+	t.Setenv(config.EnvKeyBuildmaxBridgeSock, sock)
+	t.Setenv(config.EnvKeyBuildmaxTaskRunID, "run-1")
+
+	root := NewRootCommand()
+	root.SetArgs([]string{"artifact", "publish", file})
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if gotPath != "/api/worker/task-runs/run-1/artifacts" {
+		t.Fatalf("path = %q, want the worker artifact route", gotPath)
+	}
+	if gotFilename != "out.txt" {
+		t.Fatalf("uploaded filename = %q", gotFilename)
+	}
+}
+
 // An issue id inside a worker run is refused: the run may only address its own
 // issue, which the worker route names for it.
 func TestIssueCommentRefusesIDInWorkerRun(t *testing.T) {

@@ -274,9 +274,10 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
    且 `_SOCK`/`_ID` 名称能通过沙箱环境擦除，因此无需改动 `FilterWorkerEnv`）。它只转发
    `/api/worker/` 路径，且 fail-open（桥接起不来的运行仍能执行）。CLI 会检测该套接字
    （`inWorkerRun`）并据此路由：运行内 `buildmax issue comment` 经桥接发到本运行唯一的
-   issue（worker 路由、无 id、受运行预算），并拒绝携带 issue id。剩余：把 `artifact
-   publish`、一个 `issue view` 与 run 状态经桥接路由；kind 验证单次运行隔离（这由 run
-   token 本身保证，桥接只是携带它）。
+   issue（worker 路由、无 id、受运行预算）并拒绝携带 issue id，`buildmax artifact
+   publish` 经桥接上传到本运行的 artifact 路由、space 取自 run token。剩余：一个
+   `issue view` 与 run 状态经桥接路由；kind 验证单次运行隔离（这由 run token 本身保证，
+   桥接只是携带它）。
 4. **退役工具。** 从 `internal/tool` 移除 `GetIssue` / `ReportToIssue`，更新
    `internal/tool/names.go`，并按 §9 削减或退役
    [issue-agent-access.md](./Issue Agent访问.md)。确保 `buildmax` 二进制位于 worker

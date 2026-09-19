@@ -294,6 +294,10 @@ Without `--space` the artifact goes to your personal space; `--share` also mints
 a public link. The printed id is the exact string to name after `Artifacts:` in
 an issue comment, so an agent can publish a result and point the thread at it.
 
+Inside a worker run the command uploads to the run's own space through the run
+bridge, so `--space` does not apply; an agent running there publishes with the
+same command a person uses here.
+
 ### `buildmax workflow`
 
 `buildmax workflow run` starts a run of a published workflow and prints the run
