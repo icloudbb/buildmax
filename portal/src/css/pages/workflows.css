@@ -339,3 +339,87 @@ button.wf-graph__node:focus-visible {
 .wf-graph__node--unknown {
   border-left-color: var(--color-border, #d0d7de);
 }
+
+/* State-driven detail page: status pill, header meta chip, banners, topology. */
+.workflow-status-pill {
+  display: inline-block;
+  margin-left: 0.6rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  vertical-align: middle;
+}
+
+.workflow-status-pill--published {
+  border-color: #bfe3c7;
+  background: #e9f6ec;
+  color: #2f7d43;
+}
+
+.workflow-status-pill--draft {
+  border-color: #f0d9a8;
+  background: #fff7e6;
+  color: #8a6d1f;
+}
+
+.workflow-detail__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
+.workflow-detail__history-chip {
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  cursor: pointer;
+}
+
+.workflow-detail__history-chip:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-bg-muted);
+}
+
+.page-activity__action-btn--primary {
+  color: var(--color-primary-text);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.page-activity__action-btn--primary:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  opacity: 0.9;
+}
+
+.page-activity__action-btn--primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.workflow-detail__banner {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.workflow-detail__topology {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.4rem 0 0.6rem;
+}
