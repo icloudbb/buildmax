@@ -23,13 +23,15 @@ test('opens and closes the New Project modal', async ({ page }) => {
   await expect(modal).toBeHidden()
 })
 
-test('toggles the theme from the user menu', async ({ page }) => {
+test('toggles the theme from the status bar', async ({ page }) => {
   const initial = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
 
-  await page.locator('.sidebar__user-trigger').click()
-  const themeItem = page.locator('.sidebar__user-menu-item--icon')
-  await expect(themeItem).toBeVisible()
-  await themeItem.click()
+  // The theme toggle is a global status-bar control — present even on Home and
+  // pinned at the far right — not a user-menu entry. On Home it is the only
+  // status-bar button, so its "…mode" aria-label pins it unambiguously.
+  const themeBtn = page.locator('.workspace-statusbar__btn[aria-label$="mode"]')
+  await expect(themeBtn).toBeVisible()
+  await themeBtn.click()
 
   await expect
     .poll(() => page.evaluate(() => document.documentElement.getAttribute('data-theme')))
