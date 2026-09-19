@@ -321,9 +321,11 @@ The command surface changes the *mechanism* of Agent Server access, not the
    loop, via `TriggerAgent`/`GetTask` with `FindAgent`/`FindTask` fanning out
    across spaces since there is no ambient space), `buildmax artifact publish`
    (uploads a file via `PublishArtifact` over `httpclient.UploadFile`, printing
-   the id usable in an `Artifacts:` reference), and the `--help` command groups
-   (Server vs Local, `groupTopLevelCommands` in root.go). Remaining:
-   `task create`, `run status`, `workflow run`.
+   the id usable in an `Artifacts:` reference), `buildmax workflow run`/`list`/
+   `status` (start a published workflow and follow it, via `RunWorkflow`/
+   `ListWorkflows`/`GetWorkflowRun` with `FindWorkflow` fanning out), and the
+   `--help` command groups (Server vs Local, `groupTopLevelCommands` in
+   root.go). Remaining: `task create`, `run status`.
 3. **Worker bridge.** Run the bridge socket in `internal/agentapp/taskrun`,
    export `BUILDMAX_BRIDGE_SOCK` through `withRunEnv`, allow it past
    `FilterWorkerEnv` in `internal/config/env_spec.go`, and proxy to the worker

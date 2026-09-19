@@ -38,6 +38,9 @@ buildmax <command> [flags]
 | `buildmax agent trigger <agent>` | Start an agent run on the server; input from `-m` or stdin, `--space` to disambiguate |
 | `buildmax task status <id>` | Show a task's status, and its output once it finishes; `--space` to disambiguate |
 | `buildmax artifact publish <file>` | Upload a file as an artifact and print its id; `--space`, `--title`, `--share` |
+| `buildmax workflow list` | List workflows and whether each is runnable; `--space` |
+| `buildmax workflow run <workflow>` | Start a run of a published workflow; `--input` (JSON), `--issue`, `--space` |
+| `buildmax workflow status <run-id>` | Show a workflow run's status; `--space` |
 | `buildmax admin list` | List deployment administrators; `--all` includes revoked grants (System Administrator only) |
 | `buildmax admin grant <email>` | Grant deployment-administrator authority to an existing account |
 | `buildmax admin revoke <email>` | Revoke an account's administrator authority (refuses the last one) |
@@ -290,6 +293,26 @@ buildmax artifact publish ./out.log --space tm_9Fh3... --share
 Without `--space` the artifact goes to your personal space; `--share` also mints
 a public link. The printed id is the exact string to name after `Artifacts:` in
 an issue comment, so an agent can publish a result and point the thread at it.
+
+### `buildmax workflow`
+
+`buildmax workflow run` starts a run of a published workflow and prints the run
+it created; `buildmax workflow status` follows it, and `buildmax workflow list`
+shows which workflows exist and whether each is runnable.
+
+```bash
+buildmax workflow list                       # STATUS column: published is runnable
+buildmax workflow run nightly                # by name or id
+buildmax workflow run wf_7Kq2... --input '{"topic":"pricing"}'
+buildmax workflow status wr_9Fh3...          # pending / running / succeeded / failed
+```
+
+Only a published workflow runs; a draft or archived one is refused. `--input`
+passes JSON that satisfies the workflow's input schema and is only accepted when
+the workflow declares one; `--issue` links the run to an issue, which a step may
+require. As with agents, a workflow is addressed by id — a name is resolved
+across your spaces, and one that matches in more than one is refused, so pass
+`--space` to choose. Authoring workflows stays in Portal.
 
 ### `buildmax admin`
 
