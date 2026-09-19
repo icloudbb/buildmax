@@ -137,6 +137,72 @@ func TestReadWorkspaceFile(t *testing.T) {
 	})
 }
 
+func TestWriteWorkspaceFile(t *testing.T) {
+	root := t.TempDir()
+	mustMkdir(t, filepath.Join(root, "src"))
+	if err := os.WriteFile(filepath.Join(root, "src", "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(root), "outside.txt"), []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("overwrites a file and returns the fresh content", func(t *testing.T) {
+		got, err := writeWorkspaceFile(root, "src/main.go", "package main\n\nfunc main() {}\n")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Error != "" {
+			t.Fatalf("unexpected error: %s", got.Error)
+		}
+		if got.Content != "package main\n\nfunc main() {}\n" {
+			t.Fatalf("content = %q", got.Content)
+		}
+		on, err := os.ReadFile(filepath.Join(root, "src", "main.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(on) != "package main\n\nfunc main() {}\n" {
+			t.Fatalf("on disk = %q", on)
+		}
+	})
+
+	t.Run("creates a new file under the root", func(t *testing.T) {
+		got, err := writeWorkspaceFile(root, "src/new.txt", "hello")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Error != "" || got.Content != "hello" {
+			t.Fatalf("unexpected: %+v", got)
+		}
+	})
+
+	t.Run("refuses to write a directory", func(t *testing.T) {
+		got, err := writeWorkspaceFile(root, "src", "x")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Error == "" {
+			t.Fatal("expected an error writing a directory")
+		}
+	})
+
+	t.Run("traversal cannot write outside the root", func(t *testing.T) {
+		if _, err := writeWorkspaceFile(root, "../outside.txt", "clobbered"); err != nil {
+			t.Fatal(err)
+		}
+		// "../outside.txt" collapses to "outside.txt" under the root, so the real
+		// sibling is untouched.
+		on, err := os.ReadFile(filepath.Join(filepath.Dir(root), "outside.txt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(on) != "secret" {
+			t.Fatal("wrote outside the workspace root")
+		}
+	})
+}
+
 func mustMkdir(t *testing.T, p string) {
 	t.Helper()
 	if err := os.MkdirAll(p, 0o755); err != nil {

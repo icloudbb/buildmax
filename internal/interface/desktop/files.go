@@ -127,6 +127,36 @@ func readWorkspaceFile(root, relPath string) (WorkspaceFile, error) {
 	return WorkspaceFile{Path: clean, Content: string(data), Truncated: truncated}, nil
 }
 
+// WriteWorkspaceFile saves text content to one file in a session's workspace and
+// returns a fresh preview of it. relPath is slash-separated and, like the read
+// path, is clamped so it can never escape the workspace root. Writes are keyed to
+// the same root the file was read from (resolveWorkspace), so an edit lands in the
+// tree the user is looking at. The frontend refuses to edit a binary or truncated
+// preview, so a save never rewrites a file it only partly holds.
+func (a *App) WriteWorkspaceFile(projectID, sessionID, relPath, content string) (WorkspaceFile, error) {
+	root, err := resolveWorkspace(projectID, sessionID)
+	if err != nil {
+		return WorkspaceFile{}, err
+	}
+	return writeWorkspaceFile(root, relPath, content)
+}
+
+func writeWorkspaceFile(root, relPath, content string) (WorkspaceFile, error) {
+	clean := strings.TrimPrefix(path.Clean("/"+strings.ReplaceAll(relPath, "\\", "/")), "/")
+	if clean == "" {
+		return WorkspaceFile{Path: clean, Error: "no file selected"}, nil
+	}
+	full := filepath.Join(root, filepath.FromSlash(clean))
+
+	if info, err := os.Stat(full); err == nil && info.IsDir() {
+		return WorkspaceFile{Path: clean, Error: "not a file"}, nil
+	}
+	if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+		return WorkspaceFile{Path: clean, Error: err.Error()}, nil
+	}
+	return readWorkspaceFile(root, clean)
+}
+
 func listWorkspaceDir(root, relPath string) (WorkspaceListing, error) {
 	// Clean against a leading slash so any ".." collapses to the root rather
 	// than climbing above it, then drop the slash to get a root-relative path.

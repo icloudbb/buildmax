@@ -202,8 +202,9 @@ pane-independent, so a tab can move between panes without disturbing its content
 
 - A general extensible editor platform or plugin-contributed tab kinds. The kinds
   are a small, closed set until a concrete activity justifies another.
-- A full code editor. A file tab is a viewer first; editing is a later, separate
-  decision.
+- A full code editor. A file tab is a viewer that also supports a plain edit-and-
+  save on text files; language services, multi-cursor, and the like are out of
+  scope.
 - A remote or server-side terminal, or SSH into a worker or Space. Terminals are
   local only (§11, §14).
 - Multiple concurrent writers to one workspace without isolation (§12).
@@ -288,7 +289,7 @@ Each kind shares the tab surface but not its backing:
 |---|---|---|---|---|
 | Chat | Agent session + run | User prompt, then the Agent Loop | Writers gated on isolation (§12) | Existing session persistence |
 | Terminal | Interactive local PTY | The user, keystroke by keystroke | Freely parallel (isolated processes) | None across restart |
-| File | A workspace file's content | Read (edit is later) | Freely parallel (read) | None; re-read from disk |
+| File | A workspace file's content | Read, plus edit-and-save on text files | Freely parallel; a save writes to disk | None; re-read from disk |
 | Diff | One changed file's diff | Read | Freely parallel (read) | None; derived from workspace state |
 
 Session Info, today a right-inspector mode, becomes a property view of the active
@@ -382,7 +383,8 @@ work and does not let tabs pretend the limit is gone.
 Until isolation lands, the runtime still serializes writers: several chat tabs may
 be open, but only one runs a writing turn at a time, and the UI must say so.
 Terminal, file, and diff tabs carry no such limit — terminals are isolated
-processes and file/diff tabs are read-only — so they parallelize freely today.
+processes, a file save is a direct user-authored write to disk, and diff tabs are
+read-only — so they parallelize freely today.
 
 ## 13. Persistence and Lifecycle
 
@@ -544,8 +546,9 @@ the smallest set of kinds that proves the model:
 - the **Explorer sidebar** with Directory and Changes modes, replacing the right
   inspector's Files and Changes.
 
-It excludes split/grid, editing in file tabs, agent-tab write concurrency, sandbox
-opt-in, and Agent observation of a terminal.
+The initial prototype excluded more; since built on top of it are the pane grid
+(§15), per-project layout persistence (§13), and file editing. Still excluded:
+concurrent agent-tab runs, sandbox opt-in, and Agent observation of a terminal.
 
 The terminal transport already exists as an exploratory prototype from this
 paper's earlier draft: a Go PTY session manager
@@ -593,7 +596,7 @@ target. The prototype validates the transport, not the surface.
 - Only after per-activity workspace isolation from the session-tree/workspace
   direction is accepted and built.
 - Optional terminal sandbox opt-in; optional, explicitly-decided Agent observation
-  of a terminal; optional file editing.
+  of a terminal. (File editing has since been built — see §13.)
 
 ## 21. Prototype Acceptance Criteria
 
@@ -637,8 +640,9 @@ The Phase 1 slice must show that:
 - Should a terminal tab ever be sandboxable, and if so opt-in or policy-driven?
 - If an Agent may later observe a terminal, what authority and consent model
   governs it, given the terminal carries the user's full environment?
-- Should file tabs stay read-only, and if editing is added later, whose authority
-  writes the file?
+- Resolved: file tabs support edit-and-save; the write runs with the user's own
+  authority (not the Agent's), clamped to the resolved workspace root, and is
+  refused for binary or truncated content (§13, §14).
 
 ### Concurrency and layout
 

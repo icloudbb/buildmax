@@ -477,6 +477,21 @@
   color: var(--color-text);
 }
 
+.file-view__badge--error {
+  color: var(--color-danger, #d64545);
+  border-color: var(--color-danger, #d64545);
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-view__edit {
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
 .file-view__code {
   flex: 1;
   min-height: 0;
@@ -489,6 +504,25 @@
   white-space: pre;
   tab-size: 4;
   color: var(--color-text);
+}
+
+/* The editor mirrors .file-view__code so switching in and out of edit does not
+   reflow the text. */
+.file-view__editor {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  tab-size: 4;
+  white-space: pre;
 }
 
 /* Shiki renders its own <pre class="shiki">; strip its chrome so it sits
