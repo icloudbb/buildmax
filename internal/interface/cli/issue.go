@@ -92,7 +92,7 @@ func runIssueComment(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(args) == 0 {
-		return fmt.Errorf("issue id required: buildmax issue comment <issue-id> -m ...")
+		return fmt.Errorf("issue id required: buildmax issue comment <issue-id> -m <message>")
 	}
 	serverURL, token, err := signedInServer(cmd)
 	if err != nil {

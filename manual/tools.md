@@ -30,6 +30,7 @@ so they are worth knowing exactly.
 | `LoadMcpTools` / `CallMcpTool` | Discover and invoke MCP server tools | see [MCP](mcp.md) |
 | `MemoryRead` | Open the bodies of project memories. Available on a local run with project memory. | `names` |
 | `MemoryWrite` | Create or replace a project memory. Available on a local run with project memory. | `name`, `description`, `type`, `content`, `verified_at` |
+
 Run `/tools` in the TUI to see the set active for the current run — it varies
 with what is configured.
 
