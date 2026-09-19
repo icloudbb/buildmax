@@ -1,13 +1,13 @@
-import { useState } from 'react';
 import { ExplorerTree } from './ExplorerTree';
 import { ExplorerChanges } from './ExplorerChanges';
 
 // Explorer is the project-scoped sidebar section that indexes the active
 // project's workspace (see the desktop-workspace-tabs proposal). It has two
 // display modes — Directory and Changes — and only browses: a click opens a
-// file or diff tab in the center, it never renders content itself.
-export function Explorer({ projectID, sessionID, app, onOpenFile, onOpenDiff }) {
-  const [mode, setMode] = useState('directory'); // 'directory' | 'changes'
+// file or diff tab in the center, it never renders content itself. Mode is
+// controlled so a slash command (/diff) can switch it.
+export function Explorer({ projectID, sessionID, app, mode, onModeChange, onOpenFile, onOpenDiff }) {
+  const setMode = onModeChange;
   return (
     <div className="explorer" aria-label="Explorer">
       <div className="explorer__header">

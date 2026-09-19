@@ -80,26 +80,8 @@ function MoonIcon() {
   );
 }
 
-// Inspector toolbar icons — line icons matching the app's SVG icon style
-// (24-grid, currentColor stroke). Folder for the file tree, a page with +/- for
-// the diff, a circled i for info.
-function FilesIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-    </svg>
-  );
-}
-
-function ChangesIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="5" y="3" width="14" height="18" rx="2" />
-      <path d="M12 7v4M10 9h4M10 16h4" />
-    </svg>
-  );
-}
-
+// Workspace toolbar icon — a line icon matching the app's SVG icon style
+// (24-grid, currentColor stroke): a circled i for session info.
 function InfoIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -173,6 +155,7 @@ export default function App() {
   );
   const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
   const [center, setCenter] = useState(emptyTabs);
+  const [explorerMode, setExplorerMode] = useState('directory'); // 'directory' | 'changes'
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     clampSidebarWidth(readStored(LS_SIDEBAR_WIDTH, SIDEBAR_DEFAULT_WIDTH)),
   );
@@ -1135,6 +1118,8 @@ export default function App() {
                 projectID={currentProject.id}
                 sessionID={selectedId || ''}
                 app={app}
+                mode={explorerMode}
+                onModeChange={setExplorerMode}
                 onOpenFile={openFileTab}
                 onOpenDiff={openDiffTab}
               />
@@ -1210,27 +1195,7 @@ export default function App() {
                 </span>
               </div>
               {currentProject && (
-                <div className="inspector-tabs" role="group" aria-label="Inspector views">
-                  <button
-                    type="button"
-                    className="inspector-tabs__btn"
-                    aria-pressed={inspectorOpen && inspector.view === 'files'}
-                    onClick={() => toggleInspectorView('files')}
-                    title="Files"
-                    aria-label="Files"
-                  >
-                    <span className="inspector-tabs__icon"><FilesIcon /></span>
-                  </button>
-                  <button
-                    type="button"
-                    className="inspector-tabs__btn"
-                    aria-pressed={inspectorOpen && inspector.view === 'diff'}
-                    onClick={() => toggleInspectorView('diff')}
-                    title="Changes"
-                    aria-label="Changes"
-                  >
-                    <span className="inspector-tabs__icon"><ChangesIcon /></span>
-                  </button>
+                <div className="inspector-tabs" role="group" aria-label="Workspace actions">
                   <button
                     type="button"
                     className="inspector-tabs__btn"
@@ -1297,6 +1262,7 @@ export default function App() {
                             onAcceptSuggestion={() => setTurnDigest(null)}
                             sessionId={selectedId || ''}
                             onOpenInspector={openInspector}
+                            onShowChanges={() => setExplorerMode('changes')}
                             onRewound={handleRewound}
                             onForked={handleForked}
                             onCompacted={handleCompacted}

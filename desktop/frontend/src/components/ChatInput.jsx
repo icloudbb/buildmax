@@ -133,7 +133,7 @@ export function ContextDonut({ status }) {
 
 // --- ChatInput ---
 
-export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onOpenInspector }) {
+export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onOpenInspector, onShowChanges }) {
   const [prompt, setPrompt] = useState('');
 
   // Palette state.
@@ -283,7 +283,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
     setSelected(0);
     switch (name) {
       case 'model': setShowModelDropdown(true); break;
-      case 'diff': onOpenInspector?.('diff'); break;
+      case 'diff': onShowChanges?.(); break;
       case 'mcp': setShowMCP(true); break;
       case 'agents': setShowAgents(true); break;
       case 'plugins': setShowPlugins(true); break;
