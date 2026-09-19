@@ -234,6 +234,36 @@ func TestPrintAppConfigCarriesRunOverrides(t *testing.T) {
 	}
 }
 
+// Commands are sorted into a Server and a Local group so --help shows at a
+// glance which reach the signed-in server. The mapping and the titles are
+// pinned here; a new command inherits the Local group unless root.go names it.
+func TestRootCommand_CommandsAreGroupedForHelp(t *testing.T) {
+	root := NewRootCommand()
+	group := map[string]string{}
+	for _, c := range root.Commands() {
+		group[c.Name()] = c.GroupID
+	}
+	if group["issue"] != groupServer {
+		t.Errorf("issue group = %q, want %q", group["issue"], groupServer)
+	}
+	if group["doctor"] != groupLocal {
+		t.Errorf("doctor group = %q, want %q", group["doctor"], groupLocal)
+	}
+
+	var out strings.Builder
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--help"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute(--help): %v", err)
+	}
+	for _, want := range []string{"Server commands", "Local commands"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("--help missing group title %q:\n%s", want, out.String())
+		}
+	}
+}
+
 // Cobra re-adds the default completion command on every Execute, so hiding it has to survive
 // that, and the generated script has to keep working for anyone who already installed one.
 func TestRootCommand_CompletionStaysOutOfHelp(t *testing.T) {

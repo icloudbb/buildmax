@@ -245,6 +245,9 @@ internal/
 │   ├── trace/          持久化的 run-trace 记录器（有边界、经脱敏的 JSONL）
 │   ├── k8s/            Kubernetes worker job 启动器
 │   ├── workerclient/   面向 server worker API 的 worker 端 HTTP client
+│   ├── runbridge/      每次运行的 Unix socket 反向代理，转发到 worker API，
+│   │                   使子进程无需持有 run token 即可访问
+│   │                   （docs/design/agent-bridge-cli.md）
 │   ├── httpclient/     为其 Go client 解码 server 的错误信封
 │   ├── flock/          持有者退出时由操作系统释放的建议性文件锁
 │   ├── git/            分支、diff 与 worktree 相关辅助函数

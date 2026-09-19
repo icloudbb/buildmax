@@ -191,4 +191,8 @@ type CommentStore interface {
 	// CountIssueComments returns comment totals keyed by issue ID. Issues with
 	// no comments are absent from the map.
 	CountIssueComments(ctx context.Context, issueIDs []string) (map[string]int, error)
+	// CountIssueCommentsBySourceTaskRun returns how many comments name the given
+	// task run as their source. It bounds a run's comments to a budget; an
+	// unknown run has none.
+	CountIssueCommentsBySourceTaskRun(ctx context.Context, taskRunID string) (int, error)
 }

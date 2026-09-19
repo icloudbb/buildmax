@@ -30,11 +30,15 @@ so they are worth knowing exactly.
 | `LoadMcpTools` / `CallMcpTool` | Discover and invoke MCP server tools | see [MCP](mcp.md) |
 | `MemoryRead` | Open the bodies of project memories. Available on a local run with project memory. | `names` |
 | `MemoryWrite` | Create or replace a project memory. Available on a local run with project memory. | `name`, `description`, `type`, `content`, `verified_at` |
-| `GetIssue` | Read the issue this run is working. Available in --issue / worker-on-issue runs. | — |
-| `ReportToIssue` | Post a short statement on this run's issue. Available in --issue / worker-on-issue runs. | `summary`, `artifact_ids` |
 
 Run `/tools` in the TUI to see the set active for the current run — it varies
 with what is configured.
+
+Reading and reporting on a space issue is not a tool. When a run is working an
+issue — a worker run started from one, or a local `buildmax issue start`
+session — the agent uses the `buildmax issue` commands through `Bash` instead:
+`buildmax issue show` to read it and `buildmax issue comment` to post a report.
+See [cli.md](cli.md).
 
 `UploadArtifact` is the one built-in that is not always there. It needs a
 BuildMax server to publish to, so it appears when you are logged in

@@ -33,7 +33,14 @@ buildmax <command> [flags]
 | `buildmax issue list` | List the issues you own, across every space you are in; `--status`, `--limit` |
 | `buildmax issue show <id>` | Show one issue: what it asks for, its sub-issues, and recent discussion |
 | `buildmax issue status <id> <status>` | Move an issue to `todo`, `in_progress`, or `done` |
+| `buildmax issue comment <id>` | Post a report on an issue; body from `-m` or stdin |
 | `buildmax issue start <id>` | Work a space issue in this session: the agent can read it and report back |
+| `buildmax agent trigger <agent>` | Start an agent run on the server; input from `-m` or stdin, `--space` to disambiguate |
+| `buildmax task status <id>` | Show a task's status, and its output once it finishes; `--space` to disambiguate |
+| `buildmax artifact publish <file>` | Upload a file as an artifact and print its id; `--space`, `--title`, `--share` |
+| `buildmax workflow list` | List workflows and whether each is runnable; `--space` |
+| `buildmax workflow run <workflow>` | Start a run of a published workflow; `--input` (JSON), `--issue`, `--space` |
+| `buildmax workflow status <run-id>` | Show a workflow run's status; `--space` |
 | `buildmax admin list` | List deployment administrators; `--all` includes revoked grants (System Administrator only) |
 | `buildmax admin grant <email>` | Grant deployment-administrator authority to an existing account |
 | `buildmax admin revoke <email>` | Revoke an account's administrator authority (refuses the last one) |
@@ -205,6 +212,23 @@ Read one before starting:
 buildmax issue show i_7Kq2...
 ```
 
+Inside a worker run, `buildmax issue show` and `buildmax issue comment` take no
+id — they read and report on the one issue that run works, through the run
+bridge — and `buildmax task status` (no id) reports the run's own status. The
+same commands a person runs against a named issue an agent runs against its own.
+
+Post a report on one, signed in as you:
+
+```bash
+buildmax issue comment i_7Kq2... -m "adapter written and tested"
+git log --oneline | buildmax issue comment i_7Kq2...   # body from stdin
+```
+
+The comment is recorded as a **local agent report** (see below): the same
+statement the in-process report tool makes, reachable by any agent that can run
+a command. Status, owner, and sub-issues stay yours to change with
+`buildmax issue status`.
+
 To work on one, start a session scoped to it:
 
 ```bash
@@ -212,11 +236,12 @@ buildmax issue start i_7Kq2...            # TUI, working that issue
 buildmax issue start i_7Kq2... -p "..."   # one print-mode run
 ```
 
-The agent gains two tools: `GetIssue` reads the issue, its sub-issues, and
-recent discussion; `ReportToIssue` posts a short report on the thread, at most
-three times in a run. Neither can change the issue's status, owner, executor,
-or sub-issues — the agent says what it believes should happen and a person
-decides.
+The agent reads and reports through the `buildmax issue` commands: `buildmax
+issue show <id>` reads the issue, its sub-issues, and recent discussion, and
+`buildmax issue comment <id> -m "..."` posts a short report on the thread. It
+cannot change the issue's status, owner, executor, or sub-issues — the agent
+says what it believes should happen and a person decides. The server bounds a
+report's length and how many a single run may post.
 
 A report from your machine is recorded as a **local agent report**, attributed
 to you, and Portal shows it as reported rather than said. It is not the same as
@@ -238,6 +263,66 @@ That is yours to run, not the agent's. Status is what the space plans around and
 work is finished and you decide. The change carries the version the issue was
 read at; if someone else moved it meanwhile, this refuses instead of
 overwriting them. See [Portal issues](portal-issues.md).
+
+### `buildmax agent` and `buildmax task`
+
+`buildmax agent trigger` starts an agent run on the server and prints the task
+it created; `buildmax task status` follows that task. Together they are the
+trigger-and-observe loop a command can drive — an agent working here can start
+another agent and watch it, without a browser.
+
+```bash
+buildmax agent trigger reviewer -m "review the latest diff"
+buildmax task status tk_9Fh3...          # PENDING / RUNNING / SUCCEEDED / FAILED
+git log -1 | buildmax agent trigger reviewer   # input from stdin
+```
+
+An agent lives in a space. With `--space` the agent (or task) is looked up
+there; without it, your spaces are searched, and an agent name found in more
+than one space is refused so a run never starts against the wrong one — pass
+`--space` to choose. Creating the task starts the agent's first run, so there is
+no separate start step; `task status` shows the output once the run finishes.
+
+Managing agents — creating them, editing instructions, revisions — stays in
+Portal. These commands trigger and read.
+
+### `buildmax artifact`
+
+`buildmax artifact publish` uploads a file to the server and prints its id, so a
+result produced here has a durable handle instead of living only in a workspace.
+
+```bash
+buildmax artifact publish ./report.pdf --title "Weekly report"
+buildmax artifact publish ./out.log --space tm_9Fh3... --share
+```
+
+Without `--space` the artifact goes to your personal space; `--share` also mints
+a public link. The printed id is the exact string to name after `Artifacts:` in
+an issue comment, so an agent can publish a result and point the thread at it.
+
+Inside a worker run the command uploads to the run's own space through the run
+bridge, so `--space` does not apply; an agent running there publishes with the
+same command a person uses here.
+
+### `buildmax workflow`
+
+`buildmax workflow run` starts a run of a published workflow and prints the run
+it created; `buildmax workflow status` follows it, and `buildmax workflow list`
+shows which workflows exist and whether each is runnable.
+
+```bash
+buildmax workflow list                       # STATUS column: published is runnable
+buildmax workflow run nightly                # by name or id
+buildmax workflow run wf_7Kq2... --input '{"topic":"pricing"}'
+buildmax workflow status wr_9Fh3...          # pending / running / succeeded / failed
+```
+
+Only a published workflow runs; a draft or archived one is refused. `--input`
+passes JSON that satisfies the workflow's input schema and is only accepted when
+the workflow declares one; `--issue` links the run to an issue, which a step may
+require. As with agents, a workflow is addressed by id — a name is resolved
+across your spaces, and one that matches in more than one is refused, so pass
+`--space` to choose. Authoring workflows stays in Portal.
 
 ### `buildmax admin`
 

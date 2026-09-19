@@ -2,15 +2,30 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
+	"github.com/icloudbb/buildmax/internal/agentapp"
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
+	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	"github.com/icloudbb/buildmax/internal/interface/auth"
 	"github.com/icloudbb/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/tool"
 )
+
+// issueContextOf tells a local run it is working the session's one Issue, so the
+// prompt points the Agent at `buildmax issue`. It carries the issue id because
+// the local commands take one; a worker run sets its own context from the run
+// token instead. Nil when the session is not scoped to an Issue.
+func issueContextOf(s *auth.IssueSession) *agentapp.IssueContext {
+	if s == nil {
+		return nil
+	}
+	return &agentapp.IssueContext{ID: s.Issue.ID}
+}
 
 func newIssueCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -27,7 +42,72 @@ func newIssueCommand() *cobra.Command {
 	cmd.AddCommand(newIssueShowCommand())
 	cmd.AddCommand(newIssueStartCommand())
 	cmd.AddCommand(newIssueStatusCommand())
+	cmd.AddCommand(newIssueCommentCommand())
 	return cmd
+}
+
+func newIssueCommentCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "comment <issue-id>",
+		Short: "Post a report on an issue",
+		Long: "Posts one comment on an issue as a report of what happened.\n\n" +
+			"This is how an agent says what it did: it runs this command to post a\n" +
+			"short report on the issue it is working.\n\n" +
+			"In a local session it takes an issue id and posts as you, recorded as a\n" +
+			"local agent report. Inside a worker run it takes no id — it posts to the\n" +
+			"one issue that run works, through the run bridge, and the run's comment\n" +
+			"budget applies. Status, owner, and sub-issues are never changed here.\n\n" +
+			"Give the body with -m, or leave it off to read the body from stdin.",
+		Args: cobra.MaximumNArgs(1),
+		RunE: runIssueComment,
+	}
+	cmd.Flags().StringP("message", "m", "", "the comment body; read from stdin when omitted")
+	return cmd
+}
+
+func runIssueComment(cmd *cobra.Command, args []string) error {
+	body, _ := cmd.Flags().GetString("message")
+	if strings.TrimSpace(body) == "" {
+		read, err := io.ReadAll(cmd.InOrStdin())
+		if err != nil {
+			return fmt.Errorf("read comment body from stdin: %w", err)
+		}
+		body = string(read)
+	}
+	if strings.TrimSpace(body) == "" {
+		return fmt.Errorf("empty comment: give a body with -m or on stdin")
+	}
+
+	// Inside a worker run the issue is the one the run works; the worker route
+	// takes no id, so an id here would name an issue the run may not address.
+	if wb := inWorkerRun(); wb != nil {
+		if len(args) > 0 {
+			return fmt.Errorf("inside a run, `issue comment` posts to this run's issue; drop the issue id")
+		}
+		if err := workerclient.NewIssueClient(wb.cfg, wb.taskRunID).Report(cmd.Context(), tool.IssueReport{Body: body}); err != nil {
+			return fmt.Errorf("post comment: %w", err)
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), "Commented on this run's issue.")
+		return nil
+	}
+
+	if len(args) == 0 {
+		return fmt.Errorf("issue id required: buildmax issue comment <issue-id> -m <message>")
+	}
+	serverURL, token, err := signedInServer(cmd)
+	if err != nil {
+		return err
+	}
+	c := client.NewClient(serverURL)
+	space, issue, err := c.FindIssue(cmd.Context(), token, args[0])
+	if err != nil {
+		return err
+	}
+	if err := c.CommentOnIssue(cmd.Context(), token, space.ID, issue.ID, body); err != nil {
+		return fmt.Errorf("post comment: %w", err)
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Commented on %s.\n", issue.ID)
+	return nil
 }
 
 func newIssueStartCommand() *cobra.Command {
@@ -164,8 +244,40 @@ func newIssueShowCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <issue-id>",
 		Short: "Show one issue: what it asks for, how it was split up, and what has been said",
-		Args:  cobra.ExactArgs(1),
-		RunE:  runIssueShow,
+		Long: "Shows an issue: its description, sub-issues, and recent discussion.\n\n" +
+			"In a local session it takes an issue id. Inside a worker run it takes no\n" +
+			"id — it reads the one issue that run works, through the run bridge.",
+		Args: cobra.MaximumNArgs(1),
+		RunE: runIssueShow,
+	}
+}
+
+// printRunIssue renders the bounded snapshot the worker issue route returns.
+func printRunIssue(cmd *cobra.Command, snap tool.IssueSnapshot) {
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "%s  (%s)\n", oneLine(snap.Title), snap.Status)
+	if snap.ExecutorKind != "" {
+		fmt.Fprintf(out, "executor %s\n", snap.ExecutorKind)
+	}
+	if strings.TrimSpace(snap.Description) != "" {
+		fmt.Fprintf(out, "\n%s\n", strings.TrimSpace(snap.Description))
+	}
+	if len(snap.Children) > 0 {
+		fmt.Fprintln(out, "\nSub-issues:")
+		for _, child := range snap.Children {
+			fmt.Fprintf(out, "  %-12s %s\n", child.Status, oneLine(child.Title))
+		}
+	}
+	if snap.OmittedComments > 0 {
+		fmt.Fprintf(out, "\nDiscussion (%d older not shown):\n", snap.OmittedComments)
+	} else if len(snap.Comments) > 0 {
+		fmt.Fprintln(out, "\nDiscussion:")
+	}
+	for _, comment := range snap.Comments {
+		fmt.Fprintf(out, "\n  %s — %s\n", comment.AuthorKind, comment.CreatedAt.Local().Format("2006-01-02 15:04"))
+		for _, line := range strings.Split(strings.TrimSpace(comment.Body), "\n") {
+			fmt.Fprintf(out, "    %s\n", line)
+		}
 	}
 }
 
@@ -185,9 +297,9 @@ func newIssueStatusCommand() *cobra.Command {
 	}
 }
 
-// issueSessionFor resolves the signed-in server and a token for it. Every issue
-// command needs the same three things and fails the same three ways.
-func issueSessionFor(cmd *cobra.Command) (serverURL, token string, err error) {
+// signedInServer resolves the signed-in server and a token for it. Every
+// server command needs the same two things and fails the same three ways.
+func signedInServer(cmd *cobra.Command) (serverURL, token string, err error) {
 	info, err := auth.Info()
 	if err != nil {
 		return "", "", fmt.Errorf("read credentials: %w", err)
@@ -203,7 +315,23 @@ func issueSessionFor(cmd *cobra.Command) (serverURL, token string, err error) {
 }
 
 func runIssueShow(cmd *cobra.Command, args []string) error {
-	serverURL, token, err := issueSessionFor(cmd)
+	// Inside a worker run there is one issue — the run's — and the worker route
+	// names it, so an id here would point at an issue the run may not read.
+	if wb := inWorkerRun(); wb != nil {
+		if len(args) > 0 {
+			return fmt.Errorf("inside a run, `issue show` reads this run's issue; drop the issue id")
+		}
+		snap, err := workerclient.NewIssueClient(wb.cfg, wb.taskRunID).Issue(cmd.Context())
+		if err != nil {
+			return fmt.Errorf("read issue: %w", err)
+		}
+		printRunIssue(cmd, snap)
+		return nil
+	}
+	if len(args) == 0 {
+		return fmt.Errorf("issue id required: buildmax issue show <issue-id>")
+	}
+	serverURL, token, err := signedInServer(cmd)
 	if err != nil {
 		return err
 	}
@@ -272,7 +400,7 @@ func runIssueStatus(cmd *cobra.Command, args []string) error {
 	if !isKnownIssueStatus(status) {
 		return fmt.Errorf("unknown status %q: use todo, in_progress, or done", status)
 	}
-	serverURL, token, err := issueSessionFor(cmd)
+	serverURL, token, err := signedInServer(cmd)
 	if err != nil {
 		return err
 	}

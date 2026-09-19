@@ -38,6 +38,20 @@ const (
 	// below. See docs/design/worker-run-token.md.
 	EnvKeyBuildmaxRunToken = "BUILDMAX_RUN_TOKEN"
 
+	// BUILDMAX_BRIDGE_SOCK — path to the run bridge's Unix socket, set inside a
+	// worker run so a subprocess (the buildmax CLI launched through the Bash
+	// tool) can reach the worker API without ever holding the run token. The
+	// bridge injects the token and forwards to the worker listener. Generated per
+	// run, so it is never a WorkerNeeds launch variable. See
+	// docs/design/agent-bridge-cli.md.
+	EnvKeyBuildmaxBridgeSock = "BUILDMAX_BRIDGE_SOCK"
+
+	// BUILDMAX_TASK_RUN_ID — the id of the run a subprocess belongs to, set
+	// alongside BUILDMAX_BRIDGE_SOCK so the CLI can address the run's own worker
+	// routes. The id is not a secret; the run token, which is, stays in the
+	// worker process behind the bridge.
+	EnvKeyBuildmaxTaskRunID = "BUILDMAX_TASK_RUN_ID"
+
 	// BUILDMAX_RUN_INTERRUPT_GRACE — how long a worker asked to stop may spend
 	// uploading what its run produced and reporting the outcome. The scheduler
 	// sets it from the server's own shutdown budget so the two windows nest;

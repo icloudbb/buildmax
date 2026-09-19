@@ -146,6 +146,25 @@ func TestPostRunIssueComment(t *testing.T) {
 	}
 }
 
+// A run may add only RunCommentBudget comments; the next is refused with 429
+// rather than filling the thread.
+func TestPostRunIssueCommentBudget(t *testing.T) {
+	comments := &mock.MockIssueCommentStore{}
+	mux, _ := issueWorkerMux(t, comments)
+	for i := range issuesvc.RunCommentBudget {
+		rec := issueWorkerRequest(t, mux, http.MethodPost, "/api/worker/task-runs/run-1/issue/comments",
+			`{"body":"progress update"}`)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("comment %d: status = %d, want 201, body=%s", i, rec.Code, rec.Body.String())
+		}
+	}
+	rec := issueWorkerRequest(t, mux, http.MethodPost, "/api/worker/task-runs/run-1/issue/comments",
+		`{"body":"one too many"}`)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("over-budget status = %d, want 429, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 // A run whose task names no issue is refused rather than served someone else's.
 func TestRunIssueRoutesRefuseARunWithNoIssue(t *testing.T) {
 	run := coretask.Run{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}

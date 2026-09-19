@@ -65,13 +65,52 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newSandboxCommand())
 	root.AddCommand(newToolsCommand())
 	root.AddCommand(newIssueCommand())
+	root.AddCommand(newAgentCommand())
+	root.AddCommand(newTaskCommand())
+	root.AddCommand(newArtifactCommand())
+	root.AddCommand(newWorkflowCommand())
 	root.AddCommand(newAdminCommand())
 	root.AddCommand(newPluginCommand())
 	root.AddCommand(newModelsCommand())
 	root.AddCommand(newInfoCommand())
 	root.AddCommand(newUsageCommand())
 	root.AddCommand(newProjectCommand())
+	groupTopLevelCommands(root)
 	return root
+}
+
+// Command groups shown in `buildmax --help`. Server commands reach the signed-in
+// server; local commands do not. See docs/design/agent-bridge-cli.md section 7.
+const (
+	groupServer = "server"
+	groupLocal  = "local"
+)
+
+// serverCommandNames is the set of top-level commands that reach the BuildMax
+// server, so a reader can see at a glance which need a login. Everything else
+// registered on the root is local.
+var serverCommandNames = map[string]bool{
+	"login": true, "logout": true, "me": true,
+	"issue": true, "agent": true, "task": true, "artifact": true, "workflow": true,
+	"admin": true, "plugin": true, "usage": true,
+}
+
+// groupTopLevelCommands sorts the registered commands into the two help groups.
+// It assigns groups after registration, rather than at each AddCommand call, so
+// the registration keeps the flat shape the architecture test recognizes and no
+// command gains a wrapper path. The grouping changes only how --help reads.
+func groupTopLevelCommands(root *cobra.Command) {
+	root.AddGroup(
+		&cobra.Group{ID: groupServer, Title: "Server commands (act on the BuildMax server you signed in to):"},
+		&cobra.Group{ID: groupLocal, Title: "Local commands (act on this machine):"},
+	)
+	for _, c := range root.Commands() {
+		if serverCommandNames[c.Name()] {
+			c.GroupID = groupServer
+			continue
+		}
+		c.GroupID = groupLocal
+	}
 }
 
 // addRunFlags declares the flags that configure one agent run. Both the root

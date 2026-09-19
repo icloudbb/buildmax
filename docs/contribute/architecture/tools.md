@@ -36,8 +36,6 @@ results are sent back to the model as tool-role messages.
 | **TaskTool** | struct | Runs a subagent of a named type (`Task`) |
 | **UploadArtifact** | struct | Publishes a finished workspace file as an immutable artifact |
 | **Worktree** | struct | Manages the primary run's Git worktrees and current root |
-| **GetIssue** | struct | Reads the Issue attached to an Issue-scoped run |
-| **ReportToIssue** | struct | Posts a bounded progress report to that Issue |
 | **JobList**, **JobOutput**, **JobStop** | structs | Inspect and stop local background jobs |
 | **Monitor** | struct | Starts a watched command as a local background job |
 | MCP gateway | structs | `LoadMcpTools` and `CallMcpTool` |
@@ -111,12 +109,16 @@ is not a permission denial.
 |---|---|---|---|
 | `UploadArtifact` | The surface has an artifact publisher | `path` (required); `title`, `purpose`, `share` (optional) | Publishes one finished, readable regular file inside the workspace as an immutable artifact. |
 | `Worktree` | CLI or TUI primary run; never a subagent | `action` (required); `name`, `path`, `discard_changes` as required by the action | Creates, enters, leaves, lists, or removes Git worktrees and moves the session root with them. |
-| `GetIssue` | The primary run is scoped to one Issue and has an Issue client | None | Returns the attached Issue snapshot and discussion. It cannot select a different Issue. |
-| `ReportToIssue` | The primary run is scoped to one Issue and has an Issue client | `summary` (required); `artifact_ids` (optional) | Posts a bounded progress report to the attached Issue. A run may post at most three reports. |
 | `JobList` | Local background jobs are enabled (TUI or Desktop) | None | Lists jobs started by the runtime. |
 | `JobOutput` | Local background jobs are enabled (TUI or Desktop) | `job_id` (required); `stream`, `cursor` (optional) | Reads a bounded, incremental slice of a job's standard output or error stream. |
 | `JobStop` | Local background jobs are enabled (TUI or Desktop) | `job_id` (required) | Stops one background job started by the runtime. |
 | `Monitor` | Local background jobs are enabled (TUI or Desktop); never a subagent | `command` (required); `description`, `timeout`, `persistent`, `react` (optional) | Runs a watched command under the Bash risk and sandbox rules. Its output and lifecycle are handled by the job tools. |
+
+Reaching a space Issue is not a tool. An Agent reads and reports on the Issue it
+is working by running `buildmax issue` through `Bash` — the run bridge in a
+worker, the user's login locally. An issue-linked run gets an `issue` prompt
+layer that points it there; there is nothing in the tool list to discover. See
+[design/agent-bridge-cli.md](../../design/agent-bridge-cli.md).
 
 Portal background runs may add a Space instruction layer before the selected
 Agent's additional system prompt. Both are stable for that run; the additional

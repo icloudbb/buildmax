@@ -57,6 +57,115 @@ func TestCreateComment_TooLong(t *testing.T) {
 	}
 }
 
+// An Agent's report is held to the stricter AgentCommentBodyLimit, enforced
+// here so it binds every Agent client — the runtime tool and the CLI bridge —
+// not one of them.
+func TestCreateComment_AgentBodyLimit(t *testing.T) {
+	for _, kind := range []string{coreissue.CommentAuthorAgent, coreissue.CommentAuthorLocalAgent} {
+		svc, store := commentService()
+		_, err := svc.CreateComment(context.Background(), CreateCommentCmd{
+			IssueID:    "i_1",
+			AuthorKind: kind,
+			AuthorID:   "a_1",
+			Body:       strings.Repeat("x", AgentCommentBodyLimit+1),
+		})
+		if !errors.Is(err, ErrCommentTooLong) {
+			t.Fatalf("%s: err = %v, want %v", kind, err, ErrCommentTooLong)
+		}
+		if len(store.Comments) != 0 {
+			t.Fatalf("%s: an over-limit report still wrote a row", kind)
+		}
+	}
+}
+
+// A person is bound only by the universal CommentBodyLimit, not the stricter
+// Agent limit: a human comment longer than an Agent's cap is fine.
+func TestCreateComment_UserNotBoundByAgentLimit(t *testing.T) {
+	svc, _ := commentService()
+	_, err := svc.CreateComment(context.Background(), CreateCommentCmd{
+		IssueID:    "i_1",
+		AuthorKind: coreissue.CommentAuthorUser,
+		AuthorID:   "u1",
+		Body:       strings.Repeat("x", AgentCommentBodyLimit+1),
+	})
+	if err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+}
+
+// The Agent limit measures the author's own words, before the server appends
+// Artifact references, so a report at the limit that names an Artifact is not
+// rejected by the identifier the server adds.
+func TestCreateComment_ArtifactRefsDoNotCountAgainstLimit(t *testing.T) {
+	svc, _ := commentService()
+	comment, err := svc.CreateComment(context.Background(), CreateCommentCmd{
+		IssueID:     "i_1",
+		AuthorKind:  coreissue.CommentAuthorAgent,
+		AuthorID:    "a_1",
+		Body:        strings.Repeat("x", AgentCommentBodyLimit),
+		ArtifactIDs: []string{" art_1 ", "", "art_2"},
+	})
+	if err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+	if !strings.Contains(comment.Body, "Artifacts: art_1, art_2") {
+		t.Fatalf("body does not record the artifacts by identity: %q", comment.Body)
+	}
+	if len([]rune(comment.Body)) <= AgentCommentBodyLimit {
+		t.Fatalf("expected the stored body to exceed the agent limit once refs are appended")
+	}
+}
+
+// A run may add at most RunCommentBudget comments to its Issue, counted by
+// source_task_run_id so the limit holds across restarts and every client.
+func TestCreateComment_RunBudget(t *testing.T) {
+	run := "run-1"
+	seed := make([]coreissue.Comment, 0, RunCommentBudget)
+	for i := range RunCommentBudget {
+		r := run
+		seed = append(seed, coreissue.Comment{
+			ID: "ic_" + string(rune('a'+i)), IssueID: "i_1",
+			AuthorKind: coreissue.CommentAuthorAgent, AuthorID: "a_1", Body: "progress",
+			SourceTaskRunID: &r,
+		})
+	}
+	svc, store := commentService(seed...)
+
+	_, err := svc.CreateComment(context.Background(), CreateCommentCmd{
+		IssueID: "i_1", AuthorKind: coreissue.CommentAuthorAgent, AuthorID: "a_1",
+		Body: "one more", SourceTaskRunID: &run,
+	})
+	if !errors.Is(err, ErrRunCommentBudgetExhausted) {
+		t.Fatalf("err = %v, want %v", err, ErrRunCommentBudgetExhausted)
+	}
+	if len(store.Comments) != RunCommentBudget {
+		t.Fatalf("a refused comment still wrote a row: have %d", len(store.Comments))
+	}
+
+	// A different run is budgeted independently.
+	other := "run-2"
+	if _, err := svc.CreateComment(context.Background(), CreateCommentCmd{
+		IssueID: "i_1", AuthorKind: coreissue.CommentAuthorAgent, AuthorID: "a_1",
+		Body: "first from run-2", SourceTaskRunID: &other,
+	}); err != nil {
+		t.Fatalf("another run's first comment was refused: %v", err)
+	}
+}
+
+// A runless comment (no source run) is not budgeted: the local path has no run
+// to count against.
+func TestCreateComment_RunlessIsUnbudgeted(t *testing.T) {
+	svc, _ := commentService()
+	for i := range RunCommentBudget + 2 {
+		if _, err := svc.CreateComment(context.Background(), CreateCommentCmd{
+			IssueID: "i_1", AuthorKind: coreissue.CommentAuthorLocalAgent, AuthorID: "a_1",
+			Body: "local report",
+		}); err != nil {
+			t.Fatalf("runless comment %d refused: %v", i, err)
+		}
+	}
+}
+
 func TestCreateComment_NotConfigured(t *testing.T) {
 	svc := &Service{Issues: &mock.MockIssueStore{}}
 	_, err := svc.CreateComment(context.Background(), CreateCommentCmd{IssueID: "i_1", AuthorID: "u1", Body: "hi"})

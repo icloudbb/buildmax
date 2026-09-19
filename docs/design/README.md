@@ -72,6 +72,7 @@ remaining list. Update this snapshot when either changes.
 | [Managed LLM gateway](llm-gateway.md) | Active plan | Partial | Managed inference, model resolution, usage, and quota boundaries |
 | [Prompt cache control](prompt-cache-control.md) | Active plan | Partial | Provider-native prompt caching and its telemetry |
 | [Parallel tool execution](parallel-tool-execution.md) | Active plan | Complete | Safe concurrency for read-only tools and subagents |
+| [Agent Bridge CLI](agent-bridge-cli.md) | Direction | Not started | One `buildmax` command surface from Agent to Server, replacing the in-process Issue tools; local user credential and worker run-token bridge |
 | [Structured output](structured-output.md) | Active plan | Partial | Provider-neutral schema-constrained model results; runtime, providers, run persistence, and the linear Workflow consumer ship, while prompted fallback and typed routing remain |
 | [ACP interoperability boundary](acp-interoperability.md) | Direction | Decision only | How BuildMax may expose its native Agent Core to ACP clients without making ACP an internal or external-executor contract |
 | [Client modes: local and managed](client-modes.md) | Specification | Complete | Login-derived mode selection, model inventory, and usage attribution |
@@ -101,7 +102,7 @@ remaining list. Update this snapshot when either changes.
 | [Portal state and permission feedback](portal-state-and-permission-feedback.md) | Active plan | Partial | Loading, empty, error, stale, and authorization presentation |
 | [Portal data and plugin surfaces](portal-data-and-plugin-surfaces.md) | Specification | Complete | Files, Artifacts, Marketplace, and scoped plugin actions |
 | [Portal responsive and accessible interaction](portal-responsive-and-accessible-interaction.md) | Specification | Complete | Narrow layouts, keyboard behavior, dialogs, and viewport evidence |
-| [Issue agent access](issue-agent-access.md) | Active plan | Complete | Scoped Issue context and reporting for local and worker runs |
+| [Issue agent access](issue-agent-access.md) | Product boundary | Mechanism superseded by [agent-bridge-cli](agent-bridge-cli.md) | What an Agent may assert about the Issue it works |
 | [Space governance](space-governance.md) | Active plan | Complete | Roles, quota, workflow lifecycle, audit, and retention |
 | [System administration](system-administration.md) | Active plan | Complete | Deployment-wide authority and operator surfaces |
 | [Plugin distribution and private marketplace](plugin-marketplace.md) | Active plan | Partial | Publishing, installing, and managing plugins |

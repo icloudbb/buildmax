@@ -230,3 +230,23 @@ func (s *Store) CountIssueComments(ctx context.Context, issueIDs []string) (map[
 	}
 	return out, nil
 }
+
+// CountIssueCommentsBySourceTaskRun counts the comments a single task run
+// authored, by source_task_run_id. A run that does not exist has written none,
+// so an unknown handle is zero rather than an error — the budget check that
+// calls this treats "no run" as "no comments spent".
+func (s *Store) CountIssueCommentsBySourceTaskRun(ctx context.Context, taskRunID string) (int, error) {
+	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&issueCommentRow{}).
+		Where("source_task_run_id = ?", runKey).Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return int(total), nil
+}

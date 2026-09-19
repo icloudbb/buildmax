@@ -94,6 +94,19 @@ run per session key, queues later prompts in order, and gives queued background
 events the same lifecycle. The Server TaskRun scheduler remains a separate
 durable execution-plane concern.
 
+An Agent reaches Server resources through the `buildmax` command surface it runs
+via `Bash`, not through per-capability in-process tools: `buildmax issue`,
+`agent`, `task`, `artifact`, and `workflow` resolve their transport and
+credential from context. In a local session the commands use the signed-in
+user's credential; in a worker run they go through a per-run Unix-socket bridge
+that injects the run token and forwards only `/api/worker/` routes, so a run
+reaches only its own Issue, Artifacts, and status. The former in-process
+`GetIssue` / `ReportToIssue` tools are removed; an issue-linked run instead gets
+an `issue` system-prompt layer pointing it at the commands, and the worker's
+Bash sandbox binds the bridge socket back in after its private `/tmp`. Proven end
+to end on kind, including that a run cannot reach another run's routes. See
+[`docs/design/agent-bridge-cli.md`](design/agent-bridge-cli.md).
+
 Local inspection includes `buildmax info`, TUI `/info`, and the Desktop `/info`
 panel for one session; `buildmax usage` sums token and cost totals across
 sessions, grouped by day, workspace, or model. Desktop is intentionally
