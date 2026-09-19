@@ -134,6 +134,11 @@ func seedAliceFixtures(ctx context.Context, client *http.Client, target smokeTar
 		"Release Notes", "Draft release notes for a milestone.", agentID); err != nil {
 		return err
 	}
+	// Webhook keys are account-scoped, so they belong to Alice's own account
+	// rather than a space; her personal sign-in is the natural place to seed them.
+	if err := ensureFixtureWebhookKeys(ctx, client, target, token); err != nil {
+		return err
+	}
 
 	return ensureIssues(ctx, client, target, spaceID, token, email, []fixtureIssue{
 		{title: "Set up CI pipeline", description: "Build, test, and lint on every PR.", status: "done"},

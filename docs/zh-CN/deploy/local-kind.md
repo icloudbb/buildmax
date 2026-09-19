@@ -71,9 +71,11 @@
 | Agent / Workflow | 个人 Docs Writer/Release Notes；共享 QA Writer/QA Reviewer；两步骤 Workflow 的 draft、published、archived 状态与生命周期修订记录 |
 | 文件 | `fixtures/` 下五个文件，包含嵌套 Markdown、CSV、JSON、中文文件名和空文本 |
 | Artifact | 合成文本、HTML 沙箱预览、二进制下载 |
-| Space 设置 | 非空 Agent instructions、active/disabled 的虚构 Secret；API 操作自然产生审计事件 |
+| Space 设置 | 非空 Agent instructions、active/disabled 的虚构 Secret；账户 Webhook 密钥；API 操作自然产生审计事件 |
 | 插件与 Marketplace | 将 `sample-plugins/` 三个插件发布到部署目录，其中一个在 BuildMax QA 中启用，其余保留供启用 |
-| 分页 | 独立 Space 中有 105 个 Issue，每种状态 35 个，并有 25 条评论的线程 |
+| 定时任务 | 具有不同 cron 表达式与时区的循环 Agent 定时任务，部分处于暂停状态（位于 BuildMax QA Pagination） |
+| 分页与规模 | 独立 Space 中有 105 个 Issue（每种状态 35 个）并有 25 条评论的线程，另有可翻页/滚动的长列表：12 个 Agent、覆盖三种状态的 9 个 Workflow、60 个 Artifact（超过“加载更多”阈值）、8 个额外 Secret 与 8 个定时任务 |
+| 管理规模 | 60 个合成账户（约每八个禁用一个），使管理员 Accounts 页面跨多页且其状态筛选有对应分组；每个账户也会获得个人 Space |
 | 执行（`--runs`） | Conversation 对话、含 Continue/Retry 的 Task、Issue Agent 结果、两步骤 Workflow 结果、worker trace 与 workspace checkpoint |
 
 ```bash
@@ -88,8 +90,9 @@
 重跑按名称/标题、Artifact 文件名、文件路径和 Conversation 首条消息复用资源。
 列表读取全部分页，评论逐条按正文补齐，支持中断恢复。
 保留已有 Issue 状态、描述、文件内容、Agent 定义和成员角色；校准测试 Issue 的
-分配、Workflow 生命周期状态、Secret 状态，仅在 Space instructions 为空时填入。
-已发布的插件版本和已存在的启用记录保持原样，不会重新发布。
+分配、Workflow 生命周期状态、Secret 状态、定时任务的暂停/启用状态与账户禁用状态，
+仅在 Space instructions 为空时填入。Webhook 密钥与批量账户分别按名称和邮箱匹配，
+重跑时只补齐缺失部分。已发布的插件版本和已存在的启用记录保持原样，不会重新发布。
 不要重命名希望复用的测试资源。该命令不是并发事务，应一次运行一个实例。
 不支持服务端幂等键的创建请求若丢失响应，下次运行通过稳定的测试资源标识查找恢复。
 
