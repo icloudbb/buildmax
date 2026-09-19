@@ -166,6 +166,10 @@ revocable and expires. It needs the deployment to have `public_base_url` set;
 without it the file still publishes and the tool reports that no link could be
 made. A space member can also create or revoke a link from the artifact's Portal
 page.
+In Portal, open **Artifacts** to upload a file, open an existing artifact by
+name, download it, or manage its public links. The artifact page shows a
+preview when supported and offers **Retry preview** if that content fails to
+load. **Delete** removes the artifact for people allowed to manage it.
 
 ## The path boundary
 

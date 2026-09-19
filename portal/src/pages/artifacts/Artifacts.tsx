@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Button } from "@buildmax/gui"
 import type { ApiArtifact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { downloadAuthenticated } from "../../lib/download"
-import { navigate } from "../../router"
+import { buildHash } from "../../router"
 import { useAuth } from "../../contexts/AuthContext"
 import { useSpace } from "../../contexts/SpaceContext"
 import { Alert } from "../../components/state/Alert"
@@ -42,7 +43,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
   const [itemsData, setItemsData] = useState<ApiArtifact[] | null>(null)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [busyAction, setBusyAction] = useState<{ id: string; kind: "download" | "delete" } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [listError, setListError] = useState<RequestError | null>(null)
   // Upload's own error: a page-level message, since the Upload button is a
@@ -100,21 +101,21 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
 
   async function onDownload(artifact: ApiArtifact) {
     if (!token) return
-    setBusyId(artifact.id)
+    setBusyAction({ id: artifact.id, kind: "download" })
     setRowError(null)
     try {
       await downloadAuthenticated(artifactContentUrl(artifact.id), token, artifact.filename)
     } catch (err) {
       setRowError({ id: artifact.id, message: getErrorMessage(err, "Download failed") })
     } finally {
-      setBusyId(null)
+      setBusyAction(null)
     }
   }
 
   async function onDelete(artifact: ApiArtifact) {
     if (!token) return
     if (!confirmArtifactDeletion(artifact)) return
-    setBusyId(artifact.id)
+    setBusyAction({ id: artifact.id, kind: "delete" })
     setRowError(null)
     try {
       await deleteArtifact(artifact.id, token)
@@ -123,11 +124,11 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
     } catch (err) {
       setRowError({ id: artifact.id, message: getErrorMessage(err, "Delete failed") })
     } finally {
-      setBusyId(null)
+      setBusyAction(null)
     }
   }
 
-  const countLabel = total === 1 ? "1 artifact" : `${total} artifacts`
+  const countLabel = itemsData === null ? null : total === 1 ? "1 artifact" : `${total} artifacts`
 
   return (
     <div className="page-activity">
@@ -140,14 +141,14 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
           </p>
         </div>
         <div className="page-activity__actions">
-          <button
-            type="button"
-            className="page-activity__action-btn"
+          <Button
+            variant="primary"
             onClick={() => fileInput.current?.click()}
-            disabled={uploading || !spaceId}
+            busy={uploading}
+            disabled={!spaceId}
           >
-            {uploading ? "Uploading…" : "Upload a file"}
-          </button>
+            Upload a file
+          </Button>
           <input
             ref={fileInput}
             type="file"
@@ -174,11 +175,8 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
         </p>
       ) : null}
 
-      <section className="issues-page__panel">
-        <div className="issues-page__toolbar">
-          <h2 className="issues-page__section-title">All Artifacts</h2>
-          <span className="page-activity__meta">{countLabel}</span>
-        </div>
+      <section className="issues-page__panel" aria-label="Artifact list">
+        {countLabel ? <p className="page-activity__meta">{countLabel}</p> : null}
 
         {itemsState.kind === "readyEmpty" ? (
           <EmptyState message="Nothing kept here yet. Upload a file, or have an agent publish one with UploadArtifact." />
@@ -191,13 +189,9 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
                 <div className="artifact-row__main">
                   {/* The name opens the artifact rather than the whole row: the
                       row carries its own buttons, and one cannot nest another. */}
-                  <button
-                    type="button"
-                    className="artifact-row__name"
-                    onClick={() => navigate({ name: "artifact", artifactId: artifact.id })}
-                  >
+                  <a className="artifact-row__name" href={buildHash({ name: "artifact", artifactId: artifact.id })}>
                     {artifactLabel(artifact)}
-                  </button>
+                  </a>
                   <span className="artifact-row__meta">
                     {artifact.filename} · {formatSize(artifact.size_bytes)} ·{" "}
                     {sourceLabel(artifact)}
@@ -207,23 +201,25 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
                   <time>{formatTime(artifact.created_at)}</time>
                 </div>
                 <div className="artifact-row__actions">
-                  <button
-                    type="button"
-                    className="page-activity__action-btn"
+                  <Button
+                    variant="secondary"
+                    size="compact"
                     onClick={() => onDownload(artifact)}
-                    disabled={busyId === artifact.id}
+                    busy={busyAction?.id === artifact.id && busyAction.kind === "download"}
+                    disabled={busyAction?.id === artifact.id}
                   >
                     Download
-                  </button>
+                  </Button>
                   {mayDelete(artifact, user?.id, currentUserRole) ? (
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
+                    <Button
+                      variant="danger"
+                      size="compact"
                       onClick={() => void onDelete(artifact)}
-                      disabled={busyId === artifact.id}
+                      busy={busyAction?.id === artifact.id && busyAction.kind === "delete"}
+                      disabled={busyAction?.id === artifact.id}
                     >
                       Delete
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
                 {rowError?.id === artifact.id ? (
@@ -239,14 +235,13 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
         {loading ? <p className="page-activity__empty">Loading…</p> : null}
 
         {itemsState.kind !== "forbidden" && itemsState.kind !== "notFound" && items.length < total ? (
-          <button
-            type="button"
-            className="page-activity__action-btn"
+          <Button
+            variant="tertiary"
             onClick={() => load(items.length)}
             disabled={loading}
           >
             Show older ({total - items.length} more)
-          </button>
+          </Button>
         ) : null}
       </section>
     </div>

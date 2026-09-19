@@ -6,3 +6,5 @@
   editing and running use the same action roles and readable status labels.
   Agent detail and schedules now use those roles too, with keyboard tabs and
   local retry when triggered tasks fail to load.
+  Artifacts now use the shared action roles, navigable names, truthful counts,
+  and local preview retry.

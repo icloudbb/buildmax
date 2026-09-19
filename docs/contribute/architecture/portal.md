@@ -47,6 +47,8 @@ Portal owns the cloud/space lane:
   drafts, Run for published read mode, and Save while editing a published flow.
   Agent Detail does the same for Run, configuration Save, and schedule creation;
   its tabs are keyboard operated and schedule cards own their retry state.
+  Artifacts own upload as the collection action; detail and sharing controls
+  use the shared action roles, and preview retry stays inside the preview.
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
   `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
   conversation streaming.

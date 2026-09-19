@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { BaseModal } from "@buildmax/gui"
+import { BaseModal, Button } from "@buildmax/gui"
 import type { ApiArtifactShare } from "../../lib/api/types"
 import { ApiRequestError } from "../../lib/api/client"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -28,11 +28,11 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
   const [freshLink, setFreshLink] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState<string | null>(null)
 
   const load = useCallback(() => {
     if (!token) return
-    listShares(artifactId, token)
+    return listShares(artifactId, token)
       .then((res) => setShares(res.items ?? []))
       .catch((err) => setError(getErrorMessage(err, "Could not load share links")))
   }, [artifactId, token])
@@ -42,17 +42,18 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
     if (!open) return
     setFreshLink(null)
     setError(null)
+    setUnavailable(false)
     load()
   }, [open, load])
 
   async function onCreate() {
     if (!token) return
-    setBusy(true)
+    setBusyAction("create")
     setError(null)
     try {
       const share = await createShare(artifactId, token)
       setFreshLink(share.url ?? null)
-      load()
+      await load()
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 503) {
         setUnavailable(true)
@@ -60,22 +61,22 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
         setError(getErrorMessage(err, "Could not create a public link"))
       }
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
   async function onRevoke(shareId: string) {
     if (!token) return
-    setBusy(true)
+    setBusyAction(shareId)
     setError(null)
     try {
       await revokeShare(artifactId, shareId, token)
       if (freshLink) setFreshLink(null)
-      load()
+      await load()
     } catch (err) {
       setError(getErrorMessage(err, "Could not revoke the link"))
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
@@ -119,14 +120,14 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
               </div>
             ) : null}
 
-            <button
-              type="button"
-              className="page-activity__action-btn"
+            <Button
+              variant="primary"
               onClick={() => void onCreate()}
-              disabled={busy}
+              busy={busyAction === "create"}
+              disabled={busyAction !== null}
             >
               Create public link
-            </button>
+            </Button>
 
             {live.length > 0 ? (
               <ul className="artifact-share-dialog__list">
@@ -137,14 +138,15 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
                       {s.expires_at ? ` · expires ${formatTime(s.expires_at)}` : ""}
                       {` · ${s.retrieval_count} open${s.retrieval_count === 1 ? "" : "s"}`}
                     </span>
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
+                    <Button
+                      variant="danger"
+                      size="compact"
                       onClick={() => void onRevoke(s.share_id)}
-                      disabled={busy}
+                      busy={busyAction === s.share_id}
+                      disabled={busyAction !== null}
                     >
                       Revoke
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>

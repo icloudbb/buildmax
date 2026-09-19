@@ -212,6 +212,9 @@ uses the shared actions and readable lifecycle labels, with Publish, Run,
 or Save taking priority according to the visible mode. Agent Detail and its
 Schedules tab now use the same action roles; the tablist
 works by keyboard, and failed triggered-task loads can be retried in their card.
+Artifacts now use the shared roles for upload, download, sharing, and deletion;
+the collection does not claim a count before loading, and previews have local
+retry.
 Other detail and management pages, legacy button removal, atomic Issue
 creation, and independent operator review remain. Each further slice needs its
 own observable outcome and verification.

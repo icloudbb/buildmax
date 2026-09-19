@@ -500,6 +500,9 @@ with one primary action per lifecycle view and readable status labels.
 Agent Detail uses the same roles for Run, Save, and Delete, and its tablist
 supports arrow keys and narrow-screen scrolling. Agent schedules name a failed
 triggered-task load and offer local retry.
+Artifacts use the same Upload, Download, Share, and Delete action roles. The
+collection waits for a successful load before stating a count, artifact names
+are links, and a failed preview offers local retry.
 If the second write of a new Issue fails, Portal shows the created Issue's
 address and prevents duplicate submission; creating every field atomically
 remains open.

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { ButtonLink } from "@buildmax/gui"
 import type { ApiSharedMeta } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import {
@@ -94,9 +95,9 @@ export function SharedArtifact({ token }: { token: string }) {
         </div>
         {/* A normal link, not a fetch: the raw URL is public, so the browser can
             download it directly without this page holding any credential. */}
-        <a className="page-activity__action-btn" href={sharedRawUrl(token, true)}>
+        <ButtonLink variant={meta.preview === "none" ? "primary" : "secondary"} href={sharedRawUrl(token, true)}>
           Download
-        </a>
+        </ButtonLink>
       </div>
 
       {meta.preview === "none" ? (
