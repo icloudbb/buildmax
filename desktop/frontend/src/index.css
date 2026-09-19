@@ -5,6 +5,7 @@
 @import './css/chat-detail.css';
 @import './css/inspector.css';
 @import './css/login.css';
+@import './css/terminal.css';
 
 * {
   box-sizing: border-box;

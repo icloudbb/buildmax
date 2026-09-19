@@ -7,6 +7,7 @@ import { HomeDashboard } from './components/HomeDashboard';
 import { MarkdownMessage } from './components/MarkdownMessage';
 import { CreateProjectModal } from './components/Modals';
 import { ProjectItem } from './components/ProjectItem';
+import { TerminalTabs } from './components/TerminalTabs';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Markdown from 'react-markdown';
@@ -166,6 +167,7 @@ export default function App() {
     clampInspectorWidth(readStored(LS_INSPECTOR_WIDTH, INSPECTOR_DEFAULT_WIDTH)),
   );
   const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     clampSidebarWidth(readStored(LS_SIDEBAR_WIDTH, SIDEBAR_DEFAULT_WIDTH)),
   );
@@ -1162,6 +1164,16 @@ export default function App() {
                   >
                     <span className="inspector-tabs__icon"><InfoIcon /></span>
                   </button>
+                  <button
+                    type="button"
+                    className="inspector-tabs__btn"
+                    aria-pressed={terminalOpen}
+                    onClick={() => setTerminalOpen((v) => !v)}
+                    title="Terminal"
+                    aria-label="Terminal"
+                  >
+                    <span className="inspector-tabs__icon" aria-hidden>{'>_'}</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1218,6 +1230,23 @@ export default function App() {
                 </div>
               )}
             </div>
+            {currentProject && terminalOpen && (
+              <div className="shell__terminal">
+                <div className="shell__terminal-header">
+                  <span>Terminal</span>
+                  <button
+                    type="button"
+                    className="shell__terminal-close"
+                    onClick={() => setTerminalOpen(false)}
+                    title="Hide terminal"
+                    aria-label="Hide terminal"
+                  >
+                    ×
+                  </button>
+                </div>
+                <TerminalTabs key={currentProject.id} projectId={currentProject.id} />
+              </div>
+            )}
           </main>
 
           {inspectorOpen && (

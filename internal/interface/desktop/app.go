@@ -160,16 +160,31 @@ type App struct {
 	pendingJobEvents map[string][]agentapp.BackgroundEvent
 	// emit sends an event to the frontend. See uiEmitter.
 	emit uiEmitter
+	// terminals owns the interactive shell strands shown as terminal tabs. See
+	// the desktop-terminal-tabs proposal.
+	terminals *terminalManager
 }
 
 // NewApp returns a new App instance.
 func NewApp() *App {
-	return &App{
+	a := &App{
 		agentApps:        make(map[string]*agentapp.AgentApp),
 		approvalHandlers: make(map[string]*DesktopApprovalHandler),
 		scheduler:        agentapp.NewRunScheduler(),
 		emit:             wailsEmit,
 	}
+	// The terminal manager is Wails-agnostic; bind it to the app's emitter, which
+	// resolves the live context at call time (nil before Startup).
+	a.terminals = newTerminalManager(func(name string, data any) {
+		a.mu.Lock()
+		ctx := a.ctx
+		a.mu.Unlock()
+		if ctx == nil {
+			return
+		}
+		a.emit(ctx, name, data)
+	})
+	return a
 }
 
 // Startup is called by Wails when the app is starting.
@@ -183,6 +198,8 @@ func (a *App) Startup(ctx context.Context) {
 
 // Shutdown closes all per-project AgentApp instances and cancels any in-flight runs.
 func (a *App) Shutdown(_ context.Context) {
+	// Reap every shell strand so none is orphaned past the Desktop process.
+	a.terminals.closeAll()
 	// Cancel every in-flight run before taking a.mu: the scheduler holds its own
 	// lock, and a StartEvent pop callback takes a.mu under it, so a.mu must never
 	// be held while calling into the scheduler.
