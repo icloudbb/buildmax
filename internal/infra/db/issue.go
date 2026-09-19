@@ -125,6 +125,13 @@ func (s *Store) CreateIssueInSpace(ctx context.Context, spaceID, createdBy strin
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
+	if in.Status != "" {
+		row.Status = in.Status
+	}
+	if in.ExecutorKind != "" && in.ExecutorID != "" {
+		row.ExecutorKind = &in.ExecutorKind
+		row.ExecutorID = &in.ExecutorID
+	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		creator, err := lookupKey(ctx, tx, "user", createdBy)
 		if err != nil {
@@ -146,12 +153,19 @@ func (s *Store) CreateIssueInSpace(ctx context.Context, spaceID, createdBy strin
 			}
 			row.ParentIssueID = &parent
 		}
+		if in.OwnerID != "" {
+			owner, err := lookupKey(ctx, tx, "user", in.OwnerID)
+			if err != nil {
+				return err
+			}
+			row.OwnerID = &owner
+		}
 		return createWithPublicID(ctx, tx, "uq_issue_public_id",
 			func(id string) { row.PublicID = id }, row)
 	}); err != nil {
 		return nil, err
 	}
-	return createdIssue(row, spaceID, createdBy, in.ParentIssueID), nil
+	return createdIssue(row, spaceID, createdBy, in), nil
 }
 
 // createdIssue is what a caller gets back from a create. The row is already
@@ -163,20 +177,26 @@ func (s *Store) CreateIssueInSpace(ctx context.Context, spaceID, createdBy strin
 // the client as the token for the next update, and a zero there is refused as
 // absent — so a freshly created issue could not be updated until it had been
 // read again.
-func createdIssue(row *issueRow, spaceID, createdBy string, parentIssueID *string) *coreissue.Issue {
-	return &coreissue.Issue{
+func createdIssue(row *issueRow, spaceID, createdBy string, in coreissue.CreateInput) *coreissue.Issue {
+	out := &coreissue.Issue{
 		ID:            row.PublicID,
 		UserID:        createdBy,
 		SpaceID:       spaceID,
-		ParentIssueID: parentIssueID,
+		ParentIssueID: in.ParentIssueID,
 		Title:         row.Title,
 		Description:   row.Description,
 		Status:        row.Status,
+		ExecutorKind:  row.ExecutorKind,
+		ExecutorID:    row.ExecutorID,
 		CreatedBy:     createdBy,
 		CreatedAt:     row.CreatedAt,
 		UpdatedAt:     row.UpdatedAt,
 		Version:       row.Version,
 	}
+	if row.OwnerID != nil {
+		out.OwnerID = &in.OwnerID
+	}
+	return out
 }
 
 // ListIssuesByUser returns issues for the user ordered by updated_at DESC.

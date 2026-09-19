@@ -12,8 +12,6 @@ interface IssueModalProps {
   loading: boolean
   allowWorkflowAssignment?: boolean
   error: string | null
-  partiallyCreatedId?: string | null
-  onOpenPartial: () => void
   onClose: () => void
   onSubmit: (values: {
     title: string
@@ -37,8 +35,6 @@ export function IssueModal({
   loading,
   allowWorkflowAssignment = true,
   error,
-  partiallyCreatedId,
-  onOpenPartial,
   onClose,
   onSubmit,
 }: IssueModalProps) {
@@ -138,28 +134,24 @@ export function IssueModal({
             <Button variant="secondary" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            {partiallyCreatedId ? (
-              <Button variant="primary" onClick={onOpenPartial}>Open created issue</Button>
-            ) : (
-              <Button
-                variant="primary"
-                busy={loading}
-                disabled={!title.trim()}
-                onClick={() => {
-                  const [executorKind, executorID] = executorValue ? executorValue.split(":") : ["", ""]
-                  onSubmit({
-                    title: title.trim(),
-                    description,
-                    status,
-                    owner_id: ownerValue,
-                    executor_kind: (executorKind as "agent" | "workflow" | "") || "",
-                    executor_id: executorID || "",
-                  })
-                }}
-              >
-                Create issue
-              </Button>
-            )}
+            <Button
+              variant="primary"
+              busy={loading}
+              disabled={!title.trim()}
+              onClick={() => {
+                const [executorKind, executorID] = executorValue ? executorValue.split(":") : ["", ""]
+                onSubmit({
+                  title: title.trim(),
+                  description,
+                  status,
+                  owner_id: ownerValue,
+                  executor_kind: (executorKind as "agent" | "workflow" | "") || "",
+                  executor_id: executorID || "",
+                })
+              }}
+            >
+              Create issue
+            </Button>
           </div>
         </div>
       </div>

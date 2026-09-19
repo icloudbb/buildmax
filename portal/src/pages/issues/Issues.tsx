@@ -5,7 +5,7 @@ import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { statusLabel } from "../../lib/statusLabels"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../lib/api/mappers"
-import { createIssue, getIssues, updateIssue } from "../../features/issues"
+import { createIssue, getIssues } from "../../features/issues"
 import { getAgents } from "../../features/agents"
 import { getSpaceMembers } from "../../features/spaces/api"
 import { getWorkflows } from "../../features/workflows"
@@ -42,7 +42,6 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
   // Distinct from listError: the create-issue mutation's own error, shown
   // inside IssueModal rather than as a page-level Alert.
   const [createError, setCreateError] = useState<string | null>(null)
-  const [partiallyCreatedId, setPartiallyCreatedId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -163,32 +162,10 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
     if (!token || !spaceId) return
     setSaving(true)
     setCreateError(null)
-    setPartiallyCreatedId(null)
     try {
-      const created = await createIssue(spaceId, { title: values.title, description: values.description }, token)
-      const needsPatch =
-        values.status !== "todo" ||
-        values.owner_id !== "" ||
-        values.executor_kind !== "" ||
-        values.executor_id !== ""
-      if (needsPatch) {
-        try {
-          await updateIssue(spaceId, created.id, {
-            version: created.version,
-            status: values.status,
-            owner_id: values.owner_id,
-            executor_kind: values.executor_kind,
-            executor_id: values.executor_id,
-          }, token)
-        } catch (err) {
-          // Creation has already committed. Preserve the new object's address
-          // and do not offer another Create, which would make a duplicate.
-          setPartiallyCreatedId(created.id)
-          setCreateError(`Issue was created, but its details were not saved: ${getErrorMessage(err, "Update failed")}. Open it to finish setup.`)
-          void fetchIssues()
-          return
-        }
-      }
+      // One request: a refused owner or executor creates nothing, so retrying
+      // from this dialog cannot make a duplicate.
+      const created = await createIssue(spaceId, values, token)
       setCreateOpen(false)
       navigate({ name: "issue", spaceId, issueId: created.id })
     } catch (err) {
@@ -212,7 +189,6 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
             variant="primary"
             onClick={() => {
               setCreateError(null)
-              setPartiallyCreatedId(null)
               setCreateOpen(true)
             }}
           >
@@ -361,16 +337,9 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
         loading={saving}
         allowWorkflowAssignment={canAssignWorkflow}
         error={createOpen ? createError : null}
-        partiallyCreatedId={partiallyCreatedId}
-        onOpenPartial={() => {
-          if (!partiallyCreatedId) return
-          setCreateOpen(false)
-          navigate({ name: "issue", spaceId, issueId: partiallyCreatedId })
-        }}
         onClose={() => {
           setCreateOpen(false)
           setCreateError(null)
-          setPartiallyCreatedId(null)
         }}
         onSubmit={handleCreate}
       />

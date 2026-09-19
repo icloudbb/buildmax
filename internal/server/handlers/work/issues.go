@@ -74,6 +74,12 @@ type createIssueRequest struct {
 	Title         string  `json:"title"`
 	Description   string  `json:"description"`
 	ParentIssueID *string `json:"parent_issue_id"`
+	// Optional. An Issue created with these lands in one write, so a refused
+	// owner or executor leaves nothing behind.
+	Status       string `json:"status"`
+	OwnerID      string `json:"owner_id"`
+	ExecutorKind string `json:"executor_kind"`
+	ExecutorID   string `json:"executor_id"`
 }
 
 type patchIssueRequest struct {
@@ -217,6 +223,10 @@ func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
 		Title:         req.Title,
 		Description:   req.Description,
 		ParentIssueID: req.ParentIssueID,
+		Status:        req.Status,
+		OwnerID:       req.OwnerID,
+		ExecutorKind:  req.ExecutorKind,
+		ExecutorID:    req.ExecutorID,
 	})
 	if err != nil {
 		if h.writeIssueServiceError(w, err) {

@@ -32,7 +32,7 @@ func TestCreatedIssueCarriesTheVersionItWasWrittenWith(t *testing.T) {
 		UpdatedAt:   now,
 	}
 
-	got := createdIssue(row, "tm_1", "us_1", util.Ptr("is_parent"))
+	got := createdIssue(row, "tm_1", "us_1", coreissue.CreateInput{ParentIssueID: util.Ptr("is_parent")})
 
 	if got.Version != row.Version {
 		t.Errorf("version = %d, want %d; a client cannot update an issue whose create response carried no version",

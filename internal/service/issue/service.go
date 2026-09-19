@@ -53,6 +53,12 @@ type CreateIssueCmd struct {
 	Title         string
 	Description   string
 	ParentIssueID *string
+	// Status, OwnerID, ExecutorKind, and ExecutorID are optional. Empty means
+	// the default status and no owner or executor.
+	Status       string
+	OwnerID      string
+	ExecutorKind string
+	ExecutorID   string
 }
 
 type UpdateIssueCmd struct {
@@ -80,6 +86,15 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*coreiss
 	if cmd.SpaceID == "" {
 		return nil, ErrSpacesNotConfigured
 	}
+	if cmd.Status != "" && !isValidStatus(cmd.Status) {
+		return nil, ErrInvalidStatus
+	}
+	if err := s.validateOwner(ctx, cmd.SpaceID, &cmd.OwnerID); err != nil {
+		return nil, err
+	}
+	if err := s.validateExecutor(ctx, cmd.SpaceID, &cmd.ExecutorKind, &cmd.ExecutorID); err != nil {
+		return nil, err
+	}
 	parent, err := s.normalizeParent(ctx, cmd.SpaceID, "", cmd.ParentIssueID)
 	if err != nil {
 		return nil, err
@@ -88,6 +103,10 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*coreiss
 		Title:         cmd.Title,
 		Description:   cmd.Description,
 		ParentIssueID: parent,
+		Status:        cmd.Status,
+		OwnerID:       cmd.OwnerID,
+		ExecutorKind:  cmd.ExecutorKind,
+		ExecutorID:    cmd.ExecutorID,
 	})
 }
 
