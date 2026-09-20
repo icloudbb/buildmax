@@ -48,6 +48,7 @@
 | [Agent 原生协作底座](agent-native-collaboration-substrate.md) | 产品与执行模型 | 不同规模和不同专业背景的参与者，是否需要一套统一的意图、执行、提议、证据、决策、集成与知识生命周期？ | 尚未建设；当前 Issue、Task/TaskRun、Artifact、Space 与本地 workspace 是待验证的基础构件 |
 | [Desktop 工作区 Tab 与 Explorer 侧边栏](desktop-workspace-tabs.md) | 本地体验 | Desktop 是否应围绕一个异构 tab 的中间界面（聊天、终端、文件、diff）重塑，由一个 project 级 Explorer 侧边栏喂入，并把本机终端作为一种 tab 类型？ | 终端传输的探索性原型（Go PTY 会话管理器 + xterm tab），临时放置为底部面板；tab 面、Explorer 重塑与文件/diff tab 尚未建设，并发 agent tab 仍以工作区隔离为前置 |
 | [桌面 / Web / 移动端的客户端界面收敛](client-surface-convergence.md) | 本地体验 | 是否应以一套共享 UI 加可切换数据层来服务本地原生、云端 Web 与薄移动端三种模式，而不是迁移桌面外壳（例如迁到 Tauri）？ | `@buildmax/gui` 已在 Desktop 与 Portal 间共享展示层；Portal 加 `buildmax-server` 已提供网络路径，但 Desktop 数据层仍为 Wails-only，可切换数据接口与移动端客户端均尚未存在 |
+| [Agent 代表用户使用应用](agent-app-delegation.md) | 本地体验与信任 | 以工作区为中心的 Agent 能否成为连接应用的有用入口，同时让授权与批准易于理解？ | 插件连接器 CLI 的 OAuth 与 Gmail 样例；远端 MCP 连接和调用 CLI；尚无单次运行授权或加固的 Agent 边界 |
 
 已退役提案不留在当前索引中。获采纳的理由移入
 [设计记录](../design/设计文档索引.md)，被拒绝或取代的讨论仍可通过 Git 历史查阅。

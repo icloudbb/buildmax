@@ -35,6 +35,8 @@ func main() {
 | `version` | `version.go` |
 | `login`、`logout`、`me` | `login.go` |
 | `sandbox status\|deps\|mode\|enable\|disable` | `sandbox.go` |
+| `connect`、`app` | `app_connect.go` 和 `internal/interface/appconnect`：本地 OAuth 与固定应用调用 |
+| `connect mcp`、`mcp` | `mcp_cli.go`：注册远端 MCP 服务器，并通过 `internal/infra/mcp` 发现和调用工具 |
 
 `NewRootCommand()` 在根命令上注册十一个标志；面向用户的表格见 [manual/cli.md](../../../../manual/cli.md)。
 

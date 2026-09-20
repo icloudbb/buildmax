@@ -1,13 +1,13 @@
 # Plugins
 
-A plugin is a directory of things that already work in a workspace
-`.buildmax/` directory — skills, subagents, MCP servers, hooks — packaged so
+A plugin is a directory of skills, subagents, MCP servers, hooks, or an
+experimental app connector, packaged so
 it can be shared. Checking `.buildmax/` into a repository gives a workflow to
 everyone who runs the agent *there*. A plugin gives it to everyone who installs
 it, in every workspace.
 
-There is no new extension API. Whatever you already know how to write is what a
-plugin contains.
+Skills, subagents, MCP servers, and hooks retain their workspace formats. The
+connector has its own bounded declaration; see [App connections](app-connections.md).
 
 ## Install one
 
@@ -100,6 +100,8 @@ cannot alter a run already in flight.
 This first Space slice accepts plugins that contribute skills and subagents.
 Releases containing executable hooks or MCP servers cannot be activated yet,
 and BuildMax does not yet deliver Space secrets to plugins.
+An experimental `connector.yaml` is used only by the local CLI. A worker has
+no interactive OAuth connection or local user's app credential.
 
 ## Publish one
 
@@ -130,6 +132,7 @@ code-review/
 ├── skills/          one directory per skill, each with SKILL.md
 ├── agents/          one markdown file per subagent
 ├── mcp.json         MCP server definitions
+├── connector.yaml   experimental local app connection
 ├── hooks.yaml       hook definitions
 └── hooks/           scripts hooks.yaml refers to
 ```
@@ -140,6 +143,7 @@ code-review/
 | `agents/<name>.md` | `<workspace>/.buildmax/agents/` | [Skills & subagents](skills-and-subagents.md) |
 | `mcp.json` | `<workspace>/.buildmax/mcp.json` | [MCP servers](mcp.md) |
 | `hooks.yaml` | `<workspace>/.buildmax/hooks.yaml` | [Hooks](hooks.md) |
+| `connector.yaml` | Local connector CLI declaration | [App connections](app-connections.md) |
 
 A plugin may ship any subset. A skill-only plugin is normal; so is one that
 contributes only MCP configuration. There is **no** nested `.buildmax/`

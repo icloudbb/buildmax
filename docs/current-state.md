@@ -2,9 +2,10 @@
 
 > **简体中文：** [阅读中文镜像](zh-CN/current-state.md)
 >
-> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-14
+> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-20
 
-This assessment was checked against repository code at `938f85de`. It describes
+The baseline assessment was checked against repository code at `938f85de`; the
+experimental application-connection prototypes below were checked in this worktree. It describes
 implemented behavior, test coverage, and remaining limits. Priority and future
 sequencing belong in the [roadmap](ROADMAP.md), not in a second priority list
 here. Design records explain decisions; their unfinished checklists are not
@@ -81,6 +82,21 @@ coverage is implemented, not that its deployment or database prerequisites were
 exercised in this review.
 
 ## Shared Runtime And Local Surfaces
+
+The local CLI has an experimental plugin-declared app connector: browser OAuth
+with PKCE, OS credential storage by default, fixed GET/read and POST/write
+operations, token refresh, and interactive terminal confirmation for writes.
+The Gmail sample declares two reads and one draft write. This is not a Desktop
+connection UI or a per-run Agent grant; an unsandboxed local Bash tool can
+bypass the CLI. See [app connections](../manual/app-connections.md) and the
+[delegation proposal](proposals/agent-app-delegation.md).
+
+An experimental `connect mcp` CLI now checks and registers remote HTTP/SSE
+servers in the user's `mcp.json`. `buildmax mcp` lists servers, discovers tool
+schemas, and calls tools through the existing MCP runtime. Static Bearer
+tokens may come from a named environment variable; MCP OAuth and persistent
+CLI sessions are not implemented. Calls without a read-only server annotation
+require interactive confirmation. See [MCP servers](../manual/mcp.md).
 
 CLI/TUI, Desktop, and workers assemble the shared Agent runtime. The core has a
 streamed model/tool loop, tool error recovery, parallel read-only tool execution,

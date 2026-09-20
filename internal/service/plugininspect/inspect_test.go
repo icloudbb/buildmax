@@ -17,6 +17,31 @@ func findingText(p Package) string {
 	return b.String()
 }
 
+func TestDirValidatesConnectorAndClientIDEnvironment(t *testing.T) {
+	manifest := `auth:
+  authorization_url: https://accounts.example.com/auth
+  token_url: https://accounts.example.com/token
+  client_id_env: APP_CLIENT_ID
+  scopes: [read]
+api_origin: https://api.example.com
+operations:
+  profile: {method: GET, path: /profile, effect: read}
+`
+	fsys := fstest.MapFS{
+		"plugin.yaml":    file("name: app\nenv:\n  APP_CLIENT_ID:\n    description: Public OAuth client ID.\n"),
+		"connector.yaml": file(manifest),
+	}
+	got, err := Dir(fsys)
+	if err != nil || got.HasErrors() || len(got.Findings) != 0 {
+		t.Fatalf("valid connector: %v, %s", err, findingText(got))
+	}
+	fsys["connector.yaml"] = file(strings.Replace(manifest, "path: /profile", "path: /../secret", 1))
+	got, err = Dir(fsys)
+	if err != nil || !got.HasErrors() {
+		t.Fatalf("invalid connector accepted: %v, %s", err, findingText(got))
+	}
+}
+
 func TestDirDescribesAWholePackage(t *testing.T) {
 	fsys := fstest.MapFS{
 		"plugin.yaml": file("name: code-review\nversion: 1.2.0\n" +

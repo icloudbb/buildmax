@@ -4,6 +4,44 @@
 agent tools BuildMax does not ship — your issue tracker, your database, your
 internal services.
 
+## Connect a remote server from the CLI
+
+```bash
+buildmax connect mcp context7 https://mcp.context7.com/mcp
+buildmax mcp list
+buildmax mcp tools context7
+buildmax mcp schema context7 resolve-library-id
+buildmax mcp call context7 resolve-library-id --json '{"libraryName":"react","query":"React hooks"}'
+```
+
+`connect mcp` checks the endpoint and its tool list, then adds the server to
+`<BUILDMAX_HOME>/mcp.json` for all local workspaces. It refuses to replace an
+existing server. Use `--transport sse` for an SSE endpoint. Plain HTTP is
+accepted only for a loopback test server; other endpoints require HTTPS.
+
+For a server that accepts a static Bearer token, set the token in the process
+environment and pass its variable name:
+
+```bash
+export MY_MCP_TOKEN=your-token
+buildmax connect mcp work https://mcp.example.com/mcp --bearer-env MY_MCP_TOKEN
+```
+
+The config saves `bearer_token_env`, never the token value. The environment
+variable must also be present for later CLI, Desktop, or Agent runs; a missing
+value fails the connection. The CLI creates a new MCP session for each command.
+This prototype does not perform MCP OAuth discovery, browser login, refresh, or
+multi-account selection. A Skill can call `buildmax mcp tools`, `schema`, and
+`call` to express a workflow over these operations. A small example is in
+[`sample-plugins/mcp-cli`](../sample-plugins/mcp-cli).
+
+`buildmax mcp call` accepts a JSON object up to 1 MiB. A tool marked read-only
+by its MCP server runs directly; every other tool requires typed confirmation
+in an interactive terminal. This CLI confirmation is separate from the Agent
+runtime's `CallMcpTool` permission rules. A server's read-only annotation is
+its own claim, and a local Agent with unrestricted shell access can bypass the
+CLI. Treat neither as a per-run application grant.
+
 ## Configuration
 
 MCP servers are declared in `mcp.json`, in either or both of:
@@ -40,6 +78,7 @@ specific ones checked into the project.
 | `command`, `args` | The process to start, for `stdio` |
 | `env` | Environment for that process |
 | `url` | Endpoint, for HTTP transports |
+| `bearer_token_env` | Optional environment variable name for a remote server's Bearer token |
 
 ## Variable expansion
 

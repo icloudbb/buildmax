@@ -38,6 +38,8 @@ the TUI and for piped print-mode output.
 | `version` | `version.go` |
 | `login`, `logout`, `me` | `login.go` |
 | `sandbox status\|deps\|mode\|enable\|disable` | `sandbox.go` |
+| `connect`, `app` | `app_connect.go` and `internal/interface/appconnect`: local OAuth and fixed app calls |
+| `connect mcp`, `mcp` | `mcp_cli.go`: register a remote MCP server, then discover and call its tools through `internal/infra/mcp` |
 
 `NewRootCommand()` registers eleven flags on the root command; the user-facing
 table is in [manual/cli.md](../../../manual/cli.md).

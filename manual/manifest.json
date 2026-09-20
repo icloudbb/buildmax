@@ -31,6 +31,7 @@
         { "slug": "skills-and-subagents", "title": "Skills & subagents" },
         { "slug": "mcp", "title": "MCP servers" },
         { "slug": "plugins", "title": "Plugins" },
+        { "slug": "app-connections", "title": "Experimental app connections" },
         { "slug": "hooks", "title": "Hooks" }
       ]
     },

@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strings"
 
+	coreconnect "github.com/icloudbb/buildmax/internal/core/appconnect"
 	corehook "github.com/icloudbb/buildmax/internal/core/hook"
 	coremcp "github.com/icloudbb/buildmax/internal/core/mcp"
 	"github.com/icloudbb/buildmax/internal/core/plugin"
@@ -86,12 +87,30 @@ func Dir(fsys fs.FS) (Package, error) {
 	p.Subagents = inspectSubagents(fsys, &p)
 	p.MCP = inspectMCP(fsys, &p, refs)
 	p.Hooks = inspectHooks(fsys, &p, refs)
+	inspectConnector(fsys, &p, refs)
 
 	p.EnvRefs, p.PluginPaths = refs.sorted()
 	p.Findings = append(p.Findings, unsupportedEntries(fsys)...)
 	p.Findings = append(p.Findings, missingPluginPaths(fsys, p.PluginPaths)...)
 	p.Findings = append(p.Findings, crossCheckEnv(m, p.EnvRefs)...)
 	return p, nil
+}
+
+func inspectConnector(fsys fs.FS, p *Package, refs *refSet) {
+	data, err := fs.ReadFile(fsys, coreconnect.ManifestFile)
+	if errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+	if err != nil {
+		p.Findings = append(p.Findings, readFinding(coreconnect.ManifestFile, err))
+		return
+	}
+	m, err := coreconnect.Parse(data)
+	if err != nil {
+		p.Findings = append(p.Findings, plugin.Finding{Severity: plugin.SeverityError, Field: coreconnect.ManifestFile, Message: err.Error()})
+		return
+	}
+	refs.env[m.Auth.ClientIDEnv] = true
 }
 
 func inspectSkills(fsys fs.FS, p *Package) []string {
@@ -253,7 +272,8 @@ func unsupportedEntries(fsys fs.FS) []plugin.Finding {
 	known := map[string]bool{
 		plugin.ManifestFile: true, skillsDir: true, agentsDir: true,
 		mcpFile: true, hooksFile: true, hookScripts: true,
-		readmeFile: true, licenseFile: true,
+		coreconnect.ManifestFile: true,
+		readmeFile:               true, licenseFile: true,
 	}
 	var findings []plugin.Finding
 	for _, e := range entries {

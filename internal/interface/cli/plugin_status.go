@@ -13,6 +13,7 @@ import (
 	corehook "github.com/icloudbb/buildmax/internal/core/hook"
 	"github.com/icloudbb/buildmax/internal/core/plugin"
 	"github.com/icloudbb/buildmax/internal/infra/git"
+	"github.com/icloudbb/buildmax/internal/interface/appconnect"
 	tools "github.com/icloudbb/buildmax/internal/tool"
 )
 
@@ -216,6 +217,14 @@ func writePluginContributions(w io.Writer, p config.DiscoveredPlugin) {
 	}
 	if events := ownHookEvents(p); len(events) > 0 {
 		lines = append(lines, "  hooks:      "+strings.Join(events, ", "))
+	}
+	if connector, err := appconnect.Load(p.Path); err == nil {
+		names := make([]string, 0, len(connector.Operations))
+		for name, operation := range connector.Operations {
+			names = append(names, name+" ("+operation.Effect+")")
+		}
+		sort.Strings(names)
+		lines = append(lines, "  connector:  "+strings.Join(names, ", "))
 	}
 	if len(lines) == 0 {
 		fmt.Fprintln(w, "  contributes nothing this build recognises")
