@@ -1,4 +1,3 @@
-import { type ComponentType } from "react"
 import {
   AdminAccounts,
   AdminAdministrators,
@@ -9,48 +8,11 @@ import {
   AdminPlugins,
   AdminSpaces,
   useAdminAccess,
+  type AdminSection,
 } from "../../features/admin"
 import { useAuth } from "../../contexts/AuthContext"
 import { useSpace } from "../../contexts/SpaceContext"
 import { navigate } from "../../router"
-import SettingsIcon from "../../icons/settings.svg?react"
-import AgentsIcon from "../../icons/agents.svg?react"
-import ShieldIcon from "../../icons/shield.svg?react"
-import FilesIcon from "../../icons/files.svg?react"
-import UsageIcon from "../../icons/usage.svg?react"
-import ToolboxIcon from "../../icons/toolbox.svg?react"
-
-export type AdminSection =
-  | "overview"
-  | "administrators"
-  | "accounts"
-  | "spaces"
-  | "models"
-  | "calls"
-  | "plugins"
-  | "audit"
-
-interface AdminNavItem {
-  id: AdminSection
-  label: string
-  icon: ComponentType<{ className?: string }>
-}
-
-/**
- * Ordered by the question an operator arrives with, not by resource: is this
- * deployment all right, then who has access, then which spaces exist, then what
- * they can call, then what happened.
- */
-export const ADMIN_NAV: AdminNavItem[] = [
-  { id: "overview", label: "Overview", icon: SettingsIcon },
-  { id: "administrators", label: "Administrators", icon: ShieldIcon },
-  { id: "accounts", label: "Accounts", icon: AgentsIcon },
-  { id: "spaces", label: "Spaces", icon: FilesIcon },
-  { id: "models", label: "Models", icon: ToolboxIcon },
-  { id: "calls", label: "LLM calls", icon: UsageIcon },
-  { id: "plugins", label: "Plugins", icon: ToolboxIcon },
-  { id: "audit", label: "Audit", icon: UsageIcon },
-]
 
 /**
  * AdminSettings is the deployment administration area.
@@ -91,28 +53,6 @@ export function AdminSettings({ section, userId }: { section: AdminSection; user
             Space contents are not here and are not reachable from here.
           </p>
         </div>
-      </div>
-
-      <div className="settings-page__tabs" aria-label="Administration sections" role="tablist">
-        {ADMIN_NAV.map((item) => {
-          const Icon = item.icon
-          const active = item.id === section
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              className={`settings-page__tab ${active ? "settings-page__tab--active" : ""}`}
-              onClick={() => navigate({ name: "admin", section: item.id })}
-            >
-              <span className="settings-page__tab-icon" aria-hidden>
-                <Icon />
-              </span>
-              <span className="settings-page__tab-label">{item.label}</span>
-            </button>
-          )
-        })}
       </div>
 
       <div className="settings-page__content">

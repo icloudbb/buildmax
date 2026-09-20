@@ -21,6 +21,7 @@ import { CreateSpaceDialog } from "../components/CreateSpaceDialog"
 import { useSpace } from "../contexts/SpaceContext"
 import { useApp } from "../contexts/AppContext"
 import { useAdminAccess } from "../features/admin"
+import { ADMIN_NAV } from "../features/admin/nav"
 import { spaceSwitchTarget } from "../lib/spaceSwitch"
 import type { ResourceState } from "../state/resourceState"
 
@@ -337,19 +338,12 @@ export function SidebarNavContent({
             <SettingsIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Space settings</span>
           </button>
-        </div></> : <div className="sidebar__group">
-          <button type="button" className="sidebar__nav-item" disabled={!currentSpaceId} onClick={() => {
-            if (currentSpaceId) go({ name: "chat", spaceId: currentSpaceId })
-          }}>
-            <NewChatIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Back to space</span>
-          </button>
-        </div>}
+        </div>
         {isSystemAdmin && (
           // Deployment administration is a global-scope destination, not a Space
-          // one: it stays a first-level nav item (per prior decision below) but
-          // sits in its own section, outside the Space-grouped nav above, so it
-          // never reads as if the selected Space changed its authority.
+          // one: it stays a first-level nav item but sits in its own section,
+          // outside the Space-grouped nav above, so it never reads as if the
+          // selected Space changed its authority.
           <div className="sidebar__group sidebar__group--global">
             <button
               type="button"
@@ -360,7 +354,37 @@ export function SidebarNavContent({
               <span className="sidebar__nav-item-text">Administration</span>
             </button>
           </div>
-        )}
+        )}</> : <>
+        {/* On the Deployment scope the sidebar lists the Administration
+            destinations themselves — the section owns them elsewhere as content,
+            the sidebar is how you move between them — followed by the escape
+            hatch back to a Space. */}
+        <div className="sidebar__group sidebar__group--global">
+          <span className="sidebar__group-label">Administration</span>
+          {ADMIN_NAV.map((item) => {
+            const Icon = item.icon
+            const active = (route.section ?? "overview") === item.id
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={cn("sidebar__nav-item", active && "sidebar__nav-item--active")}
+                onClick={() => go({ name: "admin", section: item.id })}
+              >
+                <Icon className="sidebar__nav-icon" aria-hidden />
+                <span className="sidebar__nav-item-text">{item.label}</span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="sidebar__group">
+          <button type="button" className="sidebar__nav-item" disabled={!currentSpaceId} onClick={() => {
+            if (currentSpaceId) go({ name: "chat", spaceId: currentSpaceId })
+          }}>
+            <NewChatIcon className="sidebar__nav-icon" aria-hidden />
+            <span className="sidebar__nav-item-text">Back to space</span>
+          </button>
+        </div></>}
       </nav>
       <div className="sidebar__footer" aria-label="User" ref={userMenuRef}>
         <button

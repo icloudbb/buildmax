@@ -447,11 +447,16 @@ residue, and this design makes it more urgent rather than answering it.
 ## 10. Portal Administration Surface
 
 Administration is separate from Space settings and appears as a first-level
-sidebar destination only after `GET /api/admin/me` confirms a grant. Navigation
-is presentation; the Server authorizes each request independently.
+sidebar destination only after `GET /api/admin/me` confirms a grant. Entering it
+puts the sidebar on the deployment scope: the Space switcher is replaced by a
+static "Deployment" label, and the sidebar lists the Administration sections
+themselves (from the shared `ADMIN_NAV` in `portal/src/features/admin/nav.ts`)
+followed by a "Back to space" return. The page renders only the active section,
+not its own tablist. Navigation is presentation; the Server authorizes each
+request independently.
 
 `portal/src/pages/admin/AdminSettings.tsx` and `portal/src/features/admin` own
-seven sections:
+eight sections:
 
 1. **Overview** — build/readiness, worker mode, run counts, caller grant, and
    collapsible redacted configuration.

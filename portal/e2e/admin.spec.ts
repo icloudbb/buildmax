@@ -40,6 +40,15 @@ test("an administrator reaches administration from the first-level sidebar", asy
   await page.goto("/")
   await page.getByRole("button", { name: "Administration" }).click()
   await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible()
+
+  // On the Deployment scope the sidebar lists the Administration sections
+  // themselves, and choosing one moves between them without leaving the scope
+  // or reintroducing a Space switcher.
+  const sidebar = page.getByLabel("Sidebar")
+  await sidebar.getByRole("button", { name: "Accounts" }).click()
+  await expect(page).toHaveURL(/#\/admin\/accounts$/)
+  await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible()
+  await expect(sidebar.getByLabel("Current scope")).toHaveText("Deployment")
 })
 
 test("the Administrators section lists who can operate the deployment", async ({ page }) => {
