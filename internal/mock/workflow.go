@@ -133,6 +133,7 @@ func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in coreworkflow
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,
+		ScheduleID:       in.ScheduleID,
 		Status:           in.Status,
 		CreatedBy:        in.CreatedBy,
 		CreatedAt:        time.Now().UTC(),
@@ -163,6 +164,23 @@ func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID s
 	var out []coreworkflow.Run
 	for _, run := range m.Runs {
 		if run.IssueID != nil && *run.IssueID == issueID {
+			out = append(out, run)
+		}
+	}
+	total := len(out)
+	if offset > total {
+		return []coreworkflow.Run{}, total, nil
+	}
+	if limit <= 0 || offset+limit > total {
+		limit = total - offset
+	}
+	return out[offset : offset+limit], total, nil
+}
+
+func (m *MockWorkflowStore) ListWorkflowRunsBySchedule(_ context.Context, scheduleID string, limit, offset int) ([]coreworkflow.Run, int, error) {
+	var out []coreworkflow.Run
+	for _, run := range m.Runs {
+		if run.ScheduleID != nil && *run.ScheduleID == scheduleID {
 			out = append(out, run)
 		}
 	}

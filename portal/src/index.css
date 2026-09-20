@@ -10,6 +10,7 @@
 @import './css/sidebar.css';
 @import './css/breadcrumbs.css';
 @import './css/state.css';
+@import './css/components/detail-tabs.css';
 @import './css/pages/home.css';
 @import './css/pages/activity.css';
 @import './css/pages/agent-list.css';

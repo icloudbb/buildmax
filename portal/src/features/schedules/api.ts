@@ -9,6 +9,7 @@ import type {
   ApiSchedule,
   ApiScheduleListResponse,
   ApiTasksListResponse,
+  ApiWorkflowRunListResponse,
 } from "../../lib/api/types"
 
 const base = (spaceId: string) =>
@@ -17,7 +18,8 @@ const one = (spaceId: string, scheduleId: string) =>
   `${base(spaceId)}/${encodeURIComponent(scheduleId)}`
 
 export interface CreateScheduleBody {
-  agent_id: string
+  executor_kind: "agent" | "workflow"
+  executor_id: string
   name?: string
   input: string
   cron_expr: string
@@ -58,7 +60,12 @@ export async function deleteSchedule(spaceId: string, scheduleId: string, token:
   await throwIfNotOk(res)
 }
 
-// listScheduleTasks returns the tasks a schedule has triggered, newest first.
+// listScheduleTasks returns the tasks an agent schedule has triggered, newest first.
 export async function listScheduleTasks(spaceId: string, scheduleId: string, token: string): Promise<ApiTasksListResponse> {
   return requestJson<ApiTasksListResponse>(`${one(spaceId, scheduleId)}/tasks`, { headers: authHeaders(token) })
+}
+
+// listScheduleRuns returns the workflow runs a workflow schedule has triggered, newest first.
+export async function listScheduleRuns(spaceId: string, scheduleId: string, token: string): Promise<ApiWorkflowRunListResponse> {
+  return requestJson<ApiWorkflowRunListResponse>(`${one(spaceId, scheduleId)}/runs`, { headers: authHeaders(token) })
 }

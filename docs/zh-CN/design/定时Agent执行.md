@@ -2,9 +2,9 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/scheduled-agent-execution.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-> **受众：** 贡献者与运维人员 · **状态：** 已实现。`Schedule` 领域模型与存储、调度分发器、Space 级 REST API、Portal 界面，以及 `ChannelCron` 占位符的移除，已于 2026-09-11 交付（pull request #548–#553）。第 13 节记录了有意保留的未决问题。
+> **受众：** 贡献者与运维人员 · **状态：** 已实现。`Schedule` 领域模型与存储、调度分发器、Space 级 REST API、Portal 界面，以及 `ChannelCron` 占位符的移除，已于 2026-09-11 交付（pull request #548–#553）。彼时 schedule 只能触发 Agent；§15 记录了后续将其推广为"执行器"（Agent 或已发布的 Workflow）的工作。第 13 节记录了有意保留的未决问题。
 
-相关记录：[Agent 执行与 Task 线程](Agent执行与Task线程.md)（§4.5 将 schedule 列为类型化的触发来源）、[Workflow 运行时](Workflow运行时.md)（Workflow 级定时仍是更晚的切片）、[系统管理](系统管理.md)（创建者被禁用与配额处理）、[服务器协调](服务器协调.md)（多副本认领安全）。
+相关记录：[Agent 执行与 Task 线程](Agent执行与Task线程.md)（§4.5 将 schedule 列为类型化的触发来源）、[Workflow 运行时](Workflow运行时.md)（schedule 是启动 workflow 运行的触发来源之一；§15）、[系统管理](系统管理.md)（创建者被禁用与配额处理）、[服务器协调](服务器协调.md)（多副本认领安全）。
 
 ## 目录
 
@@ -22,6 +22,7 @@
 - [12. 决策](#12-决策)
 - [13. 未决问题](#13-未决问题)
 - [14. 交付](#14-交付)
+- [15. 扩展：Workflow 执行器](#15-扩展workflow-执行器)
 
 ## 1. 目的
 
@@ -80,21 +81,22 @@ Schedule（Space 拥有，时间触发）
 Schedule
   id                      NewPublicID
   space_id                必填，权威所有者
-  agent_id                必填，执行者
-  created_by              必填，操作者；带到每个 Task 上
+  executor_kind           "agent" 或 "workflow"——该 schedule 触发什么（§15）
+  executor_id             必填，执行器；由 executor_kind 决定其含义的不透明句柄
+  created_by              必填，操作者；带到每次触发上
   name                    人类可读标签
-  input                   每次触发运行的固定提示词
+  input                   每次触发运行的固定输入（Agent 为提示词，Workflow 为运行输入 JSON）
   cron_expr               重复规则（标准五字段）
   timezone                IANA 名称，例如 "Asia/Shanghai"
   enabled                 布尔；暂停的 schedule 保留其行与下次时间
   next_fire_at            分发器据以认领的 UTC 时刻；到期索引
   last_fire_at            最近一次触发的 UTC 时刻（可空）
-  last_task_id            最近一次触发创建的 Task（可空）
+  last_fire_ref           最近一次触发产生的东西——按 executor_kind，是 Task（agent）或 workflow 运行（workflow）（可空）
   consecutive_failures    约束失控成本（§9）
   created_at / updated_at
 ```
 
-`next_fire_at` 是分发器查询的唯一事实，也是让触发恰好一次的 compare-and-swap 目标（§7）。schedule 不存储历史触发列表；那是一次 Task 查询。core 不解析 cron：调用方用 `github.com/robfig/cron/v3`（仅作解析器）从 `cron_expr` 与 `timezone` 计算 `next_fire_at`；循环本身是 BuildMax 自己的。
+`next_fire_at` 是分发器查询的唯一事实，也是让触发恰好一次的 compare-and-swap 目标（§7）。schedule 不存储历史触发列表；对 agent schedule 那是一次 Task 查询，对 workflow schedule 那是一次 workflow 运行查询（§15）。core 不解析 cron：调用方用 `github.com/robfig/cron/v3`（仅作解析器）从 `cron_expr` 与 `timezone` 计算 `next_fire_at`；循环本身是 BuildMax 自己的。
 
 持久化 JSON 使用显式的 `snake_case` 标签，表名为单数，id 使用 `NewPublicID`，遵循[实体标识](实体身份.md)。
 
@@ -142,17 +144,18 @@ tick:
 - **API。** Space 级，与 Task 路由平级并以同样方式注册（各 handler 子包的 `Register`，在 `routes.go` 中组合，与 `openapi.json` 完全匹配）：
 
   ```text
-  POST   /api/spaces/{space_id}/schedules                 { agent_id, name, input, cron_expr, timezone }
+  POST   /api/spaces/{space_id}/schedules                 { executor_kind, executor_id, name, input, cron_expr, timezone }
   GET    /api/spaces/{space_id}/schedules
   GET    /api/spaces/{space_id}/schedules/{id}
   PATCH  /api/spaces/{space_id}/schedules/{id}            { enabled?, input?, cron_expr?, timezone?, name? }
   DELETE /api/spaces/{space_id}/schedules/{id}
-  GET    /api/spaces/{space_id}/schedules/{id}/tasks
+  GET    /api/spaces/{space_id}/schedules/{id}/tasks      # agent schedule 触发的 Task
+  GET    /api/spaces/{space_id}/schedules/{id}/runs       # workflow schedule 触发的运行（§15）
   ```
 
   `cron_expr` 与 `timezone` 在写入时校验；无效表达式是 `KindInvalid` 拒绝，绝不会成为一条在触发时静默失败的行。
 
-- **Portal。** schedule 在 Agent 详情页创建与管理：该页的一个区块列出这个 Agent 的 schedule，显示下次与上次触发、启用状态、Enable/Disable、Delete，以及每个 schedule 创建的 Task。侧边栏的 Space 级 **Schedules** 页面展示跨所有 Agent 的每个 schedule，让 owner 看到有哪些无人值守的自动化在运行并可暂停；创建在 Agent 处完成。
+- **Portal。** schedule 在其执行器自己的详情页创建与管理——agent schedule 在 Agent 详情页，workflow schedule 在 Workflow 详情页（§15）：该区块列出这个执行器的 schedule，显示下次与上次触发、启用状态、Enable/Disable、Delete，以及每个 schedule 产生的 Task 或运行，并有一个添加表单。侧边栏的 Space 级 **Schedules** 页面展示跨所有 Agent 与 Workflow 的每个 schedule，让 owner 看到有哪些无人值守的自动化在运行并可暂停，也可在此创建——同一个表单，外加一个"运行什么"的选择器。
 
 - **删除 schedule** 只移除触发器。它已创建的 Task 是独立的执行历史，不受影响——它们不是 schedule 的子对象。
 
@@ -193,3 +196,13 @@ tick:
 3. **API + OpenAPI**（#550）：Space 级路由及其授权矩阵覆盖。
 4. **占位符移除**（#551）：`ChannelCron` 连同其测试与文档一并移除。
 5. **Portal**（#552、#553）：Agent 详情区块与 Space 级 Schedules 页面，附浏览器覆盖。时区数据库内嵌进 Server 二进制（#554）。
+
+## 15. 扩展：Workflow 执行器
+
+最初的切片把 schedule 绑定到单个 Agent。很自然的下一个问题——Space 希望像运行 Agent 一样"每个工作日 09:00 运行分诊*工作流*"——的答案是推广 schedule 触发的对象，而不是新增一个并行实体。schedule 的目标是*一个执行器*，正是 [Issue](Portal工作与执行体验.md) 已经用 `executor_kind`（`agent` 或 `workflow`）与不透明 `executor_id` 建模的那个概念。`Schedule` 复用了这套词汇：`agent_id` 变为 `executor_kind` + `executor_id`，`last_task_id` 变为 `last_fire_ref`（Agent 触发产生的 Task，或 Workflow 触发产生的 workflow 运行），于是整套 cron、恰好一次认领、补触发、资格校验与连续失败机制都被共享而非重复。Alpha 阶段没有兼容负担；迁移 `schedule_agent_to_executor` 回填已有行并删除旧列。
+
+触发只在必须之处按 `executor_kind` 分支：分发器的 `startExecutor`。agent schedule 一如既往地通过 Task 服务准入一个 Task；workflow schedule 通过 `workflow.Service.StartWorkflowRun` 启动一次运行，并带上该 schedule，使运行记录其触发来源。两者都归属到 schedule 的创建者并按其工作计量，且都把各自的失败纳入同一套连续失败暂停。无法启动其执行器的触发——包括 schedule 创建后又被取消发布或归档的 workflow（`StartWorkflowRun` 会拒绝它）——会被记为一次失败触发，并在达到上限后暂停 schedule，与 agent 准入失败完全一致。
+
+两条规则让 workflow schedule 保持诚实。其一，workflow 必须**已发布**才能被定时：服务在创建时校验这一点（草稿或已归档的 workflow 永远无法启动运行），Portal 也只提供已发布的 workflow。其二，workflow 的 `input` 是其 `input_schema` 声明的运行输入，冻结在 schedule 上，并在每次触发时由 `StartWorkflowRun` 校验，与手动运行的输入一样；Portal 生成与手动"运行"对话框相同的输入表单。workflow 运行记录启动它的 `schedule_id`，与 `Task.schedule_id` 对应，因此 schedule 可以列出其触发历史（`GET /api/spaces/{space_id}/schedules/{schedule_id}/runs`），正如 agent schedule 列出其触发的 Task。
+
+界面与 agent 情形对称：workflow 详情页上的 Schedules 区块（固定为该 workflow），以及 Space 级 Schedules 页面——现在为两种类型列出并创建 schedule，并按执行器类型标注每一条。管理 schedule 仍是成员级（`manage_schedules`），不受编写 workflow 所需的 owner/admin 能力限制。

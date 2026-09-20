@@ -131,6 +131,7 @@ var spaceRoutes = []authzCase{
 	{"GET", "/api/spaces/{space_id}/agents/{agent_id}/tasks", corespace.RoleMember, false},
 	{"POST", "/api/spaces/{space_id}/agents/{agent_id}/tasks", corespace.RoleMember, false},
 	{"GET", "/api/spaces/{space_id}/schedules/{schedule_id}/tasks", corespace.RoleMember, false},
+	{"GET", "/api/spaces/{space_id}/schedules/{schedule_id}/runs", corespace.RoleMember, false},
 
 	{"GET", "/api/spaces/{space_id}/issues", corespace.RoleMember, false},
 	{"POST", "/api/spaces/{space_id}/issues", corespace.RoleMember, false},

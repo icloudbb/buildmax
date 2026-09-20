@@ -43,23 +43,23 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
   // colleague.
   await page.goto(`/#/spaces/${current.spaceId}/workflows/${workflow.id}`)
   // The detail page now titles itself with the workflow's own name, so the
-  // heading is the name rather than a fixed "Workflow Detail" label. A freshly
-  // created workflow is a draft, so it opens in the authoring layout whose
-  // Definition panel is present.
+  // heading is the name rather than a fixed "Workflow Detail" label. The page is
+  // organized into tabs like the agent detail page; a freshly created workflow is
+  // a draft, so it opens on its Definition tab.
   await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible()
   // The breadcrumb is the reader's orientation cue, so once the workflow has
   // loaded it names the workflow rather than its opaque id.
   await expect(page.getByLabel("Breadcrumb").getByText(name, { exact: true })).toBeVisible()
-  await expect(page.locator(".issues-page__panel").filter({
-    has: page.getByRole("heading", { name: "Definition" }),
-  })).toBeVisible()
+  await expect(
+    page.locator(".detail-tabs").getByRole("tab", { name: "Definition" }),
+  ).toHaveAttribute("aria-selected", "true")
   // The opaque public id is not shown on the detail page: the name and
-  // breadcrumb orient the reader, and history is reached from a header button.
+  // breadcrumb orient the reader, and history is a tab of its own.
   await expect(page.getByText(workflow.id, { exact: true })).toHaveCount(0)
   await expect(page.getByText("Workflow not found.")).toHaveCount(0)
 })
 
-test("the detail page composes by lifecycle state: authoring when draft, operating when published", async ({
+test("the detail page organizes into tabs, and lifecycle actions live on the Definition tab", async ({
   page,
 }) => {
   const current = await session(page)
@@ -72,7 +72,7 @@ test("the detail page composes by lifecycle state: authoring when draft, operati
   const name = tagged("Workflow lifecycle probe")
   const workflow = await postJSON<{ id: string }>(page, `${current.space}/workflows`, current, {
     name,
-    description: "Created by the Portal browser tests to exercise the state-driven detail layout.",
+    description: "Created by the Portal browser tests to exercise the tabbed detail layout.",
     definition: JSON.stringify({
       schema_version: 1,
       nodes: [{ id: "only", type: "agent_task", agent: { id: agent.id }, input: { instruction: "Reply with exactly: deployment smoke ok" } }],
@@ -80,53 +80,42 @@ test("the detail page composes by lifecycle state: authoring when draft, operati
   })
   reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`])
 
+  const tabs = page.locator(".detail-tabs")
   await page.goto(`/#/spaces/${current.spaceId}/workflows/${workflow.id}`)
 
-  // Draft opens in the authoring layout: the editing form is present and the
-  // primary action is Publish, with Save as draft alongside it and no manual
-  // Run, because the runtime refuses to run an unpublished definition. There is
-  // no status control; the actions themselves name the lifecycle state reached.
-  await expect(page.getByRole("heading", { name: "Definition" })).toBeVisible()
+  // A draft opens on its Definition tab. The lifecycle actions live in that panel
+  // and name the state they reach — Publish (primary) and Save as draft — with no
+  // status control. Run Workflow is in the header but disabled, because the
+  // runtime refuses to run an unpublished definition.
+  await expect(tabs.getByRole("tab", { name: "Definition" })).toHaveAttribute("aria-selected", "true")
   await expect(page.getByRole("combobox", { name: "Status" })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Publish" })).toHaveClass(/bm-button--primary/)
   await expect(page.getByRole("button", { name: "Save as draft" })).toHaveClass(/bm-button--secondary/)
-  await expect(page.getByRole("button", { name: "Run Workflow" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Run Workflow" })).toBeDisabled()
 
-  // Publishing flips the page to the operating layout: Plan and Recent Runs lead
-  // the body, Run becomes the primary action, and editing retreats behind Edit.
+  // Publishing makes the workflow runnable: the status pill reads Published and
+  // Run Workflow enables. The tab stays put — publishing is a save, not a mode.
   await page.getByRole("button", { name: "Publish" }).click()
-  await expect(page.getByRole("heading", { name: "Plan", exact: true })).toBeVisible()
-  await expect(page.getByRole("heading", { name: "Recent Runs" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Run Workflow" })).toHaveClass(/bm-button--primary/)
-  await expect(page.getByRole("button", { name: "Edit" })).toHaveClass(/bm-button--secondary/)
   await expect(page.getByText("Published", { exact: true }).first()).toBeVisible()
-  await expect(page.getByRole("heading", { name: "Definition" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Run Workflow" })).toBeEnabled()
 
-  // Version history is on-demand secondary information reached from the header,
-  // not a resident column.
-  await page.getByRole("button", { name: /History/ }).click()
-  const history = page.getByRole("dialog", { name: "Version History" })
-  await expect(history).toBeVisible()
-  // Each revision row summarizes as "<name> · <status>"; publishing created a
-  // second revision, so the published one is listed here.
-  await expect(history.getByText(new RegExp(`${name} · Published`)).first()).toBeVisible()
-  await page.keyboard.press("Escape")
-  await expect(history).toBeHidden()
-
-  // Edit reveals the authoring form over the published workflow; Cancel returns
-  // to the operating layout without persisting.
-  await page.getByRole("button", { name: "Edit" }).click()
-  await expect(page.getByRole("heading", { name: "Definition" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible()
-  await page.getByRole("button", { name: "Cancel" }).click()
+  // The Overview tab presents the read-only plan; the Runs tab lists executions.
+  await tabs.getByRole("tab", { name: "Overview" }).click()
   await expect(page.getByRole("heading", { name: "Plan", exact: true })).toBeVisible()
+  await tabs.getByRole("tab", { name: "Runs" }).click()
+  await expect(page.getByRole("heading", { name: "Recent Runs" })).toBeVisible()
 
-  // Archive is an explicit lifecycle action, separate from content edits. It
-  // takes the workflow out of the runnable state and back to the authoring
-  // layout; the action is then absent because the workflow is already archived.
+  // Version history is its own tab. Each revision row summarizes as
+  // "<name> · <status>"; publishing created a second revision, listed here.
+  await tabs.getByRole("tab", { name: "Revisions" }).click()
+  await expect(page.getByText(new RegExp(`${name} · Published`)).first()).toBeVisible()
+
+  // Archive is an explicit lifecycle action on the Definition tab. It takes the
+  // workflow out of the runnable state; the action is then absent because the
+  // workflow is already archived.
+  await tabs.getByRole("tab", { name: "Definition" }).click()
   await page.getByRole("button", { name: "Archive" }).click()
   await expect(page.getByText("Archived", { exact: true }).first()).toBeVisible()
-  await expect(page.getByRole("heading", { name: "Definition" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Archive" })).toHaveCount(0)
   // Saving as draft brings an archived workflow back into the draft lifecycle.
   await page.getByRole("button", { name: "Save as draft" }).click()

@@ -49,6 +49,7 @@ type workflowRunResponse struct {
 	WorkflowID       string          `json:"workflow_id"`
 	WorkflowRevision int             `json:"workflow_revision,omitempty"`
 	IssueID          *string         `json:"issue_id,omitempty"`
+	ScheduleID       *string         `json:"schedule_id,omitempty"`
 	Status           string          `json:"status"`
 	CreatedBy        string          `json:"created_by"`
 	CreatedAt        time.Time       `json:"created_at"`
@@ -151,6 +152,7 @@ func workflowRunToResponse(run coreworkflow.Run) workflowRunResponse {
 		WorkflowID:       run.WorkflowID,
 		WorkflowRevision: run.WorkflowRevision,
 		IssueID:          run.IssueID,
+		ScheduleID:       run.ScheduleID,
 		Status:           run.Status,
 		CreatedBy:        run.CreatedBy,
 		CreatedAt:        run.CreatedAt,
@@ -403,6 +405,44 @@ func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request
 			return
 		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_workflow_runs", "space_id", spaceID, "workflow_id", workflowID)
+		return
+	}
+	out := make([]workflowRunResponse, len(runs))
+	for i := range runs {
+		out[i] = workflowRunToResponse(runs[i])
+	}
+	httputil.WriteJSON(w, http.StatusOK, workflowRunListResponse{Runs: out, Total: total})
+}
+
+// listScheduleRunsHandler returns the workflow runs a recurring schedule fired,
+// newest first. It mirrors listScheduleTasksHandler for the Agent case: the
+// schedule is the space-scoping anchor, so its runs are inherently in the space.
+func (h *Handler) listScheduleRunsHandler(w http.ResponseWriter, r *http.Request) {
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
+	if !ok {
+		return
+	}
+	scheduleID, ok := httputil.PathValue(w, r, "schedule_id")
+	if !ok {
+		return
+	}
+	if h.cfg.Schedules == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "schedules not configured")
+		return
+	}
+	sched, err := h.cfg.Schedules.GetSchedule(r.Context(), scheduleID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_schedule_runs", "schedule_id", scheduleID)
+		return
+	}
+	if sched == nil || sched.SpaceID != spaceID {
+		httputil.WriteJSONError(w, http.StatusNotFound, "schedule not found")
+		return
+	}
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
+	runs, total, err := h.cfg.Workflows.ListWorkflowRunsBySchedule(r.Context(), scheduleID, limit, offset)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_schedule_runs", "schedule_id", scheduleID)
 		return
 	}
 	out := make([]workflowRunResponse, len(runs))

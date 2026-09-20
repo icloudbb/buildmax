@@ -71,7 +71,7 @@ test("Agent sections scroll within their tablist without widening the page", asy
   reportLeftovers(current.spaceId, [`agent ${agent.id}`])
   await page.goto(`/#/spaces/${current.spaceId}/agents/${agent.id}`)
 
-  const tabs = page.locator(".agent-detail__tabs")
+  const tabs = page.locator(".detail-tabs")
   await expect(tabs.getByRole("tab", { name: "Overview" })).toBeVisible()
   await expect(tabs.getByRole("tab", { name: /Revisions/ })).toBeAttached()
   expect(await tabs.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)

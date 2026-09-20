@@ -17,18 +17,19 @@ type MockScheduleStore struct {
 func (m *MockScheduleStore) CreateSchedule(_ context.Context, in *coreschedule.CreateInput) (*coreschedule.Schedule, error) {
 	now := time.Now().UTC()
 	s := coreschedule.Schedule{
-		ID:         fmt.Sprintf("sch_%d", len(m.Schedules)+1),
-		SpaceID:    in.SpaceID,
-		AgentID:    in.AgentID,
-		CreatedBy:  in.CreatedBy,
-		Name:       in.Name,
-		Input:      in.Input,
-		CronExpr:   in.CronExpr,
-		Timezone:   in.Timezone,
-		Enabled:    in.Enabled,
-		NextFireAt: in.NextFireAt,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		ID:           fmt.Sprintf("sch_%d", len(m.Schedules)+1),
+		SpaceID:      in.SpaceID,
+		ExecutorKind: in.ExecutorKind,
+		ExecutorID:   in.ExecutorID,
+		CreatedBy:    in.CreatedBy,
+		Name:         in.Name,
+		Input:        in.Input,
+		CronExpr:     in.CronExpr,
+		Timezone:     in.Timezone,
+		Enabled:      in.Enabled,
+		NextFireAt:   in.NextFireAt,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 	m.Schedules = append(m.Schedules, s)
 	return &m.Schedules[len(m.Schedules)-1], nil
@@ -149,8 +150,8 @@ func (m *MockScheduleStore) RecordFire(_ context.Context, in coreschedule.Record
 		}
 		firedAt := in.FiredAt
 		m.Schedules[i].LastFireAt = &firedAt
-		if in.TaskID != nil {
-			m.Schedules[i].LastTaskID = in.TaskID
+		if in.FireRef != nil {
+			m.Schedules[i].LastFireRef = in.FireRef
 		}
 		if in.Failed {
 			m.Schedules[i].ConsecutiveFailures++

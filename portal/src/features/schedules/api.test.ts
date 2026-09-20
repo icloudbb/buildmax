@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   createSchedule,
   deleteSchedule,
+  listScheduleRuns,
   listScheduleTasks,
   listSchedules,
   updateSchedule,
@@ -39,7 +40,7 @@ describe("createSchedule", () => {
 
     const got = await createSchedule(
       "tm1",
-      { agent_id: "a1", input: "summarize", cron_expr: "0 9 * * *", timezone: "UTC" },
+      { executor_kind: "agent", executor_id: "a1", input: "summarize", cron_expr: "0 9 * * *", timezone: "UTC" },
       "token-123",
     )
 
@@ -47,13 +48,13 @@ describe("createSchedule", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toContain("/api/spaces/tm1/schedules")
     expect(init.method).toBe("POST")
-    expect(JSON.parse(init.body as string)).toMatchObject({ agent_id: "a1", cron_expr: "0 9 * * *" })
+    expect(JSON.parse(init.body as string)).toMatchObject({ executor_kind: "agent", executor_id: "a1", cron_expr: "0 9 * * *" })
   })
 
   it("surfaces the server's reason for refusing an invalid schedule", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(400, { error: "cron \"nope\": invalid" })))
     await expect(
-      createSchedule("tm1", { agent_id: "a1", input: "x", cron_expr: "nope", timezone: "UTC" }, "t"),
+      createSchedule("tm1", { executor_kind: "agent", executor_id: "a1", input: "x", cron_expr: "nope", timezone: "UTC" }, "t"),
     ).rejects.toThrow("invalid")
   })
 })
@@ -96,5 +97,17 @@ describe("listScheduleTasks", () => {
 
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toContain("/api/spaces/tm1/schedules/sch1/tasks")
+  })
+})
+
+describe("listScheduleRuns", () => {
+  it("gets the workflow runs a schedule triggered", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { runs: [], total: 0 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    await listScheduleRuns("tm1", "sch1", "token-123")
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain("/api/spaces/tm1/schedules/sch1/runs")
   })
 })

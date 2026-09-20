@@ -4,8 +4,9 @@ import type { ApiSchedule } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getAgents } from "../../features/agents"
+import { getWorkflows } from "../../features/workflows"
 import { listSchedules, updateSchedule } from "../../features/schedules/api"
-import { CreateScheduleForm, type ScheduleAgentOption } from "../../features/schedules/CreateScheduleForm"
+import { CreateScheduleForm, type ScheduleExecutorOption } from "../../features/schedules/CreateScheduleForm"
 import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { Alert } from "../../components/state/Alert"
 import { EmptyState } from "../../components/state/EmptyState"
@@ -41,17 +42,21 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
 
   // null means "not yet successfully fetched", distinct from [] (no schedules).
   const [schedulesData, setSchedulesData] = useState<ApiSchedule[] | null>(null)
-  const [agents, setAgents] = useState<ScheduleAgentOption[]>([])
+  const [executors, setExecutors] = useState<ScheduleExecutorOption[]>([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<RequestError | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  // Which bulk action, if any, is running — so both buttons and every row action
+  // disable together while it does.
+  const [bulkBusy, setBulkBusy] = useState<"enable" | "pause" | null>(null)
 
-  // The overview lets any member pick which agent a new schedule runs.
-  const agentNames = useMemo(
-    () => Object.fromEntries(agents.map((a) => [a.id, a.name])),
-    [agents]
+  // Names for the schedule list, keyed by "<kind>:<id>" so an agent and a
+  // workflow that happen to share an id never collide.
+  const executorNames = useMemo(
+    () => Object.fromEntries(executors.map((e) => [`${e.kind}:${e.id}`, e.name])),
+    [executors]
   )
 
   const fetchSchedules = useCallback(() => {
@@ -63,10 +68,16 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
     }
     setLoading(true)
     setListError(null)
-    return Promise.all([listSchedules(spaceId, token), getAgents(spaceId, token)])
-      .then(([scheduleRes, agentList]) => {
+    // Agents and published workflows are both schedulable; a draft or archived
+    // workflow cannot start a run, so it is not offered.
+    return Promise.all([listSchedules(spaceId, token), getAgents(spaceId, token), getWorkflows(spaceId, token)])
+      .then(([scheduleRes, agentList, workflowRes]) => {
         setSchedulesData(scheduleRes.schedules)
-        setAgents(agentList.map((a) => ({ id: a.id, name: a.name })))
+        const agentOptions: ScheduleExecutorOption[] = agentList.map((a) => ({ kind: "agent", id: a.id, name: a.name }))
+        const workflowOptions: ScheduleExecutorOption[] = workflowRes.workflows
+          .filter((w) => w.status === "published")
+          .map((w) => ({ kind: "workflow", id: w.id, name: w.name, definition: w.definition }))
+        setExecutors([...agentOptions, ...workflowOptions])
       })
       // schedulesData from a prior fetch is left in place, so a failed refresh
       // reads as Stale rather than wiping the list.
@@ -98,27 +109,77 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
       .finally(() => setBusyId(null))
   }
 
+  // How many schedules a bulk action would touch: pausing affects the enabled
+  // ones, resuming the paused ones. Used to label and disable the buttons.
+  const enabledCount = schedulesData?.filter((s) => s.enabled).length ?? 0
+  const pausedCount = schedulesData?.filter((s) => !s.enabled).length ?? 0
+
+  // setAllEnabled flips every schedule that is not already in the target state,
+  // reusing the same per-schedule endpoint the row toggle uses. The calls run
+  // together and settle independently, so one failure neither aborts the rest nor
+  // hides that it happened — the count that failed is surfaced, and the list is
+  // reloaded to show the true state either way.
+  async function setAllEnabled(target: boolean) {
+    if (!token || !spaceId || !schedulesData) return
+    const affected = schedulesData.filter((s) => s.enabled !== target)
+    if (affected.length === 0) return
+    setBulkBusy(target ? "enable" : "pause")
+    setActionError(null)
+    const results = await Promise.allSettled(
+      affected.map((s) => updateSchedule(spaceId, s.id, { enabled: target }, token))
+    )
+    const failed = results.filter((r) => r.status === "rejected").length
+    if (failed > 0) {
+      const verb = target ? "resume" : "pause"
+      setActionError(`Failed to ${verb} ${failed} of ${affected.length} schedule${affected.length === 1 ? "" : "s"}.`)
+    }
+    await fetchSchedules()
+    setBulkBusy(null)
+  }
+
   return (
     <div className="page-activity">
       <div className="page-activity__head">
         <div>
           <h1 className="page-activity__title">Schedules</h1>
           <p className="page-activity__subtitle">
-            Every recurring schedule in this space. Each runs one agent on a cron timetable.
+            Every recurring schedule in this space. Each runs one agent or workflow on a cron timetable.
           </p>
         </div>
-        {canCreate && !creating ? (
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            New schedule
-          </Button>
-        ) : null}
+        <div className="page-activity__actions">
+          {canManage && (schedulesData?.length ?? 0) > 0 ? (
+            <>
+              <Button
+                variant="secondary"
+                busy={bulkBusy === "pause"}
+                disabled={bulkBusy !== null || busyId !== null || enabledCount === 0}
+                onClick={() => void setAllEnabled(false)}
+              >
+                Pause all
+              </Button>
+              <Button
+                variant="secondary"
+                busy={bulkBusy === "enable"}
+                disabled={bulkBusy !== null || busyId !== null || pausedCount === 0}
+                onClick={() => void setAllEnabled(true)}
+              >
+                Resume all
+              </Button>
+            </>
+          ) : null}
+          {canCreate && !creating ? (
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              New schedule
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {canCreate && creating ? (
         <CreateScheduleForm
           token={token as string}
           spaceId={spaceId}
-          agents={agents}
+          executors={executors}
           onCreated={async () => {
             setCreating(false)
             await fetchSchedules()
@@ -147,11 +208,15 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
         {schedulesState.kind === "loading" ? (
           <p className="page-activity__empty">Loading…</p>
         ) : schedulesState.kind === "readyEmpty" ? (
-          <EmptyState message="No schedules yet. Schedule an agent to run at a set time." />
+          <EmptyState message="No schedules yet. Schedule an agent or workflow to run at a set time." />
         ) : schedulesState.kind === "error" || schedulesState.kind === "forbidden" || schedulesState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
             {(schedulesData ?? []).map((s) => {
-              const agentName = agentNames[s.agent_id] ?? s.agent_id
+              const executorName = executorNames[`${s.executor_kind}:${s.executor_id}`] ?? s.executor_id
+              const openExecutor = () =>
+                s.executor_kind === "workflow"
+                  ? navigate({ name: "workflow", spaceId, workflowId: s.executor_id })
+                  : navigate({ name: "agent", spaceId, agentId: s.executor_id })
               return (
                 <li key={s.id} className="issues-page__list-item schedules-page__item">
                   <div className="schedules-page__main">
@@ -160,11 +225,11 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
                       <button
                         type="button"
                         className="schedules-page__agent-link"
-                        onClick={() => navigate({ name: "agent", spaceId, agentId: s.agent_id })}
+                        onClick={openExecutor}
                       >
-                        {agentName}
+                        {executorName}
                       </button>
-                      {" · "}
+                      {` (${s.executor_kind}) · `}
                       <code>{s.cron_expr}</code> {s.timezone}
                       {s.enabled ? ` · next ${formatWhen(s.next_fire_at)}` : ""}
                     </span>
@@ -186,7 +251,7 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
                       <Button
                         variant="secondary"
                         size="compact"
-                        disabled={busyId === s.id}
+                        disabled={busyId === s.id || bulkBusy !== null}
                         onClick={() => toggleEnabled(s)}
                       >
                         {s.enabled ? "Pause" : "Resume"}

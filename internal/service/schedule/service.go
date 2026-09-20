@@ -7,26 +7,37 @@ import (
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 )
 
 var (
-	ErrNotConfigured    = apierr.New(apierr.KindNotConfigured, "schedules not configured")
-	ErrInputRequired    = apierr.New(apierr.KindInvalid, "input required")
-	ErrAgentRequired    = apierr.New(apierr.KindInvalid, "agent_id required")
-	ErrCronRequired     = apierr.New(apierr.KindInvalid, "cron_expr required")
-	ErrTimezoneRequired = apierr.New(apierr.KindInvalid, "timezone required")
-	ErrAgentNotFound    = apierr.New(apierr.KindInvalid, "agent not found in this space")
-	ErrScheduleNotFound = apierr.New(apierr.KindNotFound, "schedule not found")
+	ErrNotConfigured        = apierr.New(apierr.KindNotConfigured, "schedules not configured")
+	ErrInputRequired        = apierr.New(apierr.KindInvalid, "input required")
+	ErrExecutorRequired     = apierr.New(apierr.KindInvalid, "executor_id required")
+	ErrInvalidExecutorKind  = apierr.New(apierr.KindInvalid, "executor_kind must be agent or workflow")
+	ErrCronRequired         = apierr.New(apierr.KindInvalid, "cron_expr required")
+	ErrTimezoneRequired     = apierr.New(apierr.KindInvalid, "timezone required")
+	ErrAgentNotFound        = apierr.New(apierr.KindInvalid, "agent not found in this space")
+	ErrWorkflowNotFound     = apierr.New(apierr.KindInvalid, "workflow not found in this space")
+	ErrWorkflowNotPublished = apierr.New(apierr.KindInvalid, "workflow must be published to schedule it")
+	ErrScheduleNotFound     = apierr.New(apierr.KindNotFound, "schedule not found")
 )
+
+// WorkflowLookup is the workflow store narrowed to the one read this service
+// makes: confirming a scheduled workflow exists in the Space and is published.
+type WorkflowLookup interface {
+	GetWorkflow(ctx context.Context, workflowID string) (*coreworkflow.Workflow, error)
+}
 
 // Service owns the application logic for recurring schedules: input and cron
 // validation, computing each schedule's next fire, and confirming a schedule
 // belongs to the space acting on it. Space membership is enforced above it by
-// the HTTP guard; this layer enforces that the schedule and its agent are in the
-// stated space, so an id from another space is reported as not found.
+// the HTTP guard; this layer enforces that the schedule and its executor are in
+// the stated space, so an id from another space is reported as not found.
 type Service struct {
 	Schedules coreschedule.Store
 	Agents    agentdef.Store
+	Workflows WorkflowLookup
 	// Now is the clock used to compute the first fire. Nil means the wall clock.
 	Now func() time.Time
 }
@@ -41,24 +52,31 @@ func (s *Service) now() time.Time {
 // CreateCmd creates a schedule. The schedule starts enabled with its first fire
 // computed from the current time.
 type CreateCmd struct {
-	SpaceID  string
-	UserID   string
-	AgentID  string
-	Name     string
-	Input    string
-	CronExpr string
-	Timezone string
+	SpaceID      string
+	UserID       string
+	ExecutorKind string
+	ExecutorID   string
+	Name         string
+	Input        string
+	CronExpr     string
+	Timezone     string
 }
 
 func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coreschedule.Schedule, error) {
 	if s.Schedules == nil {
 		return nil, ErrNotConfigured
 	}
-	if cmd.Input == "" {
-		return nil, ErrInputRequired
+	if cmd.ExecutorKind != coreschedule.ExecutorAgent && cmd.ExecutorKind != coreschedule.ExecutorWorkflow {
+		return nil, ErrInvalidExecutorKind
 	}
-	if cmd.AgentID == "" {
-		return nil, ErrAgentRequired
+	if cmd.ExecutorID == "" {
+		return nil, ErrExecutorRequired
+	}
+	// An agent firing's input is the prompt it runs, so it is always required. A
+	// workflow firing's input is the run input its input_schema declares; a
+	// workflow that declares none takes empty input, so only agents require it.
+	if cmd.ExecutorKind == coreschedule.ExecutorAgent && cmd.Input == "" {
+		return nil, ErrInputRequired
 	}
 	if cmd.CronExpr == "" {
 		return nil, ErrCronRequired
@@ -69,7 +87,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coreschedule.Sche
 	if err := Validate(cmd.CronExpr, cmd.Timezone); err != nil {
 		return nil, invalid(err)
 	}
-	if err := s.requireAgentInSpace(ctx, cmd.AgentID, cmd.SpaceID); err != nil {
+	if err := s.requireExecutorInSpace(ctx, cmd.ExecutorKind, cmd.ExecutorID, cmd.SpaceID); err != nil {
 		return nil, err
 	}
 	next, err := Next(cmd.CronExpr, cmd.Timezone, s.now())
@@ -77,15 +95,16 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coreschedule.Sche
 		return nil, invalid(err)
 	}
 	return s.Schedules.CreateSchedule(ctx, &coreschedule.CreateInput{
-		SpaceID:    cmd.SpaceID,
-		AgentID:    cmd.AgentID,
-		CreatedBy:  cmd.UserID,
-		Name:       cmd.Name,
-		Input:      cmd.Input,
-		CronExpr:   cmd.CronExpr,
-		Timezone:   cmd.Timezone,
-		Enabled:    true,
-		NextFireAt: next,
+		SpaceID:      cmd.SpaceID,
+		ExecutorKind: cmd.ExecutorKind,
+		ExecutorID:   cmd.ExecutorID,
+		CreatedBy:    cmd.UserID,
+		Name:         cmd.Name,
+		Input:        cmd.Input,
+		CronExpr:     cmd.CronExpr,
+		Timezone:     cmd.Timezone,
+		Enabled:      true,
+		NextFireAt:   next,
 	})
 }
 
@@ -130,7 +149,9 @@ func (s *Service) Update(ctx context.Context, cmd UpdateCmd) (*coreschedule.Sche
 	if err != nil {
 		return nil, err
 	}
-	if cmd.Input != nil && *cmd.Input == "" {
+	// Clearing input is only invalid for an agent, whose input is its prompt; a
+	// workflow schedule may legitimately hold empty input (see Create).
+	if cmd.Input != nil && *cmd.Input == "" && existing.ExecutorKind == coreschedule.ExecutorAgent {
 		return nil, ErrInputRequired
 	}
 	in := coreschedule.UpdateInput{
@@ -177,18 +198,41 @@ func (s *Service) Delete(ctx context.Context, spaceID, scheduleID string) error 
 	return s.Schedules.DeleteSchedule(ctx, scheduleID)
 }
 
-func (s *Service) requireAgentInSpace(ctx context.Context, agentID, spaceID string) error {
-	if s.Agents == nil {
-		return ErrNotConfigured
+// requireExecutorInSpace confirms the schedule's executor is usable in the
+// Space: an Agent must exist and belong to it; a Workflow must exist, belong to
+// it, and be published, since a draft or archived workflow can never start a run.
+func (s *Service) requireExecutorInSpace(ctx context.Context, kind, id, spaceID string) error {
+	switch kind {
+	case coreschedule.ExecutorAgent:
+		if s.Agents == nil {
+			return ErrNotConfigured
+		}
+		agent, err := s.Agents.GetAgent(ctx, id)
+		if err != nil {
+			return err
+		}
+		if agent == nil || agent.SpaceID != spaceID {
+			return ErrAgentNotFound
+		}
+		return nil
+	case coreschedule.ExecutorWorkflow:
+		if s.Workflows == nil {
+			return ErrNotConfigured
+		}
+		wf, err := s.Workflows.GetWorkflow(ctx, id)
+		if err != nil {
+			return err
+		}
+		if wf == nil || wf.SpaceID != spaceID {
+			return ErrWorkflowNotFound
+		}
+		if wf.Status != coreworkflow.StatusPublished {
+			return ErrWorkflowNotPublished
+		}
+		return nil
+	default:
+		return ErrInvalidExecutorKind
 	}
-	agent, err := s.Agents.GetAgent(ctx, agentID)
-	if err != nil {
-		return err
-	}
-	if agent == nil || agent.SpaceID != spaceID {
-		return ErrAgentNotFound
-	}
-	return nil
 }
 
 // invalid wraps a validation error from the cron helpers as a KindInvalid apierr

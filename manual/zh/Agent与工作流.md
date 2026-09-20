@@ -37,8 +37,14 @@ Agent，在该 Workflow 被修改或归档之前无法删除。
 
 ## 创建一个 Workflow
 
-在侧栏打开 **Workflows** 并选择 **New Workflow**。Workflow 是一个可复用的分步
-执行计划，你可以手动运行它或将它分派给一个 Issue。用**步骤**来构建它：
+在侧栏打开 **Workflows** 并选择 **New Workflow**。Workflow 的详情页按标签页
+组织，与 Agent 页面风格一致：**Overview**（只读地查看计划）、**Definition**
+（编辑器与生命周期操作）、**Runs**、**Schedules** 和 **Revisions**。草稿默认
+打开 Definition 标签页；已发布的 Workflow 默认打开 Overview。**Run Workflow**
+位于页头，在 Workflow 发布后可用。
+
+Workflow 是一个可复用的分步执行计划，你可以手动运行它或将它分派给一个 Issue。
+在 **Definition** 标签页用**步骤**来构建它：
 
 - 用 **Add Agent Step** 添加一个步骤。每个步骤都是一个 Agent 步骤——这是目前运行时
   唯一支持执行的类型——所以没有别的可选；每个步骤只需指向一个 **agent**，
@@ -60,10 +66,11 @@ Agent，在该 Workflow 被修改或归档之前无法删除。
   或把它分派给一个 Issue。
 - **Archived** —— 已停用。
 
-从 Workflow 的详情视图设置状态。
-草稿以 **Publish** 为主要操作，**Save** 则保留草稿继续编辑。已发布的 Workflow
-以 **Run Workflow** 为主要操作；**Edit** 打开定义表单，**Save** 写入新修订。
-**History** 可以查看旧版本。编辑器中的删除步骤与删除输入使用危险操作样式。
+在 **Definition** 标签页设置状态，其操作各自命名所到达的状态：**Publish**
+（主要操作）使 Workflow 可运行，**Save as draft** 保留改动但不发布，**Archive**
+将其停用，**Discard changes** 丢弃未保存的改动。编辑一个已发布的 Workflow 并
+保存会写入一个新修订。**Revisions** 标签页保存旧版本。编辑器中的删除步骤与删除
+输入使用危险操作样式。
 
 ### 运行一个 Workflow
 
@@ -93,8 +100,20 @@ IANA 时区（例如 `Asia/Shanghai`）。
 排除原因后重新启用即可。如果服务器在某个触发时刻处于停机状态，恢复后它会
 触发一次，然后回到常规时间表，而不会回放每一个错过的时刻。
 
-侧边栏中的 **Schedules** 入口展示该 Space 中所有 Agent 的全部 schedule，
-让你看到设置了哪些无人值守的工作，并可暂停其中任何一个。
+## 定时运行一个 Workflow
+
+已发布的 Workflow 也能以同样的方式定时运行。打开该 Workflow 的详情页，
+切换到它的 **Schedules** 标签页：Workflow 已经选定，你只需给 schedule 起名、
+填写其输入表单要求的运行输入（与手动"运行"对话框相同的表单；没有输入的
+Workflow 则无需填写）、cron 表达式与时区。每次触发启动一次 workflow 运行，
+在 **Show triggered runs** 下列出并显示状态，运行可像其他运行一样打开。
+只有已发布的 Workflow 才能被定时——先发布草稿。暂停、连续失败处理与错过
+触发的行为，与 Agent schedule 完全一致。
+
+侧边栏中的 **Schedules** 入口展示该 Space 中所有 Agent 与 Workflow 的全部
+schedule，让你看到设置了哪些无人值守的工作，并可暂停其中任何一个；你也可以
+在此创建一个并选择它运行什么。**Pause all** 与 **Resume all** 可一键翻转该
+Space 中的全部 schedule，无需逐行操作即可停止或重启所有无人值守的工作。
 
 ## 来自 Marketplace 的插件
 
