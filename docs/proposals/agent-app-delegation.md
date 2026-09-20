@@ -153,9 +153,10 @@ The included `gmail-connector` sample declares two reads (`profile`,
 gmail-connector` performs loopback OAuth with PKCE, and `buildmax app
 gmail-connector <operation>` executes a fixed operation. Tokens use the OS
 credential store by default; explicit `BUILDMAX_CREDENTIAL_STORE=file` stores
-them in a mode-0600 file. The sample requires the user's own Google OAuth
-desktop client ID and Gmail API setup. Google may require verification for
-the requested scopes; no live Google account is part of automated tests.
+them in a file with mode 0600 on Unix and filesystem ACLs on Windows. The
+sample requires the user's own Google OAuth desktop client ID and Gmail API
+setup. Google may require verification for the requested scopes; no live Google
+account is part of automated tests.
 Google's `gmail.compose` scope includes sending email, so the provider token
 has more authority than this connector's draft-only write. That gap matters
 especially while local Bash remains unsandboxed.

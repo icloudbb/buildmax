@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -64,8 +65,12 @@ operations:
 	if err := SaveToken("fixture", &oauth2.Token{AccessToken: "old", RefreshToken: "old-refresh", Expiry: time.Now().Add(-time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
-	if info, err := os.Stat(tokenFile("fixture")); err != nil || info.Mode().Perm() != 0600 {
-		t.Fatalf("token file mode: %v %v", info, err)
+	info, err := os.Stat(tokenFile("fixture"))
+	if err != nil {
+		t.Fatalf("stat token file: %v", err)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Fatalf("token file mode = %04o, want 0600", info.Mode().Perm())
 	}
 	for _, name := range []string{"profile", "list_items"} {
 		out, err := Call(context.Background(), "fixture", m, name, nil, false)

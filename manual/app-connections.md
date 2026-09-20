@@ -55,8 +55,9 @@ the declaration; `buildmax plugin status` lists its operations.
 Connection tokens are stored in the operating system credential store by
 default, keyed by `BUILDMAX_HOME` and plugin name. If that store is unavailable,
 the connection fails. Explicit `BUILDMAX_CREDENTIAL_STORE=file` stores a
-mode-0600 JSON token in `<BUILDMAX_HOME>/connections/<plugin>.json`; anyone
-with access to the local user account or unsandboxed shell can read this file.
+JSON token in `<BUILDMAX_HOME>/connections/<plugin>.json`. It uses mode 0600
+on Unix; Windows access follows filesystem ACLs rather than Unix mode bits.
+Anyone with access to the local user account or unsandboxed shell can read it.
 The same variable also affects BuildMax server login storage.
 
 The CLI limits operations to one fixed API host, refuses cross-host redirects,

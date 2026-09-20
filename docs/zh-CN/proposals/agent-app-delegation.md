@@ -120,9 +120,10 @@ gRPC 方法。Skill 描述这些操作之上的任务步骤与判断。YAML 不�
 草稿写入（`create_draft`）。`buildmax connect gmail-connector` 通过本机回调
 完成带 PKCE 的 OAuth；`buildmax app gmail-connector <operation>` 执行固定操作。
 令牌默认放在操作系统凭证存储；明确设置 `BUILDMAX_CREDENTIAL_STORE=file`
-时，才写入权限为 0600 的文件。示例需要用户自己的 Google 桌面 OAuth 客户端
-ID 与 Gmail API 配置。相关 scope 可能需要 Google 审核；自动化测试没有使用
-真实 Google 账户。Google 的 `gmail.compose` scope 还允许发送邮件，因此服务商
+时，才写入文件；Unix 上权限为 0600，Windows 上由文件系统 ACL 控制访问。
+示例需要用户自己的 Google 桌面 OAuth 客户端 ID 与 Gmail API 配置。
+相关 scope 可能需要 Google 审核；自动化测试没有使用真实 Google 账户。
+Google 的 `gmail.compose` scope 还允许发送邮件，因此服务商
 令牌的权限大于本连接器仅创建草稿的写入能力；本地 Bash 未隔离时尤需注意这道落差。
 
 本地假服务测试覆盖回调 state、PKCE、令牌刷新、分离存储、两项读取、批准写入、
