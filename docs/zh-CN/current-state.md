@@ -6,8 +6,7 @@
 >
 > 本文是英文原文的简体中文镜像；如有差异，以英文原文为准。
 
-基础评估对照了仓库 `938f85de` 的代码；下述实验性应用连接原型在本 worktree
-对照代码检查。本文描述已实现行为、测试覆盖和剩余限制。
+本文依据当前仓库代码描述已实现行为、测试覆盖和剩余限制。
 优先级与后续顺序由[路线图](ROADMAP.md)维护，本页不再另列一套优先级。
 设计记录解释决策；其中尚未勾选的清单不能证明代码尚未实现。
 
@@ -25,13 +24,15 @@ worker 契约——已关闭：[信任保障](design/信任保障.md) §6.1 把�
 worker API 隔离、stdio MCP 失败关闭、进程限制与 hook 边界）映射到其证据，其中 Bash
 与 worker API 隔离经真实部署 worker 路径证明。经由运维旅程的不可变候选资格认证仍是
 单独的 Beta 关卡。整个 worker 的出站网络是首个私有 Beta 已记录并接受的限制。
-图 Workflow 协调器现在从持久状态折叠终态事实并分发就绪节点；Server 自有恢复循环在
+图 Workflow 协调器从持久状态折叠终态事实并分发就绪节点；Server 自有恢复循环在
 启动时及之后定期扫描到期 Run，因此丢失终态 callback 或 Server 重启不再让 Workflow
-永久搁置。步骤可把前序步骤的完整输出作为带标签的不可信上下文绑定到输入，Portal 步骤
-表单也能直接编辑这些绑定。步骤还可声明 `output_schema`：运行受该 schema 约束，已验证
-的值会持久化，并且只有值通过验证步骤才成功。类型化 `nodes`/`bindings` 契约、输入
-schema 与类型化 `/structured/...` 路由仍待完成。worker TaskRun 在领取后丢失时不会自动
-重新分发；这是首个 Beta 接受并记录的限制，与 Workflow 推进恢复不同。
+永久搁置。定义使用带 `needs` 依赖的 `nodes` 图，发布时校验 `input_schema` 与
+`result` 选择器；启动时校验并保存不可变输入。节点输入可用 `bindings` 的来源和
+RFC 6901 指针读取运行输入或前驱节点的输出，成功运行把选择的结果保存为
+`result_json`。Portal 可视化编辑器可编辑节点绑定，也可从 schema 生成运行输入表单。
+节点还可声明 `output_schema`：运行受该 schema 约束，已验证的值会持久化，并且只有
+值通过验证节点才成功。类型化 `/structured/...` 路由仍待完成。worker TaskRun 在领取
+后丢失时不会自动重新分发；这是首个 Beta 接受并记录的限制，与 Workflow 推进恢复不同。
 
 Server 现在可以按运维配置的保留窗口清理旧 Run 轨迹，并记录每次成功清理；默认仍为永久
 保留。部署冒烟已覆盖 worker 优雅丢失，以及 MySQL 和对象存储在运行期中断时 Server 就绪
@@ -408,11 +409,12 @@ Compose、kind、生产 Kubernetes 清单、发布验证、SBOM、镜像扫描�
 ## 本次复核的验证
 
 本次是源码与测试复核，不是重新进行部署资格验证。
-本次文档更新在 `938f85de` 上于本地通过了 `./make test`、`./make check docs` 与
-`git diff --check`。普通测试范围包括架构、runtime、提供商、身份、handler、scheduler、
-CLI 与 Desktop bridge 套件。文档检查覆盖链接与格式；两者都不能证明一个已部署候选版本。
+本次文档更新在本地通过了 `./make test`、`./make check docs`、`./make check portal`
+与 `git diff --check`。普通测试范围包括架构、runtime、提供商、身份、handler、scheduler、
+CLI 与 Desktop bridge 套件。文档检查覆盖链接与格式；Portal 检查构建 Help 内容并运行单元测试。
+这些检查不能证明一个已部署候选版本。
 
 本次未运行真实 MySQL 测试（未提供 `BUILDMAX_TEST_DSN`）、全量构建、
-前端/浏览器测试、Compose/kind 部署冒烟、外部恢复演练或付费模型评估。
+浏览器测试、Compose/kind 部署冒烟、外部恢复演练或付费模型评估。
 上文数据库测试的断言经过阅读，但未在 MySQL 上重新执行。托管 CI 状态、历史覆盖率与
 之前的部署结果均未沿用为当前测量值。

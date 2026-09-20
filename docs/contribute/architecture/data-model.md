@@ -3,9 +3,9 @@
 > **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/data-model.md)
 > **Audience:** contributors · **Status:** current
 
-The full relational schema of the BuildMax server database: every table, every
-column, and the rules for changing them. Read this before touching anything
-under `internal/infra/db`.
+The BuildMax server database model, its main tables, and the rules for changing
+them. The `xxxRow` structs under `internal/infra/db` are the complete schema;
+read them before changing a table.
 
 For the layering around persistence — which package owns contracts versus the
 implementation — see [store.md](store.md). For why the entities are shaped this
@@ -16,8 +16,8 @@ way, see [../../design/product-vision.md](../../design/product-vision.md) and
 
 There is no `.sql` file describing the current schema. The source of truth is
 the set of unexported `xxxRow` structs in `internal/infra/db`, and their GORM
-tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 31 of
-them at server startup, so the running database is whatever those structs say.
+tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over them at
+server startup, so the running database is whatever those structs say.
 
 The CLI and Desktop surfaces do not use this database at all. Sessions, traces,
 and settings are files under `<BUILDMAX_HOME>`; see
@@ -55,11 +55,11 @@ agent session that names a file. Each one is called out in its table below, and
 the full list with its reasons is in `internal/architecture`, where a test
 fails when a reference is added as text without one.
 
-**Session IDs are not handles.** `task.session_id` and `task_run.session_id`
+**Agent session IDs are not handles.** `task.session_id` and `task_run.session_id`
 are `varchar(36)` UUIDs pointing at a session file under the run's
-`BUILDMAX_HOME` rather than at any table. `user_refresh_token.session_id` is a
-different thing again: an `as_`-prefixed login chain, carried as a claim in
-every access token issued under it.
+`BUILDMAX_HOME` rather than at any table. By contrast,
+`user_refresh_token.session_id` names an `auth_session.public_id` and is the
+session claim in access tokens issued under that login.
 
 **No database-level foreign keys.** No row struct declares a GORM relation, so
 `AutoMigrate` emits no `FOREIGN KEY` constraints, and a test in
@@ -152,7 +152,9 @@ erDiagram
     quota_tier ||--o{ space : rates
     user ||--o{ user_webhook_key : owns
     user ||--o{ login_code : "authenticates with"
-    user ||--o{ user_refresh_token : "keeps sessions in"
+    user ||--o{ auth_session : "signs in through"
+    user ||--o{ external_identity : "links to"
+    auth_session ||--o{ user_refresh_token : "rotates tokens in"
     user ||--o{ system_grant : "holds deployment authority via"
     llm_model ||--o{ llm_call : serves
     task_run ||--o{ llm_call : attributes
@@ -162,16 +164,17 @@ Space is the authorization boundary: a request is allowed because the caller has
 a `space_member` row for the resource's `space_id`. Issue is the primary
 user-facing work object. Conversation owns foreground chat and may create or
 project a Task. Task plus task_run is the durable Agent execution plane and its
-result is authoritative without a Conversation. The current non-null relation
-below is implementation debt; the target ownership and continuation model are
-in [Agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
+result is authoritative without a Conversation. See
+[Agent execution and Task threads](../../design/agent-execution-and-task-threads.md)
+for the ownership rationale.
 
 ## Identity And Authorization
 
 ### `user`
 
-One row per person. Created by an operator; self-registration is disabled by
-default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
+One row per person. An operator or an allowed OIDC first sign-in may create it;
+native self-registration is disabled by default (see
+[../../deploy/authentication.md](../../deploy/authentication.md)).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -205,8 +208,29 @@ login only — the login audit trail is `audit_event`, which keeps every one.
 `password_hash` is nullable and read only by the code that verifies a login,
 through `identity.PasswordStore` rather than as a field on `identity.User`. It never
 rides along on a user object, so no handler can serialize it by accident.
-Nullable is also what leaves room for an account authenticated somewhere else:
-an identity provider, when there is one, needs no local password to exist.
+Nullable also lets an account linked through OIDC exist without a local password;
+its provider identity is recorded in `external_identity`.
+
+### `external_identity`
+
+An OIDC issuer and subject linked to a local user. Both protocol values are
+case-sensitive; email and name are snapshots from the latest sign-in, not
+identity keys.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
+| `user_id` | `bigint unsigned` | no | Linked `user.id` |
+| `issuer` | `varchar(255) utf8mb4_bin` | no | OIDC issuer URL |
+| `subject` | `varchar(255) utf8mb4_bin` | no | OIDC subject within that issuer |
+| `last_seen_email` | `varchar(320)` | yes | Attribute snapshot, not an identity key |
+| `last_seen_name` | `varchar(255)` | yes | Attribute snapshot |
+| `last_login_at` | `datetime(6)` | yes | Most recent sign-in through this link |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+
+Indexes: PK `id`; unique `public_id`; unique (`issuer`, `subject`); unique
+(`issuer`, `user_id`).
 
 ### `space`
 
@@ -324,18 +348,19 @@ operation of the deployment rather than access to its contents — see
 | `granted_by` | `varchar(64)` | no | Opaque: a user's handle, or `buildmax-server` when the operator command made the grant — the same string the matching audit event carries |
 | `granted_at` | `datetime(6)` | no |  |
 | `revoked_at` | `datetime(6)` | yes | `NULL` while the grant is in force |
+| `live_marker` | `tinyint unsigned` | yes | Fixed non-`NULL` value while active; cleared on revocation |
 
 Indexes: PK `id`; index `granted_at`; unique `idx_system_grant_live` on
-(`user_id`, `role`, `revoked_at`); index `user_id`; unique `public_id`.
+(`user_id`, `role`, `live_marker`); index `user_id`; unique `public_id`.
 
 Nothing deletes from this table. Revoking sets `revoked_at`, so the row stays
 as the record that the authority existed and when it ended. The unique index
-includes `revoked_at` on purpose: MySQL treats `NULL`s in a unique index as
-distinct, which leaves at most one live grant per (user, role) while allowing
-any number of retired ones alongside it.
+includes `live_marker` on purpose: its fixed value limits each (user, role) to
+one live grant. Revocation clears it; MySQL treats those `NULL`s as distinct,
+allowing any number of retired grants even when their revocation times match.
 
 `role` is a column rather than a boolean so a second deployment role can be
-added without a migration. Only roles `model.ValidSystemRole` accepts are
+added without a migration. Only roles `identity.ValidSystemRole` accepts are
 stored, so the column cannot become a way to invent authority.
 
 ### `login_code`
@@ -347,31 +372,50 @@ Single-use email login codes. Rows are consumed, not deleted on use.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `code_hash` | `varchar(128)` | no | Hash of the emailed code, unique — the plaintext is never stored |
 | `user_id` | `bigint unsigned` | no | `user.id` |
-| `expires_at` | `datetime(6)` | no | default TTL is one hour (`model.LoginCodeTTLDefault`) |
+| `expires_at` | `datetime(6)` | no | default TTL is one hour (`identity.LoginCodeTTLDefault`) |
 | `used_at` | `datetime(6)` | yes | Non-`NULL` means already redeemed; a second attempt fails |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `code_hash`; index `expires_at`; index `user_id`.
 
+### `auth_session`
+
+One durable login session. Its public ID is the `sid` claim in access tokens
+and the `session_id` stored with each refresh token. An authenticated request
+checks that this session is active, so revocation also rejects previously
+issued access tokens.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `public_id` | `char(20) ascii_bin` | no | Public session handle, unique |
+| `user_id` | `bigint unsigned` | no | `user.id` |
+| `platform` | `varchar(32)` | yes | Surface that opened the session |
+| `auth_method` | `varchar(32)` | yes | Proof used to open the session |
+| `absolute_expires_at` | `datetime(6)` | no | Hard lifetime ceiling |
+| `last_seen_at` | `datetime(6)` | yes | Best-effort activity time |
+| `revoked_at` | `datetime(6)` | yes | Non-`NULL` after revocation |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+
+Indexes: PK `id`; unique `public_id`; index `user_id`; index `absolute_expires_at`.
+
 ### `user_refresh_token`
 
-The stored half of a login. Signing in returns a signed access token, which the
-server keeps no record of, plus a refresh token, which is a row here. That split
-is what makes a session revocable: the credential that lives for weeks is the
-one the server can retire.
+Signing in returns a signed access token, which has no token row, plus a
+refresh token represented by a hashed row here. Both belong to the durable
+`auth_session`; revoking that row rejects access and refresh attempts.
 
-Each row belongs to a `session_id` — one login chain. Every exchange spends the
-presented token and issues a new one in the same session, so revoking a session
-retires the chain however many times it has been renewed.
+Every exchange spends the presented refresh token and issues a new one in the
+same session. Its public ID is preserved through every rotation.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `token_hash` | `varchar(128)` | no | Hash of the token, unique — the plaintext is returned once and never stored |
 | `user_id` | `bigint unsigned` | no | `user.id` |
-| `session_id` | `varchar(64)` | no | `as_` prefix; one login chain, preserved across every rotation |
+| `session_id` | `varchar(64)` | no | `auth_session.public_id`, preserved across every rotation |
 | `platform` | `varchar(32)` | yes | Which surface logged in — a label for the reader, not enforced |
-| `expires_at` | `datetime(6)` | no | default TTL is 30 days (`model.RefreshTokenTTLDefault`) |
+| `expires_at` | `datetime(6)` | no | default TTL is 30 days (`identity.RefreshTokenTTLDefault`) |
 | `used_at` | `datetime(6)` | yes | Non-`NULL` means already exchanged |
 | `revoked_at` | `datetime(6)` | yes | Non-`NULL` means retired by a logout or a reuse report |
 | `replaced_by` | `varchar(128)` | yes | Hash of the token issued in exchange; lets an operator walk a chain back to its login |
@@ -413,6 +457,7 @@ This is the one table whose primary key is not `id`.
 | `tier_name` | `varchar(64)` | no | Primary key |
 | `max_runs_per_period` | `bigint` | no | Task runs allowed per window |
 | `max_tokens_per_period` | `bigint` | no | Prompt plus completion tokens per window |
+| `max_storage_bytes` | `bigint` | no | Live Artifact storage cap; zero means unlimited and has no period window |
 | `period_days` | `bigint` | no | Window length |
 
 Indexes: PK `tier_name`.
@@ -430,9 +475,9 @@ write path that can drift out of sync with the runs themselves.
 
 ### `audit_event`
 
-Governance evidence: that an action happened and who performed it. Append-only —
-there is no update or delete path in `internal/infra/db/audit.go`, because a
-record that can be edited is not evidence.
+Governance evidence: that an action happened and who performed it. Writes are
+append-only; a configured retention sweep may delete old events by age and
+records each prune. No action can edit an existing event.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -443,10 +488,12 @@ record that can be edited is not evidence.
 | `actor_type` | `varchar(16)` | no | `user`, `worker`, or `system` |
 | `actor_id` | `varchar(64)` | no | User ID, or a process name for `system` |
 | `action` | `varchar(64)` | no | `user.login`, `user.logout`, `user.password_set`, `auth.refresh_reuse`, `space.member_added`, `llm_model.created`, `access.denied`, … |
-| `target_type` / `target_id` | `varchar(32)` / `varchar(64)` | yes | What the action was performed on. Opaque: the type admits a permission name and a model name as well as a row |
+| `target_type` | `varchar(32)` | yes | Kind of target, including values that are not rows |
+| `target_id` | `varchar(64)` | yes | Opaque target handle or name |
+| `task_run_id` | `varchar(20)` | yes | Public handle of the run on whose behalf the action occurred |
 | `detail` | `varchar(255)` | yes | A short non-sensitive note — a role name, a model name |
 
-Indexes: PK `id`; index `action`; index `actor_id`; index `idx_audit_space_time`
+Indexes: PK `id`; index `action`; index `actor_id`; index `task_run_id`; index `idx_audit_space_time`
 on (`space_id`, `created_at`); unique `public_id`.
 
 Action strings are persisted and therefore permanent: renaming one rewrites
@@ -583,9 +630,11 @@ under.
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | yes | Shown in pickers |
 | `instructions` | `text` | yes | Appended to the system prompt for runs using this agent |
+| `model` | `varchar(255)` | yes | Catalog model name; empty means the deployment default |
 | `plugins` | `text` | yes | JSON array of catalog plugin names this agent loads |
 | `sandbox_network_tier` | `varchar(64)` | yes | `none`, `registries`, or `open`; empty inherits the space default, then the surface baseline |
 | `sandbox_filesystem_tier` | `varchar(64)` | yes | `workspace`, `workspace_plus_shared_read`, or `workspace_plus_external_write`; same fallback as the network tier |
+| `secret_consumption` | `text` | yes | JSON declaration of Space Secrets the Agent consumes |
 | `revision` | `bigint` | no | Number of the `agent_revision` row holding this content; starts at 1 |
 | `deleted_at` | `datetime(6)` | yes | Set when the agent was deleted; the row stays |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
@@ -633,9 +682,11 @@ deleted.
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | yes | |
 | `instructions` | `text` | yes | |
+| `model` | `varchar(255)` | yes | Catalog model name this revision recorded |
 | `plugins` | `text` | yes | JSON array; the selection this revision recorded |
 | `sandbox_network_tier` | `varchar(64)` | yes | The tier this revision recorded |
 | `sandbox_filesystem_tier` | `varchar(64)` | yes | The tier this revision recorded |
+| `secret_consumption` | `text` | yes | Secret-consumption declaration this revision recorded |
 | `created_by` | `bigint unsigned` | no | The user who wrote this revision, not necessarily the agent's owner |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
@@ -669,9 +720,10 @@ its messages, not the Tasks it may start or display.
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | Owning user |
 | `space_id` | `bigint unsigned` | yes | Owning space |
-| `channel` | `varchar(32)` | no | `portal`, `telegram`, `cron`, `webhook`, or a synthetic `workflow` / `issue_agent` |
+| `channel` | `varchar(32)` | no | `portal`, `telegram`, or `webhook`; schedules and direct Agent runs do not create Conversations |
 | `title` | `varchar(256)` | yes | Generated from the first turn |
 | `created_by` | `bigint unsigned` | no | `user.id` |
+| `turn_fence` | `bigint` | no | Highest accepted turn-lease fencing token; rejects stale message writers |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `idx_conversation_space_created` on (`space_id`,
@@ -727,10 +779,10 @@ optional relations.
 
 ### `schedule`
 
-A space-owned recurring time trigger. On each due time the dispatcher admits one
-ordinary Task through the Task service, so a schedule owns no execution state —
-its firings are Tasks with `trigger_source = schedule` and this schedule's
-`schedule_id`. See
+A space-owned recurring time trigger. Each due firing starts either an Agent
+Task or a published Workflow run, named by `executor_kind` and `executor_id`.
+The schedule owns no execution state: the resulting Task or Workflow run owns
+the outcome and records the schedule that started it. See
 [Scheduled Agent execution](../../design/scheduled-agent-execution.md).
 
 | Column | Type | Null | Notes |
@@ -738,22 +790,23 @@ its firings are Tasks with `trigger_source = schedule` and this schedule's
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `space_id` | `bigint unsigned` | no | Owning space, authoritative for every schedule operation |
-| `agent_id` | `bigint unsigned` | no | The agent each firing runs |
+| `executor_kind` | `varchar(32)` | no | `agent` or `workflow` |
+| `executor_id` | `varchar(64)` | no | Opaque public handle interpreted by `executor_kind` |
 | `created_by` | `bigint unsigned` | no | `user.id`; carried onto each firing's Task |
 | `name` | `varchar(256)` | yes | Human label |
-| `input` | `text` | no | The fixed prompt each firing runs |
+| `input` | `text` | no | Fixed Agent prompt or Workflow input JSON |
 | `cron_expr` | `varchar(256)` | no | Recurrence rule; parsed by the dispatcher, not this layer |
 | `timezone` | `varchar(64)` | no | IANA name the cron is evaluated in; storage stays UTC |
 | `enabled` | `boolean` | no | A disabled (paused) schedule keeps its row and next fire but is not claimed |
+| `pause_reason` | `varchar(32)` | no | Why the dispatcher paused it; empty while enabled |
 | `next_fire_at` | `datetime(6)` | no | UTC due time; the dispatcher's claim target |
 | `last_fire_at` | `datetime(6)` | yes | Most recent firing time |
-| `last_task_id` | `bigint unsigned` | yes | `task.id` the most recent firing created |
+| `last_fire_ref` | `varchar(64)` | yes | Public Task or Workflow-run handle from the most recent firing |
 | `consecutive_failures` | `bigint` | no | Firings that failed to admit a Task since the last success; bounds runaway cost |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
-Indexes: PK `id`; index `agent_id`; index `last_task_id`; index
-`idx_schedule_due` on (`enabled`, `next_fire_at`) for the due query; index
+Indexes: PK `id`; index `idx_schedule_due` on (`enabled`, `next_fire_at`) for the due query; index
 `idx_schedule_space_created` on (`space_id`, `created_at`); unique `public_id`.
 
 A firing is exactly-once per due time through a conditional update of
@@ -778,6 +831,7 @@ The durable unit of background work. One task, many attempts.
 | `title_prompt_tokens` | `bigint` | yes | Tokens spent generating the title — counted against quota |
 | `title_completion_tokens` | `bigint` | yes | Same |
 | `output` | `text` | yes | Result of the latest successful run |
+| `output_schema` | `text` | yes | JSON Schema for a run's final answer; `NULL` for free text |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `started_at` | `datetime(6)` | yes | First run start |
@@ -822,9 +876,10 @@ One execution attempt. This is the row quota and token accounting read.
 | `input` | `text` | no | Prompt for this attempt; a rerun may differ from the task's |
 | `created_by` | `varchar(64)` | yes | `user.id`, empty for system-triggered runs |
 | `created_by_type` | `varchar(32)` | yes | `user`, `webhook`, or `system` |
-| `trigger_source` | `varchar(64)` | yes | `task_create`, `task_rerun`, `portal_conversation`, `portal_task_create`, `portal_task_rerun`, `issue_agent_run`, `workflow_step`, `webhook` |
+| `trigger_source` | `varchar(64)` | yes | Source such as `task_create`, `task_retry`, `portal_conversation`, `issue_agent_run`, `workflow_step`, `schedule`, or `webhook`; constants live in `internal/core/task` |
 | `status` | `varchar(32)` | no | Same `task.RunStatus` values as `task` |
 | `output` | `text` | yes | |
+| `structured` | `text` | yes | Validated structured result as JSON; `NULL` for free text |
 | `error_message` | `text` | yes | |
 | `started_at` | `datetime(6)` | yes | |
 | `ended_at` | `datetime(6)` | yes | `NULL` while running |
@@ -837,6 +892,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `trace_path` | `varchar(512)` | yes | This run's durable trace inside run-global storage, e.g. `traces/<session>/rt_….jsonl`; `NULL` when none was written |
 | `cancel_requested_at` | `datetime(6)` | yes | When someone asked this run to stop; `NULL` when nobody has |
 | `cancel_requested_by` | `bigint unsigned` | yes | `user.id` of whoever asked |
+| `cancel_reason` | `varchar(32)` | no | Bounded cause of cancellation; empty when none was recorded |
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
@@ -1074,8 +1130,9 @@ job and may be slower than the request that asked for it.
 
 ## Workflows
 
-Workflows are space-scoped reusable linear plans. A run expands the stored
-definition into one step run per step, and each agent step delegates to a task.
+Workflows are space-scoped reusable graphs. A run expands the stored definition
+into one node run per node; each Agent node delegates to a Task. Dependency
+edges decide readiness, and independent nodes may run in parallel.
 
 ### `workflow`
 
@@ -1086,7 +1143,7 @@ definition into one step run per step, and each agent step delegates to a task.
 | `space_id` | `bigint unsigned` | no | Owning space — required, unlike most tables |
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | no | |
-| `definition` | `longtext` | no | JSON step list; `longtext`, not `text`, because plans can be large |
+| `definition` | `longtext` | no | Versioned JSON node graph; `longtext`, not `text`, because plans can be large |
 | `status` | `varchar(32)` | no | `draft` (default), `published`, `archived` |
 | `revision` | `bigint` | no | Number of the `workflow_revision` row holding this content; starts at 1 |
 | `created_by` | `bigint unsigned` | no | `user.id` |
@@ -1133,6 +1190,7 @@ revision cannot unpublish a workflow spaces are running.
 | `workflow_id` | `bigint unsigned` | no | `workflow.id` |
 | `workflow_revision` | `bigint` | no | The revision this run expanded; 0 for runs started before workflows recorded revisions |
 | `issue_id` | `bigint unsigned` | yes | Issue this run advances |
+| `schedule_id` | `bigint unsigned` | yes | Schedule whose firing started this run |
 | `input` | `longtext` | yes | The run's immutable input JSON, validated against the definition's `input_schema` at admission; NULL when the definition declares no input schema |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled` — lowercase, unlike `task` |
 | `result_json` | `longtext` | yes | The run's declared result, resolved from a node output when the run succeeded; NULL when the definition declares no result selector or the run did not succeed |
@@ -1145,7 +1203,7 @@ revision cannot unpublish a workflow spaces are running.
 | `lease_expires_at` | `datetime(6)` | yes | When the current lease expires; a lease at or past this may be taken over |
 | `next_reconcile_at` | `datetime(6)` | yes | When this run next wants a reconciliation pass; NULL is treated as due |
 
-Indexes: PK `id`; index `issue_id`; index
+Indexes: PK `id`; index `issue_id`; index `schedule_id`; index
 `idx_workflow_run_workflow_created` on (`workflow_id`, `created_at`); index
 `idx_workflow_run_next_reconcile` on (`next_reconcile_at`); index
 `idx_workflow_run_lease_expires` on (`lease_expires_at`); unique `public_id`.
@@ -1158,8 +1216,8 @@ work — it is not the correctness mechanism. A stale owner cannot renew or
 release a lease a takeover replaced, and all three columns are cleared when the
 run reaches a terminal status, so a finished run leaves the due set.
 
-Each step run creates a Space-owned Task directly (`task.space_id`, no
-`conversation_id`); a run's progress is read from its steps' `task_id` /
+Each Agent node run creates a Space-owned Task directly (`task.space_id`, no
+`conversation_id`); a run's progress is read from its nodes' `task_id` /
 `task_run_id`, not from a Conversation.
 
 ### `workflow_node_run`
@@ -1186,11 +1244,14 @@ the node's dependency edges, and readiness is decided from those edges, not from
 | `agent_instructions` | `longtext` | no | Agent instructions captured when the run started |
 | `agent_revision` | `bigint` | no | The `agent_revision.revision` the snapshot came from; 0 when it predates revisions |
 | `prompt` | `text` | no | Rendered prompt for this node |
+| `bindings` | `text` | yes | Snapshot of input bindings as JSON; `NULL` when none |
+| `output_schema` | `text` | yes | Snapshot of the node's JSON Schema; `NULL` for free text |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled`, `blocked` |
 | `task_id` | `bigint unsigned` | yes | The Tier 2 task this node created |
 | `task_run_id` | `bigint unsigned` | yes | The specific attempt |
 | `resolved_input` | `longtext` | yes | The full Task input the node received, captured when it started |
 | `output` | `longtext` | yes | The node's full output text, captured when it succeeded; read by downstream bindings |
+| `structured` | `text` | yes | Validated structured result as JSON; `NULL` for free text or failed validation |
 | `error_message` | `text` | yes | |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `started_at` | `datetime(6)` | yes | |
@@ -1200,16 +1261,16 @@ Indexes: PK `id`; index `idx_node_run_run_index` on (`workflow_run_id`,
 `node_index`); index `target_agent_id`; index `task_id`; index `task_run_id`;
 unique `public_id`.
 
-The three `agent_*` columns pin the agent definition for the whole run. Steps are
-dispatched one at a time as the previous task run reaches a terminal state, so
-without them an edit to the agent between two steps would change what the later
-step sends to the model.
+The `agent_*` columns pin each Agent definition for the whole run. Ready nodes
+are dispatched up to the definition's `policy.max_parallel_nodes` ceiling; a
+later edit to an Agent cannot change what a pending node sends to the model.
 
-`blocked` has no counterpart in `workflow_run.status`. When a step fails, the run
-is marked `failed` and every later `pending` step becomes `blocked`.
+`blocked` has no counterpart in `workflow_run.status`. When a node fails, the
+run is marked `failed`, pending nodes become `blocked`, and running sibling
+nodes are canceled.
 
-`canceled` is written when the step's task run is canceled. It stops the run the
-way a failure does — later steps are blocked, the run ends — and the run is
+`canceled` is written when the node's TaskRun is canceled. It stops the run the
+way a failure does — pending nodes are blocked, the run ends — and the run is
 marked `canceled` rather than `failed`, because nothing went wrong.
 
 ## Managed Inference
@@ -1220,8 +1281,8 @@ either.
 
 ### `llm_model`
 
-The model catalog. Edited with `buildmax-server model add|list|enable|disable`
-on the machine that holds the database credentials.
+The model catalog. Operators edit it through `buildmax admin model`, the Admin
+API, or `buildmax-server model` commands on a machine with database access.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -1230,7 +1291,7 @@ on the machine that holds the database credentials.
 | `name` | `varchar(128)` | no | Operator-facing catalog name, unique |
 | `provider_type` | `varchar(32)` | no | Wire protocol: `openai_compatible`, `openai`, or `anthropic` |
 | `api_url` | `varchar(512)` | no | Upstream base URL |
-| `api_key` | `varchar(512)` | no | **Provider credential in plaintext** — see below |
+| `api_key_sealed` | `blob` | yes | Provider credential encrypted under the deployment key-encryption key |
 | `model` | `varchar(128)` | no | Upstream model identifier |
 | `context_window` | `bigint` | no | Default `0`, meaning unspecified |
 | `call_timeout` | `bigint` | no | Seconds; default `0`, meaning unspecified |
@@ -1254,10 +1315,11 @@ operator who wants caching off writes `cache_mode = off`.
 
 Indexes: PK `id`; index `created_at`; unique `name`; unique `public_id`.
 
-`api_key` is read by exactly one query — the one that constructs a provider
-client — and never appears in a listing, an API response, or an error message.
-It is nonetheless stored in plaintext, so **database backups carry provider
-credentials** and must be handled accordingly. See [../../../SECURITY.md](../../../SECURITY.md).
+`api_key_sealed` is excluded from general model reads. Only the credential read
+decrypts it for a provider call. A credentialed model cannot be stored without
+the deployment encryption key. Backups still contain encrypted credentials and
+must be protected with that key's recovery procedure. See
+[../../../SECURITY.md](../../../SECURITY.md).
 
 `capabilities` is a comma-separated list rather than a join table: the set is
 small, closed, and only ever read whole.

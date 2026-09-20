@@ -1,8 +1,8 @@
 # Agents & workflows
 
 Agents and workflows are the reusable building blocks you assign work to. An agent
-is a saved definition of *how* an agent should behave; a workflow is an ordered
-plan that runs one or more agents in sequence. Both live in the current space and
+is a saved definition of *how* an agent should behave; a workflow is a graph
+of Agent steps connected by dependencies. Both live in the current space and
 keep a numbered history.
 
 ## Create an agent
@@ -47,21 +47,20 @@ lifecycle actions), **Runs**, **Schedules**, and **Revisions**. A draft opens on
 its Definition tab; a published workflow opens on Overview. **Run Workflow** sits
 in the header and is enabled once the workflow is published.
 
-A workflow is a reusable, step-by-step execution plan you can run manually or
-assign to an issue. Build it on the **Definition** tab from **steps**:
+A workflow is a reusable execution plan you can run manually or assign to an
+issue. Build it on the **Definition** tab in the visual graph editor:
 
-- Use **Add Agent Step** to add a step. Every step is an Agent step -- the only kind
-  the runtime executes today -- so there is nothing else to choose; each one
-  just targets an **agent** and carries a **prompt** describing what that step
-  should do.
-- Steps run in order; the plan is currently a linear sequence.
-- A step's id is generated for you, not typed. The editor shows it as small
-  technical detail so you can trace a run back to the step that produced it.
-- **Advanced: edit raw JSON** shows the same definition as JSON, for exact
-  inspection or a change the step form does not cover yet. It is not a second
-  way to build the same workflow side by side with the form -- Save checks
-  either path against the same rules, so neither can leave a step the runtime
-  cannot run.
+- Use **Add step** to create an Agent step. Select its node to edit its id,
+  target Agent, prompt, Issue access, and input bindings in the inspector.
+  `agent_task` is the only node type the runtime executes today.
+- Drag from one node's right edge to another's left edge to make the second
+  depend on the first. A node runs after all its dependencies succeed;
+  independent nodes may run together. **Max parallel** sets a per-run ceiling.
+  **Re-layout** arranges the graph without changing its execution rules.
+- **Edit raw JSON** shows the same definition for exact inspection and for
+  fields the visual editor does not yet author, including `input_schema`,
+  `result`, and a node's `output_schema`. **Visual editor** returns to the
+  graph. Both views use the same validation when you save.
 
 ### Draft, publish, archive
 

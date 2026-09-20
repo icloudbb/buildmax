@@ -28,7 +28,7 @@ The same agent, the same tools, and the same behavior are exposed three ways:
 | Surface | What it is | Best for |
 |---|---|---|
 | **CLI / TUI** | The `buildmax` command — one-shot answers or an interactive terminal session | Everyday local work in a single directory |
-| **Desktop** | A local app with a richer UI (built from source) | The same local work with a graphical workbench |
+| **Desktop** | A local app with a richer UI (unsigned release download or source build) | The same local work with a graphical workbench |
 | **Portal** | A web app backed by a server and background workers | A team: shared work, background runs, and results |
 
 You can use only the local surfaces, deploy only the Portal, or use both. The

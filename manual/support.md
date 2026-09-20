@@ -22,7 +22,7 @@ A **Beta** label on one surface below describes that component's maturity; it do
 | TUI, `buildmax` | **Supported** | Primary interactive local experience: sessions, slash panels, streaming, model/workspace visibility. |
 | `buildmax init` and `buildmax doctor` | **Supported** | First-run configuration and local setup checks. |
 | Local sessions and run traces | **Supported** | Session persistence and bounded JSONL traces under `BUILDMAX_HOME`. |
-| Desktop app | **Beta** | Local chat/session experience using the shared runtime. Built from source; unsigned; not distributed as an end-user installer. |
+| Desktop app | **Beta** | Local chat, workspace tabs, and in-app schedules using the shared runtime. Unsigned macOS arm64 and Windows amd64 downloads are published with releases; a source build is also available. |
 | Portal frontend | **Beta** | Space UI for conversations, issues, workflows, agents, files, usage, and artifacts. Password and login-code flows work; wider public exposure remains unsupported. |
 | Server + local-process worker | **Beta** | Useful for trusted private deployments and development. The Compose path is covered by a full TaskRun and artifact smoke test. |
 | Kubernetes worker mode | **Beta** | The local kind path exercises MySQL, MinIO, Ingress, a worker Job, and artifact retrieval end to end. The worker control API is served on a separate internal listener over HTTPS, and the same smoke proves the boundary: a labelled worker pod reaches it, an unlabelled pod is denied by the NetworkPolicy, and `/api/worker` is `404` on the public Service. Deployment APIs may still change. |
@@ -47,7 +47,7 @@ A **Beta** label on one surface below describes that component's maturity; it do
 | `go install github.com/icloudbb/buildmax/cmd/buildmax@latest` | **Supported** | CLI only. Uses the module version, without release archive provenance metadata. |
 | `ghcr.io/icloudbb/buildmax` | **Beta** | Contains CLI, server, and worker binaries. |
 | `ghcr.io/icloudbb/buildmax-portal` | **Beta** | Static Portal image; API base URL is configured at container start. |
-| Desktop binary releases | Not supported | Build from source. Published, signed installers are not part of the alpha release path. |
+| Desktop binary releases | **Beta** | Unsigned macOS arm64 `.dmg` and Windows amd64 `.exe` downloads. Signed and notarized installers are not available. |
 | npm package for `@buildmax/gui` | Not supported | The shared GUI package is consumed by this repository through local `file:` dependencies. |
 
 ## Runtime and model providers
@@ -59,6 +59,8 @@ A **Beta** label on one surface below describes that component's maturity; it do
 | OpenAI-compatible local gateways | **Beta** | Works when the endpoint implements compatible chat completion behavior. |
 | OpenAI Responses API | **Supported** | Set `provider: openai`; text, tools, streaming, reasoning state, prompt-cache usage, and image input use the shared LLM contract. |
 | Anthropic Messages API | **Supported** | Set `provider: anthropic`; the native adapter supports the same shared contract, including reasoning state and prompt caching. |
+| Local app connectors | **Experimental** | CLI-only OAuth connections with fixed plugin-declared operations; writes need interactive confirmation. No Desktop connection UI or per-run Agent grant. |
+| Remote MCP CLI | **Experimental** | Register and call HTTP/SSE servers from the CLI, with optional static Bearer credentials. MCP OAuth is not implemented. |
 | Built-in model hosting | Not supported | Bring your own provider, gateway, or local inference server. |
 | Multi-modal generation, voice, or browser automation | Not supported | Current runtime tools are text, files, shell, MCP, hooks, skills, and subagents. |
 
@@ -71,7 +73,8 @@ A **Beta** label on one surface below describes that component's maturity; it do
 | Docker Compose quickstart | **Beta** | Fast contributor and single-machine path. Uses a local-process worker and local filesystem storage. |
 | Local kind deployment | **Beta** | Kubernetes contribution path, with its own MySQL and MinIO. A development environment, not a deployment template. |
 | Private Kubernetes deployment against your own dependencies | **Beta** | `deployment/production/` is a plain-YAML reference plus the contract each dependency has to meet. Written to be read and adapted; not applied as-is, and not yet exercised against a real cloud account. |
-| Public internet server exposure | Not supported | Password and operator-issued login-code flows exist, but login is not rate limited and there is no SSO or second factor. Put an identity-aware and rate-limiting boundary in front before wider exposure. |
+| Public internet server exposure | Not supported | Password, login-code, and Portal OIDC sign-in exist, but login is not rate limited, there is no second factor, and OIDC has not completed real-provider qualification. Put an identity-aware and rate-limiting boundary in front before wider exposure. |
+| Portal OIDC sign-in | **Experimental** | Okta is the first configured provider. Association, JIT provisioning, and local-login posture are implemented; a pinned real-Okta journey and rotation drills remain open. |
 | Operator-issued login codes | **Beta** | Single-use account-claim and recovery credential, delivered out of band because BuildMax has no mail channel. |
 | JWT user API and space membership authorization | **Beta** | User API uses JWT; space membership is the resource boundary. |
 | Run-token worker auth | **Beta** | Every dispatched worker receives a credential scoped to one task run, and it is the only credential the worker routes accept. The old shared worker token is removed. Each worker route also enforces the run's lifecycle: everything but the status poll is refused unless the run is RUNNING, so a leaked but unexpired token cannot act before the claim or after the run is terminal. |
@@ -127,14 +130,14 @@ There is no export or import command for a deployment's data as a whole, so movi
 
 ## Non-goals for the alpha
 
-- Production identity management. Real OIDC/OAuth/SAML login and automatic login-code delivery are not implemented. Space invitations to existing accounts are implemented.
+- Qualified production identity management. Portal OIDC sign-in is implemented but not yet qualified against a pinned real Okta tenant; SAML, native CLI/Desktop OIDC, and automatic login-code delivery are not implemented.
 - Multi-tenant public SaaS hosting. BuildMax is aimed at local use and private deployments, not running an untrusted public shared service.
 - A guarantee that model-selected code is safe. Treat every run as executing untrusted commands with your credentials and network access.
 - Full sandboxing for every operation. The sandbox targets `Bash`; file tools, MCP tools, hooks, and provider calls have separate boundaries.
 - A stable public plugin marketplace or hosted integration catalog. Use MCP, local skills, hooks, and configuration for extension today.
 - A workflow engine replacement for Airflow, Temporal, GitHub Actions, or CI. Workflows are lightweight reusable agent plans, not a general orchestrator.
 - A Git hosting or IDE replacement. Git is used for visibility and recovery; BuildMax does not replace review, merge, or repository management workflows.
-- Native mobile apps, browser extensions, or published desktop installers.
+- Native mobile apps, browser extensions, or signed and notarized desktop installers.
 
 ## How to read this page
 

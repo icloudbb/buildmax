@@ -21,6 +21,14 @@ Related: [data model](../contribute/architecture/data-model.md),
 [Beta gate](../ROADMAP.md#beta-gate), whose versioned-migration requirement
 should start from this schema rather than preserve the Alpha one.
 
+**Current-schema note (2026-09):** The inventories and PR sequence below record
+the identity migration as designed at the time; they are not an inventory of
+today's tables. In particular, `workflow_node_run` replaced
+`workflow_step_run`, and refresh tokens now name an `auth_session.public_id`
+instead of an `as_` login-chain ID. Read the row structs and the
+[data model](../contribute/architecture/data-model.md) for current columns and
+relationships. The public-ID and relational-key decisions remain in force.
+
 ## Contents
 
 - [1. Problem](#1-problem)
@@ -259,9 +267,9 @@ single-column `space_id` index the string model left behind.
 
 ## 6. Table-By-Table Decision
 
-28 tables are in `AutoMigrate`. (The proposal said 25 and
-[data-model.md](../contribute/architecture/data-model.md) still says 22; both
-predate `artifact`, `plugin`, and `plugin_release`.)
+At the time of this migration plan, 28 tables were in `AutoMigrate`. The
+following inventory records those decisions; newer tables and later Workflow
+and authentication changes are described in the current data model.
 
 ### 6.1 Tables With A `public_id` — 18
 

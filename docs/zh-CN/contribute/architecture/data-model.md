@@ -3,13 +3,13 @@
 > **翻译说明：** 本文是[英文原文](../../../contribute/architecture/data-model.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** 贡献者 · **状态：** 当前有效
 
-BuildMax Server 数据库的完整关系型模式：每一张表、每一个列，以及修改它们的规则。在改动 `internal/infra/db` 下的任何内容之前，请先阅读本文档。
+BuildMax Server 数据库的关系模型、主要表及其修改规则。完整模式以 `internal/infra/db` 中的 `xxxRow` 结构体为准；修改表之前请先阅读对应结构体。
 
 关于持久化各层的划分——哪个包拥有契约、哪个包拥有实现——参见 [store.md](store.md)。关于这些实体为何是这样的形状，参见 [../../design/product-vision.md](../../design/产品愿景.md) 和 [../../design/space-governance.md](../../design/Space治理.md)。
 
 ## 模式存放在哪里
 
-并不存在描述当前模式的 `.sql` 文件。事实来源是 `internal/infra/db` 中那组未导出的 `xxxRow` 结构体及其 GORM 标签。`internal/infra/db/store.go` 中的 `New` 会在 Server 启动时对全部 31 个结构体调用 `AutoMigrate`，因此运行中的数据库就是这些结构体所描述的样子。
+并不存在描述当前模式的 `.sql` 文件。事实来源是 `internal/infra/db` 中那组未导出的 `xxxRow` 结构体及其 GORM 标签。`internal/infra/db/store.go` 中的 `New` 会在 Server 启动时对这些结构体调用 `AutoMigrate`，因此运行中的数据库就是这些结构体所描述的样子。
 
 CLI 和 Desktop 界面完全不使用这个数据库。Session、trace 和设置都是 `<BUILDMAX_HOME>` 下的文件；参见 [session.md](session.md)。下文的一切都只存在于 Server 部署中。
 
@@ -23,7 +23,7 @@ CLI 和 Desktop 界面完全不使用这个数据库。Session、trace 和设置
 
 **部分引用仍是文本。** 以 `_id` 结尾的列是 `bigint unsigned` 引用，除非它是多态的、由外部拥有，或者本身是一个值而非引用——例如类型列可接受操作员身份的审计参与者、可能是 Agent 或 Workflow 的 executor、提供商的工具调用 ID、指向文件的 Agent Session。下文各表中会逐一说明，完整清单及原因在 `internal/architecture` 中，若新增引用以文本形式添加却没有对应说明，测试会失败。
 
-**Session ID 不是句柄。** `task.session_id` 和 `task_run.session_id` 是 `varchar(36)` 的 UUID，指向该运行 `BUILDMAX_HOME` 下的 Session 文件，而不是任何表。`user_refresh_token.session_id` 则完全是另一回事：一个 `as_` 前缀的登录链，作为声明携带在其下签发的每个访问令牌中。
+**Agent Session ID 不是句柄。** `task.session_id` 和 `task_run.session_id` 是 `varchar(36)` 的 UUID，指向该运行 `BUILDMAX_HOME` 下的 Session 文件，而不是任何表。相对地，`user_refresh_token.session_id` 指向 `auth_session.public_id`，也是该次登录签发的访问令牌中的会话声明。
 
 **没有数据库级外键。** 没有任何行结构体声明 GORM 关系，因此 `AutoMigrate` 不会生成 `FOREIGN KEY` 约束，若有则 `internal/architecture` 中的测试会失败。本文档描述的每一处引用都只是一个普通的带索引列，由应用代码负责维持一致性。删除父行不会级联，数字引用不应被理解为暗示会级联。这是经过权衡后的决定，而非被搁置：[实体身份](../../design/实体身份.md) §8 审阅了 store 的删除语义——没有任何硬删除会移除被引用的父行——并将约束留给首个实现真正删除功能的改动去处理，届时顺序本来就需要写清楚。
 
@@ -44,6 +44,7 @@ erDiagram
     space ||--o{ conversation : scopes
     space ||--o{ workflow : owns
     space ||--o{ task : scopes
+    space ||--o{ schedule : owns
 
     conversation ||--o{ conversation_message : contains
     conversation ||--o{ task : "spawns (tier 1 to tier 2)"
@@ -84,19 +85,21 @@ erDiagram
     quota_tier ||--o{ space : rates
     user ||--o{ user_webhook_key : owns
     user ||--o{ login_code : "authenticates with"
-    user ||--o{ user_refresh_token : "keeps sessions in"
+    user ||--o{ auth_session : "signs in through"
+    user ||--o{ external_identity : "links to"
+    auth_session ||--o{ user_refresh_token : "rotates tokens in"
     user ||--o{ system_grant : "holds deployment authority via"
     llm_model ||--o{ llm_call : serves
     task_run ||--o{ llm_call : attributes
 ```
 
-Space 是授权边界：一个请求被允许，是因为调用者对该资源的 `space_id` 持有一条 `space_member` 行。Issue 是面向用户的主要工作对象。Conversation 拥有前台聊天，并可以创建或投影一个 Task。Task 加 task_run 是持久的 Agent 执行平面，其结果无需 Conversation 即具有权威性。下方当前存在的非空关系是实现层面的历史负担；目标的所有权和延续模型见 [Agent 执行与 Task 线程](../../design/Agent执行与Task线程.md)。
+Space 是授权边界：一个请求被允许，是因为调用者对该资源的 `space_id` 持有一条 `space_member` 行。Issue 是面向用户的主要工作对象。Conversation 拥有前台聊天，并可以创建或投影一个 Task。Task 加 task_run 是持久的 Agent 执行平面，其结果无需 Conversation 即具有权威性。所有权设计的依据见 [Agent 执行与 Task 线程](../../design/Agent执行与Task线程.md)。
 
 ## 身份与授权
 
 ### `user`
 
-每人一行。由操作员创建；默认关闭自助注册（见 [../../deploy/authentication.md](../../deploy/authentication.md)）。
+每人一行。由操作员或获准的 OIDC 首次登录创建；默认关闭本地自助注册（见 [../../deploy/authentication.md](../../deploy/authentication.md)）。
 
 | 列 | 类型 | 可空 | 说明 |
 |---|---|---|---|
@@ -118,7 +121,26 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 
 `last_login_at` 和 `last_login_platform` 由登录处理器写入，在签发令牌对后调用 `UpdateLoginMeta`。此处失败只记录日志，不会使登录失败：无论如何都会让这个人登录成功，丢失一个时间戳不值得因此拒绝登录。它们只记录最近一次登录——登录审计轨迹是 `audit_event`，会保留每一次登录记录。
 
-`password_hash` 可空，只由验证登录的代码通过 `identity.PasswordStore` 读取，而不是作为 `identity.User` 上的字段。它从不随 user 对象一起传递，因此任何处理器都不可能无意中将其序列化出去。可空同时也为通过其他方式认证的账号留出了空间：如果存在身份提供方，则不需要本地密码存在。
+`password_hash` 可空，只由验证登录的代码通过 `identity.PasswordStore` 读取，而不是作为 `identity.User` 上的字段。它从不随 user 对象一起传递，因此任何处理器都不可能无意中将其序列化出去。可空也允许通过 OIDC 关联的账号没有本地密码；提供方身份记录在 `external_identity` 中。
+
+### `external_identity`
+
+一组关联到本地用户的 OIDC issuer 与 subject。两个协议值区分大小写；邮箱和姓名是最近一次登录的属性快照，不是身份键。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `user_id` | `bigint unsigned` | 否 | 关联的 `user.id` |
+| `issuer` | `varchar(255) utf8mb4_bin` | 否 | OIDC issuer URL |
+| `subject` | `varchar(255) utf8mb4_bin` | 否 | 该 issuer 下的 OIDC subject |
+| `last_seen_email` | `varchar(320)` | 是 | 属性快照，不是身份键 |
+| `last_seen_name` | `varchar(255)` | 是 | 属性快照 |
+| `last_login_at` | `datetime(6)` | 是 | 最近一次通过此关联登录的时间 |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+
+索引：主键 `id`；唯一索引 `public_id`；(`issuer`, `subject`) 上的唯一索引；
+(`issuer`, `user_id`) 上的唯一索引。
 
 ### `space`
 
@@ -203,12 +225,16 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 | `granted_by` | `varchar(64)` | 否 | 不透明值：用户句柄，或者当操作员命令做出授权时为 `buildmax-server`——与对应审计事件所携带的字符串相同 |
 | `granted_at` | `datetime(6)` | 否 | |
 | `revoked_at` | `datetime(6)` | 是 | 授权生效期间为 `NULL` |
+| `live_marker` | `tinyint unsigned` | 是 | 生效期间为固定的非 `NULL` 值；撤销时清空 |
 
-索引：主键 `id`；索引 `granted_at`；(`user_id`, `role`, `revoked_at`) 上的唯一索引 `idx_system_grant_live`；索引 `user_id`；唯一索引 `public_id`。
+索引：主键 `id`；索引 `granted_at`；(`user_id`, `role`, `live_marker`) 上的唯一索引 `idx_system_grant_live`；索引 `user_id`；唯一索引 `public_id`。
 
-没有任何操作会从这张表中删除数据。撤销只设置 `revoked_at`，因此该行会作为该项授权曾经存在、以及何时终止的记录保留下来。唯一索引特意包含 `revoked_at`：MySQL 在唯一索引中将 `NULL` 视为互不相同，这使得每个 (user, role) 组合最多只有一条生效中的授权，同时允许并存任意数量的已失效授权。
+没有任何操作会从这张表中删除数据。撤销设置 `revoked_at` 并清空 `live_marker`，
+因此该行会保留授权曾经存在及终止时间的记录。唯一索引用固定的 `live_marker`
+值限制每个 (user, role) 只有一条生效授权；MySQL 将已撤销行的 `NULL` 视为不同值，
+即使两次撤销时间相同，也允许保留任意数量的历史授权。
 
-`role` 是一个列而不是布尔值，这样就能在不做迁移的情况下增加第二种部署角色。只有 `model.ValidSystemRole` 接受的角色才会被存储，因此这一列不可能被用来凭空捏造权限。
+`role` 是一个列而不是布尔值，这样就能在不做迁移的情况下增加第二种部署角色。只有 `identity.ValidSystemRole` 接受的角色才会被存储，因此这一列不可能被用来凭空捏造权限。
 
 ### `login_code`
 
@@ -219,26 +245,44 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 | `id` | `bigint unsigned` | 否 | 内部主键 |
 | `code_hash` | `varchar(128)` | 否 | 邮件发送验证码的哈希，唯一——明文从不存储 |
 | `user_id` | `bigint unsigned` | 否 | `user.id` |
-| `expires_at` | `datetime(6)` | 否 | 默认 TTL 为一小时（`model.LoginCodeTTLDefault`） |
+| `expires_at` | `datetime(6)` | 否 | 默认 TTL 为一小时（`identity.LoginCodeTTLDefault`） |
 | `used_at` | `datetime(6)` | 是 | 非 `NULL` 表示已被兑换；第二次尝试会失败 |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 
 索引：主键 `id`；唯一索引 `code_hash`；索引 `expires_at`；索引 `user_id`。
 
+### `auth_session`
+
+一次登录对应一条持久会话。其公开 ID 是访问令牌中的 `sid` 声明，也是刷新令牌行的 `session_id`。每个已认证请求都会检查会话是否有效，因此撤销会话也会拒绝此前签发的访问令牌。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开会话句柄，唯一 |
+| `user_id` | `bigint unsigned` | 否 | `user.id` |
+| `platform` | `varchar(32)` | 是 | 发起登录的界面 |
+| `auth_method` | `varchar(32)` | 是 | 登录时使用的凭据方式 |
+| `absolute_expires_at` | `datetime(6)` | 否 | 会话生命周期上限 |
+| `last_seen_at` | `datetime(6)` | 是 | 尽力记录的最近活动时间 |
+| `revoked_at` | `datetime(6)` | 是 | 撤销后非 `NULL` |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+
+索引：主键 `id`；唯一索引 `public_id`；索引 `user_id`；索引 `absolute_expires_at`。
+
 ### `user_refresh_token`
 
-一次登录中被存储的那一半。登录会返回一个已签名的访问令牌（Server 不会保留其记录），以及一个 refresh token（此表中的一行）。这种拆分正是让一次会话可撤销的原因：可存活数周的凭证，是 Server 可以撤销的那一个。
+登录会返回一个没有独立数据库行的已签名访问令牌，以及一个由此表中哈希行代表的刷新令牌。两者都属于持久的 `auth_session`；撤销该会话会拒绝访问与刷新请求。
 
-每一行都属于一个 `session_id`——一条登录链。每次交换都会消费所提交的令牌，并在同一 session 中签发一个新的，因此撤销一个 session 会连带撤销这条链，无论它已被续期多少次。
+每次交换都会消费提交的刷新令牌，并在同一个会话中签发新令牌。会话公开 ID 在每次轮换后保持不变。
 
 | 列 | 类型 | 可空 | 说明 |
 |---|---|---|---|
 | `id` | `bigint unsigned` | 否 | 内部主键 |
 | `token_hash` | `varchar(128)` | 否 | 令牌的哈希，唯一——明文只返回一次，从不存储 |
 | `user_id` | `bigint unsigned` | 否 | `user.id` |
-| `session_id` | `varchar(64)` | 否 | `as_` 前缀；一条登录链，跨每次轮换保持不变 |
+| `session_id` | `varchar(64)` | 否 | `auth_session.public_id`，跨每次轮换保持不变 |
 | `platform` | `varchar(32)` | 是 | 哪个界面完成了登录——供阅读者参考的标签，不做强制校验 |
-| `expires_at` | `datetime(6)` | 否 | 默认 TTL 为 30 天（`model.RefreshTokenTTLDefault`） |
+| `expires_at` | `datetime(6)` | 否 | 默认 TTL 为 30 天（`identity.RefreshTokenTTLDefault`） |
 | `used_at` | `datetime(6)` | 是 | 非 `NULL` 表示已被交换 |
 | `revoked_at` | `datetime(6)` | 是 | 非 `NULL` 表示因登出或重用报告而被撤销 |
 | `replaced_by` | `varchar(128)` | 是 | 交换所签发令牌的哈希；供操作员沿链回溯到其登录 |
@@ -272,6 +316,7 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 | `tier_name` | `varchar(64)` | 否 | 主键 |
 | `max_runs_per_period` | `bigint` | 否 | 每个窗口内允许的 Task 运行次数 |
 | `max_tokens_per_period` | `bigint` | 否 | 每个窗口内 prompt 加 completion 的 token 数 |
+| `max_storage_bytes` | `bigint` | 否 | 有效 Artifact 的存储上限；零表示不限，不受时间窗口约束 |
 | `period_days` | `bigint` | 否 | 窗口长度 |
 
 索引：主键 `tier_name`。
@@ -282,7 +327,8 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 
 ### `audit_event`
 
-治理证据：记录一个动作发生过，以及是谁执行的。仅追加——`internal/infra/db/audit.go` 中没有更新或删除路径，因为可编辑的记录算不上证据。
+治理证据：记录一个动作发生过，以及是谁执行的。写入仅追加；配置保留期后，清理循环
+会按年龄删除旧事件，并记录每次清理。已有事件不能被修改。
 
 | 列 | 类型 | 可空 | 说明 |
 |---|---|---|---|
@@ -293,10 +339,12 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 | `actor_type` | `varchar(16)` | 否 | `user`、`worker` 或 `system` |
 | `actor_id` | `varchar(64)` | 否 | 用户 ID，或者 `system` 时为进程名 |
 | `action` | `varchar(64)` | 否 | `user.login`、`user.logout`、`user.password_set`、`auth.refresh_reuse`、`space.member_added`、`llm_model.created`、`access.denied`，等等 |
-| `target_type` / `target_id` | `varchar(32)` / `varchar(64)` | 是 | 该动作作用的对象。不透明：这个类型既可以是一行，也可以是权限名或模型名 |
+| `target_type` | `varchar(32)` | 是 | 对象类型，也可指代非数据库行的目标 |
+| `target_id` | `varchar(64)` | 是 | 不透明目标句柄或名称 |
+| `task_run_id` | `varchar(20)` | 是 | 触发该动作的 TaskRun 公开句柄 |
 | `detail` | `varchar(255)` | 是 | 一条简短的非敏感说明——角色名、模型名 |
 
-索引：主键 `id`；索引 `action`；索引 `actor_id`；(`space_id`, `created_at`) 上的索引 `idx_audit_space_time`；唯一索引 `public_id`。
+索引：主键 `id`；索引 `action`、`actor_id`、`task_run_id`；(`space_id`, `created_at`) 上的索引 `idx_audit_space_time`；唯一索引 `public_id`。
 
 动作字符串会被持久化，因此是永久性的：重命名其中一个会改写每个按其过滤的读取者所看到的历史。它们定义在 `internal/core/audit/audit.go` 中。
 
@@ -389,9 +437,11 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 | `name` | `varchar(255)` | 否 | |
 | `description` | `text` | 是 | 在选择器中显示 |
 | `instructions` | `text` | 是 | 使用此 Agent 的运行将其追加到系统提示词 |
+| `model` | `varchar(255)` | 是 | 模型目录名称；空值使用部署默认模型 |
 | `plugins` | `text` | 是 | 此 Agent 加载的目录插件名称的 JSON 数组 |
 | `sandbox_network_tier` | `varchar(64)` | 是 | `none`、`registries` 或 `open`；为空则继承 Space 默认值，再回退到界面基线 |
 | `sandbox_filesystem_tier` | `varchar(64)` | 是 | `workspace`、`workspace_plus_shared_read` 或 `workspace_plus_external_write`；与网络级别使用相同回退规则 |
+| `secret_consumption` | `text` | 是 | Agent 消费 Space Secret 的 JSON 声明 |
 | `revision` | `bigint` | 否 | 保存此内容的 `agent_revision` 行的修订号；从 1 开始 |
 | `deleted_at` | `datetime(6)` | 是 | Agent 删除时设置；行保留 |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
@@ -418,9 +468,11 @@ Agent 定义的一次版本记录。行仅追加，从不更新或删除。
 | `name` | `varchar(255)` | 否 | |
 | `description` | `text` | 是 | |
 | `instructions` | `text` | 是 | |
+| `model` | `varchar(255)` | 是 | 此修订记录的模型目录名称 |
 | `plugins` | `text` | 是 | JSON 数组；此修订记录的选择 |
 | `sandbox_network_tier` | `varchar(64)` | 是 | 此修订记录的级别 |
 | `sandbox_filesystem_tier` | `varchar(64)` | 是 | 此修订记录的级别 |
+| `secret_consumption` | `text` | 是 | 此修订记录的 Secret 消费声明 |
 | `created_by` | `bigint unsigned` | 否 | 写入此修订的用户，不一定是 Agent owner |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 
@@ -442,9 +494,10 @@ Agent 定义的一次版本记录。行仅追加，从不更新或删除。
 | `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
 | `user_id` | `bigint unsigned` | 否 | 所属用户 |
 | `space_id` | `bigint unsigned` | 是 | 所属 Space |
-| `channel` | `varchar(32)` | 否 | `portal`、`telegram`、`cron`、`webhook`，或合成的 `workflow` / `issue_agent` |
+| `channel` | `varchar(32)` | 否 | `portal`、`telegram` 或 `webhook`；schedule 和直接 Agent 运行不创建 Conversation |
 | `title` | `varchar(256)` | 是 | 根据第一轮生成 |
 | `created_by` | `bigint unsigned` | 否 | `user.id` |
+| `turn_fence` | `bigint` | 否 | 已接受的最大轮次租约 fencing token；拒绝旧副本写入消息 |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 
 索引：主键 `id`；(`space_id`, `created_at`) 上的索引 `idx_conversation_space_created`；(`user_id`, `created_at`) 上的索引 `idx_conversation_user_created`；唯一索引 `public_id`。
@@ -481,6 +534,37 @@ Tier 1 Conversation 中的一条消息，包括工具交互。
 
 Task 加 task_run 构成持久的 Agent 执行。TaskRun 拥有结果；Conversation、Issue 和 Workflow 视图可以通过显式的可选关系投影结果。
 
+### `schedule`
+
+Space 拥有的重复时间触发器。每次到期触发由 `executor_kind` 与 `executor_id`
+指定的 Agent Task 或已发布 Workflow 运行；执行结果属于相应的 Task 或 Workflow
+运行，而不属于 schedule。见 [定时 Agent 执行](../../design/定时Agent执行.md)。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `space_id` | `bigint unsigned` | 否 | 所属 Space，所有 schedule 操作的授权依据 |
+| `executor_kind` | `varchar(32)` | 否 | `agent` 或 `workflow` |
+| `executor_id` | `varchar(64)` | 否 | 按 `executor_kind` 解释的不透明公开句柄 |
+| `created_by` | `bigint unsigned` | 否 | 创建者的 `user.id` |
+| `name` | `varchar(256)` | 是 | 人类可读名称 |
+| `input` | `text` | 否 | 固定的 Agent prompt 或 Workflow 输入 JSON |
+| `cron_expr` | `varchar(256)` | 否 | 重复规则 |
+| `timezone` | `varchar(64)` | 否 | IANA 时区；存储时间仍使用 UTC |
+| `enabled` | `boolean` | 否 | 暂停后保留记录与下次触发时间，但不再被领取 |
+| `pause_reason` | `varchar(32)` | 否 | 调度器暂停它的原因；启用时为空 |
+| `next_fire_at` | `datetime(6)` | 否 | 下次 UTC 到期时间 |
+| `last_fire_at` | `datetime(6)` | 是 | 最近一次触发时间 |
+| `last_fire_ref` | `varchar(64)` | 是 | 最近一次产生的 Task 或 Workflow-run 公开句柄 |
+| `consecutive_failures` | `bigint` | 否 | 连续准入失败次数 |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+| `updated_at` | `datetime(6)` | 是 | `autoUpdateTime` |
+
+索引：主键 `id`；(`enabled`, `next_fire_at`) 上的 `idx_schedule_due`；
+(`space_id`, `created_at`) 上的 `idx_schedule_space_created`；唯一索引 `public_id`。
+调度器仅在 `next_fire_at` 仍等于读取值时才推进它，使多个副本竞争时只有一个胜出。
+
 ### `task`
 
 后台工作的持久单元。一个 Task，多次尝试。
@@ -492,12 +576,14 @@ Task 加 task_run 构成持久的 Agent 执行。TaskRun 拥有结果；Conversa
 | `conversation_id` | `bigint unsigned` | 是 | 可选的来源/投影关系；直接创建的 Agent、Issue 或 Workflow Task 没有此关系 |
 | `space_id` | `bigint unsigned` | 否 | 所属 Space，是每项 Task 操作的权威依据 |
 | `issue_id` | `bigint unsigned` | 是 | 此 Task 推进的 Issue（如果有） |
+| `schedule_id` | `bigint unsigned` | 是 | 创建此 Task 的重复时间触发器；只是来源关系，不是授权父对象 |
 | `status` | `varchar(32)` | 否 | `PENDING`、`SCHEDULED`、`RUNNING`、`SUCCEEDED`、`FAILED`、`CANCELED` |
 | `input` | `text` | 否 | 提示词 |
 | `title` | `varchar(256)` | 是 | 由 LLM 生成 |
 | `title_prompt_tokens` | `bigint` | 是 | 生成标题消耗的 token，计入配额 |
 | `title_completion_tokens` | `bigint` | 是 | 同上 |
 | `output` | `text` | 是 | 最近一次成功运行的结果 |
+| `output_schema` | `text` | 是 | 最终回答必须满足的 JSON Schema；自由文本时为 `NULL` |
 | `created_by` | `bigint unsigned` | 否 | `user.id` |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 | `started_at` | `datetime(6)` | 是 | 首次运行开始时间 |
@@ -508,10 +594,15 @@ Task 加 task_run 构成持久的 Agent 执行。TaskRun 拥有结果；Conversa
 | `agent_id` | `bigint unsigned` | 是 | 此 Task 以哪个 `agent.id` 运行 |
 | `workspace_head_checkpoint_id` | `bigint unsigned` | 是 | 被接受为 Task 可恢复工作区的 `workspace_checkpoint.id`；先是种子，再是每次成功结果。首次运行提交前为空 |
 | `plugin_environment_head_id` | `bigint unsigned` | 是 | 下一次 Continue 使用的不可变 Plugin 环境；未自主安装任何插件的 Task 为空 |
+| `admission_key` | `varchar(191)` | 是 | 协调器在 Space 内唯一的幂等键；普通 Task 为 `NULL` |
+| `admission_fingerprint` | `char(64)` | 是 | 已准入内容的摘要；重放时检测相同键下的不同请求 |
 
-索引：主键 `id`；索引 `agent_id`；索引 `conversation_id`；索引 `issue_id`；索引 `last_run_id`；索引 `workspace_head_checkpoint_id`；索引 `plugin_environment_head_id`；(`space_id`, `created_at`) 上的索引 `idx_task_space_created`；唯一索引 `public_id`。
+索引：主键 `id`；索引 `agent_id`、`conversation_id`、`issue_id`、`schedule_id`、`last_run_id`、`workspace_head_checkpoint_id`、`plugin_environment_head_id`；(`space_id`, `created_at`) 上的 `idx_task_space_created`；唯一索引 `public_id`；(`space_id`, `admission_key`) 上的唯一索引 `uq_task_admission_key`。
 
 状态值为 `task.RunStatus`，使用大写，与 `task_run` 共享。
+
+`AdmitTask` 使用唯一的 `(space_id, admission_key)` 约束让 Workflow 节点重放
+派发时返回同一个 Task；不同内容复用已有键会被拒绝，避免重复启动 Agent。
 
 ### `task_run`
 
@@ -526,9 +617,10 @@ Task 加 task_run 构成持久的 Agent 执行。TaskRun 拥有结果；Conversa
 | `input` | `text` | 否 | 本次尝试的提示词；重新运行时可与 Task 的提示词不同 |
 | `created_by` | `varchar(64)` | 是 | `user.id`，系统触发的运行为空 |
 | `created_by_type` | `varchar(32)` | 是 | `user`、`webhook` 或 `system` |
-| `trigger_source` | `varchar(64)` | 是 | `task_create`、`task_rerun`、`portal_conversation`、`portal_task_create`、`portal_task_rerun`、`issue_agent_run`、`workflow_step`、`webhook` |
+| `trigger_source` | `varchar(64)` | 是 | 如 `task_create`、`task_retry`、`portal_conversation`、`issue_agent_run`、`workflow_step`、`schedule`、`webhook`；常量由 `internal/core/task` 定义 |
 | `status` | `varchar(32)` | 否 | 与 `task` 相同的 `task.RunStatus` 值 |
 | `output` | `text` | 是 | |
+| `structured` | `text` | 是 | 经校验的结构化 JSON 结果；自由文本时为 `NULL` |
 | `error_message` | `text` | 是 | |
 | `started_at` | `datetime(6)` | 是 | |
 | `ended_at` | `datetime(6)` | 是 | 运行中为 `NULL` |
@@ -541,6 +633,7 @@ Task 加 task_run 构成持久的 Agent 执行。TaskRun 拥有结果；Conversa
 | `trace_path` | `varchar(512)` | 是 | 本次运行在运行级全局存储中的持久 trace，例如 `traces/<session>/rt_….jsonl`；未写入时为 `NULL` |
 | `cancel_requested_at` | `datetime(6)` | 是 | 有人请求停止此次运行的时间；无人请求时为 `NULL` |
 | `cancel_requested_by` | `bigint unsigned` | 是 | 请求者的 `user.id` |
+| `cancel_reason` | `varchar(32)` | 否 | 长度受限的取消原因；未记录时为空 |
 | `retry_of_task_run_id` | `bigint unsigned` | 是 | 本次重复执行的运行；携带自身指令的运行为 `NULL` |
 | `source_message_id` | `bigint unsigned` | 是 | 请求本次运行的 `conversation_message.id`；没有消息发起请求时为 `NULL` |
 | `agent_revision` | `int` | 是 | 本次运行收到的 `task.agent_id` 修订号；没有 Agent 或从未到达 worker 的运行为 `NULL` |
@@ -619,6 +712,30 @@ worker 在终态 PATCH 中写入 `trace_path`，成功和失败都写。它采�
 
 索引：主键 `id`；唯一索引 `public_id`；(`source_task_run_id`, `kind`) 上的唯一索引；索引 `space_id`；索引 `base_checkpoint_id`；(`task_id`, `created_at`) 上的索引 `idx_workspace_checkpoint_task_created`。
 
+### `plugin_environment`
+
+不可变的 Plugin 环境修订：TaskRun 在一次能力边界上加载的确切、有序包集合。
+它是 `task.plugin_environment_head_id` 和 `task_run` 环境指针背后的持久对象；
+物化出的 `buildmax-home/plugins/` 目录只是可丢弃的投影。见
+[Space 插件分发](../../design/Space插件分发.md)和
+[Task 工作区检查点](../../design/Task工作区检查点.md)。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `space_id` | `bigint unsigned` | 否 | 授权所有者 |
+| `task_id` | `bigint unsigned` | 否 | 环境所有者 |
+| `source_task_run_id` | `bigint unsigned` | 否 | 提交安装的运行 |
+| `base_environment_id` | `bigint unsigned` | 是 | 谱系前驱；首个修订为 `NULL` |
+| `entries` | `text` | 否 | `{plugin_name, version, digest, source, installer, scope}` 的 JSON 数组，一次写入、整体读取 |
+| `created_at` | `datetime(6)` | 否 | UTC 提交时间 |
+
+`source_task_run_id` 唯一，因此一次运行最多提交一个环境。`entries` 整体读取，
+无需拆成子表。索引：主键 `id`；唯一索引 `public_id` 和 `source_task_run_id`；
+索引 `space_id`、`base_environment_id`，以及 (`task_id`, `created_at`) 上的
+`idx_plugin_environment_task_created`。
+
 ### `artifact`
 
 Space 拥有的一个持久文件，对应一个不可变的内容对象。内容存放在对象存储中，键由此表记录，任何 API 都不会返回它。
@@ -652,7 +769,8 @@ Space 拥有的一个持久文件，对应一个不可变的内容对象。内�
 
 ## Workflow
 
-Workflow 是 Space 范围内可复用的线性计划。一次运行会将存储的定义展开为每个步骤一个 step run，每个 Agent 步骤都会委托给一个 Task。
+Workflow 是 Space 范围内可复用的图。一次运行会为每个节点展开一个 node run；
+每个 Agent 节点委托给一个 Task。依赖边决定节点何时就绪，互不依赖的节点可并行运行。
 
 ### `workflow`
 
@@ -663,7 +781,7 @@ Workflow 是 Space 范围内可复用的线性计划。一次运行会将存储�
 | `space_id` | `bigint unsigned` | 否 | 所属 Space——与大多数表不同，这里是必填的 |
 | `name` | `varchar(255)` | 否 | |
 | `description` | `text` | 否 | |
-| `definition` | `longtext` | 否 | JSON 步骤列表；使用 `longtext` 而非 `text`，因为计划可能很大 |
+| `definition` | `longtext` | 否 | 带版本的 JSON 节点图；使用 `longtext` 而非 `text`，因为计划可能很大 |
 | `status` | `varchar(32)` | 否 | `draft`（默认）、`published`、`archived` |
 | `revision` | `bigint` | 否 | 保存此内容的 `workflow_revision` 行的修订号；从 1 开始 |
 | `created_by` | `bigint unsigned` | 否 | `user.id` |
@@ -703,6 +821,7 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `workflow_id` | `bigint unsigned` | 否 | `workflow.id` |
 | `workflow_revision` | `bigint` | 否 | 此次运行展开时所用的修订号；早于 Workflow 开始记录修订之前的运行为 0 |
 | `issue_id` | `bigint unsigned` | 是 | 此次运行所推进的 Issue |
+| `schedule_id` | `bigint unsigned` | 是 | 启动本次运行的 schedule |
 | `input` | `longtext` | 是 | 本次运行不可变的输入 JSON，准入时对照定义的 `input_schema` 校验；定义未声明 input schema 时为 NULL |
 | `status` | `varchar(32)` | 否 | `pending`、`running`、`succeeded`、`failed`、`canceled`——与 `task` 不同，为小写 |
 | `result_json` | `longtext` | 是 | 本次运行声明的结果，运行成功时从某个节点输出解析得到；定义未声明 result 选择器或运行未成功时为 NULL |
@@ -711,10 +830,17 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `started_at` | `datetime(6)` | 是 | |
 | `ended_at` | `datetime(6)` | 是 | |
 | `error_message` | `text` | 是 | |
+| `reconcile_owner` | `varchar(64)` | 是 | 当前协调租约持有者；未持有时为 `NULL` |
+| `lease_expires_at` | `datetime(6)` | 是 | 租约到期时间；过期后可被接管 |
+| `next_reconcile_at` | `datetime(6)` | 是 | 下次协调时间；`NULL` 视为到期 |
 
-索引：主键 `id`；索引 `issue_id`；(`workflow_id`, `created_at`) 上的索引 `idx_workflow_run_workflow_created`；唯一索引 `public_id`。
+索引：主键 `id`；索引 `issue_id`、`schedule_id`、`next_reconcile_at`、`lease_expires_at`；
+(`workflow_id`, `created_at`) 上的 `idx_workflow_run_workflow_created`；唯一索引 `public_id`。
 
-每个 step run 都会直接创建一个 Space 所有的 Task（`task.space_id`，无 `conversation_id`）；一次运行的进度是通过其各步骤的 `task_id` / `task_run_id` 读取的，而不是通过 Conversation。
+每个 Agent node run 都会直接创建一个 Space 所有的 Task（`task.space_id`，
+无 `conversation_id`）；运行进度从各节点的 `task_id` / `task_run_id` 读取，
+而不是通过 Conversation。到期扫描和协调租约让 Server 可在 callback 丢失或
+重启后从持久状态继续推进。
 
 ### `workflow_node_run`
 
@@ -738,11 +864,14 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `agent_instructions` | `longtext` | 否 | 运行开始时捕获的 Agent 指令 |
 | `agent_revision` | `bigint` | 否 | 快照来自的 `agent_revision.revision`；早于修订功能存在的行为 0 |
 | `prompt` | `text` | 否 | 此节点渲染后的 prompt |
+| `bindings` | `text` | 是 | 输入绑定的 JSON 快照；没有绑定时为 `NULL` |
+| `output_schema` | `text` | 是 | 节点 JSON Schema 的快照；自由文本时为 `NULL` |
 | `status` | `varchar(32)` | 否 | `pending`、`running`、`succeeded`、`failed`、`canceled`、`blocked` |
 | `task_id` | `bigint unsigned` | 是 | 此节点创建的 Tier 2 Task |
 | `task_run_id` | `bigint unsigned` | 是 | 具体的那次尝试 |
 | `resolved_input` | `longtext` | 是 | 节点启动时收到的完整 Task 输入 |
 | `output` | `longtext` | 是 | 节点成功时捕获的完整输出文本；供下游绑定读取 |
+| `structured` | `text` | 是 | 经校验的结构化 JSON 结果；自由文本或校验失败时为 `NULL` |
 | `error_message` | `text` | 是 | |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 | `started_at` | `datetime(6)` | 是 | |
@@ -750,11 +879,14 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 
 索引：主键 `id`；(`workflow_run_id`, `node_index`) 上的索引 `idx_node_run_run_index`；索引 `target_agent_id`；索引 `task_id`；索引 `task_run_id`；唯一索引 `public_id`。
 
-三个 `agent_*` 列为整次运行固定了 Agent 定义。各步骤是随着前一个 Task 运行进入终态才依次派发的，因此如果没有这几列，两个步骤之间对 Agent 的一次编辑，就会改变后一个步骤发送给模型的内容。
+`agent_*` 列为整次运行固定每个节点使用的 Agent 定义。就绪节点按定义中的
+`policy.max_parallel_nodes` 上限派发；之后编辑 Agent 不会改变待运行节点发送给模型的内容。
 
-`blocked` 在 `workflow_run.status` 中没有对应状态。当某个步骤失败时，运行会被标记为 `failed`，此后每个仍处于 `pending` 的步骤都会变为 `blocked`。
+`blocked` 在 `workflow_run.status` 中没有对应状态。某个节点失败时，运行会被标记为
+`failed`，待运行节点变为 `blocked`，同时运行的兄弟节点会被取消。
 
-`canceled` 会在该步骤的 Task 运行被取消时写入。它以失败同样的方式终止运行——后续步骤被阻塞，运行结束——但运行会被标记为 `canceled` 而非 `failed`，因为并没有出错。
+节点的 TaskRun 被取消时写入 `canceled`。它同样会使待运行节点被阻塞并结束运行，
+但运行标记为 `canceled` 而非 `failed`，因为并没有出错。
 
 ## 托管推理
 
@@ -762,7 +894,8 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 
 ### `llm_model`
 
-模型目录。通过在持有数据库凭证的机器上运行 `buildmax-server model add|list|enable|disable` 来编辑。
+模型目录。运维人员可通过 `buildmax admin model`、Admin API，或在有数据库访问权限
+的机器上使用 `buildmax-server model` 命令编辑。
 
 | 列 | 类型 | 可空 | 说明 |
 |---|---|---|---|
@@ -771,7 +904,7 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `name` | `varchar(128)` | 否 | 面向操作员的目录名称，唯一 |
 | `provider_type` | `varchar(32)` | 否 | 网络协议：`openai_compatible`、`openai` 或 `anthropic` |
 | `api_url` | `varchar(512)` | 否 | 上游基础 URL |
-| `api_key` | `varchar(512)` | 否 | **明文存储的提供商凭证**——见下文 |
+| `api_key_sealed` | `blob` | 是 | 使用部署密钥加密的提供商凭证 |
 | `model` | `varchar(128)` | 否 | 上游模型标识符 |
 | `context_window` | `bigint` | 否 | 默认 `0`，表示未指定 |
 | `call_timeout` | `bigint` | 否 | 秒数；默认 `0`，表示未指定 |
@@ -794,7 +927,9 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 
 索引：主键 `id`；索引 `created_at`；唯一索引 `name`；唯一索引 `public_id`。
 
-`api_key` 只被一处查询读取——构造提供商客户端的那一处——绝不出现在列表、API 响应或错误信息中。尽管如此，它仍以明文存储，因此**数据库备份会携带提供商凭证**，必须相应地妥善处理。见 [../../../SECURITY.md](../../../../SECURITY.md)。
+普通模型读取不会选择 `api_key_sealed`；只有专门的凭证读取会为提供商调用解密。
+缺少部署加密密钥时，无法存储带凭证的模型。备份仍包含加密凭证，必须与密钥恢复
+流程一起妥善保护。见 [../../../SECURITY.md](../../../../SECURITY.md)。
 
 `capabilities` 是逗号分隔的列表而不是关联表：这个集合很小、封闭，且只会整体读取。
 

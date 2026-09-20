@@ -20,9 +20,10 @@ one user to an organization does not mean adopting a different agent.
   experience, enterprise platform, or trust boundaries
 
 > **Status: Alpha.** Interfaces, deployment guidance, and runtime behavior may
-> change quickly before a stable release. Password sign-in and operator-assisted
-> account recovery are available, but login is not rate limited and there is no
-> SSO or second factor. Read
+> change quickly before a stable release. Password sign-in, operator-assisted
+> account recovery, and Portal OIDC sign-in are available, but login is not rate
+> limited, there is no second factor, and OIDC has not completed real-provider
+> qualification. Read
 > [docs/deploy/authentication.md](docs/deploy/authentication.md) before exposing
 > a server, and [CONTRIBUTING.md](CONTRIBUTING.md) before contributing.
 

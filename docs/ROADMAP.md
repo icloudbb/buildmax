@@ -3,7 +3,7 @@
 > **简体中文：** [阅读中文镜像](zh-CN/ROADMAP.md)
 >
 > **Audience:** users, operators, and contributors · **Status:** current — Alpha
-> **Last reviewed:** 2026-09-13
+> **Last reviewed:** 2026-09-20
 
 BuildMax is an open-source Agent runtime for local work and private Space
 deployment. CLI/TUI, Desktop, and Server/Portal use the same Go Agent Core.
@@ -197,11 +197,12 @@ Design: [evaluation system](design/evaluation-system.md).
 
 **Status:** open
 
-**Later; scope depends on demand and qualification results.** Candidate work
-includes durable Workflow reconciliation and typed dataflow, real channel
-adapters, executable Space plugins, Portal performance, Desktop automation,
-and throughput. Local CLI/TUI and Desktop improvements remain welcome when they
-address concrete problems; the Beta focus does not make Portal the only product.
+**Later; scope depends on demand and qualification results.** Durable Workflow
+reconciliation, graph execution, and typed data bindings are implemented.
+Candidate work includes conditional routing, real channel adapters, executable
+Space plugins, Portal performance, Desktop automation, and throughput. Local
+CLI/TUI and Desktop improvements remain welcome when they address concrete
+problems; the Beta focus does not make Portal the only product.
 
 Conditional security hardening also belongs here rather than in the Beta gate:
 Pod-wide destination policy, a dedicated egress proxy, and an outer runtime such
@@ -243,12 +244,11 @@ ordered place here is not permission to skip a proposal's acceptance decision.
    workload identity in that order, and only for a concrete provider and
    operator journey.
 
-Workflow expansion starts with reconciliation and typed dataflow before graph
-breadth. The provider-neutral structured-output runtime contract, provider
-mappings, TaskRun persistence, and linear Workflow `output_schema` consumer are
-implemented. Typed JSON-pointer bindings, routes, planners, evaluators, and the
-Portal schema editor remain the next consumers; channel names or partial
-adapters do not count as delivered integrations.
+The provider-neutral structured-output runtime contract, provider mappings,
+TaskRun persistence, Workflow `output_schema`, graph execution, and JSON-pointer
+bindings are implemented. Typed conditional routes, planners, evaluators, and
+the Portal schema editor remain open; channel names or partial adapters do not
+count as delivered integrations.
 
 Design: [Workflow runtime](design/workflow-runtime.md) and
 [orchestration and continuity decisions](design/orchestration-and-continuity-decisions.md).
