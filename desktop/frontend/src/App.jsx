@@ -285,6 +285,10 @@ export default function App() {
   // parked, so a shell's emulator and scrollback survive a project switch and
   // reappear intact on return.
   const [parkedTermIds, setParkedTermIds] = useState([]);
+  // A mirror of the latest `workspace`, so the project-switch effect can read the
+  // outgoing project's current layout without a stale closure and without a
+  // setState-inside-updater (which React would not reliably apply).
+  const workspaceRef = useRef(workspace);
 
   // openChatTabInto focuses an existing chat tab for a session, else opens one.
   const openChatTabInto = (ws, sessionId, title) => {
@@ -320,42 +324,46 @@ export default function App() {
     })),
   });
 
+  // Keep the workspace mirror current for the switch effect below.
+  useEffect(() => { workspaceRef.current = workspace; }, [workspace]);
+
   // On a project switch, stash the outgoing project's live layout (so returning
   // restores it, terminals and all — the shells are not killed, only parked),
   // restore the incoming project's stashed or saved layout, and make sure the
-  // selected session — or a new chat — has a focused tab.
+  // selected session — or a new chat — has a focused tab. Everything runs at the
+  // effect's top level so both state updates (workspace and the parked-terminal
+  // list) are applied together.
   useEffect(() => {
-    setWorkspace((prev) => {
-      const prevPid = workspaceProjectRef.current;
-      if (prevPid) stashedWorkspacesRef.current.set(prevPid, prev);
-      workspaceProjectRef.current = currentProject?.id ?? null;
-      let ws;
-      if (!currentProject) {
-        ws = emptyWorkspace;
-      } else if (stashedWorkspacesRef.current.has(currentProject.id)) {
-        ws = stashedWorkspacesRef.current.get(currentProject.id);
-        stashedWorkspacesRef.current.delete(currentProject.id);
-      } else {
-        const saved = readStored(workspaceStorageKey(currentProject.id), null);
-        ws = isWorkspace(saved) ? saved : emptyWorkspace;
+    const prevPid = workspaceProjectRef.current;
+    if (prevPid) stashedWorkspacesRef.current.set(prevPid, workspaceRef.current);
+    workspaceProjectRef.current = currentProject?.id ?? null;
+    let ws;
+    if (!currentProject) {
+      ws = emptyWorkspace;
+    } else if (stashedWorkspacesRef.current.has(currentProject.id)) {
+      ws = stashedWorkspacesRef.current.get(currentProject.id);
+      stashedWorkspacesRef.current.delete(currentProject.id);
+    } else {
+      const saved = readStored(workspaceStorageKey(currentProject.id), null);
+      ws = isWorkspace(saved) ? saved : emptyWorkspace;
+    }
+    if (currentProject) {
+      if (selectedId) {
+        const title = sessions.find((s) => s.id === selectedId)?.title?.trim() || 'Chat';
+        ws = openChatTabInto(ws, selectedId, title);
+      } else if (!allTabs(ws).some((t) => t.kind === 'chat')) {
+        ws = openNewChatInto(ws);
       }
-      if (currentProject) {
-        if (selectedId) {
-          const title = sessions.find((s) => s.id === selectedId)?.title?.trim() || 'Chat';
-          ws = openChatTabInto(ws, selectedId, title);
-        } else if (!allTabs(ws).some((t) => t.kind === 'chat')) {
-          ws = openNewChatInto(ws);
-        }
-      }
-      // Every stashed (inactive) project's terminals stay mounted but parked.
-      const parked = [];
-      for (const [pid, w] of stashedWorkspacesRef.current) {
-        if (pid === currentProject?.id) continue;
-        for (const t of allTabs(w)) if (t.kind === 'terminal') parked.push(t.ref);
-      }
-      setParkedTermIds(parked);
-      return ws;
-    });
+    }
+    // Every stashed (inactive) project's terminals stay mounted but parked.
+    const parked = [];
+    for (const [pid, w] of stashedWorkspacesRef.current) {
+      if (pid === currentProject?.id) continue;
+      for (const t of allTabs(w)) if (t.kind === 'terminal') parked.push(t.ref);
+    }
+    workspaceRef.current = ws;
+    setWorkspace(ws);
+    setParkedTermIds(parked);
     // Reseed only when the active project changes; selectedId is read fresh above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
