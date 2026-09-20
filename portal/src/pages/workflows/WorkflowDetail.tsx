@@ -43,7 +43,7 @@ interface WorkflowDetailProps {
 }
 
 export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailProps) {
-  const { currentUserRole } = useSpace()
+  const { currentUserRole, currentSpaceMembers } = useSpace()
   const { setEntityLabel } = useApp()
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
@@ -153,16 +153,25 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       .finally(() => setRevisionsLoading(false))
   }, [token, spaceId, workflowId])
 
+  // Resolve the opaque author id to a member's name; fall back to the id only
+  // when the member is not in the loaded list.
+  const memberName = useCallback(
+    (userId: string) => {
+      const member = currentSpaceMembers.find((m) => m.user_id === userId)
+      return member?.user_name || member?.user_email || userId
+    },
+    [currentSpaceMembers]
+  )
   const revisionEntries = useMemo(
     () =>
       revisionsData?.map((rev) => ({
         id: rev.id,
         revision: rev.revision,
-        createdBy: rev.createdBy,
+        createdBy: memberName(rev.createdBy),
         createdLabel: rev.createdLabel,
         summary: `${rev.name} · ${statusLabel(rev.status)}`,
       })) ?? null,
-    [revisionsData]
+    [revisionsData, memberName]
   )
   const revisionsState = useMemo(
     () =>
@@ -341,7 +350,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
           </Button>
           {workflow ? (
             <Button variant="tertiary" onClick={() => setHistoryOpen(true)}>
-              History · v{workflow.revision}
+              History
             </Button>
           ) : null}
           {authoring ? (
@@ -513,7 +522,6 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         onClose={() => setHistoryOpen(false)}
       >
         <RevisionHistory
-          title="History"
           state={revisionsState}
           onRetry={loadRevisions}
           currentRevision={workflow?.revision ?? 0}

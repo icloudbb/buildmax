@@ -12,7 +12,9 @@ interface RevisionEntry {
 }
 
 interface RevisionHistoryProps {
-  title: string
+  /** Section heading. Omit when a wrapper (e.g. a modal titled "Version
+   *  History") already names the section, to avoid a redundant second heading. */
+  title?: string
   state: ResourceState<RevisionEntry[]>
   onRetry: () => void
   currentRevision: number
@@ -41,12 +43,14 @@ export function RevisionHistory({
 }: RevisionHistoryProps) {
   return (
     <section className="revision-history">
-      <div className="revision-history__head">
-        <h3 className="revision-history__title">{title}</h3>
-        {currentRevision > 0 ? (
-          <span className="page-activity__meta">Current: v{currentRevision}</span>
-        ) : null}
-      </div>
+      {title || currentRevision > 0 ? (
+        <div className="revision-history__head">
+          {title ? <h3 className="revision-history__title">{title}</h3> : <span />}
+          {currentRevision > 0 ? (
+            <span className="page-activity__meta">Current: v{currentRevision}</span>
+          ) : null}
+        </div>
+      ) : null}
       {(state.kind === "error" ||
         state.kind === "forbidden" ||
         state.kind === "notFound" ||
