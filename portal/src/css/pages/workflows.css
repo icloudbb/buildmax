@@ -374,13 +374,6 @@ button.wf-graph__node:focus-visible {
   color: #8a6d1f;
 }
 
-.workflow-detail__meta {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-top: 0.4rem;
-}
-
 .workflow-detail__banner {
   margin: 0 0 1rem;
   padding: 0.6rem 0.85rem;
