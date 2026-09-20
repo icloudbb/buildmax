@@ -80,9 +80,12 @@ fills in that named slot.
   accumulation would grow context and cost without a demonstrated need (§13).
 - **Local CLI scheduling.** The CLI is a single-run process with no resident
   loop or multi-replica coordination. A user who wants the local binary on a
-  timer uses the operating system's own cron, launchd, or Task Scheduler.
-  Scheduling lives where a resident, coordinated process already lives: the
-  Server.
+  timer uses the operating system's own cron, launchd, or Task Scheduler. The
+  Desktop app, a resident GUI, is a separate case: it carries its own small
+  in-process scheduler that fires local tasks while it is open, sharing no state
+  with this Server design (see [`docs/current-state.md`](../current-state.md)).
+  Server-side scheduling, the subject of this record, lives where a resident,
+  coordinated, multi-user process already lives: the Server.
 - **Event and webhook triggers.** Inbound events are a separate typed origin
   (`webhook` already exists as a trigger source). This record is time only.
 - **Sub-minute granularity.** The smallest interval is one minute; finer

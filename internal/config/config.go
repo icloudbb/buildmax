@@ -240,6 +240,12 @@ func AuthPath() string {
 	return filepath.Join(DataDir(), "auth.json")
 }
 
+// ScheduledTasksPath returns the path to the Desktop app's local scheduled-task
+// file under DataDir. It is Desktop-only: the CLI and Server do not read it.
+func ScheduledTasksPath() string {
+	return filepath.Join(DataDir(), "scheduled-tasks.json")
+}
+
 // SkillSearchPaths returns the ordered list of directories to scan for skills.
 // Priority: workspace-local first, then global DataDir.
 func SkillSearchPaths(workspace string) []string {

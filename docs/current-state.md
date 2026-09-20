@@ -94,6 +94,15 @@ run per session key, queues later prompts in order, and gives queued background
 events the same lifecycle. The Server TaskRun scheduler remains a separate
 durable execution-plane concern.
 
+Desktop also has local scheduled tasks: a Schedules view (a first-class sidebar
+entry) where a user schedules a fixed prompt to run in a project on a standard
+cron expression and timezone. A resident tick loop fires due tasks in-process as
+new sessions while the app is open — coalescing one missed fire on launch and
+pausing a task after repeated failures to start a run — and stores them in
+`scheduled-tasks.json` under `BUILDMAX_HOME`. This is distinct from the Server's
+durable [scheduled Agent execution](design/scheduled-agent-execution.md): it
+needs no Server, and nothing fires while the app is closed.
+
 An Agent reaches Server resources through the `buildmax` command surface it runs
 via `Bash`, not through per-capability in-process tools: `buildmax issue`,
 `agent`, `task`, `artifact`, and `workflow` resolve their transport and

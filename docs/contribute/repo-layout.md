@@ -260,6 +260,7 @@ internal/
 │   │                   lock, tail repair, salvage
 │   ├── localprojectstore/ Local Project file backend: the bundle, the
 │   │                   rebuildable catalog projection, and the writer lock
+│   ├── localschedulestore/ Desktop's local scheduled-task JSON file backend
 │   ├── trace/          Durable run-trace recorder (bounded, redacted JSONL)
 │   ├── k8s/            Kubernetes worker job launcher
 │   ├── workerclient/   Worker-side HTTP client for the server worker API

@@ -1,0 +1,298 @@
+/* The Schedules surface (SchedulesView) and its sidebar entry. Reuses the same
+   design tokens as the Home dashboard so the two full-panel views read alike. */
+
+.page-schedules {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 62rem;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem 0;
+}
+
+.page-schedules__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.page-schedules__title {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+.page-schedules__subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.page-schedules__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.page-schedules__banner--error {
+  background: var(--color-danger-bg, rgba(220, 60, 60, 0.12));
+  color: var(--color-danger, #c0392b);
+}
+
+.page-schedules__banner button {
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.page-schedules__grid {
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.8fr) minmax(0, 1.2fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.page-schedules__section {
+  min-width: 0;
+}
+
+.page-schedules__section-head {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.page-schedules__section-head h2 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.page-schedules__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.9rem;
+}
+
+.page-schedules__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.page-schedules__field em {
+  color: var(--color-text-subtle);
+  font-style: normal;
+}
+
+.page-schedules__field input,
+.page-schedules__field select,
+.page-schedules__field textarea {
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.page-schedules__field textarea {
+  resize: vertical;
+}
+
+.page-schedules__field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.page-schedules__form-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.page-schedules__primary {
+  padding: 0.5rem 1.1rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.page-schedules__primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.page-schedules__ghost {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.page-schedules__ghost:hover {
+  border-color: var(--color-text-muted);
+}
+
+.page-schedules__ghost--danger:hover {
+  border-color: var(--color-danger, #c0392b);
+  color: var(--color-danger, #c0392b);
+}
+
+.page-schedules__form-error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--color-danger, #c0392b);
+}
+
+.page-schedules__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+}
+
+.page-schedules__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.9rem;
+}
+
+.page-schedules__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+}
+
+.page-schedules__card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.page-schedules__card-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.page-schedules__badge {
+  flex-shrink: 0;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.page-schedules__badge--on {
+  background: var(--color-success-bg, rgba(60, 160, 90, 0.15));
+  color: var(--color-success, #2e7d46);
+}
+
+.page-schedules__badge--off {
+  background: var(--color-border-subtle);
+  color: var(--color-text-muted);
+}
+
+.page-schedules__badge--warn {
+  background: var(--color-danger-bg, rgba(220, 60, 60, 0.12));
+  color: var(--color-danger, #c0392b);
+}
+
+.page-schedules__card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--color-text-subtle);
+}
+
+.page-schedules__card-meta code {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.page-schedules__link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-link);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.page-schedules__card-actions {
+  display: flex;
+  gap: 0.4rem;
+  padding-top: 0.2rem;
+}
+
+.page-schedules__empty {
+  padding-top: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--color-text-subtle);
+}
+
+/* Sidebar entry: a first-class nav item above the Projects list. */
+.sidebar__schedules {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar__schedules:hover {
+  background: var(--color-surface-hover, rgba(127, 127, 127, 0.1));
+}
+
+.sidebar__schedules--active {
+  background: var(--color-surface-active, rgba(127, 127, 127, 0.16));
+  font-weight: 500;
+}
+
+.sidebar__schedules-icon {
+  flex-shrink: 0;
+  opacity: 0.8;
+}

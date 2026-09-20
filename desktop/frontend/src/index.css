@@ -8,6 +8,7 @@
 @import './css/terminal.css';
 @import './css/workspace-tabs.css';
 @import './css/explorer.css';
+@import './css/schedules.css';
 
 * {
   box-sizing: border-box;
