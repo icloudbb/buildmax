@@ -3,6 +3,7 @@ package desktop
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/icloudbb/buildmax/internal/core/session"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // maxFilePreviewBytes bounds a file preview so opening a huge file in the tree
@@ -139,6 +141,47 @@ func (a *App) WriteWorkspaceFile(projectID, sessionID, relPath, content string) 
 		return WorkspaceFile{}, err
 	}
 	return writeWorkspaceFile(root, relPath, content)
+}
+
+// CopyWorkspacePath resolves a workspace file's path, copies it to the system
+// clipboard, and returns what it copied so the caller can confirm it. The tab
+// context menu offers both forms: with absolute false the workspace-relative,
+// slash-separated path; with absolute true the OS-native absolute path, which
+// resolves the session's own workspace root — a worktree when the session has
+// one — so the copied path matches the file the panel actually reads. Clipboard
+// access stays in Go so it behaves the same in the native window as through the
+// dev-server bridge.
+func (a *App) CopyWorkspacePath(projectID, sessionID, relPath string, absolute bool) (string, error) {
+	root := ""
+	if absolute {
+		resolved, err := resolveWorkspace(projectID, sessionID)
+		if err != nil {
+			return "", err
+		}
+		root = resolved
+	}
+	out, err := workspacePathString(root, relPath, absolute)
+	if err != nil {
+		return "", err
+	}
+	if err := runtime.ClipboardSetText(a.ctx, out); err != nil {
+		return "", err
+	}
+	return out, nil
+}
+
+// workspacePathString is the pure path derivation behind CopyWorkspacePath: it
+// clamps relPath to the workspace root (so ".." cannot escape) and returns
+// either the clean relative path or its join under root.
+func workspacePathString(root, relPath string, absolute bool) (string, error) {
+	clean := strings.TrimPrefix(path.Clean("/"+strings.ReplaceAll(relPath, "\\", "/")), "/")
+	if clean == "" {
+		return "", fmt.Errorf("desktop: no file selected")
+	}
+	if !absolute {
+		return clean, nil
+	}
+	return filepath.Join(root, filepath.FromSlash(clean)), nil
 }
 
 func writeWorkspaceFile(root, relPath, content string) (WorkspaceFile, error) {

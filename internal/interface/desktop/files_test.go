@@ -210,6 +210,49 @@ func mustMkdir(t *testing.T, p string) {
 	}
 }
 
+func TestWorkspacePathString(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator)+"work", "repo")
+
+	t.Run("relative form is the clean slash path, ignoring the root", func(t *testing.T) {
+		got, err := workspacePathString(root, "src/main.go", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != "src/main.go" {
+			t.Fatalf("relative path = %q", got)
+		}
+	})
+
+	t.Run("absolute form joins under the resolved root", func(t *testing.T) {
+		got, err := workspacePathString(root, "src/main.go", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := filepath.Join(root, "src", "main.go")
+		if got != want {
+			t.Fatalf("absolute path = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("traversal cannot escape the root", func(t *testing.T) {
+		got, err := workspacePathString(root, "../../etc/passwd", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// "../../etc/passwd" collapses to "etc/passwd" under the root.
+		want := filepath.Join(root, "etc", "passwd")
+		if got != want {
+			t.Fatalf("clamped path = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("an empty path is rejected", func(t *testing.T) {
+		if _, err := workspacePathString(root, "", false); err == nil {
+			t.Fatal("expected an error for an empty path")
+		}
+	})
+}
+
 func mustWrite(t *testing.T, p string) {
 	t.Helper()
 	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
