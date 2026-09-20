@@ -92,6 +92,9 @@ type AppConfig struct {
 	// run's trace redactor so they do not drift into a durable trace. Defense
 	// in depth, not a boundary. See docs/design/space-secrets.md §12.
 	SecretEnvValues []string
+	// WebSearchAPIKey overrides the local search key for this run. Workers use a
+	// run-scoped Secret grant; the credential is not written to settings.yaml.
+	WebSearchAPIKey string
 	// MaxIterations caps this AgentApp's model calls per run, outranking
 	// settings.yaml. Zero takes the configured value. A surface exposes it for
 	// the run whose length nobody configured for: a benchmark task or an
@@ -219,6 +222,7 @@ type AgentApp struct {
 	memoryDisabled   bool
 	worktrees        *worktree.Manager
 	settings         config.Settings
+	webSearchAPIKey  string
 	llmClients       *LLMClientCache
 	toolRegistriesMu sync.Mutex
 	toolRegistries   map[string]cllm.ToolRegistry
@@ -1529,7 +1533,7 @@ func (a *AgentApp) promptCapabilities() PromptCapabilities {
 
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {
 	registry := cllm.NewToolRegistry()
-	registry.AppendTools(buildBaseTools(client, a.workspace, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher, a.jobs)...)
+	registry.AppendTools(buildBaseTools(client, a.workspace, a.skillsRegistry.NewTool(), a.Sandbox(), a.webSearchAPIKey, a.artifactPublisher, a.jobs)...)
 	if a.mcpManager != nil {
 		if reg := a.mcpManager.Registry(); reg != nil {
 			registry.AppendTools(tools.GatewayTools(reg)...)

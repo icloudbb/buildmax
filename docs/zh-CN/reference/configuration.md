@@ -189,6 +189,8 @@ Compose 编排栈是独立的，不读取 `.local/env`。它使用 `deployment/c
 log_level: info                      # debug | info | warn | error | off
 server_url: http://localhost:5678    # default offered by `buildmax login`;
                                       # BUILDMAX_SERVER_URL overrides it
+# web_search:
+#   api_key: your-firecrawl-api-key  # 可选；免密钥搜索可能受限
 
 models:                              # first entry is the default model
   - model: openai/gpt-3.5-turbo
@@ -217,6 +219,7 @@ sandbox: {}                          # see guide/sandbox.md
 |---|---|---|
 | `log_level` | `info` | 日志只写入 `<BUILDMAX_HOME>/logs/buildmax.log`，从不输出到终端，以保持 TUI 界面干净。 |
 | `server_url` | — | 仅用作 `buildmax login` 的提示默认值；`BUILDMAX_SERVER_URL` 会覆盖它。 |
+| `web_search.api_key` | — | 内置 `WebSearch` 的可选 Firecrawl 密钥。不设置时工具尝试免密钥访问；调用时查询会发往 Firecrawl。Worker 改用运行范围内名为 `FIRECRAWL_API_KEY` 的 Secret 授权。 |
 | `models[]` | — | CLI 在未登录状态下可运行的模型。用 `--model <id or name>` 为某次运行单独选择一个。 |
 | `default_model` | 第一个条目 | 新会话默认使用哪个条目，按名称或模型 id 指定。仅在未登录状态下生效；部署会指定自己的默认值。 |
 | `models[].provider` | `openai_compatible` | 该端点所使用的通信协议——见下文。 |

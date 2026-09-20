@@ -258,7 +258,7 @@ func TestMemoryToolsFollowWhetherTheRunHasMemory(t *testing.T) {
 
 // A delegate carries neither tool, so no agent definition can name one.
 func TestBaseToolsExcludeTheMemoryTools(t *testing.T) {
-	base := buildBaseTools(nil, util.FixedRoot(t.TempDir()), stubTool{}, agent.NoopSandbox{}, nil, nil)
+	base := buildBaseTools(nil, util.FixedRoot(t.TempDir()), stubTool{}, agent.NoopSandbox{}, "", nil, nil)
 	for _, tl := range base {
 		if tl.Name() == tools.ToolNameMemoryRead || tl.Name() == tools.ToolNameMemoryWrite {
 			t.Fatalf("%s is in the base set, so a subagent definition can name it", tl.Name())

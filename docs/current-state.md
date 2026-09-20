@@ -104,6 +104,9 @@ permissions, approvals, compaction and checkpoints, hooks, bounded redacted
 traces, usage statistics, sessions, notes, todos, Project Memory, subagents,
 worktrees, and background jobs. Model assembly supports OpenAI-compatible chat,
 OpenAI Responses, Anthropic, and Ollama.
+The built-in `WebSearch` sends public-web queries to Firecrawl and returns
+source URLs and excerpts. It attempts keyless access by default; local settings
+or a run-scoped worker Secret grant can supply a Firecrawl key.
 
 Interactive Desktop turns now use `agentapp.RunScheduler`, which serializes one
 run per session key, queues later prompts in order, and gives queued background

@@ -306,6 +306,8 @@ server's `BUILDMAX_CORS_ORIGIN` from them. See
 log_level: info                      # debug | info | warn | error | off
 server_url: http://localhost:5678    # default offered by `buildmax login`;
                                       # BUILDMAX_SERVER_URL overrides it
+# web_search:
+#   api_key: your-firecrawl-api-key  # optional; keyless search may be limited
 
 models:                              # first entry is the default model
   - model: openai/gpt-3.5-turbo
@@ -334,6 +336,7 @@ sandbox: {}                          # see guide/sandbox.md
 |---|---|---|
 | `log_level` | `info` | Logs go to `<BUILDMAX_HOME>/logs/buildmax.log` only, never to the terminal, so the TUI stays clean. |
 | `server_url` | — | Only used as the prompt default for `buildmax login`; `BUILDMAX_SERVER_URL` overrides it. |
+| `web_search.api_key` | — | Optional Firecrawl key for built-in `WebSearch`. With no key, the tool tries keyless access. Queries go to Firecrawl when the tool is called. A worker uses a run-scoped `FIRECRAWL_API_KEY` Secret grant instead of this local setting. |
 | `models[]` | — | One model the CLI can run while signed out. Select one per run with `--model <id or name>`. |
 | `default_model` | first entry | Which entry a new session starts with, by name or model id. Applies while signed out; a deployment names its own default. |
 | `models[].provider` | `openai_compatible` | The wire protocol the endpoint speaks — see below. |

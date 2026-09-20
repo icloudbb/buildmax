@@ -150,6 +150,10 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		plugins:                     resolved.plugins,
 		secretEnvValues:             cfg.SecretEnvValues,
 		secretRedactor:              secretscan.NewRedactor(cfg.SecretEnvValues),
+		webSearchAPIKey:             resolved.settings.WebSearch.APIKey,
+	}
+	if cfg.WebSearchAPIKey != "" {
+		app.webSearchAPIKey = cfg.WebSearchAPIKey
 	}
 	// A worker that resolves weaker than its own surface's baseline says so
 	// out loud, not only in the trace: docs/design/sandbox-boundaries.md §10.

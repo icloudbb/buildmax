@@ -39,6 +39,7 @@ type Settings struct {
 	Hooks        corehook.Config `mapstructure:"hooks"`
 	Sandbox      SandboxConfig   `mapstructure:"sandbox"`
 	Tools        ToolsConfig     `mapstructure:"tools"`
+	WebSearch    WebSearchConfig `mapstructure:"web_search"`
 	Agent        AgentConfig     `mapstructure:"agent"`
 }
 

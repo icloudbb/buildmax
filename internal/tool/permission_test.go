@@ -44,6 +44,7 @@ func permissionTable(t *testing.T) []permissionCase {
 		{"Grep", NewGrep(util.FixedRoot(ws)), map[string]any{"pattern": "x"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
 		{"Skill", NewSkillFromEntries(nil), map[string]any{"skill": "s"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
 		{"WebFetch", NewWebFetch(nil, 0), map[string]any{"url": "https://example.com"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
+		{"WebSearch", NewWebSearch(""), map[string]any{"query": "example"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
 		{"LoadMcpTools", loadMCP, map[string]any{"server": "s", "tool_name": "t"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
 		// A delegation whose agent type reaches only read-only tools — §6
 		// footnote 2. It does not prompt, because nothing it can reach would

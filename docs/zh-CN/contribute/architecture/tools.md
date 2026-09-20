@@ -22,6 +22,7 @@
 | **WriteFile** | 结构体 | 在某个根目录下创建/覆盖文件 |
 | **EditFile** | 结构体 | 在文件中执行精确的字符串替换 |
 | **WebFetch** | 结构体 | 抓取 URL，将 HTML 转换为 markdown |
+| **WebSearch** | 结构体 | 通过 Firecrawl 搜索公开网页 |
 | **Bash** | 结构体 | 在工作区中运行 shell 命令 |
 | **Glob** | 结构体 | 列出匹配 glob 模式的文件 |
 | **Grep** | 结构体 | 按正则表达式搜索文件内容 |
@@ -61,6 +62,11 @@
 
 - **参数**：`url`（必需）
 - **行为**：抓取一个 URL，把 HTML 转换为 markdown。会缓存结果（默认 TTL 为 15 分钟）。可以选择使用 LLM 对内容进行处理/总结。
+
+### WebSearch（`WebSearch`）
+
+- **参数**：`query`（必需）
+- **行为**：向 Firecrawl 发送有长度限制的查询，最多返回五条来源 URL、标题和短摘要。可免密钥调用；本地 `settings.yaml` 的密钥或 worker 的 `FIRECRAWL_API_KEY` Secret 授权可用于认证。网络沙箱会检查提供商域名。
 
 ### Bash（`Bash`）
 
@@ -160,7 +166,7 @@ memory 相关的工具遵循同样的“由 context 携带”模式（`agent.Ctx
 ## 工作方式
 
 1. `internal/agentapp` 解析工作区根目录，并构建基础工具注册表。
-2. 基础工具包括文件操作、bash、glob/grep、web fetch、todo、skill，以及可选的 MCP 网关工具。
+2. 基础工具包括文件操作、bash、glob/grep、web fetch、web search、todo、skill，以及可选的 MCP 网关工具。
 3. `internal/core/agent.RunLoop` 接收一个 `llm.ToolRegistry`。
 4. 在循环过程中，当 LLM 返回工具调用时，Agent 会按名称查找每个工具、解析 JSON 参数，并调用 `Execute()`。
 5. 结果（或错误）会以 tool 角色消息的形式追加到当前的历史记录中。

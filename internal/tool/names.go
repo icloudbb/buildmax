@@ -1,5 +1,5 @@
 // Package tool provides concrete agent tools. Every runtime gets Read, Write,
-// Edit, Glob, Grep, Bash, WebFetch, TodoWrite, NoteWrite, Skill, Task, and the
+// Edit, Glob, Grep, Bash, WebFetch, WebSearch, TodoWrite, NoteWrite, Skill, Task, and the
 // MCP gateway tools; UploadArtifact, Worktree, MemoryRead, MemoryWrite, JobList,
 // JobOutput, JobStop, and Monitor are registered only where the surface can
 // serve them, as the constants below say. Reaching a space Issue is no longer a
@@ -18,6 +18,7 @@ const (
 	ToolNameGrep      = "Grep"
 	ToolNameBash      = "Bash"
 	ToolNameWebFetch  = "WebFetch"
+	ToolNameWebSearch = "WebSearch"
 	ToolNameTodoWrite = "TodoWrite"
 	ToolNameNoteWrite = "NoteWrite"
 	ToolNameSkill     = "Skill"

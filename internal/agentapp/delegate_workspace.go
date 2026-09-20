@@ -30,7 +30,7 @@ func (a *AgentApp) agentTypeToolsAt(client cllm.LLMClient, agentType string, ws 
 	}
 
 	registry := cllm.NewToolRegistry()
-	registry.AppendTools(buildBaseTools(client, ws, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher, nil)...)
+	registry.AppendTools(buildBaseTools(client, ws, a.skillsRegistry.NewTool(), a.Sandbox(), a.webSearchAPIKey, a.artifactPublisher, nil)...)
 	if a.mcpManager != nil {
 		if reg := a.mcpManager.Registry(); reg != nil {
 			registry.AppendTools(tools.GatewayTools(reg)...)

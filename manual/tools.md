@@ -17,6 +17,7 @@ so they are worth knowing exactly.
 | `Grep` | Regex search over file contents | `pattern`, `path`, `glob`, `type`, `output_mode`, `before_context`, `after_context`, `context`, `case_insensitive`, `line_numbers`, `multiline`, `head_limit`, `offset` |
 | `Bash` | Run a shell command in the workspace | `command`, `timeout` (milliseconds; default 120000, max 600000), `dangerously_disable_sandbox`, `run_in_background` and `deliver_result` (TUI and Desktop) |
 | `WebFetch` | Fetch a URL as markdown, optionally summarized by the model | `url`, `prompt` |
+| `WebSearch` | Search the public web for source URLs and excerpts | `query` |
 | `TodoWrite` | Track multi-step progress | `todos[]` of `{content, status, active_form}` |
 | `NoteWrite` | Keep durable notes that survive compaction | `notes[]` of strings |
 | `Skill` | Load a skill's instructions | `skill`, `args` |
@@ -109,7 +110,7 @@ root for the length of their run. `buildmax --workspace <dir>` still starts a
 session anywhere you like, including in a worktree you made yourself.
 
 When the agent asks for several tools at once, the read-only ones run at the
-same time: `Read`, `Glob`, `Grep`, `Skill`, `WebFetch`, and a `Task` handed to
+same time: `Read`, `Glob`, `Grep`, `Skill`, `WebFetch`, `WebSearch`, and a `Task` handed to
 a read-only sub-agent such as `explore`. Anything that changes something runs
 alone and in order, so a batch does the same thing however it is scheduled.
 Tune it with `agent.max_parallel_tools`.
@@ -132,6 +133,14 @@ agent then reads in ranges.
 **`WebFetch` caches for 15 minutes** and converts HTML to markdown. On a
 cross-host redirect it returns the redirect URL instead of following it, so the
 agent decides whether to fetch the new host.
+
+**`WebSearch` sends queries to Firecrawl.** It returns at most five URLs with
+titles and short excerpts; use `WebFetch` to read a source before relying on a
+detail. Searches work without setup while the provider accepts keyless requests.
+If keyless access is limited, set `web_search.api_key` in local `settings.yaml`.
+An unattended Space Agent can instead declare a Secret grant named
+`FIRECRAWL_API_KEY`. Network sandbox domain rules also apply to the request.
+Provider quotas or charges are separate from BuildMax model-usage reporting.
 
 **`Read` returns the first 1000 lines by default.** Large files are read in
 ranges via `offset` and `limit` rather than all at once. A successful read of a

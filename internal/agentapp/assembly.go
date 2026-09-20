@@ -170,7 +170,7 @@ func ResolveAgentTypeTools(agentName string, toolNames []string, registry llm.To
 //
 // jobs follows the same rule for Bash's run_in_background: nil keeps the
 // parameter out of the schema entirely.
-func buildBaseTools(client llm.LLMClient, ws util.Workspace, skillTool llm.Tool, sandboxView agent.SandboxView, publisher tools.ArtifactPublisher, jobs *job.Manager) []llm.Tool {
+func buildBaseTools(client llm.LLMClient, ws util.Workspace, skillTool llm.Tool, sandboxView agent.SandboxView, searchAPIKey string, publisher tools.ArtifactPublisher, jobs *job.Manager) []llm.Tool {
 	if sandboxView == nil {
 		sandboxView = agent.NoopSandbox{}
 	}
@@ -182,6 +182,7 @@ func buildBaseTools(client llm.LLMClient, ws util.Workspace, skillTool llm.Tool,
 		tools.NewEditFile(ws),
 		tools.NewGrep(ws),
 		tools.NewWebFetch(client, 15*time.Minute).WithSandbox(sandboxView),
+		tools.NewWebSearch(searchAPIKey).WithSandbox(sandboxView),
 		tools.NewTodoWrite(),
 		tools.NewNoteWrite(),
 		skillTool,

@@ -36,17 +36,20 @@ func toolNames(list []llm.Tool) map[string]bool {
 // registered only to answer "unavailable" costs a round trip and teaches the
 // model nothing — see docs/design/unified-artifacts.md section 7.1.
 func TestArtifactToolIsAbsentWithoutAPublisher(t *testing.T) {
-	names := toolNames(buildBaseTools(nil, util.FixedRoot(t.TempDir()), stubTool{}, agent.NoopSandbox{}, nil, nil))
+	names := toolNames(buildBaseTools(nil, util.FixedRoot(t.TempDir()), stubTool{}, agent.NoopSandbox{}, "", nil, nil))
 	if names[tools.ToolNameUploadArtifact] {
 		t.Error("a session with no artifact service must not be offered the tool")
 	}
 	if !names[tools.ToolNameRead] {
 		t.Error("the ordinary tools should still be there")
 	}
+	if !names[tools.ToolNameWebSearch] {
+		t.Error("web search should be available without extra configuration")
+	}
 }
 
 func TestArtifactToolIsPresentWithAPublisher(t *testing.T) {
-	names := toolNames(buildBaseTools(nil, util.FixedRoot(t.TempDir()), stubTool{}, agent.NoopSandbox{}, stubPublisher{}, nil))
+	names := toolNames(buildBaseTools(nil, util.FixedRoot(t.TempDir()), stubTool{}, agent.NoopSandbox{}, "", stubPublisher{}, nil))
 	if !names[tools.ToolNameUploadArtifact] {
 		t.Error("a session with an artifact service must be offered the tool")
 	}
