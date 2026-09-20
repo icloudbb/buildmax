@@ -25,6 +25,7 @@ results are sent back to the model as tool-role messages.
 | **WriteFile** | struct | Creates/overwrites files under a root directory |
 | **EditFile** | struct | Performs exact string replacements in files |
 | **WebFetch** | struct | Fetches URLs, converts HTML to markdown |
+| **WebSearch** | struct | Searches the public web through Firecrawl |
 | **Bash** | struct | Runs shell commands in the workspace |
 | **Glob** | struct | Lists files matching glob patterns |
 | **Grep** | struct | Searches file contents by regex |
@@ -62,6 +63,11 @@ results are sent back to the model as tool-role messages.
 
 - **Parameters**: `url` (required)
 - **Behavior**: Fetches a URL, converts HTML to markdown. Caches results (default 15 min TTL). Optionally uses LLM to process/summarize content.
+
+### WebSearch (`WebSearch`)
+
+- **Parameters**: `query` (required)
+- **Behavior**: Sends a bounded query to Firecrawl and returns up to five source URLs, titles, and short excerpts. Keyless calls are possible; a local `settings.yaml` key or a worker's `FIRECRAWL_API_KEY` Secret grant can authenticate. The network sandbox gates the provider host.
 
 ### Bash (`Bash`)
 
@@ -226,7 +232,7 @@ until you do.
 ## How It Works
 
 1. `internal/agentapp` resolves the workspace root and builds the base tool registry.
-2. Base tools include file operations, bash, glob/grep, web fetch, todo, skill, and optional MCP gateway tools.
+2. Base tools include file operations, bash, glob/grep, web fetch, web search, todo, skill, and optional MCP gateway tools.
 3. `internal/core/agent.RunLoop` receives a `llm.ToolRegistry`.
 4. During the loop, when the LLM returns tool calls, the agent looks up each tool by name, parses JSON arguments, and calls `Execute()`.
 5. Results (or errors) are appended to the active history as tool-role messages.

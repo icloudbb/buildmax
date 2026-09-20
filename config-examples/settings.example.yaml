@@ -6,6 +6,10 @@ log_level: info
 # Server URL shown as default when running `buildmax login`.
 # server_url: http://localhost:5678  # BUILDMAX_SERVER_URL overrides this
 
+# WebSearch works without a key while Firecrawl accepts keyless requests.
+# web_search:
+#   api_key: your-firecrawl-api-key
+
 # LLM models available in the CLI and desktop app. The first entry is the
 # default model. context_window: 0 uses the built-in default (32000 tokens).
 #

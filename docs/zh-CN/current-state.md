@@ -62,6 +62,8 @@ CLI/TUI、Desktop 与 worker 组装共享 Agent runtime。核心包含流式模�
 工具错误恢复、只读工具并行执行、权限、审批、压缩与检查点、hook、有界脱敏轨迹、
 用量统计、Session、笔记、待办、Project Memory、subagent、worktree 和后台任务。
 模型组装支持 OpenAI-compatible chat、OpenAI Responses、Anthropic 与 Ollama。
+内置 `WebSearch` 会将公开网页查询发送给 Firecrawl，并返回来源 URL 与摘要。
+默认尝试免密钥访问；本地设置或 worker 运行范围内的 Secret 授权可提供 Firecrawl 密钥。
 
 Desktop 交互式回合现在使用 `agentapp.RunScheduler`：按 Session key 串行执行一个 Run、
 依序排队后续提示，并让排队的后台事件使用相同生命周期。Server TaskRun 调度器仍是

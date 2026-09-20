@@ -594,6 +594,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 			// their values are registered with the trace redactor.
 			SecretEnvNames:  mapKeys(secretGrants),
 			SecretEnvValues: mapValues(secretGrants),
+			WebSearchAPIKey: secretGrants["FIRECRAWL_API_KEY"],
 		})
 		if err != nil {
 			return err

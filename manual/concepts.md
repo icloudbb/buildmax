@@ -50,7 +50,7 @@ prompt → LLM → tool calls → execute tools → results back to LLM → … 
 ```
 
 The tools are ordinary local operations: `Read`, `Write`, `Edit`, `Bash`,
-`Glob`, `Grep`, `WebFetch`, `TodoWrite`, plus skills, subagents, and any tools
+`Glob`, `Grep`, `WebFetch`, `WebSearch`, `TodoWrite`, plus skills, subagents, and any tools
 exposed by connected MCP servers — see [Tools](tools.md).
 
 Two mechanisms sit around this loop and are worth knowing about early:
