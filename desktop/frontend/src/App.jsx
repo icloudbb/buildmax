@@ -54,6 +54,13 @@ function writeStored(key, value) {
   }
 }
 
+// A stable per-terminal key for snapshot persistence: it survives a restart in
+// the saved layout, so a reopened terminal reclaims its previous contents while
+// the dead PTY id does not.
+function newRestoreKey() {
+  return globalThis.crypto?.randomUUID?.() ?? `rk-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function clampSidebarWidth(w) {
   const n = Number(w);
   if (!Number.isFinite(n)) return SIDEBAR_DEFAULT_WIDTH;
@@ -296,10 +303,11 @@ export default function App() {
   // project restores its exact tabs — terminals included — without killing the
   // shells. Keyed by project id; the active project's layout lives in `workspace`.
   const stashedWorkspacesRef = useRef(new Map());
-  // Terminal ids of *inactive* projects. TerminalHost keeps them mounted but
-  // parked, so a shell's emulator and scrollback survive a project switch and
-  // reappear intact on return.
-  const [parkedTermIds, setParkedTermIds] = useState([]);
+  // Terminals of *inactive* projects: { id, projectId, restoreKey }. TerminalHost
+  // keeps them mounted but parked, so a shell's emulator and scrollback survive a
+  // project switch and reappear intact on return; the project id and restore key
+  // let a parked terminal keep persisting its snapshot under its own project.
+  const [parkedTerminals, setParkedTerminals] = useState([]);
   // A mirror of the latest `workspace`, so the project-switch effect can read the
   // outgoing project's current layout without a stale closure and without a
   // setState-inside-updater (which React would not reliably apply).
@@ -342,43 +350,109 @@ export default function App() {
   // Keep the workspace mirror current for the switch effect below.
   useEffect(() => { workspaceRef.current = workspace; }, [workspace]);
 
+  // respawnTerminalTabs reopens a restored layout's terminals as fresh shells:
+  // their old PTYs died with the previous process, so each terminal tab is rebound
+  // to a newly opened shell in the project workspace (its scrollback is not
+  // recovered — a fresh shell is the honest restore). A terminal that cannot be
+  // reopened is dropped, and any pane or row left empty is removed.
+  const respawnTerminalTabs = async (ws, projectId) => {
+    const a = getApp();
+    const rows = [];
+    let count = 0;
+    const keptKeys = [];
+    for (const row of ws.rows) {
+      const panes = [];
+      for (const p of row.panes) {
+        const tabs = [];
+        for (const t of p.tabs) {
+          if (t.kind !== 'terminal') { tabs.push(t); continue; }
+          if (!a?.TerminalOpen) continue;
+          try {
+            const id = await a.TerminalOpen(projectId);
+            count += 1;
+            const restoreKey = t.restoreKey || newRestoreKey();
+            let restoreContent = '';
+            if (t.restoreKey && a.LoadTerminalSnapshot) {
+              try { restoreContent = (await a.LoadTerminalSnapshot(projectId, restoreKey)) || ''; } catch { /* no snapshot */ }
+            }
+            keptKeys.push(restoreKey);
+            tabs.push({ ...t, ref: id, key: `terminal:${id}`, restoreKey, restoreContent });
+          } catch { /* a shell that will not open is left out */ }
+        }
+        if (tabs.length === 0) continue;
+        const activeKey = tabs.some((t) => t.key === p.activeKey) ? p.activeKey : tabs[tabs.length - 1].key;
+        panes.push({ ...p, tabs, activeKey });
+      }
+      if (panes.length) rows.push({ ...row, panes });
+    }
+    // Drop snapshots for terminals that are no longer in the layout (closed
+    // before the last quit), so their contents do not linger.
+    if (a?.PruneTerminalSnapshots) { try { await a.PruneTerminalSnapshots(projectId, keptKeys); } catch { /* best effort */ } }
+    // Continue terminal numbering past what was restored so a new terminal does
+    // not reuse a restored one's default name.
+    if (count > termSeqRef.current) termSeqRef.current = count;
+    if (rows.length === 0) return emptyWorkspace;
+    const ids = rows.flatMap((r) => r.panes).map((p) => p.id);
+    const focused = ids.includes(ws.focused) ? ws.focused : ids[ids.length - 1];
+    return { rows, focused, seq: ws.seq };
+  };
+
   // On a project switch, stash the outgoing project's live layout (so returning
   // restores it, terminals and all — the shells are not killed, only parked),
   // restore the incoming project's stashed or saved layout, and make sure the
-  // selected session — or a new chat — has a focused tab. Everything runs at the
-  // effect's top level so both state updates (workspace and the parked-terminal
-  // list) are applied together.
+  // selected session — or a new chat — has a focused tab. A layout restored from
+  // storage (a fresh app launch) reopens its terminals as new shells first, so no
+  // tab binds to a dead PTY; the stash path keeps the live shells untouched.
   useEffect(() => {
     const prevPid = workspaceProjectRef.current;
     if (prevPid) stashedWorkspacesRef.current.set(prevPid, workspaceRef.current);
-    workspaceProjectRef.current = currentProject?.id ?? null;
-    let ws;
-    if (!currentProject) {
-      ws = emptyWorkspace;
-    } else if (stashedWorkspacesRef.current.has(currentProject.id)) {
-      ws = stashedWorkspacesRef.current.get(currentProject.id);
-      stashedWorkspacesRef.current.delete(currentProject.id);
-    } else {
-      const saved = readStored(workspaceStorageKey(currentProject.id), null);
-      ws = isWorkspace(saved) ? saved : emptyWorkspace;
-    }
-    if (currentProject) {
+    const pid = currentProject?.id ?? null;
+    workspaceProjectRef.current = pid;
+
+    const withChat = (ws) => {
+      if (!currentProject) return ws;
       if (selectedId) {
         const title = sessions.find((s) => s.id === selectedId)?.title?.trim() || 'Chat';
-        ws = openChatTabInto(ws, selectedId, title);
-      } else if (!allTabs(ws).some((t) => t.kind === 'chat')) {
-        ws = openNewChatInto(ws);
+        return openChatTabInto(ws, selectedId, title);
       }
-    }
+      if (!allTabs(ws).some((t) => t.kind === 'chat')) return openNewChatInto(ws);
+      return ws;
+    };
     // Every stashed (inactive) project's terminals stay mounted but parked.
-    const parked = [];
-    for (const [pid, w] of stashedWorkspacesRef.current) {
-      if (pid === currentProject?.id) continue;
-      for (const t of allTabs(w)) if (t.kind === 'terminal') parked.push(t.ref);
+    const computeParked = () => {
+      const parked = [];
+      for (const [p, w] of stashedWorkspacesRef.current) {
+        if (p === pid) continue;
+        for (const t of allTabs(w)) if (t.kind === 'terminal') parked.push({ id: t.ref, projectId: p, restoreKey: t.restoreKey ?? '' });
+      }
+      return parked;
+    };
+    const apply = (ws) => {
+      workspaceRef.current = ws;
+      setWorkspace(ws);
+      setParkedTerminals(computeParked());
+    };
+
+    if (!currentProject) { apply(emptyWorkspace); return; }
+
+    if (stashedWorkspacesRef.current.has(pid)) {
+      const ws = stashedWorkspacesRef.current.get(pid);
+      stashedWorkspacesRef.current.delete(pid);
+      apply(withChat(ws));
+      return;
     }
-    workspaceRef.current = ws;
-    setWorkspace(ws);
-    setParkedTermIds(parked);
+
+    const saved = readStored(workspaceStorageKey(pid), null);
+    const savedWs = isWorkspace(saved) ? saved : emptyWorkspace;
+    if (!allTabs(savedWs).some((t) => t.kind === 'terminal')) {
+      apply(withChat(savedWs));
+      return;
+    }
+    // Reopen persisted terminals as fresh shells, then apply — but only if this
+    // project is still the active one once the async opens finish.
+    respawnTerminalTabs(savedWs, pid).then((ws) => {
+      if (workspaceProjectRef.current === pid) apply(withChat(ws));
+    });
     // Reseed only when the active project changes; selectedId is read fresh above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
@@ -429,7 +503,7 @@ export default function App() {
     try {
       const id = await a.TerminalOpen(currentProject.id);
       termSeqRef.current += 1;
-      setWorkspace((s) => openInFocused(s, { kind: 'terminal', ref: id, title: `Terminal ${termSeqRef.current}` }));
+      setWorkspace((s) => openInFocused(s, { kind: 'terminal', ref: id, restoreKey: newRestoreKey(), title: `Terminal ${termSeqRef.current}` }));
     } catch {
       // Opening a shell can fail (e.g. unsupported platform); leave the tabs.
     }
@@ -500,11 +574,32 @@ export default function App() {
     }
     // Inactive projects' terminals: mounted but parked, so scrollback survives a
     // switch. (A duplicate id could only appear mid-switch; skip it.)
-    for (const id of parkedTermIds) {
+    for (const { id } of parkedTerminals) {
       if (!seen.has(id)) out.push({ id, active: false, target: null });
     }
     return out;
-  }, [workspace, termSlots, parkedTermIds]);
+  }, [workspace, termSlots, parkedTerminals]);
+
+  // Snapshot identity per terminal id, for TerminalHost to hand each TerminalPane:
+  // the current project's terminals carry its id, their restore key, and any
+  // restored contents; parked terminals carry their own project's id and key so
+  // they keep saving under it. restoreContent is only meaningful right after a
+  // restore and is written once at mount.
+  const terminalMetaById = useMemo(() => {
+    const m = new Map();
+    for (const row of workspace.rows) {
+      for (const pane of row.panes) {
+        for (const t of pane.tabs) {
+          if (t.kind !== 'terminal') continue;
+          m.set(t.ref, { projectId: currentProject?.id ?? '', restoreKey: t.restoreKey ?? '', restoreContent: t.restoreContent ?? '' });
+        }
+      }
+    }
+    for (const p of parkedTerminals) {
+      if (!m.has(p.id)) m.set(p.id, { projectId: p.projectId, restoreKey: p.restoreKey, restoreContent: '' });
+    }
+    return m;
+  }, [workspace, parkedTerminals, currentProject?.id]);
 
   // Each terminal keeps ONE host element for its whole life. TerminalPane portals
   // into it and never leaves: React remounts a portal's child when its container
@@ -1300,7 +1395,7 @@ export default function App() {
           scrollback — across tab switches, pane moves, grid re-tiling, and
           project switches. */}
       <div className="terminal-park" ref={setTermPark} aria-hidden />
-      <TerminalHost hosts={termHosts} activeById={terminalActiveById} />
+      <TerminalHost hosts={termHosts} activeById={terminalActiveById} metaById={terminalMetaById} />
 
       {showCreateModal && (
         <CreateProjectModal

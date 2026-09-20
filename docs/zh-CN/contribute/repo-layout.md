@@ -244,6 +244,7 @@ internal/
 │   │                   目录投影，以及写者锁
 │   ├── locallaunchpadstore/ 桌面端 Launchpad（快速启动应用）的 JSON 文件后端
 │   ├── localschedulestore/ 桌面端本地定时任务的 JSON 文件后端
+│   ├── localterminalsnapshotstore/ 桌面端终端缓冲快照（重启后恢复）的存储后端
 │   ├── trace/          持久化的 run-trace 记录器（有边界、经脱敏的 JSONL）
 │   ├── k8s/            Kubernetes worker job 启动器
 │   ├── workerclient/   面向 server worker API 的 worker 端 HTTP client

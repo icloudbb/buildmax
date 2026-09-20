@@ -22,6 +22,7 @@ import (
 	launchstore "github.com/icloudbb/buildmax/internal/infra/locallaunchpadstore"
 	"github.com/icloudbb/buildmax/internal/infra/localprojectstore"
 	schedstore "github.com/icloudbb/buildmax/internal/infra/localschedulestore"
+	snapstore "github.com/icloudbb/buildmax/internal/infra/localterminalsnapshotstore"
 	"github.com/icloudbb/buildmax/internal/interface/auth"
 	"github.com/icloudbb/buildmax/internal/interface/client"
 
@@ -208,6 +209,9 @@ type App struct {
 	// launchpad stores the user's custom quick-launch entries. Lazily opened (see
 	// ensureLaunchpadStore) so a test that never touches it needs no BUILDMAX_HOME.
 	launchpad *launchstore.FileStore
+	// terminalSnapshots stores each terminal tab's last serialized buffer so a
+	// restart can restore its visible contents. Lazily opened.
+	terminalSnapshots *snapstore.FileStore
 }
 
 // NewApp returns a new App instance.

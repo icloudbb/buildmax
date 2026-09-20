@@ -262,6 +262,7 @@ internal/
 │   │                   rebuildable catalog projection, and the writer lock
 │   ├── locallaunchpadstore/ Desktop's launchpad (quick-launch apps) JSON file backend
 │   ├── localschedulestore/ Desktop's local scheduled-task JSON file backend
+│   ├── localterminalsnapshotstore/ Desktop's terminal buffer snapshots (restore on restart)
 │   ├── trace/          Durable run-trace recorder (bounded, redacted JSONL)
 │   ├── k8s/            Kubernetes worker job launcher
 │   ├── workerclient/   Worker-side HTTP client for the server worker API

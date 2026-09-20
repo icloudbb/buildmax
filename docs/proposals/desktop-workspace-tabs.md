@@ -211,8 +211,10 @@ pane-independent, so a tab can move between panes without disturbing its content
   keyed per session so they *can* run at once; keeping two from clobbering one
   workspace (a per-session worktree) is the user's call (§12).
 - Replacing the Agent's Bash tool with the user terminal (§11.4).
-- A persistent terminal daemon, or reconstructing terminal scrollback across app
-  restarts.
+- A persistent terminal daemon or restoring a shell's live process across app
+  restarts. (The terminal *tab* is restored — reopened as a fresh shell with its
+  last visible contents replayed as static text — but the process is gone; see
+  §13.)
 - A shared `@buildmax/gui` tab framework before a second surface needs one.
 - Changing Portal, which is a browser surface with a different trust boundary
   (§16.3).
@@ -415,15 +417,21 @@ refinement.
 
 - A chat tab keeps the session persistence Desktop already has; closing it hides
   the session, which stays stored.
-- A terminal tab has no durable state; it dies with the tab or the window, and its
-  scrollback is not persisted.
+- A terminal tab's shell process dies with the tab or the window and is never
+  restored. Its *visible contents*, however, are — the emulator buffer is
+  serialized (debounced, bounded to a recent slice of scrollback) and saved on the
+  Go side, keyed by project and a stable per-terminal restore key. This mirrors
+  what a native terminal (e.g. iTerm2) does across a restart, so the user is not
+  surprised by an empty pane.
 - A file or diff tab is a derived view; it is re-read from the workspace on open
   and needs no persistence.
 - A project's layout is remembered as UI state (per project, in local storage), so
-  a restart or project switch reopens the same chat, file, and diff tabs in the
-  same pane grid. Terminal tabs are excluded from the save — a dead process cannot
-  be reopened, only a new one started — and any pane left empty by that exclusion
-  is dropped on restore.
+  a restart or project switch reopens the same chat, terminal, file, and diff tabs
+  in the same pane grid. A restored terminal is reopened as a fresh shell in the
+  project workspace with its saved contents replayed above the new prompt as static
+  text; the dead PTY id is not persisted, and its restore key ties the reopened tab
+  to its saved snapshot. Snapshots for terminals the user has closed are pruned on
+  the next restore. Any pane left empty (a terminal that will not reopen) is dropped.
 - No tab backing outlives the Desktop process where it should not: sessions
   persist, but PTYs are reaped on shutdown so no shell is orphaned.
 

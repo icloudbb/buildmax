@@ -197,17 +197,24 @@ export function tile(ws) {
   return { rows, focused, seq };
 }
 
-// pruneForPersist strips what cannot be restored after a restart — terminal
-// tabs, whose PTYs are gone — then drops any pane or row that leaves empty, so a
-// saved layout never reopens a dead shell or a blank pane. Returns null when
-// nothing worth restoring remains.
+// pruneForPersist prepares a layout for storage across a restart. Terminal tabs
+// are kept (positions and titles), but their PTY id is dropped: the shell does
+// not survive the process, so on restore each terminal is reopened as a fresh
+// shell (see respawnTerminalTabs) rather than rebound to a dead one. Empty panes
+// and rows are dropped so a saved layout never reopens a blank pane. Returns null
+// when nothing worth restoring remains.
 export function pruneForPersist(ws) {
   const rows = ws.rows
     .map((row) => ({
       id: row.id,
       panes: row.panes
         .map((p) => {
-          const tabs = p.tabs.filter((t) => t.kind !== 'terminal');
+          // A terminal keeps its tab (title and restore key) but loses its dead
+          // backend ref; the key is recomputed from an empty ref so storage holds
+          // no stale PTY id. restoreKey ties it to its saved buffer snapshot.
+          const tabs = p.tabs.map((t) => (t.kind === 'terminal'
+            ? { kind: 'terminal', title: t.title, restoreKey: t.restoreKey, ref: '', key: 'terminal:' }
+            : t));
           const activeKey = tabs.some((t) => t.key === p.activeKey)
             ? p.activeKey
             : (tabs.length ? tabs[tabs.length - 1].key : null);

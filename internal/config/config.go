@@ -253,6 +253,13 @@ func LaunchpadPath() string {
 	return filepath.Join(DataDir(), "launchpad.json")
 }
 
+// TerminalSnapshotsPath returns the path to the Desktop app's terminal snapshot
+// file under DataDir. It stores each terminal tab's last serialized buffer so a
+// restart can restore its visible contents. Desktop-only.
+func TerminalSnapshotsPath() string {
+	return filepath.Join(DataDir(), "terminal-snapshots.json")
+}
+
 // SkillSearchPaths returns the ordered list of directories to scan for skills.
 // Priority: workspace-local first, then global DataDir.
 func SkillSearchPaths(workspace string) []string {
