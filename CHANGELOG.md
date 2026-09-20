@@ -14,6 +14,138 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.14] - 2026-09-20
+
+### Added
+
+- The deployment administration area has an LLM calls tab that searches the
+  managed inference ledger across every space — model, tokens, cost, and status
+  per call, filterable by user, model, status, surface, and time. It carries no
+  prompts or generated content.
+
+- `buildmax agent trigger <agent>` starts an agent run on the server from the
+  command line, and `buildmax task status <id>` follows the task it created, so
+  an agent working locally can trigger and observe another agent without a
+  browser.
+
+- `buildmax artifact publish <file>` uploads a local file to the server as an
+  artifact and prints its id, with `--space`, `--title`, and `--share`, so an
+  agent working locally can give a result a durable handle to reference in an
+  issue comment.
+
+- Portal chat can now list a space's published workflows, start a run of one,
+  and check a run's status and result, alongside the existing task tools. It
+  cannot create or edit workflows; authoring stays a reviewed publish action.
+
+- The Portal Schedules page now creates a schedule directly, picking which agent
+  runs it, so you no longer have to open an agent first.
+
+- Desktop can schedule a prompt to run in a project on a cron expression from a
+  new Schedules view; tasks fire in-process as new sessions while the app is open.
+
+- Desktop workspace tabs can be dragged to reorder within a pane, and a
+  right-click menu closes other tabs or tabs to the right and, on file and diff
+  tabs, copies the file's relative or absolute path.
+
+- Desktop chat and terminal tabs can be renamed from their context menu (a chat
+  rename renames the session), file and diff tabs show the full path on hover,
+  and a pane in a grid can be maximized — floated forward as an overlay over the
+  dimmed grid — and restored.
+
+- The Desktop centre is now a tab surface: chat, terminal, file, and diff tabs
+  live side by side, tiled into a pane grid you can split and drag between, with
+  the layout remembered per project. A left Explorer sidebar browses the
+  workspace files and changes, file tabs can be edited and saved, and several
+  chat sessions can run at once — each in its own tab.
+
+- `buildmax issue comment <id>` posts a report on an issue from the command
+  line — the body from `-m` or stdin — so an agent working locally can report
+  through a command, and `buildmax --help` now groups commands into Server and
+  Local sections.
+
+- The Portal workflow editor gains a visual graph canvas — steps are nodes and
+  dependencies are edges drawn between them — beside the raw JSON view, so a
+  branching workflow no longer has to be written by hand.
+
+- `buildmax workflow run <workflow>` starts a run of a published workflow from
+  the command line, with `buildmax workflow list` to find one and
+  `buildmax workflow status <run-id>` to follow it, so an agent working locally
+  can trigger and observe a workflow without a browser.
+
+### Changed
+
+- An Agent's Issue comments are now bounded by the server, not just the runtime
+  tool: a report over the per-Agent length limit is rejected, and a run may add
+  only a fixed number of comments to its Issue before further ones are refused.
+
+- Creating an Issue with a status, owner, or executor is now one request:
+  `POST /api/spaces/{space_id}/issues` accepts `status`, `owner_id`,
+  `executor_kind`, and `executor_id`, and a refused value creates nothing, so
+  Portal no longer leaves a half-configured Issue behind a failed create.
+
+- Portal now uses consistent primary actions on work collections, opens Issue
+  details with the result and next step before editing, and shows Workflow run
+  results before diagnostics. Task actions and conversation task cards use the
+  shared button roles and readable run status; Chat tabs support arrow keys,
+  and conversation Task failures provide local feedback and retry. Workflow
+  editing and running use the same action roles and readable status labels.
+  Agent detail and schedules now use those roles too, with keyboard tabs and
+  local retry when triggered tasks fail to load.
+  Artifacts now use the shared action roles, navigable names, truthful counts,
+  and local preview retry.
+  Administration, Space settings, Files, Marketplace, sign-in, and the rest of
+  Issue detail follow the same roles, and buttons keep their label and width
+  while an action is in flight.
+
+- The Portal workflow editor is now flow-first: the graph canvas fills the page,
+  the name and description collapse into a Settings drawer, the duplicate
+  read-only topology diagram is gone, and a step's id can be renamed in the
+  inspector to something meaningful — the rename updates every reference to it.
+
+- The Portal workflow detail page replaces the status dropdown with explicit
+  Save as draft, Publish, and Archive actions, moves version history to a header
+  button, and no longer shows the workflow's opaque id.
+
+- An agent working a space issue now reads and reports on it by running
+  `buildmax issue show` and `buildmax issue comment` rather than through the
+  built-in GetIssue and ReportToIssue tools, which have been removed; issue
+  length and per-run comment limits are now enforced on the server for every
+  client alike.
+
+- Moved the Harbor evaluation target from Terminal-Bench 2.1 to Terminal-Bench
+  4.0 (66 tasks) and repointed the pinned `--canary` subset at five cheap,
+  Linux-only 4.0 tasks meant for a quick local regression check with a real
+  model rather than a leaderboard score.
+
+- The end-of-turn recap now costs far fewer tokens: it spends a model call only
+  when the turn actually changed something and did not already describe it —
+  read-only and self-explaining turns are skipped — and when it does run, the
+  file bodies a write or edit carried are no longer sent to be summarised.
+
+- The Portal Workflow detail page now follows the workflow's lifecycle: a
+  draft opens in an editing layout whose primary action is Publish, while a
+  published workflow leads with its read-only topology and recent runs, keeps
+  Run as the primary action, and moves editing behind an Edit button. Run
+  input is collected in a dialog, and version history is reached on demand
+  from the header.
+
+### Fixed
+
+- Desktop: a terminal tab now keeps its full scrollback when you switch away
+  and back, instead of collapsing to only the most recent command's output.
+
+- Desktop terminal tabs keep their output and scrollback when switching to
+  another tab and back, and when dragged between panes or re-tiled; the emulator
+  is no longer torn down and recreated on the move.
+
+- Desktop terminal tabs are no longer killed when switching projects; each
+  project's tabs, including its running shells and their scrollback, are
+  restored intact on returning to it.
+
+- The Portal workflow and agent version history lists each revision's author by
+  name rather than an opaque user id, and the workflow history dialog drops a
+  redundant heading; the header button now reads simply "History".
+
 ## [0.2.0-alpha.13] - 2026-09-18
 
 ### Added
@@ -3132,7 +3264,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.13...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.14...HEAD
+[0.2.0-alpha.14]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.13...v0.2.0-alpha.14
 [0.2.0-alpha.13]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.12...v0.2.0-alpha.13
 [0.2.0-alpha.12]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.11...v0.2.0-alpha.12
 [0.2.0-alpha.11]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.10...v0.2.0-alpha.11
