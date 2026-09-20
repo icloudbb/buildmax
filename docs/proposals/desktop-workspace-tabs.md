@@ -484,6 +484,17 @@ whichever pane shows it (`TerminalHost`), so a dragged terminal keeps its
 scrollback and cursor — the DOM node is relocated, never recreated. This is why
 the model insists a backing is decoupled from its pane.
 
+The tab strip carries the ordinary editor gestures. The same drag that moves a
+tab across panes also **reorders** it within a strip — dropped before the tab
+under the pointer, or at the end past the last one. A **right-click** opens a
+context menu with *Close*, *Close others*, and *Close tabs to the right*; each
+spares a non-closable tab (the current chat), just as the per-tab close button
+does. On a file or diff tab the menu also offers *Copy relative path* and *Copy
+absolute path*: the relative form is the workspace-root path, while the absolute
+form is resolved in Go against the session's own workspace root — a worktree when
+the session has one — so it names the file the panel actually reads, and the copy
+goes through the native clipboard.
+
 A status bar spans the bottom of the workspace as a global surface — present on
 the Home screen and in a project alike. Its controls read left to right as
 status, then the workspace actions when a project is open, and the theme toggle
