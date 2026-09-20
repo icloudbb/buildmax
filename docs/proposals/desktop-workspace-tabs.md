@@ -482,18 +482,35 @@ live content, not just the descriptor. Terminals make this concrete: every
 terminal's emulator is kept mounted in a hidden host and *portalled* into
 whichever pane shows it (`TerminalHost`), so a dragged terminal keeps its
 scrollback and cursor — the DOM node is relocated, never recreated. This is why
-the model insists a backing is decoupled from its pane.
+the model insists a backing is decoupled from its pane. The same host keeps a
+terminal mounted, parked, across a **project switch**: each project's live layout
+is stashed in memory as the user moves between projects, so returning to a
+project restores its exact tabs with the shells still running and their
+scrollback intact, rather than killing them. Switching remains project-scoped —
+a project shows only its own tabs — and only deleting a project ends its shells.
 
 The tab strip carries the ordinary editor gestures. The same drag that moves a
 tab across panes also **reorders** it within a strip — dropped before the tab
 under the pointer, or at the end past the last one. A **right-click** opens a
 context menu with *Close*, *Close others*, and *Close tabs to the right*; each
 spares a non-closable tab (the current chat), just as the per-tab close button
-does. On a file or diff tab the menu also offers *Copy relative path* and *Copy
-absolute path*: the relative form is the workspace-root path, while the absolute
-form is resolved in Go against the session's own workspace root — a worktree when
-the session has one — so it names the file the panel actually reads, and the copy
-goes through the native clipboard.
+does. On a chat or terminal tab the menu also offers *Rename*, which edits the
+title in place — renaming a chat tab bound to a session renames the session, so
+it persists and the sidebar follows; a terminal's title is view-only state. A
+file or diff tab is not renamed (its title is the filename), but its tooltip
+shows the full workspace path; that menu instead offers *Copy relative path* and
+*Copy absolute path*: the relative form is the workspace-root path, while the
+absolute form is resolved in Go against the session's own workspace root — a
+worktree when the session has one — so it names the file the panel actually
+reads, and the copy goes through the native clipboard.
+
+In a grid, a pane's strip carries a **Maximize** control that expands that pane
+to fill the workspace for focused work, with a Restore control to bring the grid
+back. It is a view overlay, not a layout change: the grid is untouched
+underneath, and because a maximized pane is the only one rendered, its terminals
+keep their slot while the rest simply park — no session is disturbed. Maximize is
+offered only when more than one pane is on screen, and clears itself if its pane
+closes or the grid collapses to one.
 
 A status bar spans the bottom of the workspace as a global surface — present on
 the Home screen and in a project alike. Its controls read left to right as
