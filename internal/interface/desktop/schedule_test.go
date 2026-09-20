@@ -140,6 +140,43 @@ func TestResolveWorkingDir(t *testing.T) {
 	}
 }
 
+func TestSetAllScheduledTasksEnabled(t *testing.T) {
+	a := &App{schedules: schedstore.NewFileStore(filepath.Join(t.TempDir(), "tasks.json"))}
+	now := time.Now().UTC()
+	store := a.ensureScheduleStore()
+	for _, r := range []schedstore.Record{
+		{ID: "a", CronExpr: "0 9 * * *", Timezone: "UTC", Enabled: true, CreatedAt: now},
+		{ID: "b", CronExpr: "0 9 * * *", Timezone: "UTC", Enabled: false, CreatedAt: now},
+	} {
+		if err := store.Add(r); err != nil {
+			t.Fatalf("Add %s: %v", r.ID, err)
+		}
+	}
+
+	paused, err := a.SetAllScheduledTasksEnabled(false)
+	if err != nil {
+		t.Fatalf("pause all: %v", err)
+	}
+	for _, p := range paused {
+		if p.Enabled {
+			t.Fatalf("task %s still enabled after pause all", p.ID)
+		}
+	}
+
+	enabled, err := a.SetAllScheduledTasksEnabled(true)
+	if err != nil {
+		t.Fatalf("enable all: %v", err)
+	}
+	for _, p := range enabled {
+		if !p.Enabled {
+			t.Fatalf("task %s still paused after enable all", p.ID)
+		}
+		if p.NextFireAt == "" {
+			t.Fatalf("task %s has no next fire after enable all", p.ID)
+		}
+	}
+}
+
 func TestScheduledTaskPayloadFormatsTimes(t *testing.T) {
 	now := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
 	p := scheduledTaskPayload(schedstore.Record{

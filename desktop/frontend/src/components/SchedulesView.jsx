@@ -205,6 +205,18 @@ export function SchedulesView({ app }) {
     }
   };
 
+  const toggleAll = async () => {
+    if (!app?.SetAllScheduledTasksEnabled) return;
+    // Pause every task when any is enabled; otherwise enable them all.
+    const target = !(tasks ?? []).some((t) => t.enabled);
+    try {
+      await app.SetAllScheduledTasksEnabled(target);
+      refresh();
+    } catch (err) {
+      setError(err?.message ?? String(err));
+    }
+  };
+
   const remove = async (task) => {
     if (!window.confirm(
       `Delete scheduled task${task.name ? ` “${task.name}”` : ''}? Its run history and the sessions it created are removed too.`,
@@ -229,9 +241,16 @@ export function SchedulesView({ app }) {
           <h1 className="page-schedules__title">Schedules</h1>
           <p className="page-schedules__subtitle">{OPEN_APP_NOTE}</p>
         </div>
-        <button type="button" className="page-schedules__primary" onClick={openCreate}>
-          New Schedule
-        </button>
+        <div className="page-schedules__header-actions">
+          {list.length > 0 && app?.SetAllScheduledTasksEnabled && (
+            <button type="button" className="page-schedules__ghost" onClick={toggleAll}>
+              {list.some((t) => t.enabled) ? 'Pause all' : 'Enable all'}
+            </button>
+          )}
+          <button type="button" className="page-schedules__primary" onClick={openCreate}>
+            New Schedule
+          </button>
+        </div>
       </div>
 
       {error && (

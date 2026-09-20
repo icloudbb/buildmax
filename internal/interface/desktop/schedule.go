@@ -235,6 +235,43 @@ func (a *App) UpdateScheduledTask(id, workingDir, name, prompt, cronExpr, timezo
 	return scheduledTaskPayload(updated), nil
 }
 
+// SetAllScheduledTasksEnabled enables or pauses every task in one call, for the
+// Schedules view's one-click toggle. Enabling recomputes each task's next fire
+// from now and clears its failure count (like re-enabling one); pausing just
+// stops it. Tasks already in the target state are left untouched. Returns the
+// updated list.
+func (a *App) SetAllScheduledTasksEnabled(enabled bool) ([]ScheduledTaskPayload, error) {
+	store := a.ensureScheduleStore()
+	rows, err := store.List()
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	changed := false
+	for _, r := range rows {
+		if r.Enabled == enabled {
+			continue
+		}
+		if _, err := store.Update(r.ID, func(rec *schedstore.Record) {
+			rec.Enabled = enabled
+			if enabled {
+				rec.ConsecutiveFailures = 0
+				if next, nerr := schedule.Next(rec.CronExpr, rec.Timezone, now); nerr == nil {
+					rec.NextFireAt = next
+				}
+			}
+			rec.UpdatedAt = now
+		}); err != nil {
+			return nil, err
+		}
+		changed = true
+	}
+	if changed {
+		a.emitScheduleUpdate()
+	}
+	return a.ListScheduledTasks()
+}
+
 // DeleteScheduledTask removes a task, its run history, and the projectless
 // sessions those runs created — the sessions are reachable only through this
 // task's history, so nothing else keeps them.

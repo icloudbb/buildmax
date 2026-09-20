@@ -22,6 +22,7 @@ function baseApp(tasks = [], runs = []) {
     DeleteScheduledTask: vi.fn(() => Promise.resolve()),
     PreviewScheduledTask: vi.fn(() => Promise.resolve(['2026-01-02T09:00:00Z', '2026-01-03T09:00:00Z'])),
     GetSlashModels: vi.fn(() => Promise.resolve({ current: 'Fast', models: [{ name: 'Fast' }, { name: 'Deep' }] })),
+    SetAllScheduledTasksEnabled: vi.fn(() => Promise.resolve([])),
   };
 }
 
@@ -105,6 +106,20 @@ describe('SchedulesView', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'New Schedule' }));
     await waitFor(() => expect(app.PreviewScheduledTask).toHaveBeenCalledWith('0 9 * * *', 'UTC'));
     expect(await screen.findByText('Next runs')).toBeTruthy();
+  });
+
+  it('pauses every task with one click when any is enabled', async () => {
+    const app = baseApp([sampleTask]);
+    render(<SchedulesView app={app} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Pause all' }));
+    await waitFor(() => expect(app.SetAllScheduledTasksEnabled).toHaveBeenCalledWith(false));
+  });
+
+  it('enables every task with one click when none is enabled', async () => {
+    const app = baseApp([{ ...sampleTask, enabled: false }]);
+    render(<SchedulesView app={app} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Enable all' }));
+    await waitFor(() => expect(app.SetAllScheduledTasksEnabled).toHaveBeenCalledWith(true));
   });
 
   it('pauses a task through UpdateScheduledTask', async () => {

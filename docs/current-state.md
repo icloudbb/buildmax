@@ -126,8 +126,9 @@ is recorded in a per-task run history (`schedule-runs.json`); the view lists
 recent runs and opens any run in the full chat view (the same ChatSession as the
 project chat, with model picker and context gauge), where a reply continues that
 session — hosted by the task's working directory, since the session-scoped chat
-bindings resolve their host from the session when it has no project. Deleting a
-task removes its history and those sessions. This is distinct from the Server's durable
+bindings resolve their host from the session when it has no project. A one-click
+control pauses or enables every task at once. Deleting a task removes its history
+and those sessions. This is distinct from the Server's durable
 [scheduled Agent execution](design/scheduled-agent-execution.md): it needs no
 Server, and nothing fires while the app is closed.
 
