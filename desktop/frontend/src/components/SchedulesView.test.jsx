@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+
+// The run-detail opens the full ChatSession; stub it so this suite tests the
+// Schedules wiring, not the chat stack (ChatSession has its own tests).
+vi.mock('./ChatSession', () => ({
+  ChatSession: ({ tab, projectId }) => (
+    <div data-testid="chat-session">{`chat:${projectId || 'none'}:${tab?.sessionId ?? ''}`}</div>
+  ),
+}));
+
 import { SchedulesView } from './SchedulesView';
 
 afterEach(cleanup);
@@ -12,7 +21,6 @@ function baseApp(tasks = [], runs = []) {
     UpdateScheduledTask: vi.fn(() => Promise.resolve({})),
     DeleteScheduledTask: vi.fn(() => Promise.resolve()),
     PreviewScheduledTask: vi.fn(() => Promise.resolve(['2026-01-02T09:00:00Z', '2026-01-03T09:00:00Z'])),
-    GetSession: vi.fn(() => Promise.resolve({ messages: [{ role: 'assistant', content: 'hi' }] })),
   };
 }
 
@@ -47,13 +55,13 @@ describe('SchedulesView', () => {
     expect(screen.getByText('Enabled')).toBeTruthy();
   });
 
-  it('lists recent runs and opens one', async () => {
+  it('lists recent runs and opens one in the chat view', async () => {
     const app = baseApp([sampleTask], [sampleRun]);
     render(<SchedulesView app={app} />);
     const run = await screen.findByRole('button', { name: /Morning/ });
     fireEvent.click(run);
-    await waitFor(() => expect(app.GetSession).toHaveBeenCalledWith('sess1'));
-    expect(await screen.findByText('hi')).toBeTruthy();
+    // The run opens the full chat, projectless, bound to the run's session.
+    expect(await screen.findByText('chat:none:sess1')).toBeTruthy();
   });
 
   it('creates a task from the New Schedule modal without a project', async () => {

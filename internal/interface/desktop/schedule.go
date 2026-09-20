@@ -80,10 +80,13 @@ type ScheduleRunPayload struct {
 	ID           string `json:"id"`
 	ScheduleID   string `json:"schedule_id"`
 	ScheduleName string `json:"schedule_name"`
-	SessionID    string `json:"session_id,omitempty"`
-	FiredAt      string `json:"fired_at"`
-	Status       string `json:"status"`
-	Error        string `json:"error,omitempty"`
+	// WorkingDir is the owning task's directory, so continuing the run's session
+	// (ContinueScheduleRun) can reach the same AgentApp without another lookup.
+	WorkingDir string `json:"working_dir"`
+	SessionID  string `json:"session_id,omitempty"`
+	FiredAt    string `json:"fired_at"`
+	Status     string `json:"status"`
+	Error      string `json:"error,omitempty"`
 }
 
 // ensureScheduleStore lazily opens the local scheduled-task store. It resolves
@@ -300,8 +303,10 @@ func (a *App) ListScheduleRuns() ([]ScheduleRunPayload, error) {
 		return nil, err
 	}
 	names := make(map[string]string, len(tasks))
+	dirs := make(map[string]string, len(tasks))
 	for _, t := range tasks {
 		names[t.ID] = scheduleDisplayName(t)
+		dirs[t.ID] = t.WorkingDir
 	}
 	out := make([]ScheduleRunPayload, 0, len(runs))
 	for _, r := range runs {
@@ -309,6 +314,7 @@ func (a *App) ListScheduleRuns() ([]ScheduleRunPayload, error) {
 			ID:           r.ID,
 			ScheduleID:   r.ScheduleID,
 			ScheduleName: names[r.ScheduleID],
+			WorkingDir:   dirs[r.ScheduleID],
 			SessionID:    r.SessionID,
 			FiredAt:      r.FiredAt.UTC().Format(time.RFC3339),
 			Status:       r.Status,

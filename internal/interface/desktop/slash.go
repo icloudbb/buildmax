@@ -122,7 +122,7 @@ type SlashModelsResult struct {
 // per session, so a project's two conversations can sit on different models, and
 // an empty sessionID (a chat not yet started) falls back to the app default.
 func (a *App) GetSlashModels(projectID, sessionID string) (SlashModelsResult, error) {
-	ag, err := a.agentAppForProject(projectID)
+	ag, err := a.resolveSessionApp(projectID, sessionID)
 	if err != nil {
 		return SlashModelsResult{}, err
 	}
@@ -160,7 +160,7 @@ func (a *App) SetProjectModel(projectID, sessionID, modelName string) error {
 	if modelName == "" {
 		return fmt.Errorf("model name required")
 	}
-	ag, err := a.agentAppForProject(projectID)
+	ag, err := a.resolveSessionApp(projectID, sessionID)
 	if err != nil {
 		return err
 	}

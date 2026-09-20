@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EventsOn } from '../lib/wailsRuntime';
 import { InfoModal } from './Modals';
-import { MarkdownMessage } from './MarkdownMessage';
+import { ChatSession } from './ChatSession';
 
 const EV_SCHEDULE_UPDATE = 'desktop/schedule-update';
 
@@ -29,41 +29,36 @@ function runStatusText(status) {
   return status || '—';
 }
 
-// ScheduleRunDetail shows one fired run's conversation read-only, loaded on open.
-// Scheduled runs carry no project, so they are reached here, not in the sidebar.
+// ScheduleRunDetail shows one fired run's conversation in the full chat UI — the
+// same ChatSession the project chat uses, so it carries the model picker, context
+// gauge, and slash commands — and a reply continues the session. Scheduled runs
+// carry no project (they are hosted by the task's directory), so ChatSession is
+// given an empty projectId and the backend resolves the host from the session.
 function ScheduleRunDetail({ app, run, onClose }) {
-  const [detail, setDetail] = useState(null);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!run?.session_id || !app?.GetSession) { setDetail({ messages: [] }); return; }
-    app.GetSession(run.session_id)
-      .then((d) => { setDetail(d ?? { messages: [] }); setError(null); })
-      .catch((err) => setError(err?.message ?? String(err)));
-  }, [app, run]);
-
-  const messages = (detail?.messages ?? []).filter((m) => m.role !== 'system');
+  const sessionId = run?.session_id || '';
   return (
     <InfoModal title={run?.schedule_name || 'Run'} onClose={onClose}>
       <p className="info-modal__muted">
         {formatWhen(run?.fired_at)} · {runStatusText(run?.status)}
       </p>
       {run?.error && <p className="info-modal__error">{run.error}</p>}
-      {error && <p className="info-modal__error">{error}</p>}
-      {!detail && !error && <p className="info-modal__muted">Loading…</p>}
-      {detail && messages.length === 0 && !error && (
-        <p className="info-modal__muted">This run produced no messages.</p>
-      )}
-      {messages.length > 0 && (
-        <div className="schedule-run-detail">
-          {messages.map((m, i) => (
-            <div key={i} className={`schedule-run-detail__msg schedule-run-detail__msg--${m.role}`}>
-              <span className="schedule-run-detail__role">{m.role === 'user' ? 'Prompt' : m.role}</span>
-              {m.content ? <MarkdownMessage content={m.content} /> : null}
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="schedule-run-chat">
+        <ChatSession
+          projectId=""
+          projectName="Scheduled"
+          defaultWorkspace={run?.working_dir || ''}
+          sessions={[]}
+          tab={{ kind: 'chat', ref: sessionId, sessionId, key: `chat:${sessionId}` }}
+          app={app}
+          approvalRequest={null}
+          onRespond={() => {}}
+          onSessionAdopted={() => {}}
+          onSessionsChanged={() => {}}
+          onTitle={() => {}}
+          onOpenSession={() => {}}
+          onShowChanges={() => {}}
+        />
+      </div>
     </InfoModal>
   );
 }

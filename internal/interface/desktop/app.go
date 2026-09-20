@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -397,6 +398,46 @@ func (a *App) hostForDir(dir string) agentapp.HostFunc {
 	}
 }
 
+// sessionWorkspaceDir is the directory a projectless session runs in: its own
+// recorded workspace (stamped after its first turn), falling back to the user's
+// home. Scheduled sessions carry no project, so their host is resolved by
+// directory rather than by a Project catalog lookup.
+func (a *App) sessionWorkspaceDir(sessionID string) string {
+	if sessionID != "" {
+		if loaded, err := sessionManager().Load(sessionID, session.LoadMetaOnly); err == nil && loaded.Meta.Workspace != "" {
+			return loaded.Meta.Workspace
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return home
+	}
+	return "."
+}
+
+// resolveSessionApp returns the AgentApp for a session-scoped operation: the
+// project's app when a project is given, otherwise the app hosting the session's
+// own directory. This lets the chat bindings (send, run status, model, compact)
+// serve a projectless scheduled session with the same code the project chat uses.
+func (a *App) resolveSessionApp(projectID, sessionID string) (*agentapp.AgentApp, error) {
+	if projectID != "" {
+		return a.agentAppForProject(projectID)
+	}
+	return a.agentAppForDir(a.sessionWorkspaceDir(sessionID))
+}
+
+// hostForSession is resolveSessionApp as a scheduler HostFunc. For a projectless
+// session it binds no approval handler: the directory host runs AllowAllPolicy,
+// so no tool call stops to ask.
+func (a *App) hostForSession(projectID, sessionID string, lc *desktopRun) agentapp.HostFunc {
+	if projectID != "" {
+		return a.hostForProject(projectID, lc)
+	}
+	dir := a.sessionWorkspaceDir(sessionID)
+	return func() (agentapp.RunHost, error) {
+		return a.agentAppForDir(dir)
+	}
+}
+
 // --- Project bindings ---
 
 // projectManager is the shared local Project catalog. Desktop owns no Project
@@ -727,10 +768,10 @@ func (a *App) GetSession(sessionID string) (SessionDetail, error) {
 }
 
 func (a *App) GetRunStatus(projectID, sessionID string) (RunStatusPayload, error) {
-	if projectID == "" {
-		return RunStatusPayload{}, fmt.Errorf("project ID required")
+	if projectID == "" && sessionID == "" {
+		return RunStatusPayload{}, fmt.Errorf("session required")
 	}
-	ag, err := a.agentAppForProject(projectID)
+	ag, err := a.resolveSessionApp(projectID, sessionID)
 	if err != nil {
 		return RunStatusPayload{}, err
 	}
@@ -987,7 +1028,7 @@ func runKey(projectID, sessionID string) string { return projectID + "\x00" + se
 // oldest first. The frontend reads it when it switches back to a chat tab whose
 // queue events it was not mounted for.
 func (a *App) QueuedMessages(projectID, sessionID string) []string {
-	if projectID == "" {
+	if projectID == "" && sessionID == "" {
 		return nil
 	}
 	return a.scheduler.Queued(runKey(projectID, sessionID))
@@ -1005,11 +1046,14 @@ func (a *App) QueuedMessages(projectID, sessionID string) []string {
 // sessions of the same project proceed concurrently — the user owns keeping them
 // from clobbering each other (e.g. a per-session worktree).
 func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error) {
-	if projectID == "" {
-		return 0, fmt.Errorf("project ID required")
-	}
 	if prompt == "" {
 		return 0, fmt.Errorf("prompt required")
+	}
+	// A projectless session (a scheduled run continued from the Schedules view)
+	// carries an id, so its host is resolved by directory; only a project chat
+	// starts a brand-new session with no id.
+	if projectID == "" && sessionID == "" {
+		return 0, fmt.Errorf("project ID required")
 	}
 	a.mu.Lock()
 	ctx := a.ctx
@@ -1017,12 +1061,12 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 	if ctx == nil {
 		return 0, fmt.Errorf("app not ready")
 	}
-	lc := &desktopRun{app: a, ctx: ctx, projectID: projectID, sessionID: sessionID, key: runKey(projectID, sessionID), wasNew: sessionID == "", touchLastUsed: true}
+	lc := &desktopRun{app: a, ctx: ctx, projectID: projectID, sessionID: sessionID, key: runKey(projectID, sessionID), wasNew: sessionID == "", touchLastUsed: projectID != ""}
 	// The scheduler resolves the host only if it commits to a run; a prompt that
 	// queues behind an in-flight run resolves nothing, preserving the old
-	// "queue without re-resolving the project" behaviour. A resolution failure —
-	// project or AgentApp — is reported as this call's error.
-	return a.scheduler.Submit(ctx, lc.key, sessionID, prompt, a.hostForProject(projectID, lc), lc)
+	// "queue without re-resolving the host" behaviour. A resolution failure is
+	// reported as this call's error.
+	return a.scheduler.Submit(ctx, lc.key, sessionID, prompt, a.hostForSession(projectID, sessionID, lc), lc)
 }
 
 // hostForProject resolves the project's AgentApp and binds its approval handler
@@ -1080,8 +1124,8 @@ func replyPayload(out agentapp.RunResult) *ReplyPayload {
 // written for work the user has just called off; delivering them afterwards would
 // restart it in their name.
 func (a *App) CancelRun(projectID, sessionID string) error {
-	if projectID == "" {
-		return fmt.Errorf("project ID required")
+	if projectID == "" && sessionID == "" {
+		return fmt.Errorf("session required")
 	}
 	a.scheduler.Cancel(runKey(projectID, sessionID))
 	return nil

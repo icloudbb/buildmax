@@ -375,35 +375,19 @@
   color: var(--color-text-subtle);
 }
 
-/* Read-only run transcript in the run-detail modal. */
-.schedule-run-detail {
+/* Run-detail modal: the fired run's conversation in the full chat UI. The
+   embedded ChatSession (.page-chat) fills a fixed height so its thread scrolls
+   and its composer, model picker, and context gauge stay pinned below. */
+.schedule-run-chat {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  max-height: 60vh;
-  overflow-y: auto;
+  height: 65vh;
+  min-height: 20rem;
 }
 
-.schedule-run-detail__msg {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.5rem 0.7rem;
-  border-radius: 8px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-subtle);
-}
-
-.schedule-run-detail__msg--user {
-  background: var(--color-surface-hover, rgba(127, 127, 127, 0.08));
-}
-
-.schedule-run-detail__role {
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: var(--color-text-muted);
+.schedule-run-chat .page-chat {
+  flex: 1;
+  min-height: 0;
 }
 
 /* Sidebar entry: a first-class nav item above the Projects list. */
