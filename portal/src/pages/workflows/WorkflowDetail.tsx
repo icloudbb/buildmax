@@ -413,35 +413,34 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
               Editing a published workflow. Save as draft keeps your changes without publishing; Publish writes them as a new published revision.
             </p>
           )}
-          <section className="issues-page__panel">
+          <section className="issues-page__panel workflow-editor">
             <div className="issues-page__toolbar">
               <h2 className="issues-page__section-title">Definition</h2>
             </div>
-            <div className="workflow-page__form">
-              <label className="issues-page__field">
-                <span className="issues-page__field-label">Name</span>
-                <input className="issues-page__input" value={name} disabled={!canManageWorkflows} onChange={(e) => setName(e.target.value)} />
-              </label>
-              <label className="issues-page__field">
-                <span className="issues-page__field-label">Description</span>
-                <textarea
-                  className="issues-page__textarea"
-                  rows={4}
-                  value={description}
-                  disabled={!canManageWorkflows}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </label>
+            {/* Name and description are the workflow's metadata, not the thing
+                being edited here — the graph is. They collapse out of the way so
+                the canvas dominates the page. */}
+            <details className="workflow-editor__settings">
+              <summary className="workflow-editor__settings-summary">Settings — name and description</summary>
+              <div className="workflow-editor__settings-fields">
+                <label className="issues-page__field">
+                  <span className="issues-page__field-label">Name</span>
+                  <input className="issues-page__input" value={name} disabled={!canManageWorkflows} onChange={(e) => setName(e.target.value)} />
+                </label>
+                <label className="issues-page__field">
+                  <span className="issues-page__field-label">Description</span>
+                  <textarea
+                    className="issues-page__textarea"
+                    rows={3}
+                    value={description}
+                    disabled={!canManageWorkflows}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </label>
+              </div>
+            </details>
 
-              {topologyNodes.length > 0 ? (
-                <div className="workflow-detail__topology">
-                  <span className="issues-page__field-label">Topology</span>
-                  <WorkflowGraph nodes={topologyNodes} />
-                </div>
-              ) : null}
-
-              <WorkflowStepsEditor state={stepsState} agents={agents} disabled={!canManageWorkflows} />
-            </div>
+            <WorkflowStepsEditor state={stepsState} agents={agents} disabled={!canManageWorkflows} fill />
           </section>
         </>
       ) : null}

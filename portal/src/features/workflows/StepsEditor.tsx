@@ -7,6 +7,10 @@ interface WorkflowStepsEditorProps {
   state: WorkflowStepsState
   agents: Agent[]
   disabled?: boolean
+  /** Let the visual canvas fill the available height. The workflow detail page
+   *  sets it so editing is dominated by the graph; the create modal leaves it
+   *  off to keep the canvas within the dialog. */
+  fill?: boolean
 }
 
 /**
@@ -17,7 +21,7 @@ interface WorkflowStepsEditorProps {
  * visual editor does not author (input_schema, result, output_schema), which it
  * preserves rather than strips.
  */
-export function WorkflowStepsEditor({ state, agents, disabled = false }: WorkflowStepsEditorProps) {
+export function WorkflowStepsEditor({ state, agents, disabled = false, fill = false }: WorkflowStepsEditorProps) {
   const { errors, advanced, definitionText, definitionParseError } = state
   const listError = errors.find((e) => e.index === -1)
 
@@ -58,7 +62,7 @@ export function WorkflowStepsEditor({ state, agents, disabled = false }: Workflo
           )}
         </label>
       ) : (
-        <WorkflowVisualEditor state={state} agents={agents} disabled={disabled} />
+        <WorkflowVisualEditor state={state} agents={agents} disabled={disabled} fill={fill} />
       )}
     </section>
   )

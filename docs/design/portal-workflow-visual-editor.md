@@ -38,11 +38,17 @@ authoring object.
 ## User outcome, evidence, and constraints
 
 A Space member editing a workflow can see its steps as a graph, add a step,
-connect one step's completion to another's start, and edit a step's agent,
+connect one step's completion to another's start, and edit a step's id, agent,
 instruction, Issue access, and input bindings, without hand-writing JSON. A
 branching plan (two steps that both feed a third) is authored by drawing edges,
 not by knowing the `needs` array syntax. Raw JSON remains for exact inspection
 and for fields the visual surface does not yet edit.
+
+Because editing the graph is the whole task of this page, the graph is the page:
+the canvas fills the available height, the workflow's name and description
+collapse into a "Settings" drawer that is closed by default, and the editor no
+longer renders a second read-only topology diagram above the canvas that
+duplicated it.
 
 Constraints: the definition contract is unchanged and server-owned; the editor
 only produces the same JSON the runtime already validates. Layout is not part of
@@ -75,10 +81,14 @@ depth-column auto-layout and adjustable by dragging, never persisted to the
 definition. Interactions map to draft mutations: connecting an edge adds a
 `needs` entry, deleting an edge removes it, deleting a node removes the step and
 any edge that referenced it, and adding a node appends a root step the user then
-connects. Selecting a node opens an inspector for its fields. A connection that
-would create a cycle, a missing agent, or an empty prompt surfaces through the
-same validation that gates Save. `max_parallel_nodes` is a workflow-level
-control beside the canvas.
+connects. Selecting a node opens an inspector for its fields. A node id is
+generated on creation but is editable in the inspector; renaming it rewrites
+every reference to it in one step — other nodes' `needs` edges, binding sources
+that read its output, and the definition's `result` selector — so a
+human-meaningful id (`collect`, `analyze`) replaces the generated one without
+breaking the graph. A connection that would create a cycle, a duplicate or empty
+id, a missing agent, or an empty prompt surfaces through the same validation that
+gates Save. `max_parallel_nodes` is a workflow-level control beside the canvas.
 
 ## Dependency
 

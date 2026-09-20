@@ -54,10 +54,13 @@ Portal owns the cloud/space lane:
   control: authoring offers Save as draft and Publish, a published read view
   offers Run, and Archive is a separate action. Version history opens from a
   header button and the opaque workflow id is not shown. Its definition editor
-  has two modes over one draft state (`useWorkflowSteps`): a visual React Flow
-  canvas — nodes are steps, edges are `needs`, a node inspector edits the rest —
-  and a raw JSON view. `steps.ts` stays the one serialize/parse/validate
-  authority and preserves `input_schema`, `result`, and `output_schema` verbatim.
+  is flow-first: the React Flow canvas fills the page while name and description
+  collapse into a Settings drawer, and it has two modes over one draft state
+  (`useWorkflowSteps`) — the visual canvas (nodes are steps, edges are `needs`, a
+  node inspector edits the rest, including an editable node id whose rename
+  rewrites every reference) and a raw JSON view. `steps.ts` stays the one
+  serialize/parse/validate authority and preserves `input_schema`, `result`, and
+  `output_schema` verbatim.
   The read-only run and plan graphs keep using `WorkflowGraph`; only the editor
   depends on `@xyflow/react`. See
   [workflow visual editor](../../design/portal-workflow-visual-editor.md).

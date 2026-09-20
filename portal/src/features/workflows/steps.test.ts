@@ -4,6 +4,7 @@ import {
   newStep,
   normalizeNeeds,
   parseDefinition,
+  renameStepId,
   stepsToDefinition,
   validateSteps,
   type WorkflowStepDraft,
@@ -291,5 +292,53 @@ describe("validateSteps", () => {
       }),
     ]
     expect(validateSteps(steps, agents).filter((e) => /more than once/.test(e.message))).toHaveLength(1)
+  })
+})
+
+describe("renameStepId", () => {
+  it("rewrites the node id, dependent needs edges, and binding sources", () => {
+    const steps = [
+      step({ id: "collect", needs: [] }),
+      step({
+        id: "analyze",
+        needs: ["collect"],
+        bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }],
+      }),
+      step({ id: "draft", needs: ["collect"] }),
+    ]
+    const renamed = renameStepId(steps, "collect", "gather")
+    expect(renamed[0].id).toBe("gather")
+    expect(renamed[1].needs).toEqual(["gather"])
+    expect(renamed[1].bindings?.[0].source).toBe("node.gather.output")
+    expect(renamed[2].needs).toEqual(["gather"])
+  })
+
+  it("leaves an unrelated binding source untouched", () => {
+    const steps = [
+      step({ id: "a", needs: [] }),
+      step({ id: "b", needs: ["a"], bindings: [{ name: "x", source: "node.a.output", pointer: "" }] }),
+    ]
+    // Renaming "b" (nothing depends on it) must not touch the binding that reads a.
+    const renamed = renameStepId(steps, "b", "c")
+    expect(renamed[1].id).toBe("c")
+    expect(renamed[1].bindings?.[0].source).toBe("node.a.output")
+  })
+
+  it("refuses to rename onto an id another step already uses", () => {
+    const steps = [step({ id: "a", needs: [] }), step({ id: "b", needs: ["a"] })]
+    expect(renameStepId(steps, "b", "a")).toBe(steps)
+  })
+
+  it("is a no-op for an empty or unchanged id", () => {
+    const steps = [step({ id: "a", needs: [] })]
+    expect(renameStepId(steps, "a", "")).toBe(steps)
+    expect(renameStepId(steps, "a", "a")).toBe(steps)
+  })
+
+  it("preserves an absent needs rather than materializing it", () => {
+    const steps = [step({ id: "a" }), step({ id: "b" })]
+    const renamed = renameStepId(steps, "a", "z")
+    expect(renamed[0].needs).toBeUndefined()
+    expect(renamed[1].needs).toBeUndefined()
   })
 })

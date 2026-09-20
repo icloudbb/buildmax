@@ -130,8 +130,10 @@ function transitivePredecessors(steps: WorkflowStepDraft[]): Map<string, Set<str
   return preds
 }
 
-/** A step's id is generated, not typed -- there is no meaning to a person
- *  choosing one, only a risk of an accidental collision. */
+/** A new step's id is generated so it is unique on creation; the inspector lets
+ *  the author rename it to something meaningful (it shows on the node and in
+ *  binding sources). Uniqueness and non-emptiness are then enforced by
+ *  {@link validateSteps} and the rename commit. */
 export function newStepId(): string {
   const random =
     typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -216,6 +218,29 @@ export function stepsToDefinition(
  */
 export function normalizeNeeds(steps: WorkflowStepDraft[]): WorkflowStepDraft[] {
   return steps.map((step, index) => ({ ...step, needs: effectiveNeeds(steps, index) }))
+}
+
+/**
+ * Returns the steps with `oldId` renamed to `newId` everywhere it is referenced:
+ * the node's own id, other nodes' `needs` edges, and binding sources that read
+ * its output. Returns the input unchanged when `newId` is empty, equal to
+ * `oldId`, or already used by another step, so a rename can never fold two nodes
+ * into one id. A node's absent `needs` (a form node) is preserved as absent
+ * rather than materialized, so the round-trip is unaffected.
+ */
+export function renameStepId(steps: WorkflowStepDraft[], oldId: string, newId: string): WorkflowStepDraft[] {
+  if (!newId || newId === oldId) return steps
+  if (steps.some((step) => step.id === newId)) return steps
+  const oldSource = nodeOutputSource(oldId)
+  const newSource = nodeOutputSource(newId)
+  return steps.map((step) => ({
+    ...step,
+    id: step.id === oldId ? newId : step.id,
+    needs: step.needs === undefined ? undefined : step.needs.map((need) => (need === oldId ? newId : need)),
+    bindings: step.bindings?.map((binding) =>
+      binding.source === oldSource ? { ...binding, source: newSource } : binding,
+    ),
+  }))
 }
 
 /** Reads a step's `bindings` array, keeping malformed entries (as empty
