@@ -14,6 +14,7 @@ export function TerminalPane({ id, active, onExit }) {
   const containerRef = useRef(null);
   const termRef = useRef(null);
   const fitRef = useRef(null);
+  const doFitRef = useRef(null);
   // Keep the latest onExit without re-running the create effect, which would
   // tear down and recreate the emulator on every parent render.
   const onExitRef = useRef(onExit);
@@ -26,6 +27,9 @@ export function TerminalPane({ id, active, onExit }) {
       cursorBlink: true,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
       fontSize: 13,
+      // Keep a deep scrollback so a session's earlier command output stays
+      // reachable after switching tabs; the default (1000) is easy to exceed.
+      scrollback: 10000,
       theme: { background: '#1e1e1e' },
     });
     const fit = new FitAddon();
@@ -33,7 +37,22 @@ export function TerminalPane({ id, active, onExit }) {
     term.open(containerRef.current);
     termRef.current = term;
     fitRef.current = fit;
-    try { fit.fit(); } catch { /* container may not be measured yet */ }
+    // Fit only when the host has a sane, measurable size. While its tab is hidden
+    // the host is parked at 0×0, where FitAddon clamps its proposal to its floor
+    // (cols 2, rows 1); resizing the emulator that small reflows the whole buffer
+    // to a sliver, which overflows the scrollback cap and permanently evicts
+    // earlier output (and resizes the PTY, so the shell repaints). Ask the addon
+    // what it would resize to and skip a clamped/degenerate proposal, so scrollback
+    // survives a switch — a real pane is always far wider and taller than the floor.
+    const doFit = () => {
+      let dims;
+      try { dims = fit.proposeDimensions(); } catch { return; }
+      if (!dims || !Number.isFinite(dims.cols) || !Number.isFinite(dims.rows)) return;
+      if (dims.cols <= 2 || dims.rows <= 1) return;
+      try { fit.fit(); } catch { /* ignore */ }
+    };
+    doFitRef.current = doFit;
+    doFit();
 
     const dataSub = term.onData((chunk) => app?.TerminalWrite?.(id, chunk));
     const resizeSub = term.onResize(({ cols, rows }) => app?.TerminalResize?.(id, cols, rows));
@@ -49,7 +68,7 @@ export function TerminalPane({ id, active, onExit }) {
       onExitRef.current?.(id, p.code);
     });
 
-    const ro = new ResizeObserver(() => { try { fit.fit(); } catch { /* ignore */ } });
+    const ro = new ResizeObserver(doFit);
     ro.observe(containerRef.current);
 
     return () => {
@@ -69,7 +88,7 @@ export function TerminalPane({ id, active, onExit }) {
   useEffect(() => {
     if (!active) return undefined;
     const raf = requestAnimationFrame(() => {
-      try { fitRef.current?.fit(); } catch { /* ignore */ }
+      doFitRef.current?.();
       termRef.current?.focus();
     });
     return () => cancelAnimationFrame(raf);
