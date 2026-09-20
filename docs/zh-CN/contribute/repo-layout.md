@@ -126,6 +126,7 @@ internal/
 ├── config/             YAML + 环境变量的配置加载与路径解析
 │
 ├── core/               纯领域层——不导入 infra
+│   ├── appconnect/     connector.yaml 的格式与固定操作校验
 │   ├── apierr/         一个 service 为什么拒绝：一个 Kind，传输层据此映射出
 │   │                   一个状态码，加上 ErrNotFound——调用者指名的行或
 │   │                   对象不存在时，一个 store 会怎么说
@@ -255,6 +256,7 @@ internal/
 │   └── log/            slog + lumberjack 日志
 │
 ├── interface/          本地面向用户的入口
+│   ├── appconnect/     本地 OAuth、令牌存储与固定 HTTP 调用
 │   ├── cli/            Cobra CLI、Bubble Tea TUI、打印模式
 │   ├── desktop/        Wails 应用桥接
 │   ├── slashcmd/       聊天斜杠命令集合的共享唯一事实来源，供 TUI 与

@@ -3,6 +3,38 @@
 [Model Context Protocol](https://modelcontextprotocol.io/) 服务器为 Agent 提供
 BuildMax 本身不附带的工具——你的问题跟踪系统、你的数据库、你的内部服务。
 
+## 从 CLI 连接远端服务器
+
+```bash
+buildmax connect mcp context7 https://mcp.context7.com/mcp
+buildmax mcp list
+buildmax mcp tools context7
+buildmax mcp schema context7 resolve-library-id
+buildmax mcp call context7 resolve-library-id --json '{"libraryName":"react","query":"React hooks"}'
+```
+
+`connect mcp` 检查端点及工具列表，然后把服务器写入
+`<BUILDMAX_HOME>/mcp.json`，供本机所有工作区使用；不会覆盖已有同名条目。
+SSE 端点使用 `--transport sse`。除本机回环测试服务器外，端点必须使用 HTTPS。
+
+对于接受静态 Bearer token 的服务器，将令牌放在进程环境变量中，并只传变量名：
+
+```bash
+export MY_MCP_TOKEN=your-token
+buildmax connect mcp work https://mcp.example.com/mcp --bearer-env MY_MCP_TOKEN
+```
+
+配置仅保存 `bearer_token_env`，不保存令牌值。后续 CLI、Desktop 或 Agent
+运行仍须提供该环境变量；缺失时连接失败。CLI 的每条命令会建立新的 MCP 会话。
+本原型尚未实现 MCP OAuth 发现、浏览器登录、令牌刷新或多账户选择。
+Skill 可组合 `buildmax mcp tools`、`schema` 和 `call` 表达工作流程。
+示例见 [`sample-plugins/mcp-cli`](../../sample-plugins/mcp-cli)。
+
+`buildmax mcp call` 接受最大 1 MiB 的 JSON 对象。服务器标注为只读的工具可
+直接运行；其他工具需要交互式终端中的逐项输入确认。此 CLI 确认与 Agent 运行时
+的 `CallMcpTool` 权限规则相互独立。只读标注是服务器的自我声明；拥有未隔离
+shell 权限的本地 Agent 也能绕过 CLI。两者都不构成单次运行的应用授权。
+
 ## 配置
 
 MCP 服务器在 `mcp.json` 中声明，可以位于以下两处之一或两者：
@@ -37,6 +69,7 @@ MCP 服务器在 `mcp.json` 中声明，可以位于以下两处之一或两者�
 | `command`、`args` | 要启动的进程，用于 `stdio` |
 | `env` | 该进程的环境变量 |
 | `url` | 端点，用于 HTTP 传输 |
+| `bearer_token_env` | 远端服务器 Bearer token 的可选环境变量名 |
 
 ## 变量展开
 

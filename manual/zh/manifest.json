@@ -31,6 +31,7 @@
         { "slug": "skills-and-subagents", "file": "技能与子代理.md", "title": "技能与子 Agent" },
         { "slug": "mcp", "file": "MCP服务器.md", "title": "MCP 服务器" },
         { "slug": "plugins", "file": "插件.md", "title": "插件" },
+        { "slug": "app-connections", "file": "应用连接.md", "title": "实验性应用连接" },
         { "slug": "hooks", "file": "钩子.md", "title": "钩子" }
       ]
     },

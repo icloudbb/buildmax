@@ -2,7 +2,9 @@ package mcp
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -13,6 +15,26 @@ import (
 )
 
 func newTransport(cfg mcpcfg.ServerConfig, httpClient *http.Client) (mcpsdk.Transport, error) {
+	if cfg.BearerTokenEnv != "" {
+		if !safeBearerEndpoint(cfg.URL) {
+			return nil, fmt.Errorf("MCP bearer token requires HTTPS or a loopback endpoint")
+		}
+		token := os.Getenv(cfg.BearerTokenEnv)
+		if token == "" {
+			return nil, fmt.Errorf("set %s to the MCP server bearer token", cfg.BearerTokenEnv)
+		}
+		if httpClient == nil {
+			httpClient = http.DefaultClient
+		}
+		copyClient := *httpClient
+		base := copyClient.Transport
+		if base == nil {
+			base = http.DefaultTransport
+		}
+		copyClient.Transport = bearerTransport{base: base, token: token}
+		copyClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		httpClient = &copyClient
+	}
 	switch cfg.Type {
 	case "stdio":
 		cmd := exec.Command(cfg.Command, cfg.Args...)
@@ -33,6 +55,29 @@ func newTransport(cfg mcpcfg.ServerConfig, httpClient *http.Client) (mcpsdk.Tran
 	default:
 		return nil, fmt.Errorf("unknown mcp transport type %q", cfg.Type)
 	}
+}
+
+func safeBearerEndpoint(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() == "" || u.User != nil {
+		return false
+	}
+	if u.Scheme == "https" {
+		return true
+	}
+	ip := net.ParseIP(u.Hostname())
+	return u.Scheme == "http" && (u.Hostname() == "localhost" || ip != nil && ip.IsLoopback())
+}
+
+type bearerTransport struct {
+	base  http.RoundTripper
+	token string
+}
+
+func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	copyReq := req.Clone(req.Context())
+	copyReq.Header.Set("Authorization", "Bearer "+t.token)
+	return t.base.RoundTrip(copyReq)
 }
 
 // mergedEnv returns os.Environ() with keys in overrides replaced or appended.

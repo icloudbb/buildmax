@@ -60,6 +60,10 @@ buildmax <command> [flags]
 | `buildmax plugin uninstall <name>` | Remove an installed plugin |
 | `buildmax plugin publish <path>` | Pack a directory and publish it (System Administrator only) |
 | `buildmax plugin activations --space <space-id>` | List the exact plugin releases a Space has activated for background runs |
+| `buildmax connect <plugin>` | Authorize a local app connector using browser OAuth and PKCE |
+| `buildmax app <plugin> <operation> [--json BODY]` | Call one declared app operation; writes require terminal confirmation |
+| `buildmax connect mcp <name> <url> [--transport http\|sse] [--bearer-env VAR]` | Check and register a remote MCP server in user configuration |
+| `buildmax mcp list\|tools <server>\|schema <server> <tool>\|call <server> <tool> [--json OBJECT]` | Discover and call MCP tools from the terminal; unmarked and write tools require confirmation |
 
 ## Flags
 

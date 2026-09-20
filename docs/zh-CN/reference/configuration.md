@@ -14,6 +14,8 @@ BuildMax 通过**数据目录内的 YAML 文件**进行配置，而不是通过�
 | `<BUILDMAX_HOME>/mcp.json` | CLI、Desktop、Worker | MCP 服务器，与工作区文件合并 |
 | `<workspace>/.buildmax/mcp.json` | CLI、Desktop | 按工作区配置的 MCP 服务器；服务器 id 重复时以此为准 |
 | `<BUILDMAX_HOME>/plugins/<name>/` | CLI、Desktop、Worker | 一个已安装的本地 plugin，或某个 Space 激活的确切版本，被物化到某次运行范围内的 worker home 中；见 [manual/plugins.md](../../../manual/plugins.md) |
+| `<BUILDMAX_HOME>/plugins/<name>/connector.yaml` | 本地 CLI | 实验性应用 OAuth 与固定 API 操作；见[应用连接](../../../manual/zh/应用连接.md) |
+| `<BUILDMAX_HOME>/connections/<name>.json` | 本地 CLI，仅显式文件凭证模式 | 应用 OAuth 令牌，权限 0600；否则存于操作系统凭证存储 |
 | `<workspaces_dir>/.marketplace/` | Server | 已发布的 plugin 包，用于部署未接入对象存储的情况 |
 
 `BUILDMAX_HOME` 默认值为 `~/.buildmax`。从 [`config-examples/`](../../../config-examples/) 复制起始模板：
@@ -28,9 +30,14 @@ cp config-examples/mcp.example.json      ~/.buildmax/mcp.json      # MCP servers
 
 `mcp.example.json` 携带一个 `_comment` 键，其中保存着自身的说明文档；使用前请删除该键。
 
+`buildmax connect mcp <name> <url>` 验证远端服务器后，将其加入用户级
+`mcp.json`。可选字段 `bearer_token_env` 保存令牌所在的环境变量名，令牌值不会
+写入 MCP 文件。参见 [MCP 服务器](../../../manual/zh/MCP服务器.md)。
+
 ## 环境变量
 
-以下是完整列表。`internal/config/env_spec.go` 是权威来源；未在此列出的变量都不会被 BuildMax 读取。
+以下是内置环境变量的完整列表，权威来源为 `internal/config/env_spec.go`。
+MCP 的 `bearer_token_env` 字段或插件声明指定的集成专用变量，仅在配置该集成时读取。
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|

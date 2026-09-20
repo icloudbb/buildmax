@@ -1,0 +1,5 @@
+name: mcp-cli
+version: 0.1.0
+description: Skill for discovering and calling connected MCP servers through the BuildMax CLI.
+display_name: MCP CLI Prototype
+license: Apache-2.0

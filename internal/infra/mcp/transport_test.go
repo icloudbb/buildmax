@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	coremcp "github.com/icloudbb/buildmax/internal/core/mcp"
 )
 
 func TestMergedEnv(t *testing.T) {
@@ -65,5 +67,15 @@ func TestMergedEnv_nil(t *testing.T) {
 	}
 	if mergedEnv(map[string]string{}) != nil {
 		t.Fatal("want nil")
+	}
+}
+
+func TestBearerTokenRefusesCleartextRemoteEndpoint(t *testing.T) {
+	t.Setenv("TEST_MCP_SECRET", "secret")
+	_, err := newTransport(coremcp.ServerConfig{
+		Type: coremcp.TransportHTTP, URL: "http://example.com/mcp", BearerTokenEnv: "TEST_MCP_SECRET",
+	}, nil)
+	if err == nil || !strings.Contains(err.Error(), "HTTPS") {
+		t.Fatalf("cleartext endpoint accepted: %v", err)
 	}
 }

@@ -130,6 +130,7 @@ internal/
 ├── config/             YAML + env config loading and path resolution
 │
 ├── core/               Pure domain layer — no infra imports
+│   ├── appconnect/     Validated connector.yaml shape and fixed operation rules
 │   ├── apierr/         Why a service refused: a Kind a transport maps to a
 │   │                   status, plus ErrNotFound, what a store says when the
 │   │                   row or object a caller named is not there
@@ -273,6 +274,7 @@ internal/
 │   └── log/            slog + lumberjack logging
 │
 ├── interface/          Local user-facing entry points
+│   ├── appconnect/     Local OAuth, token storage, and fixed HTTP calls
 │   ├── cli/            Cobra CLI, Bubble Tea TUI, print mode
 │   ├── desktop/        Wails app bridge
 │   ├── slashcmd/       Shared source of truth for the chat's slash-command set,

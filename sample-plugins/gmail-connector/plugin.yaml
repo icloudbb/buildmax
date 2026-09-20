@@ -1,0 +1,8 @@
+name: gmail-connector
+version: 0.1.0
+description: Experimental Gmail connector with two reads and one confirmed draft write.
+display_name: Gmail Connector Prototype
+license: Apache-2.0
+env:
+  BUILDMAX_GMAIL_CLIENT_ID:
+    description: OAuth desktop application client ID for this sample.

@@ -15,6 +15,8 @@ the environment, because they must be known before any file can be read.
 | `<BUILDMAX_HOME>/mcp.json` | CLI, Desktop, Worker | MCP servers, merged with the workspace file. A worker rejects `stdio` entries — see [MCP transports on a worker](#mcp-transports-on-a-worker) |
 | `<workspace>/.buildmax/mcp.json` | CLI, Desktop | Per-workspace MCP servers; wins on a duplicate server id |
 | `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop, Worker | An installed local plugin, or an exact Space-activated release materialized into a run-scoped worker home; see [manual/plugins.md](../../manual/plugins.md) |
+| `<BUILDMAX_HOME>/plugins/<name>/connector.yaml` | Local CLI | Experimental app OAuth and fixed API operations; see [app connections](../../manual/app-connections.md) |
+| `<BUILDMAX_HOME>/connections/<name>.json` | Local CLI, explicit file credential mode only | App OAuth token, mode 0600; otherwise stored in the OS credential store |
 | `<workspaces_dir>/.marketplace/` | Server | Published plugin packages, when the deployment has no object store |
 
 `BUILDMAX_HOME` defaults to `~/.buildmax`. Copy the starting points from
@@ -31,10 +33,17 @@ cp config-examples/mcp.example.json      ~/.buildmax/mcp.json      # MCP servers
 `mcp.example.json` carries a `_comment` key holding its own documentation; drop
 that key before use.
 
+`buildmax connect mcp <name> <url>` validates and adds a remote server to the
+user-level `mcp.json`. Its optional `bearer_token_env` entry names an
+environment variable containing the token; the token itself is never stored
+in the MCP file. See [MCP servers](../../manual/mcp.md).
+
 ## Environment Variables
 
-This is the complete list. `internal/config/env_spec.go` is the source of truth;
-anything not listed here is not read by BuildMax.
+This is the complete list of built-in environment variables.
+`internal/config/env_spec.go` is their source of truth. Integration-specific
+variables named in an MCP `bearer_token_env` field or plugin declaration are
+read only when that integration is configured.
 
 | Variable | Default | Purpose |
 |---|---|---|

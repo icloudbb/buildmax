@@ -1,0 +1,21 @@
+auth:
+  authorization_url: https://accounts.google.com/o/oauth2/v2/auth
+  token_url: https://oauth2.googleapis.com/token
+  client_id_env: BUILDMAX_GMAIL_CLIENT_ID
+  scopes:
+    - https://www.googleapis.com/auth/gmail.readonly
+    - https://www.googleapis.com/auth/gmail.compose
+api_origin: https://gmail.googleapis.com
+operations:
+  profile:
+    method: GET
+    path: /gmail/v1/users/me/profile
+    effect: read
+  list_messages:
+    method: GET
+    path: /gmail/v1/users/me/messages
+    effect: read
+  create_draft:
+    method: POST
+    path: /gmail/v1/users/me/drafts
+    effect: write

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -29,12 +30,15 @@ type ConfigRoot struct {
 
 // ServerConfig is one entry in mcpServers.
 type ServerConfig struct {
-	Type    string            `json:"type"`
-	Command string            `json:"command"`
-	Args    []string          `json:"args"`
-	Env     map[string]string `json:"env"`
-	URL     string            `json:"url"`
+	Type           string            `json:"type"`
+	Command        string            `json:"command,omitempty"`
+	Args           []string          `json:"args,omitempty"`
+	Env            map[string]string `json:"env,omitempty"`
+	URL            string            `json:"url,omitempty"`
+	BearerTokenEnv string            `json:"bearer_token_env,omitempty"`
 }
+
+var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // ParseConfig decodes an mcp.json document without validating its entries.
 //
@@ -65,9 +69,15 @@ func ValidateServerConfig(id string, s ServerConfig) error {
 		if strings.TrimSpace(s.Command) == "" {
 			return fmt.Errorf("mcp server %q: stdio requires command", id)
 		}
+		if s.BearerTokenEnv != "" {
+			return fmt.Errorf("mcp server %q: bearer_token_env requires http or sse", id)
+		}
 	case TransportSSE, TransportHTTP:
 		if strings.TrimSpace(s.URL) == "" {
 			return fmt.Errorf("mcp server %q: %s requires url", id, s.Type)
+		}
+		if s.BearerTokenEnv != "" && !envNamePattern.MatchString(s.BearerTokenEnv) {
+			return fmt.Errorf("mcp server %q: invalid bearer_token_env name", id)
 		}
 	default:
 		return fmt.Errorf("mcp server %q: invalid type %q (want stdio, sse, or http)", id, s.Type)

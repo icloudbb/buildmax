@@ -57,9 +57,11 @@
 
 ## 1. Decision
 
-BuildMax will treat a plugin as a reusable directory containing capabilities
-that already work under `.buildmax/`. A plugin adds distribution and lifecycle;
-it does not add another runtime or extension API.
+BuildMax treats a plugin as a reusable directory containing capabilities that
+work under `.buildmax/`. The experimental local `connector.yaml` is a bounded
+exception: it declares fixed app operations for the CLI, with no worker
+credential or per-run authorization contract yet. See the
+[delegation proposal](../proposals/agent-app-delegation.md).
 
 The plugin directory contains the supported content directly. It does **not**
 contain another `.buildmax/` directory:
@@ -71,6 +73,7 @@ code-review/
 ├── skills/
 ├── agents/
 ├── mcp.json
+├── connector.yaml
 ├── hooks.yaml
 └── hooks/
 ```
@@ -204,8 +207,8 @@ explicit replace operation so BuildMax never overwrites a working tree.
 
 ### 3.1 Supported Content
 
-The plugin root may contribute only content already supported in a workspace
-`.buildmax/` directory:
+The plugin root may contribute workspace `.buildmax/` content and an
+experimental local connector:
 
 | Path | Meaning |
 |---|---|
@@ -214,6 +217,7 @@ The plugin root may contribute only content already supported in a workspace
 | `mcp.json` | MCP server definitions |
 | `hooks.yaml` | Hook definitions |
 | `hooks/` | Scripts or resources referenced by `hooks.yaml` |
+| `connector.yaml` | Fixed local OAuth and HTTP operations; not a worker grant |
 
 `README.md` and `LICENSE` may accompany the runtime content. Unknown runtime
 files are reported by validation rather than silently treated as a new plugin
