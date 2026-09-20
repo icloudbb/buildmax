@@ -211,8 +211,10 @@ pane-independent, so a tab can move between panes without disturbing its content
   keyed per session so they *can* run at once; keeping two from clobbering one
   workspace (a per-session worktree) is the user's call (§12).
 - Replacing the Agent's Bash tool with the user terminal (§11.4).
-- A persistent terminal daemon, or reconstructing terminal scrollback across app
-  restarts.
+- A persistent terminal daemon or restoring a shell's live process across app
+  restarts. (The terminal *tab* is restored — reopened as a fresh shell with its
+  last visible contents replayed as static text — but the process is gone; see
+  §13.)
 - A shared `@buildmax/gui` tab framework before a second surface needs one.
 - Changing Portal, which is a browser surface with a different trust boundary
   (§16.3).
@@ -355,7 +357,11 @@ the frontend as a byte stream over Wails events keyed by tab id. The frontend
 writes keystrokes back through a bound method and sends resize (columns and rows)
 on geometry change so the controlling process sees a correct window size. Control
 sequences, colors, and binary output pass through untransformed; the frontend
-emulator interprets them.
+emulator interprets them. The emulator carries a full 16-color ANSI palette with
+a legible foreground, cursor, and selection, in a light and a dark variant that
+track the app theme — a theme change repaints the live buffer in place, so
+scrollback is untouched — so program color (git, ls, build logs) reads clearly
+rather than falling to washed-out defaults.
 
 ### 11.3 Lifecycle
 
@@ -411,15 +417,21 @@ refinement.
 
 - A chat tab keeps the session persistence Desktop already has; closing it hides
   the session, which stays stored.
-- A terminal tab has no durable state; it dies with the tab or the window, and its
-  scrollback is not persisted.
+- A terminal tab's shell process dies with the tab or the window and is never
+  restored. Its *visible contents*, however, are — the emulator buffer is
+  serialized (debounced, bounded to a recent slice of scrollback) and saved on the
+  Go side, keyed by project and a stable per-terminal restore key. This mirrors
+  what a native terminal (e.g. iTerm2) does across a restart, so the user is not
+  surprised by an empty pane.
 - A file or diff tab is a derived view; it is re-read from the workspace on open
   and needs no persistence.
 - A project's layout is remembered as UI state (per project, in local storage), so
-  a restart or project switch reopens the same chat, file, and diff tabs in the
-  same pane grid. Terminal tabs are excluded from the save — a dead process cannot
-  be reopened, only a new one started — and any pane left empty by that exclusion
-  is dropped on restore.
+  a restart or project switch reopens the same chat, terminal, file, and diff tabs
+  in the same pane grid. A restored terminal is reopened as a fresh shell in the
+  project workspace with its saved contents replayed above the new prompt as static
+  text; the dead PTY id is not persisted, and its restore key ties the reopened tab
+  to its saved snapshot. Snapshots for terminals the user has closed are pruned on
+  the next restore. Any pane left empty (a terminal that will not reopen) is dropped.
 - No tab backing outlives the Desktop process where it should not: sessions
   persist, but PTYs are reaped on shutdown so no shell is orphaned.
 
@@ -505,7 +517,10 @@ context menu with *Close*, *Close others*, and *Close tabs to the right*; each
 spares a non-closable tab (the current chat), just as the per-tab close button
 does. On a chat or terminal tab the menu also offers *Rename*, which edits the
 title in place — renaming a chat tab bound to a session renames the session, so
-it persists and the sidebar follows; a terminal's title is view-only state. A
+it persists and the sidebar follows; a terminal's title is view-only state.
+Double-clicking a chat or terminal tab starts the same in-place rename directly,
+without the menu; on a preview file/diff tab, where there is nothing to rename, a
+double-click pins it instead. A
 file or diff tab is not renamed (its title is the filename), but its tooltip
 shows the full workspace path; that menu instead offers *Copy relative path* and
 *Copy absolute path*: the relative form is the workspace-root path, while the
@@ -535,6 +550,18 @@ capped at three columns (`tile`), and from a grid it *collapses* every pane back
 into one tabbed pane in reading order (`collapse`). Both are pure operations on
 the same model, and because backings are pane-independent a tiled terminal keeps
 its session exactly as a dragged one does.
+
+The status bar also hosts a **Launchpad**: a global control, pinned beside the
+theme toggle, whose popover lists applications the user has pinned and launches
+one with a single click. An entry is just a display name and a target the
+operating system knows how to open — an application bundle, executable, document,
+or URL — so a local application is pinned by a native file pick and a website by
+typing its address, and launching hands the target to the platform opener
+(`open`, `start`, or `xdg-open`) as a fire-and-forget child.
+Entries are global rather than project-scoped and stored on the Go side
+(`launchpad.json` under `BUILDMAX_HOME`), so they survive independent of the
+webview cache and are shared across every window. This keeps the desktop a
+workspace the user can reach their everyday tools from without leaving it.
 
 ### 15.2 Deferred: resizable splitters
 

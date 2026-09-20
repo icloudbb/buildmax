@@ -150,14 +150,17 @@ describe('panes grid model', () => {
 describe('workspace persistence', () => {
   const term = (ws) => openInFocused(ws, { kind: 'terminal', ref: 't1', title: 'Terminal 1' });
 
-  it('drops terminal tabs and any pane they emptied', () => {
+  it('keeps terminal tabs but strips their dead PTY ref for a fresh restore', () => {
     let ws = open(emptyWorkspace, 'a.go'); // pane-1: a.go
     ws = splitRight(ws); // pane-2 empty, focused
     ws = term(ws); // pane-2: terminal only
     const pruned = pruneForPersist(ws);
-    expect(pruned.rows).toHaveLength(1);
-    expect(pruned.rows[0].panes).toHaveLength(1);
-    expect(pruned.rows[0].panes[0].tabs.map((t) => t.kind)).toEqual(['file']);
+    expect(pruned.rows[0].panes).toHaveLength(2);
+    const t = allTabs(pruned).find((x) => x.kind === 'terminal');
+    expect(t).toBeTruthy();
+    expect(t.ref).toBe(''); // the dead PTY id is dropped; restore reopens a shell
+    expect(t.key).toBe('terminal:');
+    expect(isWorkspace(pruned)).toBe(true);
   });
 
   it('keeps file and diff tabs and is a valid workspace', () => {
@@ -168,16 +171,17 @@ describe('workspace persistence', () => {
     expect(allTabs(pruned).map((t) => t.kind).sort()).toEqual(['diff', 'file']);
   });
 
-  it('returns null when only terminals remain', () => {
+  it('keeps a layout that is only terminals', () => {
     const ws = term(emptyWorkspace);
-    expect(pruneForPersist(ws)).toBeNull();
+    const pruned = pruneForPersist(ws);
+    expect(pruned).not.toBeNull();
+    expect(allTabs(pruned).map((t) => t.kind)).toEqual(['terminal']);
   });
 
-  it('reassigns focus if the focused pane was pruned away', () => {
+  it('reassigns focus if the focused pane was empty and pruned away', () => {
     let ws = open(emptyWorkspace, 'a.go'); // pane-1: a.go
     ws = splitRight(ws); // pane-2 empty, focused
-    ws = term(ws); // pane-2: terminal, focused
-    const pruned = pruneForPersist(ws);
+    const pruned = pruneForPersist(ws); // the empty pane-2 is dropped
     expect(pruned.focused).toBe('pane-1');
   });
 

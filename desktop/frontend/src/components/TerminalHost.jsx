@@ -9,8 +9,19 @@ import { TerminalPane } from './TerminalPane';
 // whereas moving the unchanged container element does not. So a terminal keeps
 // its emulator, cursor, and scrollback across tab switches, pane drags, grid
 // re-tiling, and project switches; `activeById` only toggles its visibility.
-export function TerminalHost({ hosts, activeById }) {
-  return [...hosts].map(([id, host]) => (
-    createPortal(<TerminalPane id={id} active={!!activeById[id]} />, host, id)
-  ));
+export function TerminalHost({ hosts, activeById, metaById }) {
+  return [...hosts].map(([id, host]) => {
+    const meta = metaById?.get(id);
+    return createPortal(
+      <TerminalPane
+        id={id}
+        active={!!activeById[id]}
+        projectId={meta?.projectId}
+        restoreKey={meta?.restoreKey}
+        restoreContent={meta?.restoreContent}
+      />,
+      host,
+      id,
+    );
+  });
 }

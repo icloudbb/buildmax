@@ -39,11 +39,23 @@ describe('TabBar', () => {
     expect(screen.queryByLabelText('Close New Chat')).toBeNull();
   });
 
-  it('pins a tab on double-click', () => {
+  it('pins a preview file tab on double-click', () => {
     const onPin = vi.fn();
     render(<TabBar tabs={tabs} activeKey="chat:s1" onSelect={() => {}} onClose={() => {}} onPin={onPin} />);
     fireEvent.doubleClick(screen.getByRole('tab', { name: /a\.go/ }));
     expect(onPin).toHaveBeenCalledWith('file:a.go');
+  });
+
+  it('starts an inline rename on double-click of a chat tab, not a pin', () => {
+    const onPin = vi.fn();
+    const onRename = vi.fn();
+    render(<TabBar tabs={tabs} activeKey="chat:s1" onSelect={() => {}} onClose={() => {}} onPin={onPin} onRename={onRename} />);
+    fireEvent.doubleClick(screen.getByRole('tab', { name: /New Chat/ }));
+    expect(onPin).not.toHaveBeenCalled();
+    const input = screen.getByDisplayValue('New Chat');
+    fireEvent.change(input, { target: { value: 'Plan' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onRename).toHaveBeenCalledWith('chat:s1', 'Plan');
   });
 
   it('renders nothing when there are no tabs', () => {
