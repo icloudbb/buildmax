@@ -85,6 +85,9 @@ type workflowRunRow struct {
 	WorkflowID       uint64  `gorm:"column:workflow_id;not null;index:idx_workflow_run_workflow_created,priority:1"`
 	WorkflowRevision int     `gorm:"column:workflow_revision;not null;default:0"`
 	IssueID          *uint64 `gorm:"column:issue_id;index"`
+	// ScheduleID is the recurring schedule that started this run, or NULL for any
+	// other trigger. Indexed so a schedule's firing history is one keyed lookup.
+	ScheduleID *uint64 `gorm:"column:schedule_id;index"`
 	// Input is the run's immutable input JSON, validated against the definition's
 	// input_schema at admission. NULL when the definition declares no input_schema.
 	Input  *string `gorm:"column:input;type:longtext"`
@@ -114,15 +117,17 @@ type workflowRunReadRow struct {
 	Row               workflowRunRow `gorm:"embedded"`
 	WorkflowPublicID  string         `gorm:"column:workflow_public_id"`
 	IssuePublicID     *string        `gorm:"column:issue_public_id"`
+	SchedulePublicID  *string        `gorm:"column:schedule_public_id"`
 	CreatedByPublicID string         `gorm:"column:created_by_public_id"`
 }
 
 func (s *Store) workflowRunSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&workflowRunRow{}).
 		Select("workflow_run.*, w.public_id AS workflow_public_id, i.public_id AS issue_public_id, " +
-			"cb.public_id AS created_by_public_id").
+			"sc.public_id AS schedule_public_id, cb.public_id AS created_by_public_id").
 		Joins("INNER JOIN workflow w ON w.id = workflow_run.workflow_id").
 		Joins("LEFT JOIN issue i ON i.id = workflow_run.issue_id").
+		Joins("LEFT JOIN schedule sc ON sc.id = workflow_run.schedule_id").
 		Joins("INNER JOIN `user` cb ON cb.id = workflow_run.created_by")
 }
 
@@ -271,6 +276,10 @@ func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 	if row.Row.IssueID != nil {
 		issue := derefPublicID(row.IssuePublicID)
 		out.IssueID = &issue
+	}
+	if row.Row.ScheduleID != nil {
+		schedule := derefPublicID(row.SchedulePublicID)
+		out.ScheduleID = &schedule
 	}
 	return out
 }
@@ -595,6 +604,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,
+		ScheduleID:       in.ScheduleID,
 		Input:            in.Input,
 		Status:           in.Status,
 		CreatedBy:        in.CreatedBy,
@@ -625,6 +635,13 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 				return err
 			}
 			row.IssueID = &issueKey
+		}
+		if in.ScheduleID != nil && *in.ScheduleID != "" {
+			scheduleKey, err := lookupKey(ctx, tx, "schedule", *in.ScheduleID)
+			if err != nil {
+				return err
+			}
+			row.ScheduleID = &scheduleKey
 		}
 		return createWithPublicID(ctx, tx, "uq_workflow_run_public_id",
 			func(id string) { row.PublicID = id }, row)
@@ -674,6 +691,30 @@ func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, lim
 	}
 	var list []workflowRunReadRow
 	q := s.workflowRunSelect(ctx).Where("workflow_run.issue_id = ?", issueKey).Order("workflow_run.created_at DESC")
+	if limit > 0 {
+		q = q.Limit(limit).Offset(offset)
+	}
+	if err := q.Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return toWorkflowRuns(list), int(total), nil
+}
+
+func (s *Store) ListWorkflowRunsBySchedule(ctx context.Context, scheduleID string, limit, offset int) ([]coreworkflow.Run, int, error) {
+	limit, offset = capPage(limit, offset)
+	scheduleKey, err := lookupKey(ctx, s.db, "schedule", scheduleID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("schedule_id = ?", scheduleKey).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []workflowRunReadRow
+	q := s.workflowRunSelect(ctx).Where("workflow_run.schedule_id = ?", scheduleKey).Order("workflow_run.created_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}

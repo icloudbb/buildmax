@@ -153,6 +153,10 @@ type Run struct {
 	// runs started before workflows recorded revisions.
 	WorkflowRevision int     `json:"workflow_revision,omitempty"`
 	IssueID          *string `json:"issue_id,omitempty"`
+	// ScheduleID is the recurring schedule that started this run, or nil when a
+	// person, agent, issue, or recovery started it. It records the trigger so a
+	// schedule can list the runs it fired, mirroring a Task's schedule linkage.
+	ScheduleID *string `json:"schedule_id,omitempty"`
 	// Input is the run's immutable input JSON, validated against the definition's
 	// input_schema at admission. Nil when the definition declares no input_schema.
 	Input     *string `json:"input,omitempty"`
@@ -416,6 +420,9 @@ type CreateRunInput struct {
 	WorkflowID       string
 	WorkflowRevision int
 	IssueID          *string
+	// ScheduleID is the schedule that started the run, or nil for any other
+	// trigger. It is recorded so a schedule can list the runs it fired.
+	ScheduleID *string
 	// Input is the run's immutable input JSON, already validated against the
 	// definition's input_schema. Nil when the definition declares no input_schema.
 	Input     *string
@@ -547,6 +554,9 @@ type Store interface {
 	CreateWorkflowRun(ctx context.Context, in CreateRunInput) (*Run, error)
 	ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]Run, int, error)
 	ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]Run, int, error)
+	// ListWorkflowRunsBySchedule returns the runs a recurring schedule started,
+	// newest first, so a schedule can show its firing history.
+	ListWorkflowRunsBySchedule(ctx context.Context, scheduleID string, limit, offset int) ([]Run, int, error)
 	GetWorkflowRun(ctx context.Context, workflowRunID string) (*Run, error)
 	ListWorkflowNodeRuns(ctx context.Context, workflowRunID string) ([]NodeRun, error)
 	CreateWorkflowNodeRuns(ctx context.Context, workflowRunID string, steps []CreateNodeRunInput) ([]NodeRun, error)

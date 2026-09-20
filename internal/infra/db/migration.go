@@ -166,6 +166,42 @@ var migrations = []Migration{
 			return nil
 		},
 	},
+	{
+		// A Schedule fired only an Agent (a resolved agent_id FK, and last_task_id
+		// pointing at the Task each firing created). It now fires an executor --
+		// Agent or Workflow -- through executor_kind/executor_id, and records the
+		// opaque public id of whatever a firing produced in last_fire_ref, mirroring
+		// issueRow's executor columns. AutoMigrate adds the new columns from the row
+		// struct; this backfills them from the old ones and drops agent_id and
+		// last_task_id. An existing schedule's agent_id resolves to that agent's
+		// public_id (executor_id is opaque, so it holds the public id verbatim), and
+		// last_task_id to its task's public_id. See
+		// docs/design/scheduled-agent-execution.md.
+		ID: "schedule_agent_to_executor",
+		Apply: func(ctx context.Context, db *gorm.DB) error {
+			m := db.WithContext(ctx).Migrator()
+			if !m.HasColumn(&scheduleRow{}, "agent_id") {
+				// Fresh database: AutoMigrate never created the old columns.
+				return nil
+			}
+			if err := db.WithContext(ctx).Exec(
+				"UPDATE schedule s JOIN agent a ON a.id = s.agent_id " +
+					"SET s.executor_kind = 'agent', s.executor_id = a.public_id " +
+					"WHERE s.executor_kind = ''").Error; err != nil {
+				return err
+			}
+			if err := db.WithContext(ctx).Exec(
+				"UPDATE schedule s JOIN task t ON t.id = s.last_task_id " +
+					"SET s.last_fire_ref = t.public_id " +
+					"WHERE s.last_task_id IS NOT NULL AND s.last_fire_ref IS NULL").Error; err != nil {
+				return err
+			}
+			if err := m.DropColumn(&scheduleRow{}, "last_task_id"); err != nil {
+				return err
+			}
+			return m.DropColumn(&scheduleRow{}, "agent_id")
+		},
+	},
 }
 
 // runMigrations applies every migration this binary knows and the database has

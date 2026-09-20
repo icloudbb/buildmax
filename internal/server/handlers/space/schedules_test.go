@@ -7,6 +7,7 @@ import (
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	"github.com/icloudbb/buildmax/internal/mock"
 	"github.com/icloudbb/buildmax/internal/testsupport"
 )
@@ -35,12 +36,22 @@ func scheduleTestHandler(t *testing.T) (*http.ServeMux, string, string) {
 	if err != nil {
 		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
-	h := New(Config{JWTSecret: scheduleTestSecret, Spaces: spaceStore, Agents: agentStore, Schedules: &mock.MockScheduleStore{}})
+	// A published workflow (schedulable) and a draft one (not) in the same space.
+	workflowStore := &mock.MockWorkflowStore{Workflows: []coreworkflow.Workflow{
+		{ID: publishedWorkflowID, SpaceID: spaceID, Name: "Pub", Status: coreworkflow.StatusPublished, Revision: 1, CreatedBy: "u1"},
+		{ID: draftWorkflowID, SpaceID: spaceID, Name: "Draft", Status: coreworkflow.StatusDraft, Revision: 1, CreatedBy: "u1"},
+	}}
+	h := New(Config{JWTSecret: scheduleTestSecret, Spaces: spaceStore, Agents: agentStore, Workflows: workflowStore, Schedules: &mock.MockScheduleStore{}})
 	mux := http.NewServeMux()
 	h.Register(mux)
 	token := "Bearer " + testsupport.SignJWT("u2", scheduleTestSecret)
 	return mux, token, agent.ID
 }
+
+const (
+	publishedWorkflowID = "w_pub"
+	draftWorkflowID     = "w_draft"
+)
 
 // A member walks a schedule through its whole lifecycle: create, read, list,
 // pause, and delete.
@@ -49,7 +60,7 @@ func TestScheduleLifecycle(t *testing.T) {
 	base := "/api/spaces/tm_1/schedules"
 
 	rec := doJSON(t, mux, http.MethodPost, base, token,
-		`{"agent_id":"`+agentID+`","name":"nightly","input":"summarize","cron_expr":"0 9 * * *","timezone":"UTC"}`)
+		`{"executor_kind":"agent","executor_id":"`+agentID+`","name":"nightly","input":"summarize","cron_expr":"0 9 * * *","timezone":"UTC"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create status = %d, want 201: %s", rec.Code, rec.Body.String())
 	}
@@ -57,7 +68,7 @@ func TestScheduleLifecycle(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode create: %v", err)
 	}
-	if !created.Enabled || created.AgentID != agentID || created.CreatedBy != "u2" {
+	if !created.Enabled || created.ExecutorKind != "agent" || created.ExecutorID != agentID || created.CreatedBy != "u2" {
 		t.Fatalf("created schedule = %+v, want enabled, the agent, and the member as creator", created)
 	}
 	if created.NextFireAt.IsZero() {
@@ -113,10 +124,13 @@ func TestCreateScheduleValidation(t *testing.T) {
 		name string
 		body string
 	}{
-		{"bad cron", `{"agent_id":"` + agentID + `","input":"x","cron_expr":"nonsense","timezone":"UTC"}`},
-		{"unknown agent", `{"agent_id":"a_nope","input":"x","cron_expr":"0 9 * * *","timezone":"UTC"}`},
-		{"empty input", `{"agent_id":"` + agentID + `","input":"","cron_expr":"0 9 * * *","timezone":"UTC"}`},
-		{"bad timezone", `{"agent_id":"` + agentID + `","input":"x","cron_expr":"0 9 * * *","timezone":"Mars/Phobos"}`},
+		{"bad cron", `{"executor_kind":"agent","executor_id":"` + agentID + `","input":"x","cron_expr":"nonsense","timezone":"UTC"}`},
+		{"unknown agent", `{"executor_kind":"agent","executor_id":"a_nope","input":"x","cron_expr":"0 9 * * *","timezone":"UTC"}`},
+		{"empty input", `{"executor_kind":"agent","executor_id":"` + agentID + `","input":"","cron_expr":"0 9 * * *","timezone":"UTC"}`},
+		{"bad timezone", `{"executor_kind":"agent","executor_id":"` + agentID + `","input":"x","cron_expr":"0 9 * * *","timezone":"Mars/Phobos"}`},
+		{"missing executor kind", `{"executor_id":"` + agentID + `","input":"x","cron_expr":"0 9 * * *","timezone":"UTC"}`},
+		{"unknown workflow", `{"executor_kind":"workflow","executor_id":"w_nope","input":"x","cron_expr":"0 9 * * *","timezone":"UTC"}`},
+		{"draft workflow", `{"executor_kind":"workflow","executor_id":"` + draftWorkflowID + `","input":"x","cron_expr":"0 9 * * *","timezone":"UTC"}`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -128,13 +142,46 @@ func TestCreateScheduleValidation(t *testing.T) {
 	}
 }
 
+// A schedule can fire a published workflow: creating one records the workflow as
+// the executor.
+func TestCreateWorkflowSchedule(t *testing.T) {
+	mux, token, _ := scheduleTestHandler(t)
+	base := "/api/spaces/tm_1/schedules"
+
+	rec := doJSON(t, mux, http.MethodPost, base, token,
+		`{"executor_kind":"workflow","executor_id":"`+publishedWorkflowID+`","input":"{}","cron_expr":"0 9 * * *","timezone":"UTC"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201: %s", rec.Code, rec.Body.String())
+	}
+	var created ScheduleResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+	if created.ExecutorKind != "workflow" || created.ExecutorID != publishedWorkflowID {
+		t.Fatalf("created schedule executor = (%q,%q), want (workflow,%q)", created.ExecutorKind, created.ExecutorID, publishedWorkflowID)
+	}
+}
+
+// A workflow that declares no input_schema takes empty run input, so scheduling
+// it with an empty input is valid — unlike an agent, whose input is its prompt.
+func TestCreateWorkflowScheduleWithoutInput(t *testing.T) {
+	mux, token, _ := scheduleTestHandler(t)
+	base := "/api/spaces/tm_1/schedules"
+
+	rec := doJSON(t, mux, http.MethodPost, base, token,
+		`{"executor_kind":"workflow","executor_id":"`+publishedWorkflowID+`","input":"","cron_expr":"0 9 * * *","timezone":"UTC"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201: %s", rec.Code, rec.Body.String())
+	}
+}
+
 // A schedule id from another space is reported as not found, not read across the
 // space boundary.
 func TestGetScheduleFromAnotherSpaceIsNotFound(t *testing.T) {
 	mux, token, agentID := scheduleTestHandler(t)
 	base := "/api/spaces/tm_1/schedules"
 	rec := doJSON(t, mux, http.MethodPost, base, token,
-		`{"agent_id":"`+agentID+`","input":"x","cron_expr":"0 9 * * *","timezone":"UTC"}`)
+		`{"executor_kind":"agent","executor_id":"`+agentID+`","input":"x","cron_expr":"0 9 * * *","timezone":"UTC"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create status = %d, want 201", rec.Code)
 	}

@@ -177,6 +177,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/spaces/{space_id}/agents/{agent_id}/tasks", h.listAgentTasksHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/agents/{agent_id}/tasks", h.createAgentTaskHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/schedules/{schedule_id}/tasks", h.listScheduleTasksHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/schedules/{schedule_id}/runs", h.listScheduleRunsHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}", h.getTaskHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/runs", h.listTaskRunsHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/tasks/{task_id}/runs", h.createTaskRunHandler)

@@ -497,15 +497,18 @@ manual approval, or loops
 
 Portal and inbound webhook execution are assembled. Telegram remains channel
 vocabulary, and the webhook callback sender is not assembled into the Server.
-Recurring schedules run an Agent on the Task plane through a `schedule` trigger
-source and the `/api/spaces/{space_id}/schedules` API, dispatched by a resident
-loop that claims each due time once across replicas, coalesces missed firings
-into one catch-up, and pauses a schedule after five consecutive failed firings
-or when its creator can no longer run work in the Space — disabled, or removed
-from it. Portal creates and manages schedules on both the Agent detail page and
-the Space-wide Schedules page (which lists every schedule and picks the Agent to
-run); the pause reason is recorded on the schedule (`pause_reason`) but not yet
-shown in Portal. They are not a conversation channel
+Recurring schedules run an executor — an Agent (a Task on the Task plane) or a
+published Workflow (a workflow run) — through a `schedule` trigger source and the
+`/api/spaces/{space_id}/schedules` API, dispatched by a resident loop that claims
+each due time once across replicas, coalesces missed firings into one catch-up,
+and pauses a schedule after five consecutive failed firings or when its creator
+can no longer run work in the Space — disabled, or removed from it. A schedule
+names its executor with `executor_kind`/`executor_id`; a workflow run records the
+`schedule_id` that fired it. Portal creates and manages schedules on the Agent
+detail page, the Workflow detail page, and the Space-wide Schedules page (which
+lists every schedule across agents and workflows and picks what runs); the pause
+reason is recorded on the schedule (`pause_reason`) but not yet shown in Portal.
+They are not a conversation channel
 ([`internal/core/schedule`](../internal/core/schedule/schedule.go),
 [`internal/server/scheduler`](../internal/server/scheduler),
 [design](design/scheduled-agent-execution.md)). Space plugin activation supports skill/subagent content but rejects

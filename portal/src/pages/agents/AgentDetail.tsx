@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button, ButtonLink } from "@buildmax/gui"
 import type { Agent, AgentRevision } from "../../lib/types"
 import type { ApiSecret, ApiTask } from "../../lib/api/types"
@@ -26,6 +26,7 @@ import { runStatusLabel, runStatusTone, taskRunFailed, taskRunFinished } from ".
 import { AgentAvatar } from "../../components/UserAvatar"
 import { AgentConfigForm } from "../../components/AgentConfigForm"
 import { RevisionHistory } from "../../components/RevisionHistory"
+import { DetailTabs } from "../../components/DetailTabs"
 import { RunAgentModal } from "../../components/RunAgentModal"
 import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { useApp } from "../../contexts/AppContext"
@@ -40,14 +41,6 @@ interface AgentDetailProps {
 }
 
 type Tab = "overview" | "config" | "runs" | "schedules" | "revisions"
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "config", label: "Configuration" },
-  { id: "runs", label: "Runs" },
-  { id: "schedules", label: "Schedules" },
-  { id: "revisions", label: "Revisions" },
-]
 
 export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   const { currentUserRole, currentSpaceMembers } = useSpace()
@@ -68,31 +61,6 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   // agent genuinely has no revisions. See deriveResourceState.
   const [revisionsData, setRevisionsData] = useState<AgentRevision[] | null>(null)
   const [tab, setTab] = useState<Tab>("overview")
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
-
-  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: Tab) {
-    const index = TABS.findIndex((entry) => entry.id === current)
-    let nextIndex: number
-    switch (event.key) {
-      case "ArrowRight":
-        nextIndex = (index + 1) % TABS.length
-        break
-      case "ArrowLeft":
-        nextIndex = (index - 1 + TABS.length) % TABS.length
-        break
-      case "Home":
-        nextIndex = 0
-        break
-      case "End":
-        nextIndex = TABS.length - 1
-        break
-      default:
-        return
-    }
-    event.preventDefault()
-    setTab(TABS[nextIndex].id)
-    tabRefs.current[nextIndex]?.focus()
-  }
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -373,36 +341,22 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
 
       {agent && (
         <>
-          <nav className="agent-detail__tabs" aria-label="Agent sections" role="tablist">
-            {TABS.map((t, index) => (
-              <button
-                key={t.id}
-                ref={(element) => { tabRefs.current[index] = element }}
-                type="button"
-                role="tab"
-                className={
-                  t.id === tab ? "agent-detail__tab agent-detail__tab--active" : "agent-detail__tab"
-                }
-                aria-selected={t.id === tab}
-                aria-controls={t.id === tab ? `agent-panel-${t.id}` : undefined}
-                id={`agent-tab-${t.id}`}
-                tabIndex={t.id === tab ? 0 : -1}
-                onClick={() => setTab(t.id)}
-                onKeyDown={(event) => handleTabKeyDown(event, t.id)}
-              >
-                {t.label}
-                {t.id === "runs" && tasks.length > 0 ? (
-                  <span className="agent-detail__tab-count">{tasks.length}</span>
-                ) : null}
-                {t.id === "revisions" && agent.revision > 0 ? (
-                  <span className="agent-detail__tab-count">{agent.revision}</span>
-                ) : null}
-              </button>
-            ))}
-          </nav>
+          <DetailTabs<Tab>
+            tabs={[
+              { id: "overview", label: "Overview" },
+              { id: "config", label: "Configuration" },
+              { id: "runs", label: "Runs", count: tasks.length },
+              { id: "schedules", label: "Schedules" },
+              { id: "revisions", label: "Revisions", count: agent.revision },
+            ]}
+            active={tab}
+            onChange={setTab}
+            label="Agent sections"
+            idPrefix="agent"
+          />
 
           {tab === "overview" ? (
-            <section className="agent-detail__panel" role="tabpanel" id="agent-panel-overview" aria-labelledby="agent-tab-overview">
+            <section className="detail-tabs__panel" role="tabpanel" id="agent-panel-overview" aria-labelledby="agent-tab-overview">
               {secretWarnings > 0 ? (
                 <div className="agent-detail__banner" role="alert">
                   <span>
@@ -442,7 +396,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           ) : null}
 
           {tab === "config" ? (
-            <section className="agent-detail__panel" role="tabpanel" id="agent-panel-config" aria-labelledby="agent-tab-config">
+            <section className="detail-tabs__panel" role="tabpanel" id="agent-panel-config" aria-labelledby="agent-tab-config">
               <AgentConfigForm
                 agent={agent}
                 secrets={secrets}
@@ -459,22 +413,22 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           ) : null}
 
           {tab === "runs" ? (
-            <section className="agent-detail__panel" role="tabpanel" id="agent-panel-runs" aria-labelledby="agent-tab-runs">
+            <section className="detail-tabs__panel" role="tabpanel" id="agent-panel-runs" aria-labelledby="agent-tab-runs">
               <p className="page-activity__subtitle">Each run is a durable Task thread. Select one to open it.</p>
               {renderRunsTable(tasks)}
             </section>
           ) : null}
 
           {tab === "schedules" ? (
-            <section className="agent-detail__panel" role="tabpanel" id="agent-panel-schedules" aria-labelledby="agent-tab-schedules">
+            <section className="detail-tabs__panel" role="tabpanel" id="agent-panel-schedules" aria-labelledby="agent-tab-schedules">
               {token ? (
-                <SchedulesSection token={token} spaceId={spaceId} agentId={agent.id} canManage={canManageSchedules} />
+                <SchedulesSection token={token} spaceId={spaceId} executorKind="agent" executorId={agent.id} executorName={agent.name} canManage={canManageSchedules} />
               ) : null}
             </section>
           ) : null}
 
           {tab === "revisions" ? (
-            <section className="agent-detail__panel" role="tabpanel" id="agent-panel-revisions" aria-labelledby="agent-tab-revisions">
+            <section className="detail-tabs__panel" role="tabpanel" id="agent-panel-revisions" aria-labelledby="agent-tab-revisions">
               <RevisionHistory
                 title="Configuration history"
                 state={revisionsState}

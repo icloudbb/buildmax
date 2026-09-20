@@ -5,14 +5,15 @@
 > **Audience:** contributors and operators · **Status:** implemented. The
 > `Schedule` domain and store, the dispatcher, the Space-scoped REST API, the
 > Portal surfaces, and the removal of the `ChannelCron` placeholder shipped on
-> 2026-09-11 (pull requests #548–#554). §13 records the questions left open on
-> purpose.
+> 2026-09-11 (pull requests #548–#554). A schedule fired only an Agent then;
+> §15 records the later generalization to an executor — an Agent or a published
+> Workflow. §13 records the questions left open on purpose.
 
 Related records:
 [agent execution and Task threads](agent-execution-and-task-threads.md)
 (§4.5 names schedule as a typed trigger origin),
-[workflow runtime](workflow-runtime.md) (Workflow-level schedules remain a
-later slice),
+[workflow runtime](workflow-runtime.md) (a schedule is one of the triggers that
+starts a workflow run; §15),
 [system administration](system-administration.md) (disabled-creator and quota
 handling), and
 [server coordination](server-coordination.md) (multi-replica claim safety).
@@ -33,6 +34,7 @@ handling), and
 - [12. Decisions](#12-decisions)
 - [13. Open Questions](#13-open-questions)
 - [14. Delivery](#14-delivery)
+- [15. Extension: Workflow Executors](#15-extension-workflow-executors)
 
 ## 1. Purpose
 
@@ -138,23 +140,27 @@ no cron library, no infra); the store in `internal/infra/db` uses the singular
 Schedule
   id                      NewPublicID
   space_id                required, authoritative owner
-  agent_id                required executor
-  created_by              required actor; carried onto each Task
+  executor_kind           "agent" or "workflow" -- what the schedule fires (§15)
+  executor_id             required executor; an opaque handle executor_kind fixes
+  created_by              required actor; carried onto each firing
   name                    human label
-  input                   the fixed prompt each firing runs
+  input                   the fixed input each firing runs (a prompt for an
+                          agent, run input JSON for a workflow)
   cron_expr               recurrence rule (standard five fields)
   timezone                IANA name, e.g. "Asia/Shanghai"
   enabled                 bool; a paused schedule keeps its row and next time
   next_fire_at            UTC instant the dispatcher claims on; the due index
   last_fire_at            UTC instant of the most recent fire (nullable)
-  last_task_id            the Task the most recent fire created (nullable)
+  last_fire_ref           what the most recent fire produced -- a Task (agent)
+                          or a workflow run (workflow), per executor_kind (nullable)
   consecutive_failures    bounds runaway cost (§9)
   created_at / updated_at
 ```
 
 `next_fire_at` is the single fact the dispatcher queries and the
 compare-and-swap target that makes firing exactly-once (§7). The schedule
-stores no list of past fires; that list is a Task query. Core does not parse
+stores no list of past fires; that list is a Task query for an agent schedule
+and a workflow-run query for a workflow schedule (§15). Core does not parse
 cron: callers compute `next_fire_at` from `cron_expr` and `timezone` with
 `github.com/robfig/cron/v3`, a parser-only dependency; the loop is BuildMax's.
 
@@ -242,25 +248,28 @@ relation, exactly as it carries optional `issue_id` and `workflow_step_run_id`
   `openapi.json`):
 
   ```text
-  POST   /api/spaces/{space_id}/schedules                 { agent_id, name, input, cron_expr, timezone }
+  POST   /api/spaces/{space_id}/schedules                 { executor_kind, executor_id, name, input, cron_expr, timezone }
   GET    /api/spaces/{space_id}/schedules
   GET    /api/spaces/{space_id}/schedules/{id}
   PATCH  /api/spaces/{space_id}/schedules/{id}            { enabled?, input?, cron_expr?, timezone?, name? }
   DELETE /api/spaces/{space_id}/schedules/{id}
-  GET    /api/spaces/{space_id}/schedules/{id}/tasks
+  GET    /api/spaces/{space_id}/schedules/{id}/tasks      # an agent schedule's fired Tasks
+  GET    /api/spaces/{space_id}/schedules/{id}/runs       # a workflow schedule's fired runs (§15)
   ```
 
   `cron_expr` and `timezone` are validated at write time; an invalid expression
   is a `KindInvalid` refusal, never a row that fails silently at fire time.
 
-- **Portal.** The Agent detail page has a Schedules section that lists that
-  Agent's schedules with next and last fire, enabled state, Enable/Disable,
-  Delete, the Tasks each schedule created, and a form to add one for that Agent.
-  The Space-wide **Schedules** page in the sidebar shows every schedule across
-  Agents so an owner can see what unattended automation is running and pause it,
-  and also creates one there — the same form, plus a picker for which Agent
-  runs it. Both entry points share one create form and the `manage_schedules`
-  member capability; editing an existing schedule stays on its Agent.
+- **Portal.** The executor's own detail page has a Schedules section — the Agent
+  detail page for an agent schedule, the Workflow detail page for a workflow one
+  (§15) — that lists that executor's schedules with next and last fire, enabled
+  state, Enable/Disable, Delete, the Tasks or runs each schedule produced, and a
+  form to add one. The Space-wide **Schedules** page in the sidebar shows every
+  schedule across agents and workflows so an owner can see what unattended
+  automation is running and pause it, and also creates one there — the same
+  form, plus a picker for what runs. Both entry points share one create form and
+  the `manage_schedules` member capability; editing an existing schedule stays
+  on its executor's page.
 
 - **Deleting a schedule** removes only the trigger. Tasks it already created are
   independent execution history and are untouched — they are not the
@@ -327,3 +336,47 @@ The five slices landed in order, each independently tested:
 5. **Portal** (#552, #553): the Agent detail section and the Space-wide
    Schedules page, with browser coverage. The timezone database is embedded in
    the Server binary (#554).
+
+## 15. Extension: Workflow Executors
+
+The first slices bound a schedule to one Agent. The natural next question — a
+Space wants "every weekday at 09:00, run the triage *workflow*" the same way it
+runs an agent — is answered by generalizing what a schedule fires rather than
+adding a parallel entity. A schedule's target is *an executor*, the same notion
+[issues](portal-work-and-execution-experience.md) already model with
+`executor_kind` (`agent` or `workflow`) and an opaque `executor_id`. The
+`Schedule` reuses that vocabulary: `agent_id` became `executor_kind` +
+`executor_id`, and `last_task_id` became `last_fire_ref` (the Task an agent
+firing produced, or the workflow run a workflow firing produced), so the whole
+cron, exactly-once claim, catch-up, eligibility, and consecutive-failure
+machinery is shared, not duplicated. At Alpha there is no compatibility burden;
+the migration `schedule_agent_to_executor` backfills existing rows and drops the
+old columns.
+
+Firing branches on `executor_kind` at the one place it must: the dispatcher's
+`startExecutor`. An agent schedule admits a Task through the Task service as
+before; a workflow schedule starts a run through
+`workflow.Service.StartWorkflowRun`, tagged with the schedule so the run records
+its trigger. Both are attributed to the schedule's creator and metered as that
+person's work, and both fold their failures into the same
+consecutive-failure pause. A firing that cannot start its executor — including a
+workflow that was unpublished or archived after the schedule was created, which
+`StartWorkflowRun` refuses — is recorded as a failed fire and pauses the schedule
+after the bound, exactly as an agent admission failure does.
+
+Two rules keep a workflow schedule honest. First, a workflow must be **published**
+to be scheduled: the service checks this at creation (a draft or archived
+workflow can never start a run), and the Portal offers only published workflows.
+Second, a workflow's `input` is the run input its `input_schema` declares, frozen
+on the schedule and validated by `StartWorkflowRun` on each firing, just as a
+manual run's input is; the Portal generates the same input form the manual Run
+dialog uses. A workflow run records the `schedule_id` that started it, mirroring
+`Task.schedule_id`, so a schedule can list its firing history
+(`GET /api/spaces/{space_id}/schedules/{schedule_id}/runs`) the way an agent
+schedule lists its triggered tasks.
+
+The surfaces mirror the agent case: a Schedules section on the workflow detail
+page (pinned to that workflow), and the Space-wide Schedules page, which now
+lists and creates schedules for both kinds and labels each by its executor.
+Managing schedules stays member-tier (`manage_schedules`); it is not gated on
+the owner/admin capability that authoring a workflow needs.

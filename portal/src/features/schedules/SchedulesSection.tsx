@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@buildmax/gui"
-import type { ApiSchedule, ApiTask } from "../../lib/api/types"
+import type { ApiSchedule, ApiTask, ApiWorkflowRun } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { Alert } from "../../components/state/Alert"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -9,6 +9,7 @@ import { runStatusLabel, runStatusTone } from "../conversations/thread"
 import { CreateScheduleForm } from "./CreateScheduleForm"
 import {
   deleteSchedule,
+  listScheduleRuns,
   listScheduleTasks,
   listSchedules,
   updateSchedule,
@@ -17,7 +18,14 @@ import {
 interface SchedulesSectionProps {
   token: string
   spaceId: string
-  agentId: string
+  // What these schedules fire. The section is embedded on the executor's own
+  // detail page, so the executor is pinned rather than chosen.
+  executorKind: "agent" | "workflow"
+  executorId: string
+  // The executor's display name and, for a workflow, its definition JSON so the
+  // create form can render the input its input_schema declares.
+  executorName?: string
+  workflowDefinition?: string
   canManage: boolean
 }
 
@@ -27,8 +35,16 @@ function formatWhen(iso: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString()
 }
 
-export function SchedulesSection({ token, spaceId, agentId, canManage }: SchedulesSectionProps) {
-  // null distinguishes "not yet fetched" from an agent with no schedules.
+export function SchedulesSection({
+  token,
+  spaceId,
+  executorKind,
+  executorId,
+  executorName,
+  workflowDefinition,
+  canManage,
+}: SchedulesSectionProps) {
+  // null distinguishes "not yet fetched" from an executor with no schedules.
   const [schedules, setSchedules] = useState<ApiSchedule[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -37,12 +53,12 @@ export function SchedulesSection({ token, spaceId, agentId, canManage }: Schedul
     setError(null)
     try {
       const res = await listSchedules(spaceId, token)
-      // The list is space-wide; this section shows only this agent's schedules.
-      setSchedules(res.schedules.filter((s) => s.agent_id === agentId))
+      // The list is space-wide; this section shows only this executor's schedules.
+      setSchedules(res.schedules.filter((s) => s.executor_kind === executorKind && s.executor_id === executorId))
     } catch (err) {
       setError(getErrorMessage(err, "Failed to load schedules"))
     }
-  }, [spaceId, agentId, token])
+  }, [spaceId, executorKind, executorId, token])
 
   useEffect(() => {
     void load()
@@ -54,10 +70,13 @@ export function SchedulesSection({ token, spaceId, agentId, canManage }: Schedul
     )
   }
 
+  const noun = executorKind === "workflow" ? "workflow" : "agent"
+  const fires = executorKind === "workflow" ? "starts a workflow run" : "starts a Task"
+
   return (
     <div className="agent-schedules">
       <p className="page-activity__subtitle">
-        A schedule runs this agent automatically on a cron timetable. Each firing starts a Task.
+        A schedule runs this {noun} automatically on a cron timetable. Each firing {fires}.
       </p>
       {error ? <Alert tone="stale" message={error} retry={{ label: "Retry schedules", onClick: () => void load() }} /> : null}
 
@@ -66,7 +85,7 @@ export function SchedulesSection({ token, spaceId, agentId, canManage }: Schedul
           <CreateScheduleForm
             token={token}
             spaceId={spaceId}
-            agentId={agentId}
+            pinned={{ kind: executorKind, id: executorId, name: executorName ?? executorId, definition: workflowDefinition }}
             onCreated={async () => {
               setCreating(false)
               await load()
@@ -115,11 +134,13 @@ function ScheduleCard({
   canManage: boolean
   onChanged: () => Promise<void>
 }) {
+  const isWorkflow = schedule.executor_kind === "workflow"
   const [busyAction, setBusyAction] = useState<"toggle" | "delete" | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [tasks, setTasks] = useState<ApiTask[] | null>(null)
-  const [tasksOpen, setTasksOpen] = useState(false)
-  const [tasksLoading, setTasksLoading] = useState(false)
+  const [runs, setRuns] = useState<ApiWorkflowRun[] | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   async function toggleEnabled() {
     setBusyAction("toggle")
@@ -135,7 +156,8 @@ function ScheduleCard({
   }
 
   async function remove() {
-    if (!window.confirm(`Delete schedule "${schedule.name || schedule.cron_expr}"? Tasks it already created are kept.`)) return
+    const kept = isWorkflow ? "Runs it already started are kept." : "Tasks it already created are kept."
+    if (!window.confirm(`Delete schedule "${schedule.name || schedule.cron_expr}"? ${kept}`)) return
     setBusyAction("delete")
     setErr(null)
     try {
@@ -147,24 +169,32 @@ function ScheduleCard({
     }
   }
 
-  async function loadTasks() {
-    setTasksLoading(true)
+  async function loadHistory() {
+    setHistoryLoading(true)
     setErr(null)
     try {
-      const res = await listScheduleTasks(spaceId, schedule.id, token)
-      setTasks(res.tasks)
+      if (isWorkflow) {
+        const res = await listScheduleRuns(spaceId, schedule.id, token)
+        setRuns(res.runs)
+      } else {
+        const res = await listScheduleTasks(spaceId, schedule.id, token)
+        setTasks(res.tasks)
+      }
     } catch (e) {
-      setErr(getErrorMessage(e, "Failed to load triggered tasks"))
+      setErr(getErrorMessage(e, "Failed to load firing history"))
     } finally {
-      setTasksLoading(false)
+      setHistoryLoading(false)
     }
   }
 
-  function toggleTasks() {
-    const next = !tasksOpen
-    setTasksOpen(next)
-    if (next && tasks === null) void loadTasks()
+  function toggleHistory() {
+    const next = !historyOpen
+    setHistoryOpen(next)
+    if (next && (isWorkflow ? runs === null : tasks === null)) void loadHistory()
   }
+
+  const loaded = isWorkflow ? runs !== null : tasks !== null
+  const empty = isWorkflow ? runs?.length === 0 : tasks?.length === 0
 
   return (
     <li className="agent-schedules__card">
@@ -201,13 +231,15 @@ function ScheduleCard({
         </div>
       </dl>
 
-      <p className="agent-schedules__prompt">{schedule.input}</p>
+      <p className="agent-schedules__prompt">{schedule.input || (isWorkflow ? "(no run input)" : "")}</p>
 
       {err ? <p className="agent-schedules__error" role="alert">{err}</p> : null}
 
       <div className="agent-schedules__card-actions">
-        <Button variant="tertiary" size="compact" onClick={toggleTasks}>
-          {tasksOpen ? "Hide triggered tasks" : "Show triggered tasks"}
+        <Button variant="tertiary" size="compact" onClick={toggleHistory}>
+          {historyOpen
+            ? isWorkflow ? "Hide triggered runs" : "Hide triggered tasks"
+            : isWorkflow ? "Show triggered runs" : "Show triggered tasks"}
         </Button>
         {canManage ? (
           <>
@@ -221,13 +253,43 @@ function ScheduleCard({
         ) : null}
       </div>
 
-      {tasksOpen ? (
-        tasksLoading ? (
+      {historyOpen ? (
+        historyLoading ? (
           <p className="page-activity__empty">Loading…</p>
-        ) : tasks === null ? (
-          <Button variant="secondary" size="compact" onClick={() => void loadTasks()}>Retry triggered tasks</Button>
-        ) : tasks.length === 0 ? (
+        ) : !loaded ? (
+          <Button variant="secondary" size="compact" onClick={() => void loadHistory()}>Retry firing history</Button>
+        ) : empty ? (
           <p className="page-activity__empty">This schedule has not fired yet.</p>
+        ) : isWorkflow ? (
+          <table className="agent-runs">
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>Status</th>
+                <th>When</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(runs ?? []).map((r) => (
+                <tr
+                  key={r.id}
+                  tabIndex={0}
+                  onClick={() => navigate({ name: "workflowRun", spaceId, workflowRunId: r.id })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") navigate({ name: "workflowRun", spaceId, workflowRunId: r.id })
+                  }}
+                >
+                  <td className="agent-runs__title">{r.id}</td>
+                  <td>
+                    <span className={`agent-runs__status agent-runs__status--${runStatusTone(r.status)}`}>
+                      {runStatusLabel(r.status)}
+                    </span>
+                  </td>
+                  <td className="agent-runs__when">{formatWhen(r.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : (
           <table className="agent-runs">
             <thead>
@@ -238,7 +300,7 @@ function ScheduleCard({
               </tr>
             </thead>
             <tbody>
-              {tasks.map((t) => {
+              {(tasks ?? []).map((t) => {
                 const ui = apiTaskToTask(t)
                 return (
                   <tr

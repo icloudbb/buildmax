@@ -138,7 +138,7 @@ test("the visual editor renders a branching graph, adds a step, and round-trips 
   await expect(dialog).toBeHidden()
   await expect(page).toHaveURL(new RegExp(`#/spaces/${current.spaceId}/workflows/[^/]+$`))
 
-  // A draft opens in the authoring layout, which is the visual editor: the graph
+  // A draft opens on its Definition tab, which is the visual editor: the graph
   // renders every node and both fan-out edges.
   await expect(page.locator(".wf-node")).toHaveCount(3)
   await expect(page.locator(".react-flow__edge")).toHaveCount(2)

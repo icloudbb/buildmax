@@ -205,21 +205,11 @@ func RunServer(ctx context.Context, portOverride int) error {
 		TaskRuns:     store,
 		QuotaChecker: serverConfig.Auth.QuotaService,
 	}
-	dispatcher, err := scheduler.NewScheduleDispatcher(store, scheduleAdmitter, 0)
-	if err != nil {
-		return fmt.Errorf("schedule dispatcher: %w", err)
-	}
-	// So a schedule whose creator an administrator disabled, or an owner removed
-	// from the Space, pauses rather than minting Tasks that would only fail at
-	// dispatch.
-	dispatcher.WithEligibility(elig).Start()
-
-	// Recovers Workflow runs stranded by a lost terminal callback or a Server
-	// restart: each sweep reconciles due runs from durable state. It reuses the
-	// Task service above, so a recovered step is admitted and metered exactly like
-	// any other run. Every replica runs it; the reconciliation lease, not
-	// process-local election, keeps two from advancing one run at once.
-	workflowRecovery := &workflowsvc.Service{
+	// The workflow application service both the schedule dispatcher (to fire a
+	// workflow schedule) and the recovery loop (to reconcile stranded runs) use. It
+	// reuses the Task service above, so a step it dispatches is admitted and metered
+	// exactly like any other run.
+	workflowSvc := &workflowsvc.Service{
 		Workflows:   store,
 		Agents:      store,
 		Issues:      store,
@@ -227,7 +217,21 @@ func RunServer(ctx context.Context, portOverride int) error {
 		TaskRuns:    store,
 		Artifacts:   store,
 	}
-	recovery, err := scheduler.NewWorkflowRecoveryLoop(workflowRecovery, 0)
+	dispatcher, err := scheduler.NewScheduleDispatcher(store, scheduleAdmitter, 0)
+	if err != nil {
+		return fmt.Errorf("schedule dispatcher: %w", err)
+	}
+	// WithEligibility so a schedule whose creator an administrator disabled, or an
+	// owner removed from the Space, pauses rather than starting work that would only
+	// fail. WithWorkflows so a workflow schedule fires a run through the same service
+	// the API and recovery loop use.
+	dispatcher.WithEligibility(elig).WithWorkflows(workflowSvc).Start()
+
+	// Recovers Workflow runs stranded by a lost terminal callback or a Server
+	// restart: each sweep reconciles due runs from durable state. Every replica
+	// runs it; the reconciliation lease, not process-local election, keeps two from
+	// advancing one run at once.
+	recovery, err := scheduler.NewWorkflowRecoveryLoop(workflowSvc, 0)
 	if err != nil {
 		return fmt.Errorf("workflow recovery loop: %w", err)
 	}

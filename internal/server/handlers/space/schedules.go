@@ -12,18 +12,22 @@ import (
 
 // ScheduleResponse is the wire shape of a recurring schedule.
 type ScheduleResponse struct {
-	ID                  string     `json:"id"`
-	SpaceID             string     `json:"space_id"`
-	AgentID             string     `json:"agent_id"`
-	CreatedBy           string     `json:"created_by"`
-	Name                string     `json:"name,omitempty"`
-	Input               string     `json:"input"`
-	CronExpr            string     `json:"cron_expr"`
-	Timezone            string     `json:"timezone"`
-	Enabled             bool       `json:"enabled"`
+	ID           string `json:"id"`
+	SpaceID      string `json:"space_id"`
+	ExecutorKind string `json:"executor_kind"`
+	ExecutorID   string `json:"executor_id"`
+	CreatedBy    string `json:"created_by"`
+	Name         string `json:"name,omitempty"`
+	Input        string `json:"input"`
+	CronExpr     string `json:"cron_expr"`
+	Timezone     string `json:"timezone"`
+	Enabled      bool   `json:"enabled"`
+	// PauseReason tells a paused schedule apart -- a person paused it, or the
+	// system did after failures, a lost creator, or a broken cron. Empty when enabled.
+	PauseReason         string     `json:"pause_reason,omitempty"`
 	NextFireAt          time.Time  `json:"next_fire_at"`
 	LastFireAt          *time.Time `json:"last_fire_at,omitempty"`
-	LastTaskID          *string    `json:"last_task_id,omitempty"`
+	LastFireRef         *string    `json:"last_fire_ref,omitempty"`
 	ConsecutiveFailures int        `json:"consecutive_failures"`
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
@@ -35,11 +39,14 @@ type scheduleListResponse struct {
 }
 
 type createScheduleRequest struct {
-	AgentID  string `json:"agent_id"`
-	Name     string `json:"name,omitempty"`
-	Input    string `json:"input"`
-	CronExpr string `json:"cron_expr"`
-	Timezone string `json:"timezone"`
+	// ExecutorKind and ExecutorID name what the schedule fires: an Agent or a
+	// published Workflow in this Space. The executor is fixed at creation.
+	ExecutorKind string `json:"executor_kind"`
+	ExecutorID   string `json:"executor_id"`
+	Name         string `json:"name,omitempty"`
+	Input        string `json:"input"`
+	CronExpr     string `json:"cron_expr"`
+	Timezone     string `json:"timezone"`
 }
 
 // patchScheduleRequest is a partial update: a nil field is left unchanged. This
@@ -58,16 +65,18 @@ func scheduleToResponse(s coreschedule.Schedule) ScheduleResponse {
 	return ScheduleResponse{
 		ID:                  s.ID,
 		SpaceID:             s.SpaceID,
-		AgentID:             s.AgentID,
+		ExecutorKind:        s.ExecutorKind,
+		ExecutorID:          s.ExecutorID,
 		CreatedBy:           s.CreatedBy,
 		Name:                s.Name,
 		Input:               s.Input,
 		CronExpr:            s.CronExpr,
 		Timezone:            s.Timezone,
 		Enabled:             s.Enabled,
+		PauseReason:         s.PauseReason,
 		NextFireAt:          s.NextFireAt,
 		LastFireAt:          s.LastFireAt,
-		LastTaskID:          s.LastTaskID,
+		LastFireRef:         s.LastFireRef,
 		ConsecutiveFailures: s.ConsecutiveFailures,
 		CreatedAt:           s.CreatedAt,
 		UpdatedAt:           s.UpdatedAt,
@@ -78,7 +87,7 @@ func newScheduleService(cfg Config) *schedulesvc.Service {
 	if cfg.Schedules == nil {
 		return nil
 	}
-	return &schedulesvc.Service{Schedules: cfg.Schedules, Agents: cfg.Agents}
+	return &schedulesvc.Service{Schedules: cfg.Schedules, Agents: cfg.Agents, Workflows: cfg.Workflows}
 }
 
 func (h *Handler) scheduleService() *schedulesvc.Service { return h.schedules }
@@ -123,13 +132,14 @@ func (h *Handler) createScheduleHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	created, err := h.scheduleService().Create(r.Context(), schedulesvc.CreateCmd{
-		SpaceID:  spaceID,
-		UserID:   userID,
-		AgentID:  req.AgentID,
-		Name:     req.Name,
-		Input:    req.Input,
-		CronExpr: req.CronExpr,
-		Timezone: req.Timezone,
+		SpaceID:      spaceID,
+		UserID:       userID,
+		ExecutorKind: req.ExecutorKind,
+		ExecutorID:   req.ExecutorID,
+		Name:         req.Name,
+		Input:        req.Input,
+		CronExpr:     req.CronExpr,
+		Timezone:     req.Timezone,
 	})
 	if err != nil {
 		if h.writeScheduleSvcError(w, err) {

@@ -348,12 +348,14 @@ Agent 不会改变已发布计划的运行内容。一次运行会一次性分�
 
 Portal 与入站 webhook 执行已组装。Telegram 仍只是渠道词汇，
 webhook 回调发送器未组装进 Server。周期性 schedule 通过 `schedule` 触发来源与
-`/api/spaces/{space_id}/schedules` API 在 Task 平面上运行 Agent，由常驻循环分发：
-每个到期时刻跨副本只认领一次，错过的触发合并为一次补触发，连续五次触发失败，或
-创建者已不能在该 Space 运行工作（被停用，或被移出该 Space）时，暂停该 schedule。
-Portal 在 Agent 详情页创建和管理 schedule，并在
-Schedules 页面列出 Space 内的全部 schedule；暂停原因已记录在 schedule 上
-（`pause_reason`），但 Portal 尚未展示。它们不是
+`/api/spaces/{space_id}/schedules` API 运行一个执行器——Agent（Task 平面上的一个
+Task）或已发布的 Workflow（一次 workflow 运行），由常驻循环分发：每个到期时刻跨
+副本只认领一次，错过的触发合并为一次补触发，连续五次触发失败，或创建者已不能在该
+Space 运行工作（被停用，或被移出该 Space）时，暂停该 schedule。schedule 用
+`executor_kind`/`executor_id` 指明其执行器；workflow 运行记录触发它的 `schedule_id`。
+Portal 在 Agent 详情页、Workflow 详情页以及 Space 级 Schedules 页面（列出跨 Agent 与
+Workflow 的全部 schedule 并选择运行什么）创建和管理 schedule；暂停原因已记录在
+schedule 上（`pause_reason`），但 Portal 尚未展示。它们不是
 对话渠道（[`internal/core/schedule`](../../internal/core/schedule/schedule.go)、
 [`internal/server/scheduler`](../../internal/server/scheduler)、
 [设计记录](design/定时Agent执行.md)）。Space 插件激活支持 skill/subagent 内容，

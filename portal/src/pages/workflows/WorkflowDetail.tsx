@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { BaseModal, Button, ButtonLink } from "@buildmax/gui"
 import type { Agent, Workflow, WorkflowRevision, WorkflowRun } from "../../lib/types"
 import { buildHash, navigate } from "../../router"
@@ -30,6 +30,8 @@ import {
   type InputFormValues,
 } from "../../features/workflows"
 import { RevisionHistory } from "../../components/RevisionHistory"
+import { DetailTabs } from "../../components/DetailTabs"
+import { SchedulesSection } from "../../features/schedules/SchedulesSection"
 import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { isAllowed } from "../../state/permissionState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
@@ -41,6 +43,8 @@ interface WorkflowDetailProps {
   spaceId: string
   workflowId: string
 }
+
+type Tab = "overview" | "definition" | "runs" | "schedules" | "revisions"
 
 export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailProps) {
   const { currentUserRole, currentSpaceMembers } = useSpace()
@@ -62,11 +66,12 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
-  // A published workflow opens in its operating layout; Edit reveals the
-  // authoring form over it. A draft/archived workflow is always authoring.
-  const [editing, setEditing] = useState(false)
+  const [tab, setTab] = useState<Tab>("overview")
+  // A draft/archived workflow opens on its Definition tab, since it exists to be
+  // built; a published one opens on Overview. Applied once per loaded workflow so
+  // a manual tab switch is not undone by a later refresh.
+  const didInitTab = useRef(false)
   const [runModalOpen, setRunModalOpen] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false)
   const [inputValues, setInputValues] = useState<InputFormValues>({})
   const [error, setError] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState<ResourceUnavailableKind | null>(null)
@@ -80,15 +85,17 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   const [restoreRevisionError, setRestoreRevisionError] = useState<{ revision: number; message: string } | null>(null)
   const canManageWorkflowsState = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
   const canManageWorkflows = isAllowed(canManageWorkflowsState)
+  // Managing schedules is member-tier (manage_schedules), unlike editing the
+  // workflow itself, so the schedule section uses its own capability.
+  const canManageSchedules = isAllowed(
+    useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin" || currentUserRole === "member")
+  )
   // A run's input form is generated from the workflow's input_schema; a workflow
   // that declares none takes no input and the form is absent.
   const inputFields = useMemo(
     () => (workflow ? (parseInputSchema(workflow.definition)?.fields ?? []) : []),
     [workflow],
   )
-  // A published workflow shows its operating layout (topology + runs) until Edit
-  // opens the authoring form; a draft or archived workflow is always authoring.
-  const authoring = workflow?.status !== "published" || editing
   // Read-only topology derived from the edited definition, so it tracks the form
   // while editing and reuses the run page's DAG rendering.
   const topologyNodes = useMemo<GraphNode[]>(() => {
@@ -126,6 +133,10 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       setName(mappedWorkflow.name)
       setDescription(mappedWorkflow.description)
       hydrateSteps(mappedWorkflow.definition)
+      if (!didInitTab.current) {
+        setTab(mappedWorkflow.status === "published" ? "overview" : "definition")
+        didInitTab.current = true
+      }
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 404) {
         setUnavailable("notFound")
@@ -199,7 +210,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   // Publish, Archive — so lifecycle changes are explicit rather than hidden in a
   // status control. All round-trip through the same update call and refresh
   // revision history.
-  function saveWith(targetStatus: Workflow["status"], exitEditing: boolean) {
+  function saveWith(targetStatus: Workflow["status"]) {
     if (!token || !spaceId || !workflow || !canManageWorkflows) return
     setSaving(true)
     setError(null)
@@ -215,7 +226,6 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         setName(mapped.name)
         setDescription(mapped.description)
         hydrateSteps(mapped.definition)
-        if (exitEditing) setEditing(false)
         loadRevisions()
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to update workflow")))
@@ -223,26 +233,24 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   }
 
   function handleSaveDraft() {
-    saveWith("draft", true)
+    saveWith("draft")
   }
 
   function handlePublish() {
-    saveWith("published", true)
+    saveWith("published")
   }
 
   function handleArchive() {
-    saveWith("archived", true)
+    saveWith("archived")
   }
 
-  // Cancel discards unsaved edits by re-hydrating from the loaded workflow, then
-  // returns a published workflow to its operating layout.
+  // Discard re-hydrates the form from the loaded workflow, dropping unsaved edits.
   function discardEdits() {
     if (!workflow) return
     setName(workflow.name)
     setDescription(workflow.description)
     hydrateSteps(workflow.definition)
     setError(null)
-    setEditing(false)
   }
 
   function handleRestoreRevision(revision: number) {
@@ -317,6 +325,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
     )
   }
 
+  const published = workflow?.status === "published"
   const saveDisabled =
     saving ||
     loading ||
@@ -348,145 +357,188 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
           <Button variant="tertiary" disabled={loading} onClick={() => void load()}>
             Refresh
           </Button>
-          {workflow ? (
-            <Button variant="tertiary" onClick={() => setHistoryOpen(true)}>
-              History
-            </Button>
-          ) : null}
-          {authoring ? (
-            <>
-              {canManageWorkflows && editing && workflow?.status === "published" ? (
-                <Button variant="secondary" disabled={saving} onClick={discardEdits}>
-                  Cancel
-                </Button>
-              ) : null}
-              {canManageWorkflows ? (
-                <Button variant="secondary" busy={saving} disabled={saveDisabled} onClick={handleSaveDraft}>
-                  Save as draft
-                </Button>
-              ) : null}
-              {canManageWorkflows ? (
-                <Button variant="primary" busy={saving} disabled={saveDisabled} onClick={handlePublish}>
-                  Publish
-                </Button>
-              ) : null}
-            </>
-          ) : (
-            <>
-              {canManageWorkflows ? (
-                <Button variant="secondary" onClick={() => setEditing(true)}>
-                  Edit
-                </Button>
-              ) : null}
-              <Button variant="primary" busy={running} disabled={loading || workflow == null || workflow.status !== "published"} onClick={handleRunClick}>Run Workflow</Button>
-            </>
-          )}
-          {canManageWorkflows && workflow && workflow.status !== "archived" ? (
-            <Button variant="tertiary" disabled={saving} onClick={handleArchive}>
-              Archive
-            </Button>
-          ) : null}
+          <Button
+            variant="primary"
+            busy={running}
+            disabled={loading || workflow == null || !published}
+            onClick={handleRunClick}
+          >
+            Run Workflow
+          </Button>
         </div>
       </div>
 
       {error ? <p className="page-activity__empty">{error}</p> : null}
-      {canManageWorkflowsState === "denied" ? (
-        <p className="page-activity__empty">
-          This workflow is read-only for your role. You can still inspect it here, and you can run it when it is `published`.
-        </p>
-      ) : canManageWorkflowsState === "failed" ? (
-        <p className="page-activity__empty">
-          Couldn&apos;t verify your role in this space, so editing stays unavailable. Refresh to try again.
-        </p>
-      ) : canManageWorkflowsState === "unknown" ? (
-        <p className="page-activity__empty">Checking whether you can manage this workflow…</p>
-      ) : null}
 
-      {workflow && authoring ? (
+      {workflow ? (
         <>
-          {workflow.status !== "published" ? (
-            <p className="workflow-detail__banner">
-              This workflow is currently {statusLabel(workflow.status)}. Save as draft to keep working on it, or Publish it before manual runs or issue assignment.
-            </p>
-          ) : (
-            <p className="workflow-detail__banner">
-              Editing a published workflow. Save as draft keeps your changes without publishing; Publish writes them as a new published revision.
-            </p>
-          )}
-          <section className="issues-page__panel workflow-editor">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Definition</h2>
-            </div>
-            {/* Name and description are the workflow's metadata, not the thing
-                being edited here — the graph is. They collapse out of the way so
-                the canvas dominates the page. */}
-            <details className="workflow-editor__settings">
-              <summary className="workflow-editor__settings-summary">Settings — name and description</summary>
-              <div className="workflow-editor__settings-fields">
-                <label className="issues-page__field">
-                  <span className="issues-page__field-label">Name</span>
-                  <input className="issues-page__input" value={name} disabled={!canManageWorkflows} onChange={(e) => setName(e.target.value)} />
-                </label>
-                <label className="issues-page__field">
-                  <span className="issues-page__field-label">Description</span>
-                  <textarea
-                    className="issues-page__textarea"
-                    rows={3}
-                    value={description}
-                    disabled={!canManageWorkflows}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </label>
+          <DetailTabs<Tab>
+            tabs={[
+              { id: "overview", label: "Overview" },
+              { id: "definition", label: "Definition" },
+              { id: "runs", label: "Runs", count: runs.length },
+              { id: "schedules", label: "Schedules" },
+              { id: "revisions", label: "Revisions", count: workflow.revision },
+            ]}
+            active={tab}
+            onChange={setTab}
+            label="Workflow sections"
+            idPrefix="workflow"
+          />
+
+          {tab === "overview" ? (
+            <section className="detail-tabs__panel" role="tabpanel" id="workflow-panel-overview" aria-labelledby="workflow-tab-overview">
+              {!published ? (
+                <p className="workflow-detail__banner">
+                  This workflow is currently {statusLabel(workflow.status)}. Open the Definition tab to keep working on
+                  it, then Publish before manual runs, schedules, or issue assignment.
+                </p>
+              ) : null}
+              <div className="issues-page__toolbar">
+                <h2 className="issues-page__section-title">Plan</h2>
+                <span className="page-activity__meta">
+                  {steps.length} {steps.length === 1 ? "step" : "steps"}
+                  {inputFields.length > 0
+                    ? ` · ${inputFields.length} ${inputFields.length === 1 ? "input" : "inputs"}`
+                    : ""}
+                </span>
               </div>
-            </details>
+              <WorkflowGraph nodes={topologyNodes} emptyLabel="This workflow has no steps." />
+            </section>
+          ) : null}
 
-            <WorkflowStepsEditor state={stepsState} agents={agents} disabled={!canManageWorkflows} fill />
-          </section>
-        </>
-      ) : null}
+          {tab === "definition" ? (
+            <section className="detail-tabs__panel" role="tabpanel" id="workflow-panel-definition" aria-labelledby="workflow-tab-definition">
+              {canManageWorkflowsState === "denied" ? (
+                <p className="page-activity__empty">
+                  This workflow is read-only for your role. You can still inspect it, and run it when it is published.
+                </p>
+              ) : canManageWorkflowsState === "failed" ? (
+                <p className="page-activity__empty">
+                  Couldn&apos;t verify your role in this space, so editing stays unavailable. Refresh to try again.
+                </p>
+              ) : canManageWorkflowsState === "unknown" ? (
+                <p className="page-activity__empty">Checking whether you can manage this workflow…</p>
+              ) : null}
 
-      {workflow && !authoring ? (
-        <>
-          <section className="issues-page__panel">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Plan</h2>
-              <span className="page-activity__meta">
-                {steps.length} {steps.length === 1 ? "step" : "steps"}
-                {inputFields.length > 0
-                  ? ` · ${inputFields.length} ${inputFields.length === 1 ? "input" : "inputs"}`
-                  : ""}
-              </span>
-            </div>
-            <WorkflowGraph nodes={topologyNodes} emptyLabel="This workflow has no steps." />
-          </section>
+              {published ? (
+                <p className="workflow-detail__banner">
+                  Editing a published workflow. Save as draft keeps your changes without publishing; Publish writes them
+                  as a new published revision.
+                </p>
+              ) : null}
 
-          <section className="issues-page__panel">
-            <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Recent Runs</h2>
-              <span className="page-activity__meta">{runs.length} total</span>
-            </div>
-            {runs.length === 0 ? (
-              <p className="page-activity__empty">No runs yet.</p>
-            ) : (
-              <ul className="workflow-page__runs">
-                {runs.map((run) => (
-                  <li key={run.id}>
-                    <button
-                      type="button"
-                      className="workflow-page__run-row"
-                      onClick={() => navigate({ name: "workflowRun", spaceId, workflowRunId: run.id })}
-                    >
-                      <span>
-                        <strong>{statusLabel(run.status)}</strong>
-                        <span className="page-activity__meta workflow-detail-page__run-id">{run.id}</span>
-                      </span>
-                      <span className="page-activity__meta">{run.createdLabel}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+              <details className="workflow-editor__settings">
+                <summary className="workflow-editor__settings-summary">Settings — name and description</summary>
+                <div className="workflow-editor__settings-fields">
+                  <label className="issues-page__field">
+                    <span className="issues-page__field-label">Name</span>
+                    <input className="issues-page__input" value={name} disabled={!canManageWorkflows} onChange={(e) => setName(e.target.value)} />
+                  </label>
+                  <label className="issues-page__field">
+                    <span className="issues-page__field-label">Description</span>
+                    <textarea
+                      className="issues-page__textarea"
+                      rows={3}
+                      value={description}
+                      disabled={!canManageWorkflows}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                  </label>
+                </div>
+              </details>
+
+              <WorkflowStepsEditor state={stepsState} agents={agents} disabled={!canManageWorkflows} fill />
+
+              {canManageWorkflows ? (
+                <div className="workflow-page__inline-actions">
+                  <Button variant="secondary" busy={saving} disabled={saveDisabled} onClick={handleSaveDraft}>
+                    Save as draft
+                  </Button>
+                  <Button variant="primary" busy={saving} disabled={saveDisabled} onClick={handlePublish}>
+                    Publish
+                  </Button>
+                  <Button variant="tertiary" disabled={saving} onClick={discardEdits}>
+                    Discard changes
+                  </Button>
+                  {workflow.status !== "archived" ? (
+                    <Button variant="tertiary" disabled={saving} onClick={handleArchive}>
+                      Archive
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
+          {tab === "runs" ? (
+            <section className="detail-tabs__panel" role="tabpanel" id="workflow-panel-runs" aria-labelledby="workflow-tab-runs">
+              <div className="issues-page__toolbar">
+                <h2 className="issues-page__section-title">Recent Runs</h2>
+                <span className="page-activity__meta">{runs.length} total</span>
+              </div>
+              {runs.length === 0 ? (
+                <p className="page-activity__empty">No runs yet.</p>
+              ) : (
+                <ul className="workflow-page__runs">
+                  {runs.map((run) => (
+                    <li key={run.id}>
+                      <button
+                        type="button"
+                        className="workflow-page__run-row"
+                        onClick={() => navigate({ name: "workflowRun", spaceId, workflowRunId: run.id })}
+                      >
+                        <span>
+                          <strong>{statusLabel(run.status)}</strong>
+                          <span className="page-activity__meta workflow-detail-page__run-id">{run.id}</span>
+                        </span>
+                        <span className="page-activity__meta">{run.createdLabel}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) : null}
+
+          {tab === "schedules" ? (
+            <section className="detail-tabs__panel" role="tabpanel" id="workflow-panel-schedules" aria-labelledby="workflow-tab-schedules">
+              {!published ? (
+                <p className="page-activity__empty">
+                  Only a published workflow can be scheduled. Publish it from the Definition tab first.
+                </p>
+              ) : token ? (
+                <SchedulesSection
+                  token={token}
+                  spaceId={spaceId}
+                  executorKind="workflow"
+                  executorId={workflow.id}
+                  executorName={workflow.name}
+                  workflowDefinition={workflow.definition}
+                  canManage={canManageSchedules}
+                />
+              ) : null}
+            </section>
+          ) : null}
+
+          {tab === "revisions" ? (
+            <section className="detail-tabs__panel" role="tabpanel" id="workflow-panel-revisions" aria-labelledby="workflow-tab-revisions">
+              <RevisionHistory
+                title="Version history"
+                state={revisionsState}
+                onRetry={loadRevisions}
+                currentRevision={workflow.revision}
+                canRestore={canManageWorkflows}
+                restoringRevision={restoringRevision}
+                restoreError={restoreRevisionError}
+                onRestore={handleRestoreRevision}
+              />
+              <p className="page-activity__meta">
+                Restoring writes that version's name, description, and steps back as a new version. The lifecycle state is
+                left as it is.
+              </p>
+            </section>
+          ) : null}
         </>
       ) : null}
 
@@ -507,32 +559,11 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         />
         {error ? <p className="page-activity__empty">{error}</p> : null}
         <div className="workflow-page__inline-actions">
-          <Button variant="primary" busy={running} disabled={workflow == null || workflow.status !== "published"} onClick={handleRunWorkflow}>Start run</Button>
+          <Button variant="primary" busy={running} disabled={workflow == null || !published} onClick={handleRunWorkflow}>Start run</Button>
           <Button variant="secondary" disabled={running} onClick={() => setRunModalOpen(false)}>
             Cancel
           </Button>
         </div>
-      </BaseModal>
-
-      <BaseModal
-        open={historyOpen}
-        title="Version History"
-        titleId="workflow-history-modal-title"
-        onClose={() => setHistoryOpen(false)}
-      >
-        <RevisionHistory
-          state={revisionsState}
-          onRetry={loadRevisions}
-          currentRevision={workflow?.revision ?? 0}
-          canRestore={canManageWorkflows}
-          restoringRevision={restoringRevision}
-          restoreError={restoreRevisionError}
-          onRestore={handleRestoreRevision}
-        />
-        <p className="page-activity__meta">
-          Restoring writes that version's name, description, and steps back as a new version. The lifecycle state is
-          left as it is.
-        </p>
       </BaseModal>
     </div>
   )

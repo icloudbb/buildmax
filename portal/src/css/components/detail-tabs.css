@@ -1,0 +1,58 @@
+/* Shared tab strip for resource detail pages (agent, workflow). See DetailTabs.tsx. */
+.detail-tabs {
+  display: flex;
+  gap: 0.25rem;
+  max-width: 100%;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+  margin: 1.5rem 0;
+}
+
+.detail-tabs__tab {
+  flex: none;
+  min-height: 44px;
+  padding: 0.55rem 0.9rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.detail-tabs__tab:hover {
+  color: var(--color-text);
+}
+
+.detail-tabs__tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.detail-tabs__tab--active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-text);
+  font-weight: 600;
+}
+
+.detail-tabs__count {
+  margin-left: 0.4rem;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--color-text-subtle);
+}
+
+.detail-tabs__panel {
+  animation: detail-tabs-fade 0.18s ease;
+}
+
+@keyframes detail-tabs-fade {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-tabs__panel { animation: none; }
+}

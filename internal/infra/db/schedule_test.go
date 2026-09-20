@@ -53,15 +53,16 @@ func newTestSchedule(t *testing.T, s *Store, f scheduleFixture, nextFireAt time.
 	t.Helper()
 	ctx := context.Background()
 	sched, err := s.CreateSchedule(ctx, &coreschedule.CreateInput{
-		SpaceID:    f.spaceID,
-		AgentID:    f.agentID,
-		CreatedBy:  f.userID,
-		Name:       "nightly",
-		Input:      "summarize new issues",
-		CronExpr:   "0 9 * * *",
-		Timezone:   "Asia/Shanghai",
-		Enabled:    enabled,
-		NextFireAt: nextFireAt,
+		SpaceID:      f.spaceID,
+		ExecutorKind: coreschedule.ExecutorAgent,
+		ExecutorID:   f.agentID,
+		CreatedBy:    f.userID,
+		Name:         "nightly",
+		Input:        "summarize new issues",
+		CronExpr:     "0 9 * * *",
+		Timezone:     "Asia/Shanghai",
+		Enabled:      enabled,
+		NextFireAt:   nextFireAt,
 	})
 	if err != nil {
 		t.Fatalf("CreateSchedule: %v", err)
@@ -78,13 +79,13 @@ func TestScheduleCRUD(t *testing.T) {
 	next := time.Unix(1_800_000_000, 0).UTC()
 
 	created := newTestSchedule(t, s, f, next, true)
-	if created.SpaceID != f.spaceID || created.AgentID != f.agentID || created.CreatedBy != f.userID {
+	if created.SpaceID != f.spaceID || created.ExecutorKind != coreschedule.ExecutorAgent || created.ExecutorID != f.agentID || created.CreatedBy != f.userID {
 		t.Fatalf("created schedule references = %+v, want the fixture's handles", created)
 	}
 	if !created.Enabled || created.Input != "summarize new issues" || !created.NextFireAt.Equal(next) {
 		t.Fatalf("created schedule = %+v, want enabled with the given input and next fire", created)
 	}
-	if created.ConsecutiveFailures != 0 || created.LastFireAt != nil || created.LastTaskID != nil {
+	if created.ConsecutiveFailures != 0 || created.LastFireAt != nil || created.LastFireRef != nil {
 		t.Errorf("a fresh schedule has fire history %+v, want none", created)
 	}
 
@@ -176,7 +177,7 @@ func TestListEnabledSchedulesByCreator(t *testing.T) {
 		t.Fatalf("AddSpaceMember: %v", err)
 	}
 	otherSched, err := s.CreateSchedule(ctx, &coreschedule.CreateInput{
-		SpaceID: f.spaceID, AgentID: f.agentID, CreatedBy: otherUser,
+		SpaceID: f.spaceID, ExecutorKind: coreschedule.ExecutorAgent, ExecutorID: f.agentID, CreatedBy: otherUser,
 		Name: "theirs", Input: "x", CronExpr: "0 9 * * *", Timezone: "UTC",
 		Enabled: true, NextFireAt: now.Add(time.Hour),
 	})
@@ -279,10 +280,10 @@ func TestRecordFireCountsFailuresAndRecordsTask(t *testing.T) {
 		}
 	}
 
-	// A successful fire records its Task and resets the failure count.
+	// A successful fire records what it produced and resets the failure count.
 	task := newScheduledTaskForTest(t, s, ctx, f, sched.ID)
 	if err := s.RecordFire(ctx, coreschedule.RecordFireInput{
-		ScheduleID: sched.ID, FiredAt: fireAt, TaskID: &task.ID, Failed: false,
+		ScheduleID: sched.ID, FiredAt: fireAt, FireRef: &task.ID, Failed: false,
 	}); err != nil {
 		t.Fatalf("RecordFire success: %v", err)
 	}
@@ -293,8 +294,8 @@ func TestRecordFireCountsFailuresAndRecordsTask(t *testing.T) {
 	if got.ConsecutiveFailures != 0 {
 		t.Errorf("consecutive_failures = %d after a success, want 0", got.ConsecutiveFailures)
 	}
-	if got.LastTaskID == nil || *got.LastTaskID != task.ID {
-		t.Errorf("last_task_id = %v, want %q", got.LastTaskID, task.ID)
+	if got.LastFireRef == nil || *got.LastFireRef != task.ID {
+		t.Errorf("last_fire_ref = %v, want %q", got.LastFireRef, task.ID)
 	}
 }
 

@@ -40,9 +40,15 @@ still uses can't be deleted until that workflow is changed or archived.
 
 ## Create a workflow
 
-Open **Workflows** in the sidebar and choose **New Workflow**. A workflow is a
-reusable, step-by-step execution plan you can run manually or assign to an issue.
-Build it from **steps**:
+Open **Workflows** in the sidebar and choose **New Workflow**. A workflow's
+detail page is organized into tabs, the same layout the agent page uses:
+**Overview** (a read-only view of the plan), **Definition** (the editor and the
+lifecycle actions), **Runs**, **Schedules**, and **Revisions**. A draft opens on
+its Definition tab; a published workflow opens on Overview. **Run Workflow** sits
+in the header and is enabled once the workflow is published.
+
+A workflow is a reusable, step-by-step execution plan you can run manually or
+assign to an issue. Build it on the **Definition** tab from **steps**:
 
 - Use **Add Agent Step** to add a step. Every step is an Agent step -- the only kind
   the runtime executes today -- so there is nothing else to choose; each one
@@ -66,11 +72,12 @@ A workflow has a status:
   manually or assign it to an issue.
 - **Archived** — retired from use.
 
-Set the status from the workflow's detail view.
-Drafts show **Publish** as the main action and **Save** as a separate way to
-keep editing. A published workflow shows **Run Workflow**; **Edit** opens the
-definition, where **Save** writes a new revision. **History** holds earlier
-versions. Step removal and input removal use destructive controls in the editor.
+Set the status from the **Definition** tab, whose actions name the state they
+reach: **Publish** (the primary action) makes the workflow runnable, **Save as
+draft** keeps your changes without publishing, **Archive** retires it, and
+**Discard changes** drops unsaved edits. Editing a published workflow and saving
+writes a new revision. The **Revisions** tab holds earlier versions. Step removal
+and input removal use destructive controls in the editor.
 
 ### Run a workflow
 
@@ -103,8 +110,23 @@ fixed. If the server was down across a firing time, the schedule fires once
 when it comes back and then resumes its regular times rather than replaying
 every missed slot.
 
+## Schedule a workflow
+
+A published workflow can run on a timetable the same way. Open the workflow's
+detail page and its **Schedules** tab: the workflow is already chosen,
+so you give the schedule a name, the run input its input form asks for (the same
+form the manual Run dialog uses; a workflow with no inputs needs none), a cron
+expression, and a timezone. Each firing starts a workflow run, listed under
+**Show triggered runs** with its status, and the run opens like any other. Only
+published workflows can be scheduled — publish a draft first. Pausing,
+consecutive-failure handling, and missed-firing behaviour work exactly as they
+do for an agent schedule.
+
 The **Schedules** entry in the sidebar shows every schedule in the space across
-all agents, so you can see what unattended work is set up and pause any of it.
+all agents and workflows, so you can see what unattended work is set up and
+pause any of it; you can also create one there and pick what it runs. **Pause
+all** and **Resume all** flip every schedule in the space at once, to halt or
+restart all unattended work without touching each row.
 
 ## Plugins from the Marketplace
 

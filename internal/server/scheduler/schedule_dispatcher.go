@@ -9,8 +9,10 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	schedulesvc "github.com/icloudbb/buildmax/internal/service/schedule"
 	tasksvc "github.com/icloudbb/buildmax/internal/service/task"
+	workflowsvc "github.com/icloudbb/buildmax/internal/service/workflow"
 )
 
 func (d *ScheduleDispatcher) log() *slog.Logger { return componentLog("schedule_dispatcher") }
@@ -31,11 +33,19 @@ const (
 	maxConsecutiveScheduleFailures = 5
 )
 
-// ScheduleAdmitter creates the Task a firing produces. It is the Task
+// ScheduleAdmitter creates the Task an Agent firing produces. It is the Task
 // application service narrowed to the one call the dispatcher makes, so the
 // dispatcher cannot reach past admission into task internals.
 type ScheduleAdmitter interface {
 	CreateTask(ctx context.Context, cmd tasksvc.CreateTaskCmd) (*coretask.Task, error)
+}
+
+// WorkflowStarter starts the run a Workflow firing produces. It is the workflow
+// application service narrowed to the one call the dispatcher makes. Nil on a
+// dispatcher wired without workflows, in which case a workflow schedule's firing
+// is recorded as a failure and the schedule pauses after a run of them.
+type WorkflowStarter interface {
+	StartWorkflowRun(ctx context.Context, cmd workflowsvc.StartWorkflowRunCmd) (*coreworkflow.Run, []coreworkflow.NodeRun, error)
 }
 
 // ScheduleDispatcher polls for due schedules and admits one Task per firing
@@ -47,6 +57,9 @@ type ScheduleAdmitter interface {
 type ScheduleDispatcher struct {
 	schedules coreschedule.Store
 	admitter  ScheduleAdmitter
+	// workflows starts a workflow schedule's run. Nil skips workflow firing, which
+	// a deployment that wires no workflow service has.
+	workflows WorkflowStarter
 	// eligible answers whether a schedule's creator may still run work in its
 	// Space. Nil skips the check, which is what a deployment that wires no
 	// authority stores has.
@@ -88,6 +101,14 @@ func NewScheduleDispatcher(schedules coreschedule.Store, admitter ScheduleAdmitt
 // at dispatch. Optional, like the run scheduler's own check.
 func (d *ScheduleDispatcher) WithEligibility(c eligibility.Checker) *ScheduleDispatcher {
 	d.eligible = c
+	return d
+}
+
+// WithWorkflows lets the dispatcher fire workflow schedules by starting a
+// workflow run. Without it, a workflow schedule's firing is recorded as a
+// failure and the schedule pauses after a run of them.
+func (d *ScheduleDispatcher) WithWorkflows(w WorkflowStarter) *ScheduleDispatcher {
+	d.workflows = w
 	return d
 }
 
@@ -193,18 +214,10 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 		}
 	}
 
-	agentID := s.AgentID
-	task, err := d.admitter.CreateTask(ctx, tasksvc.CreateTaskCmd{
-		SpaceID:       s.SpaceID,
-		UserID:        s.CreatedBy,
-		AgentID:       &agentID,
-		Input:         s.Input,
-		ScheduleID:    &s.ID,
-		CreatedByType: coretask.RunCreatedByTypeSystem,
-		TriggerSource: coretask.RunTriggerSourceSchedule,
-	})
+	fireRef, err := d.startExecutor(ctx, s)
 	if err != nil {
-		log.WarnContext(ctx, "schedule firing could not admit a task", "err", err)
+		log.WarnContext(ctx, "schedule firing could not start its executor",
+			"executor_kind", s.ExecutorKind, "err", err)
 		if rErr := d.schedules.RecordFire(ctx, coreschedule.RecordFireInput{
 			ScheduleID: s.ID, FiredAt: now, Failed: true,
 		}); rErr != nil {
@@ -221,11 +234,59 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 	}
 
 	if err := d.schedules.RecordFire(ctx, coreschedule.RecordFireInput{
-		ScheduleID: s.ID, FiredAt: now, TaskID: &task.ID, Failed: false,
+		ScheduleID: s.ID, FiredAt: now, FireRef: fireRef, Failed: false,
 	}); err != nil {
 		log.WarnContext(ctx, "record successful fire", "err", err)
 	}
-	log.InfoContext(ctx, "schedule fired", "task_id", task.ID, "next_fire_at", next)
+	log.InfoContext(ctx, "schedule fired",
+		"executor_kind", s.ExecutorKind, "fire_ref", derefString(fireRef), "next_fire_at", next)
+}
+
+// startExecutor starts a firing's executor and returns the opaque public id it
+// produced: a Task for an Agent schedule, a workflow run for a Workflow schedule.
+// A firing is tagged with the schedule trigger source and attributed to the
+// schedule's creator, so a run started here is metered and authorized as that
+// person's work.
+func (d *ScheduleDispatcher) startExecutor(ctx context.Context, s coreschedule.Schedule) (*string, error) {
+	switch s.ExecutorKind {
+	case coreschedule.ExecutorWorkflow:
+		if d.workflows == nil {
+			return nil, errors.New("workflow schedule fired but no workflow service is wired")
+		}
+		run, _, err := d.workflows.StartWorkflowRun(ctx, workflowsvc.StartWorkflowRunCmd{
+			SpaceID:    s.SpaceID,
+			UserID:     s.CreatedBy,
+			WorkflowID: s.ExecutorID,
+			ScheduleID: &s.ID,
+			Input:      s.Input,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &run.ID, nil
+	default:
+		agentID := s.ExecutorID
+		task, err := d.admitter.CreateTask(ctx, tasksvc.CreateTaskCmd{
+			SpaceID:       s.SpaceID,
+			UserID:        s.CreatedBy,
+			AgentID:       &agentID,
+			Input:         s.Input,
+			ScheduleID:    &s.ID,
+			CreatedByType: coretask.RunCreatedByTypeSystem,
+			TriggerSource: coretask.RunTriggerSourceSchedule,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &task.ID, nil
+	}
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // pause disables a schedule and records why, so an operator can tell an

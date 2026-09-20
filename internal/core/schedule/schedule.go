@@ -1,7 +1,8 @@
-// Package schedule holds the domain for a time trigger that runs an Agent on a
-// recurring wall-clock schedule. A Schedule is Space-owned; each firing admits
-// one ordinary Task through the existing Task application service, tagged with a
-// schedule trigger source. See docs/design/scheduled-agent-execution.md.
+// Package schedule holds the domain for a time trigger that runs an executor on
+// a recurring wall-clock schedule. A Schedule is Space-owned; each firing starts
+// its executor -- an Agent firing admits one ordinary Task, a Workflow firing
+// starts one workflow run -- tagged with a schedule trigger source. See
+// docs/design/scheduled-agent-execution.md.
 //
 // This package is pure domain: it does not parse cron expressions or load
 // timezones. The caller that owns those (the dispatcher/service) computes each
@@ -11,6 +12,15 @@ package schedule
 import (
 	"context"
 	"time"
+)
+
+// Executor kinds name what a schedule fires. They match issue.ExecutorAgent and
+// issue.ExecutorWorkflow so "what performs the work" is one vocabulary across the
+// product; ExecutorID stays an opaque handle whose meaning ExecutorKind fixes (an
+// Agent id or a Workflow id).
+const (
+	ExecutorAgent    = "agent"
+	ExecutorWorkflow = "workflow"
 )
 
 // Pause reasons record why a schedule is disabled, so an operator sees whether
@@ -31,15 +41,20 @@ const (
 	PauseReasonInvalidCron = "invalid_cron"
 )
 
-// Schedule is a Space-owned recurring time trigger for one Agent.
+// Schedule is a Space-owned recurring time trigger for one executor.
 type Schedule struct {
-	ID        string `json:"id"`
-	SpaceID   string `json:"space_id"`
-	AgentID   string `json:"agent_id"`
-	CreatedBy string `json:"created_by"`
-	Name      string `json:"name,omitempty"`
-	// Input is the fixed prompt each firing runs. The first slice does not
-	// template it; see the design record's open questions.
+	ID      string `json:"id"`
+	SpaceID string `json:"space_id"`
+	// ExecutorKind and ExecutorID name what the schedule fires: an Agent or a
+	// Workflow in the same Space. ExecutorID is an opaque handle -- ExecutorKind
+	// fixes which table it names -- so this package needs no reference to either.
+	ExecutorKind string `json:"executor_kind"`
+	ExecutorID   string `json:"executor_id"`
+	CreatedBy    string `json:"created_by"`
+	Name         string `json:"name,omitempty"`
+	// Input is the fixed input each firing runs: a prompt for an Agent, or run
+	// input JSON (validated against the workflow's input_schema) for a Workflow.
+	// The first slice does not template it; see the design record's open questions.
 	Input    string `json:"input"`
 	CronExpr string `json:"cron_expr"`
 	// Timezone is an IANA name, e.g. "Asia/Shanghai". Cron is evaluated in it so
@@ -55,10 +70,12 @@ type Schedule struct {
 	// compare-and-swap target that makes a firing exactly-once (§7).
 	NextFireAt time.Time  `json:"next_fire_at"`
 	LastFireAt *time.Time `json:"last_fire_at,omitempty"`
-	// LastTaskID is the Task the most recent firing created, or nil when no
-	// firing has produced a Task yet.
-	LastTaskID *string `json:"last_task_id,omitempty"`
-	// ConsecutiveFailures counts firings that failed to admit a Task since the
+	// LastFireRef is what the most recent firing produced: the Task id for an
+	// Agent schedule, the workflow-run id for a Workflow schedule. Nil when no
+	// firing has produced anything yet. It is an opaque handle read alongside
+	// ExecutorKind, not a joined reference.
+	LastFireRef *string `json:"last_fire_ref,omitempty"`
+	// ConsecutiveFailures counts firings that failed to start the executor since the
 	// last success. It bounds runaway cost: the dispatcher pauses a schedule that
 	// fails this many times in a row (the threshold lives with the dispatcher).
 	ConsecutiveFailures int       `json:"consecutive_failures"`
@@ -69,15 +86,16 @@ type Schedule struct {
 // CreateInput describes a new Schedule. NextFireAt is supplied by the caller,
 // which computes it from CronExpr and Timezone; core does not parse cron.
 type CreateInput struct {
-	SpaceID    string
-	AgentID    string
-	CreatedBy  string
-	Name       string
-	Input      string
-	CronExpr   string
-	Timezone   string
-	Enabled    bool
-	NextFireAt time.Time
+	SpaceID      string
+	ExecutorKind string
+	ExecutorID   string
+	CreatedBy    string
+	Name         string
+	Input        string
+	CronExpr     string
+	Timezone     string
+	Enabled      bool
+	NextFireAt   time.Time
 }
 
 // UpdateInput changes a Schedule's editable fields. Only non-nil fields are
@@ -108,12 +126,13 @@ type ClaimInput struct {
 }
 
 // RecordFireInput records the outcome of one firing. Failed increments the
-// consecutive-failure counter; a success resets it to zero. TaskID is nil when
-// the firing produced no Task (admission refused or errored).
+// consecutive-failure counter; a success resets it to zero. FireRef is nil when
+// the firing produced nothing (the executor could not be started). It is the
+// Task id for an Agent firing, the workflow-run id for a Workflow firing.
 type RecordFireInput struct {
 	ScheduleID string
 	FiredAt    time.Time
-	TaskID     *string
+	FireRef    *string
 	Failed     bool
 }
 

@@ -110,7 +110,8 @@
         "properties": {
           "id": { "type": "string" },
           "space_id": { "type": "string" },
-          "agent_id": { "type": "string" },
+          "executor_kind": { "type": "string", "enum": ["agent", "workflow"] },
+          "executor_id": { "type": "string" },
           "created_by": { "type": "string" },
           "name": { "type": "string" },
           "input": { "type": "string" },
@@ -120,7 +121,7 @@
           "pause_reason": { "type": "string" },
           "next_fire_at": { "type": "string", "format": "date-time" },
           "last_fire_at": { "type": "string", "format": "date-time", "nullable": true },
-          "last_task_id": { "type": "string", "nullable": true },
+          "last_fire_ref": { "type": "string", "nullable": true, "description": "The task (agent) or workflow run (workflow) the last firing produced." },
           "consecutive_failures": { "type": "integer" },
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" }
@@ -1719,7 +1720,20 @@
         {"name": "schedule_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
       "get": {
-        "summary": "List the tasks a schedule triggered",
+        "summary": "List the tasks an agent schedule triggered",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/schedules/{schedule_id}/runs": {
+      "parameters": [
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "schedule_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "get": {
+        "summary": "List the workflow runs a workflow schedule triggered",
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": { "description": "OK" }

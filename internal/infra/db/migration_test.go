@@ -44,6 +44,7 @@ func TestMigrationsArePermanent(t *testing.T) {
 		"llm_model_credential_encryption",
 		"issue_owner_executor_split",
 		"workflow_step_run_to_node_run",
+		"schedule_agent_to_executor",
 	}
 	if len(migrations) != len(want) {
 		t.Fatalf("migrations = %d entries, permanent list has %d; append the new ID to want", len(migrations), len(want))

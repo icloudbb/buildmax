@@ -13,8 +13,10 @@ import (
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	"github.com/icloudbb/buildmax/internal/mock"
 	tasksvc "github.com/icloudbb/buildmax/internal/service/task"
+	workflowsvc "github.com/icloudbb/buildmax/internal/service/workflow"
 )
 
 // fakeScheduleStore is an in-memory coreschedule.Store. Only the methods the
@@ -75,8 +77,8 @@ func (f *fakeScheduleStore) RecordFire(_ context.Context, in coreschedule.Record
 		return fmt.Errorf("no such schedule")
 	}
 	sc.LastFireAt = &in.FiredAt
-	if in.TaskID != nil {
-		sc.LastTaskID = in.TaskID
+	if in.FireRef != nil {
+		sc.LastFireRef = in.FireRef
 	}
 	if in.Failed {
 		sc.ConsecutiveFailures++
@@ -153,6 +155,45 @@ func (a *fakeAdmitter) count() int {
 	return len(a.cmds)
 }
 
+// fakeWorkflowStarter records the StartWorkflowRun commands it receives and can
+// be told to fail.
+type fakeWorkflowStarter struct {
+	mu   sync.Mutex
+	cmds []workflowsvc.StartWorkflowRunCmd
+	err  error
+}
+
+func (f *fakeWorkflowStarter) StartWorkflowRun(_ context.Context, cmd workflowsvc.StartWorkflowRunCmd) (*coreworkflow.Run, []coreworkflow.NodeRun, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cmds = append(f.cmds, cmd)
+	if f.err != nil {
+		return nil, nil, f.err
+	}
+	return &coreworkflow.Run{ID: fmt.Sprintf("wr%d", len(f.cmds))}, nil, nil
+}
+
+func (f *fakeWorkflowStarter) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.cmds)
+}
+
+func hourlyWorkflowSchedule(nextFireAt time.Time) *coreschedule.Schedule {
+	return &coreschedule.Schedule{
+		ID:           "sched1",
+		SpaceID:      "space1",
+		ExecutorKind: coreschedule.ExecutorWorkflow,
+		ExecutorID:   "wf1",
+		CreatedBy:    "user1",
+		Input:        `{"topic":"issues"}`,
+		CronExpr:     "0 * * * *",
+		Timezone:     "UTC",
+		Enabled:      true,
+		NextFireAt:   nextFireAt,
+	}
+}
+
 // fakeUserStore answers GetUser with one account; the rest satisfy the interface.
 type fakeUserStore struct{ user *coreidentity.User }
 
@@ -173,15 +214,16 @@ func (fakeUserStore) SetUserDisabled(context.Context, string, *time.Time) error 
 
 func hourlySchedule(nextFireAt time.Time) *coreschedule.Schedule {
 	return &coreschedule.Schedule{
-		ID:         "sched1",
-		SpaceID:    "space1",
-		AgentID:    "agent1",
-		CreatedBy:  "user1",
-		Input:      "summarize new issues",
-		CronExpr:   "0 * * * *", // minute 0 of every hour
-		Timezone:   "UTC",
-		Enabled:    true,
-		NextFireAt: nextFireAt,
+		ID:           "sched1",
+		SpaceID:      "space1",
+		ExecutorKind: coreschedule.ExecutorAgent,
+		ExecutorID:   "agent1",
+		CreatedBy:    "user1",
+		Input:        "summarize new issues",
+		CronExpr:     "0 * * * *", // minute 0 of every hour
+		Timezone:     "UTC",
+		Enabled:      true,
+		NextFireAt:   nextFireAt,
 	}
 }
 
@@ -228,13 +270,69 @@ func TestDispatcherFiresDueScheduleOnce(t *testing.T) {
 	if !stored.NextFireAt.Equal(want) {
 		t.Errorf("next_fire_at = %v, want it advanced to %v", stored.NextFireAt, want)
 	}
-	if stored.LastTaskID == nil {
-		t.Error("a successful fire recorded no task")
+	if stored.LastFireRef == nil {
+		t.Error("a successful fire recorded no reference")
 	}
 
 	d.sweep(context.Background())
 	if admitter.count() != 1 {
 		t.Errorf("a second sweep at the same time fired again: %d tasks, want 1", admitter.count())
+	}
+}
+
+// A workflow schedule fires by starting a workflow run through the workflow
+// service, attributed to the schedule's creator and tagged with the schedule, and
+// records the run it produced.
+func TestDispatcherFiresWorkflowSchedule(t *testing.T) {
+	t0 := time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC)
+	store := newFakeScheduleStore(hourlyWorkflowSchedule(t0))
+	admitter := &fakeAdmitter{}
+	starter := &fakeWorkflowStarter{}
+	d := newTestDispatcher(t, store, admitter, t0)
+	d.WithWorkflows(starter)
+
+	d.sweep(context.Background())
+
+	if admitter.count() != 0 {
+		t.Errorf("a workflow schedule admitted an agent Task: %d, want 0", admitter.count())
+	}
+	if starter.count() != 1 {
+		t.Fatalf("workflow starter received %d runs, want 1", starter.count())
+	}
+	cmd := starter.cmds[0]
+	if cmd.SpaceID != "space1" || cmd.UserID != "user1" || cmd.WorkflowID != "wf1" || cmd.Input != `{"topic":"issues"}` {
+		t.Errorf("started run cmd = %+v, want the schedule's space, creator, workflow, and input", cmd)
+	}
+	if cmd.ScheduleID == nil || *cmd.ScheduleID != "sched1" {
+		t.Errorf("started run schedule_id = %v, want sched1", cmd.ScheduleID)
+	}
+	stored := store.get("sched1")
+	if stored.LastFireRef == nil || *stored.LastFireRef != "wr1" {
+		t.Errorf("last_fire_ref = %v, want the started run wr1", stored.LastFireRef)
+	}
+	want := time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC)
+	if !stored.NextFireAt.Equal(want) {
+		t.Errorf("next_fire_at = %v, want it advanced to %v", stored.NextFireAt, want)
+	}
+}
+
+// A workflow schedule on a dispatcher wired without a workflow service records a
+// failed fire rather than silently doing nothing, so a run of them pauses it.
+func TestDispatcherWorkflowScheduleWithoutStarterFails(t *testing.T) {
+	t0 := time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC)
+	sched := hourlyWorkflowSchedule(t0)
+	store := newFakeScheduleStore(sched)
+	admitter := &fakeAdmitter{}
+	d := newTestDispatcher(t, store, admitter, t0)
+
+	d.fireOne(context.Background(), *sched, t0)
+
+	stored := store.get("sched1")
+	if stored.ConsecutiveFailures != 1 {
+		t.Errorf("consecutive_failures = %d, want 1 after firing with no workflow service", stored.ConsecutiveFailures)
+	}
+	if stored.LastFireRef != nil {
+		t.Errorf("last_fire_ref = %v, want none on a failed fire", stored.LastFireRef)
 	}
 }
 

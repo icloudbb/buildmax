@@ -179,6 +179,7 @@ export interface ApiWorkflowRun {
   workflow_id: string
   workflow_revision?: number | null
   issue_id?: string | null
+  schedule_id?: string | null
   status: string
   created_by: string
   created_at: string
@@ -279,16 +280,20 @@ export interface ApiTasksListResponse {
 export interface ApiSchedule {
   id: string
   space_id: string
-  agent_id: string
+  /** "agent" or "workflow": what the schedule fires. */
+  executor_kind: string
+  executor_id: string
   created_by: string
   name?: string
   input: string
   cron_expr: string
   timezone: string
   enabled: boolean
+  pause_reason?: string
   next_fire_at: string
   last_fire_at?: string | null
-  last_task_id?: string | null
+  /** The task (agent) or workflow run (workflow) the last firing produced. */
+  last_fire_ref?: string | null
   consecutive_failures: number
   created_at: string
   updated_at: string
