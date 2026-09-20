@@ -302,3 +302,41 @@
   opacity: 1;
   color: var(--color-text);
 }
+
+/* Drag-to-reorder: a bar on the edge the dragged tab would drop against. */
+.workspace-tabs__tab--drop-before {
+  box-shadow: inset 2px 0 0 var(--color-accent, #4a9eff);
+}
+
+.workspace-tabs__tab--drop-after {
+  box-shadow: inset -2px 0 0 var(--color-accent, #4a9eff);
+}
+
+/* Tab context menu. It reuses .context-menu (see sidebar.css) for its frame; the
+   backdrop catches the next click anywhere to dismiss it, and it is positioned
+   at the pointer via an inline fixed top/left. */
+.context-menu__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+}
+
+.context-menu--tab {
+  z-index: 301;
+}
+
+.context-menu__divider {
+  height: 1px;
+  margin: 0.25rem 0.5rem;
+  background: var(--color-border);
+}
+
+.context-menu__item:disabled {
+  color: var(--color-text-subtle);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.context-menu__item:disabled:hover {
+  background: none;
+}

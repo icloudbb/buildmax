@@ -12,6 +12,7 @@ import { DiffView } from './components/DiffView';
 import { activeTab, tabIdentity } from './lib/tabs';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
+  closeOtherPaneTabs, closeRightPaneTabs,
   splitRight, splitDown, moveTab, allTabs, pruneForPersist, isWorkspace,
   collapse, tile,
 } from './lib/panes';
@@ -383,8 +384,8 @@ export default function App() {
   // A tab dragged from one pane's strip and dropped on another pane. Held in
   // state (set once on drag start) so drop handlers read it without a ref.
   const [dragTab, setDragTab] = useState(null);
-  const moveCenterTab = useCallback((fromPane, key, toPane) => {
-    setWorkspace((s) => moveTab(s, fromPane, key, toPane));
+  const moveCenterTab = useCallback((fromPane, key, toPane, beforeKey = null) => {
+    setWorkspace((s) => moveTab(s, fromPane, key, toPane, beforeKey));
   }, []);
 
   // Terminals live in TerminalHost, portalled into the slot of the pane that
@@ -437,6 +438,31 @@ export default function App() {
       const tab = allTabs(s).find((t) => t.key === key);
       if (tab?.kind === 'terminal') getApp()?.TerminalClose?.(tab.ref);
       return closePaneTab(s, paneId, key);
+    });
+  }, []);
+  // "Close others" / "Close tabs to the right" from a tab's context menu. Both
+  // kill the PTYs of any terminal tabs they remove first (the pure pane ops only
+  // drop them from state), then apply the same closable-respecting rule the pure
+  // ops use, so a non-closable chat tab is never swept away.
+  const closeCenterOthers = useCallback((paneId, key) => {
+    setWorkspace((s) => {
+      const pane = s.rows.flatMap((r) => r.panes).find((p) => p.id === paneId);
+      pane?.tabs.forEach((t) => {
+        if (t.key !== key && t.closable !== false && t.kind === 'terminal') getApp()?.TerminalClose?.(t.ref);
+      });
+      return closeOtherPaneTabs(s, paneId, key);
+    });
+  }, []);
+  const closeCenterRight = useCallback((paneId, key) => {
+    setWorkspace((s) => {
+      const pane = s.rows.flatMap((r) => r.panes).find((p) => p.id === paneId);
+      const idx = pane ? pane.tabs.findIndex((t) => t.key === key) : -1;
+      if (idx !== -1) {
+        pane.tabs.slice(idx + 1).forEach((t) => {
+          if (t.closable !== false && t.kind === 'terminal') getApp()?.TerminalClose?.(t.ref);
+        });
+      }
+      return closeRightPaneTabs(s, paneId, key);
     });
   }, []);
 
@@ -715,6 +741,16 @@ export default function App() {
   const focusedActiveTab = focusedPaneObj ? focusedPaneObj.tabs.find((t) => t.key === focusedPaneObj.activeKey) : null;
   const focusedChatSessionId = focusedActiveTab?.kind === 'chat' ? (focusedActiveTab.sessionId ?? '') : (selectedId || '');
   const highlightSessionId = focusedActiveTab?.kind === 'chat' ? (focusedActiveTab.sessionId || null) : selectedId;
+
+  // Copy a file/diff tab's path to the clipboard. Go resolves and copies it, so
+  // the absolute form matches the file the panel reads (the session's workspace
+  // root may be a worktree) and clipboard access works in the native window.
+  const copyCenterPath = (key, absolute) => {
+    const tab = allTabs(workspace).find((t) => t.key === key);
+    if (!tab || (tab.kind !== 'file' && tab.kind !== 'diff') || !currentProject) return;
+    getApp()?.CopyWorkspacePath?.(currentProject.id, focusedChatSessionId, tab.ref, absolute)
+      .catch(() => {});
+  };
 
   // One pane's content: the active tab decides what shows. A chat tab renders a
   // ChatSession keyed to its own session, so several run at once; every terminal
@@ -997,6 +1033,15 @@ export default function App() {
                               onSplitDown={() => splitCenterDown(pane.id)}
                               onTabDragStart={(key) => setDragTab({ fromPane: pane.id, key })}
                               onTabDragEnd={() => { setDragTab(null); setDropPane(null); }}
+                              onTabDrop={(beforeKey) => {
+                                const d = dragTab;
+                                setDropPane(null);
+                                setDragTab(null);
+                                if (d) moveCenterTab(d.fromPane, d.key, pane.id, beforeKey);
+                              }}
+                              onCloseOthers={(key) => closeCenterOthers(pane.id, key)}
+                              onCloseRight={(key) => closeCenterRight(pane.id, key)}
+                              onCopyPath={copyCenterPath}
                             />
                             <div className="workspace-pane__content">
                               {renderPaneContent(pane)}
