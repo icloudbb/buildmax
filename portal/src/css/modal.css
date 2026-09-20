@@ -415,23 +415,6 @@
   border-radius: 4px;
 }
 
-.settings-webhook__btn {
-  padding: 0.4rem 0.75rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-.settings-webhook__btn--copy {
-  margin-top: 0;
-}
-
-.settings-webhook__btn--secondary {
-  margin-top: 0.25rem;
-  background: transparent;
-  border: 1px solid var(--color-border, #ddd);
-}
-
 .settings-webhook__create {
   display: flex;
   gap: 0.5rem;
@@ -445,29 +428,6 @@
   border-radius: 4px;
   font-size: 0.9rem;
   min-width: 12rem;
-}
-
-.settings-webhook__btn--primary {
-  background: var(--color-primary, #2563eb);
-  color: #fff;
-  border: none;
-}
-
-.settings-webhook__btn--primary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.settings-webhook__btn--danger {
-  background: transparent;
-  color: var(--color-error, #c00);
-  border: 1px solid var(--color-error, #c00);
-}
-
-.settings-webhook__btn--danger:disabled,
-.settings-webhook__btn--busy {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 
 .settings-webhook__key-list {

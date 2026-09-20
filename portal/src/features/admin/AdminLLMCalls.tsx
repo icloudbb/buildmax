@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import type { ApiAdminLLMCall, ApiAdminLLMCallCost } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -131,12 +132,12 @@ export function AdminLLMCalls({ token }: { token: string | null }) {
             aria-label="Filter by surface"
             onChange={(e) => setFilters({ ...filters, surface: e.target.value })}
           />
-          <button type="submit" className="admin-button" disabled={loading}>
+          <Button type="submit" variant="secondary" disabled={loading}>
             Search
-          </button>
-          <button type="button" className="admin-button" onClick={() => apply(EMPTY)}>
+          </Button>
+          <Button variant="tertiary" onClick={() => apply(EMPTY)}>
             Clear
-          </button>
+          </Button>
         </form>
 
         {error ? (
@@ -176,14 +177,13 @@ export function AdminLLMCalls({ token }: { token: string | null }) {
         )}
 
         {calls.length < total ? (
-          <button
-            type="button"
-            className="admin-button"
+          <Button
+            variant="secondary"
             disabled={loading}
             onClick={() => load(filters, calls.length)}
           >
             Load more ({calls.length} of {total})
-          </button>
+          </Button>
         ) : null}
       </section>
     </div>

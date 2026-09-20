@@ -134,37 +134,6 @@
   margin-top: 0.75rem;
 }
 
-.admin-button {
-  padding: 0.45rem 0.85rem;
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
-  background: var(--panel-bg);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.9rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.admin-button:hover:not(:disabled) {
-  background: var(--color-bg-hover);
-}
-
-.admin-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.admin-button--danger {
-  border-color: var(--color-danger, #c53030);
-  color: var(--color-danger, #c53030);
-}
-
-.admin-button--primary {
-  border-color: var(--color-accent, #3182ce);
-  color: var(--color-accent, #3182ce);
-}
-
 .admin-actions {
   display: flex;
   flex-wrap: wrap;

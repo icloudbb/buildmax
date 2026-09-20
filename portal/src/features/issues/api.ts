@@ -41,7 +41,16 @@ export async function getIssueFlow(spaceId: string, issueId: string, token: stri
 
 export async function createIssue(
   spaceId: string,
-  body: { title: string; description?: string; parent_issue_id?: string },
+  body: {
+    title: string
+    description?: string
+    parent_issue_id?: string
+    /** Optional, and written with the issue: a refused value creates nothing. */
+    status?: "todo" | "in_progress" | "done"
+    owner_id?: string
+    executor_kind?: "agent" | "workflow" | ""
+    executor_id?: string
+  },
   token: string,
 ): Promise<ApiIssue> {
   return requestJson<ApiIssue>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues`, {

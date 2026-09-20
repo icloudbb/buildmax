@@ -45,7 +45,7 @@ test("a plugin release moves from Marketplace through Space Plugins to an agent'
   await expect(page.getByRole("heading", { name: "Marketplace" })).toBeVisible()
   await page.locator(".mkt-card").filter({ hasText: displayName }).click()
   await expect(page.getByRole("heading", { name: "Space activation" })).toBeVisible()
-  await page.getByRole("button", { name: "Open Space Plugins" }).click()
+  await page.getByRole("link", { name: "Open Space Plugins" }).click()
 
   // Space Plugins: an owner activates it for this space.
   await expect(page.getByRole("heading", { name: "Plugins", exact: true })).toBeVisible()

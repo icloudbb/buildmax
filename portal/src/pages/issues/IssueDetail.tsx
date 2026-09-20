@@ -589,13 +589,9 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                 </div>
                 {flow.parent ? (
                   <div className="issue-detail-page__parent">
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
-                      onClick={() => navigate({ name: "issue", spaceId, issueId: flow.parent!.id })}
-                    >
+                    <ButtonLink variant="tertiary" href={buildHash({ name: "issue", spaceId, issueId: flow.parent.id })}>
                       ← {flow.parent.title}
-                    </button>
+                    </ButtonLink>
                     <p className="page-activity__meta">
                       This is a sub-issue. Sub-issues cannot have sub-issues of their own.
                     </p>
@@ -608,13 +604,9 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                       <ul className="issue-detail-page__children">
                         {flow.children.map((child) => (
                           <li key={child.id} className="issue-detail-page__child">
-                            <button
-                              type="button"
-                              className="page-activity__action-btn"
-                              onClick={() => navigate({ name: "issue", spaceId, issueId: child.id })}
-                            >
+                            <ButtonLink variant="tertiary" href={buildHash({ name: "issue", spaceId, issueId: child.id })}>
                               {child.title}
-                            </button>
+                            </ButtonLink>
                             <span className="issues-page__status">{statusLabel(child.status)}</span>
                             <span className="page-activity__meta">{summaryLabel(child)}</span>
                           </li>
@@ -637,14 +629,14 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                           }
                         }}
                       />
-                      <button
-                        type="button"
-                        className="page-activity__action-btn"
+                      <Button
+                        variant="secondary"
+                        busy={addingSubIssue}
+                        disabled={subIssueTitle.trim() === ""}
                         onClick={handleAddSubIssue}
-                        disabled={addingSubIssue || subIssueTitle.trim() === ""}
                       >
-                        {addingSubIssue ? "Adding…" : "Add sub-issue"}
-                      </button>
+                        Add sub-issue
+                      </Button>
                     </div>
                     {subIssueError ? <p className="page-activity__empty">{subIssueError}</p> : null}
                   </>
@@ -664,25 +656,17 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                     <div><strong>Steps:</strong> {currentRun.steps.filter((step) => step.status === "succeeded").length} / {currentRun.steps.length} done</div>
                     {currentRun.run.errorMessage ? <div className="modal__error">{currentRun.run.errorMessage}</div> : null}
                     <div className="workflow-run-page__step-actions">
-                      <button
-                        type="button"
-                        className="page-activity__action-btn"
-                        onClick={() => navigate({ name: "workflowRun", spaceId, workflowRunId: currentRun.run.id })}
-                      >
+                      <ButtonLink variant="secondary" href={buildHash({ name: "workflowRun", spaceId, workflowRunId: currentRun.run.id })}>
                         Open Run Detail
-                      </button>
+                      </ButtonLink>
                       {currentRunLatestTaskId ? (
-                        <button
-                          type="button"
-                          className="page-activity__action-btn"
-                          onClick={() => navigate({ name: "task", spaceId, taskId: currentRunLatestTaskId })}
-                        >
+                        <ButtonLink variant="tertiary" href={buildHash({ name: "task", spaceId, taskId: currentRunLatestTaskId })}>
                           Open Task
-                        </button>
+                        </ButtonLink>
                       ) : null}
-                      <button type="button" className="page-activity__action-btn" onClick={() => setTab("runs")}>
+                      <Button variant="tertiary" onClick={() => setTab("runs")}>
                         View all runs
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ) : latestAgentTask ? (
@@ -692,36 +676,30 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                     <div><strong>Created:</strong> {formatTimestamp(latestAgentTask.createdAt)}</div>
                     <div><strong>Status:</strong> {statusLabel(latestAgentTask.status)}</div>
                     <div className="workflow-run-page__step-actions">
-                      <button
-                        type="button"
-                        className="page-activity__action-btn"
-                        onClick={() => navigate({ name: "task", spaceId, taskId: latestAgentTask.id })}
-                      >
+                      <ButtonLink variant="secondary" href={buildHash({ name: "task", spaceId, taskId: latestAgentTask.id })}>
                         Open Task
-                      </button>
+                      </ButtonLink>
                       {taskIsStoppable(latestAgentTask.status) ? (
-                        <button
-                          type="button"
-                          className="page-activity__action-btn"
-                          disabled={cancelingTaskId === latestAgentTask.id}
+                        <Button
+                          variant="danger"
+                          busy={cancelingTaskId === latestAgentTask.id}
                           onClick={() => handleCancelTask(latestAgentTask.id)}
                         >
-                          {cancelingTaskId === latestAgentTask.id ? "Stopping..." : "Stop Run"}
-                        </button>
+                          Stop Run
+                        </Button>
                       ) : null}
                       {taskIsRetryable(latestAgentTask.status) ? (
-                        <button
-                          type="button"
-                          className="page-activity__action-btn"
-                          disabled={retryingTaskId === latestAgentTask.id}
+                        <Button
+                          variant="secondary"
+                          busy={retryingTaskId === latestAgentTask.id}
                           onClick={() => handleRetryTask(latestAgentTask.id)}
                         >
-                          {retryingTaskId === latestAgentTask.id ? "Retrying..." : "Retry Run"}
-                        </button>
+                          Retry Run
+                        </Button>
                       ) : null}
-                      <button type="button" className="page-activity__action-btn" onClick={() => setTab("runs")}>
+                      <Button variant="tertiary" onClick={() => setTab("runs")}>
                         View all runs
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ) : (
@@ -742,13 +720,9 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                         ? "No comments"
                         : `${comments.length} comment${comments.length === 1 ? "" : "s"}`}
                     </span>
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
-                      onClick={() => navigate({ name: "explore", spaceId })}
-                    >
+                    <ButtonLink variant="tertiary" href={buildHash({ name: "explore", spaceId })}>
                       Files
-                    </button>
+                    </ButtonLink>
                   </div>
                 </div>
                 <IssueDiscussion
@@ -848,24 +822,24 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                           <span className="issues-page__status">{statusLabel(task.status)}</span>
                         </button>
                         {taskIsStoppable(task.status) ? (
-                          <button
-                            type="button"
-                            className="page-activity__action-btn"
-                            disabled={cancelingTaskId === task.id}
+                          <Button
+                            variant="danger"
+                            size="compact"
+                            busy={cancelingTaskId === task.id}
                             onClick={() => handleCancelTask(task.id)}
                           >
-                            {cancelingTaskId === task.id ? "Stopping..." : "Stop Run"}
-                          </button>
+                            Stop Run
+                          </Button>
                         ) : null}
                         {taskIsRetryable(task.status) ? (
-                          <button
-                            type="button"
-                            className="page-activity__action-btn"
-                            disabled={retryingTaskId === task.id}
+                          <Button
+                            variant="secondary"
+                            size="compact"
+                            busy={retryingTaskId === task.id}
                             onClick={() => handleRetryTask(task.id)}
                           >
-                            {retryingTaskId === task.id ? "Retrying..." : "Retry Run"}
-                          </button>
+                            Retry Run
+                          </Button>
                         ) : null}
                         <pre className="workflow-page__step-output">{task.summary}</pre>
                       </li>

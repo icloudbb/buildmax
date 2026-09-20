@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ApiIssueComment, ApiSpaceMember } from "../../lib/api/types"
 import { createIssueComment, deleteIssueComment, getIssueComments, updateIssueComment } from "./comments"
@@ -207,17 +208,16 @@ export function IssueDiscussion({
                     onChange={(e) => setEditDraft(e.target.value)}
                   />
                   <div className="issue-discussion__actions">
-                    <button
-                      type="button"
-                      className="page-activity__action-btn"
+                    <Button
+                      variant="primary" size="compact"
                       onClick={() => void handleSaveEdit(comment.id)}
                       disabled={editDraft.trim() === ""}
                     >
                       Save
-                    </button>
-                    <button type="button" className="page-activity__action-btn" onClick={() => setEditingId(null)}>
+                    </Button>
+                    <Button variant="secondary" size="compact" onClick={() => setEditingId(null)}>
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : (
@@ -225,34 +225,31 @@ export function IssueDiscussion({
               )}
               <div className="issue-discussion__actions">
                 {comment.source_task_run_id && onOpenTrace ? (
-                  <button
-                    type="button"
-                    className="page-activity__action-btn"
+                  <Button
+                    variant="tertiary" size="compact"
                     onClick={() => onOpenTrace(comment.source_task_run_id!)}
                   >
                     Run details
-                  </button>
+                  </Button>
                 ) : null}
                 {canEdit(comment) && editingId !== comment.id ? (
-                  <button
-                    type="button"
-                    className="page-activity__action-btn"
+                  <Button
+                    variant="tertiary" size="compact"
                     onClick={() => {
                       setEditingId(comment.id)
                       setEditDraft(comment.body)
                     }}
                   >
                     Edit
-                  </button>
+                  </Button>
                 ) : null}
                 {canDelete(comment) ? (
-                  <button
-                    type="button"
-                    className="page-activity__action-btn"
+                  <Button
+                    variant="danger" size="compact"
                     onClick={() => void handleDelete(comment.id)}
                   >
                     Delete
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </li>
@@ -270,14 +267,14 @@ export function IssueDiscussion({
           onKeyDown={handleComposerKeyDown}
         />
         <div className="issue-discussion__actions">
-          <button
-            type="button"
-            className="page-activity__action-btn"
+          <Button
+            variant="primary"
+            busy={submitting}
             onClick={() => void handleSubmit()}
-            disabled={submitting || draft.trim() === ""}
+            disabled={draft.trim() === ""}
           >
-            {submitting ? "Posting…" : "Comment"}
-          </button>
+            Comment
+          </Button>
           {draft.length > COUNTER_THRESHOLD ? (
             <span className="page-activity__meta">
               {draft.length} / {BODY_LIMIT}

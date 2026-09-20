@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { cn } from "../../../lib/cn"
 import { useAuth } from "../../../contexts/AuthContext"
 import { useMediaQuery } from "../../../hooks/useMediaQuery"
@@ -37,22 +38,18 @@ export function FilesExplorer({ spaceId, className }: FilesExplorerProps) {
           onChange={explorer.handleFolderUpload}
           {...{ webkitdirectory: "", directory: "" }}
         />
-        <button
-          type="button"
-          className="page-explore__upload-btn"
-          disabled={explorer.uploading}
+        <Button
+          variant="primary" busy={explorer.uploading}
           onClick={() => explorer.fileInputRef.current?.click()}
         >
-          {explorer.uploading ? "Uploading…" : "Upload Files"}
-        </button>
-        <button
-          type="button"
-          className="page-explore__upload-btn"
-          disabled={explorer.uploading}
+          Upload Files
+        </Button>
+        <Button
+          variant="secondary" busy={explorer.uploading}
           onClick={() => explorer.folderInputRef.current?.click()}
         >
-          {explorer.uploading ? "Uploading…" : "Upload Folder"}
-        </button>
+          Upload Folder
+        </Button>
         {explorer.uploadMsg && (
           <span
             className={cn(

@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import type { IssueOutput } from "../../lib/types"
 import { artifactContentUrl } from "../artifacts"
 import { downloadAuthenticated } from "../../lib/download"
@@ -52,9 +53,8 @@ export function OutputCard({
         </div>
       </header>
       <footer className="issue-outputs__card-actions">
-        <button
-          type="button"
-          className="page-activity__action-btn"
+        <Button
+          variant="secondary" size="compact"
           onClick={() => {
             if (!token || !output.artifactId) return
             void downloadAuthenticated(
@@ -66,33 +66,30 @@ export function OutputCard({
           disabled={!token}
         >
           Download
-        </button>
+        </Button>
         {source.conversationId && onOpenConversation ? (
-          <button
-            type="button"
-            className="page-activity__action-btn"
+          <Button
+            variant="tertiary" size="compact"
             onClick={() => onOpenConversation(source.conversationId!)}
           >
             Open conversation
-          </button>
+          </Button>
         ) : null}
         {source.workflowRunId && onOpenRun ? (
-          <button
-            type="button"
-            className="page-activity__action-btn"
+          <Button
+            variant="tertiary" size="compact"
             onClick={() => onOpenRun(source.workflowRunId!)}
           >
             Open run detail
-          </button>
+          </Button>
         ) : null}
         {source.taskRunId && onOpenTrace ? (
-          <button
-            type="button"
-            className="page-activity__action-btn"
+          <Button
+            variant="tertiary" size="compact"
             onClick={() => onOpenTrace(source.taskRunId!)}
           >
             Run details
-          </button>
+          </Button>
         ) : null}
       </footer>
     </article>

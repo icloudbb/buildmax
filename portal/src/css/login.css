@@ -65,28 +65,6 @@
   color: #c00;
 }
 
-.login-page__submit {
-  font: inherit;
-  font-size: 0.95rem;
-  padding: 0.5rem 1rem;
-  margin-top: 0.25rem;
-  background: var(--color-primary);
-  color: var(--color-primary-text);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.login-page__submit:hover:not(:disabled) {
-  opacity: 0.9;
-  filter: brightness(1.1);
-}
-
-.login-page__submit:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
 .login-page__footer {
   margin: 0;
   font-size: 0.9rem;
@@ -112,26 +90,6 @@
 
 .login-page__link:hover {
   color: var(--color-text);
-}
-
-.login-page__sso {
-  font: inherit;
-  font-size: 0.95rem;
-  padding: 0.5rem 1rem;
-  background: var(--color-surface);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.login-page__sso:hover:not(:disabled) {
-  border-color: var(--color-primary);
-}
-
-.login-page__sso:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 
 .login-page__divider {

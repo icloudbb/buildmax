@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { getInitials } from "@buildmax/gui"
+import { Button, getInitials } from "@buildmax/gui"
 import type {
   ApiAgent,
   ApiPlugin,
@@ -236,14 +236,12 @@ function CurationControl({
         ) : null}
       </div>
       {canManage ? (
-        <button
-          type="button"
-          className="tp-btn"
-          disabled={busy}
+        <Button
+          variant="secondary" busy={busy}
           onClick={() => onChange(other)}
         >
-          {busy ? "Saving…" : other === "curated" ? "Curate this list" : "Open the catalog"}
-        </button>
+          {other === "curated" ? "Curate this list" : "Open the catalog"}
+        </Button>
       ) : null}
     </div>
   )
@@ -305,33 +303,30 @@ function PluginRowView({
       ) : null}
 
       <div className="tp-card__actions">
-        <button type="button" className="tp-btn tp-btn--ghost" onClick={onToggle}>
+        <Button variant="tertiary" size="compact" onClick={onToggle}>
           {expanded ? "Hide details" : "Details"}
-        </button>
+        </Button>
         {canManage && !activation && row.newest ? (
-          <button type="button" className="tp-btn" disabled={busy} onClick={onActivate}>
-            {busy ? "Working…" : "Activate"}
-          </button>
+          <Button variant="secondary" size="compact" busy={busy} onClick={onActivate}>
+            Activate
+          </Button>
         ) : null}
         {canManage && activation && row.staleVersion ? (
-          <button
-            type="button"
-            className="tp-btn"
-            disabled={busy}
+          <Button
+            variant="secondary" size="compact" busy={busy}
             onClick={() => onUpdate(row.staleVersion as string)}
           >
-            {busy ? "Working…" : `Update to ${row.staleVersion}`}
-          </button>
+            Update to {row.staleVersion}
+          </Button>
         ) : null}
         {canManage && activation ? (
-          <button
-            type="button"
-            className="tp-btn tp-btn--ghost"
+          <Button
+            variant="tertiary" size="compact"
             disabled={busy}
             onClick={() => onSetEnabled(!activation.enabled)}
           >
             {activation.enabled ? "Suspend" : "Resume"}
-          </button>
+          </Button>
         ) : null}
       </div>
 

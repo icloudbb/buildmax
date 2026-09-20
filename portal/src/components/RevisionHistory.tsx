@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { Alert } from "./state/Alert"
 import { EmptyState } from "./state/EmptyState"
 import type { ResourceState } from "../state/resourceState"
@@ -70,14 +71,13 @@ export function RevisionHistory({
                   {entry.createdBy} · {entry.createdLabel}
                 </span>
                 {canRestore && entry.revision !== currentRevision ? (
-                  <button
-                    type="button"
-                    className="page-activity__action-btn"
+                  <Button
+                    variant="secondary" size="compact" busy={restoringRevision === entry.revision}
                     disabled={restoringRevision !== null}
                     onClick={() => onRestore(entry.revision)}
                   >
-                    {restoringRevision === entry.revision ? "Restoring…" : "Restore"}
-                  </button>
+                    Restore
+                  </Button>
                 ) : null}
               </div>
               {entry.summary ? (

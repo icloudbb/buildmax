@@ -77,10 +77,17 @@ type Issue struct {
 	Version uint64 `json:"version"`
 }
 
+// CreateInput is one write: an Issue created with a status, owner, or
+// executor either lands whole or not at all. Empty values mean the default
+// (StatusTodo) or unset; unlike UpdateInput there is nothing to leave alone.
 type CreateInput struct {
 	Title         string
 	Description   string
 	ParentIssueID *string
+	Status        string
+	OwnerID       string
+	ExecutorKind  string
+	ExecutorID    string
 }
 
 type UpdateInput struct {

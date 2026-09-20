@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ApiAdminSpace, ApiAdminSpaceDetail, ApiAdminSpaceMember } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -109,9 +110,9 @@ export function AdminSpaces({ token }: { token: string | null }) {
             aria-label="Search spaces by name"
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button type="submit" className="admin-button" disabled={loading}>
+          <Button type="submit" variant="secondary" disabled={loading}>
             Search
-          </button>
+          </Button>
         </form>
 
         {error ? (
@@ -158,9 +159,9 @@ export function AdminSpaces({ token }: { token: string | null }) {
               <h2 className="settings-page__section-title">{selected.name}</h2>
               <p className="settings-page__section-copy">{selected.id}</p>
             </div>
-            <button type="button" className="admin-button" onClick={() => setSelected(null)}>
+            <Button variant="tertiary" onClick={() => setSelected(null)}>
               Close
-            </button>
+            </Button>
           </div>
 
           {selected.usage ? (
@@ -203,14 +204,13 @@ export function AdminSpaces({ token }: { token: string | null }) {
                 <span className="admin-list__main">{member.email || member.user_id}</span>
                 <span className="admin-pill">{member.role}</span>
                 {!selected.personal && member.role !== "owner" ? (
-                  <button
-                    type="button"
-                    className="admin-button"
+                  <Button
+                    variant="secondary" size="compact"
                     disabled={busy}
                     onClick={() => void makeOwner(selected, member)}
                   >
                     Make owner
-                  </button>
+                  </Button>
                 ) : null}
               </li>
             ))}

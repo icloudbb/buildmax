@@ -29,9 +29,16 @@ func (m *MockIssueStore) CreateIssueInSpace(_ context.Context, spaceID, createdB
 		CreatedBy:     createdBy,
 		CreatedAt:     time.Now().UTC(),
 		UpdatedAt:     time.Now().UTC(),
-		OwnerID:       nil,
-		ExecutorKind:  nil,
-		ExecutorID:    nil,
+	}
+	if in.Status != "" {
+		issue.Status = in.Status
+	}
+	if in.OwnerID != "" {
+		issue.OwnerID = &in.OwnerID
+	}
+	if in.ExecutorKind != "" && in.ExecutorID != "" {
+		issue.ExecutorKind = &in.ExecutorKind
+		issue.ExecutorID = &in.ExecutorID
 	}
 	m.Issues = append(m.Issues, issue)
 	return &m.Issues[len(m.Issues)-1], nil

@@ -215,9 +215,17 @@ works by keyboard, and failed triggered-task loads can be retried in their card.
 Artifacts now use the shared roles for upload, download, sharing, and deletion;
 the collection does not claim a count before loading, and previews have local
 retry.
-Other detail and management pages, legacy button removal, atomic Issue
-creation, and independent operator review remain. Each further slice needs its
-own observable outcome and verification.
+The remaining Issue Detail actions, Administration, Space settings, Files,
+Marketplace, sign-in, and the shared unavailable, copy, and revision controls
+then moved to the same roles, and the legacy `.btn`, `.page-activity__action-btn`,
+`.admin-button`, `.tp-btn`, and page-local button rules were deleted rather than
+aliased. Issue creation now sends status, Owner, and Executor with the create
+request, so the API writes them in one step and the dialog no longer needs a
+partial-create recovery path.
+The audit-and-specimen step was skipped: migration reused the existing theme
+values instead of choosing tokens from a specimen. Whether a specimen is still
+worth building, and the independent operator review, remain. Each further slice
+needs its own observable outcome and verification.
 
 ## Options and non-goals
 

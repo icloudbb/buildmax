@@ -345,9 +345,8 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                         {meta.count} run{meta.count === 1 ? "" : "s"}
                         {meta.last ? ` · last ${meta.last}` : ""}
                       </span>
-                      <button
-                        type="button"
-                        className="agent-card__new-task-btn"
+                      <Button
+                        variant="secondary" size="compact"
                         onClick={(e) => {
                           e.stopPropagation()
                           handleOpenNewTaskModal(a)
@@ -356,7 +355,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                         aria-label={`Run ${a.name}`}
                       >
                         Run
-                      </button>
+                      </Button>
                     </div>
                   </article>
                 )

@@ -1,3 +1,4 @@
+import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getSpaceAgentInstructions, setSpaceAgentInstructions } from "./api"
@@ -97,14 +98,13 @@ export function SpaceAgentInstructions({
             </span>
           </div>
           {canManage ? (
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={saving || draft === saved}
+            <Button
+              variant="primary" busy={saving}
+              disabled={draft === saved}
               onClick={() => void save()}
             >
-              {saving ? "Saving…" : "Save instructions"}
-            </button>
+              Save instructions
+            </Button>
           ) : (
             <p className="modal__hint">Only Space owners and admins can change these instructions.</p>
           )}

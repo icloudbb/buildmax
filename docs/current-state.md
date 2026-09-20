@@ -489,8 +489,7 @@ routes, loading/error/permission states, responsive layouts, accessibility, and
 run provenance. The first Portal page-system slice makes collection creation a
 single header action on Issues, Agents, Workflows, and Schedules; shared buttons handle action priority
 and busy state; Issue Detail opens with a read-first summary and separate editing;
-Workflow Run places the result before technical metadata. Other Portal pages
-still have local button styles while migration continues. Task Detail and
+Workflow Run places the result before technical metadata. Task Detail and
 conversation task cards now use the shared action roles and human run status;
 Chat has a visible heading, arrow-key tabs, and a Files link.
 Failed conversation task actions stay visible on their card, and a task-list
@@ -503,9 +502,16 @@ triggered-task load and offer local retry.
 Artifacts use the same Upload, Download, Share, and Delete action roles. The
 collection waits for a successful load before stating a count, artifact names
 are links, and a failed preview offers local retry.
-If the second write of a new Issue fails, Portal shows the created Issue's
-address and prevents duplicate submission; creating every field atomically
-remains open.
+Issue Detail's sub-issue, run, discussion, and result actions, Administration,
+Space settings, Files, Marketplace, sign-in, and the shared unavailable, copy,
+and revision controls now use the same action roles, and the legacy Portal
+button rules are removed. In-flight actions keep their label and width and show
+a busy state. The Help language switch and shell navigation are controls rather
+than page actions and keep their own styling.
+A new Issue is created with its status, Owner, and Executor in one request, so a
+refused value creates nothing and retrying cannot make a duplicate. The
+component specimen and a non-author operator review of the work journeys have
+not been produced.
 Desktop has bridge and browser-based UI suites under
 [`desktop/frontend/e2e`](../desktop/frontend/e2e), plus a packaged-application
 launch smoke on macOS and Windows CI. The launch smoke proves that the built

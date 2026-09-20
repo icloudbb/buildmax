@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { BaseModal, getInitials } from "@buildmax/gui"
+import { BaseModal, Button, ButtonLink, getInitials } from "@buildmax/gui"
 import type { ApiPlugin, ApiPluginRelease } from "../../lib/api/types"
 import { getPlugin, listPlugins } from "../../features/plugins/api"
 import { newestInstallable } from "../../features/plugins/releaseSelection"
 import { useSpace } from "../../contexts/SpaceContext"
-import { navigate } from "../../router"
+import { buildHash } from "../../router"
 import { Alert } from "../../components/state/Alert"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 
@@ -294,13 +294,11 @@ function PluginDetailModal({
                   Publishing here does not activate it anywhere. To let {spaceName}&apos;s
                   background runs use it, activate it in Space Plugins.
                 </p>
-                <button
-                  type="button"
-                  className="mkt-install__copy"
-                  onClick={() => spaceId && navigate({ name: "space", spaceId, section: "plugins" })}
-                >
-                  Open Space Plugins
-                </button>
+                {spaceId ? (
+                  <ButtonLink variant="secondary" href={buildHash({ name: "space", spaceId, section: "plugins" })}>
+                    Open Space Plugins
+                  </ButtonLink>
+                ) : null}
               </section>
             ) : null}
           </>
@@ -377,9 +375,9 @@ function InstallCommand({ name }: { name: string }) {
       <h3 className="mkt-detail__section-title">Install</h3>
       <div className="mkt-install">
         <code className="mkt-install__cmd">{command}</code>
-        <button type="button" className="mkt-install__copy" onClick={copy}>
+        <Button variant="secondary" size="compact" onClick={copy}>
           {copied ? "Copied" : "Copy"}
-        </button>
+        </Button>
       </div>
     </section>
   )

@@ -1,3 +1,4 @@
+import { Button, IconButton } from "@buildmax/gui"
 import type { ApiSecret, ApiSecretConsumption, ApiSecretEnvGrant } from "../lib/api/types"
 
 /**
@@ -101,13 +102,13 @@ export function SecretConsumptionEditor({
                   <option value={chosen.id}>{chosen.name} (disabled)</option>
                 ) : null}
               </select>
-              <button
-                className="btn btn--secondary"
+              <IconButton
+                variant="tertiary"
                 onClick={() => update(grants.filter((_, j) => j !== i))}
                 aria-label="Remove grant"
               >
                 ✕
-              </button>
+              </IconButton>
             </div>
 
             <label className="secret-remove-row">
@@ -164,13 +165,13 @@ export function SecretConsumptionEditor({
         )
       })}
 
-      <button
-        className="btn btn--secondary"
+      <Button
+        variant="secondary"
         disabled={secrets.length === 0}
         onClick={() => update([...grants, { secret: "", item: "", env_name: "" }])}
       >
         Add secret grant
-      </button>
+      </Button>
     </div>
   )
 }

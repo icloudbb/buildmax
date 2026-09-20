@@ -113,6 +113,37 @@ func TestIssueHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("POST create issue writes status and owner with it", func(t *testing.T) {
+		post := func(body string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+personalSpaceID+"/issues", strings.NewReader(body))
+			req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+			return rec
+		}
+		rec := post(`{"title":"Assigned","status":"in_progress","owner_id":"u2"}`)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
+		}
+		var out IssueResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode create: %v", err)
+		}
+		if out.Status != coreissue.StatusInProgress || out.OwnerID == nil || *out.OwnerID != "u2" {
+			t.Fatalf("created = %+v", out)
+		}
+
+		before := len(store.Issues)
+		rec = post(`{"title":"Refused","owner_id":"u_stranger"}`)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+		}
+		if len(store.Issues) != before {
+			t.Fatalf("a refused create left %d new issues", len(store.Issues)-before)
+		}
+	})
+
 	t.Run("POST create issue missing title returns 400", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+personalSpaceID+"/issues", strings.NewReader(`{"title":"","description":"Desc"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))

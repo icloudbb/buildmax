@@ -3812,8 +3812,21 @@
       },
       "post": {
         "summary": "Create an issue",
+        "description": "Status, owner, and executor are optional and are written with the issue in one step: a refused value creates nothing.",
         "security": [{"bearerAuth": []}],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {
+          "type": "object",
+          "required": ["title"],
+          "properties": {
+            "title": {"type": "string"},
+            "description": {"type": "string"},
+            "parent_issue_id": {"type": "string"},
+            "status": {"type": "string", "enum": ["todo", "in_progress", "done"]},
+            "owner_id": {"type": "string"},
+            "executor_kind": {"type": "string", "enum": ["agent", "workflow"]},
+            "executor_id": {"type": "string"}
+          }
+        }}}},
         "responses": {
           "201": {
             "description": "Created",
