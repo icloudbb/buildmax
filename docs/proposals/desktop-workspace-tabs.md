@@ -486,6 +486,11 @@ shape: changing a React portal's container remounts its child, which would
 dispose xterm and lose scrollback — but moving the unchanged container element
 does not. So a terminal keeps its emulator, cursor, and scrollback across tab
 switches, pane drags, and grid re-tiling; the node is relocated, never recreated.
+One corollary: the emulator is only refit to its container while that container
+has real dimensions. A parked host is zero-sized, so fitting it there would
+collapse the terminal to a single cell, reflow the whole buffer, and resize the
+PTY — destroying the scrollback the park is meant to preserve; fitting is skipped
+until the host is measurable again.
 This is why the model insists a backing is decoupled from its pane. The same host
 also survives a **project switch**: each project's live layout is stashed in
 memory as the user moves between projects, so returning to a project restores its
