@@ -1285,7 +1285,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// missing recap must not cost the user their answer.
 	var digest TurnDigest
 	if opts.Digest {
-		summary := summarizeTurn(prompt, reply, sess.Messages()[turnStart:], stats.ToolCalls)
+		summary := summarizeTurn(prompt, reply, sess.Messages()[turnStart:], stats.ToolCalls, stats.WriteToolCalls)
 		got, digestErr := a.GenerateTurnDigest(ctx, sess, client, summary)
 		if digestErr != nil {
 			slog.Warn("turn digest failed", "err", digestErr)

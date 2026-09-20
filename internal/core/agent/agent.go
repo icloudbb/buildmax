@@ -46,7 +46,12 @@ const denyMsgHook = "error: tool call %q denied by hook: %s"
 // to it, matching llm.Usage. A surface that sums all three reports a run that
 // read more prompt than it sent.
 type RunStats struct {
-	ToolCalls        int
+	ToolCalls int
+	// WriteToolCalls is how many of ToolCalls actually ran a state-changing
+	// tool (DeclaredAccess == AccessWrite). It is what tells a turn that
+	// changed something apart from one that only read, without re-deriving the
+	// access from the message log; see the turn digest gate in internal/agentapp.
+	WriteToolCalls   int
 	PromptTokens     int
 	CompletionTokens int
 	CacheReadTokens  int
@@ -391,8 +396,9 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		}
 
 		// Tools that write durable state stamp entries with the iteration they were written at.
-		n, err := executeToolCalls(CtxWithIteration(ctx, i+1), opts, toolCalls, guard)
+		n, writes, err := executeToolCalls(CtxWithIteration(ctx, i+1), opts, toolCalls, guard)
 		s.ToolCalls += n
+		s.WriteToolCalls += writes
 		// Drained here rather than at the exits so every path out of the loop
 		// — reply, cancellation, error, iteration cap — reports the same
 		// totals, including whatever a delegation spent on the way.
@@ -628,14 +634,13 @@ type pendingCall struct {
 // The shape exists for docs/design/parallel-tool-execution.md, where a group's
 // calls overlap. Today every group holds one call and the effect is the
 // sequential loop this replaced.
-func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.ToolCall, guard *loopGuard) (int, error) {
+func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.ToolCall, guard *loopGuard) (count, writes int, err error) {
 	policy := opts.Policy
 	if policy == nil {
 		policy = AllowAllPolicy()
 	}
 	pending := parseCalls(opts, toolCalls)
 
-	count := 0
 	for _, group := range groupCalls(pending, opts.MaxParallelTools) {
 		for i := range group {
 			gateCall(ctx, opts, policy, guard, &group[i])
@@ -645,7 +650,7 @@ func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.Too
 		// does. A failure here stops the turn rather than running a tool whose
 		// outcome could not be classified afterwards.
 		if err := recordToolBoundary(opts, group); err != nil {
-			return count, err
+			return count, writes, err
 		}
 		runGroup(ctx, opts, group)
 		for i := range group {
@@ -653,12 +658,18 @@ func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.Too
 			firePostHook(ctx, opts, c)
 			logToolResult(c.call.Name, c.result)
 			if err := appendToolOutcome(opts, c); err != nil {
-				return count, err
+				return count, writes, err
 			}
 			count++
+			// Counted only when the tool actually ran: a denied or errored-out
+			// write changed nothing, and the digest gate reads this to decide
+			// whether the turn had a change worth naming.
+			if c.executed && DeclaredAccess(c.tool, c.args) == llm.AccessWrite {
+				writes++
+			}
 		}
 	}
-	return count, nil
+	return count, writes, nil
 }
 
 // parseCalls unmarshals arguments and resolves tools. Both are side-effect
