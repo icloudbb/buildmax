@@ -50,8 +50,10 @@ Portal owns the cloud/space lane:
   Issue Detail opens in read mode with its result and next action before editing.
   Task Detail and conversation task cards use the same action roles; the Chat
   start page owns its heading and keyboard-operated tabs.
-  Workflow Detail assigns one primary action per lifecycle view: Publish for
-  drafts, Run for published read mode, and Save while editing a published flow.
+  Workflow Detail drives lifecycle through explicit actions rather than a status
+  control: authoring offers Save as draft and Publish, a published read view
+  offers Run, and Archive is a separate action. Version history opens from a
+  header button and the opaque workflow id is not shown.
   Agent Detail does the same for Run, configuration Save, and schedule creation;
   its tabs are keyboard operated and schedule cards own their retry state.
   Artifacts own upload as the collection action; detail and sharing controls

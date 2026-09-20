@@ -53,9 +53,9 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
   await expect(page.locator(".issues-page__panel").filter({
     has: page.getByRole("heading", { name: "Definition" }),
   })).toBeVisible()
-  // The id itself lives in the header as secondary metadata, next to the
-  // on-demand history control.
-  await expect(page.getByText(workflow.id, { exact: true }).first()).toBeVisible()
+  // The opaque public id is not shown on the detail page: the name and
+  // breadcrumb orient the reader, and history is reached from a header button.
+  await expect(page.getByText(workflow.id, { exact: true })).toHaveCount(0)
   await expect(page.getByText("Workflow not found.")).toHaveCount(0)
 })
 
@@ -83,11 +83,13 @@ test("the detail page composes by lifecycle state: authoring when draft, operati
   await page.goto(`/#/spaces/${current.spaceId}/workflows/${workflow.id}`)
 
   // Draft opens in the authoring layout: the editing form is present and the
-  // primary action is Publish, with no manual Run, because the runtime refuses
-  // to run an unpublished definition.
+  // primary action is Publish, with Save as draft alongside it and no manual
+  // Run, because the runtime refuses to run an unpublished definition. There is
+  // no status control; the actions themselves name the lifecycle state reached.
   await expect(page.getByRole("heading", { name: "Definition" })).toBeVisible()
+  await expect(page.getByRole("combobox", { name: "Status" })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Publish" })).toHaveClass(/bm-button--primary/)
-  await expect(page.getByRole("button", { name: "Save" })).toHaveClass(/bm-button--secondary/)
+  await expect(page.getByRole("button", { name: "Save as draft" })).toHaveClass(/bm-button--secondary/)
   await expect(page.getByRole("button", { name: "Run Workflow" })).toHaveCount(0)
 
   // Publishing flips the page to the operating layout: Plan and Recent Runs lead
@@ -118,6 +120,17 @@ test("the detail page composes by lifecycle state: authoring when draft, operati
   await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible()
   await page.getByRole("button", { name: "Cancel" }).click()
   await expect(page.getByRole("heading", { name: "Plan", exact: true })).toBeVisible()
+
+  // Archive is an explicit lifecycle action, separate from content edits. It
+  // takes the workflow out of the runnable state and back to the authoring
+  // layout; the action is then absent because the workflow is already archived.
+  await page.getByRole("button", { name: "Archive" }).click()
+  await expect(page.getByText("Archived", { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Definition" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Archive" })).toHaveCount(0)
+  // Saving as draft brings an archived workflow back into the draft lifecycle.
+  await page.getByRole("button", { name: "Save as draft" }).click()
+  await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible()
 })
 
 // The worker has to start, run the step's task, and record its output. The API

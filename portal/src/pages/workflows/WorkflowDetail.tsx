@@ -50,7 +50,6 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   const [runs, setRuns] = useState<WorkflowRun[]>([])
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
-  const [status, setStatus] = useState<Workflow["status"]>("draft")
   const {
     steps,
     definition: stepsDefinition,
@@ -134,7 +133,6 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       setRevisionsData(revisionsApi.revisions.map(apiWorkflowRevisionToWorkflowRevision))
       setName(mappedWorkflow.name)
       setDescription(mappedWorkflow.description)
-      setStatus(mappedWorkflow.status)
       hydrateSteps(mappedWorkflow.definition)
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 404) {
@@ -195,9 +193,11 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
     if (workflow) setEntityLabel(workflow.id, workflow.name)
   }, [workflow, setEntityLabel])
 
-  // saveWith persists the current form, writing the given lifecycle state. Save
-  // keeps the edited status; Publish forces "published". Both round-trip through
-  // the same update call and refresh revision history.
+  // saveWith persists the current form, writing the given lifecycle state. The
+  // three authoring actions each name the state they reach — Save as draft,
+  // Publish, Archive — so lifecycle changes are explicit rather than hidden in a
+  // status control. All round-trip through the same update call and refresh
+  // revision history.
   function saveWith(targetStatus: Workflow["status"], exitEditing: boolean) {
     if (!token || !spaceId || !workflow || !canManageWorkflows) return
     setSaving(true)
@@ -213,7 +213,6 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         setWorkflow(mapped)
         setName(mapped.name)
         setDescription(mapped.description)
-        setStatus(mapped.status)
         hydrateSteps(mapped.definition)
         if (exitEditing) setEditing(false)
         loadRevisions()
@@ -222,13 +221,16 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       .finally(() => setSaving(false))
   }
 
-  function handleSave() {
-    saveWith(status, false)
+  function handleSaveDraft() {
+    saveWith("draft", true)
   }
 
   function handlePublish() {
-    setStatus("published")
     saveWith("published", true)
+  }
+
+  function handleArchive() {
+    saveWith("archived", true)
   }
 
   // Cancel discards unsaved edits by re-hydrating from the loaded workflow, then
@@ -237,7 +239,6 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
     if (!workflow) return
     setName(workflow.name)
     setDescription(workflow.description)
-    setStatus(workflow.status)
     hydrateSteps(workflow.definition)
     setError(null)
     setEditing(false)
@@ -253,7 +254,6 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         setWorkflow(mapped)
         setName(mapped.name)
         setDescription(mapped.description)
-        setStatus(mapped.status)
         hydrateSteps(mapped.definition)
         loadRevisions()
       })
@@ -339,14 +339,6 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
           <p className="page-activity__subtitle">
             {workflow?.description || "Edit the workflow definition, run it manually, and inspect recent executions."}
           </p>
-          {workflow ? (
-            <div className="workflow-detail__meta">
-              <span className="page-activity__meta workflow-detail-page__run-id">{workflow.id}</span>
-              <Button variant="tertiary" size="compact" onClick={() => setHistoryOpen(true)}>
-                v{workflow.revision} · History
-              </Button>
-            </div>
-          ) : null}
         </div>
         <div className="page-activity__actions">
           <ButtonLink variant="tertiary" href={buildHash({ name: "workflows", spaceId })}>
@@ -355,6 +347,11 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
           <Button variant="tertiary" disabled={loading} onClick={() => void load()}>
             Refresh
           </Button>
+          {workflow ? (
+            <Button variant="tertiary" onClick={() => setHistoryOpen(true)}>
+              History · v{workflow.revision}
+            </Button>
+          ) : null}
           {authoring ? (
             <>
               {canManageWorkflows && editing && workflow?.status === "published" ? (
@@ -363,9 +360,11 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
                 </Button>
               ) : null}
               {canManageWorkflows ? (
-                <Button variant={workflow?.status === "published" ? "primary" : "secondary"} busy={saving} disabled={saveDisabled} onClick={handleSave}>Save</Button>
+                <Button variant="secondary" busy={saving} disabled={saveDisabled} onClick={handleSaveDraft}>
+                  Save as draft
+                </Button>
               ) : null}
-              {canManageWorkflows && workflow?.status !== "published" ? (
+              {canManageWorkflows ? (
                 <Button variant="primary" busy={saving} disabled={saveDisabled} onClick={handlePublish}>
                   Publish
                 </Button>
@@ -381,6 +380,11 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
               <Button variant="primary" busy={running} disabled={loading || workflow == null || workflow.status !== "published"} onClick={handleRunClick}>Run Workflow</Button>
             </>
           )}
+          {canManageWorkflows && workflow && workflow.status !== "archived" ? (
+            <Button variant="tertiary" disabled={saving} onClick={handleArchive}>
+              Archive
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -401,11 +405,11 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         <>
           {workflow.status !== "published" ? (
             <p className="workflow-detail__banner">
-              This workflow is currently {statusLabel(workflow.status)}. Publish it before manual runs or issue assignment.
+              This workflow is currently {statusLabel(workflow.status)}. Save as draft to keep working on it, or Publish it before manual runs or issue assignment.
             </p>
           ) : (
             <p className="workflow-detail__banner">
-              Editing a published workflow. Save writes your changes as a new revision; the workflow stays published.
+              Editing a published workflow. Save as draft keeps your changes without publishing; Publish writes them as a new published revision.
             </p>
           )}
           <section className="issues-page__panel">
@@ -413,22 +417,6 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
               <h2 className="issues-page__section-title">Definition</h2>
             </div>
             <div className="workflow-page__form">
-              <label className="issues-page__field">
-                <span className="issues-page__field-label">Status</span>
-                <select
-                  className="issues-page__input"
-                  value={status}
-                  disabled={!canManageWorkflows}
-                  onChange={(e) => setStatus(e.target.value as Workflow["status"])}
-                >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
-                </select>
-                <span className="issues-page__field-label">
-                  Only `published` workflows can be assigned to issues or run manually.
-                </span>
-              </label>
               <label className="issues-page__field">
                 <span className="issues-page__field-label">Name</span>
                 <input className="issues-page__input" value={name} disabled={!canManageWorkflows} onChange={(e) => setName(e.target.value)} />
