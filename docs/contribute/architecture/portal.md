@@ -33,8 +33,15 @@ Portal owns the cloud/space lane:
 
 ## Current Shape
 
-- Routes are in `portal/src/router.ts`.
+- Routes are in `portal/src/router.ts`. A few standalone pages that need no
+  sign-in or Space are matched on the real path in `portal/src/main.tsx` and
+  render inside only `ThemeProvider`: the public share link
+  `/shared/artifacts/<token>` and the component specimen at `/specimen`.
 - Pages live under `portal/src/pages/*`.
+- `/specimen` is a design and review artifact, not a product page: it renders the
+  shared action grammar, semantic tokens, status vocabulary, and every resource
+  state once, reusing the real components so a reviewer can confirm each role and
+  state across themes and widths before trusting the migrated pages.
 - API calls live under `portal/src/features/*/api.ts` and `portal/src/lib/api`.
 - Shared presentation components come from `@buildmax/gui`.
 - The shared `Button` and `IconButton` own action appearance, target size, focus,
