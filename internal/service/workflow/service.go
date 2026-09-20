@@ -97,6 +97,13 @@ const (
 	// pass, so a lost terminal callback is recovered by the due-run sweep within
 	// a bounded time rather than never.
 	reconcileObserveInterval = 30 * time.Second
+	// reconcileReleaseTimeout bounds the lease release, which runs on a context
+	// detached from the caller's. A caller that cancels mid-pass -- a
+	// disconnected request, a shutdown -- must still release the lease so
+	// recovery takes the run over in a due-run interval, not wait out the full
+	// lease TTL with every node stranded pending. Detaching removes the cancel;
+	// the timeout keeps the cleanup itself from hanging.
+	reconcileReleaseTimeout = 10 * time.Second
 )
 
 type CreateWorkflowCmd struct {
@@ -479,14 +486,22 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	// recovery drive progress the same way and the run records when it next
 	// wants observing. The step rows are re-read afterward, so the created set is
 	// not used here.
-	if err := s.Reconcile(ctx, run.ID); err != nil {
+	//
+	// The run is already durable, so the first dispatch runs on a context
+	// detached from the request: a caller that disconnects or a proxy that times
+	// out must not abort the pass on the request context, which would strand the
+	// reconcile lease for its full TTL and leave every node pending until it
+	// expired. Detaching keeps the first dispatch prompt and the lease honest;
+	// recovery would heal a genuinely failed pass regardless.
+	dispatchCtx := context.WithoutCancel(ctx)
+	if err := s.Reconcile(dispatchCtx, run.ID); err != nil {
 		return nil, nil, err
 	}
-	stepRuns, err := s.Workflows.ListWorkflowNodeRuns(ctx, run.ID)
+	stepRuns, err := s.Workflows.ListWorkflowNodeRuns(dispatchCtx, run.ID)
 	if err != nil {
 		return nil, nil, err
 	}
-	run, err = s.Workflows.GetWorkflowRun(ctx, run.ID)
+	run, err = s.Workflows.GetWorkflowRun(dispatchCtx, run.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -566,7 +581,12 @@ func (s *Service) Reconcile(ctx context.Context, workflowRunID string) error {
 		// later pass retries from the same durable state.
 		nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
 	}
-	if _, relErr := s.Workflows.ReleaseWorkflowRunLease(ctx, coreworkflow.ReleaseLeaseInput{
+	// Release on a context detached from the caller's: a pass canceled by a
+	// disconnected request or a shutdown must still hand the lease back, or the
+	// run stays stranded pending until the lease TTL expires.
+	relCtx, cancelRel := context.WithTimeout(context.WithoutCancel(ctx), reconcileReleaseTimeout)
+	defer cancelRel()
+	if _, relErr := s.Workflows.ReleaseWorkflowRunLease(relCtx, coreworkflow.ReleaseLeaseInput{
 		WorkflowRunID:   workflowRunID,
 		Owner:           owner,
 		NextReconcileAt: nextReconcileAt,
