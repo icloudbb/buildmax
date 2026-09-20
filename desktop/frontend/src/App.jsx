@@ -12,11 +12,12 @@ import { DiffView } from './components/DiffView';
 import { activeTab, tabIdentity } from './lib/tabs';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
+  closeOtherPaneTabs, closeRightPaneTabs,
   splitRight, splitDown, moveTab, allTabs, pruneForPersist, isWorkspace,
   collapse, tile,
 } from './lib/panes';
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { Avatar, ThemeProvider, useTheme } from '@buildmax/gui';
 import { EventsOn } from './lib/wailsRuntime';
 import LoginPage from './LoginPage';
@@ -74,6 +75,30 @@ function MoonIcon() {
   );
 }
 
+// GridIcon — tile tabs into a grid of panes.
+function GridIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="3" width="8" height="8" rx="1" />
+      <rect x="13" y="3" width="8" height="8" rx="1" />
+      <rect x="3" y="13" width="8" height="8" rx="1" />
+      <rect x="13" y="13" width="8" height="8" rx="1" />
+    </svg>
+  );
+}
+
+// SplitRightIcon — the split-right glyph, reused here for collapsing a grid
+// back into one pane. A single frame divided left from right reads cleaner than
+// a tab-strip drawing at this size.
+function SplitRightIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="1" />
+      <path d="M12 3v18" />
+    </svg>
+  );
+}
+
 // Theme toggle lives in the workspace status bar, always visible while a project
 // is open — more reachable than the user menu, which hides with the sidebar. Its
 // own component so it can call useTheme from inside ThemeProvider. The icon names
@@ -123,6 +148,10 @@ export default function App() {
   const [workspace, setWorkspace] = useState(emptyWorkspace);
   // The pane currently under a tab being dragged, highlighted as the drop target.
   const [dropPane, setDropPane] = useState(null);
+  // In a grid, one pane can be temporarily maximized to fill the workspace for
+  // focused work; null means show the whole grid. It is a view overlay, not a
+  // layout change — the grid is restored intact when it clears.
+  const [maximizedPaneId, setMaximizedPaneId] = useState(null);
   const [explorerMode, setExplorerMode] = useState('directory'); // 'directory' | 'changes'
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     clampSidebarWidth(readStored(LS_SIDEBAR_WIDTH, SIDEBAR_DEFAULT_WIDTH)),
@@ -248,6 +277,18 @@ export default function App() {
   // Which project the current `workspace` belongs to, so the save effect writes
   // it under the right key even across the switch that swaps it out.
   const workspaceProjectRef = useRef(null);
+  // Each project's live in-session layout, stashed on switch so returning to a
+  // project restores its exact tabs — terminals included — without killing the
+  // shells. Keyed by project id; the active project's layout lives in `workspace`.
+  const stashedWorkspacesRef = useRef(new Map());
+  // Terminal ids of *inactive* projects. TerminalHost keeps them mounted but
+  // parked, so a shell's emulator and scrollback survive a project switch and
+  // reappear intact on return.
+  const [parkedTermIds, setParkedTermIds] = useState([]);
+  // A mirror of the latest `workspace`, so the project-switch effect can read the
+  // outgoing project's current layout without a stale closure and without a
+  // setState-inside-updater (which React would not reliably apply).
+  const workspaceRef = useRef(workspace);
 
   // openChatTabInto focuses an existing chat tab for a session, else opens one.
   const openChatTabInto = (ws, sessionId, title) => {
@@ -283,26 +324,46 @@ export default function App() {
     })),
   });
 
-  // On a project switch, reap the old project's terminals, restore that project's
-  // saved layout (or a fresh workspace), and make sure the selected session — or a
-  // new chat — has a focused tab.
+  // Keep the workspace mirror current for the switch effect below.
+  useEffect(() => { workspaceRef.current = workspace; }, [workspace]);
+
+  // On a project switch, stash the outgoing project's live layout (so returning
+  // restores it, terminals and all — the shells are not killed, only parked),
+  // restore the incoming project's stashed or saved layout, and make sure the
+  // selected session — or a new chat — has a focused tab. Everything runs at the
+  // effect's top level so both state updates (workspace and the parked-terminal
+  // list) are applied together.
   useEffect(() => {
-    setWorkspace((prev) => {
-      allTabs(prev)
-        .filter((t) => t.kind === 'terminal')
-        .forEach((t) => getApp()?.TerminalClose?.(t.ref));
-      workspaceProjectRef.current = currentProject?.id ?? null;
-      if (!currentProject) return emptyWorkspace;
+    const prevPid = workspaceProjectRef.current;
+    if (prevPid) stashedWorkspacesRef.current.set(prevPid, workspaceRef.current);
+    workspaceProjectRef.current = currentProject?.id ?? null;
+    let ws;
+    if (!currentProject) {
+      ws = emptyWorkspace;
+    } else if (stashedWorkspacesRef.current.has(currentProject.id)) {
+      ws = stashedWorkspacesRef.current.get(currentProject.id);
+      stashedWorkspacesRef.current.delete(currentProject.id);
+    } else {
       const saved = readStored(workspaceStorageKey(currentProject.id), null);
-      let ws = isWorkspace(saved) ? saved : emptyWorkspace;
+      ws = isWorkspace(saved) ? saved : emptyWorkspace;
+    }
+    if (currentProject) {
       if (selectedId) {
         const title = sessions.find((s) => s.id === selectedId)?.title?.trim() || 'Chat';
         ws = openChatTabInto(ws, selectedId, title);
-      } else {
+      } else if (!allTabs(ws).some((t) => t.kind === 'chat')) {
         ws = openNewChatInto(ws);
       }
-      return ws;
-    });
+    }
+    // Every stashed (inactive) project's terminals stay mounted but parked.
+    const parked = [];
+    for (const [pid, w] of stashedWorkspacesRef.current) {
+      if (pid === currentProject?.id) continue;
+      for (const t of allTabs(w)) if (t.kind === 'terminal') parked.push(t.ref);
+    }
+    workspaceRef.current = ws;
+    setWorkspace(ws);
+    setParkedTermIds(parked);
     // Reseed only when the active project changes; selectedId is read fresh above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
@@ -314,6 +375,20 @@ export default function App() {
     if (!pid) return;
     writeStored(workspaceStorageKey(pid), pruneForPersist(workspace));
   }, [workspace]);
+
+  // A maximized pane is only meaningful in a grid: drop it when the pane is gone
+  // or the grid collapsed back to one pane, so a stale id never hides the layout.
+  useEffect(() => {
+    if (!maximizedPaneId) return;
+    const panes = workspace.rows.flatMap((r) => r.panes);
+    if (panes.length <= 1 || !panes.some((p) => p.id === maximizedPaneId)) {
+      setMaximizedPaneId(null);
+    }
+  }, [workspace, maximizedPaneId]);
+  const toggleMaximizePane = useCallback((paneId) => {
+    setMaximizedPaneId((cur) => (cur === paneId ? null : paneId));
+    setWorkspace((s) => focusPane(s, paneId));
+  }, []);
 
   // A new chat adopts its real session id from the first event of the run it
   // launched: record it on the tab (its key stays stable so the ChatSession is
@@ -359,8 +434,8 @@ export default function App() {
   // A tab dragged from one pane's strip and dropped on another pane. Held in
   // state (set once on drag start) so drop handlers read it without a ref.
   const [dragTab, setDragTab] = useState(null);
-  const moveCenterTab = useCallback((fromPane, key, toPane) => {
-    setWorkspace((s) => moveTab(s, fromPane, key, toPane));
+  const moveCenterTab = useCallback((fromPane, key, toPane, beforeKey = null) => {
+    setWorkspace((s) => moveTab(s, fromPane, key, toPane, beforeKey));
   }, []);
 
   // Terminals live in TerminalHost, portalled into the slot of the pane that
@@ -397,22 +472,104 @@ export default function App() {
   // when it is that pane's active tab, otherwise parked (mounted but hidden).
   const terminalTargets = useMemo(() => {
     const out = [];
+    const seen = new Set();
     for (const row of workspace.rows) {
       for (const pane of row.panes) {
         for (const t of pane.tabs) {
           if (t.kind !== 'terminal') continue;
           const isActive = pane.activeKey === t.key;
           out.push({ id: t.ref, active: isActive, target: isActive ? (termSlots.get(pane.id) ?? null) : null });
+          seen.add(t.ref);
         }
       }
     }
+    // Inactive projects' terminals: mounted but parked, so scrollback survives a
+    // switch. (A duplicate id could only appear mid-switch; skip it.)
+    for (const id of parkedTermIds) {
+      if (!seen.has(id)) out.push({ id, active: false, target: null });
+    }
     return out;
-  }, [workspace, termSlots]);
+  }, [workspace, termSlots, parkedTermIds]);
+
+  // Each terminal keeps ONE host element for its whole life. TerminalPane portals
+  // into it and never leaves: React remounts a portal's child when its container
+  // changes (which would dispose xterm and lose scrollback), so instead the host
+  // stays put and we move the host element itself between a pane's slot and the
+  // hidden park with appendChild — the portal container is unchanged, so xterm is
+  // never recreated across tab switches, drags, re-tiles, or project switches.
+  const [termHosts, setTermHosts] = useState(() => new Map());
+  const termIdsKey = terminalTargets.map((t) => t.id).join('\n');
+  useEffect(() => {
+    setTermHosts((prev) => {
+      const ids = new Set(terminalTargets.map((t) => t.id));
+      const next = new Map(prev);
+      let changed = false;
+      for (const id of ids) {
+        if (!next.has(id)) {
+          const el = document.createElement('div');
+          el.className = 'terminal-host';
+          next.set(id, el);
+          changed = true;
+        }
+      }
+      for (const id of [...next.keys()]) {
+        if (!ids.has(id)) {
+          next.get(id)?.remove();
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termIdsKey]);
+
+  // Place each terminal's host in its slot (visible) or the park (hidden). Moving
+  // the host never changes the portal container, so no terminal is remounted.
+  useLayoutEffect(() => {
+    for (const { id, target } of terminalTargets) {
+      const host = termHosts.get(id);
+      if (!host) continue;
+      const dest = target ?? termParkEl;
+      if (dest && host.parentNode !== dest) dest.appendChild(host);
+    }
+  }, [terminalTargets, termHosts, termParkEl]);
+
+  const terminalActiveById = useMemo(() => {
+    const m = {};
+    for (const { id, active } of terminalTargets) m[id] = active;
+    return m;
+  }, [terminalTargets]);
   const closeCenterTab = useCallback((paneId, key) => {
     setWorkspace((s) => {
       const tab = allTabs(s).find((t) => t.key === key);
       if (tab?.kind === 'terminal') getApp()?.TerminalClose?.(tab.ref);
       return closePaneTab(s, paneId, key);
+    });
+  }, []);
+  // "Close others" / "Close tabs to the right" from a tab's context menu. Both
+  // kill the PTYs of any terminal tabs they remove first (the pure pane ops only
+  // drop them from state), then apply the same closable-respecting rule the pure
+  // ops use, so a non-closable chat tab is never swept away.
+  const closeCenterOthers = useCallback((paneId, key) => {
+    setWorkspace((s) => {
+      const pane = s.rows.flatMap((r) => r.panes).find((p) => p.id === paneId);
+      pane?.tabs.forEach((t) => {
+        if (t.key !== key && t.closable !== false && t.kind === 'terminal') getApp()?.TerminalClose?.(t.ref);
+      });
+      return closeOtherPaneTabs(s, paneId, key);
+    });
+  }, []);
+  const closeCenterRight = useCallback((paneId, key) => {
+    setWorkspace((s) => {
+      const pane = s.rows.flatMap((r) => r.panes).find((p) => p.id === paneId);
+      const idx = pane ? pane.tabs.findIndex((t) => t.key === key) : -1;
+      if (idx !== -1) {
+        pane.tabs.slice(idx + 1).forEach((t) => {
+          if (t.closable !== false && t.kind === 'terminal') getApp()?.TerminalClose?.(t.ref);
+        });
+      }
+      return closeRightPaneTabs(s, paneId, key);
     });
   }, []);
 
@@ -528,9 +685,17 @@ export default function App() {
         setSessions((prev) => prev.filter((s) => s.project_id !== id));
       }
       setProjects((prev) => prev.filter((p) => p.id !== id));
+      // The project is gone: kill any of its shells, active or stashed, since it
+      // will never be switched back to.
+      const stashed = stashedWorkspacesRef.current.get(id);
+      if (stashed) {
+        allTabs(stashed).forEach((t) => { if (t.kind === 'terminal') getApp()?.TerminalClose?.(t.ref); });
+        stashedWorkspacesRef.current.delete(id);
+      }
       // If the deleted project was in use, clear the workspace (it resets when
       // currentProject becomes null).
       if (currentProject?.id === id) {
+        allTabs(workspace).forEach((t) => { if (t.kind === 'terminal') getApp()?.TerminalClose?.(t.ref); });
         setNewChatProject(null);
         setSelectedId(null);
       }
@@ -692,6 +857,32 @@ export default function App() {
   const focusedChatSessionId = focusedActiveTab?.kind === 'chat' ? (focusedActiveTab.sessionId ?? '') : (selectedId || '');
   const highlightSessionId = focusedActiveTab?.kind === 'chat' ? (focusedActiveTab.sessionId || null) : selectedId;
 
+  // Copy a file/diff tab's path to the clipboard. Go resolves and copies it, so
+  // the absolute form matches the file the panel reads (the session's workspace
+  // root may be a worktree) and clipboard access works in the native window.
+  const copyCenterPath = (key, absolute) => {
+    const tab = allTabs(workspace).find((t) => t.key === key);
+    if (!tab || (tab.kind !== 'file' && tab.kind !== 'diff') || !currentProject) return;
+    getApp()?.CopyWorkspacePath?.(currentProject.id, focusedChatSessionId, tab.ref, absolute)
+      .catch(() => {});
+  };
+
+  // Rename a chat or terminal tab. A chat tab bound to a real session renames the
+  // session (which persists and updates the sidebar); an unadopted chat or a
+  // terminal tab is titled locally. File/diff titles are the filename and are not
+  // renamable — their tooltip shows the full path instead.
+  const renameCenterTab = (key, title) => {
+    const next = title.trim();
+    if (!next) return;
+    const tab = allTabs(workspace).find((t) => t.key === key);
+    if (!tab || (tab.kind !== 'chat' && tab.kind !== 'terminal')) return;
+    if (tab.kind === 'chat' && tab.sessionId) {
+      handleRenameSession(tab.sessionId, next);
+    } else {
+      setWorkspace((s) => updateTabField(s, key, { title: next }));
+    }
+  };
+
   // One pane's content: the active tab decides what shows. A chat tab renders a
   // ChatSession keyed to its own session, so several run at once; every terminal
   // stays mounted (portalled by TerminalHost) so scrollback survives.
@@ -747,6 +938,68 @@ export default function App() {
   // The grid toggle is worth showing only when there is something to rearrange:
   // more than one pane to collapse, or more than one tab to tile.
   const canToggleGrid = totalPanes > 1 || allTabs(workspace).length > 1;
+  // Maximize is only offered, and only honoured, in a grid.
+  const canMaximize = totalPanes > 1;
+  const maximizedPane = canMaximize && maximizedPaneId
+    ? workspace.rows.flatMap((r) => r.panes).find((p) => p.id === maximizedPaneId)
+    : null;
+
+  // renderPane draws one pane: its tab strip and the active tab's content. Used
+  // for every pane in the grid and for the single maximized pane.
+  const renderPane = (pane) => {
+    const focused = pane.id === workspace.focused;
+    const paneClass = [
+      'workspace-pane',
+      totalPanes > 1 && focused ? 'workspace-pane--focused' : '',
+      dropPane === pane.id ? 'workspace-pane--drop' : '',
+    ].filter(Boolean).join(' ');
+    return (
+      <div
+        key={pane.id}
+        className={paneClass}
+        onMouseDownCapture={() => focusCenterPane(pane.id)}
+        onDragOver={(e) => {
+          if (!dragTab) return;
+          e.preventDefault();
+          if (dropPane !== pane.id) setDropPane(pane.id);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const d = dragTab;
+          setDropPane(null);
+          setDragTab(null);
+          if (d) moveCenterTab(d.fromPane, d.key, pane.id);
+        }}
+      >
+        <TabBar
+          tabs={pane.tabs}
+          activeKey={pane.activeKey}
+          onSelect={(key) => selectCenterTab(pane.id, key)}
+          onClose={(key) => closeCenterTab(pane.id, key)}
+          onPin={(key) => pinCenterTab(pane.id, key)}
+          onRename={renameCenterTab}
+          onSplitRight={maximizedPane ? undefined : () => splitCenterRight(pane.id)}
+          onSplitDown={maximizedPane ? undefined : () => splitCenterDown(pane.id)}
+          onToggleMaximize={canMaximize ? () => toggleMaximizePane(pane.id) : undefined}
+          maximized={!!maximizedPane && maximizedPane.id === pane.id}
+          onTabDragStart={(key) => setDragTab({ fromPane: pane.id, key })}
+          onTabDragEnd={() => { setDragTab(null); setDropPane(null); }}
+          onTabDrop={(beforeKey) => {
+            const d = dragTab;
+            setDropPane(null);
+            setDragTab(null);
+            if (d) moveCenterTab(d.fromPane, d.key, pane.id, beforeKey);
+          }}
+          onCloseOthers={(key) => closeCenterOthers(pane.id, key)}
+          onCloseRight={(key) => closeCenterRight(pane.id, key)}
+          onCopyPath={copyCenterPath}
+        />
+        <div className="workspace-pane__content">
+          {renderPaneContent(pane)}
+        </div>
+      </div>
+    );
+  };
 
   const shellClass = [
     'shell',
@@ -938,50 +1191,27 @@ export default function App() {
                 <div className={`workspace-grid${totalPanes > 1 ? ' workspace-grid--split' : ''}`}>
                   {workspace.rows.map((row) => (
                     <div key={row.id} className="workspace-grid__row">
-                      {row.panes.map((pane) => {
-                        const focused = pane.id === workspace.focused;
-                        const paneClass = [
-                          'workspace-pane',
-                          totalPanes > 1 && focused ? 'workspace-pane--focused' : '',
-                          dropPane === pane.id ? 'workspace-pane--drop' : '',
-                        ].filter(Boolean).join(' ');
-                        return (
-                          <div
-                            key={pane.id}
-                            className={paneClass}
-                            onMouseDownCapture={() => focusCenterPane(pane.id)}
-                            onDragOver={(e) => {
-                              if (!dragTab) return;
-                              e.preventDefault();
-                              if (dropPane !== pane.id) setDropPane(pane.id);
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              const d = dragTab;
-                              setDropPane(null);
-                              setDragTab(null);
-                              if (d) moveCenterTab(d.fromPane, d.key, pane.id);
-                            }}
-                          >
-                            <TabBar
-                              tabs={pane.tabs}
-                              activeKey={pane.activeKey}
-                              onSelect={(key) => selectCenterTab(pane.id, key)}
-                              onClose={(key) => closeCenterTab(pane.id, key)}
-                              onPin={(key) => pinCenterTab(pane.id, key)}
-                              onSplitRight={() => splitCenterRight(pane.id)}
-                              onSplitDown={() => splitCenterDown(pane.id)}
-                              onTabDragStart={(key) => setDragTab({ fromPane: pane.id, key })}
-                              onTabDragEnd={() => { setDragTab(null); setDropPane(null); }}
-                            />
-                            <div className="workspace-pane__content">
-                              {renderPaneContent(pane)}
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {row.panes.map((pane) => (
+                        // The maximized pane floats in the overlay below; its grid
+                        // cell holds a dimmed placeholder so the layout keeps its
+                        // shape (and the pane is never rendered — or slotted —
+                        // twice).
+                        maximizedPane && maximizedPane.id === pane.id
+                          ? <div key={pane.id} className="workspace-pane workspace-pane--placeholder" aria-hidden />
+                          : renderPane(pane)
+                      ))}
                     </div>
                   ))}
+                  {maximizedPane && (
+                    <div
+                      className="workspace-maximize-overlay"
+                      onClick={(e) => { if (e.target === e.currentTarget) setMaximizedPaneId(null); }}
+                    >
+                      <div className="workspace-maximize-overlay__card">
+                        {renderPane(maximizedPane)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1007,7 +1237,6 @@ export default function App() {
                   <span aria-hidden>{'>_'}</span>
                 </button>
               )}
-              <ThemeStatusButton />
               {currentProject && canToggleGrid && (
                 <button
                   type="button"
@@ -1016,19 +1245,21 @@ export default function App() {
                   aria-label={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
                   onClick={toggleGrid}
                 >
-                  <span aria-hidden>{totalPanes > 1 ? '□' : '▦'}</span>
-                  {totalPanes > 1 ? ' Tabs' : ' Grid'}
+                  <span aria-hidden>{totalPanes > 1 ? <SplitRightIcon /> : <GridIcon />}</span>
                 </button>
               )}
+              <ThemeStatusButton />
             </div>
           </main>
         </div>
       </div>
 
-      {/* Terminals are portalled into their pane's slot from here, so they stay
-          mounted across tab switches, pane moves, and grid re-tiling. */}
+      {/* Terminals are portalled into a per-terminal host element (moved between
+          slot and park with appendChild), so they stay mounted — and keep their
+          scrollback — across tab switches, pane moves, grid re-tiling, and
+          project switches. */}
       <div className="terminal-park" ref={setTermPark} aria-hidden />
-      <TerminalHost terminals={terminalTargets} park={termParkEl} />
+      <TerminalHost hosts={termHosts} activeById={terminalActiveById} />
 
       {showCreateModal && (
         <CreateProjectModal

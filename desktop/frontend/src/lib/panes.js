@@ -11,7 +11,7 @@
 // what lets a terminal survive a move: the emulator is portalled, not remounted.
 // An empty pane is transient and reaped as soon as focus leaves it.
 
-import { emptyTabs, openTab, focusTab, closeTab, pinTab } from './tabs';
+import { emptyTabs, openTab, focusTab, closeTab, pinTab, insertTab, closeOthers, closeToRight } from './tabs';
 
 export const emptyWorkspace = {
   rows: [{ id: 'row-1', panes: [{ id: 'pane-1', ...emptyTabs }] }],
@@ -112,6 +112,17 @@ export function closePaneTab(ws, paneId, key) {
   return w;
 }
 
+// closeOtherPaneTabs / closeRightPaneTabs are the tab-strip context-menu bulk
+// closes. Both keep the anchor tab, so the pane never empties. Callers close any
+// terminal PTYs among the removed tabs before applying these (see App).
+export function closeOtherPaneTabs(ws, paneId, key) {
+  return { ...updatePane(ws, paneId, (p) => closeOthers(p, key)), focused: paneId };
+}
+
+export function closeRightPaneTabs(ws, paneId, key) {
+  return { ...updatePane(ws, paneId, (p) => closeToRight(p, key)), focused: paneId };
+}
+
 // splitRight inserts a new empty pane after the focused one in its row.
 export function splitRight(ws) {
   const id = `pane-${ws.seq + 1}`;
@@ -160,16 +171,16 @@ export function collapse(ws) {
   };
 }
 
-// tile spreads every open tab into its own pane, laid out in a near-square grid,
-// so a person can see them all at once instead of splitting and dragging by
-// hand. It is the inverse of collapse. Every pane and row gets a fresh id from
-// the monotonic seq, so no id repeats one a terminal portal or a later split may
-// reuse. The tab that was active stays focused.
+// tile spreads every open tab into its own pane, laid out in a near-square grid
+// capped at three columns, so a person can see them all at once instead of
+// splitting and dragging by hand. It is the inverse of collapse. Every pane and
+// row gets a fresh id from the monotonic seq, so no id repeats one a terminal
+// portal or a later split may reuse. The tab that was active stays focused.
 export function tile(ws) {
   const tabs = allPanes(ws).flatMap((p) => p.tabs);
   if (tabs.length <= 1) return ws;
   const focusedKey = focusedPane(ws).activeKey;
-  const cols = Math.ceil(Math.sqrt(tabs.length));
+  const cols = Math.min(3, Math.ceil(Math.sqrt(tabs.length)));
   let seq = ws.seq;
   const rows = [];
   for (let i = 0; i < tabs.length; i += cols) {
@@ -220,23 +231,24 @@ export function isWorkspace(v) {
       && r.panes.every((p) => p && typeof p.id === 'string' && Array.isArray(p.tabs)));
 }
 
-// moveTab moves a tab from one pane to another (drag-and-drop). The tab keeps its
-// descriptor — and, because its backing is pane-independent, its live content —
-// so a moved terminal never loses scrollback. Dropping onto the source pane, or
-// onto a pane that already holds the tab, just focuses it. A source pane emptied
-// by the move is removed.
-export function moveTab(ws, fromPaneId, key, toPaneId) {
+// moveTab moves a tab by drag-and-drop, and also reorders one within its strip.
+// The tab keeps its descriptor — and, because its backing is pane-independent,
+// its live content — so a moved terminal never loses scrollback. beforeKey is
+// the tab to drop in front of, or null to append (a drop on empty strip space).
+// Within the source pane, a null (or self) target is just a focus, so dropping a
+// tab back on its own pane never reshuffles it; a real target reorders it. A
+// source pane emptied by a cross-pane move is removed.
+export function moveTab(ws, fromPaneId, key, toPaneId, beforeKey = null) {
   const from = findPane(ws, fromPaneId);
   const tab = from?.tabs.find((t) => t.key === key);
   if (!tab) return ws;
-  if (fromPaneId === toPaneId) return { ...ws, focused: toPaneId };
   if (!findPane(ws, toPaneId)) return ws;
+  if (fromPaneId === toPaneId) {
+    if (beforeKey == null || beforeKey === key) return { ...ws, focused: toPaneId };
+    return { ...updatePane(ws, toPaneId, (p) => insertTab(p, tab, beforeKey)), focused: toPaneId };
+  }
   let w = updatePane(ws, fromPaneId, (p) => closeTab(p, key));
-  w = updatePane(w, toPaneId, (p) => (
-    p.tabs.some((t) => t.key === key)
-      ? { activeKey: key }
-      : { tabs: [...p.tabs, tab], activeKey: key }
-  ));
+  w = updatePane(w, toPaneId, (p) => insertTab(p, tab, beforeKey));
   w = { ...w, focused: toPaneId };
   const src = findPane(w, fromPaneId);
   if (src && src.tabs.length === 0 && paneCount(w) > 1) {

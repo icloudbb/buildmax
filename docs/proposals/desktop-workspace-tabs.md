@@ -478,22 +478,58 @@ neighbour.
 
 A tab is **dragged** from its strip and dropped onto another pane to move it
 there. Because a tab's backing is pane-independent (§7.5), the move carries the
-live content, not just the descriptor. Terminals make this concrete: every
-terminal's emulator is kept mounted in a hidden host and *portalled* into
-whichever pane shows it (`TerminalHost`), so a dragged terminal keeps its
-scrollback and cursor — the DOM node is relocated, never recreated. This is why
-the model insists a backing is decoupled from its pane.
+live content, not just the descriptor. Terminals make this concrete: each
+terminal's emulator is *portalled* into its own **stable host element**, and that
+host is moved between a pane's slot and a hidden park with `appendChild` as tabs
+switch and terminals are dragged (`TerminalHost`). The subtlety that forces this
+shape: changing a React portal's container remounts its child, which would
+dispose xterm and lose scrollback — but moving the unchanged container element
+does not. So a terminal keeps its emulator, cursor, and scrollback across tab
+switches, pane drags, and grid re-tiling; the node is relocated, never recreated.
+This is why the model insists a backing is decoupled from its pane. The same host
+also survives a **project switch**: each project's live layout is stashed in
+memory as the user moves between projects, so returning to a project restores its
+exact tabs with the shells still running and their scrollback intact, rather than
+killing them. Switching remains project-scoped — a project shows only its own
+tabs — and only deleting a project ends its shells.
+
+The tab strip carries the ordinary editor gestures. The same drag that moves a
+tab across panes also **reorders** it within a strip — dropped before the tab
+under the pointer, or at the end past the last one. A **right-click** opens a
+context menu with *Close*, *Close others*, and *Close tabs to the right*; each
+spares a non-closable tab (the current chat), just as the per-tab close button
+does. On a chat or terminal tab the menu also offers *Rename*, which edits the
+title in place — renaming a chat tab bound to a session renames the session, so
+it persists and the sidebar follows; a terminal's title is view-only state. A
+file or diff tab is not renamed (its title is the filename), but its tooltip
+shows the full workspace path; that menu instead offers *Copy relative path* and
+*Copy absolute path*: the relative form is the workspace-root path, while the
+absolute form is resolved in Go against the session's own workspace root — a
+worktree when the session has one — so it names the file the panel actually
+reads, and the copy goes through the native clipboard.
+
+In a grid, a pane's strip carries a **Maximize** control that floats that pane
+forward as an **overlay** for focused work — it rises on a scrim over the grid,
+which stays visible but dimmed behind it, so the depth reads as pulling the pane
+closer rather than swapping the view. A Restore control (or a click on the
+scrim) drops it back. It is a view overlay, not a layout change: the grid is
+untouched underneath, and the maximized pane is rendered only in the overlay —
+its grid cell holds a dimmed placeholder — so it is never mounted or slotted
+twice, its terminals keep their single slot as it floats, and no session is
+disturbed. Maximize is offered only when more than one pane is on screen, and
+clears itself if its pane closes or the grid collapses to one.
 
 A status bar spans the bottom of the workspace as a global surface — present on
-the Home screen and in a project alike, carrying the theme toggle everywhere and
-the workspace controls when a project is open. At its far right sits a single
-control that **toggles** between the two shapes so neither has to be built by
-hand: from one
+the Home screen and in a project alike. Its controls read left to right as
+status, then the workspace actions when a project is open, and the theme toggle
+pinned at the far right so its position never shifts as project controls appear
+and disappear. One of those workspace actions is a single icon button that
+**toggles** between the two shapes so neither has to be built by hand: from one
 tabbed pane it *tiles* every tab into its own pane laid out in a near-square grid
-(`tile`), and from a grid it *collapses* every pane back into one tabbed pane in
-reading order (`collapse`). Both are pure operations on the same model, and
-because backings are pane-independent a tiled terminal keeps its session exactly
-as a dragged one does.
+capped at three columns (`tile`), and from a grid it *collapses* every pane back
+into one tabbed pane in reading order (`collapse`). Both are pure operations on
+the same model, and because backings are pane-independent a tiled terminal keeps
+its session exactly as a dragged one does.
 
 ### 15.2 Deferred: resizable splitters
 

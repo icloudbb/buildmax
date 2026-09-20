@@ -46,6 +46,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Anchors the maximize overlay, which floats above the grid. */
+  position: relative;
 }
 
 /* A slim status bar pinned below the grid. Status text sits on the left; the
@@ -301,4 +303,112 @@
 .workspace-tabs__split:hover {
   opacity: 1;
   color: var(--color-text);
+}
+
+.workspace-tabs__split svg {
+  display: block;
+}
+
+/* Drag-to-reorder: a bar on the edge the dragged tab would drop against. */
+.workspace-tabs__tab--drop-before {
+  box-shadow: inset 2px 0 0 var(--color-accent, #4a9eff);
+}
+
+.workspace-tabs__tab--drop-after {
+  box-shadow: inset -2px 0 0 var(--color-accent, #4a9eff);
+}
+
+/* Tab context menu. It reuses .context-menu (see sidebar.css) for its frame; the
+   backdrop catches the next click anywhere to dismiss it, and it is positioned
+   at the pointer via an inline fixed top/left. */
+.context-menu__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+}
+
+.context-menu--tab {
+  z-index: 301;
+}
+
+.context-menu__divider {
+  height: 1px;
+  margin: 0.25rem 0.5rem;
+  background: var(--color-border);
+}
+
+.context-menu__item:disabled {
+  color: var(--color-text-subtle);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.context-menu__item:disabled:hover {
+  background: none;
+}
+
+/* Inline rename input, sized to sit in place of a tab's title (chat/terminal). */
+.workspace-tabs__tab-rename {
+  min-width: 0;
+  width: 8rem;
+  margin: 0 0.15rem;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: 4px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.workspace-tabs__tab-rename:focus {
+  outline: none;
+  border-color: var(--color-accent, #4a9eff);
+}
+
+/* Maximize as an overlay: the pane floats above the grid, which stays visible
+   but dimmed behind a scrim, giving a sense of the pane being pulled forward. */
+.workspace-maximize-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  padding: 3%;
+  background: rgba(0, 0, 0, 0.4);
+  animation: workspace-maximize-fade 0.12s ease-out;
+}
+
+.workspace-maximize-overlay__card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-bg);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+  animation: workspace-maximize-zoom 0.12s ease-out;
+}
+
+/* The floated pane fills its card and drops the grid's split border. */
+.workspace-maximize-overlay__card .workspace-pane {
+  flex: 1;
+  min-height: 0;
+  border: none;
+}
+
+/* The maximized pane's grid cell: a dimmed placeholder that holds its space so
+   the grid keeps its shape behind the overlay. */
+.workspace-pane--placeholder {
+  background: var(--color-bg-muted);
+  opacity: 0.5;
+}
+
+@keyframes workspace-maximize-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes workspace-maximize-zoom {
+  from { transform: scale(0.96); }
+  to { transform: scale(1); }
 }

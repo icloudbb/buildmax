@@ -59,3 +59,33 @@ export function pinTab(state, key) {
 export function activeTab(state) {
   return state.tabs.find((t) => t.key === state.activeKey) ?? null;
 }
+
+// insertTab places tab immediately before the tab keyed beforeKey — or at the
+// end when beforeKey is null or not found — and activates it. A tab already in
+// the strip is moved, not duplicated, so a drag can reorder it in place.
+export function insertTab(state, tab, beforeKey = null) {
+  const rest = state.tabs.filter((t) => t.key !== tab.key);
+  const idx = beforeKey == null ? -1 : rest.findIndex((t) => t.key === beforeKey);
+  const at = idx === -1 ? rest.length : idx;
+  return { tabs: [...rest.slice(0, at), tab, ...rest.slice(at)], activeKey: tab.key };
+}
+
+// closeOthers keeps the tab keyed key (which becomes active) and drops the rest —
+// the tab-strip "Close others" action. A non-closable tab (closable === false,
+// e.g. the current chat) is kept regardless, mirroring the per-tab close button.
+export function closeOthers(state, key) {
+  if (!state.tabs.some((t) => t.key === key)) return state;
+  const tabs = state.tabs.filter((t) => t.key === key || t.closable === false);
+  return { tabs, activeKey: key };
+}
+
+// closeToRight drops every closable tab after the one keyed key. The active tab
+// stays active when it survives, otherwise key does — the "Close tabs to the
+// right" action. Non-closable tabs to the right are kept.
+export function closeToRight(state, key) {
+  const idx = state.tabs.findIndex((t) => t.key === key);
+  if (idx === -1) return state;
+  const tabs = state.tabs.filter((t, i) => i <= idx || t.closable === false);
+  const activeKey = tabs.some((t) => t.key === state.activeKey) ? state.activeKey : key;
+  return { tabs, activeKey };
+}
