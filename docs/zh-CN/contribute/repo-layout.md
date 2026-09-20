@@ -244,6 +244,7 @@ internal/
 │   ├── localprojectstore/ 本地 Project 文件后端：bundle、可重建的
 │   │                   目录投影，以及写者锁
 │   ├── locallaunchpadstore/ 桌面端 Launchpad（快速启动应用）的 JSON 文件后端
+│   ├── localschedulehistorystore/ 桌面端定时任务的执行历史（每次触发及其创建的会话）
 │   ├── localschedulestore/ 桌面端本地定时任务的 JSON 文件后端
 │   ├── localterminalsnapshotstore/ 桌面端终端缓冲快照（重启后恢复）的存储后端
 │   ├── trace/          持久化的 run-trace 记录器（有边界、经脱敏的 JSONL）

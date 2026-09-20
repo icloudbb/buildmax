@@ -27,21 +27,22 @@ var ErrNotFound = errors.New("localschedulestore: task not found")
 
 // Record is one local scheduled task. Times are stored in UTC.
 type Record struct {
-	ID        string `json:"id"`
-	Name      string `json:"name,omitempty"`
-	ProjectID string `json:"project_id"`
-	Prompt    string `json:"prompt"`
-	CronExpr  string `json:"cron_expr"`
-	Timezone  string `json:"timezone"`
-	Enabled   bool   `json:"enabled"`
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+	// WorkingDir is the directory the fired agent runs in. Empty means the
+	// user's home directory (resolved at fire time), so a task needs no project.
+	WorkingDir string `json:"working_dir"`
+	Prompt     string `json:"prompt"`
+	// Model is the model each fire runs under. Empty means the app's default.
+	Model    string `json:"model,omitempty"`
+	CronExpr string `json:"cron_expr"`
+	Timezone string `json:"timezone"`
+	Enabled  bool   `json:"enabled"`
 	// NextFireAt is the next UTC instant the task is due. The tick loop fires a
 	// task when this is not after now.
 	NextFireAt time.Time `json:"next_fire_at"`
 	// LastFireAt is the last UTC instant the task fired, zero before the first.
 	LastFireAt time.Time `json:"last_fire_at"`
-	// LastSessionID is the chat session the most recent fire created, for the UI
-	// to link to.
-	LastSessionID string `json:"last_session_id,omitempty"`
 	// ConsecutiveFailures counts fires that could not start a run in a row; the
 	// caller pauses a task once it crosses its runaway threshold.
 	ConsecutiveFailures int       `json:"consecutive_failures"`

@@ -51,6 +51,15 @@ func resolveWorkspace(projectID, sessionID string) (string, error) {
 			return loaded.Meta.Workspace, nil
 		}
 	}
+	// A projectless session (a scheduled run) has no Project to fall back to; its
+	// directory is the session's own workspace, or the user's home before its
+	// first turn stamps one.
+	if projectID == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			return home, nil
+		}
+		return "", fmt.Errorf("no workspace for session %s", sessionID)
+	}
 	proj, err := projectManager().Store().Get(context.Background(), projectID)
 	if err != nil {
 		return "", err

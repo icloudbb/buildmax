@@ -35,6 +35,10 @@ type desktopRun struct {
 	// onStart announces the run before its first output, or is nil for a
 	// foreground run, which has nothing to announce.
 	onStart func(sess *agentapp.SessionContext)
+	// onDone records how a background run ended (scheduled fires stamp the run's
+	// history row); nil for a foreground run, whose result reaches the chat tab
+	// through the stream events instead.
+	onDone func(err error)
 }
 
 func (r *desktopRun) RunOpts() agentapp.RunPromptOpts {
@@ -76,6 +80,9 @@ func (r *desktopRun) Dequeued(next string, snapshot []string) {
 }
 
 func (r *desktopRun) Done(out agentapp.RunResult, err error) {
+	if r.onDone != nil {
+		r.onDone(err)
+	}
 	if err != nil {
 		r.app.emit(r.ctx, eventStreamError, &StreamErrorPayload{SessionID: r.sessionID, Message: err.Error()})
 		return

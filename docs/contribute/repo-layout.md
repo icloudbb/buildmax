@@ -262,6 +262,7 @@ internal/
 │   ├── localprojectstore/ Local Project file backend: the bundle, the
 │   │                   rebuildable catalog projection, and the writer lock
 │   ├── locallaunchpadstore/ Desktop's launchpad (quick-launch apps) JSON file backend
+│   ├── localschedulehistorystore/ Desktop's scheduled-task run history (fires and the sessions they created)
 │   ├── localschedulestore/ Desktop's local scheduled-task JSON file backend
 │   ├── localterminalsnapshotstore/ Desktop's terminal buffer snapshots (restore on restart)
 │   ├── trace/          Durable run-trace recorder (bounded, redacted JSONL)

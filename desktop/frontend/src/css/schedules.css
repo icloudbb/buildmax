@@ -19,6 +19,13 @@
   gap: 1rem;
 }
 
+.page-schedules__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 .page-schedules__title {
   margin: 0;
   font-size: 1.35rem;
@@ -264,6 +271,130 @@
   padding-top: 0.9rem;
   font-size: 0.85rem;
   color: var(--color-text-subtle);
+}
+
+/* Left column: recent run history, each row opening its conversation. */
+.page-schedules__runs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.6rem;
+}
+
+.page-schedules__run {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.page-schedules__run:hover:not(:disabled) {
+  background: var(--color-surface-hover, rgba(127, 127, 127, 0.1));
+}
+
+.page-schedules__run:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.page-schedules__run-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-schedules__run-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.page-schedules__run-status {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.page-schedules__run-status--ok {
+  color: var(--color-success, #2e7d32);
+}
+
+.page-schedules__run-status--failed {
+  color: var(--color-danger, #c62828);
+}
+
+.page-schedules__run-status--running {
+  color: var(--color-text-muted);
+}
+
+/* Working directory line on a task card. */
+.page-schedules__dir {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.page-schedules__dir-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.page-schedules__dir-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Cron preview inside the create/edit modal. */
+.page-schedules__preview {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.page-schedules__preview-label {
+  font-weight: 600;
+}
+
+.page-schedules__preview ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.page-schedules__preview-error {
+  color: var(--color-danger, #c62828);
+}
+
+.page-schedules__preview-hint {
+  color: var(--color-text-subtle);
+}
+
+/* Run-detail modal: the fired run's conversation in the full chat UI. The
+   embedded ChatSession (.page-chat) fills a fixed height so its thread scrolls
+   and its composer, model picker, and context gauge stay pinned below. */
+.schedule-run-chat {
+  display: flex;
+  flex-direction: column;
+  height: 65vh;
+  min-height: 20rem;
+}
+
+.schedule-run-chat .page-chat {
+  flex: 1;
+  min-height: 0;
 }
 
 /* Sidebar entry: a first-class nav item above the Projects list. */

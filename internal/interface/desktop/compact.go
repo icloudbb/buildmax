@@ -28,13 +28,10 @@ type CompactResultPayload struct {
 // Desktop holds no session between calls, so this opens the session, compacts,
 // and closes it. The frontend reloads the thread and run status afterwards.
 func (a *App) CompactProjectSession(projectID, sessionID string) (CompactResultPayload, error) {
-	if projectID == "" {
-		return CompactResultPayload{}, fmt.Errorf("project ID required")
-	}
 	if sessionID == "" {
 		return CompactResultPayload{}, fmt.Errorf("no session is open")
 	}
-	ag, err := a.agentAppForProject(projectID)
+	ag, err := a.resolveSessionApp(projectID, sessionID)
 	if err != nil {
 		return CompactResultPayload{}, err
 	}

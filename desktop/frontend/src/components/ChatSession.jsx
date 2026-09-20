@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { ChatThread } from '@buildmax/gui';
-import { formatToolArgs, shortToolArgs, toolDisplayName } from '../lib/format';
-import { addLiveToolCall, addLiveToolResult, appendAssistantForNextLLM, buildToolResultMap, mergeRunStatus } from '../lib/messages';
+import { shortToolArgs } from '../lib/format';
+import { addLiveToolCall, addLiveToolResult, appendAssistantForNextLLM, mergeRunStatus } from '../lib/messages';
+import { messageThreadItems } from '../lib/threadItems';
 import { EventsOn } from '../lib/wailsRuntime';
 import { MarkdownMessage } from './MarkdownMessage';
 import { InfoPanel } from './InfoPanel';
@@ -79,9 +80,11 @@ export function ChatSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, app]);
 
-  // Read the run status and queue for this session when it settles.
+  // Read the run status and queue for this session when it settles. A scheduled
+  // run opened from the Schedules view has no project but does have a session, so
+  // this runs whenever there is an app — the backend resolves the host by session.
   useEffect(() => {
-    if (!app || !projectId) { setRunStatus(null); return; }
+    if (!app || (!projectId && !sessionId)) { setRunStatus(null); return; }
     app.GetRunStatus(projectId, sessionId || '')
       .then((status) => setRunStatus(status ?? null))
       .catch(() => setRunStatus(null));
@@ -234,8 +237,9 @@ export function ChatSession({
   }, [ownEvent, app, tab, onSessionAdopted, onSessionsChanged, onTitle]);
 
   // Pull parked background deliveries whenever this session is idle and on screen.
+  // A projectless scheduled session has no jobs, so skip it entirely.
   useEffect(() => {
-    if (loading || !sessionId || !app?.DeliverNextJobEvent) return undefined;
+    if (loading || !sessionId || !projectId || !app?.DeliverNextJobEvent) return undefined;
     const pull = () => { app.DeliverNextJobEvent(projectId, sessionId).catch(() => {}); };
     pull();
     const unsub = EventsOn(EV_JOB_DELIVERY_PENDING, (p) => {
@@ -338,58 +342,7 @@ export function ChatSession({
     }
   }
 
-  const toolResults = buildToolResultMap(messages);
-  const threadItems = messages.flatMap((m, i) => {
-    if (m.role === 'tool') return [];
-    const toolCallLines = (m.tool_calls || []).map((tc, j) => {
-      const result = toolResults.get(tc.id);
-      const state = result ? (result.ok ? 'success' : 'error') : 'pending';
-      const args = shortToolArgs(tc.arguments);
-      return (
-        <details key={tc.id || j} className={`page-chat__tool-call page-chat__tool-call--${state}`}>
-          <summary>
-            <span className="page-chat__tool-call-dot" aria-hidden />
-            <span className="page-chat__tool-call-name">{toolDisplayName(tc.name)}</span>
-            {args && <span className="page-chat__tool-call-args">({args})</span>}
-          </summary>
-          {tc.arguments && (
-            <pre className="page-chat__tool-call-block">{formatToolArgs(tc.arguments)}</pre>
-          )}
-          {result?.content && (
-            <div className="page-chat__tool-call-result">
-              <MarkdownMessage content={result.content} />
-            </div>
-          )}
-        </details>
-      );
-    });
-    if (m.source) {
-      return [{
-        id: `message-${i}`,
-        role: m.role,
-        label: 'Background',
-        hideAvatar: true,
-        body: (
-          <details className="page-chat__msg-content">
-            <summary>⟳ {m.source}</summary>
-            {m.content ? <MarkdownMessage content={m.content} /> : null}
-          </details>
-        ),
-      }];
-    }
-    return [{
-      id: `message-${i}`,
-      role: m.role,
-      label: m.role === 'user' ? 'You' : m.role,
-      hideAvatar: true,
-      body: (
-        <div className="page-chat__msg-content">
-          {m.content ? <MarkdownMessage content={m.content} /> : null}
-          {toolCallLines}
-        </div>
-      ),
-    }];
-  });
+  const threadItems = messageThreadItems(messages);
 
   if (historyNotice) {
     threadItems.push({

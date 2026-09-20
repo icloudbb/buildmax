@@ -29,7 +29,7 @@ func TestAddGetListRoundTrip(t *testing.T) {
 	r := Record{
 		ID:         "task1",
 		Name:       "Daily",
-		ProjectID:  "proj1",
+		WorkingDir: "/tmp/proj1",
 		Prompt:     "summarize",
 		CronExpr:   "0 9 * * *",
 		Timezone:   "UTC",
@@ -71,12 +71,12 @@ func TestAddRejectsDuplicateID(t *testing.T) {
 func TestUpdateIsFieldScoped(t *testing.T) {
 	s := newTestStore(t)
 	now := time.Now().UTC()
-	if err := s.Add(Record{ID: "t", ProjectID: "p", Enabled: true, CreatedAt: now}); err != nil {
+	if err := s.Add(Record{ID: "t", WorkingDir: "/tmp/p", Enabled: true, CreatedAt: now}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	// Two updates touching different fields must both survive.
-	if _, err := s.Update("t", func(r *Record) { r.LastSessionID = "sess-1" }); err != nil {
-		t.Fatalf("Update session: %v", err)
+	if _, err := s.Update("t", func(r *Record) { r.Name = "renamed" }); err != nil {
+		t.Fatalf("Update name: %v", err)
 	}
 	if _, err := s.Update("t", func(r *Record) { r.Enabled = false }); err != nil {
 		t.Fatalf("Update enabled: %v", err)
@@ -85,7 +85,7 @@ func TestUpdateIsFieldScoped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.LastSessionID != "sess-1" || got.Enabled {
+	if got.Name != "renamed" || got.Enabled {
 		t.Fatalf("field-scoped update lost data: %+v", got)
 	}
 }

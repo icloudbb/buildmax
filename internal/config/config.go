@@ -247,6 +247,13 @@ func ScheduledTasksPath() string {
 	return filepath.Join(DataDir(), "scheduled-tasks.json")
 }
 
+// ScheduleRunsPath returns the path to the Desktop app's scheduled-task run
+// history file under DataDir. It records each fire and the session it created,
+// and is Desktop-only: the CLI and Server do not read it.
+func ScheduleRunsPath() string {
+	return filepath.Join(DataDir(), "schedule-runs.json")
+}
+
 // LaunchpadPath returns the path to the Desktop app's launchpad file under
 // DataDir. It stores the user's custom quick-launch application entries and is
 // Desktop-only: the CLI and Server do not read it.
