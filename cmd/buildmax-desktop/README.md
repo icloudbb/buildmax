@@ -10,7 +10,7 @@ Native desktop application for BuildMax (Wails + Go). Provides a local, first-ha
   same version used by `go.mod`:
 
   ```bash
-  go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+  go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
   ```
 
   Ensure `$HOME/go/bin` (or `$GOPATH/bin`) is in your `PATH`.
@@ -31,7 +31,7 @@ From the **repo root**:
 Or from this directory, after building `gui`:
 
 ```bash
-go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -tags desktop
+go run github.com/wailsapp/wails/v2/cmd/wails@v2.16.0 build -tags desktop
 ```
 
 Output: `build/bin/buildmax-desktop` (or platform-specific path under `build/`).
@@ -61,7 +61,7 @@ This starts the already-built binary from `bin/`. Run `./make build` first.
 For Wails/Vite hot reload, run from this directory:
 
 ```bash
-go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 dev -tags desktop
+go run github.com/wailsapp/wails/v2/cmd/wails@v2.16.0 dev -tags desktop
 ```
 
 This starts the Vite dev server and opens the app window with hot reload.

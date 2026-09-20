@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.15.0"
+const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.16.0"
 
 // The prompt-cache qualification suite's variables, mirrored here because mk
 // imports nothing from internal. internal/config/env_spec.go is the source of
