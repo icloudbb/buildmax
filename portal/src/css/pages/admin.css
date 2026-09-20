@@ -192,6 +192,43 @@
   overflow-wrap: anywhere;
 }
 
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border-color);
+  border-radius: 0.6rem;
+  overflow: hidden;
+}
+
+.admin-table thead th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--panel-bg);
+}
+
+.admin-table tbody td {
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  color: var(--color-text);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table__muted {
+  color: var(--color-text-muted);
+}
+
 .admin-pager {
   display: flex;
   align-items: center;

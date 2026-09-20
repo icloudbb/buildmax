@@ -347,18 +347,18 @@ func (s *Store) personalSpaceIDForUser(ctx context.Context, userID string) (stri
 	return space.ID, nil
 }
 
-// ListAllSpaces implements corespace.Store.
-func (s *Store) ListAllSpaces(ctx context.Context, query string, limit, offset int) ([]corespace.Space, int, error) {
+// ListTeamSpaces implements corespace.Store.
+func (s *Store) ListTeamSpaces(ctx context.Context, query string, limit, offset int) ([]corespace.Space, int, error) {
 	limit, offset = clampPage(limit, offset)
 	var total int64
-	countQ := s.db.WithContext(ctx).Model(&spaceRow{})
+	countQ := s.db.WithContext(ctx).Model(&spaceRow{}).Where("personal_for_user_id IS NULL")
 	if query != "" {
 		countQ = countQ.Where("name LIKE ?", "%"+query+"%")
 	}
 	if err := countQ.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	q := s.spaceSelect(ctx)
+	q := s.spaceSelect(ctx).Where("space.personal_for_user_id IS NULL")
 	if query != "" {
 		q = q.Where("space.name LIKE ?", "%"+query+"%")
 	}

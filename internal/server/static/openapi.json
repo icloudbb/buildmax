@@ -2667,7 +2667,7 @@
     "/api/admin/spaces": {
       "get": {
         "tags": ["admin"],
-        "summary": "List every space in the deployment",
+        "summary": "List the deployment's team spaces (personal spaces are excluded)",
         "security": [{"bearerAuth": []}],
         "parameters": [
           {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},

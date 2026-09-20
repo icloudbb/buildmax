@@ -7,6 +7,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	"github.com/icloudbb/buildmax/internal/util"
 )
@@ -144,5 +145,43 @@ func TestPluginActivationIsScopedToItsSpace(t *testing.T) {
 	}
 	if !after.Enabled {
 		t.Errorf("owner's activation was suspended by another space")
+	}
+}
+
+// TestListTeamSpacesExcludesPersonal proves the admin-only listing returns
+// collaborative spaces and never an account's personal space: creating a user
+// mints a personal "My Space", which is absent even from a search for its own
+// name, while the explicitly created team space is listed newest-first.
+func TestListTeamSpacesExcludesPersonal(t *testing.T) {
+	s, ctx := newTestStore(t)
+	owner := newTestUser(t, s, "team-only-owner") // also mints this user's personal space
+	teamSpace := newTestSpace(t, s, owner)
+
+	// The just-created team space is newest, so it heads the first page.
+	spaces, _, err := s.ListTeamSpaces(ctx, "", 50, 0)
+	if err != nil {
+		t.Fatalf("ListTeamSpaces: %v", err)
+	}
+	var found bool
+	for _, space := range spaces {
+		if space.PersonalForUserID != nil {
+			t.Errorf("personal space listed: %+v", space)
+		}
+		if space.ID == teamSpace {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("team space %s not on the first page of %d spaces", teamSpace, len(spaces))
+	}
+
+	// Searching the personal space's own name still finds nothing: the exclusion
+	// is the query's, not an accident of the name filter.
+	personal, total, err := s.ListTeamSpaces(ctx, corespace.DefaultPersonalName, 50, 0)
+	if err != nil {
+		t.Fatalf("ListTeamSpaces(personal name): %v", err)
+	}
+	if total != 0 || len(personal) != 0 {
+		t.Errorf("searching %q returned %d of %d spaces, want none", corespace.DefaultPersonalName, len(personal), total)
 	}
 }

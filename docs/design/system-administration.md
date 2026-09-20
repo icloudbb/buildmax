@@ -294,7 +294,7 @@ exactly the confusion §4 exists to prevent.
 | `DELETE /api/admin/users/{user_id}/sessions` | Revokes every refresh session, returns the count | — |
 | `GET /api/admin/system` | Version, commit, schema migrations applied, readiness checks and their status, worker runner mode, signup and sandbox settings, run counts by status | Anything with a credential in it |
 | `GET /api/admin/config` | The effective configuration, redacted, plus computed warnings | Every secret — **presence only**. Not a length, not a prefix, not a hash: each of those narrows a search for someone who has the response and wants the secret |
-| `GET /api/admin/spaces` | Spaces with member count, quota tier, personal-space flag, created at | Space contents of any kind |
+| `GET /api/admin/spaces` | Team spaces with member count, quota tier, created at; personal spaces excluded | Space contents of any kind, and every account's personal space |
 | `GET /api/admin/spaces/{space_id}` | The same, plus members and roles, plus usage against the tier | Issues, conversations, artifacts, files, traces |
 | `GET /api/admin/audit-events` | The trail across every space, filtered by `space_id`, `actor_id`, `action`, `since`, `until`, paged | Anything the event does not already hold |
 | `POST /api/admin/llm/models` | Creates a model, encrypting a write-only credential | Credential material in the response |
