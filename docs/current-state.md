@@ -115,8 +115,9 @@ durable execution-plane concern.
 
 Desktop also has local scheduled tasks: a Schedules view (a first-class sidebar
 entry) where a user schedules a fixed prompt to run in a working directory —
-their home directory by default, so a task needs no project — on a standard cron
-expression and timezone, with a live preview of the expression's next fires. A
+their home directory by default, so a task needs no project — under a model they
+pick (or the default), on a standard cron expression and timezone, with a live
+preview of the expression's next fires. A
 resident tick loop fires due tasks in-process while the app is open — coalescing
 one missed fire on launch and pausing a task after repeated failures to start a
 run — and stores the tasks in `scheduled-tasks.json` under `BUILDMAX_HOME`. Each

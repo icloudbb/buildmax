@@ -33,9 +33,11 @@ type Record struct {
 	// user's home directory (resolved at fire time), so a task needs no project.
 	WorkingDir string `json:"working_dir"`
 	Prompt     string `json:"prompt"`
-	CronExpr   string `json:"cron_expr"`
-	Timezone   string `json:"timezone"`
-	Enabled    bool   `json:"enabled"`
+	// Model is the model each fire runs under. Empty means the app's default.
+	Model    string `json:"model,omitempty"`
+	CronExpr string `json:"cron_expr"`
+	Timezone string `json:"timezone"`
+	Enabled  bool   `json:"enabled"`
 	// NextFireAt is the next UTC instant the task is due. The tick loop fires a
 	// task when this is not after now.
 	NextFireAt time.Time `json:"next_fire_at"`

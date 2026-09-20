@@ -89,7 +89,7 @@ func TestCreateScheduledTaskValidates(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := a.CreateScheduledTask(tc.workingDir, "", tc.prompt, tc.cron, tc.timezone); err == nil {
+			if _, err := a.CreateScheduledTask(tc.workingDir, "", tc.prompt, tc.cron, tc.timezone, ""); err == nil {
 				t.Fatal("want validation error, got nil")
 			}
 		})

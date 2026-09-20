@@ -42,6 +42,7 @@ type ScheduledTaskPayload struct {
 	Name                string `json:"name"`
 	WorkingDir          string `json:"working_dir"`
 	Prompt              string `json:"prompt"`
+	Model               string `json:"model"`
 	CronExpr            string `json:"cron_expr"`
 	Timezone            string `json:"timezone"`
 	Enabled             bool   `json:"enabled"`
@@ -58,6 +59,7 @@ func scheduledTaskPayload(r schedstore.Record) ScheduledTaskPayload {
 		Name:                r.Name,
 		WorkingDir:          r.WorkingDir,
 		Prompt:              r.Prompt,
+		Model:               r.Model,
 		CronExpr:            r.CronExpr,
 		Timezone:            r.Timezone,
 		Enabled:             r.Enabled,
@@ -129,10 +131,11 @@ func (a *App) ListScheduledTasks() ([]ScheduledTaskPayload, error) {
 // cron expression, in the given IANA timezone (default UTC). An empty workingDir
 // means the user's home directory. It is enabled and its first fire is the next
 // cron slot after now.
-func (a *App) CreateScheduledTask(workingDir, name, prompt, cronExpr, timezone string) (ScheduledTaskPayload, error) {
+func (a *App) CreateScheduledTask(workingDir, name, prompt, cronExpr, timezone, model string) (ScheduledTaskPayload, error) {
 	prompt = strings.TrimSpace(prompt)
 	cronExpr = strings.TrimSpace(cronExpr)
 	timezone = strings.TrimSpace(timezone)
+	model = strings.TrimSpace(model)
 	if timezone == "" {
 		timezone = "UTC"
 	}
@@ -163,6 +166,7 @@ func (a *App) CreateScheduledTask(workingDir, name, prompt, cronExpr, timezone s
 		Name:       strings.TrimSpace(name),
 		WorkingDir: dir,
 		Prompt:     prompt,
+		Model:      model,
 		CronExpr:   cronExpr,
 		Timezone:   timezone,
 		Enabled:    true,
@@ -180,10 +184,11 @@ func (a *App) CreateScheduledTask(workingDir, name, prompt, cronExpr, timezone s
 // UpdateScheduledTask edits a task and enables or pauses it. Re-enabling or
 // changing the cron/timezone recomputes the next fire from now; re-enabling also
 // clears the failure count so a previously paused task gets a fresh runway.
-func (a *App) UpdateScheduledTask(id, workingDir, name, prompt, cronExpr, timezone string, enabled bool) (ScheduledTaskPayload, error) {
+func (a *App) UpdateScheduledTask(id, workingDir, name, prompt, cronExpr, timezone, model string, enabled bool) (ScheduledTaskPayload, error) {
 	prompt = strings.TrimSpace(prompt)
 	cronExpr = strings.TrimSpace(cronExpr)
 	timezone = strings.TrimSpace(timezone)
+	model = strings.TrimSpace(model)
 	if timezone == "" {
 		timezone = "UTC"
 	}
@@ -211,6 +216,7 @@ func (a *App) UpdateScheduledTask(id, workingDir, name, prompt, cronExpr, timezo
 		rec.Name = strings.TrimSpace(name)
 		rec.WorkingDir = dir
 		rec.Prompt = prompt
+		rec.Model = model
 		rec.CronExpr = cronExpr
 		rec.Timezone = timezone
 		rec.Enabled = enabled
@@ -495,6 +501,12 @@ func (a *App) fireScheduled(ctx context.Context, r schedstore.Record, key string
 		key:           key,
 		touchLastUsed: false,
 		onStart: func(sess *agentapp.SessionContext) {
+			// OnStart runs before the turn reads the model (resolveRunContext), so
+			// setting it on the open session here makes this fire use the task's
+			// chosen model; empty leaves the app default.
+			if r.Model != "" {
+				sess.SetModel(r.Model)
+			}
 			if err := runs.Add(histstore.Run{
 				ID:         runID,
 				ScheduleID: id,

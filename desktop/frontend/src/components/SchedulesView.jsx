@@ -9,7 +9,7 @@ const EV_SCHEDULE_UPDATE = 'desktop/schedule-update';
 // expectation so nobody counts on an overnight run with the app closed.
 const OPEN_APP_NOTE = 'Scheduled tasks run only while this app is open.';
 
-const emptyForm = { workingDir: '', name: '', prompt: '', cronExpr: '0 9 * * *', timezone: 'UTC' };
+const emptyForm = { workingDir: '', name: '', prompt: '', model: '', cronExpr: '0 9 * * *', timezone: 'UTC' };
 
 function formatWhen(value) {
   if (!value) return '—';
@@ -79,6 +79,8 @@ export function SchedulesView({ app }) {
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(null);
   const [previewError, setPreviewError] = useState(null);
+  const [models, setModels] = useState([]);
+  const [defaultModel, setDefaultModel] = useState('');
 
   const [openRunID, setOpenRunID] = useState(null);
 
@@ -101,6 +103,15 @@ export function SchedulesView({ app }) {
     const unsub = EventsOn(EV_SCHEDULE_UPDATE, () => refresh());
     return unsub;
   }, [refresh]);
+
+  // Load the available models when the form opens, for the model picker. The
+  // list is the same one the chat offers; an empty choice means the default.
+  useEffect(() => {
+    if (!formOpen || !app?.GetSlashModels) return;
+    app.GetSlashModels('', '')
+      .then((res) => { setModels(res?.models ?? []); setDefaultModel(res?.current ?? ''); })
+      .catch(() => { setModels([]); setDefaultModel(''); });
+  }, [formOpen, app]);
 
   // Preview the cron expression's next fires as the user types, so the cadence
   // is visible before saving. Debounced, and only while the form is open.
@@ -131,6 +142,7 @@ export function SchedulesView({ app }) {
       workingDir: task.working_dir ?? '',
       name: task.name ?? '',
       prompt: task.prompt ?? '',
+      model: task.model ?? '',
       cronExpr: task.cron_expr ?? '',
       timezone: task.timezone ?? 'UTC',
     });
@@ -167,11 +179,11 @@ export function SchedulesView({ app }) {
       if (editingID) {
         const cur = (tasks ?? []).find((t) => t.id === editingID);
         await app.UpdateScheduledTask(
-          editingID, form.workingDir, form.name, form.prompt, form.cronExpr, form.timezone,
+          editingID, form.workingDir, form.name, form.prompt, form.cronExpr, form.timezone, form.model,
           cur ? cur.enabled : true,
         );
       } else {
-        await app.CreateScheduledTask(form.workingDir, form.name, form.prompt, form.cronExpr, form.timezone);
+        await app.CreateScheduledTask(form.workingDir, form.name, form.prompt, form.cronExpr, form.timezone, form.model);
       }
       closeForm();
       refresh();
@@ -185,7 +197,7 @@ export function SchedulesView({ app }) {
   const toggle = async (task) => {
     try {
       await app.UpdateScheduledTask(
-        task.id, task.working_dir, task.name, task.prompt, task.cron_expr, task.timezone, !task.enabled,
+        task.id, task.working_dir, task.name, task.prompt, task.cron_expr, task.timezone, task.model, !task.enabled,
       );
       refresh();
     } catch (err) {
@@ -339,6 +351,20 @@ export function SchedulesView({ app }) {
                 placeholder="Morning summary"
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
+            </label>
+            <label className="page-schedules__field">
+              <span>Model</span>
+              <select
+                value={form.model}
+                onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+              >
+                <option value="">{defaultModel ? `Default (${defaultModel})` : 'Default'}</option>
+                {models.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    {m.provider_model && m.provider_model !== m.name ? `${m.name} — ${m.provider_model}` : m.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="page-schedules__field">
               <span>Prompt</span>

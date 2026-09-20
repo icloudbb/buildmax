@@ -21,6 +21,7 @@ function baseApp(tasks = [], runs = []) {
     UpdateScheduledTask: vi.fn(() => Promise.resolve({})),
     DeleteScheduledTask: vi.fn(() => Promise.resolve()),
     PreviewScheduledTask: vi.fn(() => Promise.resolve(['2026-01-02T09:00:00Z', '2026-01-03T09:00:00Z'])),
+    GetSlashModels: vi.fn(() => Promise.resolve({ current: 'Fast', models: [{ name: 'Fast' }, { name: 'Deep' }] })),
   };
 }
 
@@ -29,6 +30,7 @@ const sampleTask = {
   name: 'Morning',
   working_dir: '/home/me/work',
   prompt: 'summarize',
+  model: '',
   cron_expr: '0 9 * * *',
   timezone: 'UTC',
   enabled: true,
@@ -76,7 +78,24 @@ describe('SchedulesView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
 
     await waitFor(() =>
-      expect(app.CreateScheduledTask).toHaveBeenCalledWith('', '', 'do the thing', '0 9 * * *', 'UTC'),
+      expect(app.CreateScheduledTask).toHaveBeenCalledWith('', '', 'do the thing', '0 9 * * *', 'UTC', ''),
+    );
+  });
+
+  it('creates a task with a chosen model', async () => {
+    const app = baseApp([]);
+    render(<SchedulesView app={app} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'New Schedule' }));
+    await screen.findByPlaceholderText('What should the agent do each time?');
+    await waitFor(() => expect(app.GetSlashModels).toHaveBeenCalled());
+    fireEvent.change(screen.getByPlaceholderText('What should the agent do each time?'), {
+      target: { value: 'nightly' },
+    });
+    // Pick a specific model rather than the default.
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Deep' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
+    await waitFor(() =>
+      expect(app.CreateScheduledTask).toHaveBeenCalledWith('', '', 'nightly', '0 9 * * *', 'UTC', 'Deep'),
     );
   });
 
@@ -94,7 +113,7 @@ describe('SchedulesView', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
     await waitFor(() =>
       expect(app.UpdateScheduledTask).toHaveBeenCalledWith(
-        't1', '/home/me/work', 'Morning', 'summarize', '0 9 * * *', 'UTC', false,
+        't1', '/home/me/work', 'Morning', 'summarize', '0 9 * * *', 'UTC', '', false,
       ),
     );
   });
