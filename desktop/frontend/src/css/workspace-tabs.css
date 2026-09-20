@@ -340,3 +340,28 @@
 .context-menu__item:disabled:hover {
   background: none;
 }
+
+/* Inline rename input, sized to sit in place of a tab's title (chat/terminal). */
+.workspace-tabs__tab-rename {
+  min-width: 0;
+  width: 8rem;
+  margin: 0 0.15rem;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: 4px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.workspace-tabs__tab-rename:focus {
+  outline: none;
+  border-color: var(--color-accent, #4a9eff);
+}
+
+/* A maximized pane fills the workspace; it carries no split border since the
+   grid frame is hidden while it is up. */
+.workspace-grid--maximized .workspace-pane {
+  border: none;
+}

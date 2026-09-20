@@ -24,13 +24,24 @@ function dropBeforeKey(e, tabs, index) {
   return tabs[index + 1]?.key ?? null;
 }
 
+// A file or diff tab's title is its filename; its tooltip is the full workspace
+// path (its ref) so the whole location is visible on hover. Other kinds show
+// their title in both.
+function tabTooltip(t) {
+  return (t.kind === 'file' || t.kind === 'diff') ? (t.ref || t.title) : t.title;
+}
+
 export function TabBar({
-  tabs, activeKey, onSelect, onClose, onPin, onSplitRight, onSplitDown,
-  onTabDragStart, onTabDragEnd, onTabDrop, onCloseOthers, onCloseRight, onCopyPath,
+  tabs, activeKey, onSelect, onClose, onPin, onRename, onSplitRight, onSplitDown,
+  onToggleMaximize, maximized, onTabDragStart, onTabDragEnd, onTabDrop,
+  onCloseOthers, onCloseRight, onCopyPath,
 }) {
-  // The open context menu ({ key, x, y }) and the live drop indicator ({ key,
-  // after }) while a tab is dragged over the strip. Both are local view state.
+  // The open context menu ({ key, x, y }), the tab being renamed inline and its
+  // draft text, and the live drop indicator ({ key, after }) while a tab is
+  // dragged over the strip. All local view state.
   const [menu, setMenu] = useState(null);
+  const [renaming, setRenaming] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
   const [hint, setHint] = useState(null);
   if (tabs.length === 0) return null;
 
@@ -40,6 +51,13 @@ export function TabBar({
   const menuIdx = menuTab ? tabs.findIndex((t) => t.key === menuTab.key) : -1;
   const rightClosable = menuTab && tabs.slice(menuIdx + 1).some((t) => t.closable !== false);
   const canCopyPath = menuTab && (menuTab.kind === 'file' || menuTab.kind === 'diff');
+  const canRename = menuTab && (menuTab.kind === 'chat' || menuTab.kind === 'terminal');
+
+  const startRename = (t) => { setRenaming(t.key); setRenameValue(t.title); };
+  const commitRename = () => {
+    if (renaming) onRename?.(renaming, renameValue);
+    setRenaming(null);
+  };
 
   return (
     <div className="workspace-tabs__bar" role="tablist" aria-label="Open tabs">
@@ -77,18 +95,32 @@ export function TabBar({
             setMenu({ key: t.key, x: e.clientX, y: e.clientY });
           }}
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={t.key === activeKey}
-            className="workspace-tabs__tab-btn"
-            title={t.title}
-            onClick={() => onSelect(t.key)}
-            onDoubleClick={() => onPin?.(t.key)}
-          >
-            <span className="workspace-tabs__tab-icon" aria-hidden>{KIND_ICON[t.kind] ?? ''}</span>
-            <span className="workspace-tabs__tab-title">{t.title}</span>
-          </button>
+          {renaming === t.key ? (
+            <input
+              className="workspace-tabs__tab-rename"
+              value={renameValue}
+              autoFocus
+              onChange={(e) => setRenameValue(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename();
+                if (e.key === 'Escape') setRenaming(null);
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={t.key === activeKey}
+              className="workspace-tabs__tab-btn"
+              title={tabTooltip(t)}
+              onClick={() => onSelect(t.key)}
+              onDoubleClick={() => onPin?.(t.key)}
+            >
+              <span className="workspace-tabs__tab-icon" aria-hidden>{KIND_ICON[t.kind] ?? ''}</span>
+              <span className="workspace-tabs__tab-title">{t.title}</span>
+            </button>
+          )}
           {t.closable !== false && (
             <button
               type="button"
@@ -101,8 +133,19 @@ export function TabBar({
           )}
         </div>
       ))}
-      {(onSplitRight || onSplitDown) && (
+      {(onSplitRight || onSplitDown || onToggleMaximize) && (
         <div className="workspace-tabs__splits">
+          {onToggleMaximize && (
+            <button
+              type="button"
+              className="workspace-tabs__split"
+              title={maximized ? 'Restore grid' : 'Maximize pane'}
+              aria-label={maximized ? 'Restore grid' : 'Maximize pane'}
+              onClick={onToggleMaximize}
+            >
+              {maximized ? '⤡' : '⤢'}
+            </button>
+          )}
           {onSplitRight && (
             <button
               type="button"
@@ -131,6 +174,9 @@ export function TabBar({
         <>
           <div className="context-menu__backdrop" onClick={closeMenu} onContextMenu={(e) => { e.preventDefault(); closeMenu(); }} />
           <div className="context-menu context-menu--tab" style={{ position: 'fixed', top: menu.y, left: menu.x }} role="menu">
+            {canRename && (
+              <button type="button" className="context-menu__item" onClick={() => { const t = menuTab; closeMenu(); startRename(t); }}>Rename</button>
+            )}
             {menuTab.closable !== false && (
               <button type="button" className="context-menu__item" onClick={() => { closeMenu(); onClose(menuTab.key); }}>Close</button>
             )}

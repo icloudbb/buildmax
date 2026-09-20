@@ -83,6 +83,38 @@ describe('TabBar', () => {
       expect(onCopyPath).toHaveBeenCalledWith('file:a.go', true);
     });
 
+    it('offers Rename only on chat and terminal tabs and reports the edit', () => {
+      const onRename = vi.fn();
+      render(<TabBar tabs={tabs} activeKey="chat:s1" onSelect={() => {}} onClose={() => {}} onRename={onRename} />);
+      openMenu(/a\.go/);
+      expect(screen.queryByText('Rename')).toBeNull(); // file tab: no rename
+      openMenu(/New Chat/);
+      fireEvent.click(screen.getByText('Rename'));
+      const input = screen.getByDisplayValue('New Chat');
+      fireEvent.change(input, { target: { value: 'Plan' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(onRename).toHaveBeenCalledWith('chat:s1', 'Plan');
+    });
+  });
+
+  describe('tooltip and maximize', () => {
+    it('shows the full path as the tooltip for a file tab', () => {
+      const withPath = [{ key: 'file:src/main.go', kind: 'file', ref: 'src/main.go', title: 'main.go' }];
+      render(<TabBar tabs={withPath} activeKey="file:src/main.go" onSelect={() => {}} onClose={() => {}} />);
+      expect(screen.getByRole('tab', { name: /main\.go/ }).getAttribute('title')).toBe('src/main.go');
+    });
+
+    it('toggles maximize and reflects the maximized state', () => {
+      const onToggleMaximize = vi.fn();
+      const { rerender } = render(<TabBar tabs={tabs} activeKey="chat:s1" onSelect={() => {}} onClose={() => {}} onToggleMaximize={onToggleMaximize} maximized={false} />);
+      fireEvent.click(screen.getByLabelText('Maximize pane'));
+      expect(onToggleMaximize).toHaveBeenCalled();
+      rerender(<TabBar tabs={tabs} activeKey="chat:s1" onSelect={() => {}} onClose={() => {}} onToggleMaximize={onToggleMaximize} maximized />);
+      expect(screen.getByLabelText('Restore grid')).toBeTruthy();
+    });
+  });
+
+  describe('drag reorder', () => {
     it('reports the tab to drop before when a drag lands on its left half', () => {
       const onTabDrop = vi.fn();
       render(<TabBar tabs={tabs} activeKey="chat:s1" onSelect={() => {}} onClose={() => {}} onTabDrop={onTabDrop} onTabDragStart={() => {}} />);
