@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
+  closeOtherPaneTabs, closeRightPaneTabs,
   splitRight, splitDown, moveTab, focusedPane, allTabs, pruneForPersist, isWorkspace,
   collapse, tile,
 } from './panes';
@@ -94,6 +95,42 @@ describe('panes grid model', () => {
     ws = moveTab(ws, 'pane-1', 'file:a.go', 'pane-1');
     expect(paneCount(ws)).toBe(1);
     expect(ws.rows).toEqual(before.rows);
+  });
+
+  it('reorders a tab within its pane by dropping it before another', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = open(ws, 'b.go');
+    ws = open(ws, 'c.go'); // pane-1: a, b, c
+    ws = moveTab(ws, 'pane-1', 'file:c.go', 'pane-1', 'file:a.go');
+    expect(ws.rows[0].panes[0].tabs.map((t) => t.key)).toEqual(['file:c.go', 'file:a.go', 'file:b.go']);
+    expect(ws.rows[0].panes[0].activeKey).toBe('file:c.go');
+  });
+
+  it('inserts a cross-pane move at the drop position', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = open(ws, 'b.go'); // pane-1: a, b
+    ws = splitRight(ws); // pane-2 empty, focused
+    ws = open(ws, 'x.go');
+    ws = open(ws, 'y.go'); // pane-2: x, y
+    ws = moveTab(ws, 'pane-1', 'file:a.go', 'pane-2', 'file:y.go');
+    expect(ws.rows[0].panes[1].tabs.map((t) => t.key)).toEqual(['file:x.go', 'file:a.go', 'file:y.go']);
+  });
+
+  it('closes other tabs in a pane, keeping the anchor', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = open(ws, 'b.go');
+    ws = open(ws, 'c.go');
+    ws = closeOtherPaneTabs(ws, 'pane-1', 'file:b.go');
+    expect(ws.rows[0].panes[0].tabs.map((t) => t.key)).toEqual(['file:b.go']);
+    expect(ws.focused).toBe('pane-1');
+  });
+
+  it('closes tabs to the right in a pane', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = open(ws, 'b.go');
+    ws = open(ws, 'c.go');
+    ws = closeRightPaneTabs(ws, 'pane-1', 'file:a.go');
+    expect(ws.rows[0].panes[0].tabs.map((t) => t.key)).toEqual(['file:a.go']);
   });
 
   it('pins a preview tab in its pane', () => {
