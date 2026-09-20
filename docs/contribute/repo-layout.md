@@ -158,8 +158,8 @@ internal/
 │   │                   against
 │   ├── conversation/   The durable Conversation and its messages: what Tier 1
 │   │                   orchestrates and stores, distinct from a local session
-│   ├── workflow/       A space's reusable linear plan, its revisions, and the
-│   │                   run and step-run state its execution moves through
+│   ├── workflow/       A space's reusable graph plan, its revisions, and the
+│   │                   run and node-run state its execution moves through
 │   ├── agentdef/       The Agent a space defined and its revisions -- what an
 │   │                   Agent is configured to be, not the loop that runs it
 │   ├── issue/          The Issue, its hierarchy, and its owner/executor

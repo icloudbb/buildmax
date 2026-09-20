@@ -9,7 +9,7 @@ product.
 | Surface | Binary / directory | What it is for |
 |---|---|---|
 | **CLI / TUI** | `buildmax` | One user, one local directory, one terminal |
-| **Desktop** | Wails app, built from source | The same local capability with a richer UI |
+| **Desktop** | Wails app, unsigned release download or source build | The same local capability with a richer UI |
 | **Portal** | `buildmax-server` + `portal/` | A space: shared work, background execution, results |
 
 All three run the **same agent loop, the same tools, and the same MCP, skill,
@@ -85,8 +85,8 @@ usage, see [Portal overview](portal-overview.md).
 | **Conversation** | How a user talks to the system. This is the front door. |
 | **Issue** | The user-facing unit of work — what someone actually wants done. |
 | **Agent** | A saved agent definition a space can reuse. |
-| **Workflow** | A reusable execution plan; currently a linear sequence of steps. Lifecycle: `draft`, `published`, `archived`. |
-| **Task / TaskRun** | The low-level execution record. One task can have several runs. Users rarely see these directly. |
+| **Workflow** | A reusable graph of Agent steps joined by dependencies. Independent steps may run in parallel. Lifecycle: `draft`, `published`, `archived`. |
+| **Task / TaskRun** | A durable Agent thread and one turn or attempt within it. Direct Tasks have a Portal detail view; a Task can have several runs. |
 
 Space roles are `owner`, `admin`, and `member`. Uploaded files, issues,
 workflows, conversations, and tasks are all space-scoped.
@@ -129,8 +129,8 @@ agent / issue / workflow / API ──may create──▶ task
 
 A Conversation that started a Task may show its result as a card or link. That
 projection is optional: the TaskRun result remains complete and inspectable on
-its own. Direct Agent execution and the Task-thread Continue surface are the
-accepted direction and are not implemented yet.
+its own. An Agent can start a Task directly; its Portal detail view streams
+output and lets you Continue the thread or Retry its last run.
 
 ## How work actually executes
 

@@ -4,9 +4,8 @@
 >
 > **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-20
 
-The baseline assessment was checked against repository code at `938f85de`; the
-experimental application-connection prototypes below were checked in this worktree. It describes
-implemented behavior, test coverage, and remaining limits. Priority and future
+This page describes implemented behavior, test coverage, and remaining limits
+against the current repository code. Priority and future
 sequencing belong in the [roadmap](ROADMAP.md), not in a second priority list
 here. Design records explain decisions; their unfinished checklists are not
 proof that code is missing.
@@ -593,14 +592,15 @@ the unsigned [Beta readiness record](deploy/beta-readiness.md).
 ## Verification For This Review
 
 This is a source-and-tests reassessment, not a fresh deployment qualification.
-For this documentation update, `./make test`, `./make check docs`, and
-`git diff --check` passed locally at `938f85de`. The ordinary test scope includes
+For this documentation update, `./make test`, `./make check docs`,
+`./make check portal`, and `git diff --check` passed locally. The ordinary test scope includes
 the architecture, runtime, provider, identity, handler, scheduler, CLI, and
-Desktop bridge suites. Documentation checks cover links and formatting; neither
-scope proves a deployed candidate.
+Desktop bridge suites. Documentation checks cover links and formatting; the
+Portal check builds the Help content and runs its unit tests. These checks do
+not prove a deployed candidate.
 
 The review did not run the real-MySQL scope (no `BUILDMAX_TEST_DSN` was supplied),
-full builds, frontend/browser suites, Compose/kind deployment smoke, external
+full builds, browser suites, Compose/kind deployment smoke, external
 recovery drills, or paid model evaluation. Database test assertions above were
 read, not claimed as executed against MySQL. Hosted CI state, historical
 coverage, and earlier deployment results have not been carried forward as

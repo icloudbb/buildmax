@@ -3,7 +3,7 @@
 > **英文原文：** [BuildMax Roadmap](../ROADMAP.md)
 >
 > **读者：** 用户、运维人员与贡献者 · **状态：** 当前有效 — Alpha
-> **最近复核：** 2026-09-13
+> **最近复核：** 2026-09-20
 >
 > 本文是英文原文的简体中文镜像；如有差异，以英文原文为准。
 
@@ -158,8 +158,9 @@ canary 只能证明评估链路成立，不能证明平台整体可靠，也不�
 
 **Status:** open
 
-**后续方向；范围取决于需求与验证结果。** 候选工作包括持久 Workflow 状态协调与
-类型化数据流、真实渠道适配器、可执行 Space 插件、Portal 性能、Desktop 自动化和吞吐量。
+**后续方向；范围取决于需求与验证结果。** 持久 Workflow 状态协调、图执行和
+类型化数据绑定已实现。候选工作包括条件路由、真实渠道适配器、可执行 Space 插件、
+Portal 性能、Desktop 自动化和吞吐量。
 解决具体问题的 CLI/TUI 与 Desktop 改进仍然受欢迎；Beta 的重点不意味着 Portal 是唯一产品。
 
 条件触发的安全加固也属于这里，而不是 Beta 门槛：只有部署证据或更强的威胁模型提出
@@ -189,10 +190,10 @@ Beta 门槛通过后，按以下顺序评估并交付此前尚未排期的本地
 5. 按短期凭证交换、外部 Secret 提供方、workload identity 的顺序考虑后续能力，
    并且只为具体的提供方和运维流程实施。
 
-Workflow 扩展先做状态协调与类型化数据流，再扩展图结构。共享 runtime 中与提供商无关的
-结构化输出契约、提供商映射、TaskRun 持久化与线性 Workflow `output_schema` 消费方已经实现。
-类型化 JSON Pointer 绑定、路由、规划器、评估器与 Portal Schema 编辑器仍是下一批消费方；
-渠道名称或部分适配代码不能算作已经交付的集成。
+共享 runtime 中与提供商无关的结构化输出契约、提供商映射、TaskRun 持久化、
+Workflow `output_schema`、图执行和 JSON Pointer 绑定已经实现。类型化条件路由、
+规划器、评估器与 Portal Schema 编辑器仍待完成；渠道名称或部分适配代码不能算作
+已经交付的集成。
 
 设计：[Workflow runtime](../design/workflow-runtime.md)与
 [编排和连续性决策](../design/orchestration-and-continuity-decisions.md)。

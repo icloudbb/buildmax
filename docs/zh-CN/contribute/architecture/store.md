@@ -9,18 +9,19 @@
 
 当前共享工作的持久化模型以 Space 为范围：
 
-- user / login_code / user_webhook_key
-- space / space_member
+- user / auth_session / external_identity / login_code / user_refresh_token / user_webhook_key / system_grant
+- space / space_member / space_invitation / secret
 - conversation / conversation_message
 - issue
 - agent / agent_revision
-- workflow / workflow_revision / workflow_run / workflow_step_run
-- task / task_run
+- workflow / workflow_revision / workflow_run / workflow_node_run / schedule
+- task / task_run / workspace_checkpoint / plugin_environment
 - artifact（Space 的持久文件；见 data-model.md）
 - quota_tier
-- llm_model / llm_call
+- llm_model / llm_call / audit_event / plugin / plugin_release / plugin_activation
 
-按项目约定，表名使用单数。全部列、索引、关系及其变更规则见 [data-model.md](data-model.md)。
+按项目约定，表名使用单数。`internal/infra/db` 中的 Row 结构体是全部列、索引和
+关系的权威来源；关键关系和 schema 理由见 [data-model.md](data-model.md)。
 
 没有 usage 表。`SpaceUsageInWindow` 在读取时聚合：统计通过 `task` 按 Space 关联的 `task_run` 行，汇总其 prompt 和 completion token，再加上同一时间窗口内所创建 Task 上记录的标题生成 token。因此，计量无需维护独立的写入路径。它只解析一次 Space 句柄，此后都使用数字键，所以两部分查询都可以仅通过索引回答，无需读取数据行。
 

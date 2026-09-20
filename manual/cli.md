@@ -213,7 +213,7 @@ them up — stays in Portal. This command reads.
 Read one before starting:
 
 ```bash
-buildmax issue show i_7Kq2...
+buildmax issue show jjicqrwqodrarc3qewvq
 ```
 
 Inside a worker run, `buildmax issue show` and `buildmax issue comment` take no
@@ -224,8 +224,8 @@ same commands a person runs against a named issue an agent runs against its own.
 Post a report on one, signed in as you:
 
 ```bash
-buildmax issue comment i_7Kq2... -m "adapter written and tested"
-git log --oneline | buildmax issue comment i_7Kq2...   # body from stdin
+buildmax issue comment jjicqrwqodrarc3qewvq -m "adapter written and tested"
+git log --oneline | buildmax issue comment jjicqrwqodrarc3qewvq   # body from stdin
 ```
 
 The comment is recorded as a **local agent report** (see below): the same
@@ -236,8 +236,8 @@ a command. Status, owner, and sub-issues stay yours to change with
 To work on one, start a session scoped to it:
 
 ```bash
-buildmax issue start i_7Kq2...            # TUI, working that issue
-buildmax issue start i_7Kq2... -p "..."   # one print-mode run
+buildmax issue start jjicqrwqodrarc3qewvq            # TUI, working that issue
+buildmax issue start jjicqrwqodrarc3qewvq -p "..."   # one print-mode run
 ```
 
 The agent reads and reports through the `buildmax issue` commands: `buildmax
@@ -259,7 +259,7 @@ should be visible before it crosses, not inferable afterwards.
 When you are done, say so:
 
 ```bash
-buildmax issue status i_7Kq2... done
+buildmax issue status jjicqrwqodrarc3qewvq done
 ```
 
 That is yours to run, not the agent's. Status is what the space plans around and
@@ -277,7 +277,7 @@ another agent and watch it, without a browser.
 
 ```bash
 buildmax agent trigger reviewer -m "review the latest diff"
-buildmax task status tk_9Fh3...          # PENDING / RUNNING / SUCCEEDED / FAILED
+buildmax task status b25ufh5invebyjrq7lcq          # PENDING / RUNNING / SUCCEEDED / FAILED
 git log -1 | buildmax agent trigger reviewer   # input from stdin
 ```
 
@@ -297,7 +297,7 @@ result produced here has a durable handle instead of living only in a workspace.
 
 ```bash
 buildmax artifact publish ./report.pdf --title "Weekly report"
-buildmax artifact publish ./out.log --space tm_9Fh3... --share
+buildmax artifact publish ./out.log --space h5e5xp7akhfsbtadrerq --share
 ```
 
 Without `--space` the artifact goes to your personal space; `--share` also mints
@@ -317,8 +317,8 @@ shows which workflows exist and whether each is runnable.
 ```bash
 buildmax workflow list                       # STATUS column: published is runnable
 buildmax workflow run nightly                # by name or id
-buildmax workflow run wf_7Kq2... --input '{"topic":"pricing"}'
-buildmax workflow status wr_9Fh3...          # pending / running / succeeded / failed
+buildmax workflow run 3j7xhh3cogmemxxkwu3q --input '{"topic":"pricing"}'
+buildmax workflow status r7a4gku7f2h76rsa3m5q          # pending / running / succeeded / failed
 ```
 
 Only a published workflow runs; a draft or archived one is refused. `--input`

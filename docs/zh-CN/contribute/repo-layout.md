@@ -150,8 +150,8 @@ internal/
 │   ├── quota/          档位限额，以及一次拒绝据以衡量的用量窗口
 │   ├── conversation/   持久化的 Conversation 及其消息：Tier 1 编排并
 │   │                   存储的内容，有别于本地 session
-│   ├── workflow/       一个 space 可复用的线性计划、其修订版本，以及其
-│   │                   执行流经的 run 与 step-run 状态
+│   ├── workflow/       一个 space 可复用的图计划、其修订版本，以及其
+│   │                   执行流经的 run 与 node-run 状态
 │   ├── agentdef/       一个 space 定义的 Agent 及其修订版本——即一个
 │   │                   Agent 被配置成什么样子，而非运行它的那个循环
 │   ├── issue/          Issue、其层级结构与 owner/executor 词汇，以及人与

@@ -13,20 +13,20 @@ Marketplace catalog and activation ports in `internal/service/plugin`.
 
 The active persistence model is space-scoped for shared work:
 
-- user / login_code / user_webhook_key
-- space / space_member
+- user / auth_session / external_identity / login_code / user_refresh_token / user_webhook_key / system_grant
+- space / space_member / space_invitation / secret
 - conversation / conversation_message
 - issue
 - agent / agent_revision
-- workflow / workflow_revision / workflow_run / workflow_step_run
-- task / task_run
+- workflow / workflow_revision / workflow_run / workflow_node_run / schedule
+- task / task_run / workspace_checkpoint / plugin_environment
 - artifact (durable space files; see data-model.md)
 - quota_tier
-- llm_model / llm_call
+- llm_model / llm_call / audit_event / plugin / plugin_release / plugin_activation
 
 Table names are singular per project convention. For every column, index, and
-relationship, and for the rules on changing them, see
-[data-model.md](data-model.md).
+relationship, the row structs in `internal/infra/db` are authoritative. See
+[data-model.md](data-model.md) for the key relationships and schema rationale.
 
 There is no usage table. `SpaceUsageInWindow` aggregates on read: it counts
 `task_run` rows joined to `task` by space and sums their prompt and completion
