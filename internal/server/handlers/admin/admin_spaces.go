@@ -70,7 +70,7 @@ func (h *Handler) listAdminSpacesHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
-	spaces, total, err := h.cfg.Spaces.ListAllSpaces(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
+	spaces, total, err := h.cfg.Spaces.ListTeamSpaces(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_spaces")
 		return

@@ -101,14 +101,16 @@ type Store interface {
 	RemoveSpaceMember(ctx context.Context, spaceID, userID string) error
 	// ListSpaceMembers returns members of the space ordered by created_at ASC.
 	ListSpaceMembers(ctx context.Context, spaceID string) ([]Member, error)
-	// ListAllSpaces returns every space newest first, with the total count. A
-	// non-empty query filters on name as a substring.
+	// ListTeamSpaces returns every collaborative space newest first, with the
+	// total count. A non-empty query filters on name as a substring. Each
+	// account's personal space is excluded: it exists for every account and is
+	// not a thing an administrator governs, so it is noise on this surface.
 	//
 	// It is the one method here that ignores membership, so only
 	// deployment-scoped callers may reach it. It returns spaces, never their
 	// contents: an administrator learns that a space exists and how large it is,
 	// not what is in it.
-	ListAllSpaces(ctx context.Context, query string, limit, offset int) ([]Space, int, error)
+	ListTeamSpaces(ctx context.Context, query string, limit, offset int) ([]Space, int, error)
 	// CountSpaceMembers returns member counts for the given spaces, keyed by
 	// space id. It exists so listing spaces is two queries rather than one per
 	// row.

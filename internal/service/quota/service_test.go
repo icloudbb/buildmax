@@ -40,7 +40,7 @@ func (m *mockSpaceStore) RemoveSpaceMember(_ context.Context, _, _ string) error
 	return nil
 }
 
-func (m *mockSpaceStore) ListAllSpaces(_ context.Context, _ string, _, _ int) ([]corespace.Space, int, error) {
+func (m *mockSpaceStore) ListTeamSpaces(_ context.Context, _ string, _, _ int) ([]corespace.Space, int, error) {
 	return nil, 0, nil
 }
 

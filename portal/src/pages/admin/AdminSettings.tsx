@@ -16,7 +16,7 @@ import { navigate } from "../../router"
 import SettingsIcon from "../../icons/settings.svg?react"
 import AgentsIcon from "../../icons/agents.svg?react"
 import ShieldIcon from "../../icons/shield.svg?react"
-import IssueIcon from "../../icons/issue.svg?react"
+import FilesIcon from "../../icons/files.svg?react"
 import UsageIcon from "../../icons/usage.svg?react"
 import ToolboxIcon from "../../icons/toolbox.svg?react"
 
@@ -45,7 +45,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { id: "overview", label: "Overview", icon: SettingsIcon },
   { id: "administrators", label: "Administrators", icon: ShieldIcon },
   { id: "accounts", label: "Accounts", icon: AgentsIcon },
-  { id: "spaces", label: "Spaces", icon: IssueIcon },
+  { id: "spaces", label: "Spaces", icon: FilesIcon },
   { id: "models", label: "Models", icon: ToolboxIcon },
   { id: "calls", label: "LLM calls", icon: UsageIcon },
   { id: "plugins", label: "Plugins", icon: ToolboxIcon },

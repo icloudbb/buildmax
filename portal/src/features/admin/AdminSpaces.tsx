@@ -2,21 +2,25 @@ import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ApiAdminSpace, ApiAdminSpaceDetail, ApiAdminSpaceMember } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { pageWindow } from "./pagination"
 import { getAdminSpace, listAdminSpaces, recoverSpaceOwner } from "./api"
 
 const PAGE_SIZE = 50
 
 /**
- * AdminSpaces shows every space in the deployment as metadata.
+ * AdminSpaces shows the deployment's team spaces as metadata.
  *
- * There is deliberately nothing here to click through into. An administrator
- * learns that a space exists, how large it is, and what it is using; reaching
- * what is in it still requires membership. A link that 403s would read as a bug
- * rather than as a boundary, so there is no link.
+ * Personal spaces are left out: every account has exactly one, so listing them
+ * would double the rows with nothing an administrator governs. There is also
+ * deliberately nothing here to click through into a space's contents. An
+ * administrator learns that a space exists, how large it is, and what it is
+ * using; reaching what is in it still requires membership. A link that 403s
+ * would read as a bug rather than as a boundary, so there is no link.
  */
 export function AdminSpaces({ token }: { token: string | null }) {
   const [spaces, setSpaces] = useState<ApiAdminSpace[]>([])
   const [total, setTotal] = useState(0)
+  const [offset, setOffset] = useState(0)
   const [query, setQuery] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,14 +67,15 @@ export function AdminSpaces({ token }: { token: string | null }) {
   }, [selected])
 
   const load = useCallback(
-    (q: string) => {
+    (q: string, off: number) => {
       if (!token) return
       setLoading(true)
       setError(null)
-      listAdminSpaces(token, { q, limit: PAGE_SIZE })
+      listAdminSpaces(token, { q, limit: PAGE_SIZE, offset: off })
         .then((res) => {
           setSpaces(res.spaces)
           setTotal(res.total)
+          setOffset(off)
         })
         .catch((err) => setError(getErrorMessage(err, "Failed to load spaces")))
         .finally(() => setLoading(false))
@@ -79,7 +84,7 @@ export function AdminSpaces({ token }: { token: string | null }) {
   )
 
   useEffect(() => {
-    load("")
+    load("", 0)
   }, [load])
 
   return (
@@ -89,8 +94,8 @@ export function AdminSpaces({ token }: { token: string | null }) {
           <div>
             <h2 className="settings-page__section-title">Spaces</h2>
             <p className="settings-page__section-copy">
-              {total} space{total === 1 ? "" : "s"}, including one personal space per
-              account. Metadata only — never their contents.
+              {total} team space{total === 1 ? "" : "s"}. Personal spaces are omitted.
+              Metadata only — never their contents.
             </p>
           </div>
         </div>
@@ -99,7 +104,7 @@ export function AdminSpaces({ token }: { token: string | null }) {
           className="admin-toolbar"
           onSubmit={(e) => {
             e.preventDefault()
-            load(query)
+            load(query, 0)
           }}
         >
           <input
@@ -126,30 +131,65 @@ export function AdminSpaces({ token }: { token: string | null }) {
         ) : spaces.length === 0 ? (
           <p className="admin-empty">No spaces match.</p>
         ) : (
-          <ul className="admin-list">
-            {spaces.map((space) => (
-              <li key={space.id} className="admin-list__row">
-                <button
-                  type="button"
-                  className="admin-list__main admin-list__main--action"
-                  onClick={() => {
-                    if (!token) return
-                    getAdminSpace(token, space.id)
-                      .then(setSelected)
-                      .catch((err) => setError(getErrorMessage(err, "Failed to load the space")))
-                  }}
-                >
-                  {space.name}
-                </button>
-                {space.personal ? <span className="admin-pill">personal</span> : null}
-                <span className="admin-list__meta">
-                  {space.member_count} member{space.member_count === 1 ? "" : "s"}
-                  {space.quota_tier ? ` · ${space.quota_tier}` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Members</th>
+                <th scope="col">Tier</th>
+              </tr>
+            </thead>
+            <tbody>
+              {spaces.map((space) => (
+                <tr key={space.id}>
+                  <td>
+                    <button
+                      type="button"
+                      className="admin-list__main--action"
+                      onClick={() => {
+                        if (!token) return
+                        getAdminSpace(token, space.id)
+                          .then(setSelected)
+                          .catch((err) => setError(getErrorMessage(err, "Failed to load the space")))
+                      }}
+                    >
+                      {space.name}
+                    </button>
+                  </td>
+                  <td>{space.member_count}</td>
+                  <td className="admin-table__muted">{space.quota_tier || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
+
+        {total > PAGE_SIZE
+          ? (() => {
+              const page = pageWindow(offset, PAGE_SIZE, total)
+              return (
+                <div className="admin-pager">
+                  <Button
+                    variant="secondary" size="compact"
+                    disabled={loading || !page.hasPrev}
+                    onClick={() => load(query, page.prevOffset)}
+                  >
+                    Previous
+                  </Button>
+                  <span className="admin-pager__status">
+                    {page.from}&ndash;{page.to} of {total}
+                  </span>
+                  <Button
+                    variant="secondary" size="compact"
+                    disabled={loading || !page.hasNext}
+                    onClick={() => load(query, page.nextOffset)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )
+            })()
+          : null}
       </section>
 
       {selected ? (

@@ -127,9 +127,12 @@ func (m *MockSpaceStore) ListSpaceMembers(_ context.Context, spaceID string) ([]
 	return out, nil
 }
 
-func (m *MockSpaceStore) ListAllSpaces(_ context.Context, query string, limit, offset int) ([]corespace.Space, int, error) {
+func (m *MockSpaceStore) ListTeamSpaces(_ context.Context, query string, limit, offset int) ([]corespace.Space, int, error) {
 	var all []corespace.Space
 	for i := range m.Spaces {
+		if m.Spaces[i].PersonalForUserID != nil {
+			continue
+		}
 		if query == "" || strings.Contains(m.Spaces[i].Name, query) {
 			all = append(all, m.Spaces[i])
 		}

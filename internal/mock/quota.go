@@ -91,7 +91,7 @@ func (d *DenyQuotaTierStore) GetQuotaTier(_ context.Context, _ string) (*corequo
 	return d.Tier, nil
 }
 
-func (d *DenyQuotaSpaceStore) ListAllSpaces(_ context.Context, _ string, _, _ int) ([]corespace.Space, int, error) {
+func (d *DenyQuotaSpaceStore) ListTeamSpaces(_ context.Context, _ string, _, _ int) ([]corespace.Space, int, error) {
 	if d.Space == nil {
 		return nil, 0, nil
 	}

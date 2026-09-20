@@ -23,7 +23,7 @@ func TestAdminSpacesList(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if out.Total != 2 || len(out.Spaces) != 2 {
+	if out.Total != 1 || len(out.Spaces) != 1 {
 		t.Fatalf("got %d of %d spaces: %+v", len(out.Spaces), out.Total, out.Spaces)
 	}
 	byID := map[string]AdminSpace{}
@@ -33,10 +33,11 @@ func TestAdminSpacesList(t *testing.T) {
 	if got := byID["tm_shared"]; got.MemberCount != 2 || got.Personal || got.QuotaTier != "free_trial" {
 		t.Errorf("shared space = %+v", got)
 	}
-	// A personal space is marked as one, so an operator counting "spaces" is not
-	// counting every account twice without knowing it.
-	if got := byID["tm_personal"]; !got.Personal || got.MemberCount != 1 {
-		t.Errorf("personal space = %+v", got)
+	// Personal spaces are not governed by an operator — every account has one —
+	// so the list omits them rather than doubling the count with noise. The total
+	// counts only what is listed.
+	if _, ok := byID["tm_personal"]; ok {
+		t.Errorf("personal space should not be listed: %+v", out.Spaces)
 	}
 }
 
