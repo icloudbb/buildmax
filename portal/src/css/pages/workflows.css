@@ -22,11 +22,6 @@
   gap: 0.5rem;
 }
 
-.workflow-page__step-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.75rem;
-}
-
 .workflow-page__runs,
 .workflow-page__steps {
   list-style: none;
@@ -384,11 +379,25 @@ button.wf-graph__node:focus-visible {
   font-size: 0.85rem;
 }
 
-.workflow-detail__topology {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin: 0.4rem 0 0.6rem;
+/* Flow-first editing panel: name/description collapse into a Settings drawer so
+   the graph canvas dominates the page. */
+.workflow-editor__settings {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-elevated);
+}
+
+.workflow-editor__settings-summary {
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.workflow-editor__settings-fields {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
 }
 
 /* Visual workflow editor (React Flow canvas + node inspector). Node geometry
@@ -443,6 +452,27 @@ button.wf-graph__node:focus-visible {
   border-radius: var(--radius-panel);
   padding: var(--space-4);
   background: var(--color-bg-elevated);
+}
+
+/* On the detail page the editor fills the viewport so the graph is the main
+   surface. The create modal keeps the default height and stays within its
+   dialog. */
+.wf-visual--fill .wf-visual__body {
+  flex-wrap: nowrap;
+}
+
+.wf-visual--fill .wf-visual__canvas {
+  height: min(72vh, 760px);
+}
+
+.wf-visual--fill .wf-visual__inspector {
+  max-height: min(72vh, 760px);
+}
+
+@media (max-width: 720px) {
+  .wf-visual--fill .wf-visual__body {
+    flex-wrap: wrap;
+  }
 }
 
 /* A step node on the canvas. */

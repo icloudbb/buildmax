@@ -31,13 +31,12 @@ test("the node inspector has no free-form Type field or editable step id, and cr
   const dialog = page.getByRole("dialog", { name: "New Workflow" })
   await expect(dialog).toBeVisible()
 
-  // The canvas opens with one step node; the inspector edits the selected step
-  // and shows its generated id as read-only text, not as an editable input, and
-  // has no free-form Type field.
+  // The canvas opens with one step node; the inspector edits the selected step,
+  // shows its generated id in an editable "Step id" field the author can rename,
+  // and has no free-form Type field.
   await expect(dialog.locator(".wf-node")).toHaveCount(1)
-  await expect(dialog.getByText(/^id: step_/)).toBeVisible()
+  await expect(dialog.getByLabel("Step id")).toHaveValue(/^step_/)
   await expect(dialog.getByLabel("Type")).toHaveCount(0)
-  await expect(dialog.getByLabel("Step ID")).toHaveCount(0)
 
   await dialog.getByLabel("Name").fill(tagged("Workflow authoring probe"))
   await dialog.getByLabel("Agent").selectOption({ label: `${agentName} (${agent.id})` })
@@ -148,8 +147,20 @@ test("the visual editor renders a branching graph, adds a step, and round-trips 
   await page.getByRole("button", { name: "Add step" }).click()
   await expect(page.locator(".wf-node")).toHaveCount(4)
 
-  // The binding the definition declared survives editing in the visual editor:
-  // switching to raw JSON still carries the wire shape the runtime reads.
+  // Renaming a node's id in the inspector rewrites every reference to it: the
+  // downstream `needs` edges and the binding that reads its output.
+  await page.locator(".wf-node", { hasText: "collect" }).click()
+  const idField = page.getByLabel("Step id")
+  await expect(idField).toHaveValue("collect")
+  await idField.fill("gather")
+  await idField.press("Enter")
+  await expect(page.locator(".wf-node", { hasText: "gather" })).toBeVisible()
+
+  // Switching to raw JSON carries the renamed wire shape the runtime reads: the
+  // node id, the edges that pointed at it, and the binding source it feeds.
   await page.getByRole("button", { name: "Edit raw JSON" }).click()
-  await expect(page.getByLabel(/^Definition \(JSON\)/)).toHaveValue(/"source":\s*"node\.collect\.output"/)
+  const raw = page.getByLabel(/^Definition \(JSON\)/)
+  await expect(raw).toHaveValue(/"id":\s*"gather"/)
+  await expect(raw).toHaveValue(/"needs":\s*\[\s*"gather"\s*\]/)
+  await expect(raw).toHaveValue(/"source":\s*"node\.gather\.output"/)
 })

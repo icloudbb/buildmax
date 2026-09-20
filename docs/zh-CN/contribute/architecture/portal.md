@@ -41,9 +41,10 @@ Portal 负责云端/Space 使用场景：
   Task 详情和对话 Task 卡片使用相同操作层级；Chat 起始页负责自己的标题与可用键盘操作的标签页。
   Workflow 详情通过显式操作驱动生命周期，而非状态控件：编辑态提供“存为草稿”和“发布”，
   已发布阅读视图提供“运行”，“归档”是独立操作。版本历史从头部按钮打开，不显示不透明的
-  workflow id。其定义编辑器在同一份草稿状态（`useWorkflowSteps`）上有两种模式：可视化
-  React Flow 画布（节点即步骤、边即 `needs`、节点检视面板编辑其余字段）与 raw JSON 视图。
-  `steps.ts` 仍是唯一的序列化/解析/校验权威，并原样保留 `input_schema`、`result` 与
+  workflow id。其定义编辑器以图为先：React Flow 画布占满页面，名称与描述折叠进 Settings
+  抽屉；在同一份草稿状态（`useWorkflowSteps`）上有两种模式——可视化画布（节点即步骤、边即
+  `needs`、节点检视面板编辑其余字段，含可编辑的节点 id，其重命名会改写所有引用）与 raw JSON
+  视图。`steps.ts` 仍是唯一的序列化/解析/校验权威，并原样保留 `input_schema`、`result` 与
   `output_schema`。只读的运行图与计划图继续使用 `WorkflowGraph`；只有编辑器依赖
   `@xyflow/react`。见 [workflow 可视化编辑器](../../design/portal-workflow-visual-editor.md)。
   Agent 详情同样安排运行、配置保存和创建 schedule 的优先级；标签页支持键盘操作，schedule 卡片自身管理重试状态。

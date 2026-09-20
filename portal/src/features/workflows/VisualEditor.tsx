@@ -109,6 +109,10 @@ interface WorkflowVisualEditorProps {
   state: WorkflowStepsState
   agents: Agent[]
   disabled: boolean
+  /** When set, the canvas grows to fill the available height, so the editing
+   *  page is dominated by the graph rather than the surrounding chrome. The
+   *  create modal leaves it off to keep the canvas within the dialog. */
+  fill?: boolean
 }
 
 /**
@@ -118,10 +122,24 @@ interface WorkflowVisualEditorProps {
  * goes through the shared step state, so the raw JSON view and Save see the same
  * definition.
  */
-export function WorkflowVisualEditor({ state, agents, disabled }: WorkflowVisualEditorProps) {
+export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: WorkflowVisualEditorProps) {
   const { steps, errors } = state
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  // Rename a step's id and carry its canvas position across, so the node stays
+  // put rather than snapping back to the computed layout under its new id.
+  function renameStepAndPosition(oldId: string, newId: string) {
+    setPositions((prev) => {
+      const pos = prev[oldId]
+      if (pos === undefined) return prev
+      const next = { ...prev, [newId]: pos }
+      delete next[oldId]
+      return next
+    })
+    setSelectedId((id) => (id === oldId ? newId : id))
+    state.renameStep(oldId, newId)
+  }
 
   const layout = useMemo(() => computeLayout(steps), [steps])
   const agentName = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents])
@@ -216,7 +234,7 @@ export function WorkflowVisualEditor({ state, agents, disabled }: WorkflowVisual
   const selectedStep = steps.find((s) => s.id === effectiveSelectedId) ?? null
 
   return (
-    <div className="wf-visual">
+    <div className={`wf-visual${fill ? " wf-visual--fill" : ""}`}>
       <div className="wf-visual__toolbar">
         {!disabled ? (
           <Button
@@ -290,6 +308,7 @@ export function WorkflowVisualEditor({ state, agents, disabled }: WorkflowVisual
                 .map((e) => e.message)}
               predecessors={predecessorsOf(steps, selectedStep.id)}
               allSteps={steps}
+              onRename={renameStepAndPosition}
             />
           ) : (
             <p className="page-activity__meta">Select a step to edit it, or drag from a step's right edge to another step's left edge to add a dependency.</p>
@@ -308,25 +327,67 @@ interface StepInspectorProps {
   stepErrors: string[]
   predecessors: Set<string>
   allSteps: WorkflowStepDraft[]
+  onRename: (oldId: string, newId: string) => void
 }
 
-/** The editing panel for one selected step: its agent, prompt, Issue access,
+/** The editing panel for one selected step: its id, agent, prompt, Issue access,
  *  and input bindings. A binding may read the workflow input or a step this one
  *  depends on, matching the server rule. */
-function StepInspector({ state, agents, disabled, step, stepErrors, predecessors, allSteps }: StepInspectorProps) {
+function StepInspector({ state, agents, disabled, step, stepErrors, predecessors, allSteps, onRename }: StepInspectorProps) {
   const predecessorSteps = allSteps.filter((s) => predecessors.has(s.id))
   const bindings = step.bindings ?? []
+  // The id is edited as a local draft and committed on blur/Enter, so the step's
+  // id (and thus this node's identity) changes once per rename rather than on
+  // every keystroke.
+  const [idDraft, setIdDraft] = useState(step.id)
+  const [idError, setIdError] = useState<string | null>(null)
+
+  function commitId() {
+    const next = idDraft.trim()
+    if (next === step.id) {
+      setIdError(null)
+      return
+    }
+    if (!next) {
+      setIdError("A step needs an id.")
+      return
+    }
+    if (allSteps.some((s) => s.id !== step.id && s.id === next)) {
+      setIdError(`Step id "${next}" is already used.`)
+      return
+    }
+    setIdError(null)
+    onRename(step.id, next)
+  }
+
   return (
     <div className="wf-inspector">
       <div className="wf-inspector__head">
         <strong>Step</strong>
-        <span className="page-activity__meta workflow-page__step-id">id: {step.id}</span>
         {!disabled ? (
           <Button variant="danger" size="compact" disabled={allSteps.length === 1} onClick={() => state.removeStep(step.id)}>
             Remove
           </Button>
         ) : null}
       </div>
+      <label className="issues-page__field">
+        <span className="issues-page__field-label">Step id</span>
+        <input
+          className="issues-page__input"
+          aria-label="Step id"
+          value={idDraft}
+          disabled={disabled}
+          onChange={(e) => setIdDraft(e.target.value)}
+          onBlur={commitId}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              e.currentTarget.blur()
+            }
+          }}
+        />
+        {idError ? <span className="modal__error">{idError}</span> : null}
+      </label>
       <label className="issues-page__field">
         <span className="issues-page__field-label">Agent</span>
         <select

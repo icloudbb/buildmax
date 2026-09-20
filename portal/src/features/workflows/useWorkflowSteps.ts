@@ -3,8 +3,10 @@ import type { Agent } from "../../lib/types"
 import {
   newStep,
   newStepId,
+  nodeOutputSource,
   normalizeNeeds,
   parseDefinition,
+  renameStepId,
   stepsToDefinition,
   validateSteps,
   type StepError,
@@ -29,6 +31,11 @@ export interface WorkflowStepsState {
    *  and position it. */
   addStep: () => string
   removeStep: (id: string) => void
+  /** Renames a step's id, rewriting every reference to it — other steps' `needs`
+   *  edges, binding sources that read its output, and the definition's `result`
+   *  selector — so the graph stays consistent. A no-op when the new id is empty,
+   *  unchanged, or already taken. */
+  renameStep: (oldId: string, newId: string) => void
   changeStep: (
     id: string,
     patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess">>,
@@ -96,6 +103,27 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     },
     [],
   )
+
+  const renameStep = useCallback((oldId: string, newId: string) => {
+    if (!newId || newId === oldId) return
+    const oldSource = nodeOutputSource(oldId)
+    const newSource = nodeOutputSource(newId)
+    setSteps((prev) => renameStepId(prev, oldId, newId))
+    // `result` is carried verbatim from raw JSON; if it selects the renamed
+    // node's output, rewrite the source so the round-trip stays consistent.
+    setResult((prev) => {
+      if (prev === undefined) return prev
+      try {
+        const parsed = JSON.parse(prev) as { source?: unknown }
+        if (parsed && typeof parsed === "object" && parsed.source === oldSource) {
+          return JSON.stringify({ ...parsed, source: newSource })
+        }
+      } catch {
+        // Leave malformed result text untouched.
+      }
+      return prev
+    })
+  }, [])
 
   const connectNeed = useCallback((targetId: string, sourceId: string) => {
     if (targetId === sourceId) return
@@ -214,6 +242,7 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     setMaxParallelNodes,
     addStep,
     removeStep,
+    renameStep,
     changeStep,
     connectNeed,
     disconnectNeed,
