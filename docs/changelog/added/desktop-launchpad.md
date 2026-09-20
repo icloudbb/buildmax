@@ -1,2 +1,2 @@
 - Desktop: a Launchpad in the bottom status bar lets you pin your own
-  applications (for example VS Code) and launch them with one click.
+  applications (for example VS Code) and websites and open them with one click.

@@ -440,8 +440,8 @@ pane *合并*（`collapse`）回一个按阅读顺序排列的 tab 化 pane。�
 
 状态栏还承载一个 **Launchpad**：一个全局控件，紧邻主题切换，其弹层列出用户固定的应用，
 点击即可一键启动。一个条目只是一个显示名和一个操作系统知道如何打开的 target——应用程序包、
-可执行文件、文档或 URL——所以固定应用就是一次原生文件选择，启动则把 target 交给平台
-opener（`open`、`start` 或 `xdg-open`）作为 fire-and-forget 的子进程。条目是全局的而非按
+可执行文件、文档或 URL——所以固定本地应用是一次原生文件选择，固定网站则是输入其地址，启动
+则把 target 交给平台 opener（`open`、`start` 或 `xdg-open`）作为 fire-and-forget 的子进程。条目是全局的而非按
 项目划分，存储在 Go 侧（`BUILDMAX_HOME` 下的 `launchpad.json`），因此独立于 webview 缓存
 存续，并在每个窗口间共享。这让用户无需离开桌面即可触达自己的日常工具。
 

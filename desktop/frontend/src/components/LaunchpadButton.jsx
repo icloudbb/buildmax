@@ -21,6 +21,11 @@ export function LaunchpadButton() {
   const [entries, setEntries] = useState([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The URL form is revealed on demand so the common case (a listed app) stays a
+  // single click; adding a website is a name + address the user types.
+  const [urlForm, setUrlForm] = useState(false);
+  const [urlName, setUrlName] = useState('');
+  const [urlValue, setUrlValue] = useState('');
   const rootRef = useRef(null);
 
   const reload = useCallback(async () => {
@@ -34,6 +39,15 @@ export function LaunchpadButton() {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // A closed popover forgets an in-progress URL entry, so it reopens clean.
+  useEffect(() => {
+    if (!open) {
+      setUrlForm(false);
+      setUrlName('');
+      setUrlValue('');
+    }
+  }, [open]);
 
   // Close the popover on an outside click or Escape.
   useEffect(() => {
@@ -70,7 +84,7 @@ export function LaunchpadButton() {
     }
   }, [reload]);
 
-  const add = useCallback(async () => {
+  const addApp = useCallback(async () => {
     const app = getApp();
     if (!app?.PickLaunchpadTarget || !app?.AddLaunchpadEntry) return;
     setBusy(true);
@@ -86,6 +100,30 @@ export function LaunchpadButton() {
       setBusy(false);
     }
   }, [reload]);
+
+  const closeUrlForm = useCallback(() => {
+    setUrlForm(false);
+    setUrlName('');
+    setUrlValue('');
+  }, []);
+
+  const addUrl = useCallback(async (e) => {
+    e?.preventDefault?.();
+    const app = getApp();
+    if (!app?.AddLaunchpadEntry) return;
+    let target = urlValue.trim();
+    if (!target) return;
+    // A bare host is meant as a website; default it to https so the OS opens it
+    // in the browser rather than treating it as a file path.
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(target)) target = `https://${target}`;
+    try {
+      await app.AddLaunchpadEntry(urlName.trim(), target, []);
+      closeUrlForm();
+      await reload();
+    } catch {
+      /* leave the form open so the user can correct the address */
+    }
+  }, [urlName, urlValue, reload, closeUrlForm]);
 
   return (
     <div className="launchpad" ref={rootRef}>
@@ -127,14 +165,47 @@ export function LaunchpadButton() {
               </div>
             ))
           )}
-          <button
-            type="button"
-            className="launchpad-add"
-            onClick={add}
-            disabled={busy}
-          >
-            {busy ? 'Adding…' : 'Add application…'}
-          </button>
+          <div className="launchpad-actions">
+            <button
+              type="button"
+              className="launchpad-add"
+              onClick={addApp}
+              disabled={busy}
+            >
+              {busy ? 'Adding…' : 'Add application…'}
+            </button>
+            {urlForm ? (
+              <form className="launchpad-urlform" onSubmit={addUrl}>
+                <input
+                  className="launchpad-urlform__input"
+                  type="text"
+                  placeholder="Name (optional)"
+                  value={urlName}
+                  onChange={(ev) => setUrlName(ev.target.value)}
+                />
+                <input
+                  className="launchpad-urlform__input"
+                  type="text"
+                  placeholder="https://…"
+                  value={urlValue}
+                  onChange={(ev) => setUrlValue(ev.target.value)}
+                  autoFocus
+                />
+                <div className="launchpad-urlform__row">
+                  <button type="submit" className="launchpad-urlform__save" disabled={!urlValue.trim()}>Add</button>
+                  <button type="button" className="launchpad-urlform__cancel" onClick={closeUrlForm}>Cancel</button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                className="launchpad-add"
+                onClick={() => setUrlForm(true)}
+              >
+                Add URL…
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

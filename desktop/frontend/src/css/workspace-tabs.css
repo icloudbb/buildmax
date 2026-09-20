@@ -183,14 +183,17 @@
   color: var(--color-text, inherit);
 }
 
+.launchpad-actions {
+  margin-top: 4px;
+  border-top: 1px solid var(--color-border);
+}
+
 .launchpad-add {
   display: block;
   width: 100%;
-  margin-top: 4px;
   padding: 6px 8px;
   background: none;
   border: none;
-  border-top: 1px solid var(--color-border);
   color: var(--color-accent, #3b82f6);
   font-size: 0.8rem;
   text-align: left;
@@ -200,6 +203,53 @@
 .launchpad-add[disabled] {
   opacity: 0.6;
   cursor: default;
+}
+
+.launchpad-urlform {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+.launchpad-urlform__input {
+  width: 100%;
+  padding: 4px 6px;
+  background: var(--color-bg, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: inherit;
+  font-size: 0.8rem;
+}
+
+.launchpad-urlform__row {
+  display: flex;
+  gap: 6px;
+}
+
+.launchpad-urlform__save,
+.launchpad-urlform__cancel {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.launchpad-urlform__save {
+  background: var(--color-accent, #3b82f6);
+  border-color: var(--color-accent, #3b82f6);
+  color: #fff;
+}
+
+.launchpad-urlform__save[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.launchpad-urlform__cancel {
+  background: none;
+  color: inherit;
 }
 
 .workspace-grid__row {

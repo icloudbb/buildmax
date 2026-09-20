@@ -35,6 +35,8 @@ func TestDeriveLaunchpadName(t *testing.T) {
 		"/Applications/Visual Studio Code.app": "Visual Studio Code",
 		"/usr/bin/htop":                        "htop",
 		"htop":                                 "htop",
+		"https://github.com/icloudbb/buildmax": "github.com",
+		"https://www.example.com":              "example.com",
 	}
 	for target, want := range cases {
 		if got := deriveLaunchpadName(target); got != want {

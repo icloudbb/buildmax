@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -124,11 +125,15 @@ func (a *App) LaunchEntry(id string) error {
 	return nil
 }
 
-// deriveLaunchpadName turns a target path into a friendly default name: the file
-// name with a leading directory and a trailing extension removed, so
+// deriveLaunchpadName turns a target into a friendly default name. A URL becomes
+// its host ("https://github.com/x" -> "github.com"); a path becomes its file
+// name with the leading directory and a trailing extension removed, so
 // "/Applications/Visual Studio Code.app" becomes "Visual Studio Code" and
-// "/usr/bin/htop" becomes "htop". A URL or bare name is returned unchanged.
+// "/usr/bin/htop" becomes "htop". A bare name is returned unchanged.
 func deriveLaunchpadName(target string) string {
+	if u, err := url.Parse(target); err == nil && u.Scheme != "" && u.Host != "" {
+		return strings.TrimPrefix(u.Host, "www.")
+	}
 	base := filepath.Base(target)
 	if ext := filepath.Ext(base); ext != "" {
 		base = strings.TrimSuffix(base, ext)

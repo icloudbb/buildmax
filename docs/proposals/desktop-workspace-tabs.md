@@ -540,8 +540,9 @@ The status bar also hosts a **Launchpad**: a global control, pinned beside the
 theme toggle, whose popover lists applications the user has pinned and launches
 one with a single click. An entry is just a display name and a target the
 operating system knows how to open — an application bundle, executable, document,
-or URL — so pinning is a native file pick, and launching hands the target to the
-platform opener (`open`, `start`, or `xdg-open`) as a fire-and-forget child.
+or URL — so a local application is pinned by a native file pick and a website by
+typing its address, and launching hands the target to the platform opener
+(`open`, `start`, or `xdg-open`) as a fire-and-forget child.
 Entries are global rather than project-scoped and stored on the Go side
 (`launchpad.json` under `BUILDMAX_HOME`), so they survive independent of the
 webview cache and are shared across every window. This keeps the desktop a
