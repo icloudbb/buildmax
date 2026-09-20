@@ -226,7 +226,19 @@ func TestBridgeApprovesAToolCallAndFinishesTheRun(t *testing.T) {
 }
 
 func TestBridgeDeniesAToolCallAndSaysSo(t *testing.T) {
-	app, events, server, projectID := bridge(t, writeScenario(), map[string]string{"Write": "ask"})
+	// Unlike writeScenario there is no recap step: a denied write changed
+	// nothing, so the turn has no change to describe and the digest gate makes
+	// no recap call. The closing reply asks nothing, so no suggestion is made
+	// either — the run ends after these two steps.
+	scenario := mockllm.Scenario{Steps: []mockllm.Step{
+		{
+			Text:      "writing it now",
+			ToolCalls: []mockllm.ToolCall{{Name: "Write", Args: map[string]any{"file_path": "notes.txt", "content": "scripted content\n"}}},
+			Usage:     &mockllm.Usage{PromptTokens: 120, CompletionTokens: 18},
+		},
+		{Text: "The write was denied, so nothing changed.", Usage: &mockllm.Usage{PromptTokens: 140, CompletionTokens: 8}},
+	}}
+	app, events, server, projectID := bridge(t, scenario, map[string]string{"Write": "ask"})
 	workspace := app.mustProjectFolder(t, projectID)
 
 	if _, err := app.SendMessageStream(projectID, "", "write notes.txt"); err != nil {
