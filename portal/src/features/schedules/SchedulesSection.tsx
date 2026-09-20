@@ -257,7 +257,9 @@ function ScheduleCard({
         historyLoading ? (
           <p className="page-activity__empty">Loading…</p>
         ) : !loaded ? (
-          <Button variant="secondary" size="compact" onClick={() => void loadHistory()}>Retry firing history</Button>
+          <Button variant="secondary" size="compact" onClick={() => void loadHistory()}>
+            {isWorkflow ? "Retry triggered runs" : "Retry triggered tasks"}
+          </Button>
         ) : empty ? (
           <p className="page-activity__empty">This schedule has not fired yet.</p>
         ) : isWorkflow ? (
