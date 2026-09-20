@@ -31,6 +31,24 @@ function tabTooltip(t) {
   return (t.kind === 'file' || t.kind === 'diff') ? (t.ref || t.title) : t.title;
 }
 
+// The familiar four-corner glyphs: arrows out to the corners for maximize,
+// arrows in to the centre for restore.
+function MaximizeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 9V4h5M4 4l6 6M20 9V4h-5M20 4l-6 6M4 15v5h5M4 20l6-6M20 15v5h-5M20 20l-6-6" />
+    </svg>
+  );
+}
+
+function RestoreIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M10 4v6H4M10 10L4 4M14 4v6h6M14 10l6-6M10 20v-6H4M10 14l-6 6M14 20v-6h6M14 14l6 6" />
+    </svg>
+  );
+}
+
 export function TabBar({
   tabs, activeKey, onSelect, onClose, onPin, onRename, onSplitRight, onSplitDown,
   onToggleMaximize, maximized, onTabDragStart, onTabDragEnd, onTabDrop,
@@ -143,7 +161,7 @@ export function TabBar({
               aria-label={maximized ? 'Restore grid' : 'Maximize pane'}
               onClick={onToggleMaximize}
             >
-              {maximized ? '⤡' : '⤢'}
+              {maximized ? <RestoreIcon /> : <MaximizeIcon />}
             </button>
           )}
           {onSplitRight && (

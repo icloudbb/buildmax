@@ -305,6 +305,10 @@
   color: var(--color-text);
 }
 
+.workspace-tabs__split svg {
+  display: block;
+}
+
 /* Drag-to-reorder: a bar on the edge the dragged tab would drop against. */
 .workspace-tabs__tab--drop-before {
   box-shadow: inset 2px 0 0 var(--color-accent, #4a9eff);
