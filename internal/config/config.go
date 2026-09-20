@@ -246,6 +246,13 @@ func ScheduledTasksPath() string {
 	return filepath.Join(DataDir(), "scheduled-tasks.json")
 }
 
+// LaunchpadPath returns the path to the Desktop app's launchpad file under
+// DataDir. It stores the user's custom quick-launch application entries and is
+// Desktop-only: the CLI and Server do not read it.
+func LaunchpadPath() string {
+	return filepath.Join(DataDir(), "launchpad.json")
+}
+
 // SkillSearchPaths returns the ordered list of directories to scan for skills.
 // Priority: workspace-local first, then global DataDir.
 func SkillSearchPaths(workspace string) []string {

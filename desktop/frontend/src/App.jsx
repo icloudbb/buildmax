@@ -10,6 +10,7 @@ import { Explorer } from './components/Explorer';
 import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
 import { SchedulesView } from './components/SchedulesView';
+import { LaunchpadButton } from './components/LaunchpadButton';
 import { activeTab, tabIdentity } from './lib/tabs';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
@@ -1252,8 +1253,9 @@ export default function App() {
               )}
             </div>
             {/* The status bar is a global first-class surface: present on Home and
-                in a project alike. Theme lives here always; the workspace controls
-                (new terminal, grid/tab) appear only with a project open. */}
+                in a project alike. Launchpad and theme live here always; the
+                workspace controls (new terminal, grid/tab) appear only with a
+                project open. */}
             <div className="workspace-statusbar">
               <span className="workspace-statusbar__status">
                 {view === 'schedules'
@@ -1286,6 +1288,7 @@ export default function App() {
                   <span aria-hidden>{totalPanes > 1 ? <SplitRightIcon /> : <GridIcon />}</span>
                 </button>
               )}
+              <LaunchpadButton />
               <ThemeStatusButton />
             </div>
           </main>

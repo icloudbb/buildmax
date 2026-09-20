@@ -19,6 +19,7 @@ import (
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 	"github.com/icloudbb/buildmax/internal/core/localproject"
 	"github.com/icloudbb/buildmax/internal/core/session"
+	launchstore "github.com/icloudbb/buildmax/internal/infra/locallaunchpadstore"
 	"github.com/icloudbb/buildmax/internal/infra/localprojectstore"
 	schedstore "github.com/icloudbb/buildmax/internal/infra/localschedulestore"
 	"github.com/icloudbb/buildmax/internal/interface/auth"
@@ -204,6 +205,9 @@ type App struct {
 	schedules *schedstore.FileStore
 	// stopSched ends the resident schedule tick loop; nil when it is not running.
 	stopSched chan struct{}
+	// launchpad stores the user's custom quick-launch entries. Lazily opened (see
+	// ensureLaunchpadStore) so a test that never touches it needs no BUILDMAX_HOME.
+	launchpad *launchstore.FileStore
 }
 
 // NewApp returns a new App instance.
