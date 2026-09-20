@@ -242,6 +242,7 @@ internal/
 │   │                   尾部修复、抢救式恢复
 │   ├── localprojectstore/ 本地 Project 文件后端：bundle、可重建的
 │   │                   目录投影，以及写者锁
+│   ├── localschedulestore/ 桌面端本地定时任务的 JSON 文件后端
 │   ├── trace/          持久化的 run-trace 记录器（有边界、经脱敏的 JSONL）
 │   ├── k8s/            Kubernetes worker job 启动器
 │   ├── workerclient/   面向 server worker API 的 worker 端 HTTP client

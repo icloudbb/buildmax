@@ -20,6 +20,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/localproject"
 	"github.com/icloudbb/buildmax/internal/core/session"
 	"github.com/icloudbb/buildmax/internal/infra/localprojectstore"
+	schedstore "github.com/icloudbb/buildmax/internal/infra/localschedulestore"
 	"github.com/icloudbb/buildmax/internal/interface/auth"
 	"github.com/icloudbb/buildmax/internal/interface/client"
 
@@ -197,6 +198,12 @@ type App struct {
 	// terminals owns the interactive shell strands shown as terminal tabs. See
 	// the desktop-terminal-tabs proposal.
 	terminals *terminalManager
+	// schedules stores the local scheduled tasks. Lazily opened (see
+	// ensureScheduleStore) so a test that never touches schedules needs no
+	// BUILDMAX_HOME.
+	schedules *schedstore.FileStore
+	// stopSched ends the resident schedule tick loop; nil when it is not running.
+	stopSched chan struct{}
 }
 
 // NewApp returns a new App instance.
@@ -228,12 +235,17 @@ func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	a.mu.Unlock()
 	_ = config.DataDir()
+	// The tick loop fires local scheduled tasks while the app is open; it needs
+	// the live context set above so a fired run can stream to the frontend.
+	a.startScheduler()
 }
 
 // Shutdown closes all per-project AgentApp instances and cancels any in-flight runs.
 func (a *App) Shutdown(_ context.Context) {
 	// Reap every shell strand so none is orphaned past the Desktop process.
 	a.terminals.closeAll()
+	// Stop the schedule tick loop so no fire starts a run mid-teardown.
+	a.stopScheduler()
 	// Cancel every in-flight run before taking a.mu: the scheduler holds its own
 	// lock, and a StartEvent pop callback takes a.mu under it, so a.mu must never
 	// be held while calling into the scheduler.

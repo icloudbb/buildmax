@@ -9,6 +9,7 @@ import { TabBar } from './components/TabBar';
 import { Explorer } from './components/Explorer';
 import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
+import { SchedulesView } from './components/SchedulesView';
 import { activeTab, tabIdentity } from './lib/tabs';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
@@ -144,6 +145,9 @@ export default function App() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
 
+  // The primary center view. 'workbench' is Home or a project workspace;
+  // 'schedules' is the first-class Schedules surface reached from the sidebar.
+  const [view, setView] = useState('workbench');
   const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
   const [workspace, setWorkspace] = useState(emptyWorkspace);
   // The pane currently under a tab being dragged, highlighted as the drop target.
@@ -250,6 +254,16 @@ export default function App() {
 
   useEffect(() => {
     const unsub = EventsOn(EV_APPROVAL_REQUEST, (payload) => setApprovalRequest(payload));
+    return () => unsub?.();
+  }, []);
+
+  // A scheduled task that fired creates a new session in the background; refresh
+  // the sidebar so it appears and can be opened. The Schedules view refetches its
+  // own list on the same event.
+  useEffect(() => {
+    const unsub = EventsOn('desktop/schedule-update', () => {
+      getApp()?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
+    });
     return () => unsub?.();
   }, []);
 
@@ -623,6 +637,7 @@ export default function App() {
   // chat tab. Across a project switch the tab is opened by the reseed effect,
   // which reads the fresh selectedId.
   function handleSelectSession(sessionId) {
+    setView('workbench');
     setNewChatProject(null);
     const sess = sessions.find((s) => s.id === sessionId);
     setSelectedId(sessionId);
@@ -632,6 +647,7 @@ export default function App() {
   }
 
   function handleNewChatInProject(project) {
+    setView('workbench');
     setProjectNotices([]);
     app?.ProjectNotices?.(project.id)
       .then((lines) => setProjectNotices(lines ?? []))
@@ -1013,6 +1029,20 @@ export default function App() {
 
           <aside className="sidebar" aria-label="Sidebar" style={{ width: sidebarWidth }}>
             <nav className="sidebar__nav" aria-label="Primary">
+              <button
+                type="button"
+                className={`sidebar__schedules${view === 'schedules' ? ' sidebar__schedules--active' : ''}`}
+                onClick={() => setView('schedules')}
+                aria-current={view === 'schedules' ? 'page' : undefined}
+              >
+                <span className="sidebar__schedules-icon" aria-hidden>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 2" />
+                  </svg>
+                </span>
+                <span>Schedules</span>
+              </button>
               <div className="sidebar__projects-header">
                 <span className="sidebar__projects-label">Projects</span>
                 <div className="sidebar__projects-header-actions">
@@ -1178,7 +1208,13 @@ export default function App() {
                   )}
                 </div>
               )}
-              {!currentProject ? (
+              {view === 'schedules' ? (
+                <SchedulesView
+                  app={app}
+                  projects={projects}
+                  onOpenSession={handleSelectSession}
+                />
+              ) : !currentProject ? (
                 <HomeDashboard
                   recentSessions={recentSessions}
                   recentProjects={recentProjects}
@@ -1220,13 +1256,15 @@ export default function App() {
                 (new terminal, grid/tab) appear only with a project open. */}
             <div className="workspace-statusbar">
               <span className="workspace-statusbar__status">
-                {currentProject
-                  ? `${currentProject.name}${totalPanes > 1
-                    ? ` · ${totalPanes} panes`
-                    : (focusedActiveTab?.title ? ` · ${focusedActiveTab.title}` : '')}`
-                  : 'Home'}
+                {view === 'schedules'
+                  ? 'Schedules'
+                  : currentProject
+                    ? `${currentProject.name}${totalPanes > 1
+                      ? ` · ${totalPanes} panes`
+                      : (focusedActiveTab?.title ? ` · ${focusedActiveTab.title}` : '')}`
+                    : 'Home'}
               </span>
-              {currentProject && (
+              {currentProject && view !== 'schedules' && (
                 <button
                   type="button"
                   className="workspace-statusbar__btn"
@@ -1237,7 +1275,7 @@ export default function App() {
                   <span aria-hidden>{'>_'}</span>
                 </button>
               )}
-              {currentProject && canToggleGrid && (
+              {currentProject && view !== 'schedules' && canToggleGrid && (
                 <button
                   type="button"
                   className="workspace-statusbar__btn"
