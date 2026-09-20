@@ -222,10 +222,16 @@ then moved to the same roles, and the legacy `.btn`, `.page-activity__action-btn
 aliased. Issue creation now sends status, Owner, and Executor with the create
 request, so the API writes them in one step and the dialog no longer needs a
 partial-create recovery path.
-The audit-and-specimen step was skipped: migration reused the existing theme
-values instead of choosing tokens from a specimen. Whether a specimen is still
-worth building, and the independent operator review, remain. Each further slice
-needs its own observable outcome and verification.
+The audit-and-specimen step was skipped as a token-selection gate: migration
+reused the existing theme values instead of choosing tokens from a specimen. A
+component specimen has since been built, served at `/specimen` outside the
+authenticated shell — not to re-choose tokens, but as a standing review artifact
+that renders the action grammar, semantic tokens, status vocabulary, and every
+resource state once, in both themes and reviewable at 390/768/1280px, reusing the
+real components so a divergence there is a divergence in Portal. The independent,
+non-author operator review of the Issue-to-result and failure-to-diagnosis
+journeys remains. Each further slice needs its own observable outcome and
+verification.
 
 ## Options and non-goals
 

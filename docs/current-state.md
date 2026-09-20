@@ -509,9 +509,11 @@ button rules are removed. In-flight actions keep their label and width and show
 a busy state. The Help language switch and shell navigation are controls rather
 than page actions and keep their own styling.
 A new Issue is created with its status, Owner, and Executor in one request, so a
-refused value creates nothing and retrying cannot make a duplicate. The
-component specimen and a non-author operator review of the work journeys have
-not been produced.
+refused value creates nothing and retrying cannot make a duplicate. A component
+specimen is now served at `/specimen`, outside the authenticated shell: it
+renders the shared action grammar, semantic tokens, status vocabulary, and every
+resource state once, in both themes, reusing the real components. A non-author
+operator review of the work journeys has not been produced.
 Desktop has bridge and browser-based UI suites under
 [`desktop/frontend/e2e`](../desktop/frontend/e2e), plus a packaged-application
 launch smoke on macOS and Windows CI. The launch smoke proves that the built

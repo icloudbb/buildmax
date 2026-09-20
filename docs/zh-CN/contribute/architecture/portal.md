@@ -26,8 +26,13 @@ Portal 负责云端/Space 使用场景：
 
 ## 当前结构
 
-- 路由位于 `portal/src/router.ts`。
+- 路由位于 `portal/src/router.ts`。少数无需登录或 Space 的独立页面，在
+  `portal/src/main.tsx` 中按真实路径匹配，并仅包裹 `ThemeProvider` 渲染：公共分享
+  链接 `/shared/artifacts/<token>` 与组件样张 `/specimen`。
 - 页面位于 `portal/src/pages/*`。
+- `/specimen` 是设计与评审产物，而非产品页面：它一次性呈现共享操作语法、语义 token、
+  状态词汇与全部资源状态，复用真实组件，使评审者在信任已迁移页面之前，能跨主题与宽度
+  逐一确认每种角色与状态。
 - API 调用位于 `portal/src/features/*/api.ts` 和 `portal/src/lib/api`。
 - 共享展示组件来自 `@buildmax/gui`。
 - 共享 `Button` 和 `IconButton` 负责操作的外观、点击区域、焦点和忙碌状态。

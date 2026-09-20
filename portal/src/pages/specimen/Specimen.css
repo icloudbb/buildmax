@@ -1,0 +1,208 @@
+/* Specimen layout only. It consumes the shared tokens and never restyles the
+   components it showcases — a component's geometry must come from its own rules,
+   not from this page. */
+
+.spec-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6);
+  color: var(--color-text);
+  background: var(--color-bg);
+  min-height: 100vh;
+}
+
+.spec-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
+}
+
+.spec-head__title {
+  font-size: var(--font-size-page);
+  margin: 0 0 var(--space-2);
+}
+
+.spec-head__lede {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
+}
+
+.spec-section {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-6);
+  margin-top: var(--space-8);
+}
+
+.spec-section__title {
+  font-size: var(--font-size-page);
+  margin: 0 0 var(--space-2);
+}
+
+.spec-section__note {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  max-width: 70ch;
+}
+
+.spec-subhead {
+  font-size: var(--font-size-section);
+  color: var(--color-text-muted);
+  margin: var(--space-6) 0 var(--space-3);
+}
+
+.spec-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.spec-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.spec-row__label {
+  min-width: 12ch;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-meta);
+}
+
+.spec-muted {
+  color: var(--color-text-muted);
+}
+
+/* Token swatches */
+.spec-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.spec-swatch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.spec-swatch__chip {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-border);
+  flex: none;
+}
+
+.spec-swatch__name {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.spec-bar {
+  display: inline-block;
+  height: 16px;
+  background: var(--color-primary);
+  border-radius: 2px;
+}
+
+.spec-radius {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 64px;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+/* Status chips */
+.spec-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.spec-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-size-meta);
+}
+
+.spec-chip__raw {
+  color: var(--color-text-subtle);
+  font-size: 0.7rem;
+}
+
+.spec-chip--running {
+  color: var(--color-status-running);
+  border-color: var(--color-status-running);
+}
+
+.spec-chip--done {
+  color: var(--color-status-success);
+  border-color: var(--color-status-success);
+}
+
+.spec-chip--failed {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+/* Narrow reflow frames */
+.spec-frames {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: flex-start;
+}
+
+.spec-frame {
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-panel);
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.spec-frame__label {
+  display: block;
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-bg-muted);
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-meta);
+}
+
+.spec-frame__body {
+  padding: var(--space-4);
+}
+
+.spec-frame__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.spec-frame__h1 {
+  margin: 0;
+  font-size: var(--font-size-page);
+}
+
+@media (max-width: 640px) {
+  .spec-head {
+    flex-direction: column;
+  }
+}
