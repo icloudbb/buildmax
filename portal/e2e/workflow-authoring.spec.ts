@@ -13,7 +13,7 @@ import { postJSON, reportLeftovers, session, tagged } from "./fixtures"
  * definition, not that the Portal never lets someone author one.
  */
 
-test("the node inspector has no free-form Type field or editable step id, and creates a workflow", async ({
+test("the node inspector has an editable step id and no free-form Type field, and creates a workflow", async ({
   page,
 }) => {
   const current = await session(page)
