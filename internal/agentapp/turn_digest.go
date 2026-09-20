@@ -15,14 +15,24 @@ import (
 // Bounds on what the digest is shown and what it may write back. The transcript
 // caps exist because a turn that read a large file would otherwise send it a
 // second time to be summarized, which costs more than the summary is worth.
+//
+// Tool-call arguments and tool results are clipped far harder than the prose
+// around them, because a recap names the action, not the payload it carried:
+// the file body a write sends in its arguments, and the file a read returns in
+// its result, are a turn's largest tokens and the least of what a recap is
+// about. Assistant reasoning and the user's message keep the larger bound —
+// they are the "why" a recap is asked to explain.
 const (
 	maxDigestTranscriptRunes = 12000
 	maxDigestMessageRunes    = 1200
+	maxDigestArgsRunes       = 200
+	maxDigestToolResultRunes = 400
 	maxRecapRunes            = 400
 	maxSuggestionRunes       = 160
-	// digestReplyFloor is how long a tool-free reply has to be before a recap
-	// could add anything. Below it the reply is already its own summary.
-	digestReplyFloor = 600
+	// digestSelfNarrateCeiling is how long a reply has to get before a turn that
+	// changed something is assumed to have already narrated the change. Above it
+	// a recap would mostly repeat the reply, so the call is not worth its tokens.
+	digestSelfNarrateCeiling = 1500
 )
 
 // TurnSummary is what one finished turn looked like, reduced to values.
@@ -40,6 +50,9 @@ type TurnSummary struct {
 	Transcript string
 	// ToolCalls is how many tool calls the turn made.
 	ToolCalls int
+	// WriteToolCalls is how many of those actually changed state. A recap names
+	// what changed, so a turn that changed nothing has nothing for it to say.
+	WriteToolCalls int
 }
 
 // TurnDigest is what the side call produced. Either field may be empty, which
@@ -134,13 +147,21 @@ func digestMessages(summary TurnSummary, wantRecap, wantSuggestion bool) []llm.M
 	}
 }
 
-// worthRecapping keeps the call off turns a recap could not improve on. A turn
-// that ran no tools and answered briefly has already said everything it did.
+// worthRecapping keeps the call off turns a recap could not improve on, so the
+// tokens are spent only when there is likely something worth saying.
+//
+// A recap names what changed. A turn that changed no state — one that answered
+// from what it knew, or only read and searched — has nothing for it to name;
+// the reply is the whole deliverable and a recap could only repeat it. And when
+// a turn that did change state answered at length, the reply has room to have
+// already named the change, so paying to say it again is waste. The gate leaves
+// the redundant-but-shorter case to the model, which is told to return "" when
+// the reply is already its own summary.
 func (s TurnSummary) worthRecapping() bool {
-	if s.ToolCalls > 0 {
-		return true
+	if s.WriteToolCalls == 0 {
+		return false
 	}
-	return utf8.RuneCountInString(s.Reply) >= digestReplyFloor
+	return utf8.RuneCountInString(s.Reply) < digestSelfNarrateCeiling
 }
 
 // asksUser reports whether the reply ends by putting a question to the user.
@@ -205,12 +226,13 @@ func firstLine(s string) string {
 
 // summarizeTurn reduces the messages one turn appended to the values the
 // digest call needs.
-func summarizeTurn(prompt, reply string, turnMessages []llm.Message, toolCalls int) TurnSummary {
+func summarizeTurn(prompt, reply string, turnMessages []llm.Message, toolCalls, writeToolCalls int) TurnSummary {
 	return TurnSummary{
-		Prompt:     prompt,
-		Reply:      reply,
-		Transcript: clippedTranscript(turnMessages),
-		ToolCalls:  toolCalls,
+		Prompt:         prompt,
+		Reply:          reply,
+		Transcript:     clippedTranscript(turnMessages),
+		ToolCalls:      toolCalls,
+		WriteToolCalls: writeToolCalls,
 	}
 }
 
@@ -224,16 +246,16 @@ func clippedTranscript(msgs []llm.Message) string {
 		switch {
 		case len(m.ToolCalls) > 0:
 			if text := strings.TrimSpace(m.Content); text != "" {
-				fmt.Fprintf(&b, "[assistant] %s\n", clip(text))
+				fmt.Fprintf(&b, "[assistant] %s\n", clip(text, maxDigestMessageRunes))
 			}
 			for _, tc := range m.ToolCalls {
-				fmt.Fprintf(&b, "[calls %s] %s\n", tc.Name, clip(tc.Arguments))
+				fmt.Fprintf(&b, "[calls %s] %s\n", tc.Name, digestArgs(tc.Arguments))
 			}
 		case m.Role == "tool":
-			fmt.Fprintf(&b, "[tool result] %s\n", clip(m.Content))
+			fmt.Fprintf(&b, "[tool result] %s\n", clip(m.Content, maxDigestToolResultRunes))
 		default:
 			if text := strings.TrimSpace(m.Content); text != "" {
-				fmt.Fprintf(&b, "[%s] %s\n", m.Role, clip(text))
+				fmt.Fprintf(&b, "[%s] %s\n", m.Role, clip(text, maxDigestMessageRunes))
 			}
 		}
 	}
@@ -246,10 +268,45 @@ func clippedTranscript(msgs []llm.Message) string {
 	return out
 }
 
-func clip(s string) string {
+func clip(s string, limit int) string {
 	s = strings.TrimSpace(s)
-	if utf8.RuneCountInString(s) <= maxDigestMessageRunes {
+	if utf8.RuneCountInString(s) <= limit {
 		return s
 	}
-	return util.ClipRunes(s, maxDigestMessageRunes) + " […]"
+	return util.ClipRunes(s, limit) + " […]"
+}
+
+// bulkyArgKeys are tool-argument fields that carry a payload rather than name
+// the action: the file body a write sends, the strings an edit swaps. On a
+// write turn — the only kind a recap now runs on — they are the transcript's
+// largest tokens and say nothing a recap needs, so they are replaced by their
+// size. Everything else in the arguments (the path, the command, the pattern)
+// is small and identifying, so it is kept.
+var bulkyArgKeys = map[string]bool{
+	"content":    true,
+	"old_string": true,
+	"new_string": true,
+}
+
+// digestArgs renders a tool call's arguments for the digest with the payload
+// fields stripped to a size marker. Arguments that are not a JSON object, or
+// that survive stripping, are clipped like anything else so a pathological call
+// cannot flood the prompt.
+func digestArgs(raw string) string {
+	var obj map[string]any
+	if json.Unmarshal([]byte(raw), &obj) != nil {
+		return clip(raw, maxDigestArgsRunes)
+	}
+	for k, v := range obj {
+		if s, ok := v.(string); ok && bulkyArgKeys[k] {
+			obj[k] = fmt.Sprintf("…%d chars", utf8.RuneCountInString(s))
+		}
+	}
+	// Marshal sorts keys, so the rendering is stable regardless of the order the
+	// model emitted the arguments in.
+	trimmed, err := json.Marshal(obj)
+	if err != nil {
+		return clip(raw, maxDigestArgsRunes)
+	}
+	return clip(string(trimmed), maxDigestArgsRunes)
 }

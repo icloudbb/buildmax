@@ -754,11 +754,16 @@ greyed out, and only while the input is empty: press `tab` to accept it and
 Neither is part of the conversation. The model never sees a recap or a
 suggestion on a later turn — they are written for you and thrown away.
 
-The call is skipped on turns that could not produce anything: a turn that ran
-no tools and answered briefly gets no recap, and a turn that ended without
-asking you anything gets no suggestion. What it does spend counts towards the
-session's usage — `/info` in the TUI, the status bar in Desktop. Set either key to `false` to switch that half off, or both
-to make the turn end with no extra call at all.
+The call is skipped on turns that could not produce anything, so the extra
+tokens are spent only when there is likely something to show. A recap names
+what changed, so it is generated only for a turn that actually changed state —
+wrote a file, ran a command — and only when the reply did not already spell the
+change out at length; a turn that only answered, read, or searched gets no
+recap, because the reply is already its whole account. A suggestion is offered
+only when the turn ended by asking you something. What it does spend counts
+towards the session's usage — `/info` in the TUI, the status bar in Desktop.
+Set either key to `false` to switch that half off, or both to make the turn end
+with no extra call at all.
 
 ## `server.yaml` — Server and Worker
 
