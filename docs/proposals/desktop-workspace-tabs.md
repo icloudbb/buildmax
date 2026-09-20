@@ -504,13 +504,16 @@ absolute form is resolved in Go against the session's own workspace root — a
 worktree when the session has one — so it names the file the panel actually
 reads, and the copy goes through the native clipboard.
 
-In a grid, a pane's strip carries a **Maximize** control that expands that pane
-to fill the workspace for focused work, with a Restore control to bring the grid
-back. It is a view overlay, not a layout change: the grid is untouched
-underneath, and because a maximized pane is the only one rendered, its terminals
-keep their slot while the rest simply park — no session is disturbed. Maximize is
-offered only when more than one pane is on screen, and clears itself if its pane
-closes or the grid collapses to one.
+In a grid, a pane's strip carries a **Maximize** control that floats that pane
+forward as an **overlay** for focused work — it rises on a scrim over the grid,
+which stays visible but dimmed behind it, so the depth reads as pulling the pane
+closer rather than swapping the view. A Restore control (or a click on the
+scrim) drops it back. It is a view overlay, not a layout change: the grid is
+untouched underneath, and the maximized pane is rendered only in the overlay —
+its grid cell holds a dimmed placeholder — so it is never mounted or slotted
+twice, its terminals keep their single slot as it floats, and no session is
+disturbed. Maximize is offered only when more than one pane is on screen, and
+clears itself if its pane closes or the grid collapses to one.
 
 A status bar spans the bottom of the workspace as a global surface — present on
 the Home screen and in a project alike. Its controls read left to right as

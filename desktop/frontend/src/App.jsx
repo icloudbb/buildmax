@@ -902,7 +902,6 @@ export default function App() {
       'workspace-pane',
       totalPanes > 1 && focused ? 'workspace-pane--focused' : '',
       dropPane === pane.id ? 'workspace-pane--drop' : '',
-      maximizedPane && maximizedPane.id === pane.id ? 'workspace-pane--maximized' : '',
     ].filter(Boolean).join(' ');
     return (
       <div
@@ -1138,19 +1137,31 @@ export default function App() {
                   onOpenProject={handleNewChatInProject}
                   onCreateProject={() => setShowCreateModal(true)}
                 />
-              ) : maximizedPane ? (
-                <div className="workspace-grid workspace-grid--maximized">
-                  <div className="workspace-grid__row">
-                    {renderPane(maximizedPane)}
-                  </div>
-                </div>
               ) : (
                 <div className={`workspace-grid${totalPanes > 1 ? ' workspace-grid--split' : ''}`}>
                   {workspace.rows.map((row) => (
                     <div key={row.id} className="workspace-grid__row">
-                      {row.panes.map((pane) => renderPane(pane))}
+                      {row.panes.map((pane) => (
+                        // The maximized pane floats in the overlay below; its grid
+                        // cell holds a dimmed placeholder so the layout keeps its
+                        // shape (and the pane is never rendered — or slotted —
+                        // twice).
+                        maximizedPane && maximizedPane.id === pane.id
+                          ? <div key={pane.id} className="workspace-pane workspace-pane--placeholder" aria-hidden />
+                          : renderPane(pane)
+                      ))}
                     </div>
                   ))}
+                  {maximizedPane && (
+                    <div
+                      className="workspace-maximize-overlay"
+                      onClick={(e) => { if (e.target === e.currentTarget) setMaximizedPaneId(null); }}
+                    >
+                      <div className="workspace-maximize-overlay__card">
+                        {renderPane(maximizedPane)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

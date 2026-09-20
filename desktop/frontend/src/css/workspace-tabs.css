@@ -46,6 +46,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Anchors the maximize overlay, which floats above the grid. */
+  position: relative;
 }
 
 /* A slim status bar pinned below the grid. Status text sits on the left; the
@@ -360,8 +362,49 @@
   border-color: var(--color-accent, #4a9eff);
 }
 
-/* A maximized pane fills the workspace; it carries no split border since the
-   grid frame is hidden while it is up. */
-.workspace-grid--maximized .workspace-pane {
+/* Maximize as an overlay: the pane floats above the grid, which stays visible
+   but dimmed behind a scrim, giving a sense of the pane being pulled forward. */
+.workspace-maximize-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  padding: 3%;
+  background: rgba(0, 0, 0, 0.4);
+  animation: workspace-maximize-fade 0.12s ease-out;
+}
+
+.workspace-maximize-overlay__card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-bg);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+  animation: workspace-maximize-zoom 0.12s ease-out;
+}
+
+/* The floated pane fills its card and drops the grid's split border. */
+.workspace-maximize-overlay__card .workspace-pane {
+  flex: 1;
+  min-height: 0;
   border: none;
+}
+
+/* The maximized pane's grid cell: a dimmed placeholder that holds its space so
+   the grid keeps its shape behind the overlay. */
+.workspace-pane--placeholder {
+  background: var(--color-bg-muted);
+  opacity: 0.5;
+}
+
+@keyframes workspace-maximize-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes workspace-maximize-zoom {
+  from { transform: scale(0.96); }
+  to { transform: scale(1); }
 }
