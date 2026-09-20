@@ -1,18 +1,16 @@
 import { createPortal } from 'react-dom';
 import { TerminalPane } from './TerminalPane';
 
-// TerminalHost keeps every open terminal's emulator mounted for its whole life
-// and portals it into whichever pane currently shows it, or into a hidden park
-// when no pane does. Because a portal relocates the DOM node without unmounting
-// the component, dragging a terminal tab to another pane — or re-tiling the grid
-// around it — never recreates xterm, so scrollback and cursor survive the move.
-//
-// `terminals` is [{ id, target, active }]: target is the pane's slot element (or
-// null to park), active is true when that terminal is its pane's visible tab.
-export function TerminalHost({ terminals, park }) {
-  return terminals.map(({ id, target, active }) => {
-    const dest = target ?? park;
-    if (!dest) return null;
-    return createPortal(<TerminalPane id={id} active={active} />, dest, id);
-  });
+// TerminalHost mounts every open terminal's emulator exactly once, each portalled
+// into its own stable host element (`hosts`: id -> element). The host never
+// changes for a terminal's life; App moves the host element between a pane's slot
+// and a hidden park with appendChild. That matters because changing a portal's
+// container remounts its child — which would dispose xterm and lose scrollback —
+// whereas moving the unchanged container element does not. So a terminal keeps
+// its emulator, cursor, and scrollback across tab switches, pane drags, grid
+// re-tiling, and project switches; `activeById` only toggles its visibility.
+export function TerminalHost({ hosts, activeById }) {
+  return [...hosts].map(([id, host]) => (
+    createPortal(<TerminalPane id={id} active={!!activeById[id]} />, host, id)
+  ));
 }

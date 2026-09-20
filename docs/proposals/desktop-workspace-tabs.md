@@ -478,16 +478,20 @@ neighbour.
 
 A tab is **dragged** from its strip and dropped onto another pane to move it
 there. Because a tab's backing is pane-independent (§7.5), the move carries the
-live content, not just the descriptor. Terminals make this concrete: every
-terminal's emulator is kept mounted in a hidden host and *portalled* into
-whichever pane shows it (`TerminalHost`), so a dragged terminal keeps its
-scrollback and cursor — the DOM node is relocated, never recreated. This is why
-the model insists a backing is decoupled from its pane. The same host keeps a
-terminal mounted, parked, across a **project switch**: each project's live layout
-is stashed in memory as the user moves between projects, so returning to a
-project restores its exact tabs with the shells still running and their
-scrollback intact, rather than killing them. Switching remains project-scoped —
-a project shows only its own tabs — and only deleting a project ends its shells.
+live content, not just the descriptor. Terminals make this concrete: each
+terminal's emulator is *portalled* into its own **stable host element**, and that
+host is moved between a pane's slot and a hidden park with `appendChild` as tabs
+switch and terminals are dragged (`TerminalHost`). The subtlety that forces this
+shape: changing a React portal's container remounts its child, which would
+dispose xterm and lose scrollback — but moving the unchanged container element
+does not. So a terminal keeps its emulator, cursor, and scrollback across tab
+switches, pane drags, and grid re-tiling; the node is relocated, never recreated.
+This is why the model insists a backing is decoupled from its pane. The same host
+also survives a **project switch**: each project's live layout is stashed in
+memory as the user moves between projects, so returning to a project restores its
+exact tabs with the shells still running and their scrollback intact, rather than
+killing them. Switching remains project-scoped — a project shows only its own
+tabs — and only deleting a project ends its shells.
 
 The tab strip carries the ordinary editor gestures. The same drag that moves a
 tab across panes also **reorders** it within a strip — dropped before the tab

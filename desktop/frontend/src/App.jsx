@@ -17,7 +17,7 @@ import {
   collapse, tile,
 } from './lib/panes';
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { Avatar, ThemeProvider, useTheme } from '@buildmax/gui';
 import { EventsOn } from './lib/wailsRuntime';
 import LoginPage from './LoginPage';
@@ -490,6 +490,56 @@ export default function App() {
     }
     return out;
   }, [workspace, termSlots, parkedTermIds]);
+
+  // Each terminal keeps ONE host element for its whole life. TerminalPane portals
+  // into it and never leaves: React remounts a portal's child when its container
+  // changes (which would dispose xterm and lose scrollback), so instead the host
+  // stays put and we move the host element itself between a pane's slot and the
+  // hidden park with appendChild — the portal container is unchanged, so xterm is
+  // never recreated across tab switches, drags, re-tiles, or project switches.
+  const [termHosts, setTermHosts] = useState(() => new Map());
+  const termIdsKey = terminalTargets.map((t) => t.id).join('\n');
+  useEffect(() => {
+    setTermHosts((prev) => {
+      const ids = new Set(terminalTargets.map((t) => t.id));
+      const next = new Map(prev);
+      let changed = false;
+      for (const id of ids) {
+        if (!next.has(id)) {
+          const el = document.createElement('div');
+          el.className = 'terminal-host';
+          next.set(id, el);
+          changed = true;
+        }
+      }
+      for (const id of [...next.keys()]) {
+        if (!ids.has(id)) {
+          next.get(id)?.remove();
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termIdsKey]);
+
+  // Place each terminal's host in its slot (visible) or the park (hidden). Moving
+  // the host never changes the portal container, so no terminal is remounted.
+  useLayoutEffect(() => {
+    for (const { id, target } of terminalTargets) {
+      const host = termHosts.get(id);
+      if (!host) continue;
+      const dest = target ?? termParkEl;
+      if (dest && host.parentNode !== dest) dest.appendChild(host);
+    }
+  }, [terminalTargets, termHosts, termParkEl]);
+
+  const terminalActiveById = useMemo(() => {
+    const m = {};
+    for (const { id, active } of terminalTargets) m[id] = active;
+    return m;
+  }, [terminalTargets]);
   const closeCenterTab = useCallback((paneId, key) => {
     setWorkspace((s) => {
       const tab = allTabs(s).find((t) => t.key === key);
@@ -1204,10 +1254,12 @@ export default function App() {
         </div>
       </div>
 
-      {/* Terminals are portalled into their pane's slot from here, so they stay
-          mounted across tab switches, pane moves, and grid re-tiling. */}
+      {/* Terminals are portalled into a per-terminal host element (moved between
+          slot and park with appendChild), so they stay mounted — and keep their
+          scrollback — across tab switches, pane moves, grid re-tiling, and
+          project switches. */}
       <div className="terminal-park" ref={setTermPark} aria-hidden />
-      <TerminalHost terminals={terminalTargets} park={termParkEl} />
+      <TerminalHost hosts={termHosts} activeById={terminalActiveById} />
 
       {showCreateModal && (
         <CreateProjectModal
