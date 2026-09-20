@@ -11,6 +11,7 @@ export {
   restoreWorkflowRevision,
 } from "./api"
 export { WorkflowStepsEditor } from "./StepsEditor"
+export { WorkflowVisualEditor } from "./VisualEditor"
 export { WorkflowGraph, type GraphNode } from "./WorkflowGraph"
 export { WorkflowRunInputForm } from "./RunInputForm"
 export {
@@ -27,6 +28,7 @@ export {
   effectiveNeeds,
   newStep,
   newStepId,
+  normalizeNeeds,
   parseDefinition,
   stepsToDefinition,
   validateSteps,

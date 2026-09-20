@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@buildmax/gui": "file:../gui",
+    "@xyflow/react": "^12.11.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",

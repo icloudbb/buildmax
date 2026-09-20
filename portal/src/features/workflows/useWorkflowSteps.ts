@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState } from "react"
 import type { Agent } from "../../lib/types"
 import {
   newStep,
+  newStepId,
+  normalizeNeeds,
   parseDefinition,
   stepsToDefinition,
   validateSteps,
@@ -20,12 +22,23 @@ export interface WorkflowStepsState {
   advanced: boolean
   definitionText: string
   definitionParseError: string | null
-  addStep: () => void
-  removeStep: (index: number) => void
-  changeStep: (index: number, patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt">>) => void
-  addBinding: (stepIndex: number) => void
-  removeBinding: (stepIndex: number, bindingIndex: number) => void
-  changeBinding: (stepIndex: number, bindingIndex: number, patch: Partial<WorkflowStepBinding>) => void
+  /** The definition's `policy.max_parallel_nodes`, editable beside the canvas. */
+  maxParallelNodes: number | null
+  setMaxParallelNodes: (value: number | null) => void
+  /** Appends a root step (no needs) and returns its id so the caller can select
+   *  and position it. */
+  addStep: () => string
+  removeStep: (id: string) => void
+  changeStep: (
+    id: string,
+    patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess">>,
+  ) => void
+  /** Add or remove a `needs` edge — the graph's dependency between two steps. */
+  connectNeed: (targetId: string, sourceId: string) => void
+  disconnectNeed: (targetId: string, sourceId: string) => void
+  addBinding: (stepId: string) => void
+  removeBinding: (stepId: string, bindingIndex: number) => void
+  changeBinding: (stepId: string, bindingIndex: number, patch: Partial<WorkflowStepBinding>) => void
   toggleAdvanced: () => void
   setDefinitionText: (text: string) => void
   /** Replace the whole state from a definition string already on the wire
@@ -34,58 +47,89 @@ export interface WorkflowStepsState {
 }
 
 /**
- * Owns the Agent-step form and the advanced JSON view as one state machine
- * with a single source of truth (`steps`), so `WorkflowDetail` and the
- * create modal share one place that decides what Save is allowed to submit.
+ * Owns the visual editor and the raw JSON view as one state machine with a
+ * single source of truth (`steps`, with explicit `needs` edges), so
+ * `WorkflowDetail` and the create modal share one place that decides what Save
+ * is allowed to submit. `input_schema`, `result`, and each node's
+ * `output_schema` are carried verbatim so switching to the visual editor and
+ * saving does not strip a definition that declares them.
  */
 export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   const [steps, setSteps] = useState<WorkflowStepDraft[]>([])
-  // maxParallelNodes preserves the definition's policy.max_parallel_nodes across
-  // parse and serialize. The step form does not edit it yet; advanced JSON does,
-  // and carrying it here keeps that value from being stripped on save.
-  const [maxParallelNodes, setMaxParallelNodes] = useState<number | null>(null)
+  const [maxParallelNodes, setMaxParallelNodesRaw] = useState<number | null>(null)
+  const [inputSchema, setInputSchema] = useState<string | undefined>(undefined)
+  const [result, setResult] = useState<string | undefined>(undefined)
   const [advanced, setAdvanced] = useState(false)
   const [definitionText, setDefinitionTextRaw] = useState("")
   const [definitionParseError, setDefinitionParseError] = useState<string | null>(null)
 
   const hydrate = useCallback((definition: string) => {
     const parsed = parseDefinition(definition)
-    setSteps(parsed?.steps ?? [])
-    setMaxParallelNodes(parsed?.maxParallelNodes ?? null)
+    setSteps(parsed ? normalizeNeeds(parsed.steps) : [])
+    setMaxParallelNodesRaw(parsed?.maxParallelNodes ?? null)
+    setInputSchema(parsed?.inputSchema)
+    setResult(parsed?.result)
     setDefinitionTextRaw(definition)
     setDefinitionParseError(parsed ? null : "This workflow's saved definition is not valid JSON.")
     setAdvanced(!parsed)
   }, [])
 
   const addStep = useCallback(() => {
-    setSteps((prev) => [...prev, newStep(agents[0]?.id ?? "")])
+    const step: WorkflowStepDraft = { ...newStep(agents[0]?.id ?? ""), id: newStepId(), needs: [] }
+    setSteps((prev) => [...prev, step])
+    return step.id
   }, [agents])
 
-  const removeStep = useCallback((index: number) => {
-    setSteps((prev) => prev.filter((_, i) => i !== index))
+  const removeStep = useCallback((id: string) => {
+    setSteps((prev) =>
+      prev
+        .filter((step) => step.id !== id)
+        // Drop any edge that pointed at the removed step, so no node is left
+        // depending on a step that no longer exists.
+        .map((step) => ({ ...step, needs: (step.needs ?? []).filter((need) => need !== id) })),
+    )
   }, [])
 
   const changeStep = useCallback(
-    (index: number, patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt">>) => {
-      setSteps((prev) => prev.map((step, i) => (i === index ? { ...step, ...patch } : step)))
+    (id: string, patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess">>) => {
+      setSteps((prev) => prev.map((step) => (step.id === id ? { ...step, ...patch } : step)))
     },
     [],
   )
 
-  const addBinding = useCallback((stepIndex: number) => {
+  const connectNeed = useCallback((targetId: string, sourceId: string) => {
+    if (targetId === sourceId) return
     setSteps((prev) =>
-      prev.map((step, i) =>
-        i === stepIndex
+      prev.map((step) => {
+        if (step.id !== targetId) return step
+        const needs = step.needs ?? []
+        return needs.includes(sourceId) ? step : { ...step, needs: [...needs, sourceId] }
+      }),
+    )
+  }, [])
+
+  const disconnectNeed = useCallback((targetId: string, sourceId: string) => {
+    setSteps((prev) =>
+      prev.map((step) =>
+        step.id === targetId ? { ...step, needs: (step.needs ?? []).filter((need) => need !== sourceId) } : step,
+      ),
+    )
+  }, [])
+
+  const addBinding = useCallback((stepId: string) => {
+    setSteps((prev) =>
+      prev.map((step) =>
+        step.id === stepId
           ? { ...step, bindings: [...(step.bindings ?? []), { name: "", source: "", pointer: "" }] }
           : step,
       ),
     )
   }, [])
 
-  const removeBinding = useCallback((stepIndex: number, bindingIndex: number) => {
+  const removeBinding = useCallback((stepId: string, bindingIndex: number) => {
     setSteps((prev) =>
-      prev.map((step, i) => {
-        if (i !== stepIndex) return step
+      prev.map((step) => {
+        if (step.id !== stepId) return step
         // An empty bindings array becomes undefined so the draft matches a step
         // that never had one -- keeps stepsToDefinition from emitting `bindings`
         // and the round-trip equal.
@@ -96,10 +140,10 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   }, [])
 
   const changeBinding = useCallback(
-    (stepIndex: number, bindingIndex: number, patch: Partial<WorkflowStepBinding>) => {
+    (stepId: string, bindingIndex: number, patch: Partial<WorkflowStepBinding>) => {
       setSteps((prev) =>
-        prev.map((step, i) =>
-          i === stepIndex
+        prev.map((step) =>
+          step.id === stepId
             ? {
                 ...step,
                 bindings: (step.bindings ?? []).map((binding, j) =>
@@ -113,12 +157,18 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     [],
   )
 
+  const setMaxParallelNodes = useCallback((value: number | null) => {
+    setMaxParallelNodesRaw(value)
+  }, [])
+
   const setDefinitionText = useCallback((text: string) => {
     setDefinitionTextRaw(text)
     const parsed = parseDefinition(text)
     if (parsed) {
-      setSteps(parsed.steps)
-      setMaxParallelNodes(parsed.maxParallelNodes)
+      setSteps(normalizeNeeds(parsed.steps))
+      setMaxParallelNodesRaw(parsed.maxParallelNodes)
+      setInputSchema(parsed.inputSchema)
+      setResult(parsed.result)
       setDefinitionParseError(null)
     } else {
       setDefinitionParseError("This isn't valid JSON yet.")
@@ -127,26 +177,31 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
 
   const toggleAdvanced = useCallback(() => {
     if (advanced) {
-      // Leaving requires JSON the step form can actually represent -- a
+      // Leaving requires JSON the visual editor can actually represent -- a
       // parse failure has no step state to hand back.
       const parsed = parseDefinition(definitionText)
       if (!parsed) {
-        setDefinitionParseError("Fix the JSON before returning to the step form.")
+        setDefinitionParseError("Fix the JSON before returning to the visual editor.")
         return
       }
-      setSteps(parsed.steps)
-      setMaxParallelNodes(parsed.maxParallelNodes)
+      setSteps(normalizeNeeds(parsed.steps))
+      setMaxParallelNodesRaw(parsed.maxParallelNodes)
+      setInputSchema(parsed.inputSchema)
+      setResult(parsed.result)
       setDefinitionParseError(null)
       setAdvanced(false)
       return
     }
-    setDefinitionTextRaw(stepsToDefinition(steps, maxParallelNodes))
+    setDefinitionTextRaw(stepsToDefinition(steps, maxParallelNodes, inputSchema, result))
     setDefinitionParseError(null)
     setAdvanced(true)
-  }, [advanced, definitionText, steps, maxParallelNodes])
+  }, [advanced, definitionText, steps, maxParallelNodes, inputSchema, result])
 
   const errors = useMemo(() => validateSteps(steps, agents), [steps, agents])
-  const definition = useMemo(() => stepsToDefinition(steps, maxParallelNodes), [steps, maxParallelNodes])
+  const definition = useMemo(
+    () => stepsToDefinition(steps, maxParallelNodes, inputSchema, result),
+    [steps, maxParallelNodes, inputSchema, result],
+  )
 
   return {
     steps,
@@ -155,9 +210,13 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     advanced,
     definitionText,
     definitionParseError,
+    maxParallelNodes,
+    setMaxParallelNodes,
     addStep,
     removeStep,
     changeStep,
+    connectNeed,
+    disconnectNeed,
     addBinding,
     removeBinding,
     changeBinding,

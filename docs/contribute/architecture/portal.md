@@ -53,7 +53,14 @@ Portal owns the cloud/space lane:
   Workflow Detail drives lifecycle through explicit actions rather than a status
   control: authoring offers Save as draft and Publish, a published read view
   offers Run, and Archive is a separate action. Version history opens from a
-  header button and the opaque workflow id is not shown.
+  header button and the opaque workflow id is not shown. Its definition editor
+  has two modes over one draft state (`useWorkflowSteps`): a visual React Flow
+  canvas — nodes are steps, edges are `needs`, a node inspector edits the rest —
+  and a raw JSON view. `steps.ts` stays the one serialize/parse/validate
+  authority and preserves `input_schema`, `result`, and `output_schema` verbatim.
+  The read-only run and plan graphs keep using `WorkflowGraph`; only the editor
+  depends on `@xyflow/react`. See
+  [workflow visual editor](../../design/portal-workflow-visual-editor.md).
   Agent Detail does the same for Run, configuration Save, and schedule creation;
   its tabs are keyboard operated and schedule cards own their retry state.
   Artifacts own upload as the collection action; detail and sharing controls

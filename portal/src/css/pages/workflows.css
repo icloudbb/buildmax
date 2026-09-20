@@ -390,3 +390,136 @@ button.wf-graph__node:focus-visible {
   gap: 0.35rem;
   margin: 0.4rem 0 0.6rem;
 }
+
+/* Visual workflow editor (React Flow canvas + node inspector). Node geometry
+   uses the shared tokens; React Flow's own styles come from its stylesheet. */
+.wf-visual {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.wf-visual__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.wf-visual__parallel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.wf-visual__parallel input {
+  width: 6rem;
+}
+
+.wf-visual__body {
+  display: flex;
+  gap: var(--space-3);
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.wf-visual__canvas {
+  flex: 1 1 420px;
+  min-width: 280px;
+  height: 480px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+  background: var(--color-bg-muted);
+}
+
+.wf-visual__inspector {
+  flex: 0 1 340px;
+  min-width: 260px;
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  background: var(--color-bg-elevated);
+}
+
+/* A step node on the canvas. */
+.wf-node {
+  width: 200px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font-size: var(--font-size-meta);
+}
+
+.wf-node--selected {
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+
+.wf-node--error {
+  border-color: var(--color-danger);
+}
+
+.wf-node__id {
+  font-weight: 600;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.wf-node__agent {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-body);
+}
+
+.wf-node__prompt {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.wf-node__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.wf-node__badge {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.wf-node__badge--error {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.wf-inspector__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+/* Bindings stack in the narrow inspector so each control stays readable. */
+.wf-inspector .workflow-page__binding {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+}

@@ -65,6 +65,11 @@ export interface WorkflowStepDraft {
   agentRevision?: number
   prompt: string
   bindings?: WorkflowStepBinding[]
+  /** The node's `output_schema` as verbatim JSON text, when it declares one. The
+   *  visual editor does not author it (raw JSON does), but carrying it here keeps
+   *  a save from stripping a schema the definition already had. `undefined` means
+   *  the node declares none. */
+  outputSchema?: string
 }
 
 export interface ParsedWorkflowDefinition {
@@ -73,6 +78,12 @@ export interface ParsedWorkflowDefinition {
    *  through parse and serialize so a hand-authored concurrency limit is not
    *  stripped when the definition round-trips through the step model. */
   maxParallelNodes: number | null
+  /** The definition's `input_schema` and `result` as verbatim JSON text, when it
+   *  declares them. Authored in raw JSON, not the visual editor, but preserved
+   *  through the round-trip so switching to the visual editor and saving does not
+   *  strip them. `undefined` means the definition declares none. */
+  inputSchema?: string
+  result?: string
 }
 
 /**
@@ -138,15 +149,36 @@ export function newStep(agentId = ""): WorkflowStepDraft {
   }
 }
 
-export function stepsToDefinition(steps: WorkflowStepDraft[], maxParallelNodes: number | null = null): string {
+/** Re-embeds a field carried as verbatim JSON text back into the definition as a
+ *  JSON value. The text originated from a successful parse, so it re-parses; a
+ *  value that somehow does not is omitted rather than emitted as a string. */
+function embedRawJSON(text: string | undefined): unknown {
+  if (text === undefined) return undefined
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+export function stepsToDefinition(
+  steps: WorkflowStepDraft[],
+  maxParallelNodes: number | null = null,
+  inputSchema?: string,
+  result?: string,
+): string {
+  const inputSchemaValue = embedRawJSON(inputSchema)
+  const resultValue = embedRawJSON(result)
   return JSON.stringify(
     {
       schema_version: WORKFLOW_SCHEMA_VERSION,
+      ...(inputSchemaValue !== undefined ? { input_schema: inputSchemaValue } : {}),
       ...(maxParallelNodes && maxParallelNodes > 0
         ? { policy: { max_parallel_nodes: maxParallelNodes } }
         : {}),
       nodes: steps.map((step, index) => {
         const needs = effectiveNeeds(steps, index)
+        const outputSchemaValue = embedRawJSON(step.outputSchema)
         return {
           id: step.id,
           type: step.type,
@@ -165,12 +197,25 @@ export function stepsToDefinition(steps: WorkflowStepDraft[], maxParallelNodes: 
                 }
               : {}),
           },
+          ...(outputSchemaValue !== undefined ? { output_schema: outputSchemaValue } : {}),
         }
       }),
+      ...(resultValue !== undefined ? { result: resultValue } : {}),
     },
     null,
     2,
   )
+}
+
+/**
+ * Returns the steps with every node's `needs` made explicit — the value
+ * {@link effectiveNeeds} computes — so the visual editor works with an
+ * unambiguous graph and each edge edit is a plain array operation. A node
+ * already carrying explicit `needs` is unchanged; a legacy node that relied on
+ * the linear default gains the single edge that default meant.
+ */
+export function normalizeNeeds(steps: WorkflowStepDraft[]): WorkflowStepDraft[] {
+  return steps.map((step, index) => ({ ...step, needs: effectiveNeeds(steps, index) }))
 }
 
 /** Reads a step's `bindings` array, keeping malformed entries (as empty
@@ -202,11 +247,18 @@ function parseStepBindings(value: unknown): WorkflowStepBinding[] | undefined {
  */
 export function parseDefinition(definition: string): ParsedWorkflowDefinition | null {
   try {
-    const parsed = JSON.parse(definition) as { nodes?: unknown; policy?: { max_parallel_nodes?: unknown } }
+    const parsed = JSON.parse(definition) as {
+      nodes?: unknown
+      policy?: { max_parallel_nodes?: unknown }
+      input_schema?: unknown
+      result?: unknown
+    }
     if (!Array.isArray(parsed.nodes)) return null
     const limit = parsed.policy?.max_parallel_nodes
     return {
       maxParallelNodes: typeof limit === "number" ? limit : null,
+      inputSchema: parsed.input_schema !== undefined ? JSON.stringify(parsed.input_schema) : undefined,
+      result: parsed.result !== undefined ? JSON.stringify(parsed.result) : undefined,
       steps: parsed.nodes.map((node): WorkflowStepDraft => {
         const record = typeof node === "object" && node != null ? (node as Record<string, unknown>) : {}
         const agent = typeof record.agent === "object" && record.agent != null ? (record.agent as Record<string, unknown>) : {}
@@ -222,6 +274,7 @@ export function parseDefinition(definition: string): ParsedWorkflowDefinition | 
           agentRevision: typeof agent.revision === "number" ? agent.revision : undefined,
           prompt: typeof input.instruction === "string" ? input.instruction : "",
           bindings: parseStepBindings(input.bindings),
+          outputSchema: record.output_schema !== undefined ? JSON.stringify(record.output_schema) : undefined,
         }
       }),
     }

@@ -494,8 +494,15 @@ conversation task cards now use the shared action roles and human run status;
 Chat has a visible heading, arrow-key tabs, and a Files link.
 Failed conversation task actions stay visible on their card, and a task-list
 failure offers a local retry while keeping the conversation readable.
-Workflow Detail now uses the shared action roles for editing and running,
-with one primary action per lifecycle view and readable status labels.
+Workflow Detail drives lifecycle through explicit Save as draft, Publish, and
+Archive actions instead of a status control, opens version history from a header
+button, and does not show the opaque workflow id. Its definition editor is a
+visual graph canvas (React Flow) beside a raw JSON view: a step is a node, a
+`needs` dependency is an edge drawn between nodes, and the selected node's agent,
+prompt, Issue access, and input bindings are edited in an inspector, so a
+branching DAG no longer requires hand-written JSON. `input_schema`, `result`, and
+a node's `output_schema` are preserved through the visual editor and authored in
+raw JSON.
 Agent Detail uses the same roles for Run, Save, and Delete, and its tablist
 supports arrow keys and narrow-screen scrolling. Agent schedules name a failed
 triggered-task load and offer local retry.

@@ -3,17 +3,17 @@ import { expect, test } from "@playwright/test"
 import { postJSON, reportLeftovers, session, tagged } from "./fixtures"
 
 /**
- * `agent_task` is the only step type the runtime executes, so the normal
- * Workflow editor presents an Agent step rather than a free-form Type field,
- * and a step's id is generated rather than typed. The advanced JSON view
- * exists for exact inspection, not as a second, unchecked way to build the
- * same workflow -- both paths run the same validation before Save is
- * enabled. None of that is provable without actually rendering the form:
- * a handler test can assert the API rejects a bad definition, not that the
- * Portal form never lets someone type one in the first place.
+ * `agent_task` is the only step type the runtime executes, so the visual editor
+ * presents an Agent step in its node inspector rather than a free-form Type
+ * field, and a step's id is generated rather than typed. The raw JSON view
+ * exists for exact inspection and for fields the visual editor does not author,
+ * not as a second, unchecked way to build the same workflow -- both paths run
+ * the same validation before Save is enabled. None of that is provable without
+ * actually rendering the editor: a handler test can assert the API rejects a bad
+ * definition, not that the Portal never lets someone author one.
  */
 
-test("the Agent-step form has no free-form Type field or editable step id, and creates a workflow", async ({
+test("the node inspector has no free-form Type field or editable step id, and creates a workflow", async ({
   page,
 }) => {
   const current = await session(page)
@@ -31,9 +31,10 @@ test("the Agent-step form has no free-form Type field or editable step id, and c
   const dialog = page.getByRole("dialog", { name: "New Workflow" })
   await expect(dialog).toBeVisible()
 
-  // The step card names what it is -- an Agent step -- and shows its
-  // generated id as read-only text, not as an input a person could edit.
-  await expect(dialog.getByText("Agent Step 1", { exact: true })).toBeVisible()
+  // The canvas opens with one step node; the inspector edits the selected step
+  // and shows its generated id as read-only text, not as an editable input, and
+  // has no free-form Type field.
+  await expect(dialog.locator(".wf-node")).toHaveCount(1)
   await expect(dialog.getByText(/^id: step_/)).toBeVisible()
   await expect(dialog.getByLabel("Type")).toHaveCount(0)
   await expect(dialog.getByLabel("Step ID")).toHaveCount(0)
@@ -53,7 +54,7 @@ test("the Agent-step form has no free-form Type field or editable step id, and c
   await expect(page).toHaveURL(new RegExp(`#/spaces/${current.spaceId}/workflows/[^/]+$`))
 })
 
-test("advanced JSON mode is checked against the same validation as the step form", async ({ page }) => {
+test("raw JSON mode is checked against the same validation as the visual editor", async ({ page }) => {
   const current = await session(page)
   const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
     name: tagged("Workflow authoring validation agent"),
@@ -68,12 +69,12 @@ test("advanced JSON mode is checked against the same validation as the step form
   const dialog = page.getByRole("dialog", { name: "New Workflow" })
   await dialog.getByLabel("Name").fill(tagged("Workflow authoring validation"))
 
-  await dialog.getByRole("button", { name: "Advanced: edit raw JSON" }).click()
+  await dialog.getByRole("button", { name: "Edit raw JSON" }).click()
   const definitionField = dialog.getByLabel(/^Definition \(JSON\)/)
   await expect(definitionField).toBeVisible()
 
-  // A step type this Portal build does not know how to run -- exactly what
-  // the normal form makes impossible to type in the first place.
+  // A step type this Portal build does not know how to run -- exactly what the
+  // visual editor makes impossible to author in the first place.
   await definitionField.fill(
     JSON.stringify({
       schema_version: 1,
@@ -96,9 +97,9 @@ test("advanced JSON mode is checked against the same validation as the step form
   await expect(submit).toBeEnabled()
 })
 
-test("the step form authors an input binding to an earlier step, and it persists", async ({ page }) => {
+test("the visual editor renders a branching graph, adds a step, and round-trips a binding", async ({ page }) => {
   const current = await session(page)
-  const agentName = tagged("Workflow binding form agent")
+  const agentName = tagged("Workflow branch agent")
   const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
     name: agentName,
     description: "Created by the Portal browser tests.",
@@ -106,47 +107,49 @@ test("the step form authors an input binding to an earlier step, and it persists
   })
   reportLeftovers(current.spaceId, [`agent ${agent.id}`])
 
-  // The New Workflow modal grows with each step and does not scroll on the
-  // desktop layout, so a two-step form needs a viewport tall enough to keep
-  // the second step's binding control and the submit button on screen.
-  await page.setViewportSize({ width: 1280, height: 1800 })
-
   await page.goto(`/#/spaces/${current.spaceId}/workflows`)
   await page.getByRole("button", { name: "New Workflow" }).click()
   const dialog = page.getByRole("dialog", { name: "New Workflow" })
   await expect(dialog).toBeVisible()
+  await dialog.getByLabel("Name").fill(tagged("Workflow branch"))
 
-  await dialog.getByLabel("Name").fill(tagged("Workflow binding form"))
-
-  const stepCards = dialog.locator(".workflow-page__step")
-  // Step 1 is the source the second step reads from.
-  await stepCards.nth(0).getByLabel("Agent").selectOption({ label: `${agentName} (${agent.id})` })
-  await stepCards.nth(0).getByLabel("Prompt").fill("Reply with exactly: deployment smoke ok")
-
-  await dialog.getByRole("button", { name: "Add Agent Step" }).click()
-  await stepCards.nth(1).getByLabel("Agent").selectOption({ label: `${agentName} (${agent.id})` })
-  await stepCards.nth(1).getByLabel("Prompt").fill("Summarize the research below.")
-
-  // The generated id is baked into the source value (node.<id>.output), so read
-  // it off step 1's card rather than assuming it.
-  const step1IdText = await stepCards.nth(0).getByText(/^id: step_/).textContent()
-  const step1Id = step1IdText!.replace(/^id:\s*/, "").trim()
-
-  await stepCards.nth(1).getByRole("button", { name: "Add input" }).click()
-  await stepCards.nth(1).getByLabel("Input 1 name").fill("research")
-  await stepCards.nth(1).getByLabel("Input 1 source").selectOption(`node.${step1Id}.output`)
-  await stepCards.nth(1).getByLabel("Input 1 pointer").fill("/text")
-
-  const submit = dialog.getByRole("button", { name: "Create workflow" })
-  await expect(submit).toBeEnabled()
-  await submit.click()
+  // Author a fan-out DAG (two steps both depending on the first) with a binding,
+  // through raw JSON -- a branch the retired linear form could not express.
+  await dialog.getByRole("button", { name: "Edit raw JSON" }).click()
+  await dialog.getByLabel(/^Definition \(JSON\)/).fill(
+    JSON.stringify({
+      schema_version: 1,
+      nodes: [
+        { id: "collect", type: "agent_task", agent: { id: agent.id }, input: { instruction: "Collect the sources." } },
+        {
+          id: "analyze",
+          type: "agent_task",
+          needs: ["collect"],
+          agent: { id: agent.id },
+          input: {
+            instruction: "Analyze them.",
+            bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }],
+          },
+        },
+        { id: "draft", type: "agent_task", needs: ["collect"], agent: { id: agent.id }, input: { instruction: "Draft a summary." } },
+      ],
+    })
+  )
+  await dialog.getByRole("button", { name: "Create workflow" }).click()
   await expect(dialog).toBeHidden()
   await expect(page).toHaveURL(new RegExp(`#/spaces/${current.spaceId}/workflows/[^/]+$`))
 
-  // The binding the form authored survives the round-trip: the saved definition,
-  // reopened in advanced JSON, carries the wire shape the runtime reads.
-  await page.getByRole("button", { name: "Advanced: edit raw JSON" }).click()
-  await expect(page.getByLabel(/^Definition \(JSON\)/)).toHaveValue(
-    new RegExp(`"source":\\s*"node.${step1Id}.output"`)
-  )
+  // A draft opens in the authoring layout, which is the visual editor: the graph
+  // renders every node and both fan-out edges.
+  await expect(page.locator(".wf-node")).toHaveCount(3)
+  await expect(page.locator(".react-flow__edge")).toHaveCount(2)
+
+  // Adding a step through the canvas toolbar grows the graph.
+  await page.getByRole("button", { name: "Add step" }).click()
+  await expect(page.locator(".wf-node")).toHaveCount(4)
+
+  // The binding the definition declared survives editing in the visual editor:
+  // switching to raw JSON still carries the wire shape the runtime reads.
+  await page.getByRole("button", { name: "Edit raw JSON" }).click()
+  await expect(page.getByLabel(/^Definition \(JSON\)/)).toHaveValue(/"source":\s*"node\.collect\.output"/)
 })
