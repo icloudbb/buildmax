@@ -21,6 +21,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/session"
 	launchstore "github.com/icloudbb/buildmax/internal/infra/locallaunchpadstore"
 	"github.com/icloudbb/buildmax/internal/infra/localprojectstore"
+	histstore "github.com/icloudbb/buildmax/internal/infra/localschedulehistorystore"
 	schedstore "github.com/icloudbb/buildmax/internal/infra/localschedulestore"
 	snapstore "github.com/icloudbb/buildmax/internal/infra/localterminalsnapshotstore"
 	"github.com/icloudbb/buildmax/internal/interface/auth"
@@ -186,6 +187,11 @@ type App struct {
 	mu               sync.Mutex
 	agentApps        map[string]*agentapp.AgentApp      // keyed by project ID
 	approvalHandlers map[string]*DesktopApprovalHandler // keyed by project ID
+	// scheduleApps are AgentApps for scheduled fires, keyed by working directory.
+	// A scheduled task targets a directory, not a project, so its runs are built
+	// with EnableLocalProject off: sessions are stamped with no project (invisible
+	// in the project session list) and no project catalog row is created.
+	scheduleApps map[string]*agentapp.AgentApp
 	// scheduler serializes runs per session (see runKey): one run per session in
 	// flight at a time, prompts submitted meanwhile queued and drained as their
 	// own turns, the session held for a run's life, and cancellation that
@@ -204,6 +210,9 @@ type App struct {
 	// ensureScheduleStore) so a test that never touches schedules needs no
 	// BUILDMAX_HOME.
 	schedules *schedstore.FileStore
+	// scheduleRuns stores each scheduled fire's run history — the only link from a
+	// task to the projectless sessions it created. Lazily opened.
+	scheduleRuns *histstore.FileStore
 	// stopSched ends the resident schedule tick loop; nil when it is not running.
 	stopSched chan struct{}
 	// launchpad stores the user's custom quick-launch entries. Lazily opened (see
@@ -219,6 +228,7 @@ func NewApp() *App {
 	a := &App{
 		agentApps:        make(map[string]*agentapp.AgentApp),
 		approvalHandlers: make(map[string]*DesktopApprovalHandler),
+		scheduleApps:     make(map[string]*agentapp.AgentApp),
 		scheduler:        agentapp.NewRunScheduler(),
 		emit:             wailsEmit,
 	}
@@ -260,10 +270,15 @@ func (a *App) Shutdown(_ context.Context) {
 	a.scheduler.CancelAll()
 	a.mu.Lock()
 	apps := a.agentApps
+	schedApps := a.scheduleApps
 	a.agentApps = make(map[string]*agentapp.AgentApp)
 	a.approvalHandlers = make(map[string]*DesktopApprovalHandler)
+	a.scheduleApps = make(map[string]*agentapp.AgentApp)
 	a.mu.Unlock()
 	for _, ag := range apps {
+		_ = ag.Close()
+	}
+	for _, ag := range schedApps {
 		_ = ag.Close()
 	}
 }
@@ -325,6 +340,61 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		a.pumpJobEvents(projectID, jobs)
 	}
 	return ag, nil
+}
+
+// agentAppForDir returns the cached AgentApp a scheduled task fires in, keyed by
+// its working directory and created on first use. Unlike agentAppForProject it
+// builds with EnableLocalProject off, so a fire's session carries no project
+// (staying out of the project session list) and running in an arbitrary folder
+// does not register it in the project catalog. Concurrent calls for the same
+// directory create at most one instance.
+func (a *App) agentAppForDir(dir string) (*agentapp.AgentApp, error) {
+	a.mu.Lock()
+	ag, ok := a.scheduleApps[dir]
+	a.mu.Unlock()
+	if ok {
+		return ag, nil
+	}
+
+	source, err := auth.ResolveModelSource(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	ag, err = agentapp.NewAgentApp(agentapp.AppConfig{
+		WorkspaceDir:         dir,
+		EnableMCP:            true,
+		Policy:               agent.AllowAllPolicy(),
+		ModelEntries:         source.Entries,
+		DefaultModel:         source.Default,
+		ManagedServerURL:     source.ServerURL,
+		ManagedToken:         auth.TokenForServer,
+		ArtifactPublisher:    auth.ArtifactPublisherForSession(),
+		Surface:              coregw.CallSurfaceDesktop,
+		EnableBackgroundJobs: true,
+		EnableLocalProject:   false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init agent for %q: %w", dir, err)
+	}
+
+	a.mu.Lock()
+	if existing, ok := a.scheduleApps[dir]; ok {
+		a.mu.Unlock()
+		_ = ag.Close()
+		return existing, nil
+	}
+	a.scheduleApps[dir] = ag
+	a.mu.Unlock()
+	return ag, nil
+}
+
+// hostForDir resolves the AgentApp a scheduled fire runs in. A scheduled run is
+// unattended, so it carries no approval handler: its AllowAllPolicy runs tools
+// without prompting, and there is no user at the keyboard to answer anyway.
+func (a *App) hostForDir(dir string) agentapp.HostFunc {
+	return func() (agentapp.RunHost, error) {
+		return a.agentAppForDir(dir)
+	}
 }
 
 // --- Project bindings ---

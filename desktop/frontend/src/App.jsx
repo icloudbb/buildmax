@@ -265,16 +265,6 @@ export default function App() {
     return () => unsub?.();
   }, []);
 
-  // A scheduled task that fired creates a new session in the background; refresh
-  // the sidebar so it appears and can be opened. The Schedules view refetches its
-  // own list on the same event.
-  useEffect(() => {
-    const unsub = EventsOn('desktop/schedule-update', () => {
-      getApp()?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
-    });
-    return () => unsub?.();
-  }, []);
-
   useEffect(() => {
     if (getApp()) { setWailsReady(true); return; }
     const id = setTimeout(() => setWailsReady(true), 150);
@@ -1305,11 +1295,7 @@ export default function App() {
                 </div>
               )}
               {view === 'schedules' ? (
-                <SchedulesView
-                  app={app}
-                  projects={projects}
-                  onOpenSession={handleSelectSession}
-                />
+                <SchedulesView app={app} />
               ) : !currentProject ? (
                 <HomeDashboard
                   recentSessions={recentSessions}

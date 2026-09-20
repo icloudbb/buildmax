@@ -4,21 +4,22 @@ import { SchedulesView } from './SchedulesView';
 
 afterEach(cleanup);
 
-const projects = [{ id: 'p1', name: 'Alpha' }, { id: 'p2', name: 'Beta' }];
-
-function baseApp(tasks = []) {
+function baseApp(tasks = [], runs = []) {
   return {
     ListScheduledTasks: vi.fn(() => Promise.resolve(tasks)),
+    ListScheduleRuns: vi.fn(() => Promise.resolve(runs)),
     CreateScheduledTask: vi.fn(() => Promise.resolve({})),
     UpdateScheduledTask: vi.fn(() => Promise.resolve({})),
     DeleteScheduledTask: vi.fn(() => Promise.resolve()),
+    PreviewScheduledTask: vi.fn(() => Promise.resolve(['2026-01-02T09:00:00Z', '2026-01-03T09:00:00Z'])),
+    GetSession: vi.fn(() => Promise.resolve({ messages: [{ role: 'assistant', content: 'hi' }] })),
   };
 }
 
 const sampleTask = {
   id: 't1',
   name: 'Morning',
-  project_id: 'p1',
+  working_dir: '/home/me/work',
   prompt: 'summarize',
   cron_expr: '0 9 * * *',
   timezone: 'UTC',
@@ -28,42 +29,65 @@ const sampleTask = {
   consecutive_failures: 0,
 };
 
+const sampleRun = {
+  id: 'r1',
+  schedule_id: 't1',
+  schedule_name: 'Morning',
+  session_id: 'sess1',
+  fired_at: '2026-01-01T09:00:00Z',
+  status: 'ok',
+};
+
 describe('SchedulesView', () => {
-  it('lists tasks with their project and cron', async () => {
-    render(<SchedulesView app={baseApp([sampleTask])} projects={projects} onOpenSession={() => {}} />);
+  it('lists tasks with their working directory and cron', async () => {
+    render(<SchedulesView app={baseApp([sampleTask])} />);
     expect(await screen.findByText('Morning')).toBeTruthy();
-    // "Alpha" is both a select option and the card's project label.
-    expect(screen.getAllByText('Alpha').length).toBeGreaterThan(1);
+    expect(screen.getByText('/home/me/work')).toBeTruthy();
     expect(screen.getByText('0 9 * * *')).toBeTruthy();
     expect(screen.getByText('Enabled')).toBeTruthy();
   });
 
-  it('creates a task from the form', async () => {
-    const app = baseApp([]);
-    render(<SchedulesView app={app} projects={projects} onOpenSession={() => {}} />);
-    await screen.findByText('No scheduled tasks yet.');
+  it('lists recent runs and opens one', async () => {
+    const app = baseApp([sampleTask], [sampleRun]);
+    render(<SchedulesView app={app} />);
+    const run = await screen.findByRole('button', { name: /Morning/ });
+    fireEvent.click(run);
+    await waitFor(() => expect(app.GetSession).toHaveBeenCalledWith('sess1'));
+    expect(await screen.findByText('hi')).toBeTruthy();
+  });
 
-    fireEvent.change(screen.getByPlaceholderText('What should the agent do each time?'), {
+  it('creates a task from the New Schedule modal without a project', async () => {
+    const app = baseApp([]);
+    render(<SchedulesView app={app} />);
+    await screen.findByText(/No scheduled tasks yet/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Schedule' }));
+    fireEvent.change(await screen.findByPlaceholderText('What should the agent do each time?'), {
       target: { value: 'do the thing' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
 
     await waitFor(() =>
-      expect(app.CreateScheduledTask).toHaveBeenCalledWith('p1', '', 'do the thing', '0 9 * * *', 'UTC'),
+      expect(app.CreateScheduledTask).toHaveBeenCalledWith('', '', 'do the thing', '0 9 * * *', 'UTC'),
     );
+  });
+
+  it('previews the cron cadence in the form', async () => {
+    const app = baseApp([]);
+    render(<SchedulesView app={app} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'New Schedule' }));
+    await waitFor(() => expect(app.PreviewScheduledTask).toHaveBeenCalledWith('0 9 * * *', 'UTC'));
+    expect(await screen.findByText('Next runs')).toBeTruthy();
   });
 
   it('pauses a task through UpdateScheduledTask', async () => {
     const app = baseApp([sampleTask]);
-    render(<SchedulesView app={app} projects={projects} onOpenSession={() => {}} />);
+    render(<SchedulesView app={app} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
     await waitFor(() =>
-      expect(app.UpdateScheduledTask).toHaveBeenCalledWith('t1', 'Morning', 'summarize', '0 9 * * *', 'UTC', false),
+      expect(app.UpdateScheduledTask).toHaveBeenCalledWith(
+        't1', '/home/me/work', 'Morning', 'summarize', '0 9 * * *', 'UTC', false,
+      ),
     );
-  });
-
-  it('prompts to open a project when there are none', async () => {
-    render(<SchedulesView app={baseApp([])} projects={[]} onOpenSession={() => {}} />);
-    expect(await screen.findByText('Open a project first, then schedule a task in it.')).toBeTruthy();
   });
 });
