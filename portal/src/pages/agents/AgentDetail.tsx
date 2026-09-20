@@ -50,7 +50,7 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
-  const { currentUserRole } = useSpace()
+  const { currentUserRole, currentSpaceMembers } = useSpace()
   const { setEntityLabel } = useApp()
   const canManage = isAllowed(useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin"))
   // Schedules are member-tier (manage_schedules), unlike agent config which is
@@ -192,16 +192,25 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
       .finally(() => setRevisionsLoading(false))
   }, [token, spaceId, agentId])
 
+  // Resolve the opaque author id to a member's name; fall back to the id only
+  // when the member is not in the loaded list.
+  const memberName = useCallback(
+    (userId: string) => {
+      const member = currentSpaceMembers.find((m) => m.user_id === userId)
+      return member?.user_name || member?.user_email || userId
+    },
+    [currentSpaceMembers]
+  )
   const revisionEntries = useMemo(
     () =>
       revisionsData?.map((rev) => ({
         id: rev.id,
         revision: rev.revision,
-        createdBy: rev.createdBy,
+        createdBy: memberName(rev.createdBy),
         createdLabel: rev.createdLabel,
         summary: rev.instructions,
       })) ?? null,
-    [revisionsData]
+    [revisionsData, memberName]
   )
   const revisionsState = useMemo(
     () =>
