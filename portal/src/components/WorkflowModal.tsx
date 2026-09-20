@@ -18,23 +18,8 @@ interface WorkflowModalProps {
 export function WorkflowModal({ open, agents = [], loading, error, onClose, onSubmit }: WorkflowModalProps) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
-  const {
-    steps,
-    definition,
-    errors,
-    advanced,
-    definitionText,
-    definitionParseError,
-    addStep,
-    removeStep,
-    changeStep,
-    addBinding,
-    removeBinding,
-    changeBinding,
-    toggleAdvanced,
-    setDefinitionText,
-    hydrate,
-  } = useWorkflowSteps(agents)
+  const stepsState = useWorkflowSteps(agents)
+  const { definition, errors, advanced, definitionParseError, hydrate } = stepsState
 
   // Initialize the form once per open, not on every `agents` change: the agent
   // list can load or refetch after the dialog is open, and re-running this would
@@ -68,22 +53,7 @@ export function WorkflowModal({ open, agents = [], loading, error, onClose, onSu
             <textarea className="issues-page__textarea" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this workflow does" />
           </label>
 
-          <WorkflowStepsEditor
-            steps={steps}
-            agents={agents}
-            errors={errors}
-            advanced={advanced}
-            definitionText={definitionText}
-            definitionParseError={definitionParseError}
-            onAddStep={addStep}
-            onRemoveStep={removeStep}
-            onChangeStep={changeStep}
-            onAddBinding={addBinding}
-            onRemoveBinding={removeBinding}
-            onChangeBinding={changeBinding}
-            onToggleAdvanced={toggleAdvanced}
-            onDefinitionTextChange={setDefinitionText}
-          />
+          <WorkflowStepsEditor state={stepsState} agents={agents} />
           {agents.length === 0 ? (
             <p className="page-activity__meta">Create at least one agent first to assign it to a step.</p>
           ) : null}

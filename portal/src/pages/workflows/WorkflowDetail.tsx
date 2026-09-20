@@ -50,23 +50,15 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   const [runs, setRuns] = useState<WorkflowRun[]>([])
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
+  const stepsState = useWorkflowSteps(agents)
   const {
     steps,
     definition: stepsDefinition,
     errors: stepErrors,
     advanced: stepsAdvanced,
-    definitionText,
     definitionParseError,
-    addStep,
-    removeStep,
-    changeStep,
-    addBinding,
-    removeBinding,
-    changeBinding,
-    toggleAdvanced,
-    setDefinitionText,
     hydrate: hydrateSteps,
-  } = useWorkflowSteps(agents)
+  } = stepsState
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
@@ -439,23 +431,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
                 </div>
               ) : null}
 
-              <WorkflowStepsEditor
-                steps={steps}
-                agents={agents}
-                disabled={!canManageWorkflows}
-                errors={stepErrors}
-                advanced={stepsAdvanced}
-                definitionText={definitionText}
-                definitionParseError={definitionParseError}
-                onAddStep={addStep}
-                onRemoveStep={removeStep}
-                onChangeStep={changeStep}
-                onAddBinding={addBinding}
-                onRemoveBinding={removeBinding}
-                onChangeBinding={changeBinding}
-                onToggleAdvanced={toggleAdvanced}
-                onDefinitionTextChange={setDefinitionText}
-              />
+              <WorkflowStepsEditor state={stepsState} agents={agents} disabled={!canManageWorkflows} />
             </div>
           </section>
         </>

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 import type { Agent } from "../../lib/types"
-import { newStep, parseDefinition, stepsToDefinition, validateSteps, type WorkflowStepDraft } from "./steps"
+import {
+  newStep,
+  normalizeNeeds,
+  parseDefinition,
+  stepsToDefinition,
+  validateSteps,
+  type WorkflowStepDraft,
+} from "./steps"
 
 function agent(id: string): Agent {
   return { id, name: id, revision: 1, createdAt: "1970-01-01T00:00:00Z" }
@@ -111,6 +118,43 @@ describe("stepsToDefinition / parseDefinition", () => {
     ])
     expect(wire).toContain(`"source": "node.a.output"`)
     expect(wire).toContain(`"pointer": "/text"`)
+  })
+
+  it("carries input_schema through parse and serialize, only when present", () => {
+    expect(stepsToDefinition([step()])).not.toContain("input_schema")
+    const schema = { type: "object", properties: { topic: { type: "string" } } }
+    const wire = stepsToDefinition([step()], null, JSON.stringify(schema))
+    expect(JSON.parse(wire).input_schema).toEqual(schema)
+    expect(JSON.parse(parseDefinition(wire)!.inputSchema!)).toEqual(schema)
+  })
+
+  it("carries result through parse and serialize, only when present", () => {
+    expect(stepsToDefinition([step()])).not.toContain(`"result"`)
+    const result = { source: "node.step_1.output", pointer: "/text" }
+    const wire = stepsToDefinition([step()], null, undefined, JSON.stringify(result))
+    expect(JSON.parse(wire).result).toEqual(result)
+    expect(JSON.parse(parseDefinition(wire)!.result!)).toEqual(result)
+  })
+
+  it("carries a node's output_schema through parse and serialize, only when present", () => {
+    expect(stepsToDefinition([step()])).not.toContain("output_schema")
+    const outputSchema = { type: "object", properties: { done: { type: "boolean" } } }
+    const wire = stepsToDefinition([step({ outputSchema: JSON.stringify(outputSchema) })])
+    expect(JSON.parse(wire).nodes[0].output_schema).toEqual(outputSchema)
+    expect(JSON.parse(parseDefinition(wire)!.steps[0].outputSchema!)).toEqual(outputSchema)
+  })
+})
+
+describe("normalizeNeeds", () => {
+  it("makes a form node's linear need explicit and leaves a root empty", () => {
+    const normalized = normalizeNeeds([step({ id: "a" }), step({ id: "b" })])
+    expect(normalized[0].needs).toEqual([])
+    expect(normalized[1].needs).toEqual(["a"])
+  })
+
+  it("leaves an already-explicit graph unchanged", () => {
+    const graph = [step({ id: "a", needs: [] }), step({ id: "b", needs: [] }), step({ id: "c", needs: ["a", "b"] })]
+    expect(normalizeNeeds(graph)).toEqual(graph)
   })
 })
 

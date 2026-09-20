@@ -100,6 +100,7 @@ remaining list. Update this snapshot when either changes.
 | [Portal navigation and Space context](portal-navigation-and-space-context.md) | Specification | Complete | Canonical Space routes, scoped navigation, switching, and orientation |
 | [Portal work and execution experience](portal-work-and-execution-experience.md) | Specification | Complete | Issue-centered work, explicit execution, and trustworthy provenance |
 | [Portal frontend page system](portal-frontend-page-system.md) | Active plan | Partial | Shared actions, page anatomy, and staged migration of Portal work views |
+| [Portal workflow visual editor](portal-workflow-visual-editor.md) | Active plan | Partial | Graph-first workflow authoring with a visual canvas and raw JSON |
 | [Portal state and permission feedback](portal-state-and-permission-feedback.md) | Active plan | Partial | Loading, empty, error, stale, and authorization presentation |
 | [Portal data and plugin surfaces](portal-data-and-plugin-surfaces.md) | Specification | Complete | Files, Artifacts, Marketplace, and scoped plugin actions |
 | [Portal responsive and accessible interaction](portal-responsive-and-accessible-interaction.md) | Specification | Complete | Narrow layouts, keyboard behavior, dialogs, and viewport evidence |
