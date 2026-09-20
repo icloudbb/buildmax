@@ -69,7 +69,10 @@ export function TabBar({
   const menuIdx = menuTab ? tabs.findIndex((t) => t.key === menuTab.key) : -1;
   const rightClosable = menuTab && tabs.slice(menuIdx + 1).some((t) => t.closable !== false);
   const canCopyPath = menuTab && (menuTab.kind === 'file' || menuTab.kind === 'diff');
-  const canRename = menuTab && (menuTab.kind === 'chat' || menuTab.kind === 'terminal');
+  // Chat and terminal tabs carry a user-editable title; file and diff tabs are
+  // named by their path and cannot be renamed.
+  const isRenamable = (t) => t.kind === 'chat' || t.kind === 'terminal';
+  const canRename = menuTab && isRenamable(menuTab);
 
   const startRename = (t) => { setRenaming(t.key); setRenameValue(t.title); };
   const commitRename = () => {
@@ -133,7 +136,9 @@ export function TabBar({
               className="workspace-tabs__tab-btn"
               title={tabTooltip(t)}
               onClick={() => onSelect(t.key)}
-              onDoubleClick={() => onPin?.(t.key)}
+              // Double-click renames a chat/terminal tab in place; on a preview
+              // file/diff tab it pins it (there is nothing to rename).
+              onDoubleClick={() => (isRenamable(t) ? startRename(t) : onPin?.(t.key))}
             >
               <span className="workspace-tabs__tab-icon" aria-hidden>{KIND_ICON[t.kind] ?? ''}</span>
               <span className="workspace-tabs__tab-title">{t.title}</span>

@@ -355,7 +355,11 @@ the frontend as a byte stream over Wails events keyed by tab id. The frontend
 writes keystrokes back through a bound method and sends resize (columns and rows)
 on geometry change so the controlling process sees a correct window size. Control
 sequences, colors, and binary output pass through untransformed; the frontend
-emulator interprets them.
+emulator interprets them. The emulator carries a full 16-color ANSI palette with
+a legible foreground, cursor, and selection, in a light and a dark variant that
+track the app theme — a theme change repaints the live buffer in place, so
+scrollback is untouched — so program color (git, ls, build logs) reads clearly
+rather than falling to washed-out defaults.
 
 ### 11.3 Lifecycle
 
@@ -505,7 +509,10 @@ context menu with *Close*, *Close others*, and *Close tabs to the right*; each
 spares a non-closable tab (the current chat), just as the per-tab close button
 does. On a chat or terminal tab the menu also offers *Rename*, which edits the
 title in place — renaming a chat tab bound to a session renames the session, so
-it persists and the sidebar follows; a terminal's title is view-only state. A
+it persists and the sidebar follows; a terminal's title is view-only state.
+Double-clicking a chat or terminal tab starts the same in-place rename directly,
+without the menu; on a preview file/diff tab, where there is nothing to rename, a
+double-click pins it instead. A
 file or diff tab is not renamed (its title is the filename), but its tooltip
 shows the full workspace path; that menu instead offers *Copy relative path* and
 *Copy absolute path*: the relative form is the workspace-root path, while the

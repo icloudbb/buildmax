@@ -6,6 +6,8 @@
   position: absolute;
   inset: 0;
   padding: 0.25rem 0.5rem;
+  /* The active background is set inline from the app theme (see TerminalPane);
+     this is only the pre-mount fallback. */
   background: #1e1e1e;
 }
 

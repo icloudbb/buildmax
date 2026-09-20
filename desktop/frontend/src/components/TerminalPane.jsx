@@ -1,10 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useTheme } from '@buildmax/gui';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { EventsOn } from '../lib/wailsRuntime';
 import { getApp } from '../lib/app';
 import { decodeBase64ToBytes } from '../lib/terminalBytes';
+import { terminalThemeFor } from '../lib/terminalTheme';
 
 // TerminalPane renders one shell strand: an xterm emulator bound to the Go PTY
 // with id `id`. It owns its emulator for the strand's life so scrollback and
@@ -15,6 +17,13 @@ export function TerminalPane({ id, active, onExit }) {
   const termRef = useRef(null);
   const fitRef = useRef(null);
   const doFitRef = useRef(null);
+  // The terminal follows the app's light/dark theme. The create effect seeds the
+  // emulator from the palette captured at mount (via a ref, so a later theme
+  // change does not re-run it and lose scrollback); a separate effect repaints
+  // the live emulator on change.
+  const { theme } = useTheme();
+  const termTheme = useMemo(() => terminalThemeFor(theme), [theme]);
+  const themeRef = useRef(termTheme);
   // Keep the latest onExit without re-running the create effect, which would
   // tear down and recreate the emulator on every parent render.
   const onExitRef = useRef(onExit);
@@ -30,7 +39,7 @@ export function TerminalPane({ id, active, onExit }) {
       // Keep a deep scrollback so a session's earlier command output stays
       // reachable after switching tabs; the default (1000) is easy to exceed.
       scrollback: 10000,
-      theme: { background: '#1e1e1e' },
+      theme: themeRef.current,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -94,9 +103,18 @@ export function TerminalPane({ id, active, onExit }) {
     return () => cancelAnimationFrame(raf);
   }, [active]);
 
+  // Repaint the live emulator when the app theme changes. Assigning options.theme
+  // re-tints the existing buffer in place, so scrollback is untouched.
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.theme = termTheme;
+  }, [termTheme]);
+
   return (
     <div
       className={`terminal-pane${active ? '' : ' terminal-pane--hidden'}`}
+      // Match the gutter (the pane's padding) to the emulator background so the
+      // terminal reads as one surface in both light and dark themes.
+      style={{ background: termTheme.background }}
       ref={containerRef}
     />
   );
