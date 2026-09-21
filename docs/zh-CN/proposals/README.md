@@ -37,6 +37,7 @@
 | [人员停用与执行权限](personnel-deactivation-lifecycle.md) | 运维与部署 | 移除账户或 Space 权限时，哪些凭证和无人值守执行应停止、多久内停止，以及哪些内容继续归 Space 所有？ | 已对照当前账户、Schedule、TaskRun、Workflow 和 Space 行为提出契约；统一生命周期尚未实现 |
 | [单一维护者的 Agent 开发工作流](single-maintainer-agent-development.md) | 验证 | 一位维护者如何借助编码 Agent 提升被接受的开发吞吐量，同时不成为工作流瓶颈？ | 支撑流程的构件已经存在，但就绪性复核、租约、变更范围验证与独立验收尚未形成闭环 |
 | [系统管理操作](system-administration-operations.md) | 运维与部署 | 运维 CLI 与 Portal 应如何为管理和运行时健康提供安全且一致的结果？ | 核心管理界面、OIDC 诊断与外部身份管理已交付；事务审计、CLI Session 对齐、配额分配与更丰富的运行时操作仍待完成 |
+| [部署管理员的跨 Space 工作可见性](admin-cross-space-work-visibility.md) | 运维与部署 | 管理员应进入所有 Space，还是在 Administration 查看跨 Space 工作？没有 Space 成员身份时能看到哪些运维事实？ | 已交付 Admin Space 元数据、用量、跨 Space 审计、LLM 调用账本及 TaskRun 状态计数；尚无全局 Agent、Workflow、Schedule 或 Issue 清单 |
 | [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md) | 信任与安全 | 交互式、原生与无人值守客户端应获得哪些凭证？ | 持久 Session 状态、绝对过期、逐请求撤销、Portal cookie 认证与原生 OS Secret 存储已交付；scope、签名密钥轮换、自助管理、PAT 与服务账号仍待决定 |
 | [持久化 Agent Session](durable-agent-sessions.md) | 本地体验 | 已认证的本地 Agent Session 是否应成为带 revision 的 Server 资源？ | 尚未开始；没有 Server 路由提供 Session 资源 |
 | [Assistant 编排与 Workflow 边界](assistant-orchestration-and-workflow-boundary.md) | 产品与执行模型 | 管理者 Agent 是否足以支持 Assistant 产品，Workflow 是否应收窄为确定性的 Automation？ | 尚未开始；Agent 无法承接持久的子级 Space Agent Task |
