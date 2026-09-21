@@ -85,7 +85,9 @@ must not implement an overview by fanning out across every collection API.
 
 Deployment administration is visually and structurally outside Space scope.
 Its pages do not show an active Space switcher as if the selected Space changed
-their authority.
+their authority: the switcher becomes a static "Deployment" label, and the
+sidebar lists the administration sections themselves under that scope, followed
+by a "Back to space" return, rather than the Space-grouped nav.
 
 ## Route and navigation model
 
