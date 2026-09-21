@@ -134,6 +134,8 @@ func addRunFlags(cmd *cobra.Command) {
 	cmd.Flags().Int("max-iterations", 0,
 		fmt.Sprintf("cap this run's model calls (%d-%d; default %d, or agent.max_iterations)",
 			config.MinMaxIterations, config.MaxMaxIterations, config.DefaultMaxIterations))
+	cmd.Flags().Bool("remote-control", false, "make this session reachable from another device through the managed server (requires a login)")
+	cmd.Flags().String("remote-control-name", "", "the name another device shows for this session (default: this machine's host name)")
 	cmd.Flags().String("agent", "", "append the body of a named definition from .buildmax/agents or ~/.buildmax/agents")
 	cmd.Flags().String("append-system-prompt", "", "text appended to this run's system prompt")
 	cmd.Flags().String("append-system-prompt-file", "", "file whose contents are appended to this run's system prompt")
@@ -163,6 +165,8 @@ func runAgentSession(cmd *cobra.Command, issueSession *auth.IssueSession) error 
 	sessionID, _ := cmd.Flags().GetString("session-id")
 	workspace, _ := cmd.Flags().GetString("workspace")
 	noProjectMemory, _ := cmd.Flags().GetBool("no-project-memory")
+	remoteControl, _ := cmd.Flags().GetBool("remote-control")
+	remoteControlName, _ := cmd.Flags().GetString("remote-control-name")
 	sandboxEnabled, _ := cmd.Flags().GetBool("sandbox")
 	sandboxMode, _ := cmd.Flags().GetString("sandbox-mode")
 	maxIterations, _ := cmd.Flags().GetInt("max-iterations")
@@ -191,7 +195,7 @@ func runAgentSession(cmd *cobra.Command, issueSession *auth.IssueSession) error 
 		fmt.Fprintln(os.Stderr, err.Error())
 		return &ExitError{Code: ExitUsage, Err: err}
 	}
-	overrides := runOverrides{Sandbox: sandboxRun, MaxIterations: maxIterations, NoProjectMemory: noProjectMemory, Issue: issueSession}
+	overrides := runOverrides{Sandbox: sandboxRun, MaxIterations: maxIterations, NoProjectMemory: noProjectMemory, Issue: issueSession, RemoteControl: remoteControl, RemoteControlName: remoteControlName}
 
 	if sessionID != "" {
 		if _, err := uuid.Parse(sessionID); err != nil {
@@ -277,6 +281,11 @@ type runOverrides struct {
 	// directions. There is no read-only variant: a run that may not look at
 	// the document must not be able to replace it either.
 	NoProjectMemory bool
+	// RemoteControl opts this session into Remote Control, so another device can
+	// watch it through the managed server. RemoteControlName is the label a
+	// connected device shows; empty falls back to the host name.
+	RemoteControl     bool
+	RemoteControlName string
 }
 
 func parseSandboxRunOverride(enabled bool, mode string) (config.SandboxRunOverride, error) {
