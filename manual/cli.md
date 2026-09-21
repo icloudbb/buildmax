@@ -83,6 +83,8 @@ buildmax <command> [flags]
 | `--append-system-prompt TEXT` | — | Text appended to this run's system prompt |
 | `--append-system-prompt-file PATH` | — | Same, read from a file |
 | `--agent NAME` | — | Append the body of a definition from `.buildmax/agents/` or `~/.buildmax/agents/` |
+| `--remote-control` | off | Make this session reachable from another device through the managed server; requires a login. See [Remote Control](remote-control.md) |
+| `--remote-control-name NAME` | host name | The name another device shows for this session |
 | `--output text\|json\|jsonl` | `text` | Output format for `-p` |
 | `--no-stream` | off | Do not stream the reply to stdout in print mode |
 | `-q`, `--quiet` | off | Suppress the stats footer in print text mode |

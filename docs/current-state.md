@@ -97,6 +97,22 @@ tokens may come from a named environment variable; MCP OAuth and persistent
 CLI sessions are not implemented. Calls without a read-only server annotation
 require interactive confirmation. See [MCP servers](../manual/mcp.md).
 
+Remote Control makes a local CLI/TUI session reachable from another device. With
+`buildmax --remote-control`, the session dials out to the managed server,
+registers itself against the user's account, and relays its output; execution,
+the filesystem, and tools stay on the machine. From the Remote Control area in
+Portal, another device lists the user's live sessions with presence, watches one
+session's stream, sends follow-up messages, approves or denies its tool calls,
+and stops a running turn. The local prompt and any connected device resolve a
+tool approval on a first-answer-wins basis. The relay reconnects with backoff and
+reattaches to the same session across a network drop, keeping the session's URL
+and stream stable. Cross-replica command routing rides the coordination command
+bus, and the approval stream reuses the coordination-backed stream hub, so both
+are correct across replicas. Opt-in is CLI-only today; Desktop and print-mode
+opt-in, mobile push, and Trusted Devices are not built. See
+[Remote Control](../manual/remote-control.md) and
+[the design record](design/remote-control.md).
+
 CLI/TUI, Desktop, and workers assemble the shared Agent runtime. The core has a
 streamed model/tool loop, tool error recovery, parallel read-only tool execution,
 permissions, approvals, compaction and checkpoints, hooks, bounded redacted
