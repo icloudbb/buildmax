@@ -434,6 +434,24 @@
   opacity: 1;
 }
 
+/* The "+" that opens a new chat, sitting right after the last tab. */
+.workspace-tabs__new {
+  align-self: center;
+  background: none;
+  border: none;
+  color: var(--color-text-muted, #888);
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 0 0.45rem;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.workspace-tabs__new:hover {
+  opacity: 1;
+  color: var(--color-text);
+}
+
 /* Split controls, trailing the tab strip. */
 .workspace-tabs__splits {
   margin-left: auto;
