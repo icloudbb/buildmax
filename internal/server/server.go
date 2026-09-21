@@ -22,6 +22,7 @@ import (
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	"github.com/icloudbb/buildmax/internal/core/llm"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	coreremote "github.com/icloudbb/buildmax/internal/core/remotesession"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	coreschema "github.com/icloudbb/buildmax/internal/core/schema"
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
@@ -99,6 +100,7 @@ type StoresConfig struct {
 	RefreshTokenStore     coreidentity.RefreshTokenStore
 	AuthSessionStore      coreidentity.AuthSessionStore
 	ExternalIdentityStore coreidentity.ExternalIdentityStore
+	RemoteSessionStore    coreremote.Store
 	SpaceStore            corespace.Store
 	WorkflowStore         coreworkflow.Store
 	AgentStore            agentdef.Store
@@ -383,6 +385,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		RefreshTokenStore:        cfg.Stores.RefreshTokenStore,
 		AuthSessionStore:         cfg.Stores.AuthSessionStore,
 		ExternalIdentityStore:    cfg.Stores.ExternalIdentityStore,
+		RemoteSessionStore:       cfg.Stores.RemoteSessionStore,
 		SpaceStore:               cfg.Stores.SpaceStore,
 		WorkflowStore:            cfg.Stores.WorkflowStore,
 		AgentStore:               cfg.Stores.AgentStore,

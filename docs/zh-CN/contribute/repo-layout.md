@@ -170,6 +170,8 @@ internal/
 │   ├── schema/         数据库自陈已发生过什么：infra/db 报告的已应用
 │   │                   迁移，以及 admin 路由读取的内容
 │   ├── session/        本地 session 模型；持久化实现放在 agentapp 里
+│   ├── remotesession/  Remote Control 暴露的、账号归属的活设备会话注册表：
+│   │                   presence 及其 store
 │   └── localproject/   本地 Project：CLI、TUI 与 Desktop 的 session 为
 │                       同一个仓库或目录共享的身份，以及其跨 session
 │                       记忆将归属的范围

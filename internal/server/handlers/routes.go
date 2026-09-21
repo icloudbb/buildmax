@@ -59,6 +59,14 @@ func (h *Handler) RegisterPublic(mux *http.ServeMux) {
 	// WebSocket
 	mux.HandleFunc("GET /api/spaces/{space_id}/ws", h.wsUpgradeHandler)
 
+	// Remote Control. Account-scoped, not space-scoped: a live session belongs to
+	// a user's machine, which has no space. The agent socket is the outbound
+	// channel a local session dials; the list and stream are how another device
+	// observes it. See docs/design/remote-control.md.
+	mux.HandleFunc("GET /api/remote-control/agent-ws", h.agentWSUpgradeHandler)
+	mux.HandleFunc("GET /api/remote-control/sessions", h.listRemoteSessionsHandler)
+	mux.HandleFunc("GET /api/remote-control/sessions/{session_id}/stream", h.remoteSessionStreamHandler)
+
 	// System administration lives in its own package: every route there requires
 	// a system_admin grant and none is space-scoped, so it holds a Config that
 	// cannot reach a space's data at all.
