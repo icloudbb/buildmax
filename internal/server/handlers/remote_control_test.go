@@ -20,23 +20,31 @@ import (
 
 // fakeRemoteStore records the calls the agent socket and the HTTP routes make.
 type fakeRemoteStore struct {
-	mu         sync.Mutex
-	id         string
-	registered coreremote.NewRemoteSession
-	touched    int
-	offline    bool
-	list       []coreremote.RemoteSession
-	get        map[string]coreremote.RemoteSession
+	mu            sync.Mutex
+	id            string
+	registered    coreremote.NewRemoteSession
+	registerCount int
+	touched       int
+	offline       bool
+	list          []coreremote.RemoteSession
+	get           map[string]coreremote.RemoteSession
 }
 
 func (f *fakeRemoteStore) RegisterRemoteSession(_ context.Context, in coreremote.NewRemoteSession) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.registered = in
+	f.registerCount++
 	if f.id == "" {
 		f.id = "rcsession0000000000a"
 	}
 	return f.id, nil
+}
+
+func (f *fakeRemoteStore) registers() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.registerCount
 }
 
 func (f *fakeRemoteStore) TouchRemoteSession(_ context.Context, _ string, _ time.Time) error {
@@ -142,16 +150,16 @@ func TestAgentWSRegisterRelayAndDisconnect(t *testing.T) {
 	sendEnvelope(t, conn, wsconn.TypeAgentHeartbeat, struct{}{})
 	waitFor(t, func() bool { n, _ := store.counters(); return n > 0 }, "heartbeat was not recorded")
 
-	// Closing the socket marks the session offline and ends the stream.
+	// Closing the socket marks the session offline, but does NOT end the stream:
+	// the session may reconnect and reattach, so a watching device keeps its
+	// stream open across the gap.
 	_ = conn.Close()
 	waitFor(t, func() bool { _, off := store.counters(); return off }, "disconnect did not mark the session offline")
 	select {
 	case msg := <-events:
-		if msg != wsconn.StreamEventDone {
-			t.Errorf("stream end = %q, want done", msg)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("stream was not closed on disconnect")
+		t.Errorf("stream should stay open across a disconnect, got %q", msg)
+	case <-time.After(200 * time.Millisecond):
+		// Expected: the stream stays open.
 	}
 }
 
@@ -338,6 +346,42 @@ func TestCancelDeliveredToAgentSocket(t *testing.T) {
 	env := readEnvelope(t, conn)
 	if env.Type != wsconn.TypeAgentCancel {
 		t.Fatalf("agent received %q, want cancel", env.Type)
+	}
+}
+
+// A reconnect that carries the assigned session id reattaches to the same
+// session instead of creating a new one.
+func TestReattachKeepsSameSession(t *testing.T) {
+	store := &fakeRemoteStore{}
+	h := NewHandler(Config{JWTSecret: wsTestSecret, CORSOrigin: "*", RemoteSessionStore: store})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	// First connection: a fresh registration assigns an id.
+	conn1 := dialAgentWS(t, server, testsupport.SignJWT("u1", wsTestSecret))
+	sendEnvelope(t, conn1, wsconn.TypeAgentRegister, wsconn.AgentRegister{Platform: "cli"})
+	var first wsconn.AgentRegistered
+	if err := json.Unmarshal(readEnvelope(t, conn1).Payload, &first); err != nil {
+		t.Fatal(err)
+	}
+	store.setGet(coreremote.RemoteSession{ID: first.SessionID, UserID: "u1", Status: coreremote.StatusOnline})
+	_ = conn1.Close()
+
+	// Second connection: reattach by id.
+	conn2 := dialAgentWS(t, server, testsupport.SignJWT("u1", wsTestSecret))
+	defer conn2.Close()
+	sendEnvelope(t, conn2, wsconn.TypeAgentRegister, wsconn.AgentRegister{SessionID: first.SessionID, Platform: "cli"})
+	var second wsconn.AgentRegistered
+	if err := json.Unmarshal(readEnvelope(t, conn2).Payload, &second); err != nil {
+		t.Fatal(err)
+	}
+	if second.SessionID != first.SessionID {
+		t.Errorf("reattach id = %q, want %q", second.SessionID, first.SessionID)
+	}
+	if n := store.registers(); n != 1 {
+		t.Errorf("RegisterRemoteSession called %d times, want 1 (reattach must not create a new session)", n)
 	}
 }
 

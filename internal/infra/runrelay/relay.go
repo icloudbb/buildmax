@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	gws "github.com/gorilla/websocket"
@@ -24,6 +25,11 @@ const (
 	heartbeatInterval = 30 * time.Second
 	handshakeTimeout  = 10 * time.Second
 	outBufferSize     = 512
+	// Reconnect timing: a dropped connection is retried with backoff so a network
+	// blip does not take Remote Control off for the rest of the session. Buffered
+	// outbound frames flush once the connection is back.
+	minReconnectBackoff = 1 * time.Second
+	maxReconnectBackoff = 30 * time.Second
 )
 
 // The agent-socket wire contract. It mirrors the envelope and payloads the
@@ -47,6 +53,9 @@ const (
 )
 
 type registerPayload struct {
+	// SessionID, when set on a reconnect, asks the server to reattach to the same
+	// session rather than create a new one.
+	SessionID   string `json:"session_id,omitempty"`
 	DisplayName string `json:"display_name,omitempty"`
 	Platform    string `json:"platform,omitempty"`
 	Host        string `json:"host,omitempty"`
@@ -113,6 +122,12 @@ type Relay struct {
 	out  chan []byte
 	stop chan struct{}
 	done chan struct{}
+
+	// sid remembers the session id the server assigned, so a reconnect reattaches
+	// to the same session (and the same URL another device is watching) instead of
+	// creating a new one.
+	sidMu sync.Mutex
+	sid   string
 }
 
 // New returns a relay, or nil when there is nothing to connect to (no managed
@@ -139,44 +154,104 @@ func (r *Relay) Start(ctx context.Context) {
 	go r.run(ctx)
 }
 
+// run keeps the channel connected: it dials, serves until the connection drops,
+// then reconnects with backoff, reattaching to the same session, until stopped.
 func (r *Relay) run(ctx context.Context) {
 	defer close(r.done)
 
-	conn, err := r.dial(ctx)
-	if err != nil {
-		slog.Warn("remote control: could not connect; the session will not be reachable", "err", err)
-		return
+	backoff := minReconnectBackoff
+	first := true
+	for {
+		conn, err := r.dial(ctx)
+		if err != nil {
+			if first {
+				slog.Warn("remote control: could not connect; retrying in the background", "err", err)
+			}
+			if !r.wait(ctx, backoff) {
+				return
+			}
+			backoff = min(backoff*2, maxReconnectBackoff)
+			continue
+		}
+		first = false
+		stop := r.serveConn(ctx, conn)
+		_ = conn.Close()
+		if stop {
+			return
+		}
+		// The connection dropped, not us: reconnect promptly, resetting backoff.
+		backoff = minReconnectBackoff
+		if !r.wait(ctx, backoff) {
+			return
+		}
 	}
-	defer func() { _ = conn.Close() }()
+}
 
+// serveConn registers on a fresh connection and pumps it until the connection
+// breaks (returns false, meaning reconnect) or the relay is told to stop (returns
+// true). Buffered outbound frames flush here, so events raised during a brief
+// outage survive.
+func (r *Relay) serveConn(ctx context.Context, conn *gws.Conn) (stop bool) {
 	if err := writeJSON(conn, typeAgentRegister, registerPayload{
-		DisplayName: r.cfg.DisplayName, Platform: r.cfg.Platform, Host: r.cfg.Host,
+		SessionID: r.currentSID(), DisplayName: r.cfg.DisplayName, Platform: r.cfg.Platform, Host: r.cfg.Host,
 	}); err != nil {
-		slog.Warn("remote control: register failed", "err", err)
-		return
+		return false
 	}
 
-	// A reader goroutine handles the registration reply, pongs, and close.
-	go r.readLoop(conn)
+	connDone := make(chan struct{})
+	go func() { r.readLoop(conn); close(connDone) }()
 
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return true
 		case <-r.stop:
-			return
+			return true
+		case <-connDone:
+			return false
 		case frame := <-r.out:
 			if err := writeFrame(conn, frame); err != nil {
-				return
+				return false
 			}
 		case <-ticker.C:
 			if err := writeJSON(conn, typeAgentHeartbeat, struct{}{}); err != nil {
-				return
+				return false
 			}
 		}
 	}
+}
+
+// wait sleeps for d, or returns false early if the relay is stopping.
+func (r *Relay) wait(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return true
+	case <-ctx.Done():
+		return false
+	case <-r.stop:
+		return false
+	}
+}
+
+func (r *Relay) currentSID() string {
+	r.sidMu.Lock()
+	defer r.sidMu.Unlock()
+	return r.sid
+}
+
+// rememberSID records the assigned session id and reports whether this is the
+// first assignment, so the surface is told "reachable" once, not on every
+// reconnect.
+func (r *Relay) rememberSID(id string) (first bool) {
+	r.sidMu.Lock()
+	defer r.sidMu.Unlock()
+	first = r.sid == ""
+	r.sid = id
+	return first
 }
 
 func (r *Relay) readLoop(conn *gws.Conn) {
@@ -192,8 +267,12 @@ func (r *Relay) readLoop(conn *gws.Conn) {
 		switch env.Type {
 		case typeAgentRegistered:
 			var p registeredPayload
-			if json.Unmarshal(env.Payload, &p) == nil && p.SessionID != "" && r.cfg.OnRegistered != nil {
-				r.cfg.OnRegistered(p.SessionID)
+			if json.Unmarshal(env.Payload, &p) == nil && p.SessionID != "" {
+				// Tell the surface once, on the first registration — not on every
+				// reconnect, which reattaches to the same id.
+				if r.rememberSID(p.SessionID) && r.cfg.OnRegistered != nil {
+					r.cfg.OnRegistered(p.SessionID)
+				}
 			}
 		case typeAgentPrompt:
 			var p promptPayload
