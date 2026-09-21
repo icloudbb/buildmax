@@ -115,7 +115,7 @@ export function AdminSpaces({ token }: { token: string | null }) {
             aria-label="Search spaces by name"
             onChange={(e) => setQuery(e.target.value)}
           />
-          <Button type="submit" variant="secondary" disabled={loading}>
+          <Button type="submit" variant="primary" disabled={loading}>
             Search
           </Button>
         </form>

@@ -176,8 +176,12 @@
   padding: 0;
   text-align: left;
   font: inherit;
-  color: var(--color-accent, #3182ce);
+  color: var(--color-link);
   cursor: pointer;
+}
+
+.admin-list__main--action:hover {
+  text-decoration: underline;
 }
 
 .admin-list__meta {

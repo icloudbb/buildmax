@@ -118,7 +118,7 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
             aria-label="Filter by action"
             onChange={(e) => setFilters({ ...filters, action: e.target.value })}
           />
-          <Button type="submit" variant="secondary" disabled={loading}>
+          <Button type="submit" variant="primary" disabled={loading}>
             Search
           </Button>
           <Button
