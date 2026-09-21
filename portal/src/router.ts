@@ -29,6 +29,7 @@ export const SEGMENT = {
   artifacts: "artifacts",
   artifact: "artifact",
   marketplace: "marketplace",
+  remoteControl: "remote-control",
   help: "help",
 } as const
 
@@ -110,6 +111,13 @@ export function parseHash(hash: string, currentSpaceId: string): Route {
   }
   if (parts[0] === SEGMENT.marketplace) {
     return { name: "marketplace" }
+  }
+  // Remote Control is global (account-scoped): #/remote-control lists the user's
+  // live sessions, #/remote-control/{id} watches one.
+  if (parts[0] === SEGMENT.remoteControl) {
+    return parts[1]
+      ? { name: "remoteControlSession", sessionId: parts[1] }
+      : { name: "remoteControl" }
   }
   // #/help opens the manual's first page; #/help/<slug> opens one page.
   if (parts[0] === SEGMENT.help) {
@@ -226,6 +234,10 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.artifact}/${route.artifactId}`
     case "marketplace":
       return `#/${SEGMENT.marketplace}`
+    case "remoteControl":
+      return `#/${SEGMENT.remoteControl}`
+    case "remoteControlSession":
+      return `#/${SEGMENT.remoteControl}/${route.sessionId}`
     case "help":
       return route.slug ? `#/${SEGMENT.help}/${route.slug}` : `#/${SEGMENT.help}`
     case "notFound":
