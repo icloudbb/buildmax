@@ -2,8 +2,9 @@
 // active one highlighted, each closable. It is presentational — the tab model
 // (src/lib/tabs.js) and the tab contents live above it. Beyond selecting and
 // closing, it supports reordering by drag (onTabDrop reports the tab to drop
-// before, or null for the end) and a right-click menu for bulk closes and, on
-// file/diff tabs, copying the path.
+// before, or null for the end), a trailing "+" that starts a new chat in this
+// pane (onNewTab), and a right-click menu for bulk closes and, on file/diff
+// tabs, copying the path.
 
 import { useState } from 'react';
 
@@ -50,7 +51,7 @@ function RestoreIcon() {
 }
 
 export function TabBar({
-  tabs, activeKey, onSelect, onClose, onPin, onRename, onSplitRight, onSplitDown,
+  tabs, activeKey, onSelect, onClose, onPin, onRename, onNewTab, onSplitRight, onSplitDown,
   onToggleMaximize, maximized, onTabDragStart, onTabDragEnd, onTabDrop,
   onCloseOthers, onCloseRight, onCopyPath,
 }) {
@@ -156,6 +157,17 @@ export function TabBar({
           )}
         </div>
       ))}
+      {onNewTab && (
+        <button
+          type="button"
+          className="workspace-tabs__new"
+          title="New chat"
+          aria-label="New chat"
+          onClick={onNewTab}
+        >
+          +
+        </button>
+      )}
       {(onSplitRight || onSplitDown || onToggleMaximize) && (
         <div className="workspace-tabs__splits">
           {onToggleMaximize && (

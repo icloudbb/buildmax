@@ -58,6 +58,16 @@ describe('TabBar', () => {
     expect(onRename).toHaveBeenCalledWith('chat:s1', 'Plan');
   });
 
+  it('shows a new-chat "+" only when onNewTab is given and reports the click', () => {
+    render(<TabBar tabs={tabs} activeKey="chat:s1" onSelect={() => {}} onClose={() => {}} />);
+    expect(screen.queryByLabelText('New chat')).toBeNull();
+    cleanup();
+    const onNewTab = vi.fn();
+    render(<TabBar tabs={tabs} activeKey="chat:s1" onSelect={() => {}} onClose={() => {}} onNewTab={onNewTab} />);
+    fireEvent.click(screen.getByLabelText('New chat'));
+    expect(onNewTab).toHaveBeenCalledTimes(1);
+  });
+
   it('renders nothing when there are no tabs', () => {
     const { container } = render(<TabBar tabs={[]} activeKey={null} onSelect={() => {}} onClose={() => {}} />);
     expect(container.firstChild).toBeNull();

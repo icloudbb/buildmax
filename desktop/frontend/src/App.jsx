@@ -1100,6 +1100,7 @@ export default function App() {
           onClose={(key) => closeCenterTab(pane.id, key)}
           onPin={(key) => pinCenterTab(pane.id, key)}
           onRename={renameCenterTab}
+          onNewTab={currentProject ? () => setWorkspace((s) => openNewChatInto(focusPane(s, pane.id))) : undefined}
           onSplitRight={maximizedPane ? undefined : () => splitCenterRight(pane.id)}
           onSplitDown={maximizedPane ? undefined : () => splitCenterDown(pane.id)}
           onToggleMaximize={canMaximize ? () => toggleMaximizePane(pane.id) : undefined}
