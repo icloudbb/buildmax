@@ -57,6 +57,42 @@ type ConversationMessage struct {
 	Content        string `json:"content"`
 }
 
+// Remote Control agent socket (client → server). These travel on the dedicated
+// device/agent WebSocket a local session dials out to, not the per-space browser
+// socket. See docs/design/remote-control.md.
+const (
+	TypeAgentRegister  = "agent.register"
+	TypeAgentHeartbeat = "agent.heartbeat"
+	TypeAgentEvent     = "agent.event"
+)
+
+// AgentRegister is the payload for TypeAgentRegister: a local session announcing
+// itself.
+type AgentRegister struct {
+	DisplayName string `json:"display_name,omitempty"`
+	Platform    string `json:"platform,omitempty"`
+	Host        string `json:"host,omitempty"`
+}
+
+// AgentEvent is the payload for TypeAgentEvent: one relayed run event. Phase 1
+// carries a content delta (matching the Task output stream); richer structured
+// records are a later enrichment.
+type AgentEvent struct {
+	Delta string `json:"delta,omitempty"`
+}
+
+// Remote Control agent socket (server → client).
+const (
+	TypeAgentRegistered = "agent.registered"
+)
+
+// AgentRegistered is the payload for TypeAgentRegistered: the server's reply to a
+// register, carrying the session id that is the stream key and the URL another
+// device opens.
+type AgentRegistered struct {
+	SessionID string `json:"session_id"`
+}
+
 // SubscribeTask is the payload for TypeSubscribeTask.
 type SubscribeTask struct {
 	TaskID string `json:"task_id"`

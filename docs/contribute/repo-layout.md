@@ -182,6 +182,8 @@ internal/
 │   ├── schema/         What a database says has been done to it: the applied
 │   │                   migrations infra/db reports and the admin route reads
 │   ├── session/        Local session model; persistence lives in agentapp
+│   ├── remotesession/  The account-scoped registry of live, device-resident
+│   │                   sessions Remote Control exposes: presence and its store
 │   └── localproject/   The local Project: the identity CLI, TUI, and Desktop
 │                       sessions share for one repository or directory, and the
 │                       scope its cross-session memory will belong to

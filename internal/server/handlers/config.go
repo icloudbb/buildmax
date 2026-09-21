@@ -12,6 +12,7 @@ import (
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	"github.com/icloudbb/buildmax/internal/core/llm"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	coreremote "github.com/icloudbb/buildmax/internal/core/remotesession"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	coreschema "github.com/icloudbb/buildmax/internal/core/schema"
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
@@ -92,14 +93,17 @@ type Config struct {
 	RefreshTokenStore     coreidentity.RefreshTokenStore
 	AuthSessionStore      coreidentity.AuthSessionStore
 	ExternalIdentityStore coreidentity.ExternalIdentityStore
-	SpaceStore            corespace.Store
-	WorkflowStore         coreworkflow.Store
-	AgentStore            agentdef.Store
-	IssueStore            coreissue.Store
-	IssueCommentStore     coreissue.CommentStore
-	TaskStore             coretask.Store
-	TaskRunStore          coretask.RunStore
-	ScheduleStore         coreschedule.Store
+	// RemoteSessionStore is the account-scoped registry of live Remote Control
+	// sessions. Nil leaves the /api/remote-control routes answering 503.
+	RemoteSessionStore coreremote.Store
+	SpaceStore         corespace.Store
+	WorkflowStore      coreworkflow.Store
+	AgentStore         agentdef.Store
+	IssueStore         coreissue.Store
+	IssueCommentStore  coreissue.CommentStore
+	TaskStore          coretask.Store
+	TaskRunStore       coretask.RunStore
+	ScheduleStore      coreschedule.Store
 	// LLMCallStore reads the managed call ledger. Nil leaves the ledger
 	// unreadable over HTTP, which is what a deployment with no database has.
 	LLMCallStore             coregw.CallStore

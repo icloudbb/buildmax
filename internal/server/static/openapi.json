@@ -4678,6 +4678,53 @@
           "503": {"description": "This server is shutting down, or spaces are not configured"}
         }
       }
+    },
+    "/api/remote-control/agent-ws": {
+      "get": {
+        "summary": "Open the Remote Control agent channel",
+        "description": "A local session dials out here to register itself and relay its output. Account-scoped, not space-scoped. Authenticated by the token query parameter rather than a bearer header.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "The access token; a WebSocket handshake carries no Authorization header"
+          }
+        ],
+        "responses": {
+          "101": {"description": "Switching Protocols"},
+          "401": {"description": "Missing or invalid token"},
+          "503": {"description": "This server is shutting down, or remote control is not configured"}
+        }
+      }
+    },
+    "/api/remote-control/sessions": {
+      "get": {
+        "summary": "List the caller's live Remote Control sessions",
+        "description": "The caller's device-resident sessions with their presence.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "The caller's sessions"},
+          "401": {"description": "Missing or invalid token"},
+          "503": {"description": "Remote control is not configured"}
+        }
+      }
+    },
+    "/api/remote-control/sessions/{session_id}/stream": {
+      "parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Watch a Remote Control session's relayed output",
+        "description": "Server-Sent Events: buffered replay then live deltas until the session ends. Only the owning account may watch.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "An event stream of the session's output"},
+          "401": {"description": "Missing or invalid token"},
+          "404": {"description": "No such session, or not owned by the caller"},
+          "503": {"description": "Remote control is not configured"}
+        }
+      }
     }
   }
 }
