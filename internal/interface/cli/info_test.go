@@ -139,3 +139,19 @@ func TestFormatCount(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteForkTreeShowsLineageAndDeletedSources(t *testing.T) {
+	tree := &agentapp.ForkTreeNode{
+		ID: "deleted-parent", Missing: true,
+		Children: []agentapp.ForkTreeNode{
+			{ID: "child", Title: "Alternative", Current: true},
+		},
+	}
+	var out strings.Builder
+	writeForkTree(&out, tree, "")
+	for _, want := range []string{"Session tree", "source session deleted", "Alternative", "current"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("tree report does not show %q:\n%s", want, out.String())
+		}
+	}
+}

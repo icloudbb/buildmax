@@ -183,14 +183,32 @@ func openInfoOn(t *testing.T, tab infoTab, o agentapp.MemoryOverview) (*Model, *
 	return opened.(*Model), p
 }
 
-// The two halves answer one question asked in two directions, and the tab bar
-// names both: a tab a person cannot see is one they will not press.
-func TestSlashInfo_TabBarNamesBothHalves(t *testing.T) {
+// The three views answer the related session, lineage, and project questions,
+// and the tab bar names each: a tab a person cannot see is one they will not
+// press.
+func TestSlashInfo_TabBarNamesAllViews(t *testing.T) {
 	m, p := openInfoOn(t, infoTabSession, memoryOverview())
 	out := p.Render(m, m.panelContentWidth())
-	for _, want := range []string{"session", "memory"} {
+	for _, want := range []string{"session", "tree", "memory"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("tab bar does not name %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestSlashInfo_TreeTabShowsTheCurrentForkAmongItsSiblings(t *testing.T) {
+	m, p := openInfoOn(t, infoTabTree, memoryOverview())
+	p.ForkTree = &agentapp.ForkTreeNode{
+		ID: "root", Title: "Original",
+		Children: []agentapp.ForkTreeNode{
+			{ID: "first", Title: "First approach"},
+			{ID: "second", Title: "Second approach", Current: true},
+		},
+	}
+	out := p.Render(m, m.panelContentWidth())
+	for _, want := range []string{"Original", "First approach", "Second approach", "current"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("tree tab does not show %q:\n%s", want, out)
 		}
 	}
 }
@@ -247,12 +265,16 @@ func TestSlashInfo_SwitchingTabsClosesAnOpenBody(t *testing.T) {
 	p.Opened = 1
 
 	p.HandleKey(m, tea.KeyPressMsg{Code: tea.KeyLeft})
-	if p.Tab != infoTabSession || p.Opened != -1 {
-		t.Errorf("tab = %v, opened = %d; want the session tab with no body open", p.Tab, p.Opened)
+	if p.Tab != infoTabTree || p.Opened != -1 {
+		t.Errorf("tab = %v, opened = %d; want the tree tab with no body open", p.Tab, p.Opened)
+	}
+	p.HandleKey(m, tea.KeyPressMsg{Code: tea.KeyLeft})
+	if p.Tab != infoTabSession {
+		t.Errorf("tab = %v, want the session tab", p.Tab)
 	}
 	p.HandleKey(m, tea.KeyPressMsg{Code: tea.KeyTab})
-	if p.Tab != infoTabMemory {
-		t.Errorf("tab = %v, want the memory tab", p.Tab)
+	if p.Tab != infoTabTree {
+		t.Errorf("tab = %v, want the tree tab", p.Tab)
 	}
 }
 

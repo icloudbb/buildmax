@@ -115,10 +115,54 @@ function SessionTab({ projectID, sessionID, app }) {
   );
 }
 
-// InfoPanel is the /info command: two tabs answering one question in two
-// directions — what this session has done, and what this project knows. They
-// share nothing else (one ends with the session, the other outlives it), so
-// they are tabs rather than one merged view. See manual/cli.md.
+function ForkTreeNode({ node }) {
+  if (!node) return null;
+  const title = node.missing ? 'Source session deleted' : (node.title || '(untitled)');
+  return (
+    <li role="treeitem" aria-current={node.current ? 'true' : undefined}>
+      <div className={`info-tree__node ${node.current ? 'info-tree__node--current' : ''} ${node.missing ? 'info-tree__node--missing' : ''}`}>
+        <span className="info-tree__title">{title}</span>
+        <code className="info-tree__id">{node.id}</code>
+        {node.current && <span className="info-tree__current">current</span>}
+      </div>
+      {(node.children ?? []).length > 0 && (
+        <ul role="group">
+          {node.children.map((child) => <ForkTreeNode key={child.id} node={child} />)}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function TreeTab({ projectID, sessionID, app }) {
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    app.GetSessionForkTree(projectID, sessionID)
+      .then((res) => { if (!cancelled) setResult(res ?? null); })
+      .catch((err) => { if (!cancelled) setError(err?.message ?? String(err)); });
+    return () => { cancelled = true; };
+  }, [projectID, sessionID, app]);
+
+  if (error) return <p className="diff-drawer__error">{error}</p>;
+  if (!result) return <p className="diff-drawer__empty">Loading…</p>;
+  if (result.load_error) return <p className="diff-drawer__empty">{result.load_error}</p>;
+  if (!result.tree) return <p className="diff-drawer__empty">This session is not part of a saved fork tree.</p>;
+
+  return (
+    <div className="info-tree">
+      <p className="info-tree__hint">This project’s fork branches. The current session is highlighted.</p>
+      <ul role="tree">
+        <ForkTreeNode node={result.tree} />
+      </ul>
+    </div>
+  );
+}
+
+// InfoPanel is the /info command: what this session has done, where it sits in
+// the fork tree, and what this project knows. See manual/cli.md.
 export function InfoPanel({ projectID, sessionID, projectName, workspace, app }) {
   const [tab, setTab] = useState('session');
 
@@ -143,6 +187,15 @@ export function InfoPanel({ projectID, sessionID, projectName, workspace, app })
         <button
           type="button"
           role="tab"
+          aria-selected={tab === 'tree'}
+          className={`info-tabs__tab ${tab === 'tree' ? 'info-tabs__tab--active' : ''}`}
+          onClick={() => setTab('tree')}
+        >
+          Tree
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={tab === 'memory'}
           className={`info-tabs__tab ${tab === 'memory' ? 'info-tabs__tab--active' : ''}`}
           onClick={() => setTab('memory')}
@@ -151,11 +204,13 @@ export function InfoPanel({ projectID, sessionID, projectName, workspace, app })
         </button>
       </div>
 
-      {tab === 'session'
-        ? (sessionID
-            ? <SessionTab projectID={projectID} sessionID={sessionID} app={app} />
-            : <p className="diff-drawer__empty">Send a message first — this session has no statistics yet.</p>)
-        : <MemoryView projectID={projectID} app={app} />}
+      {tab === 'session' && (sessionID
+        ? <SessionTab projectID={projectID} sessionID={sessionID} app={app} />
+        : <p className="diff-drawer__empty">Send a message first — this session has no statistics yet.</p>)}
+      {tab === 'tree' && (sessionID
+        ? <TreeTab projectID={projectID} sessionID={sessionID} app={app} />
+        : <p className="diff-drawer__empty">Send a message first — this session has no fork tree yet.</p>)}
+      {tab === 'memory' && <MemoryView projectID={projectID} app={app} />}
     </div>
   );
 }
