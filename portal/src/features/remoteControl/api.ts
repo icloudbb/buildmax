@@ -1,5 +1,5 @@
-import { apiFetch, getApiBase, parseErrorResponse, requestJson } from "../../lib/api/client"
-import { authHeaders } from "../../lib/api/common"
+import { apiFetch, getApiBase, parseErrorResponse, requestJson, throwIfNotOk } from "../../lib/api/client"
+import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import { readSSEStream } from "../../lib/api/sse"
 
 /** One live, device-resident session the signed-in user has made reachable. */
@@ -23,6 +23,18 @@ export async function listRemoteSessions(token: string): Promise<RemoteSession[]
     headers: authHeaders(token),
   })
   return res.sessions ?? []
+}
+
+/**
+ * Send a follow-up prompt to a live session. Best-effort: the server delivers it
+ * to the machine, which enqueues it into the running turn or starts a new one.
+ */
+export async function sendRemotePrompt(sessionId: string, content: string, token: string): Promise<void> {
+  const res = await apiFetch(
+    `${getApiBase()}/api/remote-control/sessions/${encodeURIComponent(sessionId)}/prompt`,
+    { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) }, body: JSON.stringify({ content }) }
+  )
+  await throwIfNotOk(res)
 }
 
 /**

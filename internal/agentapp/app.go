@@ -57,6 +57,11 @@ type AppConfig struct {
 	// RemoteControlName is the display name a connected device shows for the
 	// session. Empty falls back to the host name.
 	RemoteControlName string
+	// RemotePromptHandler receives a follow-up prompt another device sent through
+	// Remote Control, to be delivered into the session as if the user typed it.
+	// Nil ignores inbound prompts (read-only observation). The surface supplies it
+	// because only the surface owns the input loop.
+	RemotePromptHandler func(content string)
 	// Policy is the surface's tool permission baseline, under the user's
 	// tools.permissions rules. Every surface states its own — CLI, TUI, Desktop,
 	// a Portal turn, and a task run all pass one — and nil is the library's

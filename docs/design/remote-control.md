@@ -191,11 +191,14 @@ these phases.
 
 ## 9. Open Questions
 
-- **Cross-replica command routing (Phase 2).** Observation is replica-agnostic
-  because it flows through the persisted entity and the coordination-bus-backed
-  stream hub, but delivering a command to the one replica holding a session's
-  socket needs an in-memory registry keyed by session id plus a bus route. The
-  smallest correct design is deferred to Phase 2.
+- **Cross-replica command routing (resolved in Phase 2).** Observation is
+  replica-agnostic because it flows through the persisted entity and the
+  coordination-bus-backed stream hub. Delivering a command to the one replica
+  holding a session's socket is done with an in-memory registry keyed by session
+  id plus a dedicated command channel on the coordination backend: the receiving
+  replica delivers locally if it holds the socket, otherwise it publishes the
+  command and the replica that holds it delivers. This is the same shape as the
+  connection-event bus, on its own channel so the two never cross.
 - **Sharing a live session into a Space.** Account scope (§3) is the default; if a
   need arises to let a Space see a member's live session, it should be an explicit
   additive grant, and its shape is unspecified here.

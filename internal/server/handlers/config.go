@@ -208,6 +208,12 @@ type Config struct {
 	// another. Nil keeps broadcasts process-local.
 	EventBus EventBus
 
+	// CommandBus is optional. When set (coordination.mode redis), a Remote Control
+	// command (a remote prompt) that arrives on a replica without the target
+	// session's socket is forwarded through it, so the replica that holds the
+	// socket delivers it. Nil keeps delivery to this replica only.
+	CommandBus CommandBus
+
 	// TurnLocker is optional. When set (coordination.mode redis), the turn queue
 	// serializes a conversation's turns across replicas. Nil serializes within this
 	// process only, which is correct for a single-replica deployment.
@@ -238,11 +244,25 @@ type EventBus interface {
 	Incoming() <-chan []byte
 }
 
+// CommandBus is the cross-replica Remote Control command fan-out. Same shape as
+// EventBus on its own channel, satisfied by the Redis-backed bus in
+// internal/server/coordination.
+type CommandBus interface {
+	// PublishCommand broadcasts one encoded command to every replica.
+	PublishCommand(payload []byte)
+	// Incoming carries the commands this replica must try to deliver to a session
+	// it holds.
+	Incoming() <-chan []byte
+}
+
 // Handler serves all HTTP routes: auth, user API, worker API, inbound webhook.
 type Handler struct {
 	cfg          Config
 	hub          wsconn.StreamHub
 	connRegistry *wsconn.ConnRegistry
+	// sessionRegistry maps a live Remote Control session to the agent socket
+	// serving it on this replica, so an inbound remote prompt can reach it.
+	sessionRegistry *wsconn.SessionRegistry
 	// turns serializes the turns of one conversation and queues the rest. It is
 	// server-scoped, not connection-scoped — see turnqueue.Registry.
 	turns *turnqueue.Registry
@@ -279,12 +299,17 @@ func NewHandler(cfg Config) *Handler {
 		connRegistry.SetPublisher(cfg.EventBus.PublishEvent)
 		go connRegistry.Consume(cfg.EventBus.Incoming())
 	}
+	sessionRegistry := wsconn.NewSessionRegistry()
 	h := &Handler{
-		cfg:          cfg,
-		hub:          hub,
-		connRegistry: connRegistry,
-		turns:        turnqueue.NewRegistry(cfg.TurnLocker),
-		terminal:     runterminal.NewGroup(),
+		cfg:             cfg,
+		hub:             hub,
+		connRegistry:    connRegistry,
+		sessionRegistry: sessionRegistry,
+		turns:           turnqueue.NewRegistry(cfg.TurnLocker),
+		terminal:        runterminal.NewGroup(),
+	}
+	if cfg.CommandBus != nil {
+		go h.consumeRemoteCommands(cfg.CommandBus.Incoming())
 	}
 	h.artifacts = h.buildArtifactService()
 	h.conversations = h.buildConversationService()

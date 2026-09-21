@@ -203,6 +203,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 				slog.Info("remote control active — this session is now reachable from another device",
 					"session_id", sessionID, "server", serverURL)
 			},
+			OnRemotePrompt: cfg.RemotePromptHandler,
 		})
 		app.remoteRelay.Start(context.Background())
 	}

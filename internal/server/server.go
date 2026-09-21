@@ -231,6 +231,7 @@ type Config struct {
 	// docs/design/server-coordination.md.
 	Hub        wsconn.StreamHub
 	EventBus   handlers.EventBus
+	CommandBus handlers.CommandBus
 	TurnLocker turnqueue.Locker
 }
 
@@ -417,6 +418,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		Drain:                    drain,
 		Hub:                      cfg.Hub,
 		EventBus:                 cfg.EventBus,
+		CommandBus:               cfg.CommandBus,
 		TurnLocker:               cfg.TurnLocker,
 	}
 }

@@ -16,6 +16,9 @@ import (
 type AgentConnDeps struct {
 	Sessions coreremote.Store
 	Hub      StreamHub
+	// Registry maps this session to its socket so an inbound command (a remote
+	// prompt) can reach it. Nil disables inbound delivery on this replica.
+	Registry *SessionRegistry
 	// CORSOrigin is checked on the upgrade. Empty or "*" accepts any origin.
 	CORSOrigin string
 }
@@ -146,6 +149,7 @@ func (ac *agentConn) handleRegister(ctx context.Context, p AgentRegister) {
 		return
 	}
 	ac.sessionID = id
+	ac.deps.Registry.Register(id, ac)
 	componentLog().Info("agent registered", "user_id", ac.userID, "session_id", id)
 	ac.sendEvent(TypeAgentRegistered, AgentRegistered{SessionID: id})
 }
@@ -195,6 +199,7 @@ func (ac *agentConn) sendEvent(eventType string, payload any) {
 
 func (ac *agentConn) cleanup() {
 	if ac.sessionID != "" {
+		ac.deps.Registry.Unregister(ac.sessionID, ac)
 		// Best-effort: mark offline now; the reaper is the backstop for an unclean
 		// drop that never reaches here.
 		if err := ac.deps.Sessions.MarkRemoteSessionOffline(context.Background(), ac.sessionID, time.Now().UTC()); err != nil {

@@ -80,7 +80,7 @@ remaining list. Update this snapshot when either changes.
 | [Hook system](hook-system.md) | Specification | Complete | Runtime events, transports, failure behavior, and trust boundaries |
 | [Queued messages](queued-messages.md) | Specification | Complete | Queueing and mid-run message injection across interactive surfaces |
 | [Durable run trace](durable-run-trace.md) | Specification | Partial | Bounded, redacted JSONL evidence for every run |
-| [Remote Control](remote-control.md) | Active plan | Not started | Observing and steering a device-resident session from another device through an outbound-brokered control plane |
+| [Remote Control](remote-control.md) | Active plan | Partial | Observing and steering a device-resident session from another device through an outbound-brokered control plane |
 
 ## Local Experience
 
