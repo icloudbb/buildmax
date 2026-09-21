@@ -4771,6 +4771,21 @@
         }
       }
     },
+    "/api/remote-control/sessions/{session_id}/cancel": {
+      "parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Ask a Remote Control session to stop its current run",
+        "description": "Interrupts the session's running turn without ending the session. Best-effort; only the owning account may send.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "202": {"description": "The stop was accepted for delivery"},
+          "401": {"description": "Missing or invalid token"},
+          "404": {"description": "No such session, or not owned by the caller"},
+          "409": {"description": "The session is offline"},
+          "503": {"description": "Remote control is not configured"}
+        }
+      }
+    },
     "/api/remote-control/sessions/{session_id}/prompt": {
       "parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "post": {

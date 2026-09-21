@@ -44,6 +44,29 @@ func (o *tuiRunOwner) Go(run func(context.Context)) bool {
 	return true
 }
 
+// GoCancelable runs like Go but on a child context whose returned cancel stops
+// this one run without ending the owner, so a single turn can be interrupted
+// (locally or from a remote device) while the TUI keeps going. The cancel is nil
+// when the run could not start.
+func (o *tuiRunOwner) GoCancelable(run func(context.Context)) (context.CancelFunc, bool) {
+	if o == nil || run == nil {
+		return nil, false
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.closed {
+		return nil, false
+	}
+	ctx, cancel := context.WithCancel(o.ctx)
+	o.wg.Add(1)
+	go func() {
+		defer o.wg.Done()
+		defer cancel()
+		run(ctx)
+	}()
+	return cancel, true
+}
+
 func (o *tuiRunOwner) Cancel() {
 	if o != nil {
 		o.cancel()

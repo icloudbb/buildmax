@@ -74,3 +74,19 @@ func (r *SessionRegistry) DeliverApprovalResponse(sessionID, id, decision string
 	c.sendEvent(TypeAgentApprovalResponse, AgentApprovalResponse{ID: id, Decision: decision})
 	return true
 }
+
+// DeliverCancel asks the session to stop its current run, if its socket is on
+// this replica, returning whether it was delivered here.
+func (r *SessionRegistry) DeliverCancel(sessionID string) bool {
+	if r == nil || sessionID == "" {
+		return false
+	}
+	r.mu.RLock()
+	c := r.conns[sessionID]
+	r.mu.RUnlock()
+	if c == nil {
+		return false
+	}
+	c.sendEvent(TypeAgentCancel, struct{}{})
+	return true
+}

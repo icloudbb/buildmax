@@ -179,6 +179,9 @@ type Model struct {
 	// runs owns prompt goroutines independently of Bubble Tea's command
 	// goroutines, which the program stops waiting for as soon as it quits.
 	runs *tuiRunOwner
+	// runCancel interrupts the current foreground run without ending the TUI. Set
+	// when a run starts, nil between runs; a remote cancel calls it.
+	runCancel context.CancelFunc
 }
 
 // drainQueueMsg asks the model to start the next queued message, if any. It is a
@@ -304,8 +307,8 @@ func (m *Model) FocusInput() bool {
 // runAgentWithStream starts the agent in a goroutine and returns a Cmd that reads the first event.
 // queue is handed to the run so a message typed mid-run joins it at the next
 // iteration boundary rather than waiting for the whole run to finish.
-func runAgentWithStream(owner *tuiRunOwner, opts TUIOpts, text string, channel chan tea.Msg, queue *agent.MessageQueue) tea.Cmd {
-	started := owner.Go(func(ctx context.Context) {
+func runAgentWithStream(owner *tuiRunOwner, opts TUIOpts, text string, channel chan tea.Msg, queue *agent.MessageQueue) (tea.Cmd, context.CancelFunc) {
+	cancel, started := owner.GoCancelable(func(ctx context.Context) {
 		defer close(channel)
 		sink := &streamSinkToChannel{ctx: ctx, channel: channel}
 		evSink := eventSinkToChannel(ctx, channel)
@@ -321,7 +324,7 @@ func runAgentWithStream(owner *tuiRunOwner, opts TUIOpts, text string, channel c
 	if !started {
 		close(channel)
 	}
-	return func() tea.Msg { return <-channel }
+	return func() tea.Msg { return <-channel }, cancel
 }
 
 func nextStreamMsgCmd(channel chan tea.Msg) tea.Cmd {
@@ -520,6 +523,10 @@ func (m *Model) dropStaleSuggestion() {
 // go through here, so a queued turn is indistinguishable from one typed at the prompt.
 func startRun(m *Model, text string) tea.Cmd {
 	channel := beginRun(m)
+	stream, cancel := runAgentWithStream(m.runs, m.opts, text, channel, m.queue)
+	// Held so a remote device (or a future local stop) can interrupt this one turn
+	// without ending the TUI. Cleared when the run finishes.
+	m.runCancel = cancel
 	// tea.Println returns a Cmd in Bubble Tea v2; use Sequence so the user message
 	// appears in scrollback before the agent starts reading from the channel.
 	userLine := formatUserMsgForScrollback(text)
@@ -527,7 +534,7 @@ func startRun(m *Model, text string) tea.Cmd {
 		tea.Println(userLine+"\n"),
 		tea.Batch(
 			tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} }),
-			runAgentWithStream(m.runs, m.opts, text, channel, m.queue),
+			stream,
 		),
 	)
 }
@@ -609,6 +616,7 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 	width := m.width
 	glamourStyle := m.opts.GlamourStyle
 	m.busy = false
+	m.runCancel = nil
 	m.carouselDots = 0
 	m.streamingBuffer = ""
 	m.activeTools = nil
@@ -1037,6 +1045,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleDrainQueue(m, msg)
 	case remotePromptMsg:
 		return handleRemotePrompt(m, msg.text)
+	case remoteCancelMsg:
+		return handleRemoteCancel(m)
 	case approvalResolvedMsg:
 		return handleApprovalResolved(m, msg)
 	case jobEventMsg:

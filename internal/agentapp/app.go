@@ -67,6 +67,10 @@ type AppConfig struct {
 	// Nil ignores remote approvals. The surface supplies it because it owns the
 	// approval prompt.
 	RemoteApprovalHandler func(id, decision string)
+	// RemoteCancelHandler is called when another device asks the session to stop
+	// its current run. Nil ignores remote cancels. The surface supplies it because
+	// it owns the run's cancellation.
+	RemoteCancelHandler func()
 	// Policy is the surface's tool permission baseline, under the user's
 	// tools.permissions rules. Every surface states its own — CLI, TUI, Desktop,
 	// a Portal turn, and a task run all pass one — and nil is the library's

@@ -61,6 +61,7 @@ type remoteCommand struct {
 const (
 	commandKindPrompt   = "prompt"
 	commandKindApproval = "approval"
+	commandKindCancel   = "cancel"
 )
 
 type remotePromptRequest struct {
@@ -112,6 +113,16 @@ func (h *Handler) approveRemoteSessionHandler(w http.ResponseWriter, r *http.Req
 	httputil.WriteJSON(w, http.StatusAccepted, map[string]bool{"accepted": true})
 }
 
+// cancelRemoteSessionHandler asks a live session to stop its current run.
+func (h *Handler) cancelRemoteSessionHandler(w http.ResponseWriter, r *http.Request) {
+	sess, ok := h.ownedOnlineSession(w, r)
+	if !ok {
+		return
+	}
+	h.deliverRemoteCancel(sess.ID)
+	httputil.WriteJSON(w, http.StatusAccepted, map[string]bool{"accepted": true})
+}
+
 // ownedOnlineSession resolves and ownership-checks the path session, and also
 // requires it to be online — the precondition for delivering a command to it.
 func (h *Handler) ownedOnlineSession(w http.ResponseWriter, r *http.Request) (coreremote.RemoteSession, bool) {
@@ -144,6 +155,14 @@ func (h *Handler) deliverRemoteApproval(sessionID, id, decision string) {
 	h.forwardCommand(remoteCommand{SessionID: sessionID, Kind: commandKindApproval, ApprovalID: id, Decision: decision})
 }
 
+// deliverRemoteCancel asks the session to stop its run, locally or over the bus.
+func (h *Handler) deliverRemoteCancel(sessionID string) {
+	if h.sessionRegistry.DeliverCancel(sessionID) {
+		return
+	}
+	h.forwardCommand(remoteCommand{SessionID: sessionID, Kind: commandKindCancel})
+}
+
 func (h *Handler) forwardCommand(cmd remoteCommand) {
 	if h.cfg.CommandBus == nil {
 		return
@@ -166,6 +185,8 @@ func (h *Handler) consumeRemoteCommands(incoming <-chan []byte) {
 			h.sessionRegistry.DeliverPrompt(cmd.SessionID, cmd.Content)
 		case commandKindApproval:
 			h.sessionRegistry.DeliverApprovalResponse(cmd.SessionID, cmd.ApprovalID, cmd.Decision)
+		case commandKindCancel:
+			h.sessionRegistry.DeliverCancel(cmd.SessionID)
 		}
 	}
 }

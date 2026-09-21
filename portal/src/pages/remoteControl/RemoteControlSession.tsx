@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { navigate } from "../../router"
 import {
+  cancelRemoteSession,
   listRemoteSessions,
   respondRemoteApproval,
   sendRemotePrompt,
@@ -110,6 +111,15 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
   const online = meta?.status === "online"
   const title = meta?.display_name || meta?.host || sessionId
 
+  async function stopRun() {
+    if (!token || !online) return
+    try {
+      await cancelRemoteSession(sessionId, token)
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   async function answerApproval(decision: "once" | "session" | "deny") {
     if (!approval || !token) return
     const id = approval.id
@@ -148,6 +158,11 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
             aria-label={online ? "Online" : "Offline"}
           />
           <h1 className="rc-page__title">{title}</h1>
+          {online && status === "streaming" ? (
+            <button type="button" className="rc-stop" onClick={() => void stopRun()}>
+              Stop
+            </button>
+          ) : null}
         </div>
         <p className="rc-page__subtitle">
           {meta ? [meta.platform, meta.host].filter(Boolean).join(" · ") : ""}

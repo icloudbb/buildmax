@@ -233,6 +233,41 @@ func TestRelayApprovalRoundTrip(t *testing.T) {
 	}
 }
 
+// A cancel the server sends reaches OnRemoteCancel.
+func TestRelayReceivesCancel(t *testing.T) {
+	upgrader := gws.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		if _, _, err := c.ReadMessage(); err != nil {
+			return
+		}
+		reg, _ := json.Marshal(registeredPayload{SessionID: "s1"})
+		_ = c.WriteMessage(gws.TextMessage, mustEnvelope(typeAgentRegistered, reg))
+		_ = c.WriteMessage(gws.TextMessage, mustEnvelope(typeAgentCancel, json.RawMessage(`{}`)))
+		_, _, _ = c.ReadMessage()
+	}))
+	defer server.Close()
+
+	canceled := make(chan struct{}, 1)
+	r := New(Config{
+		ServerURL:      server.URL,
+		TokenFunc:      func() (string, error) { return "tok", nil },
+		OnRemoteCancel: func() { canceled <- struct{}{} },
+	})
+	r.Start(t.Context())
+	defer r.Close()
+
+	select {
+	case <-canceled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnRemoteCancel never fired")
+	}
+}
+
 // New returns nil when there is nothing to connect to, and the nil relay's
 // methods are safe no-ops.
 func TestNewInertWithoutServer(t *testing.T) {
