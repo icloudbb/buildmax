@@ -84,7 +84,7 @@ export function CreateProjectModal({ app, onCreate, onClose }) {
 
 // --- Shared info modal ---
 
-export function InfoModal({ title, onClose, children }) {
+export function InfoModal({ title, onClose, children, className }) {
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape') onClose(); }
     window.addEventListener('keydown', onKey);
@@ -96,7 +96,7 @@ export function InfoModal({ title, onClose, children }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="presentation"
     >
-      <div className="modal-panel info-modal-panel" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`modal-panel info-modal-panel${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-header">
           <h2 className="modal-title">{title}</h2>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Close">×</button>

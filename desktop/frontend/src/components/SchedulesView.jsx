@@ -37,7 +37,7 @@ function runStatusText(status) {
 function ScheduleRunDetail({ app, run, onClose }) {
   const sessionId = run?.session_id || '';
   return (
-    <InfoModal title={run?.schedule_name || 'Run'} onClose={onClose}>
+    <InfoModal title={run?.schedule_name || 'Run'} onClose={onClose} className="info-modal-panel--wide">
       <p className="info-modal__muted">
         {formatWhen(run?.fired_at)} · {runStatusText(run?.status)}
       </p>
@@ -83,6 +83,11 @@ export function SchedulesView({ app }) {
   const [defaultModel, setDefaultModel] = useState('');
 
   const [openRunID, setOpenRunID] = useState(null);
+  // The task awaiting a delete confirmation, and whether the delete is in flight.
+  // An in-app dialog replaces window.confirm, which the native webview does not
+  // reliably honour (it can return undefined, silently cancelling the delete).
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const refresh = useCallback(() => {
     if (!app?.ListScheduledTasks) { setTasks([]); setRuns([]); return; }
@@ -217,16 +222,19 @@ export function SchedulesView({ app }) {
     }
   };
 
-  const remove = async (task) => {
-    if (!window.confirm(
-      `Delete scheduled task${task.name ? ` “${task.name}”` : ''}? Its run history and the sessions it created are removed too.`,
-    )) return;
+  const confirmDelete = async () => {
+    const task = pendingDelete;
+    if (!task) return;
+    setDeleting(true);
     try {
       await app.DeleteScheduledTask(task.id);
       if (editingID === task.id) closeForm();
+      setPendingDelete(null);
       refresh();
     } catch (err) {
       setError(err?.message ?? String(err));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -334,7 +342,7 @@ export function SchedulesView({ app }) {
                     <button type="button" className="page-schedules__ghost" onClick={() => openEdit(task)}>
                       Edit
                     </button>
-                    <button type="button" className="page-schedules__ghost page-schedules__ghost--danger" onClick={() => remove(task)}>
+                    <button type="button" className="page-schedules__danger" onClick={() => setPendingDelete(task)}>
                       Delete
                     </button>
                   </div>
@@ -445,6 +453,42 @@ export function SchedulesView({ app }) {
 
       {activeRun && (
         <ScheduleRunDetail app={app} run={activeRun} onClose={() => setOpenRunID(null)} />
+      )}
+
+      {pendingDelete && (
+        <InfoModal
+          title="Delete scheduled task"
+          onClose={() => { if (!deleting) setPendingDelete(null); }}
+          className="info-modal-panel--danger"
+        >
+          <div className="page-schedules__confirm">
+            <p className="page-schedules__confirm-lead">
+              Delete <strong>{pendingDelete.name || pendingDelete.prompt || 'this task'}</strong>?
+            </p>
+            <p className="page-schedules__confirm-warn">
+              This cannot be undone. Its run history and every session it created are
+              permanently removed.
+            </p>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="modal-btn modal-btn--cancel"
+                onClick={() => setPendingDelete(null)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="page-schedules__danger page-schedules__danger--solid"
+                onClick={confirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting…' : 'Delete task'}
+              </button>
+            </div>
+          </div>
+        </InfoModal>
       )}
     </div>
   );

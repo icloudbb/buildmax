@@ -132,4 +132,24 @@ describe('SchedulesView', () => {
       ),
     );
   });
+
+  it('deletes a task only after confirming in the in-app dialog', async () => {
+    const app = baseApp([sampleTask]);
+    render(<SchedulesView app={app} />);
+    // Opening the confirm dialog does not delete on its own.
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    expect(app.DeleteScheduledTask).not.toHaveBeenCalled();
+    // Confirming does — no reliance on window.confirm, which the webview drops.
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete task' }));
+    await waitFor(() => expect(app.DeleteScheduledTask).toHaveBeenCalledWith('t1'));
+  });
+
+  it('cancels a delete without calling the backend', async () => {
+    const app = baseApp([sampleTask]);
+    render(<SchedulesView app={app} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete task' })).toBeNull());
+    expect(app.DeleteScheduledTask).not.toHaveBeenCalled();
+  });
 });
