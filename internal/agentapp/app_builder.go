@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/icloudbb/buildmax/internal/agentapp/job"
 	"github.com/icloudbb/buildmax/internal/agentapp/worktree"
@@ -13,6 +14,7 @@ import (
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	"github.com/icloudbb/buildmax/internal/core/localproject"
 	"github.com/icloudbb/buildmax/internal/infra/hook"
+	"github.com/icloudbb/buildmax/internal/infra/runrelay"
 	"github.com/icloudbb/buildmax/internal/util/secretscan"
 )
 
@@ -179,6 +181,30 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		managedHTTPClient: cfg.ManagedHTTPClient,
 		surface:           cfg.Surface,
 		clients:           make(map[string]cllm.LLMClient),
+	}
+	// Remote Control: if this session opted in and has a managed server to reach,
+	// dial out and register so another device can watch it. Fail-open — a relay
+	// that cannot connect never disturbs the local run.
+	if cfg.RemoteControl && cfg.ManagedServerURL != "" && cfg.ManagedToken != nil {
+		host, _ := os.Hostname()
+		name := cfg.RemoteControlName
+		if name == "" {
+			name = host
+		}
+		serverURL := cfg.ManagedServerURL
+		app.remoteRelay = runrelay.New(runrelay.Config{
+			ServerURL:   serverURL,
+			TokenFunc:   func() (string, error) { return cfg.ManagedToken(serverURL) },
+			HTTPClient:  cfg.ManagedHTTPClient,
+			DisplayName: name,
+			Platform:    cfg.Surface,
+			Host:        host,
+			OnRegistered: func(sessionID string) {
+				slog.Info("remote control active — this session is now reachable from another device",
+					"session_id", sessionID, "server", serverURL)
+			},
+		})
+		app.remoteRelay.Start(context.Background())
 	}
 	if cfg.EnableMCP {
 		mcpResolution, resolveErr := config.ResolveMCPConfig(app.workspace.Root(), resolved.loadedPlugins)

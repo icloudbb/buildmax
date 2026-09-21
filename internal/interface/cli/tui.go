@@ -36,6 +36,8 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		DefaultModel:           source.Default,
 		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
+		RemoteControl:          overrides.RemoteControl,
+		RemoteControlName:      overrides.RemoteControlName,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
 		Issue:                  issueContextOf(overrides.Issue),
 		Surface:                coregw.CallSurfaceCLI,

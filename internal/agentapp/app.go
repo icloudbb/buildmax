@@ -21,6 +21,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/session"
 	llm "github.com/icloudbb/buildmax/internal/infra/llm"
 	"github.com/icloudbb/buildmax/internal/infra/llmremote"
+	"github.com/icloudbb/buildmax/internal/infra/runrelay"
 	"github.com/icloudbb/buildmax/internal/infra/sandbox"
 	"github.com/icloudbb/buildmax/internal/infra/sessionstore"
 	"github.com/icloudbb/buildmax/internal/infra/trace"
@@ -48,6 +49,14 @@ type AppConfig struct {
 	// source. A surface is in one mode or the other, and the mode decides where
 	// every prompt goes. See docs/design/client-modes.md section 4.
 	ManagedServerURL string
+	// RemoteControl opts this session into Remote Control: it dials the managed
+	// server, registers itself, and relays its output so another device can watch
+	// it. Off by default; it needs a managed server (ManagedServerURL) to reach.
+	// See docs/design/remote-control.md.
+	RemoteControl bool
+	// RemoteControlName is the display name a connected device shows for the
+	// session. Empty falls back to the host name.
+	RemoteControlName string
 	// Policy is the surface's tool permission baseline, under the user's
 	// tools.permissions rules. Every surface states its own — CLI, TUI, Desktop,
 	// a Portal turn, and a task run all pass one — and nil is the library's
@@ -219,11 +228,15 @@ type AgentApp struct {
 	// memoryDisabled is the user's per-run switch, which is not the same as
 	// having no Project: one is a choice, the other is a surface that never
 	// had one.
-	memoryDisabled   bool
-	worktrees        *worktree.Manager
-	settings         config.Settings
-	webSearchAPIKey  string
-	llmClients       *LLMClientCache
+	memoryDisabled  bool
+	worktrees       *worktree.Manager
+	settings        config.Settings
+	webSearchAPIKey string
+	llmClients      *LLMClientCache
+	// remoteRelay is set when this session opted into Remote Control: it carries
+	// the session's output to the server for another device to watch. Nil is the
+	// default — a session that is not being observed.
+	remoteRelay      *runrelay.Relay
 	toolRegistriesMu sync.Mutex
 	toolRegistries   map[string]cllm.ToolRegistry
 	mcpManager       *MCPManager
@@ -552,6 +565,11 @@ func (a *AgentApp) Close() error {
 		return nil
 	}
 	var firstErr error
+	// Stop relaying before anything else: a device watching the session should see
+	// it go offline as the app quits, not after the job drain.
+	if a.remoteRelay != nil {
+		_ = a.remoteRelay.Close()
+	}
 	if a.jobs != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), jobShutdownTimeout)
 		if err := a.jobs.Close(ctx); err != nil {
@@ -1243,7 +1261,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		ToolRegistry: registry,
 		MaxIter:      a.maxIterations,
 		History:      sess,
-		StreamSink:   opts.Stream,
+		StreamSink:   a.relayStreamSink(opts.Stream),
 		Policy:       a.policy,
 		Approval:     opts.Approval,
 		PendingInput: opts.Pending,
@@ -1356,6 +1374,28 @@ func teeEventSink(record, caller func(agent.Event)) func(agent.Event) {
 			caller(e)
 		}
 	}
+}
+
+// relayStreamSink tees content deltas to the Remote Control relay so another
+// device sees the same stream the local surface does. When the session did not
+// opt into Remote Control, or the surface runs blocking (nil inner), the caller's
+// sink is returned unchanged — a nil sink must stay nil so the run does not flip
+// into streaming mode just to feed a relay.
+func (a *AgentApp) relayStreamSink(inner cllm.StreamSink) cllm.StreamSink {
+	if a == nil || a.remoteRelay == nil || inner == nil {
+		return inner
+	}
+	return teeStreamSink{inner: inner, relay: a.remoteRelay}
+}
+
+type teeStreamSink struct {
+	inner cllm.StreamSink
+	relay cllm.StreamSink
+}
+
+func (t teeStreamSink) OnDelta(delta string) {
+	t.inner.OnDelta(delta)
+	t.relay.OnDelta(delta)
 }
 
 func (a *AgentApp) finalizeTurn(sess *SessionContext, client cllm.LLMClient, stats agent.RunStats) (TurnFinalizeResult, error) {

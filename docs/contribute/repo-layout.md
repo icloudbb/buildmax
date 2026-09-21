@@ -273,6 +273,9 @@ internal/
 │   ├── runbridge/      Per-run Unix-socket reverse proxy to the worker API, so a
 │   │                   subprocess reaches it without holding the run token
 │   │                   (docs/design/agent-bridge-cli.md)
+│   ├── runrelay/       Remote Control's outbound agent WebSocket: a local session
+│   │                   dials the server to register and relay its output
+│   │                   (docs/design/remote-control.md)
 │   ├── httpclient/     Decodes the server's error envelope for its Go clients
 │   ├── flock/          Advisory file lock the OS releases when the holder exits
 │   ├── git/            Branch, diff, and worktree helpers
