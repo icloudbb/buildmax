@@ -62,6 +62,11 @@ type AppConfig struct {
 	// Nil ignores inbound prompts (read-only observation). The surface supplies it
 	// because only the surface owns the input loop.
 	RemotePromptHandler func(content string)
+	// RemoteApprovalHandler receives a decision another device made on a pending
+	// tool-approval (id and "once"/"session"/"deny"), to resolve the local prompt.
+	// Nil ignores remote approvals. The surface supplies it because it owns the
+	// approval prompt.
+	RemoteApprovalHandler func(id, decision string)
 	// Policy is the surface's tool permission baseline, under the user's
 	// tools.permissions rules. Every surface states its own — CLI, TUI, Desktop,
 	// a Portal turn, and a task run all pass one — and nil is the library's
@@ -532,6 +537,22 @@ func (a *AgentApp) ManagedServerURL() string {
 		return ""
 	}
 	return a.llmClients.managedServerURL
+}
+
+// SendRemoteApprovalRequest forwards a pending tool-approval prompt to connected
+// devices through Remote Control. A no-op when the session is not being observed.
+func (a *AgentApp) SendRemoteApprovalRequest(id, tool, summary string) {
+	if a != nil && a.remoteRelay != nil {
+		a.remoteRelay.SendApprovalRequest(id, tool, summary)
+	}
+}
+
+// SendRemoteApprovalResolved tells connected devices a pending approval was
+// answered, so they dismiss it. A no-op when the session is not being observed.
+func (a *AgentApp) SendRemoteApprovalResolved(id string) {
+	if a != nil && a.remoteRelay != nil {
+		a.remoteRelay.SendApprovalResolved(id)
+	}
 }
 
 // effectiveAdditionalPrompt returns the additional system prompt a run uses: the one this app

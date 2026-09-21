@@ -65,17 +65,25 @@ func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, over
 	if err != nil {
 		return err
 	}
-	// The relay (built inside NewAgentApp) delivers a remote prompt through this
-	// sink; its program is wired in after tea.NewProgram below, like the approval
-	// handler. Created here so the config can carry its handler.
+	// The relay (built inside NewAgentApp) delivers a remote prompt and a remote
+	// approval decision through these; their program is wired in after
+	// tea.NewProgram below. Created here so the config can carry their handlers,
+	// and the approval handler's relay forwarders are set once the app exists.
 	promptSink := newRemotePromptSink()
+	approval := NewTUIApprovalHandler()
 	cfg := tuiAppConfig(workspace, additionalSystemPrompt, source, overrides)
 	cfg.RemotePromptHandler = promptSink.Deliver
+	cfg.RemoteApprovalHandler = func(id, decision string) {
+		approval.Resolve(id, parseApprovalDecision(decision))
+	}
 	app, err := agentapp.NewAgentApp(cfg)
 	if err != nil {
 		return err
 	}
 	defer app.Close()
+	// The relay exists now; let the approval handler forward prompts to, and be
+	// resolved from, connected devices. No-ops when Remote Control is off.
+	approval.SetForwarders(app.SendRemoteApprovalRequest, app.SendRemoteApprovalResolved)
 	for _, notice := range app.StartupNotices(relinkCommandHint) {
 		fmt.Fprintln(os.Stderr, notice)
 	}
@@ -120,7 +128,6 @@ func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, over
 	}
 	fmt.Print(buildHistoryForScrollback(sess.Messages(), 80, glamourStyle))
 
-	approval := NewTUIApprovalHandler()
 	opts := TUIOpts{
 		App:          app,
 		Session:      sess,

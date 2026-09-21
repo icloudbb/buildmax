@@ -57,3 +57,20 @@ func (r *SessionRegistry) DeliverPrompt(sessionID, content string) bool {
 	c.sendEvent(TypeAgentPrompt, AgentPrompt{Content: content})
 	return true
 }
+
+// DeliverApprovalResponse sends a remote decision on a pending approval to the
+// session's socket if it is on this replica, returning whether it was delivered
+// here. A false result means the caller forwards over the bus.
+func (r *SessionRegistry) DeliverApprovalResponse(sessionID, id, decision string) bool {
+	if r == nil || sessionID == "" {
+		return false
+	}
+	r.mu.RLock()
+	c := r.conns[sessionID]
+	r.mu.RUnlock()
+	if c == nil {
+		return false
+	}
+	c.sendEvent(TypeAgentApprovalResponse, AgentApprovalResponse{ID: id, Decision: decision})
+	return true
+}

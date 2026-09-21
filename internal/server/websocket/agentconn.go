@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -9,6 +10,20 @@ import (
 
 	gws "github.com/gorilla/websocket"
 )
+
+// ApprovalStreamKey is the stream-hub key carrying a session's pending
+// tool-approval prompts, distinct from the content stream keyed by the session
+// id alone. Reusing the hub means approvals are cross-replica-correct for free.
+func ApprovalStreamKey(sessionID string) string { return sessionID + ":approval" }
+
+// approvalFrame is one line on the approval stream: a pending prompt (Resolved
+// false) or its dismissal (Resolved true).
+type approvalFrame struct {
+	ID       string `json:"id"`
+	Tool     string `json:"tool,omitempty"`
+	Summary  string `json:"summary,omitempty"`
+	Resolved bool   `json:"resolved,omitempty"`
+}
 
 // AgentConnDeps is everything a Remote Control agent socket needs. It is
 // deliberately narrow: this socket registers a live session, heartbeats it, and
@@ -126,6 +141,24 @@ func (ac *agentConn) handleClientEvent(ctx context.Context, env Envelope) {
 			return
 		}
 		ac.deps.Hub.Append(ac.sessionID, p.Delta)
+	case TypeAgentApproval:
+		if ac.sessionID == "" {
+			return
+		}
+		p, err := DecodePayload[AgentApproval](env)
+		if err != nil {
+			return
+		}
+		ac.appendApprovalFrame(approvalFrame{ID: p.ID, Tool: p.Tool, Summary: p.Summary})
+	case TypeAgentApprovalResolved:
+		if ac.sessionID == "" {
+			return
+		}
+		p, err := DecodePayload[AgentApprovalResolved](env)
+		if err != nil {
+			return
+		}
+		ac.appendApprovalFrame(approvalFrame{ID: p.ID, Resolved: true})
 	default:
 		ac.sendEvent(TypeSystemError, SystemError{Error: "unknown event type: " + env.Type})
 	}
@@ -152,6 +185,17 @@ func (ac *agentConn) handleRegister(ctx context.Context, p AgentRegister) {
 	ac.deps.Registry.Register(id, ac)
 	componentLog().Info("agent registered", "user_id", ac.userID, "session_id", id)
 	ac.sendEvent(TypeAgentRegistered, AgentRegistered{SessionID: id})
+}
+
+// appendApprovalFrame publishes one approval frame onto the session's approval
+// stream. Each frame is newline-terminated so a reconnecting reader can split a
+// replayed buffer of several frames back apart.
+func (ac *agentConn) appendApprovalFrame(f approvalFrame) {
+	js, err := json.Marshal(f)
+	if err != nil {
+		return
+	}
+	ac.deps.Hub.Append(ApprovalStreamKey(ac.sessionID), string(js)+"\n")
 }
 
 func (ac *agentConn) writeLoop(ctx context.Context) {
@@ -206,6 +250,7 @@ func (ac *agentConn) cleanup() {
 			componentLog().Warn("agent mark offline", "err", err, "session_id", ac.sessionID)
 		}
 		ac.deps.Hub.Done(ac.sessionID)
+		ac.deps.Hub.Done(ApprovalStreamKey(ac.sessionID))
 	}
 	ac.cancel()
 	select {

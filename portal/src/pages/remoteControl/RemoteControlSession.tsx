@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react"
 import { navigate } from "../../router"
 import {
   listRemoteSessions,
+  respondRemoteApproval,
   sendRemotePrompt,
+  streamRemoteApprovals,
   streamRemoteSession,
+  type ApprovalFrame,
   type RemoteSession,
 } from "../../features/remoteControl/api"
 
@@ -26,6 +29,7 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
   const [draft, setDraft] = useState("")
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [approval, setApproval] = useState<ApprovalFrame | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
 
   // Header meta and presence: fetched from the list, which is the only place a
@@ -73,6 +77,30 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
     return () => controller.abort()
   }, [token, sessionId])
 
+  // Pending tool approvals: a separate stream carrying request/dismiss frames.
+  useEffect(() => {
+    if (!token) return
+    const controller = new AbortController()
+    setApproval(null)
+    void streamRemoteApprovals(
+      sessionId,
+      token,
+      {
+        onFrame: (frame) => {
+          setApproval((prev) => {
+            if (frame.resolved) return prev && prev.id === frame.id ? null : prev
+            return frame
+          })
+        },
+        onDone: () => setApproval(null),
+        onError: () => {},
+        onDraining: () => setApproval(null),
+      },
+      { signal: controller.signal }
+    )
+    return () => controller.abort()
+  }, [token, sessionId])
+
   // Keep the newest output in view as it streams.
   useEffect(() => {
     const el = bodyRef.current
@@ -81,6 +109,17 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
 
   const online = meta?.status === "online"
   const title = meta?.display_name || meta?.host || sessionId
+
+  async function answerApproval(decision: "once" | "session" | "deny") {
+    if (!approval || !token) return
+    const id = approval.id
+    setApproval(null) // optimistic; a resolved frame confirms
+    try {
+      await respondRemoteApproval(sessionId, id, decision, token)
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : String(err))
+    }
+  }
 
   async function submitPrompt() {
     const content = draft.trim()
@@ -130,6 +169,31 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
           </p>
         )}
       </div>
+
+      {approval && online ? (
+        <div className="rc-approval">
+          <div className="rc-approval__body">
+            <span className="rc-approval__title">Approve tool call</span>
+            <code className="rc-approval__tool">{approval.tool || "tool"}</code>
+            {approval.summary ? <span className="rc-approval__summary">{approval.summary}</span> : null}
+          </div>
+          <div className="rc-approval__actions">
+            <button type="button" className="rc-approval__btn" onClick={() => void answerApproval("once")}>
+              Allow once
+            </button>
+            <button type="button" className="rc-approval__btn" onClick={() => void answerApproval("session")}>
+              Allow session
+            </button>
+            <button
+              type="button"
+              className="rc-approval__btn rc-approval__btn--deny"
+              onClick={() => void answerApproval("deny")}
+            >
+              Deny
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <form
         className="rc-composer"
