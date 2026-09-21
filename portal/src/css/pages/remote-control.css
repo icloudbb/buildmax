@@ -158,3 +158,42 @@
   color: var(--color-text-subtle);
   font-size: 13px;
 }
+
+.rc-composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.rc-composer__input {
+  flex: 1;
+  resize: vertical;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.rc-composer__input:disabled {
+  opacity: 0.6;
+}
+
+.rc-composer__send {
+  padding: 10px 16px;
+  border: 1px solid var(--color-primary);
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: var(--color-bg, #fff);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.rc-composer__send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

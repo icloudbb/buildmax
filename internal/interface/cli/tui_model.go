@@ -1015,6 +1015,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleCarouselTick(m, msg)
 	case drainQueueMsg:
 		return handleDrainQueue(m, msg)
+	case remotePromptMsg:
+		return handleRemotePrompt(m, msg.text)
 	case jobEventMsg:
 		return handleJobEvent(m, msg)
 	case approvalRequestMsg:

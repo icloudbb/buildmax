@@ -130,6 +130,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 		defer func() { _ = coordBackend.Close() }()
 		serverConfig.Hub = servercoord.NewStreamHub(coordCtx, coordBackend)
 		serverConfig.EventBus = servercoord.NewEventBus(coordCtx, coordBackend)
+		serverConfig.CommandBus = servercoord.NewCommandBus(coordCtx, coordBackend)
 		serverConfig.TurnLocker = servercoord.NewTurnLocker(coordBackend)
 		slog.Info("coordination backend enabled: multi-replica streaming, events, and turn serialization are shared through redis",
 			"address", sc.Coordination.Redis.Address)

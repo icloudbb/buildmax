@@ -39,6 +39,7 @@ const (
 	typeAgentHeartbeat  = "agent.heartbeat"
 	typeAgentEvent      = "agent.event"
 	typeAgentRegistered = "agent.registered"
+	typeAgentPrompt     = "agent.prompt"
 )
 
 type registerPayload struct {
@@ -53,6 +54,10 @@ type eventPayload struct {
 
 type registeredPayload struct {
 	SessionID string `json:"session_id"`
+}
+
+type promptPayload struct {
+	Content string `json:"content"`
 }
 
 // TokenFunc yields a fresh user access token per call, because a client outlives
@@ -70,6 +75,10 @@ type Config struct {
 	// OnRegistered is called once the server assigns a session id, so a surface
 	// can tell the user where to watch. Optional.
 	OnRegistered func(sessionID string)
+	// OnRemotePrompt is called when another device sends a follow-up prompt, to be
+	// delivered into the local session as if the user typed it. Called from the
+	// relay's read goroutine. Optional — nil ignores inbound prompts.
+	OnRemotePrompt func(content string)
 }
 
 // Relay is one outbound control channel. The zero value is inert; use New.
@@ -154,10 +163,16 @@ func (r *Relay) readLoop(conn *gws.Conn) {
 		if json.Unmarshal(data, &env) != nil {
 			continue
 		}
-		if env.Type == typeAgentRegistered {
+		switch env.Type {
+		case typeAgentRegistered:
 			var p registeredPayload
 			if json.Unmarshal(env.Payload, &p) == nil && p.SessionID != "" && r.cfg.OnRegistered != nil {
 				r.cfg.OnRegistered(p.SessionID)
+			}
+		case typeAgentPrompt:
+			var p promptPayload
+			if json.Unmarshal(env.Payload, &p) == nil && p.Content != "" && r.cfg.OnRemotePrompt != nil {
+				r.cfg.OnRemotePrompt(p.Content)
 			}
 		}
 	}

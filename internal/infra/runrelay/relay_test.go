@@ -121,6 +121,52 @@ func TestRelayRegistersAndRelays(t *testing.T) {
 	}
 }
 
+// An inbound prompt the server sends reaches OnRemotePrompt.
+func TestRelayReceivesRemotePrompt(t *testing.T) {
+	upgrader := gws.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		// Wait for the register, then push a prompt.
+		if _, _, err := c.ReadMessage(); err != nil {
+			return
+		}
+		reg, _ := json.Marshal(registeredPayload{SessionID: "s1"})
+		_ = c.WriteMessage(gws.TextMessage, mustEnvelope(typeAgentRegistered, reg))
+		pr, _ := json.Marshal(promptPayload{Content: "run the tests"})
+		_ = c.WriteMessage(gws.TextMessage, mustEnvelope(typeAgentPrompt, pr))
+		// Keep the socket open so the client reads both frames.
+		_, _, _ = c.ReadMessage()
+	}))
+	defer server.Close()
+
+	prompts := make(chan string, 1)
+	r := New(Config{
+		ServerURL:      server.URL,
+		TokenFunc:      func() (string, error) { return "tok", nil },
+		OnRemotePrompt: func(content string) { prompts <- content },
+	})
+	r.Start(t.Context())
+	defer r.Close()
+
+	select {
+	case got := <-prompts:
+		if got != "run the tests" {
+			t.Errorf("remote prompt = %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnRemotePrompt never fired")
+	}
+}
+
+func mustEnvelope(typ string, payload json.RawMessage) []byte {
+	out, _ := json.Marshal(envelope{Type: typ, Payload: payload})
+	return out
+}
+
 // New returns nil when there is nothing to connect to, and the nil relay's
 // methods are safe no-ops.
 func TestNewInertWithoutServer(t *testing.T) {

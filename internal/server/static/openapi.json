@@ -4725,6 +4725,34 @@
           "503": {"description": "Remote control is not configured"}
         }
       }
+    },
+    "/api/remote-control/sessions/{session_id}/prompt": {
+      "parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Send a follow-up prompt to a Remote Control session",
+        "description": "Delivers a message into the live session as if the user typed it. Best-effort and fire-and-forget: the local session enqueues it if a run is active, or starts a new turn if idle. Only the owning account may send.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["content"],
+                "properties": {"content": {"type": "string", "description": "The prompt to deliver"}}
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {"description": "The prompt was accepted for delivery"},
+          "400": {"description": "Missing content"},
+          "401": {"description": "Missing or invalid token"},
+          "404": {"description": "No such session, or not owned by the caller"},
+          "409": {"description": "The session is offline"},
+          "503": {"description": "Remote control is not configured"}
+        }
+      }
     }
   }
 }

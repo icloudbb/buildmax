@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"bufio"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
 
+	coreremote "github.com/icloudbb/buildmax/internal/core/remotesession"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
 )
@@ -40,8 +42,84 @@ func (h *Handler) agentWSUpgradeHandler(w http.ResponseWriter, r *http.Request) 
 	wsconn.ServeAgent(w, r, userID, wsconn.AgentConnDeps{
 		Sessions:   h.cfg.RemoteSessionStore,
 		Hub:        h.hub,
+		Registry:   h.sessionRegistry,
 		CORSOrigin: h.cfg.CORSOrigin,
 	})
+}
+
+// remoteCommand is the cross-replica envelope for a Remote Control command: a
+// prompt bound for the replica that holds the session's socket.
+type remoteCommand struct {
+	SessionID string `json:"session_id"`
+	Content   string `json:"content"`
+}
+
+type remotePromptRequest struct {
+	Content string `json:"content"`
+}
+
+// promptRemoteSessionHandler delivers a follow-up prompt to a live session, after
+// checking the caller owns it and it is online. Delivery is best-effort and
+// fire-and-forget, like a cancel: the socket may be on another replica, so the
+// command is also forwarded over the bus when one is configured.
+func (h *Handler) promptRemoteSessionHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.guard().ActiveUser(w, r)
+	if !ok {
+		return
+	}
+	if h.cfg.RemoteSessionStore == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "remote control not configured")
+		return
+	}
+	sessionID, ok := httputil.PathValue(w, r, "session_id")
+	if !ok {
+		return
+	}
+	var req remotePromptRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.Content) == "" {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "content required")
+		return
+	}
+	sess, err := h.cfg.RemoteSessionStore.GetRemoteSession(r.Context(), sessionID)
+	if err != nil || sess.UserID != userID {
+		httputil.WriteJSONError(w, http.StatusNotFound, "session not found")
+		return
+	}
+	if sess.Status != coreremote.StatusOnline {
+		httputil.WriteJSONError(w, http.StatusConflict, "session is offline")
+		return
+	}
+	h.deliverRemotePrompt(sessionID, req.Content)
+	httputil.WriteJSON(w, http.StatusAccepted, map[string]bool{"accepted": true})
+}
+
+// deliverRemotePrompt sends the prompt to the session's socket if it is on this
+// replica, and otherwise forwards it over the bus for the replica that holds it.
+func (h *Handler) deliverRemotePrompt(sessionID, content string) {
+	if h.sessionRegistry.DeliverPrompt(sessionID, content) {
+		return
+	}
+	if h.cfg.CommandBus == nil {
+		return
+	}
+	if payload, err := json.Marshal(remoteCommand{SessionID: sessionID, Content: content}); err == nil {
+		h.cfg.CommandBus.PublishCommand(payload)
+	}
+}
+
+// consumeRemoteCommands delivers bus-forwarded commands to a session this replica
+// holds, ignoring the ones bound for a socket elsewhere.
+func (h *Handler) consumeRemoteCommands(incoming <-chan []byte) {
+	for payload := range incoming {
+		var cmd remoteCommand
+		if json.Unmarshal(payload, &cmd) != nil {
+			continue
+		}
+		h.sessionRegistry.DeliverPrompt(cmd.SessionID, cmd.Content)
+	}
 }
 
 // remoteSessionResponse is the wire shape of one live session.

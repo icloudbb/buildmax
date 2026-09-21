@@ -65,7 +65,13 @@ func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, over
 	if err != nil {
 		return err
 	}
-	app, err := agentapp.NewAgentApp(tuiAppConfig(workspace, additionalSystemPrompt, source, overrides))
+	// The relay (built inside NewAgentApp) delivers a remote prompt through this
+	// sink; its program is wired in after tea.NewProgram below, like the approval
+	// handler. Created here so the config can carry its handler.
+	promptSink := newRemotePromptSink()
+	cfg := tuiAppConfig(workspace, additionalSystemPrompt, source, overrides)
+	cfg.RemotePromptHandler = promptSink.Deliver
+	app, err := agentapp.NewAgentApp(cfg)
 	if err != nil {
 		return err
 	}
@@ -129,6 +135,7 @@ func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, over
 	defer model.Close()
 	p := tea.NewProgram(model)
 	approval.SetProgram(p)
+	promptSink.SetProgram(p)
 	if _, err := p.Run(); err != nil {
 		slog.Error("TUI failed", "err", err)
 		return fmt.Errorf("TUI: %w", err)

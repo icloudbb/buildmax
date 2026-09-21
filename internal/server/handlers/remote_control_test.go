@@ -58,10 +58,21 @@ func (f *fakeRemoteStore) MarkStaleRemoteSessionsOffline(_ context.Context, _ ti
 }
 
 func (f *fakeRemoteStore) GetRemoteSession(_ context.Context, id string) (coreremote.RemoteSession, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if s, ok := f.get[id]; ok {
 		return s, nil
 	}
 	return coreremote.RemoteSession{}, coreremote.ErrNotFound
+}
+
+func (f *fakeRemoteStore) setGet(s coreremote.RemoteSession) {
+	f.mu.Lock()
+	if f.get == nil {
+		f.get = map[string]coreremote.RemoteSession{}
+	}
+	f.get[s.ID] = s
+	f.mu.Unlock()
 }
 
 func (f *fakeRemoteStore) ListRemoteSessionsByUser(_ context.Context, _ string) ([]coreremote.RemoteSession, error) {
@@ -158,6 +169,84 @@ func TestAgentWSRequiresToken(t *testing.T) {
 	}
 	if resp != nil && resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", resp.StatusCode)
+	}
+}
+
+// A follow-up prompt POSTed by the owner reaches the session's agent socket over
+// the WebSocket, as agent.prompt.
+func TestPromptDeliveredToAgentSocket(t *testing.T) {
+	store := &fakeRemoteStore{}
+	h := NewHandler(Config{JWTSecret: wsTestSecret, CORSOrigin: "*", RemoteSessionStore: store})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	conn := dialAgentWS(t, server, testsupport.SignJWT("u1", wsTestSecret))
+	defer conn.Close()
+	sendEnvelope(t, conn, wsconn.TypeAgentRegister, wsconn.AgentRegister{Platform: "cli"})
+	reg := readEnvelope(t, conn)
+	if reg.Type != wsconn.TypeAgentRegistered {
+		t.Fatalf("first event = %q, want registered", reg.Type)
+	}
+	var registered wsconn.AgentRegistered
+	if err := json.Unmarshal(reg.Payload, &registered); err != nil {
+		t.Fatal(err)
+	}
+
+	// The session must resolve as online and owned by u1 for the POST to pass.
+	store.setGet(coreremote.RemoteSession{ID: registered.SessionID, UserID: "u1", Status: coreremote.StatusOnline})
+
+	req, _ := http.NewRequest(
+		http.MethodPost,
+		server.URL+"/api/remote-control/sessions/"+registered.SessionID+"/prompt",
+		strings.NewReader(`{"content":"do the thing"}`),
+	)
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", wsTestSecret))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", resp.StatusCode)
+	}
+
+	env := readEnvelope(t, conn)
+	if env.Type != wsconn.TypeAgentPrompt {
+		t.Fatalf("agent received %q, want prompt", env.Type)
+	}
+	var prompt wsconn.AgentPrompt
+	if err := json.Unmarshal(env.Payload, &prompt); err != nil {
+		t.Fatal(err)
+	}
+	if prompt.Content != "do the thing" {
+		t.Errorf("prompt content = %q", prompt.Content)
+	}
+}
+
+// A prompt for an offline session is refused with 409, not delivered.
+func TestPromptRejectedWhenOffline(t *testing.T) {
+	store := &fakeRemoteStore{}
+	store.setGet(coreremote.RemoteSession{ID: "s9", UserID: "u1", Status: coreremote.StatusOffline})
+	h := NewHandler(Config{JWTSecret: wsTestSecret, RemoteSessionStore: store})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	req, _ := http.NewRequest(http.MethodPost, server.URL+"/api/remote-control/sessions/s9/prompt",
+		strings.NewReader(`{"content":"hi"}`))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", wsTestSecret))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("status = %d, want 409", resp.StatusCode)
 	}
 }
 

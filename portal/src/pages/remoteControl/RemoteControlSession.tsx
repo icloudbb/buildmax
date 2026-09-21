@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react"
 import { navigate } from "../../router"
-import { listRemoteSessions, streamRemoteSession, type RemoteSession } from "../../features/remoteControl/api"
+import {
+  listRemoteSessions,
+  sendRemotePrompt,
+  streamRemoteSession,
+  type RemoteSession,
+} from "../../features/remoteControl/api"
 
 interface RemoteControlSessionProps {
   token: string | null
@@ -18,6 +23,9 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
   const [text, setText] = useState("")
   const [status, setStatus] = useState<StreamStatus>("connecting")
   const [meta, setMeta] = useState<RemoteSession | null>(null)
+  const [draft, setDraft] = useState("")
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
 
   // Header meta and presence: fetched from the list, which is the only place a
@@ -74,6 +82,21 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
   const online = meta?.status === "online"
   const title = meta?.display_name || meta?.host || sessionId
 
+  async function submitPrompt() {
+    const content = draft.trim()
+    if (!content || !token || sending) return
+    setSending(true)
+    setSendError(null)
+    try {
+      await sendRemotePrompt(sessionId, content, token)
+      setDraft("")
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSending(false)
+    }
+  }
+
   return (
     <div className="rc-page rc-session">
       <header className="rc-page__header">
@@ -107,6 +130,33 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
           </p>
         )}
       </div>
+
+      <form
+        className="rc-composer"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void submitPrompt()
+        }}
+      >
+        <textarea
+          className="rc-composer__input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault()
+              void submitPrompt()
+            }
+          }}
+          placeholder={online ? "Send a message to this session…" : "Session is offline"}
+          rows={2}
+          disabled={!online || sending}
+        />
+        <button type="submit" className="rc-composer__send" disabled={!online || sending || !draft.trim()}>
+          {sending ? "Sending…" : "Send"}
+        </button>
+      </form>
+      {sendError ? <div className="rc-alert">{sendError}</div> : null}
     </div>
   )
 }

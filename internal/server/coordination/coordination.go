@@ -26,6 +26,9 @@ const (
 	streamDoneTTL = time.Minute
 	// eventsChannel carries every connection-registry broadcast.
 	eventsChannel = "buildmax:events"
+	// remoteControlChannel carries Remote Control commands (a remote prompt) to
+	// whichever replica holds the target session's agent socket.
+	remoteControlChannel = "buildmax:remote-control"
 	// convLockPrefix namespaces a conversation's turn lease.
 	convLockPrefix = "conv:"
 	// turnLeaseTTL bounds a conversation turn lease. It renews at a third of this
@@ -121,6 +124,32 @@ func (e *EventBus) PublishEvent(payload []byte) {
 }
 
 func (e *EventBus) Incoming() <-chan []byte { return e.incoming }
+
+// CommandBus is the Redis-backed Remote Control command fan-out. A command is
+// broadcast to every replica; the one holding the target session's socket
+// delivers it and the rest ignore it, the same shape as EventBus but on its own
+// channel so the two never cross.
+type CommandBus struct {
+	backend  *infra.Backend
+	ctx      context.Context
+	incoming <-chan []byte
+}
+
+// NewCommandBus subscribes to the shared Remote Control channel for the server's
+// lifetime.
+func NewCommandBus(ctx context.Context, backend *infra.Backend) *CommandBus {
+	return &CommandBus{
+		backend:  backend,
+		ctx:      ctx,
+		incoming: backend.Subscribe(ctx, remoteControlChannel),
+	}
+}
+
+func (c *CommandBus) PublishCommand(payload []byte) {
+	_ = c.backend.Publish(c.ctx, remoteControlChannel, payload)
+}
+
+func (c *CommandBus) Incoming() <-chan []byte { return c.incoming }
 
 // TurnLocker is the Redis-backed turnqueue.Locker.
 type TurnLocker struct {

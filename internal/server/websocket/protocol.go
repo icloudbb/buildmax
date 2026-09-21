@@ -84,6 +84,7 @@ type AgentEvent struct {
 // Remote Control agent socket (server → client).
 const (
 	TypeAgentRegistered = "agent.registered"
+	TypeAgentPrompt     = "agent.prompt"
 )
 
 // AgentRegistered is the payload for TypeAgentRegistered: the server's reply to a
@@ -91,6 +92,12 @@ const (
 // device opens.
 type AgentRegistered struct {
 	SessionID string `json:"session_id"`
+}
+
+// AgentPrompt is the payload for TypeAgentPrompt: a follow-up message another
+// device sent, to be delivered into the local session as if the user typed it.
+type AgentPrompt struct {
+	Content string `json:"content"`
 }
 
 // SubscribeTask is the payload for TypeSubscribeTask.
