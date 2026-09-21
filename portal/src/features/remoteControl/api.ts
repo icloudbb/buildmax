@@ -81,6 +81,15 @@ export async function streamRemoteApprovals(
   })
 }
 
+/** Ask a live session to stop its current run. */
+export async function cancelRemoteSession(sessionId: string, token: string): Promise<void> {
+  const res = await apiFetch(
+    `${getApiBase()}/api/remote-control/sessions/${encodeURIComponent(sessionId)}/cancel`,
+    { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) } }
+  )
+  await throwIfNotOk(res)
+}
+
 /** Answer a pending tool-approval on a live session. */
 export async function respondRemoteApproval(
   sessionId: string,

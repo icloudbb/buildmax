@@ -132,6 +132,22 @@
   gap: 10px;
 }
 
+.rc-stop {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--color-danger);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  color: var(--color-danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.rc-stop:hover {
+  background: var(--color-bg-hover);
+}
+
 .rc-stream {
   border: 1px solid var(--color-border);
   border-radius: 10px;

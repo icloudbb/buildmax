@@ -43,6 +43,7 @@ const (
 	typeAgentRegistered       = "agent.registered"
 	typeAgentPrompt           = "agent.prompt"
 	typeAgentApprovalResponse = "agent.approval_response"
+	typeAgentCancel           = "agent.cancel"
 )
 
 type registerPayload struct {
@@ -101,6 +102,9 @@ type Config struct {
 	// prompt, with the request id and the decision ("once"/"session"/"deny").
 	// Called from the relay's read goroutine. Optional.
 	OnRemoteApproval func(id, decision string)
+	// OnRemoteCancel is called when another device asks the session to stop its
+	// current run. Called from the relay's read goroutine. Optional.
+	OnRemoteCancel func()
 }
 
 // Relay is one outbound control channel. The zero value is inert; use New.
@@ -200,6 +204,10 @@ func (r *Relay) readLoop(conn *gws.Conn) {
 			var p approvalResponsePayload
 			if json.Unmarshal(env.Payload, &p) == nil && p.ID != "" && r.cfg.OnRemoteApproval != nil {
 				r.cfg.OnRemoteApproval(p.ID, p.Decision)
+			}
+		case typeAgentCancel:
+			if r.cfg.OnRemoteCancel != nil {
+				r.cfg.OnRemoteCancel()
 			}
 		}
 	}

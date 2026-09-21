@@ -102,6 +102,7 @@ const (
 	TypeAgentRegistered       = "agent.registered"
 	TypeAgentPrompt           = "agent.prompt"
 	TypeAgentApprovalResponse = "agent.approval_response"
+	TypeAgentCancel           = "agent.cancel"
 )
 
 // AgentRegistered is the payload for TypeAgentRegistered: the server's reply to a

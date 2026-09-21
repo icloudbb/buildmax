@@ -12,6 +12,9 @@ import (
 // Remote Control. It is handled exactly like a locally typed message.
 type remotePromptMsg struct{ text string }
 
+// remoteCancelMsg asks the model to stop the current run — a device pressed Stop.
+type remoteCancelMsg struct{}
+
 // remotePromptSink bridges the Remote Control relay — a goroutine the AgentApp
 // owns — to the Bubble Tea model. The relay calls Deliver from its own goroutine;
 // the program is wired in after tea.NewProgram, the same lifecycle the approval
@@ -34,11 +37,21 @@ func (s *remotePromptSink) SetProgram(p *tea.Program) {
 // program is wired in: a prompt that races startup is dropped, which is
 // acceptable for a best-effort follow-up.
 func (s *remotePromptSink) Deliver(content string) {
+	s.send(remotePromptMsg{text: content})
+}
+
+// Cancel asks the model to stop the current run. Wired to
+// AppConfig.RemoteCancelHandler.
+func (s *remotePromptSink) Cancel() {
+	s.send(remoteCancelMsg{})
+}
+
+func (s *remotePromptSink) send(msg tea.Msg) {
 	s.mu.Lock()
 	p := s.program
 	s.mu.Unlock()
 	if p != nil {
-		p.Send(remotePromptMsg{text: content})
+		p.Send(msg)
 	}
 }
 
@@ -58,4 +71,13 @@ func handleRemotePrompt(m *Model, text string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, startRun(m, text)
+}
+
+// handleRemoteCancel stops the current foreground run when a device presses Stop.
+// It interrupts just this turn; the TUI stays usable.
+func handleRemoteCancel(m *Model) (tea.Model, tea.Cmd) {
+	if m.runCancel != nil {
+		m.runCancel()
+	}
+	return m, nil
 }

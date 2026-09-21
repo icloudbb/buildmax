@@ -73,6 +73,7 @@ func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, over
 	approval := NewTUIApprovalHandler()
 	cfg := tuiAppConfig(workspace, additionalSystemPrompt, source, overrides)
 	cfg.RemotePromptHandler = promptSink.Deliver
+	cfg.RemoteCancelHandler = promptSink.Cancel
 	cfg.RemoteApprovalHandler = func(id, decision string) {
 		approval.Resolve(id, parseApprovalDecision(decision))
 	}

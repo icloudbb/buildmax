@@ -304,6 +304,43 @@ func TestAgentApprovalReachesStream(t *testing.T) {
 	}
 }
 
+// A cancel POSTed by the owner reaches the agent socket as agent.cancel.
+func TestCancelDeliveredToAgentSocket(t *testing.T) {
+	store := &fakeRemoteStore{}
+	h := NewHandler(Config{JWTSecret: wsTestSecret, CORSOrigin: "*", RemoteSessionStore: store})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	conn := dialAgentWS(t, server, testsupport.SignJWT("u1", wsTestSecret))
+	defer conn.Close()
+	sendEnvelope(t, conn, wsconn.TypeAgentRegister, wsconn.AgentRegister{Platform: "cli"})
+	reg := readEnvelope(t, conn)
+	var registered wsconn.AgentRegistered
+	if err := json.Unmarshal(reg.Payload, &registered); err != nil {
+		t.Fatal(err)
+	}
+	store.setGet(coreremote.RemoteSession{ID: registered.SessionID, UserID: "u1", Status: coreremote.StatusOnline})
+
+	req, _ := http.NewRequest(http.MethodPost,
+		server.URL+"/api/remote-control/sessions/"+registered.SessionID+"/cancel", nil)
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", wsTestSecret))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", resp.StatusCode)
+	}
+
+	env := readEnvelope(t, conn)
+	if env.Type != wsconn.TypeAgentCancel {
+		t.Fatalf("agent received %q, want cancel", env.Type)
+	}
+}
+
 // A prompt for an offline session is refused with 409, not delivered.
 func TestPromptRejectedWhenOffline(t *testing.T) {
 	store := &fakeRemoteStore{}
