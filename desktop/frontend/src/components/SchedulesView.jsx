@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EventsOn } from '../lib/wailsRuntime';
-import { InfoModal } from './Modals';
+import { InfoModal, ConfirmModal } from './Modals';
 import { ChatSession } from './ChatSession';
 
 const EV_SCHEDULE_UPDATE = 'desktop/schedule-update';
@@ -37,7 +37,7 @@ function runStatusText(status) {
 function ScheduleRunDetail({ app, run, onClose }) {
   const sessionId = run?.session_id || '';
   return (
-    <InfoModal title={run?.schedule_name || 'Run'} onClose={onClose}>
+    <InfoModal title={run?.schedule_name || 'Run'} onClose={onClose} className="info-modal-panel--wide">
       <p className="info-modal__muted">
         {formatWhen(run?.fired_at)} · {runStatusText(run?.status)}
       </p>
@@ -83,6 +83,9 @@ export function SchedulesView({ app }) {
   const [defaultModel, setDefaultModel] = useState('');
 
   const [openRunID, setOpenRunID] = useState(null);
+  // The task awaiting a delete confirmation, shown in an in-app ConfirmModal
+  // rather than window.confirm, which the native webview can silently drop.
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   const refresh = useCallback(() => {
     if (!app?.ListScheduledTasks) { setTasks([]); setRuns([]); return; }
@@ -217,16 +220,17 @@ export function SchedulesView({ app }) {
     }
   };
 
-  const remove = async (task) => {
-    if (!window.confirm(
-      `Delete scheduled task${task.name ? ` “${task.name}”` : ''}? Its run history and the sessions it created are removed too.`,
-    )) return;
+  const confirmDelete = async () => {
+    const task = pendingDelete;
+    if (!task) return;
     try {
       await app.DeleteScheduledTask(task.id);
       if (editingID === task.id) closeForm();
       refresh();
     } catch (err) {
       setError(err?.message ?? String(err));
+    } finally {
+      setPendingDelete(null);
     }
   };
 
@@ -334,7 +338,7 @@ export function SchedulesView({ app }) {
                     <button type="button" className="page-schedules__ghost" onClick={() => openEdit(task)}>
                       Edit
                     </button>
-                    <button type="button" className="page-schedules__ghost page-schedules__ghost--danger" onClick={() => remove(task)}>
+                    <button type="button" className="page-schedules__danger" onClick={() => setPendingDelete(task)}>
                       Delete
                     </button>
                   </div>
@@ -445,6 +449,26 @@ export function SchedulesView({ app }) {
 
       {activeRun && (
         <ScheduleRunDetail app={app} run={activeRun} onClose={() => setOpenRunID(null)} />
+      )}
+
+      {pendingDelete && (
+        <ConfirmModal
+          title="Delete scheduled task"
+          confirmLabel="Delete task"
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={confirmDelete}
+          message={(
+            <>
+              <p className="confirm-modal__message">
+                Delete <strong>{pendingDelete.name || pendingDelete.prompt || 'this task'}</strong>?
+              </p>
+              <p className="confirm-modal__message page-schedules__confirm-warn">
+                This cannot be undone. Its run history and every session it created
+                are permanently removed.
+              </p>
+            </>
+          )}
+        />
       )}
     </div>
   );

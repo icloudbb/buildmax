@@ -165,8 +165,27 @@
   border-color: var(--color-text-muted);
 }
 
-.page-schedules__ghost--danger:hover {
-  border-color: var(--color-danger, #c0392b);
+/* Delete is destructive, so it reads as danger at rest, not only on hover: a
+   red outline and red text set it apart from the neutral Pause/Edit ghosts. */
+.page-schedules__danger {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--color-danger, #c0392b);
+  border-radius: 6px;
+  background: none;
+  color: var(--color-danger, #c0392b);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.page-schedules__danger:hover {
+  background: var(--color-danger, #c0392b);
+  color: #fff;
+}
+
+/* The delete-confirm dialog's warning line, in danger red. */
+.page-schedules__confirm-warn {
   color: var(--color-danger, #c0392b);
 }
 
@@ -385,11 +404,19 @@
 /* Run-detail modal: the fired run's conversation in the full chat UI. The
    embedded ChatSession (.page-chat) fills a fixed height so its thread scrolls
    and its composer, model picker, and context gauge stay pinned below. */
+/* The run-detail modal holds a full chat, so it opts into a wide, tall panel
+   rather than the default 34rem info modal. */
+.info-modal-panel--wide {
+  width: 60rem;
+  max-width: calc(100vw - 3rem);
+  max-height: 88vh;
+}
+
 .schedule-run-chat {
   display: flex;
   flex-direction: column;
-  height: 65vh;
-  min-height: 20rem;
+  height: 72vh;
+  min-height: 24rem;
 }
 
 .schedule-run-chat .page-chat {

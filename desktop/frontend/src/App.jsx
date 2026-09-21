@@ -1,7 +1,7 @@
 import { compareRecent } from './lib/format';
 import { getApp } from './lib/app';
 import { HomeDashboard } from './components/HomeDashboard';
-import { CreateProjectModal } from './components/Modals';
+import { CreateProjectModal, ConfirmModal } from './components/Modals';
 import { ProjectItem } from './components/ProjectItem';
 import { TerminalHost } from './components/TerminalHost';
 import { ChatSession } from './components/ChatSession';
@@ -144,6 +144,10 @@ export default function App() {
   const [wailsReady, setWailsReady] = useState(false);
   const [authStatus, setAuthStatus] = useState(null);
   const [signInOpen, setSignInOpen] = useState(false);
+  // A pending destructive confirmation ({ title, message, confirmLabel, onConfirm }),
+  // shown in an in-app ConfirmModal. window.confirm is unreliable in the webview
+  // (it can return undefined), so every destructive prompt routes through here.
+  const [confirmState, setConfirmState] = useState(null);
 
   const [projects, setProjects] = useState([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
@@ -770,39 +774,48 @@ export default function App() {
     }
   }
 
+  // afterProjectDeleted runs the local cleanup once the backend has removed a
+  // project: drop it from the list and kill its shells (active or stashed), and
+  // clear the workspace if it was the one in use.
+  function afterProjectDeleted(id) {
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+    const stashed = stashedWorkspacesRef.current.get(id);
+    if (stashed) {
+      allTabs(stashed).forEach((t) => { if (t.kind === 'terminal') getApp()?.TerminalClose?.(t.ref); });
+      stashedWorkspacesRef.current.delete(id);
+    }
+    if (currentProject?.id === id) {
+      allTabs(workspace).forEach((t) => { if (t.kind === 'terminal') getApp()?.TerminalClose?.(t.ref); });
+      setNewChatProject(null);
+      setSelectedId(null);
+    }
+  }
+
   async function handleDeleteProject(id) {
+    // A project and its sessions are separate things to destroy. The first
+    // attempt keeps the sessions; if the project still owns some, the backend
+    // refuses and says how many, and only then is deleting them offered.
     try {
-      // A project and its sessions are separate things to destroy. The first
-      // attempt keeps the sessions; if the project still owns some, the backend
-      // refuses and says how many, and only then is deleting them offered.
-      try {
-        await app.DeleteProject(id, false);
-      } catch (refusal) {
-        const held = (sessions ?? []).filter((s) => s.project_id === id).length;
-        const ok = window.confirm(
-          `This project still has ${held || 'some'} session(s). Delete the project and its sessions? Files in the project folder are not touched.`);
-        if (!ok) return;
-        void refusal;
-        await app.DeleteProject(id, true);
-        setSessions((prev) => prev.filter((s) => s.project_id !== id));
-      }
-      setProjects((prev) => prev.filter((p) => p.id !== id));
-      // The project is gone: kill any of its shells, active or stashed, since it
-      // will never be switched back to.
-      const stashed = stashedWorkspacesRef.current.get(id);
-      if (stashed) {
-        allTabs(stashed).forEach((t) => { if (t.kind === 'terminal') getApp()?.TerminalClose?.(t.ref); });
-        stashedWorkspacesRef.current.delete(id);
-      }
-      // If the deleted project was in use, clear the workspace (it resets when
-      // currentProject becomes null).
-      if (currentProject?.id === id) {
-        allTabs(workspace).forEach((t) => { if (t.kind === 'terminal') getApp()?.TerminalClose?.(t.ref); });
-        setNewChatProject(null);
-        setSelectedId(null);
-      }
-    } catch (err) {
-      setError(err?.message ?? String(err));
+      await app.DeleteProject(id, false);
+      afterProjectDeleted(id);
+    } catch {
+      const held = (sessions ?? []).filter((s) => s.project_id === id).length;
+      setConfirmState({
+        title: 'Delete project',
+        confirmLabel: 'Delete project',
+        message: `This project still has ${held || 'some'} session(s). Delete the project and its sessions? Files in the project folder are not touched.`,
+        onConfirm: async () => {
+          try {
+            await app.DeleteProject(id, true);
+            setSessions((prev) => prev.filter((s) => s.project_id !== id));
+            afterProjectDeleted(id);
+          } catch (err) {
+            setError(err?.message ?? String(err));
+          } finally {
+            setConfirmState(null);
+          }
+        },
+      });
     }
   }
 
@@ -863,29 +876,36 @@ export default function App() {
     }
   }
 
-  async function handleClearProjectSessions(project, projectSessions = []) {
-    const ok = window.confirm(`Clear all sessions for ${project.name}? This does not delete files in the project folder.`);
-    if (!ok) return;
-    try {
-      const visibleIds = projectSessions.map((s) => s.id);
-      let deleted = [];
-      if (typeof app.ClearProjectSessions === 'function') {
-        deleted = await app.ClearProjectSessions(project.id);
-      }
-      if ((deleted ?? []).length === 0 && visibleIds.length > 0) {
-        await Promise.all(visibleIds.map((id) => app.DeleteSession(id)));
-        deleted = visibleIds;
-      }
-      const deletedSet = new Set(deleted ?? visibleIds);
-      setSessions((prev) => prev.filter((s) => !deletedSet.has(s.id)));
-      closeSessionTabs([...deletedSet]);
-      if (selectedId && deletedSet.has(selectedId)) {
-        setSelectedId(null);
-        if (currentProject?.id === project.id) setNewChatProject(project);
-      }
-    } catch (err) {
-      setError(err?.message ?? String(err));
-    }
+  function handleClearProjectSessions(project, projectSessions = []) {
+    setConfirmState({
+      title: 'Clear all sessions',
+      confirmLabel: 'Clear sessions',
+      message: `Clear all sessions for ${project.name}? This does not delete files in the project folder.`,
+      onConfirm: async () => {
+        try {
+          const visibleIds = projectSessions.map((s) => s.id);
+          let deleted = [];
+          if (typeof app.ClearProjectSessions === 'function') {
+            deleted = await app.ClearProjectSessions(project.id);
+          }
+          if ((deleted ?? []).length === 0 && visibleIds.length > 0) {
+            await Promise.all(visibleIds.map((id) => app.DeleteSession(id)));
+            deleted = visibleIds;
+          }
+          const deletedSet = new Set(deleted ?? visibleIds);
+          setSessions((prev) => prev.filter((s) => !deletedSet.has(s.id)));
+          closeSessionTabs([...deletedSet]);
+          if (selectedId && deletedSet.has(selectedId)) {
+            setSelectedId(null);
+            if (currentProject?.id === project.id) setNewChatProject(project);
+          }
+        } catch (err) {
+          setError(err?.message ?? String(err));
+        } finally {
+          setConfirmState(null);
+        }
+      },
+    });
   }
 
   async function handleRespond(decision) {
@@ -1388,6 +1408,16 @@ export default function App() {
           app={app}
           onCreate={handleOpenProjectFolder}
           onClose={() => setShowCreateModal(false)}
+        />
+      )}
+
+      {confirmState && (
+        <ConfirmModal
+          title={confirmState.title}
+          message={confirmState.message}
+          confirmLabel={confirmState.confirmLabel}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
         />
       )}
 
