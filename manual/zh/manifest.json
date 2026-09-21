@@ -15,7 +15,8 @@
       "pages": [
         { "slug": "cli", "file": "命令行.md", "title": "CLI 与 TUI 参考" },
         { "slug": "sessions-and-traces", "file": "会话与追踪.md", "title": "会话与追踪记录" },
-        { "slug": "project-instructions", "file": "项目指令与记忆.md", "title": "项目指令与记忆" }
+        { "slug": "project-instructions", "file": "项目指令与记忆.md", "title": "项目指令与记忆" },
+        { "slug": "remote-control", "file": "远程控制.md", "title": "远程控制" }
       ]
     },
     {

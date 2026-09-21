@@ -15,7 +15,8 @@
       "pages": [
         { "slug": "cli", "title": "CLI & TUI reference" },
         { "slug": "sessions-and-traces", "title": "Sessions & traces" },
-        { "slug": "project-instructions", "title": "Project instructions & memory" }
+        { "slug": "project-instructions", "title": "Project instructions & memory" },
+        { "slug": "remote-control", "title": "Remote Control" }
       ]
     },
     {
