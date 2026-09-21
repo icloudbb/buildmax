@@ -357,3 +357,32 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* Solid red for an irreversible confirm, so the destructive click is
+   unmistakable next to the neutral Cancel. */
+.modal-btn--danger {
+  border: none;
+  background: var(--color-danger, #c0392b);
+  color: #fff;
+}
+
+.modal-btn--danger:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+
+.modal-btn--danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Confirmation dialog body: the sentence(s) explaining what is about to happen. */
+.confirm-modal__message {
+  margin: 0 0 0.25rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+/* A danger info modal accents its header red (used by ConfirmModal). */
+.info-modal-panel--danger .modal-title {
+  color: var(--color-danger, #c0392b);
+}

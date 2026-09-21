@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EventsOn } from '../lib/wailsRuntime';
-import { InfoModal } from './Modals';
+import { InfoModal, ConfirmModal } from './Modals';
 import { ChatSession } from './ChatSession';
 
 const EV_SCHEDULE_UPDATE = 'desktop/schedule-update';
@@ -83,11 +83,9 @@ export function SchedulesView({ app }) {
   const [defaultModel, setDefaultModel] = useState('');
 
   const [openRunID, setOpenRunID] = useState(null);
-  // The task awaiting a delete confirmation, and whether the delete is in flight.
-  // An in-app dialog replaces window.confirm, which the native webview does not
-  // reliably honour (it can return undefined, silently cancelling the delete).
+  // The task awaiting a delete confirmation, shown in an in-app ConfirmModal
+  // rather than window.confirm, which the native webview can silently drop.
   const [pendingDelete, setPendingDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
   const refresh = useCallback(() => {
     if (!app?.ListScheduledTasks) { setTasks([]); setRuns([]); return; }
@@ -225,16 +223,14 @@ export function SchedulesView({ app }) {
   const confirmDelete = async () => {
     const task = pendingDelete;
     if (!task) return;
-    setDeleting(true);
     try {
       await app.DeleteScheduledTask(task.id);
       if (editingID === task.id) closeForm();
-      setPendingDelete(null);
       refresh();
     } catch (err) {
       setError(err?.message ?? String(err));
     } finally {
-      setDeleting(false);
+      setPendingDelete(null);
     }
   };
 
@@ -456,39 +452,23 @@ export function SchedulesView({ app }) {
       )}
 
       {pendingDelete && (
-        <InfoModal
+        <ConfirmModal
           title="Delete scheduled task"
-          onClose={() => { if (!deleting) setPendingDelete(null); }}
-          className="info-modal-panel--danger"
-        >
-          <div className="page-schedules__confirm">
-            <p className="page-schedules__confirm-lead">
-              Delete <strong>{pendingDelete.name || pendingDelete.prompt || 'this task'}</strong>?
-            </p>
-            <p className="page-schedules__confirm-warn">
-              This cannot be undone. Its run history and every session it created are
-              permanently removed.
-            </p>
-            <div className="modal-footer">
-              <button
-                type="button"
-                className="modal-btn modal-btn--cancel"
-                onClick={() => setPendingDelete(null)}
-                disabled={deleting}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="page-schedules__danger page-schedules__danger--solid"
-                onClick={confirmDelete}
-                disabled={deleting}
-              >
-                {deleting ? 'Deleting…' : 'Delete task'}
-              </button>
-            </div>
-          </div>
-        </InfoModal>
+          confirmLabel="Delete task"
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={confirmDelete}
+          message={(
+            <>
+              <p className="confirm-modal__message">
+                Delete <strong>{pendingDelete.name || pendingDelete.prompt || 'this task'}</strong>?
+              </p>
+              <p className="confirm-modal__message page-schedules__confirm-warn">
+                This cannot be undone. Its run history and every session it created
+                are permanently removed.
+              </p>
+            </>
+          )}
+        />
       )}
     </div>
   );

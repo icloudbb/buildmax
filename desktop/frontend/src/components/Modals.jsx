@@ -107,6 +107,41 @@ export function InfoModal({ title, onClose, children, className }) {
   );
 }
 
+// ConfirmModal is the one destructive-confirmation dialog for the desktop. It
+// replaces window.confirm, which the webview can silently drop (returning
+// undefined), and reads as danger: a red header and a solid-red confirm button.
+// It owns its own busy state, awaiting onConfirm so the button shows progress
+// and cannot be double-clicked; the caller closes the dialog on success (and
+// surfaces any error). `message` may be a string or arbitrary nodes.
+export function ConfirmModal({ title, message, confirmLabel = 'Delete', cancelLabel = 'Cancel', onConfirm, onCancel }) {
+  const [busy, setBusy] = useState(false);
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      await onConfirm();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <InfoModal title={title} onClose={() => { if (!busy) onCancel(); }} className="info-modal-panel--danger">
+      <div className="confirm-modal">
+        {typeof message === 'string'
+          ? <p className="confirm-modal__message">{message}</p>
+          : message}
+        <div className="modal-footer">
+          <button type="button" className="modal-btn modal-btn--cancel" onClick={onCancel} disabled={busy}>
+            {cancelLabel}
+          </button>
+          <button type="button" className="modal-btn modal-btn--danger" onClick={confirm} disabled={busy}>
+            {busy ? 'Working…' : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </InfoModal>
+  );
+}
+
 export function InfoList({ items, emptyText }) {
   if (!items) return <p className="info-modal__muted">Loading…</p>;
   if (!items.length) return <p className="info-modal__muted">{emptyText}</p>;
@@ -287,6 +322,9 @@ export function PluginsModal({ projectID, app, onClose }) {
   const [busy, setBusy] = useState(null);
   const [installName, setInstallName] = useState('');
   const [plan, setPlan] = useState(null);
+  // A repository-checkout plugin awaiting remove confirmation (deleting it can
+  // destroy uncommitted work), shown in a ConfirmModal instead of window.confirm.
+  const [pendingRemove, setPendingRemove] = useState(null);
 
   const load = useCallback(() => {
     app.GetPlugins(projectID)
@@ -330,6 +368,7 @@ export function PluginsModal({ projectID, app, onClose }) {
     : null;
 
   return (
+    <>
     <InfoModal title="Plugins" onClose={onClose}>
       {error && <p className="info-modal__error">{error}</p>}
       {result?.allowed_sources?.length ? (
@@ -358,11 +397,8 @@ export function PluginsModal({ projectID, app, onClose }) {
             onClick={() => {
               // A checkout may hold work that exists nowhere else, so the Go
               // side refuses one and this asks before overriding that.
-              const force = p.source === 'repository'
-                && window.confirm(`${p.name} is a Git checkout at ${p.path}.\n\n`
-                  + 'Removing it deletes anything uncommitted in it. Continue?');
-              if (p.source === 'repository' && !force) return;
-              act(p.name, () => app.UninstallPlugin(p.name, force));
+              if (p.source === 'repository') { setPendingRemove(p); return; }
+              act(p.name, () => app.UninstallPlugin(p.name, false));
             }}
           >
             Remove
@@ -417,6 +453,20 @@ export function PluginsModal({ projectID, app, onClose }) {
         </div>
       )}
     </InfoModal>
+    {pendingRemove && (
+      <ConfirmModal
+        title="Remove plugin"
+        confirmLabel="Remove"
+        message={`${pendingRemove.name} is a Git checkout at ${pendingRemove.path}. Removing it deletes anything uncommitted in it. Continue?`}
+        onCancel={() => setPendingRemove(null)}
+        onConfirm={async () => {
+          const p = pendingRemove;
+          setPendingRemove(null);
+          act(p.name, () => app.UninstallPlugin(p.name, true));
+        }}
+      />
+    )}
+    </>
   );
 }
 

@@ -184,30 +184,8 @@
   color: #fff;
 }
 
-/* The solid variant is the confirm-dialog's primary action: filled red so the
-   irreversible click is unmistakable. */
-.page-schedules__danger--solid {
-  background: var(--color-danger, #c0392b);
-  color: #fff;
-}
-
-.page-schedules__danger--solid:hover {
-  filter: brightness(1.08);
-}
-
-.page-schedules__danger:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.page-schedules__confirm-lead {
-  margin: 0 0 0.5rem;
-  font-size: 0.95rem;
-}
-
+/* The delete-confirm dialog's warning line, in danger red. */
 .page-schedules__confirm-warn {
-  margin: 0 0 0.5rem;
-  font-size: 0.88rem;
   color: var(--color-danger, #c0392b);
 }
 
@@ -432,11 +410,6 @@
   width: 60rem;
   max-width: calc(100vw - 3rem);
   max-height: 88vh;
-}
-
-/* The delete-confirm modal accents its header in danger red. */
-.info-modal-panel--danger .modal-title {
-  color: var(--color-danger, #c0392b);
 }
 
 .schedule-run-chat {
