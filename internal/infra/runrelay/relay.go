@@ -23,7 +23,7 @@ const (
 	agentWSPath       = "/api/remote-control/agent-ws"
 	heartbeatInterval = 30 * time.Second
 	handshakeTimeout  = 10 * time.Second
-	deltaBufferSize   = 512
+	outBufferSize     = 512
 )
 
 // The agent-socket wire contract. It mirrors the envelope and payloads the
@@ -35,11 +35,14 @@ type envelope struct {
 }
 
 const (
-	typeAgentRegister   = "agent.register"
-	typeAgentHeartbeat  = "agent.heartbeat"
-	typeAgentEvent      = "agent.event"
-	typeAgentRegistered = "agent.registered"
-	typeAgentPrompt     = "agent.prompt"
+	typeAgentRegister         = "agent.register"
+	typeAgentHeartbeat        = "agent.heartbeat"
+	typeAgentEvent            = "agent.event"
+	typeAgentApproval         = "agent.approval"
+	typeAgentApprovalResolved = "agent.approval_resolved"
+	typeAgentRegistered       = "agent.registered"
+	typeAgentPrompt           = "agent.prompt"
+	typeAgentApprovalResponse = "agent.approval_response"
 )
 
 type registerPayload struct {
@@ -58,6 +61,21 @@ type registeredPayload struct {
 
 type promptPayload struct {
 	Content string `json:"content"`
+}
+
+type approvalPayload struct {
+	ID      string `json:"id"`
+	Tool    string `json:"tool"`
+	Summary string `json:"summary,omitempty"`
+}
+
+type approvalResolvedPayload struct {
+	ID string `json:"id"`
+}
+
+type approvalResponsePayload struct {
+	ID       string `json:"id"`
+	Decision string `json:"decision"`
 }
 
 // TokenFunc yields a fresh user access token per call, because a client outlives
@@ -79,14 +97,18 @@ type Config struct {
 	// delivered into the local session as if the user typed it. Called from the
 	// relay's read goroutine. Optional — nil ignores inbound prompts.
 	OnRemotePrompt func(content string)
+	// OnRemoteApproval is called when another device answers a tool-approval
+	// prompt, with the request id and the decision ("once"/"session"/"deny").
+	// Called from the relay's read goroutine. Optional.
+	OnRemoteApproval func(id, decision string)
 }
 
 // Relay is one outbound control channel. The zero value is inert; use New.
 type Relay struct {
-	cfg    Config
-	deltas chan string
-	stop   chan struct{}
-	done   chan struct{}
+	cfg  Config
+	out  chan []byte
+	stop chan struct{}
+	done chan struct{}
 }
 
 // New returns a relay, or nil when there is nothing to connect to (no managed
@@ -96,10 +118,10 @@ func New(cfg Config) *Relay {
 		return nil
 	}
 	return &Relay{
-		cfg:    cfg,
-		deltas: make(chan string, deltaBufferSize),
-		stop:   make(chan struct{}),
-		done:   make(chan struct{}),
+		cfg:  cfg,
+		out:  make(chan []byte, outBufferSize),
+		stop: make(chan struct{}),
+		done: make(chan struct{}),
 	}
 }
 
@@ -141,8 +163,8 @@ func (r *Relay) run(ctx context.Context) {
 			return
 		case <-r.stop:
 			return
-		case delta := <-r.deltas:
-			if err := writeJSON(conn, typeAgentEvent, eventPayload{Delta: delta}); err != nil {
+		case frame := <-r.out:
+			if err := writeFrame(conn, frame); err != nil {
 				return
 			}
 		case <-ticker.C:
@@ -174,6 +196,11 @@ func (r *Relay) readLoop(conn *gws.Conn) {
 			if json.Unmarshal(env.Payload, &p) == nil && p.Content != "" && r.cfg.OnRemotePrompt != nil {
 				r.cfg.OnRemotePrompt(p.Content)
 			}
+		case typeAgentApprovalResponse:
+			var p approvalResponsePayload
+			if json.Unmarshal(env.Payload, &p) == nil && p.ID != "" && r.cfg.OnRemoteApproval != nil {
+				r.cfg.OnRemoteApproval(p.ID, p.Decision)
+			}
 		}
 	}
 }
@@ -201,8 +228,40 @@ func (r *Relay) OnDelta(delta string) {
 	if r == nil || delta == "" {
 		return
 	}
+	r.enqueue(typeAgentEvent, eventPayload{Delta: delta})
+}
+
+// SendApprovalRequest relays a pending tool-approval prompt so another device can
+// answer it. Dropped if the buffer is full (the local prompt still stands).
+func (r *Relay) SendApprovalRequest(id, tool, summary string) {
+	if r == nil || id == "" {
+		return
+	}
+	r.enqueue(typeAgentApproval, approvalPayload{ID: id, Tool: tool, Summary: summary})
+}
+
+// SendApprovalResolved tells the server an approval was answered (locally or
+// remotely), so connected devices dismiss their copy of it.
+func (r *Relay) SendApprovalResolved(id string) {
+	if r == nil || id == "" {
+		return
+	}
+	r.enqueue(typeAgentApprovalResolved, approvalResolvedPayload{ID: id})
+}
+
+// enqueue marshals a frame and queues it for the write loop, dropping it rather
+// than blocking the run if the buffer is full.
+func (r *Relay) enqueue(typ string, payload any) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	frame, err := json.Marshal(envelope{Type: typ, Payload: raw})
+	if err != nil {
+		return
+	}
 	select {
-	case r.deltas <- delta:
+	case r.out <- frame:
 	default:
 	}
 }
@@ -232,6 +291,12 @@ func writeJSON(conn *gws.Conn, typ string, payload any) error {
 	}
 	_ = conn.SetWriteDeadline(time.Now().Add(handshakeTimeout))
 	return conn.WriteMessage(gws.TextMessage, data)
+}
+
+// writeFrame writes an already-encoded envelope from the outbound queue.
+func writeFrame(conn *gws.Conn, frame []byte) error {
+	_ = conn.SetWriteDeadline(time.Now().Add(handshakeTimeout))
+	return conn.WriteMessage(gws.TextMessage, frame)
 }
 
 // agentWSURL turns the managed server URL into the ws/wss agent-socket URL with

@@ -4726,6 +4726,51 @@
         }
       }
     },
+    "/api/remote-control/sessions/{session_id}/approval-stream": {
+      "parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Watch a Remote Control session's pending tool approvals",
+        "description": "Server-Sent Events carrying one or more newline-separated JSON approval frames; a frame with resolved=true dismisses the one with the same id. Only the owning account may watch.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "An event stream of approval frames"},
+          "401": {"description": "Missing or invalid token"},
+          "404": {"description": "No such session, or not owned by the caller"},
+          "503": {"description": "Remote control is not configured"}
+        }
+      }
+    },
+    "/api/remote-control/sessions/{session_id}/approval": {
+      "parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Answer a pending tool approval on a Remote Control session",
+        "description": "Delivers a decision on a pending approval into the live session. Only the owning account may answer.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["id", "decision"],
+                "properties": {
+                  "id": {"type": "string", "description": "The approval request id"},
+                  "decision": {"type": "string", "enum": ["once", "session", "deny"]}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {"description": "The decision was accepted for delivery"},
+          "400": {"description": "Missing id or decision"},
+          "401": {"description": "Missing or invalid token"},
+          "404": {"description": "No such session, or not owned by the caller"},
+          "409": {"description": "The session is offline"},
+          "503": {"description": "Remote control is not configured"}
+        }
+      }
+    },
     "/api/remote-control/sessions/{session_id}/prompt": {
       "parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "post": {

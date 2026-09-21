@@ -167,6 +167,72 @@ func mustEnvelope(typ string, payload json.RawMessage) []byte {
 	return out
 }
 
+// A remote approval decision reaches OnRemoteApproval; and the relay's outbound
+// approval request reaches the server.
+func TestRelayApprovalRoundTrip(t *testing.T) {
+	got := make(chan envelope, 8)
+	upgrader := gws.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		if _, _, err := c.ReadMessage(); err != nil { // the register
+			return
+		}
+		reg, _ := json.Marshal(registeredPayload{SessionID: "s1"})
+		_ = c.WriteMessage(gws.TextMessage, mustEnvelope(typeAgentRegistered, reg))
+		// Push a decision, then collect the relay's outbound approval request.
+		resp, _ := json.Marshal(approvalResponsePayload{ID: "a1", Decision: "deny"})
+		_ = c.WriteMessage(gws.TextMessage, mustEnvelope(typeAgentApprovalResponse, resp))
+		for {
+			_, data, err := c.ReadMessage()
+			if err != nil {
+				return
+			}
+			var env envelope
+			if json.Unmarshal(data, &env) == nil {
+				got <- env
+			}
+		}
+	}))
+	defer server.Close()
+
+	decisions := make(chan string, 1)
+	r := New(Config{
+		ServerURL:        server.URL,
+		TokenFunc:        func() (string, error) { return "tok", nil },
+		OnRemoteApproval: func(id, decision string) { decisions <- id + ":" + decision },
+	})
+	r.Start(t.Context())
+	defer r.Close()
+
+	select {
+	case d := <-decisions:
+		if d != "a1:deny" {
+			t.Errorf("remote approval = %q", d)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnRemoteApproval never fired")
+	}
+
+	r.SendApprovalRequest("a2", "bash", "ls")
+	for {
+		select {
+		case env := <-got:
+			if env.Type == typeAgentApproval {
+				var p approvalPayload
+				if json.Unmarshal(env.Payload, &p) == nil && p.ID == "a2" && p.Tool == "bash" {
+					return
+				}
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("outbound approval request never reached the server")
+		}
+	}
+}
+
 // New returns nil when there is nothing to connect to, and the nil relay's
 // methods are safe no-ops.
 func TestNewInertWithoutServer(t *testing.T) {

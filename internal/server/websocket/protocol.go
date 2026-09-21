@@ -61,9 +61,11 @@ type ConversationMessage struct {
 // device/agent WebSocket a local session dials out to, not the per-space browser
 // socket. See docs/design/remote-control.md.
 const (
-	TypeAgentRegister  = "agent.register"
-	TypeAgentHeartbeat = "agent.heartbeat"
-	TypeAgentEvent     = "agent.event"
+	TypeAgentRegister         = "agent.register"
+	TypeAgentHeartbeat        = "agent.heartbeat"
+	TypeAgentEvent            = "agent.event"
+	TypeAgentApproval         = "agent.approval"
+	TypeAgentApprovalResolved = "agent.approval_resolved"
 )
 
 // AgentRegister is the payload for TypeAgentRegister: a local session announcing
@@ -81,10 +83,25 @@ type AgentEvent struct {
 	Delta string `json:"delta,omitempty"`
 }
 
+// AgentApproval is the payload for TypeAgentApproval: a tool-approval prompt the
+// session raised, to be shown on connected devices so one of them can answer.
+type AgentApproval struct {
+	ID      string `json:"id"`
+	Tool    string `json:"tool"`
+	Summary string `json:"summary,omitempty"`
+}
+
+// AgentApprovalResolved is the payload for TypeAgentApprovalResolved: an approval
+// was answered (locally or remotely), so devices dismiss their copy.
+type AgentApprovalResolved struct {
+	ID string `json:"id"`
+}
+
 // Remote Control agent socket (server → client).
 const (
-	TypeAgentRegistered = "agent.registered"
-	TypeAgentPrompt     = "agent.prompt"
+	TypeAgentRegistered       = "agent.registered"
+	TypeAgentPrompt           = "agent.prompt"
+	TypeAgentApprovalResponse = "agent.approval_response"
 )
 
 // AgentRegistered is the payload for TypeAgentRegistered: the server's reply to a
@@ -98,6 +115,14 @@ type AgentRegistered struct {
 // device sent, to be delivered into the local session as if the user typed it.
 type AgentPrompt struct {
 	Content string `json:"content"`
+}
+
+// AgentApprovalResponse is the payload for TypeAgentApprovalResponse: a decision
+// another device made on a pending approval. Decision is "once", "session", or
+// "deny".
+type AgentApprovalResponse struct {
+	ID       string `json:"id"`
+	Decision string `json:"decision"`
 }
 
 // SubscribeTask is the payload for TypeSubscribeTask.

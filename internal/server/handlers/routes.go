@@ -66,7 +66,9 @@ func (h *Handler) RegisterPublic(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/remote-control/agent-ws", h.agentWSUpgradeHandler)
 	mux.HandleFunc("GET /api/remote-control/sessions", h.listRemoteSessionsHandler)
 	mux.HandleFunc("GET /api/remote-control/sessions/{session_id}/stream", h.remoteSessionStreamHandler)
+	mux.HandleFunc("GET /api/remote-control/sessions/{session_id}/approval-stream", h.remoteSessionApprovalStreamHandler)
 	mux.HandleFunc("POST /api/remote-control/sessions/{session_id}/prompt", h.promptRemoteSessionHandler)
+	mux.HandleFunc("POST /api/remote-control/sessions/{session_id}/approval", h.approveRemoteSessionHandler)
 
 	// System administration lives in its own package: every route there requires
 	// a system_admin grant and none is space-scoped, so it holds a Config that

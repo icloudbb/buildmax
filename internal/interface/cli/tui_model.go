@@ -799,14 +799,34 @@ var approvalChoices = []struct {
 	{"Deny(n)", agent.ApprovalDeny},
 }
 
-// answerApproval resolves the waiting tool call and clears the prompt.
+// answerApproval resolves the waiting tool call and clears the prompt. It goes
+// through the handler so the decision, the forward to any connected device, and
+// the registry cleanup all happen in one race-safe place — the same path a
+// remote answer takes.
 func (m *Model) answerApproval(d agent.ApprovalDecision) {
 	if m.pendingApproval == nil {
 		return
 	}
-	m.pendingApproval.response <- d
+	if h, ok := m.opts.Approval.(*TUIApprovalHandler); ok {
+		h.deliver(m.pendingApproval.id, d)
+	} else {
+		select {
+		case m.pendingApproval.response <- d:
+		default:
+		}
+	}
 	m.pendingApproval = nil
 	m.approvalSelected = 0
+}
+
+// handleApprovalResolved dismisses the local prompt when the request was answered
+// elsewhere (a remote device, or a cancel).
+func handleApprovalResolved(m *Model, msg approvalResolvedMsg) (tea.Model, tea.Cmd) {
+	if m.pendingApproval != nil && m.pendingApproval.id == msg.id {
+		m.pendingApproval = nil
+		m.approvalSelected = 0
+	}
+	return m, nil
 }
 
 // renderApprovalPanel renders the tool-approval prompt when a tool call is waiting.
@@ -1017,6 +1037,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleDrainQueue(m, msg)
 	case remotePromptMsg:
 		return handleRemotePrompt(m, msg.text)
+	case approvalResolvedMsg:
+		return handleApprovalResolved(m, msg)
 	case jobEventMsg:
 		return handleJobEvent(m, msg)
 	case approvalRequestMsg:

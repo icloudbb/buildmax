@@ -197,3 +197,66 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.rc-approval {
+  border: 1px solid var(--color-warning);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rc-approval__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rc-approval__title {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.rc-approval__tool {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--color-warning);
+}
+
+.rc-approval__summary {
+  color: var(--color-text-subtle);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.rc-approval__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.rc-approval__btn {
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.rc-approval__btn:hover {
+  background: var(--color-bg-hover);
+}
+
+.rc-approval__btn--deny {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}

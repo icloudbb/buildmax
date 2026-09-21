@@ -226,6 +226,84 @@ func TestPromptDeliveredToAgentSocket(t *testing.T) {
 	}
 }
 
+// An approval decision POSTed by the owner reaches the agent socket as
+// agent.approval_response.
+func TestApprovalDeliveredToAgentSocket(t *testing.T) {
+	store := &fakeRemoteStore{}
+	h := NewHandler(Config{JWTSecret: wsTestSecret, CORSOrigin: "*", RemoteSessionStore: store})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	conn := dialAgentWS(t, server, testsupport.SignJWT("u1", wsTestSecret))
+	defer conn.Close()
+	sendEnvelope(t, conn, wsconn.TypeAgentRegister, wsconn.AgentRegister{Platform: "cli"})
+	reg := readEnvelope(t, conn)
+	var registered wsconn.AgentRegistered
+	if err := json.Unmarshal(reg.Payload, &registered); err != nil {
+		t.Fatal(err)
+	}
+	store.setGet(coreremote.RemoteSession{ID: registered.SessionID, UserID: "u1", Status: coreremote.StatusOnline})
+
+	req, _ := http.NewRequest(http.MethodPost,
+		server.URL+"/api/remote-control/sessions/"+registered.SessionID+"/approval",
+		strings.NewReader(`{"id":"a1","decision":"session"}`))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", wsTestSecret))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", resp.StatusCode)
+	}
+
+	env := readEnvelope(t, conn)
+	if env.Type != wsconn.TypeAgentApprovalResponse {
+		t.Fatalf("agent received %q, want approval_response", env.Type)
+	}
+	var ar wsconn.AgentApprovalResponse
+	if err := json.Unmarshal(env.Payload, &ar); err != nil {
+		t.Fatal(err)
+	}
+	if ar.ID != "a1" || ar.Decision != "session" {
+		t.Errorf("approval response = %+v", ar)
+	}
+}
+
+// An approval request the agent raises reaches the session's approval stream.
+func TestAgentApprovalReachesStream(t *testing.T) {
+	store := &fakeRemoteStore{}
+	h := NewHandler(Config{JWTSecret: wsTestSecret, CORSOrigin: "*", RemoteSessionStore: store})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	conn := dialAgentWS(t, server, testsupport.SignJWT("u1", wsTestSecret))
+	defer conn.Close()
+	sendEnvelope(t, conn, wsconn.TypeAgentRegister, wsconn.AgentRegister{Platform: "cli"})
+	reg := readEnvelope(t, conn)
+	var registered wsconn.AgentRegistered
+	if err := json.Unmarshal(reg.Payload, &registered); err != nil {
+		t.Fatal(err)
+	}
+
+	events, unsub := h.hub.Subscribe(wsconn.ApprovalStreamKey(registered.SessionID))
+	defer unsub()
+	sendEnvelope(t, conn, wsconn.TypeAgentApproval, wsconn.AgentApproval{ID: "a1", Tool: "bash", Summary: `{"cmd":"ls"}`})
+	select {
+	case frame := <-events:
+		if !strings.Contains(frame, `"id":"a1"`) || !strings.Contains(frame, `"tool":"bash"`) {
+			t.Errorf("approval frame = %q", frame)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("approval frame never reached the stream")
+	}
+}
+
 // A prompt for an offline session is refused with 409, not delivered.
 func TestPromptRejectedWhenOffline(t *testing.T) {
 	store := &fakeRemoteStore{}
