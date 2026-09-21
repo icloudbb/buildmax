@@ -170,6 +170,21 @@ func (ac *agentConn) handleRegister(ctx context.Context, p AgentRegister) {
 		ac.sendEvent(TypeAgentRegistered, AgentRegistered{SessionID: ac.sessionID})
 		return
 	}
+	// Reconnect: reattach to the same session if the caller still owns it, so its
+	// id and the URL another device is watching stay stable across a network blip.
+	if p.SessionID != "" {
+		if sess, err := ac.deps.Sessions.GetRemoteSession(ctx, p.SessionID); err == nil && sess.UserID == ac.userID {
+			ac.sessionID = p.SessionID
+			if err := ac.deps.Sessions.TouchRemoteSession(ctx, p.SessionID, time.Now().UTC()); err != nil {
+				componentLog().Warn("agent reattach touch", "err", err, "session_id", p.SessionID)
+			}
+			ac.deps.Registry.Register(p.SessionID, ac)
+			componentLog().Info("agent reattached", "user_id", ac.userID, "session_id", p.SessionID)
+			ac.sendEvent(TypeAgentRegistered, AgentRegistered{SessionID: p.SessionID})
+			return
+		}
+		// A stale or foreign id falls through to a fresh registration.
+	}
 	id, err := ac.deps.Sessions.RegisterRemoteSession(ctx, coreremote.NewRemoteSession{
 		UserID:      ac.userID,
 		DisplayName: p.DisplayName,
@@ -249,8 +264,9 @@ func (ac *agentConn) cleanup() {
 		if err := ac.deps.Sessions.MarkRemoteSessionOffline(context.Background(), ac.sessionID, time.Now().UTC()); err != nil {
 			componentLog().Warn("agent mark offline", "err", err, "session_id", ac.sessionID)
 		}
-		ac.deps.Hub.Done(ac.sessionID)
-		ac.deps.Hub.Done(ApprovalStreamKey(ac.sessionID))
+		// The stream is deliberately not ended here: the session may reconnect and
+		// reattach, and a device watching it should keep its stream open across the
+		// blip rather than see it finish. Presence (offline) marks the gap instead.
 	}
 	ac.cancel()
 	select {

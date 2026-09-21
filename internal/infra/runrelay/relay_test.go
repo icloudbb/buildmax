@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -265,6 +266,62 @@ func TestRelayReceivesCancel(t *testing.T) {
 	case <-canceled:
 	case <-time.After(2 * time.Second):
 		t.Fatal("OnRemoteCancel never fired")
+	}
+}
+
+// After the connection drops, the relay reconnects and re-registers carrying the
+// session id it was assigned, so the server can reattach to the same session.
+func TestRelayReattachesOnReconnect(t *testing.T) {
+	registers := make(chan registerPayload, 4)
+	var conns atomic.Int32
+	upgrader := gws.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		n := conns.Add(1)
+		_, data, err := c.ReadMessage()
+		if err != nil {
+			_ = c.Close()
+			return
+		}
+		var env envelope
+		_ = json.Unmarshal(data, &env)
+		var reg registerPayload
+		_ = json.Unmarshal(env.Payload, &reg)
+		registers <- reg
+		out, _ := json.Marshal(registeredPayload{SessionID: "s1"})
+		_ = c.WriteMessage(gws.TextMessage, mustEnvelope(typeAgentRegistered, out))
+		if n == 1 {
+			// Drop the first connection to force a reconnect.
+			_ = c.Close()
+			return
+		}
+		// Keep the reconnected one open.
+		for {
+			if _, _, err := c.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	defer server.Close()
+
+	r := New(Config{ServerURL: server.URL, TokenFunc: func() (string, error) { return "tok", nil }})
+	r.Start(t.Context())
+	defer r.Close()
+
+	first := <-registers
+	if first.SessionID != "" {
+		t.Errorf("first register carried a session id: %q", first.SessionID)
+	}
+	select {
+	case second := <-registers:
+		if second.SessionID != "s1" {
+			t.Errorf("reconnect register session id = %q, want s1", second.SessionID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("relay did not reconnect")
 	}
 }
 

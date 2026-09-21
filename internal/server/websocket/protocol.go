@@ -69,8 +69,10 @@ const (
 )
 
 // AgentRegister is the payload for TypeAgentRegister: a local session announcing
-// itself.
+// itself. On a reconnect it carries the session id it was previously assigned, to
+// reattach rather than create a new session.
 type AgentRegister struct {
+	SessionID   string `json:"session_id,omitempty"`
 	DisplayName string `json:"display_name,omitempty"`
 	Platform    string `json:"platform,omitempty"`
 	Host        string `json:"host,omitempty"`
