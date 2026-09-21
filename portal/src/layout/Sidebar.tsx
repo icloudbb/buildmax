@@ -441,6 +441,20 @@ export function SidebarNavContent({
               role="menuitem"
               onClick={() => {
                 setUserMenuOpen(false)
+                go({ name: "remoteControl" })
+              }}
+            >
+              <span className="sidebar__user-menu-item-icon" aria-hidden>
+                <AgentsIcon />
+              </span>
+              Remote Control
+            </button>
+            <button
+              type="button"
+              className="sidebar__user-menu-item"
+              role="menuitem"
+              onClick={() => {
+                setUserMenuOpen(false)
                 go({ name: "help" })
               }}
             >

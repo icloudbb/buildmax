@@ -75,6 +75,11 @@ export type Route =
   | { name: "artifacts"; spaceId: string }
   | { name: "artifact"; artifactId: string }
   | { name: "marketplace" }
+  // Remote Control is account-scoped, not Space-scoped: a live local session
+  // belongs to a user's machine, which has no Space. So these are global routes,
+  // like Account. See docs/design/remote-control.md.
+  | { name: "remoteControl" }
+  | { name: "remoteControlSession"; sessionId: string }
   | { name: "help"; slug?: string }
   // An unrecognized hash, or a route name AppRouter has no case for -- never
   // silently falls through to Chat (docs/design/portal-navigation-and-space-context.md).

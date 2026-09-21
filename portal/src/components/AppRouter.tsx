@@ -18,6 +18,8 @@ import { WorkflowDetail } from "../pages/workflows/WorkflowDetail"
 import { WorkflowRunDetail } from "../pages/workflows/WorkflowRunDetail"
 import { AccountSettings } from "../pages/settings/AccountSettings"
 import { Marketplace } from "../pages/marketplace/Marketplace"
+import { RemoteControlList } from "../pages/remoteControl/RemoteControlList"
+import { RemoteControlSession } from "../pages/remoteControl/RemoteControlSession"
 import { Help } from "../pages/help/Help"
 import { SpaceSettings } from "../pages/settings/SpaceSettings"
 import { AdminSettings } from "../pages/admin/AdminSettings"
@@ -130,6 +132,14 @@ export function AppRouter({
 
   if (route.name === "marketplace") {
     return <Marketplace token={token ?? null} />
+  }
+
+  if (route.name === "remoteControl") {
+    return <RemoteControlList token={token ?? null} />
+  }
+
+  if (route.name === "remoteControlSession") {
+    return <RemoteControlSession token={token ?? null} sessionId={route.sessionId} />
   }
 
   if (route.name === "help") {
