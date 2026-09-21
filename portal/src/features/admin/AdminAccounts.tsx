@@ -253,7 +253,7 @@ export function AdminAccounts({
             aria-label="Search accounts by email"
             onChange={(e) => setQuery(e.target.value)}
           />
-          <Button type="submit" variant="secondary" disabled={loading}>
+          <Button type="submit" variant="primary" disabled={loading}>
             Search
           </Button>
         </form>

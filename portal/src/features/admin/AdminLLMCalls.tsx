@@ -132,7 +132,7 @@ export function AdminLLMCalls({ token }: { token: string | null }) {
             aria-label="Filter by surface"
             onChange={(e) => setFilters({ ...filters, surface: e.target.value })}
           />
-          <Button type="submit" variant="secondary" disabled={loading}>
+          <Button type="submit" variant="primary" disabled={loading}>
             Search
           </Button>
           <Button variant="tertiary" onClick={() => apply(EMPTY)}>

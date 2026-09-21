@@ -321,11 +321,11 @@ button.wf-graph__node:focus-visible {
 }
 
 .wf-graph__node--succeeded {
-  border-left-color: var(--color-success, #1a7f37);
+  border-left-color: var(--color-status-success);
 }
 
 .wf-graph__node--running {
-  border-left-color: var(--color-accent, #0969da);
+  border-left-color: var(--color-status-running);
 }
 
 .wf-graph__node--failed {
