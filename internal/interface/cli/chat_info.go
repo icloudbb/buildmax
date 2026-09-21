@@ -21,28 +21,31 @@ const slashStatsToolRows = 5
 // tab bar, the summary block above the table, its header, and the key hint.
 const slashStatsChromeLines = 18
 
-// infoTab is which half of the panel is on screen.
+// infoTab is which view of the panel is on screen.
 //
-// Two tabs rather than two commands because they answer one question asked in
-// two directions: what this session has done, and what this project knows. They
-// share nothing else -- one ends with the session, the other outlives it -- so
-// they are tabs and not a merged view.
+// The tabs answer three related questions: what this session has done, where it
+// sits in its fork tree, and what this project knows.
 type infoTab int
 
 const (
 	infoTabSession infoTab = iota
+	infoTabTree
 	infoTabMemory
+	infoTabCount
 )
 
 // slashInfoPanel implements slashPanel for the /info overlay.
 //
-// Both halves are read once, when the panel opens, rather than on every render:
-// a render runs on each keystroke and each frame of the spinner, and the
+// All views are read once, when the panel opens, rather than on every render: a
+// render runs on each keystroke and each frame of the spinner, and the
 // statistics fold reads every trace file the session has.
 type slashInfoPanel struct {
-	Tab       infoTab
-	Stats     agentapp.SessionStats
-	LoadError string
+	Tab        infoTab
+	Stats      agentapp.SessionStats
+	LoadError  string
+	ForkTree   *agentapp.ForkTreeNode
+	TreeError  string
+	TreeOffset int
 
 	Memory   agentapp.MemoryOverview
 	Selected int
@@ -69,6 +72,14 @@ func openSlashInfo(m *Model) (tea.Model, tea.Cmd) {
 		p.LoadError = err.Error()
 	}
 	p.Stats = stats
+	if m.opts.Session.Persisted() && m.opts.SessionsDir != "" {
+		p.ForkTree, err = agentapp.NewSessionManager(m.opts.SessionsDir).ForkTree(m.opts.Session.ID())
+		if err != nil {
+			p.TreeError = err.Error()
+		} else {
+			p.TreeOffset = max(0, forkTreeCurrentIndex(p.ForkTree)-2)
+		}
+	}
 	return m.openPanel(p)
 }
 
@@ -84,18 +95,24 @@ func (p *slashInfoPanel) HandleKey(m *Model, msg tea.KeyPressMsg) (bool, tea.Cmd
 		_, cmd := m.closeActivePanel()
 		return true, cmd
 	case tea.KeyTab, tea.KeyRight:
-		p.switchTab(infoTabMemory)
+		p.switchTab((p.Tab + 1) % infoTabCount)
 		return true, nil
 	case tea.KeyLeft:
-		p.switchTab(infoTabSession)
+		p.switchTab((p.Tab + infoTabCount - 1) % infoTabCount)
 		return true, nil
 	case tea.KeyUp:
+		if p.Tab == infoTabTree && p.TreeOffset > 0 {
+			p.TreeOffset--
+		}
 		if p.Tab == infoTabMemory && p.Opened < 0 && p.Selected > 0 {
 			p.Selected--
 			p.scrollIntoView(m)
 		}
 		return true, nil
 	case tea.KeyDown:
+		if p.Tab == infoTabTree && p.TreeOffset < len(forkTreeLines(p.ForkTree))-1 {
+			p.TreeOffset++
+		}
 		if p.Tab == infoTabMemory && p.Opened < 0 && p.Selected < len(p.Memory.Memories)-1 {
 			p.Selected++
 			p.scrollIntoView(m)
@@ -144,10 +161,16 @@ func (p *slashInfoPanel) Render(m *Model, maxLineWidth int) string {
 		b.WriteString(p.renderMemory(m, maxLineWidth))
 		return strings.TrimRight(b.String(), "\n") + "\n\n" + p.memoryHints()
 	}
+	if p.Tab == infoTabTree {
+		rows := m.panelListBudget(14, 7)
+		b.WriteString(renderForkTreePanel(p.ForkTree, p.TreeError, maxLineWidth, rows, p.TreeOffset))
+		return strings.TrimRight(b.String(), "\n") +
+			"\n\n↑↓: scroll · tab/←/→: switch · esc: close"
+	}
 
 	if p.LoadError != "" {
 		b.WriteString(truncateRunes(p.LoadError, maxLineWidth))
-		return strings.TrimRight(b.String(), "\n") + "\n\ntab: project memory · esc: close"
+		return strings.TrimRight(b.String(), "\n") + "\n\ntab/←/→: switch · esc: close"
 	}
 	b.WriteString(renderStatsSummary(p.Stats, maxLineWidth))
 	budget := m.panelListBudget(slashStatsToolRows, slashStatsChromeLines)
@@ -159,16 +182,22 @@ func (p *slashInfoPanel) Render(m *Model, maxLineWidth int) string {
 		b.WriteString("\n! " + truncateRunes(note, maxLineWidth-2))
 	}
 	return strings.TrimRight(b.String(), "\n") +
-		"\n\ntab: project memory · esc: close · buildmax info for the full record"
+		"\n\ntab/←/→: switch · esc: close · buildmax info for the full record"
 }
 
 // renderInfoTabs draws the tab bar. The inactive one is named rather than
 // hidden, because a tab a person cannot see is one they will not press.
 func renderInfoTabs(active infoTab) string {
-	if active == infoTabSession {
-		return slashPanelTitleStyle.Render("[session]") + "  memory"
+	labels := []string{"session", "tree", "memory"}
+	var out []string
+	for i, label := range labels {
+		if infoTab(i) == active {
+			out = append(out, slashPanelTitleStyle.Render("["+label+"]"))
+		} else {
+			out = append(out, label)
+		}
 	}
-	return " session  " + slashPanelTitleStyle.Render("[memory]")
+	return strings.Join(out, "  ")
 }
 
 // renderStatsSummary is the panel's condensed report. It is a separate
@@ -389,10 +418,10 @@ func renderMemoryBody(mem localproject.Memory, maxLineWidth int) string {
 
 func (p *slashInfoPanel) memoryHints() string {
 	if p.Opened >= 0 {
-		return "esc: back to the list · ←: session"
+		return "esc: back to the list · tab/←/→: switch"
 	}
 	if len(p.Memory.Memories) > 0 {
-		return "↑↓ select · enter: read it · ←: session · esc: close"
+		return "↑↓ select · enter: read it · tab/←/→: switch · esc: close"
 	}
-	return "←: session · esc: close"
+	return "tab/←/→: switch · esc: close"
 }

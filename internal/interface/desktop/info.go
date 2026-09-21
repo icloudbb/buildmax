@@ -12,9 +12,8 @@ import (
 	"github.com/icloudbb/buildmax/internal/util"
 )
 
-// The /info session-statistics surface. The memory half of the TUI's /info
-// panel is served by ProjectMemory, which the frontend already reads for the
-// Memory drawer; this binding is the session half.
+// The /info session-statistics and fork-tree surfaces. The memory tab is served
+// by ProjectMemory, which the frontend already reads for the Memory drawer.
 //
 // It is a purpose-built payload rather than agentapp.SessionStats itself: that
 // type carries nested records with no wire tags and helper methods the frontend
@@ -96,8 +95,16 @@ type SlashInfoResult struct {
 	Caveats []string        `json:"caveats,omitempty"`
 }
 
+// SessionForkTreeResult is the tree tab of /info. It stays separate from the
+// statistics payload so opening the tree reads only index.json, not history or
+// traces for every node (or even for the current one).
+type SessionForkTreeResult struct {
+	Tree      *agentapp.ForkTreeNode `json:"tree,omitempty"`
+	LoadError string                 `json:"load_error,omitempty"`
+}
+
 // GetSlashInfo returns the session statistics for the /info panel. The memory
-// half is ProjectMemory, read separately by the frontend.
+// tab is served by ProjectMemory and the tree tab by GetSessionForkTree.
 func (a *App) GetSlashInfo(projectID, sessionID string) (SlashInfoResult, error) {
 	if sessionID == "" {
 		return SlashInfoResult{LoadError: "no session is open"}, nil
@@ -175,6 +182,19 @@ func (a *App) GetSlashInfo(projectID, sessionID string) (SlashInfoResult, error)
 	out.Tools = slashInfoToolRows(stats)
 	out.Caveats = slashInfoCaveats(stats)
 	return out, nil
+}
+
+// GetSessionForkTree returns the connected user-session fork tree containing
+// sessionID from the picker projection.
+func (a *App) GetSessionForkTree(projectID, sessionID string) SessionForkTreeResult {
+	if sessionID == "" {
+		return SessionForkTreeResult{LoadError: "no session is open"}
+	}
+	tree, err := sessionManager().ForkTree(sessionID)
+	if err != nil {
+		return SessionForkTreeResult{LoadError: err.Error()}
+	}
+	return SessionForkTreeResult{Tree: tree}
 }
 
 // slashInfoToolRows joins what the history knows (result bytes) with what the

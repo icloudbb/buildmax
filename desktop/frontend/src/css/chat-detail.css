@@ -1317,7 +1317,7 @@
   font-style: italic;
 }
 
-/* ── Info panel (/info): tabbed session stats and project memory ─────────── */
+/* ── Info panel (/info): session stats, fork tree, and project memory ───── */
 
 .info-tabs {
   display: flex;
@@ -1405,6 +1405,77 @@
   margin: 0.35rem 0 0;
   font-size: 0.8rem;
   color: var(--color-text-subtle);
+}
+
+.info-tree {
+  flex: 1;
+  min-height: 0;
+  padding: 0.75rem 1rem 1rem;
+  overflow: auto;
+}
+
+.info-tree__hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+}
+
+.info-tree ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  list-style: none;
+}
+
+.info-tree > ul {
+  padding-left: 0;
+}
+
+.info-tree li > ul {
+  margin-left: 0.55rem;
+  border-left: 1px solid var(--color-border-subtle);
+}
+
+.info-tree__node {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  margin: 0.18rem 0;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  color: var(--color-text);
+}
+
+.info-tree__node--current {
+  background: var(--color-surface-hover, rgba(127, 127, 127, 0.1));
+  box-shadow: inset 2px 0 0 var(--color-accent, var(--color-text));
+}
+
+.info-tree__node--missing {
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+.info-tree__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.info-tree__id {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.info-tree__current {
+  flex-shrink: 0;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: var(--color-surface-selected, rgba(127, 127, 127, 0.14));
+  color: var(--color-text);
+  font-size: 0.7rem;
+  font-weight: 600;
 }
 
 .info-memory {

@@ -60,16 +60,18 @@ below, or in the TUI with ` + "`/info`" + `.`,
 	return c
 }
 
-// sessionInfo is what `buildmax info` reports: one session's statistics, and
-// the memories of the project that session belongs to.
+// sessionInfo is what `buildmax info` reports: one session's statistics and
+// fork tree, plus the memories of the project that session belongs to.
 //
-// The two are separate fields rather than a merged object because they have
-// different lifetimes and different owners. The statistics are this session's
-// and end with it; the memories outlive it and are shared by every session of
-// the project.
+// These are separate fields rather than a merged object because they have
+// different lifetimes and owners. Statistics belong to this session, the fork
+// tree is a projection of user-session provenance, and memories outlive the
+// session and are shared by every session of the project.
 type sessionInfo struct {
-	Stats  agentapp.SessionStats `json:"stats"`
-	Memory *memoryInfoReport     `json:"project_memory,omitempty"`
+	Stats         agentapp.SessionStats  `json:"stats"`
+	ForkTree      *agentapp.ForkTreeNode `json:"fork_tree,omitempty"`
+	ForkTreeError string                 `json:"fork_tree_error,omitempty"`
+	Memory        *memoryInfoReport      `json:"project_memory,omitempty"`
 }
 
 // memoryInfoReport is the JSON shape of the memory half. Bodies are deliberately
@@ -127,6 +129,10 @@ func runInfo(ctx context.Context, w io.Writer, id string, asJSON bool) error {
 		return err
 	}
 	report := sessionInfo{Stats: stats, Memory: memoryReportFor(ctx, sessionsDir, id)}
+	report.ForkTree, err = agentapp.NewSessionManager(sessionsDir).ForkTree(id)
+	if err != nil {
+		report.ForkTreeError = err.Error()
+	}
 	if asJSON {
 		enc := json.NewEncoder(w)
 		enc.SetEscapeHTML(false)
@@ -134,6 +140,7 @@ func runInfo(ctx context.Context, w io.Writer, id string, asJSON bool) error {
 		return enc.Encode(report)
 	}
 	writeStats(w, stats)
+	writeForkTree(w, report.ForkTree, report.ForkTreeError)
 	writeMemoryReport(w, report.Memory)
 	return nil
 }

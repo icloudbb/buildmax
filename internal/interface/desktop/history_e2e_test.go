@@ -248,6 +248,17 @@ func TestBridgeForkLeavesTheOriginalAndReturnsANewOne(t *testing.T) {
 	if !found {
 		t.Error("the fork is missing from the session list")
 	}
+
+	tree := app.GetSessionForkTree(projectID, got.SessionID)
+	if tree.LoadError != "" {
+		t.Fatalf("GetSessionForkTree: %s", tree.LoadError)
+	}
+	if tree.Tree == nil || tree.Tree.ID != sessionID || len(tree.Tree.Children) != 1 {
+		t.Fatalf("fork tree = %+v, want the original with one child", tree.Tree)
+	}
+	if child := tree.Tree.Children[0]; child.ID != got.SessionID || !child.Current {
+		t.Errorf("fork tree child = %+v, want the new session marked current", child)
+	}
 }
 
 func TestBridgeHistoryMovesAreRefusedWhileTheSessionIsBusy(t *testing.T) {

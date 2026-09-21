@@ -428,16 +428,17 @@ heuristic that joined two memory domains would leave no trace of having done so.
 ### `buildmax info`
 
 `info` reports one session and the project it belongs to: what the session
-spent, what it did, where its context went, and what the project remembers. With
-no argument it reads the most recent session by creation time.
+spent, what it did, where its context went, where it sits in its fork tree, and
+what the project remembers. With no argument it reads the most recent session
+by creation time.
 
-The two halves have different owners and different lifetimes. The statistics are
-the session's and end with it; the memories are the project's and every session
-of that project sees them. A session that belongs to no project — one written
-before projects existed, or by a worker — prints no memory section rather than
-an empty one.
+The views have different owners and lifetimes. The statistics are the session's
+and end with it; the fork tree is derived from the local session index; the
+memories are the project's and every session of that project sees them. A
+session that belongs to no project — one written before projects existed, or by
+a worker — prints no memory section rather than an empty one.
 
-It reads two records, and says which is which because they answer different
+It reads three records, and says which is which because they answer different
 questions:
 
 - The **session file** holds tokens and cost. They accumulated turn by turn at
@@ -447,6 +448,10 @@ questions:
 - The **run traces** hold everything time-shaped: run count, wall clock, the
   model-versus-tools split, per-tool duration, denials, tool calls that could
   not complete, and how much of the run a delegation did.
+- The rebuildable **session index** holds each user session's `forked_from`
+  provenance. `info` follows parents and groups children from that one index
+  read; it does not reopen every session. A deleted parent remains visible as a
+  missing source so surviving branches do not look unrelated.
 
 Where a trace is missing — tracing failed open, or the run was killed before it
 wrote an end record — the affected lines say so instead of reporting zero, and
@@ -461,18 +466,20 @@ does not print bodies: twenty of them is not a listing. The directory is printed
 so you can open one, and files that could not be parsed are named, since such a
 memory is silently absent from every run until it is repaired.
 
-`--json` emits the whole record under `stats` and `project_memory`, including
-the tools the table truncates and, under `stats.turns`, the per-turn breakdown
-recorded in the session file — one entry per metered turn, summing to the
-totals. The table surfaces read the totals, not this journal. Bodies stay out of
-it for the same reason they stay out of the table.
+`--json` emits the whole record under `stats`, `fork_tree`, and
+`project_memory`, including the tools the table truncates and, under
+`stats.turns`, the per-turn breakdown recorded in the session file — one entry
+per metered turn, summing to the totals. The table surfaces read the totals,
+not this journal. Bodies stay out of it for the same reason they stay out of the
+table.
 
-In the TUI, `/info` shows both halves as tabs — `tab` and `←`/`→` switch, and on
-the memory tab `enter` opens a body. The statistics tab folds the **live**
-session rather than the file — a session is persisted after each assistant
-reply, so reading it back would answer about the turn before the one you are
-looking at — and both halves are a snapshot taken when the panel opens, not live
-counters.
+In the TUI and Desktop, `/info` shows `session`, `tree`, and `memory` tabs. In
+the TUI, `tab` and `←`/`→` switch, `↑`/`↓` scroll a long tree, and on the memory
+tab `enter` opens a body.
+The statistics tab folds the **live** session rather than the file — a session
+is persisted after each assistant reply, so reading it back would answer about
+the turn before the one you are looking at — and every tab is a snapshot taken
+when the panel opens, not a live counter.
 
 ### `buildmax usage`
 
@@ -520,7 +527,7 @@ Typed into the input line:
 | `/skills` | Lists the discovered skills |
 | `/mcp` | Lists connected MCP servers and their status |
 | `/diff` | Shows the working-tree diff for the workspace |
-| `/info` | Two tabs: this session's spend, context use, and heaviest tools; and what this project remembers, with `enter` to read a memory |
+| `/info` | Three tabs: this session's statistics, its fork tree, and what this project remembers |
 | `/tasks` | Lists background jobs: state, age, command; `s` stops the selected one |
 | `/worktree` | Lists this repository's worktrees, which session is in each, and what each holds uncommitted; `d` removes the selected one after a confirm |
 | `/agents` | Lists the agent types the `Task` tool can delegate to |

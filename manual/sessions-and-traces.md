@@ -220,10 +220,14 @@ session came to its context window, how many bytes each tool put back into that
 window, the split between model time and tool time, and how much of the run a
 delegation did.
 
-In the TUI, `/info` shows the same figures for the session on screen, from the
-live session rather than the last saved copy, on a `session` tab. Its `memory`
-tab lists what the project remembers; `enter` opens a memory to read the reason
-behind it. See [Project instructions & memory](project-instructions.md).
+In the TUI and Desktop, `/info` has three tabs. `session` shows the same figures
+for the session on screen, from the live session rather than the last saved
+copy. `tree` shows the complete local fork tree containing that session, marks
+the current branch, and keeps a missing-source placeholder when a parent was
+deleted. It derives the tree from the session index instead of reopening every
+session. `memory` lists what the project remembers; in the TUI, `enter` opens a
+memory to read the reason behind it. See
+[Project instructions & memory](project-instructions.md).
 
 Tokens and cost come from the session file; timings and per-tool detail come
 from the traces. Where a trace is missing, those lines say so rather than
