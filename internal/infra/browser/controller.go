@@ -29,6 +29,10 @@ type pageDriver interface {
 	interact(ctx context.Context, action, selector, text string) (found bool, finalURL, title string, err error)
 	screenshot(ctx context.Context) (png []byte, finalURL, title string, err error)
 	consoleErrors() []string
+	// startScreencast begins streaming JPEG frames of the live page to onFrame
+	// until stopScreencast or close. onFrame receives base64 JPEG and its size.
+	startScreencast(ctx context.Context, onFrame func(jpeg string, w, h int)) error
+	stopScreencast(ctx context.Context) error
 	viewport() string
 	close()
 }
@@ -37,18 +41,16 @@ type pageDriver interface {
 // for it. refs are the references handed out by the last snapshot; they are
 // valid only while revision equals refRevision.
 type sessionPage struct {
-	driver      pageDriver
-	cancel      func()
-	revision    int
-	url         string
-	title       string
-	refs        map[string]string // ref -> CSS selector
-	refRevision int
+	driver        pageDriver
+	cancel        func()
+	revision      int
+	url           string
+	title         string
+	refs          map[string]string // ref -> CSS selector
+	refRevision   int
+	screencasting bool
 }
 
-// Controller owns browser discovery, process lifecycle, and the map from a
-// BuildMax session to its page. It implements tool.BrowserController. The
-// browser process is launched lazily on the first navigation.
 // Event reports a browser page change to a surface that presents it. Desktop
 // turns these into UI events so a user can see which page a session is driving;
 // the CLI sets no observer.
@@ -63,13 +65,31 @@ type Event struct {
 // event. Nil on surfaces with no presentation.
 type Observer func(Event)
 
+// Frame is one screencast image of a session's live page. JPEG is base64 with no
+// data: prefix. Width and Height are the frame's device size.
+type Frame struct {
+	SessionID string
+	JPEG      string
+	Width     int
+	Height    int
+}
+
+// FrameObserver receives screencast frames for a session whose page is being
+// presented (Desktop embeds them in a tab). Nil on surfaces that do not embed a
+// live view, in which case no screencast is started and no frames are produced.
+type FrameObserver func(Frame)
+
+// Controller owns browser discovery, process lifecycle, and the map from a
+// BuildMax session to its page. It implements tool.BrowserController. The
+// browser process is launched lazily on the first navigation.
 type Controller struct {
 	execPath string
 	// headful launches a visible browser window rather than headless. Desktop
 	// sets it so a user can watch the page the Agent drives; the CLI leaves it
 	// off. See docs/design/agent-browser-capability.md.
-	headful  bool
-	observer Observer
+	headful       bool
+	observer      Observer
+	frameObserver FrameObserver
 
 	mu       sync.Mutex
 	sessions map[string]*sessionPage
@@ -111,6 +131,43 @@ func (c *Controller) notify(ev Event) {
 	c.mu.Unlock()
 	if o != nil {
 		o(ev)
+	}
+}
+
+// SetFrameObserver installs a screencast frame sink. When set, the controller
+// streams frames of each session's page so a surface can embed a live view.
+func (c *Controller) SetFrameObserver(o FrameObserver) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.frameObserver = o
+}
+
+func (c *Controller) notifyFrame(f Frame) {
+	c.mu.Lock()
+	o := c.frameObserver
+	c.mu.Unlock()
+	if o != nil {
+		o(f)
+	}
+}
+
+// maybeStartScreencast begins streaming the session's page once, but only when a
+// frame observer is present (Desktop). It never fails the caller: a screencast
+// error just means no live view.
+func (c *Controller) maybeStartScreencast(ctx context.Context, sessionID string, sp *sessionPage) {
+	c.mu.Lock()
+	if c.frameObserver == nil || sp.screencasting {
+		c.mu.Unlock()
+		return
+	}
+	sp.screencasting = true
+	c.mu.Unlock()
+	if err := sp.driver.startScreencast(ctx, func(jpeg string, w, h int) {
+		c.notifyFrame(Frame{SessionID: sessionID, JPEG: jpeg, Width: w, Height: h})
+	}); err != nil {
+		c.mu.Lock()
+		sp.screencasting = false
+		c.mu.Unlock()
 	}
 }
 
@@ -180,6 +237,8 @@ func (c *Controller) Navigate(ctx context.Context, sessionID, rawURL string) (to
 	sp.refs = nil
 	sp.url, sp.title = finalURL, title
 	c.notify(Event{SessionID: sessionID, URL: finalURL, Title: title})
+	// Desktop embeds a live view: start streaming this session's page once.
+	c.maybeStartScreencast(ctx, sessionID, sp)
 	return c.stateOf(sp, status), nil
 }
 

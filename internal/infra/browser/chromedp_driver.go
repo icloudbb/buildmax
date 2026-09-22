@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
@@ -35,6 +36,9 @@ type chromedpPage struct {
 	userDataDir string
 
 	console *consoleRing
+
+	frameMu sync.Mutex
+	onFrame func(jpeg string, w, h int) // set while a screencast is running
 }
 
 // consoleRing is a bounded, concurrency-safe buffer of recent console errors.
@@ -134,8 +138,42 @@ func (p *chromedpPage) listen() {
 			if e.ExceptionDetails != nil {
 				p.console.add("uncaught: " + e.ExceptionDetails.Text)
 			}
+		case *page.EventScreencastFrame:
+			// Ack so Chrome keeps sending frames; do it off the listener so a
+			// slow ack never stalls event delivery.
+			go func(sid int64) { _ = chromedp.Run(p.ctx, page.ScreencastFrameAck(sid)) }(e.SessionID)
+			p.frameMu.Lock()
+			cb := p.onFrame
+			p.frameMu.Unlock()
+			if cb != nil {
+				w, h := 0, 0
+				if e.Metadata != nil {
+					w, h = int(e.Metadata.DeviceWidth), int(e.Metadata.DeviceHeight)
+				}
+				cb(e.Data, w, h)
+			}
 		}
 	})
+}
+
+// startScreencast turns on frame streaming; frames arrive via the listener.
+func (p *chromedpPage) startScreencast(ctx context.Context, onFrame func(jpeg string, w, h int)) error {
+	p.frameMu.Lock()
+	p.onFrame = onFrame
+	p.frameMu.Unlock()
+	return p.run(ctx, page.StartScreencast().
+		WithFormat(page.ScreencastFormatJpeg).
+		WithQuality(50).
+		WithMaxWidth(viewportW).
+		WithMaxHeight(viewportH))
+}
+
+// stopScreencast turns off frame streaming and drops the callback.
+func (p *chromedpPage) stopScreencast(ctx context.Context) error {
+	p.frameMu.Lock()
+	p.onFrame = nil
+	p.frameMu.Unlock()
+	return p.run(ctx, page.StopScreencast())
 }
 
 func remoteObjectString(o *runtime.RemoteObject) string {
