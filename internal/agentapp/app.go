@@ -191,6 +191,16 @@ type AppConfig struct {
 	// docs/design/agent-browser-capability.md.
 	EnableBrowser bool
 
+	// BrowserHeadful launches the browser as a visible window rather than
+	// headless. Desktop sets it so a user can watch the page the Agent drives;
+	// the CLI leaves it off. Ignored when EnableBrowser is false.
+	BrowserHeadful bool
+
+	// BrowserObserver, when set, receives browser page changes so a surface can
+	// show which page a session is driving. Desktop sets it; the CLI leaves it
+	// nil. Ignored when EnableBrowser is false.
+	BrowserObserver browser.Observer
+
 	// EnableWorktrees lets a session create Git worktrees and move its own
 	// workspace root into them. CLI and TUI set it; a worker run does not,
 	// because its directory is run-scoped and is not the user's to branch.

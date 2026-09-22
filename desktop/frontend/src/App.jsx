@@ -269,6 +269,24 @@ export default function App() {
     return () => unsub?.();
   }, []);
 
+  // The Agent's browser opens as its own visible window; this tracks which page
+  // each session is on so the status bar can show a compact indicator. Keyed by
+  // session so concurrent chats do not clobber each other; cleared on close.
+  const [browserPages, setBrowserPages] = useState({});
+  useEffect(() => {
+    const unsub = EventsOn('desktop/browser/state', (p) => {
+      if (!p?.session_id) return;
+      setBrowserPages((prev) => {
+        const next = { ...prev };
+        if (p.closed) delete next[p.session_id];
+        else next[p.session_id] = { url: p.url || '', title: p.title || '' };
+        return next;
+      });
+    });
+    return () => unsub?.();
+  }, []);
+  const browserList = Object.values(browserPages);
+
   useEffect(() => {
     if (getApp()) { setWailsReady(true); return; }
     const id = setTimeout(() => setWailsReady(true), 150);
@@ -1389,6 +1407,17 @@ export default function App() {
                 >
                   <span aria-hidden>{totalPanes > 1 ? <SplitRightIcon /> : <GridIcon />}</span>
                 </button>
+              )}
+              {browserList.length > 0 && (
+                <span
+                  className="workspace-statusbar__browser"
+                  title={browserList.map((b) => b.url).filter(Boolean).join('\n')}
+                >
+                  <span aria-hidden>🌐</span>{' '}
+                  {browserList.length === 1
+                    ? (browserList[0].title || browserList[0].url || 'Browser')
+                    : `${browserList.length} browser pages`}
+                </span>
               )}
               <LaunchpadButton />
               <ThemeStatusButton />

@@ -88,6 +88,11 @@ func (c *Controller) newChromedpPage(_ context.Context) (pageDriver, func(), err
 		chromedp.UserDataDir(dir),
 		chromedp.WindowSize(viewportW, viewportH),
 	)
+	if c.headful {
+		// DefaultExecAllocatorOptions enables headless; a later flag wins, so
+		// turn it back off to show a real window the user can watch.
+		opts = append(opts, chromedp.Flag("headless", false))
+	}
 	// context.Background so the browser outlives the triggering tool call; its
 	// lifetime is owned by the controller and released in close/Close.
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)

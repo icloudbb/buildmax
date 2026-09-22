@@ -21,7 +21,8 @@
 - [4. 浏览器发现与生命周期](#4-浏览器发现与生命周期)
 - [5. 信任与故障边界](#5-信任与故障边界)
 - [6. 验证](#6-验证)
-- [7. 延后事项](#7-延后事项)
+- [7. Desktop 呈现](#7-desktop-呈现)
+- [8. 延后事项](#8-延后事项)
 
 ## 1. 决定与范围
 
@@ -29,17 +30,20 @@
 页面及其控制台、点击和输入，并依据观察到的状态行动，而不是从源代码或 HTTP
 响应推断成功。`WebFetch` 返回静态 HTML，无法满足这一点。
 
-这是共享 Agent 运行时的能力，而非某个界面的能力。第一阶段在 **CLI 上以
-headless 方式**交付它，由 Go 自持的 Chromium 进程通过 Chrome DevTools
-Protocol（CDP）驱动。可见窗口、前端工作和用户接管都不在本阶段之内；它们是
-后续、可选的 Desktop 增强。提案中的同类产品调研已确立此工作流的价值，因此
-这项工作证明的是架构、可移植性与信任——不是需求。
+这是共享 Agent 运行时的能力，而非某个界面的能力。它首先在 **CLI 上以
+headless 方式**交付，由 Go 自持的 Chromium 进程通过 Chrome DevTools
+Protocol（CDP）驱动。随后 Desktop 增加了**可见窗口**：以 headful 启动浏览器，
+让用户看到 Agent 正在操作的页面，并显示一个把每个 session 关联到其当前页面的
+简洁活动指示。把页面渲染进工作区 **tab 内**、以及用户接管/页面共享，仍然延后。
+提案中的同类产品调研已确立此工作流的价值，因此这项工作证明的是架构、可移植性
+与信任——不是需求。
 
 锁定的决策：
 
 - **浏览器来源：** 发现已安装的系统 Chrome/Edge；找不到时返回清晰、可操作的
   错误。托管 Chrome for Testing 下载与打包留待以后。
-- **首发界面：** CLI，headless。Desktop 呈现延后。
+- **界面：** CLI（headless）与 Desktop（headful，浏览器自己的可见窗口 + 活动
+  指示）。把页面嵌入工作区 tab 延后。
 - **工具契约：** 几个聚焦工具，一个动词一个——不用单一 action 复用工具，也
   绝不为每个 CDP 命令建一个工具。
 - **CDP 客户端：** 选定依赖 [chromedp](https://github.com/chromedp/chromedp)。
@@ -145,10 +149,19 @@ Protocol（CDP）驱动。可见窗口、前端工作和用户接管都不在本
   chromedp 需要干净的 `go mod tidy`、通过的 `go-licenses check`，以及重新生成
   的 `NOTICE-THIRD-PARTY`。
 
-## 7. 延后事项
+## 7. Desktop 呈现
 
-明确不在第一阶段之内，各自是后续单独的决定：可见的 Desktop 窗口与 Go↔前端
-呈现层（`terminalManager` 模式）、用户接管与页面共享、托管 Chrome for Testing
-或打包浏览器、为 worker/Portal/定时运行启用该能力、subagent 浏览器访问、
+Desktop 以 headful 启用该能力，浏览器是它自己的可见 OS 窗口，用户可以观看。
+控制器接受一个可选的 `Observer`（经 `AppConfig.BrowserObserver` 设置，仅 Desktop
+接线），在导航和关闭时上报页面 `Event`。Desktop 把每个事件转发为
+`desktop/browser/state` 的 Wails 事件，前端在状态栏显示每个 session 当前页面的
+简洁指示，页面释放时清除。事件只携带 URL、标题、session 和 closed 标记——不含
+页面内容，不可信页面绝不触达 Go↔前端桥。CLI 不设 observer、保持 headless。
+
+## 8. 延后事项
+
+明确不在范围之内，各自是后续单独的决定：把页面渲染进 Desktop 工作区 **tab 内**
+（第二个原生视图——Wails v2 无先例）、用户接管与页面共享、托管 Chrome for
+Testing 或打包浏览器、为 worker/Portal/定时运行启用该能力、subagent 浏览器访问、
 上传/下载、任意 JavaScript，以及操作已登录的第三方网站。用户可见的行为与设置
 随各自交付移入 manual/reference 文档。

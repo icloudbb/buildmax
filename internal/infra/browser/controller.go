@@ -49,8 +49,27 @@ type sessionPage struct {
 // Controller owns browser discovery, process lifecycle, and the map from a
 // BuildMax session to its page. It implements tool.BrowserController. The
 // browser process is launched lazily on the first navigation.
+// Event reports a browser page change to a surface that presents it. Desktop
+// turns these into UI events so a user can see which page a session is driving;
+// the CLI sets no observer.
+type Event struct {
+	SessionID string
+	URL       string
+	Title     string
+	Closed    bool // the session's page was released
+}
+
+// Observer receives page changes. It must not block; Desktop just emits a UI
+// event. Nil on surfaces with no presentation.
+type Observer func(Event)
+
 type Controller struct {
 	execPath string
+	// headful launches a visible browser window rather than headless. Desktop
+	// sets it so a user can watch the page the Agent drives; the CLI leaves it
+	// off. See docs/design/agent-browser-capability.md.
+	headful  bool
+	observer Observer
 
 	mu       sync.Mutex
 	sessions map[string]*sessionPage
@@ -65,14 +84,34 @@ var _ tool.BrowserController = (*Controller)(nil)
 
 // New discovers a system Chrome/Edge and returns a controller ready to launch it
 // lazily. It fails now, with a clear error, when no browser is installed, rather
-// than at the first tool call deep in a run.
-func New() (*Controller, error) {
+// than at the first tool call deep in a run. headful launches a visible window
+// (Desktop) rather than headless (CLI).
+func New(headful bool) (*Controller, error) {
 	f := finder{goos: runtimeGOOS(), lookPath: lookPath, isFile: isRegularFile}
 	execPath, err := f.find()
 	if err != nil {
 		return nil, err
 	}
-	return &Controller{execPath: execPath, sessions: map[string]*sessionPage{}}, nil
+	return &Controller{execPath: execPath, headful: headful, sessions: map[string]*sessionPage{}}, nil
+}
+
+// SetObserver installs a presentation observer. Call once before use; a nil
+// observer (the default) means page changes are not reported anywhere.
+func (c *Controller) SetObserver(o Observer) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.observer = o
+}
+
+// notify reports a page change to the observer, if any. Called without c.mu
+// held; the observer must not block or re-enter the controller.
+func (c *Controller) notify(ev Event) {
+	c.mu.Lock()
+	o := c.observer
+	c.mu.Unlock()
+	if o != nil {
+		o(ev)
+	}
 }
 
 // validateNavURL admits only http(s) origins with a host. It rejects file:,
@@ -140,6 +179,7 @@ func (c *Controller) Navigate(ctx context.Context, sessionID, rawURL string) (to
 	sp.revision++
 	sp.refs = nil
 	sp.url, sp.title = finalURL, title
+	c.notify(Event{SessionID: sessionID, URL: finalURL, Title: title})
 	return c.stateOf(sp, status), nil
 }
 
@@ -194,12 +234,16 @@ func (c *Controller) act(ctx context.Context, sessionID, action, ref, text strin
 	if !found {
 		return tool.PageState{}, fmt.Errorf("element reference %q is stale; the page changed, take a fresh %s", ref, tool.ToolNameBrowserSnapshot)
 	}
-	if finalURL != sp.url {
+	navigated := finalURL != sp.url
+	if navigated {
 		// The interaction navigated: the old references no longer describe the page.
 		sp.revision++
 		sp.refs = nil
 	}
 	sp.url, sp.title = finalURL, title
+	if navigated {
+		c.notify(Event{SessionID: sessionID, URL: finalURL, Title: title})
+	}
 	return c.stateOf(sp, 0), nil
 }
 
@@ -243,13 +287,19 @@ func (c *Controller) Close() error {
 		return nil
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	closed := make([]string, 0, len(c.sessions))
 	for id, sp := range c.sessions {
 		if sp.cancel != nil {
 			sp.cancel()
 		}
 		sp.driver.close()
 		delete(c.sessions, id)
+		closed = append(closed, id)
+	}
+	c.mu.Unlock()
+	// Tell the presentation its pages are gone, after releasing the lock.
+	for _, id := range closed {
+		c.notify(Event{SessionID: id, Closed: true})
 	}
 	return nil
 }

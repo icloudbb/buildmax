@@ -22,7 +22,8 @@ the alternatives weighed and the peer survey. Related:
 - [4. Browser Discovery and Lifecycle](#4-browser-discovery-and-lifecycle)
 - [5. Trust and Failure Boundaries](#5-trust-and-failure-boundaries)
 - [6. Verification](#6-verification)
-- [7. Deferred](#7-deferred)
+- [7. Desktop Presentation](#7-desktop-presentation)
+- [8. Deferred](#8-deferred)
 
 ## 1. Decision and Scope
 
@@ -31,19 +32,22 @@ rendered page**: navigate to a route, observe the page and its console, click
 and type, and act on what it observed rather than infer success from source or
 an HTTP response. `WebFetch` returns static HTML and cannot serve this.
 
-This is a capability of the shared Agent runtime, not of one surface. The first
-slice delivers it **headless on the CLI**, driven by a Go-owned Chromium process
-over the Chrome DevTools Protocol (CDP). No visible window, no frontend work,
-and no user takeover are part of this slice; those are a later, optional Desktop
-enhancement. The peer survey in the proposal establishes the workflow's value,
-so this work proves architecture, portability, and trust — not demand.
+This is a capability of the shared Agent runtime, not of one surface. It first
+shipped **headless on the CLI**, driven by a Go-owned Chromium process over the
+Chrome DevTools Protocol (CDP). Desktop then adds a **visible window**: it
+launches the browser headful so a user can watch the page the Agent drives, and
+shows a compact activity indicator linking each session to its current page.
+Rendering the page *inside* a workspace tab, and user takeover/page sharing,
+remain deferred. The peer survey in the proposal establishes the workflow's
+value, so this work proves architecture, portability, and trust — not demand.
 
 Locked decisions:
 
 - **Browser source:** discover an installed system Chrome/Edge; fail with a
   clear, actionable error when none is found. Managed Chrome for Testing
   downloads and bundling are deferred.
-- **First surface:** CLI, headless. Desktop presentation is deferred.
+- **Surfaces:** CLI (headless) and Desktop (headful, its own visible window
+  plus an activity indicator). Embedding the page in a workspace tab is deferred.
 - **Tool contract:** a few focused tools, one verb each — not a single
   action-multiplexing tool, and never one tool per CDP command.
 - **CDP client:** [chromedp](https://github.com/chromedp/chromedp) is the
@@ -178,12 +182,23 @@ origin never authorizes another.
   `./make help`. Adding chromedp requires a clean `go mod tidy`, a passing
   `go-licenses check`, and a regenerated `NOTICE-THIRD-PARTY`.
 
-## 7. Deferred
+## 7. Desktop Presentation
 
-Explicitly out of the first slice, each its own later decision: a visible
-Desktop window and the Go↔frontend presentation layer (the `terminalManager`
-pattern), user takeover and page sharing, managed Chrome for Testing or a
-bundled browser, enabling the capability for workers/Portal/scheduled runs,
-subagent browser access, uploads/downloads, arbitrary JavaScript, and
-authenticated third-party-site operation. User-facing behavior and settings
-move to the manual/reference documentation as each ships.
+Desktop enables the capability headful, so the browser is its own visible OS
+window the user can watch. The controller takes an optional `Observer` (set via
+`AppConfig.BrowserObserver`, wired only by Desktop) and reports a page `Event`
+on navigation and on close. Desktop forwards each as a `desktop/browser/state`
+Wails event, and the frontend shows a compact status-bar indicator of the page
+each session is on, cleared when the page is released. The event carries only
+URL, title, session, and a closed flag — no page content, and untrusted pages
+never reach the Go↔frontend bridge. The CLI sets no observer and stays headless.
+
+## 8. Deferred
+
+Explicitly out of scope, each its own later decision: rendering the page
+*inside* a Desktop workspace tab (a second native view — no Wails v2 precedent),
+user takeover and page sharing, managed Chrome for Testing or a bundled browser,
+enabling the capability for workers/Portal/scheduled runs, subagent browser
+access, uploads/downloads, arbitrary JavaScript, and authenticated
+third-party-site operation. User-facing behavior and settings move to the
+manual/reference documentation as each ships.

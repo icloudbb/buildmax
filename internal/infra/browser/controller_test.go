@@ -191,6 +191,26 @@ func TestScreenshotAndConsolePassThrough(t *testing.T) {
 	}
 }
 
+func TestObserverReceivesPageChangesAndClose(t *testing.T) {
+	c, _ := newTestController(nil)
+	var events []Event
+	c.SetObserver(func(e Event) { events = append(events, e) })
+	ctx := context.Background()
+	if _, err := c.Navigate(ctx, "s1", "http://localhost:1/home"); err != nil {
+		t.Fatalf("Navigate: %v", err)
+	}
+	if len(events) != 1 || events[0].SessionID != "s1" || events[0].URL != "http://localhost:1/home" || events[0].Closed {
+		t.Fatalf("navigate event = %+v", events)
+	}
+	if err := c.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	last := events[len(events)-1]
+	if last.SessionID != "s1" || !last.Closed {
+		t.Errorf("expected a closed event for s1, got %+v", events)
+	}
+}
+
 func TestCloseReleasesPages(t *testing.T) {
 	c, created := newTestController(nil)
 	ctx := context.Background()

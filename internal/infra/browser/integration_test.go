@@ -35,7 +35,7 @@ func testApp() http.Handler {
 // TestBrowserJourney drives the real browser end to end. It skips when no
 // system browser is installed so the ordinary suite stays deterministic.
 func TestBrowserJourney(t *testing.T) {
-	ctrl, err := New()
+	ctrl, err := New(false)
 	if err != nil {
 		t.Skipf("no browser available: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestBrowserJourney(t *testing.T) {
 // TestNavigateRejectsBadSchemeReal confirms the origin gate holds with a real
 // controller (no browser process is started for a rejected scheme).
 func TestNavigateRejectsBadSchemeReal(t *testing.T) {
-	ctrl, err := New()
+	ctrl, err := New(false)
 	if err != nil {
 		t.Skipf("no browser available: %v", err)
 	}
