@@ -60,6 +60,22 @@ func TestFinderErrorWhenNoBrowser(t *testing.T) {
 	}
 }
 
+func TestConsoleRingResetScopesToCurrentPage(t *testing.T) {
+	r := &consoleRing{}
+	r.add("console.error: page one")
+	if len(r.snapshot()) != 1 {
+		t.Fatalf("ring should hold the first page's error")
+	}
+	r.reset() // navigation to a new page
+	if got := r.snapshot(); len(got) != 0 {
+		t.Errorf("after reset ring = %v, want empty so console reflects the new page", got)
+	}
+	r.add("console.error: page two")
+	if got := r.snapshot(); len(got) != 1 || got[0] != "console.error: page two" {
+		t.Errorf("ring = %v, want only the current page's error", got)
+	}
+}
+
 func TestBrowserCandidatesCoverMajorPlatforms(t *testing.T) {
 	for _, goos := range []string{"darwin", "linux", "windows"} {
 		names, paths := browserCandidates(goos)

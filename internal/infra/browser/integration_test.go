@@ -115,6 +115,11 @@ func TestBrowserJourney(t *testing.T) {
 	if len(errs) == 0 {
 		t.Error("expected the deliberate console error to be captured")
 	}
+	// Console is scoped to the current page: re-navigating to /login resets the
+	// buffer, so the error appears once, not once per visit.
+	if len(errs) != 1 {
+		t.Errorf("console errors = %d (%v), want exactly 1 after re-navigation", len(errs), errs)
+	}
 
 	shot, err := ctrl.Screenshot(ctx, sid)
 	if err != nil {

@@ -315,7 +315,7 @@ type browserConsole struct{ ctrl BrowserController }
 func (*browserConsole) Name() string                     { return ToolNameBrowserConsole }
 func (*browserConsole) Access(map[string]any) llm.Access { return llm.AccessReadOnly }
 func (*browserConsole) Description() string {
-	return "Return recent console errors from the current browser page. Use to check whether a page reports JavaScript errors. Returns a bounded, redacted excerpt."
+	return "Return console errors seen since the current page was opened with BrowserNavigate. Use to check whether a page reports JavaScript errors. Returns a bounded excerpt."
 }
 func (*browserConsole) Parameters() any {
 	return map[string]any{"type": "object", "properties": map[string]any{}}
