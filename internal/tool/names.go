@@ -46,4 +46,14 @@ const (
 	ToolNameJobOutput = "JobOutput"
 	ToolNameJobStop   = "JobStop"
 	ToolNameMonitor   = "Monitor"
+	// The Browser tools are registered only where a local surface supplies a
+	// browser controller (the CLI first; never the unattended worker or a
+	// subagent). They let an Agent verify against a real rendered page. See
+	// docs/design/agent-browser-capability.md.
+	ToolNameBrowserNavigate   = "BrowserNavigate"
+	ToolNameBrowserSnapshot   = "BrowserSnapshot"
+	ToolNameBrowserClick      = "BrowserClick"
+	ToolNameBrowserType       = "BrowserType"
+	ToolNameBrowserScreenshot = "BrowserScreenshot"
+	ToolNameBrowserConsole    = "BrowserConsole"
 )

@@ -1,0 +1,298 @@
+package browser
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/chromedp/cdproto/runtime"
+	"github.com/chromedp/chromedp"
+)
+
+const (
+	// opTimeout bounds a single browser operation so a hung page surfaces as a
+	// tool error the Agent can diagnose rather than blocking the run.
+	opTimeout = 30 * time.Second
+	// maxConsoleErrors bounds the retained console-error ring per page.
+	maxConsoleErrors = 50
+	// maxSnapshotText bounds the page text an observation carries into context.
+	maxSnapshotText = 4000
+	// viewportW and viewportH fix the headless window so screenshots and layout
+	// are reproducible.
+	viewportW, viewportH = 1280, 800
+)
+
+// chromedpPage is the chromedp-backed pageDriver: one browser process, one
+// isolated profile, one tab, for one session.
+type chromedpPage struct {
+	ctx         context.Context
+	allocCancel context.CancelFunc
+	ctxCancel   context.CancelFunc
+	userDataDir string
+
+	console *consoleRing
+}
+
+// consoleRing is a bounded, concurrency-safe buffer of recent console errors.
+type consoleRing struct {
+	mu   sync.Mutex
+	msgs []string
+}
+
+func (r *consoleRing) add(s string) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return
+	}
+	if len(s) > 500 {
+		s = s[:500] + "…"
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.msgs = append(r.msgs, s)
+	if len(r.msgs) > maxConsoleErrors {
+		r.msgs = r.msgs[len(r.msgs)-maxConsoleErrors:]
+	}
+}
+
+func (r *consoleRing) snapshot() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]string, len(r.msgs))
+	copy(out, r.msgs)
+	return out
+}
+
+// newChromedpPage launches a browser process with a fresh, isolated user-data
+// directory and opens one tab, returning the driver and a cancel that tears the
+// tab down. The heavier teardown (process, profile) is in close.
+func (c *Controller) newChromedpPage(_ context.Context) (pageDriver, func(), error) {
+	dir, err := os.MkdirTemp("", "buildmax-browser-")
+	if err != nil {
+		return nil, nil, fmt.Errorf("create browser profile dir: %w", err)
+	}
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.ExecPath(c.execPath),
+		chromedp.UserDataDir(dir),
+		chromedp.WindowSize(viewportW, viewportH),
+	)
+	// context.Background so the browser outlives the triggering tool call; its
+	// lifetime is owned by the controller and released in close/Close.
+	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	tabCtx, ctxCancel := chromedp.NewContext(allocCtx)
+
+	p := &chromedpPage{
+		ctx:         tabCtx,
+		allocCancel: allocCancel,
+		ctxCancel:   ctxCancel,
+		userDataDir: dir,
+		console:     &consoleRing{},
+	}
+	p.listen()
+	// Start the browser now so a launch failure (e.g. a broken executable) is
+	// reported here rather than on the first navigation.
+	if err := chromedp.Run(tabCtx); err != nil {
+		ctxCancel()
+		allocCancel()
+		_ = os.RemoveAll(dir)
+		return nil, nil, fmt.Errorf("start browser: %w", err)
+	}
+	return p, ctxCancel, nil
+}
+
+// listen records console errors and uncaught exceptions into the ring.
+func (p *chromedpPage) listen() {
+	chromedp.ListenTarget(p.ctx, func(ev any) {
+		switch e := ev.(type) {
+		case *runtime.EventConsoleAPICalled:
+			if e.Type != "error" && e.Type != "assert" {
+				return
+			}
+			parts := make([]string, 0, len(e.Args))
+			for _, a := range e.Args {
+				parts = append(parts, remoteObjectString(a))
+			}
+			p.console.add("console." + string(e.Type) + ": " + strings.Join(parts, " "))
+		case *runtime.EventExceptionThrown:
+			if e.ExceptionDetails != nil {
+				p.console.add("uncaught: " + e.ExceptionDetails.Text)
+			}
+		}
+	})
+}
+
+func remoteObjectString(o *runtime.RemoteObject) string {
+	if o == nil {
+		return ""
+	}
+	if len(o.Value) > 0 {
+		var s string
+		if err := json.Unmarshal(o.Value, &s); err == nil {
+			return s
+		}
+		return string(o.Value)
+	}
+	return o.Description
+}
+
+// run executes chromedp actions with a bounded timeout, cancelling early if the
+// incoming tool context is cancelled.
+func (p *chromedpPage) run(ctx context.Context, actions ...chromedp.Action) error {
+	opCtx, cancel := context.WithTimeout(p.ctx, opTimeout)
+	defer cancel()
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			cancel()
+		case <-done:
+		}
+	}()
+	return chromedp.Run(opCtx, actions...)
+}
+
+func (p *chromedpPage) navigate(ctx context.Context, rawURL string) (string, string, int, error) {
+	var finalURL, title string
+	err := p.run(ctx,
+		chromedp.Navigate(rawURL),
+		chromedp.WaitReady("body", chromedp.ByQuery),
+		chromedp.Location(&finalURL),
+		chromedp.Title(&title),
+	)
+	if err != nil {
+		return "", "", 0, err
+	}
+	return finalURL, title, 0, nil
+}
+
+// snapshotResult mirrors the JSON the snapshot script returns.
+type snapshotResult struct {
+	Elements []rawElement `json:"elements"`
+	Text     string       `json:"text"`
+}
+
+func (p *chromedpPage) snapshot(ctx context.Context) ([]rawElement, string, string, string, error) {
+	var res snapshotResult
+	var finalURL, title string
+	err := p.run(ctx,
+		chromedp.Evaluate(snapshotJS, &res),
+		chromedp.Location(&finalURL),
+		chromedp.Title(&title),
+	)
+	if err != nil {
+		return nil, "", "", "", err
+	}
+	if len(res.Text) > maxSnapshotText {
+		res.Text = res.Text[:maxSnapshotText] + "…"
+	}
+	return res.Elements, res.Text, finalURL, title, nil
+}
+
+// interactResult mirrors the JSON the click/type scripts return.
+type interactResult struct {
+	Found bool `json:"found"`
+}
+
+func (p *chromedpPage) interact(ctx context.Context, action, selector, text string) (bool, string, string, error) {
+	sel, _ := json.Marshal(selector)
+	var expr string
+	switch action {
+	case "click":
+		expr = fmt.Sprintf(clickJS, string(sel))
+	case "type":
+		txt, _ := json.Marshal(text)
+		expr = fmt.Sprintf(typeJS, string(sel), string(txt))
+	default:
+		return false, "", "", fmt.Errorf("unknown action %q", action)
+	}
+	var res interactResult
+	var finalURL, title string
+	err := p.run(ctx,
+		chromedp.Evaluate(expr, &res),
+		chromedp.Location(&finalURL),
+		chromedp.Title(&title),
+	)
+	if err != nil {
+		return false, "", "", err
+	}
+	return res.Found, finalURL, title, nil
+}
+
+func (p *chromedpPage) screenshot(ctx context.Context) ([]byte, string, string, error) {
+	var buf []byte
+	var finalURL, title string
+	err := p.run(ctx,
+		chromedp.CaptureScreenshot(&buf),
+		chromedp.Location(&finalURL),
+		chromedp.Title(&title),
+	)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return buf, finalURL, title, nil
+}
+
+func (p *chromedpPage) consoleErrors() []string { return p.console.snapshot() }
+
+func (p *chromedpPage) viewport() string { return fmt.Sprintf("%dx%d", viewportW, viewportH) }
+
+// close releases the browser process and removes the temporary profile.
+func (p *chromedpPage) close() {
+	if p.ctxCancel != nil {
+		p.ctxCancel()
+	}
+	if p.allocCancel != nil {
+		p.allocCancel()
+	}
+	if p.userDataDir != "" {
+		_ = os.RemoveAll(p.userDataDir)
+	}
+}
+
+// snapshotJS tags each visible interactive element with a stable data-bm-ref and
+// returns the references with their role, accessible name, and value, plus a
+// bounded slice of page text.
+const snapshotJS = `(() => {
+  const sel = 'a,button,input,textarea,select,[role],[onclick],[contenteditable="true"]';
+  const out = [];
+  let i = 0;
+  for (const n of document.querySelectorAll(sel)) {
+    const r = n.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) continue;
+    const ref = 'e' + (++i);
+    n.setAttribute('data-bm-ref', ref);
+    const role = n.getAttribute('role') || n.tagName.toLowerCase();
+    const name = (n.getAttribute('aria-label') || n.getAttribute('placeholder') || n.getAttribute('name') || (n.textContent || '').trim()).slice(0, 120);
+    const value = ((n.value != null ? String(n.value) : '')).slice(0, 120);
+    out.push({ref, role, name, value});
+    if (i >= 200) break;
+  }
+  const text = (document.body ? document.body.innerText : '').slice(0, 8000);
+  return {elements: out, text};
+})()`
+
+// clickJS clicks the referenced element, reporting whether it existed.
+const clickJS = `(() => {
+  const el = document.querySelector(%s);
+  if (!el) return {found: false};
+  el.scrollIntoView({block: 'center'});
+  el.click();
+  return {found: true};
+})()`
+
+// typeJS sets the referenced element's value and dispatches input/change so
+// frameworks observe the edit, reporting whether it existed.
+const typeJS = `(() => {
+  const el = document.querySelector(%s);
+  if (!el) return {found: false};
+  el.focus();
+  el.value = %s;
+  el.dispatchEvent(new Event('input', {bubbles: true}));
+  el.dispatchEvent(new Event('change', {bubbles: true}));
+  return {found: true};
+})()`
