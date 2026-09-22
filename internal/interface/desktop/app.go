@@ -324,9 +324,10 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		// Local run under the user's authority; Desktop shows the browser as a
 		// visible window the user can watch, plus an activity indicator. See
 		// docs/design/agent-browser-capability.md.
-		EnableBrowser:   true,
-		BrowserHeadful:  true,
-		BrowserObserver: a.browserObserver,
+		EnableBrowser:        true,
+		BrowserHeadful:       true,
+		BrowserObserver:      a.browserObserver,
+		BrowserFrameObserver: a.browserFrameObserver,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init agent for project %q: %w", proj.Name, err)
@@ -382,6 +383,7 @@ func (a *App) agentAppForDir(dir string) (*agentapp.AgentApp, error) {
 		EnableBrowser:        true,
 		BrowserHeadful:       true,
 		BrowserObserver:      a.browserObserver,
+		BrowserFrameObserver: a.browserFrameObserver,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init agent for %q: %w", dir, err)

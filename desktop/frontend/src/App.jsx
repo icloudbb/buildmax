@@ -9,6 +9,7 @@ import { TabBar } from './components/TabBar';
 import { Explorer } from './components/Explorer';
 import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
+import BrowserView from './components/BrowserView';
 import { SchedulesView } from './components/SchedulesView';
 import { LaunchpadButton } from './components/LaunchpadButton';
 import { activeTab, tabIdentity } from './lib/tabs';
@@ -285,7 +286,7 @@ export default function App() {
     });
     return () => unsub?.();
   }, []);
-  const browserList = Object.values(browserPages);
+  const browserList = Object.entries(browserPages).map(([id, v]) => ({ id, ...v }));
 
   useEffect(() => {
     if (getApp()) { setWailsReady(true); return; }
@@ -520,6 +521,10 @@ export default function App() {
       // Opening a shell can fail (e.g. unsupported platform); leave the tabs.
     }
   }, [currentProject]);
+
+  const openBrowserTab = useCallback((sessionId) => {
+    setWorkspace((s) => openInFocused(s, { kind: 'browser', ref: sessionId, title: 'Browser' }));
+  }, []);
 
   const selectCenterTab = useCallback((paneId, key) => setWorkspace((s) => focusPaneTab(s, paneId, key)), []);
   const focusCenterPane = useCallback((paneId) => setWorkspace((s) => focusPane(s, paneId)), []);
@@ -1067,6 +1072,9 @@ export default function App() {
         {active?.kind === 'terminal' && (
           <div className="terminal-slot" data-pane={pane.id} ref={slotRef} />
         )}
+        {active?.kind === 'browser' && (
+          <BrowserView sessionId={active.ref} />
+        )}
         {!active && (
           <div className="workspace-pane__empty">Open a file, diff, or terminal here.</div>
         )}
@@ -1409,15 +1417,17 @@ export default function App() {
                 </button>
               )}
               {browserList.length > 0 && (
-                <span
+                <button
+                  type="button"
                   className="workspace-statusbar__browser"
-                  title={browserList.map((b) => b.url).filter(Boolean).join('\n')}
+                  title={`Open the live browser view\n${browserList.map((b) => b.url).filter(Boolean).join('\n')}`}
+                  onClick={() => openBrowserTab(browserList[0].id)}
                 >
                   <span aria-hidden>🌐</span>{' '}
                   {browserList.length === 1
                     ? (browserList[0].title || browserList[0].url || 'Browser')
                     : `${browserList.length} browser pages`}
-                </span>
+                </button>
               )}
               <LaunchpadButton />
               <ThemeStatusButton />

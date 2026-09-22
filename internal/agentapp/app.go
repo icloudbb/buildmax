@@ -201,6 +201,12 @@ type AppConfig struct {
 	// nil. Ignored when EnableBrowser is false.
 	BrowserObserver browser.Observer
 
+	// BrowserFrameObserver, when set, receives screencast frames so a surface can
+	// embed a live view of the page. Setting it makes the controller stream
+	// frames; Desktop sets it, the CLI leaves it nil. Ignored when EnableBrowser
+	// is false.
+	BrowserFrameObserver browser.FrameObserver
+
 	// EnableWorktrees lets a session create Git worktrees and move its own
 	// workspace root into them. CLI and TUI set it; a worker run does not,
 	// because its directory is run-scoped and is not the user's to branch.
