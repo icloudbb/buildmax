@@ -158,10 +158,19 @@ Desktop 以 headful 启用该能力，浏览器是它自己的可见 OS 窗口�
 简洁指示，页面释放时清除。事件只携带 URL、标题、session 和 closed 标记——不含
 页面内容，不可信页面绝不触达 Go↔前端桥。CLI 不设 observer、保持 headless。
 
+Desktop 还能在工作区 tab 内**内嵌一个实时视图**。Wails v2 无法原生托管真实
+Chromium 页面，因此不引入第二个原生引擎，而是用 CDP screencast：当存在帧
+observer（`AppConfig.BrowserFrameObserver`，仅 Desktop）时，导航即启动
+`Page.startScreencast`，每个 JPEG 帧经 observer 流向 `desktop/browser/frame`
+Wails 事件、由一个 `browser` tab 渲染。它展示的是 CDP 控制的**同一个**页面——
+静态截图无法满足的不变量——且不需要原生内嵌。本阶段视图只读（帧出、无输入
+入）；帧只携带图像和尺寸，绝不含绑定或页面脚本。CLI 不设帧 observer，因此那里
+不跑 screencast。
+
 ## 8. 延后事项
 
-明确不在范围之内，各自是后续单独的决定：把页面渲染进 Desktop 工作区 **tab 内**
-（第二个原生视图——Wails v2 无先例）、用户接管与页面共享、托管 Chrome for
-Testing 或打包浏览器、为 worker/Portal/定时运行启用该能力、subagent 浏览器访问、
-上传/下载、任意 JavaScript，以及操作已登录的第三方网站。用户可见的行为与设置
-随各自交付移入 manual/reference 文档。
+明确不在范围之内，各自是后续单独的决定：内嵌视图的**交互式**接管（经 CDP
+转发输入）与页面共享、若只读 screencast 不够再上原生内嵌引擎（CEF/Electron）、
+托管 Chrome for Testing 或打包浏览器、为 worker/Portal/定时运行启用该能力、
+subagent 浏览器访问、上传/下载、任意 JavaScript，以及操作已登录的第三方网站。
+用户可见的行为与设置随各自交付移入 manual/reference 文档。

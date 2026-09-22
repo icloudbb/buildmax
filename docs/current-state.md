@@ -129,9 +129,10 @@ console) drive a Go-owned, per-session browser so an Agent verifies against a
 real rendered page over CDP. Navigation is limited to http(s); the profile is
 isolated per session; workers and other unattended runs do not get it. The CLI
 runs it headless; Desktop runs it headful — its own visible window the user can
-watch — with a status-bar indicator of the page each session is on. See
-[the design record](design/agent-browser-capability.md). Rendering the page
-inside a workspace tab and user takeover are not built.
+watch — with a status-bar indicator, and can embed a live read-only view of the
+page in a workspace tab by streaming CDP screencast frames (the same page, not a
+second instance). See [the design record](design/agent-browser-capability.md).
+Interactive takeover of the embedded view is not built.
 
 Interactive Desktop turns now use `agentapp.RunScheduler`, which serializes one
 run per session key, queues later prompts in order, and gives queued background
