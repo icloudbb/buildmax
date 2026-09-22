@@ -236,6 +236,9 @@ internal/
 │                       source of truth for tool names.
 │
 ├── infra/              External-system implementations
+│   ├── browser/        Go-owned headless Chrome/Edge over CDP: executable
+│   │                   discovery, per-session isolated profile and page, the
+│   │                   tool.BrowserController implementation
 │   ├── coordination/   Shared Redis primitives for a multi-replica server:
 │   │                   publish/subscribe, per-conversation leases, per-task
 │   │                   replayable streams. Free of server types.

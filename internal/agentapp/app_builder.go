@@ -13,6 +13,7 @@ import (
 	corehook "github.com/icloudbb/buildmax/internal/core/hook"
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	"github.com/icloudbb/buildmax/internal/core/localproject"
+	"github.com/icloudbb/buildmax/internal/infra/browser"
 	"github.com/icloudbb/buildmax/internal/infra/hook"
 	"github.com/icloudbb/buildmax/internal/infra/runrelay"
 	"github.com/icloudbb/buildmax/internal/util/secretscan"
@@ -258,6 +259,16 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		// configuration the root decides, or the session runs one tree's hooks
 		// and skills against another tree's files.
 		app.worktrees = worktree.NewManager(sessionRoot{app: app}).WithHooks(app.hooks)
+	}
+	if cfg.EnableBrowser {
+		// A missing browser is not a startup failure: the run simply has no
+		// browser tools. Discovery is eager so the reason is logged once here
+		// rather than surfacing deep in a run.
+		if ctrl, err := browser.New(); err != nil {
+			slog.Info("browser capability disabled", "reason", err)
+		} else {
+			app.browser = ctrl
+		}
 	}
 	if cfg.EnableBackgroundJobs {
 		app.jobs = job.NewManager()

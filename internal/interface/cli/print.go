@@ -164,6 +164,10 @@ func printAppConfig(opts printOptions, source auth.ModelSource) agentapp.AppConf
 		MaxIterations:          opts.Overrides.MaxIterations,
 		EnableLocalProject:     true,
 		DisableProjectMemory:   opts.Overrides.NoProjectMemory,
+		// Local run under the user's own authority; the browser process lives
+		// only for the synchronous run and is released on Close. See
+		// docs/design/agent-browser-capability.md.
+		EnableBrowser: true,
 	}
 }
 

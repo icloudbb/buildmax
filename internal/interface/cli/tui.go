@@ -53,6 +53,10 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		EnableWorktrees:      true,
 		EnableLocalProject:   true,
 		DisableProjectMemory: overrides.NoProjectMemory,
+		// Local run under the user's own authority: the browser capability is
+		// available when a system Chrome/Edge is found. See
+		// docs/design/agent-browser-capability.md.
+		EnableBrowser: true,
 	}
 }
 

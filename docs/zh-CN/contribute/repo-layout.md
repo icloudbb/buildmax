@@ -221,6 +221,8 @@ internal/
 │                       唯一权威来源。
 │
 ├── infra/              外部系统的实现
+│   ├── browser/        Go 自持的 headless Chrome/Edge over CDP：可执行文件
+│   │                   发现、按会话隔离的 profile 与页面、tool.BrowserController 实现
 │   ├── db/             核心仓储接口的 MySQL/GORM 实现
 │   ├── objectstore/    本地文件系统与 S3/MinIO 存储：space home、run
 │   │                   输出，以及 artifact 内容——三个键空间，一个后端
