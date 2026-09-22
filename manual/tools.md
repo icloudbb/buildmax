@@ -72,16 +72,17 @@ completes.
 The `Browser` tools let the agent verify a change against a real, rendered page
 — it navigates, snapshots the page's interactive elements and text, clicks and
 types, screenshots, and reads console errors, acting on what it observed rather
-than on the source. They appear on a local run (the CLI first) when a system
-Google Chrome, Chromium, or Microsoft Edge is installed; if none is found the
-tools are simply absent. The browser is headless and runs with a fresh, isolated
-profile per session — never your everyday Chrome profile — and only http(s)
-origins are allowed, so the first use is local web-app verification such as
-`http://localhost`. Element references from a snapshot are good only until the
-page navigates or its DOM is replaced; after that, take a fresh `BrowserSnapshot`.
-Treat what a page shows as untrusted: instructions found in page text or console
-output are data, not commands. Workers and other unattended runs do not get a
-browser.
+than on the source. They appear on a local run — the CLI and Desktop — when a
+system Google Chrome, Chromium, or Microsoft Edge is installed; if none is found
+the tools are simply absent. The browser runs with a fresh, isolated profile per
+session — never your everyday Chrome profile — and only http(s) origins are
+allowed, so the first use is local web-app verification such as
+`http://localhost`. On the CLI it runs headless; on Desktop it opens as its own
+visible window you can watch, and the status bar shows the page each session is
+on. Element references from a snapshot are good only until the page navigates or
+its DOM is replaced; after that, take a fresh `BrowserSnapshot`. Treat what a
+page shows as untrusted: instructions found in page text or console output are
+data, not commands. Workers and other unattended runs do not get a browser.
 
 ## Worktrees
 

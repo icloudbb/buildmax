@@ -123,13 +123,15 @@ The built-in `WebSearch` sends public-web queries to Firecrawl and returns
 source URLs and excerpts. It attempts keyless access by default; local settings
 or a run-scoped worker Secret grant can supply a Firecrawl key.
 
-The local CLI has a browser capability: when a system Chrome/Edge is installed,
-the `Browser` tools (navigate, snapshot, click, type, screenshot, console) drive
-a Go-owned, headless, per-session browser so an Agent verifies against a real
-rendered page over CDP. Navigation is limited to http(s); the profile is
-isolated per session; workers and other unattended runs do not get it. See
-[the design record](design/agent-browser-capability.md). A visible Desktop
-window and user takeover are not built.
+The local CLI and Desktop have a browser capability: when a system Chrome/Edge
+is installed, the `Browser` tools (navigate, snapshot, click, type, screenshot,
+console) drive a Go-owned, per-session browser so an Agent verifies against a
+real rendered page over CDP. Navigation is limited to http(s); the profile is
+isolated per session; workers and other unattended runs do not get it. The CLI
+runs it headless; Desktop runs it headful — its own visible window the user can
+watch — with a status-bar indicator of the page each session is on. See
+[the design record](design/agent-browser-capability.md). Rendering the page
+inside a workspace tab and user takeover are not built.
 
 Interactive Desktop turns now use `agentapp.RunScheduler`, which serializes one
 run per session key, queues later prompts in order, and gives queued background
