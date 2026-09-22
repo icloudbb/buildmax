@@ -19,6 +19,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/localproject"
 	"github.com/icloudbb/buildmax/internal/core/plugin"
 	"github.com/icloudbb/buildmax/internal/core/session"
+	"github.com/icloudbb/buildmax/internal/infra/browser"
 	llm "github.com/icloudbb/buildmax/internal/infra/llm"
 	"github.com/icloudbb/buildmax/internal/infra/llmremote"
 	"github.com/icloudbb/buildmax/internal/infra/runrelay"
@@ -182,6 +183,14 @@ type AppConfig struct {
 	// docs/design/local-background-jobs.md.
 	EnableBackgroundJobs bool
 
+	// EnableBrowser gives this run the browser capability: when a system
+	// Chrome/Edge is found, the Browser tools are registered and driven by a
+	// Go-owned, headless, per-session browser. Local surfaces (CLI first) set
+	// it; the unattended worker never does. A missing browser degrades to no
+	// browser tools rather than a startup failure. See
+	// docs/design/agent-browser-capability.md.
+	EnableBrowser bool
+
 	// EnableWorktrees lets a session create Git worktrees and move its own
 	// workspace root into them. CLI and TUI set it; a worker run does not,
 	// because its directory is run-scoped and is not the user's to branch.
@@ -297,6 +306,10 @@ type AgentApp struct {
 	grants                      map[string]*agent.SessionGrants
 	turns                       turnCoordinator
 	jobs                        *job.Manager
+	// browser is the run's browser controller, set only when EnableBrowser is
+	// on and a system Chrome/Edge was found. Nil means no browser tools. Closed
+	// by Close, releasing every browser process and temporary profile.
+	browser *browser.Controller
 	// jobTraceDone closes once the job trace subscriber has drained the last
 	// event. Close waits on it so no record is written after shutdown.
 	jobTraceDone chan struct{}
@@ -629,6 +642,12 @@ func (a *AgentApp) Close() error {
 	}
 	if a.sandboxManager != nil {
 		if err := a.sandboxManager.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	// Release browser processes and their temporary profiles.
+	if a.browser != nil {
+		if err := a.browser.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -1604,6 +1623,12 @@ func (a *AgentApp) promptCapabilities() PromptCapabilities {
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {
 	registry := cllm.NewToolRegistry()
 	registry.AppendTools(buildBaseTools(client, a.workspace, a.skillsRegistry.NewTool(), a.Sandbox(), a.webSearchAPIKey, a.artifactPublisher, a.jobs)...)
+	// Only register the browser tools when a controller exists. Passing a typed
+	// nil *browser.Controller through the tool.BrowserController interface would
+	// read as non-nil, so gate on the concrete value here.
+	if a.browser != nil {
+		registry.AppendTools(tools.NewBrowserTools(a.browser)...)
+	}
 	if a.mcpManager != nil {
 		if reg := a.mcpManager.Registry(); reg != nil {
 			registry.AppendTools(tools.GatewayTools(reg)...)

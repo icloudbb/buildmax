@@ -204,6 +204,13 @@ Space plugins, Portal performance, Desktop automation, and throughput. Local
 CLI/TUI and Desktop improvements remain welcome when they address concrete
 problems; the Beta focus does not make Portal the only product.
 
+The [Agent browser capability](design/agent-browser-capability.md) is accepted
+and in progress as a local capability: a Go-owned Chromium over CDP that lets an
+Agent verify a change against a real rendered page, enabled first headless on the
+CLI, with workers left off pending the egress-sandbox story. Its evidence gate is
+portable cross-platform delivery and the trust boundaries in that record, not
+demand — peers already ship the workflow.
+
 Conditional security hardening also belongs here rather than in the Beta gate:
 Pod-wide destination policy, a dedicated egress proxy, and an outer runtime such
 as gVisor should be selected only when deployment evidence or a stronger threat

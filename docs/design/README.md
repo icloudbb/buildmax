@@ -92,6 +92,7 @@ remaining list. Update this snapshot when either changes.
 | [Local background jobs](local-background-jobs.md) | Active plan | Complete | Process-scoped command, subagent, and monitor jobs |
 | [Local Ollama provider](local-ollama-provider.md) | Active plan | Complete | Credential-free local model discovery and inference |
 | [Workspace root and worktrees](workspace-root-and-worktrees.md) | Active plan | Complete | Mutable workspace roots and Agent-managed Git worktrees |
+| [Agent browser capability](agent-browser-capability.md) | Active plan | Not started | Go-owned Chromium over CDP so an Agent can verify against a real rendered page, enabled first on local surfaces |
 
 ## Space Platform
 

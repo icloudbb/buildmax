@@ -39,6 +39,7 @@ results are sent back to the model as tool-role messages.
 | **Worktree** | struct | Manages the primary run's Git worktrees and current root |
 | **JobList**, **JobOutput**, **JobStop** | structs | Inspect and stop local background jobs |
 | **Monitor** | struct | Starts a watched command as a local background job |
+| **BrowserNavigate**, **BrowserSnapshot**, **BrowserClick**, **BrowserType**, **BrowserScreenshot**, **BrowserConsole** | structs | Verify against a real rendered page over a Go-owned headless browser |
 | MCP gateway | structs | `LoadMcpTools` and `CallMcpTool` |
 
 ## Tool Inventory
@@ -119,6 +120,12 @@ is not a permission denial.
 | `JobOutput` | Local background jobs are enabled (TUI or Desktop) | `job_id` (required); `stream`, `cursor` (optional) | Reads a bounded, incremental slice of a job's standard output or error stream. |
 | `JobStop` | Local background jobs are enabled (TUI or Desktop) | `job_id` (required) | Stops one background job started by the runtime. |
 | `Monitor` | Local background jobs are enabled (TUI or Desktop); never a subagent | `command` (required); `description`, `timeout`, `persistent`, `react` (optional) | Runs a watched command under the Bash risk and sandbox rules. Its output and lifecycle are handled by the job tools. |
+| `BrowserNavigate` | The run enables the browser and a system Chrome/Edge is found (CLI first; never the unattended worker or a subagent) | `url` (required) | Opens an http(s) URL in the session's headless page and reports the resulting URL, title, and status. |
+| `BrowserSnapshot` | As `BrowserNavigate` | None | Returns a bounded snapshot of the current page: interactive elements with revision-scoped references plus visible text. |
+| `BrowserClick` | As `BrowserNavigate` | `ref` (required) | Clicks a referenced element, rejecting a stale reference. |
+| `BrowserType` | As `BrowserNavigate` | `ref`, `text` (required) | Types text into a referenced element, rejecting a stale reference. |
+| `BrowserScreenshot` | As `BrowserNavigate` | None | Captures the current page as an image part (multimodal). |
+| `BrowserConsole` | As `BrowserNavigate` | None | Returns recent, bounded console errors from the current page. |
 
 Reaching a space Issue is not a tool. An Agent reads and reports on the Issue it
 is working by running `buildmax issue` through `Bash` — the run bridge in a
