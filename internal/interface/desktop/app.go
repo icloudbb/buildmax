@@ -321,6 +321,12 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		Surface:              coregw.CallSurfaceDesktop,
 		EnableBackgroundJobs: true,
 		EnableLocalProject:   true,
+		// Local run under the user's authority; Desktop shows the browser as a
+		// visible window the user can watch, plus an activity indicator. See
+		// docs/design/agent-browser-capability.md.
+		EnableBrowser:   true,
+		BrowserHeadful:  true,
+		BrowserObserver: a.browserObserver,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init agent for project %q: %w", proj.Name, err)
@@ -373,6 +379,9 @@ func (a *App) agentAppForDir(dir string) (*agentapp.AgentApp, error) {
 		Surface:              coregw.CallSurfaceDesktop,
 		EnableBackgroundJobs: true,
 		EnableLocalProject:   false,
+		EnableBrowser:        true,
+		BrowserHeadful:       true,
+		BrowserObserver:      a.browserObserver,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init agent for %q: %w", dir, err)

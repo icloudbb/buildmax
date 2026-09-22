@@ -73,6 +73,15 @@
   white-space: nowrap;
 }
 
+.workspace-statusbar__browser {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .workspace-statusbar__btn {
   flex: 0 0 auto;
   display: inline-flex;

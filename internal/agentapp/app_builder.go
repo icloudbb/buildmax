@@ -264,9 +264,12 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		// A missing browser is not a startup failure: the run simply has no
 		// browser tools. Discovery is eager so the reason is logged once here
 		// rather than surfacing deep in a run.
-		if ctrl, err := browser.New(); err != nil {
+		if ctrl, err := browser.New(cfg.BrowserHeadful); err != nil {
 			slog.Info("browser capability disabled", "reason", err)
 		} else {
+			if cfg.BrowserObserver != nil {
+				ctrl.SetObserver(cfg.BrowserObserver)
+			}
 			app.browser = ctrl
 		}
 	}
