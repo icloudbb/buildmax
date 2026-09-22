@@ -31,6 +31,24 @@ func newJobManager(t *testing.T) *job.Manager {
 	return m
 }
 
+// parseJobID extracts the "jb_..." job ID from Bash's background-start output.
+// Bash reports a failed start as a soft "Cannot start background job: ..."
+// message with a nil error, so a missing ID means the start actually failed
+// (seen intermittently on Windows CI). Fail with the output rather than slicing
+// out[-1:], which panics and hides the real message.
+func parseJobID(t *testing.T, out string) string {
+	t.Helper()
+	idx := strings.Index(out, "jb_")
+	if idx < 0 {
+		t.Fatalf("no job ID in background output (start may have failed): %q", out)
+	}
+	id := out[idx:]
+	if end := strings.IndexAny(id, " \n"); end > 0 {
+		id = id[:end]
+	}
+	return id
+}
+
 // startBackground runs command through Bash's background path and returns the
 // job ID parsed from the tool output.
 func startBackground(t *testing.T, b *Bash, m *job.Manager, command string) string {
@@ -40,14 +58,7 @@ func startBackground(t *testing.T, b *Bash, m *job.Manager, command string) stri
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	idx := strings.Index(out, "jb_")
-	if idx < 0 {
-		t.Fatalf("no job ID in output: %q", out)
-	}
-	id := out[idx:]
-	if end := strings.IndexAny(id, " \n"); end > 0 {
-		id = id[:end]
-	}
+	id := parseJobID(t, out)
 	if _, ok := m.Get(id); !ok {
 		t.Fatalf("job %q not in manager", id)
 	}
@@ -88,11 +99,7 @@ func TestBashRunInBackground(t *testing.T) {
 	if bgErr != nil {
 		t.Fatal(bgErr)
 	}
-	idx := strings.Index(bgOut, "jb_")
-	linkedID := bgOut[idx:]
-	if end := strings.IndexAny(linkedID, " \n"); end > 0 {
-		linkedID = linkedID[:end]
-	}
+	linkedID := parseJobID(t, bgOut)
 	linked, _ := m.Get(linkedID)
 	if linked.Provenance.ParentTraceID != "rt_run" || linked.Provenance.ParentToolCallID != "call_bg" {
 		t.Fatalf("provenance = %+v", linked.Provenance)
