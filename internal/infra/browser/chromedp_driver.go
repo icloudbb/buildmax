@@ -67,6 +67,14 @@ func (r *consoleRing) snapshot() []string {
 	return out
 }
 
+// reset drops accumulated messages. Called on navigation so BrowserConsole
+// reports the current page's errors rather than every page the tab has visited.
+func (r *consoleRing) reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.msgs = nil
+}
+
 // newChromedpPage launches a browser process with a fresh, isolated user-data
 // directory and opens one tab, returning the driver and a cancel that tears the
 // tab down. The heavier teardown (process, profile) is in close.
@@ -157,6 +165,9 @@ func (p *chromedpPage) run(ctx context.Context, actions ...chromedp.Action) erro
 }
 
 func (p *chromedpPage) navigate(ctx context.Context, rawURL string) (string, string, int, error) {
+	// Scope console errors to the page we are opening: drop what earlier pages
+	// logged so BrowserConsole reflects the current page, not the tab's history.
+	p.console.reset()
 	var finalURL, title string
 	err := p.run(ctx,
 		chromedp.Navigate(rawURL),
