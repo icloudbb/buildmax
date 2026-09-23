@@ -31,8 +31,12 @@ func newToolsStatusCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			workspace, _ := cmd.Flags().GetString("workspace")
 			app, err := agentapp.NewAgentApp(agentapp.AppConfig{
-				WorkspaceDir:   workspace,
-				EnableMCP:      false,
+				WorkspaceDir: workspace,
+				EnableMCP:    false,
+				// Match an interactive CLI run so the Browser tools appear when a
+				// system browser is installed and are honestly absent when it is
+				// not. Discovery only looks up the executable; it launches nothing.
+				EnableBrowser:  true,
 				SandboxSurface: config.SandboxSurfaceCLI,
 				Policy:         agent.AllowAllPolicy(),
 			})
