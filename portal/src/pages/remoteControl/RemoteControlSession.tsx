@@ -16,7 +16,50 @@ interface RemoteControlSessionProps {
   sessionId: string
 }
 
-type StreamStatus = "connecting" | "streaming" | "ended" | "error"
+type StreamStatus = "connecting" | "streaming"
+
+/**
+ * Open a stream and reopen it whenever it ends, until the signal aborts. A
+ * Remote Control session outlives any one connection, so a dropped stream is a
+ * reason to reconnect, not to give up. Backoff grows for a stream that fails
+ * immediately and resets for one that ran a while before dropping.
+ */
+async function reconnectingStream(
+  signal: AbortSignal,
+  open: () => Promise<void>,
+  onReconnect?: () => void
+): Promise<void> {
+  const minBackoff = 1000
+  const maxBackoff = 15000
+  let backoff = minBackoff
+  while (!signal.aborted) {
+    const startedAt = Date.now()
+    try {
+      await open()
+    } catch {
+      // A failed open is just another reason to retry.
+    }
+    if (signal.aborted) return
+    if (Date.now() - startedAt > maxBackoff) backoff = minBackoff
+    onReconnect?.()
+    await abortableSleep(backoff, signal)
+    backoff = Math.min(backoff * 2, maxBackoff)
+  }
+}
+
+function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const id = setTimeout(resolve, ms)
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(id)
+        resolve()
+      },
+      { once: true }
+    )
+  })
+}
 
 /**
  * Read-only view of one live session's relayed output. Execution stays on the
@@ -53,52 +96,65 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
     }
   }, [token, sessionId])
 
-  // The stream itself: opened once, torn down on unmount or a token change.
+  // The stream itself. A session is long-lived, so a stream that ends — an idle
+  // connection a proxy dropped, a replica draining, a brief network loss — is
+  // reopened with backoff rather than left as a dead view. The server keeps an
+  // idle stream alive with heartbeats, so this reconnect is for real drops, not
+  // ordinary silence.
   useEffect(() => {
     if (!token) return
     const controller = new AbortController()
     setText("")
     setStatus("connecting")
-    void streamRemoteSession(
-      sessionId,
-      token,
-      {
-        onDelta: (delta) => {
-          setStatus("streaming")
-          setText((prev) => prev + delta)
+    void reconnectingStream(controller.signal, async () => {
+      // Each fresh connection replays the session's whole buffer before any live
+      // delta, so start from empty and let the replay rebuild the text. Appending
+      // to what a previous connection left would double the replayed content.
+      setText("")
+      await streamRemoteSession(
+        sessionId,
+        token,
+        {
+          onDelta: (delta) => {
+            setStatus("streaming")
+            setText((prev) => prev + delta)
+          },
+          onDone: () => {},
+          onError: () => {},
+          onDraining: () => {},
         },
-        onDone: () => setStatus("ended"),
-        onError: () => {
-          if (!controller.signal.aborted) setStatus("error")
-        },
-        onDraining: () => setStatus("ended"),
-      },
-      { signal: controller.signal }
-    )
+        { signal: controller.signal }
+      )
+    }, () => {
+      if (!controller.signal.aborted) setStatus("connecting")
+    })
     return () => controller.abort()
   }, [token, sessionId])
 
-  // Pending tool approvals: a separate stream carrying request/dismiss frames.
+  // Pending tool approvals: a separate stream carrying request/dismiss frames,
+  // reconnected the same way so a device can still answer a prompt after a drop.
   useEffect(() => {
     if (!token) return
     const controller = new AbortController()
     setApproval(null)
-    void streamRemoteApprovals(
-      sessionId,
-      token,
-      {
-        onFrame: (frame) => {
-          setApproval((prev) => {
-            if (frame.resolved) return prev && prev.id === frame.id ? null : prev
-            return frame
-          })
+    void reconnectingStream(controller.signal, async () => {
+      await streamRemoteApprovals(
+        sessionId,
+        token,
+        {
+          onFrame: (frame) => {
+            setApproval((prev) => {
+              if (frame.resolved) return prev && prev.id === frame.id ? null : prev
+              return frame
+            })
+          },
+          onDone: () => {},
+          onError: () => {},
+          onDraining: () => {},
         },
-        onDone: () => setApproval(null),
-        onError: () => {},
-        onDraining: () => setApproval(null),
-      },
-      { signal: controller.signal }
-    )
+        { signal: controller.signal }
+      )
+    })
     return () => controller.abort()
   }, [token, sessionId])
 
@@ -176,11 +232,9 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
           <pre className="rc-stream__body">{text}</pre>
         ) : (
           <p className="rc-stream__empty">
-            {status === "error"
-              ? "Could not read this session's stream."
-              : online
-                ? "Waiting for output…"
-                : "This session is offline. It will stream again when it reconnects."}
+            {online
+              ? "Waiting for output…"
+              : "This session is offline. It will stream again when it reconnects."}
           </p>
         )}
       </div>
@@ -241,15 +295,6 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
 }
 
 function statusLabel(status: StreamStatus, online: boolean): string {
-  switch (status) {
-    case "streaming":
-      return "streaming"
-    case "ended":
-      return online ? "idle" : "offline"
-    case "error":
-      return "stream error"
-    case "connecting":
-    default:
-      return online ? "connecting…" : "offline"
-  }
+  if (!online) return "offline"
+  return status === "streaming" ? "live" : "connecting…"
 }

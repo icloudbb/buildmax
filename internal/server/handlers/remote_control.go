@@ -287,6 +287,10 @@ func (h *Handler) remoteSessionApprovalStreamHandler(w http.ResponseWriter, r *h
 	h.serveHubSSE(w, r, wsconn.ApprovalStreamKey(sess.ID))
 }
 
+// sseHeartbeatInterval is how often serveHubSSE emits a keep-alive comment. It
+// is a var, not the shared constant directly, so a test can shorten it.
+var sseHeartbeatInterval = httputil.SSEHeartbeatInterval
+
 // serveHubSSE serves a stream-hub key as Server-Sent Events: buffered replay then
 // live frames until done or drain.
 func (h *Handler) serveHubSSE(w http.ResponseWriter, r *http.Request, key string) {
@@ -302,6 +306,14 @@ func (h *Handler) serveHubSSE(w http.ResponseWriter, r *http.Request, key string
 	events, unsub := h.hub.Subscribe(key)
 	defer unsub()
 
+	// A quiet session emits nothing between turns, but a proxy in front of this
+	// handler (the reference ingress-nginx among them) closes an idle response on
+	// its read timeout, and the browser then reads that as a dead stream with no
+	// reconnect. A periodic SSE comment keeps the connection accountable through
+	// any silence; the client's parser ignores a comment frame.
+	heartbeat := time.NewTicker(sseHeartbeatInterval)
+	defer heartbeat.Stop()
+
 	if buf := h.hub.Buffer(key); buf != "" {
 		writeRemoteSSE(w, buf)
 		if flusher != nil {
@@ -313,6 +325,11 @@ func (h *Handler) serveHubSSE(w http.ResponseWriter, r *http.Request, key string
 		select {
 		case <-r.Context().Done():
 			return
+		case <-heartbeat.C:
+			writeRemoteSSEComment(w)
+			if flusher != nil {
+				flusher.Flush()
+			}
 		case <-h.cfg.Drain:
 			// This server is going away; the session lives on the laptop and keeps
 			// relaying into whichever replica the client reconnects to.
@@ -338,6 +355,13 @@ func (h *Handler) serveHubSSE(w http.ResponseWriter, r *http.Request, key string
 			}
 		}
 	}
+}
+
+// writeRemoteSSEComment writes an SSE comment frame. It carries no data, so the
+// client ignores it; its only job is to move bytes so an idle connection is not
+// mistaken for a dead one by a proxy read timeout.
+func writeRemoteSSEComment(w http.ResponseWriter) {
+	_, _ = w.Write([]byte(": ping\n\n"))
 }
 
 func writeRemoteSSEEvent(w http.ResponseWriter, event, payload string) {

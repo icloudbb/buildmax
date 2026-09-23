@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
@@ -63,6 +64,13 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	events, unsub := h.cfg.Hub.Subscribe(runID)
 	defer unsub()
 
+	// A run that is thinking between deltas emits nothing, but a proxy in front
+	// of this handler closes an idle response on its read timeout, and the client
+	// then reads that as a finished run. A periodic SSE comment keeps the stream
+	// accountable through silence; the client's parser ignores a comment frame.
+	heartbeat := time.NewTicker(httputil.SSEHeartbeatInterval)
+	defer heartbeat.Stop()
+
 	if buf := h.cfg.Hub.Buffer(runID); buf != "" {
 		writeSSE(w, buf)
 		if flusher != nil {
@@ -74,6 +82,11 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-heartbeat.C:
+			writeSSEComment(w)
+			if flusher != nil {
+				flusher.Flush()
+			}
 		case <-h.cfg.Drain:
 			// This server is going away and the run is not: it lives in the
 			// database and keeps streaming into whichever instance the client
@@ -107,6 +120,13 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 // It is a named event rather than a reserved data payload because the data
 // frames carry agent output, which can say anything.
 const streamEventDraining = "draining"
+
+// writeSSEComment writes an SSE comment frame. It carries no data, so the client
+// ignores it; its only job is to move bytes so a proxy does not close an idle
+// stream that the client would then read as a finished run.
+func writeSSEComment(w http.ResponseWriter) {
+	_, _ = w.Write([]byte(": ping\n\n"))
+}
 
 // writeSSEEvent writes a named event. An empty payload still gets a data line,
 // because an event with no data is not delivered by every SSE parser.
