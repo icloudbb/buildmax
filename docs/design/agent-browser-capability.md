@@ -193,12 +193,24 @@ each session is on, cleared when the page is released. The event carries only
 URL, title, session, and a closed flag — no page content, and untrusted pages
 never reach the Go↔frontend bridge. The CLI sets no observer and stays headless.
 
+Desktop can also embed a **live view** of the page inside a workspace tab. Wails
+v2 cannot host the real Chromium page natively, so rather than a second native
+engine, the controller drives a CDP screencast: when a frame observer is present
+(`AppConfig.BrowserFrameObserver`, Desktop only), navigation starts
+`Page.startScreencast`, and each JPEG frame flows through the observer to a
+`desktop/browser/frame` Wails event that a `browser` tab renders. This shows the
+*same* page CDP controls — the invariant a static screenshot could not meet —
+without a native embed. The view is read-only in this slice (frames out, no
+input in); frames carry only the image and size, never bindings or page scripts.
+The CLI sets no frame observer, so no screencast runs there.
+
 ## 8. Deferred
 
-Explicitly out of scope, each its own later decision: rendering the page
-*inside* a Desktop workspace tab (a second native view — no Wails v2 precedent),
-user takeover and page sharing, managed Chrome for Testing or a bundled browser,
-enabling the capability for workers/Portal/scheduled runs, subagent browser
-access, uploads/downloads, arbitrary JavaScript, and authenticated
-third-party-site operation. User-facing behavior and settings move to the
-manual/reference documentation as each ships.
+Explicitly out of scope, each its own later decision: **interactive** takeover of
+the embedded view (forwarding input over CDP) and page sharing, a native
+embedded engine (CEF/Electron) should the read-only screencast prove
+insufficient, managed Chrome for Testing or a bundled browser, enabling the
+capability for workers/Portal/scheduled runs, subagent browser access,
+uploads/downloads, arbitrary JavaScript, and authenticated third-party-site
+operation. User-facing behavior and settings move to the manual/reference
+documentation as each ships.

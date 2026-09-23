@@ -30,3 +30,27 @@ func (a *App) browserObserver(ev browser.Event) {
 		Closed:    ev.Closed,
 	})
 }
+
+// eventBrowserFrame streams one screencast frame of a session's live page so a
+// workspace tab can render it. The image is the real CDP-controlled page, not a
+// second instance; embedding is read-only in this slice.
+const eventBrowserFrame = "desktop/browser/frame"
+
+// BrowserFramePayload is one JPEG frame of a session's page. Data is base64 with
+// no data: prefix; Width and Height are the frame's device size.
+type BrowserFramePayload struct {
+	SessionID string `json:"session_id"`
+	Data      string `json:"data"`
+	Width     int    `json:"width"`
+	Height    int    `json:"height"`
+}
+
+// browserFrameObserver forwards screencast frames to the frontend.
+func (a *App) browserFrameObserver(f browser.Frame) {
+	a.emit(a.ctx, eventBrowserFrame, BrowserFramePayload{
+		SessionID: f.SessionID,
+		Data:      f.JPEG,
+		Width:     f.Width,
+		Height:    f.Height,
+	})
+}

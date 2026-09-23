@@ -270,6 +270,9 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 			if cfg.BrowserObserver != nil {
 				ctrl.SetObserver(cfg.BrowserObserver)
 			}
+			if cfg.BrowserFrameObserver != nil {
+				ctrl.SetFrameObserver(cfg.BrowserFrameObserver)
+			}
 			app.browser = ctrl
 		}
 	}

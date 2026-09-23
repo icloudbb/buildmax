@@ -8,14 +8,16 @@ import (
 // fakeDriver is a scripted pageDriver: the controller's ownership, revision, and
 // stale-reference logic is provable against it without a real browser.
 type fakeDriver struct {
-	url, title  string
-	elems       []rawElement
-	text        string
-	found       bool   // interact: whether the element existed
-	afterURL    string // interact: URL after the action, to simulate navigation
-	console     []string
-	closed      bool
-	interactSel string // records the selector the last interact resolved to
+	url, title   string
+	elems        []rawElement
+	text         string
+	found        bool   // interact: whether the element existed
+	afterURL     string // interact: URL after the action, to simulate navigation
+	console      []string
+	closed       bool
+	interactSel  string // records the selector the last interact resolved to
+	screencastOn bool
+	onFrame      func(jpeg string, w, h int)
 }
 
 func (d *fakeDriver) navigate(_ context.Context, rawURL string) (string, string, int, error) {
@@ -44,6 +46,18 @@ func (d *fakeDriver) screenshot(_ context.Context) ([]byte, string, string, erro
 func (d *fakeDriver) consoleErrors() []string { return d.console }
 func (d *fakeDriver) viewport() string        { return "1280x800" }
 func (d *fakeDriver) close()                  { d.closed = true }
+
+func (d *fakeDriver) startScreencast(_ context.Context, onFrame func(jpeg string, w, h int)) error {
+	d.screencastOn = true
+	d.onFrame = onFrame
+	return nil
+}
+
+func (d *fakeDriver) stopScreencast(_ context.Context) error {
+	d.screencastOn = false
+	d.onFrame = nil
+	return nil
+}
 
 // newTestController wires a controller whose pages are fresh fakeDrivers,
 // returning the controller and a map recording the driver created per session
@@ -208,6 +222,34 @@ func TestObserverReceivesPageChangesAndClose(t *testing.T) {
 	last := events[len(events)-1]
 	if last.SessionID != "s1" || !last.Closed {
 		t.Errorf("expected a closed event for s1, got %+v", events)
+	}
+}
+
+func TestScreencastStartsOnlyWithFrameObserver(t *testing.T) {
+	// No frame observer (CLI): navigation must not start a screencast.
+	c, created := newTestController(nil)
+	if _, err := c.Navigate(context.Background(), "s1", "http://localhost:1/"); err != nil {
+		t.Fatalf("Navigate: %v", err)
+	}
+	if (*created)[0].screencastOn {
+		t.Error("screencast should not start without a frame observer")
+	}
+
+	// With a frame observer (Desktop): navigation starts a screencast and frames
+	// reach the observer tagged with the session.
+	c2, created2 := newTestController(nil)
+	var frames []Frame
+	c2.SetFrameObserver(func(f Frame) { frames = append(frames, f) })
+	if _, err := c2.Navigate(context.Background(), "sX", "http://localhost:1/"); err != nil {
+		t.Fatalf("Navigate: %v", err)
+	}
+	d := (*created2)[0]
+	if !d.screencastOn || d.onFrame == nil {
+		t.Fatal("screencast should start when a frame observer is set")
+	}
+	d.onFrame("BASE64JPEG", 1280, 800)
+	if len(frames) != 1 || frames[0].SessionID != "sX" || frames[0].JPEG != "BASE64JPEG" {
+		t.Errorf("frame = %+v", frames)
 	}
 }
 

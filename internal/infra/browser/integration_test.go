@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // testApp is a tiny local web app with a stateful form, a route change, and a
@@ -193,6 +194,43 @@ func TestMaliciousPageContentIsInertData(t *testing.T) {
 	}
 	if !sawInjection {
 		t.Error("console injection should be surfaced as data")
+	}
+}
+
+// TestScreencastDeliversFrames proves the live-view pipeline: with a frame
+// observer set (as Desktop does), navigating starts a CDP screencast whose JPEG
+// frames reach the observer tagged with the session. Runs headless.
+func TestScreencastDeliversFrames(t *testing.T) {
+	ctrl, err := New(false)
+	if err != nil {
+		t.Skipf("no browser available: %v", err)
+	}
+	t.Cleanup(func() { _ = ctrl.Close() })
+
+	frames := make(chan Frame, 1)
+	ctrl.SetFrameObserver(func(f Frame) {
+		select {
+		case frames <- f:
+		default: // keep only the first; the test needs just one
+		}
+	})
+
+	srv := httptest.NewServer(testApp())
+	t.Cleanup(srv.Close)
+
+	if _, err := ctrl.Navigate(context.Background(), "cast", srv.URL+"/login"); err != nil {
+		t.Fatalf("navigate: %v", err)
+	}
+	select {
+	case f := <-frames:
+		if f.SessionID != "cast" {
+			t.Errorf("frame session = %q, want cast", f.SessionID)
+		}
+		if f.JPEG == "" {
+			t.Error("frame carried no image data")
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("no screencast frame arrived within 15s")
 	}
 }
 

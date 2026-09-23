@@ -70,9 +70,10 @@ CLI/TUI、Desktop 与 worker 组装共享 Agent runtime。核心包含流式模�
 工具（导航、快照、点击、输入、截图、控制台）驱动一个 Go 自持、按会话隔离的
 浏览器，让 Agent 通过 CDP 针对真实渲染页面做验证。导航仅限 http(s)；每个会话的
 Profile 隔离；worker 及其他无人值守运行不启用。CLI 以 headless 运行；Desktop 以
-headful 运行——浏览器是用户可观看的可见窗口——并在状态栏显示每个 session 当前
-页面的指示。见 [设计记录](design/Agent 浏览器能力.md)。把页面渲染进工作区 tab
-以及用户接管尚未构建。
+headful 运行——浏览器是用户可观看的可见窗口——并在状态栏显示指示,还能通过
+流式传输 CDP screencast 帧,在工作区 tab 内内嵌页面的实时只读视图(同一个页面,
+非第二个实例)。见 [设计记录](design/Agent 浏览器能力.md)。内嵌视图的交互式接管
+尚未构建。
 
 Desktop 交互式回合现在使用 `agentapp.RunScheduler`：按 Session key 串行执行一个 Run、
 依序排队后续提示，并让排队的后台事件使用相同生命周期。Server TaskRun 调度器仍是
