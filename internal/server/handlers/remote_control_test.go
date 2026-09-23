@@ -475,3 +475,46 @@ func waitFor(t *testing.T, cond func() bool, msg string) {
 	}
 	t.Fatal(msg)
 }
+
+// An idle stream must keep emitting SSE comment frames, so a proxy read timeout
+// does not close a quiet session's stream and the watching device is not left
+// reading a dead connection. See F1 in the 2026-09-23 exploratory run.
+func TestRemoteSessionStreamEmitsHeartbeat(t *testing.T) {
+	old := sseHeartbeatInterval
+	sseHeartbeatInterval = 15 * time.Millisecond
+	defer func() { sseHeartbeatInterval = old }()
+
+	store := &fakeRemoteStore{get: map[string]coreremote.RemoteSession{
+		"s1": {ID: "s1", UserID: "u1", Status: coreremote.StatusOnline},
+	}}
+	h := NewHandler(Config{JWTSecret: wsTestSecret, RemoteSessionStore: store})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/api/remote-control/sessions/s1/stream", nil)
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", wsTestSecret))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+
+	// The session relays nothing, so the only bytes on a working stream are the
+	// heartbeat comments. Read until one arrives or the deadline fires.
+	buf := make([]byte, 0, 256)
+	tmp := make([]byte, 64)
+	for !strings.Contains(string(buf), ": ping") {
+		n, err := resp.Body.Read(tmp)
+		buf = append(buf, tmp[:n]...)
+		if err != nil {
+			t.Fatalf("idle stream never emitted a heartbeat; read %q then %v", buf, err)
+		}
+	}
+}

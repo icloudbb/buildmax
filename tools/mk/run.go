@@ -18,7 +18,7 @@ func cmdRun(args []string) error {
 	case "server":
 		return runServer()
 	case "cli":
-		return runLocalBinary(cliBinary, "Starting CLI...", args[1:])
+		return runLocalBinary(cliBinary, "Starting CLI...", stripArgSeparator(args[1:]))
 	case "desktop":
 		return runLocalBinary(desktopBinary, "Starting desktop app (Ctrl+C to stop)...", nil)
 	case "desktop-dev":
@@ -31,6 +31,19 @@ func cmdRun(args []string) error {
 		}
 		return usageErrorf("run", "unknown run target: %s", sub)
 	}
+}
+
+// stripArgSeparator drops a single leading "--" from arguments forwarded to the
+// CLI. The help documents `mk run cli -- <args>`, using "--" as the boundary
+// between mk's own arguments and the CLI's. mk is not cobra and gives "--" no
+// meaning, so without this the literal token reaches the binary, where cobra
+// reads the following word as a positional argument and starts the TUI instead
+// of running the named subcommand.
+func stripArgSeparator(args []string) []string {
+	if len(args) > 0 && args[0] == "--" {
+		return args[1:]
+	}
+	return args
 }
 
 // runServer preflights the database before starting the server.
