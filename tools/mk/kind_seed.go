@@ -311,7 +311,7 @@ func printKindSeedUsage(entries []kindSeedEntry) error {
 	fmt.Printf("The cluster's own inference is untouched: Portal conversations and task runs\n"+
 		"still answer from the mock, so `%s kind smoke` stays free and deterministic.\n", mk())
 	fmt.Printf("\nSign in to use the deployment catalog from the CLI or Desktop:\n")
-	fmt.Printf("  buildmax login --server %s   (as %s)\n", target.apiBase, smokeEmail)
+	fmt.Printf("  buildmax login   (enter server %s and sign in as %s)\n", target.apiBase, smokeEmail)
 	fmt.Printf("Run `%s kind info` for a single-use code, then `buildmax models` to check.\n", mk())
 	return nil
 }
