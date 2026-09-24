@@ -1073,6 +1073,21 @@ export interface ApiUsage {
    */
   storage_bytes?: number
   max_storage_bytes?: number
+  /**
+   * The caller's own managed calls from signed-in CLI and Desktop sessions
+   * over the same period. They belong to no space, so the figures above do
+   * not include them. Absent on a deployment without a call ledger.
+   */
+  managed_calls?: ApiManagedCallTotals
+}
+
+export interface ApiManagedCallTotals {
+  call_count: number
+  total_tokens: number
+  /** One entry per currency; amounts in nano-units. Never summed across currencies. */
+  costs: ApiLLMCallCost[]
+  /** Calls against a model that had no price when they ran. */
+  unpriced_calls: number
 }
 
 /** Tier 1 conversation as returned by space-scoped conversation endpoints. */

@@ -18,9 +18,9 @@ const DEFAULT_SERVER_URL = 'http://localhost:5678';
  * account is claimed and how a forgotten password is recovered — BuildMax has
  * no mail channel, so an operator issues that code by hand.
  */
-export default function LoginPage({ onLogin, onCancel, expiredDetail = '' }) {
+export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accountDisabled = false, knownServerURL = '' }) {
   const [mode, setMode] = useState('password');
-  const [serverURL, setServerURL] = useState(DEFAULT_SERVER_URL);
+  const [serverURL, setServerURL] = useState(knownServerURL || DEFAULT_SERVER_URL);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
@@ -32,14 +32,15 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '' }) {
 
   // The default is a starting point, not an assumption: a deployment behind an
   // ingress publishes one origin for Portal and API, and it is not this one.
+  // An ended login already names its server; signing in again means that one.
   useEffect(() => {
-    if (!app?.GetDefaultServerURL) return;
+    if (knownServerURL || !app?.GetDefaultServerURL) return;
     let cancelled = false;
     app.GetDefaultServerURL().then((url) => {
       if (!cancelled && url) setServerURL(url);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [app]);
+  }, [app, knownServerURL]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -72,8 +73,9 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '' }) {
         <h1 className="login-page__title">BuildMax</h1>
         {expiredDetail ? (
           <p className="login-page__error" role="alert">
-            Your session has ended, so this app cannot reach its models. Sign in
-            again, or return to using this machine on its own.
+            {accountDisabled
+              ? 'An administrator of this server disabled your account, so this app cannot use its models. Ask them to re-enable it, or return to using this machine on its own.'
+              : 'Your session has ended, so this app cannot reach its models. Sign in again, or return to using this machine on its own.'}
           </p>
         ) : null}
         <p className="login-page__subtitle">

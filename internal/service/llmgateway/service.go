@@ -280,6 +280,21 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		}
 		outcome.ErrorClass = &class
 		s.closeLedger(ctx, call.ID, outcome)
+		// The caller is told only the class; the provider's own message can
+		// carry account identifiers and request fragments. It is still the
+		// operator's one clue to whether a key, a model id, or the provider is
+		// at fault, so it is kept here, server-side, next to the ledger row.
+		if outcome.Status == coregw.CallStatusFailed {
+			slog.Warn("managed llm call failed upstream",
+				"llm_call_id", call.ID,
+				"model", ledgerEntry.Model,
+				"target_id", ledgerEntry.TargetID,
+				"provider_type", ledgerEntry.ProviderType,
+				"upstream_model", ledgerEntry.UpstreamModel,
+				"surface", ledgerEntry.Surface,
+				"error_class", class,
+				"err", callErr)
+		}
 		return CompleteResult{LLMCallID: call.ID}, fmt.Errorf("%w: %w", ErrUpstream, callErr)
 	}
 

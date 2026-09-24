@@ -13,6 +13,7 @@ import (
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
@@ -52,7 +53,10 @@ type Config struct {
 	Schedules coreschedule.Store
 
 	Quota *quota.Service
-	Audit *audit.Recorder
+	// LLMCalls totals the caller's own managed calls for the personal usage
+	// route. Nil in a deployment without a call ledger; the figure is omitted.
+	LLMCalls coregw.CallStore
+	Audit    *audit.Recorder
 	// Plugins carries the space half of plugin distribution: which releases a
 	// space's background runs may use. Nil in a deployment without a
 	// Marketplace, which is why every route here checks before using it.

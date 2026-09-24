@@ -101,7 +101,7 @@ func TokenForServer(serverURL string) (string, error) {
 		return creds.Token, nil
 	}
 	if creds.RefreshToken == "" {
-		return "", errors.New("login has expired: run `buildmax login`")
+		return "", fmt.Errorf("%w: its access token expired and there is nothing to renew it", ErrLoginExpired)
 	}
 	return refreshTokenForServer(serverURL)
 }
@@ -160,7 +160,7 @@ func refreshTokenForServer(serverURL string) (string, error) {
 		return creds.Token, nil
 	}
 	if creds.RefreshToken == "" {
-		return "", errors.New("login has expired: run `buildmax login`")
+		return "", fmt.Errorf("%w: its access token expired and there is nothing to renew it", ErrLoginExpired)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), refreshTimeout)
@@ -168,13 +168,14 @@ func refreshTokenForServer(serverURL string) (string, error) {
 	rr, err := newClient(creds.ServerURL).Refresh(ctx, creds.RefreshToken)
 	if err != nil {
 		if errors.Is(err, client.ErrRefreshRejected) {
-			// The session is over: spent, revoked, or reported as reused.
-			// Clearing the file is what makes the next command say "not logged
-			// in" instead of retrying a credential the server has retired.
-			_ = Logout()
-			return "", errors.New("login has expired: run `buildmax login`")
+			// The session is over: spent, revoked, or reported as reused. The
+			// login stays on disk anyway, because its presence is the mode:
+			// clearing it here would make the next command run in local mode
+			// on its own. Leaving is the user's call (docs/design/client-modes.md
+			// section 8).
+			return "", fmt.Errorf("%w: the server ended this session", ErrLoginExpired)
 		}
-		return "", fmt.Errorf("refresh login: %w", err)
+		return "", classifyServerError(creds.ServerURL, fmt.Errorf("refresh login: %w", err))
 	}
 
 	creds.Token = rr.AccessToken

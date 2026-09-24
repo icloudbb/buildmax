@@ -407,3 +407,77 @@ func applyLLMCallFilter(q *gorm.DB, filter coregw.CallFilter) *gorm.DB {
 	}
 	return q
 }
+
+// callTotalsRow is one rate-snapshot group of SummarizeForegroundLLMCalls.
+type callTotalsRow struct {
+	Calls            int
+	PromptTokens     int
+	CompletionTokens int
+	TotalTokens      int
+	CacheReadTokens  int
+	CacheWriteTokens int
+	Currency         string
+	// Pinned for the same reason as on llmCallRow: the naming strategy would
+	// render MTok as "m_tok" and the scan would silently read zero.
+	RateInputPerMTok      *int64 `gorm:"column:rate_input_per_mtok"`
+	RateCacheReadPerMTok  *int64 `gorm:"column:rate_cache_read_per_mtok"`
+	RateCacheWritePerMTok *int64 `gorm:"column:rate_cache_write_per_mtok"`
+	RateOutputPerMTok     *int64 `gorm:"column:rate_output_per_mtok"`
+}
+
+// SummarizeForegroundLLMCalls implements coregw.CallStore.
+//
+// Only token counts are summed here. Pricing stays with the one function that
+// prices a call, applied to each group's own rates, so this query never grows
+// a second copy of the cost formula.
+func (s *Store) SummarizeForegroundLLMCalls(ctx context.Context, userID string, since time.Time) ([]coregw.CallTotals, error) {
+	id, ok := util.CanonicalPublicID(userID)
+	if !ok {
+		return nil, nil
+	}
+	var rows []callTotalsRow
+	err := s.db.WithContext(ctx).Model(&llmCallRow{}).
+		Select("COUNT(*) AS calls, "+
+			"COALESCE(SUM(llm_call.prompt_tokens), 0) AS prompt_tokens, "+
+			"COALESCE(SUM(llm_call.completion_tokens), 0) AS completion_tokens, "+
+			"COALESCE(SUM(llm_call.total_tokens), 0) AS total_tokens, "+
+			"COALESCE(SUM(llm_call.cache_read_tokens), 0) AS cache_read_tokens, "+
+			"COALESCE(SUM(llm_call.cache_write_tokens), 0) AS cache_write_tokens, "+
+			"llm_call.currency AS currency, "+
+			"llm_call.rate_input_per_mtok AS rate_input_per_mtok, "+
+			"llm_call.rate_cache_read_per_mtok AS rate_cache_read_per_mtok, "+
+			"llm_call.rate_cache_write_per_mtok AS rate_cache_write_per_mtok, "+
+			"llm_call.rate_output_per_mtok AS rate_output_per_mtok").
+		Joins("JOIN `user` u ON u.id = llm_call.user_id").
+		Where("u.public_id = ? AND llm_call.task_run_id IS NULL AND llm_call.accepted_at >= ?", id, since).
+		Group("llm_call.currency, llm_call.rate_input_per_mtok, llm_call.rate_cache_read_per_mtok, " +
+			"llm_call.rate_cache_write_per_mtok, llm_call.rate_output_per_mtok").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]coregw.CallTotals, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, coregw.CallTotals{
+			Calls:                 r.Calls,
+			PromptTokens:          r.PromptTokens,
+			CompletionTokens:      r.CompletionTokens,
+			TotalTokens:           r.TotalTokens,
+			CacheReadTokens:       r.CacheReadTokens,
+			CacheWriteTokens:      r.CacheWriteTokens,
+			Currency:              r.Currency,
+			RateInputPerMTok:      derefRate(r.RateInputPerMTok),
+			RateCacheReadPerMTok:  derefRate(r.RateCacheReadPerMTok),
+			RateCacheWritePerMTok: derefRate(r.RateCacheWritePerMTok),
+			RateOutputPerMTok:     derefRate(r.RateOutputPerMTok),
+		})
+	}
+	return out, nil
+}
+
+func derefRate(v *int64) int64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}

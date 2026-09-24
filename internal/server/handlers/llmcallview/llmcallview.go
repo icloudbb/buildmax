@@ -70,6 +70,59 @@ func Price(call coregw.Call) (Cost, bool) {
 	}, true
 }
 
+// Totals is what a set of calls cost, per currency, and how many of them no
+// one priced. Currencies are never added together.
+type Totals struct {
+	Calls         int    `json:"call_count"`
+	TotalTokens   int    `json:"total_tokens"`
+	Costs         []Cost `json:"costs"`
+	UnpricedCalls int    `json:"unpriced_calls"`
+}
+
+// PriceTotals prices summed ledger groups, each from its own rate snapshot,
+// with the same estimate a single call gets.
+func PriceTotals(groups []coregw.CallTotals) Totals {
+	out := Totals{Costs: []Cost{}}
+	byCurrency := map[string]int{}
+	for _, g := range groups {
+		out.Calls += g.Calls
+		out.TotalTokens += g.TotalTokens
+		cost, ok := cllm.EstimateCost(cllm.Usage{
+			PromptTokens:     g.PromptTokens,
+			CompletionTokens: g.CompletionTokens,
+			TotalTokens:      g.TotalTokens,
+			CacheReadTokens:  g.CacheReadTokens,
+			CacheWriteTokens: g.CacheWriteTokens,
+		}, cllm.Pricing{
+			Currency:          g.Currency,
+			InputPerMTok:      g.RateInputPerMTok,
+			CacheReadPerMTok:  g.RateCacheReadPerMTok,
+			CacheWritePerMTok: g.RateCacheWritePerMTok,
+			OutputPerMTok:     g.RateOutputPerMTok,
+		})
+		if !ok {
+			if g.Currency == "" {
+				out.UnpricedCalls += g.Calls
+			}
+			continue
+		}
+		i, seen := byCurrency[cost.Currency]
+		if !seen {
+			byCurrency[cost.Currency] = len(out.Costs)
+			out.Costs = append(out.Costs, Cost{Currency: cost.Currency})
+			i = len(out.Costs) - 1
+		}
+		c := &out.Costs[i]
+		c.Uncached += cost.Uncached
+		c.CacheRead += cost.CacheRead
+		c.CacheWrite += cost.CacheWrite
+		c.Output += cost.Output
+		c.Total += cost.Total
+		c.Baseline += cost.Baseline
+	}
+	return out
+}
+
 func derefInt(v *int) int {
 	if v == nil {
 		return 0

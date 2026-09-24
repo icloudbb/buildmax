@@ -69,3 +69,7 @@ func llmTestSpaceStore() *mock.MockSpaceStore {
 const llmTestUser = "u_llm"
 
 const llmTestSpace = "tm_llm"
+
+func (l *llmStubLedger) SummarizeForegroundLLMCalls(context.Context, string, time.Time) ([]coregw.CallTotals, error) {
+	return nil, nil
+}

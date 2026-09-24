@@ -176,3 +176,7 @@ func TestAdminLLMCallsCarriesNoContent(t *testing.T) {
 		}
 	}
 }
+
+func (f *fakeCallLedger) SummarizeForegroundLLMCalls(context.Context, string, time.Time) ([]coregw.CallTotals, error) {
+	return nil, nil
+}

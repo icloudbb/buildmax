@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -177,23 +176,24 @@ func TestConcurrentCallersRefreshOnce(t *testing.T) {
 }
 
 // A rejected refresh token means the session is over — spent, revoked, or
-// reported as reused. Keeping the file would make every later command retry a
-// credential the server has retired.
-func TestRejectedRefreshClearsTheStoredLogin(t *testing.T) {
+// reported as reused. The login still stays on disk: its presence is the mode,
+// and clearing it here would turn the next command into a local-mode run the
+// user never chose (docs/design/client-modes.md section 8).
+func TestRejectedRefreshReportsAnExpiredLoginAndKeepsTheMode(t *testing.T) {
 	storeSession(t, "https://buildmax.example.com",
 		testsupport.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
 	useFakeRefresh(t, &fakeRefresh{err: client.ErrRefreshRejected})
 
 	_, err := TokenForServer("https://buildmax.example.com")
-	if err == nil || !strings.Contains(err.Error(), "expired") {
-		t.Fatalf("want an error telling the user to log in again, got %v", err)
+	if !errors.Is(err, ErrLoginExpired) {
+		t.Fatalf("err = %v, want ErrLoginExpired", err)
 	}
 	creds, loadErr := Load(config.AuthPath())
 	if loadErr != nil {
 		t.Fatalf("Load: %v", loadErr)
 	}
-	if creds != nil {
-		t.Error("a rejected session left credentials on disk")
+	if creds == nil {
+		t.Error("a rejected session cleared the login, which silently returns the client to local mode")
 	}
 }
 

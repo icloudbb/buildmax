@@ -475,6 +475,13 @@
   text-overflow: ellipsis;
 }
 
+.sidebar__user-menu-server {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  padding: 0 1rem 0.5rem;
+  overflow-wrap: anywhere;
+}
+
 .sidebar__user-menu-divider {
   height: 1px;
   margin: 0.25rem 0.5rem;

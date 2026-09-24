@@ -188,6 +188,21 @@ func ParseRate(s string) (int64, error) {
 	return scaled.Num().Int64(), nil
 }
 
+// FormatRate renders a nano-unit rate as the shortest decimal string ParseRate
+// reads back to the same value. It is how a rate crosses the wire: exact, and
+// in the form a settings file or price page writes it.
+func FormatRate(nano int64) string {
+	sign := ""
+	if nano < 0 {
+		sign, nano = "-", -nano
+	}
+	whole, frac := nano/NanoUnitsPerUnit, nano%NanoUnitsPerUnit
+	if frac == 0 {
+		return fmt.Sprintf("%s%d", sign, whole)
+	}
+	return fmt.Sprintf("%s%d.%s", sign, whole, strings.TrimRight(fmt.Sprintf("%09d", frac), "0"))
+}
+
 // FormatAmount renders nano-units as a decimal string with six places, which is
 // enough to show a single cheap call without reading as zero.
 func FormatAmount(nano int64) string {

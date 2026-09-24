@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from "react"
-import type { ApiInvitation, ApiSpaceMember, ApiUsage } from "../../lib/api/types"
+import type { ApiInvitation, ApiManagedCallTotals, ApiSpaceMember, ApiUsage } from "../../lib/api/types"
 import type { LoginUser } from "../../lib/api"
 import { useAuth } from "../../contexts/AuthContext"
 import { useSpace } from "../../contexts/SpaceContext"
 import { describeQuotaPressure, getUsage } from "../../features/usage"
+import { formatAmount } from "../../features/runs/spend"
 import { formatSize } from "../../features/artifacts"
 import {
   acceptInvitation,
@@ -251,6 +252,23 @@ function QuotaPressureNote({ usage }: { usage: ApiUsage | null }) {
   )
 }
 
+// Your own CLI and Desktop sessions on this deployment. They belong to no
+// space, so the space figures above cannot include them; without this row a
+// signed-in user has nowhere to see what those sessions cost.
+function ManagedCallsRow({ totals }: { totals: ApiManagedCallTotals }) {
+  const cost = totals.costs.map((c) => formatAmount(c.total, c.currency)).join(" + ")
+  return (
+    <p className="settings-usage__row">
+      <span className="settings-usage__label">CLI and Desktop sessions</span>
+      <span>
+        {totals.call_count.toLocaleString()} calls, {totals.total_tokens.toLocaleString()} tokens
+        {cost ? `, ${cost}` : ""}
+        {totals.unpriced_calls > 0 ? ` (${totals.unpriced_calls} unpriced)` : ""}
+      </span>
+    </p>
+  )
+}
+
 export function SettingsUsageSection({
   loading,
   error,
@@ -316,6 +334,9 @@ export function SettingsUsageSection({
                   : ""}
               </span>
             </p>
+          ) : null}
+          {usage.managed_calls && usage.managed_calls.call_count > 0 ? (
+            <ManagedCallsRow totals={usage.managed_calls} />
           ) : null}
           {usage.period_days > 0 ? (
             <p className="settings-usage__row settings-usage__period">

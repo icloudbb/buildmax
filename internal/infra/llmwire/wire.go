@@ -194,6 +194,20 @@ type Model struct {
 	Vision        bool     `json:"vision,omitempty"`
 	Capabilities  []string `json:"capabilities"`
 	Default       bool     `json:"default"`
+	// Pricing is the model's current rates, absent when the operator priced
+	// none. A client prices its own session from them, which gives the same
+	// figure the deployment's ledger records for the same usage.
+	Pricing *ModelPricing `json:"pricing,omitempty"`
+}
+
+// ModelPricing is a price list in the form settings.yaml writes one: decimal
+// strings per million tokens, so a rate crosses the wire without rounding.
+type ModelPricing struct {
+	Currency          string `json:"currency"`
+	InputPerMTok      string `json:"input_per_mtok"`
+	CacheReadPerMTok  string `json:"cache_read_per_mtok"`
+	CacheWritePerMTok string `json:"cache_write_per_mtok"`
+	OutputPerMTok     string `json:"output_per_mtok"`
 }
 
 // ModelsResponse lists the models this deployment offers.

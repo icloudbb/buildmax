@@ -73,7 +73,11 @@ func collectDoctorChecks(ctx context.Context, workspace string) []doctorCheck {
 		checkDataDir(),
 		checkGitAvailable(),
 	}
-	settings, settingsChecks := checkSettings(ctx)
+	// The mode comes first because it decides what the rest means: signed in,
+	// settings.yaml's models serve nothing and are not required.
+	mode, managed := checkMode(ctx)
+	checks = append(checks, mode)
+	settings, settingsChecks := checkSettings(ctx, managed)
 	checks = append(checks, settingsChecks...)
 	checks = append(checks, checkWorkspace(workspace))
 	checks = append(checks, checkProject(ctx, workspace)...)
@@ -109,9 +113,16 @@ func checkDataDir() doctorCheck {
 	}
 }
 
-func checkSettings(ctx context.Context) (config.Settings, []doctorCheck) {
+func checkSettings(ctx context.Context, managed bool) (config.Settings, []doctorCheck) {
 	path := config.SettingsPath()
 	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, fs.ErrNotExist) && managed {
+			return config.Settings{}, []doctorCheck{{
+				Severity: doctorOK,
+				Title:    "settings.yaml",
+				Detail:   "not present, and not needed while signed in: the deployment's models serve every prompt",
+			}}
+		}
 		if errors.Is(err, fs.ErrNotExist) {
 			return config.Settings{}, []doctorCheck{{
 				Severity: doctorFail,
@@ -137,12 +148,20 @@ func checkSettings(ctx context.Context) (config.Settings, []doctorCheck) {
 		}}
 	}
 
+	if managed {
+		// Its models serve nothing while signed in, so probing them would report
+		// a default and endpoints that no prompt in this mode reaches.
+		return settings, []doctorCheck{{
+			Severity: doctorOK,
+			Title:    "settings.yaml",
+			Detail:   fmt.Sprintf("%s — its %d model(s) are unused while signed in; `buildmax logout` switches to them", path, len(settings.Models)),
+		}}
+	}
 	checks := []doctorCheck{{
 		Severity: doctorOK,
 		Title:    "settings.yaml",
 		Detail:   path,
 	}}
-	checks = append(checks, checkMode(ctx))
 	checks = append(checks, checkModels(ctx, settings)...)
 	if check, ok := checkDefaultModel(settings); ok {
 		checks = append(checks, check)
@@ -212,13 +231,11 @@ func checkModels(ctx context.Context, settings config.Settings) []doctorCheck {
 	return checks
 }
 
-// checkMode reports which mode this machine is in and whether it works.
-//
-// It comes before the settings.yaml model checks because it decides whether
-// those models are the ones a session will actually use. In managed mode they
-// are not — but they are still checked, because `buildmax logout` is one command
-// away and a broken local file should not be a surprise waiting there.
-func checkMode(ctx context.Context) doctorCheck {
+// checkMode reports which mode this machine is in and whether it works, and
+// whether a login decides the mode even when it no longer works: an expired or
+// unreachable login is still managed mode, because it is still where every
+// prompt would go.
+func checkMode(ctx context.Context) (doctorCheck, bool) {
 	creds, err := auth.StoredLogin()
 	if err != nil {
 		return doctorCheck{
@@ -226,29 +243,33 @@ func checkMode(ctx context.Context) doctorCheck {
 			Title:    "mode",
 			Detail:   fmt.Sprintf("cannot read the stored login: %v", err),
 			Next:     "Run `buildmax login` to sign in again, or `buildmax logout` to use local models.",
-		}
+		}, false
 	}
 	if creds == nil {
 		return doctorCheck{
 			Severity: doctorOK,
 			Title:    "mode",
 			Detail:   "local: models come from settings.yaml and prompts go straight to their providers",
-		}
+		}, false
 	}
 	if _, err := auth.ResolveModelSource(ctx); err != nil {
+		next := modeNextStep(err)
+		if next == "" {
+			next = fmt.Sprintf("Run `buildmax logout` to use the models in settings.yaml instead of %s.", creds.ServerURL)
+		}
 		return doctorCheck{
 			Severity: doctorFail,
 			Title:    "mode",
 			Detail:   fmt.Sprintf("signed in to %s, but its models cannot be read: %v", creds.ServerURL, err),
-			Next:     fmt.Sprintf("Run `buildmax login` against %s, or `buildmax logout` to use the models in settings.yaml.", creds.ServerURL),
-		}
+			Next:     strings.ReplaceAll(next, "\n", " "),
+		}, true
 	}
 	return doctorCheck{
 		Severity: doctorOK,
 		Title:    "mode",
 		Detail: fmt.Sprintf("signed in to %s: its models serve every prompt. Credentials: %s",
 			creds.ServerURL, auth.StorageDescription(creds.Storage)),
-	}
+	}, true
 }
 
 // checkDefaultModel reports a default_model that names no entry. It resolves to
