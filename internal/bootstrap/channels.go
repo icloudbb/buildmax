@@ -1,9 +1,9 @@
 package bootstrap
 
 import (
+	"github.com/icloudbb/buildmax/internal/config"
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
-	"github.com/icloudbb/buildmax/internal/config"
 	"github.com/icloudbb/buildmax/internal/infra/coordination"
 	"github.com/icloudbb/buildmax/internal/infra/db"
 	"github.com/icloudbb/buildmax/internal/infra/imchannel/telegram"
