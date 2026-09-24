@@ -1471,15 +1471,12 @@ func (a *AgentApp) finalizeTurn(sess *SessionContext, client cllm.LLMClient, sta
 }
 
 // pricingFor is the price list of the model this session is running against, or
-// the zero Pricing when the entry configured none. A managed entry has none
-// here on purpose: the server holds the rates for a managed call and records
-// what it charged on the ledger, so a local guess would be a second answer to a
-// question that already has one.
+// the zero Pricing when the entry carries none. A managed entry carries the
+// deployment's own rates, so the session prices each call the way the ledger
+// does rather than reporting managed spend as unknown
+// (docs/design/client-modes.md section 4).
 func (a *AgentApp) pricingFor(sess *SessionContext) cllm.Pricing {
 	if a == nil || sess == nil {
-		return cllm.Pricing{}
-	}
-	if a.ManagedServerURL() != "" {
 		return cllm.Pricing{}
 	}
 	cfg, ok := FindModelConfig(a.settings, sess.ModelName(a.DefaultModelName()))
