@@ -44,13 +44,14 @@
 - 用量：`/api/usage`、`/api/spaces/{space_id}/usage`
 - 审计记录（仅所有者）：`/api/spaces/{space_id}/audit-events`，以及以 CSV 或 JSONL 形式导出整份记录的 `/audit-events/export`。这次导出本身也会被记录，并且按 keyset 游标而非按偏移量分页，因此在流式导出期间被写入的表不会因此漏掉某条记录
 - Webhook key（按用户划分范围，而非按 Space）：`/api/webhook-keys...`
+- 聊天账号链接（按用户划分范围）：`/api/channel-links...` 用于列出、确认机器人给出的链接码以及解除链接，另有 `GET /api/channel-link-pairings?code=` 用于预览某个码会链接哪个聊天账号。见[即时通讯渠道](../../design/即时通讯渠道.md)。
 - WebSocket：`/api/spaces/{space_id}/ws`
 - Worker API（**仅内部监听器**，不在公共端口上）：`/api/worker/task-runs/{task_run_id}...`，其中包括 `/llm/completions`——让 worker 不需要持有提供方凭证——以及 `/artifacts`——让一次运行中的 Agent 能为该 Space 保留一个文件。worker 从不自行声明自己在为哪个 Space 写入：run token 指名运行，运行指名 Task，Task 指名 Space。每条路由还会强制执行该运行的生命周期（`requireRunning`）：除 `GET` 轮询外的一切操作，只要运行不处于 RUNNING 状态就会被拒绝，因此一个泄露但尚未过期的令牌，既不能在认领之前生效，也不能在运行终止之后生效。参见 docs/design/worker-api-network-boundary.md §8
 - 入站 webhook：`/api/webhook`
 
 ## Conversation 回合
 
-每个 Conversation 一次只运行一个回合。回合队列（`internal/server/turnqueue`）为每个 Conversation 各自维护一个队列，串行化 WebSocket 消息及 HTTP 的 `POST .../messages` 和 `POST .../conversations` 前台入口。TaskRun 完成广播持久状态失效通知，不排入摘要回合。它的作用域是整个 Server，而不是单个连接，因为一个 Conversation 可能同时被多个连接访问到。
+每个 Conversation 一次只运行一个回合。回合队列（`internal/server/turnqueue`）为每个 Conversation 各自维护一个队列，串行化 WebSocket 消息、HTTP 的 `POST .../messages` 和 `POST .../conversations` 前台入口，以及渠道网关经 `Handler.RunChannelTurn` 送入的聊天平台消息（见[即时通讯渠道](../../design/即时通讯渠道.md)）。TaskRun 完成广播持久状态失效通知，不排入摘要回合。它的作用域是整个 Server，而不是单个连接，因为一个 Conversation 可能同时被多个连接访问到。
 
 在一个回合运行期间到达的消息会被排队，每个 Conversation 最多排队 10 条，之后各自作为独立的回合运行。WebSocket 客户端会看到 `conversation.message.queued`，等它开始运行时再看到 `conversation.message.dequeued`；`conversation.message.completed` 会携带 `queued_remaining`。超出上限的消息会被 `conversation.error` 拒绝，并携带 `code: "queue_full"`（HTTP：`429`），但这不会终止正在进行的那个回合。队列保存在内存中。参见[排队消息](../../design/排队消息.md)。
 

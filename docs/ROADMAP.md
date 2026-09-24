@@ -199,8 +199,13 @@ Design: [evaluation system](design/evaluation-system.md).
 
 **Later; scope depends on demand and qualification results.** Durable Workflow
 reconciliation, graph execution, and typed data bindings are implemented.
-Candidate work includes conditional routing, real channel adapters, executable
-Space plugins, Portal performance, Desktop automation, and throughput. Local
+Candidate work includes conditional routing, further chat-platform adapters,
+executable Space plugins, Portal performance, Desktop automation, and
+throughput. The first real channel adapter ships: Telegram private chats reach
+Space Conversations under the
+[instant-messaging channels](design/instant-messaging-channels.md) design, whose
+later phases (Feishu and group chats, streaming, Remote Control push, more
+platforms) stay demand-driven. Local
 CLI/TUI and Desktop improvements remain welcome when they address concrete
 problems; the Beta focus does not make Portal the only product.
 

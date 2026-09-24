@@ -48,7 +48,8 @@
       "pages": [
         { "slug": "portal-overview", "file": "Portal概览.md", "title": "Portal 概览" },
         { "slug": "portal-issues", "file": "对话与Issue.md", "title": "对话与 Issue" },
-        { "slug": "portal-agents-workflows", "file": "Agent与工作流.md", "title": "Agent 与工作流" }
+        { "slug": "portal-agents-workflows", "file": "Agent与工作流.md", "title": "Agent 与工作流" },
+        { "slug": "chat-apps", "file": "聊天应用.md", "title": "聊天应用（Telegram）" }
       ]
     },
     {

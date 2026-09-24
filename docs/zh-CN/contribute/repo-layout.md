@@ -150,6 +150,8 @@ internal/
 │   ├── quota/          档位限额，以及一次拒绝据以衡量的用量窗口
 │   ├── conversation/   持久化的 Conversation 及其消息：Tier 1 编排并
 │   │                   存储的内容，有别于本地 session
+│   ├── channel/        聊天平台：聊天账号与用户的链接、待确认的配对，
+│   │                   以及平台要实现的 Connector
 │   ├── workflow/       一个 space 可复用的图计划、其修订版本，以及其
 │   │                   执行流经的 run 与 node-run 状态
 │   ├── agentdef/       一个 space 定义的 Agent 及其修订版本——即一个
@@ -186,6 +188,8 @@ internal/
 ├── service/            应用服务：协调 store、执行规则
 │   ├── conversation/   Portal 前台聊天，以及可选的 Task 编排
 │   │   └── channel/    规范化的 turn 类型与 channel 适配器（webhook）
+│   ├── channel/        把聊天平台的消息送入 Conversation：配对、授权、
+│   │                   单个聊天内的顺序、接收租约，以及回报给聊天的结果
 │   ├── agent/          Agent 定义、其修订版本，以及删除防护
 │   ├── artifact/       一个 space 保留的持久化文件；不知道生产者是谁
 │   ├── llmcatalog/     模型目录接受什么、更改它会记录什么；shell 与
@@ -224,6 +228,8 @@ internal/
 │   ├── browser/        Go 自持的 headless Chrome/Edge over CDP：可执行文件
 │   │                   发现、按会话隔离的 profile 与页面、tool.BrowserController 实现
 │   ├── db/             核心仓储接口的 MySQL/GORM 实现
+│   ├── imchannel/      聊天平台连接器，每个平台一个包
+│   │   └── telegram/   基于纯 HTTPS 的 Telegram Bot API：长轮询与纯文本回复
 │   ├── objectstore/    本地文件系统与 S3/MinIO 存储：space home、run
 │   │                   输出，以及 artifact 内容——三个键空间，一个后端
 │   ├── llm/            LLMClient 之于 BuildMax 所讲的线上协议：
@@ -278,6 +284,7 @@ internal/
 ├── server/             面向 Portal 与 worker 回调的 HTTP API
 │   ├── handlers/       路由处理器
 │   │   ├── account/    行为主体账号跨 space 拥有的资源：webhook key
+│   │   │               与聊天账号链接
 │   │   ├── admin/      部署范围的路由；其 Config 无法触达任何 space
 │   │   ├── artifact/   以不透明 ID 寻址的 Artifact；space 来自该记录本身
 │   │   ├── auth/       建立一个 session：登录、刷新、登出、密码

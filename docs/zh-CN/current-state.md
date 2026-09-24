@@ -356,8 +356,15 @@ Agent 不会改变已发布计划的运行内容。一次运行会一次性分�
 指针绑定可以把运行输入或前驱节点输出中选取的值传入某个节点的输入。定义契约仍没有类型化
 条件路由、人工审批或循环（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
 
-Portal 与入站 webhook 执行已组装。Telegram 仍只是渠道词汇，
-webhook 回调发送器未组装进 Server。周期性 schedule 通过 `schedule` 触发来源与
+Portal 与入站 webhook 执行已组装；webhook 回调发送器未组装进 Server。
+通过 `channels.telegram.bot_token` 配置的 Telegram 机器人，会把已链接用户的私聊送入
+一个 Space Conversation：与 Portal 聊天运行的是同一个 Tier 1 轮次，回复发回 Telegram，
+该对话启动的 Task 结束时还会发出报告。用户给机器人发消息，再在 Account → Chat accounts
+中确认它给出的码，即可链接 Telegram 账号；每条消息在任何模型运行之前都会检查 Space
+资格。同一时刻只有一个副本接收消息，多副本时由 Redis 租约保证。群聊、其他聊天平台、
+流式回复以及在聊天中审批尚未实现（[网关](../../internal/service/channel/gateway.go)、
+[设计](design/即时通讯渠道.md)、[指南](../../manual/chat-apps.md)）。
+周期性 schedule 通过 `schedule` 触发来源与
 `/api/spaces/{space_id}/schedules` API 运行一个执行器——Agent（Task 平面上的一个
 Task）或已发布的 Workflow（一次 workflow 运行），由常驻循环分发：每个到期时刻跨
 副本只认领一次，错过的触发合并为一次补触发，连续五次触发失败，或创建者已不能在该

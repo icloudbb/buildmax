@@ -521,8 +521,19 @@ node's input. The definition contract still has no typed conditional routing,
 manual approval, or loops
 ([`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go)).
 
-Portal and inbound webhook execution are assembled. Telegram remains channel
-vocabulary, and the webhook callback sender is not assembled into the Server.
+Portal and inbound webhook execution are assembled; the webhook callback sender
+is not assembled into the Server. A Telegram bot, configured with
+`channels.telegram.bot_token`, carries a linked user's private chat into a Space
+Conversation: the same Tier 1 turn Portal chat runs, with the reply sent back to
+Telegram and a report when a Task that conversation started finishes. People
+link a Telegram account by messaging the bot and confirming its code under
+Account → Chat accounts; every message is checked against Space eligibility
+before any model runs. One replica at a time receives, under a Redis lease when
+there are several. Group chats, other chat platforms, streaming replies, and
+approvals from chat are not built
+([gateway](../internal/service/channel/gateway.go),
+[design](design/instant-messaging-channels.md),
+[guide](../manual/chat-apps.md)).
 Recurring schedules run an executor — an Agent (a Task on the Task plane) or a
 published Workflow (a workflow run) — through a `schedule` trigger source and the
 `/api/spaces/{space_id}/schedules` API, dispatched by a resident loop that claims
