@@ -143,6 +143,10 @@ func (s *SessionManager) Fork(parent *SessionContext, throughItemID, defaultMode
 	// conversation it copied, so it belongs where that conversation did even if
 	// the manager doing the forking was opened somewhere else.
 	meta.ProjectID = parent.Meta().ProjectID
+	// The copied history went where the parent's did, so the fork is bound
+	// there too; otherwise forking would be a way to replay it in the other
+	// mode (docs/design/client-modes.md section 13).
+	meta.PromptDestination = parent.Meta().PromptDestination
 	meta.ForkedFrom = &session.ForkedFrom{
 		SessionID: parent.ID(),
 		HeadID:    throughItemID,

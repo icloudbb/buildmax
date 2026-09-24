@@ -327,6 +327,17 @@ func (s *SessionContext) AddUsage(update session.MetaUpdate) {
 	s.meta = session.ApplyMetaUpdate(s.meta, update, time.Now())
 }
 
+// BindDestination records where this session's prompts go, the first time a
+// turn runs. It reports whether anything changed and so needs persisting.
+func (s *SessionContext) BindDestination(dest string) bool {
+	if s.meta.PromptDestination != "" {
+		return false
+	}
+	s.meta.PromptDestination = dest
+	s.meta.UpdatedAt = time.Now().UTC()
+	return true
+}
+
 // SetTitle records a title. Presentation only, so metadata rather than history.
 func (s *SessionContext) SetTitle(title string) {
 	s.meta.Title = title
