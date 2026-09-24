@@ -49,6 +49,9 @@ var opaqueColumns = map[string]string{
 	"user_refresh_token.token_hash":     "an authentication format",
 	"user_webhook_key.key_hash":         "an authentication format",
 	"user_refresh_token.replaced_by":    "the hash of the next token in the chain, not a reference to a row",
+	"channel_identity.external_user_id": "a chat platform's own id for an account",
+	"channel_pairing.external_user_id":  "a chat platform's own id for an account",
+	"channel_pairing.chat_id":           "a chat platform's own id for a conversation",
 	"secret.key_id":                     "names the KEK that wrapped this row's DEK, a <backend>:<name>:<version> string, not a reference to a row",
 }
 

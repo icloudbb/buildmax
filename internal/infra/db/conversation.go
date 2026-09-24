@@ -13,13 +13,19 @@ import (
 )
 
 type conversationRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID  string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_conversation_public_id;not null"`
-	UserID    uint64 `gorm:"column:user_id;not null;index:idx_conversation_user_created,priority:1"`
-	SpaceID   uint64 `gorm:"column:space_id;index:idx_conversation_space_created,priority:1"`
-	Channel   string `gorm:"type:varchar(32);not null"`
-	Title     string `gorm:"type:varchar(256)"`
-	CreatedBy uint64 `gorm:"column:created_by;not null"`
+	ID       uint64 `gorm:"primaryKey;autoIncrement"`
+	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_conversation_public_id;not null"`
+	UserID   uint64 `gorm:"column:user_id;not null;index:idx_conversation_user_created,priority:1"`
+	SpaceID  uint64 `gorm:"column:space_id;index:idx_conversation_space_created,priority:1"`
+	Channel  string `gorm:"type:varchar(32);not null"`
+	// ChannelRef addresses the chat a platform-carried conversation belongs to,
+	// so the next message from that chat continues it. Empty for Portal and
+	// webhook conversations. Several rows share one ref: starting a new
+	// conversation from a chat leaves the old ones in place, and the newest is
+	// the chat's current one.
+	ChannelRef string `gorm:"column:channel_ref;type:varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;not null;default:'';index:idx_conversation_channel_ref,priority:1"`
+	Title      string `gorm:"type:varchar(256)"`
+	CreatedBy  uint64 `gorm:"column:created_by;not null"`
 	// TurnFence is the highest turn lease fencing token this conversation has
 	// accepted a message-history write under. AppendMessage advances it and
 	// refuses a lower token, so a stale replica cannot write behind the holder
@@ -29,7 +35,7 @@ type conversationRow struct {
 	// The two composite indexes carry created_at because every listing of a
 	// conversation is ordered by it. The single-column indexes the string model
 	// left behind could not serve the sort.
-	CreatedAt time.Time `gorm:"autoCreateTime;index:idx_conversation_user_created,priority:2;index:idx_conversation_space_created,priority:2"`
+	CreatedAt time.Time `gorm:"autoCreateTime;index:idx_conversation_user_created,priority:2;index:idx_conversation_space_created,priority:2;index:idx_conversation_channel_ref,priority:2"`
 }
 
 func (conversationRow) TableName() string { return "conversation" }
@@ -57,13 +63,14 @@ func toConversation(row *conversationReadRow) *coreconv.Conversation {
 		return nil
 	}
 	return &coreconv.Conversation{
-		ID:        row.Row.PublicID,
-		UserID:    row.UserPublicID,
-		SpaceID:   derefPublicID(row.SpacePublicID),
-		Channel:   row.Row.Channel,
-		Title:     row.Row.Title,
-		CreatedBy: row.CreatedByPublicID,
-		CreatedAt: row.Row.CreatedAt,
+		ID:         row.Row.PublicID,
+		UserID:     row.UserPublicID,
+		SpaceID:    derefPublicID(row.SpacePublicID),
+		Channel:    row.Row.Channel,
+		ChannelRef: row.Row.ChannelRef,
+		Title:      row.Row.Title,
+		CreatedBy:  row.CreatedByPublicID,
+		CreatedAt:  row.Row.CreatedAt,
 	}
 }
 
@@ -86,8 +93,49 @@ func (s *Store) CreateConversation(ctx context.Context, userID, channel, created
 
 // CreateConversationInSpace creates a new space-scoped Tier 1 conversation.
 func (s *Store) CreateConversationInSpace(ctx context.Context, spaceID, userID, channel, createdBy string) (*coreconv.Conversation, error) {
+	return s.createConversation(ctx, spaceID, userID, channel, createdBy, "")
+}
+
+// CreateChatConversation creates a space-scoped conversation a chat platform
+// carries, addressed by channelRef. The user both owns and started it.
+func (s *Store) CreateChatConversation(ctx context.Context, spaceID, userID, channel, channelRef string) (*coreconv.Conversation, error) {
+	if channelRef == "" {
+		return nil, errors.New("chat conversation: channel ref required")
+	}
+	return s.createConversation(ctx, spaceID, userID, channel, userID, channelRef)
+}
+
+// LatestChatConversation returns userID's newest conversation for one chat, or
+// (nil, nil). The user is part of the condition so a chat account relinked to
+// another person never continues the previous person's conversation.
+func (s *Store) LatestChatConversation(ctx context.Context, userID, channel, channelRef string) (*coreconv.Conversation, error) {
+	if channelRef == "" {
+		return nil, nil
+	}
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var c conversationReadRow
+	err = s.conversationSelect(ctx).
+		Where("conversation.channel_ref = ? AND conversation.channel = ? AND conversation.user_id = ?", channelRef, channel, userKey).
+		Order("conversation.created_at DESC").Order("conversation.id DESC").
+		Take(&c).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toConversation(&c), nil
+}
+
+func (s *Store) createConversation(ctx context.Context, spaceID, userID, channel, createdBy, channelRef string) (*coreconv.Conversation, error) {
 	now := time.Now().UTC()
-	row := &conversationRow{Channel: channel, CreatedAt: now}
+	row := &conversationRow{Channel: channel, ChannelRef: channelRef, CreatedAt: now}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		userKey, err := lookupKey(ctx, tx, "user", userID)
 		if err != nil {
@@ -112,12 +160,13 @@ func (s *Store) CreateConversationInSpace(ctx context.Context, spaceID, userID, 
 		return nil, err
 	}
 	return &coreconv.Conversation{
-		ID:        row.PublicID,
-		UserID:    userID,
-		SpaceID:   spaceID,
-		Channel:   channel,
-		CreatedBy: createdBy,
-		CreatedAt: now,
+		ID:         row.PublicID,
+		UserID:     userID,
+		SpaceID:    spaceID,
+		Channel:    channel,
+		ChannelRef: channelRef,
+		CreatedBy:  createdBy,
+		CreatedAt:  now,
 	}, nil
 }
 
