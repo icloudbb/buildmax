@@ -153,6 +153,11 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// docs/proposals/personnel-deactivation-lifecycle.md §7.
 	elig := eligibility.New(store, store)
 
+	// Chat platforms reach the same Tier 1 conversation as Portal chat. Nil when
+	// server.yaml connects none. The server starts its receivers with the rest
+	// of its background work and stops them first on shutdown.
+	serverConfig.Services.Channels = buildChannelGateway(sc, store, elig, coordBackend)
+
 	sched, err := scheduler.NewScheduler(store, runner, runTokenMinter(sc, jwtSecret))
 	if err != nil {
 		return fmt.Errorf("scheduler: %w", err)

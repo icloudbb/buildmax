@@ -33,11 +33,13 @@ import (
 	infraoidc "github.com/icloudbb/buildmax/internal/infra/oidc"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	"github.com/icloudbb/buildmax/internal/server/handlers"
+	accountroutes "github.com/icloudbb/buildmax/internal/server/handlers/account"
 	workerroutes "github.com/icloudbb/buildmax/internal/server/handlers/worker"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	"github.com/icloudbb/buildmax/internal/server/turnqueue"
 	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
 	"github.com/icloudbb/buildmax/internal/service/audit"
+	chansvc "github.com/icloudbb/buildmax/internal/service/channel"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
 	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
 	"github.com/icloudbb/buildmax/internal/service/issue"
@@ -143,6 +145,10 @@ type ServicesConfig struct {
 	// disables the worker checkpoint route, which is what a deployment with no
 	// checkpoint storage has.
 	WorkspaceCheckpoints *workspacesvc.Service
+	// Channels carries instant-messaging chats into Conversations. Nil when no
+	// chat platform is configured. The server wires its turn runner, reports
+	// run outcomes through it, and starts and stops its receivers.
+	Channels *chansvc.Gateway
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -275,6 +281,9 @@ func New(cfg Config) *Server {
 	s.openAPISpec = spec
 
 	s.handlers = handlers.NewHandler(buildHandlersConfig(cfg, s.drain))
+	if gw := cfg.Services.Channels; gw != nil {
+		gw.SetTurns(s.handlers)
+	}
 
 	publicMux := http.NewServeMux()
 	publicMux.HandleFunc("GET /healthz", healthzHandler)
@@ -414,6 +423,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		WebhookAdapter:           webhookAdapter,
 		WebhookEngine:            webhookEngine,
 		WebhookMessagePath:       msgPath,
+		ChannelLinks:             channelLinks(cfg.Services.Channels),
 		OnTaskRunTerminal:        buildOnTaskRunTerminal(cfg),
 		Drain:                    drain,
 		Hub:                      cfg.Hub,
@@ -421,6 +431,15 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		CommandBus:               cfg.CommandBus,
 		TurnLocker:               cfg.TurnLocker,
 	}
+}
+
+// channelLinks keeps a nil gateway a nil interface, so the account routes see
+// "not configured" rather than a typed nil they would call into.
+func channelLinks(gw *chansvc.Gateway) accountroutes.ChannelLinks {
+	if gw == nil {
+		return nil
+	}
+	return gw
 }
 
 // buildOnTaskRunTerminal composes what should happen when a worker run reaches
@@ -460,7 +479,8 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info coretask.
 			Comments: cfg.Stores.IssueCommentStore,
 		}
 	}
-	if workflowSvc == nil && runReporter == nil {
+	channels := cfg.Services.Channels
+	if workflowSvc == nil && runReporter == nil && channels == nil {
 		return nil
 	}
 	return func(ctx context.Context, info coretask.RunTerminalInfo) {
@@ -475,6 +495,8 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info coretask.
 				slog.Warn("issue run comment not written", "task_run_id", info.TaskRunID, "task_id", info.TaskID, "err", err)
 			}
 		}
+		// A run started from a chat conversation is reported back to that chat.
+		channels.ReportRunTerminal(ctx, terminal)
 	}
 }
 
@@ -532,7 +554,10 @@ func (s *Server) ListenAndServe() error {
 //
 // Called by whoever runs the server rather than by New, so that building a
 // handler — which a test does freely — never starts a goroutine.
-func (s *Server) StartBackground() { s.handlers.StartBackground() }
+func (s *Server) StartBackground() {
+	s.handlers.StartBackground()
+	s.cfg.Services.Channels.Start()
+}
 
 // StopBackground stops that work and waits for it, bounded by ctx.
 func (s *Server) StopBackground(ctx context.Context) { s.handlers.StopBackground(ctx) }
@@ -570,7 +595,11 @@ func (s *Server) Draining() bool {
 // without waiting for.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.Drain()
+	// Chat receivers stop taking messages before turns are waited for; the
+	// replies to turns already running are then waited for like the turns.
+	s.cfg.Services.Channels.Stop()
 	s.handlers.WaitTurns(ctx)
+	s.cfg.Services.Channels.Wait(ctx)
 	// Public first, worker last. A worker reports its outcome over the worker
 	// listener, so it outlives the public one; by the time the ladder reaches
 	// here the scheduler has already stopped and its runs have reported, but

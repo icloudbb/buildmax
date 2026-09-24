@@ -196,6 +196,10 @@ type Config struct {
 	WebhookEngine      conversation.TurnEngine
 	WebhookMessagePath string
 
+	// ChannelLinks serves the account's chat-platform links. Nil means no chat
+	// platform is configured.
+	ChannelLinks accountroutes.ChannelLinks
+
 	// Hub is optional; if nil NewHandler creates an in-memory one. A Redis-backed
 	// hub is injected here when coordination.mode is redis, so the stream a worker
 	// pushes on one replica is readable on another. See

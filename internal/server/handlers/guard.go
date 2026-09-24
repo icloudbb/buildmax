@@ -242,11 +242,12 @@ func (h *Handler) buildAuthHandler() *authroutes.Handler {
 // owns across spaces, holding only the stores those routes read.
 func (h *Handler) buildAccountHandler() *accountroutes.Handler {
 	return accountroutes.New(accountroutes.Config{
-		JWTSecret:   h.cfg.JWTSecret,
-		Users:       h.cfg.UserStore,
-		Sessions:    h.cfg.AuthSessionStore,
-		WebhookKeys: h.cfg.UserWebhookKeyStore,
-		Audit:       h.cfg.Audit,
+		JWTSecret:    h.cfg.JWTSecret,
+		Users:        h.cfg.UserStore,
+		Sessions:     h.cfg.AuthSessionStore,
+		WebhookKeys:  h.cfg.UserWebhookKeyStore,
+		ChannelLinks: h.cfg.ChannelLinks,
+		Audit:        h.cfg.Audit,
 	})
 }
 

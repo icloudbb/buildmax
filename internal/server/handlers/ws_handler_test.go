@@ -142,6 +142,25 @@ func TestWSConversationCreateFlow(t *testing.T) {
 	}
 }
 
+// A socket may not name a channel the HTTP route refuses: system would strip
+// the turn's tools, and a chat platform's channel belongs to the gateway.
+func TestWSConversationCreateRefusesServerAssignedChannels(t *testing.T) {
+	h := setupWSHandler()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	conn := dialWS(t, server, testsupport.SignJWT("u1", wsTestSecret))
+	defer conn.Close()
+	for _, channel := range []string{"system", "telegram"} {
+		sendEnvelope(t, conn, wsconn.TypeConversationCreate, wsconn.ConversationCreate{Message: "hi", Channel: channel})
+		if env := readEnvelope(t, conn); env.Type != wsconn.TypeConversationError {
+			t.Errorf("channel %q: event = %q, want %q", channel, env.Type, wsconn.TypeConversationError)
+		}
+	}
+}
+
 func TestWSUnknownEventType(t *testing.T) {
 	h := setupWSHandler()
 	mux := http.NewServeMux()

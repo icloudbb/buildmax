@@ -48,6 +48,7 @@ type RedactedServerConfig struct {
 	LLM          RedactedLLMConfig          `json:"llm"`
 	Coordination RedactedCoordinationConfig `json:"coordination"`
 	OIDC         RedactedOIDCConfig         `json:"oidc"`
+	Channels     RedactedChannelsConfig     `json:"channels"`
 
 	// Warnings are configuration states worth an operator's attention. They are
 	// not errors — the server is running — and they are computed rather than
@@ -138,6 +139,13 @@ type RedactedOIDCConfig struct {
 	ClientSecret        SecretStatus `json:"client_secret"`
 }
 
+// RedactedChannelsConfig shows which chat platforms are connected. A bot
+// token is the bot's whole identity, so it is reported only as set or not.
+type RedactedChannelsConfig struct {
+	TelegramAPIBaseURL string       `json:"telegram_api_base_url,omitempty"`
+	TelegramBotToken   SecretStatus `json:"telegram_bot_token"`
+}
+
 // Redacted returns the operator-facing view of the configuration.
 func (sc ServerConfig) Redacted() RedactedServerConfig {
 	out := RedactedServerConfig{
@@ -201,6 +209,10 @@ func (sc ServerConfig) Redacted() RedactedServerConfig {
 			SessionMaxAge:       sc.OIDC.sessionMaxAge().String(),
 			ClientSecret:        secretStatus(sc.OIDC.ClientSecret),
 		},
+		Channels: RedactedChannelsConfig{
+			TelegramAPIBaseURL: sc.Channels.Telegram.APIBaseURL,
+			TelegramBotToken:   secretStatus(sc.Channels.Telegram.BotToken),
+		},
 		LocalLogin: sc.localLogin(),
 	}
 	if sc.AccessTokenTTL > 0 {
@@ -259,6 +271,9 @@ func (sc ServerConfig) configWarnings() []string {
 	}
 	if sc.OIDC.Enabled && sc.localLogin() == LocalLoginOff {
 		warnings = append(warnings, "local_login is off with oidc enabled: there is no break-glass login if the IdP is unreachable — local_login: system_admins keeps operators able to sign in")
+	}
+	if sc.Channels.Telegram.BotToken != "" && sc.PublicBaseURL == "" {
+		warnings = append(warnings, "channels.telegram is on without public_base_url: the bot cannot send links, so people link their chat account by typing its code in the Portal")
 	}
 	return warnings
 }

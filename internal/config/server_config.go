@@ -92,6 +92,27 @@ type ServerConfig struct {
 	// disabled: a deployment that names no IdP gets native login only. See
 	// docs/design/enterprise-identity-and-access.md.
 	OIDC ServerOIDCConfig `mapstructure:"oidc"`
+	// Channels connects instant-messaging platforms, so a linked user can talk
+	// to their assistant from a chat app. Its zero value connects none. See
+	// docs/design/instant-messaging-channels.md.
+	Channels ServerChannelsConfig `mapstructure:"channels"`
+}
+
+// ServerChannelsConfig holds one block per supported chat platform.
+type ServerChannelsConfig struct {
+	Telegram ServerTelegramConfig `mapstructure:"telegram"`
+}
+
+// ServerTelegramConfig configures the Telegram bot. The bot receives by long
+// polling, so it needs outbound HTTPS to the Bot API and no public URL.
+type ServerTelegramConfig struct {
+	// BotToken is the token BotFather issued. Empty leaves Telegram off. Inject
+	// it with BUILDMAX_TELEGRAM_BOT_TOKEN rather than writing it to disk; it is
+	// never served, logged, or handed to a worker.
+	BotToken string `mapstructure:"bot_token"`
+	// APIBaseURL overrides https://api.telegram.org, for a self-hosted Bot API
+	// server.
+	APIBaseURL string `mapstructure:"api_base_url"`
 }
 
 // Local-login modes for local_login. They gate the native password and
@@ -726,6 +747,9 @@ const (
 	// confidential client's secret at deploy time keeps it off disk, like
 	// jwt_secret; it is never served, logged, or handed to a worker.
 	EnvKeyBuildmaxOIDCClientSecret = "BUILDMAX_OIDC_CLIENT_SECRET"
+	// BUILDMAX_TELEGRAM_BOT_TOKEN overrides channels.telegram.bot_token. The
+	// token is the bot's whole identity, so it is injected like a secret.
+	EnvKeyBuildmaxTelegramBotToken = "BUILDMAX_TELEGRAM_BOT_TOKEN"
 )
 
 // BUILDMAX_CORS_ORIGIN overrides cors_origin.
@@ -823,6 +847,7 @@ func LoadServerConfig() (ServerConfig, error) {
 	_ = v.BindEnv("conversation.model.api_key", EnvKeyBuildmaxConversationAPIKey)
 	_ = v.BindEnv("coordination.redis.password", EnvKeyBuildmaxCoordinationRedisPassword)
 	_ = v.BindEnv("oidc.client_secret", EnvKeyBuildmaxOIDCClientSecret)
+	_ = v.BindEnv("channels.telegram.bot_token", EnvKeyBuildmaxTelegramBotToken)
 	_ = v.BindEnv("worker.llm.transport", EnvKeyBuildmaxWorkerLLMTransport)
 	_ = v.BindEnv("llm.default_model", EnvKeyBuildmaxLLMDefaultModel)
 	_ = v.BindEnv("conversation.model_target", EnvKeyBuildmaxConversationModelTarget)
