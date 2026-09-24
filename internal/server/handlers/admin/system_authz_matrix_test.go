@@ -73,6 +73,7 @@ var adminRoutes = []adminCase{
 	{"GET", "/api/admin/llm/models"},
 	{"POST", "/api/admin/llm/models"},
 	{"PUT", "/api/admin/llm/models/{model_id}/state"},
+	{"PUT", "/api/admin/llm/models/{model_id}/credential"},
 	{"GET", "/api/admin/llm/calls"},
 	// Publishing changes what every member of the deployment can install, so
 	// reaching any of these without a grant has to be refused before the

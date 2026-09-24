@@ -179,3 +179,41 @@ func (h *Handler) setAdminModelStateHandler(w http.ResponseWriter, r *http.Reque
 	}
 	httputil.WriteJSON(w, http.StatusOK, AdminModel{Model: *updated})
 }
+
+// setModelCredentialRequest is the body of
+// PUT /api/admin/llm/models/{model_id}/credential. api_key is write-only, in the
+// body for the same reason as on create.
+type setModelCredentialRequest struct {
+	APIKey string `json:"api_key"`
+}
+
+// setAdminModelCredentialHandler replaces a catalog model's upstream key in
+// place, so rotating a leaked or expired key does not rename the model every
+// client selects it by.
+func (h *Handler) setAdminModelCredentialHandler(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := h.guard().SystemAdmin(w, r)
+	if !ok {
+		return
+	}
+	if !httputil.RequireStore(w, h.cfg.Models, "the model catalog is not configured") {
+		return
+	}
+	modelID, ok := httputil.PathValue(w, r, "model_id")
+	if !ok {
+		return
+	}
+	var req setModelCredentialRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	svc := &llmcatalog.Service{Models: h.cfg.Models, Audit: h.cfg.Audit}
+	updated, err := svc.ReplaceCredential(r.Context(), modelID, req.APIKey, coreaudit.UserActor(actorID))
+	if err != nil {
+		if httputil.WriteServiceError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_credential", "model_id", modelID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, AdminModel{Model: *updated})
+}

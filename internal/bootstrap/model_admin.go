@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -33,11 +34,13 @@ Commands:
   list      List catalog models
   enable    Re-enable a retired model
   disable   Retire a model without deleting it
+  set-key   Replace a model's upstream key in place, read from standard input
 
 Flags for add:
   --name string           Operator-facing name, unique in the deployment (required)
   --api-url string        Upstream base URL (required)
-  --api-key string        Upstream credential (required, except for ollama)
+  --api-key string        Upstream credential (required, except for ollama);
+                          - reads it from standard input, out of shell history
   --model string          The provider's own model identifier (required)
   --provider string       Wire protocol: openai_compatible (default), openai,
                           anthropic, ollama (a local daemon, no credential)
@@ -56,24 +59,28 @@ Flags for add:
   --vision                The upstream accepts image input
   --capabilities string   Comma-separated; defaults to the provider contract
 
-Flags for enable and disable:
+Flags for enable, disable, and set-key:
   --id string             Model ID (required)
 
-A model is not usable by a space until an alias in server.yaml points at its ID.
+A model is available to every signed-in user by its name as soon as it is added.
+set-key rotates a leaked or expired key without renaming the model, so no client
+has to change what it selects; the gateway uses the new key from the next call.
 An ollama target's --api-url must be reachable from the server, which inside a
 container is not the host's localhost. See docs/design/llm-gateway.md.
 `
 
 // RunModelCommand executes `buildmax-server model ...`. args excludes the
 // "model" word itself.
-func RunModelCommand(ctx context.Context, args []string, out io.Writer) error {
+func RunModelCommand(ctx context.Context, args []string, in io.Reader, out io.Writer) error {
 	if len(args) == 0 {
 		fmt.Fprint(out, ModelCommandUsage)
 		return errors.New("model: a command is required")
 	}
 	switch args[0] {
 	case "add":
-		return runModelAdd(ctx, args[1:], out)
+		return runModelAdd(ctx, args[1:], in, out)
+	case "set-key":
+		return runModelSetKey(ctx, args[1:], in, out)
 	case "list":
 		return runModelList(ctx, out)
 	case "enable":
@@ -89,7 +96,7 @@ func RunModelCommand(ctx context.Context, args []string, out io.Writer) error {
 	}
 }
 
-func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
+func runModelAdd(ctx context.Context, args []string, in io.Reader, out io.Writer) error {
 	fs := flag.NewFlagSet("model add", flag.ContinueOnError)
 	fs.SetOutput(out)
 	name := fs.String("name", "", "operator-facing name")
@@ -113,6 +120,13 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *apiKey == "-" {
+		key, err := readKeyLine(in)
+		if err != nil {
+			return fmt.Errorf("model add: %w", err)
+		}
+		*apiKey = key
+	}
 
 	pricing, err := config.ResolvePricing(&config.ModelPricing{
 		Currency:          strings.TrimSpace(*currency),
@@ -125,7 +139,7 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 		return fmt.Errorf("model add: %w", err)
 	}
 
-	in := coregw.CreateModelInput{
+	create := coregw.CreateModelInput{
 		Name:          strings.TrimSpace(*name),
 		ProviderType:  strings.TrimSpace(*provider),
 		APIURL:        strings.TrimSpace(*apiURL),
@@ -156,10 +170,10 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	// the server, which the process cannot name — this command already requires
 	// the database credentials, so being on that machine is the authorization.
 	svc := &llmcatalog.Service{Models: store, Audit: audit.NewRecorder(store)}
-	created, err := svc.Create(ctx, in, coreaudit.OperatorActor())
+	created, err := svc.Create(ctx, create, coreaudit.OperatorActor())
 	if err != nil {
 		if errors.Is(err, llmcatalog.ErrNameTaken) {
-			return fmt.Errorf("a model named %q already exists", in.Name)
+			return fmt.Errorf("a model named %q already exists; `buildmax-server model set-key` replaces its key", create.Name)
 		}
 		return commandError("model add", err)
 	}
@@ -228,6 +242,47 @@ func runModelSetEnabled(ctx context.Context, args []string, out io.Writer, enabl
 	recordModelAudit(ctx, store, auditAction, *id, "")
 	fmt.Fprintf(out, "Model %s is now %sd\n", *id, action)
 	return nil
+}
+
+func runModelSetKey(ctx context.Context, args []string, in io.Reader, out io.Writer) error {
+	fs := flag.NewFlagSet("model set-key", flag.ContinueOnError)
+	fs.SetOutput(out)
+	id := fs.String("id", "", "model ID")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*id) == "" {
+		return errors.New("model set-key: --id is required")
+	}
+	key, err := readKeyLine(in)
+	if err != nil {
+		return fmt.Errorf("model set-key: %w", err)
+	}
+	store, err := openStoreFromConfig(ctx)
+	if err != nil {
+		return err
+	}
+	svc := &llmcatalog.Service{Models: store, Audit: audit.NewRecorder(store)}
+	updated, err := svc.ReplaceCredential(ctx, *id, key, coreaudit.OperatorActor())
+	if err != nil {
+		return commandError("model set-key", err)
+	}
+	fmt.Fprintf(out, "Replaced the key for %s (%s); the gateway uses it from the next call\n", updated.ID, updated.Name)
+	return nil
+}
+
+// readKeyLine reads a provider key as the first line of standard input. A key
+// on the command line would stay in shell history and in process listings;
+// piped or typed here, it does not.
+func readKeyLine(in io.Reader) (string, error) {
+	if in == nil {
+		return "", errors.New("no API key on standard input")
+	}
+	line, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && line == "" {
+		return "", errors.New("no API key on standard input")
+	}
+	return strings.TrimSpace(line), nil
 }
 
 // parseCapabilityList splits the comma-separated flag. An empty value yields no

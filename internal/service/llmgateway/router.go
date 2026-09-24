@@ -46,6 +46,9 @@ type clientKey struct {
 	cacheMode string
 	cacheTTL  string
 	vision    bool
+	// revision retires a client built before its row changed, which is the
+	// only way a rotated credential reaches a client cached with the old one.
+	revision time.Time
 }
 
 func keyOf(target Target) clientKey {
@@ -61,6 +64,7 @@ func keyOf(target Target) clientKey {
 		cacheMode:     target.CacheMode,
 		cacheTTL:      target.CacheTTL,
 		vision:        target.Vision,
+		revision:      target.Revision,
 	}
 }
 

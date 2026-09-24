@@ -37,6 +37,10 @@ type Target struct {
 	Endpoint string
 	// CredentialRef names the secret used for this target, not the secret.
 	CredentialRef string
+	// Revision changes whenever the catalog row does, including when its
+	// credential is replaced. The secret behind CredentialRef is not visible
+	// here, so this is what tells a cached client it is stale.
+	Revision time.Time
 	// UpstreamModel is the provider's own model identifier.
 	UpstreamModel string
 	// ContextWindow is the usable context size; 0 means the client default.

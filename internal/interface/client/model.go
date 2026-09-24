@@ -106,3 +106,27 @@ func (c *Client) SetModelEnabled(ctx context.Context, token, modelID string, ena
 	}
 	return &out, nil
 }
+
+// ReplaceModelCredential rotates a catalog model's upstream key in place.
+func (c *Client) ReplaceModelCredential(ctx context.Context, token, modelID, apiKey string) (*AdminModel, error) {
+	payload, err := json.Marshal(struct {
+		APIKey string `json:"api_key"`
+	}{APIKey: apiKey})
+	if err != nil {
+		return nil, err
+	}
+	path := "/api/admin/llm/models/" + url.PathEscape(modelID) + "/credential"
+	resp, err := c.do(ctx, http.MethodPut, token, path, "application/json", bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, httpclient.DecodeError(resp, "")
+	}
+	var out AdminModel
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	return &out, nil
+}

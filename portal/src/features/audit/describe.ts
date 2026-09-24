@@ -71,6 +71,12 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
       return { summary: "Enabled a model", denied: false, target }
     case "llm_model.disabled":
       return { summary: "Disabled a model", denied: false, target }
+    case "llm_model.credential_replaced":
+      return {
+        summary: event.detail ? `Replaced the key for ${event.detail}` : "Replaced a model's key",
+        denied: false,
+        target,
+      }
     case "user.logout":
       return { summary: "Signed out", denied: false, target: null }
     case "user.password_set":

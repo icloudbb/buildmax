@@ -110,6 +110,7 @@ func targetFromModel(m coregw.Model) (Target, error) {
 		ProviderType:      m.ProviderType,
 		Endpoint:          m.APIURL,
 		CredentialRef:     m.ID,
+		Revision:          m.UpdatedAt,
 		UpstreamModel:     m.Model,
 		ContextWindow:     m.ContextWindow,
 		CallTimeout:       time.Duration(m.CallTimeout) * time.Second,

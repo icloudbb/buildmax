@@ -91,6 +91,11 @@ func (m *fakeModels) ListLLMModels(context.Context) ([]coregw.Model, error) {
 
 func (m *fakeModels) SetLLMModelEnabled(context.Context, string, bool) error { return nil }
 
+func (m *fakeModels) SetLLMModelCredential(_ context.Context, id, key string) error {
+	m.credentials[id] = key
+	return nil
+}
+
 func (m *fakeModels) LLMModelCredential(_ context.Context, id string) (string, error) {
 	key, ok := m.credentials[id]
 	if !ok {
