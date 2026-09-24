@@ -30,6 +30,7 @@ single fact — whether a login exists — and everything else follows from it.
 - [10. What This Supersedes](#10-what-this-supersedes)
 - [11. Where It Lives](#11-where-it-lives)
 - [12. Not In Scope](#12-not-in-scope)
+- [13. A Session Stays In The Mode It Began In](#13-a-session-stays-in-the-mode-it-began-in)
 
 ## 1. Decision
 
@@ -119,19 +120,30 @@ whether they still work is [§8](#8-an-expired-login-does-not-silently-fall-back
 ## 4. Model List
 
 The server returns **a `ModelEntry` list with the credential fields removed**:
-`name`, `context_window`, `vision`, and which one is the default. No `api_url`,
+`name`, `context_window`, `vision`, the current `pricing`, and which one is the
+default. No `api_url`,
 no `api_key`, no endpoint, no upstream model identifier.
 
 One shape means the model panel, the default-model rule, the status line, and
 `buildmax models` have one code path, and the modes differ only in where the
 list came from.
 
-Only what the client acts on before a call crosses. It compacts a session
-against the context window and sends an image only to a model that can read one,
-so those two must be known locally. Reasoning effort, output cap, cache policy,
-and price are the operator's target policy and stay on the server — which is
-also what records the cost, so a local guess would be a second answer to a
-question that already has one.
+Only what the client acts on crosses. It compacts a session against the context
+window and sends an image only to a model that can read one, so those two must
+be known locally. Reasoning effort, output cap, and cache policy are the
+operator's target policy and stay on the server.
+
+Price crosses too. It first stayed on the server, on the reasoning that the
+ledger already records the cost and a local figure would be a second answer.
+Exploratory testing on 2026-09-24 found the cost of that: every signed-in
+surface — the session footer, `buildmax info`, `buildmax usage`, Desktop's
+`/info` — reported "not priced" for calls the ledger had priced, and no view a
+user could open showed the spend. Rates are not secret; a user sees what their
+calls cost either way. So the list carries each model's rates as decimal
+strings, and the client prices each call with the same `EstimateCost` the
+ledger uses. For the same usage and rates the two agree; the ledger, which
+snapshots the rates at acceptance, stays authoritative when a price changes
+during a session, and the Portal usage page reads the ledger (§9).
 
 `transport` on a model entry went away with all this. It was a per-entry
 property because one list held both kinds; the mode says which it is now, and a
@@ -243,6 +255,22 @@ Deleting the file rather than marking it stale is what keeps §3 true. A retaine
 but invalid `auth.json` would be a third state, and every reader would need to
 know the difference between "has a login" and "has a working login".
 
+Only the user deletes it. The client once cleared `auth.json` itself when the
+server rejected a refresh, which made the *next* command run in local mode
+without anyone choosing it — the redirection this section forbids, one command
+late. A rejected refresh is now reported as `ErrLoginExpired` and the file
+stays until the user signs in again or out.
+
+An unreachable deployment is not an expired login. The login still works, and
+the offered way out of an ended one — signing out — would discard it. So the
+failure has three classes, each with its own next step: `ErrLoginExpired` (sign
+in again, or out), `ErrAccountDisabled` (an administrator must re-enable it, or
+sign out), and `ErrServerUnavailable` (try again; the login is kept). Desktop
+shows the ended-login screen only for the first two; an outage is a banner that
+retries on its own. Exploratory testing on 2026-09-24 found Desktop treating
+every failure as the first class, which pushed users to destroy a working
+login during a transient outage.
+
 ## 9. Usage Is Attributed To A Person
 
 The `llm_call` ledger records the user. `space_id` is **dropped from the row**,
@@ -258,6 +286,12 @@ key belongs to the caller who sent it.
 Reading a run's ledger is authorized by authorizing the run — it belongs to
 exactly one space — so `ListLLMCallsByTaskRun` takes only the run and the handler
 checks ownership first.
+
+A foreground call belonging to no space also means no space's usage includes it.
+`GET /api/usage`, the caller's personal view, therefore adds `managed_calls`: the
+caller's own calls outside any task run over the same period, summed by rate
+snapshot and priced with the ledger's formula. The space-scoped route does not,
+because one member's sessions are not the space's spend.
 
 Quota per space is out of scope here. It returns only if space workspace
 selection is ever added, because a per-space ceiling needs each call to belong to
@@ -289,7 +323,10 @@ decide, and its status block summarises what changed here.
 | `llm.default_model`, startup validation | `internal/config/server_config.go`, `internal/bootstrap` |
 | Global gateway routes | `internal/server/handlers/routes.go`, `internal/server/handlers/llm.go` |
 | User-scoped ledger | `internal/infra/db/llm_call.go`, `internal/core/llmgateway/call.go` |
-| Expired login | `auth.ErrLoginExpired`, `internal/interface/cli/mode.go`, Desktop `AuthStatus.Expired` |
+| Expired login, disabled account, unreachable deployment | `auth.ErrLoginExpired`, `auth.ErrAccountDisabled`, `auth.ErrServerUnavailable`, `internal/interface/cli/mode.go`, Desktop `AuthStatus.Expired` / `Unavailable` |
+| Pricing on the model list | `llmwire.ModelPricing`, `internal/server/handlers/llm.go` |
+| Personal managed-call totals | `SummarizeForegroundLLMCalls`, `internal/server/handlers/space/usage.go` |
+| A session stays in its mode | `session.Meta.PromptDestination`, `AgentApp.bindPromptDestination` |
 
 The user-facing half is
 [manual/models-and-modes.md](../../manual/models-and-modes.md); the fields are in
@@ -315,3 +352,26 @@ its own answer. `auth.StoredLogin` is that distinction, and
 - **Caching the fetched list.** Managed mode fetches on each start, which costs
   one request and keeps the answer current. A cache would be a third place the
   mode is recorded, and stale entries would misreport what a deployment offers.
+
+## 13. A Session Stays In The Mode It Began In
+
+§1 makes the modes exclusive for new prompts, but a session carries history, and
+resuming one sends that history again. Exploratory testing on 2026-09-24 resumed
+a session written against a deployment after `buildmax logout`, named a local
+model, and replayed the governed conversation to a personal key with no notice.
+The reverse — a local conversation handed to a deployment after signing in — is
+the same redirection in the other direction.
+
+A session therefore records where its prompts go, `prompt_destination` in its
+metadata: `local`, or the deployment's URL. The first turn sets it and nothing
+changes it. Every later turn, on every surface, passes through
+`AgentApp.runTurn`, which refuses one bound elsewhere and says to continue in the
+mode the session began in or to start a new session. Recording on the first turn
+rather than at creation means a session that has never run binds to whichever
+mode first runs it.
+
+Only sessions of a local Project are bound. A task run's session belongs to the
+deployment that owns the run, and a worker continuing it may reach that
+deployment by another address; binding it to a URL would break Continue without
+protecting anything.
+

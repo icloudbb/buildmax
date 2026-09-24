@@ -180,8 +180,17 @@ with `buildmax project forget`, and disable memory for one run with
 planned.
 
 Local execution does not require a Server. Signed-in clients can use the managed
-model catalog; a server-rejected credential is treated as an expired login, and
-`buildmax logout` returns the client to local mode. See
+model catalog, priced with the rates it carries so session cost shows locally;
+the caller's own foreground calls are totalled on `GET /api/usage`. A failure to
+reach the models is classified: a server-rejected or unrenewable credential is an
+expired login (the login is kept until the user signs in again or out), a
+disabled account is its own case, and an unreachable deployment keeps the login
+and asks the user to retry — Desktop shows a retrying banner rather than the
+ended-login screen. None falls back to local models, and `buildmax logout`
+returns the client to local mode. A local session is bound to the mode of its
+first turn and is not resumed in the other. Catalog keys are replaced in place
+with `set-key` or `PUT /api/admin/llm/models/{model_id}/credential`, and the
+gateway logs a provider's failure reason server-side. See
 [`internal/interface/auth/models.go`](../internal/interface/auth/models.go) and
 its [tests](../internal/interface/auth/models_test.go).
 

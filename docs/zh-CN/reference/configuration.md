@@ -649,20 +649,23 @@ Space 所有者可以从 space 设置中下载该 space 自己的审计轨迹，
 ```bash
 buildmax-server model add --name Fast \
     --api-url https://openrouter.ai/api/v1 \
-    --api-key your-openrouter-api-key \
-    --model openai/gpt-4o-mini --context-window 128000
+    --api-key - \
+    --model openai/gpt-4o-mini --context-window 128000 < openrouter-key.txt
 
 buildmax-server model add --name Claude --provider anthropic \
     --api-url https://api.anthropic.com \
-    --api-key your-anthropic-api-key \
+    --api-key - < anthropic-key.txt \
     --model claude-sonnet-4-5 --context-window 200000 --max-tokens 8192 \
     --reasoning medium --prompt-cache --vision
 
 buildmax-server model list
 buildmax-server model disable --id lm_xxxxxxxxxxxxxxxxxxxx
+buildmax-server model set-key --id lm_xxxxxxxxxxxxxxxxxxxx < new-key.txt
 ```
 
 `--provider` 是上游所使用的通信协议——与 `settings.yaml` 使用的是同样的三个取值，参见[模型提供商](#模型提供商)一节。默认值为 `openai_compatible`，因此该选项出现之前写下的目录仍能照常工作。`--max-tokens` 限定单次响应的上限；留空表示使用协议自身的默认值，对 `anthropic` 而言就是内置的 8192。`--reasoning`、`--prompt-cache` 和 `--vision` 分别对应 `settings.yaml` 中在[推理](#推理)、[提示缓存](#提示缓存)和[图像输入](#图像输入)几节中描述过的那些键在目录层面的等价物。在正在运行的 server 上修改任意一项，都会在下一次调用时生效：router 会为目标连接细节发生了变化的模型重新构建客户端。
+
+`--api-key -` 从标准输入读取 key，`set-key` 总是如此，这样 key 就不会留在 shell 历史和进程列表中。`set-key` 原地轮换一个泄露或过期的 key：模型保留它的 ID 和名称，所以任何客户端都不必改变所选的模型，router 会在下一次调用前丢弃用旧 key 构建的客户端。同样的操作也可以通过 `PUT /api/admin/llm/models/{model_id}/credential` 和 `buildmax admin model set-key` 完成。
 
 | 键 | 含义 |
 |---|---|
