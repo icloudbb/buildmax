@@ -25,15 +25,17 @@ import { classifyError, deriveResourceState, type RequestError, type ResourceSta
 import { derivePermissionState } from "../../state/permissionState"
 import { UserAvatar } from "../../components/UserAvatar"
 import { WebhookKeysSection } from "../../components/WebhookKeysSection"
+import { ChatAccountsSection } from "../../components/ChatAccountsSection"
 import SettingsIcon from "../../icons/settings.svg?react"
 import UsageIcon from "../../icons/usage.svg?react"
 import ToolboxIcon from "../../icons/toolbox.svg?react"
 import AgentsIcon from "../../icons/agents.svg?react"
+import NewChatIcon from "../../icons/new-chat.svg?react"
 import IssueIcon from "../../icons/issue.svg?react"
 import ShieldIcon from "../../icons/shield.svg?react"
 import { Button, BaseModal } from "@buildmax/gui"
 
-export type AccountSection = "general" | "usage" | "webhook" | "invitations"
+export type AccountSection = "general" | "usage" | "webhook" | "chat" | "invitations"
 export type SpaceSection =
   | "overview"
   | "members"
@@ -53,6 +55,9 @@ export const ACCOUNT_NAV: SettingsNavItem<Exclude<AccountSection, never>>[] = [
   { id: "general", label: "General", icon: SettingsIcon },
   { id: "usage", label: "Usage", icon: UsageIcon },
   { id: "webhook", label: "Webhook", icon: ToolboxIcon },
+  // Chat-app accounts (Telegram) linked to this account. Account-owned, like
+  // webhook keys. See docs/design/instant-messaging-channels.md.
+  { id: "chat", label: "Chat accounts", icon: NewChatIcon },
   // Not space-scoped: what is pending for this account, across every space it
   // was invited to. See docs/design/space-membership-lifecycle.md §5.1, §9.
   { id: "invitations", label: "Invitations", icon: AgentsIcon },
@@ -340,6 +345,22 @@ export function AccountWebhookSection({ token }: { token: string | null }) {
         </div>
       </div>
       <WebhookKeysSection token={token} />
+    </section>
+  )
+}
+
+export function AccountChatSection({ token, code }: { token: string | null; code?: string }) {
+  return (
+    <section className="settings-page__section">
+      <div className="settings-page__section-head">
+        <div>
+          <h2 className="settings-page__section-title">Chat accounts</h2>
+          <p className="settings-page__section-copy">
+            Use your assistant from a chat app, and hear there when work it started finishes.
+          </p>
+        </div>
+      </div>
+      <ChatAccountsSection token={token} code={code} />
     </section>
   )
 }

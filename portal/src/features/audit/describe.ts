@@ -154,6 +154,14 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
       return { summary: "Created a webhook key", denied: false, target }
     case "webhook_key.revoked":
       return { summary: "Revoked a webhook key", denied: false, target }
+    case "channel_link.created":
+      return {
+        summary: event.detail ? `Linked a ${event.detail} chat account` : "Linked a chat account",
+        denied: false,
+        target,
+      }
+    case "channel_link.removed":
+      return { summary: "Unlinked a chat account", denied: false, target }
     case "agent.created":
       return {
         summary: event.detail ? `Created the agent ${event.detail}` : "Created an agent",

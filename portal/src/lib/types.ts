@@ -44,7 +44,10 @@ export type Route =
   | { name: "agent"; spaceId: string; agentId: string }
   | {
       name: "account"
-      section?: "general" | "usage" | "webhook" | "invitations"
+      section?: "general" | "usage" | "webhook" | "chat" | "invitations"
+      // A chat bot's link code, carried in the address the bot sends so the
+      // Chat accounts section opens on its confirmation. Only for "chat".
+      code?: string
     }
   | {
       name: "space"

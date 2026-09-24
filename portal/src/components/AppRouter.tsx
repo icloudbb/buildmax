@@ -94,7 +94,7 @@ export function AppRouter({
     return <AgentDetail token={token ?? null} spaceId={route.spaceId} agentId={route.agentId} />
   }
 
-  if (route.name === "account") return <AccountSettings section={route.section ?? "general"} />
+  if (route.name === "account") return <AccountSettings section={route.section ?? "general"} code={route.code} />
   if (route.name === "space")
     return <SpaceSettings spaceId={route.spaceId} section={route.section ?? "overview"} />
   if (route.name === "admin")
