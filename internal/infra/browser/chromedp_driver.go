@@ -96,6 +96,13 @@ func (c *Controller) newChromedpPage(_ context.Context) (pageDriver, func(), err
 		chromedp.UserDataDir(dir),
 		chromedp.WindowSize(viewportW, viewportH),
 		chromedp.CombinedOutput(output),
+		// chromedp waits 20 seconds by default for Chrome to print its DevTools
+		// address. A first launch builds its profile and font cache, and on a
+		// loaded CI runner that has taken the whole 20 seconds while Chrome was
+		// still starting (runs 35854939264 and 36081440975, both failing at
+		// exactly 20.0s). A browser that cannot start still fails, with its
+		// output, when it exits.
+		chromedp.WSURLReadTimeout(browserStartTimeout),
 	)
 	if c.headful {
 		// DefaultExecAllocatorOptions enables headless; a later flag wins, so
@@ -355,6 +362,10 @@ const typeJS = `(() => {
   el.dispatchEvent(new Event('change', {bubbles: true}));
   return {found: true};
 })()`
+
+// browserStartTimeout is how long a launching browser gets to report its
+// DevTools address.
+const browserStartTimeout = 60 * time.Second
 
 // outputTailBytes bounds what a failed launch reports: enough for Chrome's
 // closing lines, not its whole log.
