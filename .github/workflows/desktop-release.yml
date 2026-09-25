@@ -82,7 +82,8 @@ jobs:
       # bash on both platforms: gh ships on every runner and Git Bash gives
       # Windows the same glob and loop. The release is created by release.yml on
       # the same tag; the two workflows run in parallel, so wait for it rather
-      # than assume the ordering.
+      # than assume the ordering. release.yml publishes only after its own build
+      # (about 13 minutes for v0.2.0-alpha.15), so allow 30 minutes.
       - name: Upload to the release
         shell: bash
         env:
@@ -90,7 +91,7 @@ jobs:
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 90); do
             if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
               break
             fi
