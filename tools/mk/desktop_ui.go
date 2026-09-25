@@ -71,9 +71,14 @@ func e2eDesktopUI(args []string) error {
 	}
 	defer dev.stop()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	// The wait covers a full compile of the Desktop binary, not only a server
+	// starting: `wails dev` generates bindings and builds before it listens.
+	// A cold build on a CI macOS runner took about a minute and has crossed 90
+	// seconds, at which point the build was killed mid-compile and read as a
+	// hang. The budget stays finite so a real hang still fails.
+	ctx, cancel := context.WithTimeout(context.Background(), wailsDevReadyTimeout)
 	defer cancel()
-	if err := waitForHTTP(ctx, &http.Client{Timeout: 5 * time.Second}, desktopDevServerURL, 90*time.Second); err != nil {
+	if err := waitForHTTP(ctx, &http.Client{Timeout: 5 * time.Second}, desktopDevServerURL, wailsDevReadyTimeout); err != nil {
 		return fmt.Errorf("`wails dev` never answered at %s: %w\nSee %s", desktopDevServerURL, err, dev.logPath)
 	}
 
@@ -93,6 +98,9 @@ func e2eDesktopUI(args []string) error {
 	}
 	return nil
 }
+
+// wailsDevReadyTimeout is how long `wails dev` gets to compile and answer.
+const wailsDevReadyTimeout = 5 * time.Minute
 
 // e2eDesktopUIPreflight names what is missing before `wails dev` starts. Its
 // own failure two build steps in reads like a Wails problem, which sends the
