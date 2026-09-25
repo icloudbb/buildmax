@@ -377,11 +377,17 @@ type GatewayError struct {
 
 func (e *GatewayError) Error() string {
 	switch {
-	case e.Code == "" && e.StatusCode >= http.StatusInternalServerError:
-		// No BuildMax body: something in front of the server answered, which
-		// means the server itself is down or restarting. Calling that a
-		// refusal sends the user looking for a policy that does not exist.
+	case e.Code == "" && (e.StatusCode == http.StatusBadGateway ||
+		e.StatusCode == http.StatusServiceUnavailable || e.StatusCode == http.StatusGatewayTimeout):
+		// No BuildMax body on a gateway status: something in front of the
+		// server answered, so the server itself is down or restarting.
+		// Calling that a refusal sends the user looking for a policy that
+		// does not exist.
 		return fmt.Sprintf("the BuildMax server did not answer (HTTP %d): it may be down or restarting; try again shortly", e.StatusCode)
+	case e.Code == "" && e.StatusCode >= http.StatusInternalServerError:
+		// The server answered and failed. Saying it is down would send the
+		// user to wait for an outage that is not happening.
+		return fmt.Sprintf("the BuildMax server failed this call (HTTP %d); its log names the cause", e.StatusCode)
 	case e.Code == "upstream_error":
 		return fmt.Sprintf("the deployment's model provider failed this call (%s): %s", e.Code, e.Message)
 	case e.Message != "" && e.Code != "":
