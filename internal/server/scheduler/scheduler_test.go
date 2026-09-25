@@ -219,8 +219,19 @@ func TestScheduler_Loop_SpawnFailure_MarksRunFailed(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.Start()
-	// Wait for at least one tick (10ms) so the loop picks the run and runner fails
-	time.Sleep(25 * time.Millisecond)
+	// Wait for the loop to pick the run and record the failure, not for a fixed
+	// time: a 25ms sleep missed the first 10ms tick on Windows, whose timers are
+	// about 15ms coarse, and the test failed there with nothing called.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		spy.mu.Lock()
+		called := spy.lastUpdateStatus != nil
+		spy.mu.Unlock()
+		if called || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 	s.Stop(context.Background())
 
 	spy.mu.Lock()
