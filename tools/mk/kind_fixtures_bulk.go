@@ -181,11 +181,12 @@ func ensureFixtureSchedules(ctx context.Context, client *http.Client, base, toke
 		found, ok := byName[name]
 		if !ok {
 			body := map[string]string{
-				"agent_id":  agentIDs[(i-1)%len(agentIDs)],
-				"name":      name,
-				"input":     fmt.Sprintf("[kind fixture] Scheduled run %02d over the synthetic QA workspace.", i),
-				"cron_expr": crons[(i-1)%len(crons)],
-				"timezone":  zones[(i-1)%len(zones)],
+				"executor_kind": "agent",
+				"executor_id":   agentIDs[(i-1)%len(agentIDs)],
+				"name":          name,
+				"input":         fmt.Sprintf("[kind fixture] Scheduled run %02d over the synthetic QA workspace.", i),
+				"cron_expr":     crons[(i-1)%len(crons)],
+				"timezone":      zones[(i-1)%len(zones)],
 			}
 			if err := requestJSON(ctx, client, http.MethodPost, base+"/schedules", token, body, &found, http.StatusCreated); err != nil {
 				return err
