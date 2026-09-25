@@ -666,6 +666,10 @@ func TestGatewayErrorNamesAnUnavailableServer(t *testing.T) {
 	if strings.Contains(msg, "refused") || !strings.Contains(msg, "did not answer") {
 		t.Errorf("Error() = %q", msg)
 	}
+	internal := (&llmremote.GatewayError{StatusCode: http.StatusInternalServerError}).Error()
+	if strings.Contains(internal, "did not answer") || !strings.Contains(internal, "failed this call") {
+		t.Errorf("a server that answered 500 was described as down: %q", internal)
+	}
 	upstream := (&llmremote.GatewayError{StatusCode: http.StatusBadGateway, Code: "upstream_error", Message: "model provider unavailable"}).Error()
 	if !strings.Contains(upstream, "model provider failed") {
 		t.Errorf("upstream Error() = %q", upstream)
