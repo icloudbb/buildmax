@@ -109,6 +109,10 @@ type ModelStore interface {
 	ListLLMModels(ctx context.Context) ([]Model, error)
 	// SetLLMModelEnabled retires or restores a model.
 	SetLLMModelEnabled(ctx context.Context, llmModelID string, enabled bool) error
+	// SetLLMModelCredential replaces a model's upstream key in place, so a
+	// leaked or expired key is rotated without renaming the model every client
+	// selects it by. An empty key clears it, for a provider that needs none.
+	SetLLMModelCredential(ctx context.Context, llmModelID, apiKey string) error
 	// LLMModelCredential returns the upstream key for a model. It is the only
 	// way a credential leaves the store.
 	LLMModelCredential(ctx context.Context, llmModelID string) (string, error)

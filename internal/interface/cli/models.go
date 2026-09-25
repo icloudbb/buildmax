@@ -88,7 +88,7 @@ func printManagedModels(source auth.ModelSource) {
 // runs against. Every one of them is called from this machine.
 func printLocalModels(settings config.Settings) {
 	if len(settings.Models) == 0 {
-		fmt.Fprintln(os.Stdout, "No models configured. Run `buildmax init` to write a starter settings.yaml.")
+		fmt.Fprintln(os.Stdout, "No models configured. Run `buildmax init` to write a starter settings.yaml,\nor `buildmax login` to use the models a BuildMax deployment offers.")
 		return
 	}
 	fmt.Fprintln(os.Stdout, "Not signed in. Prompts go straight from this machine to each provider.")

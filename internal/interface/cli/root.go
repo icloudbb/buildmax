@@ -342,7 +342,8 @@ func checkModelConfig() error {
 	if len(s.Models) == 0 {
 		if _, statErr := os.Stat(path); errors.Is(statErr, fs.ErrNotExist) {
 			fmt.Fprintf(os.Stderr, "No configuration found.\n\n"+
-				"Run `buildmax init` to create %s, then add your API key.\n"+
+				"Run `buildmax init` to create %s, then add your API key,\n"+
+				"or `buildmax login` to use the models a BuildMax deployment offers.\n"+
 				"Quickstart: %s\n", path, quickstartURL)
 			return errors.New("no configuration file")
 		}

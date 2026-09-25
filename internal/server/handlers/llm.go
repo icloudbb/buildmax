@@ -5,6 +5,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/server/handlers/llmhttp"
 	"net/http"
 
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	"github.com/icloudbb/buildmax/internal/infra/llmwire"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
@@ -44,9 +45,23 @@ func (h *Handler) listLLMModelsHandler(w http.ResponseWriter, r *http.Request) {
 			Vision:        m.Vision,
 			Capabilities:  capabilities,
 			Default:       m.Default,
+			Pricing:       wirePricing(m.Pricing),
 		})
 	}
 	httputil.WriteJSON(w, http.StatusOK, llmwire.ModelsResponse{Models: out})
+}
+
+func wirePricing(p cllm.Pricing) *llmwire.ModelPricing {
+	if p.Currency == "" {
+		return nil
+	}
+	return &llmwire.ModelPricing{
+		Currency:          p.Currency,
+		InputPerMTok:      cllm.FormatRate(p.InputPerMTok),
+		CacheReadPerMTok:  cllm.FormatRate(p.CacheReadPerMTok),
+		CacheWritePerMTok: cllm.FormatRate(p.CacheWritePerMTok),
+		OutputPerMTok:     cllm.FormatRate(p.OutputPerMTok),
+	}
 }
 
 // llmCompletionsHandler serves POST /api/llm/completions.

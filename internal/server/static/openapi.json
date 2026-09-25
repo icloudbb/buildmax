@@ -842,7 +842,33 @@
           "max_runs_per_period": {"type": "integer"},
           "max_tokens_per_period": {"type": "integer"},
           "storage_bytes": {"type": "integer", "format": "int64"},
-          "max_storage_bytes": {"type": "integer", "format": "int64"}
+          "max_storage_bytes": {"type": "integer", "format": "int64"},
+          "managed_calls": {
+            "description": "The caller's own managed calls from signed-in CLI and Desktop sessions over the same period. They belong to no space, so the space figures do not include them. Returned only by GET /api/usage, and only on a deployment with a call ledger.",
+            "type": "object",
+            "properties": {
+              "call_count": {"type": "integer"},
+              "total_tokens": {"type": "integer"},
+              "costs": {
+                "description": "One entry per currency, in nano-units; never summed across currencies.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {"type": "string"},
+                    "uncached": {"type": "integer", "format": "int64"},
+                    "cache_read": {"type": "integer", "format": "int64"},
+                    "cache_write": {"type": "integer", "format": "int64"},
+                    "output": {"type": "integer", "format": "int64"},
+                    "total": {"type": "integer", "format": "int64"},
+                    "baseline": {"type": "integer", "format": "int64"}
+                  }
+                }
+              },
+              "unpriced_calls": {"type": "integer"}
+            },
+            "required": ["call_count", "total_tokens", "costs", "unpriced_calls"]
+          }
         },
         "required": ["run_count", "total_tokens", "tier", "period_days"]
       },
@@ -1649,7 +1675,7 @@
     "/api/llm/models": {
       "get": {
         "summary": "List the models this deployment offers for managed inference",
-        "description": "Being signed in is the whole authorization: the catalog is deployment-global, so every enabled model is available to every user. Identity is resolved before the gateway is touched, so an unauthenticated caller learns nothing about whether this deployment offers managed inference.",
+        "description": "Being signed in is the whole authorization: the catalog is deployment-global, so every enabled model is available to every user. Identity is resolved before the gateway is touched, so an unauthenticated caller learns nothing about whether this deployment offers managed inference. Each model carries its current pricing when the operator set one, as decimal strings per million tokens, so a client prices its own session the way the call ledger does.",
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": { "description": "OK" },
@@ -3032,6 +3058,37 @@
           },
           "404": {
             "description": "Model not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/llm/models/{model_id}/credential": {
+      "put": {
+        "tags": ["admin"],
+        "summary": "Replace a catalog model's upstream credential in place",
+        "description": "Rotates a leaked or expired provider key without renaming the model clients select it by. The key is write-only: accepted in the body, stored encrypted, and returned by no read. The gateway uses it from the next call.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "model_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["api_key"], "properties": {"api_key": {"type": "string", "writeOnly": true}}}}}
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminModel"}}}
+          },
+          "400": {
+            "description": "The model's provider needs a key and none was given",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Model not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "503": {
+            "description": "No deployment encryption key is configured, so a credential cannot be stored",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }

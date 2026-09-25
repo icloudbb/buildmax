@@ -18,7 +18,7 @@ buildmax <command> [flags]
 | `buildmax version` | Print the version |
 | `buildmax login` | Log in to a BuildMax server and store credentials |
 | `buildmax logout` | Clear stored credentials |
-| `buildmax me` | Show current login status |
+| `buildmax me` | Show current login status, checked against the deployment |
 | `buildmax models` | List the models the current mode uses and their prompt destination; `--local` also lists what a local Ollama daemon holds |
 | `buildmax tools status` | Inspect the tools currently available to the agent |
 | `buildmax info [session-id]` | Show what a session spent and did, and what its project remembers; `--json` for the full record |
@@ -51,6 +51,7 @@ buildmax <command> [flags]
 | `buildmax admin model list` | List catalog models, enabled or not, and which is the default |
 | `buildmax admin model add` | Add a model to the catalog; `--api-key` is stored encrypted and never read back |
 | `buildmax admin model enable` / `disable <model_id>` | Enable or retire a catalog model |
+| `buildmax admin model set-key <model_id>` | Replace a catalog model's key in place, read from standard input |
 | `buildmax plugin list` | List installed plugins, where each came from, and whether it loads |
 | `buildmax plugin status [name]` | Show what a plugin contributes, its checkout or release, and what shadowed it |
 | `buildmax plugin validate [path]` | Parse a plugin directory and report every problem; non-zero if any would stop it loading |
@@ -375,22 +376,28 @@ lets the person choose their own password and is the safer equivalent.
 ```bash
 buildmax admin model list                              # every catalog model
 buildmax admin model add --name "Sonnet" --api-url https://api.example.com/v1 \
-  --model vendor/sonnet --api-key sk-… --context-window 200000
+  --model vendor/sonnet --api-key - --context-window 200000 < key.txt
 buildmax admin model disable lm_7Kq2                   # retire one, by id
 buildmax admin model enable  lm_7Kq2                   # bring it back
+buildmax admin model set-key lm_7Kq2                   # rotate its key; prompts without echo
 ```
 
-The `--api-key` travels in the request body and is stored encrypted at rest; no
-read returns it, and a deployment with no encryption key configured refuses a
-model that carries one. `add` takes the same fields as `buildmax-server model
-add`; run `buildmax admin model add --help` for the full set.
+The key travels in the request body and is stored encrypted at rest; no read
+returns it, and a deployment with no encryption key configured refuses a model
+that carries one. `--api-key -` reads it from standard input, and `set-key`
+always does, so the key stays out of shell history and process listings.
+`set-key` keeps the model's ID and name, so no client has to change what it
+selects; the deployment uses the new key from the next call. `add` takes the
+same fields as `buildmax-server model add`; run
+`buildmax admin model add --help` for the full set.
 
 ### `buildmax doctor`
 
 `doctor` checks the local setup without contacting an LLM provider:
 
-- `BUILDMAX_HOME` and `settings.yaml`
-- configured models and placeholder API keys
+- the mode: local, or signed in to a deployment and whether it serves its models
+- `BUILDMAX_HOME` and `settings.yaml`, which is optional while signed in
+- configured models and placeholder API keys, in local mode
 - current workspace and git availability
 - the local project this directory belongs to and the state of its memory
 - sandbox dependencies when `sandbox.enabled` is set

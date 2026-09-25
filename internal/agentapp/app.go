@@ -1208,6 +1208,9 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	if err != nil {
 		return RunResult{}, err
 	}
+	if err := a.bindPromptDestination(ctx, sess); err != nil {
+		return RunResult{SessionID: sess.ID()}, err
+	}
 	// One writer per session. Surfaces queue prompts behind the active run,
 	// so a concurrent call here is a caller bug or an unserialized background
 	// producer — refused, because Session and SessionManager have no locks of
@@ -1468,15 +1471,12 @@ func (a *AgentApp) finalizeTurn(sess *SessionContext, client cllm.LLMClient, sta
 }
 
 // pricingFor is the price list of the model this session is running against, or
-// the zero Pricing when the entry configured none. A managed entry has none
-// here on purpose: the server holds the rates for a managed call and records
-// what it charged on the ledger, so a local guess would be a second answer to a
-// question that already has one.
+// the zero Pricing when the entry carries none. A managed entry carries the
+// deployment's own rates, so the session prices each call the way the ledger
+// does rather than reporting managed spend as unknown
+// (docs/design/client-modes.md section 4).
 func (a *AgentApp) pricingFor(sess *SessionContext) cllm.Pricing {
 	if a == nil || sess == nil {
-		return cllm.Pricing{}
-	}
-	if a.ManagedServerURL() != "" {
 		return cllm.Pricing{}
 	}
 	cfg, ok := FindModelConfig(a.settings, sess.ModelName(a.DefaultModelName()))
@@ -1566,6 +1566,11 @@ func (r *LLMClientCache) Get(modelName string) (cllm.LLMClient, error) {
 	}
 	cfg, ok := FindModelConfig(r.settings, modelName)
 	if !ok {
+		// Say which list was searched: signed in, a name from settings.yaml is
+		// not an option, and "not found" alone reads as a typo.
+		if r.managedServerURL != "" {
+			return nil, fmt.Errorf("model not found: %q is not offered by %s; `buildmax models` lists what it offers", modelName, r.managedServerURL)
+		}
 		return nil, fmt.Errorf("model not found: %q", modelName)
 	}
 	client, err := r.build(cfg)
@@ -1835,4 +1840,34 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		KeepAlive:     entry.KeepAlive,
 		Provider:      entry.Provider,
 	}
+}
+
+// bindPromptDestination keeps a local session in the mode it began in.
+//
+// Signing in or out changes where new prompts go, and it must not quietly
+// change where an existing conversation goes: resuming a session written
+// against a deployment in local mode would replay its history to a personal
+// key, and the reverse would hand a local conversation to a deployment. So the
+// first turn records the destination and every later turn must match it.
+//
+// Only sessions of a local Project are bound. A task run's session belongs to
+// the deployment that owns the run, and a worker continuing it may reach that
+// deployment by another address.
+func (a *AgentApp) bindPromptDestination(ctx context.Context, sess *SessionContext) error {
+	if sess == nil || !sess.Persisted() || sess.Meta().ProjectID == "" {
+		return nil
+	}
+	dest := session.DestinationLocal
+	if url := a.ManagedServerURL(); url != "" {
+		dest = url
+	}
+	if err := session.CheckDestination(sess.Meta(), dest); err != nil {
+		return fmt.Errorf("session %s: %w. Continue it in the mode it began in, or start a new session", sess.ID(), err)
+	}
+	if sess.BindDestination(dest) {
+		if err := a.sessionManager.persistMeta(ctx, sess); err != nil {
+			return fmt.Errorf("persist session: %w", err)
+		}
+	}
+	return nil
 }

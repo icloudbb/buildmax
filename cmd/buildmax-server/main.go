@@ -40,7 +40,7 @@ func main() {
 	// credentials. It runs here, next to the database, rather than through any
 	// client.
 	if len(os.Args) > 1 && os.Args[1] == "model" {
-		if err := bootstrap.RunModelCommand(ctx, os.Args[2:], os.Stdout); err != nil {
+		if err := bootstrap.RunModelCommand(ctx, os.Args[2:], os.Stdin, os.Stdout); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}

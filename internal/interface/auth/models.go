@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/icloudbb/buildmax/internal/config"
 	"github.com/icloudbb/buildmax/internal/infra/httpclient"
+	"github.com/icloudbb/buildmax/internal/infra/llmwire"
 	"github.com/icloudbb/buildmax/internal/interface/client"
 )
 
@@ -21,6 +24,41 @@ import (
 // a prompt somewhere the user did not choose. See
 // docs/design/client-modes.md section 8.
 var ErrLoginExpired = errors.New("login has expired")
+
+// ErrAccountDisabled means the deployment's administrators disabled the
+// account. Signing in again does not help until one of them re-enables it.
+var ErrAccountDisabled = errors.New("account is disabled")
+
+// ErrServerUnavailable means the deployment could not be reached or failed to
+// answer. It is the case that is not the user's to fix: the login is still
+// good, and the same command works once the deployment is back. It must never
+// be presented as an ended login, because the offered way out of that one —
+// signing out — would discard a credential that still works.
+var ErrServerUnavailable = errors.New("server is unavailable")
+
+// classifyServerError sorts a failed call to the deployment by what the user
+// can do about it. Anything it does not recognize is returned unchanged.
+func classifyServerError(serverURL string, err error) error {
+	var httpErr *httpclient.Error
+	if errors.As(err, &httpErr) {
+		switch {
+		case httpErr.StatusCode == http.StatusUnauthorized:
+			// The credential is on disk and not locally expired, but the
+			// deployment rejects it: revoked, or no longer trusted.
+			return fmt.Errorf("%w: %s rejected the credential (%v)", ErrLoginExpired, serverURL, err)
+		case httpErr.StatusCode == http.StatusForbidden && strings.Contains(httpErr.Message, "account_disabled"):
+			return fmt.Errorf("%w on %s", ErrAccountDisabled, serverURL)
+		case httpErr.StatusCode >= http.StatusInternalServerError:
+			return fmt.Errorf("%w: %s answered %d", ErrServerUnavailable, serverURL, httpErr.StatusCode)
+		}
+		return err
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return fmt.Errorf("%w: cannot reach %s (%v)", ErrServerUnavailable, serverURL, urlErr.Err)
+	}
+	return err
+}
 
 // ModelSource is where a surface's models come from.
 //
@@ -84,21 +122,15 @@ func ResolveModelSource(ctx context.Context) (ModelSource, error) {
 
 	token, err := TokenForServer(serverURL)
 	if err != nil {
-		return ModelSource{}, fmt.Errorf("%w: signed in to %s, but the credential no longer works (%v)",
-			ErrLoginExpired, serverURL, err)
+		return ModelSource{}, err
 	}
 	models, err := client.NewClient(serverURL).ListServerModels(ctx, token)
 	if err != nil {
-		// A 401 here is the other shape of §8's expired login: the credential is
-		// on disk and not locally expired, so TokenForServer handed it over, but
-		// the deployment rejects it — the session was revoked or the server no
-		// longer trusts the token. That is not a reason to fail bare; it is the
-		// same dead login, and the user needs the same choice (sign in again or
-		// return to local mode), so report it as ErrLoginExpired too.
-		var httpErr *httpclient.Error
-		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusUnauthorized {
-			return ModelSource{}, fmt.Errorf("%w: signed in to %s, but it rejected the credential (%v)",
-				ErrLoginExpired, serverURL, err)
+		// A 401 here is the other shape of §8's expired login: the credential
+		// is on disk and not locally expired, but the deployment rejects it.
+		// It gets the same choice as any ended login; an outage does not.
+		if classified := classifyServerError(serverURL, err); classified != err {
+			return ModelSource{}, classified
 		}
 		return ModelSource{}, fmt.Errorf("list the models %s offers: %w", serverURL, err)
 	}
@@ -116,10 +148,27 @@ func ResolveModelSource(ctx context.Context) (ModelSource, error) {
 			Name:          m.Name,
 			ContextWindow: m.ContextWindow,
 			Vision:        m.Vision,
+			Pricing:       settingsPricing(m.Pricing),
 		})
 		if m.Default {
 			source.Default = m.Name
 		}
 	}
 	return source, nil
+}
+
+// settingsPricing carries a deployment's rates into the entry, so a managed
+// session prices itself the way the deployment's ledger does rather than
+// reporting its cost as unavailable.
+func settingsPricing(p *llmwire.ModelPricing) *config.ModelPricing {
+	if p == nil {
+		return nil
+	}
+	return &config.ModelPricing{
+		Currency:          p.Currency,
+		InputPerMTok:      p.InputPerMTok,
+		CacheReadPerMTok:  p.CacheReadPerMTok,
+		CacheWritePerMTok: p.CacheWritePerMTok,
+		OutputPerMTok:     p.OutputPerMTok,
+	}
 }

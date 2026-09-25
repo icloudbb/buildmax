@@ -1071,17 +1071,18 @@ the database credentials:
 ```bash
 buildmax-server model add --name Fast \
     --api-url https://openrouter.ai/api/v1 \
-    --api-key your-openrouter-api-key \
-    --model openai/gpt-4o-mini --context-window 128000
+    --api-key - \
+    --model openai/gpt-4o-mini --context-window 128000 < openrouter-key.txt
 
 buildmax-server model add --name Claude --provider anthropic \
     --api-url https://api.anthropic.com \
-    --api-key your-anthropic-api-key \
+    --api-key - < anthropic-key.txt \
     --model claude-sonnet-4-5 --context-window 200000 --max-tokens 8192 \
     --reasoning medium --prompt-cache --vision
 
 buildmax-server model list
 buildmax-server model disable --id lm_xxxxxxxxxxxxxxxxxxxx
+buildmax-server model set-key --id lm_xxxxxxxxxxxxxxxxxxxx < new-key.txt
 ```
 
 `--provider` is the wire protocol the upstream speaks — the same three values
@@ -1095,6 +1096,13 @@ under [Reasoning](#reasoning), [Prompt caching](#prompt-caching), and
 [Image input](#image-input). Changing either on a running server
 takes effect on the next call: the router rebuilds a client whose target's
 connection details changed.
+
+`--api-key -` reads the key from standard input, and `set-key` always does, so a
+key stays out of shell history and process listings. `set-key` rotates a leaked
+or expired key in place: the model keeps its ID and name, so no client has to
+change what it selects, and the router drops the client built with the old key
+before the next call. The same operation is `PUT
+/api/admin/llm/models/{model_id}/credential` and `buildmax admin model set-key`.
 
 | Key | Meaning |
 |---|---|

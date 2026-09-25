@@ -7,6 +7,36 @@
   overflow: hidden;
 }
 
+/* A deployment that cannot be reached: the login still works, so this is a
+   notice with a retry, not a gate. */
+.deployment-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+
+.deployment-banner__text {
+  flex: 1 1 24rem;
+}
+
+.deployment-banner__detail {
+  flex: 1 1 100%;
+  order: 3;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.deployment-banner__retry {
+  flex: none;
+}
+
 .shell__body {
   display: flex;
   flex: 1;

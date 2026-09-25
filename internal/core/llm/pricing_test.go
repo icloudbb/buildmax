@@ -184,3 +184,17 @@ func TestFormatAmount(t *testing.T) {
 		}
 	}
 }
+
+// A rate formatted for the wire parses back to the same nano-units, so a
+// client prices a managed call exactly as the deployment's ledger does.
+func TestFormatRateRoundTrips(t *testing.T) {
+	for _, in := range []string{"0", "3", "0.2", "0.02", "3.75", "15", "0.000000001", "1234.5"} {
+		nano, err := ParseRate(in)
+		if err != nil {
+			t.Fatalf("ParseRate(%q): %v", in, err)
+		}
+		if got := FormatRate(nano); got != in {
+			t.Errorf("FormatRate(ParseRate(%q)) = %q", in, got)
+		}
+	}
+}

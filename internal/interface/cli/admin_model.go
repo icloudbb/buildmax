@@ -1,8 +1,14 @@
 package cli
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"text/tabwriter"
+
+	"golang.org/x/term"
 
 	"github.com/spf13/cobra"
 
@@ -24,7 +30,21 @@ func newAdminModelCommand() *cobra.Command {
 	cmd.AddCommand(newAdminModelAddCommand())
 	cmd.AddCommand(newAdminModelEnableCommand())
 	cmd.AddCommand(newAdminModelDisableCommand())
+	cmd.AddCommand(newAdminModelSetKeyCommand())
 	return cmd
+}
+
+func newAdminModelSetKeyCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "set-key <model_id>",
+		Short: "Replace a catalog model's upstream key",
+		Long: "Replace a model's upstream key in place, to rotate a leaked or expired\n" +
+			"one. The model keeps its ID and name, so no client has to change what it\n" +
+			"selects. The key is read from standard input — typed without echo, or\n" +
+			"piped — never from an argument, which shell history would keep.",
+		Args: cobra.ExactArgs(1),
+		RunE: runAdminModelSetKey,
+	}
 }
 
 func newAdminModelListCommand() *cobra.Command {
@@ -49,7 +69,7 @@ func newAdminModelAddCommand() *cobra.Command {
 	f := cmd.Flags()
 	f.String("name", "", "operator-facing name")
 	f.String("api-url", "", "upstream base URL")
-	f.String("api-key", "", "upstream credential (write-only)")
+	f.String("api-key", "", "upstream credential (write-only); - reads it from standard input")
 	f.String("model", "", "the provider's own model identifier")
 	f.String("provider", "", "wire protocol the upstream speaks (default openai_compatible)")
 	f.Int("context-window", 0, "usable context size")
@@ -126,11 +146,17 @@ func runAdminModelAdd(cmd *cobra.Command, _ []string) error {
 	getInt := func(name string) int { v, _ := f.GetInt(name); return v }
 	capabilities, _ := f.GetStringSlice("capabilities")
 	vision, _ := f.GetBool("vision")
+	apiKey := get("api-key")
+	if apiKey == "-" {
+		if apiKey, err = readKey(cmd); err != nil {
+			return err
+		}
+	}
 	in := client.CreateModelInput{
 		Name:            get("name"),
 		ProviderType:    get("provider"),
 		APIURL:          get("api-url"),
-		APIKey:          get("api-key"),
+		APIKey:          apiKey,
 		Model:           get("model"),
 		ContextWindow:   getInt("context-window"),
 		CallTimeout:     getInt("call-timeout"),
@@ -169,4 +195,42 @@ func runAdminModelSetEnabled(cmd *cobra.Command, modelID string, enabled bool) e
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s is now %s\n", updated.Name, state)
 	return nil
+}
+
+func runAdminModelSetKey(cmd *cobra.Command, args []string) error {
+	serverURL, token, err := adminSessionFor()
+	if err != nil {
+		return err
+	}
+	key, err := readKey(cmd)
+	if err != nil {
+		return err
+	}
+	updated, err := client.NewClient(serverURL).ReplaceModelCredential(cmd.Context(), token, args[0], key)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "replaced the key for %s; the deployment uses it from the next call\n", updated.Name)
+	return nil
+}
+
+// readKey reads a provider key from standard input: without echo when a person
+// is typing, one line when it is piped. A key never comes from an argument,
+// where shell history and process listings would keep it.
+func readKey(cmd *cobra.Command) (string, error) {
+	in := cmd.InOrStdin()
+	if f, ok := in.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
+		fmt.Fprint(cmd.ErrOrStderr(), "API key: ")
+		raw, err := term.ReadPassword(int(f.Fd()))
+		fmt.Fprintln(cmd.ErrOrStderr())
+		if err != nil {
+			return "", fmt.Errorf("read key: %w", err)
+		}
+		return strings.TrimSpace(string(raw)), nil
+	}
+	line, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && line == "" {
+		return "", errors.New("no API key on standard input")
+	}
+	return strings.TrimSpace(line), nil
 }

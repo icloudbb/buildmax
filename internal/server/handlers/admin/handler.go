@@ -135,6 +135,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)
 	mux.HandleFunc("POST /api/admin/llm/models", h.createAdminModelHandler)
 	mux.HandleFunc("PUT /api/admin/llm/models/{model_id}/state", h.setAdminModelStateHandler)
+	mux.HandleFunc("PUT /api/admin/llm/models/{model_id}/credential", h.setAdminModelCredentialHandler)
 	mux.HandleFunc("GET /api/admin/llm/calls", h.listAdminLLMCallsHandler)
 	mux.HandleFunc("GET /api/admin/plugins", h.listAdminPluginsHandler)
 	mux.HandleFunc("POST /api/admin/plugins", h.createAdminPluginHandler)

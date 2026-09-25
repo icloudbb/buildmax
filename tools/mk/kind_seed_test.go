@@ -157,7 +157,7 @@ func TestKindCatalogModelArgsCarryEveryConfiguredField(t *testing.T) {
 	for _, want := range []string{
 		"--name Claude Sonnet 5", "--model anthropic/claude-sonnet-5",
 		"--api-url https://api.anthropic.com", "--provider anthropic",
-		"--api-key sk-test", "--context-window 1000000", "--call-timeout 300",
+		"--api-key -", "--context-window 1000000", "--call-timeout 300",
 		"--max-tokens 8192", "--reasoning medium", "--cache-mode force",
 		"--cache-ttl 1h", "--currency USD", "--input-price 3",
 		"--cache-read-price 0.3", "--cache-write-price 3.75",
@@ -167,6 +167,10 @@ func TestKindCatalogModelArgsCarryEveryConfiguredField(t *testing.T) {
 			t.Errorf("model add command is missing %q: %s", want, line)
 		}
 	}
+	// The key rides standard input; an argument would show in process listings.
+	if strings.Contains(line, "sk-test") {
+		t.Errorf("the key is on the command line: %s", line)
+	}
 }
 
 // A price list is validated as a set, so a currency-less one must not reach the
@@ -175,5 +179,43 @@ func TestKindCatalogModelArgsSkipPricesWithoutACurrency(t *testing.T) {
 	m := settingsModel{id: "x", pricing: settingsPricing{inputPerMTok: "3"}}
 	if line := strings.Join(kindCatalogModelArgs(m, "X"), " "); strings.Contains(line, "--input-price") {
 		t.Errorf("a price list with no currency was forwarded: %s", line)
+	}
+}
+
+// A name already in the catalog keeps its row, and its key is replaced from
+// settings.yaml, so a seed run with a wrong key can be corrected by fixing the
+// file and seeding again. A placeholder key is never seeded.
+func TestSeedKindCatalogRefreshesKeysAndSkipsPlaceholders(t *testing.T) {
+	type call struct{ input, args string }
+	var calls []call
+	previous := kindServerCommand
+	kindServerCommand = func(input string, args ...string) (string, error) {
+		calls = append(calls, call{input, strings.Join(args, " ")})
+		if args[1] == "add" {
+			return "Added model newmodelid000000000000 (New)", nil
+		}
+		return "Replaced the key", nil
+	}
+	t.Cleanup(func() { kindServerCommand = previous })
+
+	entries, err := seedKindCatalog([]settingsModel{
+		{id: "vendor/old", name: "Old", apiKey: "sk-fixed"},
+		{id: "vendor/new", name: "New", apiKey: "sk-new"},
+		{id: "vendor/placeholder", name: "Placeholder", apiKey: "your-openrouter-api-key"},
+	}, map[string]string{"Old": "oldmodelid000000000000"})
+	if err != nil {
+		t.Fatalf("seedKindCatalog: %v", err)
+	}
+	if len(entries) != 2 || !entries[0].refreshed || !entries[1].added {
+		t.Fatalf("entries = %+v, want Old refreshed and New added", entries)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("calls = %+v, want a set-key and an add", calls)
+	}
+	if calls[0].args != "model set-key --id oldmodelid000000000000" || calls[0].input != "sk-fixed\n" {
+		t.Errorf("refresh call = %+v", calls[0])
+	}
+	if calls[1].input != "sk-new\n" || strings.Contains(calls[1].args, "sk-new") {
+		t.Errorf("add call = %+v, want the key on standard input only", calls[1])
 	}
 }

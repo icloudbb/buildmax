@@ -195,6 +195,36 @@ func (s *Service) SetEnabled(ctx context.Context, modelID string, enabled bool, 
 	return updated, nil
 }
 
+// ReplaceCredential rotates a catalog entry's upstream key in place and
+// returns the entry as it now stands. The model keeps its ID and name, so no
+// client has to learn a new one; the gateway picks up the new key on its next
+// call.
+func (s *Service) ReplaceCredential(ctx context.Context, modelID, apiKey string, actor coreaudit.Actor) (*coregw.Model, error) {
+	existing, err := s.Models.GetLLMModel(ctx, modelID)
+	if err != nil {
+		return nil, fmt.Errorf("read model: %w", err)
+	}
+	if existing == nil {
+		return nil, apierr.New(apierr.KindNotFound, "model not found")
+	}
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" && llm.ProviderNeedsCredential(existing.ProviderType) {
+		return nil, invalidf("api_key", "is required")
+	}
+	if err := s.Models.SetLLMModelCredential(ctx, modelID, apiKey); err != nil {
+		if errors.Is(err, coregw.ErrCredentialEncryptionUnavailable) {
+			return nil, ErrEncryptionUnavailable
+		}
+		return nil, fmt.Errorf("replace model credential: %w", err)
+	}
+	s.record(ctx, actor, coreaudit.ModelCredentialReplaced, modelID, existing.Name)
+	updated, err := s.Models.GetLLMModel(ctx, modelID)
+	if err != nil || updated == nil {
+		return nil, fmt.Errorf("reload model: %w", err)
+	}
+	return updated, nil
+}
+
 func (s *Service) record(ctx context.Context, actor coreaudit.Actor, action, modelID, detail string) {
 	if s.Audit == nil {
 		return

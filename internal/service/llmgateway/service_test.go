@@ -1,8 +1,10 @@
 package llmgateway_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -275,6 +277,30 @@ func TestCompleteRecordsAFailedCall(t *testing.T) {
 	// The ledger keeps a classification, never the provider's own words.
 	if outcome.ErrorClass != nil && *outcome.ErrorClass == boom.Error() {
 		t.Error("the ledger stored the provider error body")
+	}
+}
+
+// The provider's words never reach the caller or the ledger, but the operator
+// still needs them to tell a bad key from an outage, so they are logged
+// server-side against the ledger row.
+func TestCompleteLogsTheProviderFailureForTheOperator(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	boom := errors.New("401 invalid api key")
+	ledger := newFakeLedger()
+	svc := serviceWith(t, &scriptedClient{err: boom}, ledger, nil)
+	if _, err := svc.Complete(context.Background(), userRequest()); err == nil {
+		t.Fatal("Complete succeeded against a failing provider")
+	}
+
+	out := logs.String()
+	for _, want := range []string{"managed llm call failed upstream", "401 invalid api key", "llm_call_id="} {
+		if !strings.Contains(out, want) {
+			t.Errorf("log missing %q:\n%s", want, out)
+		}
 	}
 }
 
@@ -707,3 +733,7 @@ func (c *profileClient) ChatCompletionStreaming(_ context.Context, req cllm.Requ
 }
 
 func (c *profileClient) ContextWindow() int { return 0 }
+
+func (l *fakeLedger) SummarizeForegroundLLMCalls(context.Context, string, time.Time) ([]coregw.CallTotals, error) {
+	return nil, nil
+}

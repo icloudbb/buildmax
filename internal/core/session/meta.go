@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/core/llm"
@@ -55,6 +56,13 @@ type Meta struct {
 	Title     string `json:"title,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
 	Pinned    bool   `json:"pinned,omitempty"`
+
+	// PromptDestination is where this session's prompts go: DestinationLocal
+	// for this machine's own providers, or the URL of the deployment it ran
+	// on. It is set by the first turn and never changes, so a history written
+	// under one mode is never sent somewhere else by resuming it in the other.
+	// Empty means no turn has run yet. See docs/design/client-modes.md.
+	PromptDestination string `json:"prompt_destination,omitempty"`
 
 	// SelectedModel is what the next turn should use. A completed or
 	// interrupted turn's own TurnStarted record is what it actually used;
@@ -223,4 +231,29 @@ func ApplyMetaUpdate(m Meta, update MetaUpdate, now time.Time) Meta {
 func (u MetaUpdate) hasUsage() bool {
 	return u.AddPromptTokens != 0 || u.AddCompletionTokens != 0 ||
 		u.AddCacheReadTokens != 0 || u.AddCacheWriteTokens != 0 || u.AddCost != nil
+}
+
+// DestinationLocal is PromptDestination for a session whose prompts go
+// straight from this machine to the providers in settings.yaml.
+const DestinationLocal = "local"
+
+// ErrDestinationMismatch is returned when a turn would send a session's
+// history somewhere other than where its earlier turns went.
+var ErrDestinationMismatch = errors.New("this session belongs to another mode")
+
+// CheckDestination reports whether a turn bound for dest may run on a session
+// with metadata m. An unset destination accepts any; a set one only itself.
+func CheckDestination(m Meta, dest string) error {
+	if m.PromptDestination == "" || m.PromptDestination == dest {
+		return nil
+	}
+	return fmt.Errorf("%w: its prompts went to %s, and this one would go to %s",
+		ErrDestinationMismatch, describeDestination(m.PromptDestination), describeDestination(dest))
+}
+
+func describeDestination(dest string) string {
+	if dest == DestinationLocal {
+		return "this machine's own providers (settings.yaml)"
+	}
+	return dest
 }

@@ -139,3 +139,7 @@ func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID strin
 func (l *llmStubLedger) SearchLLMCalls(context.Context, coregw.CallFilter, int, int) ([]coregw.Call, int, error) {
 	return nil, 0, nil
 }
+
+func (l *llmStubLedger) SummarizeForegroundLLMCalls(context.Context, string, time.Time) ([]coregw.CallTotals, error) {
+	return nil, nil
+}

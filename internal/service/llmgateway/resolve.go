@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // Resolution outcomes. Handlers map these to stable BuildMax error codes, so
@@ -71,6 +73,9 @@ type AvailableModel struct {
 	Vision        bool
 	Capabilities  []Capability
 	Default       bool
+	// Pricing is the target's current rates; an empty currency means unpriced.
+	// Rates are not secret — a caller sees what its own calls cost anyway.
+	Pricing cllm.Pricing
 }
 
 // Resolver maps a model name to an operator-approved target.
@@ -203,6 +208,13 @@ func (r *Resolver) Available(ctx context.Context) ([]AvailableModel, error) {
 			Vision:        target.Vision,
 			Capabilities:  target.Capabilities.List(),
 			Default:       target.Name == defaultName,
+			Pricing: cllm.Pricing{
+				Currency:          target.Currency,
+				InputPerMTok:      target.InputPerMTok,
+				CacheReadPerMTok:  target.CacheReadPerMTok,
+				CacheWritePerMTok: target.CacheWritePerMTok,
+				OutputPerMTok:     target.OutputPerMTok,
+			},
 		})
 	}
 	return models, nil

@@ -296,12 +296,26 @@ export default function App() {
 
   const app = getApp();
 
-  useEffect(() => {
-    if (!wailsReady || !app) return;
+  const refreshAuthStatus = useCallback(() => {
+    if (!app) return;
     app.GetAuthStatus()
       .then((status) => setAuthStatus(status))
       .catch(() => setAuthStatus({ logged_in: false }));
-  }, [wailsReady, app]);
+  }, [app]);
+
+  useEffect(() => {
+    if (!wailsReady || !app) return;
+    refreshAuthStatus();
+  }, [wailsReady, app, refreshAuthStatus]);
+
+  // An unreachable deployment is expected to come back, so the app keeps asking
+  // and clears the banner on its own once it answers.
+  const deploymentUnavailable = !!authStatus?.unavailable;
+  useEffect(() => {
+    if (!deploymentUnavailable) return undefined;
+    const timer = setInterval(refreshAuthStatus, 15000);
+    return () => clearInterval(timer);
+  }, [deploymentUnavailable, refreshAuthStatus]);
 
   // Center workspace tabs: each chat tab is one session, terminals/file/diff are
   // peer tabs. A chat tab carries a `sessionId` ('' for a not-yet-sent new chat);
@@ -981,6 +995,8 @@ export default function App() {
       <ThemeProvider>
         <LoginPage
           expiredDetail={authStatus?.expired ? authStatus.expired_detail : ''}
+          accountDisabled={!!authStatus?.account_disabled}
+          knownServerURL={authStatus?.expired ? authStatus.server_url : ''}
           onLogin={(status) => {
             setAuthStatus(status);
             setSignInOpen(false);
@@ -1158,6 +1174,19 @@ export default function App() {
   return (
     <ThemeProvider>
       <div className={shellClass}>
+        {deploymentUnavailable && (
+          <div className="deployment-banner" role="alert">
+            <span className="deployment-banner__text">
+              Cannot reach {authStatus.server_url}. Your login still works; while you are
+              signed in, prompts go only there, so this app waits for it rather than using
+              local models.
+            </span>
+            <span className="deployment-banner__detail">{authStatus.unavailable_detail}</span>
+            <button type="button" className="deployment-banner__retry" onClick={refreshAuthStatus}>
+              Retry
+            </button>
+          </div>
+        )}
         <div className="shell__body">
 
           <aside className="sidebar" aria-label="Sidebar" style={{ width: sidebarWidth }}>
@@ -1287,6 +1316,9 @@ export default function App() {
                   <div className="sidebar__user-menu-email">
                     {localMode ? 'Models from settings.yaml' : authStatus.email}
                   </div>
+                  {!localMode && authStatus.server_url && (
+                    <div className="sidebar__user-menu-server">Prompts go to {authStatus.server_url}</div>
+                  )}
                   <div className="sidebar__user-menu-divider" />
                   <button
                     type="button"

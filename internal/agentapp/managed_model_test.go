@@ -280,3 +280,27 @@ func TestDefaultModelSelectsByName(t *testing.T) {
 		t.Errorf("DefaultModelName with no default = %q, want the first entry", got)
 	}
 }
+
+// A managed session prices itself from the rates the deployment sent with its
+// model list. Returning nothing here left every signed-in surface reporting
+// "not priced" for calls the ledger had priced.
+func TestManagedSessionIsPricedFromTheDeploymentsRates(t *testing.T) {
+	entry := managedEntry()
+	entry.Pricing = &config.ModelPricing{Currency: "USD", InputPerMTok: "0.2", OutputPerMTok: "1.2"}
+	mgr := NewSessionManager(t.TempDir())
+	app := &AgentApp{
+		sessionManager: mgr,
+		settings:       config.Settings{Models: []config.ModelEntry{entry}},
+		llmClients:     &LLMClientCache{managedServerURL: "https://buildmax.example.com"},
+	}
+	sess, err := mgr.Create("Fast")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+
+	got := app.pricingFor(sess)
+	if got.Currency != "USD" || got.InputPerMTok != 200_000_000 || got.OutputPerMTok != 1_200_000_000 {
+		t.Errorf("pricingFor = %+v, want the deployment's rates", got)
+	}
+}

@@ -606,6 +606,16 @@ The additional network hop is expected to be small relative to inference but
 compounds across an agentic run. Measurements, rather than that assumption,
 must determine whether the supported deployment topology is acceptable.
 
+Two operator needs surfaced once the catalog was in use. A provider's own error
+never reaches the caller or the ledger, which keep only the stable class; it is
+still the one clue to whether a key, a model id, or the provider is at fault, so
+the gateway logs it server-side with the ledger row's ID. And a catalog key has
+to be replaceable in place: rotating a leaked or expired key by adding a
+renamed model would change the name every client selects. The row's credential
+is therefore writable on its own (`set-key` on both command surfaces, `PUT
+/api/admin/llm/models/{model_id}/credential`), and the router keys its client
+cache on the row's revision so a replaced key reaches the next call.
+
 ## 15. Delivery Plan
 
 ### M1. Contract And In-Process Router

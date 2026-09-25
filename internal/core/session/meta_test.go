@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -156,5 +157,28 @@ func TestApplyMetaUpdatePreservesLineageAndForkedFrom(t *testing.T) {
 	got := ApplyMetaUpdate(m, MetaUpdate{}, testTime)
 	if got.ParentSessionID != "parent" || got.AgentType != "explorer" || got.Kind != KindSubagent {
 		t.Errorf("lineage changed: %+v", got)
+	}
+}
+
+// A session is bound to where its first turn went; a later turn may go only
+// there, whichever way the mode changed.
+func TestCheckDestination(t *testing.T) {
+	fresh := Meta{}
+	if err := CheckDestination(fresh, "https://buildmax.example.com"); err != nil {
+		t.Errorf("an unbound session refused a destination: %v", err)
+	}
+	local := Meta{PromptDestination: DestinationLocal}
+	if err := CheckDestination(local, DestinationLocal); err != nil {
+		t.Errorf("a local session refused local: %v", err)
+	}
+	if err := CheckDestination(local, "https://buildmax.example.com"); !errors.Is(err, ErrDestinationMismatch) {
+		t.Errorf("a local session accepted a deployment: %v", err)
+	}
+	managed := Meta{PromptDestination: "https://buildmax.example.com"}
+	if err := CheckDestination(managed, DestinationLocal); !errors.Is(err, ErrDestinationMismatch) {
+		t.Errorf("a managed session accepted local mode: %v", err)
+	}
+	if err := CheckDestination(managed, "https://other.example.com"); !errors.Is(err, ErrDestinationMismatch) {
+		t.Errorf("a managed session accepted another deployment: %v", err)
 	}
 }

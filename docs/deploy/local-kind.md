@@ -227,7 +227,7 @@ Secret or the mock model outside local verification.
 
 `./make kind seed` puts every provider model in `.local/settings.yaml` into the
 cluster's catalog. It exists so the CLI and Desktop can exercise the managed
-transport — `transport: buildmax` — against real inference without a hosted
+transport against real inference without a hosted
 deployment to point at.
 
 ```bash
@@ -235,9 +235,10 @@ deployment to point at.
 ./make kind seed    # your models in its catalog
 ```
 
-The command adds each model with `buildmax-server model add` and stops there: a
-catalog row is callable as soon as it exists, so nothing needs restarting and no
-configuration changes. Sign in with `buildmax login` against
+The command adds each model with `buildmax-server model add`, passing its key on
+standard input, and stops there: a catalog row is callable as soon as it exists,
+so nothing needs restarting and no configuration changes. An entry whose
+`api_key` is still an example placeholder is skipped rather than seeded. Sign in with `buildmax login` against
 <http://localhost:8080>; a stored login puts the client in managed mode, where
 `buildmax models` reads the deployment catalog and local `settings.yaml` model
 entries are not used.
@@ -250,9 +251,11 @@ A model is named by the `name` it was added under, which is its display name in
 `conversation.model` and the worker keep answering from the in-cluster mock, so
 Portal conversations and `./make kind smoke` stay deterministic and cost
 nothing. A rerun is safe: a model whose name is already in the catalog keeps
-its row and its ID. Changing a seeded model's endpoint or credential means
-renaming it in `.local/settings.yaml`, or rebuilding the cluster — `add` does not
-update a row.
+its row and its ID, and its key is replaced from `.local/settings.yaml` with
+`buildmax-server model set-key`, so fixing a wrong key is an edit and another
+seed. The summary says how many models were added and how many had their key
+refreshed. Changing a seeded model's endpoint still means renaming it in
+`.local/settings.yaml`, or rebuilding the cluster.
 
 To make the cluster's own Portal conversations and task runs answer from a
 seeded model, switch them over explicitly:

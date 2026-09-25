@@ -149,7 +149,8 @@ func statusFor(class string, err error) (int, string) {
 	case llmgateway.ErrorClassCanceled:
 		return http.StatusRequestTimeout, "call canceled"
 	case llmgateway.ErrorClassUpstream:
-		// The provider's own message stays server-side; it can carry account
+		// The provider's own message stays server-side — the gateway service
+		// logs it with the ledger row's ID — because it can carry account
 		// identifiers, endpoints, and request fragments.
 		return http.StatusBadGateway, "model provider unavailable"
 	default:

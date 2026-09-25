@@ -520,3 +520,7 @@ func TestLLMModelsUnconfigured(t *testing.T) {
 		t.Errorf("status = %d, want 503", rec.Code)
 	}
 }
+
+func (l *llmStubLedger) SummarizeForegroundLLMCalls(context.Context, string, time.Time) ([]coregw.CallTotals, error) {
+	return nil, nil
+}

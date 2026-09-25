@@ -2,7 +2,9 @@ package mock
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 )
@@ -101,6 +103,23 @@ func (m *MockLLMModelStore) SetLLMModelEnabled(_ context.Context, llmModelID str
 		}
 	}
 	return nil
+}
+
+func (m *MockLLMModelStore) SetLLMModelCredential(_ context.Context, llmModelID, apiKey string) error {
+	if m.Err != nil {
+		return m.Err
+	}
+	for i := range m.Models {
+		if m.Models[i].ID == llmModelID {
+			if m.Credentials == nil {
+				m.Credentials = map[string]string{}
+			}
+			m.Credentials[llmModelID] = apiKey
+			m.Models[i].UpdatedAt = m.Models[i].UpdatedAt.Add(time.Second)
+			return nil
+		}
+	}
+	return errors.New("model not found")
 }
 
 func (m *MockLLMModelStore) LLMModelCredential(_ context.Context, llmModelID string) (string, error) {

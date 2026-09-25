@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -53,6 +54,8 @@ type kindSeedEntry struct {
 	name string
 	// id is the catalog ID the row was created with.
 	id string
+	// added is a new row; refreshed is an existing one whose key was replaced.
+	added, refreshed bool
 }
 
 func kindSeed() error {
@@ -83,7 +86,7 @@ func kindSeed() error {
 		return err
 	}
 
-	entries, err := seedKindCatalog(target, direct, existing)
+	entries, err := seedKindCatalog(direct, existing)
 	if err != nil {
 		return err
 	}
@@ -109,14 +112,14 @@ func directSettingsModels(models []settingsModel) []settingsModel {
 	return out
 }
 
-// seedKindCatalog adds every model that is not already there, and reuses the ID
-// of every one that is.
+// seedKindCatalog adds every model that is not already there, and refreshes the
+// key of every one that is.
 //
-// A name already in the catalog is left untouched rather than updated: the add
-// command does not update, and silently replacing a row an operator created by
-// hand would be worse than saying so. Changing a seeded model means renaming it
-// here, or rebuilding the cluster.
-func seedKindCatalog(target smokeTarget, models []settingsModel, existing map[string]string) ([]kindSeedEntry, error) {
+// A name already in the catalog keeps its row and ID, because that name is what
+// signed-in clients select; its key is replaced from settings.yaml and the
+// output says so. Without that, a seed run with a wrong key could never be
+// corrected short of rebuilding the cluster.
+func seedKindCatalog(models []settingsModel, existing map[string]string) ([]kindSeedEntry, error) {
 	entries := make([]kindSeedEntry, 0, len(models))
 	claimed := make(map[string]string, len(models))
 	for _, m := range models {
@@ -131,26 +134,53 @@ func seedKindCatalog(target smokeTarget, models []settingsModel, existing map[st
 			fmt.Printf("Skipping %q: %q already claims that name.\n", m.id, other)
 			continue
 		}
+		// A copied example file still holds a placeholder; seeding it would put
+		// a model in the catalog whose every call fails upstream.
+		if placeholderAPIKey(m.apiKey) {
+			fmt.Printf("Skipping %s: its api_key in %s is still the example placeholder.\n", name, localSettingsPath)
+			continue
+		}
 
-		id, known := existing[name]
-		if known {
-			fmt.Printf("  %s is already in the catalog as %s\n", name, id)
+		entry := kindSeedEntry{name: name}
+		if id, known := existing[name]; known {
+			entry.id = id
+			if m.apiKey != "" {
+				if _, err := kindServerCommand(m.apiKey+"\n", "model", "set-key", "--id", id); err != nil {
+					return nil, fmt.Errorf("refresh the key of %q: %w", name, err)
+				}
+				entry.refreshed = true
+				fmt.Printf("  %s is already in the catalog as %s; its key was refreshed from %s\n", name, id, localSettingsPath)
+			} else {
+				fmt.Printf("  %s is already in the catalog as %s\n", name, id)
+			}
 		} else {
-			added, err := addKindCatalogModel(target, m, name)
+			added, err := addKindCatalogModel(m, name)
 			if err != nil {
 				return nil, err
 			}
-			id = added
-			fmt.Printf("  %s added as %s\n", name, id)
+			entry.id, entry.added = added, true
+			fmt.Printf("  %s added as %s\n", name, added)
 		}
 		claimed[name] = m.id
-		entries = append(entries, kindSeedEntry{name: name, id: id})
+		entries = append(entries, entry)
 	}
 	return entries, nil
 }
 
-func addKindCatalogModel(target smokeTarget, m settingsModel, name string) (string, error) {
-	output, err := target.admin(kindCatalogModelArgs(m, name)...)
+// placeholderAPIKey reports a key an example or starter file wrote rather than
+// a person.
+func placeholderAPIKey(key string) bool {
+	k := strings.ToLower(strings.TrimSpace(key))
+	return strings.Contains(k, "your_api_key") ||
+		(strings.HasPrefix(k, "your-") && strings.HasSuffix(k, "-key"))
+}
+
+func addKindCatalogModel(m settingsModel, name string) (string, error) {
+	input := ""
+	if m.apiKey != "" {
+		input = m.apiKey + "\n"
+	}
+	output, err := kindServerCommand(input, kindCatalogModelArgs(m, name)...)
 	if err != nil {
 		return "", fmt.Errorf("add %q to the catalog: %w", name, err)
 	}
@@ -159,6 +189,22 @@ func addKindCatalogModel(target smokeTarget, m settingsModel, name string) (stri
 		return "", fmt.Errorf("add %q to the catalog: the command printed no model ID: %s", name, output)
 	}
 	return match[1], nil
+}
+
+// kindServerCommand runs buildmax-server in the cluster with input on its
+// standard input. Keys travel that way rather than as arguments, which the
+// process listing inside the pod and on this machine would both show. A
+// variable so a test can stand in for the cluster.
+var kindServerCommand = func(input string, args ...string) (string, error) {
+	cmdArgs := append([]string{"--context", kindContext(), "exec", "-i", "-n", "buildmax", "deployment/buildmax-server", "--", "buildmax-server"}, args...)
+	cmd := exec.Command("kubectl", cmdArgs...)
+	cmd.Stdin = strings.NewReader(input)
+	output, err := cmd.CombinedOutput()
+	text := strings.TrimSpace(string(output))
+	if err != nil {
+		return text, fmt.Errorf("buildmax-server %s: %w: %s", strings.Join(args[:min(2, len(args))], " "), err, text)
+	}
+	return text, nil
 }
 
 // kindCatalogModelArgs is the `model add` command line for one settings entry.
@@ -174,7 +220,8 @@ func kindCatalogModelArgs(m settingsModel, name string) []string {
 		args = append(args, "--provider", m.provider)
 	}
 	if m.apiKey != "" {
-		args = append(args, "--api-key", m.apiKey)
+		// The key itself goes on standard input; see kindServerCommand.
+		args = append(args, "--api-key", "-")
 	}
 	if m.contextWindow > 0 {
 		args = append(args, "--context-window", strconv.Itoa(m.contextWindow))
@@ -307,7 +354,17 @@ func printKindSeedUsage(entries []kindSeedEntry) error {
 		return err
 	}
 
-	fmt.Printf("\nSeeded %d model(s) into cluster %s.\n", len(entries), kindClusterName())
+	added, refreshed := 0, 0
+	for _, e := range entries {
+		if e.added {
+			added++
+		}
+		if e.refreshed {
+			refreshed++
+		}
+	}
+	fmt.Printf("\nCluster %s offers %d seeded model(s): %d added, %d already there with the key refreshed, %d left as they were.\n",
+		kindClusterName(), len(entries), added, refreshed, len(entries)-added-refreshed)
 	fmt.Printf("The cluster's own inference is untouched: Portal conversations and task runs\n"+
 		"still answer from the mock, so `%s kind smoke` stays free and deterministic.\n", mk())
 	fmt.Printf("\nSign in to use the deployment catalog from the CLI or Desktop:\n")

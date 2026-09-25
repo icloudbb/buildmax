@@ -221,3 +221,36 @@ func TestAdminModelsWithoutACatalogIs503(t *testing.T) {
 		t.Errorf("got %d, want 503", got)
 	}
 }
+
+// A leaked or expired key is rotated in place: same model, same name, a new
+// key, audited without the key, and never echoed back.
+func TestAdminModelCredentialReplace(t *testing.T) {
+	mux, models, audits := adminModelsMux(t)
+	id := models.Models[0].ID
+	const rotated = "sk-rotated-and-still-secret"
+
+	rec := adminRequestJSON(t, mux, "PUT", "/api/admin/llm/models/"+id+"/credential", adminUser, `{"api_key":"`+rotated+`"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("replace got %d: %s", rec.Code, rec.Body.String())
+	}
+	if models.Credentials[id] != rotated {
+		t.Errorf("stored credential = %q, want the rotated key", models.Credentials[id])
+	}
+	if models.Models[0].Name != "Fast" {
+		t.Errorf("the model was renamed to %q", models.Models[0].Name)
+	}
+	if strings.Contains(rec.Body.String(), rotated) {
+		t.Errorf("the response carried the new key: %s", rec.Body.String())
+	}
+	if len(audits.Events) != 1 || audits.Events[0].Action != coreaudit.ModelCredentialReplaced ||
+		audits.Events[0].Detail != "Fast" || strings.Contains(audits.Events[0].Detail, rotated) {
+		t.Errorf("audit = %+v, want one credential_replaced event naming the model", audits.Events)
+	}
+
+	if got := adminRequestJSON(t, mux, "PUT", "/api/admin/llm/models/"+id+"/credential", adminUser, `{"api_key":"  "}`).Code; got != http.StatusBadRequest {
+		t.Errorf("an empty key for a provider that needs one got %d, want 400", got)
+	}
+	if got := adminRequestJSON(t, mux, "PUT", "/api/admin/llm/models/nosuchmodel/credential", adminUser, `{"api_key":"k"}`).Code; got != http.StatusNotFound {
+		t.Errorf("an unknown model got %d, want 404", got)
+	}
+}

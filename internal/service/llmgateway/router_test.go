@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
@@ -184,6 +185,25 @@ func TestClientForRebuildsWhenTargetChanges(t *testing.T) {
 	if factory.count() != 2 {
 		t.Errorf("factory called %d times, want 2", factory.count())
 	}
+
+	// In the catalog a replaced key keeps the same CredentialRef (the row's
+	// ID); only the row's revision moves. That alone must retire the client.
+	sameRef := rotated
+	sameRef.Revision = rotated.Revision.Add(time.Second)
+	catalog.set(sameRef)
+	replaced, err := router.ClientFor(ctx, req)
+	if err != nil {
+		t.Fatalf("ClientFor after a replaced key: %v", err)
+	}
+	if replaced.Client == second.Client {
+		t.Error("a key replaced in place reused the client built with the old one")
+	}
+	second = replaced
+	rotated = sameRef
+	// The later steps count from the two builds before this one.
+	factory.mu.Lock()
+	factory.calls = 2
+	factory.mu.Unlock()
 
 	// An output cap is a construction detail: a client built with the old one
 	// would keep capping responses after the operator changed it.

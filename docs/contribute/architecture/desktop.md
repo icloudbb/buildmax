@@ -37,9 +37,12 @@ Portal login is a connector rather than a gate — see
 credentials are the mode. A stored login in `<BUILDMAX_HOME>/auth.json` reports
 `server`, no login reports `local`, and nothing is remembered alongside them,
 because a second record of one fact is a second source of truth for it. A login
-the server no longer honours reports expired: the app stays in managed mode and
-refuses to run rather than quietly using local models, leaving signing in again
-and signing out as the two ways forward. `Logout` revokes the session and
+the server no longer honours, or an account it disabled, reports expired: the
+app stays in managed mode and refuses to run rather than quietly using local
+models, leaving signing in again and signing out as the two ways forward. A
+deployment that cannot be reached reports unavailable instead: the login is
+kept, the workbench stays open under a banner, and the status is re-read every
+15 seconds until the deployment answers. `Logout` revokes the session and
 removes the credentials, and that removal is the whole switch back to local. See
 [client modes](../../design/client-modes.md) sections 3 and 8.
 

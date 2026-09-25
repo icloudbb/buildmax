@@ -263,6 +263,7 @@ func (h *Handler) buildSpaceHandler() *spaceroutes.Handler {
 		Workflows:        h.cfg.WorkflowStore,
 		Schedules:        h.cfg.ScheduleStore,
 		Quota:            h.cfg.QuotaService,
+		LLMCalls:         h.cfg.LLMCallStore,
 		Audit:            h.cfg.Audit,
 		Plugins:          h.cfg.PluginService,
 		LoginCodes:       h.cfg.LoginCodeStore,

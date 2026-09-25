@@ -84,7 +84,7 @@ func interactiveLogin() error {
 			return fmt.Errorf("login: %w", err)
 		}
 	} else {
-		fmt.Fprintln(os.Stdout, "Ask an administrator to run: buildmax-server user login-code "+email)
+		fmt.Fprintln(os.Stdout, "Ask an administrator for a login code: `buildmax admin user login-code "+email+"`")
 		fmt.Fprint(os.Stdout, "Login code: ")
 		otp := readLine(reader)
 		if otp == "" {
@@ -125,17 +125,26 @@ func runLogout(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func runMe(_ *cobra.Command, _ []string) error {
-	info, err := auth.Info()
+func runMe(cmd *cobra.Command, _ []string) error {
+	// The stored login, not auth.Info: Info reads only local timestamps, so it
+	// calls a login the server has revoked "logged in" and a locally expired one
+	// "not logged in" — the second of which is still the mode every run uses.
+	creds, err := auth.StoredLogin()
 	if err != nil {
 		return fmt.Errorf("load auth: %w", err)
 	}
-	if !info.LoggedIn {
-		fmt.Fprintln(os.Stdout, "Not logged in.")
+	if creds == nil {
+		fmt.Fprintln(cmd.OutOrStdout(), "Not logged in. Prompts go straight from this machine to the providers in settings.yaml.")
 		return nil
 	}
-	fmt.Fprintf(os.Stdout, "Logged in as %s on %s\n", info.Email, info.ServerURL)
-	fmt.Fprintf(os.Stdout, "Credentials: %s\n", auth.StorageDescription(info.Storage))
+	// Asking the deployment is the only way to know whether it still accepts
+	// the login; a status that cannot say so is the one that matters most.
+	if _, err := resolveModelSource(cmd.Context()); err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "Signed in as %s on %s, but the login cannot be used right now.\n", creds.Email, creds.ServerURL)
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Logged in as %s on %s\n", creds.Email, creds.ServerURL)
+	fmt.Fprintf(cmd.OutOrStdout(), "Credentials: %s\n", auth.StorageDescription(creds.Storage))
 	return nil
 }
 

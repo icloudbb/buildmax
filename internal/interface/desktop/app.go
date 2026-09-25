@@ -832,6 +832,15 @@ type AuthStatus struct {
 	Expired bool `json:"expired,omitempty"`
 	// ExpiredDetail is what to tell the user, set only when Expired.
 	ExpiredDetail string `json:"expired_detail,omitempty"`
+	// AccountDisabled narrows Expired: an administrator disabled the account,
+	// so signing in again does not help until they re-enable it.
+	AccountDisabled bool `json:"account_disabled,omitempty"`
+	// Unavailable means the deployment could not be reached. The login still
+	// works, so the app keeps it and offers a retry rather than the ended-login
+	// screen, whose way out — signing out — would discard a good credential.
+	Unavailable bool `json:"unavailable,omitempty"`
+	// UnavailableDetail is what failed, set only when Unavailable.
+	UnavailableDetail string `json:"unavailable_detail,omitempty"`
 }
 
 // GetAuthStatus reports the stored login, if there is one, and whether it still
@@ -856,8 +865,17 @@ func (a *App) GetAuthStatus() (*AuthStatus, error) {
 		Name:      creds.Name,
 	}
 	if _, err := auth.ResolveModelSource(context.Background()); err != nil {
-		status.Expired = true
-		status.ExpiredDetail = err.Error()
+		// Only a login the deployment no longer accepts is an ended session.
+		// Anything else — an outage, a server error — leaves the login intact.
+		switch {
+		case errors.Is(err, auth.ErrLoginExpired), errors.Is(err, auth.ErrAccountDisabled):
+			status.Expired = true
+			status.ExpiredDetail = err.Error()
+			status.AccountDisabled = errors.Is(err, auth.ErrAccountDisabled)
+		default:
+			status.Unavailable = true
+			status.UnavailableDetail = err.Error()
+		}
 	}
 	return status, nil
 }

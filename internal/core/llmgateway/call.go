@@ -174,4 +174,25 @@ type CallStore interface {
 	// total count matching it regardless of the page window. It spans every user
 	// and space, so only a deployment administrator may reach it.
 	SearchLLMCalls(ctx context.Context, filter CallFilter, limit, offset int) ([]Call, int, error)
+	// SummarizeForegroundLLMCalls totals one user's calls made outside any
+	// task run — their own CLI and Desktop sessions — accepted at or after
+	// since. Calls are grouped by the rate snapshot they were priced at, so a
+	// reader prices each group without recomputing from today's catalog.
+	SummarizeForegroundLLMCalls(ctx context.Context, userID string, since time.Time) ([]CallTotals, error)
+}
+
+// CallTotals is the summed usage of calls that share one rate snapshot. An
+// empty Currency groups the calls that were unpriced when they ran.
+type CallTotals struct {
+	Calls                 int
+	PromptTokens          int
+	CompletionTokens      int
+	TotalTokens           int
+	CacheReadTokens       int
+	CacheWriteTokens      int
+	Currency              string
+	RateInputPerMTok      int64
+	RateCacheReadPerMTok  int64
+	RateCacheWritePerMTok int64
+	RateOutputPerMTok     int64
 }

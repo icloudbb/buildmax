@@ -251,6 +251,26 @@ func (s *Store) SetLLMModelEnabled(ctx context.Context, llmModelID string, enabl
 	return nil
 }
 
+// SetLLMModelCredential replaces a model's upstream key. updated_at moves
+// with it, which is what makes the gateway rebuild a client it cached with the
+// old key.
+func (s *Store) SetLLMModelCredential(ctx context.Context, llmModelID, apiKey string) error {
+	sealed, err := s.sealCredential(apiKey)
+	if err != nil {
+		return err
+	}
+	res := s.db.WithContext(ctx).Model(&llmModelRow{}).
+		Where("public_id = ?", canonicalPublicID(llmModelID)).
+		Updates(map[string]any{"api_key_sealed": sealed, "updated_at": time.Now().UTC()})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return errors.New("model not found")
+	}
+	return nil
+}
+
 // LLMModelCredential returns the upstream key for a model.
 //
 // This is the only read that touches the credential column, which is what makes

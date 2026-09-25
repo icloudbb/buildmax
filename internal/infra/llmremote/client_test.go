@@ -658,3 +658,16 @@ func TestAnAbsentProfileIsOmittedFromTheRequest(t *testing.T) {
 		t.Errorf("request %s carries an empty call_profile", gateway.gotRaw)
 	}
 }
+
+// A 5xx with no BuildMax body came from something in front of the server, so
+// it is reported as the server being unavailable, not as a refusal.
+func TestGatewayErrorNamesAnUnavailableServer(t *testing.T) {
+	msg := (&llmremote.GatewayError{StatusCode: http.StatusServiceUnavailable}).Error()
+	if strings.Contains(msg, "refused") || !strings.Contains(msg, "did not answer") {
+		t.Errorf("Error() = %q", msg)
+	}
+	upstream := (&llmremote.GatewayError{StatusCode: http.StatusBadGateway, Code: "upstream_error", Message: "model provider unavailable"}).Error()
+	if !strings.Contains(upstream, "model provider failed") {
+		t.Errorf("upstream Error() = %q", upstream)
+	}
+}

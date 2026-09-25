@@ -97,6 +97,9 @@ const (
 	ModelCreated  = "llm_model.created"
 	ModelEnabled  = "llm_model.enabled"
 	ModelDisabled = "llm_model.disabled"
+	// ModelCredentialReplaced records a rotated upstream key. The key itself
+	// is never in the trail; the model's name is.
+	ModelCredentialReplaced = "llm_model.credential_replaced"
 	// AccessDenied records a refused request. This is the one action
 	// written on failure rather than success: a denial is what shows someone
 	// probing at a boundary. SpaceID is empty when the refused route was
