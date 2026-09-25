@@ -87,10 +87,15 @@ func (c *Controller) newChromedpPage(_ context.Context) (pageDriver, func(), err
 	if err != nil {
 		return nil, nil, fmt.Errorf("create browser profile dir: %w", err)
 	}
+	// Chrome's own output is the only account of why it failed to start: a
+	// sandbox the host forbids, a missing library, a locked profile. Without it
+	// a launch failure reads only as chromedp's "websocket url timeout".
+	output := &outputTail{}
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.ExecPath(c.execPath),
 		chromedp.UserDataDir(dir),
 		chromedp.WindowSize(viewportW, viewportH),
+		chromedp.CombinedOutput(output),
 	)
 	if c.headful {
 		// DefaultExecAllocatorOptions enables headless; a later flag wins, so
@@ -116,7 +121,7 @@ func (c *Controller) newChromedpPage(_ context.Context) (pageDriver, func(), err
 		ctxCancel()
 		allocCancel()
 		_ = os.RemoveAll(dir)
-		return nil, nil, fmt.Errorf("start browser: %w", err)
+		return nil, nil, fmt.Errorf("start browser: %w%s", err, output.explain())
 	}
 	return p, ctxCancel, nil
 }
@@ -350,3 +355,41 @@ const typeJS = `(() => {
   el.dispatchEvent(new Event('change', {bubbles: true}));
   return {found: true};
 })()`
+
+// outputTailBytes bounds what a failed launch reports: enough for Chrome's
+// closing lines, not its whole log.
+const outputTailBytes = 2048
+
+// outputTail keeps the last bytes a browser process wrote. Chrome writes from
+// its own goroutines for as long as it runs, so it is safe for concurrent use.
+type outputTail struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+func (o *outputTail) Write(p []byte) (int, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.buf = append(o.buf, p...)
+	if extra := len(o.buf) - outputTailBytes; extra > 0 {
+		o.buf = append(o.buf[:0], o.buf[extra:]...)
+	}
+	return len(p), nil
+}
+
+// explain renders the captured output for an error, naming the one cause a
+// reader cannot guess from Chrome's wording alone.
+func (o *outputTail) explain() string {
+	o.mu.Lock()
+	text := strings.TrimSpace(string(o.buf))
+	o.mu.Unlock()
+	if text == "" {
+		return ""
+	}
+	hint := ""
+	if strings.Contains(text, "No usable sandbox") {
+		hint = "\nthe host does not allow Chrome's sandbox; on Linux this is usually " +
+			"kernel.apparmor_restrict_unprivileged_userns=1 without an AppArmor profile for this browser"
+	}
+	return "\nbrowser output:\n" + text + hint
+}
