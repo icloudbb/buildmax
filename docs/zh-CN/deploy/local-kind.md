@@ -18,7 +18,7 @@
 ./make kind up
 ```
 
-该命令创建 `buildmaxdev` 集群，然后：
+该命令创建 `buildmaxdev` 集群，并以 [Cilium](https://cilium.io) 代替 kind 默认的 kindnet 作为网络插件，然后：
 
 1. 安装 ingress-nginx、MySQL 和 MinIO——由于 MinIO 已停止发布镜像，服务端和 `mc`
    镜像来自社区 MinIO 分支 [SILO](https://silo.pgsty.com)
@@ -27,6 +27,8 @@
 4. 生成临时本地 Secret，应用 BuildMax 清单
 5. 等待每个 Deployment 就绪
 6. 创建真实 TaskRun，在 Kubernetes Worker Job 中执行，并通过 API 验证 Artifact
+
+Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的用户态策略引擎在长期运行的集群上会退化：新 pod 得不到保护，其他 pod 的 DNS 和 API 请求会超时，直到重启它才恢复。清单以 vendored 形式放在 `deployment/kind/cilium.yaml`，文件中附有生成它的命令。在此改动之前创建的集群仍运行 kindnet；`kind up` 会提示这一点，执行 `./make kind down` 再执行 `./make kind up` 即可用 Cilium 重建。`./make kind fixtures` 可恢复 QA 数据。
 
 集群配置和应用的依赖清单位于 `deployment/kind/`；编排位于 `tools/mk/kind.go`。它们只用于开发，不属于真实部署。
 

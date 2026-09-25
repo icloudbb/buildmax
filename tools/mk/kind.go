@@ -260,6 +260,9 @@ func kindUp() error {
 		if err := runKind("create", "cluster", "--name", cluster, "--config", configPath); err != nil {
 			return err
 		}
+		if err := installKindCilium(); err != nil {
+			return err
+		}
 		// kind makes the new cluster globally current. Every command below uses
 		// an explicit context, so restore the contributor's previous selection.
 		if previousContext != "" && previousContext != kindContext() {
@@ -269,6 +272,7 @@ func kindUp() error {
 		}
 	} else {
 		fmt.Printf("Using existing kind cluster %q.\n", cluster)
+		warnIfKindnet()
 		if err := validateKindPortMapping(cluster); err != nil {
 			return err
 		}
@@ -1046,7 +1050,7 @@ func renderKindConfig() (string, func(), error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("create a rendered kind config: %w", err)
 	}
-	if _, err := file.WriteString(strings.Join(lines, "\n")); err != nil {
+	if _, err := file.WriteString(strings.TrimRight(strings.Join(lines, "\n"), "\n") + "\n" + kindCNIConfig); err != nil {
 		_ = file.Close()
 		_ = os.Remove(file.Name())
 		return "", nil, fmt.Errorf("write %s: %w", file.Name(), err)

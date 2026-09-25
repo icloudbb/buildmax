@@ -26,7 +26,8 @@ kubectl context.
 ./make kind up
 ```
 
-This creates the `buildmaxdev` cluster, then:
+This creates the `buildmaxdev` cluster with [Cilium](https://cilium.io) as its
+network plugin instead of kind's default kindnet, then:
 
 1. installs ingress-nginx, MySQL, and MinIO — the server and `mc` images come
    from [SILO](https://silo.pgsty.com), the community MinIO fork, since MinIO
@@ -38,6 +39,14 @@ This creates the `buildmaxdev` cluster, then:
 5. waits for every Deployment to become ready
 6. creates a real TaskRun, executes it in a Kubernetes worker Job, and verifies
    its artifact through the API
+
+Cilium enforces NetworkPolicy, including the worker API boundary, in the
+kernel. kindnet's userspace policy engine degraded on a long-lived cluster: new
+pods went unprotected, and DNS and API calls from others timed out until it was
+restarted. The manifest is vendored in `deployment/kind/cilium.yaml`, with the
+command that renders it. A cluster created before this change still runs
+kindnet; `kind up` says so, and `./make kind down` followed by `./make kind up`
+recreates it with Cilium. `./make kind fixtures` restores the QA data.
 
 The cluster config and the dependency manifests it applies live in
 `deployment/kind/`; the orchestration is `tools/mk/kind.go`. They are
