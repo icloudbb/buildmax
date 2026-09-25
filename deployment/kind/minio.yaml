@@ -15,7 +15,11 @@ spec:
     spec:
       containers:
         - name: minio
-          image: quay.io/minio/minio
+          # MinIO no longer publishes images; quay.io/minio/* refuses anonymous
+          # pulls and Docker Hub's minio/* is gone. SILO is the community fork
+          # that keeps shipping the same server under the same AGPL, pinned by
+          # tag and digest so a retag cannot change what the cluster runs.
+          image: docker.io/pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
           args:
             - server
             - /data

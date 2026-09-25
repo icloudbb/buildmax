@@ -20,7 +20,8 @@
 
 该命令创建 `buildmaxdev` 集群，然后：
 
-1. 安装 ingress-nginx、MySQL 和 MinIO
+1. 安装 ingress-nginx、MySQL 和 MinIO——由于 MinIO 已停止发布镜像，服务端和 `mc`
+   镜像来自社区 MinIO 分支 [SILO](https://silo.pgsty.com)
 2. 分别通过集群内 Job 创建 `bmstore` 存储桶并扩展 MySQL 开发权限
 3. 构建并加载服务器、Portal 和确定性模拟模型镜像
 4. 生成临时本地 Secret，应用 BuildMax 清单

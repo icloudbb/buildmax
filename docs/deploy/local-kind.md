@@ -28,7 +28,9 @@ kubectl context.
 
 This creates the `buildmaxdev` cluster, then:
 
-1. installs ingress-nginx, MySQL, and MinIO
+1. installs ingress-nginx, MySQL, and MinIO — the server and `mc` images come
+   from [SILO](https://silo.pgsty.com), the community MinIO fork, since MinIO
+   stopped publishing images
 2. creates the `bmstore` bucket and widens the MySQL dev grant, each from an
    in-cluster Job
 3. builds and loads the server, Portal, and deterministic mock-model images
