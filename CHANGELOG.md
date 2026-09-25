@@ -14,6 +14,182 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.15] - 2026-09-25
+
+### Added
+
+- Local CLI runs can now drive a headless browser: when a system Chrome, Edge,
+  or Chromium is installed, the agent can open an http(s) page, inspect its
+  elements and console, click, type, and screenshot to verify a change against
+  the real rendered page.
+
+- Add a built-in WebSearch tool for public web results, with keyless access
+  and an optional Firecrawl API key for higher limits.
+
+- On Desktop you can now open a live view of the Agent's browser page inside a
+  workspace tab — click the browser indicator in the status bar. It streams the
+  same page the Agent drives (read-only).
+
+- On Desktop the Agent's browser now opens as a visible window you can watch,
+  with a status-bar indicator of the page each chat session is on.
+
+- Desktop: a Launchpad in the bottom status bar lets you pin your own
+  applications (for example VS Code) and websites and open them with one click.
+
+- Desktop: double-click a chat or terminal tab to rename it in place, without
+  opening the right-click menu.
+
+- Desktop: a "+" button at the end of each workspace tab strip starts a new
+  chat in that pane, so a new conversation no longer requires the project
+  sidebar.
+
+- Desktop: terminal tabs are restored after a restart — each reopens as a fresh
+  shell in the project workspace with its last visible output replayed above the
+  new prompt, instead of vanishing.
+
+- Add experimental local app connectors with browser OAuth, fixed read and
+  confirmed write CLI operations, and a Gmail sample plugin; also add remote
+  MCP connection, tool discovery, and tool calling commands with optional
+  Bearer token environment variables.
+
+- Replace a catalog model's provider key in place with
+  `buildmax admin model set-key <id>`, `buildmax-server model set-key --id`, or
+  `PUT /api/admin/llm/models/{model_id}/credential`. The model keeps its name, so
+  no client changes what it selects. `--api-key -` on either `model add` reads
+  the key from standard input, and `./make kind seed` refreshes the keys of
+  models it seeded before and skips example placeholder keys.
+
+- Remote Control: start a local session with `buildmax --remote-control` to make
+  it reachable through the server, then from another device under Remote Control
+  in Portal watch it, send follow-up messages, approve or deny its tool calls,
+  and stop a running turn. Execution and files stay on your machine.
+
+- Schedules can now run a published workflow on a cron timetable, not just an
+  agent: create one from the workflow's detail page or the space Schedules page,
+  and each firing starts a workflow run.
+
+- The space Schedules page has **Pause all** and **Resume all** buttons that
+  enable or pause every schedule in the space at once, to halt or restart all
+  unattended work without touching each row.
+
+- Show the current session's complete fork tree in `buildmax info` and the
+  TUI/Desktop `/info` panels, including surviving branches whose source session
+  was deleted.
+
+- Talk to your BuildMax assistant from Telegram: an operator connects a bot with
+  `channels.telegram.bot_token`, people link their Telegram account under
+  Account → Chat accounts, and the bot answers in their Space and reports when
+  work it started finishes.
+
+### Changed
+
+- The deployment Administration pages now use the site's dark primary button
+  for each search form and theme-colored list links, instead of white submit
+  buttons and off-theme blue links in light mode.
+
+- The deployment Administration area now lists its sections (Overview,
+  Accounts, Spaces, and the rest) in the sidebar under the Deployment scope
+  instead of as in-page tabs, matching how the rest of the app navigates.
+
+- The deployment admin Spaces view now lists team spaces as a paginated table
+  and omits every account's personal space, which is noise an operator does not
+  govern.
+
+- Desktop scheduled tasks now run in a working directory (your home directory by
+  default) instead of requiring a project, let you pick the model each fire runs
+  under, keep their own run history with a live cron preview when creating one,
+  and open each run in the full chat view from the Schedules page — model picker,
+  context gauge, and a reply that continues the session. The page also has a
+  one-click toggle to pause or enable every task at once. Fires no longer appear
+  as sessions in the project sidebar.
+
+- Desktop: opening a scheduled run's conversation now uses a wide, tall modal so
+  the embedded chat — thread, model picker, and context gauge — has room to
+  work, rather than the narrow default dialog.
+
+- Desktop: terminal tabs now use a full-contrast color palette and follow the
+  app's light/dark theme, so program output (git, ls, build logs) reads clearly.
+
+- The kind reference cluster now runs Cilium instead of kindnet, so
+  NetworkPolicy is enforced in the kernel and a long-lived local cluster no
+  longer drifts into slow DNS and unprotected new pods. Existing clusters keep
+  kindnet until recreated with `./make kind down` and `./make kind up`.
+
+- A local CLI or Desktop session stays in the mode of its first turn. Resuming it
+  after `buildmax login` or `buildmax logout` is refused rather than replaying
+  its history to a destination it never used; start a new session instead.
+
+- The workflow detail page is now organized into tabs — Overview, Definition,
+  Runs, Schedules, and Revisions — matching the agent detail page, so a
+  workflow's schedules have a tab of their own instead of sharing the page.
+
+### Fixed
+
+- When the Agent's browser fails to start, the error now includes the browser's
+  own last output, and names a host that forbids Chrome's sandbox, instead of
+  only "websocket url timeout reached".
+
+- Desktop: destructive confirmations — deleting a project with sessions,
+  clearing a project's sessions, and removing a Git-checkout plugin — now use an
+  in-app dialog. They previously relied on the native `window.confirm`, which the
+  webview can silently drop, leaving the action unconfirmable.
+
+- Desktop: deleting a scheduled task now works. The confirmation moved from the
+  native `window.confirm`, which the webview could silently drop, to an in-app
+  dialog that spells out the deletion is irreversible, and the Delete button
+  reads as a danger action.
+
+- The managed gateway logs a provider's failure reason on the server, with the
+  call's ledger ID, so an operator can tell a bad key from a provider outage.
+  Callers still see only the stable error class. A client whose server is
+  unreachable now says so instead of reporting the gateway "refused the call".
+
+- `./make kind up` works again after MinIO withdrew its images: the kind
+  deployment now pulls the MinIO server and `mc` from SILO, the community MinIO
+  fork (`pgsty/minio`, `pgsty/mc`), pinned by tag and digest.
+
+- A signed-in session whose BuildMax server fails a model call with HTTP 500
+  now says the server failed the call, instead of that it may be down or
+  restarting.
+
+- `buildmax doctor` checks the mode first and no longer fails a signed-in setup
+  for lacking `settings.yaml`, probes unused local models, or suggests
+  `buildmax login` for an outage. `buildmax me` asks the deployment, so a
+  revoked login is no longer shown as signed in. Signed-out hints now mention
+  `buildmax login`, and an unknown model name says which deployment was asked.
+
+- Managed mode: a deployment that is down or restarting is no longer reported as
+  an ended login. The CLI says the login still works and offers retry or
+  `buildmax logout`; Desktop keeps the workbench open under a banner that
+  retries on its own, instead of a sign-in screen whose only way out discarded a
+  working login. A login the server rejects stays in place until you sign in
+  again or out, rather than being cleared so the next command silently ran in
+  local mode, and a disabled account gets its own message.
+
+- Managed mode: signed-in sessions now show what they cost. The deployment's
+  model list carries its prices, so the session footer, `buildmax info`,
+  `buildmax usage`, and Desktop `/info` no longer say "not priced", and the
+  Portal **Usage** page totals your own CLI and Desktop calls on the deployment.
+
+- Remote Control: a session watched from another device no longer goes dead
+  after a minute of quiet. The server keeps the stream alive through silence and
+  the Portal view reconnects on its own after a dropped connection, so an idle
+  session, a tool-only turn, or a brief network blip no longer strands the
+  watcher on a stale page.
+
+- `buildmax tools status` now lists the Browser tools when a system browser is
+  installed, matching what an interactive run actually gets, instead of omitting
+  them.
+
+- The workflow graph's running and succeeded nodes now use the shared status
+  palette instead of an undefined accent variable that fell back to blue in
+  light mode.
+
+- Workflow runs no longer stall with every node stuck pending when the create
+  request that started them is canceled or times out; the first dispatch runs on
+  a context detached from the request and the reconcile lease is always released,
+  so recovery picks the run up promptly instead of waiting out the lease TTL.
+
 ## [0.2.0-alpha.14] - 2026-09-20
 
 ### Added
@@ -3264,7 +3440,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.14...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.15...HEAD
+[0.2.0-alpha.15]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.14...v0.2.0-alpha.15
 [0.2.0-alpha.14]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.13...v0.2.0-alpha.14
 [0.2.0-alpha.13]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.12...v0.2.0-alpha.13
 [0.2.0-alpha.12]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.11...v0.2.0-alpha.12
