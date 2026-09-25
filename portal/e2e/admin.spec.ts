@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 
 // The administration area is deployment-scoped and reachable only through the
 // UI, so this is the first place its wiring runs end to end: hash route,
@@ -62,12 +62,22 @@ test("the Administrators section lists who can operate the deployment", async ({
   await expect(page.locator(".settings-section__error")).toHaveCount(0)
 })
 
+// The list shows the newest accounts first, 50 to a page. On a deployment
+// seeded with `./make kind fixtures` the operator is not on the first page, so
+// find it the way an administrator would: search for it.
+async function findAccount(page: Page, email: string) {
+  await page.getByLabel("Search accounts by email").fill(email)
+  await page.getByRole("button", { name: "Search", exact: true }).click()
+  await expect(page.getByRole("button", { name: email }).first()).toBeVisible()
+}
+
 test("an account's detail lists its live sessions", async ({ page }) => {
   const email = process.env.BUILDMAX_E2E_EMAIL
   test.skip(!email, "BUILDMAX_E2E_EMAIL not set")
 
   await page.goto("/#/admin/accounts")
   await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible()
+  await findAccount(page, email!)
 
   // Open the signed-in operator's own account — it is guaranteed to have a live
   // session, the one this browser is signed in with. Revoking it is deliberately
@@ -84,6 +94,7 @@ test("an open account detail is a linkable address that survives a reload", asyn
   test.skip(!email, "BUILDMAX_E2E_EMAIL not set")
 
   await page.goto("/#/admin/accounts")
+  await findAccount(page, email!)
   await page.getByRole("button", { name: email! }).first().click()
   await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
   // Opening the detail put the account in the URL, not just component state.
@@ -98,7 +109,7 @@ test("the last-login range filter narrows the account list", async ({ page }) =>
   test.skip(!email, "BUILDMAX_E2E_EMAIL not set")
 
   await page.goto("/#/admin/accounts")
-  await expect(page.getByRole("button", { name: email! }).first()).toBeVisible()
+  await findAccount(page, email!)
 
   // Use a UTC date safely beyond the local/UTC day boundary. Adding one local
   // calendar day before converting to ISO can still produce today's UTC date

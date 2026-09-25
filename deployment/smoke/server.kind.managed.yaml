@@ -16,6 +16,9 @@
 log_level: info
 port: 5678
 cors_origin: http://localhost:8080
+# Single-origin ingress, so artifact share links are built from the same host
+# the Portal and API are served on.
+public_base_url: http://localhost:8080
 workspaces_dir: /buildmax/workspaces
 # The smoke deployment runs many agent runs and is meant to be kept: free_trial
 # caps a space at ten runs in thirty days, which turns a long-lived local stack
@@ -89,6 +92,12 @@ worker_api:
   tls:
     cert_file: /buildmax/tls/worker-api/tls.crt
     key_file: /buildmax/tls/worker-api/tls.key
+
+# The Space Secret key-encryption key, mounted from the buildmax-kek Secret that
+# `./make kind up` generates (tools/mk/kind.go). It also seals catalog model
+# credentials, so without it a seeded model cannot be called in managed mode.
+secret:
+  kek_file: /buildmax/kek/kek.json
 
 storage:
   persist_backend: minio

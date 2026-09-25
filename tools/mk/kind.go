@@ -444,8 +444,17 @@ func kindWorkerBoundaryProbe() error {
 // no registry pull) and a sentinel echo, so the pod always exits 0 and the
 // stdout — not kubectl's own exit code — carries the answer. That keeps a real
 // tooling failure distinct from a deliberately blocked connection.
+//
+// The pod waits before it connects. kind's network policy engine learns a new
+// pod asynchronously and lets its traffic through until it has, so a probe
+// that connects the moment it starts can reach a port the policy denies. On
+// a busy resident cluster that window was several seconds: a pod a few
+// seconds old reached :5679, one 15 seconds old was denied. Waiting keeps the
+// check meaningful, since a policy that truly admitted the pod would still
+// admit it afterwards.
 func kindTCPReachable(name, labels, host, port string) (bool, error) {
-	script := fmt.Sprintf("nc -z -w 5 %s %s && echo BM_REACHABLE || echo BM_BLOCKED", host, port)
+	script := fmt.Sprintf("sleep %d; nc -z -w 5 %s %s && echo BM_REACHABLE || echo BM_BLOCKED",
+		int(kindPolicySettle.Seconds()), host, port)
 	out, err := captureCombined("kubectl", "--context", kindContext(),
 		"run", name, "-n", "buildmax", "--rm", "-i", "--restart=Never", "--quiet",
 		"--image=buildmax:local", "--image-pull-policy=Never", "--labels="+labels,
@@ -462,6 +471,10 @@ func kindTCPReachable(name, labels, host, port string) (bool, error) {
 		return false, fmt.Errorf("boundary probe %q was inconclusive:\n%s", name, out)
 	}
 }
+
+// kindPolicySettle is how long a boundary probe pod waits for the network
+// policy engine to learn it before connecting.
+const kindPolicySettle = 15 * time.Second
 
 // kindExpectPublicWorkerRoute404 confirms the public Service answers 404 for a
 // worker route: the route is absent from the public mux, so even an in-cluster
