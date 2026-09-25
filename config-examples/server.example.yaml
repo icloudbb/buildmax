@@ -59,6 +59,19 @@ jwt_secret: your-jwt-secret-here
 #   # shorter than session_absolute_ttl: a corporate login is re-proven more often.
 #   session_max_age: 12h
 
+# Chat apps. With a Telegram bot token set, people who link their Telegram
+# account (Portal: Account → Chat accounts) can talk to their assistant from
+# Telegram and hear there when work it started finishes. The bot long-polls the
+# Bot API, so it needs outbound HTTPS and no public URL. Set public_base_url
+# (below) so the bot can send links. See manual/chat-apps.md.
+# channels:
+#   telegram:
+#     # From @BotFather. Inject it at deploy time with
+#     # BUILDMAX_TELEGRAM_BOT_TOKEN rather than writing it here.
+#     bot_token: ""
+#     # A self-hosted Bot API server. Empty uses https://api.telegram.org.
+#     api_base_url: ""
+
 # Token lifetimes. Signing in returns an access token (sent with every request;
 # not stored, but the server checks the session it names on every request, so
 # revocation and disablement take effect within this window) and a refresh token

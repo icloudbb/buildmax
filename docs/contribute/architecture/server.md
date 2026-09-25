@@ -92,6 +92,10 @@ it for every call back, managed inference included. See
   itself recorded, and pages by keyset cursor rather than offset so a table
   written to while it streams cannot skip a record
 - Webhook keys (user-scoped, not space-scoped): `/api/webhook-keys...`
+- Chat-account links (user-scoped): `/api/channel-links...` to list, confirm a
+  bot's link code, and unlink, plus `GET /api/channel-link-pairings?code=` to
+  preview which chat account a code would link. See
+  [instant-messaging channels](../../design/instant-messaging-channels.md).
 - WebSocket: `/api/spaces/{space_id}/ws`
 - Worker API (**internal listener only**, not the public port):
   `/api/worker/task-runs/{task_run_id}...`, including `/llm/completions` so a
@@ -155,8 +159,10 @@ stays coherent without a per-route argument. They govern HTTP routes only;
 
 One turn per conversation runs at a time. The turn queue
 (`internal/server/turnqueue`) owns a queue per conversation
-and serializes foreground entry paths — WebSocket messages and the HTTP
-`POST .../messages` and `POST .../conversations` routes. TaskRun completion
+and serializes foreground entry paths — WebSocket messages, the HTTP
+`POST .../messages` and `POST .../conversations` routes, and chat-platform
+messages the channel gateway delivers through `Handler.RunChannelTurn` (see
+[instant-messaging channels](../../design/instant-messaging-channels.md)). TaskRun completion
 broadcasts durable-state invalidation; it does not enqueue a summary turn. It is server-scoped rather than connection-scoped because one
 conversation is reachable from several connections at once.
 

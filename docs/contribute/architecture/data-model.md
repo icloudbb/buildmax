@@ -154,6 +154,7 @@ erDiagram
     user ||--o{ login_code : "authenticates with"
     user ||--o{ auth_session : "signs in through"
     user ||--o{ external_identity : "links to"
+    user ||--o{ channel_identity : "is reached through"
     auth_session ||--o{ user_refresh_token : "rotates tokens in"
     user ||--o{ system_grant : "holds deployment authority via"
     llm_model ||--o{ llm_call : serves
@@ -447,6 +448,48 @@ API keys for the inbound webhook surface documented in
 
 Indexes: PK `id`; unique `key_hash`; index `user_id`; unique `public_id`.
 
+### `channel_identity`
+
+Links one chat-platform account to one user, so messages from it act as that
+user. It is not a sign-in credential. See
+[instant-messaging channels](../../design/instant-messaging-channels.md).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
+| `user_id` | `bigint unsigned` | no | `user.id`; a user may link several chat accounts |
+| `platform` | `varchar(32) ascii_bin` | no | `telegram` |
+| `tenant` | `varchar(128) utf8mb4_bin` | no | Scopes the account id on platforms with per-organization ids; empty on Telegram |
+| `external_user_id` | `varchar(128) utf8mb4_bin` | no | The platform's immutable account id, never a display name |
+| `handle` | `varchar(255)` | yes | Display name at link time, for recognition only |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+
+Indexes: PK `id`; unique `uq_channel_identity_external` on (`platform`,
+`tenant`, `external_user_id`) — a chat account speaks for at most one user;
+index `user_id`; unique `public_id`.
+
+### `channel_pairing`
+
+A link request a chat account started and a signed-in user has not confirmed.
+Rows live for ten minutes; creating one sweeps expired rows.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `code_hash` | `char(64) ascii_bin` | no | SHA-256 of the code; unique; the code itself is never stored |
+| `platform` | `varchar(32) ascii_bin` | no | |
+| `tenant` | `varchar(128) utf8mb4_bin` | no | |
+| `external_user_id` | `varchar(128) utf8mb4_bin` | no | The requesting chat account |
+| `chat_id` | `varchar(128) utf8mb4_bin` | no | Where the bot confirms the link |
+| `handle` | `varchar(255)` | yes | Shown to the person confirming |
+| `expires_at` | `datetime(6)` | no | Indexed |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+
+Indexes: PK `id`; unique `code_hash`; unique `uq_channel_pairing_external` on
+(`platform`, `tenant`, `external_user_id`) — one pending request per chat
+account; index `expires_at`.
+
 ### `quota_tier`
 
 Rate limits, referenced by name from `user.quota_tier` and `space.quota_tier`.
@@ -721,6 +764,7 @@ its messages, not the Tasks it may start or display.
 | `user_id` | `bigint unsigned` | no | Owning user |
 | `space_id` | `bigint unsigned` | yes | Owning space |
 | `channel` | `varchar(32)` | no | `portal`, `telegram`, or `webhook`; schedules and direct Agent runs do not create Conversations |
+| `channel_ref` | `varchar(191) utf8mb4_bin` | no | The chat a platform-carried conversation answers to (Telegram: the chat id); empty otherwise. Several rows share one ref; the newest is the chat's current conversation |
 | `title` | `varchar(256)` | yes | Generated from the first turn |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `turn_fence` | `bigint` | no | Highest accepted turn-lease fencing token; rejects stale message writers |
@@ -728,11 +772,14 @@ its messages, not the Tasks it may start or display.
 
 Indexes: PK `id`; index `idx_conversation_space_created` on (`space_id`,
 `created_at`); index `idx_conversation_user_created` on (`user_id`,
+`created_at`); index `idx_conversation_channel_ref` on (`channel_ref`,
 `created_at`); unique `public_id`.
 
 Transport channel constants are in
 `internal/service/conversation/channel/types.go`. `system` exists as a constant
-but is not in `ValidChannels`, so it cannot be supplied by a caller.
+but is not in `ValidChannels`, so it cannot be supplied by a caller. Neither is
+`telegram`: only the channel gateway creates such a conversation, because it is
+the path that also sets `channel_ref`.
 
 A workflow step and an issue agent run each create a Task directly, with
 `task.space_id` as owner and no `conversation_id`; neither creates a

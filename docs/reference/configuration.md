@@ -83,6 +83,7 @@ value alone.
 | `BUILDMAX_CONVERSATION_MODEL_API_KEY` | `conversation.model.api_key` |
 | `BUILDMAX_COORDINATION_REDIS_PASSWORD` | `coordination.redis.password` |
 | `BUILDMAX_OIDC_CLIENT_SECRET` | `oidc.client_secret` |
+| `BUILDMAX_TELEGRAM_BOT_TOKEN` | `channels.telegram.bot_token` |
 
 The split to aim for: **`server.yaml` carries shape and non-secret values; the
 environment carries credentials.** That is exactly how
@@ -794,6 +795,10 @@ jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in product
 #   provisioning: jit                 # jit (default, needs allowed_email_domains) | existing_only
 #   allowed_email_domains: [example.com]
 #   session_max_age: 12h              # SSO session ceiling; default 12h
+# channels:                          # chat apps; see manual/chat-apps.md
+#   telegram:
+#     bot_token: ""                   # from @BotFather; inject via BUILDMAX_TELEGRAM_BOT_TOKEN; empty = off
+#     api_base_url: ""                # self-hosted Bot API server; empty = https://api.telegram.org
 access_token_ttl: 15m                # signed; the server checks the session it names each request, so this is the max replay window
 refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
 refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
@@ -919,6 +924,14 @@ A deployment can also enable corporate sign-in over OpenID Connect with the
 client secret is injected through `BUILDMAX_OIDC_CLIENT_SECRET`. Setup and the
 account-linking rules are in
 [deploy/authentication.md](../deploy/authentication.md).
+
+A deployment can connect a Telegram bot with `channels.telegram.bot_token`
+(injected through `BUILDMAX_TELEGRAM_BOT_TOKEN`). The bot long-polls the Bot API,
+so the server needs outbound HTTPS to `api.telegram.org` and no public URL; set
+`public_base_url` so the bot can send confirmation links. With several replicas
+under `coordination.mode: redis`, one replica at a time receives for the bot.
+Setup and the commands people use are in
+[manual/chat-apps.md](../../manual/chat-apps.md).
 
 The worker reads the same `server.yaml` and needs at minimum `worker.server_url`
 (or `BUILDMAX_SERVER_URL`), `workspaces_dir`, and the `storage` block — it talks

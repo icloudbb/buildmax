@@ -49,11 +49,23 @@ type Lease struct {
 	cancel   context.CancelFunc
 	stopOnce sync.Once
 	done     chan struct{}
+	// lost closes when renewal finds the lock gone or cannot confirm it for a
+	// whole TTL, so a holder doing long work learns it no longer has exclusivity
+	// instead of carrying on beside the next holder.
+	lost     chan struct{}
+	lostOnce sync.Once
 }
 
 // Fence returns the monotonic token issued when the lock was granted. A later
 // grant of the same lock always carries a higher token.
 func (l *Lease) Fence() int64 { return l.fence }
+
+// Lost is closed once this holder can no longer be sure it holds the lock.
+// A holder that only needs the lock for one short critical section can ignore
+// it; one that holds it indefinitely must stop when it closes.
+func (l *Lease) Lost() <-chan struct{} { return l.lost }
+
+func (l *Lease) markLost() { l.lostOnce.Do(func() { close(l.lost) }) }
 
 // Release stops renewal and drops the lock. It is safe to call more than once.
 func (l *Lease) Release() {
@@ -94,6 +106,23 @@ func (b *Backend) AcquireLock(ctx context.Context, key string, ttl time.Duration
 	}
 }
 
+// TryAcquireLock takes the lock for key if it is free and reports false
+// without waiting if another holder has it. It suits a standby that retries on
+// its own slow schedule, where AcquireLock's tight retry would poll Redis many
+// times a second for as long as the holder lives.
+func (b *Backend) TryAcquireLock(ctx context.Context, key string, ttl time.Duration) (*Lease, bool, error) {
+	lockKey := "lock:" + key
+	fenceKey := "fence:" + key
+	res, err := acquireScript.Run(ctx, b.rdb, []string{lockKey, fenceKey}, strconv.FormatInt(ttl.Milliseconds(), 10)).Int64()
+	if err != nil {
+		return nil, false, err
+	}
+	if res <= 0 {
+		return nil, false, nil
+	}
+	return b.startLease(lockKey, res, ttl), true, nil
+}
+
 // startLease begins renewing a granted lock on its own goroutine.
 func (b *Backend) startLease(lockKey string, fence int64, ttl time.Duration) *Lease {
 	renewCtx, cancel := context.WithCancel(context.Background())
@@ -103,6 +132,7 @@ func (b *Backend) startLease(lockKey string, fence int64, ttl time.Duration) *Le
 		fence:   fence,
 		cancel:  cancel,
 		done:    make(chan struct{}),
+		lost:    make(chan struct{}),
 	}
 	interval := ttl / 3
 	if interval <= 0 {
@@ -112,14 +142,27 @@ func (b *Backend) startLease(lockKey string, fence int64, ttl time.Duration) *Le
 		defer close(lease.done)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+		confirmed := time.Now()
 		for {
 			select {
 			case <-renewCtx.Done():
 				return
 			case <-ticker.C:
 				ctx, c := context.WithTimeout(renewCtx, ttl)
-				_ = renewScript.Run(ctx, b.rdb, []string{lockKey}, strconv.FormatInt(fence, 10), strconv.FormatInt(ttl.Milliseconds(), 10)).Err()
+				renewed, err := renewScript.Run(ctx, b.rdb, []string{lockKey}, strconv.FormatInt(fence, 10), strconv.FormatInt(ttl.Milliseconds(), 10)).Int64()
 				c()
+				switch {
+				case err == nil && renewed == 1:
+					confirmed = time.Now()
+				case err == nil:
+					// The key expired or was re-granted: someone else may hold it.
+					lease.markLost()
+					return
+				case time.Since(confirmed) >= ttl:
+					// Unreachable for a whole TTL: the key has expired by now.
+					lease.markLost()
+					return
+				}
 			}
 		}
 	}()

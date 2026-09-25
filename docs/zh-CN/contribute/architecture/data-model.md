@@ -87,6 +87,7 @@ erDiagram
     user ||--o{ login_code : "authenticates with"
     user ||--o{ auth_session : "signs in through"
     user ||--o{ external_identity : "links to"
+    user ||--o{ channel_identity : "is reached through"
     auth_session ||--o{ user_refresh_token : "rotates tokens in"
     user ||--o{ system_grant : "holds deployment authority via"
     llm_model ||--o{ llm_call : serves
@@ -307,6 +308,41 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 
 索引：主键 `id`；唯一索引 `key_hash`；索引 `user_id`；唯一索引 `public_id`。
 
+### `channel_identity`
+
+把一个聊天平台账号链接到一个用户，使来自该账号的消息以该用户身份执行。它不是登录凭证。见 [即时通讯渠道](../../design/即时通讯渠道.md)。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `user_id` | `bigint unsigned` | 否 | `user.id`；一个用户可以链接多个聊天账号 |
+| `platform` | `varchar(32) ascii_bin` | 否 | `telegram` |
+| `tenant` | `varchar(128) utf8mb4_bin` | 否 | 在账号 id 按组织划分的平台上限定其范围；Telegram 上为空 |
+| `external_user_id` | `varchar(128) utf8mb4_bin` | 否 | 平台上不可变的账号 id，绝不是显示名 |
+| `handle` | `varchar(255)` | 是 | 链接时的显示名，仅用于辨认 |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+
+索引：主键 `id`；(`platform`, `tenant`, `external_user_id`) 上的唯一索引 `uq_channel_identity_external`——一个聊天账号最多代表一个用户；索引 `user_id`；唯一索引 `public_id`。
+
+### `channel_pairing`
+
+聊天账号发起、尚未被已登录用户确认的链接请求。行的有效期为十分钟；创建新行时会清理已过期的行。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `code_hash` | `char(64) ascii_bin` | 否 | 码的 SHA-256；唯一；码本身从不存储 |
+| `platform` | `varchar(32) ascii_bin` | 否 | |
+| `tenant` | `varchar(128) utf8mb4_bin` | 否 | |
+| `external_user_id` | `varchar(128) utf8mb4_bin` | 否 | 发起请求的聊天账号 |
+| `chat_id` | `varchar(128) utf8mb4_bin` | 否 | 机器人确认链接时发往的聊天 |
+| `handle` | `varchar(255)` | 是 | 展示给确认者 |
+| `expires_at` | `datetime(6)` | 否 | 有索引 |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+
+索引：主键 `id`；唯一索引 `code_hash`；(`platform`, `tenant`, `external_user_id`) 上的唯一索引 `uq_channel_pairing_external`——每个聊天账号只有一个待确认请求；索引 `expires_at`。
+
 ### `quota_tier`
 
 速率限制，由 `user.quota_tier` 和 `space.quota_tier` 按名称引用。这是唯一一张主键不是 `id` 的表。
@@ -495,14 +531,15 @@ Agent 定义的一次版本记录。行仅追加，从不更新或删除。
 | `user_id` | `bigint unsigned` | 否 | 所属用户 |
 | `space_id` | `bigint unsigned` | 是 | 所属 Space |
 | `channel` | `varchar(32)` | 否 | `portal`、`telegram` 或 `webhook`；schedule 和直接 Agent 运行不创建 Conversation |
+| `channel_ref` | `varchar(191) utf8mb4_bin` | 否 | 由聊天平台承载的对话所对应的聊天（Telegram：聊天 id）；其他情况为空。多行可共享同一个 ref，最新的一行是该聊天的当前对话 |
 | `title` | `varchar(256)` | 是 | 根据第一轮生成 |
 | `created_by` | `bigint unsigned` | 否 | `user.id` |
 | `turn_fence` | `bigint` | 否 | 已接受的最大轮次租约 fencing token；拒绝旧副本写入消息 |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 
-索引：主键 `id`；(`space_id`, `created_at`) 上的索引 `idx_conversation_space_created`；(`user_id`, `created_at`) 上的索引 `idx_conversation_user_created`；唯一索引 `public_id`。
+索引：主键 `id`；(`space_id`, `created_at`) 上的索引 `idx_conversation_space_created`；(`user_id`, `created_at`) 上的索引 `idx_conversation_user_created`；(`channel_ref`, `created_at`) 上的索引 `idx_conversation_channel_ref`；唯一索引 `public_id`。
 
-传输渠道常量位于 `internal/service/conversation/channel/types.go`。`system` 常量存在，但不在 `ValidChannels` 中，因此调用者不能传入它。
+传输渠道常量位于 `internal/service/conversation/channel/types.go`。`system` 常量存在，但不在 `ValidChannels` 中，因此调用者不能传入它。`telegram` 同样不在其中：只有渠道网关会创建这类对话，因为只有它会同时设置 `channel_ref`。
 
 Workflow 步骤和 Issue Agent 运行都直接创建 Task，以 `task.space_id` 作为所有权依据，不设 `conversation_id`；两者均不会创建 Conversation 来挂载 Task。见 [Agent 执行与 Task 线程](../../design/Agent执行与Task线程.md)。
 

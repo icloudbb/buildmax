@@ -45,6 +45,10 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
           return "Usage"
         case "webhook":
           return "Webhook Keys"
+        case "chat":
+          return "Chat accounts"
+        case "invitations":
+          return "Invitations"
         case "general":
         default:
           return "General"

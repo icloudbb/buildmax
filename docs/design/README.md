@@ -63,6 +63,7 @@ remaining list. Update this snapshot when either changes.
 | [Orchestration and continuity decisions](orchestration-and-continuity-decisions.md) | Direction | Decision only | Decisions connecting Task continuity, Space ownership, structured output, and orchestration |
 | [Portal execution model](portal-execution-model.md) | Specification | Superseded in part | Outcome-projection rationale; execution ownership is superseded by Agent execution and Task threads |
 | [Scheduled Agent execution](scheduled-agent-execution.md) | Specification | Complete | Recurring Agent runs on the Task plane: the Schedule entity, exactly-once firing across replicas, and runaway control |
+| [Instant-messaging channels](instant-messaging-channels.md) | Active plan | Partial | Chat platforms as a transport into Space Conversations: pairing, per-message authorization, the receive lease, and outcome reports; Telegram direct messages ship, groups and other platforms remain |
 
 ## Agent Runtime and Models
 

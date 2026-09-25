@@ -51,11 +51,11 @@ func TestChannelConstants_nonEmptyAndDistinct(t *testing.T) {
 		}
 		seen[ch] = true
 	}
-	if len(validChannels) != 3 {
-		t.Errorf("expected 3 channel constants, got %d", len(validChannels))
+	if len(validChannels) != 2 {
+		t.Errorf("expected 2 channel constants, got %d", len(validChannels))
 	}
 	// Ensure the named constants match
-	if convchannel.ChannelPortal != "portal" || convchannel.ChannelTelegram != "telegram" || convchannel.ChannelWebhook != "webhook" {
+	if convchannel.ChannelPortal != "portal" || convchannel.ChannelWebhook != "webhook" {
 		t.Errorf("channel constant values changed")
 	}
 }

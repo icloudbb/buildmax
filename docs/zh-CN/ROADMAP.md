@@ -159,8 +159,10 @@ canary 只能证明评估链路成立，不能证明平台整体可靠，也不�
 **Status:** open
 
 **后续方向；范围取决于需求与验证结果。** 持久 Workflow 状态协调、图执行和
-类型化数据绑定已实现。候选工作包括条件路由、真实渠道适配器、可执行 Space 插件、
-Portal 性能、Desktop 自动化和吞吐量。
+类型化数据绑定已实现。候选工作包括条件路由、更多聊天平台适配器、可执行 Space 插件、
+Portal 性能、Desktop 自动化和吞吐量。第一个真实渠道适配器已交付：按照
+[即时通讯渠道](design/即时通讯渠道.md)设计，Telegram 私聊可以进入 Space Conversation；
+该设计的后续阶段（飞书与群聊、流式回复、Remote Control 推送、更多平台）仍由需求驱动。
 解决具体问题的 CLI/TUI 与 Desktop 改进仍然受欢迎；Beta 的重点不意味着 Portal 是唯一产品。
 
 [Agent 浏览器能力](design/Agent 浏览器能力.md)作为一项本地能力已被接受并正在

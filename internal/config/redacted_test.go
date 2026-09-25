@@ -24,6 +24,7 @@ func TestRedactedConfigIsAWhitelist(t *testing.T) {
 	sc.Storage.MinIO.AccessKey = "zq7x3c-access-value"
 	sc.Storage.MinIO.SecretKey = "zq7x4d-secret-value"
 	sc.Conversation.Model.APIKey = "zq7x5e-model-value"
+	sc.Channels.Telegram.BotToken = "zq7x6f-telegram-value"
 
 	encoded, err := json.Marshal(sc.Redacted())
 	if err != nil {
@@ -32,7 +33,7 @@ func TestRedactedConfigIsAWhitelist(t *testing.T) {
 	body := string(encoded)
 	for _, secret := range []string{
 		"zq7x1a-jwt-value", "zq7x2b-db-value", "zq7x3c-access-value",
-		"zq7x4d-secret-value", "zq7x5e-model-value",
+		"zq7x4d-secret-value", "zq7x5e-model-value", "zq7x6f-telegram-value",
 	} {
 		if strings.Contains(body, secret) {
 			t.Errorf("the redacted view leaked %q: %s", secret, body)
@@ -113,6 +114,7 @@ func TestRedactedConfigCoversTheSecretFieldsWeKnowAbout(t *testing.T) {
 		"ServerModelEntry.APIKey":          true,
 		"ServerCoordinationRedis.Password": true,
 		"ServerOIDCConfig.ClientSecret":    true,
+		"ServerTelegramConfig.BotToken":    true,
 	}
 	found := map[string]bool{}
 	var walk func(t reflect.Type, seen map[reflect.Type]bool)

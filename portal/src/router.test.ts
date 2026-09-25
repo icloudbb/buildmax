@@ -16,6 +16,9 @@ describe("hash router", () => {
     ["#/account", { name: "account", section: "general" }],
     ["#/account/usage", { name: "account", section: "usage" }],
     ["#/account/webhook", { name: "account", section: "webhook" }],
+    ["#/account/chat", { name: "account", section: "chat" }],
+    // The address a chat bot sends carries its link code.
+    ["#/account/chat/ABCD-EFGH", { name: "account", section: "chat", code: "ABCD-EFGH" }],
     ["#/account/invitations", { name: "account", section: "invitations" }],
     [`#/spaces/${SPACE}/settings`, { name: "space", spaceId: SPACE, section: "overview" }],
     [`#/spaces/${SPACE}/settings/members`, { name: "space", spaceId: SPACE, section: "members" }],
@@ -73,6 +76,8 @@ describe("hash router", () => {
     [{ name: "admin", section: "plugins" }, "#/admin/plugins"],
     [{ name: "admin", section: "audit" }, "#/admin/audit"],
     [{ name: "account", section: "webhook" }, "#/account/webhook"],
+    [{ name: "account", section: "chat" }, "#/account/chat"],
+    [{ name: "account", section: "chat", code: "ABCD-EFGH" }, "#/account/chat/ABCD-EFGH"],
     [{ name: "account", section: "invitations" }, "#/account/invitations"],
     [{ name: "space", spaceId: SPACE, section: "overview" }, `#/spaces/${SPACE}/settings`],
     [{ name: "space", spaceId: SPACE, section: "audit" }, `#/spaces/${SPACE}/settings/audit`],

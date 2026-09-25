@@ -1,5 +1,6 @@
 import {
   ACCOUNT_NAV,
+  AccountChatSection,
   AccountInvitationsSection,
   AccountWebhookSection,
   SettingsGeneralSection,
@@ -10,7 +11,7 @@ import {
 } from "./shared"
 import { navigate } from "../../router"
 
-export function AccountSettings({ section }: { section: AccountSection }) {
+export function AccountSettings({ section, code }: { section: AccountSection; code?: string }) {
   const {
     token,
     user,
@@ -75,6 +76,7 @@ export function AccountSettings({ section }: { section: AccountSection }) {
           <SettingsUsageSection loading={usageLoading} error={pageError} usage={usage} />
         ) : null}
         {section === "webhook" ? <AccountWebhookSection token={token} /> : null}
+        {section === "chat" ? <AccountChatSection token={token} code={code} /> : null}
         {section === "invitations" ? (
           <AccountInvitationsSection
             invitationsState={myInvitationsState}

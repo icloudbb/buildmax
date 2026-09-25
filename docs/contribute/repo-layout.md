@@ -158,6 +158,8 @@ internal/
 │   │                   against
 │   ├── conversation/   The durable Conversation and its messages: what Tier 1
 │   │                   orchestrates and stores, distinct from a local session
+│   ├── channel/        Chat platforms: a chat account's link to a user, the
+│   │                   pending pairing, and the Connector a platform implements
 │   ├── workflow/       A space's reusable graph plan, its revisions, and the
 │   │                   run and node-run state its execution moves through
 │   ├── agentdef/       The Agent a space defined and its revisions -- what an
@@ -198,6 +200,9 @@ internal/
 ├── service/            Application services: coordinate stores, enforce rules
 │   ├── conversation/   Portal foreground chat and optional Task orchestration
 │   │   └── channel/    Normalized turn types and channel adapters (webhook)
+│   ├── channel/        Carries chat-platform messages into Conversations:
+│   │                   pairing, authorization, per-chat order, the receive
+│   │                   lease, and outcome reports back to the chat
 │   ├── agent/          Agent definitions, their revisions, and the delete guard
 │   ├── artifact/       Durable files a space keeps; knows no producer
 │   ├── llmcatalog/     What the model catalog accepts and what changing it
@@ -243,6 +248,9 @@ internal/
 │   │                   publish/subscribe, per-conversation leases, per-task
 │   │                   replayable streams. Free of server types.
 │   ├── db/             MySQL/GORM implementation of the core repositories
+│   ├── imchannel/      Chat-platform connectors, one package per platform
+│   │   └── telegram/   Telegram Bot API over plain HTTPS: long polling and
+│   │                   plain-text replies
 │   ├── objectstore/    Local FS and S3/MinIO storage: space home, run output,
 │   │                   and artifact content — three key spaces, one backend
 │   ├── llm/            LLMClient over the wire protocols BuildMax speaks:
@@ -298,6 +306,7 @@ internal/
 ├── server/             HTTP API for Portal and worker callbacks
 │   ├── handlers/       Route handlers
 │   │   ├── account/    What the acting account owns across spaces: webhook keys
+│   │   │               and chat-account links
 │   │   ├── admin/      Deployment-scoped routes; a Config that cannot reach a space
 │   │   ├── artifact/   Artifacts, addressed by opaque ID; space comes from the record
 │   │   ├── auth/       Establishing a session: login, refresh, logout, password

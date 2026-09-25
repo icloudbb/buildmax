@@ -210,6 +210,12 @@ const (
 	// space-scoped, so SpaceID is empty.
 	WebhookKeyCreated = "webhook_key.created"
 	WebhookKeyRevoked = "webhook_key.revoked"
+	// ChannelLinkCreated and ChannelLinkRemoved record a chat-platform account
+	// being linked to and unlinked from a user. A link lets that chat account
+	// act as the user, so it is governed like a webhook key. The detail names the
+	// platform; the platform's own account ids are not in the trail.
+	ChannelLinkCreated = "channel_link.created"
+	ChannelLinkRemoved = "channel_link.removed"
 	// AgentCreated, AgentUpdated, and AgentDeleted record changes to a space's
 	// agent definitions. A definition is instructions plus a tool and model
 	// selection that later runs execute, so a change to one changes what the

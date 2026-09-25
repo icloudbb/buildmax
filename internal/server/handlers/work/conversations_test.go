@@ -120,7 +120,9 @@ func TestCreateConversationRejectsAChannelTheCallerMayNotClaim(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	for _, channel := range []string{"issue_agent", "workflow", "system", "slack"} {
+	// telegram is refused too: only the channel gateway, which records the chat
+	// a conversation answers to, creates one.
+	for _, channel := range []string{"issue_agent", "workflow", "system", "slack", "telegram"} {
 		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/conversations",
 			strings.NewReader(`{"channel":"`+channel+`"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
@@ -137,7 +139,7 @@ func TestCreateConversationRejectsAChannelTheCallerMayNotClaim(t *testing.T) {
 func TestCreateConversationAcceptsTheTransportChannels(t *testing.T) {
 	secret := "test-conversation-secret"
 	spaceID := "tm_personal_u1"
-	for _, body := range []string{`{}`, `{"channel":"portal"}`, `{"channel":"telegram"}`, `{"channel":"webhook"}`} {
+	for _, body := range []string{`{}`, `{"channel":"portal"}`, `{"channel":"webhook"}`} {
 		h := New(Config{
 			JWTSecret: secret,
 			Spaces: &mock.MockSpaceStore{

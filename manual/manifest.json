@@ -48,7 +48,8 @@
       "pages": [
         { "slug": "portal-overview", "title": "Portal overview" },
         { "slug": "portal-issues", "title": "Conversations & issues" },
-        { "slug": "portal-agents-workflows", "title": "Agents & workflows" }
+        { "slug": "portal-agents-workflows", "title": "Agents & workflows" },
+        { "slug": "chat-apps", "title": "Chat apps (Telegram)" }
       ]
     },
     {

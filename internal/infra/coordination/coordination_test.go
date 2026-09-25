@@ -183,3 +183,49 @@ func TestAcquireLockRespectsContextCancel(t *testing.T) {
 		t.Fatal("a blocked acquire returned no error when its context expired")
 	}
 }
+
+func TestTryAcquireLockRefusesAHeldLockWithoutWaiting(t *testing.T) {
+	b := newTestBackend(t)
+	ctx := context.Background()
+	first, ok, err := b.TryAcquireLock(ctx, "connector", time.Second)
+	if err != nil || !ok {
+		t.Fatalf("first TryAcquireLock = %v, %v; want the free lock", ok, err)
+	}
+	defer first.Release()
+	if _, ok, err := b.TryAcquireLock(ctx, "connector", time.Second); err != nil || ok {
+		t.Fatalf("second TryAcquireLock = %v, %v; want refused while held", ok, err)
+	}
+	first.Release()
+	second, ok, err := b.TryAcquireLock(ctx, "connector", time.Second)
+	if err != nil || !ok {
+		t.Fatalf("TryAcquireLock after release = %v, %v; want acquired", ok, err)
+	}
+	second.Release()
+}
+
+// A holder whose key vanished must be told, or it keeps consuming beside the
+// replica that takes the lock next.
+func TestLeaseReportsLossWhenItsKeyIsGone(t *testing.T) {
+	mr := miniredis.RunT(t)
+	b, err := New(context.Background(), Options{Address: mr.Addr()})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer func() { _ = b.Close() }()
+	lease, ok, err := b.TryAcquireLock(context.Background(), "connector", 300*time.Millisecond)
+	if err != nil || !ok {
+		t.Fatalf("TryAcquireLock = %v, %v", ok, err)
+	}
+	defer lease.Release()
+	select {
+	case <-lease.Lost():
+		t.Fatal("lease reported lost while its key was still held")
+	case <-time.After(250 * time.Millisecond):
+	}
+	mr.Del("lock:connector")
+	select {
+	case <-lease.Lost():
+	case <-time.After(2 * time.Second):
+		t.Fatal("lease never reported the lost lock")
+	}
+}

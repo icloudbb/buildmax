@@ -16,13 +16,16 @@ var ErrStaleTurnWrite = apierr.New(apierr.KindConflict, "conversation turn super
 
 // Conversation is the Tier 1 conversation container.
 type Conversation struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	SpaceID   string    `json:"space_id,omitempty"`
-	Channel   string    `json:"channel"`
-	Title     string    `json:"title,omitempty"`
-	CreatedBy string    `json:"created_by"`
-	CreatedAt time.Time `json:"created_at"`
+	ID      string `json:"id"`
+	UserID  string `json:"user_id"`
+	SpaceID string `json:"space_id,omitempty"`
+	Channel string `json:"channel"`
+	// ChannelRef addresses the chat a platform-carried conversation belongs to.
+	// Empty for Portal and webhook conversations.
+	ChannelRef string    `json:"channel_ref,omitempty"`
+	Title      string    `json:"title,omitempty"`
+	CreatedBy  string    `json:"created_by"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // Message is one message in a Tier 1 conversation.

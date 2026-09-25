@@ -13,6 +13,16 @@
       }
     },
     "schemas": {
+      "ChannelLink": {
+        "type": "object",
+        "description": "A link from a chat-platform account to the acting BuildMax account. The platform's own account id is never returned.",
+        "properties": {
+          "id": {"type": "string"},
+          "platform": {"type": "string"},
+          "handle": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"}
+        }
+      },
       "Artifact": {
         "type": "object",
         "description": "A stored file the space owns, as the artifact routes return it (internal/server/handlers/artifact).",
@@ -1977,6 +1987,107 @@
         ],
         "responses": {
           "204": { "description": "No Content" }
+        }
+      }
+    },
+    "/api/channel-links": {
+      "get": {
+        "summary": "List chat-account links",
+        "description": "The acting account's links to chat-platform accounts, and the chat platforms this deployment has a bot on. With no platform configured both lists are empty.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "platforms": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "platform": {"type": "string"},
+                          "name": {"type": "string"},
+                          "bot_handle": {"type": "string"},
+                          "bot_url": {"type": "string"}
+                        }
+                      }
+                    },
+                    "links": {"type": "array", "items": { "$ref": "#/components/schemas/ChannelLink" }}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Link a chat account",
+        "description": "Confirms the link code a chat bot sent, linking that chat account to the acting account. 404 for a wrong, spent, or expired code; 409 when the chat account is linked to another account.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["code"],
+                "properties": { "code": {"type": "string"} }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelLink" } } }
+          },
+          "404": { "description": "Code not found or expired" },
+          "409": { "description": "Chat account already linked to another account" },
+          "503": { "description": "No chat platform configured" }
+        }
+      }
+    },
+    "/api/channel-links/{link_id}": {
+      "delete": {
+        "summary": "Unlink a chat account",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "link_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "No Content" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/api/channel-link-pairings": {
+      "get": {
+        "summary": "Look up a chat link code",
+        "description": "Shows which chat account a link code would link, so the person confirming sees it first. The code is a query parameter so request logs redact it.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "code", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "platform": {"type": "string"},
+                    "handle": {"type": "string"},
+                    "expires_at": {"type": "string", "format": "date-time"}
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Code not found or expired" }
         }
       }
     },

@@ -10,6 +10,7 @@ import (
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	"github.com/icloudbb/buildmax/internal/server/turnqueue"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
 
 	gws "github.com/gorilla/websocket"
 )
@@ -265,7 +266,13 @@ func (wc *Conn) handleConversationCreate(ctx context.Context, p ConversationCrea
 	}
 	channel := p.Channel
 	if channel == "" {
-		channel = "portal"
+		channel = convchannel.ChannelPortal
+	}
+	// The same accepted set as the HTTP create route: a synthetic channel
+	// (system) or a chat platform's (telegram) is the server's to assign.
+	if !convchannel.ValidChannel(channel) {
+		wc.sendEvent(TypeConversationError, ConversationError{Error: "unknown channel " + channel})
+		return
 	}
 	conv, err := wc.deps.Conversations.CreateConversationInSpace(ctx, wc.spaceID, wc.userID, channel, wc.userID)
 	if err != nil {

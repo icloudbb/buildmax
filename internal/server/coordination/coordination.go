@@ -12,6 +12,7 @@ import (
 	infra "github.com/icloudbb/buildmax/internal/infra/coordination"
 	"github.com/icloudbb/buildmax/internal/server/turnqueue"
 	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
+	chansvc "github.com/icloudbb/buildmax/internal/service/channel"
 )
 
 const (
@@ -167,4 +168,30 @@ func (l *TurnLocker) Acquire(ctx context.Context, conversationID string) (turnqu
 		return nil, err
 	}
 	return lease, nil
+}
+
+// connectorLeaseTTL bounds a chat connector's receive lease. A replica that
+// dies stops receiving for at most this long before another takes over.
+const connectorLeaseTTL = 30 * time.Second
+
+var _ chansvc.Locker = (*ConnectorLocker)(nil)
+
+// ConnectorLocker is the Redis-backed chansvc.Locker: it lets exactly one
+// replica receive for each chat connector, because a platform delivers each
+// message to one consumer.
+type ConnectorLocker struct {
+	backend *infra.Backend
+}
+
+// NewConnectorLocker returns a locker over the coordination backend.
+func NewConnectorLocker(backend *infra.Backend) *ConnectorLocker {
+	return &ConnectorLocker{backend: backend}
+}
+
+func (l *ConnectorLocker) TryAcquire(ctx context.Context, key string) (chansvc.Lease, bool, error) {
+	lease, ok, err := l.backend.TryAcquireLock(ctx, key, connectorLeaseTTL)
+	if err != nil || !ok {
+		return nil, false, err
+	}
+	return lease, true, nil
 }
