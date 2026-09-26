@@ -10,6 +10,7 @@ import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
 import BrowserView from './components/BrowserView';
 import { SchedulesView } from './components/SchedulesView';
+import { IssuesView } from './components/IssuesView';
 import { LaunchpadButton } from './components/LaunchpadButton';
 import { GridIcon, MoonIcon, SidebarIcon, SplitRightIcon, SunIcon } from './components/icons';
 import { readStored, writeStored } from './lib/storage';
@@ -98,8 +99,12 @@ export default function App() {
   const [sessionFilter, setSessionFilter] = useState('');
 
   // The primary center view. 'workbench' is Home or a project workspace;
-  // 'schedules' is the first-class Schedules surface reached from the sidebar.
+  // 'schedules' and 'issues' are first-class surfaces reached from the sidebar.
   const [view, setView] = useState('workbench');
+  // A message an Issue hands to the next new chat in one project, filled into
+  // its composer once. It lives here rather than on the tab so nothing about
+  // the Issue is saved with the layout or outlives the hand-off.
+  const [chatDraft, setChatDraft] = useState(null);
   const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
   const [workspace, setWorkspace] = useState(emptyWorkspace);
   // The pane currently under a tab being dragged, highlighted as the drop target.
@@ -699,6 +704,12 @@ export default function App() {
   // settings.yaml, which needs no server and therefore no sign-in first — so the
   // workbench opens as soon as the status is known, either way.
   const localMode = !authStatus?.logged_in;
+  // Issues need a login the server still honours; an unreachable server keeps
+  // the view, which then says it cannot load.
+  const serverMode = !!authStatus?.logged_in && !authStatus?.expired;
+  useEffect(() => {
+    if (!serverMode && view === 'issues') setView('workbench');
+  }, [serverMode, view]);
   const workbenchReady = !!authStatus;
 
   useEffect(() => {
@@ -741,6 +752,11 @@ export default function App() {
     setView('workbench');
     setNewChatProject(null);
     setSelectedId(null);
+  }
+
+  function handleStartIssueChat(project, text) {
+    setChatDraft({ projectId: project.id, text, seq: Date.now() });
+    handleNewChatInProject(project);
   }
 
   function handleNewChatInProject(project) {
@@ -1039,6 +1055,8 @@ export default function App() {
             onTitle={handleTabTitle}
             onOpenSession={openSessionTab}
             onShowChanges={() => setExplorerMode('changes')}
+            draft={!active.sessionId && chatDraft?.projectId === currentProject.id ? chatDraft : null}
+            onDraftConsumed={() => setChatDraft(null)}
           />
         )}
         {active?.kind === 'file' && (
@@ -1167,6 +1185,7 @@ export default function App() {
             view={view}
             onHome={handleGoHome}
             onSchedules={() => setView('schedules')}
+            onIssues={serverMode ? () => setView('issues') : undefined}
             projects={projects}
             currentProject={currentProject}
             sessionsByProject={sessionsByProject}
@@ -1226,6 +1245,13 @@ export default function App() {
               )}
               {view === 'schedules' ? (
                 <SchedulesView app={app} />
+              ) : view === 'issues' ? (
+                <IssuesView
+                  app={app}
+                  projects={projects}
+                  currentProject={currentProject}
+                  onStartChat={handleStartIssueChat}
+                />
               ) : !currentProject ? (
                 <HomeDashboard
                   recentSessions={recentSessions}
@@ -1281,13 +1307,15 @@ export default function App() {
               <span className="workspace-statusbar__status">
                 {view === 'schedules'
                   ? 'Schedules'
-                  : currentProject
+                  : view === 'issues'
+                    ? 'Issues'
+                    : currentProject
                     ? `${currentProject.name}${totalPanes > 1
                       ? ` · ${totalPanes} panes`
                       : (focusedActiveTab?.title ? ` · ${focusedActiveTab.title}` : '')}`
                     : 'Home'}
               </span>
-              {currentProject && view !== 'schedules' && (
+              {currentProject && view === 'workbench' && (
                 <button
                   type="button"
                   className="workspace-statusbar__btn"
@@ -1298,7 +1326,7 @@ export default function App() {
                   <span aria-hidden>{'>_'}</span>
                 </button>
               )}
-              {currentProject && view !== 'schedules' && canToggleGrid && (
+              {currentProject && view === 'workbench' && canToggleGrid && (
                 <button
                   type="button"
                   className="workspace-statusbar__btn"

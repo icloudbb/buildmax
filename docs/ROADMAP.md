@@ -249,25 +249,28 @@ per-deployment offboarding, rotation, outage, and break-glass inputs named by
 that record. Native CLI/Desktop OIDC and device authorization are still outside
 the shipped browser flow.
 
-After the Beta gate, evaluate and deliver the previously unplanned local and
-plugin follow-ons in this order. Each step still needs its stated evidence; an
-ordered place here is not permission to skip a proposal's acceptance decision.
+The local Issue work bridge is decided and shipped at its narrow scope: the
+CLI's `buildmax issue` commands and, while signed in, a Desktop Issues view that
+receives owned work, starts a local chat from it, and returns a comment and a
+status change. A durable Issue↔Session link, workspace mapping, local-result
+projection, decomposition, and governance were decided against until use shows
+a need; see [surface positioning](design/surface-positioning.md#55-local-issue-work).
 
-1. Decide the remaining [Local Issue work bridge](proposals/local-issue-work-bridge.md)
-   Phase 1 contract, then complete the durable Issue-to-Session link and local
-   result projection if accepted. Evaluate its decomposition and governance
-   phases only after the receive/work/return path has adoption evidence.
-2. Add [Space Secret](design/space-secrets.md) credential-file delivery before
+After the Beta gate, evaluate and deliver the previously unplanned plugin and
+credential follow-ons in this order. Each step still needs its stated evidence;
+an ordered place here is not permission to skip a proposal's acceptance decision.
+
+1. Add [Space Secret](design/space-secrets.md) credential-file delivery before
    widening plugins that commonly need credential files.
-3. Add [executable Space plugin content](design/plugin-space-distribution.md)
+2. Add [executable Space plugin content](design/plugin-space-distribution.md)
    only after R0 has a supported, confined hook/MCP process and network boundary
    — the unattended-worker profile disables stdio MCP today rather than confining
    it — while preserving release eligibility, exact pins, and run-scoped
    materialization.
-4. Add Task-scoped autonomous plugin acquisition only after fixed plugin
+3. Add Task-scoped autonomous plugin acquisition only after fixed plugin
    environments and executable distribution are proven. It creates a later
    TaskRun and never hot-loads a running process.
-5. Consider short-lived credential exchange, external Secret providers, and
+4. Consider short-lived credential exchange, external Secret providers, and
    workload identity in that order, and only for a concrete provider and
    operator journey.
 

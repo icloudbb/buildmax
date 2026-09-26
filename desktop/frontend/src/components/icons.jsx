@@ -27,6 +27,10 @@ export function ClockIcon(props) {
   return <Icon {...props}><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></Icon>;
 }
 
+export function IssueIcon(props) {
+  return <Icon {...props}><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="1.5" /></Icon>;
+}
+
 export function ChevronRightIcon(props) {
   return <Icon {...props}><path d="m9.5 6 6 6-6 6" /></Icon>;
 }

@@ -37,6 +37,7 @@ export function ChatSession({
   projectId, projectName, defaultWorkspace, sessions, tab, app,
   approvals, onRespond, focused = true,
   onSessionAdopted, onSessionsChanged, onTitle, onOpenSession, onShowChanges,
+  draft = null, onDraftConsumed,
 }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -425,6 +426,8 @@ export function ChatSession({
         <ChatInput
           onSend={handleSend}
           onCancel={handleCancel}
+          draft={draft}
+          onDraftConsumed={onDraftConsumed}
           loading={loading}
           error={error}
           onDismissError={() => setError(null)}

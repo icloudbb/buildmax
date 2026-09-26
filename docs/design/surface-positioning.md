@@ -192,8 +192,8 @@ Desktop should focus on:
 - local settings and model selection
 - local MCP/tool configuration where appropriate
 - optional login to Portal for identity and sync
-- optional "assigned work inbox" from Portal
-- optional ability to attach local work results back to a Portal issue
+- an assigned-work inbox while signed in to a server (§5.5)
+- returning local work to an issue as a comment and an explicit status change
 
 ### 5.2 Out Of Scope
 
@@ -213,11 +213,11 @@ Desktop should not own:
 Desktop may bridge to Portal in narrow ways:
 
 - show issues assigned to me as an inbox
-- open a Portal issue in the browser
 - start a local session from an assigned issue
-- attach or summarize local results back to an issue
+- summarize local results back to an issue
 - trigger a published workflow if that helps local work
-- show cloud result links related to my local task
+
+§5.5 records which of these ship and which were deliberately left out.
 
 The bridge should be framed as:
 
@@ -253,6 +253,39 @@ from blurring authority; the behavior is described in the
   is; the platform does not withhold concurrency until it can force isolation.
   Terminal, file, and diff tabs raise no writer question -- terminals are
   separate processes, a save is a direct user write, and a diff is read-only.
+
+### 5.5 Local Issue Work
+
+Decided `2026-09-26`, closing the Local Issue work bridge proposal at its
+smallest useful scope. The outcome is receive, work locally, and return, with
+no second record of the relation between an Issue and local work.
+
+| Surface | Receive | Work | Return |
+| --- | --- | --- | --- |
+| CLI/TUI | `buildmax issue list`, `issue show` | `buildmax issue start <id>` scopes one session through the `issue` prompt layer; the Agent reads and reports with `buildmax issue` ([Agent bridge CLI](agent-bridge-cli.md)) | `buildmax issue comment` (as `local_agent`), `buildmax issue status` |
+| Desktop | An **Issues** destination, shown only while signed in with a login the server honours: open owned Issues across spaces, and one Issue's description, sub-issues, and recent discussion | **Start chat** opens a new chat in a chosen Project with the Issue as an editable draft in the composer; nothing reaches a model until the person sends it | A comment written as the person, and a versioned status change |
+
+The rules both surfaces follow:
+
+- **One Issue per local session, remembered by nobody but the session.** The
+  CLI scope lasts one invocation; the Desktop hand-off is the first message of
+  the conversation, so resuming the chat keeps it. Neither writes a link record.
+- **Status is a person's statement.** It changes only through an explicit
+  action carrying the version it was read at; a newer edit is refused, never
+  overwritten, and no process state moves it.
+- **Remote actions fail visibly.** A server that cannot be reached fails the
+  action; there is no outbox of pending writes.
+- **Issue text is other people's words.** It enters a session as information,
+  not as instructions, whether through the prompt layer or the draft.
+
+Deliberately not built, each because nothing observed needs it yet: a durable
+Issue↔Session link, a remembered Issue-to-workspace mapping, local Artifacts in
+an Issue's Results panel (a comment names them), an offline outbox, child-Issue
+creation or assignment from a local surface, local notifications of remote
+runs, and enterprise capture or managed-model policy for Issue-linked work.
+Portal remains where Space work is planned, assigned, and reviewed. Desktop has
+no "Open in Portal" link because a local client does not know the Portal origin,
+which may differ from the API server's.
 
 ---
 
@@ -316,8 +349,9 @@ After the local workbench feels solid, add narrow cloud bridge features:
 1. Assigned issue inbox.
 2. Start local session from issue.
 3. Send summary/result back to issue.
-4. Link local session to cloud issue.
-5. Open cloud issue/workflow/result in Portal.
+
+All three ship at the scope in §5.5. Linking a local session to a cloud Issue
+and opening Portal from Desktop were considered there and left out.
 
 ### 7.4 Avoided Roadmap Items
 

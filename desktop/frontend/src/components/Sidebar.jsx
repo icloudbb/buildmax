@@ -3,7 +3,7 @@ import { Avatar } from '@buildmax/gui';
 import { ProjectItem } from './ProjectItem';
 import { Explorer } from './Explorer';
 import { SidebarSectionHeader } from './SidebarSection';
-import { ClockIcon, HomeIcon, PlusIcon, SearchIcon } from './icons';
+import { ClockIcon, HomeIcon, IssueIcon, PlusIcon, SearchIcon } from './icons';
 import { readStored, writeStored } from '../lib/storage';
 
 const PROJECT_PAGE_SIZE = 10;
@@ -21,7 +21,7 @@ function clampSectionHeight(h) {
 }
 
 // Sidebar has three layers, each with one look: global destinations (Home,
-// Schedules), sections (Projects, then the active project's own section), and
+// Schedules, and Issues when signed in to a server), sections (Projects, then the active project's own section), and
 // rows. The project section exists only while a project workspace is the
 // center view, because everything in it is scoped to that project.
 export function Sidebar({
@@ -29,6 +29,7 @@ export function Sidebar({
   view,
   onHome,
   onSchedules,
+  onIssues,
   projects,
   currentProject,
   sessionsByProject,
@@ -129,6 +130,19 @@ export function Sidebar({
           <span className="sidebar__row-icon"><ClockIcon /></span>
           <span className="sidebar__row-label">Schedules</span>
         </button>
+        {/* Space Issues exist only on a server, so the destination does too:
+            local mode has no work to receive and shows no empty promise of it. */}
+        {onIssues && (
+          <button
+            type="button"
+            className={`sidebar__row sidebar__row-main sidebar__destination${view === 'issues' ? ' sidebar__row--active' : ''}`}
+            onClick={onIssues}
+            aria-current={view === 'issues' ? 'page' : undefined}
+          >
+            <span className="sidebar__row-icon"><IssueIcon /></span>
+            <span className="sidebar__row-label">Issues</span>
+          </button>
+        )}
       </nav>
 
       <section className={`sidebar__projects ${projectsFlex}`} aria-label="Projects">

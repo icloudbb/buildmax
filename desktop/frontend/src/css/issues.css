@@ -1,0 +1,140 @@
+/* The Issues surface (IssuesView). It shares the Schedules page frame, header,
+   buttons, and form fields; only the list rows and the detail are its own. */
+
+.page-issues__group + .page-issues__group {
+  margin-top: 1rem;
+}
+
+.page-issues__count {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.page-issues__list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.page-issues__row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.page-issues__row:hover {
+  background: var(--color-bg-muted, rgba(127, 127, 127, 0.08));
+}
+
+.page-issues__row--active {
+  border-color: var(--color-border);
+  background: var(--color-bg-muted, rgba(127, 127, 127, 0.08));
+}
+
+.page-issues__row-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.page-issues__row-meta {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.page-issues__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+}
+
+.page-issues__title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.page-issues__actions,
+.page-issues__start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.page-issues__label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  align-self: center;
+}
+
+.page-issues__project {
+  min-width: 12rem;
+}
+
+.page-issues__notice {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.page-issues__notice--error {
+  color: var(--color-danger, #c0392b);
+}
+
+.page-issues__description {
+  padding: 0.75rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.page-issues__subhead {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.page-issues__children,
+.page-issues__comments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.page-issues__child-status {
+  color: var(--color-text-muted);
+}
+
+.page-issues__comment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.page-issues__comment-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

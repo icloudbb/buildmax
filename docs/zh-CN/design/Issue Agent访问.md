@@ -29,9 +29,8 @@
   [unified-artifacts.md](./统一工件.md)、
   [surface-positioning.md](./界面定位.md)、
   [portal-execution-model.md](./Portal执行模型.md)
-- precedes：[../proposals/local-issue-work-bridge.md](../proposals/local-issue-work-bridge.md)，
-  其仍然未决的问题（持久的 Issue↔会话链接、工作区映射、本地结果记录类型）本记录
-  不作决定
+- precedes：[surface-positioning.md §5.5](./界面定位.md#55-本地-issue-工作)，它决定了本记录留下的本地 Issue 工作问题
+  （不做持久的 Issue↔会话链接、工作区映射或本地结果记录类型）
 - touches：`internal/service/issue`、`internal/server/handlers/work`、
   `internal/server/handlers/worker`
 - created_at：`2026-08-29`
@@ -109,14 +108,13 @@ Issue 的描述与评论是第三方文本。空间里的任何人都能写，�
   命名一个 Issue；本地命令是用户自己的权限）；无论如何本记录都把它作为边界禁止。
 - 命令面、传输与每个 Issue 的护栏放置，均由
   [agent-bridge-cli.md](./Agent 桥接 CLI.md) 拥有。
-- 持久的 Issue↔会话链接与离线发件箱，由
-  [../proposals/local-issue-work-bridge.md](../proposals/local-issue-work-bridge.md) 拥有。
+- 持久的 Issue↔会话链接与离线发件箱，已在 [surface-positioning.md §5.5](./界面定位.md#55-本地-issue-工作) 中决定不做。
 
 ## 6. 未决问题
 
-1. **无运行会话的结果出现在哪里？** 本地会话不产生运行，所以它发布的制品没有可挂靠
-   的任务运行行。要么产出聚合学会识别一个源自会话的来源，要么由桥为本地工作创建
-   记录。这归桥提案回答。
+1. **无运行会话的结果出现在哪里？** 目前的答案见 [surface-positioning.md §5.5](./界面定位.md#55-本地-issue-工作)：
+   出现在讨论中。本地汇报是一条 `local_agent` 或本人的评论，并引用它发布的制品；产出聚合
+   仍只读取运行，在观察到需要之前不为本地工作新增记录。
 2. **Portal Tier 1 会话是否获得 Issue 访问，以何种范围？** 会话是对用户的单一声音，
    却不被限定到某一个 Issue，因此上面的边界会需要另一套范围叙事。
 3. **被限定的子 Issue 是否需要看到它的父级？** 向上读取比“摆在面前的工单”范围更宽，

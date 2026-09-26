@@ -28,7 +28,7 @@
 
 ## 状态
 
-- roadmap_priority: 第 13 节的凭证债务属于 Beta 后加固；面向 Space 的使用面是 [`R3`](../ROADMAP.md) 候选版本资格验证的已实现基础。凭证文件交付排在 R5 第 3 项；短期凭证交换、外部提供方和 workload identity 排在 R5 第 6 项。本文档回答的是 [plugin-space-distribution.md](Space插件分发.md) 中 Phase D3 遗留的问题——该文档把 Secret 交付问题推迟到后续记录中。
+- roadmap_priority: 第 13 节的凭证债务属于 Beta 后加固；面向 Space 的使用面是 [`R3`](../ROADMAP.md) 候选版本资格验证的已实现基础。凭证文件交付排在 R5 第 1 项；短期凭证交换、外部提供方和 workload identity 排在 R5 第 4 项。本文档回答的是 [plugin-space-distribution.md](Space插件分发.md) 中 Phase D3 遗留的问题——该文档把 Secret 交付问题推迟到后续记录中。
 - status: `Phase 1 complete`——Space 所有者可以存储一个 Secret（加密存储，不可回显）；一个 Agent 修订版本声明需要它；一次运行通过 worker 路由和 `env_scrub` 允许列表在自己的环境中收到它；具体化过程被记录进 `task_run_secret`；运行中出现的值会从轨迹、进入模型之前的工具结果以及流式输出中脱敏；Space 通过一个仅所有者可访问的 Portal 页面管理 Secret，并在 Agent 编辑器中配置一个 Agent 的消费方式，编辑器会标记出 Secret 或条目已不可解析的授权项。Phase 1 已完成；Phase 2–5（文件交付、短期凭证交换、外部提供方、工作负载身份）将陆续跟进。
 - phase_1: 已完成——存储、Agent 消费及其校验、仅所有者可用的 HTTP 使用面与 worker 交付、`task_run_secret` 审计、跨轨迹/工具结果/流式输出的精确值脱敏、Portal 管理页面、Agent 消费编辑器及其消费健康检查。
 - supersedes: 取代 `run-scoped-secret-broker` 提案；该提案中已经落定的决策收录于本文，剩余的不确定性见 §20。

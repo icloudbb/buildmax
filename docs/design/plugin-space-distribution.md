@@ -40,9 +40,9 @@
   claim-time server resolution, pinned worker materialization, and Portal
   activation management and Agent plugin pickers. D2 executable content and
   §16 Task-scoped autonomous acquisition remain unimplemented and are ordered
-  as R5 items 4 and 5. D3 is tracked
+  as R5 items 2 and 3. D3 is tracked
   by [space-secrets.md](space-secrets.md): Phase 1 environment delivery is
-  complete; file delivery and later phases are R5 items 3 and 6.
+  complete; file delivery and later phases are R5 items 1 and 4.
 - follows: [plugin-marketplace.md](./plugin-marketplace.md)
 - depends_on: nothing unbuilt. An earlier draft made the executable half wait
   on the worker sandbox surface being wired; §9 retires that, because the Bash

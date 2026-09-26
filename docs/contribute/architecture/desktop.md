@@ -171,9 +171,10 @@ and terminal tabs can be renamed: a chat renames its session, a terminal only
 its tab.
 
 The sidebar (`desktop/frontend/src/components/Sidebar.jsx`) has three layers
-with one look each: destinations (Home and Schedules), sections (Projects, then
-the open project's own section), and rows. Selection marks what the center
-shows, so Home or Schedules clears the session highlight. The project section
+with one look each: destinations (Home, Schedules, and Issues in server mode),
+sections (Projects, then the open project's own section), and rows. Selection
+marks what the center shows, so another destination clears the session
+highlight. The project section
 exists only while a project workspace is the center view; its header names the
 project, and its height against the Projects list is drag-resizable and
 remembered per machine. It indexes the project's workspace and only browses, in
@@ -279,6 +280,30 @@ are global rather than per project. `LaunchEntry` hands the target to the
 operating system (`open` on macOS, `start` on Windows, `xdg-open` or the target
 itself on Linux) and does not wait for it, so a pinned website opens in the
 default browser, not in a tab.
+
+## Space Issues
+
+In server mode the sidebar gains an **Issues** destination
+(`components/IssuesView.jsx`); it is absent in local mode and with an expired
+login, and leaving server mode returns the center to the workbench. The view is
+the person's side of local Issue work (see
+[surface positioning](../../design/surface-positioning.md#55-local-issue-work)):
+it lists the open Issues they own across spaces, shows one Issue's description,
+sub-issues, and recent discussion, moves its status, and posts a comment.
+
+The bindings live in `internal/interface/desktop/issues.go` and call the same
+`internal/interface/client` routes the CLI's `buildmax issue` commands use, with
+the stored login. `ListMyIssues` returns the spaces it could not read as
+warnings rather than dropping them. `SetIssueStatus` sends only the version and
+status it was given and reports a 409 as `conflict`, which the view answers by
+reloading. `CommentOnIssue` posts without `author_kind`, so the comment is the
+person's, not a `local_agent` report.
+
+**Start chat** is a hand-off, not a link: App holds a one-shot draft keyed by
+project, opens that project's new chat, and `ChatInput` fills its composer from
+the draft once. Nothing is saved with the tab layout and no session records the
+Issue; the draft becomes the conversation's first message only when the person
+sends it.
 
 ## Build Boundary
 

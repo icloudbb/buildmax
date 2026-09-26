@@ -176,6 +176,18 @@ and those sessions. This is distinct from the Server's durable
 [scheduled Agent execution](design/scheduled-agent-execution.md): it needs no
 Server, and nothing fires while the app is closed.
 
+Signed in to a server, Desktop also shows an **Issues** destination: the open
+Space Issues the person owns across spaces, one Issue's description, sub-issues,
+and recent discussion, a versioned status change, and a comment posted as the
+person. **Start chat** opens a new chat in a chosen project with the Issue as an
+editable composer draft; nothing is sent until the person sends it and no
+session records the Issue. Local mode shows no Issues destination. This and the
+CLI's `buildmax issue` commands are the whole local Issue bridge: there is no
+durable Issue↔Session link, workspace mapping, outbox, or local-result record,
+per [surface positioning](design/surface-positioning.md#55-local-issue-work).
+The signed-in view is covered by Go binding tests against a fake server and
+component tests; no end-to-end run drives it against a real deployment.
+
 An Agent reaches Server resources through the `buildmax` command surface it runs
 via `Bash`, not through per-capability in-process tools: `buildmax issue`,
 `agent`, `task`, `artifact`, and `workflow` resolve their transport and

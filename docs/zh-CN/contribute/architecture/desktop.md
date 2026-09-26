@@ -71,7 +71,7 @@ Desktop 在默认工作区打开 Project，因此这里一个 Project 对应一�
 
 Project 的中央界面是由 tab 组成的网格。每个 tab 渲染一种类型的活动——`chat`、`terminal`、`file`、`diff` 或 `browser`——并以 `(kind, ref)` 对标识（`desktop/frontend/src/lib/tabs.js`），因此打开一个已经打开的活动会聚焦现有 tab，而不会重复创建。聊天的 ref 是其 Session ID，终端的是其 PTY ID，文件或 diff tab 的是相对工作区的路径，浏览器 tab 的是它所展示页面对应的 Session。一个 Project 最多有一个尚未获得 ID 的新聊天；tab 栏的 `+` 用于开启它。聊天和终端 tab 可以重命名：聊天会重命名其 Session，终端只重命名 tab。
 
-侧边栏（`desktop/frontend/src/components/Sidebar.jsx`）分三层，每层只有一种样式：全局入口（Home 和 Schedules）、分区（Projects，以及当前打开的 Project 自己的分区）和行。选中态只标记主区正在显示的内容，因此切到 Home 或 Schedules 会清除会话高亮。Project 分区只在主区是 Project 工作区时存在；分区标题是 Project 名称，它与 Projects 列表之间的高度可以拖动调整，并按机器记住。它索引 Project 的工作区，只负责浏览，用图标按钮在两种模式间切换：**Files** 逐层列出目录树（`ListWorkspaceDir`，隐藏 `.git`）；**Changes** 类似源代码管理视图，分为两组。第一组列出未提交的工作区 diff（`GetWorkspaceDiff`）。第二组是工作区 `HEAD` 的只读提交历史，按时间倒序、每次加载 50 条（`ListCommits`）；展开一个提交会列出它相对第一父提交改动的文件（`GetCommit`），因此合并提交显示的是其分支带入的改动。单击打开预览文件或 diff tab，下一次浏览单击会替换它；双击打开固定的 tab。提交中的文件以携带该提交的 diff tab 打开，只读取这一个补丁（`GetCommitFileDiff`）。这些绑定都像文件树一样按会话解析工作区，因此在独立 worktree 中运行的会话显示的是该 worktree 的分支和历史。
+侧边栏（`desktop/frontend/src/components/Sidebar.jsx`）分三层，每层只有一种样式：全局入口（Home、Schedules，以及服务器模式下的 Issues）、分区（Projects，以及当前打开的 Project 自己的分区）和行。选中态只标记主区正在显示的内容，因此切到其他入口会清除会话高亮。Project 分区只在主区是 Project 工作区时存在；分区标题是 Project 名称，它与 Projects 列表之间的高度可以拖动调整，并按机器记住。它索引 Project 的工作区，只负责浏览，用图标按钮在两种模式间切换：**Files** 逐层列出目录树（`ListWorkspaceDir`，隐藏 `.git`）；**Changes** 类似源代码管理视图，分为两组。第一组列出未提交的工作区 diff（`GetWorkspaceDiff`）。第二组是工作区 `HEAD` 的只读提交历史，按时间倒序、每次加载 50 条（`ListCommits`）；展开一个提交会列出它相对第一父提交改动的文件（`GetCommit`），因此合并提交显示的是其分支带入的改动。单击打开预览文件或 diff tab，下一次浏览单击会替换它；双击打开固定的 tab。提交中的文件以携带该提交的 diff tab 打开，只读取这一个补丁（`GetCommitFileDiff`）。这些绑定都像文件树一样按会话解析工作区，因此在独立 worktree 中运行的会话显示的是该 worktree 的分支和历史。
 
 `desktop/frontend/src/lib/panes.js` 将 tab 排布为若干行窗格，每个窗格是一个 `tabs.js` 状态。新打开的 tab 进入获得焦点的窗格。向右拆分在焦点窗格所在行中添加窗格，向下拆分添加一行；两者都创建一个空窗格，焦点离开时若仍为空就被移除。拖动 tab 可以把它移到另一个窗格，或在同一 tab 栏中重新排序，被移空的窗格会被移除。平铺把每个 tab 放入各自的窗格，排成最多三列的近似方形网格；收起则把它们重新收拢到一个窗格。窗格之间有可见分隔线，但不能拖动调整大小；侧边栏宽度以及其中 Project 分区的高度，是工作台中仅有的可拖动调整的分割。
 
@@ -90,6 +90,22 @@ Project 的中央界面是由 tab 组成的网格。每个 tab 渲染一种类�
 浏览器 tab 显示某个 Session 中 Agent 浏览器页面的只读实时视图，由 `desktop/browser/frame` 屏幕流渲染。
 
 状态栏是全局的：在 Home 和 Project 中都包含侧边栏开关（同一个按钮负责隐藏和显示侧边栏）、Launchpad 和主题切换，打开 Project 时还会增加新建终端和网格/tab 切换控件。Launchpad 是一组快速启动条目（应用、可执行文件、文档或 URL，可带参数），由 `internal/infra/locallaunchpadstore` 保存在 `<BUILDMAX_HOME>/launchpad.json` 中。条目是全局的，而不是按 Project 划分。`LaunchEntry` 把目标交给操作系统（macOS 上用 `open`，Windows 上用 `start`，Linux 上用 `xdg-open` 或直接执行目标），且不等待其结束，因此固定的网站在默认浏览器中打开，而不是在 tab 中。
+
+## Space Issues
+
+服务器模式下，侧边栏会多出 **Issues** 入口（`components/IssuesView.jsx`）；本地模式和登录过期时它不存在，
+离开服务器模式会让主区回到工作台。这个视图是本地 Issue 工作中属于人的那一半（见
+[界面定位](../../design/界面定位.md#55-本地-issue-工作)）：它跨 Space 列出本人负责的未完成
+Issue，显示单个 Issue 的描述、子 Issue 和最近讨论，可以改变状态并发表评论。
+
+绑定位于 `internal/interface/desktop/issues.go`，使用已保存的登录，调用 CLI 的 `buildmax issue` 命令所用的
+同一组 `internal/interface/client` 路由。`ListMyIssues` 把读取失败的 Space 作为警告返回，而不是丢弃。
+`SetIssueStatus` 只发送给定的版本号和状态，并把 409 报告为 `conflict`，视图据此重新加载。
+`CommentOnIssue` 发送时不带 `author_kind`，因此评论属于本人，而不是一条 `local_agent` 汇报。
+
+**Start chat** 是一次交接，而不是关联：App 按 Project 保存一份一次性草稿，打开该 Project 的新聊天，
+`ChatInput` 用草稿填充输入框一次。它不随 tab 布局保存，也没有会话记录这个 Issue；只有本人发送后，
+草稿才成为对话的第一条消息。
 
 ## 构建边界
 

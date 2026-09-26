@@ -98,3 +98,19 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('searchbox')).toBeNull();
   });
 });
+
+describe('Sidebar Issues destination', () => {
+  it('is absent in local mode, where there is no Space work to receive', () => {
+    renderSidebar();
+    expect(screen.queryByRole('button', { name: 'Issues' })).toBeNull();
+  });
+
+  it('appears when signed in to a server and opens the Issues view', () => {
+    const onIssues = vi.fn();
+    renderSidebar({ onIssues, view: 'issues' });
+    const issues = screen.getByRole('button', { name: 'Issues' });
+    expect(issues.getAttribute('aria-current')).toBe('page');
+    fireEvent.click(issues);
+    expect(onIssues).toHaveBeenCalled();
+  });
+});

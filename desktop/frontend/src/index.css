@@ -9,6 +9,7 @@
 @import './css/workspace-tabs.css';
 @import './css/explorer.css';
 @import './css/schedules.css';
+@import './css/issues.css';
 
 * {
   box-sizing: border-box;

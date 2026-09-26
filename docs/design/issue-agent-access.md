@@ -33,9 +33,9 @@
   [unified-artifacts.md](./unified-artifacts.md),
   [surface-positioning.md](./surface-positioning.md),
   [portal-execution-model.md](./portal-execution-model.md)
-- precedes: [../proposals/local-issue-work-bridge.md](../proposals/local-issue-work-bridge.md),
-  whose still-open questions (durable Issue↔Session link, workspace mapping,
-  local-result record type) this record does not decide
+- precedes: [surface-positioning.md §5.5](./surface-positioning.md#55-local-issue-work),
+  which decided the local Issue work this record left open (no durable
+  Issue↔Session link, workspace mapping, or local-result record type)
 - touches: `internal/service/issue`, `internal/server/handlers/work`,
   `internal/server/handlers/worker`
 - created_at: `2026-08-29`
@@ -132,15 +132,16 @@ That is input, and it stays input; nothing here moves it into a layer.
   it as a boundary regardless.
 - The command surface, transport, and per-Issue guardrail placement, all owned
   by [agent-bridge-cli.md](./agent-bridge-cli.md).
-- The durable Issue↔Session link and offline outbox, owned by
-  [../proposals/local-issue-work-bridge.md](../proposals/local-issue-work-bridge.md).
+- A durable Issue↔Session link and offline outbox, decided against in
+  [surface-positioning.md §5.5](./surface-positioning.md#55-local-issue-work).
 
 ## 6. Open Questions
 
-1. **Where does a runless session's result appear?** A local session produces no
-   run, so an Artifact it publishes has no task-run row to hang on. Either
-   outputs aggregation learns a session-originated source, or the bridge creates
-   a record for local work. This is the bridge proposal's to answer.
+1. **Where does a runless session's result appear?** Answered for now in
+   [surface-positioning.md §5.5](./surface-positioning.md#55-local-issue-work):
+   in the discussion. A local report is a `local_agent` or person comment that
+   names any Artifact it published; outputs aggregation keeps reading runs, and
+   no record for local work is added until a need for one is observed.
 2. **Does a Portal Tier 1 conversation get Issue access, and at what scope?** A
    conversation is the single voice to the user but is not scoped to one Issue,
    so the boundary above would need a different scoping story.

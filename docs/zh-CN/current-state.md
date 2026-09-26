@@ -90,6 +90,14 @@ Desktop 工作区是一个由异构 tab（聊天、终端、文件、diff）组�
 聊天可以并发运行，每个 Session 的工具审批都在它自己的聊天 tab 中显示和回答。状态栏的
 Launchpad 可打开用户固定的应用与网站。可调整大小的 pane 分隔条尚未构建。
 
+登录服务器后，Desktop 还会显示 **Issues** 入口：跨 Space 列出本人负责的未完成 Issue，显示单个
+Issue 的描述、子 Issue 和最近讨论，支持带版本号的状态变更，以及以本人身份发表评论。**Start chat**
+在所选 Project 中新开聊天，把 Issue 作为可编辑的输入框草稿；在本人发送之前不会发出任何内容，也没有
+会话记录这个 Issue。本地模式下不显示 Issues 入口。它与 CLI 的 `buildmax issue` 命令构成本地 Issue
+桥接的全部：没有持久的 Issue↔Session 关联、工作区映射、离线队列或本地结果记录，见
+[界面定位](design/界面定位.md#55-本地-issue-工作)。登录后的视图由基于模拟服务器的 Go 绑定测试和
+组件测试覆盖；没有端到端运行在真实部署上驱动它。
+
 本地检查已有 `buildmax info`、TUI `/info` 和面向单个会话的 Desktop `/info` 面板，包含会话统计、会话 fork 树与 Project Memory 三个 tab；
 `buildmax usage` 跨会话汇总 token 与成本总额，可按天、工作区或模型分组。
 Desktop 的 Memory 界面有意保持只读：用户直接编辑 Markdown 文件，用

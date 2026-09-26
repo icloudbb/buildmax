@@ -43,8 +43,9 @@
   [sandbox-boundaries.md](./sandbox-boundaries.md),
   [unified-artifacts.md](./unified-artifacts.md),
   [../proposals/client-sessions-and-api-credentials.md](../proposals/client-sessions-and-api-credentials.md)
-- folds: the client-command half of
-  [../proposals/local-issue-work-bridge.md](../proposals/local-issue-work-bridge.md)
+- folds: the client-command half of the retired Local Issue work bridge
+  proposal; the rest of its scope was decided in
+  [surface-positioning.md §5.5](./surface-positioning.md#55-local-issue-work)
 - touches: `internal/interface/cli`, `internal/interface/client`,
   `internal/interface/auth`, `internal/agentapp/taskrun`, `internal/bootstrap`,
   `internal/config`, `internal/server/handlers/work`,
@@ -310,12 +311,12 @@ The command surface changes the *mechanism* of Agent Server access, not the
   boundary, which §8 here owns and expresses in the command-surface world; an
   issue-linked run learns of the command through the `issue` prompt layer, since
   there is no longer a tool to discover.
-- **The client-command half of
-  [../proposals/local-issue-work-bridge.md](../proposals/local-issue-work-bridge.md).**
-  That proposal's question of how a local client reads, reports, and returns
-  work is answered here. Its still-open questions (durable Issue↔Session link,
-  workspace mapping, local-result record type) are not decided by this record
-  and keep it open until they are.
+- **The client-command half of the Local Issue work bridge proposal.** That
+  proposal's question of how a local client reads, reports, and returns work is
+  answered here. Its remaining questions (durable Issue↔Session link, workspace
+  mapping, local-result record type) were decided against building them, and
+  the proposal retired; see
+  [surface-positioning.md §5.5](./surface-positioning.md#55-local-issue-work).
 
 ## 10. Out Of Scope
 
@@ -324,7 +325,8 @@ The command surface changes the *mechanism* of Agent Server access, not the
   for now.
 - Personal access tokens and service accounts for headless non-interactive use
   outside a run. A named use case would revive credentials-proposal Stage 3.
-- The durable Issue↔Session link and offline outbox from the bridge proposal.
+- A durable Issue↔Session link and an offline outbox, decided against in
+  [surface-positioning.md §5.5](./surface-positioning.md#55-local-issue-work).
 - Any new worker route. This record adds none; it only carries the existing run
   token to a subprocess.
 

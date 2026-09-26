@@ -100,6 +100,20 @@ Owner 与 Executor 是两个相互独立的选择，可以同时都设置、只�
   一次重试会计入你 space 的配额，并保留原始运行的记录不变。
   作为 Workflow 步骤的运行是通过重新运行其 Workflow 来重试的，而不是从这里。
 
+## 在本机处理 Issue
+
+你负责的 Issue 也可以在本地处理，那里有你的文件和工具。
+
+- **CLI** —— `buildmax issue list` 显示你未完成的 Issue，`buildmax issue start <id>`
+  打开一个由 Agent 限定到该 Issue 的会话；见 [`buildmax issue` 命令](命令行.md#buildmax-issue)。
+- **Desktop** —— 登录服务器后，侧边栏会显示 **Issues**：跨 Space 列出你未完成的 Issue，以及每个
+  Issue 的描述、子 Issue 和讨论。**Start chat** 会在你选择的 Project 中新开聊天，并把 Issue 预先
+  放进输入框，你可以在发送前修改。在同一视图中还可以改变 Issue 的状态并发表评论。Desktop 未登录时
+  不会出现 Issues 入口。
+
+无论哪种方式，交回工作都由你决定：评论说明做了什么，状态变更说明是否完成。规划和指派工作仍在
+Portal 中进行。
+
 ## 下一步
 
 - 定义你在此处分派的 Agent 和计划：[Agent 与 Workflow](Agent与工作流.md)。

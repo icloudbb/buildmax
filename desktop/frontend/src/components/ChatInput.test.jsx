@@ -188,3 +188,14 @@ describe('ChatInput command palette', () => {
     expect(screen.getByRole('option', { name: /gpt-4o/ }).getAttribute('aria-selected')).toBe('false');
   });
 });
+
+describe('ChatInput draft', () => {
+  it('fills the composer from a handed-in draft once, without sending it', async () => {
+    const onSend = vi.fn();
+    const onDraftConsumed = vi.fn();
+    renderInput({ onSend, draft: { text: 'Work on this issue', seq: 1 }, onDraftConsumed });
+    await waitFor(() => expect(composer().value).toBe('Work on this issue'));
+    expect(onDraftConsumed).toHaveBeenCalledTimes(1);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+});
