@@ -71,9 +71,9 @@ Desktop 在默认工作区打开 Project，因此这里一个 Project 对应一�
 
 Project 的中央界面是由 tab 组成的网格。每个 tab 渲染一种类型的活动——`chat`、`terminal`、`file`、`diff` 或 `browser`——并以 `(kind, ref)` 对标识（`desktop/frontend/src/lib/tabs.js`），因此打开一个已经打开的活动会聚焦现有 tab，而不会重复创建。聊天的 ref 是其 Session ID，终端的是其 PTY ID，文件或 diff tab 的是相对工作区的路径，浏览器 tab 的是它所展示页面对应的 Session。一个 Project 最多有一个尚未获得 ID 的新聊天；tab 栏的 `+` 用于开启它。聊天和终端 tab 可以重命名：聊天会重命名其 Session，终端只重命名 tab。
 
-Explorer 侧边栏区域索引 Project 的工作区，只负责浏览。**Directory** 逐层列出目录树（`ListWorkspaceDir`，隐藏 `.git`）；**Changes** 列出工作区 diff（`GetWorkspaceDiff`）。单击打开预览文件或 diff tab，下一次浏览单击会替换它；双击打开固定的 tab。
+侧边栏（`desktop/frontend/src/components/Sidebar.jsx`）分三层，每层只有一种样式：全局入口（Home 和 Schedules）、分区（Projects，以及当前打开的 Project 自己的分区）和行。选中态只标记主区正在显示的内容，因此切到 Home 或 Schedules 会清除会话高亮。Project 分区只在主区是 Project 工作区时存在；分区标题是 Project 名称，它与 Projects 列表之间的高度可以拖动调整，并按机器记住。它索引 Project 的工作区，只负责浏览，用图标按钮在两种模式间切换：**Files** 逐层列出目录树（`ListWorkspaceDir`，隐藏 `.git`）；**Changes** 列出工作区 diff（`GetWorkspaceDiff`）。单击打开预览文件或 diff tab，下一次浏览单击会替换它；双击打开固定的 tab。
 
-`desktop/frontend/src/lib/panes.js` 将 tab 排布为若干行窗格，每个窗格是一个 `tabs.js` 状态。新打开的 tab 进入获得焦点的窗格。向右拆分在焦点窗格所在行中添加窗格，向下拆分添加一行；两者都创建一个空窗格，焦点离开时若仍为空就被移除。拖动 tab 可以把它移到另一个窗格，或在同一 tab 栏中重新排序，被移空的窗格会被移除。平铺把每个 tab 放入各自的窗格，排成最多三列的近似方形网格；收起则把它们重新收拢到一个窗格。窗格之间有可见分隔线，但不能拖动调整大小；侧边栏宽度是工作台中唯一可拖动调整的分割。
+`desktop/frontend/src/lib/panes.js` 将 tab 排布为若干行窗格，每个窗格是一个 `tabs.js` 状态。新打开的 tab 进入获得焦点的窗格。向右拆分在焦点窗格所在行中添加窗格，向下拆分添加一行；两者都创建一个空窗格，焦点离开时若仍为空就被移除。拖动 tab 可以把它移到另一个窗格，或在同一 tab 栏中重新排序，被移空的窗格会被移除。平铺把每个 tab 放入各自的窗格，排成最多三列的近似方形网格；收起则把它们重新收拢到一个窗格。窗格之间有可见分隔线，但不能拖动调整大小；侧边栏宽度以及其中 Project 分区的高度，是工作台中仅有的可拖动调整的分割。
 
 终端在切换 tab、移动窗格、平铺和切换 Project 时保留其模拟器。`TerminalHost` 把每个 xterm portal 到各自永不改变的宿主元素中；`App` 在窗格槽位与隐藏停放区之间移动该元素，因为改变 portal 的容器会重新挂载模拟器并丢失回滚内容。停放或隐藏的终端尺寸为 0×0，因此 `TerminalPane` 会跳过建议尺寸退化的 fit（把缓冲区重排成细条会逐出回滚内容并调整 PTY 大小），并在其 tab 变为活动时重新 fit。切换 Project 时，离开的 Project 布局连同其 shell 被暂存并停放，而不是被终止。
 
@@ -89,7 +89,7 @@ Explorer 侧边栏区域索引 Project 的工作区，只负责浏览。**Direct
 
 浏览器 tab 显示某个 Session 中 Agent 浏览器页面的只读实时视图，由 `desktop/browser/frame` 屏幕流渲染。
 
-状态栏是全局的：在 Home 和 Project 中都包含 Launchpad 和主题切换，打开 Project 时还会增加新建终端和网格/tab 切换控件。Launchpad 是一组快速启动条目（应用、可执行文件、文档或 URL，可带参数），由 `internal/infra/locallaunchpadstore` 保存在 `<BUILDMAX_HOME>/launchpad.json` 中。条目是全局的，而不是按 Project 划分。`LaunchEntry` 把目标交给操作系统（macOS 上用 `open`，Windows 上用 `start`，Linux 上用 `xdg-open` 或直接执行目标），且不等待其结束，因此固定的网站在默认浏览器中打开，而不是在 tab 中。
+状态栏是全局的：在 Home 和 Project 中都包含侧边栏开关（同一个按钮负责隐藏和显示侧边栏）、Launchpad 和主题切换，打开 Project 时还会增加新建终端和网格/tab 切换控件。Launchpad 是一组快速启动条目（应用、可执行文件、文档或 URL，可带参数），由 `internal/infra/locallaunchpadstore` 保存在 `<BUILDMAX_HOME>/launchpad.json` 中。条目是全局的，而不是按 Project 划分。`LaunchEntry` 把目标交给操作系统（macOS 上用 `open`，Windows 上用 `start`，Linux 上用 `xdg-open` 或直接执行目标），且不等待其结束，因此固定的网站在默认浏览器中打开，而不是在 tab 中。
 
 ## 构建边界
 

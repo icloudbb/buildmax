@@ -68,11 +68,12 @@ test('collapses and re-expands the sidebar', async ({ page }) => {
   const shell = page.locator('.shell')
   await expect(shell).not.toHaveClass(/shell--left-collapsed/)
 
-  await page.locator('.sidebar__projects-collapse').click()
+  // One status-bar control both hides and shows the sidebar, so it stays
+  // reachable while the sidebar is gone.
+  await page.getByRole('button', { name: 'Hide sidebar' }).click()
   await expect(shell).toHaveClass(/shell--left-collapsed/)
 
-  // Collapsed, the only way back is the ☰ toggle the collapse revealed.
-  await page.locator('.shell__sidebar-toggle').click()
+  await page.getByRole('button', { name: 'Show sidebar' }).click()
   await expect(shell).not.toHaveClass(/shell--left-collapsed/)
 })
 
