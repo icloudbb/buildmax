@@ -8,10 +8,13 @@ const APPROVAL_CHOICES = [
   { decision: 'deny',    label: 'Deny(n)',          variant: 'deny'  },
 ];
 
-export function ApprovalPanel({ request, onRespond }) {
+// keys is false for a panel outside the focused pane: shortcuts listen on the
+// window, and two visible panels would otherwise both answer one key press.
+export function ApprovalPanel({ request, onRespond, keys = true }) {
   const [selected, setSelected] = useState(0);
 
   useEffect(() => {
+    if (!keys) return undefined;
     function onKey(e) {
       switch (e.key) {
         case 'ArrowLeft':  setSelected((i) => Math.max(0, i - 1)); break;
@@ -24,7 +27,7 @@ export function ApprovalPanel({ request, onRespond }) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, onRespond]);
+  }, [selected, onRespond, keys]);
 
   const argEntries = Object.entries(request.args ?? {});
 

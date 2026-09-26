@@ -28,9 +28,14 @@ const EV_TURN_DIGEST = 'desktop/turn-digest';
 // backend); an instance handles only its own. A brand-new chat starts with no id
 // and adopts the real one from the first tagged event of the run it launched
 // (only one new chat exists per project, so the adoption is unambiguous).
+//
+// approvals maps session id to that session's pending tool approval; this tab
+// shows only its own and answers it through onRespond(request, decision). Only
+// the focused pane's tab takes approval keystrokes, so a key press never answers
+// two sessions' prompts at once.
 export function ChatSession({
   projectId, projectName, defaultWorkspace, sessions, tab, app,
-  approvalRequest, onRespond,
+  approvals, onRespond, focused = true,
   onSessionAdopted, onSessionsChanged, onTitle, onOpenSession, onShowChanges,
 }) {
   const [messages, setMessages] = useState([]);
@@ -380,6 +385,9 @@ export function ChatSession({
 
   const workspace = sessions?.find((s) => s.id === sessionId)?.workspace || defaultWorkspace;
 
+  const approvalRequest = (sessionId && approvals?.[sessionId]) || null;
+  const respondToApproval = (decision) => onRespond?.(approvalRequest, decision);
+
   return (
     <div className="page-chat">
       {infoOpen && (
@@ -422,8 +430,9 @@ export function ChatSession({
           onDismissError={() => setError(null)}
           currentProject={{ id: projectId, name: projectName }}
           app={app}
-          approvalRequest={loading ? approvalRequest : null}
-          onRespond={onRespond}
+          approvalRequest={approvalRequest}
+          onRespond={respondToApproval}
+          approvalKeys={focused}
           toolActivity={toolActivity}
           runStatus={runStatus}
           suggestion={turnDigest?.suggestion ?? ''}

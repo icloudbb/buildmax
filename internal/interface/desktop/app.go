@@ -182,12 +182,14 @@ func wailsEmit(ctx context.Context, name string, data any) {
 }
 
 // App holds desktop application state and implements Wails lifecycle hooks.
-// Each project gets its own AgentApp and ApprovalHandler instance, created lazily on first use.
+// Each project gets its own AgentApp instance, created lazily on first use.
 type App struct {
-	ctx              context.Context
-	mu               sync.Mutex
-	agentApps        map[string]*agentapp.AgentApp      // keyed by project ID
-	approvalHandlers map[string]*DesktopApprovalHandler // keyed by project ID
+	ctx       context.Context
+	mu        sync.Mutex
+	agentApps map[string]*agentapp.AgentApp // keyed by project ID
+	// approvals holds every run's unanswered tool approval, each under its own
+	// id, so concurrent sessions of one project each wait on their own answer.
+	approvals pendingApprovals
 	// scheduleApps are AgentApps for scheduled fires, keyed by working directory.
 	// A scheduled task targets a directory, not a project, so its runs are built
 	// with EnableLocalProject off: sessions are stamped with no project (invisible
@@ -227,11 +229,10 @@ type App struct {
 // NewApp returns a new App instance.
 func NewApp() *App {
 	a := &App{
-		agentApps:        make(map[string]*agentapp.AgentApp),
-		approvalHandlers: make(map[string]*DesktopApprovalHandler),
-		scheduleApps:     make(map[string]*agentapp.AgentApp),
-		scheduler:        agentapp.NewRunScheduler(),
-		emit:             wailsEmit,
+		agentApps:    make(map[string]*agentapp.AgentApp),
+		scheduleApps: make(map[string]*agentapp.AgentApp),
+		scheduler:    agentapp.NewRunScheduler(),
+		emit:         wailsEmit,
 	}
 	// The terminal manager is Wails-agnostic; bind it to the app's emitter, which
 	// resolves the live context at call time (nil before Startup).
@@ -273,7 +274,6 @@ func (a *App) Shutdown(_ context.Context) {
 	apps := a.agentApps
 	schedApps := a.scheduleApps
 	a.agentApps = make(map[string]*agentapp.AgentApp)
-	a.approvalHandlers = make(map[string]*DesktopApprovalHandler)
 	a.scheduleApps = make(map[string]*agentapp.AgentApp)
 	a.mu.Unlock()
 	for _, ag := range apps {
@@ -304,7 +304,6 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 	if err != nil {
 		return nil, err
 	}
-	handler := newDesktopApprovalHandler(a, projectID)
 	// Desktop opens a Project at its default workspace, so one Project is one
 	// root here and the cache can be keyed by Project alone. A relink that
 	// moves the default workspace is picked up on the next launch; nothing
@@ -341,7 +340,6 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		return existing, nil
 	}
 	a.agentApps[projectID] = ag
-	a.approvalHandlers[projectID] = handler
 	a.mu.Unlock()
 	if jobs := ag.Jobs(); jobs != nil {
 		// The pump exits when Close releases the subscription in Shutdown.
@@ -556,7 +554,6 @@ func (a *App) DeleteProject(id string, deleteSessions bool) error {
 	a.mu.Lock()
 	ag := a.agentApps[id]
 	delete(a.agentApps, id)
-	delete(a.approvalHandlers, id)
 	a.mu.Unlock()
 	if ag != nil {
 		_ = ag.Close()
@@ -959,24 +956,20 @@ func (a *App) Logout() error {
 // --- Chat bindings ---
 
 // RespondApproval is called by the frontend when the user answers a tool
-// approval prompt. projectID must match the project that triggered the
-// desktop/approval-request event. decision is "once", "session", or "deny";
-// anything else denies, so a frontend that falls out of step fails closed.
-func (a *App) RespondApproval(projectID string, decision string) {
-	a.mu.Lock()
-	handler := a.approvalHandlers[projectID]
-	a.mu.Unlock()
-	if handler == nil {
-		return
-	}
+// approval prompt. approvalID is the approval_id of the desktop/approval-request
+// event being answered; an id that is unknown, already answered, or withdrawn
+// because its run ended is an error and reaches no run. decision is "once",
+// "session", or "deny"; anything else denies, so a frontend that falls out of
+// step fails closed. A "session" grant applies to the asking run's session only.
+func (a *App) RespondApproval(approvalID string, decision string) error {
+	d := agent.ApprovalDeny
 	switch decision {
 	case "once":
-		handler.respond(agent.ApprovalAllowOnce)
+		d = agent.ApprovalAllowOnce
 	case "session":
-		handler.respond(agent.ApprovalAllowSession)
-	default:
-		handler.respond(agent.ApprovalDeny)
+		d = agent.ApprovalAllowSession
 	}
+	return a.approvals.resolve(approvalID, d)
 }
 
 // desktopStreamSink emits each delta to the frontend, tagged with the run's live
@@ -1098,17 +1091,15 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 	return a.scheduler.Submit(ctx, lc.key, sessionID, prompt, a.hostForSession(projectID, sessionID, lc), lc)
 }
 
-// hostForProject resolves the project's AgentApp and binds its approval handler
-// to lc, for the scheduler to call when it starts a run.
+// hostForProject resolves the project's AgentApp and gives lc an approval
+// handler of its own, for the scheduler to call when it starts a run.
 func (a *App) hostForProject(projectID string, lc *desktopRun) agentapp.HostFunc {
 	return func() (agentapp.RunHost, error) {
 		ag, err := a.agentAppForProject(projectID)
 		if err != nil {
 			return nil, err
 		}
-		a.mu.Lock()
-		lc.handler = a.approvalHandlers[projectID]
-		a.mu.Unlock()
+		lc.handler = &runApprover{app: a, run: lc}
 		return ag, nil
 	}
 }

@@ -145,9 +145,10 @@ Directory and Changes views. Tabs can be dragged between panes and split into a
 rows-and-columns grid or collapsed back to one tab strip; the layout is
 remembered per project, and terminal tabs restore their scrollback across a
 restart. A file tab can edit and save a workspace file. Each chat tab is its own
-session, so chats in different sessions run concurrently. A status-bar Launchpad
-opens user-pinned applications and websites. Resizable pane splitters and
-session-scoped tool approvals are not built.
+session, so chats in different sessions run concurrently, and each session's
+tool approvals appear and are answered in its own chat tab. A status-bar
+Launchpad opens user-pinned applications and websites. Resizable pane splitters
+are not built.
 
 Desktop also has local scheduled tasks: a Schedules view (a first-class sidebar
 entry) where a user schedules a fixed prompt to run in a working directory —
