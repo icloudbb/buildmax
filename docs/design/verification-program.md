@@ -337,12 +337,14 @@ control exists without changing product authority, the case returns to design
 rather than adding per-run model selection as test plumbing
 ([end-to-end-testing.md §6.1](end-to-end-testing.md#61-what-the-server-and-worker-paths-must-add)).
 
-The kind deployment smoke now implements three bounded slices from this
+The kind deployment smoke now implements four bounded slices from this
 section: graceful worker loss during execution, runtime MySQL denial and
-recovery, and runtime object-storage readiness denial and recovery. The silent
-hard-loss reaper remains store-tested because Kubernetes Job deletion delivers
-`SIGTERM`; worker artifact writes under storage denial, Server restart/reconnect,
-partial-work cancellation, and graceful shutdown under load remain open.
+recovery, runtime object-storage readiness denial and recovery, and denial of
+the worker's own object-storage writes
+([end-to-end-testing.md §6.6](end-to-end-testing.md#66-denying-the-workers-object-storage-writes)).
+The silent hard-loss reaper remains store-tested because Kubernetes Job
+deletion delivers `SIGTERM`; Server restart/reconnect, partial-work
+cancellation, and graceful shutdown under load remain open.
 The Server restart/reconnect case restarts the serving path while a direct Task
 or foreground turn is observable; after reconnect, durable state must
 reconstruct the same work with no duplicate TaskRuns, outputs, Artifacts, usage,
@@ -389,6 +391,9 @@ Provide controlled failure modes for:
 
 No failed path may advertise a downloadable artifact that does not exist. A
 recovery operation must reconcile or tombstone inconsistent state explicitly.
+
+The rejected upload is covered for the worker's own writes — checkpoints and
+run state — by the kind write-denial drill; the other four modes remain open.
 
 ### 6.4 Model And Streaming
 

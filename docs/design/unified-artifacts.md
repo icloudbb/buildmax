@@ -622,17 +622,17 @@ model and the user one legible publishing event.
    `UploadArtifact`; a run's output directory stays the reproducible record of
    what the run left behind. See section 5.3.
 
-7. **A run's output can be silently short.** Not an artifact question — run
-   output is deliberately not artifacts (question 6) — but it is the other half
-   of "what a run left behind", so it is recorded here until someone fixes it.
-   The run-global upload loop in `internal/agentapp/taskrun/runtime.go` logs a
-   failed upload at `Warn` and skips the file, appending to the returned relative
-   paths only on success. The record stays consistent with storage, which is why this
-   is not a corruption bug; what is missing is that the run still reports
-   `SUCCEEDED` and nothing tells the reader that fewer files arrived than the
-   agent produced. A dependency failure is therefore indistinguishable from a
-   run that simply produced less. Deciding between failing the run, recording a
-   partial-output marker, or surfacing the count is open.
+7. **A run's state can be silently short:** ~~open~~ → **decided: fail the
+   run**. Not an artifact question — run output is deliberately not artifacts
+   (question 6) — but it is the other half of "what a run left behind". The
+   run-global upload in `internal/agentapp/taskrun/runtime.go` used to log a
+   refused upload and report `SUCCEEDED` anyway, still pointing at a trace
+   storage did not hold and leaving the session bundle the next turn resumes
+   from missing. A run whose state cannot be stored now ends `FAILED` with a
+   message naming object storage, keeping its reply and usage, and it records a
+   trace pointer only once the trace is stored. The kind write-denial drill
+   ([end-to-end-testing.md](end-to-end-testing.md) §6.6) is the deployed
+   evidence.
 
 ## 13. Acceptance Criteria
 

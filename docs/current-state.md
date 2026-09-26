@@ -64,10 +64,12 @@ Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. A Server can now expire old run traces on an operator-set retention
 window and records each successful prune; keep-forever remains the default.
-Deployment smoke now exercises graceful worker loss and the Server's readiness
-degradation and recovery across runtime MySQL and object-storage outages.
-Paired restore, schema upgrade and binary rollback, credential rotation, and
-the worker's object-storage write path under denial remain open. Shared Redis
+Deployment smoke now exercises graceful worker loss, the Server's readiness
+degradation and recovery across runtime MySQL and object-storage outages, and
+a denial of only the worker's object-storage writes, under which runs end
+FAILED with the refused write named and no record pointing at a missing object.
+Paired restore, schema upgrade and binary rollback, and credential rotation
+remain open. Shared Redis
 coordination is implemented, including distributed lease fencing at
 message-history writes. The worker API already has a separate listener, TLS
 support, and a shipped ingress NetworkPolicy; that bounded network slice must
@@ -654,13 +656,16 @@ flips /readyz to report the database failed and pulls the server out of the
 Service without restarting it, and it recovers on its own once access returns),
 object-storage degradation and recovery (the same for a runtime loss of the
 bucket — /readyz's object-storage check fails and recovers with the bucket
-intact), and the Bash confinement probe. Scheduler unit tests cover stale-run
+intact), worker object-storage write denial (with only the worker's writes
+refused and /readyz healthy, a first run fails at its seed checkpoint and a
+Continue fails at its run state, keeping its reply and a downloadable Artifact
+and recording no trace pointer to an object that is not there), and the Bash
+confinement probe. Scheduler unit tests cover stale-run
 handling and cleanup, including the liveness sweep that settles a run whose
 worker went silent — the hard-loss path the deployment cannot reproduce, since
 the kernel drops an in-container SIGKILL to PID 1 and any kubelet deletion starts
 with the SIGTERM the worker reports on. These are not equivalent to candidate
-exercises for the worker's object-storage write path under denial, paired
-restore, credential rotation, and schema rollback.
+exercises for paired restore, credential rotation, and schema rollback.
 
 Compose, kind, production Kubernetes manifests, release verification, SBOM,
 image scanning, and provenance workflows exist. Their presence does not fill

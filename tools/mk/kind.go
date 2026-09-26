@@ -397,6 +397,11 @@ func kindSmoke() error {
 	if err := kindWorkerLossProbe(); err != nil {
 		return err
 	}
+	// Before the outage drills, which bounce MySQL and MinIO: this one needs a
+	// healthy server path to show that only the worker's was denied.
+	if err := kindWorkerStorageDenialProbe(); err != nil {
+		return err
+	}
 	if err := kindDBOutageProbe(); err != nil {
 		return err
 	}

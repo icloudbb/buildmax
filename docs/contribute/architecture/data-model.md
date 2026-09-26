@@ -936,7 +936,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `k8s_job_created_at` | `datetime(6)` | yes | When that Job was created; `NULL` under the local runner |
 | `prompt_tokens` | `bigint` | yes | Quota input |
 | `completion_tokens` | `bigint` | yes | Quota input |
-| `trace_path` | `varchar(512)` | yes | This run's durable trace inside run-global storage, e.g. `traces/<session>/rt_….jsonl`; `NULL` when none was written |
+| `trace_path` | `varchar(512)` | yes | This run's durable trace inside run-global storage, e.g. `traces/<session>/rt_….jsonl`; `NULL` when none was stored |
 | `cancel_requested_at` | `datetime(6)` | yes | When someone asked this run to stop; `NULL` when nobody has |
 | `cancel_requested_by` | `bigint unsigned` | yes | `user.id` of whoever asked |
 | `cancel_reason` | `varchar(32)` | no | Bounded cause of cancellation; empty when none was recorded |
@@ -1064,6 +1064,8 @@ the agent run id, which is generated inside the run and appears nowhere else.
 The value is the same key `uploadTaskGlobal` uploads the file under, so it
 resolves directly against run-global storage — a test in
 `internal/agentapp/taskrun` couples the two computations so they cannot drift.
+The worker sends it only after that upload succeeded, so the column never names
+an object storage refused.
 
 The scheduler claims work by polling for the oldest pending run
 (`GetNextPendingTaskRun`); GORM's logger is configured to swallow

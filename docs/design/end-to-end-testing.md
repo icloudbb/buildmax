@@ -40,7 +40,8 @@
   The smoke proves that the packaged process starts and stays alive briefly; it
   does not drive or visually inspect the native window. Cancellation (§6.2),
   graceful worker-loss recovery (§6.3), database degradation/recovery (§6.4),
-  and object-storage readiness degradation/recovery (§6.5) have landed since.
+  object-storage readiness degradation/recovery (§6.5), and worker
+  object-storage write denial (§6.6) have landed since.
   Open in this record: the partial-output survival half of cancellation that
   §6.2 leaves for later. Broader candidate-only lifecycle gaps stay in the
   [verification program](verification-program.md) and Beta readiness record
@@ -490,11 +491,53 @@ That the `object_storage` check returns healthy after recovery is itself the
 evidence the bucket came back with its contents, since the probe lists the
 bucket rather than assuming it.
 
-The worker's write path under a storage denial — a run that fails with an
-operator-understandable cause and leaves no artifact record that claims a
-missing object is downloadable — is a distinct case this probe does not cover;
-it needs a run driven to an artifact write while the worker's storage is denied,
-and is left for a later addition.
+The worker's own write path under a storage denial is a distinct case this
+probe does not cover; §6.6 does.
+
+### 6.6 Denying The Worker's Object-Storage Writes
+
+The worker-storage probe (`kindWorkerStorageDenialProbe` in `tools/mk`) covers
+what §6.5 cannot reach. A worker writes to the bucket with its own client — a
+Task's seed and result checkpoints, and the run's state: trace, session bundle,
+and logs — so denying the worker alone never shows on the server's `/readyz`.
+Published Artifacts are not among those writes: they go through the server's
+worker API, which stores the object before it records the Artifact, so their
+path is the server's.
+
+The denial is a Cilium L7 policy on the MinIO pod: worker pods may `GET` and
+`HEAD`, the Envoy proxy answers every other method with `403`, and every other
+pod keeps full access. Denying writes rather than all traffic is what lets a run
+restore its base and reach its agent, so the refusal lands on the run's own
+writes instead of its first read. A plain `NetworkPolicy` cannot separate the
+two. The policy is in place before any worker it governs starts, so no
+connection predates it. Before a run depends on it, a worker-labelled pod
+confirms that its write is refused by the proxy while its read reaches MinIO,
+and an unlabelled pod confirms that its write still reaches MinIO — the marker
+that the fault in force is the one armed, and only for workers.
+
+Two write points are then exercised, with `/readyz` sampled every two seconds
+throughout and the server pods left unrestarted:
+
+- a new Task's first run captures its seed before the agent starts, and fails
+  closed there with a message naming the refused checkpoint upload;
+- a Continue of a Task that already has a head restores it, publishes an
+  Artifact through the server, answers, and then cannot store its run state. It
+  must end `FAILED` with a message naming object storage, keep its reply, list
+  an Artifact that downloads with the bytes it published, and record no trace
+  pointer, so its trace reads as never recorded rather than lost.
+
+With the policy removed, a new Task must succeed and its trace must read back.
+
+The Continue case found a real defect. The worker logged a refused run-state
+upload and still reported the run `SUCCEEDED`, with a trace pointer storage did
+not hold and a session bundle the next turn would silently start without —
+the open question [unified-artifacts.md](unified-artifacts.md) §12 recorded.
+`internal/agentapp/taskrun` now records a trace pointer only once the trace is
+stored, stops at the first refused upload rather than waiting out every file
+under an outage, and fails a run whose state could not be stored while keeping
+its reply and usage. The rejected-download, lost-response, and
+metadata-without-object modes of
+[verification-program.md](verification-program.md) §6.3 remain open.
 
 ## 7. AI Agent Workflow
 

@@ -231,7 +231,7 @@ func archiveWorkspace(ctx context.Context, store CheckpointPayloadStore, staging
 	_, putErr := store.Put(ctx, spaceID, sha, f)
 	_ = f.Close()
 	if putErr != nil {
-		return desc, fmt.Errorf("upload checkpoint payload: %w", putErr)
+		return desc, fmt.Errorf("upload checkpoint payload to object storage: %w", putErr)
 	}
 	return workerclient.WorkspaceCheckpointDescriptor{
 		PayloadFormat:     wsarchive.PayloadFormat,

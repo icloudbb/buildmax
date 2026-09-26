@@ -256,7 +256,9 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		return stopErr
 	}
 	if err != nil {
-		reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
+		// The agent's error stays the run's cause. A storage failure on top of it
+		// is logged, and drops a trace pointer that would not resolve.
+		result, _ = persistRunState(ctx, input.Persist, scope, dirs, result)
 		componentLog().Error("run failed", "task_run_id", run.ID, "err", err, "output_len", len(result.OutputStr))
 		// Capture what the failed run produced as a partial checkpoint. It rides
 		// the terminal report like a result but never advances the head; it
@@ -266,7 +268,20 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		return err
 	}
 
-	reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
+	result, persistErr := persistRunState(ctx, input.Persist, scope, dirs, result)
+	if persistErr != nil {
+		// A run whose state did not reach storage has not finished. Its session
+		// bundle is what the next turn resumes from, so reporting success would let
+		// the Task continue from a conversation that is not there. The reply and
+		// usage live in the database and are still reported, on a FAILED outcome
+		// whose message names the storage failure.
+		err := fmt.Errorf("could not persist this run's state to object storage: %w", persistErr)
+		partial := captureWorkspaceCheckpoint(ctx, input, task, dirs)
+		if reportErr := reportRunOutcome(ctx, scope, result, coretask.RunStatusFailed, err.Error(), partial, input.Updater); reportErr != nil {
+			return reportErr
+		}
+		return err
+	}
 	// Capture the successful run's workspace as its result checkpoint and carry it
 	// on the terminal report, so the server commits it and advances the Task head
 	// as it accepts the outcome. Fail-open: a capture failure leaves the head
@@ -369,7 +384,7 @@ func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 	if result.EndTime.IsZero() {
 		result.EndTime = time.Now().UTC()
 	}
-	reportPersistedRunState(reportCtx, input.Persist, scope, dirs, result)
+	result, _ = persistRunState(reportCtx, input.Persist, scope, dirs, result)
 	// A stopped run's workspace is a partial checkpoint: capture it within the
 	// same bounded reporting budget as everything else this run still does, and
 	// carry it on the terminal report. A partial preserves the work but never
@@ -440,8 +455,17 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	return result, nil
 }
 
-func reportPersistedRunState(ctx context.Context, persist blob.RunStorage, scope RunScope, dirs runDirs, result runResult) {
-	uploadTaskGlobal(ctx, dirs.runGlobal, scope, persist, result.TracePath)
+// persistRunState uploads the run's global dir and returns the result with its
+// trace pointer kept only when the trace is now in storage: a terminal report
+// must never point at an object storage does not hold. The error names what
+// could not be stored; each caller decides what it means for the outcome.
+func persistRunState(ctx context.Context, persist blob.RunStorage, scope RunScope, dirs runDirs, result runResult) (runResult, error) {
+	stored, err := uploadTaskGlobal(ctx, dirs.runGlobal, scope, persist, result.TracePath)
+	result.TracePath = stored
+	if err != nil {
+		componentLog().Error("could not persist run state to object storage", "task_run_id", scope.TaskRunID, "err", err)
+	}
+	return result, err
 }
 
 func ensureRunDirs(runWorkspace, runGlobal, runOSHome string) error {
@@ -793,7 +817,6 @@ func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, sta
 	return updater.UpdateRunStatus(ctx, scope.TaskRunID, req)
 }
 
-// uploadTaskGlobal uploads the run's global dir (logs, sessions, settings) to blob storage for the run.
 // uploadTaskGlobal uploads the run's global dir to blob storage. It is an
 // allowlist, not a directory walk: the run-scoped BUILDMAX_HOME accumulates
 // state the server has no use for, so each upload is named.
@@ -801,9 +824,15 @@ func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, sta
 // traceKey is this run's trace, relative to globalDir, or "" when none was
 // written. It is passed in rather than discovered because its file name is the
 // agent run id — a directory scan would find it, but only the caller knows
-// which file the run actually recorded a pointer to.
-func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, persist blob.RunStorage, traceKey string) {
-	relPaths := []string{"logs/buildmax.log", "logs/buildmax-worker.log", "settings.yaml"}
+// which file the run actually recorded a pointer to. It goes first because
+// diagnosing a failure is the trace's main job.
+//
+// It returns traceKey once the trace is stored and "" otherwise, and it stops
+// at the first failed upload: the rest would hit the same dependency, and an
+// outage that times out every request must not hold the run's report once per
+// file.
+func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, persist blob.RunStorage, traceKey string) (string, error) {
+	var relPaths []string
 	if traceKey != "" {
 		relPaths = append(relPaths, traceKey)
 	}
@@ -815,30 +844,41 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 			return nil
 		}
 		rel, relErr := filepath.Rel(globalDir, path)
-		if relErr != nil {
+		if relErr != nil || filepath.ToSlash(rel) == traceKey {
 			return nil
 		}
 		relPaths = append(relPaths, filepath.ToSlash(rel))
 		return nil
 	})
+	relPaths = append(relPaths, "logs/buildmax.log", "logs/buildmax-worker.log", "settings.yaml")
+	storedTrace := ""
 	for _, relPath := range relPaths {
 		fullPath := filepath.Join(globalDir, filepath.FromSlash(relPath))
 		info, err := os.Stat(fullPath)
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		f, err := os.Open(fullPath)
-		if err != nil {
-			componentLog().Warn("upload run global open failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", err)
-			continue
+		if err := uploadRunGlobalFile(ctx, persist, scope, fullPath, relPath); err != nil {
+			return storedTrace, err
 		}
-		putErr := persist.PutRunGlobal(ctx, blob.RunObjectRef{
-			SpaceID: scope.SpaceID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID,
-			RelPath: filepath.ToSlash(relPath),
-		}, f)
-		_ = f.Close()
-		if putErr != nil {
-			componentLog().Warn("upload run global put failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", putErr)
+		if relPath == traceKey {
+			storedTrace = traceKey
 		}
 	}
+	return storedTrace, nil
+}
+
+func uploadRunGlobalFile(ctx context.Context, persist blob.RunStorage, scope RunScope, fullPath, relPath string) error {
+	f, err := os.Open(fullPath)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", relPath, err)
+	}
+	defer func() { _ = f.Close() }()
+	if err := persist.PutRunGlobal(ctx, blob.RunObjectRef{
+		SpaceID: scope.SpaceID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID,
+		RelPath: relPath,
+	}, f); err != nil {
+		return fmt.Errorf("upload %s: %w", relPath, err)
+	}
+	return nil
 }
