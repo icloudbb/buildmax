@@ -131,28 +131,3 @@ func TestContinueTaskRecordsItsOwnMessage(t *testing.T) {
 		t.Errorf("source message = %v, want the incoming message %q", runs.Runs[0].SourceMessageID, stored[0].ID)
 	}
 }
-
-// A system turn has no task tools at all, so nothing it does can be attributed
-// to the message a runtime wrote.
-func TestSystemTurnCreatesNoAttributedWork(t *testing.T) {
-	const conversationID = "conv-1"
-	tasks := &mock.MockTaskStore{}
-	svc := &Service{
-		TaskService:       &task.Service{Tasks: tasks, TaskRuns: &mock.MockTaskRunStore{}},
-		ConversationStore: &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: conversationID, Channel: convchannel.ChannelPortal}}},
-		MessageStore:      &mock.MockConversationMessageStore{},
-		LLMClient:         &toolThenReplyClient{toolName: "StartTask", args: startTaskArgs(t, "do something")},
-	}
-
-	if _, err := svc.HandleTurn(context.Background(), HandleTurnCmd{
-		UserID:         "u1",
-		Channel:        convchannel.ChannelSystem,
-		Message:        "[Task Result] task_id: tk_1 | status: succeeded",
-		ConversationID: conversationID,
-	}); err != nil {
-		t.Fatalf("HandleTurn: %v", err)
-	}
-	if len(tasks.Created) != 0 {
-		t.Errorf("a system turn created %d tasks, want 0", len(tasks.Created))
-	}
-}

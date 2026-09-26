@@ -15,19 +15,14 @@ import (
 	"github.com/icloudbb/buildmax/internal/util"
 )
 
-func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
+func TestGetConversationMessagesHandler_HidesToolTraffic(t *testing.T) {
 	secret := "test-conversation-secret"
 	conversationID := "conv1"
 	spaceID := "tm_personal_u1"
-	channel := "system"
 	messageStore := &mock.MockConversationMessageStore{
 		Messages: []coreconv.Message{
 			{ID: "cm_1", ConversationID: conversationID, Role: "user", Content: "hello", CreatedAt: time.Unix(1, 0).UTC()},
 			{ID: "cm_tool", ConversationID: conversationID, Role: "tool", Content: "tool output", CreatedAt: time.Unix(2, 0).UTC()},
-			{ID: "cm_2", ConversationID: conversationID, Role: "system", Content: "[Task Result] internal", Channel: &channel, CreatedAt: time.Unix(2, 0).UTC()},
-			// What the runtime writes today: role "user" so the model replays it,
-			// system channel so the transcript knows the user did not type it.
-			{ID: "cm_task_result", ConversationID: conversationID, Role: "user", Content: "[Task Result] task_id: tk_1 | status: succeeded", Channel: &channel, CreatedAt: time.Unix(2, 0).UTC()},
 			{ID: "cm_3", ConversationID: conversationID, Role: "assistant", Content: "final reply", CreatedAt: time.Unix(3, 0).UTC()},
 		},
 	}
@@ -102,9 +97,9 @@ func TestListConversationsReturnsSpaceConversations(t *testing.T) {
 	}
 }
 
-// A conversation on a synthetic channel is one the server made and nobody
-// holds: the Portal renders it as agent-owned and the list hides it. A caller
-// that could name one would be creating a conversation it then cannot see.
+// A caller may name only a transport channel. Names that once meant a
+// server-made conversation are unknown now, and a chat platform's channel is
+// the channel gateway's to assign.
 func TestCreateConversationRejectsAChannelTheCallerMayNotClaim(t *testing.T) {
 	secret := "test-conversation-secret"
 	spaceID := "tm_personal_u1"

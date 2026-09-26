@@ -64,7 +64,7 @@ func spaceSwitchHint(channel string) string {
 	switch channel {
 	case convchannel.ChannelPortal, "":
 		return portal
-	case convchannel.ChannelWebhook, convchannel.ChannelSystem:
+	case convchannel.ChannelWebhook:
 		return ""
 	}
 	// Channels are lowercase platform ids ("telegram"); the prompt names the app.
@@ -98,7 +98,7 @@ type turnRunInput struct {
 // run these tools create records it, so the request a worker was given can be
 // compared with what the person actually asked for.
 func buildConversationTools(in turnRunInput, sourceMessageID *string) []llm.Tool {
-	if in.Channel == convchannel.ChannelSystem || in.TaskService == nil {
+	if in.TaskService == nil {
 		return nil
 	}
 	svc := in.TaskService
