@@ -39,7 +39,7 @@ Server 现在可以按运维配置的保留窗口清理旧 Run 轨迹，并记�
 状态的降级与恢复，以及只拒绝 worker 的对象存储写入——此时 Run 以 FAILED 结束，点明被拒绝
 的写入，且不留下指向缺失对象的记录。`buildmax-server storage verify` 现在为运维人员提供只读
 检查，确认数据库所指向的每个存活 Artifact、checkpoint 载荷、Run 轨迹和插件包都能在存储中解析，
-并可选按校验和比对。MySQL 范围会升级真实前序版本的 schema 与数据，当前为 0.2.0-alpha.14。
+并可选按校验和比对。MySQL 范围会升级真实前序版本的 schema 与数据，当前为 0.2.0-alpha.15。
 凭证轮换已有[操作手册](../deploy/credential-rotation.md)，并由 `./make kind drill rotation`
 在 kind 上演练：它轮换 JWT 密钥、数据库密码、对象存储密钥、托管模型密钥和 KEK，断言每个旧值
 都被拒绝，而会话、已存储数据和新运行不受影响；跨越 JWT 轮换的执行中运行被结算为 FAILED，是其
@@ -320,7 +320,7 @@ worker TaskRun 在领取后丢失时不会自动重新分发；这是首个 Beta
 第二次运行跳过，以及 Issue 与 Schedule 回填。当数据库账本记录了二进制不认识的迁移时，
 二进制会在任何 DDL 之前拒绝启动，除非设置了 `database.allow_newer_schema`；一个 MySQL 测试证明了
 这两种情况。0.2.0-alpha.15 及更早的二进制早于这项拒绝。另有一个 MySQL 范围测试升级真实的前序版本：
-它使用 0.2.0-alpha.14 server 镜像写下的 schema、台账和种子数据行的转储，位于
+它使用 0.2.0-alpha.15 server 镜像写下的 schema、台账和种子数据行的转储，位于
 `internal/infra/db/testdata/schema/`。该测试断言每个种子实体在候选版本的 `db.New` 之后仍然保留，
 发布流程会为每个候选版本的升级来源刷新该转储。发布准备在候选分支上触发的
 `./make compose upgrade-drill` 会在 Compose 中用已发布的来源镜像重复这次升级：它通过来源版本的 API

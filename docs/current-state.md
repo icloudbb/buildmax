@@ -71,7 +71,7 @@ FAILED with the refused write named and no record pointing at a missing object.
 `buildmax-server storage verify` now gives an operator a read-only check that
 every live artifact, checkpoint payload, run trace, and plugin package the
 database names resolves in storage, optionally by checksum. The MySQL scope
-upgrades a real predecessor's schema and data, currently 0.2.0-alpha.14.
+upgrades a real predecessor's schema and data, currently 0.2.0-alpha.15.
 Credential rotation has a [runbook](deploy/credential-rotation.md) rehearsed on
 kind by `./make kind drill rotation`, which rotates the JWT secret, database
 password, object-storage key, managed model key, and KEK and asserts each old
@@ -494,7 +494,7 @@ against a database whose ledger records a migration it does not know, before
 any DDL, unless `database.allow_newer_schema` is set; a MySQL test proves both.
 Binaries up to 0.2.0-alpha.15 predate the refusal. A MySQL-scope test also
 upgrades a real predecessor. It uses a dump of the schema, ledger, and seeded
-rows that the 0.2.0-alpha.14 server image wrote, in
+rows that the 0.2.0-alpha.15 server image wrote, in
 `internal/infra/db/testdata/schema/`. The test asserts that each seeded entity
 survives the candidate's `db.New`, and the release process refreshes the dump
 for each candidate's upgrade source. `./make compose upgrade-drill`, which
