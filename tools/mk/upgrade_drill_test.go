@@ -54,6 +54,38 @@ func TestReleaseVersionOrdersTheReleaseLine(t *testing.T) {
 	}
 }
 
+// TestRefusalThresholdAgainstNonAlphaTags pins the comparison for tags off the
+// alpha line: a stable release or a later minor is past the threshold, and an
+// earlier minor is before it.
+func TestRefusalThresholdAgainstNonAlphaTags(t *testing.T) {
+	since, err := parseReleaseVersion(newerSchemaRefusalSince)
+	if err != nil {
+		t.Fatalf("newerSchemaRefusalSince %q does not parse: %v", newerSchemaRefusalSince, err)
+	}
+	for tag, want := range map[string]rollbackExpectation{
+		"0.3.0":         expectRefusal,
+		"v0.3.0":        expectRefusal,
+		"0.3.0-alpha.1": expectRefusal,
+		"0.2.0":         expectRefusal,
+		"0.2.0-beta.1":  expectRefusal,
+		"1.0.0":         expectRefusal,
+		"0.1.9":         expectUnguarded,
+		"0.2.0-alpha.9": expectUnguarded,
+	} {
+		v, err := parseReleaseVersion(tag)
+		if err != nil {
+			t.Fatalf("%s: %v", tag, err)
+		}
+		if got := !v.less(since); got != (want == expectRefusal) {
+			t.Errorf("%s at or after %s = %v", tag, newerSchemaRefusalSince, got)
+		}
+		got, _, err := expectRollback(tag, []string{"a"}, []string{"a", "b"})
+		if err != nil || got != want {
+			t.Errorf("expectRollback(%s) = %v, %v; want %v", tag, got, err, want)
+		}
+	}
+}
+
 func TestExpectRollback(t *testing.T) {
 	source := []string{"a", "b"}
 	tests := []struct {

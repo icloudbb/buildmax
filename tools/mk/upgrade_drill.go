@@ -34,6 +34,10 @@ const upgradeDrillRecord = ".artifacts/upgrade-drill/result.md"
 // newerSchemaRefusalSince is the first release whose binary refuses a database
 // that records a migration it does not know. 0.2.0-alpha.15 and earlier
 // predate the refusal, so the drill cannot hold them to it.
+//
+// It is the release expected to follow 0.2.0-alpha.15 (#750 merged after that
+// tag). If the next release is numbered differently — 0.2.0-beta.1, 0.3.0 —
+// update this to that tag, or the drill misjudges sources around it.
 const newerSchemaRefusalSince = "0.2.0-alpha.16"
 
 // newerSchemaRefusal opens db.NewerSchemaError's message, which the drill
