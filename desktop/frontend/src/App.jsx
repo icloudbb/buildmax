@@ -2,16 +2,17 @@ import { compareRecent } from './lib/format';
 import { getApp } from './lib/app';
 import { HomeDashboard } from './components/HomeDashboard';
 import { CreateProjectModal, ConfirmModal } from './components/Modals';
-import { ProjectItem } from './components/ProjectItem';
+import { Sidebar } from './components/Sidebar';
 import { TerminalHost } from './components/TerminalHost';
 import { ChatSession } from './components/ChatSession';
 import { TabBar } from './components/TabBar';
-import { Explorer } from './components/Explorer';
 import { FileView } from './components/FileView';
 import { DiffView } from './components/DiffView';
 import BrowserView from './components/BrowserView';
 import { SchedulesView } from './components/SchedulesView';
 import { LaunchpadButton } from './components/LaunchpadButton';
+import { GridIcon, MoonIcon, SidebarIcon, SplitRightIcon, SunIcon } from './components/icons';
+import { readStored, writeStored } from './lib/storage';
 import { activeTab, tabIdentity } from './lib/tabs';
 import { withApproval, withoutApproval } from './lib/approvals';
 import {
@@ -22,13 +23,11 @@ import {
 } from './lib/panes';
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
-import { Avatar, ThemeProvider, useTheme } from '@buildmax/gui';
+import { ThemeProvider, useTheme } from '@buildmax/gui';
 import { EventsOn } from './lib/wailsRuntime';
 import LoginPage from './LoginPage';
 
-// Sidebar layout is a per-machine preference, remembered across runs. Storage
-// can be unavailable (private windows, cleared data), so every access is guarded
-// and falls back to the default.
+// Sidebar layout is a per-machine preference, remembered across runs.
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 480;
 const SIDEBAR_DEFAULT_WIDTH = 288;
@@ -38,23 +37,6 @@ const LS_SIDEBAR_WIDTH = 'bm.desktop.sidebarWidth';
 // pane grid the user last left; terminal tabs come back as fresh shells seeded
 // with their saved scrollback, since their PTYs do not survive a restart.
 const workspaceStorageKey = (projectId) => `bm.desktop.workspace.${projectId}`;
-
-function readStored(key, fallback) {
-  try {
-    const v = localStorage.getItem(key);
-    return v == null ? fallback : JSON.parse(v);
-  } catch {
-    return fallback;
-  }
-}
-
-function writeStored(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* storage may be unavailable; the preference just does not persist */
-  }
-}
 
 // A stable per-terminal key for snapshot persistence: it survives a restart in
 // the saved layout, so a reopened terminal reclaims its previous contents while
@@ -67,47 +49,6 @@ function clampSidebarWidth(w) {
   const n = Number(w);
   if (!Number.isFinite(n)) return SIDEBAR_DEFAULT_WIDTH;
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, n));
-}
-
-function SunIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-    </svg>
-  );
-}
-
-// GridIcon — tile tabs into a grid of panes.
-function GridIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="3" y="3" width="8" height="8" rx="1" />
-      <rect x="13" y="3" width="8" height="8" rx="1" />
-      <rect x="3" y="13" width="8" height="8" rx="1" />
-      <rect x="13" y="13" width="8" height="8" rx="1" />
-    </svg>
-  );
-}
-
-// SplitRightIcon — the split-right glyph, reused here for collapsing a grid
-// back into one pane. A single frame divided left from right reads cleaner than
-// a tab-strip drawing at this size.
-function SplitRightIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="3" y="3" width="18" height="18" rx="1" />
-      <path d="M12 3v18" />
-    </svg>
-  );
 }
 
 // Theme toggle lives in the workspace status bar, always visible while a project
@@ -154,10 +95,7 @@ export default function App() {
   const [projects, setProjects] = useState([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showAllProjects, setShowAllProjects] = useState(false);
   const [sessionFilter, setSessionFilter] = useState('');
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const userMenuRef = useRef(null);
 
   // The primary center view. 'workbench' is Home or a project workspace;
   // 'schedules' is the first-class Schedules surface reached from the sidebar.
@@ -170,7 +108,7 @@ export default function App() {
   // focused work; null means show the whole grid. It is a view overlay, not a
   // layout change — the grid is restored intact when it clears.
   const [maximizedPaneId, setMaximizedPaneId] = useState(null);
-  const [explorerMode, setExplorerMode] = useState('directory'); // 'directory' | 'changes'
+  const [explorerMode, setExplorerMode] = useState('files'); // 'files' | 'changes'
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     clampSidebarWidth(readStored(LS_SIDEBAR_WIDTH, SIDEBAR_DEFAULT_WIDTH)),
   );
@@ -191,23 +129,10 @@ export default function App() {
     window.addEventListener('mouseup', onUp);
   }, []);
 
-  const PROJECT_PAGE_SIZE = 10;
-
   // The project for the next new chat (set when user clicks + on a project,
   // cleared once a session is created). For existing sessions the project is
   // derived from session.workspace.
   const [newChatProject, setNewChatProject] = useState(null);
-
-  useEffect(() => {
-    if (!userMenuOpen) return;
-    function handleClickOutside(e) {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
-        setUserMenuOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [userMenuOpen]);
 
   // Group sessions by the project they belong to. Membership is recorded on the
   // session, not inferred from its folder: one project can span a repository's
@@ -794,6 +719,14 @@ export default function App() {
     }
   }
 
+  // Home is the no-project workbench: clearing the selection is what takes the
+  // center back to the dashboard.
+  function handleGoHome() {
+    setView('workbench');
+    setNewChatProject(null);
+    setSelectedId(null);
+  }
+
   function handleNewChatInProject(project) {
     setView('workbench');
     setProjectNotices([]);
@@ -1212,153 +1145,43 @@ export default function App() {
         )}
         <div className="shell__body">
 
-          <aside className="sidebar" aria-label="Sidebar" style={{ width: sidebarWidth }}>
-            <nav className="sidebar__nav" aria-label="Primary">
-              <button
-                type="button"
-                className={`sidebar__schedules${view === 'schedules' ? ' sidebar__schedules--active' : ''}`}
-                onClick={() => setView('schedules')}
-                aria-current={view === 'schedules' ? 'page' : undefined}
-              >
-                <span className="sidebar__schedules-icon" aria-hidden>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="9" />
-                    <path d="M12 7v5l3 2" />
-                  </svg>
-                </span>
-                <span>Schedules</span>
-              </button>
-              <div className="sidebar__projects-header">
-                <span className="sidebar__projects-label">Projects</span>
-                <div className="sidebar__projects-header-actions">
-                  <button
-                    type="button"
-                    className="sidebar__projects-collapse"
-                    onClick={() => setLeftCollapsed(true)}
-                    title="Collapse sidebar"
-                    aria-label="Collapse sidebar"
-                  >
-                    «
-                  </button>
-                  <button
-                    type="button"
-                    className="sidebar__projects-add"
-                    onClick={() => setShowCreateModal(true)}
-                    title="New Project"
-                    aria-label="New Project"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-              <div className="sidebar__session-search">
-                <input
-                  type="search"
-                  className="sidebar__session-search-input"
-                  value={sessionFilter}
-                  onChange={(e) => setSessionFilter(e.target.value)}
-                  placeholder="Search sessions"
-                  aria-label="Search sessions"
-                />
-              </div>
-
-              {projects.length === 0 ? (
-                <button
-                  type="button"
-                  className="sidebar__nav-item sidebar__projects-empty-btn"
-                  onClick={() => setShowCreateModal(true)}
-                >
-                  <span className="sidebar__nav-icon" aria-hidden>+</span>
-                  <span>New Project</span>
-                </button>
-              ) : (
-                <>
-                  {(showAllProjects ? projects : projects.slice(0, PROJECT_PAGE_SIZE)).map((proj) => (
-                    <ProjectItem
-                      key={proj.id}
-                      project={proj}
-                      sessions={sessionsByProject[proj.id] ?? []}
-                      isActive={currentProject?.id === proj.id}
-                      selectedSessionId={highlightSessionId}
-                      onSelectSession={handleSelectSession}
-                      onNewChat={() => handleNewChatInProject(proj)}
-                      onRename={handleRenameProject}
-                      onDelete={handleDeleteProject}
-                      onClearSessions={(projectSessions) => handleClearProjectSessions(proj, projectSessions)}
-                      onRenameSession={handleRenameSession}
-                      onDeleteSession={handleDeleteSession}
-                      onPinSession={handlePinSession}
-                    />
-                  ))}
-                  {!showAllProjects && projects.length > PROJECT_PAGE_SIZE && (
-                    <button
-                      type="button"
-                      className="sidebar__show-more"
-                      onClick={() => setShowAllProjects(true)}
-                    >
-                      Show {projects.length - PROJECT_PAGE_SIZE} more…
-                    </button>
-                  )}
-                </>
-              )}
-            </nav>
-
-            {currentProject && (
-              <Explorer
-                projectID={currentProject.id}
-                sessionID={focusedChatSessionId}
-                app={app}
-                mode={explorerMode}
-                onModeChange={setExplorerMode}
-                onOpenFile={openFileTab}
-                onOpenDiff={openDiffTab}
-              />
-            )}
-
-            <div className="sidebar__footer" ref={userMenuRef}>
-              <button
-                type="button"
-                className="sidebar__user-trigger"
-                onClick={() => setUserMenuOpen((v) => !v)}
-                aria-expanded={userMenuOpen}
-                aria-haspopup="menu"
-                aria-label="User menu"
-              >
-                <Avatar
-                  label={(authStatus.name?.trim() || authStatus.email || 'Local').slice(0, 1).toUpperCase()}
-                  size="sm"
-                />
-                <span className="sidebar__user-name">
-                  {localMode
-                    ? 'Local mode'
-                    : authStatus.name?.trim() || (authStatus.email ? authStatus.email.split('@')[0] : '')}
-                </span>
-              </button>
-              {userMenuOpen && (
-                <div className="sidebar__user-menu" role="menu">
-                  <div className="sidebar__user-menu-email">
-                    {localMode ? 'Models from settings.yaml' : authStatus.email}
-                  </div>
-                  {!localMode && authStatus.server_url && (
-                    <div className="sidebar__user-menu-server">Prompts go to {authStatus.server_url}</div>
-                  )}
-                  <div className="sidebar__user-menu-divider" />
-                  <button
-                    type="button"
-                    className="sidebar__user-menu-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (localMode) setSignInOpen(true);
-                      else handleLogout();
-                    }}
-                  >
-                    {localMode ? 'Sign in to a server' : 'Sign out'}
-                  </button>
-                </div>
-              )}
-            </div>
-          </aside>
+          <Sidebar
+            width={sidebarWidth}
+            view={view}
+            onHome={handleGoHome}
+            onSchedules={() => setView('schedules')}
+            projects={projects}
+            currentProject={currentProject}
+            sessionsByProject={sessionsByProject}
+            highlightSessionId={highlightSessionId}
+            sessionFilter={sessionFilter}
+            onSessionFilterChange={setSessionFilter}
+            onCreateProject={() => setShowCreateModal(true)}
+            projectActions={{
+              onSelectSession: handleSelectSession,
+              onNewChat: handleNewChatInProject,
+              onRename: handleRenameProject,
+              onDelete: handleDeleteProject,
+              onClearSessions: handleClearProjectSessions,
+              onRenameSession: handleRenameSession,
+              onDeleteSession: handleDeleteSession,
+              onPinSession: handlePinSession,
+            }}
+            explorer={{
+              app,
+              sessionID: focusedChatSessionId,
+              mode: explorerMode,
+              onModeChange: setExplorerMode,
+              onOpenFile: openFileTab,
+              onOpenDiff: openDiffTab,
+            }}
+            account={{
+              authStatus,
+              localMode,
+              onSignIn: () => setSignInOpen(true),
+              onSignOut: handleLogout,
+            }}
+          />
 
           <div
             className="sidebar-resizer"
@@ -1369,19 +1192,6 @@ export default function App() {
           />
 
           <main className="shell__main">
-            {leftCollapsed && (
-              <div className="shell__top">
-                <button
-                  type="button"
-                  className="shell__sidebar-toggle"
-                  onClick={() => setLeftCollapsed(false)}
-                  title="Show sidebar"
-                  aria-label="Show sidebar"
-                >
-                  ☰
-                </button>
-              </div>
-            )}
             <div className="shell__content">
               {(error || projectNotices.length > 0) && (
                 <div className="workspace-banners">
@@ -1440,6 +1250,16 @@ export default function App() {
                 workspace controls (new terminal, grid/tab) appear only with a
                 project open. */}
             <div className="workspace-statusbar">
+              <button
+                type="button"
+                className="workspace-statusbar__btn"
+                onClick={() => setLeftCollapsed((v) => !v)}
+                aria-pressed={!leftCollapsed}
+                title={leftCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+                aria-label={leftCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+              >
+                <span aria-hidden><SidebarIcon /></span>
+              </button>
               <span className="workspace-statusbar__status">
                 {view === 'schedules'
                   ? 'Schedules'

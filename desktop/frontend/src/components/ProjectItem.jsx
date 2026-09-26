@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatSessionMeta } from '../lib/format';
+import { Chevron, MoreIcon, PinIcon, PlusIcon } from './icons';
 
 export const SESSION_PAGE_SIZE = 10;
 
@@ -95,17 +96,18 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
 
   return (
     <div className="sidebar__project">
-      <div className={`sidebar__project-header ${isActive ? 'sidebar__project-header--active' : ''}`}>
+      <div className={`sidebar__row${isActive ? ' sidebar__row--current' : ''}`}>
         <button
           type="button"
-          className="sidebar__project-toggle"
+          className="sidebar__row-main"
           onClick={() => !renaming && setExpanded((e) => !e)}
+          aria-expanded={expanded}
           title={project.default_workspace}
         >
-          <span className="sidebar__project-chevron" aria-hidden>{expanded ? '▾' : '▸'}</span>
+          <span className="sidebar__row-icon"><Chevron open={expanded} /></span>
           {renaming ? (
             <input
-              className="sidebar__project-rename-input"
+              className="sidebar__rename-input"
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
               onBlur={submitRename}
@@ -114,28 +116,28 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
               autoFocus
             />
           ) : (
-            <span className="sidebar__project-name">{project.name}</span>
+            <span className="sidebar__row-label">{project.name}</span>
           )}
         </button>
 
-        <div className="sidebar__project-actions" ref={menuRef}>
+        <div className={`sidebar__row-actions${showMenu ? ' sidebar__row-actions--open' : ''}`} ref={menuRef}>
           <button
             type="button"
-            className="sidebar__project-action-btn"
+            className="sidebar__icon-btn"
             onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
             title="Project options"
             aria-label="Project options"
           >
-            ···
+            <MoreIcon />
           </button>
           <button
             type="button"
-            className="sidebar__project-new-chat"
+            className="sidebar__icon-btn"
             onClick={onNewChat}
             title="New Chat"
             aria-label={`New chat in ${project.name}`}
           >
-            +
+            <PlusIcon />
           </button>
 
           {showMenu && (
@@ -157,10 +159,13 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
       {expanded && (
         <div className="sidebar__project-body">
           {(showAllSessions ? sessions : sessions.slice(0, SESSION_PAGE_SIZE)).map((s) => (
-            <div key={s.id} className="sidebar__session-row">
+            <div
+              key={s.id}
+              className={`sidebar__row sidebar__row--nested${s.id === selectedSessionId ? ' sidebar__row--active' : ''}`}
+            >
               {renamingSessionId === s.id ? (
                 <input
-                  className="sidebar__session-rename-input"
+                  className="sidebar__rename-input"
                   value={sessionRenameValue}
                   onChange={(e) => setSessionRenameValue(e.target.value)}
                   onBlur={() => submitSessionRename(s)}
@@ -170,26 +175,31 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
               ) : (
                 <button
                   type="button"
-                  className={`sidebar__session-item ${s.id === selectedSessionId ? 'sidebar__session-item--active' : ''}`}
+                  className="sidebar__row-main"
                   onClick={() => onSelectSession(s.id)}
+                  aria-current={s.id === selectedSessionId ? 'true' : undefined}
                   title={s.title || 'Chat'}
                 >
-                  <span className="sidebar__session-title">{s.pinned ? '★ ' : ''}{s.title?.trim() || 'Chat'}</span>
-                  <span className="sidebar__session-meta">{formatSessionMeta(s.created_at)}</span>
+                  {s.pinned && <span className="sidebar__row-pin" aria-label="Pinned"><PinIcon /></span>}
+                  <span className="sidebar__row-label">{s.title?.trim() || 'Chat'}</span>
+                  <span className="sidebar__row-meta">{formatSessionMeta(s.created_at)}</span>
                 </button>
               )}
-              <div className="sidebar__session-actions" ref={sessionMenuId === s.id ? sessionMenuRef : null}>
+              <div
+                className={`sidebar__row-actions${sessionMenuId === s.id ? ' sidebar__row-actions--open' : ''}`}
+                ref={sessionMenuId === s.id ? sessionMenuRef : null}
+              >
                 <button
                   type="button"
-                  className="sidebar__session-action-btn"
+                  className="sidebar__icon-btn"
                   onClick={(e) => { e.stopPropagation(); setSessionMenuId((id) => id === s.id ? null : s.id); }}
                   title="Session options"
                   aria-label="Session options"
                 >
-                  ···
+                  <MoreIcon />
                 </button>
                 {sessionMenuId === s.id && (
-                  <div className="context-menu context-menu--session" role="menu">
+                  <div className="context-menu" role="menu">
                     <button type="button" className="context-menu__item" role="menuitem" onClick={() => handleSessionPin(s)}>
                       {s.pinned ? 'Unpin' : 'Pin'}
                     </button>
@@ -207,7 +217,7 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
           {!showAllSessions && sessions.length > SESSION_PAGE_SIZE && (
             <button
               type="button"
-              className="sidebar__show-more"
+              className="sidebar__row sidebar__row--nested sidebar__row--more"
               onClick={() => setShowAllSessions(true)}
             >
               Show {sessions.length - SESSION_PAGE_SIZE} more…

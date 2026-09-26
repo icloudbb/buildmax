@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { splitPathForDisplay, statusGlyph, truncateMiddleText } from '../lib/format';
 
-// ExplorerChanges is the Changes mode of the Explorer sidebar: the workspace's
+// ExplorerChanges is the Changes mode of the project section: the workspace's
 // modified files as a flat list whose clicks open a diff tab in the center.
 export function ExplorerChanges({ projectID, sessionID, app, onOpenDiff }) {
   const [state, setState] = useState({ loading: true });
@@ -31,18 +31,16 @@ export function ExplorerChanges({ projectID, sessionID, app, onOpenDiff }) {
           <button
             key={`${f.status}:${f.path}`}
             type="button"
-            className="diff-drawer__file"
+            className="explorer__change"
             onClick={() => onOpenDiff(f.path)}
             onDoubleClick={() => onOpenDiff(f.path, true)}
             title={f.path}
           >
-            <span className={`diff-drawer__status diff-drawer__status--${f.status}`}>{statusGlyph(f.status)}</span>
-            <span className="diff-drawer__file-path">
-              {parts.dir && <span className="diff-drawer__file-dir">{truncateMiddleText(parts.dir, 24)}</span>}
-              <span className="diff-drawer__file-name">{truncateMiddleText(parts.name, 30)}</span>
-            </span>
+            <span className={`explorer__change-status diff-drawer__status--${f.status}`}>{statusGlyph(f.status)}</span>
+            <span className="explorer__change-name">{truncateMiddleText(parts.name, 30)}</span>
+            {parts.dir && <span className="explorer__change-dir">{parts.dir}</span>}
             {(f.additions > 0 || f.deletions > 0) && (
-              <span className="diff-drawer__counts">+{f.additions} -{f.deletions}</span>
+              <span className="explorer__change-counts">+{f.additions} -{f.deletions}</span>
             )}
           </button>
         );

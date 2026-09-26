@@ -1,3 +1,5 @@
+import { Chevron, FileIcon, FolderIcon } from './icons';
+
 // DirTree renders a lazily-expanded workspace directory tree from the state a
 // useWorkspaceDir hook holds. It is presentational: clicking a directory calls
 // toggleDir; a single file click calls onFileClick(path) (preview) and a
@@ -28,8 +30,8 @@ export function DirTree({ byDir, expanded, toggleDir, onFileClick, onFileOpen, a
             role="button"
             title={e.path}
           >
-            <span className="file-tree__caret" aria-hidden>{e.is_dir ? (open ? '▾' : '▸') : ''}</span>
-            <span className="file-tree__icon" aria-hidden>{e.is_dir ? '📁' : '📄'}</span>
+            <span className="file-tree__caret" aria-hidden>{e.is_dir && <Chevron open={open} />}</span>
+            <span className="file-tree__icon" aria-hidden>{e.is_dir ? <FolderIcon /> : <FileIcon />}</span>
             <span className="file-tree__name">{e.name}</span>
           </div>
           {open && renderEntries(e.path, depth + 1)}

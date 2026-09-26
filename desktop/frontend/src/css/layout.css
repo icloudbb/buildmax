@@ -54,17 +54,6 @@
   background: var(--color-bg);
 }
 
-.shell__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0;
-  padding-bottom: 0.65rem;
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
 .shell__content {
   flex: 1;
   min-height: 0;

@@ -1,6 +1,12 @@
-/* Sidebar — Project tree + sessions */
+/* Sidebar: three layers, one look each (see docs/contribute/architecture/desktop.md).
+   Destinations (Home, Schedules) and every tree row share .sidebar__row; the
+   Projects list and the active project's section share one section header.
+   Selection is a fill, never a border, so nesting lines and markers cannot
+   collide. */
 
 .sidebar {
+  --sidebar-row-h: 28px;
+  --sidebar-indent: 24px;
   width: 18rem;
   flex-shrink: 0;
   align-self: stretch;
@@ -10,202 +16,342 @@
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-}
-
-.sidebar__nav {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0.5rem 0;
-}
-
-/* Projects section header row */
-
-.sidebar__projects-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.25rem 0.75rem 0.25rem 1rem;
-  margin-bottom: 0.1rem;
-}
-
-.sidebar__projects-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-subtle);
-}
-
-.sidebar__projects-add {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.4rem;
-  height: 1.4rem;
-  border: none;
-  border-radius: 4px;
-  background: none;
-  font-size: 1rem;
-  line-height: 1;
-  color: var(--color-text-subtle);
-  cursor: pointer;
-  padding: 0;
-}
-
-.sidebar__projects-add:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text);
-}
-
-.sidebar__session-search {
-  padding: 0.15rem 0.75rem 0.45rem 1rem;
-}
-
-.sidebar__session-search-input {
-  width: 100%;
-  padding: 0.32rem 0.5rem;
-  border: 1px solid var(--color-input-border);
-  border-radius: 5px;
-  background: var(--color-input-bg);
-  color: var(--color-text);
-  font: inherit;
   font-size: 0.82rem;
 }
 
-.sidebar__session-search-input:focus {
+.shell--left-collapsed .sidebar {
+  display: none;
+}
+
+.sidebar .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Destinations */
+
+.sidebar__destinations {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0.5rem 0 0.25rem;
+}
+
+/* Sections */
+
+.sidebar__projects {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sidebar__projects--fill {
+  flex: 1 1 auto;
+}
+
+.sidebar__projects--closed {
+  flex: 0 0 auto;
+}
+
+.sidebar__section-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: var(--sidebar-row-h);
+  padding: 0 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.sidebar__section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  height: 22px;
+  padding: 0 0.25rem;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+}
+
+.sidebar__section-toggle:hover {
+  color: var(--color-text);
+}
+
+.sidebar__section-toggle .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.sidebar__section-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar__section-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sidebar__section-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 0.25rem;
+}
+
+.sidebar__split {
+  flex-shrink: 0;
+  height: 5px;
+  margin-top: 2px;
+  border-top: 1px solid var(--color-border);
+  cursor: row-resize;
+}
+
+.sidebar__split:hover {
+  border-top-color: var(--color-text-subtle);
+}
+
+.sidebar__search {
+  flex-shrink: 0;
+  padding: 0 0.85rem 0.35rem;
+}
+
+.sidebar__search-input {
+  width: 100%;
+  height: 26px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: 6px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.sidebar__search-input:focus {
   outline: none;
   border-color: var(--color-text-muted);
 }
 
-/* Empty state button when no projects */
+/* Rows. A row is either one button (.sidebar__row.sidebar__row-main) or a
+   container holding the main button plus hover actions. */
 
-.sidebar__projects-empty-btn {
+.sidebar__row {
+  flex-shrink: 0;
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  width: calc(100% - 1rem);
-  margin: 0 0.5rem;
-  padding: 0.45rem 0.75rem;
-  border: none;
+  min-width: 0;
+  height: var(--sidebar-row-h);
+  margin: 0 6px;
   border-radius: 6px;
-  background: none;
-  text-align: left;
-  font: inherit;
-  font-size: 0.88rem;
-  color: var(--color-text-subtle);
-  cursor: pointer;
+  color: var(--color-text-muted);
 }
 
-.sidebar__projects-empty-btn:hover {
+.sidebar__row:hover {
   background: var(--color-bg-hover);
   color: var(--color-text);
 }
 
-/* Project item */
+.sidebar__row--active {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+/* The project that owns the open workspace: named, not filled, since the fill
+   belongs to the session it is showing. */
+.sidebar__row--current {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.sidebar__row-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* A one-button row (destinations, the empty-state entry) keeps the row's
+   metrics rather than stretching like the main button inside a row container. */
+.sidebar__row.sidebar__row-main {
+  flex: 0 0 auto;
+  width: auto;
+  height: var(--sidebar-row-h);
+}
+
+.sidebar__row-main:focus-visible,
+.sidebar__icon-btn:focus-visible,
+.sidebar__section-toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.sidebar__row--nested .sidebar__row-main {
+  padding-left: calc(8px + var(--sidebar-indent));
+}
+
+.sidebar__row-icon {
+  display: flex;
+  color: var(--color-text-subtle);
+}
+
+.sidebar__row--active .sidebar__row-icon,
+.sidebar__row:hover .sidebar__row-icon {
+  color: var(--color-text);
+}
+
+.sidebar__row-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar__row-pin {
+  display: flex;
+  color: var(--color-text-subtle);
+}
+
+.sidebar__row-pin .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.sidebar__row-meta {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-text-subtle);
+}
+
+/* Actions sit over the row's end and replace its meta on hover or focus. */
+.sidebar__row-actions {
+  flex-shrink: 0;
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+  position: relative;
+}
+
+.sidebar__row:hover .sidebar__row-actions,
+.sidebar__row:focus-within .sidebar__row-actions,
+.sidebar__row-actions--open {
+  display: flex;
+}
+
+.sidebar__row:hover .sidebar__row-meta,
+.sidebar__row:focus-within .sidebar__row-meta {
+  display: none;
+}
+
+.sidebar__row--more {
+  padding: 0 8px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--color-text-subtle);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar__row--nested.sidebar__row--more {
+  padding-left: calc(8px + var(--sidebar-indent));
+}
+
+.sidebar__icon-btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+}
+
+.sidebar__icon-btn .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.sidebar__icon-btn:hover,
+.sidebar__icon-btn[aria-pressed="true"] {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.sidebar__row .sidebar__icon-btn:hover {
+  background: var(--color-bg-muted);
+}
+
+.sidebar__rename-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  margin-right: 4px;
+  padding: 0 0.35rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: 4px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.sidebar__row--nested > .sidebar__rename-input {
+  margin-left: calc(8px + var(--sidebar-indent));
+}
+
+.sidebar__rename-input:focus {
+  outline: none;
+  border-color: var(--color-text-muted);
+}
 
 .sidebar__project {
   display: flex;
   flex-direction: column;
+  gap: 1px;
 }
 
-.sidebar__project-header {
+.sidebar__project-body {
   display: flex;
-  align-items: center;
-  border-left: 3px solid transparent;
-  font-size: 0.88rem;
-  font-weight: 500;
-  color: var(--color-text);
-}
-
-.sidebar__project-header:hover {
-  background: var(--color-bg-hover);
-}
-
-.sidebar__project-header:hover .sidebar__project-new-chat {
-  opacity: 1;
-}
-
-.sidebar__project-header--active {
-  border-left-color: var(--color-text);
-  font-weight: 600;
-}
-
-.sidebar__project-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex: 1;
-  min-width: 0;
-  padding: 0.4rem 0.25rem 0.4rem 0.75rem;
-  border: none;
-  background: none;
-  text-align: left;
-  font: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-
-.sidebar__project-chevron {
-  flex-shrink: 0;
-  font-size: 0.7rem;
-  width: 0.9rem;
-  text-align: center;
-  color: var(--color-text-subtle);
-}
-
-.sidebar__project-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  flex: 1;
-}
-
-/* Action icon group (··· and +) — shown on row hover */
-
-.sidebar__project-actions {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.1rem;
-  margin-right: 0.4rem;
-  position: relative;
-}
-
-.sidebar__project-action-btn,
-.sidebar__project-new-chat {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border: none;
-  border-radius: 4px;
-  background: none;
-  font-size: 0.78rem;
-  letter-spacing: 0.05em;
-  line-height: 1;
-  color: var(--color-text-subtle);
-  cursor: pointer;
-  padding: 0;
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-.sidebar__project-new-chat {
-  font-size: 1rem;
-}
-
-.sidebar__project-action-btn:hover,
-.sidebar__project-new-chat:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text);
-  opacity: 1;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 2px;
 }
 
 /* Context menu */
@@ -221,10 +367,6 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
   min-width: 9rem;
   padding: 0.25rem;
-}
-
-.context-menu--session {
-  top: 1.25rem;
 }
 
 .context-menu__item {
@@ -253,163 +395,11 @@
   background: rgba(224, 64, 64, 0.08);
 }
 
-/* Inline rename input */
-
-.sidebar__project-rename-input {
-  flex: 1;
-  min-width: 0;
-  padding: 0.05rem 0.3rem;
-  border: 1px solid var(--color-input-border);
-  border-radius: 3px;
-  background: var(--color-input-bg);
-  color: var(--color-text);
-  font: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-}
-
-.sidebar__project-rename-input:focus {
-  outline: none;
-  border-color: var(--color-text-muted);
-}
-
-/* Sessions listed under a project */
-
-.sidebar__project-body {
-  display: flex;
-  flex-direction: column;
-  padding-left: 1.25rem;
-  border-left: 1px solid var(--color-border);
-  margin-left: 1.25rem;
-  margin-bottom: 0.25rem;
-}
-
-.sidebar__session-row {
-  display: flex;
-  align-items: center;
-  position: relative;
-}
-
-.sidebar__session-item {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-  width: 100%;
-  padding: 0.3rem 0.75rem;
-  border: none;
-  border-left: 2px solid transparent;
-  border-radius: 0 5px 5px 0;
-  background: none;
-  text-align: left;
-  font: inherit;
-  font-size: 0.84rem;
-  color: var(--color-text-subtle);
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.sidebar__session-item:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text);
-}
-
-.sidebar__session-item--active {
-  background: var(--color-bg-hover);
-  border-left-color: var(--color-text);
-  color: var(--color-text);
-  font-weight: 500;
-}
-
-.sidebar__session-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  flex: 1;
-}
-
-.sidebar__session-meta {
-  flex-shrink: 0;
-  font-size: 0.74rem;
-  color: var(--color-text-subtle);
-}
-
-.sidebar__session-actions {
-  flex-shrink: 0;
-  position: relative;
-  margin-right: 0.2rem;
-}
-
-.sidebar__session-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.3rem;
-  height: 1.3rem;
-  border: none;
-  border-radius: 4px;
-  background: none;
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  color: var(--color-text-subtle);
-  cursor: pointer;
-  opacity: 0;
-}
-
-.sidebar__session-row:hover .sidebar__session-action-btn,
-.sidebar__session-action-btn:hover {
-  opacity: 1;
-}
-
-.sidebar__session-action-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text);
-}
-
-.sidebar__session-rename-input {
-  flex: 1;
-  min-width: 0;
-  margin: 0.15rem 0.25rem 0.15rem 0;
-  padding: 0.24rem 0.45rem;
-  border: 1px solid var(--color-input-border);
-  border-radius: 4px;
-  background: var(--color-input-bg);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.84rem;
-}
-
-.sidebar__session-rename-input:focus {
-  outline: none;
-  border-color: var(--color-text-muted);
-}
-
-/* Show more button */
-
-.sidebar__show-more {
-  display: block;
-  width: calc(100% - 1rem);
-  margin: 0.1rem 0.5rem;
-  padding: 0.3rem 0.75rem;
-  border: none;
-  border-radius: 5px;
-  background: none;
-  text-align: left;
-  font: inherit;
-  font-size: 0.82rem;
-  color: var(--color-text-subtle);
-  cursor: pointer;
-}
-
-.sidebar__show-more:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text);
-}
-
 /* Footer */
 
 .sidebar__footer {
   flex-shrink: 0;
+  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;

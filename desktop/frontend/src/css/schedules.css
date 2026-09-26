@@ -1,4 +1,4 @@
-/* The Schedules surface (SchedulesView) and its sidebar entry. Reuses the same
+/* The Schedules surface (SchedulesView). Reuses the same
    design tokens as the Home dashboard so the two full-panel views read alike. */
 
 .page-schedules {
@@ -422,35 +422,4 @@
 .schedule-run-chat .page-chat {
   flex: 1;
   min-height: 0;
-}
-
-/* Sidebar entry: a first-class nav item above the Projects list. */
-.sidebar__schedules {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.5rem 0.6rem;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.9rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.sidebar__schedules:hover {
-  background: var(--color-surface-hover, rgba(127, 127, 127, 0.1));
-}
-
-.sidebar__schedules--active {
-  background: var(--color-surface-active, rgba(127, 127, 127, 0.16));
-  font-weight: 500;
-}
-
-.sidebar__schedules-icon {
-  flex-shrink: 0;
-  opacity: 0.8;
 }

@@ -170,11 +170,17 @@ project has at most one unadopted new chat; the tab strip's `+` starts it. Chat
 and terminal tabs can be renamed: a chat renames its session, a terminal only
 its tab.
 
-The Explorer sidebar section indexes the project's workspace and only browses.
-**Directory** lists the tree one level at a time (`ListWorkspaceDir`, `.git`
-hidden); **Changes** lists the workspace diff (`GetWorkspaceDiff`). A single
-click opens a preview file or diff tab, which the next browse click replaces; a
-double-click opens a pinned one.
+The sidebar (`desktop/frontend/src/components/Sidebar.jsx`) has three layers
+with one look each: destinations (Home and Schedules), sections (Projects, then
+the open project's own section), and rows. Selection marks what the center
+shows, so Home or Schedules clears the session highlight. The project section
+exists only while a project workspace is the center view; its header names the
+project, and its height against the Projects list is drag-resizable and
+remembered per machine. It indexes the project's workspace and only browses, in
+one of two modes chosen by icon buttons: **Files** lists the tree one level at a
+time (`ListWorkspaceDir`, `.git` hidden); **Changes** lists the workspace diff
+(`GetWorkspaceDiff`). A single click opens a preview file or diff tab, which the
+next browse click replaces; a double-click opens a pinned one.
 
 `desktop/frontend/src/lib/panes.js` lays the tabs out as rows of panes, each
 pane a `tabs.js` state. The focused pane receives newly opened tabs. Split right
@@ -184,7 +190,8 @@ it to another pane or reorders it within a strip, and a pane emptied by the move
 is removed. Tile spreads every tab into its own pane in a near-square grid of at
 most three columns; collapse gathers them back into one pane. Panes are
 separated by visible dividers but cannot be resized by dragging; the sidebar
-width is the only drag-resizable split in the workbench.
+width, and the project section's height within it, are the only drag-resizable
+splits in the workbench.
 
 A terminal keeps its emulator across tab switches, pane moves, tiling, and
 project switches. `TerminalHost` portals each xterm into its own host element
@@ -255,9 +262,9 @@ session of the project.
 A browser tab shows a read-only live view of the Agent's browser page for one
 session, rendered from the `desktop/browser/frame` screencast.
 
-The status bar is global: on Home and in a project it holds the Launchpad and
-the theme toggle, and with a project open it adds new-terminal and grid/tab
-controls. The Launchpad is a list of quick-launch entries -- an application,
+The status bar is global: on Home and in a project it holds the sidebar
+toggle, which both hides and shows the sidebar, the Launchpad, and the theme
+toggle, and with a project open it adds new-terminal and grid/tab controls. The Launchpad is a list of quick-launch entries -- an application,
 executable, document, or URL, with optional arguments -- stored in
 `<BUILDMAX_HOME>/launchpad.json` by `internal/infra/locallaunchpadstore`. Entries
 are global rather than per project. `LaunchEntry` hands the target to the

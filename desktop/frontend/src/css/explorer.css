@@ -1,68 +1,118 @@
-/* Explorer sidebar section (see docs/contribute/architecture/desktop.md): a
-   project-scoped index of the workspace with Directory and Changes modes. It
-   sits below Projects in the sidebar and only browses — clicks open center
-   tabs. */
+/* The active project's sidebar section (see docs/contribute/architecture/desktop.md):
+   a project-scoped index of the workspace with Files and Changes modes. It uses
+   the shared section header and row metrics from sidebar.css and only browses —
+   clicks open center tabs. */
 
 .explorer {
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--color-border);
 }
 
-.explorer__header {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.4rem 0.6rem;
-}
-
-.explorer__label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted, #888);
+.explorer .sidebar__section-header {
+  margin-top: 0;
 }
 
 .explorer__modes {
   display: flex;
-  gap: 1px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.explorer__mode-btn {
-  border: none;
-  background: transparent;
-  color: var(--color-text-subtle);
-  font-size: 0.7rem;
-  padding: 0.1rem 0.45rem;
-  cursor: pointer;
-}
-
-.explorer__mode-btn--active {
-  background: var(--color-bg-hover);
-  color: var(--color-text);
+  gap: 2px;
 }
 
 .explorer__body {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  padding-bottom: 0.25rem;
 }
 
 .explorer__tree,
 .explorer__changes {
-  padding: 0.25rem 0;
-}
-
-.explorer__changes {
   display: flex;
   flex-direction: column;
+  gap: 1px;
+}
+
+.explorer .file-tree__row {
+  height: var(--sidebar-row-h);
+  margin: 0 6px;
+  padding-top: 0;
+  padding-bottom: 0;
+  gap: 4px;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+}
+
+.explorer .file-tree__row:hover {
+  color: var(--color-text);
+}
+
+.explorer .file-tree__caret,
+.explorer .file-tree__icon {
+  display: flex;
+  width: 14px;
+  color: var(--color-text-subtle);
+}
+
+.explorer .file-tree__caret .icon,
+.explorer .file-tree__icon .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.explorer__change {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: var(--sidebar-row-h);
+  margin: 0 6px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.explorer__change:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.explorer__change-status {
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.explorer__change-name {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.explorer__change-dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  color: var(--color-text-subtle);
+}
+
+.explorer__change-counts {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  color: var(--color-text-subtle);
 }
 
 .explorer__hint {
