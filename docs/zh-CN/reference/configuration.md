@@ -738,6 +738,44 @@ Server 决定传输方式和模型；worker 从不自行选择模型，除此之
 - `worker.llm.model` 指定一个目录中没有的模型，会导致 **server 在启动时停止**，与 `llm.default_model` 的处理方式相同。这样的配置本可以顺利解析通过，却会让每次运行的第一次模型调用都失败。
 - Run token 不可续期。`run_token_ttl` 必须长于你最长的一次运行；超出该时长的运行会失去其剩余的模型调用能力。
 
+### 轮换密钥加密密钥 —— `buildmax-server secret rewrap`
+
+Space Secret 的值和受管模型凭证都由 `secret.kek_file` 所指文件中的密钥加密密钥（KEK）加密。该文件保存一组密钥，并指明新写入使用哪一个：
+
+```json
+{
+  "current": "file:root:2",
+  "keys": {
+    "file:root:1": "<base64 of 32 random bytes>",
+    "file:root:2": "<base64 of 32 random bytes>"
+  }
+}
+```
+
+每个存储的数据行都记录了封装它的是哪个密钥，因此同时持有两个密钥的文件可以读取所有数据行。要退役一个密钥——无论是按计划，还是因为它可能已经泄露：
+
+1. **添加新密钥。** 用 `openssl rand -base64 32` 生成一个，以新的 id `file:<name>:<version>` 加入文件，`current` 保持不变。
+2. **滚动发布。** 下发文件并重启每个 server。此后每个副本都能读取两个密钥下的数据行。
+3. **切换 `current`** 到新的密钥 id。
+4. **再次滚动发布。** 此后每个副本都在新密钥下写入。分两次发布而不是一次编辑，可以避免仍在使用旧文件的副本遇到它读不了的数据行；单副本部署可以把第 1–4 步合并。
+5. **Rewrap。** 在能访问 server 的 `server.yaml`、密钥文件和数据库的地方运行 `buildmax-server secret rewrap`。它会在 `current` 下重新封装每一行的数据密钥，不解密任何值、分批进行、server 持续服务；可以安全地中断并重新运行。
+6. **验证。** 命令最后会列出文件中每个密钥仍在保护的行数：
+
+   ```text
+   rewrapped 14 rows from file:root:1 to file:root:2
+
+   rows by key:
+     file:root:1  0 (no row uses it; it can be removed from the key file)
+     file:root:2  14 (current)
+   ```
+
+   旧密钥的计数不为零，说明仍在使用旧 `current` 的副本在 rewrap 处理过之后又写入了数据行；等第 4 步的滚动发布完成后再运行一次 `rewrap`。
+7. **从 `keys` 中移除旧密钥**并滚动发布。把退役的密钥保存在存放 KEK 备份的地方，与数据库备份分开：rewrap 之前的数据库备份仍然需要它。
+
+只要有任何存储的数据行引用了文件中没有的密钥，server 就会拒绝启动，错误中会写明该密钥及其行数——因此过早移除密钥会让滚动发布在旧副本继续服务的情况下停滞，把密钥放回即可恢复。当存在密封数据但未配置 `secret.kek_file` 时，server 也会以同样的方式拒绝启动。
+
+Rewrap 保护的是：泄露的 KEK 遇到*之后*的数据库副本时，数据行依然安全。它不会更换数据密钥，因此如果某份旧的数据库副本可能与旧 KEK 一起泄露，还要轮换凭证本身：编辑 Space Secret 或运行 `buildmax-server model set-key`，会在一个全新的数据密钥下重新密封该值。
+
 ## 数据目录结构
 
 ```text

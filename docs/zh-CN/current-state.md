@@ -342,6 +342,8 @@ service、handler、provider fake 与真实 MySQL 覆盖。固定的真实 Okta 
 `buildmax admin` 提供经过身份认证的管理员、账号和模型目录操作；
 `buildmax-server` 保留直连数据库的引导与恢复命令。
 模型凭证由部署级密钥加密；未配置加密时拒绝存储带凭证的模型。
+`buildmax-server secret rewrap` 把已存储的数据密钥重新封装到当前 KEK 下；
+只要有数据行引用密钥文件中没有的 KEK，server 就拒绝启动。KEK 轮换演练尚未进行。
 Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，采用 Run 级授权。
 这些实现不能将已投递的 Secret 与消费它的 worker 进程隔离。
 

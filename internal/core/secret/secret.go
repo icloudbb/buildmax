@@ -122,9 +122,8 @@ type CreateInput struct {
 	Sealed      Sealed
 }
 
-// UpdateItemsInput replaces a Secret's items -- an edit or a KEK rewrap. A
-// rewrap passes the same ItemNames with a re-sealed blob; an edit passes both
-// anew. The row is rewritten whole, which is what makes rotation atomic.
+// UpdateItemsInput replaces a Secret's items and item names. The row is
+// rewritten whole, which is what makes rotation atomic.
 type UpdateItemsInput struct {
 	ID        string
 	ItemNames []string
@@ -141,8 +140,8 @@ type Store interface {
 	CreateSecret(ctx context.Context, in CreateInput) (*Secret, error)
 	GetSecret(ctx context.Context, id string) (*Secret, error)
 	ListSecretsBySpace(ctx context.Context, spaceID string) ([]Secret, error)
-	// GetSealed returns metadata and the sealed items for materialization or
-	// rewrap. It refuses a destroyed Secret.
+	// GetSealed returns metadata and the sealed items for materialization. It
+	// refuses a destroyed Secret.
 	GetSealed(ctx context.Context, id string) (*Secret, *Sealed, error)
 	UpdateItems(ctx context.Context, in UpdateItemsInput) (*Secret, error)
 	SetState(ctx context.Context, id string, state State) (*Secret, error)

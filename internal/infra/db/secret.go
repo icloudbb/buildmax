@@ -161,7 +161,7 @@ func (s *Store) ListSecretsBySpace(ctx context.Context, spaceID string) ([]cores
 }
 
 // GetSealed returns a Secret's metadata and its sealed items, for
-// materialization or a KEK rewrap. A missing Secret yields nil; a destroyed one
+// materialization. A missing Secret yields nil; a destroyed one
 // is refused with ErrNotFound -- the row still exists for audit, but its
 // material is cryptographically gone, so this is a deliberate state refusal
 // rather than a missing row.
@@ -186,8 +186,9 @@ func (s *Store) GetSealed(ctx context.Context, id string) (*coresecret.Secret, *
 	return toSecret(&r), sealed, nil
 }
 
-// UpdateItems rewrites a Secret's sealed items and item names as one row --
-// an item edit or a KEK rewrap. A destroyed Secret is refused.
+// UpdateItems rewrites a Secret's sealed items and item names as one row. A
+// destroyed Secret is refused. A KEK rotation does not come through here: it
+// re-wraps the DEK alone (RewrapSealedKeys).
 func (s *Store) UpdateItems(ctx context.Context, in coresecret.UpdateItemsInput) (*coresecret.Secret, error) {
 	err := s.db.WithContext(ctx).Model(&secretRow{}).
 		Where("public_id = ? AND state <> ?", in.ID, string(coresecret.StateDestroyed)).

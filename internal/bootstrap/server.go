@@ -110,7 +110,15 @@ func RunServer(ctx context.Context, portOverride int) error {
 		return err
 	}
 
-	serverConfig, err := buildHTTPServerConfig(port, jwtSecret, sc, workspacesDir, store, storage)
+	// A KEK that will not load, or a key file missing a key stored rows still
+	// name, fails startup rather than leaving those values silently unreadable
+	// -- see docs/design/space-secrets.md §9.1.
+	kek, err := loadDeploymentKEK(ctx, sc.Secret.KEKFile, store)
+	if err != nil {
+		return fmt.Errorf("secret store: %w", err)
+	}
+
+	serverConfig, err := buildHTTPServerConfig(port, jwtSecret, sc, workspacesDir, store, storage, kek)
 	if err != nil {
 		return err
 	}
@@ -522,7 +530,7 @@ func buildOptionalS3Client(ctx context.Context, wsCfg config.WorkspaceStorageCon
 	return s3Client, nil
 }
 
-func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, workspacesDir string, st *db.Store, storage blobStorage) (httpserver.Config, error) {
+func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, workspacesDir string, st *db.Store, storage blobStorage, kek infrasecret.KEKProvider) (httpserver.Config, error) {
 	pluginService := &pluginsvc.Service{
 		Catalog:     st,
 		Activations: st,
@@ -544,16 +552,10 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		// without anyone having to notice a 429 in a log.
 		Audit: st,
 	}
-	// The Space Secret feature is on only when a KEK file is configured. When it
-	// is, a KEK that will not load fails startup rather than leaving the values
-	// silently unreadable -- see docs/design/space-secrets.md §9.1.
+	// The Space Secret feature is on only when a KEK file is configured.
 	var secretStore coresecret.Store
 	var secretService *secretsvc.Service
-	if sc.Secret.KEKFile != "" {
-		kek, err := infrasecret.LoadKEKFile(sc.Secret.KEKFile)
-		if err != nil {
-			return httpserver.Config{}, fmt.Errorf("secret store: %w", err)
-		}
+	if kek != nil {
 		cipher := infrasecret.NewCipher(kek)
 		secretStore = st
 		secretService = &secretsvc.Service{Store: st, Sealer: cipher}

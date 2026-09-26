@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 )
 
 // kekFileProvider is the default KEK backend: a set of KEKs loaded from a file
@@ -116,4 +117,17 @@ func (p *kekFileProvider) Unwrap(wrapped []byte, keyID string) ([]byte, error) {
 		return nil, fmt.Errorf("secret: unwrap under KEK %q: %w", keyID, err)
 	}
 	return dek, nil
+}
+
+// CurrentKeyID names the KEK new wraps use.
+func (p *kekFileProvider) CurrentKeyID() string { return p.current }
+
+// KeyIDs lists the file's keys, sorted so a report is stable.
+func (p *kekFileProvider) KeyIDs() []string {
+	ids := make([]string, 0, len(p.keys))
+	for id := range p.keys {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
 }

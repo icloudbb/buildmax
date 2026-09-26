@@ -17,7 +17,8 @@ import (
 // It holds the provider credential encrypted at rest (envelope encryption under
 // the deployment KEK); the store exposes it through LLMModelCredential alone,
 // which decrypts it, so a query that forgets to exclude it cannot exist and a
-// plaintext key is never written.
+// plaintext key is never written. The KEK rotation walk in sealed_key.go reads
+// the sealed bytes too, but only re-wraps their DEK and never decrypts the key.
 type llmModelRow struct {
 	ID            uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID      string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_llm_model_public_id;not null"`
@@ -273,9 +274,9 @@ func (s *Store) SetLLMModelCredential(ctx context.Context, llmModelID, apiKey st
 
 // LLMModelCredential returns the upstream key for a model.
 //
-// This is the only read that touches the credential column, which is what makes
-// "the key reaches the provider client and nothing else" checkable rather than
-// a matter of care.
+// This is the only read that decrypts the credential column, which is what
+// makes "the key reaches the provider client and nothing else" checkable rather
+// than a matter of care.
 func (s *Store) LLMModelCredential(ctx context.Context, llmModelID string) (string, error) {
 	if llmModelID == "" {
 		return "", errors.New("model id is required")

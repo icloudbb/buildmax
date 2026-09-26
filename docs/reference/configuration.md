@@ -1220,6 +1220,67 @@ Two things to know before enabling it:
 - The run token is not renewable. `run_token_ttl` must outlast your longest
   run; a run that outlives it loses its remaining model calls.
 
+### Rotating the key-encryption key — `buildmax-server secret rewrap`
+
+Space Secret values and managed-model credentials are encrypted under the
+key-encryption key (KEK) in the file `secret.kek_file` names. The file holds a
+set of keys and names the one new writes use:
+
+```json
+{
+  "current": "file:root:2",
+  "keys": {
+    "file:root:1": "<base64 of 32 random bytes>",
+    "file:root:2": "<base64 of 32 random bytes>"
+  }
+}
+```
+
+Every stored row records which key wrapped it, so a file holding both keys reads
+every row. To retire a key — on a schedule, or because it may have leaked:
+
+1. **Add the new key.** Generate one with `openssl rand -base64 32` and add it
+   under a new id, `file:<name>:<version>`, with `current` unchanged.
+2. **Roll.** Deliver the file and restart every server. Each replica can now
+   read rows under either key.
+3. **Switch `current`** to the new key id.
+4. **Roll again.** Every replica now writes under the new key. Two rolls rather
+   than one edit keep a replica still on the old file from meeting a row it
+   cannot read; a single-replica deployment may combine steps 1–4.
+5. **Rewrap.** Run `buildmax-server secret rewrap` where the server's
+   `server.yaml`, key file, and database are reachable. It re-wraps each row's
+   data key under `current` without decrypting any value, in batches, while the
+   server keeps serving; it is safe to interrupt and re-run.
+6. **Verify.** The command ends with the rows each key in the file still
+   protects:
+
+   ```text
+   rewrapped 14 rows from file:root:1 to file:root:2
+
+   rows by key:
+     file:root:1  0 (no row uses it; it can be removed from the key file)
+     file:root:2  14 (current)
+   ```
+
+   A non-zero count on the old key means a replica still on the old `current`
+   wrote a row after the rewrap passed it; run `rewrap` again once step 4's roll
+   has finished.
+7. **Remove the old key** from `keys` and roll. Keep the retired key where you
+   keep KEK backups, apart from the database backups: a database backup taken
+   before the rewrap still needs it.
+
+A server refuses to start while any stored row names a key the file does not
+hold, and the error names the key and its row count — so a key removed too
+early stalls the rollout with the old replicas still serving, and putting the
+key back recovers. It refuses the same way when rows are sealed and no
+`secret.kek_file` is configured.
+
+Rewrap protects rows from a leaked KEK that meets a *later* copy of the
+database. It does not change the data keys, so if an old database copy may have
+leaked together with the old KEK, rotate the credentials themselves as well:
+editing a Space Secret or `buildmax-server model set-key` reseals the value under
+a fresh data key.
+
 ## Data Directory Layout
 
 ```text
