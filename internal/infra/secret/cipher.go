@@ -33,6 +33,11 @@ type KEKProvider interface {
 	Wrap(dek []byte) (wrapped []byte, keyID string, err error)
 	// Unwrap opens a DEK sealed under the KEK named by keyID.
 	Unwrap(wrapped []byte, keyID string) (dek []byte, err error)
+	// CurrentKeyID names the KEK Wrap uses: the target of a rewrap.
+	CurrentKeyID() string
+	// KeyIDs lists every KEK Unwrap can open, so startup can refuse a key
+	// file that no longer holds a key a stored row names.
+	KeyIDs() []string
 }
 
 // Cipher seals and opens a Secret's item map with envelope encryption: a fresh

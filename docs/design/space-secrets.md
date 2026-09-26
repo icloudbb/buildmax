@@ -550,21 +550,38 @@ mechanics are decided:
   `key_id`, and moves the current pointer to it. New writes use it immediately.
   Existing rows keep their old `key_id` and stay decryptable because the file
   still holds the old KEK.
-- `rewrap` walks every row carrying a `wrapped_dek` — embedded values and
-  external descriptors alike — and for each unwraps the DEK with the row's named
-  KEK, rewraps it under the current KEK, and updates `wrapped_dek` and `key_id`.
-  The `ciphertext` never changes, because the DEK did not. It is batched,
-  idempotent, resumable after interruption, and skips rows already on the target
-  `key_id`, so re-running it is always safe.
+- `rewrap` walks every row carrying a `wrapped_dek` — Space Secret values and
+  managed-model credentials, which share the deployment KEK, and later external
+  descriptors — and for each unwraps the DEK with the row's named KEK, rewraps
+  it under the current KEK, and updates `wrapped_dek` and `key_id`. The
+  `ciphertext` never changes, because the DEK did not. Nor does any associated
+  data: the DEK wrap binds none, so a rewrap cannot disturb the Space or
+  credential AAD its payload was sealed under. It is batched, idempotent,
+  resumable after interruption, and skips rows already on the target `key_id`,
+  so re-running it is always safe. It reports how many rows it moved off each
+  key, then how many rows each key in the file still protects.
 - It runs with no downtime and takes no lock on the feature: rows are readable
   and writable throughout, since both KEKs are present. A concurrent edit that
   rewrites a row under the current KEK simply leaves nothing for `rewrap` to do
-  on that row; `rewrap` uses an optimistic check so it never clobbers a newer
-  write.
+  on that row; `rewrap` uses an optimistic check — each row's write is
+  conditional on the wrapped DEK it read — so it never clobbers a newer write.
+  It does not move a row's `updated_at`: no value changed, and the model
+  gateway rebuilds a cached provider client when that timestamp moves.
 - Removing the old KEK from the file is a separate, explicit step, refused while
-  any row still names it. Because `key_id` is plaintext, the gate is one
-  `SELECT count(*) WHERE key_id = <old>`; removing a KEK a row still references
-  would make that row permanently undecryptable, so the command will not.
+  any row still names it. The key file is operator-owned and read only at load
+  time, so the refusal is where the file is loaded: the Server, and `rewrap`
+  itself, count sealed rows by `key_id` and refuse to start while a counted key
+  is missing from the file, naming the key and its row count. A rolling restart
+  onto a file that dropped a referenced key therefore stalls with the old
+  replicas still serving, instead of making rows permanently undecryptable.
+  A Space Secret row's `key_id` is its plaintext column, so its count is one
+  grouped `SELECT`. A model credential keeps its `key_id` inside its sealed
+  blob, the one place it is written; the catalog is small and operator-curated,
+  so the count reads those blobs rather than keep a second copy that could
+  disagree. The same count runs with no key file configured, so sealed data
+  without its KEK fails startup rather than reading as empty. The
+  `buildmax-server model` commands load the file without the count, so
+  `model set-key` can still reseal a credential whose key is gone.
 
 KEK rotation is a deployment maintenance action, not a Space action: it emits a
 server operational log, not a Space Secret audit event (§11), because no Space

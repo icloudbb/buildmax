@@ -526,6 +526,9 @@ See the [identity service](../internal/service/identity/account.go), the
 operations. `buildmax-server` retains database-direct bootstrap and recovery
 commands. Model credentials are encrypted under the deployment key-encryption
 key; credentialed model creation refuses to store a key without encryption.
+`buildmax-server secret rewrap` re-wraps stored data keys under the current KEK,
+and the server refuses to start while a row names a KEK the key file does not
+hold; the KEK-rotation drill has not been run.
 Space secrets and Agent secret-consumption declarations also have storage and
 worker delivery implementations, with run-scoped authorization. Their presence
 does not isolate delivered secrets from the worker process that consumes them.

@@ -81,6 +81,16 @@ func main() {
 		return
 	}
 
+	// `secret` moves stored rows onto the KEK file's current key. It reads the
+	// same key file and database the server does, so it runs where they are.
+	if len(os.Args) > 1 && os.Args[1] == "secret" {
+		if err := bootstrap.RunSecretCommand(ctx, os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	portFlag := flag.Int("port", 0, "port to listen on (overrides server.yaml port, default 5678)")
 	flag.Usage = usage
 	flag.Parse()
@@ -97,7 +107,9 @@ func usage() {
        buildmax-server user <command> [flags]
        buildmax-server model <command> [flags]
        buildmax-server admin <command> [flags]
+       buildmax-server space <command> [args]
        buildmax-server run-token <task_run_id> [flags]
+       buildmax-server secret <command>
 
 Runs the BuildMax HTTP API and the task scheduler. Configuration comes from
 BUILDMAX_HOME/server.yaml.
@@ -110,4 +122,5 @@ Flags:
 	fmt.Fprint(out, "\n"+bootstrap.AdminCommandUsage)
 	fmt.Fprint(out, "\n"+bootstrap.SpaceCommandUsage)
 	fmt.Fprint(out, "\n"+bootstrap.RunTokenCommandUsage)
+	fmt.Fprint(out, "\n"+bootstrap.SecretCommandUsage)
 }
