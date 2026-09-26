@@ -227,7 +227,10 @@ recorded a migration the source does not know and the source is 0.2.0-alpha.16
 or later. Older images predate the refusal, so the drill records what they do
 without judging it. When the ledgers match, the source must start. From
 0.2.0-alpha.15 to the current `main` the ledgers match, so no drill has yet seen
-a real refusal; `TestNewRefusesNewerSchema` proves the refusal itself. The drill
+a real refusal; `TestNewRefusesNewerSchema` proves the refusal itself. Run
+from 0.2.0-alpha.14 to 0.2.0-alpha.15, the drill shows the unguarded case:
+0.2.0-alpha.14 starts against a database recording `schedule_agent_to_executor`,
+and restoring the backup brings it back serving the seeded data. The drill
 is a rehearsal on a disposable single-host stack, not the candidate evidence
 the Beta readiness record asks for.
 
