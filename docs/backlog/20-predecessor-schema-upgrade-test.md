@@ -5,7 +5,7 @@ roadmap: R2
 source: docs/deploy/beta-readiness.md
 depends_on: [10-refuse-start-on-newer-schema.md]
 verification: ["./make test mysql"]
-claim:
+claim: gougoujiang 2026-09-26
 pr:
 ---
 

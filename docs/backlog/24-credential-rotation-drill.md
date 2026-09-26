@@ -5,7 +5,7 @@ roadmap: R2
 source: docs/deploy/beta-readiness.md
 depends_on: [12-native-refresh-on-401.md, 14-kek-in-deployments.md, 16-kek-rewrap.md]
 verification: [kind]
-claim:
+claim: gougoujiang 2026-09-26
 pr:
 ---
 
