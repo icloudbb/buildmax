@@ -66,7 +66,22 @@ runs leave its candidate and any maintainer edits unchanged.
    lists below them. A tag with no section in `CHANGELOG.md` fails the release.
 3. Review [SECURITY.md](../../SECURITY.md), installation instructions, known
    limitations, and configuration examples for release-specific changes.
-4. Run the local verification commands:
+4. Name the candidate's upgrade source: the newest published tag, which is the
+   release deployments upgrade from. `internal/infra/db/testdata/schema/` holds
+   one dump, named for that source. If it names an older tag, refresh it:
+
+   ```bash
+   ./make release upgrade-fixture 0.2.0-alpha.15
+   ```
+
+   The command needs Docker. It runs that tag's server image against a MySQL
+   container of its own, seeds a fixed dataset through the tag's API, and
+   replaces the previous dump with that release's schema, rows, and migration
+   ledger. Commit the dump to `release/next` or land it on `main` first. CI's
+   MySQL job then upgrades it with the candidate's `db.New` and asserts that
+   every seeded entity survives. When a changed API breaks the seed, update
+   `tools/mk/upgrade_fixture.go` to match the source's API.
+5. Run the local verification commands:
 
    ```bash
    ./make test

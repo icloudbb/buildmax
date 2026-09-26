@@ -82,7 +82,7 @@ func allHelpSections() []helpSection {
 		}},
 		{"Release", []helpRow{
 			{"changelog [new|release]", "Add, preview, or fold in unreleased entries"},
-			{"release <action>", "Run bump, notes, verify, notices, or licenses"},
+			{"release <action>", "Run bump, notes, verify, notices, licenses, or upgrade-fixture"},
 			{"install", "Install binaries to ~/.local/bin"},
 		}},
 	}
@@ -632,7 +632,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "release",
-			usage:   "release <bump|next|notes|verify|notices|licenses|desktop>",
+			usage:   "release <bump|next|notes|verify|notices|licenses|desktop|upgrade-fixture>",
 			summary: "Run one release chore.",
 			details: []string{
 				"`bump` tags the next version locally and stops there, because pushing the tag\n" +
@@ -643,6 +643,11 @@ func helpTopics() []helpTopic {
 					"`.dmg` on macOS, the self-contained `.exe` on Windows, each with a `.sha256`.\n" +
 					"GoReleaser cannot: it runs on one Linux runner, so the desktop release is a\n" +
 					"per-OS job that calls this. The bundles are unsigned during alpha.",
+				"`upgrade-fixture <tag>` runs that release's server image against a MySQL\n" +
+					"container of its own, seeds a fixed dataset through the release's API, and\n" +
+					"dumps schema, rows, and migration ledger into " + upgradeFixtureDir + "/,\n" +
+					"replacing the previous source's dump. The MySQL scope upgrades it with the\n" +
+					"candidate. It needs Docker, pulls the image, and takes about three minutes.",
 				"Each action takes its own flags: `" + mk() + " release verify --help` prints them.",
 			},
 			args: []helpRow{
@@ -653,8 +658,9 @@ func helpTopics() []helpTopic {
 				{"notices", "Regenerate NOTICE-THIRD-PARTY"},
 				{"licenses", "Check npm production dependencies against the allowed set"},
 				{"desktop", "Package the Wails app for the host OS into " + desktopReleaseDir + "/"},
+				{"upgrade-fixture <tag>", "Dump the schema and data that release leaves, for the upgrade test"},
 			},
-			examples: []string{"release notices", "release bump minor", "release notes v0.2.0-alpha.1"},
+			examples: []string{"release notices", "release bump minor", "release notes v0.2.0-alpha.1", "release upgrade-fixture 0.2.0-alpha.14"},
 			see:      "docs/contribute/releasing.md",
 		},
 		{

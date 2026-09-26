@@ -133,12 +133,14 @@ reply and the Artifacts it published through the server, and records no trace
 pointer to an object that is not there. A server now expires persisted run
 traces on an operator-set window, defaulting to keep-forever and recording each
 prune. Binary rollback is not supported: a binary refuses to start against a
-database a newer release has migrated, and recovery is a paired restore. No
-candidate has yet proved paired restore, a real predecessor-schema upgrade, or
-credential rotation.
+database a newer release has migrated, and recovery is a paired restore. Every
+pull request's MySQL job upgrades a real predecessor's schema and data: a dump
+of what the declared upgrade source's server image wrote. No candidate has yet
+proved paired restore, the release-time Compose upgrade drill, or credential
+rotation.
 
 **Next:** the remaining lifecycle evidence — paired database-and-bucket
-restore, a predecessor-schema upgrade fixture and drill, and credential
+restore, the Compose upgrade drill from the predecessor binary, and credential
 rotation — several of which land as the R3 operator journey. Real-MySQL coverage for
 [quota windows](https://github.com/icloudbb/buildmax/issues/498) and cross-Space
 store scoping, and the deployed worker-loss, database-outage,

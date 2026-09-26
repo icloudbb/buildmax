@@ -1148,4 +1148,9 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 恢复方式是全新安装，或从升级前的备份同时恢复数据库与存储桶，并运行与之匹配的二进制。
 没有数据库降级迁移。
 
+受支持的升级路径针对真实数据库测试。声明的升级来源是部署实际从其升级的版本。
+`internal/infra/db/testdata/schema/<tag>.sql` 是该版本 server 镜像写下的内容的转储：schema、台账，
+以及通过其 API 写入的固定数据集。`TestUpgradeFromPredecessorSchema` 在 MySQL 范围内用 `New` 升级
+该转储；破坏这些数据的迁移会让该测试失败。发布流程用 `./make release upgrade-fixture <tag>` 刷新该转储。
+
 **任何模式变更之后**，都要在同一次提交中更新本文档，并检查 [store.md](store.md) 或该子系统的设计记录是否也需要变更。运行 `./make test mysql`——它要求真实 MySQL DSN，并使用隔离数据库；普通 `./make test` 在没有 DSN 时会跳过依赖数据库的用例。

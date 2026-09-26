@@ -1649,6 +1649,14 @@ Recovery is a clean installation, or restoring the database and bucket together
 from a backup taken before the upgrade and running the binaries that match it.
 There are no database down-migrations.
 
+The supported upgrade path is tested against a real database. The
+declared upgrade source is the release that deployments upgrade from.
+`internal/infra/db/testdata/schema/<tag>.sql` is a dump of what its server
+image wrote: the schema, the ledger, and a fixed dataset seeded through its
+API. `TestUpgradeFromPredecessorSchema` upgrades that dump with `New` in the
+MySQL scope. A migration that breaks the dataset fails that test. The release
+process refreshes the dump with `./make release upgrade-fixture <tag>`.
+
 **After any schema change**, update this document in the same commit, and check
 whether [store.md](store.md) or the design record for the subsystem also needs
 a change. Run `./make test` — the store tests in `internal/infra/db` use an

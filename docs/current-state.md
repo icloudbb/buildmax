@@ -70,9 +70,10 @@ a denial of only the worker's object-storage writes, under which runs end
 FAILED with the refused write named and no record pointing at a missing object.
 `buildmax-server storage verify` now gives an operator a read-only check that
 every live artifact, checkpoint payload, run trace, and plugin package the
-database names resolves in storage, optionally by checksum. Exercising a paired
-restore with it, a real predecessor-schema upgrade, and credential rotation
-remain open. Shared Redis
+database names resolves in storage, optionally by checksum. The MySQL scope
+upgrades a real predecessor's schema and data, currently 0.2.0-alpha.14's.
+Exercising a paired restore with it, the release-time Compose upgrade drill,
+and credential rotation remain open. Shared Redis
 coordination is implemented, including distributed lease fencing at
 message-history writes. The worker API already has a separate listener, TLS
 support, and a shipped ingress NetworkPolicy; that bounded network slice must
@@ -479,8 +480,12 @@ models must be re-added. MySQL-scope tests cover ledger recording and skipping
 on a second run and the Issue and Schedule backfills. A binary refuses to start
 against a database whose ledger records a migration it does not know, before
 any DDL, unless `database.allow_newer_schema` is set; a MySQL test proves both.
-Binaries up to 0.2.0-alpha.15 predate the refusal. No test yet upgrades a real
-predecessor schema.
+Binaries up to 0.2.0-alpha.15 predate the refusal. A MySQL-scope test also
+upgrades a real predecessor. It uses a dump of the schema, ledger, and seeded
+rows that the 0.2.0-alpha.14 server image wrote, in
+`internal/infra/db/testdata/schema/`. The test asserts that each seeded entity
+survives the candidate's `db.New`, and the release process refreshes the dump
+for each candidate's upgrade source.
 
 Each trace is bounded by field and record caps. When an operator sets
 `trace.retention_days` above zero, a Server-owned hourly sweep deletes traces
