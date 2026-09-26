@@ -80,8 +80,11 @@ flight across the JWT rotation is settled FAILED, the one disruption it
 measures. A paired database-and-bucket restore is written up in
 [deploy/backup-restore.md](deploy/backup-restore.md) and rehearsed on kind by
 `./make kind drill restore`, which backs up, wipes, restores, runs that check,
-and compares with no loss. Exercising a paired restore, the release-time
-Compose upgrade drill, and credential rotation on a candidate remain open.
+and compares with no loss. Release preparation dispatches
+`./make compose upgrade-drill`, a Compose rehearsal that upgrades the released
+predecessor image to the candidate, starts the old image again, and recovers
+with a paired restore. Exercising a paired restore, an upgrade, and credential
+rotation on a candidate remain open.
 Shared Redis
 coordination is implemented, including distributed lease fencing at
 message-history writes. The worker API already has a separate listener, TLS
@@ -494,7 +497,17 @@ upgrades a real predecessor. It uses a dump of the schema, ledger, and seeded
 rows that the 0.2.0-alpha.14 server image wrote, in
 `internal/infra/db/testdata/schema/`. The test asserts that each seeded entity
 survives the candidate's `db.New`, and the release process refreshes the dump
-for each candidate's upgrade source.
+for each candidate's upgrade source. `./make compose upgrade-drill`, which
+release preparation dispatches on the candidate branch, repeats that upgrade
+with the released source image in Compose. It seeds the same dataset through
+the source's API and backs up the database, the `server-data` volume, and
+`server.yaml`. It then checks the data and a new run through the candidate's
+API and starts the source image against the upgraded database. Last, it
+restores the backup under the source. The source must refuse only when the
+candidate recorded a migration it does not know and it is 0.2.0-alpha.16 or
+later. From 0.2.0-alpha.15 to the current `main` the ledgers match, so the
+source starts; no drill has yet seen a real refusal. The drill is a rehearsal
+on a disposable stack, not candidate evidence.
 
 Each trace is bounded by field and record caps. When an operator sets
 `trace.retention_days` above zero, a Server-owned hourly sweep deletes traces

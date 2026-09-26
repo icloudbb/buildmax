@@ -99,6 +99,7 @@ Portal 或 Server 的变更提出了端到端的主张时,作者有责任产出�
 | `./make e2e compose` | 一个已经在运行的 Compose 技术栈 | 2 分钟以内 | 什么都不拥有——它只是访客 |
 | `./make e2e kind` | 一个已经在运行的 kind 集群 | 2 分钟以内 | 什么都不拥有——它只是访客 |
 | `./make compose smoke` | Docker | 5 分钟以内 | 一个它留下来继续运行的 Compose 技术栈 |
+| `./make compose upgrade-drill` | Docker、来源发布版本的镜像 | 10 分钟以内 | 一个它启动并删除的 Compose 项目，以及它构建的候选镜像 |
 | `./make kind up` | Docker、kubectl | 20 分钟以内 | 一个它留下来继续运行的集群 |
 
 没有一个套件需要 provider 的 API key。它们全部都由

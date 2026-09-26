@@ -148,13 +148,16 @@ then `mc mirror` backup, a wipe of the database, bucket, and server
 namespaces, a restore with the original KEK, a clean
 `storage verify --checksums`, and an unchanged API fingerprint, row counts,
 and object digests, with a measured recovery time. A kind rehearsal is not
-candidate evidence. No candidate has yet proved paired restore, the
-release-time Compose upgrade drill, or credential rotation.
+candidate evidence. Release preparation dispatches a Compose upgrade drill that
+rehearses the predecessor image's upgrade to the candidate. It then starts the
+old image against the upgraded database and recovers by restoring the
+pre-upgrade backup. That is a rehearsal too, not candidate evidence. No
+candidate has yet proved paired restore, its upgrade, or credential rotation.
 
 **Next:** the remaining lifecycle evidence — paired database-and-bucket
-restore on the candidate's own dependencies, the Compose upgrade drill from the
-predecessor binary, and credential rotation on the candidate — several of which
-land as the R3 operator journey. Real-MySQL coverage for
+restore on the candidate's own dependencies, the upgrade from the predecessor
+binary, and credential rotation on the candidate — several of which land as the
+R3 operator journey. Real-MySQL coverage for
 [quota windows](https://github.com/icloudbb/buildmax/issues/498) and cross-Space
 store scoping, and the deployed worker-loss, database-outage,
 object-storage-readiness outage/recovery, and worker object-storage write-denial

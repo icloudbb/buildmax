@@ -99,6 +99,9 @@ jobs:
           gh workflow run ci.yml --ref release/next
           gh workflow run release-snapshot.yml --ref release/next
           gh workflow run portal-image.yml --ref release/next
+          # The candidate against the release deployments upgrade from; its
+          # record is the run's summary. See docs/contribute/releasing.md.
+          gh workflow run upgrade-drill.yml --ref release/next
 
       - name: Create the release pull request
         if: steps.due.outputs.ready == 'true'
@@ -116,7 +119,7 @@ jobs:
 
           ## Verification
 
-          The workflow dispatches CI, the full release snapshot, and the Portal image build against this frozen candidate branch.
+          The workflow dispatches CI, the full release snapshot, the Portal image build, and the Compose upgrade drill from the previous release against this frozen candidate branch.
 
           ## Notes for the reviewer
 

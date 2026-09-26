@@ -1,0 +1,70 @@
+# Rehearses a Compose operator's upgrade from a published release to this ref:
+# seed the source, back up, swap in the candidate, verify, start the source
+# again against the upgraded database, and recover by restoring the backup.
+# See docs/contribute/releasing.md.
+#
+# It is not a pull-request gate. It pulls a released image and builds the
+# candidate, and what it proves belongs to a release candidate, so
+# release-prepare dispatches it on release/next and a maintainer can run it on
+# any ref.
+name: Upgrade drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'Release tag to upgrade from, such as 0.2.0-alpha.15 (default: the newest tag behind the ref)'
+        required: false
+        default: ''
+      to:
+        description: 'Published image tag to upgrade to (default: build the ref)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upgrade-drill-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    name: Compose upgrade drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The default source is the newest release tag behind the ref.
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Rehearse the upgrade
+        env:
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+        run: |
+          args=()
+          if [ -n "$FROM" ]; then args+=(--from "$FROM"); fi
+          if [ -n "$TO" ]; then args+=(--to "$TO"); fi
+          ./make compose upgrade-drill "${args[@]}"
+      # The record is written pass or fail; a run that stopped before writing
+      # it says so rather than leaving an empty summary.
+      - name: Write the summary
+        if: always()
+        run: |
+          if [ -f .artifacts/upgrade-drill/result.md ]; then
+            cat .artifacts/upgrade-drill/result.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The upgrade drill stopped before it recorded a result; see the job log." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload the record
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: upgrade-drill
+          path: .artifacts/upgrade-drill/
+          if-no-files-found: ignore

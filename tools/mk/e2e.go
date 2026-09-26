@@ -151,7 +151,7 @@ func e2eFullMatrix() error {
 // worktrees, different agents, a human's `compose up` alongside them) can own
 // a stack of their own at the same time.
 func e2eOwningCompose() (err error) {
-	if err = ephemeralComposeEnv(); err != nil {
+	if err = ephemeralComposeEnv("buildmax-e2e"); err != nil {
 		return err
 	}
 	fmt.Printf("[e2e] owning a Compose stack (project %s, port %s) for this run: starting it, testing it, and taking it down\n",
@@ -176,12 +176,13 @@ func e2eOwningCompose() (err error) {
 	return e2ePortal(composeSmokeTarget(false), "local")
 }
 
-// ephemeralComposeEnv picks a Compose project name and three host ports
-// nothing else is using and sets them as this process's environment, which is
-// what composeProjectName, composePortalURL, and the rest of this file read.
+// ephemeralComposeEnv picks a Compose project name (prefix plus a random
+// suffix) and three host ports nothing else is using, and sets them as this
+// process's environment, which is what composeProjectName, composePortalURL,
+// and the rest of this file read.
 // Every docker/npm child this run starts inherits that environment, so one
 // assignment here is what the whole stack, and the tests against it, agree on.
-func ephemeralComposeEnv() error {
+func ephemeralComposeEnv(prefix string) error {
 	suffix, err := randomHex(4)
 	if err != nil {
 		return fmt.Errorf("choose an ephemeral Compose project: %w", err)
@@ -194,7 +195,7 @@ func ephemeralComposeEnv() error {
 		}
 		ports[key] = strconv.Itoa(port)
 	}
-	if err := os.Setenv("BUILDMAX_COMPOSE_PROJECT", "buildmax-e2e-"+suffix); err != nil {
+	if err := os.Setenv("BUILDMAX_COMPOSE_PROJECT", prefix+"-"+suffix); err != nil {
 		return err
 	}
 	for key, value := range ports {

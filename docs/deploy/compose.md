@@ -170,6 +170,48 @@ Moving `BUILDMAX_PORTAL_PORT` is also how this stack runs beside a
 | `invalid otp` | The code is single-use and expires in an hour; issue another |
 | Server restarts in a loop | Usually MySQL: `docker compose logs mysql` |
 
+## Upgrade
+
+Run a pinned release: set `BUILDMAX_VERSION` in `.env` to its tag, such as
+`0.2.0-alpha.15`. The server migrates the schema forward when it starts, and
+rolling the image back is not supported. An older image refuses to start
+against a database a newer release has migrated; images up to 0.2.0-alpha.15
+predate that refusal and damage the database instead. So back up before every
+upgrade, with the server stopped so the database and the volume match:
+
+```bash
+mkdir -p backup
+docker compose stop server
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump -ubuildmax --single-transaction --no-tablespaces --hex-blob buildmax' > backup/buildmax.sql
+docker run --rm -v buildmax_server-data:/data alpine tar -cf - -C /data . > backup/server-data.tar
+cp server.yaml .env backup/
+```
+
+`buildmax_server-data` is the volume that holds artifacts and run state; it is
+named for the Compose project, which `docker volume ls` shows. Then set the new
+tag in `.env` and start it:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+If the upgrade goes wrong, restore both halves of the backup and run the tag
+that wrote them:
+
+```bash
+docker compose stop server
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -ubuildmax -e "DROP DATABASE buildmax; CREATE DATABASE buildmax"'
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -ubuildmax buildmax' < backup/buildmax.sql
+docker run --rm -i -v buildmax_server-data:/data alpine sh -c 'find /data -mindepth 1 -delete && tar -xf - -C /data' < backup/server-data.tar
+# set BUILDMAX_VERSION in .env back to the old tag
+docker compose up -d
+```
+
+Each release candidate rehearses this sequence from the previous release with
+`./make compose upgrade-drill`; see
+[releasing.md](../contribute/releasing.md#prepare).
+
 ## Teardown
 
 ```bash

@@ -76,7 +76,7 @@ func allHelpSections() []helpSection {
 			{"cache-qualify", "Qualify prompt caching against a real provider (needs an API key; not a test)"},
 		}},
 		{"Deployment (starts containers or bills a provider)", []helpRow{
-			{"compose <action>", "Manage the Compose quickstart (up|smoke [managed]|status|logs|down)"},
+			{"compose <action>", "Manage the Compose quickstart (up|smoke [managed]|upgrade-drill|status|logs|down)"},
 			{"kind <action>", "Manage the local Kubernetes reference deployment; run `help kind` for actions"},
 			{"ocean <action>", "Manage the disposable DigitalOcean qualification infrastructure"},
 		}},
@@ -487,7 +487,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "compose",
-			usage:   "compose <up|smoke [managed]|status|logs|down>",
+			usage:   "compose <up|smoke [managed]|upgrade-drill [--from <tag>] [--to <tag>]|status|logs|down>",
 			summary: "Manage the Docker Compose quickstart deployment.",
 			details: []string{
 				"This one changes your machine: it builds images and starts containers, and\n" +
@@ -496,15 +496,23 @@ func helpTopics() []helpTopic {
 					"server, which is what makes an agent run reproducible.",
 				"`smoke managed` routes task-run inference through the gateway, so the run also\n" +
 					"proves the worker held no provider credential.",
+				"`upgrade-drill` rehearses a release upgrade on a Compose project of its own:\n" +
+					"it starts the --from release (default: the newest tag behind HEAD), seeds it\n" +
+					"through its API, backs up the database, server-data volume, and server.yaml,\n" +
+					"swaps in the candidate (default: built from this checkout; --to names a\n" +
+					"published tag), verifies the seeded data and a new run, starts the source\n" +
+					"again against the upgraded database, restores the backup, and tears it all\n" +
+					"down. The result is written to " + upgradeDrillRecord + ".",
 			},
 			args: []helpRow{
 				{"up", "Start the quickstart stack"},
 				{"smoke [managed]", "Start the stack with the deterministic model and smoke it"},
+				{"upgrade-drill", "Rehearse upgrading a tagged release to the candidate, then recover it"},
 				{"status", "Report container and endpoint state"},
 				{"logs", "Tail the last 200 lines from every service"},
 				{"down", "Stop the stack"},
 			},
-			examples: []string{"compose smoke", "compose logs", "compose down"},
+			examples: []string{"compose smoke", "compose upgrade-drill --from 0.2.0-alpha.15", "compose logs", "compose down"},
 			see:      "docs/deploy/compose.md",
 		},
 		{
