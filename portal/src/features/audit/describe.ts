@@ -92,7 +92,11 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
     case "user.login_code_issued":
       return { summary: "Issued a login code", denied: false, target }
     case "user.disabled":
-      return { summary: "Disabled an account", denied: false, target }
+      return {
+        summary: event.detail ? `Disabled an account — ${event.detail}` : "Disabled an account",
+        denied: false,
+        target,
+      }
     case "user.enabled":
       return { summary: "Enabled an account", denied: false, target }
     case "user.sessions_revoked":

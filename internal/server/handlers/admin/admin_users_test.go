@@ -1,7 +1,9 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -11,6 +13,7 @@ import (
 
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"github.com/icloudbb/buildmax/internal/mock"
 	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
@@ -93,6 +96,61 @@ func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 	refresh := f.do(t, "POST", "/api/auth/token/refresh", "", `{"refresh_token":"`+plaintext+`"}`)
 	if refresh.Code == http.StatusOK {
 		t.Errorf("a disabled account refreshed into a new access token: %s", refresh.Body.String())
+	}
+}
+
+// failingSchedules is a schedule store that cannot be read.
+type failingSchedules struct{ mock.MockScheduleStore }
+
+func (*failingSchedules) ListEnabledSchedulesByCreator(context.Context, string) ([]coreschedule.Schedule, error) {
+	return nil, errors.New("schedule store unavailable")
+}
+
+// TestDisableWithFailedCleanupIsAuditedAndReported: once the gate commits, the
+// account is disabled whatever cleanup does next. The response must say so and
+// name what failed, the trail must record the disable, and disabling again must
+// retry the cleanup.
+func TestDisableWithFailedCleanupIsAuditedAndReported(t *testing.T) {
+	f := newDisableFixture(t)
+	f.seedSession(t, "portal")
+	f.lifecycle.Schedules = &failingSchedules{}
+
+	rec := f.do(t, "PUT", "/api/admin/users/"+f.target.ID+"/state", adminUser, `{"disabled":true}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		DisabledAt      *time.Time `json:"disabled_at"`
+		SessionsRevoked int64      `json:"sessions_revoked"`
+		CleanupFailed   []string   `json:"cleanup_failed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
+	}
+	if body.DisabledAt == nil {
+		t.Error("the response does not report the account as disabled")
+	}
+	if body.SessionsRevoked != 1 {
+		t.Errorf("sessions_revoked = %d, want 1: steps after a failure still run", body.SessionsRevoked)
+	}
+	if !slices.Equal(body.CleanupFailed, []string{accountlifecycle.StepSchedules}) {
+		t.Errorf("cleanup_failed = %v, want [schedules]", body.CleanupFailed)
+	}
+	if len(f.audits.Events) != 1 || f.audits.Events[0].Action != coreaudit.UserDisabled {
+		t.Fatalf("audit = %v, want one user.disabled", f.actions())
+	}
+	if got := f.audits.Events[0].Detail; got != "cleanup incomplete: schedules" {
+		t.Errorf("audit detail = %q, want the failed step named", got)
+	}
+
+	// The retry the response invites: the same call, now completing.
+	f.lifecycle.Schedules = &mock.MockScheduleStore{}
+	retry := f.do(t, "PUT", "/api/admin/users/"+f.target.ID+"/state", adminUser, `{"disabled":true}`)
+	if retry.Code != http.StatusOK || strings.Contains(retry.Body.String(), "cleanup_failed") {
+		t.Errorf("retry = %d %s, want 200 with cleanup complete", retry.Code, retry.Body.String())
+	}
+	if got := f.actions(); !slices.Equal(got, []string{coreaudit.UserDisabled, coreaudit.UserDisabled}) {
+		t.Errorf("audit after retry = %v", got)
 	}
 }
 
@@ -423,6 +481,12 @@ func newDisableFixture(t *testing.T) *disableFixture {
 	}
 	f.admin = seedUser(t, users, adminUser, "admin@example.com")
 	f.target = seedUser(t, users, "u_target", "target@example.com")
+	f.lifecycle = &accountlifecycle.Service{
+		Users:    users,
+		Sessions: f.sessions,
+		Webhooks: f.keys,
+		Spaces:   f.spaces,
+	}
 
 	h := New(Config{
 		JWTSecret:     testSecret,
@@ -432,12 +496,7 @@ func newDisableFixture(t *testing.T) *disableFixture {
 		LoginCodes:    f.codes,
 		RefreshTokens: f.refresh,
 		Sessions:      f.sessions,
-		Lifecycle: &accountlifecycle.Service{
-			Users:    users,
-			Sessions: f.sessions,
-			Webhooks: f.keys,
-			Spaces:   f.spaces,
-		},
+		Lifecycle:     f.lifecycle,
 		SpaceRecovery: &spacerecovery.Service{Spaces: f.spaces, Users: users},
 		// Present so the webhook route reaches its credential check rather
 		// than answering "not configured" first.
@@ -473,6 +532,7 @@ type disableFixture struct {
 	keys      *mock.MockUserWebhookKeyStore
 	spaces    *mock.MockSpaceStore
 	audits    *mock.MockAuditStore
+	lifecycle *accountlifecycle.Service
 	admin     *coreidentity.User
 	target    *coreidentity.User
 	actorSIDs map[string]string

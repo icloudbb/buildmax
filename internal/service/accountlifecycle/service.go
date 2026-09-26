@@ -11,6 +11,9 @@ package accountlifecycle
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"slices"
 	"time"
 
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
@@ -91,6 +94,20 @@ type DisableOptions struct {
 	RetireWebhookKeys bool
 }
 
+// Cleanup steps a disable runs after the gate commits, as named in
+// DisableResult.CleanupFailed.
+const (
+	StepSessions    = "sessions"
+	StepWebhookKeys = "webhook_keys"
+	StepSchedules   = "schedules"
+	StepRuns        = "runs"
+)
+
+// ErrCleanupIncomplete marks a Disable whose gate committed but whose cleanup
+// did not finish. The account is disabled, so a caller reports the state change
+// with the failed steps rather than as a failed request.
+var ErrCleanupIncomplete = errors.New("account disabled, but cleanup did not complete")
+
 // DisableResult reports the gate outcome separately from the cleanup counts, so
 // a timeout in cleanup cannot make an operator repeat or reverse the gate blindly.
 type DisableResult struct {
@@ -98,35 +115,49 @@ type DisableResult struct {
 	WebhookKeysRetired int   `json:"webhook_keys_retired"`
 	SchedulesPaused    int   `json:"schedules_paused"`
 	RunsCanceled       int   `json:"runs_canceled"`
+	// CleanupFailed names the steps that errored after the gate committed;
+	// empty means cleanup completed. Disabling again is safe: it re-runs every
+	// step, and each acts only on what is still live.
+	CleanupFailed []string `json:"cleanup_failed,omitempty"`
 }
 
 // Disable commits the account gate, then quiets the account's sessions, machine
 // credentials, schedules, and in-flight runs. The gate is the authority: it is
-// set first and returned even if a later cleanup step errors, so the account
-// cannot act while cleanup converges (the eligibility reconciler is the backstop
-// for anything a transient error here misses).
+// set first, and a gate error is the only error that means the account was not
+// disabled. A failing cleanup step does not stop the others — a broken schedule
+// store must not leave runs uncanceled — and the result names every failed step
+// alongside an error wrapping ErrCleanupIncomplete. The eligibility reconciler
+// is the backstop for runs a failed step misses.
 func (s *Service) Disable(ctx context.Context, userID string, opts DisableOptions) (DisableResult, error) {
 	now := s.now()
 	if err := s.Users.SetUserDisabled(ctx, userID, &now); err != nil {
 		return DisableResult{}, err
 	}
 	var res DisableResult
+	var errs []error
+	fail := func(step string, err error) {
+		if !slices.Contains(res.CleanupFailed, step) {
+			res.CleanupFailed = append(res.CleanupFailed, step)
+		}
+		errs = append(errs, fmt.Errorf("%s: %w", step, err))
+	}
 
 	if s.Sessions != nil {
 		n, err := s.Sessions.RevokeUserSessions(ctx, userID, now)
 		if err != nil {
-			return res, err
+			fail(StepSessions, err)
 		}
 		res.SessionsRevoked = n
 	}
 	if opts.RetireWebhookKeys && s.Webhooks != nil {
 		keys, err := s.Webhooks.ListKeys(ctx, userID)
 		if err != nil {
-			return res, err
+			fail(StepWebhookKeys, err)
 		}
 		for _, k := range keys {
 			if err := s.Webhooks.RevokeKey(ctx, userID, k.KeyID); err != nil {
-				return res, err
+				fail(StepWebhookKeys, err)
+				continue
 			}
 			res.WebhookKeysRetired++
 		}
@@ -134,7 +165,7 @@ func (s *Service) Disable(ctx context.Context, userID string, opts DisableOption
 	if s.Schedules != nil {
 		schedules, err := s.Schedules.ListEnabledSchedulesByCreator(ctx, userID)
 		if err != nil {
-			return res, err
+			fail(StepSchedules, err)
 		}
 		disabled := false
 		reason := coreschedule.PauseReasonCreatorDisabled
@@ -142,7 +173,8 @@ func (s *Service) Disable(ctx context.Context, userID string, opts DisableOption
 			if _, err := s.Schedules.UpdateSchedule(ctx, coreschedule.UpdateInput{
 				ScheduleID: schedules[i].ID, Enabled: &disabled, PauseReason: &reason,
 			}); err != nil {
-				return res, err
+				fail(StepSchedules, err)
+				continue
 			}
 			res.SchedulesPaused++
 		}
@@ -150,19 +182,23 @@ func (s *Service) Disable(ctx context.Context, userID string, opts DisableOption
 	if s.Runs != nil {
 		runs, err := s.Runs.ListActiveTaskRunsByCreator(ctx, userID)
 		if err != nil {
-			return res, err
+			fail(StepRuns, err)
 		}
 		for i := range runs {
 			// No requester: the deactivation, not a person, asked. The reason
 			// carries why; the worker and the stale-run backstop settle it CANCELED.
 			ok, err := s.Runs.RequestTaskRunCancel(ctx, runs[i].TaskRunID, "", coretask.CancelReasonCreatorDisabled, now)
 			if err != nil {
-				return res, err
+				fail(StepRuns, err)
+				continue
 			}
 			if ok {
 				res.RunsCanceled++
 			}
 		}
+	}
+	if len(errs) > 0 {
+		return res, fmt.Errorf("%w: %w", ErrCleanupIncomplete, errors.Join(errs...))
 	}
 	return res, nil
 }

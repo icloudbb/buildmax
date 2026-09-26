@@ -3,6 +3,7 @@ package admin
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -336,29 +337,40 @@ func (h *Handler) setAdminUserStateHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	action := coreaudit.UserEnabled
+	detail := ""
 	var cleanup accountlifecycle.DisableResult
 	if disable {
 		action = coreaudit.UserDisabled
 		res, err := h.cfg.Lifecycle.Disable(r.Context(), user.ID, accountlifecycle.DisableOptions{
 			RetireWebhookKeys: req.RetireWebhookKeys,
 		})
-		if !h.handleLifecycleError(w, err, user.ID) {
+		// A cleanup failure after the gate committed is not a failed request:
+		// the account is disabled, so the change is audited and answered as
+		// such, with the failed steps named for the operator to retry.
+		if errors.Is(err, accountlifecycle.ErrCleanupIncomplete) {
+			slog.Warn("account disabled with incomplete cleanup", "err", err, "user_id", user.ID)
+			detail = "cleanup incomplete: " + strings.Join(res.CleanupFailed, ", ")
+		} else if !h.handleLifecycleError(w, err, user.ID) {
 			return
 		}
 		cleanup = res
 	} else if err := h.cfg.Lifecycle.Enable(r.Context(), user.ID); !h.handleLifecycleError(w, err, user.ID) {
 		return
 	}
-	h.recordAdminUserAction(r, actorID, action, user.ID, "")
+	h.recordAdminUserAction(r, actorID, action, user.ID, detail)
 
 	updated, err := h.cfg.Users.GetUser(r.Context(), user.ID)
 	if err != nil || updated == nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "reload")
+		// The change is committed and audited; only the read-back failed, so
+		// the error must not read as "nothing happened".
+		slog.Error("handler error", "err", err, "handler", "admin_set_user_disabled", "user_id", user.ID, "stage", "reload")
+		httputil.WriteJSONError(w, http.StatusInternalServerError,
+			"the account's state was changed, but it could not be reloaded; refresh to see it")
 		return
 	}
 	// The gate result (the reloaded account) is reported alongside the cleanup
-	// counts but is distinct from them: a nonzero cleanup that partially failed
-	// still leaves the gate committed, so an operator reads the two separately.
+	// counts but is distinct from them: a cleanup that partially failed still
+	// leaves the gate committed, so an operator reads the two separately.
 	httputil.WriteJSON(w, http.StatusOK, struct {
 		AdminUser
 		accountlifecycle.DisableResult

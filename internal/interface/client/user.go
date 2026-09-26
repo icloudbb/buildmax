@@ -54,32 +54,38 @@ func (c *Client) IssueLoginCode(ctx context.Context, token, userID string) (stri
 	return out.Code, out.ExpiresAt, nil
 }
 
-// SetAccountDisabled disables or enables the account and returns it with the
-// number of sessions the change revoked (non-zero only when disabling).
-func (c *Client) SetAccountDisabled(ctx context.Context, token, userID string, disabled bool) (*AdminAccount, int64, error) {
+// AccountStateChange is the account after a disable or enable, with what a
+// disable's cleanup did (zero on enable).
+type AccountStateChange struct {
+	AdminAccount
+	SessionsRevoked int64 `json:"sessions_revoked"`
+	// CleanupFailed names the cleanup steps that failed after the account was
+	// already disabled. Disabling again retries them.
+	CleanupFailed []string `json:"cleanup_failed,omitempty"`
+}
+
+// SetAccountDisabled disables or enables the account and returns the result.
+func (c *Client) SetAccountDisabled(ctx context.Context, token, userID string, disabled bool) (*AccountStateChange, error) {
 	payload, err := json.Marshal(struct {
 		Disabled bool `json:"disabled"`
 	}{Disabled: disabled})
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	path := "/api/admin/users/" + url.PathEscape(userID) + "/state"
 	resp, err := c.do(ctx, http.MethodPut, token, path, "application/json", bytes.NewReader(payload))
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, 0, httpclient.DecodeError(resp, "")
+		return nil, httpclient.DecodeError(resp, "")
 	}
-	var out struct {
-		AdminAccount
-		SessionsRevoked int64 `json:"sessions_revoked"`
-	}
+	var out AccountStateChange
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, 0, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf("decode response: %w", err)
 	}
-	return &out.AdminAccount, out.SessionsRevoked, nil
+	return &out, nil
 }
 
 // ListAccounts returns accounts newest first with the total matched. query is an

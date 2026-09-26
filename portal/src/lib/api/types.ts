@@ -775,6 +775,11 @@ export interface ApiAdminUserAfterDisable extends ApiAdminUser {
   webhook_keys_retired?: number
   schedules_paused?: number
   runs_canceled?: number
+  /**
+   * Cleanup steps that failed after the account was already disabled
+   * (`sessions`, `webhook_keys`, `schedules`, `runs`). Disabling again retries.
+   */
+  cleanup_failed?: string[]
 }
 
 /** One Space an account belongs to and the role it holds there. */

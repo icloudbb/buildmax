@@ -535,11 +535,18 @@ It commits the account gate first, then revokes sessions, retires webhook keys
 when asked, pauses the account's enabled Schedules, and requests cancellation
 for its active runs. The gate is the authority, so a cleanup failure is
 inconvenient rather than authorizing: every admission and dispatch path already
-refuses, and the reconciler converges on the runs. `PUT
-/api/admin/users/{user_id}/state` returns the reloaded account and the cleanup
-counts (`sessions_revoked`, `webhook_keys_retired`, `schedules_paused`,
-`runs_canceled`) as separate facts. A cleanup error today is answered with a 500
-after the gate has committed, and `user.disabled` is not recorded for that call.
+refuses, and the reconciler converges on the runs. A failing step does not stop
+the steps after it. `PUT /api/admin/users/{user_id}/state` returns the reloaded
+account and the cleanup counts (`sessions_revoked`, `webhook_keys_retired`,
+`schedules_paused`, `runs_canceled`) as separate facts. Once the gate commits
+the call answers 200 and records `user.disabled` even if cleanup failed: the
+response then names the failed steps in `cleanup_failed` (`sessions`,
+`webhook_keys`, `schedules`, `runs`) and the event's detail reads
+`cleanup incomplete: <steps>`. Disabling again is safe — every step acts only on
+what is still live — and is the retry: Portal offers it as "Retry cleanup", and
+`buildmax admin user disable` prints the retry command and exits nonzero. An
+error status means the gate did not commit, except a failed read-back of the
+account, whose message says the change took effect.
 
 `GET /api/admin/users/{user_id}/deactivation-impact` is the read-only projection
 an operator sees first: live sessions, webhook keys, shared-Space memberships
