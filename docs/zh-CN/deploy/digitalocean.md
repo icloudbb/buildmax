@@ -117,6 +117,8 @@ BUILDMAX_OCEAN_ALLOWED_CIDRS=203.0.113.7/32
 
 `deploy` 刷新 OpenTofu 的只读数据库 CA 输出，将该 CA 与镜像的公共信任证书包合并，再以 `database.tls: "true"` 启动 BuildMax。因此服务器会验证 DigitalOcean MySQL 和公共 HTTPS 依赖，绝不使用 `skip-verify`。数据库、Spaces 和生成的 JWT 凭证通过内存组装的 Secret 传入 Kubernetes。渲染后的 Secret 不会写入检出目录。
 
+首次 `deploy` 还会在状态目录中生成部署密钥加密密钥（KEK）`kek.json`，之后每次部署都把同一文件作为 `buildmax-kek` Secret 下发，只挂载进 server pod，并由 `secret.kek_file` 指向。Server 用它封存 `model init` 添加的模型凭证，因此 `model init` 需要一个已经具备 KEK 的部署：如果是从早于 KEK 的部署升级而来，请先再运行一次 `deploy`。该密钥绝不会重新生成。如果 `kek.json` 缺失而集群中仍有 `buildmax-kek` Secret，`deploy` 会拒绝执行而不是替换密钥；请从备份恢复该文件。文件格式见 [KEK 参考](../reference/configuration.md#部署密钥加密密钥)。
+
 命令最后输出 DigitalOcean Load Balancer IP。请在 Route 53 中手动添加记录：
 
 ```text
@@ -156,6 +158,8 @@ OpenTofu 状态包含生成的 MySQL 密码和 DOKS kubeconfig，因此命令拒
 - 托管资源存在期间安全备份
 - 不要在 `./make ocean down` 前删除
 - 如果泄露，轮换数据库凭证和 Kubernetes 访问凭证
+
+该目录还保存 `kek.json`，即封存托管数据库中模型凭证和 Space Secret 的密钥。请将它与任何数据库备份分开备份：同时包含两者的备份等于没有保护，而在没有对应 KEK 的情况下恢复的数据库，其凭证无法读取，任何 BuildMax 命令都无法找回。`ocean down` 会保留该文件，下次部署会复用它。
 
 `.local/env` 同样保留在本地并被 gitignore 忽略。OpenTofu 从 `./make` 填充的环境变量读取凭证，不会向 OpenTofu 源码写入凭证。
 

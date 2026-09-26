@@ -141,6 +141,14 @@ data:
         # password comes from BUILDMAX_COORDINATION_REDIS_PASSWORD when the Redis
         # requires auth; the in-cluster Redis below runs without it.
 
+    # The deployment key-encryption key (KEK). It seals managed-model provider
+    # credentials and Space Secrets in the database; without it, adding a model
+    # with an API key is refused and Space Secrets are off. Only the path lives
+    # here: the key itself is mounted from the buildmax-kek Secret, never put in
+    # this ConfigMap or the environment. See README.md, "Key-encryption key".
+    secret:
+      kek_file: /buildmax/kek/kek.json
+
     conversation:
       model:
         name: default
@@ -463,6 +471,11 @@ spec:
             - name: worker-api-tls
               mountPath: /buildmax/tls/worker-api
               readOnly: true
+            # The KEK file secret.kek_file names. Server pods only; a worker
+            # pod never mounts it.
+            - name: buildmax-kek
+              mountPath: /buildmax/kek
+              readOnly: true
             # The root filesystem is read-only; this is the writable path
             # ordinary tooling assumes.
             - name: tmp
@@ -489,6 +502,19 @@ spec:
         - name: worker-api-tls
           secret:
             secretName: buildmax-worker-api-tls
+        # The KEK, under the key kek.json. Deliberately not a document in this
+        # file: re-applying a placeholder over the real key would lose every
+        # sealed credential. Generate it once, back it up apart from the
+        # database, and create the Secret before applying this file:
+        #   printf '{"current":"file:root:1","keys":{"file:root:1":"%s"}}\n' \
+        #     "$(openssl rand -base64 32)" > kek.json
+        #   kubectl create secret generic buildmax-kek -n buildmax \
+        #     --from-file=kek.json=kek.json
+        # Not optional: a server configured with secret.kek_file must not start
+        # without its key.
+        - name: buildmax-kek
+          secret:
+            secretName: buildmax-kek
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

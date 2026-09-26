@@ -75,6 +75,13 @@ Inject secrets at deploy time instead of writing them into the file:
 export BUILDMAX_JWT_SECRET="$(openssl rand -hex 32)"
 ```
 
+To store managed-model provider credentials or Space Secrets, also mount a
+key-encryption key file and point `secret.kek_file` at it. Without one,
+adding a model with an API key is refused. Generate the file once and back it
+up separately from the database: losing it makes every sealed credential
+unreadable. The format and generation command are in
+[the KEK reference](../reference/configuration.md#the-deployment-key-encryption-key).
+
 Field-by-field reference:
 [reference/configuration.md](../reference/configuration.md).
 

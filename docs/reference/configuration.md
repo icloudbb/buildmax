@@ -874,6 +874,10 @@ storage:
     secret_key: minio123
     bucket: bmstore
     prefix: workspaces
+
+secret:
+  kek_file: ""                       # mounted key-encryption key file; empty =
+                                     # no credentialed models or Space Secrets
 ```
 
 Required for a working server: `jwt_secret` (or `BUILDMAX_JWT_SECRET`) and
@@ -1006,6 +1010,46 @@ A space owner can download their space's trail from space settings, and a System
 Administrator can download the deployment-wide one, filtered, from `#/admin`.
 Both come as CSV or JSONL, and both are recorded in the trail as
 `audit.exported` — reading the whole record is itself an action on it.
+
+### The Deployment Key-Encryption Key
+
+`secret.kek_file` is the path to the key file holding the deployment
+key-encryption key (KEK). The server seals managed-model provider credentials
+and Space Secrets under it before they reach the database. Only the path is
+configured: the key is never read from `server.yaml` or an environment
+variable, so a deployment mounts the file — the Kubernetes manifests mount it
+from the `buildmax-kek` Secret into server pods only, at
+`/buildmax/kek/kek.json`. Worker pods never receive it.
+
+Leaving it empty keeps both features off: `buildmax-server model add --api-key`
+(and any other credentialed model creation) is refused rather than storing a key
+in the clear, and the Space Secret routes answer `503`. `buildmax-server model`
+commands read the same setting, so run them where the file is mounted.
+
+The file is JSON: `keys` maps each key id to base64-encoded 32-byte key
+material, and `current` names the key new writes use. Each sealed value records
+the key id it was sealed with, so the file may hold more than one key.
+
+```json
+{"current": "file:root:1", "keys": {"file:root:1": "<base64 of 32 random bytes>"}}
+```
+
+Generate one with:
+
+```sh
+printf '{"current":"file:root:1","keys":{"file:root:1":"%s"}}\n' \
+  "$(openssl rand -base64 32)" > kek.json
+```
+
+The server refuses to start when the configured file is missing or malformed,
+and never generates a replacement. Back the file up separately from the
+database dump — a backup holding both protects nothing — and never regenerate
+it or change the bytes under an existing key id: losing the key makes every
+value sealed under it permanently unreadable. `./make kind up` generates a
+throwaway key for the development cluster; the
+[production reference](../../deployment/production/README.md) and the
+[DigitalOcean trial](../deploy/digitalocean.md) describe their own. Design:
+[design/space-secrets.md](../design/space-secrets.md).
 
 ### Pointing At Dependencies You Already Run
 

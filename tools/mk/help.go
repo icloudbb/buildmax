@@ -587,7 +587,9 @@ func helpTopics() []helpTopic {
 					"permissions. Back it up while resources exist and never publish it.",
 				"`deploy` requires BUILDMAX_OCEAN_HOSTNAME and BUILDMAX_OCEAN_ALLOWED_CIDRS.\n" +
 					"It deploys immutable image digests behind a Caddy HTTPS edge and prints the\n" +
-					"Load Balancer IP for the Route 53 record you manage manually.",
+					"Load Balancer IP for the Route 53 record you manage manually. The first deploy\n" +
+					"generates the key-encryption key (kek.json) in the state directory; back it up\n" +
+					"apart from the database, because sealed model credentials need it.",
 				"`model init` reads OPENROUTER_API_KEY from .env and initializes the managed\n" +
 					"model catalog without printing the key. `database forward` keeps MySQL private\n" +
 					"and forwards it through the Kubernetes API to local port 13306.",

@@ -9,6 +9,7 @@ package architecture_test
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -320,6 +321,21 @@ func TestProductionReferenceLoads(t *testing.T) {
 	}
 	if cfg.WorkerAPI.TLS.CertFile == "" || cfg.WorkerAPI.TLS.KeyFile == "" {
 		t.Error("worker_api.tls has no certificate; the production worker listener must serve TLS")
+	}
+	// Without a KEK a credentialed model cannot be added, and a key file named
+	// but not mounted fails startup.
+	if cfg.Secret.KEKFile == "" {
+		t.Error("secret.kek_file is empty; the reference must configure the deployment KEK")
+	} else {
+		manifest, err := os.ReadFile(filepath.Join(root, "deployment", "production", "buildmax.yaml"))
+		if err != nil {
+			t.Fatalf("read production reference: %v", err)
+		}
+		for _, want := range []string{"secretName: buildmax-kek", "mountPath: " + path.Dir(cfg.Secret.KEKFile)} {
+			if !strings.Contains(string(manifest), want) {
+				t.Errorf("the production reference does not mount the KEK secret.kek_file names: missing %q", want)
+			}
+		}
 	}
 	// A worker pod runs model-chosen shell commands. The reference is what an
 	// operator copies, so an unbounded worker here becomes an unbounded worker

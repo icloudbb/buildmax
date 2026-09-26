@@ -1,11 +1,17 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/infra/secret"
 )
 
 func TestOceanConfigUsesPersistentResourceDefaults(t *testing.T) {
@@ -180,6 +186,107 @@ func TestOceanManifestUsesOnlyPinnedImages(t *testing.T) {
 	}
 	if strings.Contains(text, "{{") {
 		t.Error("manifest contains an unresolved template expression")
+	}
+}
+
+func TestOceanManifestMountsTheKEKWhereServerConfigPointsIt(t *testing.T) {
+	manifest, err := renderOceanManifest(oceanApplicationConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(manifest)
+	for _, want := range []string{"secretName: " + oceanKEKSecret, "mountPath: " + path.Dir(oceanKEKPath)} {
+		if !strings.Contains(text, want) {
+			t.Errorf("manifest missing %q", want)
+		}
+	}
+}
+
+func TestOceanServerConfigEnablesTheKEK(t *testing.T) {
+	body := oceanServerConfig(oceanConfig{region: "sgp1"}, oceanApplicationConfig{
+		hostname:      "buildmax.beta.cloudbb.io",
+		buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64),
+	}, map[string]string{
+		"database_private_host": "private-db.example",
+		"database_port":         "25060",
+		"database_user":         "doadmin",
+		"database_name":         "buildmax",
+		"spaces_endpoint":       "https://sgp1.digitaloceanspaces.com",
+		"spaces_bucket_name":    "buildmax-beta",
+	})
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "server.yaml"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	cfg, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("ocean server.yaml does not load: %v", err)
+	}
+	if cfg.Secret.KEKFile != oceanKEKPath {
+		t.Errorf("secret.kek_file = %q, want %q; without it `model add --api-key` is refused", cfg.Secret.KEKFile, oceanKEKPath)
+	}
+}
+
+func TestOceanKEKIsGeneratedOnceAndNeverReplaced(t *testing.T) {
+	cfg := oceanConfig{stateDir: t.TempDir()}
+	first, err := oceanKEK(cfg, func() (bool, error) { return false, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := secret.LoadKEKFile(oceanKEKStatePath(cfg)); err != nil {
+		t.Fatalf("generated KEK does not load as the server loads it: %v", err)
+	}
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(oceanKEKStatePath(cfg))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := info.Mode().Perm(); got != 0o600 {
+			t.Errorf("KEK mode = %o, want 600", got)
+		}
+	}
+	// The next deploy finds the Secret in the cluster and must ship the same key.
+	second, err := oceanKEK(cfg, func() (bool, error) { return true, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(first, second) {
+		t.Fatal("a second deploy produced a different KEK")
+	}
+}
+
+func TestOceanKEKRefusesToReplaceAClusterKey(t *testing.T) {
+	cfg := oceanConfig{stateDir: t.TempDir()}
+	if _, err := oceanKEK(cfg, func() (bool, error) { return true, nil }); err == nil {
+		t.Fatal("generated a new KEK while the cluster already holds one")
+	}
+	if exists(oceanKEKStatePath(cfg)) {
+		t.Error("wrote a replacement KEK file")
+	}
+	lookupFailed := errors.New("cluster unreachable")
+	if _, err := oceanKEK(cfg, func() (bool, error) { return false, lookupFailed }); !errors.Is(err, lookupFailed) {
+		t.Fatalf("err = %v, want the cluster lookup failure", err)
+	}
+	if exists(oceanKEKStatePath(cfg)) {
+		t.Error("generated a KEK without knowing whether the cluster holds one")
+	}
+}
+
+func TestOceanKEKRejectsAMalformedFile(t *testing.T) {
+	cfg := oceanConfig{stateDir: t.TempDir()}
+	if err := os.WriteFile(oceanKEKStatePath(cfg), []byte(`{"current":"file:root:1","keys":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := oceanKEK(cfg, func() (bool, error) { return false, nil }); err == nil {
+		t.Fatal("accepted a KEK file the server would refuse")
+	}
+	data, err := os.ReadFile(oceanKEKStatePath(cfg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"keys":{}`) {
+		t.Error("overwrote the operator's KEK file")
 	}
 }
 

@@ -13,11 +13,19 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/icloudbb/buildmax/internal/infra/secret"
 )
 
 const (
 	oceanManifestTemplate = "deployment/ocean/buildmax.yaml.tmpl"
 	oceanNamespace        = "buildmax"
+
+	// The deployment KEK: the Secret the manifest mounts, the path server.yaml
+	// names inside the server pod, and the key id of the one generated key.
+	oceanKEKSecret = "buildmax-kek"
+	oceanKEKPath   = "/buildmax/kek/kek.json"
+	oceanKEKKeyID  = "file:root:1"
 
 	// These are the immutable multi-platform release manifests, not mutable
 	// tags. A later candidate is selected explicitly through the matching env
@@ -119,6 +127,13 @@ func oceanDeploy(cfg oceanConfig) error {
 	if err != nil {
 		return err
 	}
+	kek, err := oceanKEK(cfg, func() (bool, error) {
+		name, err := oceanKubectlOutput(cfg, "get", "secret", oceanKEKSecret, "--namespace", oceanNamespace, "--ignore-not-found", "--output", "name")
+		return name != "", err
+	})
+	if err != nil {
+		return err
+	}
 	caddyConfig := oceanCaddyfile(app)
 
 	if err := oceanApplyObject(cfg, map[string]any{
@@ -155,6 +170,13 @@ func oceanDeploy(cfg oceanConfig) error {
 			"metadata":   map[string]any{"name": "buildmax-secret", "namespace": "buildmax"},
 			"type":       "Opaque",
 			"stringData": secretData,
+		},
+		{
+			"apiVersion": "v1",
+			"kind":       "Secret",
+			"metadata":   map[string]any{"name": oceanKEKSecret, "namespace": "buildmax"},
+			"type":       "Opaque",
+			"stringData": map[string]string{"kek.json": string(kek)},
 		},
 	} {
 		if err := oceanApplyObject(cfg, object); err != nil {
@@ -211,7 +233,24 @@ func oceanDeploymentInputs(cfg oceanConfig, app oceanApplicationConfig) (string,
 		return "", "", nil, err
 	}
 
-	serverConfig := fmt.Sprintf(`port: 5678
+	serverConfig := oceanServerConfig(cfg, app, outputs)
+	if target, err := os.ReadFile(oceanModelTargetPath(cfg)); err == nil {
+		serverConfig += fmt.Sprintf("\nconversation:\n  model_target: %s\n", yamlString(strings.TrimSpace(string(target))))
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", "", nil, fmt.Errorf("read Ocean conversation model target: %w", err)
+	}
+
+	return serverConfig, outputs["database_ca"], map[string]string{
+		"BUILDMAX_JWT_SECRET":               jwtSecret,
+		"BUILDMAX_DATABASE_PASSWORD":        outputs["database_password"],
+		"BUILDMAX_STORAGE_MINIO_ACCESS_KEY": os.Getenv("SPACES_ACCESS_KEY_ID"),
+		"BUILDMAX_STORAGE_MINIO_SECRET_KEY": os.Getenv("SPACES_SECRET_ACCESS_KEY"),
+	}, nil
+}
+
+// oceanServerConfig renders server.yaml from the OpenTofu outputs.
+func oceanServerConfig(cfg oceanConfig, app oceanApplicationConfig, outputs map[string]string) string {
+	return fmt.Sprintf(`port: 5678
 log_level: info
 workspaces_dir: /buildmax/workspaces
 cors_origin: %s
@@ -251,19 +290,10 @@ worker:
       cpu_limit: "2"
       memory_request: 1Gi
       memory_limit: 2Gi
-`, yamlString("https://"+app.hostname), yamlString(outputs["database_private_host"]), outputs["database_port"], yamlString(outputs["database_user"]), yamlString(outputs["database_name"]), yamlString(outputs["spaces_endpoint"]), yamlString(cfg.region), yamlString(outputs["spaces_bucket_name"]), yamlString(app.buildmaxImage))
-	if target, err := os.ReadFile(oceanModelTargetPath(cfg)); err == nil {
-		serverConfig += fmt.Sprintf("\nconversation:\n  model_target: %s\n", yamlString(strings.TrimSpace(string(target))))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", "", nil, fmt.Errorf("read Ocean conversation model target: %w", err)
-	}
 
-	return serverConfig, outputs["database_ca"], map[string]string{
-		"BUILDMAX_JWT_SECRET":               jwtSecret,
-		"BUILDMAX_DATABASE_PASSWORD":        outputs["database_password"],
-		"BUILDMAX_STORAGE_MINIO_ACCESS_KEY": os.Getenv("SPACES_ACCESS_KEY_ID"),
-		"BUILDMAX_STORAGE_MINIO_SECRET_KEY": os.Getenv("SPACES_SECRET_ACCESS_KEY"),
-	}, nil
+secret:
+  kek_file: %s
+`, yamlString("https://"+app.hostname), yamlString(outputs["database_private_host"]), outputs["database_port"], yamlString(outputs["database_user"]), yamlString(outputs["database_name"]), yamlString(outputs["spaces_endpoint"]), yamlString(cfg.region), yamlString(outputs["spaces_bucket_name"]), yamlString(app.buildmaxImage), yamlString(oceanKEKPath))
 }
 
 func yamlString(value string) string {
@@ -310,6 +340,49 @@ func oceanJWTSecret(cfg oceanConfig) (string, error) {
 		return "", fmt.Errorf("protect ocean JWT secret: %w", err)
 	}
 	return value, nil
+}
+
+// oceanKEK returns the deployment KEK file kept in the state directory,
+// generating it on the first deploy. It is never regenerated: the database
+// holds model credentials and Space Secrets sealed under it, and new bytes
+// under the same key id would leave them unreadable. So a missing local file while the
+// cluster already holds a KEK Secret is refused rather than replaced.
+func oceanKEK(cfg oceanConfig, clusterHasKEK func() (bool, error)) ([]byte, error) {
+	path := oceanKEKStatePath(cfg)
+	data, err := os.ReadFile(path)
+	if err == nil {
+		// Refuse a file the server would refuse, before it crash-loops on it.
+		if _, err := secret.LoadKEKFile(path); err != nil {
+			return nil, fmt.Errorf("ocean KEK %s: %w", path, err)
+		}
+		return data, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("read ocean KEK: %w", err)
+	}
+	present, err := clusterHasKEK()
+	if err != nil {
+		return nil, fmt.Errorf("check the cluster for an existing KEK: %w", err)
+	}
+	if present {
+		return nil, fmt.Errorf("%s is missing but the cluster already has the %s Secret; restore the file from your backup rather than generating a new key, which would make the stored model credentials unreadable", path, oceanKEKSecret)
+	}
+	data, err = newKEKFile(oceanKEKKeyID)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return nil, fmt.Errorf("write ocean KEK: %w", err)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		return nil, fmt.Errorf("protect ocean KEK: %w", err)
+	}
+	fmt.Printf("Generated the deployment KEK at %s. Back it up apart from the database: without it, sealed credentials cannot be read.\n", path)
+	return data, nil
+}
+
+func oceanKEKStatePath(cfg oceanConfig) string {
+	return filepath.Join(cfg.stateDir, "kek.json")
 }
 
 func renderOceanManifest(app oceanApplicationConfig) ([]byte, error) {

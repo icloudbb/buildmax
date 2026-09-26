@@ -161,6 +161,12 @@ spec:
             - name: trust
               mountPath: /trust
               readOnly: true
+            # Deployment key-encryption key, generated once by `ocean deploy`
+            # into the state directory. It seals managed-model credentials and
+            # Space Secrets; secret.kek_file in server.yaml points here.
+            - name: buildmax-kek
+              mountPath: /buildmax/kek
+              readOnly: true
             - name: tmp
               mountPath: /tmp
           resources:
@@ -181,6 +187,9 @@ spec:
             name: buildmax-database-ca
         - name: trust
           emptyDir: {}
+        - name: buildmax-kek
+          secret:
+            secretName: buildmax-kek
         - name: tmp
           emptyDir: {}
 ---
