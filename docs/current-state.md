@@ -195,8 +195,12 @@ planned.
 
 Local execution does not require a Server. Signed-in clients can use the managed
 model catalog, priced with the rates it carries so session cost shows locally;
-the caller's own foreground calls are totalled on `GET /api/usage`. A failure to
-reach the models is classified: a server-rejected or unrenewable credential is an
+the caller's own foreground calls are totalled on `GET /api/usage`. When the
+server refuses an access token that still looks valid — as after a JWT secret
+rotation — CLI server commands, managed inference, Desktop, and the Remote
+Control relay renew it once through one single-flight refresh and retry, and the
+Portal WebSocket renews before reconnecting after a refused upgrade. A failure to
+reach the models is classified: a credential the server will not renew is an
 expired login (the login is kept until the user signs in again or out), a
 disabled account is its own case, and an unreachable deployment keeps the login
 and asks the user to retry — Desktop shows a retrying banner rather than the

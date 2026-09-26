@@ -48,12 +48,13 @@ type artifactPublisher struct {
 }
 
 // NewArtifactPublisher returns a publisher, or nil when this surface has no
-// server to reach. Returning nil is what leaves the tool unregistered.
-func NewArtifactPublisher(serverURL, spaceID string, token TokenFunc) tool.ArtifactPublisher {
+// server to reach. Returning nil is what leaves the tool unregistered. A nil
+// httpClient uses http.DefaultClient.
+func NewArtifactPublisher(serverURL, spaceID string, token TokenFunc, httpClient *http.Client) tool.ArtifactPublisher {
 	if serverURL == "" || token == nil {
 		return nil
 	}
-	return &artifactPublisher{ServerURL: serverURL, SpaceID: spaceID, Token: token}
+	return &artifactPublisher{ServerURL: serverURL, SpaceID: spaceID, Token: token, HTTP: httpClient}
 }
 
 // PublishArtifact implements tool.ArtifactPublisher.

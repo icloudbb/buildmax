@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/icloudbb/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 )
 
 // newAdminUserCommand groups the account-lifecycle verbs, reached over the Admin
@@ -85,7 +85,7 @@ func runAdminUserList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	search, _ := cmd.Flags().GetString("search")
-	accounts, total, err := client.NewClient(serverURL).ListAccounts(cmd.Context(), token, search)
+	accounts, total, err := auth.ServerClient(serverURL).ListAccounts(cmd.Context(), token, search)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func runAdminUserCreate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	account, err := client.NewClient(serverURL).CreateAccount(cmd.Context(), token, args[0])
+	account, err := auth.ServerClient(serverURL).CreateAccount(cmd.Context(), token, args[0])
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func runAdminUserLoginCode(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	c := client.NewClient(serverURL)
+	c := auth.ServerClient(serverURL)
 	account, err := c.FindAccountByEmail(cmd.Context(), token, args[0])
 	if err != nil {
 		return err
@@ -155,7 +155,7 @@ func runAdminUserSetDisabled(cmd *cobra.Command, email string, disabled bool) er
 	if err != nil {
 		return err
 	}
-	c := client.NewClient(serverURL)
+	c := auth.ServerClient(serverURL)
 	account, err := c.FindAccountByEmail(cmd.Context(), token, email)
 	if err != nil {
 		return err

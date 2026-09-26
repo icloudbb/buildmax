@@ -471,8 +471,8 @@ profile ever says otherwise, the fix is a short-TTL cache in front of it — wit
 the honest note that a cache is a window in which a disabled account still
 works. No cache in the first implementation.
 
-The alternative — wait out the access token TTL, which defaults to seven days —
-was rejected. "Disable this account" that means "in about a week" is not the
+The alternative — wait out the access token TTL, which then defaulted to seven
+days — was rejected. "Disable this account" that means "in about a week" is not the
 feature.
 
 Enabling reverses the gate and nothing else. Sessions stay revoked, canceled

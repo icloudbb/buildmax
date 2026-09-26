@@ -1,4 +1,5 @@
-import { ensureAccessToken, getApiBase, UNAUTHORIZED_EVENT } from "./client"
+import { ensureAccessToken, getApiBase, refreshAccessToken, UNAUTHORIZED_EVENT } from "./client"
+import { currentAccessToken } from "./session"
 
 export interface WsEnvelope {
   type: string
@@ -53,6 +54,16 @@ export class BuildMaxWebSocket {
   private reconnectDelay = RECONNECT_MIN
   private connectedAt = 0
   private sendQueue: string[] = []
+  // Bumped by connect() and close(), so an open that awaited a refresh, or a
+  // replaced socket's late close event, can tell it no longer speaks for this
+  // connection.
+  private generation = 0
+  // A socket that closed without ever opening may have been refused at the
+  // upgrade, which the browser reports as nothing more than an abnormal close.
+  // The next attempt renews first, once per run of failures: an outage looks
+  // the same, and renewing on every retry would rotate the session for nothing.
+  private renewBeforeOpen = false
+  private renewedSinceOpen = false
 
   /** Lifecycle callback: called when the connection opens (or re-opens). */
   onOpen: (() => void) | null = null
@@ -60,6 +71,7 @@ export class BuildMaxWebSocket {
   onClose: (() => void) | null = null
 
   connect(token: string, spaceId?: string | null): void {
+    this.generation++
     this.token = token
     this.spaceId = spaceId ?? null
     this.intentionalClose = false
@@ -76,16 +88,36 @@ export class BuildMaxWebSocket {
    * The token is not the one connect() was handed. A socket outlives its
    * token: this one reconnects for as long as the tab is open, and the
    * upgrade is the only moment the server checks. Reconnecting with the token
-   * from the original connect() would work all week and then fail every
-   * attempt, which reads as "the server is down" rather than "sign in again".
+   * from the original connect() would work until it expired and then fail
+   * every attempt, which reads as "the server is down" rather than "sign in
+   * again". Expiry is not the only way a token dies — a rotated JWT secret
+   * refuses one that still looks valid — so a socket that never opened also
+   * renews before the next attempt.
    */
   private async openSocketWithFreshToken(): Promise<void> {
     if (!this.token) return
     if (!this.spaceId) return
 
-    const token = (await ensureAccessToken()) ?? this.token
-    // close() may have been called while the refresh was in flight.
-    if (this.intentionalClose) return
+    const generation = this.generation
+    let token: string | null
+    if (this.renewBeforeOpen) {
+      this.renewBeforeOpen = false
+      this.renewedSinceOpen = true
+      token = await refreshAccessToken()
+      if (generation !== this.generation) return
+      if (!token && currentAccessToken() === null) {
+        // The server refused the refresh cookie too and the session is gone;
+        // retrying the socket would only be refused again.
+        window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT))
+        return
+      }
+    } else {
+      token = await ensureAccessToken()
+      // close() or connect() may have been called while the refresh was in
+      // flight.
+      if (generation !== this.generation) return
+    }
+    token = token ?? this.token
     this.token = token
 
     const wsBase = wsBaseFrom(getApiBase())
@@ -94,9 +126,12 @@ export class BuildMaxWebSocket {
 
     console.log("[ws] connecting", wsBase)
     this.ws = new WebSocket(url)
+    let opened = false
 
     this.ws.onopen = () => {
       console.log("[ws] connected")
+      opened = true
+      this.renewedSinceOpen = false
       this.connectedAt = Date.now()
       this.reconnectDelay = RECONNECT_MIN
       this.flushQueue()
@@ -116,9 +151,13 @@ export class BuildMaxWebSocket {
 
     this.ws.onclose = (event) => {
       console.log("[ws] closed", { code: event.code, reason: event.reason, wasClean: event.wasClean })
+      if (generation !== this.generation) return
       if (event.code === 4001 || event.code === 1008) {
         window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT))
         return
+      }
+      if (!opened && !this.renewedSinceOpen) {
+        this.renewBeforeOpen = true
       }
       if (!this.intentionalClose) {
         this.onClose?.()
@@ -157,6 +196,7 @@ export class BuildMaxWebSocket {
 
   close(): void {
     console.log("[ws] closing (intentional)")
+    this.generation++
     this.intentionalClose = true
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)

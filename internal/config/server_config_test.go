@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 // TestServerDBConfig_DSNUsesTLS covers the connection a deployment makes to a
@@ -41,6 +44,28 @@ func TestServerDBConfig_DSNUsesTLS(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestSessionLifetimesDefaultToTheIdentityDomain guards the access token's
+// short default. A loader default of a week once shadowed the 15 minutes the
+// identity domain and the documentation both promised, which is the replay
+// window of a leaked token.
+func TestSessionLifetimesDefaultToTheIdentityDomain(t *testing.T) {
+	t.Setenv(EnvKeyBuildmaxHome, t.TempDir())
+
+	cfg, err := LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+	if cfg.AccessTokenTTL != 15*time.Minute {
+		t.Errorf("access_token_ttl defaults to %v, want 15m", cfg.AccessTokenTTL)
+	}
+	if cfg.RefreshTokenTTL != coreidentity.RefreshTokenTTLDefault {
+		t.Errorf("refresh_token_ttl defaults to %v", cfg.RefreshTokenTTL)
+	}
+	if cfg.RefreshRotationGrace != coreidentity.RefreshRotationGraceDefault {
+		t.Errorf("refresh_rotation_grace defaults to %v", cfg.RefreshRotationGrace)
+	}
 }
 
 // TestStorageHasNoCredentialOrEndpointDefaults guards what makes the AWS path

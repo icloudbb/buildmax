@@ -156,6 +156,7 @@ func printAppConfig(opts printOptions, source auth.ModelSource) agentapp.AppConf
 		DefaultModel:           source.Default,
 		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
+		ManagedTokenRenew:      auth.RenewRejected,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
 		Issue:                  issueContextOf(opts.Overrides.Issue),
 		Surface:                coregw.CallSurfaceCLI,

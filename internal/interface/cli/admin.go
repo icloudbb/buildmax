@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/icloudbb/buildmax/internal/interface/auth"
-	"github.com/icloudbb/buildmax/internal/interface/client"
 )
 
 // newAdminCommand groups the deployment-administration verbs.
@@ -94,7 +93,7 @@ func runAdminList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	includeRevoked, _ := cmd.Flags().GetBool("all")
-	grants, err := client.NewClient(serverURL).ListSystemGrants(cmd.Context(), token, includeRevoked)
+	grants, err := auth.ServerClient(serverURL).ListSystemGrants(cmd.Context(), token, includeRevoked)
 	if err != nil {
 		return err
 	}
@@ -125,7 +124,7 @@ func runAdminGrant(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	c := client.NewClient(serverURL)
+	c := auth.ServerClient(serverURL)
 	account, err := c.FindAccountByEmail(cmd.Context(), token, args[0])
 	if err != nil {
 		return err
@@ -143,7 +142,7 @@ func runAdminRevoke(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	c := client.NewClient(serverURL)
+	c := auth.ServerClient(serverURL)
 	account, err := c.FindAccountByEmail(cmd.Context(), token, args[0])
 	if err != nil {
 		return err

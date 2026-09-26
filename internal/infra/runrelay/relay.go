@@ -10,6 +10,7 @@ package runrelay
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -92,10 +93,20 @@ type approvalResponsePayload struct {
 // any one token.
 type TokenFunc func() (string, error)
 
+// RenewFunc is told the token the server refused at the upgrade and returns
+// one to retry with.
+type RenewFunc func(rejected string) (string, error)
+
 // Config wires a relay to the server as the signed-in user.
 type Config struct {
-	ServerURL   string
-	TokenFunc   TokenFunc
+	ServerURL string
+	TokenFunc TokenFunc
+	// RenewToken, when set, is asked for a new token after the server answers
+	// the upgrade with 401, and the dial is retried once with it. A token can
+	// look unexpired and still be refused — a rotated JWT secret does that — and
+	// redialing with TokenFunc alone would repeat the refusal until the token's
+	// own expiry. Nil leaves a refused dial to the ordinary backoff.
+	RenewToken  RenewFunc
 	HTTPClient  *http.Client
 	DisplayName string
 	Platform    string
@@ -297,16 +308,38 @@ func (r *Relay) dial(ctx context.Context) (*gws.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+	conn, status, err := r.dialWith(ctx, token)
+	if err == nil || status != http.StatusUnauthorized || r.cfg.RenewToken == nil {
+		return conn, err
+	}
+	renewed, renewErr := r.cfg.RenewToken(token)
+	if renewErr != nil {
+		return nil, fmt.Errorf("%w; renewing the credential failed: %w", err, renewErr)
+	}
+	conn, _, err = r.dialWith(ctx, renewed)
+	return conn, err
+}
+
+// dialWith opens the agent socket with token, reporting the HTTP status of a
+// refused upgrade so the caller can tell a rejected credential from an outage.
+func (r *Relay) dialWith(ctx context.Context, token string) (*gws.Conn, int, error) {
 	wsURL, err := agentWSURL(r.cfg.ServerURL, token)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	dialer := &gws.Dialer{HandshakeTimeout: handshakeTimeout}
 	if t, ok := transportOf(r.cfg.HTTPClient); ok && t.TLSClientConfig != nil {
 		dialer.TLSClientConfig = t.TLSClientConfig.Clone()
 	}
-	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
-	return conn, err
+	conn, resp, err := dialer.DialContext(ctx, wsURL, nil)
+	status := 0
+	if resp != nil {
+		status = resp.StatusCode
+		if resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+	}
+	return conn, status, err
 }
 
 // OnDelta implements llm.StreamSink: it enqueues a content delta for relay,

@@ -93,8 +93,10 @@ Desktop 的 Memory 界面有意保持只读：用户直接编辑 Markdown 文件
 `buildmax project forget` 删除或清空，并用 `--no-project-memory` 为单次运行禁用；
 不再计划单独的 Desktop 编辑/删除/启用控件。
 
-本地执行不需要 Server。已登录客户端可使用托管模型目录；Server 拒绝凭证时，
-客户端将其视为登录过期，执行 `buildmax logout` 可回到本地模式。
+本地执行不需要 Server。已登录客户端可使用托管模型目录。Server 拒绝一个看似仍有效的
+访问令牌时（例如 JWT 密钥轮换之后），CLI、托管推理、Desktop 和 Remote Control
+会通过同一个单飞刷新续期一次并重试，Portal WebSocket 在升级被拒后也会先续期再重连；
+只有 Server 不再续期的凭证才被视为登录过期，执行 `buildmax logout` 可回到本地模式。
 参见[模型来源解析](../../internal/interface/auth/models.go)及其
 [测试](../../internal/interface/auth/models_test.go)。
 

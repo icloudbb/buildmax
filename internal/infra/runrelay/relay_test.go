@@ -2,6 +2,7 @@ package runrelay
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -335,4 +336,91 @@ func TestNewInertWithoutServer(t *testing.T) {
 	r.Start(t.Context())
 	r.OnDelta("x")
 	_ = r.Close()
+}
+
+// tokenGate upgrades only the token it was told is current, answering anything
+// else the way the server answers a refused credential: a plain 401.
+func tokenGate(t *testing.T, current string, attempts *atomic.Int32) *httptest.Server {
+	t.Helper()
+	upgrader := gws.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		if r.URL.Query().Get("token") != current {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		_ = c.Close()
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+// A rotated JWT secret leaves the stored token looking valid while the server
+// refuses it. The relay renews on that refusal and dials once more.
+func TestDialRenewsARefusedToken(t *testing.T) {
+	var attempts atomic.Int32
+	server := tokenGate(t, "fresh", &attempts)
+	var rejected []string
+	r := New(Config{
+		ServerURL: server.URL,
+		TokenFunc: func() (string, error) { return "stale", nil },
+		RenewToken: func(tok string) (string, error) {
+			rejected = append(rejected, tok)
+			return "fresh", nil
+		},
+	})
+
+	conn, err := r.dial(t.Context())
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	_ = conn.Close()
+	if len(rejected) != 1 || rejected[0] != "stale" {
+		t.Errorf("RenewToken saw %v, want exactly the refused token", rejected)
+	}
+	if got := attempts.Load(); got != 2 {
+		t.Errorf("upgrade attempts = %d, want the refused one and one retry", got)
+	}
+}
+
+func TestDialReportsAFailedRenewalWithoutRetrying(t *testing.T) {
+	var attempts atomic.Int32
+	server := tokenGate(t, "fresh", &attempts)
+	r := New(Config{
+		ServerURL:  server.URL,
+		TokenFunc:  func() (string, error) { return "stale", nil },
+		RenewToken: func(string) (string, error) { return "", errors.New("login has expired") },
+	})
+
+	if _, err := r.dial(t.Context()); err == nil || !strings.Contains(err.Error(), "login has expired") {
+		t.Fatalf("dial error = %v, want the renewal failure named", err)
+	}
+	if got := attempts.Load(); got != 1 {
+		t.Errorf("upgrade attempts = %d, want no retry without a new token", got)
+	}
+}
+
+// Only a refused credential is worth renewing; an outage is the backoff's.
+func TestDialDoesNotRenewOnAnOutage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "down", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	renewed := false
+	r := New(Config{
+		ServerURL:  server.URL,
+		TokenFunc:  func() (string, error) { return "tok", nil },
+		RenewToken: func(string) (string, error) { renewed = true; return "other", nil },
+	})
+
+	if _, err := r.dial(t.Context()); err == nil {
+		t.Fatal("dial succeeded against a server that refused the upgrade")
+	}
+	if renewed {
+		t.Error("a 503 spent a token renewal")
+	}
 }

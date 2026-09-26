@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
-	"github.com/icloudbb/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 	"github.com/icloudbb/buildmax/internal/tool"
 )
 
@@ -79,7 +79,7 @@ func runArtifactPublish(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	space, _ := cmd.Flags().GetString("space")
-	art, err := client.NewClient(serverURL).PublishArtifact(
+	art, err := auth.ServerClient(serverURL).PublishArtifact(
 		cmd.Context(), token, space, title, path, filepath.Base(path), share)
 	if err != nil {
 		return fmt.Errorf("publish artifact: %w", err)

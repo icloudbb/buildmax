@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
 
 // ---------------------------------------------------------------------------
@@ -792,9 +794,12 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("log_level", "info")
 	v.SetDefault("port", 5678)
 	v.SetDefault("cors_origin", "http://localhost:5173")
-	v.SetDefault("access_token_ttl", "168h")
-	v.SetDefault("refresh_token_ttl", "720h")
-	v.SetDefault("refresh_rotation_grace", "30s")
+	// The session lifetimes come from the identity domain rather than being
+	// restated here: a copy here once shadowed the 15-minute access-token
+	// default with a week.
+	v.SetDefault("access_token_ttl", coreidentity.AccessTokenTTLDefault)
+	v.SetDefault("refresh_token_ttl", coreidentity.RefreshTokenTTLDefault)
+	v.SetDefault("refresh_rotation_grace", coreidentity.RefreshRotationGraceDefault)
 	v.SetDefault("shutdown_grace", "25s")
 	v.SetDefault("default_quota_tier", "free_trial")
 	v.SetDefault("webhook.message_path", "message")

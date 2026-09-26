@@ -27,5 +27,5 @@ func ArtifactPublisherForSession() tool.ArtifactPublisher {
 	if !info.LoggedIn || info.ServerURL == "" {
 		return nil
 	}
-	return client.NewArtifactPublisher(info.ServerURL, "", TokenForServer)
+	return client.NewArtifactPublisher(info.ServerURL, "", TokenForServer, HTTPClient(info.ServerURL))
 }

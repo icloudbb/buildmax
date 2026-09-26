@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 	"github.com/icloudbb/buildmax/internal/interface/client"
 )
 
@@ -40,7 +41,7 @@ func runWorkflowList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	space, _ := cmd.Flags().GetString("space")
-	c := client.NewClient(serverURL)
+	c := auth.ServerClient(serverURL)
 
 	var workflows []client.Workflow
 	if space != "" {
@@ -97,7 +98,7 @@ func runWorkflowRun(cmd *cobra.Command, args []string) error {
 	space, _ := cmd.Flags().GetString("space")
 	input, _ := cmd.Flags().GetString("input")
 	issue, _ := cmd.Flags().GetString("issue")
-	c := client.NewClient(serverURL)
+	c := auth.ServerClient(serverURL)
 
 	wf, err := c.FindWorkflow(cmd.Context(), token, space, args[0])
 	if err != nil {
@@ -134,7 +135,7 @@ func runWorkflowStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	space, _ := cmd.Flags().GetString("space")
-	run, err := client.NewClient(serverURL).FindWorkflowRun(cmd.Context(), token, space, args[0])
+	run, err := auth.ServerClient(serverURL).FindWorkflowRun(cmd.Context(), token, space, args[0])
 	if err != nil {
 		return err
 	}

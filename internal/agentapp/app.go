@@ -131,6 +131,12 @@ type AppConfig struct {
 	// inference, and such an entry fails with a clear error instead of falling
 	// back to a direct provider call.
 	ManagedToken ManagedTokenFunc
+	// ManagedTokenRenew is asked for a new credential when the server refuses
+	// one ManagedToken supplied, and the managed call or Remote Control dial is
+	// retried once with it. A signed-in surface sets it so a rotated JWT secret
+	// does not end the session; nil — a worker's run token, which cannot be
+	// renewed — leaves the refusal to the caller.
+	ManagedTokenRenew ManagedTokenRenewFunc
 	// ManagedHTTPClient is the HTTP client managed inference uses to reach the
 	// gateway. Nil uses http.DefaultClient. A worker sets it to the client that
 	// carries its server trust, so managed calls verify the worker listener the
@@ -234,6 +240,10 @@ type AppConfig struct {
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
 // expected to refuse when the stored login belongs to a different server.
 type ManagedTokenFunc func(serverURL string) (string, error)
+
+// ManagedTokenRenewFunc returns the credential to retry with after serverURL
+// refused rejected.
+type ManagedTokenRenewFunc func(serverURL, rejected string) (string, error)
 
 // RunProvenance is who or what asked for a run and why. It mirrors the fields
 // a worker's TaskRun already carries (see coretask.Run), restated here as

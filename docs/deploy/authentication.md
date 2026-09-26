@@ -316,11 +316,15 @@ token under it stops on its next request rather than at expiry.
 | **Run token** | minted per run, delivered as `BUILDMAX_RUN_TOKEN` | The `/api/worker/*` routes. Signed with the JWT secret, it names one run's user, space, and task, and authorizes that run alone. Not an operator setting — the scheduler issues one for every dispatched run. Lifetime is `worker.run_token_ttl`; there is no renewal, so it must outlast your longest run. |
 | **Webhook keys** | created per user via the API | Inbound `POST /api/webhook`. Stored as a SHA-256 hash; the plaintext is shown once at creation. See [reference/webhook.md](../reference/webhook.md). |
 
-Rotating the JWT secret invalidates every issued access token at once. Refresh
-tokens survive it — they are stored rows, not signatures — so clients exchange
-theirs and carry on rather than needing new login codes. That is usually what
-you want from a key rotation, but it means the secret is no longer the way to
-sign everyone out.
+Rotating the JWT secret invalidates every issued access token and run token
+immediately. Refresh tokens survive it — they are stored rows, not signatures —
+so clients recover without anyone signing in again: Portal, the CLI, Desktop,
+and a Remote Control session each treat the server's 401 as a cue to exchange
+their refresh token once and retry. Runs in flight lose their run token and fail
+when they next call the server; drain the workers before rotating if those runs
+matter. There is one signing key at a time, so the rotation takes effect at
+once rather than overlapping with the old key. Because refresh tokens survive,
+the secret is not the way to sign everyone out — revoke sessions for that.
 
 A run token cannot be revoked before it expires either, for the same reason: it
 is a signature, not a row. What bounds it instead is scope — one run — and run

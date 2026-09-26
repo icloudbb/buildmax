@@ -65,7 +65,7 @@ func Open() (*Session, error) {
 		return nil, err
 	}
 	return &Session{
-		client: client.NewClient(info.ServerURL), token: token, serverURL: info.ServerURL,
+		client: auth.ServerClient(info.ServerURL), token: token, serverURL: info.ServerURL,
 	}, nil
 }
 

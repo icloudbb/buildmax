@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
-	"github.com/icloudbb/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 )
 
 func newTaskCommand() *cobra.Command {
@@ -68,7 +68,7 @@ func runTaskStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	space, _ := cmd.Flags().GetString("space")
-	task, err := client.NewClient(serverURL).FindTask(cmd.Context(), token, space, args[0])
+	task, err := auth.ServerClient(serverURL).FindTask(cmd.Context(), token, space, args[0])
 	if err != nil {
 		return err
 	}
