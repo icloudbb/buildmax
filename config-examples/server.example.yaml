@@ -179,6 +179,11 @@ database:
   # this for a managed database (RDS, Aurora, Cloud SQL). "skip-verify"
   # requires TLS but accepts any cert; "false" never uses it.
   tls: ""
+  # Start against a database a newer release has migrated, which is otherwise
+  # refused: binary rollback is not supported, and this binary's startup may
+  # re-add what the newer migrations dropped. For a deliberate recovery only;
+  # see manual/support.md#compatibility.
+  # allow_newer_schema: false
 
 webhook:
   message_path: message

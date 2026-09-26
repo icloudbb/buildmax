@@ -571,8 +571,8 @@ what makes recovery from a crash mid-migration work and what makes deleting a
 row a way to corrupt a database.
 
 The table also tells a binary that the database is ahead of it: an ID here that
-the binary does not know is a migration from a later release. See
-[Forward Only During Alpha](#forward-only-during-alpha).
+the binary does not know is a migration from a later release, and `New` refuses
+to start. See [Forward Only During Alpha](#forward-only-during-alpha).
 
 ## Work Objects
 
@@ -1607,7 +1607,7 @@ Three rules govern that list:
 - **Append only.** Existing IDs and their order are permanent. Renaming an ID
   makes that migration run a second time on every deployed database; reordering
   changes what an upgraded database gets relative to a fresh one.
-  `TestMigrationIDsAreStable` fails on either.
+  `TestMigrationsArePermanent` fails on either.
 - **`Apply` must tolerate re-running.** A crash between applying a change and
   recording it leaves the migration pending, and the next start retries it.
   Probe `information_schema` first and return `nil` when there is nothing to do.
@@ -1619,20 +1619,35 @@ framework for an additive change `AutoMigrate` already handles.
 
 ### Forward Only During Alpha
 
-The schema moves forward only; `Migration` has no `Down` field. Alpha has no
-required migration path or N-1 binary compatibility guarantee. Correct a wrong
-stored shape coherently rather than retain it for hypothetical older clients.
-Document destructive changes and their recovery limits in the changelog.
+The schema moves forward only; `Migration` has no `Down` field. Binary rollback
+is not supported, and Alpha owes no migration path to an older binary. Correct
+a wrong stored shape coherently rather than retain it for hypothetical older
+clients. Document destructive changes and their recovery limits in the
+changelog.
 
-`llm_model_credential_encryption` drops plaintext keys, and
-`issue_owner_executor_split` backfills the split fields and drops old assignee
-columns. Neither operation makes an old binary safe against the new schema.
-The unknown-migration warning does not verify compatibility or prevent startup.
+Four migrations remove data or an old shape: `llm_model_credential_encryption`
+drops plaintext keys and `issue_owner_executor_split` drops the old assignee
+columns after backfilling the split (both 0.2.0-alpha.9);
+`workflow_step_run_to_node_run` drops `workflow_step_run` and the step runs in
+it (0.2.0-alpha.13); `schedule_agent_to_executor` drops `schedule.agent_id` and
+`last_task_id` after backfilling the executor (0.2.0-alpha.15).
 
-If a release later promises binary rollback, name and test the version pair;
-an additive, staged removal can support that contract where needed. For current
-Alpha cutovers, recovery is a clean installation or restoration of a coordinated
-database/bucket backup with matching binaries. There are no database down-migrations.
+An older binary's `AutoMigrate` re-adds what those migrations dropped, from
+row structs that still describe it. Rolling 0.2.0-alpha.15 back to
+0.2.0-alpha.14 re-adds `schedule.agent_id NOT NULL` filled with 0: every
+schedule disappears, and after rolling forward again — the migration is
+recorded and does not run twice — creating a schedule fails. So `New` first
+reads `schema_migration` and, when it records an ID this binary does not know,
+returns `*NewerSchemaError` before any DDL, naming the IDs and the restore
+procedure. A database without the ledger table is fresh and passes. Every
+`New` caller is covered: the server and the `buildmax-server user` and `space`
+commands. `database.allow_newer_schema` in `server.yaml` (`Options.AllowNewerSchema`)
+starts anyway, with a warning, for a deliberate recovery. Binaries up to and
+including 0.2.0-alpha.15 predate the refusal and are not protected.
+
+Recovery is a clean installation, or restoring the database and bucket together
+from a backup taken before the upgrade and running the binaries that match it.
+There are no database down-migrations.
 
 **After any schema change**, update this document in the same commit, and check
 whether [store.md](store.md) or the design record for the subsystem also needs

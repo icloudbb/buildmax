@@ -37,7 +37,7 @@ RFC 6901 指针读取运行输入或前驱节点的输出，成功运行把选�
 Server 现在可以按运维配置的保留窗口清理旧 Run 轨迹，并记录每次成功清理；默认仍为永久
 保留。部署冒烟已覆盖 worker 优雅丢失、MySQL 和对象存储在运行期中断时 Server 就绪
 状态的降级与恢复，以及只拒绝 worker 的对象存储写入——此时 Run 以 FAILED 结束，点明被拒绝
-的写入，且不留下指向缺失对象的记录。数据库和存储桶配对恢复、schema 升级与二进制回滚，以及
+的写入，且不留下指向缺失对象的记录。数据库和存储桶配对恢复、真实前序版本 schema 升级，以及
 凭证轮换仍待验证。共享 Redis 协调已经实现，包括消息历史写入对分布式
 租约 fencing token 的校验。worker API 已有独立监听器、TLS 支持和已交付的入站
 NetworkPolicy；不能把这部分网络边界与尚未限制的 worker 出站网络混为一谈。
@@ -148,7 +148,7 @@ Task 的工作区 head，Retry 使用被重试 Run 的基线。成功的结果�
 [检查点服务](../../internal/service/workspace/checkpoint.go)、
 [数据库实现](../../internal/infra/db/workspace_checkpoint.go)与 worker 检查点 handler。
 worker Job 有临时存储限制，孤儿与保留期清理回收未引用的数据。
-Portal 只读展示检查点与恢复状态。这些机制不能证明数据库/存储桶配对恢复或升级回滚合格。
+Portal 只读展示检查点与恢复状态。这些机制不能证明数据库/存储桶配对恢复或升级合格。
 
 ## worker 执行与网络边界
 
@@ -296,11 +296,13 @@ worker TaskRun 在领取后丢失时不会自动重新分发；这是首个 Beta
 不同。显式跨 Space 存储测试覆盖 Workflow 与 Issue 更新以及插件激活，并不覆盖每个存储方法。
 外部依赖恢复仍需具体场景证据。已移除的结果投递队列不再有独立的重启恢复义务。
 
-**显式迁移列表已经不为空。** [migration.go](../../internal/infra/db/migration.go)
-包含 `system_grant_live_marker` 和 `llm_model_credential_encryption`。
-后者删除旧明文凭证列而不迁移其中的值；受影响的模型需要重新添加。
-迁移测试覆盖账本记录与第二次运行跳过。该测试或设计文档中的 N-1 策略，都不能证明
-旧模式升级与二进制回滚已实际演练。“迁移历史为空，无法建立 fixture”的旧理由已过时。
+**五个显式迁移；二进制回滚会被拒绝，而不是受支持。** [migration.go](../../internal/infra/db/migration.go)
+包含 `system_grant_live_marker`、`llm_model_credential_encryption`、`issue_owner_executor_split`、
+`workflow_step_run_to_node_run` 和 `schedule_agent_to_executor`。后四个会删除数据或旧形状；
+凭证迁移删除明文密钥而不迁移其中的值，受影响的模型需要重新添加。MySQL 范围测试覆盖账本记录、
+第二次运行跳过，以及 Issue 与 Schedule 回填。当数据库账本记录了二进制不认识的迁移时，
+二进制会在任何 DDL 之前拒绝启动，除非设置了 `database.allow_newer_schema`；一个 MySQL 测试证明了
+这两种情况。0.2.0-alpha.15 及更早的二进制早于这项拒绝。目前还没有测试升级真实的前序版本模式。
 
 每份轨迹都有字段与记录数量上限。运维人员把 `trace.retention_days` 设置为大于零后，
 Server 自有的小时级清理会删除结束时间早于截止点的 Run 轨迹、清除相应 TaskRun 指针，
@@ -436,7 +438,7 @@ worker 的写入且 /readyz 保持健康时，首次 Run 在种子检查点处�
 失联 Run 处理和清理，包括了结一次 worker 已经静默的 Run 的存活性巡检——这条硬丢失路径
 无法从部署侧复现，因为内核不会把容器内发给 PID 1 的 SIGKILL 投递给它，而 kubelet 的任何
 删除都从 worker 会据以自报的 SIGTERM 开始。这些不等于候选版本已经演练配对恢复、凭证轮换和
-模式回滚。
+模式升级。
 
 Compose、kind、生产 Kubernetes 清单、发布验证、SBOM、镜像扫描及来源证明工作流已存在。
 它们的存在不能替代尚未签署的 [Beta 就绪记录](deploy/beta-readiness.md)。

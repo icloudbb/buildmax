@@ -68,7 +68,7 @@ Deployment smoke now exercises graceful worker loss, the Server's readiness
 degradation and recovery across runtime MySQL and object-storage outages, and
 a denial of only the worker's object-storage writes, under which runs end
 FAILED with the refused write named and no record pointing at a missing object.
-Paired restore, schema upgrade and binary rollback, and credential rotation
+Paired restore, a real predecessor-schema upgrade, and credential rotation
 remain open. Shared Redis
 coordination is implemented, including distributed lease fencing at
 message-history writes. The worker API already has a separate listener, TLS
@@ -274,7 +274,7 @@ Implementation and tests span
 and the worker checkpoint handlers. Worker Jobs have ephemeral-storage limits;
 orphan and retention sweeps reclaim unreferenced payloads. Portal displays
 checkpoint and restoration state read-only. These mechanisms do not establish
-paired database/bucket restore or upgrade-rollback qualification.
+paired database/bucket restore or upgrade qualification.
 
 ## Worker Execution And Network Boundaries
 
@@ -454,15 +454,18 @@ and plugin activations, not every store method. External dependency recovery
 still needs scenario-specific evidence. The removed result-delivery queue has
 no remaining restart-recovery obligation of its own.
 
-**The explicit migration list is no longer empty.**
+**Five explicit migrations; binary rollback is refused, not supported.**
 [`internal/infra/db/migration.go`](../internal/infra/db/migration.go) contains
-`system_grant_live_marker` and `llm_model_credential_encryption`.
-The latter drops the old plaintext credential column without migrating its
-values; affected models must be re-added. The migration test covers ledger
-recording and skipping on a second run. Neither that test nor an N-1 policy in
-a design document establishes an exercised old-schema upgrade and binary
-rollback. The old explanation that a fixture is blocked by an empty migration
-history is obsolete.
+`system_grant_live_marker`, `llm_model_credential_encryption`,
+`issue_owner_executor_split`, `workflow_step_run_to_node_run`, and
+`schedule_agent_to_executor`. The last four remove data or an old shape; the
+credential migration drops plaintext keys without migrating them, so affected
+models must be re-added. MySQL-scope tests cover ledger recording and skipping
+on a second run and the Issue and Schedule backfills. A binary refuses to start
+against a database whose ledger records a migration it does not know, before
+any DDL, unless `database.allow_newer_schema` is set; a MySQL test proves both.
+Binaries up to 0.2.0-alpha.15 predate the refusal. No test yet upgrades a real
+predecessor schema.
 
 Each trace is bounded by field and record caps. When an operator sets
 `trace.retention_days` above zero, a Server-owned hourly sweep deletes traces
@@ -669,7 +672,7 @@ handling and cleanup, including the liveness sweep that settles a run whose
 worker went silent — the hard-loss path the deployment cannot reproduce, since
 the kernel drops an in-container SIGKILL to PID 1 and any kubelet deletion starts
 with the SIGTERM the worker reports on. These are not equivalent to candidate
-exercises for paired restore, credential rotation, and schema rollback.
+exercises for paired restore, credential rotation, and schema upgrade.
 
 Compose, kind, production Kubernetes manifests, release verification, SBOM,
 image scanning, and provenance workflows exist. Their presence does not fill

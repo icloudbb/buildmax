@@ -41,7 +41,7 @@ func newReconcileEnv(t *testing.T) *reconcileEnv {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	store, err := db.New(ctx, dsn)
+	store, err := db.New(ctx, dsn, db.Options{})
 	if err != nil {
 		t.Fatalf("db.New: %v", err)
 	}

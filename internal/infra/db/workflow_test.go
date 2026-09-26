@@ -22,7 +22,7 @@ func workflowRunFixture(t *testing.T, n int) (*Store, string, []string) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -83,7 +83,7 @@ func workflowFixture(t *testing.T, email string) (s *Store, userID, spaceID, wor
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

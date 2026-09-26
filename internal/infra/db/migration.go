@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"time"
 
 	coreschema "github.com/icloudbb/buildmax/internal/core/schema"
@@ -41,10 +43,10 @@ func (s *Store) AppliedMigrations(ctx context.Context) ([]coreschema.Migration, 
 
 // Migration is one forward step in the schema's history.
 //
-// There is deliberately no Down. BuildMax's schema moves forward only:
-// compatibility with the previous release is carried by each change being
-// additive, not by an undo path. A rollback is a rollback of the binary, and
-// the schema it left behind must keep serving it — see
+// There is deliberately no Down. BuildMax's schema moves forward only, and a
+// binary refuses a database carrying migrations it does not know (see
+// refuseNewerSchema): binary rollback is not supported, and recovery is a
+// coordinated database and bucket restore with matching binaries — see
 // docs/contribute/architecture/data-model.md.
 type Migration struct {
 	// ID is permanent and unique. It is what schema_migration records, so
@@ -233,7 +235,6 @@ func runMigrations(ctx context.Context, db *gorm.DB) error {
 		}
 		slog.Info("applied schema migration", "id", m.ID)
 	}
-	warnIfSchemaIsAhead(applied)
 	return nil
 }
 
@@ -249,14 +250,9 @@ func appliedMigrations(ctx context.Context, db *gorm.DB) (map[string]bool, error
 	return out, nil
 }
 
-// warnIfSchemaIsAhead reports migrations the database has and this binary does
-// not.
-//
-// It warns rather than refuses, because that state is the N-1 promise working
-// as intended: a server one release behind a migrated database is supposed to
-// keep serving. A server several releases behind has no such promise, and this
-// log line is the only signal an operator gets that they are in that position.
-func warnIfSchemaIsAhead(applied map[string]bool) {
+// unknownMigrations returns, sorted, the recorded migration IDs this binary
+// does not have — migrations a newer release applied.
+func unknownMigrations(applied map[string]bool) []string {
 	known := make(map[string]bool, len(migrations))
 	for _, m := range migrations {
 		known[m.ID] = true
@@ -267,9 +263,52 @@ func warnIfSchemaIsAhead(applied map[string]bool) {
 			unknown = append(unknown, id)
 		}
 	}
-	if len(unknown) == 0 {
-		return
+	sort.Strings(unknown)
+	return unknown
+}
+
+// NewerSchemaError is New's refusal to open a database a newer release has
+// migrated.
+type NewerSchemaError struct {
+	// Unknown is the recorded migration IDs this binary does not know, sorted.
+	Unknown []string
+}
+
+func (e *NewerSchemaError) Error() string {
+	return fmt.Sprintf("database schema is newer than this binary: schema_migration records %s, which this binary does not know; "+
+		"starting would let AutoMigrate re-add what those migrations removed. "+
+		"Binary rollback is not supported: run the release that applied them, or restore the database and object-storage bucket "+
+		"from the backup taken before the upgrade together with the binaries that match it. "+
+		"To start anyway for a deliberate recovery, set database.allow_newer_schema: true in server.yaml",
+		strings.Join(e.Unknown, ", "))
+}
+
+// refuseNewerSchema stops New before any DDL when the database carries
+// migrations this binary does not know.
+//
+// It must run before AutoMigrate. An older binary's row structs still describe
+// what a newer migration dropped, so its AutoMigrate adds it back: rolling
+// alpha.15 back to alpha.14 re-adds schedule.agent_id NOT NULL filled with 0,
+// so alpha.14 loses every schedule, and alpha.15 — whose migration is already
+// recorded and will not drop the column again — then fails to create one. A
+// database with no ledger table is fresh, so there is nothing to compare.
+func refuseNewerSchema(ctx context.Context, db *gorm.DB, allow bool) error {
+	if !db.WithContext(ctx).Migrator().HasTable(&schemaMigrationRow{}) {
+		return nil
 	}
-	slog.Warn("database schema is ahead of this binary; supported one release back, not more",
+	applied, err := appliedMigrations(ctx, db)
+	if err != nil {
+		return err
+	}
+	unknown := unknownMigrations(applied)
+	if len(unknown) == 0 {
+		return nil
+	}
+	if !allow {
+		return &NewerSchemaError{Unknown: unknown}
+	}
+	slog.Warn("starting against a database schema newer than this binary because database.allow_newer_schema is set; "+
+		"AutoMigrate may re-add what those migrations removed",
 		"unknown_migrations", unknown)
+	return nil
 }

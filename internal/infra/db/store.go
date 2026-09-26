@@ -37,10 +37,21 @@ type CredentialCipher interface {
 // unset, storing a model credential is refused.
 func (s *Store) SetCredentialCipher(c CredentialCipher) { s.credentialCipher = c }
 
+// Options are the choices a caller of New makes about the schema it opens.
+type Options struct {
+	// AllowNewerSchema starts against a database whose schema_migration records
+	// migrations this binary does not know, instead of refusing with
+	// *NewerSchemaError. It exists for a deliberate recovery only: AutoMigrate
+	// may then re-add what those migrations removed.
+	AllowNewerSchema bool
+}
+
 // New opens a MySQL connection with the given DSN and brings the schema up to
 // date. When the DSN names a database the server does not have, it is created
 // first (see ensureDatabase), and then, in this order:
 //
+//  0. refuseNewerSchema, which returns *NewerSchemaError before any DDL when a
+//     newer release has migrated the database, unless opts.AllowNewerSchema.
 //  1. AutoMigrate over every row struct, which owns additive DDL — new tables,
 //     new columns, new indexes. The row structs are the schema.
 //  2. Seed the default quota tiers.
@@ -53,7 +64,7 @@ func (s *Store) SetCredentialCipher(c CredentialCipher) { s.credentialCipher = c
 //
 // GORM logger is configured to ignore ErrRecordNotFound so expected "not found" lookups
 // (e.g. GetNextPendingTaskRun when idle) do not spam the console.
-func New(ctx context.Context, dsn string) (*Store, error) {
+func New(ctx context.Context, dsn string, opts Options) (*Store, error) {
 	gormLogger := logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
 		IgnoreRecordNotFoundError: true,
 	})
@@ -71,6 +82,10 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	}
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
+	}
+	if err := refuseNewerSchema(ctx, db, opts.AllowNewerSchema); err != nil {
+		_ = (&Store{db: db}).Close()
+		return nil, err
 	}
 	if err := db.WithContext(ctx).AutoMigrate(&userRow{}, &spaceRow{}, &spaceMemberRow{}, &spaceInvitationRow{}, &workflowRow{}, &workflowRevisionRow{}, &workflowRunRow{}, &workflowNodeRunRow{}, &issueRow{}, &issueCommentRow{}, &agentRow{}, &agentRevisionRow{}, &scheduleRow{}, &taskRow{}, &taskRunRow{}, &artifactRow{}, &artifactShareRow{}, &quotaTierRow{}, &conversationRow{}, &conversationMessageRow{}, &userWebhookKeyRow{}, &loginCodeRow{}, &authSessionRow{}, &externalIdentityRow{}, &userRefreshTokenRow{}, &llmCallRow{}, &llmModelRow{}, &auditEventRow{}, &systemGrantRow{}, &pluginRow{}, &pluginReleaseRow{}, &pluginActivationRow{}, &pluginEnvironmentRow{}, &secretRow{}, &taskRunSecretRow{}, &workspaceCheckpointRow{}, &remoteSessionRow{}, &channelIdentityRow{}, &channelPairingRow{}, &schemaMigrationRow{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)

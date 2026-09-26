@@ -48,7 +48,7 @@ func TestSecretStore_CreateGetSealedRoundTrip(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestSecretStore_UpdateItemsRewritesWhole(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestSecretStore_MissIsNil(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestSecretStore_DestroyClearsMaterial(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestSecretStore_SpaceScopeAndUniqueness(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

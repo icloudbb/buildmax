@@ -34,7 +34,7 @@ func TestWorkflowRestartRecovery(t *testing.T) {
 		t.Skip(dsnEnv + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	store, err := db.New(ctx, dsn)
+	store, err := db.New(ctx, dsn, db.Options{})
 	if err != nil {
 		t.Fatalf("db.New: %v", err)
 	}

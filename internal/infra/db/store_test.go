@@ -105,7 +105,7 @@ func TestCreateUser(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestCreateSpace(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -354,7 +354,7 @@ func TestClaimTask(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -515,7 +515,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -606,7 +606,7 @@ func TestListConversationsByUser(t *testing.T) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

@@ -94,19 +94,35 @@ A **Beta** label on one surface below describes that component's maturity; it do
 
 What an upgrade may and may not do to a deployment. Where a promise does not exist yet, this says so rather than implying one.
 
-### Database schema — forward only, no Alpha compatibility guarantee
+### Database schema — forward only, and no binary rollback
 
 The schema moves forward only; there are no down migrations. Alpha does not
 promise compatibility with a previous binary or preservation of an older stored
-shape. A change may remove or rename fields in the same release. Current
-migrations already drop plaintext model credentials and the old Issue assignee
-columns; redeploying an old binary does not restore them.
+shape. A change may remove or rename fields in the same release. These
+migrations destroy data or an old shape:
 
-Read the release's declared starting schema and recovery procedure before an
-upgrade. Binary rollback is supported only for an explicitly tested version
-pair. Otherwise use a clean deployment or restore a coordinated database and
-bucket backup with its matching binaries. A warning about unknown migrations
-at startup is diagnostic output, not a compatibility check or guarantee.
+| Release | Migration | Removes |
+|---|---|---|
+| 0.2.0-alpha.9 | `llm_model_credential_encryption` | Plaintext model credentials; affected models must be re-added |
+| 0.2.0-alpha.9 | `issue_owner_executor_split` | Issue `assignee_kind`/`assignee_id`, after backfilling owner and executor |
+| 0.2.0-alpha.13 | `workflow_step_run_to_node_run` | The `workflow_step_run` table and the step runs recorded in it |
+| 0.2.0-alpha.15 | `schedule_agent_to_executor` | Schedule `agent_id`/`last_task_id`, after backfilling executor and last-fire reference |
+
+Binary rollback is not supported. An older binary's startup re-adds what a
+newer migration dropped: rolling 0.2.0-alpha.15 back to 0.2.0-alpha.14 re-adds
+`schedule.agent_id NOT NULL` filled with 0, so every schedule disappears, and
+creating one fails after rolling forward again. So `buildmax-server` — the
+server and its `user` and `space` commands — refuses to start against a
+database whose `schema_migration` records a migration it does not know. It
+stops before changing anything and names those migrations. Releases up to and
+including 0.2.0-alpha.15 predate that check: starting one against a newer
+database still damages it.
+
+Take a backup of the database and the object-storage bucket together before an
+upgrade. To go back, restore both from that backup and run the binaries that
+match it. `database.allow_newer_schema: true` in `server.yaml` starts an older
+binary anyway; it exists for a deliberate recovery you have planned, and it can
+damage the data in exactly the way above. Remove it afterward.
 
 ### HTTP API — no version, so expect change
 
