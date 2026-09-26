@@ -427,7 +427,10 @@ if action == llm.ToolActionAsk && opts.Grants.granted(scope) {
 what the prompt showed the user, so it is what they think they approved.
 `llm.GrantScoper` lets a tool that reaches somewhere else say so —
 `CallMcpTool` returns `server/tool_name`, because otherwise approving one MCP
-call for the session would approve every tool on every configured server.
+call for the session would approve every tool on every configured server, and
+`BrowserNavigate` returns the URL's origin, because otherwise one approval would
+admit every site the model later names. The approval prompt shows that target,
+so the user sees what "allow for session" covers.
 
 An earlier draft keyed grants on a prefix of the loop guard's
 `toolFingerprint`. That was abandoned: an arg-derived key is opaque at the

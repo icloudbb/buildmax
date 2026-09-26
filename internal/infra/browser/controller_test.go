@@ -2,7 +2,10 @@ package browser
 
 import (
 	"context"
+	"strings"
 	"testing"
+
+	"github.com/icloudbb/buildmax/internal/tool"
 )
 
 // fakeDriver is a scripted pageDriver: the controller's ownership, revision, and
@@ -13,24 +16,35 @@ type fakeDriver struct {
 	text         string
 	found        bool   // interact: whether the element existed
 	afterURL     string // interact: URL after the action, to simulate navigation
+	redirectTo   string // navigate: final URL, to simulate a server redirect
 	console      []string
 	closed       bool
 	interactSel  string // records the selector the last interact resolved to
+	acted        int    // interactions actually performed on the page
 	screencastOn bool
 	onFrame      func(jpeg string, w, h int)
 }
 
 func (d *fakeDriver) navigate(_ context.Context, rawURL string) (string, string, int, error) {
 	d.url = rawURL
-	return rawURL, d.title, 0, nil
+	if d.redirectTo != "" {
+		d.url = d.redirectTo
+	}
+	return d.url, d.title, 0, nil
 }
 
 func (d *fakeDriver) snapshot(_ context.Context) ([]rawElement, string, string, string, error) {
 	return d.elems, d.text, d.url, d.title, nil
 }
 
-func (d *fakeDriver) interact(_ context.Context, _, selector, _ string) (bool, string, string, error) {
+// interact mirrors the real driver's origin guard: it refuses to act when the
+// live document is not on origin.
+func (d *fakeDriver) interact(_ context.Context, _, selector, _, origin string) (bool, string, string, error) {
+	if cur, err := tool.BrowserOrigin(d.url); err != nil || cur != origin {
+		return false, d.url, d.title, nil
+	}
 	d.interactSel = selector
+	d.acted++
 	next := d.url
 	if d.afterURL != "" {
 		next = d.afterURL
@@ -269,5 +283,136 @@ func TestCloseReleasesPages(t *testing.T) {
 	// reaching a released page.
 	if _, err := c.Snapshot(ctx, "s1"); err == nil {
 		t.Error("session should be gone after Close")
+	}
+}
+
+// TestClickThatLeavesOriginConfinesInteraction: a click on an approved page that
+// navigates to another origin is reported, and the next click or type there is
+// refused until BrowserNavigate — the call the approval gate scopes per origin —
+// opens that origin itself.
+func TestClickThatLeavesOriginConfinesInteraction(t *testing.T) {
+	c, created := newTestController(func(d *fakeDriver) {
+		d.elems = []rawElement{{Ref: "e1", Role: "link", Name: "Elsewhere"}}
+		d.afterURL = "https://evil.example/landing"
+	})
+	ctx := context.Background()
+	if _, err := c.Navigate(ctx, "s1", "http://localhost:1/"); err != nil {
+		t.Fatalf("Navigate: %v", err)
+	}
+	if _, err := c.Snapshot(ctx, "s1"); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	state, err := c.Click(ctx, "s1", "e1")
+	if err != nil {
+		t.Fatalf("Click on the admitted origin: %v", err)
+	}
+	if state.URL != "https://evil.example/landing" || state.AdmittedOrigin != "http://localhost:1" {
+		t.Fatalf("state = %+v, want the new URL reported against the admitted origin", state)
+	}
+
+	// Observing the new page is allowed; its content is data.
+	if _, err := c.Snapshot(ctx, "s1"); err != nil {
+		t.Fatalf("Snapshot off-origin: %v", err)
+	}
+	d := (*created)[0]
+	for name, act := range map[string]func() error{
+		"Click": func() error { _, err := c.Click(ctx, "s1", "e1"); return err },
+		"Type":  func() error { _, err := c.Type(ctx, "s1", "e1", "secret"); return err },
+	} {
+		err := act()
+		if err == nil || !strings.Contains(err.Error(), "https://evil.example") || !strings.Contains(err.Error(), tool.ToolNameBrowserNavigate) {
+			t.Errorf("%s off-origin = %v, want a refusal naming the origin and %s", name, err, tool.ToolNameBrowserNavigate)
+		}
+	}
+	if d.acted != 1 {
+		t.Errorf("driver acted %d times, want 1 (nothing on the unapproved origin)", d.acted)
+	}
+
+	// Opening the origin through BrowserNavigate admits it.
+	d.afterURL = ""
+	if _, err := c.Navigate(ctx, "s1", "https://evil.example/landing"); err != nil {
+		t.Fatalf("Navigate: %v", err)
+	}
+	if _, err := c.Snapshot(ctx, "s1"); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if _, err := c.Click(ctx, "s1", "e1"); err != nil {
+		t.Errorf("Click after BrowserNavigate admitted the origin: %v", err)
+	}
+}
+
+// TestNavigateRedirectAdmitsOnlyRequestedOrigin: the prompt showed the
+// requested URL, so a server redirect to another origin is not admitted.
+func TestNavigateRedirectAdmitsOnlyRequestedOrigin(t *testing.T) {
+	c, created := newTestController(func(d *fakeDriver) {
+		d.elems = []rawElement{{Ref: "e1", Role: "button"}}
+		d.redirectTo = "http://127.0.0.1:2/login"
+	})
+	ctx := context.Background()
+	state, err := c.Navigate(ctx, "s1", "http://localhost:1/")
+	if err != nil {
+		t.Fatalf("Navigate: %v", err)
+	}
+	if state.AdmittedOrigin != "http://localhost:1" {
+		t.Errorf("admitted origin = %q, want the requested one", state.AdmittedOrigin)
+	}
+	if _, err := c.Snapshot(ctx, "s1"); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if _, err := c.Click(ctx, "s1", "e1"); err == nil {
+		t.Error("Click on a redirect target that was never approved should be refused")
+	}
+	if (*created)[0].acted != 0 {
+		t.Error("driver acted on an unapproved origin")
+	}
+}
+
+// TestInteractionRefusedWhenPageLeftOriginUnseen: a page that navigated itself
+// after the snapshot is caught by the driver's guard, and reported as an origin
+// refusal rather than a stale reference.
+func TestInteractionRefusedWhenPageLeftOriginUnseen(t *testing.T) {
+	c, created := newTestController(func(d *fakeDriver) {
+		d.elems = []rawElement{{Ref: "e1", Role: "button"}}
+	})
+	ctx := context.Background()
+	if _, err := c.Navigate(ctx, "s1", "http://localhost:1/"); err != nil {
+		t.Fatalf("Navigate: %v", err)
+	}
+	if _, err := c.Snapshot(ctx, "s1"); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	d := (*created)[0]
+	d.url = "https://evil.example/" // a script redirect the controller has not observed
+	_, err := c.Type(ctx, "s1", "e1", "secret")
+	if err == nil || !strings.Contains(err.Error(), "https://evil.example") {
+		t.Errorf("Type = %v, want an origin refusal", err)
+	}
+	if d.acted != 0 {
+		t.Error("driver acted on an unapproved origin")
+	}
+}
+
+// TestSameOriginIsNormalized: scheme and host case and a default port do not
+// make the page look like it left the origin it was opened on.
+func TestSameOriginIsNormalized(t *testing.T) {
+	c, _ := newTestController(func(d *fakeDriver) {
+		d.elems = []rawElement{{Ref: "e1", Role: "button"}}
+		d.afterURL = "http://localhost/next"
+	})
+	ctx := context.Background()
+	if _, err := c.Navigate(ctx, "s1", "HTTP://LocalHost:80/"); err != nil {
+		t.Fatalf("Navigate: %v", err)
+	}
+	if _, err := c.Snapshot(ctx, "s1"); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if _, err := c.Click(ctx, "s1", "e1"); err != nil {
+		t.Fatalf("Click: %v", err)
+	}
+	if _, err := c.Snapshot(ctx, "s1"); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if _, err := c.Click(ctx, "s1", "e1"); err != nil {
+		t.Errorf("Click after a same-origin navigation = %v, want it allowed", err)
 	}
 }

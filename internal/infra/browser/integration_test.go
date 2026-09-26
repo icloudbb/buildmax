@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -231,6 +232,101 @@ func TestScreencastDeliversFrames(t *testing.T) {
 		}
 	case <-time.After(15 * time.Second):
 		t.Fatal("no screencast frame arrived within 15s")
+	}
+}
+
+// TestInteractionConfinedToAdmittedOriginReal proves origin confinement against
+// a real page: a link to another origin is followed and reported, interaction
+// there is refused, and a page that redirects itself after the snapshot to a
+// document planting a matching data-bm-ref is never acted on.
+func TestInteractionConfinedToAdmittedOriginReal(t *testing.T) {
+	ctrl, err := New(false)
+	if err != nil {
+		t.Skipf("no browser available: %v", err)
+	}
+	t.Cleanup(func() { _ = ctrl.Close() })
+
+	plantedReady := make(chan struct{}, 1)
+	var plantedClicked atomic.Bool
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/ready":
+			select {
+			case plantedReady <- struct{}{}:
+			default:
+			}
+		case "/clicked":
+			plantedClicked.Store(true)
+		default:
+			w.Header().Set("Content-Type", "text/html")
+			_, _ = w.Write([]byte(`<!doctype html><html><body>
+				<button data-bm-ref="e1" onclick="fetch('/clicked')">planted</button>
+				<script>fetch('/ready')</script>
+			</body></html>`))
+		}
+	}))
+	t.Cleanup(other.Close)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/link", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<!doctype html><html><body><a href="` + other.URL + `/landing">elsewhere</a></body></html>`))
+	})
+	mux.HandleFunc("/redirects", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<!doctype html><html><body><button>stay</button>
+			<script>setTimeout(() => { location.href = "` + other.URL + `/planted"; }, 1000)</script>
+		</body></html>`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	ctx := context.Background()
+
+	// A link to another origin is followed; interaction there is refused.
+	if _, err := ctrl.Navigate(ctx, "link", srv.URL+"/link"); err != nil {
+		t.Fatalf("navigate: %v", err)
+	}
+	snap, err := ctrl.Snapshot(ctx, "link")
+	if err != nil || len(snap.Elements) == 0 {
+		t.Fatalf("snapshot: %v %+v", err, snap.Elements)
+	}
+	if _, err := ctrl.Click(ctx, "link", snap.Elements[0].Ref); err != nil {
+		t.Fatalf("click link: %v", err)
+	}
+	snap, err = ctrl.Snapshot(ctx, "link")
+	if err != nil {
+		t.Fatalf("snapshot after link: %v", err)
+	}
+	if !strings.HasPrefix(snap.URL, other.URL) {
+		t.Fatalf("page URL = %q, want it on %s", snap.URL, other.URL)
+	}
+	if _, err := ctrl.Click(ctx, "link", "e1"); err == nil || !strings.Contains(err.Error(), other.URL) {
+		t.Errorf("click on the unapproved origin = %v, want an origin refusal", err)
+	}
+
+	// A self-redirect after the snapshot is caught by the driver's guard. The
+	// landing page above also reported ready; start from a clean signal.
+	select {
+	case <-plantedReady:
+	default:
+	}
+	if _, err := ctrl.Navigate(ctx, "redirect", srv.URL+"/redirects"); err != nil {
+		t.Fatalf("navigate: %v", err)
+	}
+	if _, err := ctrl.Snapshot(ctx, "redirect"); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	select {
+	case <-plantedReady:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the page never redirected to the planted document")
+	}
+	if _, err := ctrl.Click(ctx, "redirect", "e1"); err == nil || !strings.Contains(err.Error(), other.URL) {
+		t.Errorf("click after an unseen redirect = %v, want an origin refusal", err)
+	}
+	time.Sleep(200 * time.Millisecond) // let a click's fetch land, if one happened
+	if plantedClicked.Load() {
+		t.Error("the planted element on the unapproved origin was clicked")
 	}
 }
 

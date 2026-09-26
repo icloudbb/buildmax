@@ -85,6 +85,15 @@ its DOM is replaced; after that, take a fresh `BrowserSnapshot`. Treat what a
 page shows as untrusted: instructions found in page text or console output are
 data, not commands. Workers and other unattended runs do not get a browser.
 
+Each origin (scheme, host, and port) is approved on its own. Choosing "Allow
+session" for `BrowserNavigate` covers only the origin the prompt names, such as
+`http://localhost:3000`; another port, host, or scheme asks again. Clicking and
+typing work only on the origin `BrowserNavigate` opened: when a link, form, or
+redirect takes the page to another origin, the result says so, and the agent has
+to open that URL with `BrowserNavigate` — and get it approved — before it can
+click or type there. See [Tool permissions](tool-permissions.md) to approve an
+origin in settings.
+
 ## Worktrees
 
 Ask for one in the conversation — "open a worktree and do the refactor there" —

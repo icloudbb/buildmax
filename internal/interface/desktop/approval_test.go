@@ -25,7 +25,7 @@ func (h *askingHost) OpenSession(string) (*agentapp.SessionContext, error) {
 func (h *askingHost) CloseSession(*agentapp.SessionContext) {}
 
 func (h *askingHost) RunPrompt(ctx context.Context, _ *agentapp.SessionContext, prompt string, o agentapp.RunPromptOpts) (agentapp.RunResult, error) {
-	h.decided <- o.Approval.RequestApproval(ctx, "Write", map[string]any{"file_path": prompt})
+	h.decided <- o.Approval.RequestApproval(ctx, "Write", map[string]any{"file_path": prompt}, "")
 	return agentapp.RunResult{}, nil
 }
 

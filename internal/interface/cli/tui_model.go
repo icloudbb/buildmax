@@ -871,6 +871,15 @@ func (m *Model) renderApprovalPanel() string {
 		}
 		argLines = append(argLines, line)
 	}
+	// Name what "Allow session" would admit when the tool narrows it, so a
+	// browser grant reads as one origin rather than every later navigation.
+	if t := m.pendingApproval.Target; t != "" {
+		line := "Allow session covers only: " + t
+		if len(line) > m.width-6 {
+			line = line[:m.width-9] + "..."
+		}
+		argLines = append(argLines, "", line)
+	}
 
 	buttons := make([]string, len(approvalChoices))
 	for i, c := range approvalChoices {

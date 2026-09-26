@@ -195,7 +195,10 @@ implement it, all writes that must not prompt:
 | `Bash` | has a sharper judgement of its own in `CheckArgs`; the category default would prompt for every `ls` |
 
 **`GrantScope` is for tools that dispatch.** Without it, one session grant for
-`CallMcpTool` would cover every tool on every configured server.
+`CallMcpTool` would cover every tool on every configured server, and one for
+`BrowserNavigate` would admit every origin (it returns the URL's origin via
+`BrowserOrigin`). The loop passes the returned target to the approval handler,
+and the TUI and Desktop prompts show it.
 
 ### Concurrency
 

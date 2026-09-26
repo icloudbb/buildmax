@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/icloudbb/buildmax/internal/core/llm"
@@ -30,12 +31,17 @@ type BrowserController interface {
 // PageState is what every browser operation reports about the current page.
 // Revision increments on navigation or DOM replacement; a snapshot's element
 // references are valid only while Revision is unchanged.
+//
+// AdmittedOrigin is the origin the session's last BrowserNavigate opened — the
+// one a person or policy approved. Click and type are confined to it; URL can
+// leave it through a redirect, a link, or a form submission.
 type PageState struct {
-	URL      string
-	Title    string
-	Status   int
-	Viewport string
-	Revision int
+	URL            string
+	Title          string
+	Status         int
+	Viewport       string
+	Revision       int
+	AdmittedOrigin string
 }
 
 // Element is one interactive node in a snapshot, addressed by a reference that
@@ -72,6 +78,40 @@ func sessionFor(ctx context.Context) (string, error) {
 	return id, nil
 }
 
+// BrowserOrigin validates a navigation URL and returns its origin as a browser
+// serializes it: lowercase scheme and host, default port omitted. Only http and
+// https URLs with a host are admitted; file:, javascript:, data:, and
+// browser-internal schemes are rejected before anything is loaded.
+//
+// It is the one definition of origin for the browser tools: the session grant
+// BrowserNavigate asks for and the controller's confinement of interaction both
+// compare values it produced.
+func BrowserOrigin(raw string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid url %q: %w", raw, err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", fmt.Errorf("unsupported url scheme %q: only http and https are allowed", u.Scheme)
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" {
+		return "", fmt.Errorf("url %q has no host", raw)
+	}
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	port := u.Port()
+	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
+		port = ""
+	}
+	if port != "" {
+		host += ":" + port
+	}
+	return scheme + "://" + host, nil
+}
+
 // formatPageState renders a PageState for the model, meaningful on every path.
 func formatPageState(s PageState) string {
 	var b strings.Builder
@@ -84,6 +124,16 @@ func formatPageState(s PageState) string {
 		fmt.Fprintf(&b, "Viewport: %s\n", s.Viewport)
 	}
 	fmt.Fprintf(&b, "Revision: %d", s.Revision)
+	if s.AdmittedOrigin != "" {
+		if origin, err := BrowserOrigin(s.URL); err != nil || origin != s.AdmittedOrigin {
+			where := origin
+			if err != nil {
+				where = s.URL
+			}
+			fmt.Fprintf(&b, "\nOrigin: the page left %s (the origin %s opened) and is now on %s, which was not approved. %s and %s refuse this page; to interact with it, call %s with its URL, which asks for approval of that origin.",
+				s.AdmittedOrigin, ToolNameBrowserNavigate, where, ToolNameBrowserClick, ToolNameBrowserType, ToolNameBrowserNavigate)
+		}
+	}
 	return b.String()
 }
 
@@ -107,10 +157,25 @@ func NewBrowserTools(ctrl BrowserController) []llm.Tool {
 // browserNavigate opens an approved HTTP(S) origin in the session's page.
 type browserNavigate struct{ ctrl BrowserController }
 
+// GrantScope implements llm.GrantScoper. Navigation is where an origin is
+// admitted, so one "allow for session" covers exactly one origin; keyed by the
+// tool name alone, the first approval would admit every origin named later.
+func (*browserNavigate) GrantScope(args map[string]any) string {
+	raw, err := parseRequiredString(args, "url")
+	if err != nil {
+		return ""
+	}
+	origin, err := BrowserOrigin(raw)
+	if err != nil {
+		return ""
+	}
+	return origin
+}
+
 func (*browserNavigate) Name() string                     { return ToolNameBrowserNavigate }
 func (*browserNavigate) Access(map[string]any) llm.Access { return llm.AccessWrite }
 func (*browserNavigate) Description() string {
-	return "Open an HTTP(S) URL in the shared browser page and report the resulting URL, title, and HTTP status. Use to reach a page you then inspect and operate. Only http and https origins are allowed."
+	return "Open an HTTP(S) URL in the shared browser page and report the resulting URL, title, and HTTP status. Use to reach a page you then inspect and operate. Only http and https origins are allowed. Each origin is approved separately, and BrowserClick/BrowserType act only on the origin this tool last opened: if a redirect, link, or form takes the page to another origin, call this tool with that URL to have it approved."
 }
 func (*browserNavigate) Parameters() any {
 	return map[string]any{

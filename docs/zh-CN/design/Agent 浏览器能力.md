@@ -5,9 +5,9 @@
 > **受众：** 贡献者 · **状态：** 活动计划 —— 部分已交付 · **复核日期：** 2026-09-26
 >
 > **已交付：** CLI headless 工具（#714、#715）、Desktop 可见窗口（#717）、不可信页面
-> 测试（#718），以及只读的 Desktop 实时视图 tab（#719）。**尚余：** Linux 与 Windows
-> 可移植性证据、按来源准入（§3）、worker/Portal/定时运行（在出口沙箱就绪前关闭）、
-> 交互式接管与页面共享，以及托管浏览器下载（§9）。
+> 测试（#718）、只读的 Desktop 实时视图 tab（#719），以及按来源准入与按来源限定的
+> Session 授权（§3）。**尚余：** Linux 与 Windows 可移植性证据、worker/Portal/定时
+> 运行（在出口沙箱就绪前关闭）、交互式接管与页面共享，以及托管浏览器下载（§9）。
 
 本记录确定了"给 Agent 一个真实、可控的浏览器"这件事的架构与信任规则；§8 记录了
 权衡过的备选方案与同类产品调研。相关文档：
@@ -104,12 +104,37 @@ Protocol（CDP）驱动。随后 Desktop 增加了**可见窗口**：以 headful
 
 交互工具声明 `AccessWrite`；观察工具声明 `AccessReadOnly`，因此交互走普通审批
 路径：交互式会话在 `BrowserNavigate`、`BrowserClick` 或 `BrowserType` 之前询问，
-`BrowserNavigate` 的提示会显示请求的 URL。目前的来源准入只有 `BrowserNavigate`
-中的 scheme 检查：一个带主机的绝对 `http`/`https` URL。**按来源授权尚未构建。**
-浏览器工具没有实现 `llm.GrantScoper`，所以 Session 授权只以工具名为键——对
-`BrowserNavigate` 选择"本 Session 允许"会准入之后的所有来源，而导致导航的点击
-也不会再按来源检查。预期规则仍待实现：准入写明确切来源，对某一来源的 Session
-授权绝不授权另一来源。
+`BrowserNavigate` 的提示会显示请求的 URL。
+
+**来源准入。** `BrowserNavigate` 是准入来源的唯一位置，并且写明确切来源：
+
+- `tool.BrowserOrigin` 是来源的唯一定义：一个带主机的绝对 `http`/`https` URL，
+  按浏览器的方式序列化——scheme 与主机小写，省略默认端口，丢弃凭据、路径、
+  查询与片段。其他 scheme 在加载任何内容前即被拒绝。
+- `BrowserNavigate` 以该来源实现 `llm.GrantScoper`，因此"本 Session 允许"恰好
+  覆盖一个来源：`http://localhost:3000/a` 与 `HTTP://LocalHost:3000/b` 共用一个
+  授权；`http://localhost:3001`、`https://localhost:3000` 与
+  `http://127.0.0.1:3000` 各自会再次询问。TUI 与 Desktop 的审批提示会写明该授权
+  将覆盖的来源，`settings.yaml` 规则也可以指定一个来源
+  （`BrowserNavigate:<origin>`）。
+- 控制器把请求的来源记为该 Session 页面的已准入来源。服务器重定向到别处的来源
+  不被准入：提示从未显示过它。
+
+**交互限定在已准入来源。** 在已批准页面上的点击或表单提交可能导航到任何地方。
+只要页面不在已准入来源上，控制器就拒绝 `BrowserClick` 与 `BrowserType`，拒绝
+信息会告诉模型用该页面的 URL 调用 `BrowserNavigate`——这会让新来源经过它自己的
+按来源审批。每个报告页面状态的结果（navigate、snapshot、click、type、
+screenshot）都会在页面离开已准入来源时说明。该检查执行两次：一次针对控制器最后
+观察到的 URL，一次在 click/type 脚本内部针对实时的 `location.origin`，因此一个在
+快照之后自行导航的页面——可能导航到植入了匹配 `data-bm-ref` 的文档——绝不会被
+操作。
+
+这里选择限定交互，而不是按来源限定 `BrowserClick`/`BrowserType` 的授权。按来源
+限定点击授权需要在 `GrantScope` 中拿到该 Session 的当前页面，而它只能看到参数，
+其提示也只会显示一个光秃秃的元素引用；把每个新来源送回 `BrowserNavigate`，复用
+的是那个已经显示 URL 的提示，也不增加第二种授权键。有两处限制是有意为之：离开
+来源的那次导航在被报告时已经发生——阻止它需要请求拦截；对新页面的观察仍然允许，
+因为页面内容是数据（§5）。
 
 ## 4. 浏览器发现与生命周期
 
@@ -147,8 +172,9 @@ Protocol（CDP）驱动。随后 Desktop 增加了**可见窗口**：以 headful
 ## 6. 验证
 
 - Go 单元测试覆盖可执行文件发现、按 Session 限定的归属（跨 Session 调用被
-  拒绝）、URL scheme 准入、过期引用拒绝，以及取消/关闭时的清理；在不需要真实浏览器
-  处用 fake `BrowserController`。
+  拒绝）、URL scheme 准入、经由真实 Agent 循环的按来源 Session 授权、限定在来源内
+  的交互（包括一个页面在快照后自行重定向的真实浏览器用例）、过期引用拒绝，以及
+  取消/关闭时的清理；在不需要真实浏览器处用 fake `BrowserController`。
 - 一条真实浏览器本地集成旅程，无 Chrome/Edge 时 skip：提供一个带有状态表单、
   路由变化和一个故意控制台错误的小型本地应用；Agent 打开路由、观察、输入并
   点击、报告状态/URL/控制台错误，然后取消运行并确认清理。
@@ -211,8 +237,8 @@ tab 模型服务于人类共同观看，而 BuildMax 未把这一点作为首阶
 ## 9. 延后事项
 
 明确不在范围之内，各自是后续单独的决定：内嵌视图的**交互式**接管（经 CDP
-转发输入）与页面共享、按来源准入与按来源限定的 Session 授权（§3）、Linux 与
-Windows 运行证据（§6）、若只读 screencast 不够再上原生内嵌引擎（CEF/Electron）、
+转发输入）与页面共享、在跨来源导航加载前将其阻止（请求拦截；§3 只限定交互）、
+Linux 与 Windows 运行证据（§6）、若只读 screencast 不够再上原生内嵌引擎（CEF/Electron）、
 托管 Chrome for Testing 或打包浏览器、为 worker/Portal/定时运行启用该能力、
 subagent 浏览器访问、上传/下载、任意 JavaScript，以及操作已登录的第三方网站。
 用户可见的行为与设置随各自交付移入 manual/reference 文档。

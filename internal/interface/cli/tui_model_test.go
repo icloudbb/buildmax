@@ -1195,3 +1195,22 @@ func TestNoDigestPrintsNothingExtra(t *testing.T) {
 		t.Fatal("a turn with no digest should go straight to the drain")
 	}
 }
+
+// TestApprovalPanelNamesGrantTarget: when a tool narrows its session grant, the
+// prompt says what "Allow session" admits — one browser origin, not every later
+// navigation — and adds nothing when the grant covers the whole tool.
+func TestApprovalPanelNamesGrantTarget(t *testing.T) {
+	m := &Model{width: 100}
+	m.pendingApproval = &approvalRequestMsg{
+		ToolName: "BrowserNavigate",
+		Args:     map[string]any{"url": "http://localhost:3000/login"},
+		Target:   "http://localhost:3000",
+	}
+	if out := m.renderApprovalPanel(); !strings.Contains(out, "Allow session covers only: http://localhost:3000") {
+		t.Errorf("panel = %q, want it to name the origin a session grant covers", out)
+	}
+	m.pendingApproval = &approvalRequestMsg{ToolName: "Write", Args: map[string]any{"file_path": "a.go"}}
+	if out := m.renderApprovalPanel(); strings.Contains(out, "covers only") {
+		t.Errorf("panel = %q, want no grant-target line for a tool-wide grant", out)
+	}
+}

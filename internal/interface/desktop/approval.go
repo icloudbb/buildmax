@@ -20,6 +20,9 @@ type ApprovalRequestPayload struct {
 	SessionID  string         `json:"session_id"`
 	ToolName   string         `json:"tool_name"`
 	Args       map[string]any `json:"args"`
+	// Target is what "Allow session" covers within the tool (an MCP
+	// server/tool, a browser origin); empty when it covers every call.
+	Target string `json:"target,omitempty"`
 }
 
 // pendingApprovals holds the tool approvals awaiting an answer, keyed by a
@@ -76,7 +79,7 @@ type runApprover struct {
 
 // RequestApproval emits an approval-request event to the frontend and blocks until
 // the user answers it via RespondApproval. Denies if the app context is not ready.
-func (h *runApprover) RequestApproval(ctx context.Context, name string, args map[string]any) agent.ApprovalDecision {
+func (h *runApprover) RequestApproval(ctx context.Context, name string, args map[string]any, target string) agent.ApprovalDecision {
 	h.app.mu.Lock()
 	uiCtx := h.app.ctx // Wails context for emitting, distinct from the run's ctx
 	h.app.mu.Unlock()
@@ -93,6 +96,7 @@ func (h *runApprover) RequestApproval(ctx context.Context, name string, args map
 		SessionID:  h.run.sessionID,
 		ToolName:   name,
 		Args:       args,
+		Target:     target,
 	})
 
 	select {

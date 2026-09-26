@@ -6,10 +6,11 @@
 > **Reviewed:** 2026-09-26
 >
 > **Shipped:** CLI headless tools (#714, #715), Desktop visible window (#717),
-> untrusted-page test (#718), and the read-only Desktop live-view tab (#719).
-> **Remaining:** Linux and Windows portability evidence, per-origin admission
-> (§3), workers/Portal/scheduled runs (off pending an egress sandbox),
-> interactive takeover and page sharing, and a managed browser download (§9).
+> untrusted-page test (#718), the read-only Desktop live-view tab (#719), and
+> per-origin admission with origin-scoped session grants (§3).
+> **Remaining:** Linux and Windows portability evidence, workers/Portal/scheduled
+> runs (off pending an egress sandbox), interactive takeover and page sharing,
+> and a managed browser download (§9).
 
 This record fixes the architecture and trust rules for giving an Agent a real,
 controllable browser; §8 records the alternatives weighed and the peer survey.
@@ -126,13 +127,44 @@ Interaction tools declare `AccessWrite`; observation tools declare
 `AccessReadOnly`, so interaction goes through the ordinary approval path: an
 interactive session asks before `BrowserNavigate`, `BrowserClick`, or
 `BrowserType`, and the `BrowserNavigate` prompt shows the requested URL.
-Origin admission today is only the scheme check in `BrowserNavigate`: an
-absolute `http`/`https` URL with a host. **Per-origin grants are not built.**
-The browser tools do not implement `llm.GrantScoper`, so a session grant is
-keyed by tool name alone — "allow for session" on `BrowserNavigate` admits every
-later origin, and a click that navigates is not re-checked against any origin.
-The intended rule, still open, is that admission names the exact origin and a
-session grant for one origin never authorizes another.
+
+**Origin admission.** `BrowserNavigate` is the one place an origin is admitted,
+and it names the exact origin:
+
+- `tool.BrowserOrigin` is the single definition of an origin: an absolute
+  `http`/`https` URL with a host, serialized as a browser does — lowercase
+  scheme and host, default port omitted, credentials, path, query, and fragment
+  dropped. Every other scheme is rejected before anything loads.
+- `BrowserNavigate` implements `llm.GrantScoper` with that origin, so "allow for
+  session" covers exactly one origin: `http://localhost:3000/a` and
+  `HTTP://LocalHost:3000/b` share a grant; `http://localhost:3001`,
+  `https://localhost:3000`, and `http://127.0.0.1:3000` each ask again. The
+  approval prompt in the TUI and Desktop names the origin the grant would cover,
+  and a `settings.yaml` rule can name one too (`BrowserNavigate:<origin>`).
+- The controller records the requested origin as the session page's admitted
+  origin. A server redirect elsewhere is not admitted: the prompt never showed
+  it.
+
+**Interaction is confined to the admitted origin.** A click or form submission
+on an approved page can navigate anywhere. The controller refuses `BrowserClick`
+and `BrowserType` whenever the page is not on the admitted origin, and the
+refusal tells the model to call `BrowserNavigate` with the page's URL — which
+puts the new origin through its own per-origin approval. Every result that
+reports page state (navigate, snapshot, click, type, screenshot) says when the
+page has left the admitted origin. The check runs twice: against the URL the
+controller last observed, and inside the click/type script against the live
+`location.origin`, so a page that navigated itself after the snapshot — possibly
+to a document planting a matching `data-bm-ref` — is never acted on.
+
+This confines interaction rather than scoping `BrowserClick`/`BrowserType`
+grants by origin. A scoped click grant would need the session's current page
+inside `GrantScope`, which sees only arguments, and its prompt would show a
+bare element reference; routing every new origin back through
+`BrowserNavigate` reuses the one prompt that already shows a URL, and adds no
+second grant key. Two limits are deliberate: the navigation that leaves the
+origin has already happened when it is reported — blocking it would need
+request interception — and observation of the new page is still allowed, since
+page content is data (§5).
 
 ## 4. Browser Discovery and Lifecycle
 
@@ -180,9 +212,11 @@ session grant for one origin never authorizes another.
 ## 6. Verification
 
 - Go unit tests for executable discovery, session-scoped ownership (a
-  cross-session call is rejected), URL-scheme admission, stale-reference rejection,
-  and cleanup on cancel/close, using a fake `BrowserController` where a real
-  browser is not needed.
+  cross-session call is rejected), URL-scheme admission, per-origin session
+  grants through the real agent loop, origin-confined interaction (including a
+  real-browser case for a page that redirects itself after the snapshot),
+  stale-reference rejection, and cleanup on cancel/close, using a fake
+  `BrowserController` where a real browser is not needed.
 - A real-browser local integration journey behind a skip when no Chrome/Edge is
   present: serve a small local app with a stateful form, a route change, and a
   deliberate console error; the Agent opens the route, observes, types and
@@ -257,9 +291,9 @@ page — is what the chosen design follows.
 ## 9. Deferred
 
 Explicitly out of scope, each its own later decision: **interactive** takeover of
-the embedded view (forwarding input over CDP) and page sharing, per-origin
-admission and origin-scoped session grants (§3), Linux and Windows operations
-evidence (§6), a native
+the embedded view (forwarding input over CDP) and page sharing, blocking a
+cross-origin navigation before it loads (request interception; §3 confines only
+interaction), Linux and Windows operations evidence (§6), a native
 embedded engine (CEF/Electron) should the read-only screencast prove
 insufficient, managed Chrome for Testing or a bundled browser, enabling the
 capability for workers/Portal/scheduled runs, subagent browser access,

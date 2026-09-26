@@ -126,8 +126,10 @@ or a run-scoped worker Secret grant can supply a Firecrawl key.
 The local CLI and Desktop have a browser capability: when a system Chrome/Edge
 is installed, the `Browser` tools (navigate, snapshot, click, type, screenshot,
 console) drive a Go-owned, per-session browser so an Agent verifies against a
-real rendered page over CDP. Navigation is limited to http(s); the profile is
-isolated per session; workers and other unattended runs do not get it. The CLI
+real rendered page over CDP. Navigation is limited to http(s); a session grant
+for `BrowserNavigate` covers one origin, and click/type act only on the origin
+`BrowserNavigate` opened; the profile is isolated per session; workers and
+other unattended runs do not get it. The CLI
 runs it headless; Desktop runs it headful — its own visible window the user can
 watch — with a status-bar indicator, and can embed a live read-only view of the
 page in a workspace tab by streaming CDP screencast frames (the same page, not a

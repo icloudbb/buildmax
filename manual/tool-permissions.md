@@ -40,7 +40,7 @@ Tool: Write
 Allow once(y)  Allow session(a)  Deny(n)    ←→ select  enter: confirm
 ```
 
-`a` is the one to reach for. It stops asking about that tool for the rest of the session, and it is forgotten when BuildMax exits — nothing is written to disk. For an MCP call it covers that one server and tool, not every MCP tool you have configured.
+`a` is the one to reach for. It stops asking about that tool for the rest of the session, and it is forgotten when BuildMax exits — nothing is written to disk. For an MCP call it covers that one server and tool, not every MCP tool you have configured; for `BrowserNavigate` it covers one origin, such as `http://localhost:3000`. When a grant is narrowed like this, the prompt says so with an `Allow session covers only:` line.
 
 ## Making it permanent
 
@@ -54,9 +54,12 @@ tools:
     Bash: deny                          # no shell at all
     "CallMcpTool:github/*": allow       # trust one server's tools
     "CallMcpTool:jira/delete_issue": deny
+    "BrowserNavigate:http://localhost:3000": allow   # one browser origin
 ```
 
 Keys are tool names, or a tool plus the target it dispatches to, with an optional trailing `*`. Case does not matter. The most specific rule wins: an exact target, then the longest matching pattern, then the bare tool name.
+
+A browser target is an origin written the way the prompt shows it: scheme, host, and a port only when it is not the default. Prefer exact origins — a trailing `*` is a plain prefix, so `BrowserNavigate:http://localhost*` also matches `http://localhost.example.com`.
 
 `buildmax tools status` will then show `settings` in the SOURCE column, and will list any rule it had to ignore.
 

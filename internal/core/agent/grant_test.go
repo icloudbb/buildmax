@@ -122,6 +122,10 @@ func TestSessionGrant_ScopeIsolatesTargets(t *testing.T) {
 	if approval.calls != 2 {
 		t.Errorf("approval called %d times; want 2 (github granted, jira still asks)", approval.calls)
 	}
+	// The prompt names what the session grant would cover.
+	if got := strings.Join(approval.targets, ","); got != "github/create_issue,jira/delete_issue" {
+		t.Errorf("prompt targets = %q; want each prompt to carry its grant target", got)
+	}
 }
 
 // TestSessionGrant_NilStoreGrantsNothing keeps the zero value usable on surfaces
@@ -155,7 +159,7 @@ type blockingApproval struct {
 	entered chan struct{}
 }
 
-func (b blockingApproval) RequestApproval(ctx context.Context, _ string, _ map[string]any) ApprovalDecision {
+func (b blockingApproval) RequestApproval(ctx context.Context, _ string, _ map[string]any, _ string) ApprovalDecision {
 	b.once.Do(func() { close(b.entered) })
 	<-ctx.Done()
 	return ApprovalDeny

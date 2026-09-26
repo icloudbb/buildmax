@@ -29,8 +29,12 @@ type ToolPolicy interface {
 // ctx is the run's context. A handler blocks a goroutine until a person
 // answers, and a cancelled run may never get one -- so it must return on
 // ctx.Done() rather than waiting for a prompt nobody will resolve.
+//
+// target is what ApprovalAllowSession would cover within the tool — an MCP
+// server/tool, a browser origin — and the prompt shows it. Empty means the
+// grant covers every call of the tool.
 type ApprovalHandler interface {
-	RequestApproval(ctx context.Context, name string, args map[string]any) ApprovalDecision
+	RequestApproval(ctx context.Context, name string, args map[string]any, target string) ApprovalDecision
 }
 
 // interactive reports whether a human can answer a permission prompt. Derived

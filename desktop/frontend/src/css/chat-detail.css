@@ -732,6 +732,17 @@
   vertical-align: top;
 }
 
+.approval-panel__target {
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+  word-break: break-all;
+}
+
+.approval-panel__target code {
+  font-family: var(--font-mono, monospace);
+  color: var(--color-text);
+}
+
 .approval-panel__footer {
   display: flex;
   align-items: center;

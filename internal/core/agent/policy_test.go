@@ -26,11 +26,13 @@ func (askPolicy) Check(_, _ string, _ map[string]any) (llm.ToolAction, bool) {
 type countingApproval struct {
 	calls   int
 	approve bool
-	session bool // when approving, keep the grant for the rest of the session
+	session bool     // when approving, keep the grant for the rest of the session
+	targets []string // the grant target each prompt showed
 }
 
-func (a *countingApproval) RequestApproval(_ context.Context, _ string, _ map[string]any) ApprovalDecision {
+func (a *countingApproval) RequestApproval(_ context.Context, _ string, _ map[string]any, target string) ApprovalDecision {
 	a.calls++
+	a.targets = append(a.targets, target)
 	switch {
 	case !a.approve:
 		return ApprovalDeny
