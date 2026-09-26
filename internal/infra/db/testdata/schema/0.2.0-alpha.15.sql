@@ -1,8 +1,8 @@
--- BuildMax upgrade fixture: what ghcr.io/icloudbb/buildmax:0.2.0-alpha.14 left in MySQL after
--- `./make release upgrade-fixture 0.2.0-alpha.14` seeded it through that release's API.
+-- BuildMax upgrade fixture: what ghcr.io/icloudbb/buildmax:0.2.0-alpha.15 left in MySQL after
+-- `./make release upgrade-fixture 0.2.0-alpha.15` seeded it through that release's API.
 -- Generated; regenerate rather than edit. TestUpgradeFromPredecessorSchema
 -- upgrades it with the candidate and asserts every manifest entity survives.
--- manifest: {"source_image":"ghcr.io/icloudbb/buildmax:0.2.0-alpha.14","owner_id":"l62gxxf5tj4wubk7wasq","owner_email":"upgrade-owner@buildmax.local","space_id":"3qviuexdb3qv52ipu7aq","agent_id":"i34elblrzj6ws2miy3la","issue_id":"bk3xblbho7ikmbtxxcxq","workflow_id":"2sdhjux34qiumprhgt5q","workflow_run_id":"iigyxziuiikiolrptecq","fired_schedule_id":"2dkhrgpeaomko5lpwy2a","fired_task_id":"pzr456fdudhcmz72jb3q","idle_schedule_id":"uypvvbxa37cbpmusgnkq","artifact_id":"hwaisn3nx24j3m73w62a","artifact_sha256":"9723d085163fa0d8270120fa785f99cd3f4c6f033b1bb8c6b4ebe690476be515"}
+-- manifest: {"source_image":"ghcr.io/icloudbb/buildmax:0.2.0-alpha.15","owner_id":"yntztn5krglcq4hcnjtq","owner_email":"upgrade-owner@buildmax.local","space_id":"eamqmi4tcsyeuy453pla","agent_id":"na4tx2mzqugn5pphagsq","issue_id":"l5tc4ylqtszmt44kmcoq","workflow_id":"5is6rbrm36itdiwc2fda","workflow_run_id":"orxn4oxxqk5ut5i3cz6a","fired_schedule_id":"r452dfe74cb5tong4lja","fired_task_id":"lb37ups4s63epke65vnq","idle_schedule_id":"berul43d2227hhg5q4zq","artifact_id":"tfrqafpxhgkxhgfaafma","artifact_sha256":"9723d085163fa0d8270120fa785f99cd3f4c6f033b1bb8c6b4ebe690476be515"}
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
@@ -41,7 +41,7 @@ CREATE TABLE `agent` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `agent` DISABLE KEYS */;
-INSERT INTO `agent` VALUES (1,'i34elblrzj6ws2miy3la',1,2,'Upgrade fixture agent','Seeded by the upgrade fixture.','Summarize the issue.','','','','','',1,NULL,'2026-09-26 11:45:38.833300');
+INSERT INTO `agent` VALUES (1,'na4tx2mzqugn5pphagsq',1,2,'Upgrade fixture agent','Seeded by the upgrade fixture.','Summarize the issue.','','','','','',1,NULL,'2026-09-26 17:10:18.238117');
 /*!40000 ALTER TABLE `agent` ENABLE KEYS */;
 DROP TABLE IF EXISTS `agent_revision`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -66,7 +66,7 @@ CREATE TABLE `agent_revision` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `agent_revision` DISABLE KEYS */;
-INSERT INTO `agent_revision` VALUES (1,1,1,'Upgrade fixture agent','Seeded by the upgrade fixture.','Summarize the issue.','','','','','',1,'2026-09-26 11:45:38.834001');
+INSERT INTO `agent_revision` VALUES (1,1,1,'Upgrade fixture agent','Seeded by the upgrade fixture.','Summarize the issue.','','','','','',1,'2026-09-26 17:10:18.238603');
 /*!40000 ALTER TABLE `agent_revision` ENABLE KEYS */;
 DROP TABLE IF EXISTS `artifact`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -98,7 +98,7 @@ CREATE TABLE `artifact` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `artifact` DISABLE KEYS */;
-INSERT INTO `artifact` VALUES (1,'hwaisn3nx24j3m73w62a',2,'upgrade-fixture.txt','text/plain; charset=utf-8',26,'9723d085163fa0d8270120fa785f99cd3f4c6f033b1bb8c6b4ebe690476be515','/data/workspaces/spaces/3qviuexdb3qv52ipu7aq/artifacts/hwaisn3nx24j3m73w62a/content','user','l62gxxf5tj4wubk7wasq','user_upload','','',NULL,NULL,'2026-09-26 11:45:38.923474');
+INSERT INTO `artifact` VALUES (1,'tfrqafpxhgkxhgfaafma',2,'upgrade-fixture.txt','text/plain; charset=utf-8',26,'9723d085163fa0d8270120fa785f99cd3f4c6f033b1bb8c6b4ebe690476be515','/data/workspaces/spaces/eamqmi4tcsyeuy453pla/artifacts/tfrqafpxhgkxhgfaafma/content','user','yntztn5krglcq4hcnjtq','user_upload','','',NULL,NULL,'2026-09-26 17:10:18.278568');
 /*!40000 ALTER TABLE `artifact` ENABLE KEYS */;
 DROP TABLE IF EXISTS `artifact_share`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -152,14 +152,14 @@ CREATE TABLE `audit_event` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `audit_event` DISABLE KEYS */;
-INSERT INTO `audit_event` VALUES (1,'l5tlfgdxl3s3gt4ktwwq',NULL,'2026-09-26 11:45:38.468868','system','buildmax-server','user.created','user','l62gxxf5tj4wubk7wasq','','');
-INSERT INTO `audit_event` VALUES (2,'purfid4nr4w6m2fxfysq',NULL,'2026-09-26 11:45:38.803804','system','buildmax-server','user.login_code_issued','user','l62gxxf5tj4wubk7wasq','','');
-INSERT INTO `audit_event` VALUES (3,'a4brcvhvbbd4whilf4pq',NULL,'2026-09-26 11:45:38.824134','user','l62gxxf5tj4wubk7wasq','user.login','platform','upgrade-fixture','','login_code');
-INSERT INTO `audit_event` VALUES (4,'2kf75wqyllexop5kzj3a',2,'2026-09-26 11:45:38.829605','user','l62gxxf5tj4wubk7wasq','space.created','space','3qviuexdb3qv52ipu7aq','','free_trial');
-INSERT INTO `audit_event` VALUES (5,'vs7eymnsfdofw4hfoita',2,'2026-09-26 11:45:38.835491','user','l62gxxf5tj4wubk7wasq','agent.created','agent','i34elblrzj6ws2miy3la','','Upgrade fixture agent');
-INSERT INTO `audit_event` VALUES (6,'bdvyjmiibil2p4q2wzeq',2,'2026-09-26 11:45:38.851134','user','l62gxxf5tj4wubk7wasq','workflow.created','workflow','2sdhjux34qiumprhgt5q','','Upgrade fixture workflow');
-INSERT INTO `audit_event` VALUES (7,'2pongbau5eyc4ngpzrha',2,'2026-09-26 11:45:38.860648','user','l62gxxf5tj4wubk7wasq','workflow.published','workflow','2sdhjux34qiumprhgt5q','','Upgrade fixture workflow');
-INSERT INTO `audit_event` VALUES (8,'xv3mctdcg55ggpfi7m4a',2,'2026-09-26 11:45:38.926105','user','l62gxxf5tj4wubk7wasq','artifact.created','artifact','hwaisn3nx24j3m73w62a','','user_upload');
+INSERT INTO `audit_event` VALUES (1,'46ovy6ya4auuzev6avuq',NULL,'2026-09-26 17:10:18.001053','system','buildmax-server','user.created','user','yntztn5krglcq4hcnjtq','','');
+INSERT INTO `audit_event` VALUES (2,'m3kqriuf3jsbenydfdkq',NULL,'2026-09-26 17:10:18.219056','system','buildmax-server','user.login_code_issued','user','yntztn5krglcq4hcnjtq','','');
+INSERT INTO `audit_event` VALUES (3,'omxl3bmdxqhytm2spbjq',NULL,'2026-09-26 17:10:18.231294','user','yntztn5krglcq4hcnjtq','user.login','platform','upgrade-fixture','','login_code');
+INSERT INTO `audit_event` VALUES (4,'32ulbvl53uszuedodvka',2,'2026-09-26 17:10:18.234944','user','yntztn5krglcq4hcnjtq','space.created','space','eamqmi4tcsyeuy453pla','','free_trial');
+INSERT INTO `audit_event` VALUES (5,'jkqv6ukjer2utbo3zq7a',2,'2026-09-26 17:10:18.239436','user','yntztn5krglcq4hcnjtq','agent.created','agent','na4tx2mzqugn5pphagsq','','Upgrade fixture agent');
+INSERT INTO `audit_event` VALUES (6,'nevl53np4pxepl5punda',2,'2026-09-26 17:10:18.249845','user','yntztn5krglcq4hcnjtq','workflow.created','workflow','5is6rbrm36itdiwc2fda','','Upgrade fixture workflow');
+INSERT INTO `audit_event` VALUES (7,'zplfzdwuhl4snhkgc3ca',2,'2026-09-26 17:10:18.254041','user','yntztn5krglcq4hcnjtq','workflow.published','workflow','5is6rbrm36itdiwc2fda','','Upgrade fixture workflow');
+INSERT INTO `audit_event` VALUES (8,'lp47bodsfxpjizq6pcmq',2,'2026-09-26 17:10:18.279887','user','yntztn5krglcq4hcnjtq','artifact.created','artifact','tfrqafpxhgkxhgfaafma','','user_upload');
 /*!40000 ALTER TABLE `audit_event` ENABLE KEYS */;
 DROP TABLE IF EXISTS `auth_session`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -182,8 +182,51 @@ CREATE TABLE `auth_session` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `auth_session` DISABLE KEYS */;
-INSERT INTO `auth_session` VALUES (1,'hsrgmesocczgvjqbrvxq',1,'upgrade-fixture','login_code','2026-12-25 11:45:38.819891',NULL,NULL,'2026-09-26 11:45:38.820396');
+INSERT INTO `auth_session` VALUES (1,'cxv4zsf7v32il2nc3kdq',1,'upgrade-fixture','login_code','2026-12-25 17:10:18.228086',NULL,NULL,'2026-09-26 17:10:18.228290');
 /*!40000 ALTER TABLE `auth_session` ENABLE KEYS */;
+DROP TABLE IF EXISTS `channel_identity`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `channel_identity` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `public_id` char(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `platform` varchar(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `tenant` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  `external_user_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `handle` varchar(255) DEFAULT NULL,
+  `created_at` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_channel_identity_public_id` (`public_id`),
+  UNIQUE KEY `uq_channel_identity_external` (`platform`,`tenant`,`external_user_id`),
+  KEY `idx_channel_identity_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40000 ALTER TABLE `channel_identity` DISABLE KEYS */;
+/*!40000 ALTER TABLE `channel_identity` ENABLE KEYS */;
+DROP TABLE IF EXISTS `channel_pairing`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `channel_pairing` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `code_hash` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `platform` varchar(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `tenant` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  `external_user_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `chat_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `handle` varchar(255) DEFAULT NULL,
+  `expires_at` datetime(6) NOT NULL,
+  `created_at` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_channel_pairing_code_hash` (`code_hash`),
+  UNIQUE KEY `uq_channel_pairing_external` (`platform`,`tenant`,`external_user_id`),
+  KEY `idx_channel_pairing_expires_at` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40000 ALTER TABLE `channel_pairing` DISABLE KEYS */;
+/*!40000 ALTER TABLE `channel_pairing` ENABLE KEYS */;
 DROP TABLE IF EXISTS `conversation`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
@@ -193,6 +236,7 @@ CREATE TABLE `conversation` (
   `user_id` bigint unsigned NOT NULL,
   `space_id` bigint unsigned DEFAULT NULL,
   `channel` varchar(32) NOT NULL,
+  `channel_ref` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `title` varchar(256) DEFAULT NULL,
   `created_by` bigint unsigned NOT NULL,
   `turn_fence` bigint NOT NULL DEFAULT '0',
@@ -200,7 +244,8 @@ CREATE TABLE `conversation` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_conversation_public_id` (`public_id`),
   KEY `idx_conversation_user_created` (`user_id`,`created_at`),
-  KEY `idx_conversation_space_created` (`space_id`,`created_at`)
+  KEY `idx_conversation_space_created` (`space_id`,`created_at`),
+  KEY `idx_conversation_channel_ref` (`channel_ref`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -280,7 +325,7 @@ CREATE TABLE `issue` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `issue` DISABLE KEYS */;
-INSERT INTO `issue` VALUES (1,'bk3xblbho7ikmbtxxcxq',1,2,NULL,'Upgrade fixture issue','Owned by a person, executed by an agent.','in_progress',1,'agent','i34elblrzj6ws2miy3la',1,1,'2026-09-26 11:45:38.838254','2026-09-26 11:45:38.838254');
+INSERT INTO `issue` VALUES (1,'l5tc4ylqtszmt44kmcoq',1,2,NULL,'Upgrade fixture issue','Owned by a person, executed by an agent.','in_progress',1,'agent','na4tx2mzqugn5pphagsq',1,1,'2026-09-26 17:10:18.241762','2026-09-26 17:10:18.241762');
 /*!40000 ALTER TABLE `issue` ENABLE KEYS */;
 DROP TABLE IF EXISTS `issue_comment`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -303,7 +348,7 @@ CREATE TABLE `issue_comment` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `issue_comment` DISABLE KEYS */;
-INSERT INTO `issue_comment` VALUES (1,'tvuijsgwjjopg5s4322a',1,'user','l62gxxf5tj4wubk7wasq','A comment the upgrade must keep.',NULL,NULL,'2026-09-26 11:45:38.843208',NULL);
+INSERT INTO `issue_comment` VALUES (1,'te35uqhjerqowzim6kiq',1,'user','yntztn5krglcq4hcnjtq','A comment the upgrade must keep.',NULL,NULL,'2026-09-26 17:10:18.245642',NULL);
 /*!40000 ALTER TABLE `issue_comment` ENABLE KEYS */;
 DROP TABLE IF EXISTS `llm_call`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -406,7 +451,7 @@ CREATE TABLE `login_code` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `login_code` DISABLE KEYS */;
-INSERT INTO `login_code` VALUES (1,'d47cf954e79434fcc0ffcd24674281b25410486217e9b18dea910d42d51826cd',1,'2026-09-26 12:45:38.800810','2026-09-26 11:45:38.816497','2026-09-26 11:45:38.800870');
+INSERT INTO `login_code` VALUES (1,'4451816355e380aaa685f363f0bdae5149959aded1032b4debc3d7d809b7f229',1,'2026-09-26 18:10:18.218061','2026-09-26 17:10:18.225822','2026-09-26 17:10:18.218106');
 /*!40000 ALTER TABLE `login_code` ENABLE KEYS */;
 DROP TABLE IF EXISTS `plugin`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -524,6 +569,29 @@ CREATE TABLE `quota_tier` (
 INSERT INTO `quota_tier` VALUES ('free_trial',10,100000,0,30);
 INSERT INTO `quota_tier` VALUES ('pro',1000,10000000,0,30);
 /*!40000 ALTER TABLE `quota_tier` ENABLE KEYS */;
+DROP TABLE IF EXISTS `remote_session`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `remote_session` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `public_id` char(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `display_name` varchar(200) DEFAULT NULL,
+  `platform` varchar(32) DEFAULT NULL,
+  `host` varchar(200) DEFAULT NULL,
+  `status` varchar(16) NOT NULL,
+  `last_seen_at` datetime(6) DEFAULT NULL,
+  `created_at` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_remote_session_public_id` (`public_id`),
+  KEY `idx_remote_session_user_id` (`user_id`),
+  KEY `idx_remote_session_status` (`status`),
+  KEY `idx_remote_session_last_seen_at` (`last_seen_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40000 ALTER TABLE `remote_session` DISABLE KEYS */;
+/*!40000 ALTER TABLE `remote_session` ENABLE KEYS */;
 DROP TABLE IF EXISTS `schedule`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
@@ -531,7 +599,8 @@ CREATE TABLE `schedule` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `public_id` char(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   `space_id` bigint unsigned NOT NULL,
-  `agent_id` bigint unsigned NOT NULL,
+  `executor_kind` varchar(32) NOT NULL DEFAULT '',
+  `executor_id` varchar(64) NOT NULL DEFAULT '',
   `created_by` bigint unsigned NOT NULL,
   `name` varchar(256) DEFAULT NULL,
   `input` text NOT NULL,
@@ -541,22 +610,20 @@ CREATE TABLE `schedule` (
   `pause_reason` varchar(32) NOT NULL DEFAULT '',
   `next_fire_at` datetime(6) NOT NULL,
   `last_fire_at` datetime(6) DEFAULT NULL,
-  `last_task_id` bigint unsigned DEFAULT NULL,
+  `last_fire_ref` varchar(64) DEFAULT NULL,
   `consecutive_failures` bigint NOT NULL,
   `created_at` datetime(6) DEFAULT NULL,
   `updated_at` datetime(6) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_schedule_public_id` (`public_id`),
   KEY `idx_schedule_space_created` (`space_id`,`created_at`),
-  KEY `idx_schedule_agent_id` (`agent_id`),
-  KEY `idx_schedule_due` (`enabled`,`next_fire_at`),
-  KEY `idx_schedule_last_task_id` (`last_task_id`)
+  KEY `idx_schedule_due` (`enabled`,`next_fire_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `schedule` DISABLE KEYS */;
-INSERT INTO `schedule` VALUES (1,'2dkhrgpeaomko5lpwy2a',2,1,1,'Every minute','Summarize new issues.','* * * * *','UTC',0,'manual','2026-09-26 11:47:00.000000','2026-09-26 11:46:36.227936',2,0,'2026-09-26 11:45:38.902636','2026-09-26 11:46:36.498181');
-INSERT INTO `schedule` VALUES (2,'uypvvbxa37cbpmusgnkq',2,1,1,'Yearly','Summarize new issues.','0 0 1 1 *','UTC',1,'','2027-01-01 00:00:00.000000',NULL,NULL,0,'2026-09-26 11:45:38.908022','2026-09-26 11:45:38.908022');
+INSERT INTO `schedule` VALUES (1,'r452dfe74cb5tong4lja',2,'agent','na4tx2mzqugn5pphagsq',1,'Every minute','Summarize new issues.','* * * * *','UTC',0,'manual','2026-09-26 17:12:00.000000','2026-09-26 17:11:16.274977','lb37ups4s63epke65vnq',0,'2026-09-26 17:10:18.271165','2026-09-26 17:11:16.467115');
+INSERT INTO `schedule` VALUES (2,'berul43d2227hhg5q4zq',2,'agent','na4tx2mzqugn5pphagsq',1,'Yearly','Summarize new issues.','0 0 1 1 *','UTC',1,'','2027-01-01 00:00:00.000000',NULL,NULL,0,'2026-09-26 17:10:18.273703','2026-09-26 17:10:18.273703');
 /*!40000 ALTER TABLE `schedule` ENABLE KEYS */;
 DROP TABLE IF EXISTS `schema_migration`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -569,10 +636,11 @@ CREATE TABLE `schema_migration` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `schema_migration` DISABLE KEYS */;
-INSERT INTO `schema_migration` VALUES ('issue_owner_executor_split','2026-09-26 11:45:36.210471');
-INSERT INTO `schema_migration` VALUES ('llm_model_credential_encryption','2026-09-26 11:45:36.206618');
-INSERT INTO `schema_migration` VALUES ('system_grant_live_marker','2026-09-26 11:45:36.200989');
-INSERT INTO `schema_migration` VALUES ('workflow_step_run_to_node_run','2026-09-26 11:45:36.213317');
+INSERT INTO `schema_migration` VALUES ('issue_owner_executor_split','2026-09-26 17:10:16.270404');
+INSERT INTO `schema_migration` VALUES ('llm_model_credential_encryption','2026-09-26 17:10:16.267637');
+INSERT INTO `schema_migration` VALUES ('schedule_agent_to_executor','2026-09-26 17:10:16.273032');
+INSERT INTO `schema_migration` VALUES ('system_grant_live_marker','2026-09-26 17:10:16.265838');
+INSERT INTO `schema_migration` VALUES ('workflow_step_run_to_node_run','2026-09-26 17:10:16.271794');
 /*!40000 ALTER TABLE `schema_migration` ENABLE KEYS */;
 DROP TABLE IF EXISTS `secret`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -625,8 +693,8 @@ CREATE TABLE `space` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `space` DISABLE KEYS */;
-INSERT INTO `space` VALUES (1,'cxtnbzspb47fmofsyxea','My Space',1,'free_trial','open','',0,'','',1,'2026-09-26 11:45:38.464133','2026-09-26 11:45:38.464133');
-INSERT INTO `space` VALUES (2,'3qviuexdb3qv52ipu7aq','Upgrade fixture',NULL,'free_trial','open','',0,'','',1,'2026-09-26 11:45:38.826457','2026-09-26 11:45:38.826457');
+INSERT INTO `space` VALUES (1,'z5gx5k3ncuk6awl6phtq','My Space',1,'free_trial','open','',0,'','',1,'2026-09-26 17:10:17.999624','2026-09-26 17:10:17.999624');
+INSERT INTO `space` VALUES (2,'eamqmi4tcsyeuy453pla','Upgrade fixture',NULL,'free_trial','open','',0,'','',1,'2026-09-26 17:10:18.233638','2026-09-26 17:10:18.233638');
 /*!40000 ALTER TABLE `space` ENABLE KEYS */;
 DROP TABLE IF EXISTS `space_invitation`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -666,8 +734,8 @@ CREATE TABLE `space_member` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `space_member` DISABLE KEYS */;
-INSERT INTO `space_member` VALUES (1,1,1,'owner','2026-09-26 11:45:38.464133');
-INSERT INTO `space_member` VALUES (2,2,1,'owner','2026-09-26 11:45:38.826457');
+INSERT INTO `space_member` VALUES (1,1,1,'owner','2026-09-26 17:10:17.999624');
+INSERT INTO `space_member` VALUES (2,2,1,'owner','2026-09-26 17:10:18.233638');
 /*!40000 ALTER TABLE `space_member` ENABLE KEYS */;
 DROP TABLE IF EXISTS `system_grant`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -735,8 +803,8 @@ CREATE TABLE `task` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `task` DISABLE KEYS */;
-INSERT INTO `task` VALUES (1,'zq22drsr4zcjty2xjk5a',NULL,2,NULL,NULL,'FAILED','Agent: Upgrade fixture agent\nDescription: Seeded by the upgrade fixture.\nInstructions:\nSummarize the issue.\n\nSummarize the issue.','Agent: Upgrade fixture agent\nDescription: Seeded b…',0,0,NULL,NULL,1,'2026-09-26 11:45:38.889063',NULL,'2026-09-26 11:45:41.252486','exit status 1','c319af4c-e2d1-4917-884a-038d6bff53a1',1,1,NULL,NULL,'workflow/iigyxziuiikiolrptecq/node/summarize','f19bf937eb9a973847529e3201cc24e9258b610852f6730911dfedb203efcfc9');
-INSERT INTO `task` VALUES (2,'pzr456fdudhcmz72jb3q',NULL,2,NULL,1,'FAILED','Summarize new issues.','Summarize new issues.',0,0,NULL,NULL,1,'2026-09-26 11:46:36.333347',NULL,'2026-09-26 11:46:41.315179','exit status 1','6fce52e3-d77b-4672-a428-8573697fe79e',2,1,NULL,NULL,NULL,NULL);
+INSERT INTO `task` VALUES (1,'3zj3pgtkw7tom65tfjra',NULL,2,NULL,NULL,'FAILED','Agent: Upgrade fixture agent\nDescription: Seeded by the upgrade fixture.\nInstructions:\nSummarize the issue.\n\nSummarize the issue.','Agent: Upgrade fixture agent\nDescription: Seeded b…',0,0,NULL,NULL,1,'2026-09-26 17:10:18.264004',NULL,'2026-09-26 17:10:21.289657','exit status 1','d7bd5ca8-34de-4b21-8668-0c8ae5a4ea47',1,1,NULL,NULL,'workflow/orxn4oxxqk5ut5i3cz6a/node/summarize','ba9606b870008c331cc34168872ab7cda1e0e71dd57d026662b824d670d858a2');
+INSERT INTO `task` VALUES (2,'lb37ups4s63epke65vnq',NULL,2,NULL,1,'FAILED','Summarize new issues.','Summarize new issues.',0,0,NULL,NULL,1,'2026-09-26 17:11:16.297630',NULL,'2026-09-26 17:11:21.285672','exit status 1','4dfe611f-97d9-415e-af7f-3ca05a0cd027',2,1,NULL,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `task` ENABLE KEYS */;
 DROP TABLE IF EXISTS `task_run`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -806,8 +874,8 @@ CREATE TABLE `task_run` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `task_run` DISABLE KEYS */;
-INSERT INTO `task_run` VALUES (1,'7vjbvfpl66en7ukmzplq',1,NULL,'Agent: Upgrade fixture agent\nDescription: Seeded by the upgrade fixture.\nInstructions:\nSummarize the issue.\n\nSummarize the issue.',NULL,'l62gxxf5tj4wubk7wasq','user','workflow_step','FAILED',NULL,NULL,'exit status 1',NULL,'2026-09-26 11:45:41.252486',NULL,'',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'',NULL,NULL,1,NULL,'','','',NULL,'2026-09-26 11:45:38.889063',NULL,NULL,NULL,'',NULL,'',NULL,NULL,NULL,'',NULL);
-INSERT INTO `task_run` VALUES (2,'k2orngmohjhtyquase5a',2,NULL,'Summarize new issues.',NULL,'l62gxxf5tj4wubk7wasq','system','schedule','FAILED',NULL,NULL,'exit status 1',NULL,'2026-09-26 11:46:41.315179',NULL,'',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'',NULL,NULL,1,NULL,'','','',NULL,'2026-09-26 11:46:36.333347',NULL,NULL,NULL,'',NULL,'',NULL,NULL,NULL,'',NULL);
+INSERT INTO `task_run` VALUES (1,'ih3vswo7qujm5psiucaa',1,NULL,'Agent: Upgrade fixture agent\nDescription: Seeded by the upgrade fixture.\nInstructions:\nSummarize the issue.\n\nSummarize the issue.',NULL,'yntztn5krglcq4hcnjtq','user','workflow_step','FAILED',NULL,NULL,'exit status 1',NULL,'2026-09-26 17:10:21.289657',NULL,'',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'',NULL,NULL,1,NULL,'','','',NULL,'2026-09-26 17:10:18.264004',NULL,NULL,NULL,'',NULL,'',NULL,NULL,NULL,'',NULL);
+INSERT INTO `task_run` VALUES (2,'c2alxkxyuxyj2t3bpvea',2,NULL,'Summarize new issues.',NULL,'yntztn5krglcq4hcnjtq','system','schedule','FAILED',NULL,NULL,'exit status 1',NULL,'2026-09-26 17:11:21.285672',NULL,'',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'',NULL,NULL,1,NULL,'','','',NULL,'2026-09-26 17:11:16.297630',NULL,NULL,NULL,'',NULL,'',NULL,NULL,NULL,'',NULL);
 /*!40000 ALTER TABLE `task_run` ENABLE KEYS */;
 DROP TABLE IF EXISTS `task_run_secret`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -856,7 +924,7 @@ CREATE TABLE `user` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `user` DISABLE KEYS */;
-INSERT INTO `user` VALUES (1,'l62gxxf5tj4wubk7wasq','upgrade-owner@buildmax.local','',NULL,NULL,'free_trial','2026-09-26 11:45:38.819891','upgrade-fixture',NULL,'2026-09-26 11:45:38.464133');
+INSERT INTO `user` VALUES (1,'yntztn5krglcq4hcnjtq','upgrade-owner@buildmax.local','',NULL,NULL,'free_trial','2026-09-26 17:10:18.228086','upgrade-fixture',NULL,'2026-09-26 17:10:17.999624');
 /*!40000 ALTER TABLE `user` ENABLE KEYS */;
 DROP TABLE IF EXISTS `user_refresh_token`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -881,7 +949,7 @@ CREATE TABLE `user_refresh_token` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `user_refresh_token` DISABLE KEYS */;
-INSERT INTO `user_refresh_token` VALUES (1,'a3a8bb6e42177f0902cd2edbc1a140ff8ceaf54c44b99af854fe45d1b218f7b7',1,'hsrgmesocczgvjqbrvxq','upgrade-fixture','2026-10-26 11:45:38.821919',NULL,NULL,'','2026-09-26 11:45:38.821992');
+INSERT INTO `user_refresh_token` VALUES (1,'e0942fb8122f55857e612fd08395bdd339eaa08c3c210992d52eb6c69ec13bf5',1,'cxv4zsf7v32il2nc3kdq','upgrade-fixture','2026-10-26 17:10:18.229498',NULL,NULL,'','2026-09-26 17:10:18.229535');
 /*!40000 ALTER TABLE `user_refresh_token` ENABLE KEYS */;
 DROP TABLE IF EXISTS `user_webhook_key`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -924,7 +992,7 @@ CREATE TABLE `workflow` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `workflow` DISABLE KEYS */;
-INSERT INTO `workflow` VALUES (1,'2sdhjux34qiumprhgt5q',2,'Upgrade fixture workflow','One agent step.','{\"schema_version\":1,\"nodes\":[{\"id\":\"summarize\",\"type\":\"agent_task\",\"agent\":{\"id\":\"i34elblrzj6ws2miy3la\",\"revision\":1},\"input\":{\"instruction\":\"Summarize the issue.\"},\"issue_access\":\"none\"}]}','published',2,1,'2026-09-26 11:45:38.846608','2026-09-26 11:45:38.856189');
+INSERT INTO `workflow` VALUES (1,'5is6rbrm36itdiwc2fda',2,'Upgrade fixture workflow','One agent step.','{\"schema_version\":1,\"nodes\":[{\"id\":\"summarize\",\"type\":\"agent_task\",\"agent\":{\"id\":\"na4tx2mzqugn5pphagsq\",\"revision\":1},\"input\":{\"instruction\":\"Summarize the issue.\"},\"issue_access\":\"none\"}]}','published',2,1,'2026-09-26 17:10:18.248356','2026-09-26 17:10:18.252390');
 /*!40000 ALTER TABLE `workflow` ENABLE KEYS */;
 DROP TABLE IF EXISTS `workflow_node_run`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -966,7 +1034,7 @@ CREATE TABLE `workflow_node_run` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `workflow_node_run` DISABLE KEYS */;
-INSERT INTO `workflow_node_run` VALUES (1,'zzbmyvixlzbuv5n4cpca',1,'summarize',0,'agent_task',1,'Upgrade fixture agent','Seeded by the upgrade fixture.','Summarize the issue.',1,NULL,'none','Summarize the issue.',NULL,NULL,'failed',1,1,'Agent: Upgrade fixture agent\nDescription: Seeded by the upgrade fixture.\nInstructions:\nSummarize the issue.\n\nSummarize the issue.',NULL,NULL,'exit status 1','2026-09-26 11:45:38.877620','2026-09-26 11:45:38.885378','2026-09-26 11:46:36.276065');
+INSERT INTO `workflow_node_run` VALUES (1,'e573pmgpwht5swn4rraa',1,'summarize',0,'agent_task',1,'Upgrade fixture agent','Seeded by the upgrade fixture.','Summarize the issue.',1,NULL,'none','Summarize the issue.',NULL,NULL,'failed',1,1,'Agent: Upgrade fixture agent\nDescription: Seeded by the upgrade fixture.\nInstructions:\nSummarize the issue.\n\nSummarize the issue.',NULL,NULL,'exit status 1','2026-09-26 17:10:18.259948','2026-09-26 17:10:18.262959','2026-09-26 17:11:16.285879');
 /*!40000 ALTER TABLE `workflow_node_run` ENABLE KEYS */;
 DROP TABLE IF EXISTS `workflow_revision`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -987,8 +1055,8 @@ CREATE TABLE `workflow_revision` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `workflow_revision` DISABLE KEYS */;
-INSERT INTO `workflow_revision` VALUES (1,1,1,'Upgrade fixture workflow','One agent step.','{\"nodes\":[{\"agent\":{\"id\":\"i34elblrzj6ws2miy3la\"},\"id\":\"summarize\",\"input\":{\"instruction\":\"Summarize the issue.\"},\"type\":\"agent_task\"}],\"schema_version\":1}','draft',1,'2026-09-26 11:45:38.847291');
-INSERT INTO `workflow_revision` VALUES (2,1,2,'Upgrade fixture workflow','One agent step.','{\"schema_version\":1,\"nodes\":[{\"id\":\"summarize\",\"type\":\"agent_task\",\"agent\":{\"id\":\"i34elblrzj6ws2miy3la\",\"revision\":1},\"input\":{\"instruction\":\"Summarize the issue.\"},\"issue_access\":\"none\"}]}','published',1,'2026-09-26 11:45:38.856772');
+INSERT INTO `workflow_revision` VALUES (1,1,1,'Upgrade fixture workflow','One agent step.','{\"nodes\":[{\"agent\":{\"id\":\"na4tx2mzqugn5pphagsq\"},\"id\":\"summarize\",\"input\":{\"instruction\":\"Summarize the issue.\"},\"type\":\"agent_task\"}],\"schema_version\":1}','draft',1,'2026-09-26 17:10:18.248755');
+INSERT INTO `workflow_revision` VALUES (2,1,2,'Upgrade fixture workflow','One agent step.','{\"schema_version\":1,\"nodes\":[{\"id\":\"summarize\",\"type\":\"agent_task\",\"agent\":{\"id\":\"na4tx2mzqugn5pphagsq\",\"revision\":1},\"input\":{\"instruction\":\"Summarize the issue.\"},\"issue_access\":\"none\"}]}','published',1,'2026-09-26 17:10:18.252822');
 /*!40000 ALTER TABLE `workflow_revision` ENABLE KEYS */;
 DROP TABLE IF EXISTS `workflow_run`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -999,6 +1067,7 @@ CREATE TABLE `workflow_run` (
   `workflow_id` bigint unsigned NOT NULL,
   `workflow_revision` bigint NOT NULL DEFAULT '0',
   `issue_id` bigint unsigned DEFAULT NULL,
+  `schedule_id` bigint unsigned DEFAULT NULL,
   `input` longtext,
   `status` varchar(32) NOT NULL,
   `result_json` longtext,
@@ -1014,13 +1083,14 @@ CREATE TABLE `workflow_run` (
   UNIQUE KEY `uq_workflow_run_public_id` (`public_id`),
   KEY `idx_workflow_run_workflow_created` (`workflow_id`,`created_at`),
   KEY `idx_workflow_run_issue_id` (`issue_id`),
+  KEY `idx_workflow_run_schedule_id` (`schedule_id`),
   KEY `idx_workflow_run_lease_expires` (`lease_expires_at`),
   KEY `idx_workflow_run_next_reconcile` (`next_reconcile_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `workflow_run` DISABLE KEYS */;
-INSERT INTO `workflow_run` VALUES (1,'iigyxziuiikiolrptecq',1,2,NULL,NULL,'failed',NULL,1,'2026-09-26 11:45:38.874961','2026-09-26 11:45:38.874960','2026-09-26 11:46:36.276065','exit status 1',NULL,NULL,NULL);
+INSERT INTO `workflow_run` VALUES (1,'orxn4oxxqk5ut5i3cz6a',1,2,NULL,NULL,NULL,'failed',NULL,1,'2026-09-26 17:10:18.257247','2026-09-26 17:10:18.257247','2026-09-26 17:11:16.285879','exit status 1',NULL,NULL,NULL);
 /*!40000 ALTER TABLE `workflow_run` ENABLE KEYS */;
 DROP TABLE IF EXISTS `workspace_checkpoint`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
