@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -130,5 +132,71 @@ func TestSchedulerDispatchesForAnEligibleInitiator(t *testing.T) {
 				t.Error("the run was not dispatched")
 			}
 		})
+	}
+}
+
+// switchableChecker answers every Check with err, which a test can change
+// between calls to model an authority store that recovers.
+type switchableChecker struct {
+	mu  sync.Mutex
+	err error
+}
+
+func (c *switchableChecker) Check(context.Context, string, string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.err
+}
+
+func (c *switchableChecker) set(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.err = err
+}
+
+// unavailable is what the Checker returns when an authority store failed.
+func unavailable() error {
+	return fmt.Errorf("%w: load account: connection refused", eligibility.ErrUnavailable)
+}
+
+// TestSchedulerLeavesRunPendingWhenEligibilityIsUnavailable.
+//
+// When the scheduler cannot tell whether the initiator may still run work, it
+// must not dispatch — that would spend authority on a guess — and it must not
+// end the run either, because nothing is known to be wrong with it. The run stays
+// PENDING and is dispatched once the store answers.
+func TestSchedulerLeavesRunPendingWhenEligibilityIsUnavailable(t *testing.T) {
+	spy := newSpyTaskRunStore("r_unknown12345678901234")
+	runner := &recordingRunner{}
+	elig := &switchableChecker{err: unavailable()}
+
+	s, err := NewSchedulerWithPollInterval(spy, runner, nil, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.WithEligibility(elig)
+
+	s.pollOnce()
+	s.inflight.Wait()
+	if runnerCalls(runner) != 0 {
+		t.Fatalf("a worker was spawned while eligibility was unknown: %d", runnerCalls(runner))
+	}
+	spy.mu.Lock()
+	status := spy.pendingRun.Status
+	ended := spy.lastUpdateStatus
+	spy.pendingCalls = 0 // hand the same run out again on the next poll
+	spy.mu.Unlock()
+	if status != string(coretask.RunStatusPending) {
+		t.Fatalf("status = %q, want PENDING", status)
+	}
+	if ended != nil {
+		t.Fatalf("the run was ended (%s) over an unavailable store", ended.status)
+	}
+
+	elig.set(nil)
+	s.pollOnce()
+	s.inflight.Wait()
+	if runnerCalls(runner) != 1 {
+		t.Errorf("the run was not dispatched once eligibility could be confirmed: %d", runnerCalls(runner))
 	}
 }

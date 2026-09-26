@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -141,6 +142,45 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 		SandboxNetworkTier:     sandboxNetworkTierOf(got.Sandbox),
 		SandboxFilesystemTier:  sandboxFilesystemTierOf(got.Sandbox),
 	}, nil
+}
+
+// The starting fetch's retry schedule: the first wait, its cap as it doubles,
+// and the total a worker spends before giving up. Two minutes rides out a
+// database failover without holding a dispatch slot through a real outage.
+// Variables so a test does not wait in real time.
+var (
+	startFetchRetryDelay    = time.Second
+	startFetchRetryMaxDelay = 15 * time.Second
+	startFetchRetryBudget   = 2 * time.Minute
+)
+
+// GetWorkerTaskRunToStart is GetWorkerTaskRun for a worker about to start its
+// run. A 503 means the server cannot hand the run out yet — typically it
+// cannot confirm the initiator may still run work — so it is retried with
+// backoff within a bounded budget, letting a transient outage delay the run
+// rather than fail it. Any other outcome returns at once.
+func GetWorkerTaskRunToStart(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID string) (*WorkerTaskRun, error) {
+	deadline := time.Now().Add(startFetchRetryBudget)
+	delay := startFetchRetryDelay
+	for {
+		run, err := GetWorkerTaskRun(ctx, cfg, taskRunID)
+		var httpErr *httpclient.Error
+		if err == nil || !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusServiceUnavailable {
+			return run, err
+		}
+		if time.Now().Add(delay).After(deadline) {
+			return nil, err
+		}
+		slog.Warn("server cannot hand out this run yet; retrying", "task_run_id", taskRunID, "retry_in", delay, "err", err)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+		delay = min(delay*2, startFetchRetryMaxDelay)
+	}
 }
 
 // GetWorkerTaskRunSecrets fetches the run's resolved Secret env grants. An

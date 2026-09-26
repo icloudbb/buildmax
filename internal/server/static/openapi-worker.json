@@ -433,7 +433,7 @@
             }
           },
           "503": {
-            "description": "Task runs are not configured",
+            "description": "Task runs are not configured, or the run initiator's eligibility cannot be verified right now; retry",
             "content": {
               "application/json": {
                 "schema": {

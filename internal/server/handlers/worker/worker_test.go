@@ -2,7 +2,9 @@ package worker
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -131,6 +133,53 @@ func TestGetWorkerTaskRunHandler_ReChecksEligibilityAtFetch(t *testing.T) {
 	}
 	if runs.Runs[0].CancelReason != coretask.CancelReasonCreatorDisabled {
 		t.Errorf("cancel_reason = %q, want creator_disabled", runs.Runs[0].CancelReason)
+	}
+}
+
+// unavailableChecker is an eligibility Checker whose authority store is down.
+type unavailableChecker struct{}
+
+func (unavailableChecker) Check(context.Context, string, string) error {
+	return fmt.Errorf("%w: load membership: connection refused", eligibility.ErrUnavailable)
+}
+
+// When the initiator's authority cannot be determined, the fetch hands out
+// nothing: a 503 the worker waits out, not a run to start on a guess, and not a
+// cancel recorded on one. Liveness is still recorded so a running run polling
+// through the outage is not reaped as stale.
+func TestGetWorkerTaskRunHandler_RefusesWhenEligibilityIsUnavailable(t *testing.T) {
+	const taskRunID = "run-unknown"
+	runs := &mock.MockTaskRunStore{
+		Runs: []coretask.Run{{
+			ID: taskRunID, TaskID: "task-1", Input: "input",
+			Status: string(coretask.RunStatusScheduled), CreatedBy: "u_1",
+		}},
+		TaskList: []coretask.Task{{ID: "task-1", SpaceID: "tm_1", CreatedBy: "u_1"}},
+	}
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Eligible: unavailableChecker{}})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+taskRunID, nil)
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body = %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), `"run"`) {
+		t.Errorf("the refusal carried the run: %s", w.Body.String())
+	}
+	got := runs.Runs[0]
+	if got.CancelRequestedAt != nil || got.CancelReason != "" {
+		t.Errorf("a cancel was recorded over an unavailable store: reason=%q", got.CancelReason)
+	}
+	if got.Status != string(coretask.RunStatusScheduled) {
+		t.Errorf("status = %q, want SCHEDULED left alone", got.Status)
+	}
+	if got.LastSeenAt == nil {
+		t.Error("liveness was not recorded for the refused fetch")
 	}
 }
 

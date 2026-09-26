@@ -139,7 +139,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return fmt.Errorf("this run was dispatched without %s", config.EnvKeyBuildmaxRunToken)
 	}
 
-	fetched, err := workerclient.GetWorkerTaskRun(ctx, workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: runToken, Client: httpClient}, taskRunID)
+	fetched, err := workerclient.GetWorkerTaskRunToStart(ctx, workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: runToken, Client: httpClient}, taskRunID)
 	if err != nil {
 		slog.Error("get run failed", "err", err)
 		return fmt.Errorf("get run: %w", err)

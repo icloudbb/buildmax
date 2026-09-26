@@ -484,7 +484,11 @@ account gate, revokes sessions, optionally retires the account's webhook keys
 account's schedules, and cancels its in-flight runs, reporting the gate result
 alongside those cleanup counts. A cleanup step that fails after the gate commits
 is reported by name (`cleanup_failed`) on an audited, successful disable that
-can safely be repeated; re-enabling reopens the gate and resurrects none of it. `GET /api/admin/users/{user_id}/deactivation-impact` projects that impact
+can safely be repeated; re-enabling reopens the gate and resurrects none of it.
+Schedule firing, run dispatch, and the worker's run fetch re-check the
+initiator's eligibility and fail closed when it cannot be determined: the work
+waits and is retried rather than started or canceled
+([system administration](design/system-administration.md) §8.2). `GET /api/admin/users/{user_id}/deactivation-impact` projects that impact
 — counts and ids only, never Space content — before the change commits. Portal's
 admin area presents that projection as a guided preview when an operator
 disables an account (with the suspension-versus-leaver choice), and offers owner
