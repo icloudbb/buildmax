@@ -91,6 +91,17 @@ func main() {
 		return
 	}
 
+	// `storage verify` proves a restored database and bucket agree. It reads the
+	// same database and storage configuration the server does, and must work
+	// while the server itself is still in doubt.
+	if len(os.Args) > 1 && os.Args[1] == "storage" {
+		if err := bootstrap.RunStorageCommand(ctx, os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	portFlag := flag.Int("port", 0, "port to listen on (overrides server.yaml port, default 5678)")
 	flag.Usage = usage
 	flag.Parse()
@@ -110,6 +121,7 @@ func usage() {
        buildmax-server space <command> [args]
        buildmax-server run-token <task_run_id> [flags]
        buildmax-server secret <command>
+       buildmax-server storage <command> [flags]
 
 Runs the BuildMax HTTP API and the task scheduler. Configuration comes from
 BUILDMAX_HOME/server.yaml.
@@ -123,4 +135,5 @@ Flags:
 	fmt.Fprint(out, "\n"+bootstrap.SpaceCommandUsage)
 	fmt.Fprint(out, "\n"+bootstrap.RunTokenCommandUsage)
 	fmt.Fprint(out, "\n"+bootstrap.SecretCommandUsage)
+	fmt.Fprint(out, "\n"+bootstrap.StorageCommandUsage)
 }

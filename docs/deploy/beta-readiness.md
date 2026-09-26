@@ -119,8 +119,10 @@ screens, TaskRun JSON, trace, audit rows, and artifact listings for each case.
 
 - [ ] Restore the coordinated database and bucket backup into an empty recovery
   environment. Sign in and compare space, task, TaskRun, trace, audit, usage, and
-  artifact identifiers and checksums with the pre-backup record. State the
-  measured recovery time and any accepted data loss.
+  artifact identifiers and checksums with the pre-backup record. Run
+  `buildmax-server storage verify --checksums` against the restored pair and
+  record its output; it must report no missing, altered, or unreadable object.
+  State the measured recovery time and any accepted data loss.
 - [ ] Name the starting schema and commit; do not assume a released predecessor.
   Exercise the candidate's claimed upgrade path through a real schema change.
   Where binary rollback is supported, run the previous Server and worker

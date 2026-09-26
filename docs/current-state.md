@@ -68,7 +68,10 @@ Deployment smoke now exercises graceful worker loss, the Server's readiness
 degradation and recovery across runtime MySQL and object-storage outages, and
 a denial of only the worker's object-storage writes, under which runs end
 FAILED with the refused write named and no record pointing at a missing object.
-Paired restore, a real predecessor-schema upgrade, and credential rotation
+`buildmax-server storage verify` now gives an operator a read-only check that
+every live artifact, checkpoint payload, run trace, and plugin package the
+database names resolves in storage, optionally by checksum. Exercising a paired
+restore with it, a real predecessor-schema upgrade, and credential rotation
 remain open. Shared Redis
 coordination is implemented, including distributed lease fencing at
 message-history writes. The worker API already has a separate listener, TLS

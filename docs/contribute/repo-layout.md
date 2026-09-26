@@ -214,6 +214,8 @@ internal/
 │   │                   projects the deactivation impact
 │   ├── spacerecovery/  The disabled-owner-only ownership recovery: promote an
 │   │                   enabled member when every recorded owner is disabled
+│   ├── storagecheck/   The read-only proof that every record naming a stored
+│   │                   object still resolves to it, behind `storage verify`
 │   ├── identity/       What proves who a caller is: verifying a credential and
 │   │                   opening the session it earns
 │   ├── issue/          Issue service

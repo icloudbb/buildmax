@@ -228,6 +228,18 @@ Stated rather than left to be discovered:
 - **Backups.** Database and bucket backups are yours. BuildMax has no export or
   import command. A database restore is only readable with the KEK it was
   sealed under, which you back up separately (see "Key-encryption key" above).
+  What BuildMax does provide is the check that a restored pair
+  agrees: run `buildmax-server storage verify` in a server container (it reads
+  the same `server.yaml`) after restoring. It walks every live artifact,
+  workspace checkpoint payload, run trace, and plugin release package the
+  database names, prints each object that is missing, altered, or unreadable
+  with its record id, and exits non-zero if it found any. Add `--checksums` to
+  also compare each object's size and SHA-256; that reads every stored byte.
+  The check never deletes, rewrites, or tombstones a record or an object. Like
+  every `buildmax-server` subcommand it opens the database through the
+  server's store, which refuses a database a newer release has migrated and
+  otherwise first applies that release's schema migrations, so run it from the
+  release you are restoring onto.
 - **Horizontal scaling of workers.** Worker Jobs are created per task run and
   bounded by their own resource settings, not by a replica count. Cluster
   capacity is what limits concurrency.

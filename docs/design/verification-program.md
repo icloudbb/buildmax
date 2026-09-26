@@ -479,7 +479,13 @@ The operator must:
 - every run reaches an explainable terminal state;
 - no dangling run exceeds the documented recovery interval;
 - every retained artifact reference resolves after restore or is explicitly
-  tombstoned;
+  tombstoned. `buildmax-server storage verify` is the operator surface for
+  this check: it walks live artifacts, workspace checkpoint payloads, run
+  traces, and plugin release packages, names each missing, altered, or
+  unreadable object by record id with per-kind counts, and exits non-zero on
+  any finding; `--checksums` also compares every object's size and SHA-256.
+  It is read-only by decision: restoring an object or tombstoning its record
+  stays an operator action;
 - database and bucket state agree after paired recovery;
 - rollback behavior matches the supported migration contract;
 - an operator who did not implement the change can diagnose every injected
