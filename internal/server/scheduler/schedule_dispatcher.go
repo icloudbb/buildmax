@@ -178,6 +178,32 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 		return
 	}
 
+	// Checked before the claim, because the claim is what consumes this due
+	// time. A creator who can no longer run work in this Space pauses the
+	// schedule rather than minting Tasks that would only fail at dispatch; the
+	// pause is idempotent, so a second replica reaching it too is harmless.
+	// Eligibility that cannot be determined — a store outage — fails closed
+	// without losing the fire: nothing is claimed, so next_fire_at stays due and
+	// the next tick asks again, and no failed fire counts toward the
+	// consecutive-failure pause, because nothing about the schedule failed.
+	if d.eligible != nil && s.CreatedBy != "" {
+		switch err := d.eligible.Check(ctx, s.CreatedBy, s.SpaceID); {
+		case err == nil:
+		case errors.Is(err, eligibility.ErrUnavailable):
+			log.WarnContext(ctx, "could not verify schedule creator eligibility; not firing, will retry next tick",
+				"user_id", s.CreatedBy, "err", err)
+			return
+		default:
+			reason := coreschedule.PauseReasonCreatorNotMember
+			if errors.Is(err, eligibility.ErrAccountDisabled) {
+				reason = coreschedule.PauseReasonCreatorDisabled
+			}
+			log.InfoContext(ctx, "schedule creator is no longer eligible; pausing", "user_id", s.CreatedBy, "reason", reason, "err", err)
+			d.pause(ctx, s.ID, reason, log)
+			return
+		}
+	}
+
 	claimed, err := d.schedules.ClaimSchedule(ctx, coreschedule.ClaimInput{
 		ScheduleID:         s.ID,
 		ExpectedNextFireAt: s.NextFireAt,
@@ -191,27 +217,6 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 		// Another replica advanced it, or it was disabled or edited between the due
 		// query and here. Either way this caller must not fire it.
 		return
-	}
-
-	// Checked after the claim so exactly one caller reaches it: a schedule whose
-	// creator can no longer run work in this Space pauses rather than minting
-	// Tasks that would only fail at dispatch. A store outage leaves eligibility
-	// unknown; fire anyway rather than pause a space's schedule over a blip, the
-	// same trade-off the run scheduler makes.
-	if d.eligible != nil && s.CreatedBy != "" {
-		switch err := d.eligible.Check(ctx, s.CreatedBy, s.SpaceID); {
-		case err == nil:
-		case errors.Is(err, eligibility.ErrUnavailable):
-			log.WarnContext(ctx, "could not verify schedule creator eligibility; firing anyway", "err", err)
-		default:
-			reason := coreschedule.PauseReasonCreatorNotMember
-			if errors.Is(err, eligibility.ErrAccountDisabled) {
-				reason = coreschedule.PauseReasonCreatorDisabled
-			}
-			log.InfoContext(ctx, "schedule creator is no longer eligible; pausing", "user_id", s.CreatedBy, "reason", reason, "err", err)
-			d.pause(ctx, s.ID, reason, log)
-			return
-		}
 	}
 
 	fireRef, err := d.startExecutor(ctx, s)

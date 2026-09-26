@@ -450,3 +450,46 @@ func TestDispatcherPausesIneligibleCreator(t *testing.T) {
 		})
 	}
 }
+
+// When the creator's eligibility cannot be determined, the firing waits rather
+// than admitting work on a guess. It must not be lost or counted as a failure
+// either: the due time stays unclaimed and fires once the store answers.
+func TestDispatcherDefersFireWhenEligibilityIsUnavailable(t *testing.T) {
+	t0 := time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC)
+	sched := hourlySchedule(t0)
+	sched.ConsecutiveFailures = maxConsecutiveScheduleFailures - 1
+	store := newFakeScheduleStore(sched)
+	admitter := &fakeAdmitter{}
+	elig := &switchableChecker{err: unavailable()}
+	d := newTestDispatcher(t, store, admitter, t0)
+	d.WithEligibility(elig)
+
+	d.sweep(context.Background())
+
+	if admitter.count() != 0 {
+		t.Fatalf("a Task was admitted while eligibility was unknown: %d", admitter.count())
+	}
+	stored := store.get("sched1")
+	if !stored.Enabled || stored.PauseReason != "" {
+		t.Fatalf("schedule paused over an unavailable store: enabled=%v reason=%q", stored.Enabled, stored.PauseReason)
+	}
+	if !stored.NextFireAt.Equal(t0) {
+		t.Errorf("next_fire_at = %v, want the unclaimed due time %v", stored.NextFireAt, t0)
+	}
+	if stored.ConsecutiveFailures != maxConsecutiveScheduleFailures-1 || stored.LastFireAt != nil {
+		t.Errorf("deferral recorded as a fire: consecutive_failures=%d last_fire_at=%v",
+			stored.ConsecutiveFailures, stored.LastFireAt)
+	}
+
+	// The store recovers; the next tick fires the same due time.
+	elig.set(nil)
+	d.now = func() time.Time { return t0.Add(time.Minute) }
+	d.sweep(context.Background())
+
+	if admitter.count() != 1 {
+		t.Fatalf("admitter calls = %d after the store recovered, want 1", admitter.count())
+	}
+	if stored := store.get("sched1"); !stored.NextFireAt.After(t0) {
+		t.Errorf("next_fire_at = %v, want advanced past %v", stored.NextFireAt, t0)
+	}
+}

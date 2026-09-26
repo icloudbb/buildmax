@@ -497,10 +497,19 @@ Unattended work is checked at four points:
 
 | Checkpoint | Where | Ineligible | Authority store unavailable |
 |---|---|---|---|
-| Schedule fire | `ScheduleDispatcher`, after claiming the due fire | Pauses the Schedule with `creator_disabled` or `creator_not_member`; admits nothing | Fires anyway; the dispatch and worker gates re-check |
-| Dispatch | `Scheduler`, after claiming a PENDING run and before minting its run token | `CANCELED` with the matching `cancel_reason` | Dispatches; the worker fetch re-checks |
-| Worker fetch | The worker's initial `GET` of its run | Records a cancel request with the reason, so the worker starts no Agent and reports `CANCELED` | Proceeds; the reconciler revisits |
-| Reconciler | `EligibilityReconciler`: every minute, active runs with no cancel request, in batches of 200 | Requests cancel with the reason | Leaves the run alone |
+| Schedule fire | `ScheduleDispatcher`, before claiming the due fire | Pauses the Schedule with `creator_disabled` or `creator_not_member`; admits nothing | Does not fire or claim; the due time stays due, no failed fire is counted, and the next tick retries |
+| Dispatch | `Scheduler`, before claiming a PENDING run | `CANCELED` with the matching `cancel_reason` | Does not dispatch; the run stays `PENDING` and the next poll retries |
+| Worker fetch | The worker's `GET` of its run | Records a cancel request with the reason, so the worker starts no Agent and reports `CANCELED` | Answers `503` and hands out nothing; a starting worker retries with backoff for up to two minutes |
+| Reconciler | `EligibilityReconciler`: every minute, active runs with no cancel request, in batches of 200 | Requests cancel with the reason | Leaves the run alone; the next sweep re-checks |
+
+An unavailable authority store fails closed without destroying work: no gate
+starts work whose initiator it cannot confirm, and none cancels or pauses on a
+guess. A lasting outage therefore stalls unattended work instead of running it.
+The dispatcher takes the oldest PENDING run first, so an undeterminable run
+holds the queue until the store answers. A starting worker that exhausts its
+retry budget exits non-zero, which fails the run under the local runner and
+spends the Job's backoff under Kubernetes. Every refusal is logged with the
+run or Schedule and the initiator.
 
 Human requests keep their own per-request checks: `access.Guard` for the account
 and session, the Space authorization helper for membership. IM channel messages
@@ -514,10 +523,6 @@ and cancellation converge and a terminal run is never changed.
 
 Deviations from the stated contract, recorded rather than hidden:
 
-- **The unattended gates fail open on an unavailable store.** Schedule fire,
-  dispatch, and worker fetch each let work proceed when eligibility cannot be
-  determined, relying on the next gate and finally the reconciler. A deployment
-  cannot claim that an authority-store outage refuses work at admission.
 - **Task admission is not re-checked in the service layer.** Create, Continue,
   and Retry rely on the HTTP guards; the Task service does not call the Checker.
 - **Workflow reconciliation does not check eligibility.** A later step's

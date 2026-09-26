@@ -16,6 +16,11 @@ import (
 	workspacesvc "github.com/icloudbb/buildmax/internal/service/workspace"
 )
 
+// errEligibilityUnavailable is the 503 body when the initiator's authority
+// cannot be determined. The worker retries a 503 fetch, so it must read as
+// transient.
+const errEligibilityUnavailable = "could not verify that this run's initiator may still run work; retry shortly"
+
 func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	taskRunID := r.PathValue("task_run_id")
 	if taskRunID == "" {
@@ -40,12 +45,20 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	// between the scheduler's dispatch check and here: record a cancel with the
 	// reason and hand the worker a CancelRequested run, which it honors by
 	// stopping and reporting CANCELED. A store outage leaves authority unknown;
-	// let the run proceed rather than stop it on a guess — the reconciler will
-	// revisit it.
+	// hand out nothing and answer 503, which the worker waits out, rather than
+	// either start work on a guess or cancel it on one. Liveness is recorded
+	// first so a running run's cancel poll hitting the outage is not reaped as
+	// stale.
+	h.recordSeen(r, run)
 	cancelRequested := run.CancelRequestedAt != nil
 	if h.cfg.Eligible != nil && !coretask.RunStatusTerminal(run.Status) && run.CreatedBy != "" && !cancelRequested {
 		switch err := h.cfg.Eligible.Check(r.Context(), run.CreatedBy, task.SpaceID); {
-		case err == nil, errors.Is(err, eligibility.ErrUnavailable):
+		case err == nil:
+		case errors.Is(err, eligibility.ErrUnavailable):
+			componentLog().Warn("worker handler: could not verify the run initiator's eligibility; refusing the fetch until it can be",
+				"task_run_id", taskRunID, "user_id", run.CreatedBy, "err", err)
+			httputil.WriteJSONError(w, http.StatusServiceUnavailable, errEligibilityUnavailable)
+			return
 		default:
 			reason := coretask.CancelReasonCreatorNotMember
 			if errors.Is(err, eligibility.ErrAccountDisabled) {
@@ -57,7 +70,6 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			cancelRequested = true
 		}
 	}
-	h.recordSeen(r, run)
 	spaceInstructions := ""
 	spaceInstructionsRevision := 0
 	if h.cfg.Spaces != nil {

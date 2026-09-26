@@ -28,9 +28,10 @@ var ErrAccountDisabled = errors.New("initiating account is disabled")
 var ErrNotSpaceMember = errors.New("account is not a member of the space")
 
 // ErrUnavailable means eligibility could not be determined because an authority
-// store failed. It is not a refusal: each caller decides whether to defer or
-// proceed and let a later gate re-check. See
-// docs/design/system-administration.md §8.2 for each gate's choice.
+// store failed. Callers fail closed: work must not start on it. It is not a
+// refusal either, so nothing is canceled or paused; each gate defers and asks
+// again later. See docs/design/system-administration.md §8.2 for how each gate
+// defers.
 var ErrUnavailable = errors.New("eligibility could not be determined")
 
 // Checker reports whether userID may run work in spaceID. It answers only the

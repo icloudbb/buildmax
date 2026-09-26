@@ -211,6 +211,50 @@ func (s *Scheduler) pollOnce() {
 	if run == nil {
 		return
 	}
+	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
+
+	// The task carries the Space this run belongs to, which the eligibility
+	// check and the run token both need. It is loaded before the claim so a
+	// store error leaves the run PENDING for the next tick instead of failing it.
+	var task *coretask.Task
+	if s.eligible != nil || s.mintRunToken != nil {
+		_, t, err := s.taskRuns.GetTaskRunWithTask(ctx, run.ID)
+		if err != nil {
+			s.log().WarnContext(ctx, "could not load the task behind this run; leaving it PENDING", "err", err)
+			return
+		}
+		task = t
+	}
+
+	// Work whose initiating account was disabled, deleted, or removed from the
+	// Space while it waited does not start: authority withdrawn after queueing
+	// must not be spent. The check runs before the claim because its two
+	// refusals end differently. Withdrawn authority cancels the run: a run
+	// nobody will dispatch, with no explanation, is worse than a terminal one
+	// that says why. Authority that cannot be determined — a store outage —
+	// fails closed without destroying anything: the run stays PENDING and the
+	// next tick asks again.
+	if s.eligible != nil && run.CreatedBy != "" && task != nil {
+		switch err := s.eligible.Check(ctx, run.CreatedBy, task.SpaceID); {
+		case err == nil:
+		case errors.Is(err, eligibility.ErrUnavailable):
+			s.log().WarnContext(ctx, "could not verify the run initiator's eligibility; not dispatching, leaving the run PENDING",
+				"user_id", run.CreatedBy, "err", err)
+			return
+		default:
+			// Authority withdrawn while the run waited is a cancellation, not a
+			// failure: nothing went wrong, the account may no longer act. The run
+			// keeps whatever it had; it just never started.
+			reason := coretask.CancelReasonCreatorNotMember
+			if errors.Is(err, eligibility.ErrAccountDisabled) {
+				reason = coretask.CancelReasonCreatorDisabled
+			}
+			s.log().WarnContext(ctx, "run initiator is no longer eligible; canceling", "user_id", run.CreatedBy, "reason", reason, "err", err)
+			s.cancelRun(ctx, run.ID, coretask.RunStatusPending, reason, err)
+			return
+		}
+	}
+
 	updated, err := s.taskRuns.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      run.ID,
 		ExpectedStatus: coretask.RunStatusPending,
@@ -223,52 +267,11 @@ func (s *Scheduler) pollOnce() {
 	if !updated {
 		return // another scheduler claimed it
 	}
-	// From here the run is ours, so its id goes on the context once and
-	// every record below -- including failRun's -- carries it.
-	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
-
-	// The task carries the Space this run belongs to, which the eligibility
-	// check and the run token both need. Load it once, when either wants it.
-	var task *coretask.Task
-	if s.eligible != nil || s.mintRunToken != nil {
-		_, t, err := s.taskRuns.GetTaskRunWithTask(ctx, run.ID)
-		if err != nil {
-			s.log().ErrorContext(ctx, "could not load the task behind this run; marking run FAILED", "err", err)
-			s.failRun(ctx, run.ID, fmt.Errorf("load the task behind this run: %w", err))
-			return
-		}
-		if t == nil {
-			s.failRun(ctx, run.ID, fmt.Errorf("run %s has no task", run.ID))
-			return
-		}
-		task = t
+	if (s.eligible != nil || s.mintRunToken != nil) && task == nil {
+		s.failRun(ctx, run.ID, fmt.Errorf("run %s has no task", run.ID))
+		return
 	}
 
-	// Work whose initiating account was disabled, deleted, or removed from the
-	// Space while it waited does not start: authority withdrawn after queueing
-	// must not be spent. It fails here rather than being left with no worker
-	// coming for it — a run nobody will dispatch, with no explanation, is worse
-	// than a terminal one that says why. A store outage leaves eligibility
-	// unknown; rather than lose the run or spend authority on a guess, dispatch
-	// and let the worker's own fetch re-check once the store is reachable.
-	if s.eligible != nil && run.CreatedBy != "" {
-		switch err := s.eligible.Check(ctx, run.CreatedBy, task.SpaceID); {
-		case err == nil:
-		case errors.Is(err, eligibility.ErrUnavailable):
-			s.log().WarnContext(ctx, "could not verify run eligibility; the worker will re-check", "err", err)
-		default:
-			// Authority withdrawn while the run waited is a cancellation, not a
-			// failure: nothing went wrong, the account may no longer act. The run
-			// keeps whatever it had; it just never started.
-			reason := coretask.CancelReasonCreatorNotMember
-			if errors.Is(err, eligibility.ErrAccountDisabled) {
-				reason = coretask.CancelReasonCreatorDisabled
-			}
-			s.log().WarnContext(ctx, "run initiator is no longer eligible; canceling", "user_id", run.CreatedBy, "reason", reason, "err", err)
-			s.cancelRun(ctx, run.ID, coretask.RunStatusScheduled, reason, err)
-			return
-		}
-	}
 	// A run that cannot be given its credential fails here rather than
 	// starting and failing at its first inference call, where the cause
 	// would read as a model error instead of a dispatch one.
@@ -336,7 +339,7 @@ func (s *Scheduler) runTokenFor(run *coretask.Run, task *coretask.Task) (string,
 	})
 }
 
-// cancelRun records that a claimed run will not start because its initiator's
+// cancelRun records that a run will not start because its initiator's
 // authority was withdrawn. It moves the run terminal as CANCELED with a reason,
 // distinct from failRun's FAILED, so a person reading it is not sent looking for
 // a fault that never happened. A run that already reached a terminal status is
