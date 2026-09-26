@@ -63,14 +63,9 @@ type addMessageResponse struct {
 }
 
 // isVisibleConversationMessage reports whether a stored message belongs in the
-// Portal transcript.
-//
-// Tool traffic is excluded by role. System-channel messages are internal input,
-// not something a person said in the transcript.
+// Portal transcript: what the person said and what the assistant answered, not
+// the tool traffic between.
 func isVisibleConversationMessage(m coreconv.Message) bool {
-	if m.Channel != nil && *m.Channel == convchannel.ChannelSystem {
-		return false
-	}
 	return m.Role == "user" || m.Role == "assistant"
 }
 
@@ -231,10 +226,9 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 	if req.Channel == "" {
 		req.Channel = convchannel.ChannelPortal
 	}
-	// The synthetic channels — workflow, issue_agent, system — mark a
-	// conversation the server made that nobody holds. A caller that could name
-	// one would get a conversation the Portal renders as agent-owned and the
-	// transcript hides, so the accepted set is the transport list alone.
+	// A caller names a transport channel only. A chat platform's channel is the
+	// channel gateway's to assign, because it also records the chat the
+	// conversation answers to.
 	if !convchannel.ValidChannel(req.Channel) {
 		httputil.WriteJSONError(w, http.StatusBadRequest,
 			"unknown channel "+req.Channel+": use one of "+strings.Join(convchannel.ValidChannels(), ", "))

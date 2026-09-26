@@ -268,8 +268,8 @@ func (wc *Conn) handleConversationCreate(ctx context.Context, p ConversationCrea
 	if channel == "" {
 		channel = convchannel.ChannelPortal
 	}
-	// The same accepted set as the HTTP create route: a synthetic channel
-	// (system) or a chat platform's (telegram) is the server's to assign.
+	// The same accepted set as the HTTP create route: a chat platform's channel
+	// (telegram) is the channel gateway's to assign.
 	if !convchannel.ValidChannel(channel) {
 		wc.sendEvent(TypeConversationError, ConversationError{Error: "unknown channel " + channel})
 		return

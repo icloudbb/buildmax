@@ -22,7 +22,6 @@ type Turn struct {
 const (
 	ChannelPortal  = "portal"
 	ChannelWebhook = "webhook"
-	ChannelSystem  = "system"
 )
 
 // ValidChannels returns the transport channels accepted from a caller.

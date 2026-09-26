@@ -96,7 +96,7 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		return ConversationResult{}, ErrLLMRequired
 	}
 
-	spaceID := s.fetchSpaceID(ctx, cmd.ConversationID, cmd.Channel)
+	spaceID := s.fetchSpaceID(ctx, cmd.ConversationID)
 
 	runInput := turnRunInput{
 		ConversationID:  cmd.ConversationID,
@@ -105,10 +105,10 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		UserID:          cmd.UserID,
 		SpaceID:         spaceID,
 		SpaceName:       s.fetchSpaceName(ctx, spaceID),
-		Spaces:          s.spacesForChannel(cmd.Channel),
-		TaskService:     s.taskServiceForChannel(cmd.Channel),
-		WorkflowService: s.workflowServiceForChannel(cmd.Channel),
-		AgentSummaries:  s.fetchAgentSummaries(ctx, spaceID, cmd.Channel),
+		Spaces:          s.Spaces,
+		TaskService:     s.TaskService,
+		WorkflowService: s.WorkflowService,
+		AgentSummaries:  s.fetchAgentSummaries(ctx, spaceID),
 		TitleGenerator:  s.TitleGenerator,
 		StreamSink:      cmd.StreamSink,
 		Fence:           cmd.Fence,
@@ -117,24 +117,10 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 	return ConversationResult{Reply: reply}, err
 }
 
-func (s *Service) taskServiceForChannel(channel string) *task.Service {
-	if channel == convchannel.ChannelSystem {
-		return nil
-	}
-	return s.TaskService
-}
-
-func (s *Service) workflowServiceForChannel(channel string) *workflow.Service {
-	if channel == convchannel.ChannelSystem {
-		return nil
-	}
-	return s.WorkflowService
-}
-
 // fetchSpaceID looks up the conversation's space once so StartTask and agent listing share it.
-// Returns "" when the channel is system or no TaskService is configured (task tools disabled).
-func (s *Service) fetchSpaceID(ctx context.Context, conversationID, channel string) string {
-	if channel == convchannel.ChannelSystem || s.TaskService == nil || s.ConversationStore == nil {
+// Returns "" when no TaskService is configured (task tools disabled).
+func (s *Service) fetchSpaceID(ctx context.Context, conversationID string) string {
+	if s.TaskService == nil || s.ConversationStore == nil {
 		return ""
 	}
 	conv, err := s.ConversationStore.GetConversation(ctx, conversationID)
@@ -142,13 +128,6 @@ func (s *Service) fetchSpaceID(ctx context.Context, conversationID, channel stri
 		return ""
 	}
 	return conv.SpaceID
-}
-
-func (s *Service) spacesForChannel(channel string) spaceLister {
-	if channel == convchannel.ChannelSystem || s.Spaces == nil {
-		return nil
-	}
-	return s.Spaces
 }
 
 // fetchSpaceName returns "" when the Space cannot be read; the turn then runs
@@ -164,8 +143,8 @@ func (s *Service) fetchSpaceName(ctx context.Context, spaceID string) string {
 	return sp.Name
 }
 
-func (s *Service) fetchAgentSummaries(ctx context.Context, spaceID, channel string) []agentSummary {
-	if s.AgentStore == nil || spaceID == "" || channel == convchannel.ChannelSystem {
+func (s *Service) fetchAgentSummaries(ctx context.Context, spaceID string) []agentSummary {
+	if s.AgentStore == nil || spaceID == "" {
 		return nil
 	}
 	agents, err := s.AgentStore.ListAgentsBySpace(ctx, spaceID)

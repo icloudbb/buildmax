@@ -133,8 +133,10 @@ space — an invalidation, not the outcome. It used to pick the creator's first
 socket, which announced nothing when they had none and told one tab when they
 had three.
 
-The transcript excludes the system channel, so a `[Task Result]` message is no
-longer drawn as the user's own.
+The transcript then excluded the system channel, so a `[Task Result]` message
+was no longer drawn as the user's own. Once a terminal run stopped writing that
+message (§4.2), nothing wrote the system channel at all, and it was deleted
+with its transcript filter and the tool gates that recognised it.
 
 ### 4.2 Delivery Is Durable — Superseded
 

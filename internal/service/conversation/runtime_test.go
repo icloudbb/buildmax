@@ -11,22 +11,6 @@ import (
 	"github.com/icloudbb/buildmax/internal/service/task"
 )
 
-// Internal input keeps its stored role when a conversation is replayed.
-func TestReplayMessageFromStoreKeepsASystemChannelMessageAsInput(t *testing.T) {
-	channel := "system"
-	msg := replayMessageFromStore(coreconv.Message{
-		Role:    "user",
-		Content: "internal context",
-		Channel: &channel,
-	})
-	if msg.Role != "user" {
-		t.Fatalf("replayMessageFromStore.Role = %q, want user", msg.Role)
-	}
-	if msg.Content != "internal context" {
-		t.Fatalf("replayMessageFromStore.Content = %q", msg.Content)
-	}
-}
-
 func TestReplayMessageFromStore_UserRolePassthrough(t *testing.T) {
 	channel := "portal"
 	msg := replayMessageFromStore(coreconv.Message{
