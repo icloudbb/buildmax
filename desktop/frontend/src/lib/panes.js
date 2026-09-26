@@ -113,6 +113,19 @@ export function closePaneTab(ws, paneId, key) {
   return w;
 }
 
+// closeTerminalTab closes the tab bound to terminal `id` wherever it sits in the
+// grid, for a shell that ended on its own (the user typed `exit`). It returns the
+// same workspace when no tab holds that terminal, so a caller can tell a no-op.
+export function closeTerminalTab(ws, id) {
+  for (const row of ws.rows) {
+    for (const pane of row.panes) {
+      const tab = pane.tabs.find((t) => t.kind === 'terminal' && t.ref === id);
+      if (tab) return closePaneTab(ws, pane.id, tab.key);
+    }
+  }
+  return ws;
+}
+
 // closeOtherPaneTabs / closeRightPaneTabs are the tab-strip context-menu bulk
 // closes. Both keep the anchor tab, so the pane never empties. Callers close any
 // terminal PTYs among the removed tabs before applying these (see App).

@@ -3,7 +3,7 @@ import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
   closeOtherPaneTabs, closeRightPaneTabs,
   splitRight, splitDown, moveTab, focusedPane, allTabs, pruneForPersist, isWorkspace,
-  collapse, tile,
+  collapse, tile, closeTerminalTab,
 } from './panes';
 
 // openTab (via openInFocused) computes each tab's `key`, so tests open by path.
@@ -66,6 +66,20 @@ describe('panes grid model', () => {
     ws = closePaneTab(ws, 'pane-2', 'file:b.go');
     expect(paneCount(ws)).toBe(1);
     expect(ws.focused).toBe('pane-1');
+  });
+
+  it('closes the tab of a terminal that exited, wherever it sits', () => {
+    let ws = open(emptyWorkspace, 'a.go');
+    ws = splitRight(ws);
+    ws = openInFocused(ws, { kind: 'terminal', ref: 'term-1', title: 'Terminal 1' });
+    ws = closeTerminalTab(ws, 'term-1');
+    expect(allTabs(ws).some((t) => t.kind === 'terminal')).toBe(false);
+    expect(paneCount(ws)).toBe(1);
+  });
+
+  it('leaves the workspace untouched for a terminal it does not hold', () => {
+    const ws = open(emptyWorkspace, 'a.go');
+    expect(closeTerminalTab(ws, 'term-9')).toBe(ws);
   });
 
   it('moves a tab to another pane and focuses it there', () => {
