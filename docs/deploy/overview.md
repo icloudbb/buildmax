@@ -209,5 +209,6 @@ Vulnerability disclosure: [SECURITY.md](../../SECURITY.md).
 - [local-kind.md](local-kind.md) — one-command local cluster for development
 - [digitalocean.md](digitalocean.md) — disposable external DOKS and MySQL for beta qualification
 - [credential-rotation.md](credential-rotation.md) — rotating each deployment credential and what it disturbs
+- [backup-restore.md](backup-restore.md) — backing up and restoring the database and bucket as a pair
 - [reference/webhook.md](../reference/webhook.md) — triggering runs from
   external systems

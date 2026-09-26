@@ -498,7 +498,11 @@ The operator must:
   unreadable object by record id with per-kind counts, and exits non-zero on
   any finding; `--checksums` also compares every object's size and SHA-256.
   It is read-only by decision: restoring an object or tombstoning its record
-  stays an operator action;
+  stays an operator action. The procedure it verifies is
+  [../deploy/backup-restore.md](../deploy/backup-restore.md), and
+  `./make kind drill restore` rehearses the whole V19 case on kind — backup,
+  wipe, restore, this check, and an API, row-count, and object comparison —
+  which is rehearsal, not release-candidate evidence;
 - database and bucket state agree after paired recovery;
 - rollback behavior matches the supported migration contract;
 - an operator who did not implement the change can diagnose every injected

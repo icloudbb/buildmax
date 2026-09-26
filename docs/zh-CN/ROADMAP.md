@@ -110,11 +110,15 @@ worker 契约并不代表已通过它们。
 转储。凭据轮换已有[操作手册](../deploy/credential-rotation.md)和 kind 演练
 `./make kind drill rotation`：JWT 密钥、数据库密码、对象存储密钥、托管模型密钥与 KEK
 分别通过修改 Secret 并滚动发布完成轮换，旧值均被拒绝，会话通过刷新恢复，已存储数据保持
-完好，唯一实测中断是跨越 JWT 轮换的执行中 Run，被结算为 FAILED。kind 演练不算候选版本
-证据。尚无候选版本验证过数据库与存储桶配对恢复、发布时的 Compose 升级演练或凭据轮换。
+完好，唯一实测中断是跨越 JWT 轮换的执行中 Run，被结算为 FAILED。配对恢复已有
+[操作手册](deploy/backup-restore.md)和 kind 演练 `./make kind drill restore`：静默后先
+`mysqldump --single-transaction`、再 `mc mirror` 备份，清空数据库、存储桶与服务端命名空间，
+用原始 KEK 恢复，`storage verify --checksums` 无任何发现，API 指纹、行数与对象摘要均未改变，
+并实测恢复时间。kind 演练不算候选版本证据。尚无候选版本验证过数据库与存储桶配对恢复、
+发布时的 Compose 升级演练或凭据轮换。
 
-**下一步：** 剩余的生命周期证据——数据库与存储桶配对恢复、从前序版本二进制出发的 Compose 升级演练，
-以及候选版本上的凭据轮换——其中数项会作为 R3 的运维旅程落地。
+**下一步：** 剩余的生命周期证据——在候选版本自己的依赖上完成数据库与存储桶配对恢复、从前序版本二进制
+出发的 Compose 升级演练，以及候选版本上的凭据轮换——其中数项会作为 R3 的运维旅程落地。
 [配额窗口](https://github.com/icloudbb/buildmax/issues/498)与跨 Space 存储层作用域的真实
 MySQL 覆盖，以及部署级的 worker 丢失演练、数据库中断演练、对象存储就绪状态中断/恢复演练与
 worker 对象存储写入拒绝演练，均已完成。删除针对已移除机制的计划，包括旧结果

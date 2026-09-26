@@ -37,7 +37,7 @@ func TestRotationDrillRunsOnlyOnThisWorktreesEphemeralCluster(t *testing.T) {
 }
 
 func TestKindDrillNamesItsDrills(t *testing.T) {
-	for _, args := range [][]string{nil, {"smoke"}, {"rotation", "extra"}} {
+	for _, args := range [][]string{nil, {"smoke"}, {"rotation", "extra"}, {"restore", "extra"}} {
 		if err := cmdKindDrill(args); err == nil {
 			t.Errorf("cmdKindDrill(%q) accepted an unknown drill", args)
 		}

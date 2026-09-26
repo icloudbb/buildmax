@@ -238,6 +238,9 @@ Stated rather than left to be discovered:
 - **Backups.** Database and bucket backups are yours. BuildMax has no export or
   import command. A database restore is only readable with the KEK it was
   sealed under, which you back up separately (see "Key-encryption key" above).
+  [docs/deploy/backup-restore.md](../../docs/deploy/backup-restore.md) is the
+  procedure: what to copy, database before bucket, the no-delete window, a
+  separate recovery bucket, and how to verify.
   What BuildMax does provide is the check that a restored pair
   agrees: run `buildmax-server storage verify` in a server container (it reads
   the same `server.yaml`) after restoring. It walks every live artifact,

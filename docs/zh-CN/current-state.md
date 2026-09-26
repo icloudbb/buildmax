@@ -43,7 +43,9 @@ Server 现在可以按运维配置的保留窗口清理旧 Run 轨迹，并记�
 凭证轮换已有[操作手册](../deploy/credential-rotation.md)，并由 `./make kind drill rotation`
 在 kind 上演练：它轮换 JWT 密钥、数据库密码、对象存储密钥、托管模型密钥和 KEK，断言每个旧值
 都被拒绝，而会话、已存储数据和新运行不受影响；跨越 JWT 轮换的执行中运行被结算为 FAILED，是其
-实测到的唯一中断。在候选版本上演练数据库和存储桶配对恢复、发布时的 Compose 升级演练以及凭证
+实测到的唯一中断。数据库与存储桶配对恢复的流程已写入 [deploy/backup-restore.md](deploy/backup-restore.md)，
+并由 `./make kind drill restore` 在 kind 上演练：备份、清空、恢复、运行上述检查并比对，没有任何
+损失。在候选版本上演练数据库和存储桶配对恢复、发布时的 Compose 升级演练以及凭证
 轮换仍待验证。共享 Redis 协调已经实现，包括消息历史写入对分布式
 租约 fencing token 的校验。worker API 已有独立监听器、TLS 支持和已交付的入站
 NetworkPolicy；不能把这部分网络边界与尚未限制的 worker 出站网络混为一谈。

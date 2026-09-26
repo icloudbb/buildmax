@@ -26,6 +26,7 @@
 | [deploy/local-kind.md](deploy/local-kind.md) | 一条命令创建本地集群并执行 Kubernetes Job 冒烟验证 |
 | [deploy/digitalocean.md](deploy/digitalocean.md) | 用于 Beta 资格验证的临时外部 DOKS 和 MySQL 环境 |
 | [deploy/credential-rotation.md](deploy/credential-rotation.md) | 轮换 JWT 密钥、数据库、存储、模型和 KEK 凭证 |
+| [deploy/backup-restore.md](deploy/backup-restore.md) | 备份数据库、存储桶和 KEK，并将它们成对恢复 |
 | [deploy/beta-readiness.md](deploy/beta-readiness.md) | 对固定版本的私有部署候选版本进行资格验证并记录证据 |
 
 ## 查阅参考资料

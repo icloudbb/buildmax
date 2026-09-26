@@ -83,8 +83,15 @@ old one.
 ./make kind status  # read-only summary of the cluster, ingress, and workloads
 ./make kind logs    # pods, jobs, events, server, Portal, and worker logs
 ./make kind logs server  # just the server's logs (or portal, worker, mysql, minio, ingress)
+./make kind drill restore  # rehearse a paired backup, wipe, and restore (ephemeral clusters only)
 ./make kind down    # delete the selected cluster
 ```
+
+`drill restore` is destructive and separate from `smoke`: it deletes the `db`,
+`storage`, and `buildmax` namespaces after backing them up, so it refuses to run
+anywhere but a cluster created with `BUILDMAX_KIND_EPHEMERAL=1`. What it proves
+and how the procedure applies to a real deployment are in
+[backup-restore.md](backup-restore.md).
 
 `smoke managed` swaps the `buildmax-config` ConfigMap for
 `deployment/smoke/server.kind.managed.yaml`, restarts the server, and reruns the
