@@ -630,7 +630,7 @@ Space 所有者可以从 space 设置中下载该 space 自己的审计轨迹，
 
 ### 部署密钥加密密钥
 
-`secret.kek_file` 是保存部署密钥加密密钥（KEK）的密钥文件路径。Server 在把受管模型的提供商凭据和 Space Secret 写入数据库之前，会用它加以封存。配置中只有路径：密钥本身从不从 `server.yaml` 或环境变量读取，因此部署需要挂载该文件——Kubernetes 清单会把它从 `buildmax-kek` Secret 只挂载进 server pod 的 `/buildmax/kek/kek.json`。Worker pod 永远拿不到它。
+`secret.kek_file` 是保存部署密钥加密密钥（KEK）的密钥文件路径。Server 在把受管模型的提供商凭据和 Space Secret 写入数据库之前，会用它加以封存。配置中只有路径：密钥本身从不从 `server.yaml` 或环境变量读取，因此部署需要以只读、仅所有者可读的方式挂载该文件，并放在 `BUILDMAX_HOME` 之外。Kubernetes 清单会把它从 `buildmax-kek` Secret 只挂载进 server pod 的 `/etc/buildmax/kek/kek.json`，并设置 `defaultMode: 0400`。Server 以非 root 用户运行，因此是 pod 的 `fsGroup` 让它能读取该文件：kubelet 会加上组读权限，文件最终为 `0440`，属主为 `root`、属组为 server 的组，pod 中其他身份都无法读取。Worker pod 永远拿不到它。
 
 留空会关闭这两项功能：`buildmax-server model add --api-key`（以及其他任何带凭据的模型创建）会被拒绝，而不是以明文存储密钥；Space Secret 路由则返回 `503`。`buildmax-server model` 命令读取同一设置，因此要在挂载了该文件的位置运行。
 

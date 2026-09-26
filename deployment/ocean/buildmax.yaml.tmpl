@@ -163,9 +163,10 @@ spec:
               readOnly: true
             # Deployment key-encryption key, generated once by `ocean deploy`
             # into the state directory. It seals managed-model credentials and
-            # Space Secrets; secret.kek_file in server.yaml points here.
+            # Space Secrets; secret.kek_file in server.yaml points here. Kept
+            # outside BUILDMAX_HOME (docs/design/space-secrets.md §9.1).
             - name: buildmax-kek
-              mountPath: /buildmax/kek
+              mountPath: /etc/buildmax/kek
               readOnly: true
             - name: tmp
               mountPath: /tmp
@@ -187,9 +188,12 @@ spec:
             name: buildmax-database-ca
         - name: trust
           emptyDir: {}
+        # Owner-only 0400; fsGroup makes it 0440 root:65532, readable by the
+        # server only.
         - name: buildmax-kek
           secret:
             secretName: buildmax-kek
+            defaultMode: 0400
         - name: tmp
           emptyDir: {}
 ---

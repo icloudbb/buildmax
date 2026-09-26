@@ -76,7 +76,7 @@ worker_api:
 # `./make kind up` generates (tools/mk/kind.go). Present only in kind, so the
 # Secrets feature is on here and stays off in the committed baseline config.
 secret:
-  kek_file: /buildmax/kek/kek.json
+  kek_file: /etc/buildmax/kek/kek.json
 
 storage:
   persist_backend: minio

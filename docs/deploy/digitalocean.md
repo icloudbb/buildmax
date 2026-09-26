@@ -156,7 +156,8 @@ memory. The rendered Secret is not written to the checkout.
 
 The first `deploy` also generates the deployment key-encryption key (KEK) as
 `kek.json` in the state directory and every deploy ships that same file as the
-`buildmax-kek` Secret, mounted into the server pod only and named by
+`buildmax-kek` Secret, mounted read-only with mode `0400` into the server pod
+only at `/etc/buildmax/kek/kek.json`, outside `BUILDMAX_HOME`, and named by
 `secret.kek_file`. The server seals the model credential that `model init` adds
 under it, so `model init` needs a deployment that already has it: after
 upgrading from a deploy that predates the KEK, run `deploy` again first. The key

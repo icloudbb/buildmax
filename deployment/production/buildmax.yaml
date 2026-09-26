@@ -147,7 +147,7 @@ data:
     # here: the key itself is mounted from the buildmax-kek Secret, never put in
     # this ConfigMap or the environment. See README.md, "Key-encryption key".
     secret:
-      kek_file: /buildmax/kek/kek.json
+      kek_file: /etc/buildmax/kek/kek.json
 
     conversation:
       model:
@@ -472,9 +472,10 @@ spec:
               mountPath: /buildmax/tls/worker-api
               readOnly: true
             # The KEK file secret.kek_file names. Server pods only; a worker
-            # pod never mounts it.
+            # pod never mounts it. Outside BUILDMAX_HOME on purpose, per
+            # docs/design/space-secrets.md §9.1.
             - name: buildmax-kek
-              mountPath: /buildmax/kek
+              mountPath: /etc/buildmax/kek
               readOnly: true
             # The root filesystem is read-only; this is the writable path
             # ordinary tooling assumes.
@@ -511,10 +512,14 @@ spec:
         #   kubectl create secret generic buildmax-kek -n buildmax \
         #     --from-file=kek.json=kek.json
         # Not optional: a server configured with secret.kek_file must not start
-        # without its key.
+        # without its key. Owner-only 0400; with the pod's fsGroup the kubelet
+        # adds group read, so the file is 0440 root:65532 — readable by the
+        # server and no one else. Keep fsGroup if you change this pod's
+        # securityContext, or the server cannot read it.
         - name: buildmax-kek
           secret:
             secretName: buildmax-kek
+            defaultMode: 0400
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

@@ -1017,9 +1017,13 @@ Both come as CSV or JSONL, and both are recorded in the trail as
 key-encryption key (KEK). The server seals managed-model provider credentials
 and Space Secrets under it before they reach the database. Only the path is
 configured: the key is never read from `server.yaml` or an environment
-variable, so a deployment mounts the file — the Kubernetes manifests mount it
-from the `buildmax-kek` Secret into server pods only, at
-`/buildmax/kek/kek.json`. Worker pods never receive it.
+variable, so a deployment mounts the file read-only, owner-only, and outside
+`BUILDMAX_HOME`. The Kubernetes manifests mount it from the `buildmax-kek`
+Secret into server pods only, at `/etc/buildmax/kek/kek.json`, with
+`defaultMode: 0400`. The server runs as a non-root user, so the pod's `fsGroup`
+is what lets it read the file: the kubelet adds group read, leaving it
+`0440` owned by `root` and the server's group, readable by nothing else in the
+pod. Worker pods never receive it.
 
 Leaving it empty keeps both features off: `buildmax-server model add --api-key`
 (and any other credentialed model creation) is refused rather than storing a key

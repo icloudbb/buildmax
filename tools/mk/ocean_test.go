@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/icloudbb/buildmax/internal/config"
 	"github.com/icloudbb/buildmax/internal/infra/secret"
 )
@@ -194,12 +196,92 @@ func TestOceanManifestMountsTheKEKWhereServerConfigPointsIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(manifest)
-	for _, want := range []string{"secretName: " + oceanKEKSecret, "mountPath: " + path.Dir(oceanKEKPath)} {
-		if !strings.Contains(text, want) {
-			t.Errorf("manifest missing %q", want)
+	// docs/design/space-secrets.md §9.1: read-only, mode 0400, outside
+	// BUILDMAX_HOME. 0400 is readable by the non-root server only through the
+	// group read the kubelet adds for fsGroup.
+	dec := yaml.NewDecoder(bytes.NewReader(manifest))
+	for {
+		var doc struct {
+			Kind     string `yaml:"kind"`
+			Metadata struct {
+				Name string `yaml:"name"`
+			} `yaml:"metadata"`
+			Spec struct {
+				Template struct {
+					Spec struct {
+						SecurityContext struct {
+							RunAsGroup *int64 `yaml:"runAsGroup"`
+							FSGroup    *int64 `yaml:"fsGroup"`
+						} `yaml:"securityContext"`
+						Containers []struct {
+							Name string `yaml:"name"`
+							Env  []struct {
+								Name  string `yaml:"name"`
+								Value string `yaml:"value"`
+							} `yaml:"env"`
+							VolumeMounts []struct {
+								Name      string `yaml:"name"`
+								MountPath string `yaml:"mountPath"`
+								ReadOnly  bool   `yaml:"readOnly"`
+							} `yaml:"volumeMounts"`
+						} `yaml:"containers"`
+						Volumes []struct {
+							Name   string `yaml:"name"`
+							Secret *struct {
+								SecretName  string `yaml:"secretName"`
+								DefaultMode *int   `yaml:"defaultMode"`
+							} `yaml:"secret"`
+						} `yaml:"volumes"`
+					} `yaml:"spec"`
+				} `yaml:"template"`
+			} `yaml:"spec"`
 		}
+		if err := dec.Decode(&doc); err != nil {
+			break
+		}
+		if doc.Kind != "Deployment" || doc.Metadata.Name != "buildmax-server" {
+			continue
+		}
+		pod := doc.Spec.Template.Spec
+		volume := ""
+		for _, v := range pod.Volumes {
+			if v.Secret != nil && v.Secret.SecretName == oceanKEKSecret {
+				volume = v.Name
+				if v.Secret.DefaultMode == nil || *v.Secret.DefaultMode != 0o400 {
+					t.Error("the KEK volume must set defaultMode: 0400")
+				}
+			}
+		}
+		if volume == "" {
+			t.Fatal("buildmax-server mounts no KEK Secret")
+		}
+		sc := pod.SecurityContext
+		if sc.FSGroup == nil || sc.RunAsGroup == nil || *sc.FSGroup != *sc.RunAsGroup {
+			t.Error("fsGroup must equal runAsGroup, or the server cannot read its 0400 KEK")
+		}
+		for _, c := range pod.Containers {
+			for _, m := range c.VolumeMounts {
+				if m.Name != volume {
+					continue
+				}
+				if c.Name != "server" || m.MountPath != path.Dir(oceanKEKPath) || !m.ReadOnly {
+					t.Errorf("container %s mounts the KEK at %s (readOnly=%v); want server at %s, read-only", c.Name, m.MountPath, m.ReadOnly, path.Dir(oceanKEKPath))
+				}
+				home := ""
+				for _, e := range c.Env {
+					if e.Name == config.EnvKeyBuildmaxHome {
+						home = e.Value
+					}
+				}
+				if home == "" || strings.HasPrefix(m.MountPath, strings.TrimSuffix(home, "/")+"/") {
+					t.Errorf("KEK mounted at %s; it must be outside BUILDMAX_HOME (%q)", m.MountPath, home)
+				}
+				return
+			}
+		}
+		t.Fatal("no container mounts the KEK volume")
 	}
+	t.Fatal("no buildmax-server Deployment in the ocean manifest")
 }
 
 func TestOceanServerConfigEnablesTheKEK(t *testing.T) {

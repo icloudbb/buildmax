@@ -135,8 +135,13 @@ start on any node the `DaemonSet` has not yet reached.
 
 The server seals managed-model provider credentials and Space Secrets in the
 database under a deployment key-encryption key (KEK). The manifest sets
-`secret.kek_file: /buildmax/kek/kek.json` and mounts it from the `buildmax-kek`
-Secret into server pods only. Without a KEK, `buildmax-server model add
+`secret.kek_file: /etc/buildmax/kek/kek.json` and mounts it from the
+`buildmax-kek` Secret into server pods only: read-only, outside
+`BUILDMAX_HOME`, with `defaultMode: 0400`. The server runs as non-root, and the
+pod's `fsGroup: 65532` is what lets it read the file — the kubelet adds group
+read, so it is `0440` owned by `root:65532`. Keep `fsGroup` equal to the
+server's group if you change the pod's `securityContext`, or the server cannot
+read its key. Without a KEK, `buildmax-server model add
 --api-key` is refused rather than storing the key in the clear, and Space
 Secrets are off.
 

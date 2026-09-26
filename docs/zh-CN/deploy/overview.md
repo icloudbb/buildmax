@@ -60,7 +60,7 @@ cp config-examples/server.example.yaml $BUILDMAX_HOME/server.yaml
 export BUILDMAX_JWT_SECRET="$(openssl rand -hex 32)"
 ```
 
-若要存储受管模型的提供商凭据或 Space Secret，还需挂载一个密钥加密密钥文件，并让 `secret.kek_file` 指向它。没有它，添加带 API key 的模型会被拒绝。该文件只生成一次，并与数据库分开备份：丢失它会使所有已封存的凭据无法读取。格式和生成命令见 [KEK 参考](../reference/configuration.md#部署密钥加密密钥)。
+若要存储受管模型的提供商凭据或 Space Secret，还需挂载一个密钥加密密钥文件——只读、仅 server 可读、位于 `BUILDMAX_HOME` 之外——并让 `secret.kek_file` 指向它。没有它，添加带 API key 的模型会被拒绝。该文件只生成一次，并与数据库分开备份：丢失它会使所有已封存的凭据无法读取。格式和生成命令见 [KEK 参考](../reference/configuration.md#部署密钥加密密钥)。
 
 逐字段说明见[配置参考](../reference/configuration.md)。
 

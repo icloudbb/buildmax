@@ -392,9 +392,10 @@ spec:
             # that uses neither starts without the Secret present; the feature
             # turns on only when secret.kek_file also points here (kind does; the
             # baseline config above does not). Without it, adding a model that
-            # carries a credential is refused. See docs/design/space-secrets.md.
+            # carries a credential is refused. Outside BUILDMAX_HOME, as
+            # docs/design/space-secrets.md §9.1 requires.
             - name: buildmax-kek
-              mountPath: /buildmax/kek
+              mountPath: /etc/buildmax/kek
               readOnly: true
             # The root filesystem is read-only; this is the writable path
             # ordinary tooling assumes.
@@ -422,10 +423,13 @@ spec:
         # Space Secret KEK. optional: a real deployment that does not use Space
         # Secrets never creates this Secret and the pod still starts; kind's
         # `applyKindKEK` creates it and turns the feature on via secret.kek_file.
+        # Owner-only 0400; with the pod's fsGroup the kubelet adds group read,
+        # so the file is 0440 root:65532 — readable by the server, no one else.
         - name: buildmax-kek
           secret:
             secretName: buildmax-kek
             optional: true
+            defaultMode: 0400
 ---
 # The public API Service. The Ingress points here; it carries no worker route.
 apiVersion: v1

@@ -117,7 +117,7 @@ BUILDMAX_OCEAN_ALLOWED_CIDRS=203.0.113.7/32
 
 `deploy` 刷新 OpenTofu 的只读数据库 CA 输出，将该 CA 与镜像的公共信任证书包合并，再以 `database.tls: "true"` 启动 BuildMax。因此服务器会验证 DigitalOcean MySQL 和公共 HTTPS 依赖，绝不使用 `skip-verify`。数据库、Spaces 和生成的 JWT 凭证通过内存组装的 Secret 传入 Kubernetes。渲染后的 Secret 不会写入检出目录。
 
-首次 `deploy` 还会在状态目录中生成部署密钥加密密钥（KEK）`kek.json`，之后每次部署都把同一文件作为 `buildmax-kek` Secret 下发，只挂载进 server pod，并由 `secret.kek_file` 指向。Server 用它封存 `model init` 添加的模型凭证，因此 `model init` 需要一个已经具备 KEK 的部署：如果是从早于 KEK 的部署升级而来，请先再运行一次 `deploy`。该密钥绝不会重新生成。如果 `kek.json` 缺失而集群中仍有 `buildmax-kek` Secret，`deploy` 会拒绝执行而不是替换密钥；请从备份恢复该文件。文件格式见 [KEK 参考](../reference/configuration.md#部署密钥加密密钥)。
+首次 `deploy` 还会在状态目录中生成部署密钥加密密钥（KEK）`kek.json`，之后每次部署都把同一文件作为 `buildmax-kek` Secret 下发，以只读、`0400` 权限只挂载进 server pod 的 `/etc/buildmax/kek/kek.json`（位于 `BUILDMAX_HOME` 之外），并由 `secret.kek_file` 指向。Server 用它封存 `model init` 添加的模型凭证，因此 `model init` 需要一个已经具备 KEK 的部署：如果是从早于 KEK 的部署升级而来，请先再运行一次 `deploy`。该密钥绝不会重新生成。如果 `kek.json` 缺失而集群中仍有 `buildmax-kek` Secret，`deploy` 会拒绝执行而不是替换密钥；请从备份恢复该文件。文件格式见 [KEK 参考](../reference/configuration.md#部署密钥加密密钥)。
 
 命令最后输出 DigitalOcean Load Balancer IP。请在 Route 53 中手动添加记录：
 

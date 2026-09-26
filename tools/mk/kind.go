@@ -1159,7 +1159,7 @@ func applyKindSecret() error {
 // applyKindKEK creates the buildmax-kek Secret holding an ephemeral Space Secret
 // key-encryption key, in the on-disk shape internal/infra/secret expects: a
 // `current` key id and a `keys` map of id to base64 32-byte material. The
-// server mounts it at /buildmax/kek/kek.json and the smoke config points
+// server mounts it at /etc/buildmax/kek/kek.json and the smoke config points
 // secret.kek_file there, so the Secrets feature is on in kind. The key is thrown
 // away with the cluster, exactly like the JWT secret.
 //

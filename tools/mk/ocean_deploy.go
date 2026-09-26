@@ -24,7 +24,7 @@ const (
 	// The deployment KEK: the Secret the manifest mounts, the path server.yaml
 	// names inside the server pod, and the key id of the one generated key.
 	oceanKEKSecret = "buildmax-kek"
-	oceanKEKPath   = "/buildmax/kek/kek.json"
+	oceanKEKPath   = "/etc/buildmax/kek/kek.json"
 	oceanKEKKeyID  = "file:root:1"
 
 	// These are the immutable multi-platform release manifests, not mutable
