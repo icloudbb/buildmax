@@ -6,6 +6,8 @@ export function statusLabel(value: string): string {
     done: "Done",
     pending: "Pending",
     running: "Running",
+    failing: "Stopping after failure",
+    canceling: "Canceling",
     success: "Succeeded",
     succeeded: "Succeeded",
     failed: "Failed",

@@ -609,12 +609,15 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 	if err != nil {
 		return err
 	}
-	if run == nil {
+	if run == nil || coreworkflow.RunStatusTerminal(coreworkflow.RunStatus(run.Status)) {
 		return nil
 	}
 	steps, err := s.Workflows.ListWorkflowNodeRuns(ctx, workflowRunID)
 	if err != nil {
 		return err
+	}
+	if run.Status == string(coreworkflow.RunStatusFailing) || run.Status == string(coreworkflow.RunStatusCanceling) {
+		return s.drainRun(ctx, run, steps, now, nextReconcileAt)
 	}
 	// Fold every running node whose TaskRun has finished. Failure is fail-fast: the
 	// first node that ended badly finalizes the whole run and returns, so no later
@@ -641,10 +644,12 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 			}
 			continue
 		}
-		// This node ended badly, so the run ends fail-fast. finalizeFailedFromNode
-		// blocks the pending nodes and cancels the running siblings in one
-		// transaction, so nothing else starts and no node is left running.
-		return s.finalizeFailedFromNode(ctx, run, steps[i], taskRun, schemaUnsatisfied, now)
+		// Commit stop intent before asking any workers to stop. A restart can
+		// recover the drain independently of this callback or lease holder.
+		if err := s.finalizeFailedFromNode(ctx, run, steps[i], taskRun, schemaUnsatisfied, now); err != nil {
+			return err
+		}
+		return s.reconcilePass(ctx, workflowRunID, now, nextReconcileAt)
 	}
 	// Re-read after folding successes, then dispatch the ready nodes up to the
 	// concurrency limit. dispatchReadyNodes re-admits by the stable key, so a node
@@ -687,19 +692,14 @@ func (s *Service) applyNodeSuccess(ctx context.Context, node coreworkflow.NodeRu
 	return err
 }
 
-// finalizeFailedFromNode ends a run because one node finished badly. A canceled
-// node stops the run the same way a failed one does, but it is not a failure:
-// someone stopped this work on purpose, and a run labelled failed would send
-// whoever reads it looking for a fault that never happened. In one transaction
-// the store moves the node terminal, blocks every pending node, cancels every
-// running sibling, and moves the run terminal -- so a crash cannot leave a
-// failed node under a run that still reads as running.
+// finalizeFailedFromNode commits the original outcome before draining siblings.
+// A canceled node chooses canceling; sibling completion cannot hide that cause.
 func (s *Service) finalizeFailedFromNode(ctx context.Context, run *coreworkflow.Run, node coreworkflow.NodeRun, taskRun *coretask.Run, schemaUnsatisfied bool, now time.Time) error {
 	nodeStatus := coreworkflow.NodeRunStatusFailed
-	runStatus := coreworkflow.RunStatusFailed
+	runStatus := coreworkflow.RunStatusFailing
 	if taskRun.Status == string(coretask.RunStatusCanceled) {
 		nodeStatus = coreworkflow.NodeRunStatusCanceled
-		runStatus = coreworkflow.RunStatusCanceled
+		runStatus = coreworkflow.RunStatusCanceling
 	}
 	errorMessage := taskRun.ErrorMessage
 	if schemaUnsatisfied && taskRun.Status == string(coretask.RunStatusSucceeded) {
@@ -707,7 +707,7 @@ func (s *Service) finalizeFailedFromNode(ctx context.Context, run *coreworkflow.
 		// schema, so the node fails with a reason rather than the run's empty one.
 		errorMessage = util.Ptr("node required structured output but the run did not return a value satisfying its output_schema")
 	}
-	_, err := s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
+	_, err := s.Workflows.BeginWorkflowRunDrain(ctx, coreworkflow.BeginRunDrainInput{
 		WorkflowRunID: run.ID,
 		NodeRunID:     node.ID,
 		NodeExpected:  coreworkflow.NodeRunStatusRunning,
@@ -715,6 +715,8 @@ func (s *Service) finalizeFailedFromNode(ctx context.Context, run *coreworkflow.
 		RunExpected:   coreworkflow.RunStatusRunning,
 		RunStatus:     runStatus,
 		TaskRunID:     &taskRun.ID,
+		Output:        taskRun.Output,
+		Structured:    taskRun.Structured,
 		ErrorMessage:  errorMessage,
 		EndedAt:       &now,
 	})
@@ -797,20 +799,22 @@ func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string
 		startedAt := time.Now().UTC()
 		taskItem, taskRunID, resolvedInput, err := s.createStepTask(ctx, spaceID, userID, run, steps[i], steps)
 		if err != nil {
-			// The node never started, so it fails from pending and the run ends with
-			// it -- one transaction that also blocks the pending nodes and cancels the
-			// running siblings, the same path a running node's failure takes.
-			_, _ = s.Workflows.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
+			// An admission failure starts the same recoverable drain as a worker
+			// failure. A concurrent winner leaves its outcome untouched.
+			_, drainErr := s.Workflows.BeginWorkflowRunDrain(ctx, coreworkflow.BeginRunDrainInput{
 				WorkflowRunID: run.ID,
 				NodeRunID:     steps[i].ID,
 				NodeExpected:  coreworkflow.NodeRunStatusPending,
 				NodeStatus:    coreworkflow.NodeRunStatusFailed,
 				RunExpected:   coreworkflow.RunStatusRunning,
-				RunStatus:     coreworkflow.RunStatusFailed,
+				RunStatus:     coreworkflow.RunStatusFailing,
 				ErrorMessage:  ptrError(err),
 				StartedAt:     &startedAt,
 				EndedAt:       &startedAt,
 			})
+			if drainErr != nil {
+				return dispatched, false, drainErr
+			}
 			return dispatched, false, err
 		}
 		if _, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
@@ -917,15 +921,16 @@ func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, ru
 	// dispatch of the same step computes the same key. See
 	// docs/design/workflow-runtime.md §11.
 	taskItem, err := s.TaskService.AdmitWorkflowTask(ctx, task.CreateTaskCmd{
-		UserID:        userID,
-		SpaceID:       spaceID,
-		Input:         input,
-		AgentID:       &agentID,
-		IssueID:       issueID,
-		CreatedByType: coretask.RunCreatedByTypeUser,
-		TriggerSource: coretask.RunTriggerSourceWorkflowStep,
-		AdmissionKey:  workflowTaskAdmissionKey(step.WorkflowRunID, step.NodeID),
-		OutputSchema:  step.OutputSchema,
+		UserID:            userID,
+		SpaceID:           spaceID,
+		Input:             input,
+		AgentID:           &agentID,
+		IssueID:           issueID,
+		CreatedByType:     coretask.RunCreatedByTypeUser,
+		TriggerSource:     coretask.RunTriggerSourceWorkflowStep,
+		AdmissionKey:      coreworkflow.TaskAdmissionKey(step.WorkflowRunID, step.NodeID),
+		WorkflowNodeRunID: step.ID,
+		OutputSchema:      step.OutputSchema,
 	})
 	if err != nil {
 		return nil, "", "", err
@@ -1267,15 +1272,6 @@ func ptrError(err error) *string {
 		return nil
 	}
 	return util.Ptr(err.Error())
-}
-
-// workflowTaskAdmissionKey names the logical node a node run's task belongs to,
-// so every dispatch of the same node — first attempt, retry, or crash recovery —
-// admits under one key and cannot duplicate the task. The key segment is the
-// node run's node_id, which the linear precursor authors as the definition
-// step's id. See docs/design/workflow-runtime.md §11.
-func workflowTaskAdmissionKey(workflowRunID, nodeID string) string {
-	return fmt.Sprintf("workflow/%s/node/%s", workflowRunID, nodeID)
 }
 
 // boundValue is one binding resolved for a downstream step's input: its name,

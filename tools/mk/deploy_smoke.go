@@ -360,8 +360,11 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 	if err := assertCancellationSettles(ctx, client, target, spaceID, conversation.ID, token); err != nil {
 		return err
 	}
+	if err := assertWorkflowCancellationSettles(ctx, client, target, spaceID, token); err != nil {
+		return fmt.Errorf("workflow cancellation: %w", err)
+	}
 
-	covered := "portal, auth, space boundary, storage, scheduler, worker, artifact, retry, and cancellation"
+	covered := "portal, auth, space boundary, storage, scheduler, worker, artifact, retry, task cancellation, and Workflow drain"
 	if target.managedLLM {
 		covered += ", with the run reaching its model through the gateway rather than a provider key"
 	}

@@ -779,7 +779,7 @@
           "workflow_revision": {"type": "integer"},
           "issue_id": {"type": "string"},
           "conversation_id": {"type": "string"},
-          "status": {"type": "string"},
+          "status": {"type": "string", "enum": ["pending", "running", "failing", "canceling", "succeeded", "failed", "canceled"], "description": "failing/canceling retain live TaskRuns until their workers stop."},
           "created_by": {"type": "string"},
           "created_at": {"type": "string", "format": "date-time"},
           "started_at": {"type": "string", "format": "date-time"},

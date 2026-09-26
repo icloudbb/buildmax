@@ -1241,7 +1241,7 @@ revision cannot unpublish a workflow spaces are running.
 | `issue_id` | `bigint unsigned` | yes | Issue this run advances |
 | `schedule_id` | `bigint unsigned` | yes | Schedule whose firing started this run |
 | `input` | `longtext` | yes | The run's immutable input JSON, validated against the definition's `input_schema` at admission; NULL when the definition declares no input schema |
-| `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled` — lowercase, unlike `task` |
+| `status` | `varchar(32)` | no | `pending`, `running`, `failing`, `canceling`, `succeeded`, `failed`, `canceled` — lowercase, unlike `task`; failing/canceling remain non-terminal while TaskRuns stop |
 | `result_json` | `longtext` | yes | The run's declared result, resolved from a node output when the run succeeded; NULL when the definition declares no result selector or the run did not succeed |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
@@ -1268,6 +1268,11 @@ run reaches a terminal status, so a finished run leaves the due set.
 Each Agent node run creates a Space-owned Task directly (`task.space_id`, no
 `conversation_id`); a run's progress is read from its nodes' `task_id` /
 `task_run_id`, not from a Conversation.
+
+Workflow Task admission locks the run, verifies it still admits work, and
+creates the Task/TaskRun plus the node link in one transaction. Stop intent
+uses the same lock and blocks pending nodes atomically. A committed Task is
+therefore visible to the drain even if the admitting coordinator crashes.
 
 ### `workflow_node_run`
 

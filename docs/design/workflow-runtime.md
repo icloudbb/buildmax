@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable graph runtime is landing incrementally. Guarded compare-and-set run/node transitions, atomic failed-node finalization, idempotent Task admission, the reconciliation lease, the graph reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds finished nodes from durable state, dispatches the ready nodes, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A node binding selects a value from the run input or a predecessor node's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer, and a definition may declare a `result` selector whose value a succeeding run stores and surfaces on the run and its issue. The definition is now a graph: `nodes` joined by DAG `needs` decide execution order (array position does not), publication validates acyclicity, edge existence, and predecessor-only bindings. Each reconciliation pass dispatches every ready node, bounded by `policy.max_parallel_nodes` and a deployment ceiling, so independent branches run in parallel; failure is fail-fast and cancels the siblings running alongside the failed node. Still open in the graph engine are typed routes, runtime schema-constrained routing, and adaptive control
+> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable graph runtime is landing incrementally. Guarded compare-and-set run/node transitions, atomic stop intent, idempotent Task admission, the reconciliation lease, the graph reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds finished nodes from durable state, dispatches the ready nodes, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A node binding selects a value from the run input or a predecessor node's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer, and a definition may declare a `result` selector whose value a succeeding run stores and surfaces on the run and its issue. The definition is now a graph: `nodes` joined by DAG `needs` decide execution order (array position does not), publication validates acyclicity, edge existence, and predecessor-only bindings. Each reconciliation pass dispatches every ready node, bounded by `policy.max_parallel_nodes` and a deployment ceiling, so independent branches run in parallel; failure is fail-fast and drains the siblings running alongside the failed node before ending the run. Still open in the graph engine are typed routes, runtime schema-constrained routing, and adaptive control
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
@@ -99,7 +99,9 @@ correctness mechanism, and a Server-owned recovery loop finishes a run stranded
 by a lost callback or a restart. Each pass folds every finished node and
 dispatches every ready node, bounded by `policy.max_parallel_nodes` and the
 deployment ceiling, so independent branches run in parallel; failure is fail-fast
-and also cancels the siblings running alongside the failed node. What remains
+and drains the siblings running alongside the failed node through durable
+`failing`/`canceling` states before ending the run. Task admission and node
+linkage commit atomically with respect to stop intent. What remains
 against the target is the rest of the graph engine: typed routes and waits,
 runtime schema-constrained routing, and adaptive control.
 
@@ -744,10 +746,12 @@ idempotently admit Task or retry TaskRun
 CAS node dispatching -> running and link ids
 ```
 
-The important crash window is after Task admission and before NodeRun linkage.
-On recovery the coordinator calls admission again with the same key, receives
-the existing Task/TaskRun, and completes the link. It never guesses that an
-unlinked Task does not exist.
+For the shipped static graph, Task admission and NodeRun linkage now commit in
+one database transaction under the WorkflowRun lock also used by stop intent.
+The Task service passes the node's identity to admission. A stopped run cannot
+admit a new Task, and a committed Task cannot be hidden behind an unlinked
+pending node. Repeated admission returns the linked Task with the same payload;
+conflicting payloads are refused. Worker execution stays outside the transaction.
 
 The store enforces at least:
 
@@ -813,6 +817,12 @@ A Workflow deadline prevents new dispatch and moves the run through `failing`
 unless an accepted user cancellation already moved it to `canceling`.
 
 ### 12.4 Cancellation And Races
+
+**Implemented slice:** failure or cancellation of a node Task commits stop
+intent, blocks pending nodes, requests sibling TaskRun cancellation through the
+Task service, and drains actual terminal outcomes before ending the Workflow.
+The due-run sweep resumes this work after a crash. A whole-Workflow cancellation
+command and its actor metadata remain planned below.
 
 Cancel is an intent recorded on WorkflowRun, not a loop over whichever rows an
 HTTP handler happens to see. The successful CAS to `canceling` establishes that
@@ -1286,8 +1296,9 @@ interpreters or preserve stale table shapes as a compatibility layer.
 - implement deterministic fan-out/fan-in and fail-fast blocked semantics.
   **Shipped:** a fan-out dispatches its ready dependents together, a fan-in waits
   for all its predecessors, and a node failure blocks every pending node, cancels
-  the running siblings, and ends the run (worker Task cancellation of those
-  siblings is Phase 4 §12.4).
+  the running siblings through the Task cancellation protocol, and ends the run
+  only once every admitted TaskRun is terminal. The intermediate `failing` and
+  `canceling` states survive Server restart.
 - add full publication validation and a read-only graph. **Shipped:** publication
   validation, including pinning each node's Agent to a revision (an unset one to
   the Agent's current revision) so a run never resolves "latest"; and a read-only
@@ -1298,6 +1309,9 @@ interpreters or preserve stale table shapes as a compatibility layer.
 
 ### Phase 4: Bounded Policy And Typed Decisions
 
+- **Shipped cancellation slice:** node failure/cancellation drains sibling
+  TaskRuns with durable stop intent and atomic admission/linkage. Workflow-level
+  cancel actions, deadlines, and retry policies remain open.
 - Add Workflow-owned retry and node/run timeouts.
 - Consume the shipped provider-neutral structured Agent output in typed routes
   and decision nodes.
