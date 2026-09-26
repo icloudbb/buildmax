@@ -46,6 +46,16 @@ describe('ExplorerChanges', () => {
 
   it('degrades when the binding is missing', async () => {
     render(<ExplorerChanges projectID="p1" sessionID="" app={{}} onOpenDiff={() => {}} />);
-    expect(await screen.findByText(/Rebuild the desktop app/)).toBeTruthy();
+    expect(await screen.findByText('Rebuild the desktop app to view changes.')).toBeTruthy();
+  });
+
+  it('says once, not per group, that a plain directory has no Git state', async () => {
+    const app = {
+      GetWorkspaceDiff: () => Promise.resolve({ error: 'not a git repository' }),
+      ListCommits: () => Promise.resolve({ error: 'not a git repository' }),
+    };
+    render(<ExplorerChanges projectID="p1" sessionID="" app={app} onOpenDiff={() => {}} />);
+    expect(await screen.findByText('Not a Git repository.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Commits/ })).toBeNull();
   });
 });

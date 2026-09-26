@@ -131,3 +131,19 @@ export function GridIcon(props) {
 export function SplitRightIcon(props) {
   return <Icon {...props}><rect x="3" y="3" width="18" height="18" rx="1" /><path d="M12 3v18" /></Icon>;
 }
+
+export function CommitIcon(props) {
+  return <Icon {...props}><circle cx="12" cy="12" r="3.2" /><path d="M12 3v5.8M12 15.2V21" /></Icon>;
+}
+
+export function MergeIcon(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="7" cy="5.5" r="2" />
+      <circle cx="7" cy="18.5" r="2" />
+      <circle cx="17" cy="14" r="2" />
+      <path d="M7 7.5v9" />
+      <path d="M7 7.5c0 4 4 6.5 8 6.5" />
+    </Icon>
+  );
+}

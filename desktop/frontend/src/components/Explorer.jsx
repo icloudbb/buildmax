@@ -15,6 +15,7 @@ const MODES = [
 // so a slash command (/diff) can switch it.
 export function Explorer({
   projectID, projectName, sessionID, app, mode, onModeChange, open, onToggle, style, onOpenFile, onOpenDiff,
+  onOpenCommitDiff,
 }) {
   return (
     <section
@@ -44,7 +45,13 @@ export function Explorer({
           {mode === 'files' ? (
             <ExplorerTree projectID={projectID} sessionID={sessionID} app={app} onOpenFile={onOpenFile} />
           ) : (
-            <ExplorerChanges projectID={projectID} sessionID={sessionID} app={app} onOpenDiff={onOpenDiff} />
+            <ExplorerChanges
+              projectID={projectID}
+              sessionID={sessionID}
+              app={app}
+              onOpenDiff={onOpenDiff}
+              onOpenCommitDiff={onOpenCommitDiff}
+            />
           )}
         </div>
       )}

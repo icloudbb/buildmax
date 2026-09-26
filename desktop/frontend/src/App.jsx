@@ -677,6 +677,22 @@ export default function App() {
       return pinned ? pinPaneTab(opened, opened.focused, tabIdentity(tab)) : opened;
     });
   }, []);
+  // A commit's diff is a diff tab carrying the commit; its ref adds the sha so
+  // the same file in two commits (or uncommitted) opens as separate tabs.
+  const openCommitDiffTab = useCallback((sha, path, pinned = false) => {
+    const tab = {
+      kind: 'diff',
+      ref: `${path}@${sha}`,
+      path,
+      commit: sha,
+      title: `${path.split('/').pop() || path} (${sha.slice(0, 7)})`,
+      preview: !pinned,
+    };
+    setWorkspace((s) => {
+      const opened = openInFocused(s, tab);
+      return pinned ? pinPaneTab(opened, opened.focused, tabIdentity(tab)) : opened;
+    });
+  }, []);
   const pinCenterTab = useCallback((paneId, key) => setWorkspace((s) => pinPaneTab(s, paneId, key)), []);
 
   // The login is the mode. Without one the agent runs here against the models in
@@ -979,7 +995,7 @@ export default function App() {
   const copyCenterPath = (key, absolute) => {
     const tab = allTabs(workspace).find((t) => t.key === key);
     if (!tab || (tab.kind !== 'file' && tab.kind !== 'diff') || !currentProject) return;
-    getApp()?.CopyWorkspacePath?.(currentProject.id, focusedChatSessionId, tab.ref, absolute)
+    getApp()?.CopyWorkspacePath?.(currentProject.id, focusedChatSessionId, tab.path ?? tab.ref, absolute)
       .catch(() => {});
   };
 
@@ -1037,7 +1053,8 @@ export default function App() {
           <DiffView
             projectID={currentProject.id}
             sessionID={focusedChatSessionId}
-            path={active.ref}
+            path={active.path ?? active.ref}
+            commit={active.commit}
             app={app}
           />
         )}
@@ -1174,6 +1191,7 @@ export default function App() {
               onModeChange: setExplorerMode,
               onOpenFile: openFileTab,
               onOpenDiff: openDiffTab,
+              onOpenCommitDiff: openCommitDiffTab,
             }}
             account={{
               authStatus,

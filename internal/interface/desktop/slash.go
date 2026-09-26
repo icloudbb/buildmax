@@ -294,3 +294,31 @@ func (a *App) GetWorkspaceDiff(projectID, sessionID string) (git.WorkspaceDiff, 
 	}
 	return git.ReadWorkspace(context.Background(), root)
 }
+
+// ListCommits returns one page of the session workspace's HEAD history, newest
+// first; skip is how many newer commits the caller has already shown.
+func (a *App) ListCommits(projectID, sessionID string, skip, limit int) (git.CommitLog, error) {
+	root, err := resolveWorkspace(projectID, sessionID)
+	if err != nil {
+		return git.CommitLog{}, err
+	}
+	return git.ListCommits(context.Background(), root, skip, limit)
+}
+
+// GetCommit lists the files one commit changed, without patches.
+func (a *App) GetCommit(projectID, sessionID, sha string) (git.CommitDetail, error) {
+	root, err := resolveWorkspace(projectID, sessionID)
+	if err != nil {
+		return git.CommitDetail{}, err
+	}
+	return git.ReadCommit(context.Background(), root, sha)
+}
+
+// GetCommitFileDiff returns one file's change in a commit, patch included.
+func (a *App) GetCommitFileDiff(projectID, sessionID, sha, path string) (git.ChangedFile, error) {
+	root, err := resolveWorkspace(projectID, sessionID)
+	if err != nil {
+		return git.ChangedFile{}, err
+	}
+	return git.ReadCommitFile(context.Background(), root, sha, path)
+}
