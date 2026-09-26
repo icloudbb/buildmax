@@ -1,493 +1,599 @@
-# Agent 原生协作底座备忘录
+# Agent-Native Collaboration Substrate Memo
 
 > **简体中文：** [阅读中文镜像](../zh-CN/proposals/agent-native-collaboration-substrate.md)
 >
-> **Audience:** 产品设计者、维护者与早期采用者 · **Status:** proposal — under discussion
+> **Audience:** product designers, maintainers, and early adopters · **Status:** proposal — under discussion
 >
-> Opened: 2026-09-06
+> **Opened:** 2026-09-06
 
-相关文档：[产品愿景](../design/product-vision.md)、
-[当前状态](../current-state.md)、[路线图](../ROADMAP.md)、
-[统一 Artifact](../design/unified-artifacts.md)、
-[本地 Project Memory](../design/local-project-memory.md)、
-[Agent 执行与 Task thread](../design/agent-execution-and-task-threads.md)、
-[Agent 编排与 Task workspace 连续性决策](../design/orchestration-and-continuity-decisions.md)、
-[Workspace root 与 worktree](../design/workspace-root-and-worktrees.md)。
+Related: [product vision](../design/product-vision.md),
+[current state](../current-state.md), [roadmap](../ROADMAP.md),
+[unified Artifacts](../design/unified-artifacts.md),
+[local Project Memory](../design/local-project-memory.md),
+[Agent execution and Task threads](../design/agent-execution-and-task-threads.md),
+[Agent orchestration and Task workspace continuity decisions](../design/orchestration-and-continuity-decisions.md), and
+[workspace root and worktrees](../design/workspace-root-and-worktrees.md).
 
 ## Contents
 
-- [1. 备忘录结论](#1-备忘录结论)
-- [2. 用户结果、现有证据与约束](#2-用户结果现有证据与约束)
-- [3. 从 Wiki 问题出发](#3-从-wiki-问题出发)
-- [4. Artifact、Wiki、Git 与 Figma 的边界](#4-artifactwikigit-与-figma-的边界)
-- [5. 技术人员与非技术人员边界的变化](#5-技术人员与非技术人员边界的变化)
-- [6. 不同规模项目共有的协作闭环](#6-不同规模项目共有的协作闭环)
-- [7. 候选协作底座](#7-候选协作底座)
-- [8. Versioned workspace 的位置](#8-versioned-workspace-的位置)
-- [9. 方向选项与取舍](#9-方向选项与取舍)
-- [10. 产品与架构含义](#10-产品与架构含义)
-- [11. 目标与非目标](#11-目标与非目标)
-- [12. 需要验证的关键问题](#12-需要验证的关键问题)
-- [13. 建议的验证路径](#13-建议的验证路径)
-- [14. 若方向成立，可能进入哪里](#14-若方向成立可能进入哪里)
+- [1. Memo Conclusion](#1-memo-conclusion)
+- [2. User Outcome, Current Evidence, And Constraints](#2-user-outcome-current-evidence-and-constraints)
+- [3. Starting From The Wiki Question](#3-starting-from-the-wiki-question)
+- [4. Boundaries Between Artifact, Wiki, Git, And Figma](#4-boundaries-between-artifact-wiki-git-and-figma)
+- [5. The Shifting Boundary Between Technical And Non-Technical People](#5-the-shifting-boundary-between-technical-and-non-technical-people)
+- [6. The Collaboration Loop Shared By Projects Of Every Scale](#6-the-collaboration-loop-shared-by-projects-of-every-scale)
+- [7. Candidate Collaboration Substrate](#7-candidate-collaboration-substrate)
+- [8. Where A Versioned Workspace Fits](#8-where-a-versioned-workspace-fits)
+- [9. Direction Options And Trade-Offs](#9-direction-options-and-trade-offs)
+- [10. Product And Architecture Implications](#10-product-and-architecture-implications)
+- [11. Goals And Non-Goals](#11-goals-and-non-goals)
+- [12. Key Questions To Validate](#12-key-questions-to-validate)
+- [13. Suggested Validation Path](#13-suggested-validation-path)
+- [14. Where This Could Land If The Direction Holds](#14-where-this-could-land-if-the-direction-holds)
 
-## 1. 备忘录结论
+## 1. Memo Conclusion
 
-BuildMax 可能确实缺少一个大的协作能力块，但现阶段没有足够证据把它
-定义成独立 Wiki，也没有足够证据认为一个通用 versioned workspace 就能
-支撑大中小项目的全部协作。
+BuildMax may genuinely be missing a large collaboration capability, but there
+is not yet enough evidence to define it as a standalone Wiki, nor enough
+evidence that a general-purpose versioned workspace could support all
+collaboration in small, medium, and large projects.
 
-更值得验证的假设是：
+The hypothesis more worth validating is:
 
-> BuildMax 需要一套 Agent 原生的协作生命周期，使人和 Agent 能从意图
-> 出发，在受控环境中提出改变，用可检查的证据支持它，经过有权限的
-> 决策进入共享状态，并把结果沉淀为以后可以复用的知识。
+> BuildMax needs an Agent-native collaboration lifecycle in which people and
+> Agents start from intent, propose changes inside a controlled environment,
+> support them with inspectable evidence, pass them through an authorized
+> decision into shared state, and settle the outcome into knowledge that can be
+> reused later.
 
-Wiki、Git、Figma、Artifact 和 workspace 都可能承载这个生命周期的一部分，
-但不应有任何一个存储或编辑工具被预先设定为整个协作系统。
+Wiki, Git, Figma, Artifact, and workspaces may each carry part of this
+lifecycle, but no single storage or editing tool should be presupposed as the
+whole collaboration system.
 
-在有使用证据之前，建议：
+Until there is usage evidence, the recommendation is:
 
-1. 不创建独立 Wiki 产品和数据模型。
-2. 不把 versioned workspace 描述为完整协作方案。
-3. 先验证 `Intent → Execution → Proposal → Evidence → Decision → Integration
-   → Knowledge` 这一跨内容类型的闭环。
-4. 优先让 Git、外部知识系统和设计系统成为可接入的权威来源；只有外部
-   来源无法满足核心流程时，才考虑 BuildMax 自己保存可编辑知识页面。
+1. Do not create a standalone Wiki product and data model.
+2. Do not describe a versioned workspace as a complete collaboration solution.
+3. First validate the cross-content-type loop `Intent → Execution → Proposal →
+   Evidence → Decision → Integration → Knowledge`.
+4. Prefer making Git, external knowledge systems, and design systems pluggable
+   authoritative sources; consider BuildMax storing its own editable knowledge
+   pages only if external sources cannot satisfy the core flow.
 
-## 2. 用户结果、现有证据与约束
+## 2. User Outcome, Current Evidence, And Constraints
 
-### 2.1 核心用户结果
+### 2.1 Essential user outcome
 
-无论项目规模和参与者背景如何，用户需要的不是某一种协作工具，而是：
+Regardless of project scale or participant background, what users need is not
+one particular collaboration tool, but this:
 
-> 多个人和 Agent 可以围绕共同目标，安全地改变共享状态，理解彼此正在
-> 做什么，以足够证据判断结果，并明确知道什么已经被接受和发布。
+> Multiple people and Agents can safely change shared state around a common
+> goal, understand what each other is doing, judge results with sufficient
+> evidence, and know clearly what has been accepted and published.
 
-### 2.2 当前产品已经证明的部分
+### 2.2 What the current product already proves
 
-当前产品模型已经提供若干必要构件：
+The current product model already provides several necessary building blocks:
 
-| 当前概念 | 已承担的职责 |
+| Current concept | Responsibility it already carries |
 |---|---|
-| Space | Portal 资源的所有权与授权边界；旧记录中曾称 Team |
-| Issue | 主要的用户工作对象，表达工作并关联讨论与执行 |
-| Conversation | 前台交互和可选编排，不是执行的强制父对象 |
-| Task / TaskRun | 持续 Agent thread 与一次具体执行或尝试 |
-| Result / Artifact | 可见结果、稳定引用、不可变产物与来源 |
-| Local Project / Workspace | 本地项目身份与一次执行实际使用的目录 |
-| Project Memory | CLI/Desktop 的小型、可检查、可遗忘的跨 Session 回忆 |
+| Space | Ownership and authorization boundary for Portal resources; older records called it Team |
+| Issue | Primary user-facing work object; expresses work and links discussion and execution |
+| Conversation | Foreground interaction and optional orchestration; not a mandatory parent of execution |
+| Task / TaskRun | A continuing Agent thread and one concrete execution or attempt |
+| Result / Artifact | Visible results, stable references, immutable products, and provenance |
+| Local Project / Workspace | Local project identity and the directory one execution actually uses |
+| Project Memory | Small, inspectable, forgettable cross-Session recall for CLI/Desktop |
 
-这些对象覆盖了目标、执行和结果的大部分纵向链路，但没有自动证明人和
-Agent 如何共同提出、审查、接受并集成一个跨内容类型的改变。
+These objects cover most of the vertical chain from goal through execution to
+result, but they do not automatically prove how people and Agents jointly
+propose, review, accept, and integrate a change that spans content types.
 
-### 2.3 当前约束
+### 2.3 Current constraints
 
-- 当前路线图的近程重点是运营可信性，而不是增加一个新的大型功能族。
-- Artifact 的核心契约是一个不可变文件；给它加入原地编辑、页面树和当前
-  版本指针会削弱稳定引用与证据语义。
-- Project Memory 是本地且低权威的 Agent 回忆，设计上明确没有覆盖 Space、
-  Portal 和 worker 知识。
-- BuildMax 当前没有通用的版本化 workspace 服务，也没有承诺任意文件修改
-  都可以恢复；Task workspace checkpoint 是执行连续性的窄问题，不是通用
-  协作历史。
-- Space 是 Portal 共享资源的授权边界。任何知识、workspace 或变更方案若
-  成为 Server 能力，都必须继续服从这个边界。
-- CLI/TUI 必须保持单一 Go 二进制；不能为了协作模型让共享 Agent Core
-  依赖 Portal 专属实现。
+- The roadmap's near-term focus is operational trustworthiness, not adding a
+  new large feature family.
+- Artifact's core contract is one immutable file; adding in-place editing, page
+  trees, and a current-version pointer to it would weaken stable references
+  and evidence semantics.
+- Project Memory is local, low-authority Agent recall, and by design explicitly
+  does not cover Space, Portal, or worker knowledge.
+- BuildMax has no general-purpose versioned workspace service today, and does
+  not promise that arbitrary file changes can be restored; Task workspace
+  checkpoints address the narrow problem of execution continuity, not general
+  collaboration history.
+- Space is the authorization boundary for shared Portal resources. Any
+  knowledge, workspace, or change-proposal capability that becomes a Server
+  capability must continue to obey that boundary.
+- The CLI/TUI must remain a single Go binary; the collaboration model must not
+  make the shared Agent Core depend on a Portal-specific implementation.
 
-## 3. 从 Wiki 问题出发
+## 3. Starting From The Wiki Question
 
-讨论最初来自一个直觉：BuildMax 已经能够让 Agent 执行工作并产生结果，
-却缺少把结果转化为长期团队知识的自然位置。
+The discussion began from an intuition: BuildMax can already have Agents
+execute work and produce results, yet lacks a natural place to turn those
+results into long-lived team knowledge.
 
-当前链路大致是：
+The current chain is roughly:
 
 ```text
 Conversation → Issue → Task / TaskRun → Result / Artifact
 ```
 
-可能缺失的闭环是：
+The loop that may be missing is:
 
 ```text
 Conversation → Work → Outcome → Knowledge → Future Agent work
                                       ↑_____________|
 ```
 
-这个缺口是真实的，但“缺少知识闭环”不等于“必须自建 Wiki”。现有对象
-不能完全代替 Wiki：
+This gap is real, but "missing a knowledge loop" does not mean "must build our
+own Wiki". Existing objects cannot fully replace a Wiki:
 
-- Issue 表达要完成的工作，而不是长期有效的知识。
-- Conversation 是交互记录，不是整理和验证过的事实。
-- Artifact 是不可变产物，不是持续演进的权威页面。
-- Project Memory 是 Agent 的有用回忆，不是 Space 的正式知识。
-- `AGENTS.md` 是规范性指令，不能成为普通团队知识的容器。
+- Issue expresses work to be done, not knowledge that stays valid long-term.
+- Conversation is an interaction record, not curated and verified fact.
+- Artifact is an immutable product, not a continuously evolving authoritative
+  page.
+- Project Memory is useful Agent recall, not a Space's formal knowledge.
+- `AGENTS.md` is normative instruction and cannot become a container for
+  ordinary team knowledge.
 
-反过来，成熟 Wiki、Git 仓库和现有知识平台已经提供编辑、版本、权限、
-历史、搜索与组织能力。BuildMax 若只是复制这些能力，不会形成与 Agent
-执行平台相称的独特价值。
+Conversely, mature Wikis, Git repositories, and existing knowledge platforms
+already provide editing, versioning, permissions, history, search, and
+organization. If BuildMax merely copied those capabilities, it would not create
+distinctive value commensurate with an Agent execution platform.
 
-## 4. Artifact、Wiki、Git 与 Figma 的边界
+## 4. Boundaries Between Artifact, Wiki, Git, And Figma
 
-### 4.1 Artifact 与 Wiki
+### 4.1 Artifact and Wiki
 
-一句话区分：
+In one sentence:
 
-> Artifact 记录“这次产出了什么”；Wiki 表达“团队现在认为正确的是什么”。
+> An Artifact records "what this run produced"; a Wiki expresses "what the team
+> currently believes is correct".
 
-| 维度 | Artifact | Wiki 页面 |
+| Dimension | Artifact | Wiki page |
 |---|---|---|
-| 主要用途 | 交付结果与证据 | 维护当前知识 |
-| 内容单位 | 一份任意类型文件 | 可编辑的结构化文档 |
-| 身份语义 | 一个 ID 永远对应相同内容 | 页面 ID 稳定，正文产生新版本 |
-| 修改方式 | 修改后创建新 Artifact | 在同一页面下保存修订 |
-| 组织方式 | 列表、来源和附件关系 | 层级、链接、反向链接与搜索 |
-| 生命周期 | 发布、分享、保留、过期、删除 | 编辑、评审、验证、归档 |
+| Primary use | Delivered results and evidence | Maintaining current knowledge |
+| Unit of content | One file of any type | An editable, structured document |
+| Identity semantics | One ID always maps to the same content | Page ID is stable; the body gets new revisions |
+| How it changes | A change creates a new Artifact | Revisions are saved under the same page |
+| Organization | Lists, provenance, and attachment relationships | Hierarchy, links, backlinks, and search |
+| Lifecycle | Publish, share, retain, expire, delete | Edit, review, verify, archive |
 
-两者可以相连：一次 TaskRun 的 Artifact 是原始证据，某个知识来源中的页面
-可以吸收其结论，并保留到 Artifact、Issue 和 TaskRun 的来源关系。它们不应
-成为同一个产品对象。底层存储和预览机制可以复用，但不能因此混淆身份与
-可变性契约。
+The two can connect: a TaskRun's Artifact is raw evidence, and a page in some
+knowledge source can absorb its conclusions while keeping provenance back to
+the Artifact, Issue, and TaskRun. They should not become the same product
+object. Underlying storage and preview mechanisms can be reused, but that must
+not blur their identity and mutability contracts.
 
-### 4.2 Git 作为知识与成果底层
+### 4.2 Git as the substrate for knowledge and outcomes
 
-对于与项目相关的 Markdown、HTML、设计 token、配置和代码，Git 已经提供：
+For project-related Markdown, HTML, design tokens, configuration, and code, Git
+already provides:
 
-- 版本历史与差异；
-- 并行分支和隔离修改；
-- review、所有者约定与合并控制；
-- 本地、离线和可迁移的存储；
-- Agent 容易读取和修改的文本形式；
-- 知识、原型和实现随一次变更共同演进的能力。
+- version history and diffs;
+- parallel branches and isolated changes;
+- review, ownership conventions, and merge control;
+- local, offline, and portable storage;
+- a textual form that Agents can easily read and modify;
+- the ability for knowledge, prototypes, and implementation to evolve together
+  in one change.
 
-Git 的缺口主要是人的交互和跨来源知识，而不是版本机制本身。非技术人员
-不必学习命令行操作；Agent 可以代理创建分支、提交、解决冲突和合并，
-BuildMax 则展示用户能够理解的“修改方案、差异、接受、撤销和发布”。
+Git's gaps are mainly in human interaction and cross-source knowledge, not in
+the versioning mechanism itself. Non-technical people need not learn
+command-line operations; Agents can create branches, commit, resolve conflicts,
+and merge on their behalf, while BuildMax presents "change proposals, diffs,
+accept, undo, and publish" in terms users can understand.
 
-### 4.3 Agent 生成 HTML 与 Figma
+### 4.3 Agent-generated HTML and Figma
 
-Agent 生成的 HTML 会替代一部分传统原型工作，尤其是响应式页面、真实
-交互、用户测试以及可能继续演进为生产实现的原型。BuildMax 的 HTML
-Artifact 预览和分享适合承载这类不可变发布快照；持续演进的源文件则更
-适合位于 Git 或另一种有明确版本契约的来源中。
+Agent-generated HTML will replace part of traditional prototyping work,
+especially responsive pages, real interactions, user testing, and prototypes
+that may evolve into production implementations. BuildMax's HTML Artifact
+preview and sharing fit these immutable published snapshots; continuously
+evolving source files belong in Git or another source with an explicit
+versioning contract.
 
-这不必推导为 Figma 消失。画布仍适合需求模糊阶段的非线性探索、大量方案
-并列、精细视觉调整、设计系统和多人评论。更可能出现的是自然语言、可运行
-代码和视觉画布之间的双向转换，而不是任何一方永久成为所有阶段的唯一
-权威来源。
+This need not imply that Figma disappears. A canvas remains well suited to
+non-linear exploration while requirements are fuzzy, laying many options side
+by side, fine visual adjustment, design systems, and multi-person commenting.
+The more likely outcome is two-way conversion between natural language,
+runnable code, and visual canvas, rather than any one of them permanently
+becoming the sole authoritative source for every stage.
 
-Figma 当前已经同时提供 Agent 可读写的 MCP 连接和可发布的功能原型，说明
-市场方向本身也在走向代码与画布协同，而不只是二者替代：
-[Figma MCP](https://help.figma.com/hc/en-us/articles/39216419318551-Get-started-with-the-Figma-MCP-server)、
-[Figma Make](https://help.figma.com/hc/en-us/articles/31304586129559-Publish-update-or-unpublish-a-functional-prototype-or-web-app)。
+Figma already offers both an MCP connection that Agents can read and write and
+publishable functional prototypes, which shows that the market itself is
+moving toward code and canvas working together rather than simply replacing
+each other:
+[Figma MCP](https://help.figma.com/hc/en-us/articles/39216419318551-Get-started-with-the-Figma-MCP-server),
+[Figma Make](https://help.figma.com/hc/en-us/articles/31304586129559-Publish-update-or-unpublish-a-functional-prototype-or-web-app).
 
-## 5. 技术人员与非技术人员边界的变化
+## 5. The Shifting Boundary Between Technical And Non-Technical People
 
-传统分工经常把“会不会操作实现工具”当作技术人员与非技术人员的边界。
-Agent 正在降低代码语法、Git 命令、部署步骤和工具操作的门槛，因此新一代
-产品设计师、运营者和领域专家可能直接生成并修改可执行系统。
+Traditional division of labor often treats "can you operate the implementation
+tools" as the boundary between technical and non-technical people. Agents are
+lowering the barrier of code syntax, Git commands, deployment steps, and tool
+operation, so a new generation of product designers, operators, and domain
+experts may directly generate and modify executable systems.
 
-更准确的判断是：
+A more accurate judgment is:
 
-> 被抹平的主要是工具操作与实现语法边界，而不是领域知识、结果判断与责任
-> 边界。
+> What is being flattened is mainly the boundary of tool operation and
+> implementation syntax, not the boundaries of domain knowledge, judgment of
+> results, and responsibility.
 
-未来的分工更可能围绕以下问题形成：
+Future division of labor is more likely to form around these questions:
 
-- 谁能够准确提出目标和约束；
-- 谁能够判断结果在特定领域是否正确；
-- 谁理解失败的影响和风险；
-- 谁有权限接受、发布或撤销改变；
-- 谁对最终结果承担责任。
+- who can state goals and constraints accurately;
+- who can judge whether a result is correct in a particular domain;
+- who understands the impact and risk of failure;
+- who has the authority to accept, publish, or revert a change;
+- who is accountable for the final result.
 
-非技术人员可能不学习 `rebase`、`cherry-pick` 或 merge conflict 的文本格式，
-但会理解版本、修改方案、差异、接受、发布和回退。Agent 负责把这些用户
-概念翻译成底层操作：
+Non-technical people may never learn `rebase`, `cherry-pick`, or the textual
+format of a merge conflict, but they will understand versions, change
+proposals, diffs, acceptance, publishing, and rollback. Agents translate these
+user concepts into underlying operations:
 
-| 用户概念 | 可能的 Git 实现 |
+| User concept | Possible Git implementation |
 |---|---|
-| 创建修改方案 | 创建 branch 或 worktree |
-| 保存一次修改 | commit |
-| 查看变化 | diff 和语义化预览 |
-| 接受方案 | review 后 merge |
-| 放弃方案 | 关闭隔离工作区 |
-| 回到历史状态 | revert 或从旧版本创建新修改 |
-| 发布 | 合并、部署并创建 Artifact |
+| Create a change proposal | Create a branch or worktree |
+| Save a change | commit |
+| View what changed | diff and semantic preview |
+| Accept a proposal | merge after review |
+| Abandon a proposal | Close the isolated workspace |
+| Return to a past state | revert, or create a new change from an old version |
+| Publish | Merge, deploy, and create an Artifact |
 
-因此产品不应按“开发者功能”和“非技术人员功能”复制两套执行能力。更稳定
-的区分是交互密度、工作位置、权限和风险等级。
+The product should therefore not duplicate execution capability into
+"developer features" and "non-technical features". A more stable distinction
+is interaction density, where the work happens, authority, and risk level.
 
-## 6. 不同规模项目共有的协作闭环
+## 6. The Collaboration Loop Shared By Projects Of Every Scale
 
-Versioned workspace 能支撑共享状态、修改隔离、历史、并行方案和恢复，
-但不能独自回答为什么要改、谁负责、什么算完成、与其他工作有什么依赖、
-谁能批准以及哪些证据足够。
+A versioned workspace can support shared state, change isolation, history,
+parallel options, and recovery, but on its own it cannot answer why to change
+something, who is responsible, what counts as done, what the dependencies on
+other work are, who can approve, and what evidence is sufficient.
 
-不论项目规模，协作都可以先抽象为同一条闭环：
+Regardless of project scale, collaboration can first be abstracted into the
+same loop:
 
 ```text
-意图 → 分解 → 执行 → 验证 → 决策 → 集成 → 沉淀
+Intent → Decomposition → Execution → Verification → Decision → Integration → Consolidation
 ```
 
-| 阶段 | 必须回答的问题 |
+| Stage | Question it must answer |
 |---|---|
-| 意图 | 想让什么结果成为现实，为什么重要，完成标准是什么？ |
-| 分解 | 哪些工作可以独立推进，它们如何依赖？ |
-| 执行 | 谁或哪个 Agent 在什么边界内做了什么？ |
-| 验证 | 有哪些修改、预览、测试、报告或其他证据？ |
-| 决策 | 谁接受、拒绝或要求修改，理由是什么？ |
-| 集成 | 被接受的结果如何进入共享状态并发布？ |
-| 沉淀 | 哪些决定和知识值得以后复用，权威来源在哪里？ |
+| Intent | What outcome should become real, why does it matter, and what is the completion criterion? |
+| Decomposition | Which work can proceed independently, and how does it depend on other work? |
+| Execution | Who, or which Agent, did what within which boundary? |
+| Verification | What changes, previews, tests, reports, or other evidence exist? |
+| Decision | Who accepts, rejects, or requests changes, and why? |
+| Integration | How does an accepted result enter shared state and get published? |
+| Consolidation | Which decisions and knowledge are worth reusing later, and where is the authoritative source? |
 
-规模改变的是拓扑与策略强度，而不是基本语义：
+Scale changes topology and policy strength, not the basic semantics:
 
-| 方面 | 小项目 | 大型项目 |
+| Aspect | Small project | Large project |
 |---|---|---|
-| 分解 | 少量平级工作 | 多层目标和依赖关系 |
-| 责任 | 同一人承担多个角色 | 明确所有者、评审者和批准者 |
-| 并发 | 少数修改 | 大量并行、跨团队方案 |
-| 验证 | 人工查看结果 | 自动检查、分级评审和策略门禁 |
-| 集成 | 直接接受 | 跨团队协调、发布窗口和回滚计划 |
-| 信息传播 | 参与者自然获知 | 订阅、通知和聚合视图 |
-| 沉淀 | 随手记录 | 所有者、有效期、审计和检索 |
+| Decomposition | A few peer pieces of work | Multi-level goals and dependencies |
+| Responsibility | One person holds several roles | Explicit owners, reviewers, and approvers |
+| Concurrency | A few changes | Many parallel, cross-team proposals |
+| Verification | People look at the result | Automated checks, tiered review, and policy gates |
+| Integration | Direct acceptance | Cross-team coordination, release windows, and rollback plans |
+| Information flow | Participants learn naturally | Subscriptions, notifications, and aggregate views |
+| Consolidation | Ad hoc notes | Owners, validity periods, audit, and retrieval |
 
-底层不需要两套“小项目”和“大项目”语义。规模化应主要通过关系数量、
-策略强度、聚合视图与自动化实现。
+The substrate does not need two sets of "small project" and "large project"
+semantics. Scaling should come mainly from the number of relationships, policy
+strength, aggregate views, and automation.
 
-## 7. 候选协作底座
+## 7. Candidate Collaboration Substrate
 
-以下是跨项目规模和内容类型都可能成立的协作语义。它们首先是一套协议，
-不等于每一项都必须成为新的数据库实体：
+The following are collaboration semantics that may hold across project scales
+and content types. They are first a protocol; they do not mean each must become
+a new database entity:
 
-| 语义 | 回答的问题 | 现有或候选承载 |
+| Semantic | Question it answers | Existing or candidate carrier |
 |---|---|---|
-| Scope | 谁共同拥有工作和结果？ | Space；未来是否需要 Server Project 仍开放 |
-| Intent | 为什么做，完成标准是什么？ | Issue |
-| Responsibility | 谁推进，谁有权决定？ | Issue 的 Owner/Executor、Space role 与具体 capability |
-| Execution | 谁在什么时候实际做了什么？ | Task / TaskRun |
-| Proposal | 建议如何改变共享状态？ | 候选协议；底层可以是 Git、Figma、Wiki 或 API |
-| Evidence | 为什么应该相信这个结果？ | Diff、测试、Artifact、Trace |
-| Decision | 是否接受以及为什么？ | 候选生命周期；不能等同于一个评论 |
-| Outcome | 最终产生或改变了什么？ | Result、Artifact 或外部系统状态 |
-| History | 整个过程如何演进？ | Timeline、Trace 与 Audit，各自有不同权威 |
-| Knowledge | 哪些结论供未来复用？ | Git、外部 Wiki、设计系统或未来内置来源 |
+| Scope | Who jointly owns the work and results? | Space; whether a Server Project is ever needed remains open |
+| Intent | Why do it, and what is the completion criterion? | Issue |
+| Responsibility | Who drives it, and who has the authority to decide? | Issue Owner/Executor, Space role, and specific capabilities |
+| Execution | Who actually did what, and when? | Task / TaskRun |
+| Proposal | How is shared state proposed to change? | Candidate protocol; the substrate can be Git, Figma, a Wiki, or an API |
+| Evidence | Why should this result be trusted? | Diffs, tests, Artifacts, Traces |
+| Decision | Is it accepted, and why? | Candidate lifecycle; cannot be equated with a comment |
+| Outcome | What was ultimately produced or changed? | Result, Artifact, or external system state |
+| History | How did the whole process evolve? | Timeline, Trace, and Audit, each with different authority |
+| Knowledge | Which conclusions are for future reuse? | Git, an external Wiki, a design system, or a future built-in source |
 
-可能的共同主干是：
+A possible common backbone is:
 
 ```text
 Issue
   └── Task / TaskRun
-        ├── 提出 Proposal
-        ├── 附带 Evidence
-        └── 等待有权限的 Decision
-              ├── 接受并 Integration
-              ├── 要求修改
-              └── 拒绝
+        ├── raises a Proposal
+        ├── attaches Evidence
+        └── awaits an authorized Decision
+              ├── accept and Integration
+              ├── request changes
+              └── reject
 ```
 
-Proposal 的实现不必相同：
+Proposal implementations need not be the same:
 
-- 代码和项目文档可以是 Git branch/commit；
-- HTML 原型可以是 Git 修改加 Artifact 预览；
-- Confluence 或 Notion 可以是页面草稿或修订提议；
-- Figma 可以是设计文件中的受控修改；
-- 配置变更可以是一组尚未应用的 API 操作；
-- 纯调研可能不改变共享状态，其可评审结果本身就是 Proposal。
+- code and project documentation can be a Git branch/commit;
+- an HTML prototype can be a Git change plus an Artifact preview;
+- Confluence or Notion can be a page draft or suggested revision;
+- Figma can be a controlled change in a design file;
+- a configuration change can be a set of not-yet-applied API operations;
+- pure research may not change shared state at all; its reviewable result is
+  itself the Proposal.
 
-BuildMax 若选择这个方向，统一的应当是如何展示、验证、授权、决定和记录
-来源，而不是把所有内容复制到一个通用存储中。
+If BuildMax takes this direction, what it should unify is how changes are
+presented, verified, authorized, decided, and given provenance, not copying all
+content into one general-purpose store.
 
-## 8. Versioned workspace 的位置
+## 8. Where A Versioned Workspace Fits
 
-Versioned workspace 是候选底座中的重要部件，但只覆盖协作闭环的一部分。
+A versioned workspace is an important part of the candidate substrate, but it
+covers only part of the collaboration loop.
 
-它适合负责：
+It is well suited to owning:
 
-- 工作所基于的共享状态；
-- 并行修改的隔离；
-- 新旧版本差异；
-- 已接受修改的集成；
-- 失败后的恢复与可重现性。
+- the shared state that work is based on;
+- isolation of parallel changes;
+- diffs between old and new versions;
+- integration of accepted changes;
+- recovery after failure and reproducibility.
 
-它不自然负责：
+It does not naturally own:
 
-- 目标与验收标准；
-- 工作分解和跨团队依赖；
-- 责任与批准权限；
-- 结果证据是否充分；
-- 决策理由和信息通知；
-- 跨仓库、跨 Wiki、跨设计系统的知识发现。
+- goals and acceptance criteria;
+- work decomposition and cross-team dependencies;
+- responsibility and approval authority;
+- whether the evidence for a result is sufficient;
+- decision rationale and notifications;
+- knowledge discovery across repositories, Wikis, and design systems.
 
-因此不应先创建一个“万能 versioned workspace”再让所有协作问题迁入其中。
-更安全的方向是让不同权威来源实现一组有限的协作操作，例如读取当前状态、
-创建隔离提议、展示差异、验证、接受或撤回，并明确每种来源不能保证什么。
+So we should not first build an "all-purpose versioned workspace" and then
+migrate every collaboration problem into it. The safer direction is to have
+different authoritative sources implement a limited set of collaboration
+operations — for example, read current state, create an isolated proposal, show
+a diff, verify, accept, or withdraw — and state explicitly what each source
+cannot guarantee.
 
-## 9. 方向选项与取舍
+## 9. Direction Options And Trade-Offs
 
-### 9.1 选项 A：独立 BuildMax Wiki
+### 9.1 Option A: a standalone BuildMax Wiki
 
-优点：部署内闭环、Space 授权一致、Agent 读写和 TaskRun 来源容易统一。
+Pros: a closed loop inside the deployment, consistent Space authorization, and
+easy unification of Agent reads/writes with TaskRun provenance.
 
-缺点：需要编辑器、版本、搜索、层级、链接、权限、导入导出、冲突、通知和
-保留策略；会与成熟 Wiki 和 Git 重复竞争；在用户尚未证明需要 BuildMax
-成为知识权威来源前，概念和状态成本过高。
+Cons: requires an editor, versioning, search, hierarchy, links, permissions,
+import/export, conflicts, notifications, and retention policy; competes
+redundantly with mature Wikis and Git; the concept and state cost is too high
+before users have shown they need BuildMax to be the authoritative knowledge
+source.
 
-当前判断：不应优先。
+Current judgment: should not be prioritized.
 
-### 9.2 选项 B：以通用 versioned workspace 为中心
+### 9.2 Option B: centered on a general-purpose versioned workspace
 
-优点：文档、代码、HTML 和配置可以共享版本、差异、隔离与恢复机制；适合
-Agent 代理 Git 后向更多角色开放真实项目修改。
+Pros: documents, code, HTML, and configuration can share versioning, diff,
+isolation, and recovery mechanisms; well suited to opening real project changes
+to more roles once Agents operate Git on their behalf.
 
-缺点：不能单独表达意图、责任、依赖、验证、批准和跨来源知识；如果抽象
-超过 Git 等真实来源能够保证的语义，容易形成一个无法诚实恢复的隐藏版本
-系统。
+Cons: cannot by itself express intent, responsibility, dependencies,
+verification, approval, or cross-source knowledge; if the abstraction exceeds
+the semantics real sources such as Git can guarantee, it easily becomes a
+hidden versioning system that cannot recover honestly.
 
-当前判断：值得作为执行与集成能力研究，但不是完整协作产品模型。
+Current judgment: worth researching as an execution and integration capability,
+but not a complete collaboration product model.
 
-### 9.3 选项 C：以协作生命周期为中心
+### 9.3 Option C: centered on the collaboration lifecycle
 
-优点：先统一各项目共有的意图、执行、提议、证据、决策、集成和知识闭环；
-Git、Wiki、Figma 与 API 都可以保留为各自权威来源；与 BuildMax 现有的
-Issue、TaskRun、Artifact、Trace 和 Space 边界吻合。
+Pros: first unifies the intent, execution, proposal, evidence, decision,
+integration, and knowledge loop that all projects share; Git, Wikis, Figma, and
+APIs can each remain their own authoritative source; aligns with BuildMax's
+existing Issue, TaskRun, Artifact, Trace, and Space boundaries.
 
-缺点：Proposal 和 Decision 的最小语义仍未证明；跨来源 adapter 的失败、
-权限和一致性会很复杂；如果设计得过于抽象，也可能变成没有具体用户体验的
-“万能工作模型”。
+Cons: the minimal semantics of Proposal and Decision are not yet proven;
+failure, permissions, and consistency across source adapters will be complex;
+if designed too abstractly, it can also become an "all-purpose work model" with
+no concrete user experience.
 
-当前判断：最值得验证的主假设，但尚未成为接受方向。
+Current judgment: the primary hypothesis most worth validating, but not yet an
+accepted direction.
 
-### 9.4 选项 D：只做来源连接，不增加协作协议
+### 9.4 Option D: source connections only, no collaboration protocol
 
-优点：最少新状态；可以快速让 Agent 搜索 Git、Confluence、Notion 或 Figma。
+Pros: the least new state; Agents can quickly search Git, Confluence, Notion,
+or Figma.
 
-缺点：只解决读取，不解决改变、评审、接受和来源闭环；不同工具输出会继续
-停留在一次性对话中。
+Cons: solves only reading, not change, review, acceptance, or closing the
+provenance loop; output from different tools keeps living in one-off
+conversations.
 
-当前判断：可以是早期验证手段，但不一定足以成为长期底座。
+Current judgment: can be an early validation technique, but is not necessarily
+enough to be the long-term substrate.
 
-## 10. 产品与架构含义
+## 10. Product And Architecture Implications
 
-如果主假设成立，BuildMax 的定位不应是“面向工程师的 Coding Agent”，也
-不应是“面向非技术人员的 no-code 工具”，而可以更准确地表达为：
+If the primary hypothesis holds, BuildMax should be positioned neither as "a
+Coding Agent for engineers" nor as "a no-code tool for non-technical people",
+but more accurately as:
 
-> 面向知识工作者的、可治理的 Agent 执行与成果系统。
+> A governable Agent execution and outcome system for knowledge workers.
 
-这带来几项设计含义：
+This carries several design implications:
 
-1. **按工作模式和风险，而不是职业名称设计。** CLI、Desktop 和 Portal
-   可以有不同交互密度，但重要执行语义来自同一个 Agent Core。
-2. **权限围绕动作。** 读取、提出修改、执行、访问 Secret、接受、发布和
-   管理策略是不同 capability，不能简单由“技术人员”角色替代。
-3. **Git 可以是引擎而不是界面。** Agent 执行底层操作，BuildMax 给用户
-   展示修改方案、语义化差异、预览、接受和回退。
-4. **Artifact 保持不可变。** 它适合作为一次提议或发布的证据与快照，不
-   应变成持续可编辑 workspace。
-5. **外部来源保持权威。** BuildMax 应记录实际读到和改变的来源版本，不
-   应为了统一界面悄悄复制并升级其权威。
-6. **Agent 操作必须可审查。** 用户认为“只是预览”时，Agent 不能暗中
-   合并、发布或改变外部系统。
-7. **Proposal 与 Decision 可能是缺口，而非 Wiki。** 它们把 Issue 的意图、
-   TaskRun 的执行和 Artifact 的证据连接到真实共享状态的改变。
+1. **Design by work mode and risk, not by job title.** CLI, Desktop, and
+   Portal can have different interaction densities, but important execution
+   semantics come from the same Agent Core.
+2. **Permissions are organized around actions.** Reading, proposing changes,
+   executing, accessing Secrets, accepting, publishing, and managing policy are
+   different capabilities and cannot simply be replaced by a "technical user"
+   role.
+3. **Git can be the engine rather than the interface.** The Agent performs the
+   underlying operations; BuildMax shows users change proposals, semantic
+   diffs, previews, acceptance, and rollback.
+4. **Artifact stays immutable.** It suits being the evidence and snapshot of a
+   proposal or a release, and should not become a continuously editable
+   workspace.
+5. **External sources stay authoritative.** BuildMax should record the source
+   versions it actually read and changed, and must not quietly copy and
+   elevate their authority for the sake of a unified interface.
+6. **Agent operations must be reviewable.** When the user believes something
+   is "just a preview", the Agent must not secretly merge, publish, or change
+   an external system.
+7. **Proposal and Decision may be the gap, not a Wiki.** They connect an
+   Issue's intent, a TaskRun's execution, and an Artifact's evidence to real
+   changes in shared state.
 
-## 11. 目标与非目标
+## 11. Goals And Non-Goals
 
-### 11.1 目标
+### 11.1 Goals
 
-- 找出不依赖项目规模、职业角色和内容类型的最小协作语义。
-- 验证非技术人员能否通过 Agent 使用 Git 等版本底层，而不学习工具操作。
-- 定义一次 Agent 改变如何被提出、检查、批准、集成和追溯。
-- 保持 Space 授权、TaskRun 权威结果、Artifact 不可变性和共享 Agent Core。
-- 用真实工作流证据决定 Wiki、Knowledge Source 和 versioned workspace 的
-  后续边界。
+- Find the minimal collaboration semantics that do not depend on project scale,
+  job role, or content type.
+- Validate whether non-technical people can use versioning substrates such as
+  Git through Agents without learning tool operation.
+- Define how an Agent change is proposed, inspected, approved, integrated, and
+  traced.
+- Preserve Space authorization, TaskRun's authoritative result, Artifact
+  immutability, and the shared Agent Core.
+- Use real workflow evidence to decide the later boundaries of Wiki, Knowledge
+  Source, and versioned workspace.
 
-### 11.2 非目标
+### 11.2 Non-goals
 
-- 现在承诺建设内置 Wiki、富文本编辑器或企业搜索。
-- 建设一个完整项目管理套件、甘特图、Sprint 或无限自定义字段系统。
-- 宣称所有知识工作者都将掌握传统 Git 操作。
-- 宣称 HTML 会完全替代 Figma 或其他视觉设计系统。
-- 用一个通用存储复制 Git、Confluence、Notion 和 Figma 的全部内容。
-- 让 Conversation 成为所有执行和协作对象的强制父级。
-- 在没有明确恢复契约时承诺任意修改都可以撤销。
+- Committing now to build a built-in Wiki, rich-text editor, or enterprise
+  search.
+- Building a full project-management suite, Gantt charts, Sprints, or an
+  unlimited custom-field system.
+- Claiming that all knowledge workers will master traditional Git operations.
+- Claiming that HTML will fully replace Figma or other visual design systems.
+- Copying all the content of Git, Confluence, Notion, and Figma into one
+  general-purpose store.
+- Making Conversation the mandatory parent of all execution and collaboration
+  objects.
+- Promising that any change can be undone without an explicit recovery
+  contract.
 
-## 12. 需要验证的关键问题
+## 12. Key Questions To Validate
 
-### 12.1 用户与工作流
+### 12.1 Users and workflows
 
-1. 非技术参与者能否只通过目标、预览、差异、接受和回退理解 Git-backed
-   工作流，还是仍需要直接编辑页面？
-2. 哪些工作天然围绕一个仓库，哪些工作属于 Space 或跨项目知识？
-3. 用户要评审的是源码 diff、视觉差异、行为变化、测试证据，还是它们的
-   组合？
-4. 一个 Issue 是否通常对应一个 Proposal，还是会产生多个竞争或分阶段
-   Proposal？
-5. 纯报告、外部 API 操作和文件修改是否能共享足够一致的决策生命周期？
+1. Can non-technical participants understand a Git-backed workflow purely
+   through goals, previews, diffs, acceptance, and rollback, or do they still
+   need to edit pages directly?
+2. Which work naturally revolves around one repository, and which belongs to a
+   Space or to cross-project knowledge?
+3. Is what users review the source diff, the visual difference, the behavior
+   change, the test evidence, or a combination?
+4. Does one Issue usually correspond to one Proposal, or does it produce
+   several competing or staged Proposals?
+5. Can pure reports, external API operations, and file changes share a
+   sufficiently consistent decision lifecycle?
 
-### 12.2 权限与责任
+### 12.2 Authority and responsibility
 
-1. 谁可以让 Agent 读取、提出修改、应用、发布和撤销？
-2. Proposal 是否继承来源系统权限，还是 Space 还需要额外策略？
-3. Agent 解决冲突后，哪些情况必须重新获得人工接受？
-4. 自动验证在什么风险等级下足以替代人工批准？
+1. Who can have an Agent read, propose changes, apply, publish, and revert?
+2. Does a Proposal inherit the source system's permissions, or does the Space
+   need an additional policy?
+3. After an Agent resolves a conflict, which cases must regain human
+   acceptance?
+4. At what risk level is automated verification sufficient to replace human
+   approval?
 
-### 12.3 数据与权威
+### 12.3 Data and authority
 
-1. BuildMax 是否只保存来源引用和证据，还是必须持有 Proposal 内容？
-2. 外部来源在执行后变化时，原 Proposal、证据和决定如何保持可解释？
-3. 知识是原地更新、创建新页面，还是只提出建议？谁决定其权威等级？
-4. Git-backed 文档是否覆盖足够多的非代码知识，能够推迟内置 Wiki？
+1. Does BuildMax store only source references and evidence, or must it hold the
+   Proposal content?
+2. When an external source changes after execution, how do the original
+   Proposal, evidence, and decision stay explainable?
+3. Is knowledge updated in place, created as a new page, or only suggested?
+   Who decides its level of authority?
+4. Do Git-backed documents cover enough non-code knowledge to defer a
+   built-in Wiki?
 
-### 12.4 规模与运营
+### 12.4 Scale and operations
 
-1. 从小项目到大型项目，首先失效的是关系数量、通知、搜索、权限还是执行
-   吞吐？
-2. 哪些能力可以通过同一语义的聚合视图扩展，哪些必须引入新对象？
-3. 跨团队依赖和多级批准是否是普遍需求，还是少数部署的策略扩展？
-4. 来源不可用、凭证失效、应用一半失败或并发修改时，用户看到什么状态？
+1. Going from small to large projects, what fails first: the number of
+   relationships, notifications, search, permissions, or execution throughput?
+2. Which capabilities can scale through aggregate views over the same
+   semantics, and which must introduce new objects?
+3. Are cross-team dependencies and multi-level approval a common need, or a
+   policy extension for a few deployments?
+4. When a source is unavailable, credentials expire, an apply half-fails, or
+   changes happen concurrently, what state does the user see?
 
-## 13. 建议的验证路径
+## 13. Suggested Validation Path
 
-不要先从数据库 schema 或通用抽象开始。选择一个能够贯穿现有产品能力的
-真实场景：产品设计师通过 Portal 让 Agent 创建并迭代一个 HTML 原型。
+Do not start from a database schema or a general-purpose abstraction. Choose a
+real scenario that runs through existing product capabilities: a product
+designer, through Portal, has an Agent create and iterate on an HTML prototype.
 
-候选旅程：
+Candidate journey:
 
-1. 用户在 Issue 中说明目标和验收条件。
-2. Agent 在隔离的 Git workspace 中创建 HTML/CSS/JS。
-3. BuildMax 发布 HTML Artifact，用户无需下载即可预览。
-4. 用户通过 Conversation 或 Issue 评论提出修改。
-5. Agent 创建新提议，Portal 展示新旧预览、语义变化和必要的源文件 diff。
-6. 用户接受、要求修改或拒绝；接受后 Agent 执行受控集成。
-7. 发布后的 Artifact、Git revision、TaskRun、Issue 和决定保持可追溯。
-8. 观察用户是否仍持续需要一个与仓库无关、可以直接组织和维护的页面空间。
+1. The user states the goal and acceptance conditions in an Issue.
+2. The Agent creates HTML/CSS/JS in an isolated Git workspace.
+3. BuildMax publishes an HTML Artifact that the user can preview without
+   downloading.
+4. The user requests changes through a Conversation or an Issue comment.
+5. The Agent creates a new proposal; Portal shows old and new previews, the
+   semantic changes, and the source-file diff where needed.
+6. The user accepts, requests changes, or rejects; after acceptance the Agent
+   performs a controlled integration.
+7. The published Artifact, Git revision, TaskRun, Issue, and decision remain
+   traceable.
+8. Observe whether the user still persistently needs a repository-independent
+   page space that they can organize and maintain directly.
 
-这个旅程要收集的证据包括：
+The evidence this journey should collect includes:
 
-- 用户是否理解“方案、版本、差异、接受和发布”，而无需 Git 术语；
-- 用户在哪些步骤要求直接编辑，而不是继续给 Agent 指令；
-- 视觉预览、行为测试和文本 diff 哪一种最影响接受决定；
-- Agent 代理冲突和合并时需要多少人工干预；
-- 决策与知识是否自然留在 Issue/Git，还是迅速变得无法发现；
-- 项目参与者和并行 Proposal 增长后，现有对象首先在哪里失效。
+- whether users understand "proposal, version, diff, accept, and publish"
+  without Git terminology;
+- at which steps users ask to edit directly rather than keep instructing the
+  Agent;
+- which of visual preview, behavior tests, and text diff most influences the
+  acceptance decision;
+- how much human intervention is needed when the Agent handles conflicts and
+  merges;
+- whether decisions and knowledge naturally stay in the Issue/Git or quickly
+  become undiscoverable;
+- where existing objects fail first as project participants and parallel
+  Proposals grow.
 
-只有当这个或同等完整的旅程证明缺少内置知识存储时，才进入 Wiki 页面、
-版本、搜索和编辑器设计。只有当多个来源都需要同一套隔离与集成契约时，
-才把 versioned workspace 提升为共享平台概念。
+Only when this journey, or an equally complete one, proves that built-in
+knowledge storage is missing should design move on to Wiki pages, versioning,
+search, and an editor. Only when several sources need the same isolation and
+integration contract should the versioned workspace be promoted to a shared
+platform concept.
 
-## 14. 若方向成立，可能进入哪里
+## 14. Where This Could Land If The Direction Holds
 
-如果证据支持“协作生命周期”主假设：
+If evidence supports the "collaboration lifecycle" primary hypothesis:
 
-1. 路线图应把它安排在当前运营可信性优先级之后，或由明确客户证据调整
-   优先级，而不是由本备忘录直接承诺。
-2. 稳定语义应进入新的设计记录，说明 Proposal、Evidence、Decision 和
-   Integration 与 Issue、Task、TaskRun、Artifact、Space 的准确关系。
-3. 来源适配、权限和失败行为应分别进入对应架构文档，不让一个抽象包揽
-   Git、Wiki、Figma 和 API 的所有差异。
-4. 面向用户的操作说明只在真实功能交付后进入 `manual/`。
-5. 本提案在方向被接受、拒绝或被更窄问题替代后删除；Git 历史保留讨论。
+1. The roadmap should schedule it after the current operational
+   trustworthiness priorities, or have explicit customer evidence adjust its
+   priority, rather than this memo committing to it directly.
+2. The stable semantics should go into a new design record that states the
+   precise relationship of Proposal, Evidence, Decision, and Integration to
+   Issue, Task, TaskRun, Artifact, and Space.
+3. Source adaptation, permissions, and failure behavior should each go into
+   the corresponding architecture documents, so that no single abstraction
+   absorbs all the differences between Git, Wikis, Figma, and APIs.
+4. User-facing operating instructions go into `manual/` only after a real
+   feature ships.
+5. This proposal is deleted once the direction is accepted, rejected, or
+   superseded by a narrower question; Git history preserves the discussion.
 
-在决定之前，本备忘录只记录一个待验证的产品判断：BuildMax 可能需要的
-不是更大的内容工具，而是把意图、Agent 执行、可审查改变、授权决策、共享
-结果与长期知识连接起来的协作底座。
+Until a decision is made, this memo records only one product judgment awaiting
+validation: what BuildMax may need is not a bigger content tool, but a
+collaboration substrate that connects intent, Agent execution, reviewable
+changes, authorized decisions, shared outcomes, and long-term knowledge.
