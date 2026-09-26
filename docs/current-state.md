@@ -555,7 +555,10 @@ Portal and inbound webhook execution are assembled; the webhook callback sender
 is not assembled into the Server. A Telegram bot, configured with
 `channels.telegram.bot_token`, carries a linked user's private chat into a Space
 Conversation: the same Tier 1 turn Portal chat runs, with the reply sent back to
-Telegram and a report when a Task that conversation started finishes. People
+Telegram and a report when a Task that conversation started finishes. A Tier 1
+turn names its Space in the prompt and can list the user's Spaces with
+`ListSpaces`; switching stays the user's `/space` command or Portal's sidebar,
+and Portal's conversation list marks a conversation from a chat app. People
 link a Telegram account by messaging the bot and confirming its code under
 Account → Chat accounts; every message is checked against Space eligibility
 before any model runs. One replica at a time receives, under a Redis lease when

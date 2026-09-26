@@ -109,6 +109,7 @@ func newConversationService(cfg Config, tasks *task.Service, workflows *workflow
 		LLMClient:         cfg.ConversationLLM,
 		TitleGenerator:    cfg.TitleGenerator,
 		AgentStore:        cfg.Agents,
+		Spaces:            cfg.Spaces,
 	}
 }
 

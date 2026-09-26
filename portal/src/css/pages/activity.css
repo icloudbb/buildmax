@@ -96,6 +96,17 @@
   color: var(--color-text-subtle);
 }
 
+/* Marks a conversation that arrived from outside Portal chat (a chat app, a
+   webhook), so it can be told apart in a list that is mostly Portal's own. */
+.page-activity__source {
+  margin-left: 0.5rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
 /* Pairs a header action with the reason it is disabled, stacked instead of
    crowding the button row when the reason has room to say something specific. */
 .page-activity__action-group {

@@ -3,6 +3,7 @@ import { ButtonLink, ChatComposer } from "@buildmax/gui"
 import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { cn } from "../../lib/cn"
+import { conversationSourceLabel } from "../../lib/statusLabels"
 import { createConversation } from "../../features/conversations"
 import { useApp } from "../../contexts/AppContext"
 import { Alert } from "../../components/state/Alert"
@@ -160,28 +161,34 @@ export function NewConversation({
                 conversationsState.kind === "forbidden" ||
                 conversationsState.kind === "notFound" ? null : (
                 <ul className="page-activity__list">
-                  {conversations.map((conv) => (
-                    <li key={conv.id} className="page-activity__item">
-                      <button
-                        type="button"
-                        className="page-activity__link"
-                        onClick={() =>
-                          navigate({
-                            name: "chat",
-                            spaceId,
-                            conversationId: conv.id,
-                          })
-                        }
-                      >
-                        <span className="page-activity__content">
-                          <span className="page-activity__conversation-title">
-                            {conv.title?.trim() || "Conversation"}
+                  {conversations.map((conv) => {
+                    const source = conversationSourceLabel(conv.channel)
+                    return (
+                      <li key={conv.id} className="page-activity__item">
+                        <button
+                          type="button"
+                          className="page-activity__link"
+                          onClick={() =>
+                            navigate({
+                              name: "chat",
+                              spaceId,
+                              conversationId: conv.id,
+                            })
+                          }
+                        >
+                          <span className="page-activity__content">
+                            <span className="page-activity__conversation-title">
+                              {conv.title?.trim() || "Conversation"}
+                            </span>
+                            <span className="page-activity__meta">
+                              {conv.timeLabel}
+                              {source && <span className="page-activity__source">{source}</span>}
+                            </span>
                           </span>
-                          <span className="page-activity__meta">{conv.timeLabel}</span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                        </button>
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
             </div>
