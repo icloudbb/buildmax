@@ -214,6 +214,23 @@ source, 0.2.0-alpha.14, exercises `schedule_agent_to_executor`. The test was
 mutation-checked: skipping that migration's `last_fire_ref` backfill or its
 `agent_id` drop fails the test.
 
+`./make compose upgrade-drill` rehearses the same upgrade with the released
+images in Compose, and release preparation dispatches it on each candidate
+branch. It runs the source release on a Compose project of its own and seeds the
+fixture's dataset through the source's API. With the server stopped, it backs
+up the database, the `server-data` volume, and `server.yaml`. It then starts the
+candidate, reads every seeded entity back through the API, and runs a new task
+to success. Next it starts the source image against the upgraded database.
+Last, it restores the backup and shows the source serving the seeded data
+without the candidate's task. The source must refuse only when the candidate
+recorded a migration the source does not know and the source is 0.2.0-alpha.16
+or later. Older images predate the refusal, so the drill records what they do
+without judging it. When the ledgers match, the source must start. From
+0.2.0-alpha.15 to the current `main` the ledgers match, so no drill has yet seen
+a real refusal; `TestNewRefusesNewerSchema` proves the refusal itself. The drill
+is a rehearsal on a disposable single-host stack, not the candidate evidence
+the Beta readiness record asks for.
+
 Each of those four was checked by mutation rather than assumed: removing the
 locking clause or replacing the conditional UPDATE with a read-then-write
 makes the corresponding test fail. That step is the point. The first attempt
@@ -226,10 +243,10 @@ evidence.
 Still to write:
 
 - restart recovery cases for durable Task/TaskRun/checkpoint state;
-- the release-time upgrade drill in Compose. That drill runs the predecessor
-  binary against real data, swaps in the candidate, and shows the old binary
-  refusing the upgraded database. Paired-restore recovery also remains, as the
-  Beta readiness record requires. Binary rollback is not supported;
+- a Compose upgrade drill that sees a real refusal: a source from
+  0.2.0-alpha.16 on, upgraded to a candidate that records a migration the source
+  does not know. The candidate's own upgrade and paired-restore exercise remains
+  for the Beta readiness record. Binary rollback is not supported;
 - Agent revision authority through the Workflow reconciler (R2): that a step
   sends the pinned Agent revision even when the live Agent is edited mid-run.
   The linear reconciler itself, idempotent step admission, lost/concurrent

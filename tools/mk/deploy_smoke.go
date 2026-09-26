@@ -66,6 +66,9 @@ type smokeTarget struct {
 const cancelStall = 20 * time.Second
 
 func cmdCompose(args []string) error {
+	if len(args) > 0 && args[0] == "upgrade-drill" {
+		return cmdComposeUpgradeDrill(args[1:])
+	}
 	if len(args) == 0 || len(args) > 2 {
 		return usageErrorf("compose", "compose needs an action")
 	}

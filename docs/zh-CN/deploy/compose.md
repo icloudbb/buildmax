@@ -113,6 +113,38 @@ sample-data/orders/      e-commerce orders, with a README describing the columns
 | `invalid otp` | 验证码只能使用一次，一小时后过期；请重新签发 |
 | 服务器反复重启 | 通常与 MySQL 有关，运行 `docker compose logs mysql` |
 
+## 升级
+
+运行固定的发布版本：在 `.env` 中把 `BUILDMAX_VERSION` 设为其标签，例如 `0.2.0-alpha.15`。server 启动时会向前迁移 schema，且不支持回滚镜像。较旧的镜像会拒绝连接已被更新版本迁移的数据库启动；0.2.0-alpha.15 及更早的镜像早于这项拒绝，会直接损坏数据库。因此每次升级前都要备份，并先停止 server，使数据库与卷保持一致：
+
+```bash
+mkdir -p backup
+docker compose stop server
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump -ubuildmax --single-transaction --no-tablespaces --hex-blob buildmax' > backup/buildmax.sql
+docker run --rm -v buildmax_server-data:/data alpine tar -cf - -C /data . > backup/server-data.tar
+cp server.yaml .env backup/
+```
+
+`buildmax_server-data` 是保存 Artifact 与运行状态的卷；它以 Compose 项目命名，可用 `docker volume ls` 查看。然后在 `.env` 中设置新标签并启动：
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+如果升级出错，恢复备份的两部分，并运行写下它们的标签：
+
+```bash
+docker compose stop server
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -ubuildmax -e "DROP DATABASE buildmax; CREATE DATABASE buildmax"'
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -ubuildmax buildmax' < backup/buildmax.sql
+docker run --rm -i -v buildmax_server-data:/data alpine sh -c 'find /data -mindepth 1 -delete && tar -xf - -C /data' < backup/server-data.tar
+# set BUILDMAX_VERSION in .env back to the old tag
+docker compose up -d
+```
+
+每个发布候选都会用 `./make compose upgrade-drill` 从上一个发布版本演练这一流程；参见[发布流程](../contribute/releasing.md#准备)。
+
 ## 清理
 
 ```bash

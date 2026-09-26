@@ -36,8 +36,8 @@ The scheduled pull request performs the mechanical parts of steps 1 and 2. The
 repository must allow GitHub Actions to create pull requests, and branch
 protection must permit the `github-actions[bot]` branch push. Because pushes
 made with `GITHUB_TOKEN` do not start another workflow, the preparation job
-explicitly dispatches CI, the full release snapshot, and the Portal image build
-on `release/next`.
+explicitly dispatches CI, the full release snapshot, the Portal image build,
+and the Compose upgrade drill on `release/next`.
 
 Run **Prepare release** manually to prepare a release before the 72-hour window;
 it still refuses to create an empty release. Close its pull request to defer the
@@ -81,7 +81,34 @@ runs leave its candidate and any maintainer edits unchanged.
    MySQL job then upgrades it with the candidate's `db.New` and asserts that
    every seeded entity survives. When a changed API breaks the seed, update
    `tools/mk/upgrade_fixture.go` to match the source's API.
-5. Run the local verification commands:
+5. Rehearse the upgrade from that source in Compose. The preparation job
+   dispatches the **Upgrade drill** workflow on `release/next`; run it by hand
+   on any other ref, or locally:
+
+   ```bash
+   ./make compose upgrade-drill                           # newest tag behind HEAD -> this checkout
+   ./make compose upgrade-drill --from 0.2.0-alpha.15 --to 0.2.0-alpha.16
+   ```
+
+   The drill runs on a Compose project of its own and removes it afterwards.
+   It starts the source image, seeds the upgrade fixture's dataset through its
+   API, then stops the server and backs up the database (`mysqldump`), the
+   `server-data` volume, and `server.yaml`. It swaps in the candidate, which is
+   built from the checkout unless `--to` names a published tag, and reads every
+   seeded entity back through the API. A new task must then succeed. Next it
+   starts the source image again against the upgraded database. Finally it
+   restores the backup, starts the source, and checks that the source serves the
+   seeded data but not the candidate's task. The workflow publishes the result
+   table, written to `.artifacts/upgrade-drill/result.md`, as its summary.
+
+   The source must refuse the upgraded database only when two things hold: the
+   candidate recorded a migration the source's ledger lacks, and the source is
+   0.2.0-alpha.16 or later. Older images predate the refusal, so the drill
+   records what they did without judging it. When the ledgers match, the source
+   must start. Explain a failure before merging the release pull request. A
+   pass is a rehearsal on a disposable single-host stack, not the candidate
+   evidence the Beta readiness record asks for.
+6. Run the local verification commands:
 
    ```bash
    ./make test

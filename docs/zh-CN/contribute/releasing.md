@@ -17,7 +17,7 @@ BuildMax 遵循语义化版本。alpha 阶段使用 `v0.2.0-alpha.1` 这样的�
 
 ## 准备
 
-定时创建的拉取请求完成步骤 1、2 中的机械操作。仓库必须允许 GitHub Actions 创建拉取请求，分支保护必须允许 `github-actions[bot]` 推送分支。由于 `GITHUB_TOKEN` 推送不会启动另一个工作流，准备作业会显式在 `release/next` 上触发 CI、完整发布快照和 Portal 镜像构建。
+定时创建的拉取请求完成步骤 1、2 中的机械操作。仓库必须允许 GitHub Actions 创建拉取请求，分支保护必须允许 `github-actions[bot]` 推送分支。由于 `GITHUB_TOKEN` 推送不会启动另一个工作流，准备作业会显式在 `release/next` 上触发 CI、完整发布快照、Portal 镜像构建和 Compose 升级演练。
 
 要在 72 小时窗口之前准备发布，可手动运行 **Prepare release**；它仍会拒绝创建空发布。关闭其拉取请求可推迟发布。后续符合条件的运行会基于当时的 `main` 和全部 changelog 条目重新创建请求。请求保持打开期间，定时运行不会修改候选版本及维护者的编辑。
 
@@ -44,7 +44,17 @@ BuildMax 遵循语义化版本。alpha 阶段使用 `v0.2.0-alpha.1` 这样的�
    ```
 
    该命令需要 Docker。它以该标签的 server 镜像连接一个专用 MySQL 容器，通过该标签自身的 API 写入固定数据集，并用该版本的 schema、数据行和迁移台账替换原有转储。将转储提交到 `release/next`，或先合入 `main`。CI 的 MySQL 作业随后用候选版本的 `db.New` 升级它，并断言每个写入的实体都得以保留。若 API 变化导致写入失败，按来源版本的 API 更新 `tools/mk/upgrade_fixture.go`。
-5. 运行本地验证命令：
+5. 在 Compose 中演练从该来源的升级。准备作业会在 `release/next` 上触发 **Upgrade drill** 工作流；在其他 ref 上可手动运行它，或在本地运行：
+
+   ```bash
+   ./make compose upgrade-drill                           # newest tag behind HEAD -> this checkout
+   ./make compose upgrade-drill --from 0.2.0-alpha.15 --to 0.2.0-alpha.16
+   ```
+
+   演练使用专属的 Compose 项目，结束后将其删除。它启动来源镜像，通过其 API 写入升级夹具的数据集，然后停止 server，备份数据库（`mysqldump`）、`server-data` 卷和 `server.yaml`。它换上候选版本（除非 `--to` 指定已发布标签，否则从当前检出构建），并通过 API 读回每个写入的实体。随后必须有一个新任务成功。接着它让来源镜像再次连接已升级的数据库启动。最后恢复备份、启动来源版本，并检查来源版本提供全部写入数据，而不包含候选版本创建的任务。工作流把写入 `.artifacts/upgrade-drill/result.md` 的结果表作为运行摘要发布。
+
+   只有同时满足两个条件时，来源版本才必须拒绝已升级的数据库：候选版本记录了来源台账中没有的迁移，且来源版本为 0.2.0-alpha.16 或更新。更早的镜像早于该拒绝机制，因此演练只记录其行为而不做判定。台账一致时，来源版本必须能启动。合并发布拉取请求前，先查明任何失败的原因。通过只是在一次性单机栈上的演练，不是 Beta 就绪记录所需的候选证据。
+6. 运行本地验证命令：
 
    ```bash
    ./make test

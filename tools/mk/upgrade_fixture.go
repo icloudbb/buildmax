@@ -52,6 +52,10 @@ const upgradeFixtureOwner = "upgrade-owner@buildmax.local"
 // the manifest so the test can prove the row survived unchanged.
 const upgradeFixtureArtifact = "Upgrade fixture artifact.\n"
 
+// upgradeFixtureComment is the seeded Issue comment's body, which the Compose
+// upgrade drill reads back through each server it starts.
+const upgradeFixtureComment = "A comment the upgrade must keep."
+
 // upgradeFixtureManifest is what the fixture's seed created, by public ID. It is
 // written into the dump's header, and the test asserts each entity through the
 // candidate's store. Adding an entity means adding it here, seeding it, and
@@ -284,27 +288,11 @@ func seedUpgradeFixture(ctx context.Context, client *http.Client, target smokeTa
 	if output, err := target.admin("user", "create", upgradeFixtureOwner); err != nil {
 		return m, fmt.Errorf("create %s: %w: %s", upgradeFixtureOwner, err, output)
 	}
-	codeOutput, err := target.admin("user", "login-code", upgradeFixtureOwner)
+	token, ownerID, err := upgradeFixtureLogin(ctx, client, target)
 	if err != nil {
-		return m, fmt.Errorf("issue a login code: %w: %s", err, codeOutput)
-	}
-	code := loginCodePattern.FindString(codeOutput)
-	if code == "" {
-		return m, errors.New("the login-code command returned no bmxlogin_ code")
-	}
-	var login struct {
-		Token string `json:"token"`
-		User  struct {
-			ID string `json:"id"`
-		} `json:"user"`
-	}
-	if err := requestJSON(ctx, client, http.MethodPost, target.apiBase+"/api/auth/login", "", map[string]string{
-		"email": upgradeFixtureOwner, "otp": code, "platform": "upgrade-fixture",
-	}, &login, http.StatusOK); err != nil {
 		return m, err
 	}
-	token := login.Token
-	m.OwnerID = login.User.ID
+	m.OwnerID = ownerID
 
 	var space struct {
 		ID string `json:"id"`
@@ -339,7 +327,7 @@ func seedUpgradeFixture(ctx context.Context, client *http.Client, target smokeTa
 	}
 	m.IssueID = issue.ID
 	if err := requestJSON(ctx, client, http.MethodPost, base+"/issues/"+url.PathEscape(issue.ID)+"/comments", token,
-		map[string]string{"body": "A comment the upgrade must keep."}, nil, http.StatusCreated); err != nil {
+		map[string]string{"body": upgradeFixtureComment}, nil, http.StatusCreated); err != nil {
 		return m, err
 	}
 
@@ -444,6 +432,31 @@ func seedUpgradeFixture(ctx context.Context, client *http.Client, target smokeTa
 	}
 	fmt.Printf("  seeded space %s: agent, issue, workflow run, two schedules (one fired), artifact\n", m.SpaceID)
 	return m, nil
+}
+
+// upgradeFixtureLogin signs the fixture's owner in through a fresh login code,
+// which is how the seed and the upgrade drill reach each server they run.
+func upgradeFixtureLogin(ctx context.Context, client *http.Client, target smokeTarget) (token, userID string, err error) {
+	codeOutput, err := target.admin("user", "login-code", upgradeFixtureOwner)
+	if err != nil {
+		return "", "", fmt.Errorf("issue a login code: %w: %s", err, codeOutput)
+	}
+	code := loginCodePattern.FindString(codeOutput)
+	if code == "" {
+		return "", "", errors.New("the login-code command returned no bmxlogin_ code")
+	}
+	var login struct {
+		Token string `json:"token"`
+		User  struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	if err := requestJSON(ctx, client, http.MethodPost, target.apiBase+"/api/auth/login", "", map[string]string{
+		"email": upgradeFixtureOwner, "otp": code, "platform": "upgrade-fixture",
+	}, &login, http.StatusOK); err != nil {
+		return "", "", err
+	}
+	return login.Token, login.User.ID, nil
 }
 
 func createFixtureSchedule(ctx context.Context, client *http.Client, base, token, agentID, name, cron string) (string, error) {
