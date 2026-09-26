@@ -18,7 +18,7 @@ import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
   closeOtherPaneTabs, closeRightPaneTabs,
   splitRight, splitDown, moveTab, allTabs, pruneForPersist, isWorkspace,
-  collapse, tile,
+  collapse, tile, closeTerminalTab,
 } from './lib/panes';
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
@@ -342,6 +342,24 @@ export default function App() {
   // outgoing project's current layout without a stale closure and without a
   // setState-inside-updater (which React would not reliably apply).
   const workspaceRef = useRef(workspace);
+
+  // A shell that ends on its own — the user typed `exit` — closes its tab, in the
+  // active project or a parked one. An exit Desktop requested (a tab close,
+  // project delete, or quit) is ignored: its tab is already gone, or must stay in
+  // the saved layout so the terminal is restored on the next launch.
+  useEffect(() => {
+    const unsub = EventsOn('desktop/terminal/exit', (p) => {
+      if (!p?.id || p.requested) return;
+      setWorkspace((ws) => closeTerminalTab(ws, p.id));
+      let parked = false;
+      for (const [pid, ws] of stashedWorkspacesRef.current) {
+        const next = closeTerminalTab(ws, p.id);
+        if (next !== ws) { stashedWorkspacesRef.current.set(pid, next); parked = true; }
+      }
+      if (parked) setParkedTerminals((prev) => prev.filter((t) => t.id !== p.id));
+    });
+    return () => unsub?.();
+  }, []);
 
   // openChatTabInto focuses an existing chat tab for a session, else opens one.
   const openChatTabInto = (ws, sessionId, title) => {

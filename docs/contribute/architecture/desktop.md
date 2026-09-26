@@ -213,7 +213,11 @@ out as base64 chunks of at most 32 KiB on `desktop/terminal/data` and the exit
 code on `desktop/terminal/exit`, both keyed by strand id; `TerminalWrite`,
 `TerminalResize` (non-positive sizes ignored), and `TerminalClose` act on one
 strand. The output pump is the only caller of the process's `Wait`, so closing a
-tab kills the shell and waits for the pump to reap it. The frontend serializes
+tab kills the shell and waits for the pump to reap it. The exit event's
+`requested` flag tells a close Desktop asked for (tab close, project delete, app
+shutdown) from a shell that ended on its own; only the latter, such as the user
+typing `exit`, closes the terminal's tab, so a quit keeps terminals in the saved
+layout. The frontend serializes
 up to 1,000 lines of scrollback 1.5 seconds after output settles and calls
 `SaveTerminalSnapshot`; `internal/infra/localterminalsnapshotstore` keeps every
 snapshot in `<BUILDMAX_HOME>/terminal-snapshots.json`, keyed by project and

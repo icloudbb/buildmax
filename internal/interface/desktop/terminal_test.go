@@ -31,7 +31,7 @@ func TestTerminalManagerRunsShellAndReports(t *testing.T) {
 		mu     sync.Mutex
 		output []byte
 	)
-	exited := make(chan int, 1)
+	exited := make(chan TerminalExitPayload, 1)
 	m := newTerminalManager(func(name string, data any) {
 		switch p := data.(type) {
 		case TerminalDataPayload:
@@ -45,7 +45,7 @@ func TestTerminalManagerRunsShellAndReports(t *testing.T) {
 			mu.Unlock()
 		case TerminalExitPayload:
 			select {
-			case exited <- p.Code:
+			case exited <- p:
 			default:
 			}
 		}
@@ -70,7 +70,12 @@ func TestTerminalManagerRunsShellAndReports(t *testing.T) {
 		t.Fatalf("write exit: %v", err)
 	}
 	select {
-	case <-exited:
+	case p := <-exited:
+		// The user typing `exit` is what closes the tab, so this exit must not
+		// read as one Desktop asked for.
+		if p.Requested {
+			t.Fatal("a shell that exited on its own was reported as a requested close")
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("shell did not report exit")
 	}
@@ -87,7 +92,12 @@ func TestTerminalManagerCloseReaps(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("interactive PTY shell strands are not supported on Windows in this prototype")
 	}
-	m := newTerminalManager(func(string, any) {})
+	exits := make(chan TerminalExitPayload, 1)
+	m := newTerminalManager(func(_ string, data any) {
+		if p, ok := data.(TerminalExitPayload); ok {
+			exits <- p
+		}
+	})
 	shSession(m)
 
 	id, err := m.open(t.TempDir())
@@ -99,6 +109,10 @@ func TestTerminalManagerCloseReaps(t *testing.T) {
 	}
 	if err := m.closeSession(id); err != nil {
 		t.Fatalf("close: %v", err)
+	}
+	// The pump reports the exit as it reaps the killed shell.
+	if p := <-exits; !p.Requested {
+		t.Fatal("a close Desktop requested was reported as the shell exiting on its own")
 	}
 	if err := m.write(id, "x"); err == nil {
 		t.Fatal("expected writing to a closed strand to fail")

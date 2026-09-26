@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 
 	"github.com/creack/pty"
 )
@@ -57,10 +58,14 @@ type TerminalDataPayload struct {
 	Chunk string `json:"chunk"`
 }
 
-// TerminalExitPayload reports that a shell strand's process ended.
+// TerminalExitPayload reports that a shell strand's process ended. Requested is
+// true when Desktop itself closed the strand (a tab close, project delete, or app
+// shutdown); false means the shell ended on its own, such as the user typing
+// `exit`, and the frontend closes that terminal's tab.
 type TerminalExitPayload struct {
-	ID   string `json:"id"`
-	Code int    `json:"code"`
+	ID        string `json:"id"`
+	Code      int    `json:"code"`
+	Requested bool   `json:"requested"`
 }
 
 // terminalSession is one interactive shell strand backed by a PTY.
@@ -71,6 +76,9 @@ type terminalSession struct {
 	// done closes once the pump has reaped this session, so a caller that killed
 	// the shell can wait for cleanup to finish.
 	done chan struct{}
+	// closing is set before closeSession kills the shell, so the exit report can
+	// tell a requested close from the shell ending on its own.
+	closing atomic.Bool
 }
 
 // terminalManager owns the desktop's interactive shell strands: it spawns a PTY
@@ -169,7 +177,7 @@ func (m *terminalManager) pump(sess *terminalSession) {
 	m.mu.Unlock()
 	_ = sess.ptmx.Close()
 	close(sess.done)
-	m.emit(eventTerminalExit, TerminalExitPayload{ID: sess.id, Code: code})
+	m.emit(eventTerminalExit, TerminalExitPayload{ID: sess.id, Code: code, Requested: sess.closing.Load()})
 }
 
 // write sends user keystrokes to a shell strand.
@@ -203,6 +211,7 @@ func (m *terminalManager) closeSession(id string) error {
 	if err != nil {
 		return err
 	}
+	sess.closing.Store(true)
 	if sess.cmd.Process != nil {
 		_ = sess.cmd.Process.Kill()
 	}
