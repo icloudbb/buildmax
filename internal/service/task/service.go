@@ -78,7 +78,8 @@ type CreateTaskCmd struct {
 	// AdmissionKey, when set, makes creation idempotent through AdmitWorkflowTask:
 	// a replayed or concurrent dispatch under the same key resolves to the one
 	// task instead of a duplicate. Empty for ordinary CreateTask callers.
-	AdmissionKey string
+	AdmissionKey      string
+	WorkflowNodeRunID string
 	// OutputSchema is a JSON Schema (shared subset) the task's runs must satisfy
 	// as their final answer, or nil for free text. A Workflow node with an
 	// output_schema sets it. See docs/design/structured-output.md.
@@ -187,6 +188,7 @@ func (s *Service) buildCreateInput(ctx context.Context, cmd CreateTaskCmd) (*cor
 		IssueID:                   cmd.IssueID,
 		ScheduleID:                cmd.ScheduleID,
 		AdmissionKey:              cmd.AdmissionKey,
+		WorkflowNodeRunID:         cmd.WorkflowNodeRunID,
 		OutputSchema:              cmd.OutputSchema,
 	}
 	if selectedAgent != nil {

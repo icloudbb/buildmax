@@ -91,14 +91,14 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
 
   useEffect(() => {
     if (run == null) return
-    if (run.status !== "pending" && run.status !== "running") return
+    if (!["pending", "running", "failing", "canceling"].includes(run.status)) return
     const timer = window.setInterval(() => {
       void load(true)
     }, 3000)
     return () => window.clearInterval(timer)
   }, [run, load])
 
-  const isLive = run?.status === "pending" || run?.status === "running"
+  const isLive = run != null && ["pending", "running", "failing", "canceling"].includes(run.status)
   const refreshedLabel = lastRefreshedAt
     ? new Date(lastRefreshedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : null

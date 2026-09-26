@@ -197,7 +197,7 @@ export interface WorkflowRun {
   workflowId: string
   workflowRevision?: number | null
   issueId?: string | null
-  status: "pending" | "running" | "succeeded" | "failed" | "canceled"
+  status: "pending" | "running" | "failing" | "canceling" | "succeeded" | "failed" | "canceled"
   createdBy: string
   createdAt: string
   startedAt?: string | null

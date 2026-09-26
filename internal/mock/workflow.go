@@ -329,7 +329,20 @@ func (m *MockWorkflowStore) TransitionWorkflowNodeRun(_ context.Context, in core
 	return false, nil
 }
 
-func (m *MockWorkflowStore) FinalizeFailedWorkflowRun(_ context.Context, in coreworkflow.FinalizeFailedRunInput) (bool, error) {
+func (m *MockWorkflowStore) BeginWorkflowRunDrain(_ context.Context, in coreworkflow.BeginRunDrainInput) (bool, error) {
+	if in.RunStatus != coreworkflow.RunStatusFailing && in.RunStatus != coreworkflow.RunStatusCanceling {
+		return false, coreworkflow.ErrInvalidRunTransition
+	}
+	var target *coreworkflow.Run
+	for i := range m.Runs {
+		if m.Runs[i].ID == in.WorkflowRunID {
+			target = &m.Runs[i]
+			break
+		}
+	}
+	if target == nil || target.Status != string(in.RunExpected) {
+		return false, nil
+	}
 	if !coreworkflow.ValidNodeRunTransition(in.NodeExpected, in.NodeStatus) {
 		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidNodeRunTransition, in.NodeExpected, in.NodeStatus)
 	}
@@ -338,13 +351,15 @@ func (m *MockWorkflowStore) FinalizeFailedWorkflowRun(_ context.Context, in core
 	}
 	stepApplied := false
 	for i := range m.NodeRuns {
-		if m.NodeRuns[i].ID != in.NodeRunID {
+		if m.NodeRuns[i].ID != in.NodeRunID || m.NodeRuns[i].WorkflowRunID != in.WorkflowRunID {
 			continue
 		}
 		if m.NodeRuns[i].Status != string(in.NodeExpected) {
 			return false, nil
 		}
 		m.NodeRuns[i].Status = string(in.NodeStatus)
+		m.NodeRuns[i].Output = in.Output
+		m.NodeRuns[i].Structured = in.Structured
 		if in.TaskRunID != nil && *in.TaskRunID != "" {
 			m.NodeRuns[i].TaskRunID = in.TaskRunID
 		}
@@ -363,18 +378,13 @@ func (m *MockWorkflowStore) FinalizeFailedWorkflowRun(_ context.Context, in core
 	if !stepApplied {
 		return false, nil
 	}
-	// Fail-fast: block every node still pending in this run, regardless of graph
-	// position, and cancel every sibling still running, since the run is
-	// terminating.
+	// The real store retains running siblings until Task termination is observed.
 	for i := range m.NodeRuns {
 		if m.NodeRuns[i].WorkflowRunID != in.WorkflowRunID {
 			continue
 		}
 		if m.NodeRuns[i].Status == string(coreworkflow.NodeRunStatusPending) {
 			m.NodeRuns[i].Status = string(coreworkflow.NodeRunStatusBlocked)
-		} else if m.NodeRuns[i].Status == string(coreworkflow.NodeRunStatusRunning) && m.NodeRuns[i].ID != in.NodeRunID {
-			m.NodeRuns[i].Status = string(coreworkflow.NodeRunStatusCanceled)
-			m.NodeRuns[i].EndedAt = in.EndedAt
 		}
 	}
 	for i := range m.Runs {
@@ -383,13 +393,9 @@ func (m *MockWorkflowStore) FinalizeFailedWorkflowRun(_ context.Context, in core
 		}
 		if m.Runs[i].Status == string(in.RunExpected) {
 			m.Runs[i].Status = string(in.RunStatus)
-			if in.EndedAt != nil {
-				m.Runs[i].EndedAt = in.EndedAt
-			}
 			if in.ErrorMessage != nil {
 				m.Runs[i].ErrorMessage = in.ErrorMessage
 			}
-			clearRunLease(&m.Runs[i]) // in.RunStatus is always terminal here
 		}
 		break
 	}

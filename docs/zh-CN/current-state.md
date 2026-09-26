@@ -275,10 +275,10 @@ CI 提供固定版本的 `mysql:8.0` 服务。默认测试在没有 DSN 时仍�
 | Task 领取、Run 转换、单个活跃 Run 及取消/报告竞争 | [concurrency_test.go](../../internal/infra/db/concurrency_test.go) |
 | Artifact 软删除、并发删除、过期、字节统计与清理生命周期 | [artifact_retention_test.go](../../internal/infra/db/artifact_retention_test.go) |
 | 检查点 head 推进与部分检查点保留 | [workspace_checkpoint_test.go](../../internal/infra/db/workspace_checkpoint_test.go) |
-| Workflow 受保护的 Run/步骤转换与原子失败收口 | [workflow_test.go](../../internal/infra/db/workflow_test.go) |
+| Workflow 受保护的转换、原子停止意图、准入/停止竞争与排空恢复 | [workflow_test.go](../../internal/infra/db/workflow_test.go)、[workflow_admission_test.go](../../internal/infra/db/workflow_admission_test.go)、[drain_mysql_test.go](../../internal/service/workflow/drain_mysql_test.go) |
 | Workflow Task 幂等接纳、重放、负载冲突、Space 作用域与并发获胜者 | [task_admission_test.go](../../internal/infra/db/task_admission_test.go) |
 | Workflow 到期 Run 发现，以及协调租约在竞争下的领取、续租与释放 | [workflow_reconciliation_test.go](../../internal/infra/db/workflow_reconciliation_test.go) |
-| 图协调器折叠终态 TaskRun：节点推进、最终成功、失败/取消区分、并发派发与并行上限、失败时阻塞待执行并取消并行兄弟、callback 丢失恢复与并发协调的单一结果 | [reconcile_mysql_test.go](../../internal/service/workflow/reconcile_mysql_test.go)、[service_test.go](../../internal/service/workflow/service_test.go) |
+| 图协调器折叠终态 TaskRun：节点推进、最终成功、失败/取消区分、并发派发与并行上限、失败时阻塞待执行节点、callback 丢失恢复与并发协调的单一结果 | [reconcile_mysql_test.go](../../internal/service/workflow/reconcile_mysql_test.go)、[service_test.go](../../internal/service/workflow/service_test.go) |
 | Server 自有 Workflow 恢复循环：启动扫描、逐 Run 协调、到期扫描错误容忍、Start/Stop 生命周期，以及因 callback 丢失而搁置的 Run 在重启后恢复 | [workflow_recovery_test.go](../../internal/server/scheduler/workflow_recovery_test.go)、[workflow_restart_recovery_mysql_test.go](../../internal/server/scheduler/workflow_restart_recovery_mysql_test.go) |
 | 步骤输出绑定：发布校验、Run 绑定快照往返存储，以及使用上游完整输出作为带标签不可信输入来分发下游步骤 | [binding_test.go](../../internal/service/workflow/binding_test.go)、[workflow_test.go](../../internal/infra/db/workflow_test.go) |
 | 编辑与竞争下使用 compare-and-set 推进 Workflow 修订 | [workflow_test.go](../../internal/infra/db/workflow_test.go) |
@@ -291,7 +291,8 @@ CI 提供固定版本的 `mysql:8.0` 服务。默认测试在没有 DSN 时仍�
 | Task 输出 schema 与已验证 TaskRun 结构化值的持久化 | [task_run_structured_test.go](../../internal/infra/db/task_run_structured_test.go) |
 | 过期 Run 轨迹发现与幂等清除轨迹指针 | [task_run_trace_retention_test.go](../../internal/infra/db/task_run_trace_retention_test.go) |
 
-受保护的转换会拒绝非法终态改写，并将失败步骤、后续步骤阻塞和 Run 失败收口原子化。
+受保护的转换会拒绝非法终态改写，并将失败步骤、后续步骤阻塞和停止意图原子化。
+实际 TaskRun 会在失败/取消的运行最终收口前完成排空。
 Workflow 步骤分发现在通过 `AdmitTask` 幂等接纳 Task，以
 `workflow/<workflow_run_id>/node/<step_id>` 为键并在 Space 内保持唯一，因此重试或并发
 分发——包括接纳 Task 后、把它关联到步骤 Run 前的崩溃窗口——会解析为同一个 Task，而不会
@@ -396,7 +397,7 @@ Run/节点记录。节点在 `agent` 下命名其 Agent，在 `input` 下给出�
 某一 revision（未指定的固定到当前 revision），之后的运行会快照该 revision 的内容，因此编辑
 Agent 不会改变已发布计划的运行内容。一次运行会一次性分发所有就绪节点，
 受 `policy.max_parallel_nodes`（1 到部署上限，未声明时用上限）约束；失败为 fail-fast：
-阻塞待执行节点、取消并行运行的兄弟节点并结束运行。节点可以通过 `output_schema` 约束结果，
+阻塞待执行节点、请求并行运行的兄弟节点取消，并在已接纳 TaskRun 进入终态后结束运行。节点可以通过 `output_schema` 约束结果，
 指针绑定可以把运行输入或前驱节点输出中选取的值传入某个节点的输入。定义契约仍没有类型化
 条件路由、人工审批或循环（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
 

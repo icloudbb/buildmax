@@ -12,6 +12,7 @@ import (
 
 	"github.com/icloudbb/buildmax/internal/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type workflowRow struct {
@@ -942,15 +943,13 @@ func (s *Store) TransitionWorkflowNodeRun(ctx context.Context, in coreworkflow.T
 	return updated, err
 }
 
-// FinalizeFailedWorkflowRun ends a run because one node ended badly. In one
-// transaction it moves the node to its terminal status, blocks every node still
-// pending, and moves the run to its terminal status. Failure is fail-fast: the
-// run terminates, so every not-yet-started node is blocked regardless of graph
-// position. The node move is a guarded CAS: a false result means the node was no
-// longer at its expected status, so another actor finished it first and nothing
-// is written. The run move is guarded too, so a run a concurrent cancel already
-// finalized keeps that outcome.
-func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.FinalizeFailedRunInput) (bool, error) {
+// BeginWorkflowRunDrain serializes stop intent against Task admission using the
+// run lock. The first cause wins; running siblings keep their state for the
+// reconciler to cancel and observe, even after a server restart.
+func (s *Store) BeginWorkflowRunDrain(ctx context.Context, in coreworkflow.BeginRunDrainInput) (bool, error) {
+	if in.RunStatus != coreworkflow.RunStatusFailing && in.RunStatus != coreworkflow.RunStatusCanceling {
+		return false, coreworkflow.ErrInvalidRunTransition
+	}
 	if !coreworkflow.ValidNodeRunTransition(in.NodeExpected, in.NodeStatus) {
 		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidNodeRunTransition, in.NodeExpected, in.NodeStatus)
 	}
@@ -967,7 +966,20 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 	}
 	stepApplied := false
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var run workflowRunRow
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("public_id = ?", runID).Take(&run).Error; err != nil {
+			return err
+		}
+		if run.Status != string(in.RunExpected) {
+			return nil
+		}
 		stepUpdates := map[string]interface{}{"status": string(in.NodeStatus)}
+		if in.Output != nil {
+			stepUpdates["output"] = *in.Output
+		}
+		if in.Structured != nil {
+			stepUpdates["structured"] = *in.Structured
+		}
 		if in.TaskRunID != nil && *in.TaskRunID != "" {
 			key, err := lookupKey(ctx, tx, "task_run", *in.TaskRunID)
 			if err != nil {
@@ -985,7 +997,7 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 			stepUpdates["ended_at"] = *in.EndedAt
 		}
 		res := tx.Model(&workflowNodeRunRow{}).
-			Where("public_id = ? AND status = ?", stepID, string(in.NodeExpected)).
+			Where("public_id = ? AND workflow_run_id = ? AND status = ?", stepID, run.ID, string(in.NodeExpected)).
 			Updates(stepUpdates)
 		if res.Error != nil {
 			return res.Error
@@ -999,7 +1011,7 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 		if err != nil {
 			return err
 		}
-		// Block every node still pending -- fail-fast terminates the run, so nothing
+		// Block every node still pending -- fail-fast stops admission, so nothing
 		// else may start. The status filter makes this a guarded bulk
 		// pending -> blocked, which is a valid transition.
 		if err := tx.Model(&workflowNodeRunRow{}).
@@ -1008,21 +1020,9 @@ func (s *Store) FinalizeFailedWorkflowRun(ctx context.Context, in coreworkflow.F
 			Update("status", string(coreworkflow.NodeRunStatusBlocked)).Error; err != nil {
 			return err
 		}
-		// Cancel every sibling still running: with concurrent dispatch other nodes
-		// may be in flight when one fails, and the run is ending, so they are
-		// canceled (not failed -- they did not fault) rather than left running under
-		// a terminal run. Their worker Tasks are not stopped here; a late terminal
-		// callback folds into an already-canceled node and is ignored.
-		if err := tx.Model(&workflowNodeRunRow{}).
-			Where("workflow_run_id = ? AND status = ? AND public_id <> ?",
-				runKey, string(coreworkflow.NodeRunStatusRunning), stepID).
-			Updates(map[string]interface{}{"status": string(coreworkflow.NodeRunStatusCanceled), "ended_at": in.EndedAt}).Error; err != nil {
-			return err
-		}
-
-		// The run always goes terminal here, so runStatusUpdates also clears its
-		// reconciliation lease and schedule.
-		runUpdates := runStatusUpdates(in.RunStatus, nil, in.EndedAt, in.ErrorMessage, nil)
+		// Running siblings keep their actual state until the Task plane confirms
+		// termination. The non-terminal run stays discoverable after a crash.
+		runUpdates := runStatusUpdates(in.RunStatus, nil, nil, in.ErrorMessage, nil)
 		return tx.Model(&workflowRunRow{}).
 			Where("public_id = ? AND status = ?", runID, string(in.RunExpected)).
 			Updates(runUpdates).Error

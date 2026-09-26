@@ -329,6 +329,9 @@ func (s *Store) AdmitTask(ctx context.Context, in *coretask.CreateInput) (*coret
 	if in.AdmissionKey == "" {
 		return nil, errors.New("AdmitTask requires an admission key")
 	}
+	if in.WorkflowNodeRunID != "" {
+		return s.admitWorkflowNodeTask(ctx, in)
+	}
 	fingerprint := coretask.AdmissionFingerprint(in)
 	// Already admitted: return it (or a conflict) without attempting a second
 	// insert that the unique index would reject anyway.

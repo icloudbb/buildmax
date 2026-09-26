@@ -4,10 +4,12 @@ import "testing"
 
 func TestValidRunStatusTransition(t *testing.T) {
 	allowed := map[RunStatus][]RunStatus{
-		RunStatusPending: {RunStatusRunning, RunStatusFailed, RunStatusCanceled},
-		RunStatusRunning: {RunStatusSucceeded, RunStatusFailed, RunStatusCanceled},
+		RunStatusPending:   {RunStatusRunning, RunStatusFailed, RunStatusCanceled},
+		RunStatusRunning:   {RunStatusSucceeded, RunStatusFailed, RunStatusCanceled, RunStatusFailing, RunStatusCanceling},
+		RunStatusFailing:   {RunStatusFailed},
+		RunStatusCanceling: {RunStatusCanceled},
 	}
-	all := []RunStatus{RunStatusPending, RunStatusRunning, RunStatusSucceeded, RunStatusFailed, RunStatusCanceled}
+	all := []RunStatus{RunStatusPending, RunStatusRunning, RunStatusFailing, RunStatusCanceling, RunStatusSucceeded, RunStatusFailed, RunStatusCanceled}
 	for _, from := range all {
 		ok := make(map[RunStatus]bool)
 		for _, to := range allowed[from] {
@@ -56,7 +58,7 @@ func TestValidNodeRunTransition(t *testing.T) {
 }
 
 func TestStatusTerminal(t *testing.T) {
-	if RunStatusTerminal(RunStatusPending) || RunStatusTerminal(RunStatusRunning) {
+	if RunStatusTerminal(RunStatusPending) || RunStatusTerminal(RunStatusRunning) || RunStatusTerminal(RunStatusFailing) || RunStatusTerminal(RunStatusCanceling) {
 		t.Error("pending/running runs are not terminal")
 	}
 	for _, s := range []RunStatus{RunStatusSucceeded, RunStatusFailed, RunStatusCanceled} {

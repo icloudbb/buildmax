@@ -91,6 +91,8 @@ const (
 const (
 	// CancelReasonUserRequested is a person stopping the run.
 	CancelReasonUserRequested = "user_requested"
+	// CancelReasonWorkflowStopped is a sibling failure or cancellation stopping the graph.
+	CancelReasonWorkflowStopped = "workflow_stopped"
 	// CancelReasonCreatorDisabled is the run's initiating account being disabled.
 	CancelReasonCreatorDisabled = "creator_disabled"
 	// CancelReasonCreatorNotMember is the initiator being removed from the Space.
@@ -312,6 +314,9 @@ type CreateInput struct {
 	// first call's task instead of a duplicate. See AdmitTask and
 	// docs/design/workflow-runtime.md §11.
 	AdmissionKey string
+	// WorkflowNodeRunID makes admission and node linkage atomic with Workflow
+	// stop intent. Empty for admission callers outside the Workflow runtime.
+	WorkflowNodeRunID string
 	// OutputSchema is a JSON Schema (shared subset) the task's runs must satisfy
 	// as their final answer, or nil for free text. See
 	// docs/design/structured-output.md.

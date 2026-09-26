@@ -88,6 +88,14 @@ also assign the workflow to an issue so it runs as that issue's work — see
 Like agents, workflows keep a numbered history, and a run records the workflow
 version it expanded so the record of a past run stays accurate.
 
+If a step fails, the run shows **Stopping after failure** while its other active
+steps are asked to stop. Canceling a step's Task similarly stops the workflow
+through **Canceling**. Pending steps are blocked and never start. The run only
+becomes **Failed** or **Canceled** after every admitted TaskRun is terminal;
+partial output remains available on the step and its Task. The detail view
+continues refreshing during this wait. Server restarts resume the same drain,
+and a worker that disappears is handled by the normal TaskRun recovery policy.
+
 ## Schedule an agent
 
 An agent can run on a timetable with nobody pressing Run. Open the agent's
