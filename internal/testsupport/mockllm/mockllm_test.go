@@ -117,6 +117,9 @@ func TestEveryProtocolReplaysTheScenario(t *testing.T) {
 			if calls[0].Protocol != protocol {
 				t.Fatalf("recorded protocol = %q, want %q", calls[0].Protocol, protocol)
 			}
+			if calls[0].Credential != "mock-key" {
+				t.Fatalf("recorded credential = %q, want the client's key", calls[0].Credential)
+			}
 			// The second request has to carry the result the tool produced, or
 			// the run under test never closed the loop.
 			if !strings.Contains(string(calls[1].Body), "wrote notes.txt") {

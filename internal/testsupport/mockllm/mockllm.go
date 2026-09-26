@@ -105,6 +105,10 @@ type Request struct {
 	Protocol string
 	Stream   bool
 	Body     []byte
+	// Credential is the key the caller presented, from whichever header its
+	// protocol uses. It is what lets a suite prove which key a rotated model
+	// credential actually sent upstream.
+	Credential string
 }
 
 // Handler replays a scenario over HTTP.
@@ -174,7 +178,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stream := requestsStream(body)
-	step, index, ok := h.take(Request{Protocol: protocol, Stream: stream, Body: body})
+	step, index, ok := h.take(Request{Protocol: protocol, Stream: stream, Body: body, Credential: credentialOf(r)})
 	if !ok {
 		// Repeating the last step here would turn "the run called the model
 		// more times than the scenario describes" into a passing test. The
@@ -211,6 +215,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case ProtocolAnthropic:
 		writeAnthropic(w, step, modelOf(body), stream)
 	}
+}
+
+// credentialOf reads the key a model call carried: a bearer token for the
+// OpenAI protocols, x-api-key for Anthropic.
+func credentialOf(r *http.Request) string {
+	if key := r.Header.Get("x-api-key"); key != "" {
+		return key
+	}
+	return strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 }
 
 // serveControlStall arms or clears the stall every later reply waits out.
