@@ -258,10 +258,17 @@ func TestInteractionConfinedToAdmittedOriginReal(t *testing.T) {
 		case "/clicked":
 			plantedClicked.Store(true)
 		default:
+			// Only the redirect target reports ready. The link case's landing page
+			// is served here too, and its report could arrive after the redirect
+			// case started waiting, letting the test click before the redirect.
+			ready := ""
+			if r.URL.Path == "/planted" {
+				ready = `<script>fetch('/ready')</script>`
+			}
 			w.Header().Set("Content-Type", "text/html")
 			_, _ = w.Write([]byte(`<!doctype html><html><body>
 				<button data-bm-ref="e1" onclick="fetch('/clicked')">planted</button>
-				<script>fetch('/ready')</script>
+				` + ready + `
 			</body></html>`))
 		}
 	}))
@@ -304,12 +311,7 @@ func TestInteractionConfinedToAdmittedOriginReal(t *testing.T) {
 		t.Errorf("click on the unapproved origin = %v, want an origin refusal", err)
 	}
 
-	// A self-redirect after the snapshot is caught by the driver's guard. The
-	// landing page above also reported ready; start from a clean signal.
-	select {
-	case <-plantedReady:
-	default:
-	}
+	// A self-redirect after the snapshot is caught by the driver's guard.
 	if _, err := ctrl.Navigate(ctx, "redirect", srv.URL+"/redirects"); err != nil {
 		t.Fatalf("navigate: %v", err)
 	}
