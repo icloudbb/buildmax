@@ -154,6 +154,19 @@ HTTPS dependencies; it never uses `skip-verify`. Kubernetes receives the
 database, Spaces, and generated JWT credentials through a Secret assembled in
 memory. The rendered Secret is not written to the checkout.
 
+The first `deploy` also generates the deployment key-encryption key (KEK) as
+`kek.json` in the state directory and every deploy ships that same file as the
+`buildmax-kek` Secret, mounted read-only with mode `0400` into the server pod
+only at `/etc/buildmax/kek/kek.json`, outside `BUILDMAX_HOME`, and named by
+`secret.kek_file`. The server seals the model credential that `model init` adds
+under it, so `model init` needs a deployment that already has it: after
+upgrading from a deploy that predates the KEK, run `deploy` again first. The key
+is never regenerated. If `kek.json` is missing while the cluster still holds the
+`buildmax-kek` Secret, `deploy` refuses rather than replacing the key; restore
+the file from your backup. See
+[the KEK reference](../reference/configuration.md#the-deployment-key-encryption-key)
+for the file format.
+
 The command ends by printing the DigitalOcean Load Balancer IP. Add the record
 manually in Route 53:
 
@@ -213,6 +226,12 @@ Treat that directory as a credential:
 - back it up securely while the managed resources exist
 - do not delete it before `./make ocean down`
 - rotate database credentials and Kubernetes access if it is disclosed
+
+The directory also holds `kek.json`, the key that seals the model credentials
+and Space Secrets in the managed database. Back it up apart from any database
+backup: a backup holding both protects nothing, and a database restored without
+its KEK has unreadable credentials that no BuildMax command can recover. `ocean
+down` keeps the file, so the next deploy reuses it.
 
 `.local/env` also remains local and gitignored. OpenTofu reads its credentials
 through the environment populated by `./make`; no credential is written into the

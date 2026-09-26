@@ -131,6 +131,44 @@ allows and why, and
 for how this fits the rest of the sandbox effort. A worker pod refuses to
 start on any node the `DaemonSet` has not yet reached.
 
+### Key-encryption key
+
+The server seals managed-model provider credentials and Space Secrets in the
+database under a deployment key-encryption key (KEK). The manifest sets
+`secret.kek_file: /etc/buildmax/kek/kek.json` and mounts it from the
+`buildmax-kek` Secret into server pods only: read-only, outside
+`BUILDMAX_HOME`, with `defaultMode: 0400`. The server runs as non-root, and the
+pod's `fsGroup: 65532` is what lets it read the file — the kubelet adds group
+read, so it is `0440` owned by `root:65532`. Keep `fsGroup` equal to the
+server's group if you change the pod's `securityContext`, or the server cannot
+read its key. Without a KEK, `buildmax-server model add
+--api-key` is refused rather than storing the key in the clear, and Space
+Secrets are off.
+
+Generate the key file once and create the Secret before applying the manifest:
+
+```sh
+printf '{"current":"file:root:1","keys":{"file:root:1":"%s"}}\n' \
+  "$(openssl rand -base64 32)" > kek.json
+kubectl create secret generic buildmax-kek -n buildmax \
+  --from-file=kek.json=kek.json
+```
+
+The file maps each key id to base64-encoded 32-byte key material and names the
+`current` one new writes use; the format is in the
+[configuration reference](../../docs/reference/configuration.md#the-deployment-key-encryption-key).
+The Secret is deliberately not a document in `buildmax.yaml`: re-applying a
+placeholder over the real key would lose it. The volume is not optional, so a
+server pod does not start until the Secret exists, and a server whose key file
+does not load refuses to start.
+
+Back the key file up, and keep that backup apart from the database dump. A
+backup holding both the dump and the key protects nothing, and losing the key
+makes every sealed credential and Space Secret permanently unreadable — no
+BuildMax command can recover them. Never regenerate the file or change the bytes
+under an existing key id: the stored values stop decrypting, which breaks every
+model and Secret that uses one.
+
 ### Model access
 
 The reference points `conversation.model` at an OpenAI-compatible endpoint. A
@@ -186,7 +224,8 @@ Stated rather than left to be discovered:
   [`docs/design/trust-harness.md`](../../docs/design/trust-harness.md) §3.9 for
   the evidence that would reopen it.
 - **Backups.** Database and bucket backups are yours. BuildMax has no export or
-  import command.
+  import command. A database restore is only readable with the KEK it was
+  sealed under, which you back up separately (see "Key-encryption key" above).
 - **Horizontal scaling of workers.** Worker Jobs are created per task run and
   bounded by their own resource settings, not by a replica count. Cluster
   capacity is what limits concurrency.

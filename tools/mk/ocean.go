@@ -381,6 +381,7 @@ func protectOceanFiles(cfg oceanConfig) error {
 		oceanStatePath(cfg) + ".backup",
 		oceanKubeconfigPath(cfg),
 		oceanModelTargetPath(cfg),
+		oceanKEKStatePath(cfg),
 		oceanDatabaseCAPath(cfg),
 		oceanPlanPath(cfg, false),
 		oceanPlanPath(cfg, true),

@@ -97,7 +97,7 @@ worker_api:
 # `./make kind up` generates (tools/mk/kind.go). It also seals catalog model
 # credentials, so without it a seeded model cannot be called in managed mode.
 secret:
-  kek_file: /buildmax/kek/kek.json
+  kek_file: /etc/buildmax/kek/kek.json
 
 storage:
   persist_backend: minio

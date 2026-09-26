@@ -585,6 +585,10 @@ storage:
     secret_key: minio123
     bucket: bmstore
     prefix: workspaces
+
+secret:
+  kek_file: ""                       # 挂载的密钥加密密钥文件；为空 =
+                                     # 不支持带凭据的模型和 Space Secret
 ```
 
 一个可运行的 server 必须具备：`jwt_secret`（或 `BUILDMAX_JWT_SECRET`）和 `database`。其余一切都有适用于本地开发的可用默认值。Worker 本身不需要任何凭据——`jwt_secret` 正是用来签发 server 在分发时交给它的 run token 的。
@@ -623,6 +627,27 @@ Server 对外暴露两个 HTTP 监听端口。`port` 上的公开端口服务于
 `audit.retention_days` 使审计轨迹中的事件过期。默认值为 **0**，即保留全部记录：尚未选定保留策略的部署，就等于尚未决定要丢弃证据。设置该值后会启动一次每小时的清扫，移除超出窗口期的旧事件，每一次实际移除了内容的清扫都会写入一条 `audit.pruned` 事件，记录被移除的范围和数量——这样一来，一份从中途开始的记录就能说明是策略缩短了它，而不是让读者去猜测。除此之外，BuildMax 中没有其他任何地方会删除 audit 事件，也没有办法单独删除某一条。
 
 Space 所有者可以从 space 设置中下载该 space 自己的审计轨迹，而 System Administrator 可以从 `#/admin` 下载整个部署范围内的审计轨迹并加以筛选。两者都可以导出为 CSV 或 JSONL，且这两种操作本身都会被记录在审计轨迹中，记为 `audit.exported`——阅读整份记录本身也是对它的一次操作。
+
+### 部署密钥加密密钥
+
+`secret.kek_file` 是保存部署密钥加密密钥（KEK）的密钥文件路径。Server 在把受管模型的提供商凭据和 Space Secret 写入数据库之前，会用它加以封存。配置中只有路径：密钥本身从不从 `server.yaml` 或环境变量读取，因此部署需要以只读、仅所有者可读的方式挂载该文件，并放在 `BUILDMAX_HOME` 之外。Kubernetes 清单会把它从 `buildmax-kek` Secret 只挂载进 server pod 的 `/etc/buildmax/kek/kek.json`，并设置 `defaultMode: 0400`。Server 以非 root 用户运行，因此是 pod 的 `fsGroup` 让它能读取该文件：kubelet 会加上组读权限，文件最终为 `0440`，属主为 `root`、属组为 server 的组，pod 中其他身份都无法读取。Worker pod 永远拿不到它。
+
+留空会关闭这两项功能：`buildmax-server model add --api-key`（以及其他任何带凭据的模型创建）会被拒绝，而不是以明文存储密钥；Space Secret 路由则返回 `503`。`buildmax-server model` 命令读取同一设置，因此要在挂载了该文件的位置运行。
+
+该文件为 JSON：`keys` 把每个 key id 映射到 base64 编码的 32 字节密钥材料，`current` 指明新写入使用的那把密钥。每个封存的值都记录了封存时使用的 key id，因此文件可以包含多把密钥。
+
+```json
+{"current": "file:root:1", "keys": {"file:root:1": "<base64 of 32 random bytes>"}}
+```
+
+生成方式：
+
+```sh
+printf '{"current":"file:root:1","keys":{"file:root:1":"%s"}}\n' \
+  "$(openssl rand -base64 32)" > kek.json
+```
+
+配置的文件缺失或格式错误时，server 会拒绝启动，并且绝不会生成替代密钥。请将该文件与数据库转储分开备份——同时包含两者的备份等于没有保护——也绝不要重新生成它或更改某个已有 key id 下的字节：丢失密钥会使其封存的每个值永久无法读取。`./make kind up` 会为开发集群生成一次性密钥；[生产参考](../../../deployment/production/README.md)和 [DigitalOcean 试用](../deploy/digitalocean.md)分别说明各自的做法。设计：[Space 密钥](../design/Space密钥.md)。
 
 ### 对接你已经在运行的依赖
 

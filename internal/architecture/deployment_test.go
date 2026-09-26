@@ -9,6 +9,7 @@ package architecture_test
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -321,11 +322,156 @@ func TestProductionReferenceLoads(t *testing.T) {
 	if cfg.WorkerAPI.TLS.CertFile == "" || cfg.WorkerAPI.TLS.KeyFile == "" {
 		t.Error("worker_api.tls has no certificate; the production worker listener must serve TLS")
 	}
+	// Without a KEK a credentialed model cannot be added, and a key file named
+	// but not mounted fails startup.
+	if cfg.Secret.KEKFile == "" {
+		t.Error("secret.kek_file is empty; the reference must configure the deployment KEK")
+	} else {
+		assertKEKMount(t, filepath.Join(root, "deployment", "production", "buildmax.yaml"), cfg.Secret.KEKFile)
+	}
 	// A worker pod runs model-chosen shell commands. The reference is what an
 	// operator copies, so an unbounded worker here becomes an unbounded worker
 	// in every deployment adapted from it.
 	assertWorkerBoundsHold(t, cfg)
 	assertListenersValid(t, cfg)
+}
+
+// TestKindMountsTheKEKWhereSmokeConfigsPointIt keeps the kind manifest's KEK
+// mount in step with the smoke configs that turn the feature on.
+func TestKindMountsTheKEKWhereSmokeConfigsPointIt(t *testing.T) {
+	root := repoRoot(t)
+	for _, file := range []string{"server.kind.yaml", "server.kind.managed.yaml"} {
+		t.Run(file, func(t *testing.T) {
+			body, err := os.ReadFile(filepath.Join(root, "deployment", "smoke", file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var cfg struct {
+				Secret struct {
+					KEKFile string `yaml:"kek_file"`
+				} `yaml:"secret"`
+			}
+			if err := yaml.Unmarshal(body, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Secret.KEKFile == "" {
+				t.Fatal("secret.kek_file is empty; kind exercises the Secrets feature")
+			}
+			assertKEKMount(t, filepath.Join(root, "deployment", "buildmax-deploy.yaml"), cfg.Secret.KEKFile)
+		})
+	}
+}
+
+// assertKEKMount checks the buildmax-server Deployment in the manifest at
+// manifestPath mounts the buildmax-kek Secret as docs/design/space-secrets.md
+// §9.1 decides: read-only, mode 0400, at the directory holding kekFile, and
+// nowhere under BUILDMAX_HOME. 0400 is readable by the non-root server only
+// because the pod's fsGroup makes the kubelet add group read, so the pod must
+// set fsGroup to the server's own group.
+func assertKEKMount(t *testing.T, manifestPath, kekFile string) {
+	t.Helper()
+	body, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", manifestPath, err)
+	}
+	dec := yaml.NewDecoder(strings.NewReader(string(body)))
+	for {
+		var doc struct {
+			Kind     string `yaml:"kind"`
+			Metadata struct {
+				Name string `yaml:"name"`
+			} `yaml:"metadata"`
+			Spec struct {
+				Template struct {
+					Spec struct {
+						SecurityContext struct {
+							RunAsGroup *int64 `yaml:"runAsGroup"`
+							FSGroup    *int64 `yaml:"fsGroup"`
+						} `yaml:"securityContext"`
+						Containers []struct {
+							Name string `yaml:"name"`
+							Env  []struct {
+								Name  string `yaml:"name"`
+								Value string `yaml:"value"`
+							} `yaml:"env"`
+							VolumeMounts []struct {
+								Name      string `yaml:"name"`
+								MountPath string `yaml:"mountPath"`
+								ReadOnly  bool   `yaml:"readOnly"`
+							} `yaml:"volumeMounts"`
+						} `yaml:"containers"`
+						Volumes []struct {
+							Name   string `yaml:"name"`
+							Secret *struct {
+								SecretName  string `yaml:"secretName"`
+								DefaultMode *int   `yaml:"defaultMode"`
+							} `yaml:"secret"`
+						} `yaml:"volumes"`
+					} `yaml:"spec"`
+				} `yaml:"template"`
+			} `yaml:"spec"`
+		}
+		if err := dec.Decode(&doc); err != nil {
+			break
+		}
+		if doc.Kind != "Deployment" || doc.Metadata.Name != "buildmax-server" {
+			continue
+		}
+		pod := doc.Spec.Template.Spec
+		volume := ""
+		for _, v := range pod.Volumes {
+			if v.Secret == nil || v.Secret.SecretName != "buildmax-kek" {
+				continue
+			}
+			volume = v.Name
+			if v.Secret.DefaultMode == nil || *v.Secret.DefaultMode != 0o400 {
+				t.Errorf("%s: the buildmax-kek volume must set defaultMode: 0400", manifestPath)
+			}
+		}
+		if volume == "" {
+			t.Fatalf("%s: buildmax-server mounts no buildmax-kek Secret", manifestPath)
+		}
+		sc := pod.SecurityContext
+		if sc.FSGroup == nil || sc.RunAsGroup == nil || *sc.FSGroup != *sc.RunAsGroup {
+			t.Errorf("%s: fsGroup must equal runAsGroup, or the server cannot read its 0400 KEK", manifestPath)
+		}
+		for _, c := range pod.Containers {
+			if c.Name != "server" {
+				continue
+			}
+			home := ""
+			for _, e := range c.Env {
+				if e.Name == config.EnvKeyBuildmaxHome {
+					home = e.Value
+				}
+			}
+			if home == "" {
+				t.Errorf("%s: the server container sets no %s", manifestPath, config.EnvKeyBuildmaxHome)
+			}
+			mounted := false
+			for _, m := range c.VolumeMounts {
+				if m.Name != volume {
+					continue
+				}
+				mounted = true
+				if m.MountPath != path.Dir(kekFile) {
+					t.Errorf("%s: KEK mounted at %s, but secret.kek_file is %s", manifestPath, m.MountPath, kekFile)
+				}
+				if !m.ReadOnly {
+					t.Errorf("%s: the KEK mount must be readOnly", manifestPath)
+				}
+				if home != "" && (m.MountPath == home || strings.HasPrefix(m.MountPath, strings.TrimSuffix(home, "/")+"/")) {
+					t.Errorf("%s: KEK mounted at %s, under BUILDMAX_HOME %s", manifestPath, m.MountPath, home)
+				}
+			}
+			if !mounted {
+				t.Errorf("%s: the server container does not mount the KEK volume", manifestPath)
+			}
+			return
+		}
+		t.Fatalf("%s: buildmax-server has no server container", manifestPath)
+	}
+	t.Fatalf("no buildmax-server Deployment found in %s", manifestPath)
 }
 
 // deploymentReplicas returns spec.replicas for the named Deployment in the
