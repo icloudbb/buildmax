@@ -37,7 +37,14 @@ BuildMax 遵循语义化版本。alpha 阶段使用 `v0.2.0-alpha.1` 这样的�
 
    正文使用 `.github/release-notes.tmpl` 并填入本版本章节：亮点和升级说明位于安装步骤上方，分类列表在下方。标签在 `CHANGELOG.md` 中没有对应章节时，发布失败。
 3. 检查 [SECURITY.md](../../../SECURITY.md)、安装说明、已知限制和配置示例是否需要本版本相关更新。
-4. 运行本地验证命令：
+4. 指明候选版本的升级来源：最新已发布的标签，即部署实际从其升级的版本。`internal/infra/db/testdata/schema/` 只保存一个以该来源命名的转储；若它仍是更早的标签，刷新它：
+
+   ```bash
+   ./make release upgrade-fixture 0.2.0-alpha.15
+   ```
+
+   该命令需要 Docker。它以该标签的 server 镜像连接一个专用 MySQL 容器，通过该标签自身的 API 写入固定数据集，并用该版本的 schema、数据行和迁移台账替换原有转储。将转储提交到 `release/next`，或先合入 `main`。CI 的 MySQL 作业随后用候选版本的 `db.New` 升级它，并断言每个写入的实体都得以保留。若 API 变化导致写入失败，按来源版本的 API 更新 `tools/mk/upgrade_fixture.go`。
+5. 运行本地验证命令：
 
    ```bash
    ./make test

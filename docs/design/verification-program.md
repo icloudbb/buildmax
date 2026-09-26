@@ -198,6 +198,22 @@ conditional UPDATE on a row that exists yet. The removed Tier 1
 result-delivery queue has no remaining persistence obligation; its former tests
 are historical context rather than a case to recreate.
 
+The upgrade path runs against a real predecessor's database, not only against
+simulated old columns. `internal/infra/db/testdata/schema/<tag>.sql` holds what
+the declared upgrade source's server image left in MySQL. That dump includes
+the schema, the migration ledger, and a fixed dataset seeded through the source
+release's API: an Issue with an owner and an agent executor, a comment, a
+published Workflow and its run, a fired schedule and one that has not fired, the
+fired schedule's Task, and an Artifact. `./make release upgrade-fixture <tag>`
+produces the dump, and the release process refreshes it for each candidate.
+`TestUpgradeFromPredecessorSchema` loads it into a database of its own and
+runs the candidate's `db.New`. It then asserts the following through the store:
+every seeded entity survives, the ledger holds every current migration ID, the
+upgraded schema accepts new writes, and a second start is a no-op. The first
+source, 0.2.0-alpha.14, exercises `schedule_agent_to_executor`. The test was
+mutation-checked: skipping that migration's `last_fire_ref` backfill or its
+`agent_id` drop fails the test.
+
 Each of those four was checked by mutation rather than assumed: removing the
 locking clause or replacing the conditional UPDATE with a read-then-write
 makes the corresponding test fail. That step is the point. The first attempt
@@ -210,13 +226,10 @@ evidence.
 Still to write:
 
 - restart recovery cases for durable Task/TaskRun/checkpoint state;
-- migration fixtures for the declared starting schema. Of the five explicit
-  migrations, the `issue_owner_executor_split` and `schedule_agent_to_executor`
-  backfills have MySQL tests, and so does the refusal to start a binary against
-  a database recording a migration it does not know. None of these upgrades a
-  real predecessor schema. Binary rollback is not supported; test the declared
-  upgrade path and paired-restore recovery, as required by the Beta readiness
-  record;
+- the release-time upgrade drill in Compose. That drill runs the predecessor
+  binary against real data, swaps in the candidate, and shows the old binary
+  refusing the upgraded database. Paired-restore recovery also remains, as the
+  Beta readiness record requires. Binary rollback is not supported;
 - Agent revision authority through the Workflow reconciler (R2): that a step
   sends the pinned Agent revision even when the live Agent is edited mid-run.
   The linear reconciler itself, idempotent step admission, lost/concurrent

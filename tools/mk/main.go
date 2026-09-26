@@ -216,6 +216,8 @@ func cmdRelease(args []string) error {
 		return cmdNotices(rest)
 	case "licenses":
 		return cmdNPMLicenses(rest)
+	case "upgrade-fixture":
+		return cmdReleaseUpgradeFixture(rest)
 	default:
 		return usageErrorf("release", "unknown release action: %s", subcommand)
 	}
