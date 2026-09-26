@@ -200,6 +200,8 @@ internal/
 │   │                   schedule、在途 run——并计算停用影响投影
 │   ├── spacerecovery/  仅限"owner 全部停用"时的所有权恢复:把一名已启用成员提升
 │   │                   为 owner
+│   ├── storagecheck/   只读地证明每一条指向存储对象的记录仍能解析到该对象，
+│   │                   即 `storage verify` 背后的检查
 │   ├── identity/       什么能证明调用者是谁：验证一个凭证并开启它
 │   │                   换来的 session
 │   ├── issue/          Issue service

@@ -128,3 +128,16 @@ type FinalizeCheckpointInput struct {
 	UncompressedBytes int64
 	EntryCount        int64
 }
+
+// CheckpointPayloadRef is one checkpoint row's claim on its payload object, as
+// the storage reference check reads it. Unlike WorkspaceCheckpoint it carries
+// the storage key, so it stays inside the server process: the check compares
+// the key against the one the store derives, because the orphan sweep keeps
+// only blobs whose key a row records.
+type CheckpointPayloadRef struct {
+	CheckpointID  string
+	SpaceID       string
+	StorageKey    string
+	PayloadSHA256 string
+	SizeBytes     int64
+}
