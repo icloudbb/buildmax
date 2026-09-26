@@ -5,7 +5,7 @@ roadmap: R2
 source: docs/design/verification-program.md
 depends_on: [14-kek-in-deployments.md, 18-storage-reference-check.md]
 verification: [kind]
-claim:
+claim: gougoujiang 2026-09-26
 pr:
 ---
 
