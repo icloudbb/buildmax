@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/icloudbb/buildmax/internal/interface/client"
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 )
 
 func newAgentCommand() *cobra.Command {
@@ -58,7 +58,7 @@ func runAgentTrigger(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	space, _ := cmd.Flags().GetString("space")
-	c := client.NewClient(serverURL)
+	c := auth.ServerClient(serverURL)
 	agent, err := c.FindAgent(cmd.Context(), token, space, args[0])
 	if err != nil {
 		return err

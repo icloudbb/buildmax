@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 
 	"github.com/icloudbb/buildmax/internal/agentapp/job"
@@ -15,6 +16,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/localproject"
 	"github.com/icloudbb/buildmax/internal/infra/browser"
 	"github.com/icloudbb/buildmax/internal/infra/hook"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
 	"github.com/icloudbb/buildmax/internal/infra/runrelay"
 	"github.com/icloudbb/buildmax/internal/util/secretscan"
 )
@@ -179,7 +181,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		managedServerURL:  cfg.ManagedServerURL,
 		managedToken:      cfg.ManagedToken,
 		managedTaskRunID:  cfg.ManagedTaskRunID,
-		managedHTTPClient: cfg.ManagedHTTPClient,
+		managedHTTPClient: renewingManagedClient(cfg.ManagedHTTPClient, cfg.ManagedServerURL, cfg.ManagedTokenRenew),
 		surface:           cfg.Surface,
 		clients:           make(map[string]cllm.LLMClient),
 	}
@@ -193,9 +195,14 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 			name = host
 		}
 		serverURL := cfg.ManagedServerURL
+		var renew runrelay.RenewFunc
+		if cfg.ManagedTokenRenew != nil {
+			renew = func(rejected string) (string, error) { return cfg.ManagedTokenRenew(serverURL, rejected) }
+		}
 		app.remoteRelay = runrelay.New(runrelay.Config{
 			ServerURL:   serverURL,
 			TokenFunc:   func() (string, error) { return cfg.ManagedToken(serverURL) },
+			RenewToken:  renew,
 			HTTPClient:  cfg.ManagedHTTPClient,
 			DisplayName: name,
 			Platform:    cfg.Surface,
@@ -289,4 +296,22 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	}
 	complete = true
 	return app, nil
+}
+
+// renewingManagedClient returns base with managed calls the server refuses
+// with 401 retried once under a renewed credential, or base unchanged when the
+// credential cannot be renewed. The retry happens before any response body is
+// read, so a streamed completion never replays output the caller has seen.
+func renewingManagedClient(base *http.Client, serverURL string, renew ManagedTokenRenewFunc) *http.Client {
+	if renew == nil || serverURL == "" {
+		return base
+	}
+	c := &http.Client{}
+	if base != nil {
+		*c = *base
+	}
+	c.Transport = httpclient.RenewOnUnauthorized(c.Transport, func(rejected string) (string, error) {
+		return renew(serverURL, rejected)
+	})
+	return c
 }

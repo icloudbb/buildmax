@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/icloudbb/buildmax/internal/interface/auth"
 	"github.com/icloudbb/buildmax/internal/interface/client"
 )
 
@@ -111,7 +112,7 @@ func runAdminModelList(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	models, defaultModel, err := client.NewClient(serverURL).ListModels(cmd.Context(), token)
+	models, defaultModel, err := auth.ServerClient(serverURL).ListModels(cmd.Context(), token)
 	if err != nil {
 		return err
 	}
@@ -172,7 +173,7 @@ func runAdminModelAdd(cmd *cobra.Command, _ []string) error {
 		Vision:          vision,
 		Capabilities:    capabilities,
 	}
-	created, err := client.NewClient(serverURL).CreateModel(cmd.Context(), token, in)
+	created, err := auth.ServerClient(serverURL).CreateModel(cmd.Context(), token, in)
 	if err != nil {
 		return err
 	}
@@ -185,7 +186,7 @@ func runAdminModelSetEnabled(cmd *cobra.Command, modelID string, enabled bool) e
 	if err != nil {
 		return err
 	}
-	updated, err := client.NewClient(serverURL).SetModelEnabled(cmd.Context(), token, modelID, enabled)
+	updated, err := auth.ServerClient(serverURL).SetModelEnabled(cmd.Context(), token, modelID, enabled)
 	if err != nil {
 		return err
 	}
@@ -206,7 +207,7 @@ func runAdminModelSetKey(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	updated, err := client.NewClient(serverURL).ReplaceModelCredential(cmd.Context(), token, args[0], key)
+	updated, err := auth.ServerClient(serverURL).ReplaceModelCredential(cmd.Context(), token, args[0], key)
 	if err != nil {
 		return err
 	}

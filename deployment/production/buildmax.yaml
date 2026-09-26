@@ -162,8 +162,12 @@ metadata:
   namespace: buildmax
 type: Opaque
 stringData:
-  # Signs user JWTs. Generate with: openssl rand -base64 32
-  # Rotating it invalidates every session, which is the intended effect.
+  # Signs user access tokens and worker run tokens. Generate with:
+  # openssl rand -base64 32
+  # Rotating it invalidates every access and run token immediately. Refresh
+  # tokens survive, so signed-in clients recover without a new login; runs in
+  # flight are lost unless the workers are drained first. It does not sign
+  # anyone out — revoke sessions for that. See docs/deploy/authentication.md.
   BUILDMAX_JWT_SECRET: REPLACE_ME
   BUILDMAX_DATABASE_PASSWORD: REPLACE_ME
   BUILDMAX_CONVERSATION_MODEL_API_KEY: REPLACE_ME

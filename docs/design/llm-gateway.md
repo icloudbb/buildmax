@@ -507,8 +507,9 @@ run, minted when the run is dispatched. See
 removed from every worker route, so a run token is the only credential a worker
 holds.
 
-The user access token defaults to seven days, which is acceptable for early
-trusted-deployment experiments but not a complete managed-client lifecycle.
+The user access token then defaulted to seven days (it is now 15 minutes),
+which was acceptable for early trusted-deployment experiments but not a complete
+managed-client lifecycle.
 Refresh has since shipped, so a login outlives one access token and a session
 can be revoked. What is still missing before the feature is described as
 production-ready is native secret storage, an absolute session lifetime, and an

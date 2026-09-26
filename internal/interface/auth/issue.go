@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
-	"github.com/icloudbb/buildmax/internal/interface/client"
 )
 
 // IssueSession is one local session's link to one space Issue.
@@ -42,7 +41,7 @@ func OpenIssueSession(ctx context.Context, issueID string) (*IssueSession, error
 	if err != nil {
 		return nil, fmt.Errorf("authenticate to %s: %w", info.ServerURL, err)
 	}
-	space, issue, err := client.NewClient(info.ServerURL).FindIssue(ctx, token, issueID)
+	space, issue, err := ServerClient(info.ServerURL).FindIssue(ctx, token, issueID)
 	if err != nil {
 		return nil, err
 	}

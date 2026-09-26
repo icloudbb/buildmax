@@ -98,7 +98,7 @@ func runIssueComment(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	c := client.NewClient(serverURL)
+	c := auth.ServerClient(serverURL)
 	space, issue, err := c.FindIssue(cmd.Context(), token, args[0])
 	if err != nil {
 		return err
@@ -166,7 +166,7 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("authenticate to %s: %w", info.ServerURL, err)
 	}
-	issues, problems := client.NewClient(info.ServerURL).ListOwnedIssues(cmd.Context(), token, status, limit)
+	issues, problems := auth.ServerClient(info.ServerURL).ListOwnedIssues(cmd.Context(), token, status, limit)
 	// Problems are printed before the list rather than swallowed: an inbox that
 	// quietly omits a space is worse than one that says which space it could not
 	// read.
@@ -335,7 +335,7 @@ func runIssueShow(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	c := client.NewClient(serverURL)
+	c := auth.ServerClient(serverURL)
 	space, issue, err := c.FindIssue(cmd.Context(), token, args[0])
 	if err != nil {
 		return err
@@ -404,7 +404,7 @@ func runIssueStatus(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	c := client.NewClient(serverURL)
+	c := auth.ServerClient(serverURL)
 	space, issue, err := c.FindIssue(cmd.Context(), token, issueID)
 	if err != nil {
 		return err

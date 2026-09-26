@@ -1,11 +1,13 @@
-// Package httpclient decodes the error envelope the BuildMax server writes.
+// Package httpclient is the client-side plumbing shared by calls to a BuildMax
+// server: decoding its error envelope, streaming an upload, and renewing a
+// bearer token the server refused.
 //
 // Every refusal outside the managed gateway comes back from
 // httputil.WriteJSONError as {"error": "..."}, so a client that reports only
 // resp.Status throws away the one sentence saying what went wrong. This is the
 // one reader of that envelope, so no client has to remember to look.
 //
-// The gateway is deliberately not a caller: it answers llmwire.ErrorResponse, a
+// The gateway is deliberately not a caller of the decoder: it answers llmwire.ErrorResponse, a
 // versioned contract with its own code field, and internal/infra/llmremote
 // decodes it against that contract rather than this one.
 package httpclient

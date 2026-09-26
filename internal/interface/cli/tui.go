@@ -36,6 +36,7 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		DefaultModel:           source.Default,
 		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
+		ManagedTokenRenew:      auth.RenewRejected,
 		RemoteControl:          overrides.RemoteControl,
 		RemoteControlName:      overrides.RemoteControlName,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),

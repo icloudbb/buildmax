@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/infra/httpclient"
 	"github.com/icloudbb/buildmax/internal/interface/client"
 )
 
@@ -103,7 +105,43 @@ func TokenForServer(serverURL string) (string, error) {
 	if creds.RefreshToken == "" {
 		return "", fmt.Errorf("%w: its access token expired and there is nothing to renew it", ErrLoginExpired)
 	}
-	return refreshTokenForServer(serverURL)
+	return refreshTokenForServer(serverURL, func(c *Credentials) bool { return c.needsRefresh(refreshSkew) })
+}
+
+// RenewRejected returns an access token to retry with after serverURL refused
+// rejected, renewing the login unless another caller already has.
+//
+// It is the one place a native client reacts to a 401. Local expiry is not the
+// only way a token dies: rotating the server's JWT secret invalidates every
+// access token while each still looks unexpired here, and without this the
+// login would read as ended until the token's own exp passed.
+//
+// Concurrent 401s carry the same rejected token, and the refresh token rotates
+// on every exchange, so only the first may spend it. The comparison runs under
+// refreshMu against the file re-read there: whoever comes second finds a
+// different token already stored and is handed that one, which also covers a
+// second BuildMax process that renewed first.
+func RenewRejected(serverURL, rejected string) (string, error) {
+	return refreshTokenForServer(serverURL, func(c *Credentials) bool {
+		return c.Token == rejected || c.needsRefresh(refreshSkew)
+	})
+}
+
+// HTTPClient returns the HTTP client for calls to serverURL made with the
+// stored login: a request refused with 401 is retried once with the token
+// RenewRejected returns.
+func HTTPClient(serverURL string) *http.Client {
+	return &http.Client{Transport: httpclient.RenewOnUnauthorized(http.DefaultTransport,
+		func(rejected string) (string, error) { return RenewRejected(serverURL, rejected) })}
+}
+
+// ServerClient returns an API client for serverURL whose calls survive the
+// server refusing a token that still looks valid. Every signed-in command uses
+// it instead of client.NewClient.
+func ServerClient(serverURL string) *client.Client {
+	c := client.NewClient(serverURL)
+	c.HTTPClient = HTTPClient(serverURL)
+	return c
 }
 
 // CanAuthenticate reports whether a call to serverURL could authenticate,
@@ -143,12 +181,13 @@ func loadForServer(serverURL string) (*Credentials, error) {
 }
 
 // refreshTokenForServer exchanges the stored refresh token and persists the
-// result.
+// result, when stale says the stored access token should not be used.
 //
-// The file is re-read under the lock. Another BuildMax process may have
-// refreshed while this one waited, in which case its token is already on disk
-// and spending another exchange would only race it.
-func refreshTokenForServer(serverURL string) (string, error) {
+// The file is re-read under the lock and stale is asked about what is there
+// now. Another goroutine or BuildMax process may have refreshed while this one
+// waited, in which case its token is already on disk and spending another
+// exchange would only race it.
+func refreshTokenForServer(serverURL string, stale func(*Credentials) bool) (string, error) {
 	refreshMu.Lock()
 	defer refreshMu.Unlock()
 
@@ -156,11 +195,11 @@ func refreshTokenForServer(serverURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !creds.needsRefresh(refreshSkew) {
+	if !stale(creds) {
 		return creds.Token, nil
 	}
 	if creds.RefreshToken == "" {
-		return "", fmt.Errorf("%w: its access token expired and there is nothing to renew it", ErrLoginExpired)
+		return "", fmt.Errorf("%w: its access token is no longer usable and there is nothing to renew it", ErrLoginExpired)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), refreshTimeout)

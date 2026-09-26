@@ -11,7 +11,6 @@ import (
 	"github.com/icloudbb/buildmax/internal/config"
 	"github.com/icloudbb/buildmax/internal/infra/httpclient"
 	"github.com/icloudbb/buildmax/internal/infra/llmwire"
-	"github.com/icloudbb/buildmax/internal/interface/client"
 )
 
 // ErrLoginExpired means a login is stored but no longer works: its refresh
@@ -43,8 +42,9 @@ func classifyServerError(serverURL string, err error) error {
 	if errors.As(err, &httpErr) {
 		switch {
 		case httpErr.StatusCode == http.StatusUnauthorized:
-			// The credential is on disk and not locally expired, but the
-			// deployment rejects it: revoked, or no longer trusted.
+			// A 401 only reaches here after ServerClient renewed and retried
+			// once, so the deployment refuses the session itself: revoked, or
+			// its refresh token spent.
 			return fmt.Errorf("%w: %s rejected the credential (%v)", ErrLoginExpired, serverURL, err)
 		case httpErr.StatusCode == http.StatusForbidden && strings.Contains(httpErr.Message, "account_disabled"):
 			return fmt.Errorf("%w on %s", ErrAccountDisabled, serverURL)
@@ -124,11 +124,12 @@ func ResolveModelSource(ctx context.Context) (ModelSource, error) {
 	if err != nil {
 		return ModelSource{}, err
 	}
-	models, err := client.NewClient(serverURL).ListServerModels(ctx, token)
+	models, err := ServerClient(serverURL).ListServerModels(ctx, token)
 	if err != nil {
-		// A 401 here is the other shape of §8's expired login: the credential
-		// is on disk and not locally expired, but the deployment rejects it.
-		// It gets the same choice as any ended login; an outage does not.
+		// A 401 that survives ServerClient's renewal is the other shape of §8's
+		// expired login: the credential is on disk, but the deployment will not
+		// renew it. It gets the same choice as any ended login; an outage does
+		// not.
 		if classified := classifyServerError(serverURL, err); classified != err {
 			return ModelSource{}, classified
 		}
