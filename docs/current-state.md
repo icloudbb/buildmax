@@ -72,8 +72,13 @@ FAILED with the refused write named and no record pointing at a missing object.
 every live artifact, checkpoint payload, run trace, and plugin package the
 database names resolves in storage, optionally by checksum. The MySQL scope
 upgrades a real predecessor's schema and data, currently 0.2.0-alpha.14's.
-Exercising a paired restore with it, the release-time Compose upgrade drill,
-and credential rotation remain open. Shared Redis
+Credential rotation has a [runbook](deploy/credential-rotation.md) rehearsed on
+kind by `./make kind drill rotation`, which rotates the JWT secret, database
+password, object-storage key, managed model key, and KEK and asserts each old
+value is refused while sessions, stored data, and new runs survive; the run in
+flight across the JWT rotation is settled FAILED, the one disruption it
+measures. Exercising a paired restore, the release-time Compose upgrade drill,
+and credential rotation on a candidate remain open. Shared Redis
 coordination is implemented, including distributed lease fencing at
 message-history writes. The worker API already has a separate listener, TLS
 support, and a shipped ingress NetworkPolicy; that bounded network slice must
@@ -548,7 +553,7 @@ commands. Model credentials are encrypted under the deployment key-encryption
 key; credentialed model creation refuses to store a key without encryption.
 `buildmax-server secret rewrap` re-wraps stored data keys under the current KEK,
 and the server refuses to start while a row names a KEK the key file does not
-hold; the KEK-rotation drill has not been run.
+hold; the kind rotation drill exercises add, switch, rewrap, and retire.
 Space secrets and Agent secret-consumption declarations also have storage and
 worker delivery implementations, with run-scoped authorization. Their presence
 does not isolate delivered secrets from the worker process that consumes them.

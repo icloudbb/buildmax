@@ -25,6 +25,7 @@
 | [deploy/authentication.md](deploy/authentication.md) | **对外开放 Server 前必读**：账户、登录码及尚未具备的能力 |
 | [deploy/local-kind.md](deploy/local-kind.md) | 一条命令创建本地集群并执行 Kubernetes Job 冒烟验证 |
 | [deploy/digitalocean.md](deploy/digitalocean.md) | 用于 Beta 资格验证的临时外部 DOKS 和 MySQL 环境 |
+| [deploy/credential-rotation.md](deploy/credential-rotation.md) | 轮换 JWT 密钥、数据库、存储、模型和 KEK 凭证 |
 | [deploy/beta-readiness.md](deploy/beta-readiness.md) | 对固定版本的私有部署候选版本进行资格验证并记录证据 |
 
 ## 查阅参考资料

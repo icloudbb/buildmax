@@ -70,6 +70,7 @@ old one.
 ```bash
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
 ./make kind smoke managed  # the same, with task runs reaching models through the gateway
+./make kind drill rotation # rotate every credential; ephemeral clusters only
 ./make kind seed    # put the models in .local/settings.yaml into the cluster's catalog
 ./make kind fixtures # seed idempotent business data for automated testing
 ./make kind use-model "Claude Sonnet 5"  # run the cluster's own inference on a seeded model
@@ -92,6 +93,17 @@ what the default run cannot: a worker Job completes a real task holding no
 provider credential, and its run token reaches the pod through the Job spec.
 The cluster stays in managed mode afterwards — rerun `./make kind up` to return
 it to direct.
+
+`drill rotation` rehearses the
+[credential rotation runbook](credential-rotation.md): it rotates the JWT
+secret, the database password, the storage key, a managed model's key, and the
+KEK through Secret patches and server rollouts, asserts that each old
+credential is refused while sessions, stored artifacts, and new runs survive,
+and ends with a table of roll times and measured disruption. It holds one run
+across the JWT rotation on purpose, so that run ends `FAILED`. Because it leaves
+every credential replaced, it refuses to run unless this worktree created its
+cluster with `BUILDMAX_KIND_EPHEMERAL=1 ./make kind up`; remove the cluster with
+`./make kind down` afterwards.
 
 `info` prints the cluster, the Portal URL and its health, the MinIO credentials,
 and issues a single-use login code — for `deployment-smoke@buildmax.local`
@@ -210,7 +222,11 @@ server creates the schema it is pointed at on first start. The same DSN in
 `internal/infra/db` against a real MySQL.
 
 MinIO's console is <http://127.0.0.1:9001> with `minio` / `minio123`, and the
-run artifacts are in the `bmstore` bucket.
+run artifacts are in the `bmstore` bucket. That is MinIO's administrator; the
+server and workers use their own user, `buildmax` / `buildmax-storage`, which
+`deployment/kind/minio-init.yaml` creates with access to `bmstore` only — the
+shape a real deployment's storage identity has, and the one the rotation drill
+rotates.
 
 For a single query, skip the forward and use kubectl directly:
 

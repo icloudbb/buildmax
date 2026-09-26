@@ -1,3 +1,10 @@
+# Creates the bucket and the server's own storage identity. The server does not
+# use MinIO's root account: a dedicated user holding only bmstore is what a real
+# deployment gives it, and it is what makes the key rotatable — the root
+# credential is MinIO's own configuration and cannot be overlapped with a
+# successor (see docs/deploy/credential-rotation.md). `user add` also re-enables
+# the user and resets its secret, so rerunning `./make kind up` after a rotation
+# drill returns the cluster to these development keys.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -15,6 +22,12 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - >-
+              set -e;
               until mc alias set local http://minio.storage.svc.cluster.local:9000 minio minio123; do sleep 2; done;
               mc mb --ignore-existing local/bmstore;
-              mc stat local/bmstore
+              mc stat local/bmstore;
+              printf '%s' '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":["arn:aws:s3:::bmstore","arn:aws:s3:::bmstore/*"]}]}' > /tmp/bmstore-rw.json;
+              mc admin policy create local bmstore-rw /tmp/bmstore-rw.json;
+              mc admin user add local buildmax buildmax-storage;
+              mc admin user enable local buildmax;
+              mc admin policy attach local bmstore-rw --user buildmax || mc admin user info local buildmax | grep -q bmstore-rw

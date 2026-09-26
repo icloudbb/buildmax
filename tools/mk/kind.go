@@ -89,6 +89,8 @@ func cmdKind(args []string) error {
 			return kindManagedSmoke()
 		}
 		return kindSmoke()
+	case "drill":
+		return cmdKindDrill(args[1:])
 	case "status":
 		return kindStatus()
 	case "logs":
@@ -357,6 +359,11 @@ func kindUp() error {
 		if err := kindKubectl("rollout", "status", "deployment/"+deployment, "-n", "buildmax", "--timeout=180s"); err != nil {
 			return err
 		}
+	}
+	// `up` mints a new JWT secret, so on an existing cluster a server pod still
+	// terminating would sign the smoke's login with the old one; wait it out.
+	if _, err := settledServerPods(); err != nil {
+		return err
 	}
 	// Stamp the source these images were built from onto the app Deployments so
 	// `./make e2e kind` can refuse a stale deployment. The mock is not source.
@@ -786,7 +793,7 @@ func kindInfo(args []string) error {
 
 	fmt.Printf("Cluster: %s (context %s)\n", cluster, kindContext())
 	fmt.Printf("Portal:  %s (%s)\n", kindPortalURL(), httpHealth(kindPortalURL()+"/healthz"))
-	fmt.Printf("MinIO:   bucket bmstore, key minio, secret minio123\n")
+	fmt.Printf("MinIO:   bucket bmstore, server key %s / %s, console minio / minio123\n", kindStorageUser, kindStorageSecret)
 	fmt.Printf("MySQL and MinIO are in-cluster only; reach both with %s kind forward\n", mk())
 
 	code, err := kindSmokeTarget().admin("user", "login-code", email)
@@ -1141,6 +1148,14 @@ func initializeKindDatabase() error {
 	return nil
 }
 
+// kindStorageUser and kindStorageSecret are the server's own MinIO identity,
+// created by deployment/kind/minio-init.yaml with access to bmstore only. The
+// root account (minio / minio123) stays MinIO's administrator.
+const (
+	kindStorageUser   = "buildmax"
+	kindStorageSecret = "buildmax-storage"
+)
+
 func applyKindSecret() error {
 	jwt, err := randomHex(32)
 	if err != nil {
@@ -1150,8 +1165,8 @@ func applyKindSecret() error {
 		"create", "secret", "generic", "buildmax-secret", "-n", "buildmax",
 		"--from-literal=BUILDMAX_JWT_SECRET="+jwt,
 		"--from-literal=BUILDMAX_DATABASE_PASSWORD=buildmax",
-		"--from-literal=BUILDMAX_STORAGE_MINIO_ACCESS_KEY=minio",
-		"--from-literal=BUILDMAX_STORAGE_MINIO_SECRET_KEY=minio123",
+		"--from-literal=BUILDMAX_STORAGE_MINIO_ACCESS_KEY="+kindStorageUser,
+		"--from-literal=BUILDMAX_STORAGE_MINIO_SECRET_KEY="+kindStorageSecret,
 		"--from-literal=BUILDMAX_CONVERSATION_MODEL_API_KEY=smoke-key",
 		"--dry-run=client", "-o", "yaml",
 	)

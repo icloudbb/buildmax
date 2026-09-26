@@ -29,6 +29,7 @@ ships inside the Portal image and is served in-app under **Help**;
 | [deploy/authentication.md](deploy/authentication.md) | **Read before exposing a server** — accounts, login codes, what is missing |
 | [deploy/local-kind.md](deploy/local-kind.md) | One-command local cluster and Kubernetes Job smoke |
 | [deploy/digitalocean.md](deploy/digitalocean.md) | Disposable external DOKS and MySQL for beta qualification |
+| [deploy/credential-rotation.md](deploy/credential-rotation.md) | Rotate the JWT secret, database, storage, model, and KEK credentials |
 | [deploy/beta-readiness.md](deploy/beta-readiness.md) | Qualify a pinned private-deployment candidate and record the evidence |
 
 ## Look It Up

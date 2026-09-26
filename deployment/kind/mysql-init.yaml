@@ -5,7 +5,9 @@
 # `./make kind down` and holds nothing that is not test data.
 #
 # Applied on every `./make kind up`, like minio-init, so a cluster created
-# before this file gets the grant without being rebuilt.
+# before this file gets the grant without being rebuilt. It also resets the dev
+# account to its development password, which `./make kind drill rotation`
+# changes, so the Secret `up` writes always matches the account.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -24,4 +26,4 @@ spec:
             - >-
               until mysql -h mysql.db.svc.cluster.local -uroot -pbuildmax -e "SELECT 1"; do sleep 2; done;
               mysql -h mysql.db.svc.cluster.local -uroot -pbuildmax
-              -e "GRANT ALL PRIVILEGES ON *.* TO 'buildmax'@'%'; FLUSH PRIVILEGES;"
+              -e "ALTER USER 'buildmax'@'%' IDENTIFIED BY 'buildmax'; ALTER USER 'buildmax'@'%' DISCARD OLD PASSWORD; GRANT ALL PRIVILEGES ON *.* TO 'buildmax'@'%'; FLUSH PRIVILEGES;"
