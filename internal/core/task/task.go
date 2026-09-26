@@ -172,8 +172,9 @@ type Run struct {
 	PromptTokens     *int       `json:"prompt_tokens,omitempty"`
 	CompletionTokens *int       `json:"completion_tokens,omitempty"`
 	// TracePath locates this run's durable trace inside run-global storage,
-	// e.g. "traces/<session>/rt_….jsonl". Nil when no trace was written — the
-	// run failed before an agent started, or tracing was disabled.
+	// e.g. "traces/<session>/rt_….jsonl". Nil when no trace was stored — the
+	// run failed before an agent started, tracing was disabled, or storage
+	// refused the upload.
 	TracePath *string `json:"trace_path,omitempty"`
 	// CancelRequestedAt is when someone asked this run to stop. A cancel is
 	// recorded rather than applied because the only thing that can stop a

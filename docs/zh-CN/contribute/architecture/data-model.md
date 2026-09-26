@@ -667,7 +667,7 @@ Space 拥有的重复时间触发器。每次到期触发由 `executor_kind` 与
 | `k8s_job_created_at` | `datetime(6)` | 是 | 该 Job 的创建时间；本地 runner 下为 `NULL` |
 | `prompt_tokens` | `bigint` | 是 | 配额输入 |
 | `completion_tokens` | `bigint` | 是 | 配额输入 |
-| `trace_path` | `varchar(512)` | 是 | 本次运行在运行级全局存储中的持久 trace，例如 `traces/<session>/rt_….jsonl`；未写入时为 `NULL` |
+| `trace_path` | `varchar(512)` | 是 | 本次运行在运行级全局存储中的持久 trace，例如 `traces/<session>/rt_….jsonl`；未存储时为 `NULL` |
 | `cancel_requested_at` | `datetime(6)` | 是 | 有人请求停止此次运行的时间；无人请求时为 `NULL` |
 | `cancel_requested_by` | `bigint unsigned` | 是 | 请求者的 `user.id` |
 | `cancel_reason` | `varchar(32)` | 否 | 长度受限的取消原因；未记录时为空 |
@@ -720,7 +720,7 @@ runner 无错误返回后，`Scheduler.dispatch` 通过 `UpdateTaskRunWorkerInfo
 
 目前没有代码读取这些列。未来的清理扫描可用 `k8s_job_name` 向 Kubernetes 查询 worker 消失的原因——从服务端看，`OOMKilled` 和 `Evicted` 都只是沉默——但这只覆盖 `k8s_job` runner，因此过期运行回收器观察的是 `last_seen_at`，而非 Job 状态。
 
-worker 在终态 PATCH 中写入 `trace_path`，成功和失败都写。它采用存储值而非推导值，因为 trace 文件名是 Agent run id，该 ID 在运行内部生成，不出现于其他位置。值与 `uploadTaskGlobal` 上传文件所用的键一致，因此可直接在运行级全局存储中解析；`internal/agentapp/taskrun` 的测试将两处计算绑定，避免偏离。
+worker 在终态 PATCH 中写入 `trace_path`，成功和失败都写。它采用存储值而非推导值，因为 trace 文件名是 Agent run id，该 ID 在运行内部生成，不出现于其他位置。值与 `uploadTaskGlobal` 上传文件所用的键一致，因此可直接在运行级全局存储中解析；`internal/agentapp/taskrun` 的测试将两处计算绑定，避免偏离。worker 只在该上传成功后才发送它，因此这一列绝不会指向存储拒收的对象。
 
 调度器通过轮询最早的待处理运行（`GetNextPendingTaskRun`）认领工作；GORM 日志器配置为忽略 `ErrRecordNotFound`，避免空闲服务端每次轮询都记录未找到。
 
