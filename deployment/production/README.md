@@ -182,14 +182,16 @@ implemented today.
 Schema changes are applied by the server at startup and move **forward only**.
 There are no down migrations.
 
-What is supported is rolling the **binary** back one release: schema version N
-keeps serving code from release N-1. So an upgrade that goes wrong is recovered
-by redeploying the previous image tag — which is why the manifest says to pin a
-version rather than track `:latest`.
-
-Rolling the *database* back is not supported. Recovery from a bad schema change
-is a restore from backup, so take one before an upgrade that crosses a release
-carrying migrations.
+Rolling the binary back is not supported either. An older image refuses to
+start against a database a newer release has migrated, because its startup
+would re-add what the newer migrations dropped; images up to 0.2.0-alpha.15
+predate that refusal and damage the database instead. So take a backup of the
+database and the bucket together before every upgrade — which is also why the
+manifest says to pin a version rather than track `:latest`. An upgrade that
+goes wrong is recovered by restoring both from that backup and redeploying the
+image tags that match it. See
+[Compatibility](../../manual/support.md#compatibility) for the destructive
+migrations and the `database.allow_newer_schema` override.
 
 The rollout sets `maxUnavailable: 0`, so the new pod must pass readiness before
 an old one goes away. The `startupProbe` gives the first pod room to finish

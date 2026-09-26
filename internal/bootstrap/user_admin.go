@@ -170,7 +170,7 @@ func openUserStore(ctx context.Context) (userAdminStore, func(), error) {
 	if dsn == "" {
 		return nil, nil, fmt.Errorf("database is not configured in %s", config.ServerConfigPath())
 	}
-	store, err := db.New(ctx, dsn)
+	store, err := db.New(ctx, dsn, db.Options{AllowNewerSchema: sc.Database.AllowNewerSchema})
 	if err != nil {
 		return nil, nil, fmt.Errorf("open database: %w", err)
 	}

@@ -401,7 +401,7 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 
 行永不删除。缺少一行意味着该迁移会再次运行，这正是让崩溃在迁移中途仍能恢复的原因，也是删除一行会破坏数据库的原因。
 
-这张表还会告诉一个二进制版本：数据库领先于它——这里出现了它不认识的 ID，说明这是来自更新版本的迁移。见 [只进不退，回退一个发行版](#只进不退回退一个发行版)。
+这张表还会告诉一个二进制版本：数据库领先于它——这里出现了它不认识的 ID，说明这是来自更新版本的迁移，`New` 会拒绝启动。见 [Alpha 阶段仅向前](#alpha-阶段仅向前)。
 
 ## 工作对象
 
@@ -1120,7 +1120,7 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 
 该列表遵循三条规则：
 
-- **只能追加。** 已有的 ID 及其顺序是永久性的。重命名一个 ID 会让该迁移在每个已部署的数据库上再运行一次；调整顺序会改变一个已升级数据库相对于全新数据库所得到的内容。`TestMigrationIDsAreStable` 会在两种情况下都失败。
+- **只能追加。** 已有的 ID 及其顺序是永久性的。重命名一个 ID 会让该迁移在每个已部署的数据库上再运行一次；调整顺序会改变一个已升级数据库相对于全新数据库所得到的内容。`TestMigrationsArePermanent` 会在两种情况下都失败。
 - **`Apply` 必须能容忍被重复运行。** 在应用一次变更和记录它之间发生崩溃，会让该迁移处于挂起状态，下次启动会重试它。应先探测 `information_schema`，如果没有需要做的事就返回 `nil`。
 - **先复制，再删除。** 在移除数据旧位置的同一个 `Apply` 中完成数据迁移，这样一次半途而废的迁移就不会丢失行。
 
@@ -1128,14 +1128,24 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 
 ### Alpha 阶段仅向前
 
-模式只向前推进，`Migration` 没有 `Down` 字段。Alpha 不要求迁移路径或 N-1 二进制兼容保证。
+模式只向前推进，`Migration` 没有 `Down` 字段。不支持二进制回滚，Alpha 也不为旧二进制保留迁移路径。
 应一致地修正错误存储形状，不为假想的旧客户端保留它；破坏性变更和恢复限制写入 changelog。
 
-`llm_model_credential_encryption` 删除明文密钥；`issue_owner_executor_split` 回填拆分字段后
-删除旧 assignee 列。两者均不能让旧二进制安全使用新模式。未知迁移警告不验证兼容性，也不阻止启动。
+有四个迁移会删除数据或旧形状：`llm_model_credential_encryption` 删除明文密钥，
+`issue_owner_executor_split` 回填拆分字段后删除旧 assignee 列（两者均为 0.2.0-alpha.9）；
+`workflow_step_run_to_node_run` 删除 `workflow_step_run` 及其中的步骤运行（0.2.0-alpha.13）；
+`schedule_agent_to_executor` 回填 executor 后删除 `schedule.agent_id` 与 `last_task_id`（0.2.0-alpha.15）。
 
-未来版本若承诺二进制回滚，必须明确并测试版本组合；有需要时可以采用增量、分阶段移除来实现。
-当前 Alpha 切换的恢复方式是全新安装，或使用匹配二进制恢复协调备份的数据库/存储桶。
+旧二进制的 `AutoMigrate` 会依据仍描述旧形状的行结构体，把这些迁移删除的内容重新加回来。
+把 0.2.0-alpha.15 回滚到 0.2.0-alpha.14，会重新添加以 0 填充的 `schedule.agent_id NOT NULL`：
+所有 schedule 都会消失；再次前滚后——该迁移已记录，不会运行第二次——创建 schedule 会失败。
+因此 `New` 先读取 `schema_migration`，当其中记录了本二进制不认识的 ID 时，在任何 DDL 之前返回
+`*NewerSchemaError`，列出这些 ID 与恢复流程。没有账本表的数据库是全新的，直接通过。每个 `New`
+调用方都受此约束：server 以及 `buildmax-server user` 与 `space` 命令。`server.yaml` 中的
+`database.allow_newer_schema`（`Options.AllowNewerSchema`）会在记录警告后强制启动，只用于有意的恢复。
+0.2.0-alpha.15 及更早的二进制早于这项拒绝，不受保护。
+
+恢复方式是全新安装，或从升级前的备份同时恢复数据库与存储桶，并运行与之匹配的二进制。
 没有数据库降级迁移。
 
 **任何模式变更之后**，都要在同一次提交中更新本文档，并检查 [store.md](store.md) 或该子系统的设计记录是否也需要变更。运行 `./make test mysql`——它要求真实 MySQL DSN，并使用隔离数据库；普通 `./make test` 在没有 DSN 时会跳过依赖数据库的用例。

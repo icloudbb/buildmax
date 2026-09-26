@@ -136,7 +136,7 @@ cross-package and user-visible.
 | V17 | A worker disappears without reporting | Heartbeats expire, the lost-worker path closes the run predictably, partial evidence remains, and retry is explicit. | Scheduled deployment |
 | V18 | Database or object storage becomes unavailable | Readiness changes, user-visible state is honest, no phantom artifact is published, and recovery or retry has an unambiguous path. | Scheduled deployment |
 | V19 | A database and bucket pair is restored | Relational records and stored objects agree after restore; every retained artifact reference resolves or is explicitly tombstoned. | Release candidate |
-| V20 | A candidate upgrades and rolls back | The declared schema path, supported binary rollback or destructive-cutover recovery, drain, and credential rotation follow the documented contract without ambiguous data loss. | Release candidate |
+| V20 | A candidate upgrades and rolls back | The declared schema path, the previous binary's refusal of the upgraded database, paired-restore recovery, drain, and credential rotation follow the documented contract without ambiguous data loss. | Release candidate |
 
 Every journey test uses the same assertion structure:
 
@@ -210,11 +210,13 @@ evidence.
 Still to write:
 
 - restart recovery cases for durable Task/TaskRun/checkpoint state;
-- migration fixtures for the declared starting schema. The three explicit
-  migrations include `issue_owner_executor_split`, whose old-column backfill
-  already has a MySQL test. This is not an old-binary rollback fixture. Alpha
-  may drop compatibility; test the claimed upgrade/rollback version pair or
-  destructive-cutover recovery, as required by the Beta readiness record;
+- migration fixtures for the declared starting schema. Of the five explicit
+  migrations, the `issue_owner_executor_split` and `schedule_agent_to_executor`
+  backfills have MySQL tests, and so does the refusal to start a binary against
+  a database recording a migration it does not know. None of these upgrades a
+  real predecessor schema. Binary rollback is not supported; test the declared
+  upgrade path and paired-restore recovery, as required by the Beta readiness
+  record;
 - Agent revision authority through the Workflow reconciler (R2): that a step
   sends the pinned Agent revision even when the live Agent is edited mid-run.
   The linear reconciler itself, idempotent step admission, lost/concurrent
@@ -467,8 +469,8 @@ The operator must:
 10. kill a worker without a graceful report;
 11. interrupt database access and object-storage access separately;
 12. restore the database and bucket as a pair;
-13. exercise the declared schema path and supported binary rollback or
-   destructive Alpha cutover recovery;
+13. exercise the declared schema path, the previous binary's refusal of the
+   upgraded database, and paired-restore recovery;
 14. rotate JWT, database, object-storage, and provider credentials using the
    documented drain/restart procedure.
 

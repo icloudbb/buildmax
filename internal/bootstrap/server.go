@@ -446,7 +446,7 @@ func buildCoordination(ctx context.Context, cc config.ServerCoordinationConfig) 
 }
 
 func openStore(ctx context.Context, db_ config.ServerDBConfig) (*db.Store, error) {
-	st, err := db.New(ctx, db_.DSN())
+	st, err := db.New(ctx, db_.DSN(), db.Options{AllowNewerSchema: db_.AllowNewerSchema})
 	if err != nil {
 		return nil, fmt.Errorf("database: %w", err)
 	}

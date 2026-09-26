@@ -488,6 +488,11 @@ type ServerDBConfig struct {
 	// system roots), "skip-verify" (require TLS, accept any certificate), or
 	// "false" (never).
 	TLS string `mapstructure:"tls"`
+	// AllowNewerSchema lets this binary start against a database a newer
+	// release has migrated, which it otherwise refuses. Binary rollback is not
+	// supported, so this is for a deliberate recovery only: the older binary's
+	// AutoMigrate may re-add what the newer migrations removed.
+	AllowNewerSchema bool `mapstructure:"allow_newer_schema"`
 }
 
 // DefaultDBTLSMode is used when database.tls is unset.

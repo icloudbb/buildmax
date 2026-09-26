@@ -132,12 +132,14 @@ storage refuses ends FAILED with a cause naming the refused write, keeps its
 reply and the Artifacts it published through the server, and records no trace
 pointer to an object that is not there. A server now expires persisted run
 traces on an operator-set window, defaulting to keep-forever and recording each
-prune; no candidate has yet proved paired restore, schema upgrade, binary
-rollback, or credential rotation.
+prune. Binary rollback is not supported: a binary refuses to start against a
+database a newer release has migrated, and recovery is a paired restore. No
+candidate has yet proved paired restore, a real predecessor-schema upgrade, or
+credential rotation.
 
 **Next:** the remaining lifecycle evidence — paired database-and-bucket
-restore, a schema upgrade and binary rollback fixture, and credential rotation —
-several of which land as the R3 operator journey. Real-MySQL coverage for
+restore, a predecessor-schema upgrade fixture and drill, and credential
+rotation — several of which land as the R3 operator journey. Real-MySQL coverage for
 [quota windows](https://github.com/icloudbb/buildmax/issues/498) and cross-Space
 store scoping, and the deployed worker-loss, database-outage,
 object-storage-readiness outage/recovery, and worker object-storage write-denial
@@ -291,7 +293,7 @@ Server, worker, and Portal artifacts proposed for release.
 | Candidate deployment | Deploy pinned image digests with external MySQL, S3, and TLS; record versions, configuration, operator, and date. |
 | Execution boundary and topology | Prove the supported sandbox, resource limits, hook/MCP treatment, and Server topology. Unrestricted Bash with a recorded `none` boundary does not pass, and stdio MCP must be disabled unless its child process is confined by the declared worker boundary. Record residual Pod-wide egress and storage-credential limits explicitly. |
 | Persistence and failure behavior | Attach passing critical MySQL tests; exercise cancellation, worker loss, database outage, and storage denial. Runs reach documented terminal states and retain available results and diagnostic evidence. |
-| Recovery and maintenance | Restore the database and bucket together; exercise a schema upgrade and binary rollback, plus credential rotation. Record recovery time, data checks, and accepted loss. |
+| Recovery and maintenance | Restore the database and bucket together; exercise a schema upgrade and the previous binary's refusal of the upgraded database, plus credential rotation. Record recovery time, data checks, and accepted loss. |
 | Operator journey | An operator who did not implement the feature can sign in, execute and retry work with a managed model, and diagnose results from TaskRun, Artifacts, traces, usage, and audit history. |
 | Release verification | Attach current CI, direct and managed Compose/kind smoke, Portal browser E2E, archive verification, image scans, SBOMs, and provenance. |
 

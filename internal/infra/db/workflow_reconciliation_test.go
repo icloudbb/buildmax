@@ -22,7 +22,7 @@ func reconcileFixture(t *testing.T) (s *Store, userID, workflowID string) {
 	}
 	ctx := context.Background()
 	var err error
-	s, err = New(ctx, dsn)
+	s, err = New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

@@ -540,6 +540,7 @@ database:                            # MySQL
   user: buildmax
   password: buildmax
   name: buildmax                     # created on first start if it is missing
+  # allow_newer_schema: false        # start against a newer release's schema; recovery only
 
 webhook:
   message_path: message              # JSON path to the prompt in the request body
@@ -598,6 +599,8 @@ secret:
 `shutdown_grace` 是有序停止 server 的整体预算，默认是 **25s**。收到 SIGINT 或 SIGTERM 时，server 会先停止报告就绪状态，以便负载均衡器将其摘除，然后结束正在监视某次运行的流，让 Portal 转而在别处重新订阅，再排空已经接受的请求，最后停止其后台循环。各个阶段的时长都是从这一个数字推导出来的，而不是逐项单独配置的。
 
 请把它设置得比任何“超时就直接杀掉进程”的机制更短——Kubernetes 上的 `terminationGracePeriodSeconds`、systemd 下的 `TimeoutStopSec`——也包括任何 `preStop` hook。[`deployment/`](../../../deployment/) 下的参考清单文件把两者放在一起设置。设计文档：[design/graceful-shutdown.md](../design/优雅关闭.md)。
+
+当数据库的 `schema_migration` 记录了本二进制不认识的迁移——即更新版本应用的迁移——时，server 以及 `buildmax-server user` 与 `space` 命令会拒绝启动，因为启动会把该迁移删除的内容重新加回来。不支持二进制回滚：请从升级前的备份恢复数据库与存储桶，并运行与之匹配的二进制。`database.allow_newer_schema: true` 会强制启动，只用于有意的恢复，并可能以上述方式损坏数据。参见[兼容性](../../../manual/support.md#compatibility)。
 
 人们使用电子邮件地址和密码登录。`allow_signup` 默认是 **false**，因此没有人可以自行注册；账户由 server 端创建后，把登录码交给对方，对方兑换该登录码后再设置自己的密码——见 [deploy/authentication.md](../deploy/authentication.md)：
 

@@ -95,7 +95,7 @@ func newCatalogStore(t *testing.T) (*Store, context.Context) {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
-	s, err := New(ctx, dsn)
+	s, err := New(ctx, dsn, Options{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

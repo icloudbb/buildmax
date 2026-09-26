@@ -829,6 +829,7 @@ database:                            # MySQL
   user: buildmax
   password: buildmax
   name: buildmax                     # created on first start if it is missing
+  # allow_newer_schema: false        # start against a newer release's schema; recovery only
 
 webhook:
   message_path: message              # JSON path to the prompt in the request body
@@ -907,6 +908,15 @@ Keep it below whatever kills the process if the stop takes too long —
 including any `preStop` hook. The reference manifests in
 [`deployment/`](../../deployment/) set both together. Design:
 [design/graceful-shutdown.md](../design/graceful-shutdown.md).
+
+The server and the `buildmax-server user` and `space` commands refuse to start
+against a database whose `schema_migration` records a migration this binary
+does not know — one a newer release applied — because starting would re-add
+what that migration dropped. Binary rollback is not supported: restore the
+database and bucket from the backup taken before the upgrade and run the
+matching binaries. `database.allow_newer_schema: true` starts anyway, for a
+deliberate recovery only, and can damage the data in that way. See
+[Compatibility](../../manual/support.md#compatibility).
 
 People sign in with an email address and a password. `allow_signup` defaults to
 **false**, so nobody registers themselves; create accounts from the server and
