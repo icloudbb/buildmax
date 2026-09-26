@@ -14,6 +14,116 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.16] - 2026-09-26
+
+### Added
+
+- A backup-and-restore runbook for server deployments: what to back up (the
+  database schema, the bucket prefix, the KEK, and `server.yaml`), the database
+  snapshot before the bucket copy with a no-delete window, a separate recovery
+  bucket, no Telegram token in recovery, and verification with
+  `buildmax-server storage verify --checksums`. `./make kind drill restore`
+  rehearses it end to end on an ephemeral kind cluster and reports the recovery
+  time and any loss.
+
+- The chat assistant now knows which Space a conversation belongs to and can
+  list your Spaces, and Portal chat marks conversations that came from Telegram.
+
+- A credential rotation runbook gives operators the procedure and measured
+  effect for replacing the JWT secret, database password, storage key, model
+  keys, KEK, and worker API certificate, rehearsed on kind by
+  `./make kind drill rotation`.
+
+- Desktop's Changes view now shows the repository's commit history below the
+  uncommitted changes; expand a commit to see the files it changed and open any
+  of them as a diff.
+
+- Desktop, when signed in to a server, lists the Space issues you own: read one,
+  move its status, comment on it, and start a local chat with the issue ready
+  to edit in the message box.
+
+- `buildmax-server secret rewrap` moves every stored Space Secret and model
+  credential onto the KEK file's current key, and the server now refuses to
+  start while a stored row names a key the file does not hold.
+
+- Portal Issues gained a Board view with To do, In progress, and Done lanes,
+  shared Owner and Executor filters kept in the page address, and a Move to
+  action that changes status without starting a run.
+
+- `buildmax-server storage verify [--checksums]` checks, read-only, that every
+  artifact, checkpoint payload, run trace, and plugin package the database
+  names is present in storage, lists any that are missing or altered by id, and
+  exits non-zero if it finds one, so a restored database and bucket can be
+  proven to agree.
+
+### Changed
+
+- Desktop's sidebar now has a Home entry beside Schedules, and the file
+  Explorer is the open project's own section, named after it and switched
+  between Files and Changes with icons; one status-bar button hides and shows
+  the sidebar.
+
+- `buildmax-server` — the server and its `user` and `space` commands — now
+  refuses to start against a database a newer release has migrated, naming the
+  migrations it does not know, instead of letting its startup re-add what they
+  dropped (rolling 0.2.0-alpha.15 back to 0.2.0-alpha.14 re-adds
+  `schedule.agent_id NOT NULL` filled with 0: every schedule disappears, and
+  creating one fails after rolling forward again). Binary rollback is not
+  supported: back up the database and bucket together before upgrading, and
+  recover by restoring both and running the matching binaries.
+  `database.allow_newer_schema: true` in `server.yaml` overrides the refusal for
+  a deliberate recovery. Releases up to 0.2.0-alpha.15 predate the refusal, and
+  their destructive migrations cannot be undone by any binary: 0.2.0-alpha.13
+  dropped `workflow_step_run` and the step runs recorded in it, and
+  0.2.0-alpha.15 dropped `schedule.agent_id` and `last_task_id` after moving
+  them into the executor columns.
+
+### Fixed
+
+- Disabling an account whose cleanup partly fails now succeeds as what it is:
+  the account is disabled, `user.disabled` is audited, the response names the
+  failed steps in `cleanup_failed`, and Portal and `buildmax admin user disable`
+  offer a safe retry instead of reporting an error for a change that took effect.
+
+- Desktop keeps tool approvals from concurrent chats in one project apart: each
+  prompt shows in its own session's chat tab and answers only that run, so a
+  second approval no longer replaces the first and leaves its run stuck.
+
+- Desktop closes a terminal tab when its shell exits on its own, such as after
+  typing `exit`, instead of leaving a dead `[process exited]` tab open.
+
+- Scheduled firings, run dispatch, and worker run fetches no longer start work
+  when the initiator's eligibility cannot be checked because the account or
+  membership store is unavailable; the work waits and is retried instead of
+  running unverified.
+
+- The production reference and `./make ocean deploy` now configure the
+  deployment key-encryption key (`secret.kek_file`, mounted from the
+  `buildmax-kek` Secret), so they can store managed-model credentials and Space
+  Secrets; `ocean deploy` generates it once in the state directory. Every
+  deployment, kind included, now mounts the key read-only with mode `0400` at
+  `/etc/buildmax/kek/kek.json`, outside `BUILDMAX_HOME`. The configuration and
+  deployment guides say how to generate it and that it must be backed up apart
+  from the database, since losing it makes sealed credentials unreadable.
+
+- Rotating the JWT secret no longer signs CLI, Desktop, and Remote Control users
+  out: a signed-in client renews once when the server refuses its access token
+  and retries, the Portal WebSocket renews before reconnecting, and
+  `access_token_ttl` now defaults to the documented 15 minutes instead of a
+  week. Runs in flight during a rotation are still lost unless drained.
+
+- A worker run whose trace and session could not be written to object storage
+  now ends FAILED with the refused write named, keeping its reply, instead of
+  reporting success with a trace link that could not load and a conversation
+  the next Continue would silently lose.
+
+### Security
+
+- "Allow session" on `BrowserNavigate` now covers one origin instead of every
+  site, the approval prompt names that origin, and `BrowserClick` and
+  `BrowserType` refuse a page that a link or redirect took to an origin not
+  opened with `BrowserNavigate`.
+
 ## [0.2.0-alpha.15] - 2026-09-25
 
 ### Added
@@ -3440,7 +3550,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.15...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.16...HEAD
+[0.2.0-alpha.16]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.15...v0.2.0-alpha.16
 [0.2.0-alpha.15]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.14...v0.2.0-alpha.15
 [0.2.0-alpha.14]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.13...v0.2.0-alpha.14
 [0.2.0-alpha.13]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.12...v0.2.0-alpha.13
