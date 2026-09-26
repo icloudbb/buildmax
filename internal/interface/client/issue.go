@@ -108,7 +108,18 @@ type createCommentPayload struct {
 // schedule, so the thread says so. The server bounds the body and, for a run,
 // the count; this client adds no limit of its own.
 func (c *Client) CommentOnIssue(ctx context.Context, token, spaceID, issueID, body string) error {
-	payload, err := json.Marshal(createCommentPayload{Body: body, AuthorKind: coreissue.CommentAuthorLocalAgent})
+	return c.postIssueComment(ctx, token, spaceID, issueID, body, coreissue.CommentAuthorLocalAgent)
+}
+
+// CommentAsPerson posts one comment written by the signed-in person, so the
+// thread attributes it to them rather than to a local agent. Desktop's comment
+// box uses it: a person typed it, whatever a session helped them draft.
+func (c *Client) CommentAsPerson(ctx context.Context, token, spaceID, issueID, body string) error {
+	return c.postIssueComment(ctx, token, spaceID, issueID, body, "")
+}
+
+func (c *Client) postIssueComment(ctx context.Context, token, spaceID, issueID, body, authorKind string) error {
+	payload, err := json.Marshal(createCommentPayload{Body: body, AuthorKind: authorKind})
 	if err != nil {
 		return err
 	}
@@ -148,6 +159,16 @@ func (c *Client) FindIssue(ctx context.Context, token, issueID string) (corespac
 		}
 	}
 	return corespace.Space{}, coreissue.Issue{}, fmt.Errorf("no space you belong to has issue %s", issueID)
+}
+
+// GetIssue reads one issue in a space the caller already knows.
+func (c *Client) GetIssue(ctx context.Context, token, spaceID, issueID string) (coreissue.Issue, error) {
+	var issue coreissue.Issue
+	path := "/api/spaces/" + url.PathEscape(spaceID) + "/issues/" + url.PathEscape(issueID)
+	if err := c.getJSON(ctx, token, path, &issue); err != nil {
+		return coreissue.Issue{}, err
+	}
+	return issue, nil
 }
 
 // SetIssueStatus moves an issue, carrying the version it was read at.

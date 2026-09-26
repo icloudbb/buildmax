@@ -91,3 +91,10 @@ test('opening the server sign-in and cancelling returns to local mode', async ({
   await expect(login).toBeHidden()
   await expect(page.locator('.page-home__title')).toHaveText('Continue your work')
 })
+
+test('local mode offers no Issues destination', async ({ page }) => {
+  // Space Issues live on a server; with no login the sidebar must not promise them.
+  const primary = page.getByRole('navigation', { name: 'Primary' })
+  await expect(primary.getByRole('button', { name: 'Schedules' })).toBeVisible()
+  await expect(primary.getByRole('button', { name: 'Issues' })).toHaveCount(0)
+})

@@ -192,20 +192,22 @@ tab 中只读实时查看页面；worker 在出口沙箱问题解决前保持关
 需要可复现的真实 Okta 租户，以及该记录列出的 offboarding、轮换、故障与 break-glass 输入。
 原生 CLI/Desktop OIDC 和设备授权仍不在已交付的浏览器流程中。
 
-Beta 门槛通过后，按以下顺序评估并交付此前尚未排期的本地与插件后续项。每一步仍需
+本地 Issue 工作桥接已按其有限范围决定并交付：CLI 的 `buildmax issue` 命令，以及登录时
+Desktop 的 Issues 视图——接收自己负责的工作、从中开始本地聊天，并交回评论和状态变更。
+持久的 Issue↔Session 关联、工作区映射、本地结果投影、拆解与治理已决定暂不做，直到使用中
+出现需要；见[界面定位](design/界面定位.md#55-本地-issue-工作)。
+
+Beta 门槛通过后，按以下顺序评估并交付此前尚未排期的插件与凭证后续项。每一步仍需
 满足其所述证据；在此获得一个有序位置，并不意味着可以跳过提案的接受决策。
 
-1. 决定[本地 Issue 工作桥接](proposals/local-issue-work-bridge.md)剩余的 Phase 1
-   契约；若被接受，再完成持久的 Issue-to-Session 关联和本地结果投影。只有在
-   receive/work/return 路径取得采用证据后，才评估其拆解与治理阶段。
-2. 在扩展通常需要凭证文件的插件之前，先加入 [Space Secret](design/Space密钥.md)
+1. 在扩展通常需要凭证文件的插件之前，先加入 [Space Secret](design/Space密钥.md)
    的凭证文件交付。
-3. 只有在 R0 具备受支持的 hook/MCP 进程与网络边界后，才加入
+2. 只有在 R0 具备受支持的 hook/MCP 进程与网络边界后，才加入
    [可执行 Space 插件内容](design/Space插件分发.md)；保留版本资格、精确 pin 和
    Run 范围物化机制。
-4. 只有在固定的插件环境和可执行插件分发得到验证后，才加入 Task 范围的插件自主获取。
+3. 只有在固定的插件环境和可执行插件分发得到验证后，才加入 Task 范围的插件自主获取。
    它创建后续 TaskRun，绝不热加载正在运行的进程。
-5. 按短期凭证交换、外部 Secret 提供方、workload identity 的顺序考虑后续能力，
+4. 按短期凭证交换、外部 Secret 提供方、workload identity 的顺序考虑后续能力，
    并且只为具体的提供方和运维流程实施。
 
 共享 runtime 中与提供商无关的结构化输出契约、提供商映射、TaskRun 持久化、

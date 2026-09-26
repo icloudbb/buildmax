@@ -30,8 +30,8 @@
 
 - roadmap_priority: post-Beta hardening for the credential debt in §13; the
   space-facing surface is implemented foundation for [`R3`](../ROADMAP.md)
-  candidate qualification. Credential-file delivery is R5 item 3; short-lived
-  exchange, external providers, and workload identity are R5 item 6. It answers
+  candidate qualification. Credential-file delivery is R5 item 1; short-lived
+  exchange, external providers, and workload identity are R5 item 4. It answers
   Phase D3 of
   [plugin-space-distribution.md](plugin-space-distribution.md), which deferred
   secret delivery to a follow-on record.

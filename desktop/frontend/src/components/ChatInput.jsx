@@ -133,8 +133,16 @@ export function ContextDonut({ status }) {
 
 // --- ChatInput ---
 
-export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, approvalKeys = true, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onShowInfo, onShowChanges, infoOpen, onToggleInfo }) {
+export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, approvalKeys = true, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onShowInfo, onShowChanges, infoOpen, onToggleInfo }) {
   const [prompt, setPrompt] = useState('');
+
+  // A draft handed in (an Issue's "Start chat") fills the composer once and is
+  // released, so it is never sent without the person pressing Send.
+  useEffect(() => {
+    if (!draft) return;
+    setPrompt(draft.text);
+    onDraftConsumed?.();
+  }, [draft, onDraftConsumed]);
 
   // Palette state.
   const [commands, setCommands] = useState([]);

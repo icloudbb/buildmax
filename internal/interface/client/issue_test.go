@@ -219,3 +219,27 @@ func TestFindIssueSaysWhenNoSpaceHasIt(t *testing.T) {
 		t.Fatal("a missing issue resolved to a space")
 	}
 }
+
+// A person's comment omits author_kind, so the server attributes it to the
+// signed-in person rather than to a local agent.
+func TestCommentAsPersonOmitsAuthorKind(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Errorf("decode: %v", err)
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"ic_1"}`))
+	}))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).CommentAsPerson(t.Context(), "tok", "tm_1", "i_1", "reviewed locally"); err != nil {
+		t.Fatalf("CommentAsPerson: %v", err)
+	}
+	if _, present := got["author_kind"]; present {
+		t.Fatalf("author_kind = %v, want it omitted", got["author_kind"])
+	}
+	if got["body"] != "reviewed locally" {
+		t.Fatalf("body = %v", got["body"])
+	}
+}

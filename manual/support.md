@@ -22,7 +22,7 @@ A **Beta** label on one surface below describes that component's maturity; it do
 | TUI, `buildmax` | **Supported** | Primary interactive local experience: sessions, slash panels, streaming, model/workspace visibility. |
 | `buildmax init` and `buildmax doctor` | **Supported** | First-run configuration and local setup checks. |
 | Local sessions and run traces | **Supported** | Session persistence and bounded JSONL traces under `BUILDMAX_HOME`. |
-| Desktop app | **Beta** | Local chat, workspace tabs, and in-app schedules using the shared runtime. Unsigned macOS arm64 and Windows amd64 downloads are published with releases; a source build is also available. |
+| Desktop app | **Beta** | Local chat, workspace tabs, and in-app schedules using the shared runtime; signed in to a server, it also lists the Space issues you own. Unsigned macOS arm64 and Windows amd64 downloads are published with releases; a source build is also available. |
 | Portal frontend | **Beta** | Space UI for conversations, issues, workflows, agents, files, usage, and artifacts. Password and login-code flows work; wider public exposure remains unsupported. |
 | Server + local-process worker | **Beta** | Useful for trusted private deployments and development. The Compose path is covered by a full TaskRun and artifact smoke test. |
 | Kubernetes worker mode | **Beta** | The local kind path exercises MySQL, MinIO, Ingress, a worker Job, and artifact retrieval end to end. The worker control API is served on a separate internal listener over HTTPS, and the same smoke proves the boundary: a labelled worker pod reaches it, an unlabelled pod is denied by the NetworkPolicy, and `/api/worker` is `404` on the public Service. Deployment APIs may still change. |

@@ -39,8 +39,8 @@
   [sandbox-boundaries.md](./沙箱边界.md)、
   [unified-artifacts.md](./统一工件.md)、
   [客户端会话与 API 凭据（提案）](../proposals/client-sessions-and-api-credentials.md)
-- folds：[本地 Issue 工作桥接（提案）](../proposals/local-issue-work-bridge.md)
-  中的客户端命令部分
+- folds：已退役的“本地 Issue 工作桥接”提案中的客户端命令部分；其余范围已在
+  [surface-positioning.md §5.5](./界面定位.md#55-本地-issue-工作) 中决定
 - touches：`internal/interface/cli`、`internal/interface/client`、
   `internal/interface/auth`、`internal/agentapp/taskrun`、`internal/bootstrap`、
   `internal/config`、`internal/server/handlers/work`、
@@ -250,10 +250,9 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
   `GetIssue` / `ReportToIssue` 工具及其 `internal/tool` 注册已被移除（§11 第 4 阶段）。
   该记录被削减为存留的产品边界，由本文 §8 拥有并在命令入口世界中表述；与某个 Issue
   关联的运行通过 `issue` 提示层得知该命令，因为已不再有可被发现的工具。
-- **[本地 Issue 工作桥接（提案）](../proposals/local-issue-work-bridge.md)
-  中的客户端命令部分。** 该提案关于本地客户端如何读取、报告和返回工作的问题，在此得到
-  解答。它仍未决的问题（持久的 Issue↔Session 关联、工作区映射、本地结果记录类型）不由
-  本记录决定，并使该提案在决定之前保持开放。
+- **“本地 Issue 工作桥接”提案中的客户端命令部分。** 该提案关于本地客户端如何读取、报告和
+  返回工作的问题，在此得到解答。它剩下的问题（持久的 Issue↔Session 关联、工作区映射、本地结果
+  记录类型）已决定不做，该提案随之退役；见 [surface-positioning.md §5.5](./界面定位.md#55-本地-issue-工作)。
 
 ## 10. 范围之外
 
@@ -261,7 +260,7 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
   接受本地的完整用户权限。
 - 用于运行之外无头非交互使用的个人访问令牌和服务账号。一个具名用例会重启凭据提案的
   Stage 3。
-- 桥接提案中持久的 Issue↔Session 关联和离线发件箱。
+- 持久的 Issue↔Session 关联和离线发件箱，已在 [surface-positioning.md §5.5](./界面定位.md#55-本地-issue-工作) 中决定不做。
 - 任何新的 worker 路由。本记录不新增任何路由；它只是把既有的运行令牌带给一个子进程。
 
 ## 11. 实施阶段

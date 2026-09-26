@@ -30,7 +30,7 @@
 ## 状态
 
 - roadmap_priority: Beta 门槛之后的 `R5` 第 3–6 项
-- status: `partially_implemented` — D1 已实现激活、Agent 选择、领取时服务端解析、固定版本的 worker 物化，以及 Portal 激活管理和 Agent 插件选择器。D2 可执行内容和 §16 Task 范围的自主获取尚未实现，分别排在 R5 第 4 和第 5 项。D3 见 [Space 密钥](Space密钥.md)：Phase 1 环境变量交付已完成，文件交付和后续阶段分别排在 R5 第 3 和第 6 项。
+- status: `partially_implemented` — D1 已实现激活、Agent 选择、领取时服务端解析、固定版本的 worker 物化，以及 Portal 激活管理和 Agent 插件选择器。D2 可执行内容和 §16 Task 范围的自主获取尚未实现，分别排在 R5 第 2 和第 3 项。D3 见 [Space 密钥](Space密钥.md)：Phase 1 环境变量交付已完成，文件交付和后续阶段分别排在 R5 第 1 和第 4 项。
 - 承接：[Plugin 市场](./插件市场.md)
 - depends_on: 没有尚未实现的依赖。早期草案要求可执行内容等待 Worker
   沙箱界面接通；第 9 节已取消这一前提，因为 Bash 沙箱从未约束这里涉及的进程。
