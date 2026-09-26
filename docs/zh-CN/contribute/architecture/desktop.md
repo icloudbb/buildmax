@@ -34,7 +34,7 @@ Desktop 与 CLI 一样，使用以下两种模式之一：
 | `desktop/assets_embed.go` | 在 `desktop` 构建标签下嵌入生产前端 |
 | `cmd/buildmax-desktop/wails.json` | Wails 构建配置 |
 
-`App` 按 Project 文件夹惰性创建一个 `agentapp.AgentApp`，并在进程生命周期内缓存。每个 Project 也各有一个交互式审批处理器。运行按 Session 调度：调度键是 `runKey`，即 Project 加 Session ID，因此每个 Session 最多一个进行中的运行，而同一 Project 的不同 Session 可以并发运行。关闭时回收全部终端 shell、取消活动运行并关闭全部缓存运行时。
+`App` 按 Project 文件夹惰性创建一个 `agentapp.AgentApp`，并在进程生命周期内缓存。运行按 Session 调度：调度键是 `runKey`，即 Project 加 Session ID，因此每个 Session 最多一个进行中的运行，而同一 Project 的不同 Session 可以并发运行。关闭时回收全部终端 shell、取消活动运行并关闭全部缓存运行时。
 
 ## 数据与运行时流程
 
@@ -42,7 +42,7 @@ Desktop 与 CLI 一样，使用以下两种模式之一：
 2. `App` 解析本地 Project，并在需要时创建共享的 `AgentApp`。
 3. 核心运行发出 LLM、工具、用量和流事件。
 4. 桥接层通过 Wails 转发这些事件（事件名为 `desktop/*`）。
-5. React 前端渲染增量内容，并通过 `RespondApproval` 返回审批决定。
+5. React 前端渲染增量内容，并通过 `RespondApproval` 返回审批决定，同时带上所回答请求的 `approval_id`。
 6. 会话持久化和持久 trace 由 `agentapp` 处理，与 CLI 完全一致。
 
 每个 Session 最多一个运行正在进行。Session 的运行进行期间向它提交的提示词会排队：`SendMessageStream` 返回从 1 开始的队列位置（0 表示启动了运行），`QueuedMessages` 重新读取 Session 的队列。全新聊天以空 Session ID 为键，因此同一 Project 中的新聊天在获得 ID 之前仍会串行。队列通过 `RunPromptOpts.Pending` 交给运行，因此排队提示词通常会在下一次迭代边界加入当前回合；之后入队的内容由运行 goroutine 的回合循环继续接收。两种情况下前端都会收到 `desktop/message-dequeued`；hook 拒绝消息时收到 `desktop/message-blocked`，但拒绝不会终止运行本身。`CancelRun` 在取消前丢弃队列。参见[排队消息](../../design/排队消息.md)。
@@ -83,7 +83,9 @@ Explorer 侧边栏区域索引 Project 的工作区，只负责浏览。**Direct
 
 文件 tab 通过 `ReadWorkspaceFile` 读取，预览上限 512 KiB，遇到二进制内容（NUL 字节）时只报告而不返回。路径会被规范化，使 `..` 无法越过根目录；根目录是 Session 自己的工作区（worktree，如有），否则是 Project 的默认工作区。`WriteWorkspaceFile` 写入同一根目录并返回新的预览；`FileView` 只对既非二进制也未截断的预览提供编辑，因此保存永远不会改写只持有部分内容的文件。
 
-每个聊天 tab 是绑定到一个 Session 的 `ChatSession`：它持有该 Session 的对话记录和运行状态，只处理带有其 `session_id` 的事件。新聊天在运行开始前没有 ID；运行在任何流事件之前发出一次带有所创建 ID 的 `desktop/session-adopted`，且只有以新聊天开始的运行会发出，因此即使其他 Session 正在流式输出，待定 tab 也能获得正确的 ID。审批仍按 Project 划分：`desktop/approval-request` 只携带 Project ID，因此待处理的审批会显示在该 Project 所有运行中的聊天 tab 里，任何一个都可以回答；该 Project 的处理器同一时间只持有一个待处理请求。
+每个聊天 tab 是绑定到一个 Session 的 `ChatSession`：它持有该 Session 的对话记录和运行状态，只处理带有其 `session_id` 的事件。新聊天在运行开始前没有 ID；运行在任何流事件之前发出一次带有所创建 ID 的 `desktop/session-adopted`，且只有以新聊天开始的运行会发出，因此即使其他 Session 正在流式输出，待定 tab 也能获得正确的 ID。
+
+工具审批按运行划分。每个 Project 运行都有自己的审批处理器，`App` 以新生成的 `approval_id` 持有每个未回答的请求。`desktop/approval-request` 携带该 ID、Project 以及该运行的 Session ID；此时新聊天已经获得了自己的 ID，因此两个新聊天不会共用同一个提示。前端为每个 Session 保留一个待处理请求，只在该 Session 的聊天 tab 中显示（隐藏的 tab 再次显示时请求仍在），并通过 `RespondApproval(approval_id, decision)` 回答。一个 ID 只能回答一次：未知、已回答或已撤回的 ID 会返回错误且不会到达任何运行。取消一个运行只会撤回它自己的请求，运行结束时前端也会丢弃该 Session 的请求。审批快捷键只在获得焦点的 pane 中生效，因此一次按键不会同时回答两个 Session。“本 Session 内允许”的授权由 `agentapp` 按 Session 保存，不会延续到该 Project 的其他 Session。
 
 浏览器 tab 显示某个 Session 中 Agent 浏览器页面的只读实时视图，由 `desktop/browser/frame` 屏幕流渲染。
 

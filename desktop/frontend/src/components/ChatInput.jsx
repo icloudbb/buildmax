@@ -133,7 +133,7 @@ export function ContextDonut({ status }) {
 
 // --- ChatInput ---
 
-export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onShowInfo, onShowChanges, infoOpen, onToggleInfo }) {
+export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, approvalKeys = true, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onShowInfo, onShowChanges, infoOpen, onToggleInfo }) {
   const [prompt, setPrompt] = useState('');
 
   // Palette state.
@@ -386,7 +386,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
   return (
     <div className="chat-input-wrap">
       {approvalRequest && (
-        <ApprovalPanel request={approvalRequest} onRespond={onRespond} />
+        <ApprovalPanel key={approvalRequest.approval_id} request={approvalRequest} onRespond={onRespond} keys={approvalKeys} />
       )}
 
       {toolActivity && (

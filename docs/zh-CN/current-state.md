@@ -83,8 +83,8 @@ Desktop 工作区是一个由异构 tab（聊天、终端、文件、diff）组�
 级 Explorer 侧边栏（Directory 与 Changes 视图）供给。tab 可在 pane 之间拖动，可拆分为
 行列网格，也可收回为单一 tab 条；布局按 project 记住，终端 tab 跨重启恢复其回滚内容。
 文件 tab 可以编辑并保存工作区文件。每个聊天 tab 是独立的 Session，因此不同 Session 的
-聊天可以并发运行。状态栏的 Launchpad 可打开用户固定的应用与网站。可调整大小的 pane
-分隔条与按 Session 划分的工具审批尚未构建。
+聊天可以并发运行，每个 Session 的工具审批都在它自己的聊天 tab 中显示和回答。状态栏的
+Launchpad 可打开用户固定的应用与网站。可调整大小的 pane 分隔条尚未构建。
 
 本地检查已有 `buildmax info`、TUI `/info` 和面向单个会话的 Desktop `/info` 面板，包含会话统计、会话 fork 树与 Project Memory 三个 tab；
 `buildmax usage` 跨会话汇总 token 与成本总额，可按天、工作区或模型分组。

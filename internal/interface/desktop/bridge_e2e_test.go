@@ -186,7 +186,9 @@ func TestBridgeApprovesAToolCallAndFinishesTheRun(t *testing.T) {
 		t.Fatalf("the file existed before the approval was answered (stat err = %v)", err)
 	}
 
-	app.RespondApproval(projectID, "once")
+	if err := app.RespondApproval(request.ApprovalID, "once"); err != nil {
+		t.Fatalf("answer the approval: %v", err)
+	}
 
 	done, ok := events.waitFor(t, eventStreamDone).(*ReplyPayload)
 	// The reply keeps the narration before the tool call as well as the text
@@ -200,6 +202,15 @@ func TestBridgeApprovesAToolCallAndFinishesTheRun(t *testing.T) {
 	}
 	if string(written) != "scripted content\n" {
 		t.Fatalf("file content = %q, want the scripted content", written)
+	}
+	// A new chat's prompt is routed to the session the run adopted, not to an
+	// empty id another new chat could also claim.
+	adopted, ok := events.waitFor(t, eventSessionAdopted).(*SessionAdoptedPayload)
+	if !ok || request.SessionID == "" || request.SessionID != adopted.SessionID || request.SessionID != done.SessionID {
+		t.Fatalf("approval session = %q, want the adopted session (%+v, done %q)", request.SessionID, adopted, done.SessionID)
+	}
+	if request.ProjectID != projectID {
+		t.Fatalf("approval project = %q, want %q", request.ProjectID, projectID)
 	}
 	if !events.seen(eventStreamDelta) {
 		t.Fatalf("no streamed delta reached the frontend:\n%s", events.summary())
@@ -244,8 +255,13 @@ func TestBridgeDeniesAToolCallAndSaysSo(t *testing.T) {
 	if _, err := app.SendMessageStream(projectID, "", "write notes.txt"); err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	events.waitFor(t, eventApprovalRequest)
-	app.RespondApproval(projectID, "deny")
+	request, ok := events.waitFor(t, eventApprovalRequest).(*ApprovalRequestPayload)
+	if !ok {
+		t.Fatalf("no approval request:\n%s", events.summary())
+	}
+	if err := app.RespondApproval(request.ApprovalID, "deny"); err != nil {
+		t.Fatalf("answer the approval: %v", err)
+	}
 
 	events.waitFor(t, eventStreamDone)
 	if _, err := os.Stat(filepath.Join(workspace, "notes.txt")); !os.IsNotExist(err) {

@@ -50,8 +50,6 @@ function ScheduleRunDetail({ app, run, onClose }) {
           sessions={[]}
           tab={{ kind: 'chat', ref: sessionId, sessionId, key: `chat:${sessionId}` }}
           app={app}
-          approvalRequest={null}
-          onRespond={() => {}}
           onSessionAdopted={() => {}}
           onSessionsChanged={() => {}}
           onTitle={() => {}}

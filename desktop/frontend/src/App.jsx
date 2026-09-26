@@ -13,6 +13,7 @@ import BrowserView from './components/BrowserView';
 import { SchedulesView } from './components/SchedulesView';
 import { LaunchpadButton } from './components/LaunchpadButton';
 import { activeTab, tabIdentity } from './lib/tabs';
+import { withApproval, withoutApproval } from './lib/approvals';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
   closeOtherPaneTabs, closeRightPaneTabs,
@@ -258,16 +259,18 @@ export default function App() {
       .slice(0, 6);
   }, [projects]);
 
-  const EV_APPROVAL_REQUEST = 'desktop/approval-request';
-
-  // Approval prompts are project-level (the approval handler is per project, not
-  // per session). Each chat tab shows the pending request while it is running; a
-  // response resolves it for the project.
-  const [approvalRequest, setApprovalRequest] = useState(null);
+  // Tool approvals pending per session (see lib/approvals). They are held here,
+  // not in ChatSession, so a prompt raised while its chat tab is not on screen is
+  // still waiting when the tab is shown. A run that ends withdraws its prompt.
+  const [approvals, setApprovals] = useState({});
 
   useEffect(() => {
-    const unsub = EventsOn(EV_APPROVAL_REQUEST, (payload) => setApprovalRequest(payload));
-    return () => unsub?.();
+    const unsubs = [
+      EventsOn('desktop/approval-request', (payload) => setApprovals((prev) => withApproval(prev, payload))),
+      EventsOn('desktop/stream-done', (p) => setApprovals((prev) => withoutApproval(prev, p?.session_id))),
+      EventsOn('desktop/stream-error', (p) => setApprovals((prev) => withoutApproval(prev, p?.session_id))),
+    ];
+    return () => unsubs.forEach((unsub) => unsub?.());
   }, []);
 
   // The Agent's browser opens as its own visible window; this tracks which page
@@ -945,16 +948,17 @@ export default function App() {
     });
   }
 
-  async function handleRespond(decision) {
-    if (!approvalRequest || !app) return;
-    const req = approvalRequest;
-    setApprovalRequest(null);
+  // Answer one session's prompt by its approval id. A rejection means the run
+  // already stopped waiting (it ended or was cancelled); there is nothing to redo.
+  const handleRespond = useCallback(async (request, decision) => {
+    if (!request || !app) return;
+    setApprovals((prev) => withoutApproval(prev, request.session_id, request.approval_id));
     try {
-      await app.RespondApproval(req.project_id, decision);
+      await app.RespondApproval(request.approval_id, decision);
     } catch (err) {
       console.error('RespondApproval failed:', err);
     }
-  }
+  }, [app]);
 
   // --- Loading / auth screens ---
 
@@ -1060,8 +1064,9 @@ export default function App() {
             sessions={sessions}
             tab={active}
             app={app}
-            approvalRequest={approvalRequest}
+            approvals={approvals}
             onRespond={handleRespond}
+            focused={pane.id === workspace.focused}
             onSessionAdopted={handleSessionAdopted}
             onSessionsChanged={refreshSessions}
             onTitle={handleTabTitle}

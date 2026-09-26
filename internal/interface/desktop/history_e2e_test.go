@@ -280,7 +280,8 @@ func TestBridgeHistoryMovesAreRefusedWhileTheSessionIsBusy(t *testing.T) {
 	}
 	// The approval gate parks the run mid-turn with the session still open,
 	// which is the state a rewind must refuse rather than corrupt.
-	if _, ok := events.waitFor(t, eventApprovalRequest).(*ApprovalRequestPayload); !ok {
+	request, ok := events.waitFor(t, eventApprovalRequest).(*ApprovalRequestPayload)
+	if !ok {
 		t.Fatalf("no approval request:\n%s", events.summary())
 	}
 	sessions, err := app.ListSessions()
@@ -307,7 +308,9 @@ func TestBridgeHistoryMovesAreRefusedWhileTheSessionIsBusy(t *testing.T) {
 		t.Errorf("error = %q, want it to say the session is busy", err)
 	}
 
-	app.RespondApproval(projectID, "once")
+	if err := app.RespondApproval(request.ApprovalID, "once"); err != nil {
+		t.Fatalf("answer the approval: %v", err)
+	}
 	events.waitFor(t, eventStreamDone)
 }
 

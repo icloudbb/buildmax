@@ -57,8 +57,7 @@ removes the credentials, and that removal is the whole switch back to local. See
 | `cmd/buildmax-desktop/wails.json` | Wails build configuration |
 
 `App` creates one `agentapp.AgentApp` lazily per project folder and caches it
-for the process lifetime. Each project also has one interactive approval
-handler. Runs are scheduled per session: the scheduler key is `runKey`, the
+for the process lifetime. Runs are scheduled per session: the scheduler key is `runKey`, the
 project plus the session id, so at most one run per session is in flight while
 different sessions of one project run concurrently. Shutdown reaps every
 terminal shell, cancels active runs, and closes all cached runtimes.
@@ -71,7 +70,7 @@ terminal shell, cancels active runs, and closes all cached runtimes.
 3. The core run emits LLM, tool, usage, and stream events.
 4. The bridge forwards those events through Wails (`desktop/*` event names).
 5. The React frontend renders deltas and returns approval decisions through
-   `RespondApproval`.
+   `RespondApproval`, quoting the `approval_id` of the request it answers.
 6. Session persistence and durable traces are handled by `agentapp`, exactly as
    for the CLI.
 
@@ -233,10 +232,21 @@ transcript and run state and handles only events tagged with its
 `session_id`. A new chat has no id until its run starts; the run emits
 `desktop/session-adopted` with the created id once, before any of its stream
 events, and only runs that began as a new chat emit it, so the pending tab
-adopts the right id while other sessions stream. Approvals are still keyed per
-project: `desktop/approval-request` carries only the project id, so a pending
-prompt shows in every running chat tab of that project and any of them can
-answer it, and the project's handler holds one pending request at a time.
+adopts the right id while other sessions stream.
+
+Tool approvals are per run. Each project run gets its own approval handler, and
+`App` holds every unanswered request under a fresh `approval_id`.
+`desktop/approval-request` carries that id with the project and the run's
+session id; a new chat has already adopted its id by then, so two new chats
+never share a prompt. The frontend keeps one pending request per session, shows
+it only in that session's chat tab (and still has it when a hidden tab is
+shown), and answers with `RespondApproval(approval_id, decision)`. An id answers
+once: an unknown, answered, or withdrawn id returns an error and reaches no run.
+Cancelling a run withdraws only its own request, and the frontend drops a
+session's request when its run ends. Approval shortcuts are active only in the
+focused pane, so one key press never answers two sessions. "Allow for session"
+grants are held per session by `agentapp`, so they never carry to another
+session of the project.
 
 A browser tab shows a read-only live view of the Agent's browser page for one
 session, rendered from the `desktop/browser/frame` screencast.
