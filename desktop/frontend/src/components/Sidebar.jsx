@@ -235,6 +235,7 @@ export function Sidebar({
             style={sectionStyle}
             onOpenFile={explorer.onOpenFile}
             onOpenDiff={explorer.onOpenDiff}
+            onOpenCommitDiff={explorer.onOpenCommitDiff}
           />
         </>
       )}

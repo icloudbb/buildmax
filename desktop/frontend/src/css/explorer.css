@@ -115,6 +115,170 @@
   color: var(--color-text-subtle);
 }
 
+/* Changes mode: two groups drawn as tree rows (Changes, Commits). Depth 1 sits
+   under a group, depth 2 under a commit. */
+
+.explorer__group {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--sidebar-row-h);
+  margin: 0 6px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  text-align: left;
+  cursor: pointer;
+}
+
+.explorer__group:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.explorer__group .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.explorer__group-label {
+  flex: 1;
+}
+
+.explorer__group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.explorer__count,
+.explorer__ref {
+  flex-shrink: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 0.66rem;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: none;
+  color: var(--color-text-muted);
+}
+
+.explorer__count {
+  background: var(--color-bg-hover);
+}
+
+.explorer__ref {
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--color-border);
+  font-family: var(--font-mono, monospace);
+}
+
+.explorer__change--depth1,
+.explorer__commit {
+  padding-left: calc(8px + var(--sidebar-indent));
+}
+
+.explorer__change--depth2 {
+  padding-left: calc(8px + 2 * var(--sidebar-indent));
+}
+
+.explorer__commit {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: var(--sidebar-row-h);
+  margin: 0 6px;
+  padding-right: 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.explorer__commit:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.explorer__commit .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+}
+
+/* A merge is the PR boundary, not the work: quieter than the commits in it. */
+.explorer__commit--merge {
+  color: var(--color-text-subtle);
+}
+
+/* Expanded is not selected: the fill stays with the tab the center shows. */
+.explorer__commit--open {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.explorer__commit-subject {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer__commit-meta {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-text-subtle);
+}
+
+.explorer__commit-files {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.explorer__more {
+  flex-shrink: 0;
+  height: var(--sidebar-row-h);
+  margin: 0 6px;
+  padding: 0 8px 0 calc(8px + var(--sidebar-indent));
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--color-text-subtle);
+  text-align: left;
+  cursor: pointer;
+}
+
+.explorer__more:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
 .explorer__hint {
   padding: 0.75rem 0.6rem;
   color: var(--color-text-subtle);
@@ -123,4 +287,16 @@
 
 .explorer__hint--error {
   color: var(--color-error, #dc2626);
+}
+
+.explorer__hint--nested {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+  padding-left: calc(14px + var(--sidebar-indent));
+}
+
+.explorer__hint--deep {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+  padding-left: calc(14px + 2 * var(--sidebar-indent));
 }

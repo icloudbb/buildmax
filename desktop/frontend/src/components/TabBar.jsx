@@ -26,9 +26,10 @@ function dropBeforeKey(e, tabs, index) {
 }
 
 // A file or diff tab's title is its filename; its tooltip is the full workspace
-// path (its ref) so the whole location is visible on hover. Other kinds show
-// their title in both.
+// path (its ref) so the whole location is visible on hover, plus the commit for
+// a commit's diff. Other kinds show their title in both.
 function tabTooltip(t) {
+  if (t.kind === 'diff' && t.commit) return `${t.path} at ${t.commit.slice(0, 8)}`;
   return (t.kind === 'file' || t.kind === 'diff') ? (t.ref || t.title) : t.title;
 }
 

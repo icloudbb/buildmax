@@ -178,9 +178,17 @@ exists only while a project workspace is the center view; its header names the
 project, and its height against the Projects list is drag-resizable and
 remembered per machine. It indexes the project's workspace and only browses, in
 one of two modes chosen by icon buttons: **Files** lists the tree one level at a
-time (`ListWorkspaceDir`, `.git` hidden); **Changes** lists the workspace diff
-(`GetWorkspaceDiff`). A single click opens a preview file or diff tab, which the
-next browse click replaces; a double-click opens a pinned one.
+time (`ListWorkspaceDir`, `.git` hidden); **Changes** works like a source-control
+view, with two groups. The first lists the uncommitted workspace diff
+(`GetWorkspaceDiff`). The second is the read-only history of the workspace's
+`HEAD`, newest first and paged 50 at a time (`ListCommits`); a commit expands to
+the files it changed against its first parent (`GetCommit`), so a merge commit
+shows what its branch brought in. A single click opens a preview file or diff
+tab, which the next browse click replaces; a double-click opens a pinned one. A
+commit's file opens as a diff tab that carries the commit and reads that one
+patch (`GetCommitFileDiff`). All of these resolve the workspace from the session
+the way the file tree does, so a session in its own worktree shows that
+worktree's branch and history.
 
 `desktop/frontend/src/lib/panes.js` lays the tabs out as rows of panes, each
 pane a `tabs.js` state. The focused pane receives newly opened tabs. Split right

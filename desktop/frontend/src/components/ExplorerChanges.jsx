@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
-import { splitPathForDisplay, statusGlyph, truncateMiddleText } from '../lib/format';
+import { ChangeRow, ExplorerGroup } from './ExplorerRows';
+import { ExplorerCommits } from './ExplorerCommits';
 
-// ExplorerChanges is the Changes mode of the project section: the workspace's
-// modified files as a flat list whose clicks open a diff tab in the center.
-export function ExplorerChanges({ projectID, sessionID, app, onOpenDiff }) {
+const NOT_A_REPO = 'not a git repository';
+
+// ExplorerChanges is the Changes mode of the project section, modeled on a
+// source-control view: the workspace's uncommitted changes, then the commit
+// history of the workspace's HEAD. Clicks open diff tabs in the center.
+export function ExplorerChanges({ projectID, sessionID, app, onOpenDiff, onOpenCommitDiff }) {
   const [state, setState] = useState({ loading: true });
+  const [changesOpen, setChangesOpen] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -19,32 +24,28 @@ export function ExplorerChanges({ projectID, sessionID, app, onOpenDiff }) {
     return () => { cancelled = true; };
   }, [projectID, sessionID, app]);
 
-  if (state.loading) return <div className="explorer__hint">Loading…</div>;
-  if (state.error) return <div className="explorer__hint explorer__hint--error">{state.error}</div>;
-  if (!state.files.length) return <div className="explorer__hint">No uncommitted changes.</div>;
+  // A plain-directory Project has neither changes nor history: one hint, not two.
+  if (state.error === NOT_A_REPO) {
+    return <div className="explorer__hint">Not a Git repository.</div>;
+  }
+
+  let changes;
+  if (state.loading) changes = <div className="explorer__hint explorer__hint--nested">Loading…</div>;
+  else if (state.error) changes = <div className="explorer__hint explorer__hint--nested explorer__hint--error">{state.error}</div>;
+  else if (!state.files.length) changes = <div className="explorer__hint explorer__hint--nested">No uncommitted changes.</div>;
+  else changes = state.files.map((f) => <ChangeRow key={`${f.status}:${f.path}`} file={f} onOpen={onOpenDiff} />);
 
   return (
-    <div className="explorer__changes" aria-label="Changed files">
-      {state.files.map((f) => {
-        const parts = splitPathForDisplay(f.path);
-        return (
-          <button
-            key={`${f.status}:${f.path}`}
-            type="button"
-            className="explorer__change"
-            onClick={() => onOpenDiff(f.path)}
-            onDoubleClick={() => onOpenDiff(f.path, true)}
-            title={f.path}
-          >
-            <span className={`explorer__change-status diff-drawer__status--${f.status}`}>{statusGlyph(f.status)}</span>
-            <span className="explorer__change-name">{truncateMiddleText(parts.name, 30)}</span>
-            {parts.dir && <span className="explorer__change-dir">{parts.dir}</span>}
-            {(f.additions > 0 || f.deletions > 0) && (
-              <span className="explorer__change-counts">+{f.additions} -{f.deletions}</span>
-            )}
-          </button>
-        );
-      })}
+    <div className="explorer__changes" aria-label="Changes and commits">
+      <ExplorerGroup
+        label="Changes"
+        open={changesOpen}
+        onToggle={() => setChangesOpen((v) => !v)}
+        badge={state.files?.length > 0 && <span className="explorer__count">{state.files.length}</span>}
+      >
+        <div aria-label="Changed files" className="explorer__group-body">{changes}</div>
+      </ExplorerGroup>
+      <ExplorerCommits projectID={projectID} sessionID={sessionID} app={app} onOpenCommitDiff={onOpenCommitDiff} />
     </div>
   );
 }
