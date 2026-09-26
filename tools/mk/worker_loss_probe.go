@@ -187,7 +187,7 @@ func waitForTaskFailure(ctx context.Context, client *http.Client, taskURL, token
 			}
 			return *detail.ErrorMessage, nil
 		case "SUCCEEDED", "CANCELED":
-			return "", fmt.Errorf("run ended %s, not FAILED — the kill did not strand it", detail.Status)
+			return "", fmt.Errorf("run ended %s, not FAILED", detail.Status)
 		}
 		if time.Now().After(deadline) {
 			return "", fmt.Errorf("run stayed %s past %s; it was never settled", detail.Status, timeout)

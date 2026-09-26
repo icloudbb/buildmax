@@ -126,18 +126,22 @@ recovery: a runtime loss of MySQL flips `/readyz` to report the database failed
 and takes the server out of the Service without restarting it, and it recovers
 on its own once access returns, and it proves the same for object storage: a
 runtime loss of the bucket flips `/readyz`'s object-storage check and recovers
-with the bucket intact. A server now expires persisted run traces on an
-operator-set window, defaulting to keep-forever and recording each prune; no
-candidate has yet proved the worker's object-storage write path under denial,
-paired restore, schema upgrade, binary rollback, or credential rotation.
+with the bucket intact. It also denies only the worker's object-storage
+writes while the server's path stays healthy: a run whose seed or run state
+storage refuses ends FAILED with a cause naming the refused write, keeps its
+reply and the Artifacts it published through the server, and records no trace
+pointer to an object that is not there. A server now expires persisted run
+traces on an operator-set window, defaulting to keep-forever and recording each
+prune; no candidate has yet proved paired restore, schema upgrade, binary
+rollback, or credential rotation.
 
-**Next:** the remaining lifecycle evidence — the worker object-storage write
-path under denial, paired database-and-bucket restore, a schema upgrade and
-binary rollback fixture, and credential rotation — several of which land as the
-R3 operator journey. Real-MySQL coverage for
+**Next:** the remaining lifecycle evidence — paired database-and-bucket
+restore, a schema upgrade and binary rollback fixture, and credential rotation —
+several of which land as the R3 operator journey. Real-MySQL coverage for
 [quota windows](https://github.com/icloudbb/buildmax/issues/498) and cross-Space
-store scoping, and the deployed worker-loss, database-outage, and
-object-storage-readiness outage/recovery drills, are done. Retire plans for removed mechanisms,
+store scoping, and the deployed worker-loss, database-outage,
+object-storage-readiness outage/recovery, and worker object-storage write-denial
+drills, are done. Retire plans for removed mechanisms,
 including the old result-delivery queue, rather than recreate them for a
 checklist.
 
