@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -159,15 +160,21 @@ func runAdminUserSetDisabled(cmd *cobra.Command, email string, disabled bool) er
 	if err != nil {
 		return err
 	}
-	updated, revoked, err := c.SetAccountDisabled(cmd.Context(), token, account.ID, disabled)
+	change, err := c.SetAccountDisabled(cmd.Context(), token, account.ID, disabled)
 	if err != nil {
 		return err
 	}
 	out := cmd.OutOrStdout()
-	if disabled {
-		fmt.Fprintf(out, "disabled %s; %d session token(s) revoked\n", updated.Email, revoked)
-	} else {
-		fmt.Fprintf(out, "%s can sign in again\n", updated.Email)
+	if !disabled {
+		fmt.Fprintf(out, "%s can sign in again\n", change.Email)
+		return nil
+	}
+	fmt.Fprintf(out, "disabled %s; %d session token(s) revoked\n", change.Email, change.SessionsRevoked)
+	// The account is disabled either way; a nonzero exit tells a script the
+	// cleanup still needs the retry this message names.
+	if len(change.CleanupFailed) > 0 {
+		return fmt.Errorf("%s is disabled, but cleanup failed for: %s; run `buildmax admin user disable %s` again to retry (safe: it re-runs the cleanup)",
+			change.Email, strings.Join(change.CleanupFailed, ", "), change.Email)
 	}
 	return nil
 }

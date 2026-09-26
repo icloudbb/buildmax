@@ -2593,7 +2593,7 @@
       "put": {
         "tags": ["admin"],
         "summary": "Set an account's disabled state",
-        "description": "Disabling commits the account gate first, then quiets the account's sessions, webhook keys (when retire_webhook_keys is set), schedules, and in-flight runs. The response reports the reloaded account alongside the cleanup counts.",
+        "description": "Disabling commits the account gate first, then quiets the account's sessions, webhook keys (when retire_webhook_keys is set), schedules, and in-flight runs. The response reports the reloaded account alongside the cleanup counts. A cleanup step that fails after the gate commits does not fail the request: the account is disabled, the change is audited, and cleanup_failed names the failed steps. Disabling again is safe and re-runs the cleanup.",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "requestBody": {
@@ -2613,7 +2613,8 @@
                     "sessions_revoked": {"type": "integer"},
                     "webhook_keys_retired": {"type": "integer"},
                     "schedules_paused": {"type": "integer"},
-                    "runs_canceled": {"type": "integer"}
+                    "runs_canceled": {"type": "integer"},
+                    "cleanup_failed": {"type": "array", "items": {"type": "string", "enum": ["sessions", "webhook_keys", "schedules", "runs"]}, "description": "Cleanup steps that failed after the account was disabled; absent when cleanup completed."}
                   }
                 }
               }

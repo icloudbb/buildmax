@@ -49,6 +49,8 @@ describe("describeEvent", () => {
       .toBe("Revoked system_admin over the deployment")
     expect(describeEvent(event({ action: "user.created" })).summary).toBe("Created an account")
     expect(describeEvent(event({ action: "user.disabled" })).summary).toBe("Disabled an account")
+    expect(describeEvent(event({ action: "user.disabled", detail: "cleanup incomplete: runs" })).summary)
+      .toBe("Disabled an account — cleanup incomplete: runs")
     expect(describeEvent(event({ action: "user.enabled" })).summary).toBe("Enabled an account")
     expect(describeEvent(event({ action: "user.login_code_issued" })).summary)
       .toBe("Issued a login code")

@@ -316,7 +316,8 @@ Server 自有的小时级清理会删除结束时间早于截止点的 Run 轨�
 因此登出、管理员撤销和禁用会让已签发的访问令牌在下一次请求立即停止；Session 还带有一个
 绝对寿命。禁用账户由 `internal/service/accountlifecycle` 编排:提交账户闸门、撤销 Session、
 可选地退役该账户的 webhook key（`retire_webhook_keys`,用于离职而非临时暂停）、暂停该账户
-的 schedule、取消其在途 run,并把闸门结果与这些清理计数分开上报;重新启用只重开闸门,
+的 schedule、取消其在途 run,并把闸门结果与这些清理计数分开上报。闸门提交后失败的清理步骤
+会在一次已审计、成功且可安全重复的禁用中按名称列出(`cleanup_failed`);重新启用只重开闸门,
 不复活其中任何一项。`GET /api/admin/users/{user_id}/deactivation-impact` 在变更提交前投影
 这一影响——只含计数与 id,绝不含 Space 内容。Portal 管理区在操作员停用账户时把该
 投影作为引导式预览呈现(含"暂停 vs 离职"选择),并在管理端 Spaces 视图提供

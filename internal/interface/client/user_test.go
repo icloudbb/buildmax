@@ -62,12 +62,28 @@ func TestClientSetAccountDisabledReportsRevoked(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	account, revoked, err := NewClient(srv.URL).SetAccountDisabled(context.Background(), "tok", "u_9", true)
+	change, err := NewClient(srv.URL).SetAccountDisabled(context.Background(), "tok", "u_9", true)
 	if err != nil {
 		t.Fatalf("SetAccountDisabled: %v", err)
 	}
-	if !account.Disabled() || revoked != 3 {
-		t.Fatalf("unexpected: disabled=%v revoked=%d", account.Disabled(), revoked)
+	if !change.Disabled() || change.SessionsRevoked != 3 || len(change.CleanupFailed) != 0 {
+		t.Fatalf("unexpected: %+v", change)
+	}
+}
+
+func TestClientSetAccountDisabledReportsIncompleteCleanup(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"u_9","email":"new@corp.com","disabled_at":"2026-09-06T00:00:00Z","sessions_revoked":1,"cleanup_failed":["schedules","runs"]}`))
+	}))
+	defer srv.Close()
+
+	change, err := NewClient(srv.URL).SetAccountDisabled(context.Background(), "tok", "u_9", true)
+	if err != nil {
+		t.Fatalf("SetAccountDisabled: %v", err)
+	}
+	if !change.Disabled() || len(change.CleanupFailed) != 2 || change.CleanupFailed[1] != "runs" {
+		t.Fatalf("unexpected: %+v", change)
 	}
 }
 

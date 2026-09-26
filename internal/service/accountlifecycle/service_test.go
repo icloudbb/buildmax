@@ -2,6 +2,8 @@ package accountlifecycle_test
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -79,6 +81,38 @@ func TestDisableRetiresKeysPausesSchedulesAndCancelsRuns(t *testing.T) {
 	}
 	if runs.Runs[0].CancelReason != coretask.CancelReasonCreatorDisabled {
 		t.Errorf("run cancel_reason = %q, want creator_disabled", runs.Runs[0].CancelReason)
+	}
+}
+
+// failingSchedules is a schedule store that cannot be read.
+type failingSchedules struct{ mock.MockScheduleStore }
+
+func (*failingSchedules) ListEnabledSchedulesByCreator(context.Context, string) ([]coreschedule.Schedule, error) {
+	return nil, errors.New("schedule store unavailable")
+}
+
+// TestDisableCleanupFailureKeepsTheGateAndFinishesTheOtherSteps: a failed
+// cleanup step is reported, not fatal. The gate stays committed, the steps
+// after it still run, and the error says the account is disabled.
+func TestDisableCleanupFailureKeepsTheGateAndFinishesTheOtherSteps(t *testing.T) {
+	svc, users, _, runs := newService(t)
+	svc.Schedules = &failingSchedules{}
+
+	res, err := svc.Disable(context.Background(), "u1", accountlifecycle.DisableOptions{RetireWebhookKeys: true})
+	if !errors.Is(err, accountlifecycle.ErrCleanupIncomplete) {
+		t.Fatalf("Disable err = %v, want ErrCleanupIncomplete", err)
+	}
+	if users.ByID["u1"].DisabledAt == nil {
+		t.Error("a cleanup failure undid or skipped the account gate")
+	}
+	if !slices.Equal(res.CleanupFailed, []string{accountlifecycle.StepSchedules}) {
+		t.Errorf("cleanup_failed = %v, want [schedules]", res.CleanupFailed)
+	}
+	if res.WebhookKeysRetired != 2 || res.RunsCanceled != 1 {
+		t.Errorf("other steps did not run: keys=%d runs=%d", res.WebhookKeysRetired, res.RunsCanceled)
+	}
+	if runs.Runs[0].CancelReason != coretask.CancelReasonCreatorDisabled {
+		t.Errorf("run after the failed step was not canceled: %q", runs.Runs[0].CancelReason)
 	}
 }
 

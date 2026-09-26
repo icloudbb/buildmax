@@ -2,6 +2,7 @@ import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ApiAdminSession, ApiAdminUser, ApiAdminUserDetail } from "../../lib/api/types"
 import { DeactivationImpactModal } from "./DeactivationImpactModal"
+import { describeDisableOutcome } from "./disableOutcome"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { navigate } from "../../router"
 import { pageWindow } from "./pagination"
@@ -97,6 +98,10 @@ export function AdminAccounts({
   const [newEmail, setNewEmail] = useState("")
   const [busy, setBusy] = useState(false)
   const [disableTarget, setDisableTarget] = useState<ApiAdminUser | null>(null)
+  const [cleanupRetry, setCleanupRetry] = useState<{
+    user: ApiAdminUser
+    retireWebhookKeys: boolean
+  } | null>(null)
   const [loginCode, setLoginCode] = useState<string | null>(null)
   const [offset, setOffset] = useState(0)
   const [filters, setFilters] = useState<AccountFilters>(emptyFilters)
@@ -163,6 +168,7 @@ export function AdminAccounts({
     setBusy(true)
     setError(null)
     setNotice(null)
+    setCleanupRetry(null)
     try {
       const result = await run()
       setNotice(done(result))
@@ -211,16 +217,16 @@ export function AdminAccounts({
 
   // Disabling is a guided, orchestrated step: the operator previews the impact
   // and chooses suspension vs leaver in the modal, then this runs the disable and
-  // reports what its cleanup did.
+  // reports what its cleanup did. A partly failed cleanup leaves the account
+  // disabled, and the account then offers Enable rather than Disable, so the
+  // retry is offered here with the same choice.
   function runDisable(user: ApiAdminUser, retireWebhookKeys: boolean): void {
     act(
       () => setAdminUserDisabled(token!, user.id, true, { retireWebhookKeys }),
       (after) => {
-        const parts = [`${after.sessions_revoked} session${after.sessions_revoked === 1 ? "" : "s"} revoked`]
-        if (after.schedules_paused) parts.push(`${after.schedules_paused} schedule${after.schedules_paused === 1 ? "" : "s"} paused`)
-        if (after.runs_canceled) parts.push(`${after.runs_canceled} run${after.runs_canceled === 1 ? "" : "s"} canceled`)
-        if (after.webhook_keys_retired) parts.push(`${after.webhook_keys_retired} webhook key${after.webhook_keys_retired === 1 ? "" : "s"} retired`)
-        return `${after.email} is disabled. ${parts.join(", ")}.`
+        const outcome = describeDisableOutcome(after)
+        setCleanupRetry(outcome.incomplete ? { user, retireWebhookKeys } : null)
+        return outcome.message
       },
     )
     setDisableTarget(null)
@@ -326,7 +332,20 @@ export function AdminAccounts({
             {error}
           </p>
         ) : null}
-        {notice ? <p className="admin-notice">{notice}</p> : null}
+        {notice ? (
+          <p className="admin-notice" role={cleanupRetry ? "alert" : undefined}>
+            {notice}{" "}
+            {cleanupRetry ? (
+              <Button
+                variant="secondary"
+                disabled={busy}
+                onClick={() => runDisable(cleanupRetry.user, cleanupRetry.retireWebhookKeys)}
+              >
+                Retry cleanup
+              </Button>
+            ) : null}
+          </p>
+        ) : null}
 
         {loading ? (
           <p className="admin-empty">Loading…</p>
