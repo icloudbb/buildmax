@@ -1,13 +1,14 @@
-// The workspace layout layer over the tab model (see the desktop-workspace-tabs
-// proposal §15). A workspace is a grid: rows of panes. Each pane is a `tabs.js`
-// state (tabs + activeKey), so every pane operation reuses the tested tab model.
+// The workspace layout layer over the tab model (see
+// docs/contribute/architecture/desktop.md). A workspace is a grid: rows of
+// panes. Each pane is a `tabs.js` state (tabs + activeKey), so every pane
+// operation reuses the tested tab model.
 // One pane is `focused`: it receives newly opened activities and is highlighted
 // when more than one pane is on screen.
 //
 // Splitting right adds a pane to the focused pane's row; splitting down adds a
 // new row. Both create an *empty* focused pane — newly opened files, diffs, and
 // terminals land there. A tab moves between panes only through moveTab (drag).
-// Keeping a tab's backing (session/PTY/file) decoupled from its pane (§7.5) is
+// Keeping a tab's backing (session/PTY/file) decoupled from its pane is
 // what lets a terminal survive a move: the emulator is portalled, not remounted.
 // An empty pane is transient and reaped as soon as focus leaves it.
 

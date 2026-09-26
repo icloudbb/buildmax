@@ -205,7 +205,7 @@ type App struct {
 	// emit sends an event to the frontend. See uiEmitter.
 	emit uiEmitter
 	// terminals owns the interactive shell strands shown as terminal tabs. See
-	// the desktop-terminal-tabs proposal.
+	// docs/contribute/architecture/desktop.md.
 	terminals *terminalManager
 	// schedules stores the local scheduled tasks. Lazily opened (see
 	// ensureScheduleStore) so a test that never touches schedules needs no

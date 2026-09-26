@@ -253,7 +253,19 @@ The two modes therefore take different rules rather than one compromise:
 
 The first paths are deliberately few and representative. New functionality
 adds an E2E path only when its cross-boundary outcome has no lower, faster
-test.
+test. The lowest boundary that can prove a claim owns it:
+
+| Claim | Authoritative evidence boundary |
+|---|---|
+| Pure validation, state transition, authorization rule, or rendering decision | Unit, component, handler, or real-MySQL test |
+| Published Portal bundle, browser routing, session restoration, accessibility, or visible recovery state | Portal Playwright against a real deployment |
+| Server, worker, storage, scheduler, gateway, or process lifecycle cooperation | Compose deployment smoke or failure suite |
+| Ingress, Kubernetes Job lifecycle, pod network or security context, Service removal, or cross-replica behavior | kind lifecycle suite |
+| External dependency restore, upgrade, rollback, TLS, or credential rotation | Pinned release-candidate qualification |
+
+A new browser case is justified only when removing the browser would leave the
+claim unproved; a browser case never repeats a fault injection that deployment
+smoke already owns.
 
 | Suite | Initial golden paths |
 |---|---|

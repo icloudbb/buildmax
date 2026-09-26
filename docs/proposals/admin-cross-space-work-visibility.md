@@ -9,7 +9,6 @@
 Related: [roadmap](../ROADMAP.md),
 [current state](../current-state.md),
 [system administration design](../design/system-administration.md),
-[system administration operations proposal](system-administration-operations.md),
 [Space governance](../design/space-governance.md), and
 [server architecture](../contribute/architecture/server.md).
 
@@ -81,8 +80,9 @@ smallest evidence that could justify each slice.
   authorization. A browser navigation change cannot safely change that
   authority. A global Admin page returning their names or definitions would
   grant content access just as surely as a bypass on the Space routes.
-- The [system administration operations proposal](system-administration-operations.md)
-  already owns general runtime health, capacity, and operator-surface parity.
+- The [system administration design](../design/system-administration.md)
+  already owns general runtime health, capacity, and operator-surface parity
+  (§6.1, and runtime aggregates as its §17 open question 16).
   This paper owns the narrower question of crossing from that metadata into
   named Space work and of presenting work from Spaces where a user is already
   a member. It does not duplicate the runtime dashboard plan.
@@ -141,7 +141,7 @@ still needs a concrete operator question and a leak review.
 The Administration Overview and Spaces area answer the operator's question
 from deployment-wide, durable facts. The existing TaskRun counts and per-Space
 usage are the starting point. If an incident drill shows they are insufficient,
-the [runtime operations proposal](system-administration-operations.md) can add
+the [system administration design](../design/system-administration.md) can add
 bounded status and age aggregates, safe error classes, or other metadata that
 shortens diagnosis. It should not acquire four content list endpoints merely
 to fill four tabs.
@@ -245,8 +245,8 @@ evidence of a need for global content authority.
 Record any accepted authority decision in the
 [system administration design](../design/system-administration.md) and the
 affected Space governance record. Put an evidenced runtime metadata slice in
-the [system administration operations proposal](system-administration-operations.md)
-or its accepted successor; put any member-only work view in Portal's Space
+the [system administration design](../design/system-administration.md);
+put any member-only work view in Portal's Space
 navigation plan. Add roadmap and backlog work only after the corresponding
 decision is accepted. A support-access design, if justified, remains its own
 decision. Then retire this proposal; Git history keeps the discussion.

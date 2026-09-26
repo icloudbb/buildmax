@@ -27,6 +27,8 @@ A **Beta** label on one surface below describes that component's maturity; it do
 | Server + local-process worker | **Beta** | Useful for trusted private deployments and development. The Compose path is covered by a full TaskRun and artifact smoke test. |
 | Kubernetes worker mode | **Beta** | The local kind path exercises MySQL, MinIO, Ingress, a worker Job, and artifact retrieval end to end. The worker control API is served on a separate internal listener over HTTPS, and the same smoke proves the boundary: a labelled worker pod reaches it, an unlabelled pod is denied by the NetworkPolicy, and `/api/worker` is `404` on the public Service. Deployment APIs may still change. |
 | Inbound webhooks | **Beta** | Authenticated by per-user webhook keys; payload extraction is configurable. |
+| [Remote Control](remote-control.md) | **Experimental** | Watch, prompt, approve, and stop a local CLI/TUI session from Portal on another device; execution stays local. CLI opt-in only; no push notifications. |
+| [Chat apps](chat-apps.md) | **Experimental** | Telegram private chats reach a Space Conversation. Group chats and other platforms are not available. |
 
 ## Operating systems
 
@@ -62,7 +64,9 @@ A **Beta** label on one surface below describes that component's maturity; it do
 | Local app connectors | **Experimental** | CLI-only OAuth connections with fixed plugin-declared operations; writes need interactive confirmation. No Desktop connection UI or per-run Agent grant. |
 | Remote MCP CLI | **Experimental** | Register and call HTTP/SSE servers from the CLI, with optional static Bearer credentials. MCP OAuth is not implemented. |
 | Built-in model hosting | Not supported | Bring your own provider, gateway, or local inference server. |
-| Multi-modal generation, voice, or browser automation | Not supported | Current runtime tools are text, files, shell, MCP, hooks, skills, and subagents. |
+| Web search | **Beta** | The built-in `WebSearch` tool queries the public web through Firecrawl; keyless by default, or with a configured key. |
+| Browser verification | **Experimental** | Local CLI (headless) and Desktop (visible window) drive an installed Chrome/Edge through the `Browser` tools. Not available to workers; no interactive takeover. |
+| Multi-modal generation or voice | Not supported | Runtime tools cover text, files, shell, web search, local browser verification, MCP, hooks, skills, and subagents. |
 
 ## Deployment and security
 

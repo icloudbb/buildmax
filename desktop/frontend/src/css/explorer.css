@@ -1,4 +1,4 @@
-/* Explorer sidebar section (see the desktop-workspace-tabs proposal): a
+/* Explorer sidebar section (see docs/contribute/architecture/desktop.md): a
    project-scoped index of the workspace with Directory and Changes modes. It
    sits below Projects in the sidebar and only browses — clicks open center
    tabs. */

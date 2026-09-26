@@ -10,6 +10,7 @@
 [Agent 原生协作底座](agent-native-collaboration-substrate.md)、
 [Session 树与 Agent 邮箱](session-tree-and-agent-mailbox.md)、
 [Issue Agent 访问](../design/Issue Agent访问.md)、
+[Agent 桥接 CLI](../design/Agent 桥接 CLI.md)、
 [Agent 执行与 Task thread](../design/Agent执行与Task线程.md)、
 [Workflow 运行时](../design/Workflow运行时.md)，以及
 [Portal 工作与执行体验](../design/Portal工作与执行体验.md)。
@@ -87,8 +88,11 @@ BuildMax 已有一些基础，说明以 Issue 为中心的协调界面可能成�
 - Owner 与 Executor 已分开，因此人工责任与 Agent 或 Workflow 执行可以共存。
 - Issue Discussion 持久保存用户、Server 观察到的 Agent run、本地 Agent 声明
   和系统评论；可用时还保留来源 Task 与 TaskRun。
-- 正在处理 Issue 的 Agent 可以调用按构造限定范围的 `GetIssue` 和
-  `ReportToIssue`，读取受限的近期评论并写入受限报告，而不需要选择任意 Issue ID。
+- 正在处理 Issue 的 Agent 通过 Bash 运行 `buildmax issue show` 和
+  `buildmax issue comment`。在 worker run 中，run token 与经由 run bridge 访问的
+  worker route 把两者限定在该 run 自己的 Issue 上，并拒绝 Issue ID 参数；Agent
+  读取受限的近期评论并写入受限报告，而不需要选择 Issue ID。在本地，这些命令以
+  该人自己的凭据运行，并接受一个 ID。
 - Task 与 TaskRun 已经拥有持久执行和结果；Artifact 已经拥有不可变证据。
 - Workflow 已被确定为依赖、就绪、等待、重试和整体完成的权威所有者。
 
@@ -264,13 +268,15 @@ child Issue            -> topic_issue_id = issue.parent_issue_id
 
 ### 8.2 构造时限定范围
 
-Agent tool 不得让模型传入 `topic_issue_id`、`issue_id`、participant ID 或 Space ID。
-runtime assembly 解析 Task 的 Issue 与推导出的 Topic，然后注入仅能访问该范围的
-capability。
+worker run 中面向 Agent 的命令不得让模型传入 `topic_issue_id`、`issue_id`、
+participant ID 或 Space ID。run token 指定一个 TaskRun 及其 Issue，worker route
+解析该 Issue 与推导出的 Topic，因此范围存在于凭据和 route 中，而不是客户端参数中。
 
-这延续了当前 `GetIssue` 与 `ReportToIssue` 的安全模式，而不是给模型一个 Topic
-浏览器。去掉任意目标参数，可防止恶意评论把一次看似普通的工具调用变成跨 Issue
-数据外泄路径。
+这延续了 `buildmax issue show` 与 `buildmax issue comment` 的安全模式——
+[Agent 桥接 CLI](../design/Agent 桥接 CLI.md) 第 3 节把它从工具构造器移到了凭据
+与 worker route 上——而不是给模型一个 Topic 浏览器。去掉任意目标参数，可防止恶意
+评论把一次看似普通的命令调用变成跨 Issue 数据外泄路径。本地上下文按设计有所不同：
+那里的命令以该人自己的凭据运行并接受 Issue ID，由该人对 Agent 报告的内容负责。
 
 ### 8.3 参与资格与生命周期
 
@@ -538,7 +544,7 @@ Blackboard 协调理解，不拥有文件系统。
 
 ### 17.3 方案 C：推导 Issue Topic feed，并保持 mailbox 与 join 独立
 
-该方案复用现有工作中心、子项分解、评论来源、Agent tool 与 Space 授权，只增加子项
+该方案复用现有工作中心、子项分解、评论来源、`buildmax issue` 命令面与 Space 授权，只增加子项
 参与父级协调所缺少的能力。如果评论确实不够，后续可在相同 Topic 体验背后引入类型化
 entry。
 
@@ -697,7 +703,7 @@ Phase 1 或 Phase 2 原型只有满足以下条件才算成功：
 |---|---|
 | 从 Issue 层级推导 Topic | `internal/service/issue`，基于 `internal/core/issue` 的纯规则 |
 | Comment-backed Topic snapshot 与 report 授权 | `internal/service/issue` |
-| 面向模型的限定范围读取/报告 tool | `internal/tool`，通过注入 capability port |
+| 面向模型的限定范围读取/报告命令 | `internal/interface/cli` 中的 `buildmax` 子命令，经由 worker route 与 run bridge（`internal/infra/runbridge`） |
 | Worker credential 与由 TaskRun 推导的范围 | worker client 与 Server worker handler |
 | 本地认证范围 | `internal/interface/client` 与 `internal/agentapp` |
 | 可选 typed entry domain | `internal/core/issue`，除非证据证明它有独立变化原因 |

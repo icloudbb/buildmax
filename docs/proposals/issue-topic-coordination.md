@@ -10,6 +10,7 @@ Related: [roadmap](../ROADMAP.md), [current state](../current-state.md),
 [Agent-native collaboration substrate](agent-native-collaboration-substrate.md),
 [Session trees and Agent mailboxes](session-tree-and-agent-mailbox.md),
 [Issue Agent access](../design/issue-agent-access.md),
+[Agent bridge CLI](../design/agent-bridge-cli.md),
 [Agent execution and Task threads](../design/agent-execution-and-task-threads.md),
 [Workflow runtime](../design/workflow-runtime.md), and
 [Portal work and execution experience](../design/portal-work-and-execution-experience.md).
@@ -99,9 +100,12 @@ is plausible:
 - Issue Discussion contains durable comments from people, server-observed Agent
   runs, local Agent claims, and the system, with source Task and TaskRun
   provenance where available.
-- An Agent working an Issue can call constructor-scoped `GetIssue` and
-  `ReportToIssue`. It can read bounded recent comments and add a bounded report
-  without choosing an arbitrary Issue identifier.
+- An Agent working an Issue runs `buildmax issue show` and
+  `buildmax issue comment` through Bash. In a worker run the run token and
+  worker routes, reached over the run bridge, scope both to the run's own Issue
+  and an Issue id argument is refused; it reads bounded recent comments and
+  adds a bounded report without choosing an Issue identifier. Locally the
+  commands run with the person's own credential and take an id.
 - Task and TaskRun already own durable execution and results. Artifact already
   owns immutable evidence.
 - Workflow is the accepted owner for declared dependencies, readiness, waits,
@@ -308,14 +312,21 @@ service must remain the single owner of root resolution.
 
 ### 8.2 Scope by construction
 
-An Agent tool must not accept `topic_issue_id`, `issue_id`, participant ID, or
-Space ID from the model. Runtime assembly resolves the Task's Issue and derived
-Topic, then injects a capability for exactly that scope.
+An Agent-facing command in a worker run must not accept `topic_issue_id`,
+`issue_id`, participant ID, or Space ID from the model. The run token names
+one TaskRun and its Issue, and the worker route resolves that Issue and its
+derived Topic, so the scope lives in the credential and the route rather than
+in a client-side argument.
 
-This extends the current `GetIssue` and `ReportToIssue` safety pattern. It does
-not grant a model a Topic browser. Removing arbitrary target parameters prevents
-one malicious comment from turning an otherwise ordinary tool call into a
-cross-Issue data-exfiltration path.
+This extends the safety pattern of `buildmax issue show` and
+`buildmax issue comment`, which
+[Agent bridge CLI §3](../design/agent-bridge-cli.md#3-why-this-reverses-issue-agent-access)
+moved from tool constructors to the credential and worker route. It does not
+grant a model a Topic browser. Removing arbitrary target parameters prevents
+one malicious comment from turning an otherwise ordinary command into a
+cross-Issue data-exfiltration path. The local context is different by design:
+there the commands run with the person's own credential and accept an Issue
+id, and the person is accountable for what the Agent reports.
 
 ### 8.3 Membership and lifetime
 
@@ -621,7 +632,7 @@ This is not recommended as the first direction.
 ### 17.3 Option C: Derive an Issue Topic feed and keep mailbox and joins separate
 
 This reuses the existing work hub, child decomposition, comment provenance,
-Agent tools, and Space authorization. It adds only the missing ability for a
+the `buildmax issue` command surface, and Space authorization. It adds only the missing ability for a
 child to participate in parent-scoped coordination. Later typed entries can be
 introduced behind the same Topic experience if comments prove insufficient.
 
@@ -811,7 +822,7 @@ If evidence supports implementation, candidate ownership is:
 |---|---|
 | Topic derivation from Issue hierarchy | `internal/service/issue` over pure `internal/core/issue` rules |
 | Comment-backed Topic snapshot and report authorization | `internal/service/issue` |
-| Model-facing scoped read/report tools | `internal/tool`, through an injected capability port |
+| Model-facing scoped read/report commands | `buildmax` subcommands in `internal/interface/cli`, over worker routes and the run bridge (`internal/infra/runbridge`) |
 | Worker credential and TaskRun-derived scope | worker client and Server worker handlers |
 | Local authenticated scope | `internal/interface/client` and `internal/agentapp` |
 | Optional typed entry domain | `internal/core/issue` unless evidence shows an independent reason to change |

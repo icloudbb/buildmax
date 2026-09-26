@@ -12,7 +12,8 @@ Related: [roadmap](../ROADMAP.md),
 [unified artifacts](../design/unified-artifacts.md),
 [Desktop architecture](../contribute/architecture/desktop.md),
 [CLI architecture](../contribute/architecture/cli.md),
-[Issue agent access](../design/issue-agent-access.md), and the
+[Issue agent access](../design/issue-agent-access.md),
+[Agent bridge CLI](../design/agent-bridge-cli.md), and the
 [durable Agent sessions proposal](durable-agent-sessions.md).
 
 ## Contents
@@ -121,20 +122,25 @@ Several required pieces already exist:
   [Model, Data, And Trust Boundary](#model-data-and-trust-boundary) in its
   cheapest form. The Session header that shows sync state as well is still
   unbuilt.
-- `buildmax issue show` reads one Issue, and `buildmax issue status` moves it.
+- `buildmax issue show` reads one Issue, `buildmax issue comment` posts a
+  report on it, and `buildmax issue status` moves it.
   Status stays a person's action, per
   [Status Is A Space Statement, Not Presence](#status-is-a-space-statement-not-presence),
   and the change carries the version it was read at.
-- How an Agent itself reads and reports on the Issue it is working is decided
-  by [Issue agent access](../design/issue-agent-access.md): two runtime tools
-  scoped by construction to one Issue, with status, assignment, and hierarchy
-  never tool-writable. This proposal supplies the local implementation of that
-  record's port; it does not redesign the boundary.
+- An Agent reads and reports on the Issue it is working by running
+  `buildmax issue show` and `buildmax issue comment` through Bash, per
+  [Agent bridge CLI](../design/agent-bridge-cli.md); the product boundary —
+  status, assignment, and hierarchy never Agent-writable — stays in
+  [Issue agent access](../design/issue-agent-access.md). Locally those
+  commands run with the person's own credential and take an Issue id; this
+  proposal does not redesign that boundary.
 
-The missing pieces are an authenticated Issue client in the local interfaces,
-a durable or explicitly local relation between an Issue and a local Session,
-and product semantics for status, offline work, result publication, model
-policy, and conflicts.
+The authenticated Issue client the local interfaces need exists
+(`internal/interface/client`). The missing pieces are a durable or explicitly
+local relation between an Issue and a local Session — `buildmax issue start`
+scopes one session and is not remembered — the mapping from an Issue to a
+local workspace, and product semantics for status, offline work, local result
+publication, model policy, and conflicts.
 
 ## User Outcomes
 
@@ -342,19 +348,19 @@ depend on Server metadata.
 
 ### Server interaction
 
-Add an authenticated local client for the existing Issue routes, plus the
-smallest missing relations needed to:
+The authenticated local client for the existing Issue routes exists
+(`internal/interface/client`, shipped with the
+[Agent bridge CLI](../design/agent-bridge-cli.md)). It already lists the
+Issues the current user owns, fetches one Issue with its children and
+comments, patches status, posts a comment, starts an existing Agent or
+Workflow when explicitly requested, and publishes an Artifact.
 
-1. list Issues assigned to the current user;
-2. fetch one Issue, its children, comments, and selected result metadata;
-3. patch status or assignment;
-4. create an immediate child Issue;
-5. post a comment;
-6. start an existing Agent or Workflow flow when explicitly requested; and
-7. publish an Artifact and relate it to the Issue.
-
-The last relation must use the unified Artifact identity rather than copying an
-object-store path into a comment.
+The first slice's remaining work is the Issue-to-Session link in
+[Local metadata](#local-metadata) and the
+[workspace mapping](#workspace-mapping-is-local). The client still lacks
+patching assignment, creating an immediate child Issue, and relating a
+published Artifact to the Issue; that last relation must use the unified
+Artifact identity rather than copying an object-store path into a comment.
 
 ### Local behavior
 
@@ -447,12 +453,13 @@ a second local-execution record.
 
 - assigned Issue listing — **done**, `buildmax issue list`;
 - Issue detail and bounded context snapshot — **done**, `buildmax issue show`
-  for a person and `GetIssue` for the Agent;
+  for both a person and the Agent;
 - local Session link and workspace mapping — **not done**. `buildmax issue start`
   scopes one run and remembers nothing, and the workspace is wherever the command ran.
   Both wait on open questions 1 and 4;
 - explicit summary, Artifact, and status return — **done** for a summary
-  (`ReportToIssue`) and status (`buildmax issue status`); an Artifact published
+  (`buildmax issue comment`, stored with `local_agent` provenance) and status
+  (`buildmax issue status`); an Artifact published
   from a runless Session still has nowhere to appear in the Issue's Results
   panel, which is open question 5; and
 - clear Server, Space, model destination, and sync state — **partly**: the first
@@ -516,8 +523,10 @@ If the direction is accepted:
 2. replace R5's decision placeholder in [ROADMAP.md](../ROADMAP.md) with the
    accepted delivery scope;
 3. align with the durable Agent sessions decision on identity and relations;
-4. create focused Issues for the authenticated Issue client, local link,
-   Desktop and CLI surfaces, result relations, and policy work;
+4. create focused work items in [`docs/backlog/`](../backlog/README.md) —
+   where main-line work lives, not GitHub Issues — for the local link and
+   workspace mapping, Desktop and CLI surfaces, result relations, and policy
+   work;
 5. update user documentation only when a slice ships; and
 6. delete this proposal after its durable rationale has moved to the accepted
    design records.

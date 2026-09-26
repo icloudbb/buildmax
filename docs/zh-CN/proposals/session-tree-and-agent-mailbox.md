@@ -6,7 +6,8 @@
 >
 > **开启时间：** 2026-08-22
 
-相关文档：[路线图](../ROADMAP.md) P0.5、[产品愿景](../design/产品愿景.md)、
+相关文档：[路线图](../ROADMAP.md) R5（Beta 门槛之后的本地后续工作）、
+[本地会话存储](../design/本地会话存储.md)、[产品愿景](../design/产品愿景.md)、
 [界面定位](../design/界面定位.md)、
 [上下文持久性](../design/上下文持久性.md)、
 [排队消息](../design/排队消息.md)、
@@ -48,7 +49,7 @@ BuildMax 目前有三个相关的执行单元，它们并未构成一个统一�
 
 - CLI、TUI 和 Desktop 中的本地 Session，用户可以恢复并直接与之交互；
 - Portal 的 Conversation，拥有前台聊天并可编排 Task；以及
-- 拥有私有临时 Session 的子 Agent，加上由 Task 和 TaskRun 代表的持久后台执行。
+- 拥有私有隐藏 Session 的子 Agent，加上由 Task 和 TaskRun 代表的持久后台执行。
 
 线性的 Session 适用于从提问到回答的单一路径。它无法自然地表达一项更长的任务：先确立共享约束，再并行探索若干方向，最后汇总它们的发现。用户可以创建空的 Session 并手动重述上下文，或者委派给子 Agent。前者会丢失来源信息；后者不是一个持久的、用户可控的对话。
 
@@ -60,7 +61,7 @@ BuildMax 目前有三个相关的执行单元，它们并未构成一个统一�
 4. 父级监督器在明确的返回或汇合策略下，通知用户或恢复父级的 Agent 循环。
 5. 父级综合一个或多个子级报告，并明确决定是否接受相关的工作区变更。
 
-这既不是 Session 之间任意的聊天网络，也不是声称在现有 Session 文件中加入 `parent_id` 就能创造安全的并行 Agent。它需要上下文继承、执行隔离、结果投递、生命周期管理、调度、权限、成本边界和变更集成共同构成一个连贯的整体含义。
+这既不是 Session 之间任意的聊天网络，也不是声称本地 Session 已经记录的分叉来源就能创造安全的并行 Agent。它需要上下文继承、执行隔离、结果投递、生命周期管理、调度、权限、成本边界和变更集成共同构成一个连贯的整体含义。
 
 本提案并不承诺 BuildMax 会实现它。它记录的是一个候选产品模型、若干替代方案、风险、分阶段交付计划，以及在采纳该方向之前所需的证据。
 
@@ -93,27 +94,25 @@ requirements and constraints
 - 接收由父级编写的任务提示，而不是一个可追溯的父级上下文快照；
 - 在自己私有的 Session 中运行；
 - 完成后向调用方工具返回一段文本结果；并且
-- 完成后丢弃该 Session，因此用户无法打开它并继续讨论。
+- 把该 Session 保留为一份隐藏的私有日志——目前无限期保留（见[本地会话存储](../design/本地会话存储.md) §9 和 §19.1）——普通选择器和 `--continue` 都会排除它，因此用户仍然无法打开它并继续讨论。
 
 这适用于有边界的一次性委派。但它无法覆盖以下需求：用户想要检查探索过程、重新引导某个子级、保留某个分支、稍后继续它，或者将挑选出的发现返回给父级。
 
 ### 2.3 Portal 目前只有一种狭窄的“返回起点”模式
 
-当一个 Portal Tier 2 TaskRun 完成时，BuildMax 会把一条 `[Task Result]` 发回给启动它的 Tier 1 Conversation。该 Conversation 的 Agent 随后生成面向用户的回复。这是当前的实现，而不是被认可的产品边界。[Agent 执行与 Task 线程](../design/Agent执行与Task线程.md)让 TaskRun 的结果状态成为权威来源，让 Conversation 成为一个可选的起点和投影，并赋予 Task 自己的面向用户的延续界面。
+Portal Conversation 可以启动 Task，但按照 [Agent 执行与 Task 线程](../design/Agent执行与Task线程.md)，TaskRun 的结果以 TaskRun 自身为权威来源，Task 只把 Conversation 记录为一个可选的起点（`conversation_id`），它从来不是 Task 的所有权或授权边界。Task 拥有自己的面向用户的延续界面。早先的路径——通过内存中的轮次队列、经由用户的 WebSocket 把一条 `[Task Result]` 消息发回发起它的 Conversation，再强制进行一次前台总结轮次——已被移除（[当前状态](../current-state.md)）。Conversation 现在通过其 task 工具和投影出的 Task 卡片读取其 Task 的持久状态。
 
-当前这条路径并不是一个通用的 Session 通信机制：
+剩下的这种关联并不是一个通用的 Session 通信机制：
 
-- 结果只会返回给 Task schema 当前要求的那个固定 Conversation；
-- 结果是被截断的、非结构化的文本；
-- 投递依赖于一个活跃的用户 WebSocket 连接，用户离线时会被跳过；
-- 轮次队列存放在内存中，因此 Server 重启会丢失尚未开始的轮次；并且
-- 它没有分叉基点、工作区变更引用、证据、汇合组或处理确认。
+- 它只把 Task 关联到启动它的那个 Conversation；
+- Conversation 是去读取结果；没有任何东西会投递一份需要父级处理或确认的报告；并且
+- 它没有分叉基点、工作区变更引用、证据或汇合组。
 
-本提案把这条路径当作一个概念上的先例，而不是一个可以直接被泛化的持久消息总线。
+本提案把这种关联当作一个概念上的先例，而不是一个可以直接被泛化的持久消息总线。
 
 ### 2.4 并行执行需要工作树
 
-Desktop 目前每个 Project 最多只允许一个正在运行的 Agent。取消这一限制并不会让并发 Session 变得安全：多个 Agent 写入同一个目录会互相覆盖文件、干扰命令和测试，并留下一个无法解释的最终状态。
+Desktop 现在可以并发运行同一个 Project 中的不同 Session：它的运行调度器按 Session 而不是按 Project 串行化轮次。它并不隔离这些 Session 的文件。隔离交给用户负责，例如每个 Session 一个工作树——CLI 和 TUI 可以把 Session 切换到工作树上，Desktop 只负责显示（[工作区根与工作树](../design/工作区根与工作树.md) D8）；否则并发的 Session 共享同一个目录。这本身并不安全：多个 Agent 写入同一个目录会互相覆盖文件、干扰命令和测试，并留下一个无法解释的最终状态。
 
 本提案把问题拆分为四个：
 
@@ -280,7 +279,7 @@ UI 可以在一条可见的用户消息或最终的助手消息上提供“从�
 - 一条使用了工具的可见助手回复，会包含所有与之匹配的工具结果；
 - 一个活跃的 Session 只能从其最后一个稳定检查点分叉，或者等待当前轮次结束。
 
-Portal 已经拥有稳定的 `conversation_message_id` 值。本地 Session 则持久化一个不带消息 ID 的 `llm.Message` 数组。一个最小化的方案是 `{message_count, prefix_digest}`：数量用于定位一个只增前缀，摘要用于检测带外的文件修改。如果之后加入本地消息编辑或删除功能，持久化的本地消息就需要稳定的 ID，而不是数组位置。
+Portal 已经拥有稳定的 `conversation_message_id` 值。本地 Session 也已经有稳定的 ID：每个 `history.jsonl` 条目都带有 `id` 和 `parent_id`，本地分叉会在子级的 `meta.json` 中以 `forked_from.session_id` 和 `forked_from.head_id` 记录来源（[本地会话存储](../design/本地会话存储.md) §5 和 §8.3）。已交付的本地分叉只提供用户消息和结束一个轮次的回复作为分叉点，从不提供请求了工具的 assistant 消息，并且在复制期间持有父级的写入锁，因此不会从一个不稳定的 head 分叉。
 
 ### 8.2 上下文复制方案
 
@@ -290,7 +289,7 @@ Portal 已经拥有稳定的 `conversation_message_id` 值。本地 Session 则�
 | 带写时复制的父级引用 | 节省存储，天然表达共享前缀 | 使删除、权限、压缩、迁移和读取更复杂 |
 | 只生成摘要 | 上下文和存储最小 | 有损；可能遗漏代码约束、标识符和未解决的决策 |
 
-候选方向是**第一个切片中采用冻结快照语义并进行物理复制**。之后基于内容寻址或写时复制的存储可以优化实现，而不改变“父级之后的内容永远不会进入子级”这一产品保证。
+候选方向是**第一个切片中采用冻结快照语义并进行物理复制**。本地分叉已经按这种方式交付：它把父级截至所选条目的分支复制到一个新的 Session 包中，并保留条目 ID。之后基于内容寻址或写时复制的存储可以优化实现，而不改变“父级之后的内容永远不会进入子级”这一产品保证。
 
 ### 8.3 压缩
 
@@ -317,7 +316,7 @@ Portal 已经拥有稳定的 `conversation_message_id` 值。本地 Session 则�
 | 追踪身份 | 开始一个新的追踪，并记录因果关系 | 保持每次执行都可解释 |
 | 工作区 | 从一个稳定、隔离的基点创建 | 避免共享写入 |
 
-当前本地的 `selectedModel` 只存在于一个运行时包装器中，并未被持久化。实现时必须决定：是把生效的模型持久化到 Session 元数据中，还是显式使用分叉时的默认值。不能假设今天的 Session JSON 文件已经支持可复现的模型继承。
+本地 Session 会把所选模型以 `selected_model` 持久化在 `meta.json` 中，每个轮次的 `turn_started` 记录也会写明该轮次实际使用的模型。当前的本地分叉不会复制父级的选择：子级的 `selected_model` 是发起分叉的界面所提供的模型。实现时仍然必须决定：分叉应当继承父级生效的模型，还是显式使用分叉时的默认值。
 
 ### 8.5 分叉意图
 
@@ -483,7 +482,7 @@ pending ──lease──▶ delivering ──append once──▶ delivered ─
 
 ### 11.1 Session 生命周期
 
-本提案需要在当前 Session 文件之外增加显式的运行时状态。候选状态为：
+本提案需要在当前 Session 包之外增加显式的运行时状态。候选状态为：
 
 | 状态 | 含义 | 信号到达时的处理 |
 |---|---|---|
@@ -684,13 +683,12 @@ Desktop 是验证用户创建分叉的最佳首发界面：
 - 父级收件箱显示子级结果卡片；并且
 - 用户可以打开子级、要求父级处理其报告，或检查变更。
 
-第一个切片不需要一个完整的树形画布。数据本身是一棵树，而主导航可以保持按最近使用排序，并配以面包屑、子级计数和一个按需展开的树形视图。只有在工作区隔离到位之后，并发执行才会被暴露出来。
+第一个切片不需要一个完整的树形画布。数据本身是一棵树，而主导航可以保持按最近使用排序，并配以面包屑、子级计数和一个按需展开的树形视图。Desktop 已经可以从 History 选择器分叉，并在 `/info` 中显示只读的分叉树。它已经在不隔离文件的情况下并发运行不同的 Session（§2.4），因此自动的子级执行不能假设并发就意味着隔离。
 
 ### 15.2 CLI 与 TUI
 
-候选交互包括：
+TUI 已经有 `/fork`：它从选定的、结束一个轮次的消息创建子级并切换过去；`buildmax info` 以及 TUI 的 `/info` 会显示当前 Session 的只读分叉树。更多的候选交互包括：
 
-- `/fork` 从当前稳定的轮次创建一个子级；
 - `/sessions` 显示谱系标记；
 - `/inbox` 列出待处理的子级报告；以及
 - `buildmax --resume <parent>` 提示是否存在待处理的报告。
@@ -702,17 +700,17 @@ Desktop 是验证用户创建分叉的最佳首发界面：
 Portal 最终或许可以让 Space 成员对一个共享的 Conversation 进行分支并异步协作，但这比本地 MVP 要复杂得多：
 
 - Conversation 是一种 Space 资源，因此分叉和子级读取都需要 Space 授权；
-- 一个 Task 属于一个 Conversation，因此被复制的子级上下文并不赋予 Task 所有权；
+- 一个 Task 只能把启动它的 Conversation 记为可选的起点，而被复制的子级上下文并不赋予对该 Task 的访问权；
 - 继续一个父级 Task 需要一个明确的结果路由决策；
 - 共享工作需要区分分叉创建者、子级所有者和可见性来源；
 - 持久化投递和调度必须在所有人都离线时也能工作；并且
 - 工作区变更引用的是 Space 快照和变更集，而不是本地工作树。
 
-一个保守的默认做法是：子级继承父级 Task 已有的、位于上下文中的结果，但不继承可变的 Task 所有权。继续该项工作应当使用一个明确的克隆或采纳操作，或者一个新的、家族级别的编排概念。它不应削弱现有的 `conversation_id` 所有权检查。
+一个保守的默认做法是：子级继承父级 Task 已有的、位于上下文中的结果，但不继承可变的 Task 所有权。继续该项工作应当使用一个明确的克隆或采纳操作，或者一个新的、家族级别的编排概念。它不应削弱现有的检查：Conversation 的 task 工具只能看到以该 Conversation 为起点的 Task。
 
 ### 15.4 Worker 与 TaskRun
 
-TaskRun 或许可以逐步成为脱离态执行子级的一种，但本提案并不要求重写当前的 Task/TaskRun 模型。一条更小的路径是：把终止态的 TaskRun 结果通过同一个持久化报告服务发送，取代当前仅依赖活跃 WebSocket 的投递路径。
+TaskRun 或许可以逐步成为脱离态执行子级的一种，但本提案并不要求重写当前的 Task/TaskRun 模型。终止态的 TaskRun 结果已经持久保存在 TaskRun 上，早先仅经由 WebSocket 投递给 Conversation 的路径也已被移除。一条更小的路径是：当一个拥有 Session 父级的 TaskRun 终止时，把一份报告发布到同一个持久化报告服务中。
 
 ### 15.5 现有的子 Agent
 
@@ -720,7 +718,7 @@ TaskRun 或许可以逐步成为脱离态执行子级的一种，但本提案并
 
 ```text
 visibility: hidden
-persistence: ephemeral
+persistence: private journal, not user-resumable
 return_policy: immediate tool result
 workspace: inherited or isolated by agent definition
 ```
@@ -768,10 +766,10 @@ workspace: inherited or isolated by agent definition
 
 ### 阶段 1：本地谱系与手动报告
 
-- 为本地 Session 添加父级和分叉元数据。
-- 在一个稳定的消息点物理复制一份上下文快照。
+- 为本地 Session 添加父级和分叉元数据。*已交付：* 分叉会在 `meta.json` 中记录 `forked_from`。
+- 在一个稳定的消息点物理复制一份上下文快照。*已交付：* TUI 的 `/fork` 和 Desktop 的 History 选择器。
 - 为可写子级创建一个隔离的工作树。
-- 在 UI 中展示父子关系。
+- 在 UI 中展示父子关系。*部分交付：* `buildmax info` 以及 TUI 和 Desktop 的 `/info` 中的只读分叉树；会话列表尚未显示谱系标记。
 - 让用户手动把一份结构化摘要和变更引用发送到父级收件箱。
 - 默认使用 `notify`；不自动运行父级。
 - 暂不提供 Agent 的 `ReportToParent` 工具。
@@ -818,7 +816,7 @@ workspace: inherited or isolated by agent definition
 - 添加离线状态下的 Server 监督。
 - 把 TaskRun 的完成迁移到持久化报告机制。
 - 评估 Task 的克隆或采纳语义。
-- 决定一个临时子 Agent 是否可以脱离成为一个可见的 Session。
+- 决定一个隐藏的子 Agent Session 是否可以脱离成为一个可见的 Session。
 
 ## 19. 原型验收标准
 
@@ -860,7 +858,6 @@ workspace: inherited or isolated by agent definition
 - 父级的待办事项应当如何呈现为分叉时刻的只读状态，同时不与可变的子级待办事项混淆？
 - 一次分叉是否必须冻结模型和 Agent 配置，还是可以跟随之后的配置变化？
 - 仅摘要式的分叉，其实际的成本削减是否足以证明信息损失是值得的？
-- 本地消息在什么情况下必须从数组位置迁移到稳定的消息 ID？
 
 ### 工作区
 
@@ -891,7 +888,7 @@ workspace: inherited or isolated by agent definition
 - 一个 Portal 子级能否读取父级 Task 的结果，同时仍然无法继续该 Task？
 - “继续父级 Task”应当创建一个新 Task、克隆该 Task，还是迁移结果路由？
 - TaskRun 最终会以 Session 树节点的形式出现，还是只作为一个报告产生者？
-- 把一个临时子 Agent 保留为一个 Session，其额外的状态是否值得？
+- 把一份已保留的、隐藏的子 Agent 日志暴露为用户可打开的 Session，其额外的状态是否值得？
 
 ## 21. 采纳前所需的证据
 

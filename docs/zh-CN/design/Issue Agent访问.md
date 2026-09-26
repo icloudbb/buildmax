@@ -56,8 +56,10 @@ Issue —— 描述、子 Issue 与最近的讨论 —— 以及在该 Issue 的
 ## 2. Agent 永远不能声明的内容
 
 `status`、`owner_id`、`executor_kind`、`executor_id` 与 `parent_issue_id` 不能被
-任何 Agent 路径写入。创建子 Issue 也不行。任何命令在任何上下文都不把这些暴露为
-Agent 可用的写操作。
+任何 Agent 路径写入。创建子 Issue 也不行。worker 运行没有任何写入它们的路由。
+在本地，`buildmax issue status` 为用户本人而存在，并以其完整权限运行，因此本地
+Session 中的 Agent 是被 issue 关联运行的 `issue` prompt 层约束，而不是被 Server 约束
+（见 [Agent 桥接 CLI](Agent 桥接 CLI.md) §8）。
 
 这保留了产品早已持有的不变式 —— 代码库中没有任何东西会自行移动 Issue 的状态 ——
 而不是发明一个新的。理由在于代价的不对称：`done` 是空间用来规划的依据，其含义是

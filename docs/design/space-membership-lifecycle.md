@@ -28,7 +28,8 @@
   `internal/server/handlers/space`, `internal/infra/db`, and §9's Portal
   surfaces (Space → Members: invite, pending list, role selector, transfer
   confirmation, login code; Account → Invitations: list and accept). All
-  four §12 open questions are decided
+  four §12 open questions are decided. §5.5 records removal effects and
+  disabled-owner recovery, shipped with the account deactivation lifecycle
 - follows: [space-governance.md](./space-governance.md),
   [system-administration.md](./system-administration.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -345,6 +346,46 @@ It is also the one place in this document a login code is issued at all — a
 narrower, deliberately re-drawn boundary from §5.1's first draft: here the
 target is already a known member of the caller's own space, so there is no
 question of an owner minting a credential for a stranger's account.
+
+### 5.5 Removal Effects And Owner Recovery
+
+Removing a member hard-deletes their one `space_member` row. A departure's
+provenance lives in the `space.member_removed` audit event, not in a retained
+or soft-deleted row, which would also collide with the unique index on
+`(space_id, user_id)`. A later invitation is a fresh join with a new
+`created_at`; it restores nothing and resurrects none of the member's paused
+Schedules or canceled runs. This is the destructive axis of the two described
+in [system administration](system-administration.md) §8; account disablement is
+the reversible one and keeps every membership row.
+
+Removal withdraws the person's authority to drive work in that Space, including
+work started by a durable Schedule or Workflow rather than a request:
+
+- their enabled Schedules in the Space pause with
+  `pause_reason = creator_not_member` at the next due time;
+- their pending and running TaskRuns there end `CANCELED` with
+  `cancel_reason = creator_not_member`, through the dispatch and worker-fetch
+  gates or the eligibility reconciler's next sweep;
+- their work and access in other Spaces are untouched; and
+- Tasks, results, Artifacts, traces, and audit records stay in the Space, and
+  remaining members keep reading them.
+
+Removal triggers no cleanup of its own; the gates and the one-minute
+reconciler converge on it. The execution-eligibility rule, its checkpoints, and
+its gaps are in [system administration](system-administration.md) §8.2.
+
+Ownership normally moves by §5.3 before an owner leaves. When every recorded
+owner of a shared Space has been disabled instead, no owner can make that move,
+so a System Administrator may recover the Space under narrow conditions: every
+recorded owner is disabled, the successor is already an enabled member, the
+Space is not personal, and no membership is created. The action reuses §5.3's
+transfer, grants the administrator no content access, and records
+`space.ownership_recovered`. It is reachable through
+`PUT /api/admin/spaces/{space_id}/owner`, Portal's "Make owner" in
+Administration → Spaces, and the break-glass
+`buildmax-server space recover-owner <space_id> <successor_email>` for when the
+public Server or the IdP is unavailable. It never transfers a Space an owner can
+still sign in to. See [system administration](system-administration.md) §8.4.
 
 ## 6. Out Of Scope
 

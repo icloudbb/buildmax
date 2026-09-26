@@ -2,12 +2,18 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Agent 浏览器能力.md)
 >
-> **Audience:** contributors · **Status:** active plan · **Reviewed:** 2026-09-22
+> **Audience:** contributors · **Status:** active plan — partially shipped ·
+> **Reviewed:** 2026-09-26
+>
+> **Shipped:** CLI headless tools (#714, #715), Desktop visible window (#717),
+> untrusted-page test (#718), and the read-only Desktop live-view tab (#719).
+> **Remaining:** Linux and Windows portability evidence, per-origin admission
+> (§3), workers/Portal/scheduled runs (off pending an egress sandbox),
+> interactive takeover and page sharing, and a managed browser download (§9).
 
 This record fixes the architecture and trust rules for giving an Agent a real,
-controllable browser. It is the decision that follows the investigation in
-[browser capability proposal](../proposals/browser-capability.md); read that for
-the alternatives weighed and the peer survey. Related:
+controllable browser; §8 records the alternatives weighed and the peer survey.
+Related:
 [tool architecture](../contribute/architecture/tools.md),
 [tool permissions](tool-permissions.md),
 [sandbox boundaries](sandbox-boundaries.md),
@@ -23,7 +29,8 @@ the alternatives weighed and the peer survey. Related:
 - [5. Trust and Failure Boundaries](#5-trust-and-failure-boundaries)
 - [6. Verification](#6-verification)
 - [7. Desktop Presentation](#7-desktop-presentation)
-- [8. Deferred](#8-deferred)
+- [8. Alternatives Considered](#8-alternatives-considered)
+- [9. Deferred](#9-deferred)
 
 ## 1. Decision and Scope
 
@@ -36,18 +43,20 @@ This is a capability of the shared Agent runtime, not of one surface. It first
 shipped **headless on the CLI**, driven by a Go-owned Chromium process over the
 Chrome DevTools Protocol (CDP). Desktop then adds a **visible window**: it
 launches the browser headful so a user can watch the page the Agent drives, and
-shows a compact activity indicator linking each session to its current page.
-Rendering the page *inside* a workspace tab, and user takeover/page sharing,
-remain deferred. The peer survey in the proposal establishes the workflow's
-value, so this work proves architecture, portability, and trust — not demand.
+shows a compact activity indicator linking each session to its current page,
+and can render a read-only live view of that page in a workspace tab (§7). User
+takeover and page sharing remain deferred. The peer survey (§8) establishes the
+workflow's value, so this work proves architecture, portability, and trust — not
+demand.
 
 Locked decisions:
 
 - **Browser source:** discover an installed system Chrome/Edge; fail with a
   clear, actionable error when none is found. Managed Chrome for Testing
   downloads and bundling are deferred.
-- **Surfaces:** CLI (headless) and Desktop (headful, its own visible window
-  plus an activity indicator). Embedding the page in a workspace tab is deferred.
+- **Surfaces:** CLI (headless) and Desktop (headful, its own visible window,
+  an activity indicator, and a read-only screencast tab). Interactive takeover
+  of the page is deferred.
 - **Tool contract:** a few focused tools, one verb each — not a single
   action-multiplexing tool, and never one tool per CDP command.
 - **CDP client:** [chromedp](https://github.com/chromedp/chromedp) is the
@@ -108,16 +117,22 @@ Every call:
 - reads `session.SessionIDFromContext` and operates only on that session's
   page; a call carrying no matching page is an error, never another session's
   page;
-- checks the current origin against policy before acting, and rejects a stale
-  element reference rather than guessing a target;
+- rejects a stale element reference rather than guessing a target;
 - bounds page text and console excerpts before they enter model context and
   traces;
 - honors context cancellation and a per-call timeout.
 
 Interaction tools declare `AccessWrite`; observation tools declare
-`AccessReadOnly`. Origin admission uses the existing approval path and must
-name the exact origin, action, and current page — a session grant for one
-origin never authorizes another.
+`AccessReadOnly`, so interaction goes through the ordinary approval path: an
+interactive session asks before `BrowserNavigate`, `BrowserClick`, or
+`BrowserType`, and the `BrowserNavigate` prompt shows the requested URL.
+Origin admission today is only the scheme check in `BrowserNavigate`: an
+absolute `http`/`https` URL with a host. **Per-origin grants are not built.**
+The browser tools do not implement `llm.GrantScoper`, so a session grant is
+keyed by tool name alone — "allow for session" on `BrowserNavigate` admits every
+later origin, and a click that navigates is not re-checked against any origin.
+The intended rule, still open, is that admission names the exact origin and a
+session grant for one origin never authorizes another.
 
 ## 4. Browser Discovery and Lifecycle
 
@@ -165,7 +180,7 @@ origin never authorizes another.
 ## 6. Verification
 
 - Go unit tests for executable discovery, session-scoped ownership (a
-  cross-session call is rejected), origin admission, stale-reference rejection,
+  cross-session call is rejected), URL-scheme admission, stale-reference rejection,
   and cleanup on cancel/close, using a fake `BrowserController` where a real
   browser is not needed.
 - A real-browser local integration journey behind a skip when no Chrome/Edge is
@@ -204,10 +219,47 @@ without a native embed. The view is read-only in this slice (frames out, no
 input in); frames carry only the image and size, never bindings or page scripts.
 The CLI sets no frame observer, so no screencast runs there.
 
-## 8. Deferred
+## 8. Alternatives Considered
+
+| Option | Why it was not chosen |
+|---|---|
+| Go-owned Chromium over CDP | **Chosen.** One real page any local surface can drive; Go owns session mapping, tools, and lifecycle with no Node runtime; Desktop can show the same page. |
+| Wails WebView or a React `iframe` | Not a general browser: sites refuse framing with CSP [`frame-ancestors`][mdn-frame-ancestors], an `iframe` has no Agent controller, each platform's native WebView needs its own automation path ([Wails][wails-intro] reuses the OS WebView; its [window runtime][wails-window] targets the app window, not a CDP browser target), and untrusted content would sit next to the Wails Go bindings. |
+| An existing browser MCP server | Could feel out tool ergonomics through the MCP gateway, but BuildMax would not own profile isolation, lifecycle, or a consistent approval UX, and peers already prove the workflow's value. |
+| Native embedded Chromium or an Electron/CEF shell | Closest to a VS Code-style shared in-app page, at the cost of shell integration, process model, binary size, and packaging. Reconsidered only if the read-only screencast (§7) proves insufficient. |
+| Chrome extension in the user's browser | Reaches existing authenticated tabs, but needs extension permissions, distribution, native messaging, and a much broader personal-data grant. A separate later capability, not required to verify a local app. |
+
+**Peer survey (checked 2026-09-21).** Comparable products establish that
+"the Agent acts on the observed rendered page" is valuable and shipped; they
+differ in browser host. Codex in the ChatGPT desktop app has a built-in browser
+with a profile separate from the user's, unavailable in Codex CLI
+([OpenAI][openai-browser]). Claude Code operates Chrome through the Claude in
+Chrome extension, which declares the `debugger` permission — Chrome's CDP
+transport ([Anthropic][claude-chrome], [Chrome][chrome-debugger]). VS Code's
+integrated browser is an Electron `WebContentsView` whose main process owns
+pages while a shared process runs Playwright through a CDP proxy
+([architecture source][vscode-architecture], [user documentation][vscode-tools]);
+its user/Agent shared-tab model exists for human co-viewing, which BuildMax did
+not make a first-slice requirement, so it is prior art rather than the template.
+The common pattern — a real engine owns rendered state, a controller exposes
+bounded navigation, observation, and interaction, and any UI presents the same
+page — is what the chosen design follows.
+
+[mdn-frame-ancestors]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/frame-ancestors
+[wails-intro]: https://v2.wails.io/docs/introduction/
+[wails-window]: https://v2.wails.io/docs/reference/runtime/window/
+[openai-browser]: https://learn.chatgpt.com/docs/browser
+[claude-chrome]: https://support.claude.com/en/articles/12012173-get-started-with-claude-in-chrome
+[chrome-debugger]: https://developer.chrome.com/docs/extensions/reference/api/debugger
+[vscode-architecture]: https://github.com/microsoft/vscode/blob/main/.github/skills/integrated-browser/SKILL.md
+[vscode-tools]: https://code.visualstudio.com/docs/agents/run/browser-tools
+
+## 9. Deferred
 
 Explicitly out of scope, each its own later decision: **interactive** takeover of
-the embedded view (forwarding input over CDP) and page sharing, a native
+the embedded view (forwarding input over CDP) and page sharing, per-origin
+admission and origin-scoped session grants (§3), Linux and Windows operations
+evidence (§6), a native
 embedded engine (CEF/Electron) should the read-only screencast prove
 insufficient, managed Chrome for Testing or a bundled browser, enabling the
 capability for workers/Portal/scheduled runs, subagent browser access,

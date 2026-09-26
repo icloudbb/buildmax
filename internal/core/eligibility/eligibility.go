@@ -1,10 +1,10 @@
 // Package eligibility answers one question every path that admits or dispatches
 // unattended Agent work must ask: may this principal run work in this Space right
 // now? It is the single authority contract behind personnel deactivation — see
-// docs/proposals/personnel-deactivation-lifecycle.md §7. The two facts it reads,
+// docs/design/system-administration.md §8.2. The two facts it reads,
 // an account that is not disabled and a live space_member row, are the same gates
 // the per-request HTTP guard already enforces; this package makes them reachable
-// from the durable Schedule, Workflow, and worker-dispatch paths that never pass
+// from the durable Schedule, run-dispatch, and worker-fetch paths that never pass
 // through an HTTP handler.
 package eligibility
 
@@ -28,8 +28,9 @@ var ErrAccountDisabled = errors.New("initiating account is disabled")
 var ErrNotSpaceMember = errors.New("account is not a member of the space")
 
 // ErrUnavailable means eligibility could not be determined because an authority
-// store failed. Callers must fail closed on it — refuse or defer the work rather
-// than assume authority probably remains (Invariant 7).
+// store failed. It is not a refusal: each caller decides whether to defer or
+// proceed and let a later gate re-check. See
+// docs/design/system-administration.md §8.2 for each gate's choice.
 var ErrUnavailable = errors.New("eligibility could not be determined")
 
 // Checker reports whether userID may run work in spaceID. It answers only the

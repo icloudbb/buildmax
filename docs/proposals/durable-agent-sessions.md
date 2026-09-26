@@ -6,7 +6,8 @@
 >
 > **Opened:** 2026-08-22
 
-Related: [roadmap](../ROADMAP.md) P0.5, P3, P4, and Desktop polish;
+Related: [roadmap](../ROADMAP.md) R5 (general durable Session sync is outside
+the first Beta gate);
 [surface positioning](../design/surface-positioning.md),
 [session architecture](../contribute/architecture/session.md),
 [sessions and traces guide](../../manual/sessions-and-traces.md),
@@ -82,22 +83,30 @@ for local execution.
 
 ### 2.1 What exists locally
 
-`internal/core/session.Session` is a resumable Agent state, not just a chat
-view. It contains:
+A local session is resumable Agent state, not just a chat view. Its journal
+reduces to an `internal/core/session.State` containing:
 
 - user, assistant, and tool messages;
 - tool calls and tool results;
 - provider-owned reasoning state required by some protocols;
 - text and image parts;
-- token totals;
 - compaction boundary and accumulated summary;
 - durable notes and todos; and
 - the additional system prompt the session ran under.
 
-`internal/agentapp.SessionManager` persists that state under
-`<BUILDMAX_HOME>/sessions/`, with a separate local index used by CLI/TUI and
-Desktop. It saves after a completed turn. The same run also writes a bounded,
-redacted trace under `<BUILDMAX_HOME>/sessions/<session_id>/traces/`.
+Its metadata separately carries the title, workspace, selected model, and token
+and cost totals.
+
+`internal/agentapp.SessionManager` persists each session as a bundle under
+`<BUILDMAX_HOME>/sessions/<session_id>/`: `meta.json` holds current selections
+and running totals, and the append-only `history.jsonl` journal holds the
+conversation. A rebuildable `index.json` under `<BUILDMAX_HOME>/sessions/` is
+the picker projection used by CLI/TUI and Desktop. Saving is incremental: each
+message, tool boundary, compaction, and state change is appended to the journal
+before the call that made it returns, rather than the session being rewritten
+after a completed turn. See [session architecture](../contribute/architecture/session.md).
+The same run also writes a bounded, redacted trace under
+`<BUILDMAX_HOME>/sessions/<session_id>/traces/`.
 
 Those two records answer different questions:
 
@@ -113,13 +122,13 @@ not silently synchronize the other.
 
 Portal Conversations are durable Space resources with normalized message rows.
 They are Tier 1 orchestration objects and the single user-facing voice for
-Portal turns. They can start and receive reports from durable Tasks and
-TaskRuns. Their ownership, concurrency, and lifecycle are not the same as a
+Portal turns. They can start durable Tasks and read their TaskRun results. Their ownership, concurrency, and lifecycle are not the same as a
 local Agent session.
 
 Worker execution already proves a narrower version of the required storage
-path. A Task owns a UUID session ID. Each run uploads its session file into the
-run-scoped object namespace; a later run restores that file before continuing.
+path. A Task owns a UUID session ID. Each run uploads its session bundle —
+`meta.json` and `history.jsonl`, without traces — into the run-scoped object
+namespace; a later run restores those two files before continuing.
 The Server can project the latest stored task session as a task conversation.
 That implementation is scoped to one Task's run history. It is not a general
 session registry: it cannot list a person's local sessions, assign visibility,
@@ -248,7 +257,7 @@ direct local execution.
 
 ### 6.1 Local Session
 
-The existing resumable `session.Session` held by AgentApp and persisted under
+The existing resumable session bundle managed by AgentApp and persisted under
 `BUILDMAX_HOME`. It is the active runtime history while CLI or Desktop executes
 locally.
 
@@ -377,6 +386,14 @@ Server event log the source of truth. Local files become a cache.
 This could be an enterprise capture mode later. It is too large for the first
 slice and weakens the direct local product unless it is explicitly limited to
 a deployment policy.
+
+[Remote Control](../design/remote-control.md) now ships a live relay that is
+not Option E. An opted-in CLI/TUI session relays its redacted events through the
+Server so another device can watch and steer it, but the relay is fail-open and
+non-canonical: the local session stays authoritative, and the Server keeps a
+live-session registry and a buffered stream rather than a durable transcript.
+It therefore neither provides nor replaces the durable checkpoints this
+proposal is about.
 
 ## 8. Candidate Product Decisions
 
@@ -709,9 +726,9 @@ sync job after local save, then retry with bounded exponential backoff. UI and
 CLI status expose `synced`, `pending`, `conflict`, `rejected`, or `disabled`.
 
 The outbox stores references to immutable local checkpoint bytes or a copied
-upload payload. It must not point only at the live session file, because the
-file may advance before a retry and make an idempotency key refer to different
-bytes.
+upload payload. It must not point only at the live session journal, because
+the journal may advance before a retry and make an idempotency key refer to
+different bytes.
 
 In required mode, failure semantics are a deployment decision:
 
@@ -1125,11 +1142,13 @@ forcing one storage model.
 
 ### 18.4 Local index
 
-The local `sessions.json` index needs remote state such as Server URL, Space,
-remote revision, sync state, and possibly fork origin. Storing all of that in
-the existing shared index risks making ordinary session listing fragile. A
+The local `index.json` picker projection needs remote state such as Server URL,
+Space, remote revision, and sync state. Fork origin already exists locally: a
+fork records `forked_from` in `meta.json`, and the index projects it. Storing
+the remote state in the existing shared index risks making ordinary session
+listing fragile. A
 candidate is a separate sync-state store keyed by session ID, leaving the
-runtime session file and picker index backwards compatible.
+runtime session bundle and picker index backwards compatible.
 
 ## 19. Surface Behavior
 

@@ -10,7 +10,7 @@ Related: [roadmap](../ROADMAP.md), [surface positioning](../design/surface-posit
 [client modes](../design/client-modes.md),
 [Desktop architecture](../contribute/architecture/desktop.md),
 [Server architecture](../contribute/architecture/server.md),
-[desktop workspace tabs](desktop-workspace-tabs.md), and
+[Remote Control](../design/remote-control.md), and
 [client sessions and API credentials](client-sessions-and-api-credentials.md).
 
 ## Contents
@@ -228,8 +228,8 @@ What makes it a composition of existing parts rather than a new product:
 - The UI is already shared through `@buildmax/gui`; the Desktop React surface runs
   in the browser over the HTTP/WebSocket adapter.
 - The transport already exists in Portal + `buildmax-server`; the terminal maps
-  naturally onto a WebSocket, and the PTY session prototype in
-  [desktop workspace tabs](desktop-workspace-tabs.md) is its seed.
+  naturally onto a WebSocket, and the shipped Desktop terminal PTY manager
+  (`internal/interface/desktop/terminal.go`) is its seed.
 
 **This is a second execution plane, not the Task plane.** Task plus TaskRun is a
 *bounded-turn* model: a run materializes the Space's files into a run-scoped
@@ -284,6 +284,12 @@ single-tenant server built on the same `agentapp` runtime remains a possible
 packaging of the same shape, but hosting the Environment plane inside Portal is
 preferred: it reuses the multi-tenant control surfaces above instead of
 reinventing them.
+
+Since this proposal opened, [Remote Control](../design/remote-control.md) has
+been accepted and its first phases shipped. It places itself and this
+Environment plane on one grid of runtime host by interaction surface, and builds
+the narrow-surface, local-host quadrant -- steering a session on the user's
+machine through the server -- without any of the environment substrate above.
 
 ## 11. Mobile as a Thin Client
 

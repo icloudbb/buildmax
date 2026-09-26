@@ -51,15 +51,17 @@ removes the credentials, and that removal is the whole switch back to local. See
 | Path | Responsibility |
 |---|---|
 | `cmd/buildmax-desktop/main.go` | Thin process entry point, logging, embedded-asset guard |
-| `internal/interface/desktop` | Wails lifecycle, Go bindings, project/session state, streaming and approvals |
+| `internal/interface/desktop` | Wails lifecycle, Go bindings, project/session state, streaming, approvals, and terminal PTYs |
 | `desktop/frontend` | React UI and generated Wails bindings |
 | `desktop/assets_embed.go` | Production frontend embed under the `desktop` build tag |
 | `cmd/buildmax-desktop/wails.json` | Wails build configuration |
 
 `App` creates one `agentapp.AgentApp` lazily per project folder and caches it
 for the process lifetime. Each project also has one interactive approval
-handler and at most one in-flight run. Shutdown cancels active runs and closes
-all cached runtimes.
+handler. Runs are scheduled per session: the scheduler key is `runKey`, the
+project plus the session id, so at most one run per session is in flight while
+different sessions of one project run concurrently. Shutdown reaps every
+terminal shell, cancels active runs, and closes all cached runtimes.
 
 ## Data And Runtime Flow
 
@@ -73,9 +75,11 @@ all cached runtimes.
 6. Session persistence and durable traces are handled by `agentapp`, exactly as
    for the CLI.
 
-At most one run per project is in flight. A prompt submitted while one is running
-is queued: `SendMessageStream` returns its 1-based queue position (0 means it
-started a run), and `QueuedMessages` re-reads a project's queue. The queue is
+At most one run per session is in flight. A prompt submitted to a session while
+its run is going is queued: `SendMessageStream` returns its 1-based queue
+position (0 means it started a run), and `QueuedMessages` re-reads a session's
+queue. A brand-new chat keys on an empty session id, so new chats in one project
+still serialize until one has an id. The queue is
 passed to the run as `RunPromptOpts.Pending`, so a queued prompt usually joins the
 turn in progress at its next iteration boundary; the run goroutine's turn loop
 picks up anything queued after that. Either way the frontend hears
@@ -154,6 +158,98 @@ rather than creates: a worktree of a repository already in the list opens that
 repository's Project. Deleting a Project and deleting its sessions are separate
 decisions -- `DeleteProject` refuses a Project that still owns sessions until
 the caller says to take them too.
+
+## Workspace Tabs, Panes, And Terminals
+
+A project's center surface is a grid of tabs. A tab renders one activity of a
+kind -- `chat`, `terminal`, `file`, `diff`, or `browser` -- and is identified by
+its `(kind, ref)` pair (`desktop/frontend/src/lib/tabs.js`), so opening an
+activity that is already open focuses it instead of duplicating it. A chat's ref
+is its session id, a terminal's its PTY id, a file or diff tab's its
+workspace-relative path, and a browser tab's the session whose page it shows. A
+project has at most one unadopted new chat; the tab strip's `+` starts it. Chat
+and terminal tabs can be renamed: a chat renames its session, a terminal only
+its tab.
+
+The Explorer sidebar section indexes the project's workspace and only browses.
+**Directory** lists the tree one level at a time (`ListWorkspaceDir`, `.git`
+hidden); **Changes** lists the workspace diff (`GetWorkspaceDiff`). A single
+click opens a preview file or diff tab, which the next browse click replaces; a
+double-click opens a pinned one.
+
+`desktop/frontend/src/lib/panes.js` lays the tabs out as rows of panes, each
+pane a `tabs.js` state. The focused pane receives newly opened tabs. Split right
+adds a pane to the focused pane's row and split down adds a row; both create an
+empty pane that is removed once focus leaves it still empty. Dragging a tab moves
+it to another pane or reorders it within a strip, and a pane emptied by the move
+is removed. Tile spreads every tab into its own pane in a near-square grid of at
+most three columns; collapse gathers them back into one pane. Panes are
+separated by visible dividers but cannot be resized by dragging; the sidebar
+width is the only drag-resizable split in the workbench.
+
+A terminal keeps its emulator across tab switches, pane moves, tiling, and
+project switches. `TerminalHost` portals each xterm into its own host element
+that never changes; `App` moves that element between a pane slot and a hidden
+park, because changing a portal's container would remount the emulator and lose
+its scrollback. A parked or hidden terminal measures 0×0, so `TerminalPane`
+skips a fit whose proposed size is degenerate -- reflowing the buffer to a
+sliver would evict scrollback and resize the PTY -- and refits when its tab
+becomes active. Switching projects stashes the outgoing layout with its shells
+parked, not killed.
+
+Each project's layout is saved in the webview's `localStorage` under
+`bm.desktop.workspace.<project_id>`. A terminal tab is saved with its title and
+a stable restore key but without its PTY id, since the shell dies with the
+process. On the next launch each saved terminal is reopened as a fresh shell in
+the project workspace with its snapshot written above the new prompt as static
+text; a shell that fails to open is dropped with any pane it empties, and
+snapshots whose restore key is no longer in the layout are pruned.
+
+`terminal.go` owns the PTYs. `TerminalOpen` starts the user's `$SHELL -i`
+(falling back to `/bin/bash`) at the project's default workspace with the
+user's unscrubbed environment: a terminal tab is the user's own authority, not
+the Agent's Bash tool, and has no route or socket beyond the Wails bridge (see
+[surface positioning](../../design/surface-positioning.md) §5.4). Output goes
+out as base64 chunks of at most 32 KiB on `desktop/terminal/data` and the exit
+code on `desktop/terminal/exit`, both keyed by strand id; `TerminalWrite`,
+`TerminalResize` (non-positive sizes ignored), and `TerminalClose` act on one
+strand. The output pump is the only caller of the process's `Wait`, so closing a
+tab kills the shell and waits for the pump to reap it. The frontend serializes
+up to 1,000 lines of scrollback 1.5 seconds after output settles and calls
+`SaveTerminalSnapshot`; `internal/infra/localterminalsnapshotstore` keeps every
+snapshot in `<BUILDMAX_HOME>/terminal-snapshots.json`, keyed by project and
+restore key and capped at 256 KiB by keeping the tail.
+
+File tabs read through `ReadWorkspaceFile`, a preview bounded to 512 KiB that
+reports binary content (a NUL byte) instead of returning it. Paths are
+normalized so `..` cannot climb above the root, which is the session's own
+workspace when it has one (a worktree) and otherwise the project's default
+workspace. `WriteWorkspaceFile` saves to the same root and returns a fresh
+preview; `FileView` offers editing only for a preview that is neither binary nor
+truncated, so a save never rewrites a file it holds only in part.
+
+Each chat tab is a `ChatSession` bound to one session: it owns that session's
+transcript and run state and handles only events tagged with its
+`session_id`. A new chat has no id until its run starts; the run emits
+`desktop/session-adopted` with the created id once, before any of its stream
+events, and only runs that began as a new chat emit it, so the pending tab
+adopts the right id while other sessions stream. Approvals are still keyed per
+project: `desktop/approval-request` carries only the project id, so a pending
+prompt shows in every running chat tab of that project and any of them can
+answer it, and the project's handler holds one pending request at a time.
+
+A browser tab shows a read-only live view of the Agent's browser page for one
+session, rendered from the `desktop/browser/frame` screencast.
+
+The status bar is global: on Home and in a project it holds the Launchpad and
+the theme toggle, and with a project open it adds new-terminal and grid/tab
+controls. The Launchpad is a list of quick-launch entries -- an application,
+executable, document, or URL, with optional arguments -- stored in
+`<BUILDMAX_HOME>/launchpad.json` by `internal/infra/locallaunchpadstore`. Entries
+are global rather than per project. `LaunchEntry` hands the target to the
+operating system (`open` on macOS, `start` on Windows, `xdg-open` or the target
+itself on Linux) and does not wait for it, so a pinned website opens in the
+default browser, not in a tab.
 
 ## Build Boundary
 

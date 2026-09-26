@@ -4,7 +4,7 @@
 // general power to transfer a healthy Space — it applies only when every owner
 // is disabled, never touches a personal Space, creates no membership, and grants
 // the administrator no access to the Space's contents. See
-// docs/proposals/personnel-deactivation-lifecycle.md §9.
+// docs/design/system-administration.md §8.4.
 package spacerecovery
 
 import (

@@ -515,24 +515,34 @@ Alpha 阶段的策略允许一次性修正所有存储形态,而不是保留一�
 
 ## HTTP API 影响
 
-准确的路由只以 `internal/server/handlers/routes.go` 为权威来源。已交付的人类
-Session 路由与拟议的自助/机器路由如下:
+准确的路由以 auth handler 的 `Register` 方法(`internal/server/handlers/auth/handler.go`)
+为权威来源,并在 `internal/server/handlers/routes.go` 中组合。面向当前主体的
+Session 与凭据路由共享 `/api/auth/` 前缀。已交付的人类 Session 路由与拟议的
+自助/机器路由如下:
 
 ```text
+GET    /api/auth/methods               # 已交付
+POST   /api/auth/otp                   # 已交付
 POST   /api/auth/login                 # 已交付
-POST   /api/auth/refresh               # 已交付
+POST   /api/auth/token/refresh         # 已交付
 POST   /api/auth/logout                # 已交付
+POST   /api/auth/password              # 已交付
+POST   /api/auth/portal/login          # 已交付,Portal cookie 投递
+POST   /api/auth/portal/session        # 已交付,Portal cookie 投递
+POST   /api/auth/portal/logout         # 已交付,Portal cookie 投递
+GET    /api/auth/oidc/start            # 已交付,配置后的 Portal OIDC
+GET    /api/auth/oidc/callback         # 已交付,配置后的 Portal OIDC
 
-GET    /api/sessions                   # 拟议自助
-DELETE /api/sessions/{session_id}      # 拟议自助
-DELETE /api/sessions                   # 拟议自助
+GET    /api/auth/sessions              # 拟议自助
+DELETE /api/auth/sessions/{session_id} # 拟议自助
+DELETE /api/auth/sessions              # 拟议自助
 
-POST   /api/personal-access-tokens
-GET    /api/personal-access-tokens
-DELETE /api/personal-access-tokens/{token_id}
+POST   /api/auth/personal-access-tokens
+GET    /api/auth/personal-access-tokens
+DELETE /api/auth/personal-access-tokens/{token_id}
 ```
 
-OIDC、设备授权、服务账号管理或 token 交换相关的路由,只应随各自被接受的设计
+原生客户端 OIDC、设备授权、服务账号管理或 token 交换相关的路由,只应随各自被接受的设计
 一并添加。上面这份路由草图并不隐含它们已经存在。
 
 登录与刷新的 DTO 应当暴露 token 类型与由服务器计算得出的过期时间。刷新操作
@@ -541,7 +551,7 @@ Alpha 阶段的客户端能够统一切换,那么可以直接移除遗留的重�
 而不必无限期地保留它。
 
 每个已认证的路由都应声明其允许的凭据类型、audience 与所需的 scope。把一个
-PAT 呈递给 `/api/auth/refresh`、把一个仅用于网关的 token 呈递给某个 Issue
+PAT 呈递给 `/api/auth/token/refresh`、把一个仅用于网关的 token 呈递给某个 Issue
 路由、把一个用户 access token 呈递给某个 worker 路由,或把一个 run token
 呈递给某个用户路由,都应当在资源授权检查之前就失败。
 

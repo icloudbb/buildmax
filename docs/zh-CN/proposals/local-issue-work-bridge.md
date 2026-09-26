@@ -12,7 +12,8 @@
 [统一 Artifact](../design/统一工件.md)、
 [Desktop 架构](../contribute/architecture/desktop.md)、
 [CLI 架构](../contribute/architecture/cli.md)、
-[Issue Agent 访问](../design/Issue Agent访问.md)，以及
+[Issue Agent 访问](../design/Issue Agent访问.md)、
+[Agent 桥接 CLI](../design/Agent 桥接 CLI.md)，以及
 [持久化 Agent Session 提案](durable-agent-sessions.md)。
 
 ## 目录
@@ -113,18 +114,20 @@ Issue 是共享的工作协议。等式两侧的执行对象，并不会因为�
   以及提示词的去向，这正是
   [模型、数据与信任边界](#模型数据与信任边界)中可见性规则的最简形式。
   同时展示同步状态的 Session 头部信息尚未构建。
-- `buildmax issue show` 读取一个 Issue，`buildmax issue status` 则移动它的
-  状态。按照
+- `buildmax issue show` 读取一个 Issue，`buildmax issue comment` 在其上发布
+  一份报告，`buildmax issue status` 则移动它的状态。按照
   [状态是 Space 的声明，而非在线状态](#状态是-space-的声明而非在线状态)，
   状态变更仍然是一个人的操作，并且该变更携带着它被读取时所处的版本号。
-- Agent 本身该如何读取并回报它正在处理的 Issue，由
-  [Issue Agent 访问](../design/Issue Agent访问.md)决定：两个从构造上就限定于
-  一个 Issue 的运行时工具，状态、分配与层级关系永远不可通过工具写入。本提案
-  提供的是这份记录所定义端口的本地实现，而不是重新设计这一边界。
+- 按照 [Agent 桥接 CLI](../design/Agent 桥接 CLI.md)，Agent 通过 Bash 运行
+  `buildmax issue show` 与 `buildmax issue comment` 来读取并回报它正在处理的
+  Issue；产品边界——状态、分配与层级关系永远不可由 Agent 写入——仍由
+  [Issue Agent 访问](../design/Issue Agent访问.md)规定。在本地，这些命令以该
+  人自己的凭据运行，并接受一个 Issue ID；本提案不重新设计这一边界。
 
-仍然缺失的部件是：本地界面中一个经过身份验证的 Issue 客户端、Issue 与本地
-Session 之间一种持久的或明确本地化的关系，以及针对状态、离线工作、结果发布、
-模型策略与冲突的产品语义。
+本地界面所需的经过身份验证的 Issue 客户端已经存在（`internal/interface/client`）。
+仍然缺失的部件是：Issue 与本地 Session 之间一种持久的或明确本地化的关系——
+`buildmax issue start` 只作用于一个 session 且不会被记住——从 Issue 到本地工作区
+的映射，以及针对状态、离线工作、本地结果发布、模型策略与冲突的产品语义。
 
 ## 用户成果
 
@@ -316,19 +319,16 @@ last_sync_state
 
 ### 与 Server 的交互
 
-为现有的 Issue 路由添加一个经过身份验证的本地客户端，再加上最少量缺失的
-关联关系，以便能够：
+面向现有 Issue 路由的、经过身份验证的本地客户端已经存在
+（`internal/interface/client`，随 [Agent 桥接 CLI](../design/Agent 桥接 CLI.md)
+一同交付）。它已经能够列出当前用户拥有的 Issue，获取一个 Issue 及其子级与评论，
+修改状态，发布一条评论，在被明确请求时启动一个已有的 Agent 或 Workflow，
+以及发布一个 Artifact。
 
-1. 列出分配给当前用户的 Issue；
-2. 获取一个 Issue，及其子级、评论与选定的结果元数据；
-3. 修改状态或受理人；
-4. 创建一个直接子 Issue；
-5. 发布一条评论；
-6. 在被明确请求时，启动一个已有的 Agent 或 Workflow 流程；以及
-7. 发布一个 Artifact，并将其关联到该 Issue。
-
-最后一种关联必须使用统一的 Artifact 身份，而不是把一个对象存储路径复制进
-一条评论里。
+第一个切片剩下的工作是[本地元数据](#本地元数据)中的 Issue 与 Session 关联，
+以及[工作区映射](#工作区映射是本地的)。该客户端仍然不能修改受理人、创建直接
+子 Issue，也不能把已发布的 Artifact 关联到该 Issue；最后这种关联必须使用统一的
+Artifact 身份，而不是把一个对象存储路径复制进一条评论里。
 
 ### 本地行为
 
@@ -412,13 +412,13 @@ Session 变成一个 Portal Conversation 或一个 TaskRun。
 ### 阶段一：接收、处理、回传
 
 - 已分配 Issue 列表 —— **已完成**，`buildmax issue list`；
-- Issue 详情与有界的上下文快照 —— **已完成**，面向个人的 `buildmax issue
-  show`，以及面向 Agent 的 `GetIssue`；
+- Issue 详情与有界的上下文快照 —— **已完成**，`buildmax issue show`，个人与
+  Agent 都使用它；
 - 本地 Session 关联与工作区映射 —— **未完成**。`buildmax issue start` 只作用
   于一次运行且不记住任何东西，工作区就是该命令运行所在的位置。两者都在等待
   开放问题 1 与 4；
-- 显式的摘要、Artifact 与状态回传 —— 摘要（`ReportToIssue`）与状态
-  （`buildmax issue status`）**已完成**；从一个无运行记录的 Session 发布的
+- 显式的摘要、Artifact 与状态回传 —— 摘要（`buildmax issue comment`，以
+  `local_agent` 来源存储）与状态（`buildmax issue status`）**已完成**；从一个无运行记录的 Session 发布的
   Artifact，在 Issue 的结果面板中仍然无处呈现，这是开放问题 5；以及
 - 清晰的 Server、Space、模型目的地与同步状态 —— **部分完成**：前三项会在
   第一次模型调用之前打印出来。目前还没有同步状态可以显示，因为还没有任何
@@ -478,7 +478,8 @@ Session 变成一个 Portal Conversation 或一个 TaskRun。
    确定的 CLI/Desktop 桥接能力，而不仅仅是一个可选的收件箱；
 2. 用被接受的交付范围取代 [ROADMAP.md](../ROADMAP.md) 中 R5 的决策占位项；
 3. 在身份与关联关系上，与持久化 Agent Session 的决策保持一致；
-4. 为经过身份验证的 Issue 客户端、本地关联、Desktop 与 CLI 界面、结果关联
-   以及策略工作创建聚焦的 Issue；
+4. 在 [`docs/backlog/`](../../backlog/README.md) 中——主线工作存放于此，而不是
+   GitHub Issues——为本地关联与工作区映射、Desktop 与 CLI 界面、结果关联以及
+   策略工作创建聚焦的工作项；
 5. 只在某个切片交付时才更新用户文档；以及
 6. 在其持久性理由已经迁移到被采纳的设计记录之后，删除本提案。

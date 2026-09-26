@@ -31,7 +31,7 @@ so they are worth knowing exactly.
 | `LoadMcpTools` / `CallMcpTool` | Discover and invoke MCP server tools | see [MCP](mcp.md) |
 | `MemoryRead` | Open the bodies of project memories. Available on a local run with project memory. | `names` |
 | `MemoryWrite` | Create or replace a project memory. Available on a local run with project memory. | `name`, `description`, `type`, `content`, `verified_at` |
-| `BrowserNavigate` | Open an http(s) URL in a headless browser page | `url` |
+| `BrowserNavigate` | Open an http(s) URL in the session's browser page (headless on the CLI, a visible window on Desktop) | `url` |
 | `BrowserSnapshot` | Snapshot the page: interactive elements with references, plus visible text | — |
 | `BrowserClick` / `BrowserType` | Click or type into an element by its snapshot reference | `ref`, and `text` for typing |
 | `BrowserScreenshot` | Capture the page as an image | — |

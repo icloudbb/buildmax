@@ -2,7 +2,9 @@
 
 > **English:** [Read the English source](../../design/portal-workflow-visual-editor.md)
 >
-> **读者：** Portal 贡献者 · **状态：** 进行中的计划——部分完成
+> **读者：** Portal 贡献者 · **状态：** 已实现。可视化画布（`@xyflow/react`）、支持 id
+> 重命名的节点检查器、原始 JSON 模式、无损往返以及 Settings 抽屉均已交付；下文的非目标仍在
+> 范围之外。
 >
 > **创建：** 2026-09-20
 

@@ -52,7 +52,7 @@ func runOnce(t *testing.T, spy *spyTaskRunStore, runner WorkerRunner, mint MintR
 // about the run, so nothing a worker or its model does can change who a call is
 // attributed to or whose models it may reach. The user claim is the run's own
 // initiator, not the Task creator, so a Continue by a colleague runs under that
-// colleague — see the personnel-deactivation proposal, Invariant 3.
+// colleague — see docs/design/system-administration.md §8.2.
 func TestRunTokenClaimsComeFromTheRunInitiator(t *testing.T) {
 	spy := newSpyTaskRunStore("r_token12345678901234")
 	// A later run initiated by a different member than the one who created the

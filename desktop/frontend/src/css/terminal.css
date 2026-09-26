@@ -1,6 +1,6 @@
 /* Terminal (shell) tab rendering — one xterm pane per terminal tab, filling the
-   workspace tab content region and hidden when its tab is not active (see the
-   desktop-workspace-tabs proposal). */
+   workspace tab content region and hidden when its tab is not active (see
+   docs/contribute/architecture/desktop.md). */
 
 .terminal-pane {
   position: absolute;

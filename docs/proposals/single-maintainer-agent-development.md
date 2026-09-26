@@ -7,14 +7,20 @@
 > **Opened:** 2026-09-06
 
 **Accepted slice:** Main-line planning now uses the in-repository
-[backlog](../backlog/README.md), while externally contributable work remains in
-GitHub Issues under the one-item-one-place rule. The backlog document is the
-current authority for that planning and execution loop. This proposal remains
-open only for the automation, leases, independent acceptance, and measured
-authority expansion described below. Where later historical text says
-"implementation-ready Issue," read it as the ready work item selected for its
-audience: a backlog task for maintainer-and-Agent work or a GitHub Issue for
-external contributors, never both.
+[backlog](../backlog/README.md) instead of GitHub Issues: one file per ready
+task, ordered by filename prefix, with a single manual claim in its `claim`
+frontmatter, its pull request in `pr`, and a derived status view from
+`./make board`. An architecture test rejects malformed task frontmatter.
+Externally contributable work remains in GitHub Issues under the
+one-item-one-place rule. The backlog document is the current authority for that
+planning and execution loop. This proposal remains open only for what is not
+built: changed-scope verification (`verify changed`), automated readiness
+revalidation, pull-request delivery preparation (`pr ready`), lease expiry and
+overlap detection with workspace reclamation, a fresh-context verifier stage,
+and graduated automatic merge. Where later text says "implementation-ready
+Issue," read it as the ready work item selected for its audience: a backlog task
+for maintainer-and-Agent work or a GitHub Issue for external contributors, never
+both.
 
 Related: [roadmap](../ROADMAP.md),
 [current-state assessment](../current-state.md),
@@ -173,8 +179,8 @@ The constraints today are:
 
 ### Non-Goals
 
-- Replacing GitHub Issues, pull requests, or the repository task runner with a
-  second planning system.
+- Adding a second planning system beside the backlog, GitHub Issues for
+  external contributions, pull requests, and the repository task runner.
 - Creating a human-company simulation with many permanent Agent titles.
 - Allowing an Agent to resolve an actual product or security trade-off by
   silently choosing one option.
@@ -210,8 +216,8 @@ parallelized: the maintainer's attention.
 
 ### Option C: Build A Bounded Contribution Loop — Recommended
 
-Keep GitHub Issues and pull requests as the work and integration records. Add a
-small amount of executable policy around readiness, leases, changed-scope
+Keep backlog tasks (GitHub Issues for externally contributable work) and pull
+requests as the work and integration records. Add a small amount of executable policy around readiness, leases, changed-scope
 verification, independent acceptance, and delivery preparation.
 
 Agents remain replaceable workers. Roles are workflow phases, not new product
@@ -278,10 +284,11 @@ direction.
 
 ### Ready For Agent
 
-Maintain a small queue, initially eight to twelve Issues, whose direction,
-scope, acceptance, and verification are clear. A planning Agent may draft or
-refresh these Issues, but the readiness check and maintainer's priority decide
-which enter the queue.
+This queue is the [backlog](../backlog/README.md). It keeps a short ready
+horizon — enough unblocked tasks for the next few Agent sessions — whose
+direction, scope, acceptance, and verification are clear. A planning Agent may
+draft or refresh these tasks, but the maintainer's priority decides which enter
+the queue and in what order.
 
 ### Ready For Review
 
@@ -308,14 +315,17 @@ An implementation-ready Issue should have:
 | Effect profile | Declare filesystem, Docker, network, provider, deployment, and external-system effects |
 | Budget | Bound time, Agent turns, expensive trials, and automated repair attempts |
 
-Readiness is not permanent. A scheduled check should re-evaluate every ready
-Issue when its referenced files, commands, design decision, dependency, or
-base branch changes. A stale Issue leaves the queue until refreshed.
+Readiness is not permanent. The backlog already drops a stale task from the
+queue until it is refreshed, but that refresh is manual. A scheduled check
+should re-evaluate every ready task when its referenced files, commands, design
+decision, dependency, or base branch changes.
 
-Only one live lease may own an Issue. Before granting it, the workflow checks
-open pull requests, active branches, worktrees, and other Issues for the same
-stable work ID or decision key. A lease expires when its Agent disappears and
-is released when the pull request merges, closes, or is deliberately abandoned.
+The backlog `claim` field implements the single manual claim: at most one live
+claim per task, set before work starts and cleared if the work is abandoned,
+with `pr` marking a claim that has reached review and deletion of the task file
+on merge releasing it. What remains is detection: expiring a claim whose Agent
+disappeared, and checking open pull requests, active branches, worktrees, and
+other tasks for the same stable work ID or decision key before a claim is taken.
 
 The first version does not need semantic conflict prediction. Stable IDs,
 explicit affected areas, exact branch relationships, and a conservative
@@ -515,8 +525,9 @@ signals, not success measures.
 
 ### Phase 0: Process Without New Product Code
 
-- Refresh the current open Issues and keep eight to twelve genuinely ready.
-- Use one stable work ID and one primary writer per task.
+- Keep the backlog's short ready horizon genuinely ready (in use).
+- Use one stable work ID and one primary writer per task (the task's `id` and
+  `claim`; in use).
 - Limit active writing tasks to two or three.
 - Require a fresh acceptance pass for behavior changes.
 - Shorten decision requests and stop parallel implementation at unresolved
@@ -536,8 +547,10 @@ before automating them.
 
 ### Phase 2: Compile Readiness And Delivery
 
-- Add Issue readiness validation and periodic revalidation.
-- Add leases and conservative overlap checks.
+- Add readiness validation beyond the frontmatter shape the architecture test
+  already enforces, and periodic revalidation.
+- Add claim expiry and conservative overlap checks on top of the backlog
+  `claim`.
 - Add pull-request delivery preparation.
 - Reclaim merged and abandoned workspaces through exact, reviewable targets.
 
@@ -599,7 +612,7 @@ the current roadmap.
 | Self-validating implementation | Tests prove the author's assumptions rather than behavior | Fresh verifier context and public outcome oracles |
 | Broad automated repair | Agent changes requirements or weakens tests to turn CI green | Bound retries and reject oracle weakening |
 | Hidden expensive checks | Routine work mutates infrastructure or spends provider quota | Effect profiles and explicit evidence classes |
-| Duplicate planning systems | Issue, roadmap, Agent state, and local notes drift | Keep roadmap, Issue, pull request, and code as their existing authorities |
+| Duplicate planning systems | Backlog, roadmap, Agent state, and local notes drift | Keep roadmap, backlog task, pull request, and code as their existing authorities |
 | Permanent specialist hierarchy | More configuration and stale prompts than useful work | Treat roles as short-lived phases |
 | Automatic merge too early | Fast defects reach `main` and consume more recovery time | Earn authority by risk class from measured results |
 | Metrics reward volume | Agents optimize commits or lines rather than accepted outcomes | Measure maintainer attention, acceptance, escapes, and cost |
@@ -608,8 +621,9 @@ the current roadmap.
 
 1. What active-writing limit minimizes elapsed time without increasing merge
    conflicts: two, three, or a capability-specific value?
-2. Is a GitHub label plus a checked Issue body sufficient for readiness, or is
-   a small machine-readable block needed inside the Issue?
+2. Is the backlog task's frontmatter plus its required sections sufficient
+   for automated readiness checks, or does readiness need more machine-readable
+   fields?
 3. Which path-to-verification decisions are stable enough to encode now, and
    which still require judgment from the testing guide?
 4. Should the verifier be strictly read-only, or may it commit an acceptance
@@ -620,8 +634,8 @@ the current roadmap.
    design decision before implementation?
 7. Which low-risk change class, if any, should be the first automatic-merge
    experiment?
-8. Should lease and cleanup state live only in GitHub and Git, or does local
-   multi-client work require one small checked coordination record?
+8. The claim now lives in the checked-in backlog frontmatter. Does expiry and
+   cleanup state belong there too, or only in Git and pull-request state?
 
 Evidence should come from at least twenty ready Issues across more than one
 subsystem. Record task age, interventions, conflicts, acceptance outcomes, CI

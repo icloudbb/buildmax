@@ -6,7 +6,7 @@
 // else — revoked sessions, canceled runs, and paused schedules do not resurrect.
 //
 // It is the one place that sequences these stores, so a handler does not. See
-// docs/proposals/personnel-deactivation-lifecycle.md §8 and §10.
+// docs/design/system-administration.md §8.3.
 package accountlifecycle
 
 import (

@@ -564,26 +564,37 @@ configuration and must be evaluated with the deployment model.
 
 ## HTTP API Implications
 
-Exact routes are authoritative in `internal/server/handlers/routes.go`. The
-shipped human-session routes and proposed self-service/machine routes are:
+Exact routes are authoritative in the auth handler's `Register` method
+(`internal/server/handlers/auth/handler.go`), composed in
+`internal/server/handlers/routes.go`. Session and credential routes for the
+acting subject share the `/api/auth/` prefix. The shipped human-session routes
+and proposed self-service/machine routes are:
 
 ```text
+GET    /api/auth/methods               # shipped
+POST   /api/auth/otp                   # shipped
 POST   /api/auth/login                 # shipped
-POST   /api/auth/refresh               # shipped
+POST   /api/auth/token/refresh         # shipped
 POST   /api/auth/logout                # shipped
+POST   /api/auth/password              # shipped
+POST   /api/auth/portal/login          # shipped, Portal cookie delivery
+POST   /api/auth/portal/session        # shipped, Portal cookie delivery
+POST   /api/auth/portal/logout         # shipped, Portal cookie delivery
+GET    /api/auth/oidc/start            # shipped, Portal OIDC when configured
+GET    /api/auth/oidc/callback         # shipped, Portal OIDC when configured
 
-GET    /api/sessions                   # proposed self-service
-DELETE /api/sessions/{session_id}      # proposed self-service
-DELETE /api/sessions                   # proposed self-service
+GET    /api/auth/sessions              # proposed self-service
+DELETE /api/auth/sessions/{session_id} # proposed self-service
+DELETE /api/auth/sessions              # proposed self-service
 
-POST   /api/personal-access-tokens
-GET    /api/personal-access-tokens
-DELETE /api/personal-access-tokens/{token_id}
+POST   /api/auth/personal-access-tokens
+GET    /api/auth/personal-access-tokens
+DELETE /api/auth/personal-access-tokens/{token_id}
 ```
 
-OIDC, Device Authorization, service-account administration, or token exchange
-routes should be added only with their respective accepted design. They are not
-implied by the route sketch above.
+Native-client OIDC, Device Authorization, service-account administration, or
+token exchange routes should be added only with their respective accepted
+design. They are not implied by the route sketch above.
 
 The login and refresh DTOs should expose the token type and server-calculated
 expiry. Refresh must preserve or narrow the original session's audiences and
@@ -592,7 +603,7 @@ together, the legacy duplicate `token` response field can be removed instead of
 being preserved indefinitely.
 
 Every authenticated route declares its allowed credential types, audience, and
-required scopes. A PAT presented to `/api/auth/refresh`, a gateway-only token
+required scopes. A PAT presented to `/api/auth/token/refresh`, a gateway-only token
 presented to an Issue route, a user access token presented to a worker route, or
 a run token presented to a user route all fail before resource authorization.
 

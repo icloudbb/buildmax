@@ -2,7 +2,7 @@
 
 > **英文原文：** [BuildMax Current State](../current-state.md)
 >
-> **读者：** 用户、运维人员与贡献者 · **状态：** 截至 2026-09-20 当前有效
+> **读者：** 用户、运维人员与贡献者 · **状态：** 截至 2026-09-26 当前有效
 >
 > 本文是英文原文的简体中文镜像；如有差异，以英文原文为准。
 
@@ -79,7 +79,14 @@ Desktop 交互式回合现在使用 `agentapp.RunScheduler`：按 Session key �
 依序排队后续提示，并让排队的后台事件使用相同生命周期。Server TaskRun 调度器仍是
 另一项持久执行平面职责。
 
-本地检查已有 `buildmax info`、TUI `/info` 和面向单个会话的 Desktop `/info` 面板；
+Desktop 工作区是一个由异构 tab（聊天、终端、文件、diff）组成的中心界面，由 project
+级 Explorer 侧边栏（Directory 与 Changes 视图）供给。tab 可在 pane 之间拖动，可拆分为
+行列网格，也可收回为单一 tab 条；布局按 project 记住，终端 tab 跨重启恢复其回滚内容。
+文件 tab 可以编辑并保存工作区文件。每个聊天 tab 是独立的 Session，因此不同 Session 的
+聊天可以并发运行。状态栏的 Launchpad 可打开用户固定的应用与网站。可调整大小的 pane
+分隔条与按 Session 划分的工具审批尚未构建。
+
+本地检查已有 `buildmax info`、TUI `/info` 和面向单个会话的 Desktop `/info` 面板，包含会话统计、会话 fork 树与 Project Memory 三个 tab；
 `buildmax usage` 跨会话汇总 token 与成本总额，可按天、工作区或模型分组。
 Desktop 的 Memory 界面有意保持只读：用户直接编辑 Markdown 文件，用
 `buildmax project forget` 删除或清空，并用 `--no-project-memory` 为单次运行禁用；
@@ -192,7 +199,8 @@ worker 可以使用配置的 CA 与客户端身份，仍须通过每次 Run 的�
 基础与生产 Kubernetes 清单包含 worker API Service 和 Server 入站 NetworkPolicy，
 仅允许同一 namespace 中匹配的 worker Pod 访问 worker 端口。
 该策略仍允许集群流量访问公共 API 端口。实施需要支持 NetworkPolicy 的 CNI；
-清单存在不能单独证明策略实际生效。
+清单存在不能单独证明策略实际生效。本地 kind 参考集群运行 Cilium，因此策略在那里
+实际生效，并由 `./make kind smoke` 中的 worker API 边界探针验证。
 
 实现与覆盖：[Server 组装](../../internal/server/server.go)、
 [监听器边界测试](../../internal/server/listener_boundary_test.go)、
@@ -339,8 +347,7 @@ Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，
 且不含提示词或生成内容。
 管理方面仍缺少权限变更的事务性审计、管理 CLI 的 Session 列出/撤销能力对齐、
 配额层级分配，以及诊断队列与 worker 的运行元数据。
-这些记录在[系统管理操作提案](proposals/system-administration-operations.md)中；
-提案状态不能当成已实现功能。插件发布仍仅通过 CLI，Portal 已能检查、退役、恢复插件
+这些是[系统管理](design/系统管理.md)记录中的开放问题，并非已实现功能。插件发布仍仅通过 CLI，Portal 已能检查、退役、恢复插件
 以及撤回发布版本。
 
 Space 审批流程仍未实现且明确不在范围内；这不能被视为邀请或所有权转移功能未完成。

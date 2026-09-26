@@ -6,7 +6,7 @@
 >
 > **提出时间：** 2026-08-22
 
-相关文档：[路线图](../ROADMAP.md) P0.5、P3、P4 以及 Desktop 打磨相关部分；
+相关文档：[路线图](../ROADMAP.md) R5（通用的持久化 Session 同步不在首个 Beta 门槛之内）；
 [界面定位](../design/界面定位.md)、
 [session 架构](../contribute/architecture/session.md)、
 [Session 与 Trace 指南](../../../manual/sessions-and-traces.md)、
@@ -66,18 +66,19 @@ BuildMax 有意只维护一个 Agent 运行时，同时拥有各自独立的产�
 
 ### 2.1 本地已有什么
 
-`internal/core/session.Session` 是可恢复的 Agent 状态，而不仅仅是一个聊天视图。它包含：
+本地 session 是可恢复的 Agent 状态，而不仅仅是一个聊天视图。它的日志会归约为一个 `internal/core/session.State`，其中包含：
 
 - 用户、assistant 与工具消息；
 - 工具调用与工具结果；
 - 部分协议要求保留的、由提供商所有的推理状态；
 - 文本与图像片段；
-- token 总量；
 - 压缩边界与累积摘要；
 - 持久化的笔记与待办事项；以及
 - session 运行时所使用的附加系统提示词。
 
-`internal/agentapp.SessionManager` 将该状态持久化在 `<BUILDMAX_HOME>/sessions/` 下，并配有 CLI/TUI 与 Desktop 共用的独立本地索引。它在一轮对话完成后保存。同一次运行还会在 `<BUILDMAX_HOME>/sessions/<session_id>/traces/` 下写入有边界、经过脱敏的 trace。
+它的元数据另外记录标题、工作区、所选模型以及 token 与费用总计。
+
+`internal/agentapp.SessionManager` 把每个 session 作为一个包持久化在 `<BUILDMAX_HOME>/sessions/<session_id>/` 下：`meta.json` 保存当前选择与累计总量，只追加的 `history.jsonl` 日志保存对话。`<BUILDMAX_HOME>/sessions/` 下可重建的 `index.json` 是 CLI/TUI 与 Desktop 共用的选择器投影。保存是增量的：每条消息、每个工具边界、每次压缩与每次状态变更，都会在产生它的调用返回之前追加到日志中，而不是在一轮对话完成后重写整个 session。参见 [session 架构](../contribute/architecture/session.md)。同一次运行还会在 `<BUILDMAX_HOME>/sessions/<session_id>/traces/` 下写入有边界、经过脱敏的 trace。
 
 这两类记录回答的是不同的问题：
 
@@ -90,9 +91,9 @@ BuildMax 有意只维护一个 Agent 运行时，同时拥有各自独立的产�
 
 ### 2.2 Server 上已有什么
 
-Portal Conversation 是持久化的 Space 资源，以规范化的消息行存储。它们是 Tier 1 编排对象，也是 Portal 轮次中面向用户的唯一发声通道。它们可以发起持久化的 Task 与 TaskRun 并接收其报告。它们的归属、并发与生命周期都与本地 Agent session 不同。
+Portal Conversation 是持久化的 Space 资源，以规范化的消息行存储。它们是 Tier 1 编排对象，也是 Portal 轮次中面向用户的唯一发声通道。它们可以发起持久化的 Task，并读取其 TaskRun 结果。它们的归属、并发与生命周期都与本地 Agent session 不同。
 
-Worker 执行已经验证了所需存储路径的一个更窄版本。一个 Task 拥有一个 UUID session ID。每次运行都会把自己的 session 文件上传到该次运行专属的对象命名空间；之后的运行会先恢复该文件再继续。Server 可以把最新存储的 task session 投影为一个 task conversation。但这种实现只局限于单个 Task 的运行历史。它不是一个通用的 session 注册表：它无法列出某个人的本地 session、无法分配可见性、无法置顶某个检查点、无法把它关联到某次提交，也无法让另一台设备认领它。
+Worker 执行已经验证了所需存储路径的一个更窄版本。一个 Task 拥有一个 UUID session ID。每次运行都会把自己的 session 包——`meta.json` 与 `history.jsonl`，不含 trace——上传到该次运行专属的对象命名空间；之后的运行会先恢复这两个文件再继续。Server 可以把最新存储的 task session 投影为一个 task conversation。但这种实现只局限于单个 Task 的运行历史。它不是一个通用的 session 注册表：它无法列出某个人的本地 session、无法分配可见性、无法置顶某个检查点、无法把它关联到某次提交，也无法让另一台设备认领它。
 
 数据库明确把 session ID 当作一种例外处理：Task 与 TaskRun 行指向以 UUID 命名的文件，而不是某张 session 表。CLI 与 Desktop 根本不使用 Server 数据库来持久化 session。
 
@@ -171,7 +172,7 @@ CLI 与 Desktop 可以登录某个 BuildMax 部署。已连接的本地 Agent �
 
 ### 6.1 本地 Session
 
-AgentApp 持有的、可恢复的现有 `session.Session`，持久化在 `BUILDMAX_HOME` 下。它是 CLI 或 Desktop 在本地执行期间的活跃运行时历史。
+由 AgentApp 管理、可恢复的现有 session 包，持久化在 `BUILDMAX_HOME` 下。它是 CLI 或 Desktop 在本地执行期间的活跃运行时历史。
 
 ### 6.2 持久化 Agent Session
 
@@ -260,6 +261,8 @@ AgentApp 持有的、可恢复的现有 `session.Session`，持久化在 `BUILDM
 | 中心化持久性最好，也是实时监控的最强基础 | 使网络可用性成为本地正确性的一部分，大幅扩大摄取量，而且仍然无法同步工作区状态 |
 
 这将来可以成为一种企业采集模式。但对首个切片而言规模过大，而且除非明确将其限定为一种部署策略，否则会削弱直连本地产品的定位。
+
+[远程控制](../design/远程控制.md)现已交付一个实时中继，但它并不是方案 E。选择加入的 CLI/TUI session 会通过 Server 中继其经过脱敏的事件，让另一台设备可以观察并引导它；但该中继是失败开放、非权威的：本地 session 仍然是权威来源，Server 保留的是一个实时 session 注册表和一段缓冲流，而不是持久化的对话记录。因此它既不提供、也不取代本提案所讨论的持久化检查点。
 
 ## 8. 候选产品决策
 
@@ -504,7 +507,7 @@ Server 必须校验媒体类型，并拒绝格式错误的编码。它不应该�
 
 可选同步不应该因为 Server 暂时不可用，就拖慢或让一次已完成的本地轮次失败。AgentApp 应该在本地保存之后，将一个小型的持久化同步任务入队，再以有界的指数退避方式重试。UI 与 CLI 状态会展示 `synced`、`pending`、`conflict`、`rejected` 或 `disabled`。
 
-发件箱存储的是指向不可变本地检查点字节的引用，或者一份复制出来的上传负载。它绝不能只指向那份活跃的 session 文件本身，因为该文件可能会在重试之前继续前进，导致同一个幂等键指向了不同的字节内容。
+发件箱存储的是指向不可变本地检查点字节的引用，或者一份复制出来的上传负载。它绝不能只指向那份活跃的 session 日志本身，因为该日志可能会在重试之前继续前进，导致同一个幂等键指向了不同的字节内容。
 
 在强制模式下，失败语义由部署自行决定：
 
@@ -795,7 +798,7 @@ session 的执行以及每一次上传的修订版本，都是运维性质的记
 
 ### 18.4 本地索引
 
-本地的 `sessions.json` 索引需要记录一些远程状态，例如 Server URL、Space、远程修订版本、同步状态，以及可能的 Fork 来源。把这些全都存进现有的共享索引中，可能会让普通的 session 列表展示变得脆弱。一个候选方案是使用一个以 session ID 为键、单独的同步状态存储，让运行时的 session 文件与选择器索引保持向后兼容。
+本地的 `index.json` 选择器投影需要记录一些远程状态，例如 Server URL、Space、远程修订版本与同步状态。Fork 来源在本地已经存在：分叉会在 `meta.json` 中记录 `forked_from`，索引也会投影它。把这些远程状态存进现有的共享索引中，可能会让普通的 session 列表展示变得脆弱。一个候选方案是使用一个以 session ID 为键、单独的同步状态存储，让运行时的 session 包与选择器索引保持向后兼容。
 
 ## 19. 界面行为
 
