@@ -1,7 +1,8 @@
-// The center workspace tab model (see the desktop-workspace-tabs proposal). A
-// tab renders one activity — chat, terminal, file, or diff — and its backing is
-// identified by (kind, ref) so opening the same activity twice focuses the open
-// tab instead of duplicating it. This module is pure state; React state and the
+// The center workspace tab model (see
+// docs/contribute/architecture/desktop.md). A tab renders one activity — chat,
+// terminal, file, diff, or browser — and its backing is identified by
+// (kind, ref) so opening the same activity twice focuses the open tab instead
+// of duplicating it. This module is pure state; React state and the
 // backends live in the components.
 
 // tabIdentity is the stable key for a tab's backing. Terminals pass a unique

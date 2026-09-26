@@ -26,10 +26,13 @@
 - status: `implemented` — the maintainer accepted, on `2026-09-19`, that a single
   `buildmax` command surface becomes the Agent's way to reach the Server, **fully
   replacing** the in-process Issue tools rather than standing beside them. All of
-  §11 has shipped: the Server-side guardrails, the local command surface, the
-  worker bridge, the retirement of `GetIssue` / `ReportToIssue`, and the kind
+  §11 has shipped: the Server-side guardrails, the local command surface
+  (`issue show`/`list`/`comment`/`status`, `agent trigger`, `task status`,
+  `artifact publish`, `workflow run`/`list`/`status`, and the `--help` groups),
+  the worker bridge, the retirement of `GetIssue` / `ReportToIssue`, and the kind
   end-to-end proof — which also caught and fixed the sandbox tmpfs masking the
-  bridge socket (§4).
+  bridge socket (§4). Deferred follow-ups, not built: `task create`, a per-run
+  `run status`, and `--json` output for these commands (§12).
 - reverses: [issue-agent-access.md](./issue-agent-access.md) — its mechanism
   (the in-process `GetIssue` / `ReportToIssue` tools), now removed. Its product
   boundary (§8 here) survives unchanged, and that record is reduced to it.
@@ -69,8 +72,9 @@ surface satisfies it better under current conditions.
 
 ## 2. The Gap This Closes
 
-Today an Agent can reach the Server only through Go tools compiled into the
-runtime: `GetIssue`, `ReportToIssue`, `UploadArtifact`, and managed inference.
+Before this record, an Agent could reach the Server only through Go tools
+compiled into the runtime: `GetIssue`, `ReportToIssue`, `UploadArtifact`, and
+managed inference.
 Every new Server capability an Agent should be able to use — trigger a run,
 list its assigned Issues, start a Workflow — is a new tool with its own
 registration, permission entry, and provider round-trip. The surface grows one
@@ -82,12 +86,12 @@ Two facts make that costly:
    script, or any executor that is not BuildMax's own loop cannot call a Go
    tool. It can run a command. If Server access is a tool, those executors are
    locked out; if it is a command, they are first-class.
-2. **A subprocess inside a run has no way back to the Server today.** The run
+2. **A subprocess inside a run had no way back to the Server.** The run
    token is read once and immediately scrubbed from the environment
    (`takeEnv` in `internal/bootstrap/worker.go`), and `FilterWorkerEnv`
    (`internal/config/env_spec.go`) strips unowned `BUILDMAX_*` vars from
-   children. The Go-level capabilities are held in process; nothing a
-   `Bash`-spawned command can use exists. A command surface has to close this
+   children. The Go-level capabilities were held in process; nothing a
+   `Bash`-spawned command could use existed. A command surface has to close this
    gap, and closing it is what makes the surface uniform.
 
 One command surface removes the "one tool per capability" growth and admits
@@ -104,14 +108,14 @@ second Issue. The command surface preserves this, but moves the guarantee to
 the credential rather than the tool constructor. In a worker run the run token
 names exactly one TaskRun and its one Issue; the worker routes reject any other
 Issue regardless of arguments (see
-[worker-run-token.md](./worker-run-token.md)). `buildmax issue view` with no
+[worker-run-token.md](./worker-run-token.md)). `buildmax issue show` with no
 argument resolves to *that* Issue because there is no other it is allowed to
 name. Scope is enforced where authority actually lives — the token and the
 route — not in a client-side constructor that a second client could bypass.
 
 **Guardrails.** The comment budget (`issueReportBudget = 3`) and body limit
-(2000 characters) live in the tool layer today, which means they hold only for
-callers that go through the tool. Moving to a command surface forces them to the
+(2000 characters) lived in the tool layer, which meant they held only for
+callers that went through the tool. Moving to a command surface forces them to the
 Server route, where they hold for the tool, the CLI, Portal, and any future
 client alike. This is the single-authoritative-implementation rule from
 [AGENTS.md](../../AGENTS.md): a validation rule belongs at the Server, not
@@ -162,8 +166,9 @@ Context selection is by presence: `BUILDMAX_BRIDGE_SOCK` set → worker context;
 otherwise a stored login → local context; neither → the command explains it is
 not connected. A command that a context does not permit (for example
 `agent trigger` under a run token, which the worker routes deliberately do not
-expose) fails with a clear, LLM-meaningful message — never a silent degrade and
-never a new worker route opened to force symmetry.
+expose) has no bridge path, so it takes the local path and fails non-zero
+because the run-scoped `BUILDMAX_HOME` holds no login (`not signed in`) — never
+a silent degrade and never a new worker route opened to force symmetry.
 
 ## 5. Where Scope And Guardrails Live Now
 
@@ -183,8 +188,8 @@ credential.
   Agent body limit (`AgentCommentBodyLimit`, applied to `agent`/`local_agent`
   authors before Artifact references are appended) and the per-run budget
   (`RunCommentBudget`, counted by `source_task_run_id`) are enforced there — one
-  authoritative implementation that binds the runtime tool, the CLI, and any
-  future client. The stricter Agent limit does not touch a person's comment,
+  authoritative implementation that binds the CLI, Portal, and any future
+  client. The stricter Agent limit does not touch a person's comment,
   which keeps the universal `CommentBodyLimit`. The tool-layer constants were
   removed with the tools (§11 phase 4).
 
@@ -223,7 +228,7 @@ The point is the shape, not the exact spellings.
 
 **Organization.** Server-resource commands stay at the top level as singular
 resource nouns — `buildmax issue`, `buildmax agent`, `buildmax task`,
-`buildmax artifact`, `buildmax workflow`, `buildmax run` — extending the
+`buildmax artifact`, `buildmax workflow` — extending the
 existing `buildmax issue` group rather than moving under a wrapper such as
 `buildmax connect …`. The resource noun *is* the grouping: `buildmax issue
 --help` answers "what can I do to an Issue." Three reasons decide this:
@@ -238,27 +243,31 @@ existing `buildmax issue` group rather than moving under a wrapper such as
    caller opts into. `connect` reads as an action (it is what `buildmax login`
    already does), so nesting nouns under it is a category error.
 3. **Agent ergonomics.** The Agent *types* these through `Bash`; every required
-   segment is another token and another chance to err. `buildmax issue view`
-   beats `buildmax connect issues view`.
+   segment is another token and another chance to err. `buildmax issue show`
+   beats `buildmax connect issues show`.
 
 To keep a long top level legible, commands are sorted in `--help` with cobra
 command groups (`cmd.AddGroup` / `GroupID`, available in the vendored cobra
-`v1.10.2`): a "Server" group (`issue`, `agent`, `task`, `run`, `artifact`,
-`workflow`, `admin`, `plugin`, `usage`) and a "Local" group (`init`, `doctor`,
-`version`, `sandbox`, `tools`, `project`). Grouping changes only how `--help`
+`v1.10.2`): a "Server" group (`login`, `logout`, `me`, `issue`, `agent`,
+`task`, `artifact`, `workflow`, `admin`, `plugin`, `usage`) and a "Local" group
+holding every other top-level command (`init`, `doctor`, `version`, `sandbox`,
+`tools`, `project`, and the rest). Grouping changes only how `--help`
 presents commands; invocation paths are unchanged. This is how a user sees that
 a set of commands is the same kind without a naming-tree layer that the model
 must reproduce.
 
 | Command | Local (user authority) | Worker (run-scoped) |
 |---|---|---|
-| `issue view` | any Issue the user may read | the run's one Issue |
-| `issue list` | the user's assigned Issues | not available |
+| `issue show` | any Issue the user may read | the run's one Issue |
+| `issue list` | the user's owned Issues | not available |
 | `issue comment` | Server-enforced budget/limit | same, on the run's Issue |
 | `artifact publish <path>` | into a named Space | into the run's Space |
-| `run status` | a run the user may read | this run (status, cancel flag) |
-| `agent trigger` / `task create` | yes | not available (single-run edge) |
-| `workflow run` | yes | not available |
+| `task status` | a Task the user may read | this run (status, stop requested) |
+| `agent trigger` | yes | not available (single-run edge) |
+| `workflow run` / `list` / `status` | yes | not available |
+
+`task create` and a per-run `run status` were planned here and remain deferred
+follow-ups; neither command exists.
 
 Two rules keep the surface honest:
 
@@ -270,8 +279,9 @@ Two rules keep the surface honest:
    token.
 
 Output is written for an LLM reader first: meaningful on success and failure,
-stable, and free of the credential. Machine-readable output (`--json`) is
-available for scripted Agents.
+stable, and free of the credential. These commands print text only;
+machine-readable output (`--json`) for scripted Agents is not built, and §12
+asks which commands would commit to a JSON shape.
 
 ## 8. What The Agent May Never Do
 
@@ -281,7 +291,10 @@ transport:
 
 - **Status, owner, executor, and hierarchy are not Agent-writable.** The Agent
   says what happened through a comment; only a person states what state the work
-  is in. No command exposes these as an Agent-usable write in either context.
+  is in. No worker route writes them, so a worker Agent cannot. Locally,
+  `buildmax issue status` is a person's command; because §6 gives a local Agent
+  the user's full authority, what keeps a local Agent from running it is an
+  issue-linked run's `issue` prompt layer, not Server enforcement.
 - **A local Agent's report is stored as a claim** (`local_agent` authorship),
   not as a Worker-verified result.
 - **Issue and comment text is data, never a prompt layer** (§3).
@@ -326,7 +339,7 @@ The command surface changes the *mechanism* of Agent Server access, not the
 2. **Local command surface.** Extend `internal/interface/cli` and
    `internal/interface/client` with the breadth commands (§7) over the existing
    auth broker; confirm an Agent's `Bash` subprocess reaches them with the
-   user's credential. Highest value, lowest new plumbing. **Shipped so far:**
+   user's credential. Highest value, lowest new plumbing. **Shipped:**
    `buildmax issue comment` (posts a `local_agent` report via `CommentOnIssue`),
    `buildmax agent trigger` and `buildmax task status` (the trigger-and-observe
    loop, via `TriggerAgent`/`GetTask` with `FindAgent`/`FindTask` fanning out
@@ -336,10 +349,11 @@ The command surface changes the *mechanism* of Agent Server access, not the
    `status` (start a published workflow and follow it, via `RunWorkflow`/
    `ListWorkflows`/`GetWorkflowRun` with `FindWorkflow` fanning out), and the
    `--help` command groups (Server vs Local, `groupTopLevelCommands` in
-   root.go). Remaining: `task create`, `run status`.
+   root.go). Deferred follow-ups, not built: `task create` and a per-run
+   `run status` (`task status` covers a Task locally and this run in a worker).
 3. **Worker bridge.** Run a Unix-socket reverse proxy inside the worker run that
    injects the run token and forwards to the worker listener, so a subprocess
-   reaches the worker API without ever holding the token. **Shipped so far:** the
+   reaches the worker API without ever holding the token. **Shipped:** the
    transport — `internal/infra/runbridge`, started in `bootstrap.RunWorker` bound
    to the run, which exports `BUILDMAX_BRIDGE_SOCK` and `BUILDMAX_TASK_RUN_ID`
    (the Bash subprocess inherits them; neither is secret, and `_SOCK`/`_ID` names
@@ -352,10 +366,10 @@ The command surface changes the *mechanism* of Agent Server access, not the
    run's artifact route, with the space taken from the run token. `issue show`
    and `task status` inside a run take no id and read the run's own issue and
    status through the bridge. Commands with no worker route — `agent trigger`,
-   `task create`, `workflow run` — stay local-only and fail under a run token,
-   which is the single-run boundary, not a gap. Remaining: kind proof that one
-   run's bridge cannot reach another run's routes (already true by the run
-   token, which the bridge only carries).
+   `workflow run` — stay local-only and fail under a run token, which is the
+   single-run boundary, not a gap. Phase 5's kind run proved that one run's
+   bridge cannot reach another run's routes (the run token, which the bridge
+   only carries, refuses them).
 4. **Retire the tools.** Remove `GetIssue` / `ReportToIssue` from
    `internal/tool`, update `internal/tool/names.go`, and reduce or retire
    [issue-agent-access.md](./issue-agent-access.md) per §9. Ensure the

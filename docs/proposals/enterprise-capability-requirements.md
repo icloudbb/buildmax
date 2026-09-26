@@ -64,7 +64,7 @@ uses historical phases or describes an earlier baseline.
 |---|---|---|
 | Corporate identity | [Enterprise identity and access](../design/enterprise-identity-and-access.md) | Relates SSO and provisioning to personnel lifecycle outcomes |
 | Sessions and automation credentials | [Client sessions and API credentials](client-sessions-and-api-credentials.md) | Connects revocation to unattended work and account lifecycle |
-| Roles, quota, and audit | [Space governance](../design/space-governance.md), [administration operations](system-administration-operations.md) | Collects questions about centralized visibility and control |
+| Roles, quota, and audit | [Space governance](../design/space-governance.md), [system administration](../design/system-administration.md) | Collects questions about centralized visibility and control |
 | Secrets and execution trust | [Space secrets](../design/space-secrets.md), [trust harness](../design/trust-harness.md), [sandbox boundaries](../design/sandbox-boundaries.md), [plugin distribution](../design/plugin-space-distribution.md) | Identifies policy and integration requirements without claiming they exist |
 | Deployment and recovery | [Enterprise deployment](../design/enterprise-deployment.md), [Beta readiness](../deploy/beta-readiness.md) | Connects deployment controls to measurable operating outcomes |
 
@@ -381,9 +381,12 @@ discovery slices are the seams it exposes: a complete leaver journey across
 sessions and unattended work; a quota/suspension journey across admission and
 in-flight execution; and an incident journey from detection through recovery
 and audit. These are discovery hypotheses, not a competing priority queue; the
-current roadmap still governs delivery order. The first seam is now framed for
-review in [personnel deactivation and execution authority](personnel-deactivation-lifecycle.md);
-that proposal does not make it accepted or ready backlog work.
+current roadmap still governs delivery order. The first seam has shipped: account
+deactivation, execution eligibility, and Space owner recovery are recorded in
+[system administration](../design/system-administration.md) §8 and
+[Space membership lifecycle](../design/space-membership-lifecycle.md) §5.5, with
+their known gaps. Its real-provider leaver qualification remains part of
+[enterprise identity](../design/enterprise-identity-and-access.md) Phase 3.
 
 Before accepting a requirement, require a named journey and accountable owner,
 a bounded implementation scope with identified ownership and failure behavior,

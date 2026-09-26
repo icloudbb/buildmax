@@ -2,7 +2,9 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/portal-workflow-visual-editor.md)
 >
-> **Audience:** Portal contributors · **Status:** active plan — partial
+> **Audience:** Portal contributors · **Status:** implemented. The visual canvas
+> (`@xyflow/react`), node inspector with id rename, raw JSON mode, lossless
+> round-trip, and Settings drawer shipped; the non-goals below stay out of scope.
 >
 > **Opened:** 2026-09-20
 

@@ -4,7 +4,7 @@
 >
 > **Status:** proposal — under discussion
 > **Opened:** 2026-09-20
-> **Related:** [Desktop workspace tabs](desktop-workspace-tabs.md), [tool permissions](../design/tool-permissions.md), [plugin marketplace](../design/plugin-marketplace.md), [client credentials](client-sessions-and-api-credentials.md), [current state](../current-state.md)
+> **Related:** [Desktop architecture](../contribute/architecture/desktop.md), [tool permissions](../design/tool-permissions.md), [plugin marketplace](../design/plugin-marketplace.md), [client credentials](client-sessions-and-api-credentials.md), [current state](../current-state.md)
 
 ## Contents
 

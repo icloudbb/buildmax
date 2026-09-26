@@ -2,11 +2,15 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/agent-browser-capability.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 >
-> **受众：** 贡献者 · **状态：** 活动计划 · **复核日期：** 2026-09-22
+> **受众：** 贡献者 · **状态：** 活动计划 —— 部分已交付 · **复核日期：** 2026-09-26
+>
+> **已交付：** CLI headless 工具（#714、#715）、Desktop 可见窗口（#717）、不可信页面
+> 测试（#718），以及只读的 Desktop 实时视图 tab（#719）。**尚余：** Linux 与 Windows
+> 可移植性证据、按来源准入（§3）、worker/Portal/定时运行（在出口沙箱就绪前关闭）、
+> 交互式接管与页面共享，以及托管浏览器下载（§9）。
 
-本记录确定了"给 Agent 一个真实、可控的浏览器"这件事的架构与信任规则。它是继
-[浏览器能力提案](../proposals/browser-capability.md)之后作出的决定；那份提案
-记录了权衡过的备选方案与同类产品调研。相关文档：
+本记录确定了"给 Agent 一个真实、可控的浏览器"这件事的架构与信任规则；§8 记录了
+权衡过的备选方案与同类产品调研。相关文档：
 [工具架构](../contribute/architecture/tools.md)、
 [工具权限](工具权限.md)、
 [沙箱边界](沙箱边界.md)、
@@ -22,7 +26,8 @@
 - [5. 信任与故障边界](#5-信任与故障边界)
 - [6. 验证](#6-验证)
 - [7. Desktop 呈现](#7-desktop-呈现)
-- [8. 延后事项](#8-延后事项)
+- [8. 考虑过的备选方案](#8-考虑过的备选方案)
+- [9. 延后事项](#9-延后事项)
 
 ## 1. 决定与范围
 
@@ -34,16 +39,16 @@
 headless 方式**交付，由 Go 自持的 Chromium 进程通过 Chrome DevTools
 Protocol（CDP）驱动。随后 Desktop 增加了**可见窗口**：以 headful 启动浏览器，
 让用户看到 Agent 正在操作的页面，并显示一个把每个 session 关联到其当前页面的
-简洁活动指示。把页面渲染进工作区 **tab 内**、以及用户接管/页面共享，仍然延后。
-提案中的同类产品调研已确立此工作流的价值，因此这项工作证明的是架构、可移植性
-与信任——不是需求。
+简洁活动指示，并能在工作区 tab 内渲染该页面的只读实时视图（§7）。用户接管与
+页面共享仍然延后。同类产品调研（§8）已确立此工作流的价值，因此这项工作证明的
+是架构、可移植性与信任——不是需求。
 
 锁定的决策：
 
 - **浏览器来源：** 发现已安装的系统 Chrome/Edge；找不到时返回清晰、可操作的
   错误。托管 Chrome for Testing 下载与打包留待以后。
-- **界面：** CLI（headless）与 Desktop（headful，浏览器自己的可见窗口 + 活动
-  指示）。把页面嵌入工作区 tab 延后。
+- **界面：** CLI（headless）与 Desktop（headful，浏览器自己的可见窗口、活动
+  指示，以及一个只读 screencast tab）。对页面的交互式接管延后。
 - **工具契约：** 几个聚焦工具，一个动词一个——不用单一 action 复用工具，也
   绝不为每个 CDP 命令建一个工具。
 - **CDP 客户端：** 选定依赖 [chromedp](https://github.com/chromedp/chromedp)。
@@ -93,13 +98,18 @@ Protocol（CDP）驱动。随后 Desktop 增加了**可见窗口**：以 headful
 
 - 读取 `session.SessionIDFromContext`，只操作该 Session 的页面；调用未携带
   匹配页面即为错误，绝不使用另一个 Session 的页面；
-- 行动前按策略检查当前来源，并拒绝过期元素引用而非猜测目标；
+- 拒绝过期元素引用而非猜测目标；
 - 在页面文字与控制台摘录进入模型上下文及 trace 前对其截断；
 - 遵守上下文取消与每次调用的超时。
 
-交互工具声明 `AccessWrite`；观察工具声明 `AccessReadOnly`。来源准入使用既有
-审批路径，且必须写明确切来源、操作与当前页面——对某一来源的 Session 授权绝不
-授权另一来源。
+交互工具声明 `AccessWrite`；观察工具声明 `AccessReadOnly`，因此交互走普通审批
+路径：交互式会话在 `BrowserNavigate`、`BrowserClick` 或 `BrowserType` 之前询问，
+`BrowserNavigate` 的提示会显示请求的 URL。目前的来源准入只有 `BrowserNavigate`
+中的 scheme 检查：一个带主机的绝对 `http`/`https` URL。**按来源授权尚未构建。**
+浏览器工具没有实现 `llm.GrantScoper`，所以 Session 授权只以工具名为键——对
+`BrowserNavigate` 选择"本 Session 允许"会准入之后的所有来源，而导致导航的点击
+也不会再按来源检查。预期规则仍待实现：准入写明确切来源，对某一来源的 Session
+授权绝不授权另一来源。
 
 ## 4. 浏览器发现与生命周期
 
@@ -137,7 +147,7 @@ Protocol（CDP）驱动。随后 Desktop 增加了**可见窗口**：以 headful
 ## 6. 验证
 
 - Go 单元测试覆盖可执行文件发现、按 Session 限定的归属（跨 Session 调用被
-  拒绝）、来源准入、过期引用拒绝，以及取消/关闭时的清理；在不需要真实浏览器
+  拒绝）、URL scheme 准入、过期引用拒绝，以及取消/关闭时的清理；在不需要真实浏览器
   处用 fake `BrowserController`。
 - 一条真实浏览器本地集成旅程，无 Chrome/Edge 时 skip：提供一个带有状态表单、
   路由变化和一个故意控制台错误的小型本地应用；Agent 打开路由、观察、输入并
@@ -167,10 +177,42 @@ Wails 事件、由一个 `browser` tab 渲染。它展示的是 CDP 控制的**�
 入）；帧只携带图像和尺寸，绝不含绑定或页面脚本。CLI 不设帧 observer，因此那里
 不跑 screencast。
 
-## 8. 延后事项
+## 8. 考虑过的备选方案
+
+| 方案 | 未被选中的原因 |
+|---|---|
+| Go 自持的 Chromium 经 CDP | **选定。** 任何本地界面都能驱动的同一个真实页面；Go 负责 Session 映射、工具与生命周期，无需 Node 运行时；Desktop 能展示同一页面。 |
+| Wails WebView 或 React `iframe` | 不是通用浏览器：网站会用 CSP [`frame-ancestors`][mdn-frame-ancestors] 拒绝被嵌入，`iframe` 没有 Agent 控制器，各平台原生 WebView 需要各自的自动化路径（[Wails][wails-intro] 复用操作系统 WebView；其 [window runtime][wails-window] 面向应用窗口，而非 CDP 浏览器目标），且不可信内容会紧挨着 Wails Go 绑定。 |
+| 现成的浏览器 MCP 服务器 | 可经 MCP 网关试探工具手感，但 BuildMax 无法掌控 Profile 隔离、生命周期或一致的审批体验，而同类产品已证明此工作流的价值。 |
+| 原生内嵌 Chromium 或 Electron/CEF 外壳 | 最接近 VS Code 式的应用内共享页面，代价是外壳集成、进程模型、二进制体积与打包。仅当只读 screencast（§7）不够用时再考虑。 |
+| 用户浏览器里的 Chrome 扩展 | 能触达已登录的 tab，但需要扩展权限、分发、native messaging，以及范围大得多的个人数据授权。是以后单独的能力，验证本地应用并不需要。 |
+
+**同类产品调研（2026-09-21 核对）。** 同类产品已确立"Agent 依据观察到的渲染页面
+行动"有价值且已交付；它们的差别在浏览器宿主。ChatGPT 桌面应用中的 Codex 有一个
+内置浏览器，Profile 与用户日常浏览器分离，Codex CLI 中不可用
+（[OpenAI][openai-browser]）。Claude Code 通过 Claude in Chrome 扩展操作 Chrome，
+该扩展声明了 `debugger` 权限——即 Chrome 的 CDP 传输（[Anthropic][claude-chrome]、
+[Chrome][chrome-debugger]）。VS Code 的集成浏览器是 Electron `WebContentsView`，
+主进程拥有页面，共享进程经 CDP 代理运行 Playwright
+（[架构源码][vscode-architecture]、[用户文档][vscode-tools]）；它的用户/Agent 共享
+tab 模型服务于人类共同观看，而 BuildMax 未把这一点作为首阶段需求，所以它是先例
+而非模板。共同模式——真实引擎拥有渲染状态，控制器暴露有界的导航、观察与交互，
+任何 UI 展示同一页面——正是所选设计遵循的。
+
+[mdn-frame-ancestors]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/frame-ancestors
+[wails-intro]: https://v2.wails.io/docs/introduction/
+[wails-window]: https://v2.wails.io/docs/reference/runtime/window/
+[openai-browser]: https://learn.chatgpt.com/docs/browser
+[claude-chrome]: https://support.claude.com/en/articles/12012173-get-started-with-claude-in-chrome
+[chrome-debugger]: https://developer.chrome.com/docs/extensions/reference/api/debugger
+[vscode-architecture]: https://github.com/microsoft/vscode/blob/main/.github/skills/integrated-browser/SKILL.md
+[vscode-tools]: https://code.visualstudio.com/docs/agents/run/browser-tools
+
+## 9. 延后事项
 
 明确不在范围之内，各自是后续单独的决定：内嵌视图的**交互式**接管（经 CDP
-转发输入）与页面共享、若只读 screencast 不够再上原生内嵌引擎（CEF/Electron）、
+转发输入）与页面共享、按来源准入与按来源限定的 Session 授权（§3）、Linux 与
+Windows 运行证据（§6）、若只读 screencast 不够再上原生内嵌引擎（CEF/Electron）、
 托管 Chrome for Testing 或打包浏览器、为 worker/Portal/定时运行启用该能力、
 subagent 浏览器访问、上传/下载、任意 JavaScript，以及操作已登录的第三方网站。
 用户可见的行为与设置随各自交付移入 manual/reference 文档。

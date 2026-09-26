@@ -46,7 +46,7 @@ type Config struct {
 	// may still run work in its Space. It closes the race where an account is
 	// disabled or removed between the scheduler's dispatch check and the worker
 	// starting. Nil skips the check, matching a deployment that wires no
-	// authority stores. See docs/proposals/personnel-deactivation-lifecycle.md §7.
+	// authority stores. See docs/design/system-administration.md §8.2.
 	Eligible eligibility.Checker
 	// Spaces resolves a run's space default sandbox tiers -- what an agent that
 	// declares neither inherits. Nil means no space falls through beyond the

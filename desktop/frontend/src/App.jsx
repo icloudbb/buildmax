@@ -33,9 +33,9 @@ const SIDEBAR_MAX_WIDTH = 480;
 const SIDEBAR_DEFAULT_WIDTH = 288;
 const LS_SIDEBAR_COLLAPSED = 'bm.desktop.sidebarCollapsed';
 const LS_SIDEBAR_WIDTH = 'bm.desktop.sidebarWidth';
-// Workspace layout is remembered per project (terminals excluded — their PTYs do
-// not survive a restart). Restoring reopens the chat, file, and diff tabs and the
-// pane grid the user last left.
+// Workspace layout is remembered per project. Restoring reopens the tabs and the
+// pane grid the user last left; terminal tabs come back as fresh shells seeded
+// with their saved scrollback, since their PTYs do not survive a restart.
 const workspaceStorageKey = (projectId) => `bm.desktop.workspace.${projectId}`;
 
 function readStored(key, fallback) {
@@ -379,9 +379,9 @@ export default function App() {
 
   // respawnTerminalTabs reopens a restored layout's terminals as fresh shells:
   // their old PTYs died with the previous process, so each terminal tab is rebound
-  // to a newly opened shell in the project workspace (its scrollback is not
-  // recovered — a fresh shell is the honest restore). A terminal that cannot be
-  // reopened is dropped, and any pane or row left empty is removed.
+  // to a newly opened shell in the project workspace, seeded with the tab's saved
+  // scrollback snapshot. A terminal that cannot be reopened is dropped, and any
+  // pane or row left empty is removed.
   const respawnTerminalTabs = async (ws, projectId) => {
     const a = getApp();
     const rows = [];
@@ -484,7 +484,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
 
-  // Persist the current project's layout (terminals excluded) whenever it
+  // Persist the current project's layout (terminal PTY ids stripped) whenever it
   // changes, keyed by the project the workspace belongs to.
   useEffect(() => {
     const pid = workspaceProjectRef.current;

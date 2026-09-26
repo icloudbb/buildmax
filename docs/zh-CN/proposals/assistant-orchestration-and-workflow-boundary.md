@@ -38,7 +38,7 @@ BuildMax 已经接受了一个以锁定修订版本的执行图为核心的、�
 2. 将有界的 Agent 到 Agent 的委托作为一种可选的 Agent 能力来测试，而不是作为一个新的顶层领域实体。
 3. 只有当差异化的专家、并行性或治理产生了单个 Agent 无法产生的、可衡量的价值时，才把这种能力提升为"助理"产品概念。
 4. 保留 Workflow，用于触发条件、策略、审批和重要副作用都必须是确定性的、持久化且可重复的自动化。
-5. 不要优先建设一个通用的图形编辑器。如果"助理"的证据是积极的，就让"助理"成为自适应工作的默认界面，并把 Workflow 面向用户的角色收窄为 Automation。
+5. 不要优先建设一个通用的图形编辑器。如果"助理"的证据是积极的，就让"助理"成为自适应工作的默认界面，并把 Workflow 面向用户的角色收窄为 Automation。（此后，一个针对静态 Workflow DAG 的可视化编辑器已在其自身的[设计记录](../design/portal-workflow-visual-editor.md)下交付；它编辑的是现有定义，不在本文所讨论的问题之内。）
 
 由此得到的产品原则会是：
 
@@ -50,9 +50,9 @@ BuildMax 已经接受了一个以锁定修订版本的执行图为核心的、�
 
 ### 2.1 产品当前暴露的内容
 
-Portal 目前在同一导航层级暴露 Home、Issues、Workflows、Agents 和 Artifacts。Home 用于发起一个 Conversation；也可以通过一个持久化的 Task 和 TaskRun 直接调用一个 Agent。Workflow 是一个 Space 范围内的可复用线性方案，其每个步骤都会启动一个 Agent Task。
+Portal 的 Space 侧边栏把 Chat、Issues、Agents、Workflows 和 Schedules 归入 **Work** 分组，把 Files 和 Artifacts 归入 **Resources** 分组。Chat 用于发起一个 Conversation；也可以通过一个持久化的 Task 和 TaskRun 直接调用一个 Agent。Workflow 是一个 Space 范围内的可复用方案：一个由 Agent Task 节点通过 `needs` 边连接而成的静态 DAG。
 
-当前的 Workflow 编辑器要求管理员维护有序的步骤记录以及底层的 JSON 定义。这对于 Alpha 阶段的线性前身是可以接受的，但无法扩展成一个能胜任绑定、分支、扇出、重试、人工等待和结果契约的、易用的编辑器。
+Workflow 编辑器是一个带原始 JSON 视图的可视化节点与连线画布（见 [Portal Workflow 可视化编辑器](../design/portal-workflow-visual-editor.md)）。它创作的是这个静态图——节点、依赖、绑定和结果契约——但该定义中并没有条件分支、重试或人工等待可供它表达。
 
 已接受的 Workflow 设计通过用一个持久化的图取代线性的回调式排序器，解决了运行时的正确性问题。它有意指出：语义化表单应当先于通用画布出现，而一个一次性的、开放式的目标通常应当保持为一个 Agent Task。
 
@@ -437,19 +437,19 @@ BuildMax 不应当自动把一条成功的 trace 转换成一个已启用的 Wor
 
 ### 9.5 从对话界面调用一个可调用单元
 
-第 1 节的原则——Agent、委托与 Workflow 都通过 Task 和 TaskRun 执行——对前台对话有一个当前工具面尚未兑现的推论。从调用者的角度看，一个直接的 Agent Task 与一次 Workflow run 是同一种形状：一个被接纳到 Task 和 TaskRun 上、并产出持久且可观察结果的类型化目标。前台界面应当把"运行这个 Agent"和"运行这个 Workflow"当作启动一个**可调用单元**的两种方式，而不是两个互不相关的功能。
+第 1 节的原则——Agent、委托与 Workflow 都通过 Task 和 TaskRun 执行——对前台对话有一个推论。从调用者的角度看，一个直接的 Agent Task 与一次 Workflow run 是同一种形状：一个被接纳到 Task 和 TaskRun 上、并产出持久且可观察结果的类型化目标。前台界面应当把"运行这个 Agent"和"运行这个 Workflow"当作启动一个**可调用单元**的两种方式，而不是两个互不相关的功能。
 
-今天两者是不对称的。前台对话 Agent 只构建了四个 Task 工具——启动、列出、获取、继续一个 Task——除此之外别无其他。它没有任何 Workflow 工具，也没有 Issue 工具；事实上没有任何 Agent 层级暴露 Workflow 工具，因为 Workflow 只能通过 Portal API 和协调器来创建和运行。一个被要求运行 Space 已发布 Workflow 的前台 Agent，既看不到它、也无法启动它——尽管该 Workflow 是一个可调用单元，并且早已落在该 Agent 用于直接 Task 的同一个 Task 平面上。
+撰写本节时两者是不对称的：前台对话 Agent 只构建了四个 Task 工具——启动、列出、获取、继续一个 Task——因此一个被要求运行 Space 已发布 Workflow 的 Agent，既看不到它、也无法启动它，尽管该 Workflow 早已落在该 Agent 用于直接 Task 的同一个 Task 平面上。
 
-建议是给对话界面**调用并观察**（invoke-and-observe）Workflow 的能力，与 Task 工具对称，同时不提供创作能力：
+这一缺口现已补上。对话界面具备**调用并观察**（invoke-and-observe）Workflow 的能力，与 Task 工具对称，同时不提供创作能力。这些 Space 范围的工具位于 `internal/service/conversation`：
 
-| 前台能力 | 对应的 Task 工具 | 作用 |
+| 前台工具 | 对应的 Task 工具 | 作用 |
 |---|---|---|
-| 列出 Workflow | 列出 Task | 枚举 Space 中已发布的 Workflow 及其输入契约 |
-| 运行 Workflow | 启动 Task | 用类型化输入启动一个已发布 Workflow 的 run |
-| 获取 Workflow run | 获取 Task | 读取一次 run 的状态、结果和节点状态 |
+| `ListWorkflows` | 列出 Task | 枚举 Space 中已发布的 Workflow 及其输入 schema |
+| `RunWorkflow` | 启动 Task | 用类型化输入启动一个已发布 Workflow 的 run |
+| `GetWorkflowRun` | 获取 Task | 读取一次 run 的状态、结果和节点状态 |
 
-这些是逻辑能力，而非已确定的面向 LLM 的工具名，与第 8.2 节的委托能力处于同等地位。有四条承重约束：
+在本地，`buildmax workflow list`、`run` 和 `status` 为人提供同样的调用并观察界面。有四条承重约束：
 
 - 只有已发布的 Workflow 才是可调用单元。草案或已归档的定义不可从对话中列出或运行。
 - 模型必须提供符合该 Workflow 已发布输入 schema 的输入。调用会校验输入，并返回一个模型可以纠正的类型化失败，而绝不返回静默或无类型的错误——这与 run 边界对结构化输出已经应用的"校验或返回类型化结果"规则一致。
@@ -699,7 +699,7 @@ BuildMax 不应当自动把一条成功的 trace 转换成一个已启用的 Wor
 - 允许任意的 Agent 发现、递归委托，或由模型授予权限。
 - 构建一个新的"助理"执行循环、调度器、trace 或 Artifact 存储。
 - 把一次成功的运行 trace 当作一份安全的可执行定义。
-- 添加一个通用的可视化 DAG 编辑器。
+- 添加一个通用的可视化 DAG 编辑器。（此后已交付的静态 DAG 编辑器由[其自身的设计记录](../design/portal-workflow-visual-editor.md)管辖，而不是本文。）
 - 宣称未来更强的模型会消除对持久化执行、鉴权或审计的需要。
 
 ## 15. 待解决问题

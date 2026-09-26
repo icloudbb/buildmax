@@ -320,12 +320,33 @@ A deployment journey never stops at HTTP success. V08, for example, asserts:
 Failures must be controlled and reproducible. Randomly killing services without
 recording the injection point produces noise, not evidence.
 
+Every fault control provides:
+
+- a stable name, the target run, process, or dependency, and explicit arm and
+  release points;
+- a bounded deadline;
+- an observable marker proving the fault occurred, so the test can tell a
+  deliberate injection from an environment that was already unhealthy;
+- idempotent cleanup; and
+- a failure when the test completes without exercising the armed fault.
+
+Controls may delay, disconnect, terminate, pause, or deny. They never inspect
+prompt content to decide what the product probably intended. A control that
+must target one run is keyed to a run-owned opaque identifier; if no such
+control exists without changing product authority, the case returns to design
+rather than adding per-run model selection as test plumbing
+([end-to-end-testing.md §6.1](end-to-end-testing.md#61-what-the-server-and-worker-paths-must-add)).
+
 The kind deployment smoke now implements three bounded slices from this
 section: graceful worker loss during execution, runtime MySQL denial and
 recovery, and runtime object-storage readiness denial and recovery. The silent
 hard-loss reaper remains store-tested because Kubernetes Job deletion delivers
 `SIGTERM`; worker artifact writes under storage denial, Server restart/reconnect,
 partial-work cancellation, and graceful shutdown under load remain open.
+The Server restart/reconnect case restarts the serving path while a direct Task
+or foreground turn is observable; after reconnect, durable state must
+reconstruct the same work with no duplicate TaskRuns, outputs, Artifacts, usage,
+or message-history writes.
 
 ### 6.1 Worker Lifecycle
 

@@ -64,4 +64,4 @@ The `StreamSink` interface in `internal/core/llm` carries only `OnDelta`, so a
 turn-end signal belongs at the run-loop turn boundary in `internal/agentapp`,
 not on `StreamSink`. This is a design decision about relay richness, which is
 why it is a task rather than folded into the F1 fix. See
-docs/design/remote-control.md "Not yet available" and §Phase notes.
+manual/remote-control.md "Not yet available" and the phasing in docs/design/remote-control.md.

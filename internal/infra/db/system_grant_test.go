@@ -181,9 +181,9 @@ func resetAdmins(t *testing.T, s *Store, ctx context.Context) {
 	}
 }
 
-// TestGrantSystemRoleConcurrentOneLiveRow is the correctness prerequisite from
-// the system-administration operations proposal section 6.1: many grants of one
-// role to one account race, and exactly one live row may result. The unique
+// TestGrantSystemRoleConcurrentOneLiveRow is the live-grant uniqueness rule in
+// docs/design/system-administration.md §5.1: many grants of one role to one
+// account race, and exactly one live row may result. The unique
 // index on (user_id, role, live_marker) is what enforces it — the old index
 // over revoked_at let NULLs be distinct and permitted several live rows.
 func TestGrantSystemRoleConcurrentOneLiveRow(t *testing.T) {
@@ -226,9 +226,10 @@ func TestGrantSystemRoleConcurrentOneLiveRow(t *testing.T) {
 	}
 }
 
-// TestRevokeSystemRoleConcurrentKeepsLastHolder is the correctness prerequisite
-// from proposal section 6.2: two administrators revoke different holders at the
-// same time, and the deployment must not end with nobody. One revoke wins and
+// TestRevokeSystemRoleConcurrentKeepsLastHolder is the atomic last-holder rule
+// in docs/design/system-administration.md §5.1: two administrators revoke
+// different holders at the same time, and the deployment must not end with
+// nobody. One revoke wins and
 // the other is refused with ErrSystemGrantLastHolder.
 func TestRevokeSystemRoleConcurrentKeepsLastHolder(t *testing.T) {
 	s, ctx := openGrantStore(t)
@@ -271,9 +272,10 @@ func TestRevokeSystemRoleConcurrentKeepsLastHolder(t *testing.T) {
 	}
 }
 
-// TestSystemGrantEffectiveExcludesDisabled is proposal section 6.3: a grant on
-// a disabled account is not an effective holder, because the account is refused
-// before its grant is consulted. So it does not count toward the last-holder
+// TestSystemGrantEffectiveExcludesDisabled is the effective-holder rule in
+// docs/design/system-administration.md §5.1: a grant on a disabled account is
+// not an effective holder, because the account is refused before its grant is
+// consulted. So it does not count toward the last-holder
 // rule, and revoking the one enabled holder is refused even though a disabled
 // grant still exists.
 func TestSystemGrantEffectiveExcludesDisabled(t *testing.T) {
@@ -308,8 +310,8 @@ func TestSystemGrantEffectiveExcludesDisabled(t *testing.T) {
 	}
 }
 
-// TestDisablingTheLastEffectiveHolderIsRefused is the other half of proposal
-// section 6.3: disabling an account revokes every credential, so disabling the
+// TestDisablingTheLastEffectiveHolderIsRefused is the other half of the
+// effective-holder rule: disabling an account revokes every credential, so disabling the
 // last effective administrator would lock the deployment out just as revoking
 // the grant would. The store refuses and the account stays enabled.
 func TestDisablingTheLastEffectiveHolderIsRefused(t *testing.T) {
@@ -355,7 +357,7 @@ func TestDisablingWhenAnotherHolderRemainsSucceeds(t *testing.T) {
 	}
 }
 
-// TestConcurrentRevokeAndDisableKeepOneHolder is proposal section 6.3 under
+// TestConcurrentRevokeAndDisableKeepOneHolder is the effective-holder rule under
 // contention: a revoke of one holder and a disable of the other race, and the
 // deployment must not end with nobody effective. Both take the same lock on the
 // role's live grants, so one wins and the other is refused.

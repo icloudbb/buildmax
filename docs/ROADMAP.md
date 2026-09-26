@@ -3,7 +3,7 @@
 > **简体中文：** [阅读中文镜像](zh-CN/ROADMAP.md)
 >
 > **Audience:** users, operators, and contributors · **Status:** current — Alpha
-> **Last reviewed:** 2026-09-20
+> **Last reviewed:** 2026-09-26
 
 BuildMax is an open-source Agent runtime for local work and private Space
 deployment. CLI/TUI, Desktop, and Server/Portal use the same Go Agent Core.
@@ -163,8 +163,9 @@ and Portal artifacts proposed for release with external dependencies.
 the features perform the documented account, Space, execution, diagnosis,
 failure, restore, upgrade, rollback, and rotation journeys. Fix only gaps that
 the journey demonstrates. Transactional authority audit, admin CLI Session
-parity, quota-tier assignment, and richer runtime metadata remain proposal work
-unless they block this outcome.
+parity, quota-tier assignment, and richer runtime metadata remain open questions
+in the [system administration](design/system-administration.md) record unless
+they block this outcome.
 
 **Done when:** every required row in the Beta readiness record has durable
 evidence, failures and accepted limits are explicit, and the qualification
@@ -200,8 +201,8 @@ Design: [evaluation system](design/evaluation-system.md).
 **Later; scope depends on demand and qualification results.** Durable Workflow
 reconciliation, graph execution, and typed data bindings are implemented.
 Candidate work includes conditional routing, further chat-platform adapters,
-executable Space plugins, Portal performance, Desktop automation, and
-throughput. The first real channel adapter ships: Telegram private chats reach
+executable Space plugins, Portal performance, Desktop automation beyond its
+in-app scheduled tasks, and throughput. The first real channel adapter ships: Telegram private chats reach
 Space Conversations under the
 [instant-messaging channels](design/instant-messaging-channels.md) design, whose
 later phases (Feishu and group chats, streaming, Remote Control push, more
@@ -211,10 +212,18 @@ problems; the Beta focus does not make Portal the only product.
 
 The [Agent browser capability](design/agent-browser-capability.md) is accepted
 and in progress as a local capability: a Go-owned Chromium over CDP that lets an
-Agent verify a change against a real rendered page, enabled first headless on the
-CLI, with workers left off pending the egress-sandbox story. Its evidence gate is
+Agent verify a change against a real rendered page. It ships headless on the CLI
+and as a visible window on Desktop, with a read-only live view of the page in a
+Desktop workspace tab; workers stay off pending the egress-sandbox story.
+Interactive takeover and a managed browser download remain. Its evidence gate is
 portable cross-platform delivery and the trust boundaries in that record, not
 demand — peers already ship the workflow.
+
+[Remote Control](design/remote-control.md) ships its first four phases: a local
+CLI/TUI session opted in with `--remote-control` can be watched, prompted,
+approved, and stopped from Portal on another device while execution stays local.
+Push notifications with per-device trust, Desktop and print-mode opt-in, and
+[stream observability](backlog/92-remote-control-stream-observability.md) remain.
 
 Conditional security hardening also belongs here rather than in the Beta gate:
 Pod-wide destination policy, a dedicated egress proxy, and an outer runtime such

@@ -83,7 +83,7 @@ const (
 	// member to owner when every recorded owner of a shared Space is disabled.
 	// Distinct from an ordinary transfer because the actor is an operator, not a
 	// space owner, and the recovery is only legal against a Space no owner can
-	// sign in to. See docs/proposals/personnel-deactivation-lifecycle.md §9.
+	// sign in to. See docs/design/system-administration.md §8.4.
 	SpaceOwnershipRecovered = "space.ownership_recovered"
 	// SpaceMemberLoginCodeIssued is distinct from the deployment-scoped
 	// user.login_code_issued so a reader of the space's own trail (owner-only)

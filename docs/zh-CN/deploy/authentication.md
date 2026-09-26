@@ -60,7 +60,7 @@ buildmax-server admin revoke alice@example.com
 
 目前该授权允许访问 `/api/admin`：列出和检查账户、创建账户、签发登录码、禁用和启用访问、撤销会话，以及授予或撤销该角色本身。Portal 的 Administration 包含 Administrators、Accounts、Spaces、Models、Plugins、Overview 和 Audit。Administrators 区块支持列出、授予及撤销角色；`buildmax admin` 通过同一 API 提供登录后的命令行操作。该授权永远不会包含对 Space 的 Issue、Conversation、Artifact、文件或运行轨迹的访问。它们始终受 Space 成员资格保护，不属于某个 Space 的管理员无法读取其内容。
 
-禁用账户会拒绝该账户持有的全部凭证：密码、登录码、刷新令牌、已经持有的访问令牌及 webhook 密钥。同时撤销会话；该账户已排队但尚未开始的工作会失败而不会执行。这不是删除，不会移除任何内容；重新启用仅恢复账户状态。
+禁用账户会拒绝该账户持有的全部凭证：密码、登录码、刷新令牌、已经持有的访问令牌及 webhook 密钥。同时撤销会话、暂停其 Schedule，并取消其排队中和运行中的工作；正在运行的 Agent 会在其 worker 下一次检查取消时停止。Portal 会先展示禁用将停止哪些内容，并允许为离职人员永久退役该账户的 webhook 密钥；否则密钥会保留，以便其回来。这不是删除，不会移除任何内容；重新启用仅恢复账户状态。当一个共享 Space 的所有所有者都已被禁用时，可通过管理区 Spaces 中的 “Make owner” 或 `buildmax-server space recover-owner <space_id> <successor_email>` 将一名已启用的成员提升为所有者。
 
 这条命令也是恢复途径，因此权限保存在数据库中，而非配置项中。无论部署拥有十名管理员还是一名也没有，其行为都相同。失去所有管理员的部署，用创建首位管理员的同一条命令即可恢复，无需保存、轮换或冒泄露风险维护紧急凭证。正因如此，命令行允许撤销最后一份授权，而 API 拒绝这样做。
 

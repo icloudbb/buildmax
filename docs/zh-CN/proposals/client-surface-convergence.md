@@ -10,7 +10,7 @@
 [客户端模式](../design/客户端模式.md)、
 [Desktop 架构](../contribute/architecture/desktop.md)、
 [Server 架构](../contribute/architecture/server.md)、
-[Desktop 工作区 Tab](desktop-workspace-tabs.md)，以及
+[远程控制](../design/远程控制.md)，以及
 [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md)。
 
 ## 目录
@@ -191,7 +191,7 @@ Codespaces/Gitpod 模式套用到 BuildMax——Agent runtime 与 workspace 住�
 - UI 已经通过 `@buildmax/gui` 共享；Desktop 的 React 界面在浏览器里走
   HTTP/WebSocket 适配器运行。
 - 传输已经存在于 Portal + `buildmax-server`；终端天然映射到 WebSocket，
-  [Desktop 工作区 Tab](desktop-workspace-tabs.md) 中的 PTY 会话原型就是它的种子。
+  已交付的 Desktop 终端 PTY 管理器（`internal/interface/desktop/terminal.go`）就是它的种子。
 
 **这是第二个执行平面，不是 Task 平面。** Task 加 TaskRun 是一个**有界 turn**
 模型：一次 run 把 Space 文件 materialize 进 run-scoped 的 `workspace/`，执行一个
@@ -236,6 +236,11 @@ turn 或一次尝试，记录权威结果，然后拆除，跨 run 的状态靠 
 资源，谁也不吞并谁。一个构建在同一 `agentapp` runtime 之上的独立单租户 server
 仍是同一形态的一种可能封装，但把 Environment 平面托管在 Portal 内更可取：它复用
 上述多租户控制面，而不是重新发明它们。
+
+本提案提出之后，[远程控制](../design/远程控制.md)已被接受并交付了前几个阶段。它把
+自身与这里的 Environment 平面放在“运行宿主 × 交互界面”的同一网格上，并构建了
+窄界面、本地宿主这一象限——通过服务器操控用户本机上的会话——完全不需要上述
+环境底座。
 
 ## 11. 移动端作为薄客户端
 

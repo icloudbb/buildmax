@@ -2,13 +2,12 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/远程控制.md)
 
-> **Audience:** contributors · **Status:** accepted — Phase 1 planned
+> **Audience:** contributors · **Status:** accepted — Phases 1–4 implemented;
+> Phase 5 (push notification and per-device trust) open
 >
-> This record decides the mechanism for the accepted
-> [Remote Control proposal](../proposals/remote-control.md); where the two
-> disagree, this record is current. It is the rationale for a new **control
-> plane** that lets a device-resident Agent session be observed and steered from
-> another device through the server. It builds on [client modes](client-modes.md)
+> This record is the rationale for a new **control plane** that lets a
+> device-resident Agent session be observed and steered from another device
+> through the server. It builds on [client modes](client-modes.md)
 > (how a local client authenticates to the server), reuses the outbound-tunnel
 > idea of [Agent Bridge CLI](agent-bridge-cli.md), and is distinct from the Task
 > plane of [Agent execution and Task threads](agent-execution-and-task-threads.md).
@@ -31,24 +30,54 @@ Remote Control is a **control plane** over a live, device-resident Agent session
 the runtime, filesystem, tools, and MCP servers stay on the user's machine, and
 the server is only a relay. The local process **dials out** to the server over a
 WebSocket, registers the session against the user's account, heartbeats, and
-relays its event stream; other devices observe (Phase 1) and later steer
-(Phase 2+) that session through the server.
+relays its event stream; other devices observe and steer that session — send a
+follow-up prompt, answer a tool approval, cancel — through the server.
 
 The plane is deliberately separate from Task/TaskRun. Task is a bounded-turn,
 server-executed model whose run originates from a server dispatch; a Remote
 Control session is persistent, device-resident, and its run originates on the
 laptop. Modelling it as a TaskRun would invert ownership and distort both, so
-Remote Control gets its own entity and its own relay path (§2 of the
-[proposal](../proposals/remote-control.md) records the full host-by-surface
-decomposition and why the control plane ships first).
+Remote Control gets its own entity and its own relay path (§2 records the
+host-by-surface decomposition and why the control plane ships first).
 
 ## 2. Scope And Position
 
-Phase 1 is **read-only remote observation**: opt in on the laptop, see the
-session online from another device, and watch its stream. No inbound steering yet.
-Phase 1 is the whole hard part, because the server cannot reach the laptop; once
-the outbound channel, the registry, and presence exist, later phases add message
-kinds over the same channel (§8).
+Remote Control and the Environment plane of
+[client surface convergence](../proposals/client-surface-convergence.md) are two
+points on one grid, not rival answers. One axis is the **runtime host** — the
+user's machine or a cloud-allocated one; the other is the **interaction
+surface** — *narrow* (the agent session: conversation, progress, approvals, a
+workspace diff) or *broad* (a codespace with terminal, files, and arbitrary
+applications):
+
+| | Narrow surface (agent session) | Broad surface (codespace) |
+| :--- | :--- | :--- |
+| **Local host (laptop)** | **Remote Control (this record)** | Local Desktop app; exposing it remotely is a non-goal |
+| **Cloud host** | Cloud agent session (Remote Control extended to the cloud) | **Environment plane** |
+
+Two substrates fall out, one per axis. The **environment substrate**
+(allocation, lease, hibernation, quota, reclamation) is needed by both cloud
+quadrants. The **control plane** (live-session registry, outbound relay, inbound
+commands, presence — §4 to §6) serves every narrow-surface quadrant. The control
+plane is *required* for a local host, because the server cannot reach a laptop,
+and only *unifying* for a cloud host, which the server reaches directly. So the
+control plane ships first and delivers local Remote Control with no cloud work;
+the cloud agent session later falls out as control plane plus environment
+substrate. Because the connection is outbound-only (§4), Remote Control turns no
+client into a network server and keeps convergence's non-goal of never exposing
+the Desktop process to remote browsers.
+
+Non-goals: running the runtime anywhere but the user's machine; opening an
+inbound port; durable server storage of local session history (§9); changing
+the Task/TaskRun model (§1); a bespoke mobile app — mobile is the thin client of
+client surface convergence; and cross-session messaging between a user's
+sessions on different machines, a plausible later extension of the same channel.
+
+Phase 1 was **read-only remote observation**: opt in on the laptop, see the
+session online from another device, and watch its stream. It was the whole hard
+part, because the server cannot reach the laptop; once the outbound channel, the
+registry, and presence existed, later phases added message kinds over the same
+channel (§8).
 
 Only one genuinely new network primitive is introduced: the **laptop→server agent
 WebSocket** (§4). Everything a remote device needs to *observe* reuses existing
@@ -61,8 +90,7 @@ observation does not touch the space-scoped browser WebSocket at all (§6).
 A live Remote Control session is **account-scoped, not Space-scoped.** It belongs
 to a `UserID` and is visible and controllable only by that user. This is a
 deliberate departure from the Portal norm that Space owns and authorizes
-resources ([Space governance](space-governance.md)), and it is the answer to the
-proposal's open question on scope.
+resources ([Space governance](space-governance.md)).
 
 Rationale: the thing being exposed is the user's own machine and their in-flight
 local work, which has no Space until the user chooses to publish an artifact or
@@ -73,11 +101,11 @@ share a live session into a Space is an additive grant, not the default.
 
 The credential is the **existing user JWT** ([client modes](client-modes.md) §
 credentials): the same access token the local client already holds for managed
-inference authenticates the agent WebSocket. Phase 1 introduces no device token.
+inference authenticates the agent WebSocket. There is no device token.
 Per-device trust (a dedicated device credential, à la the
 [worker run token](worker-run-token.md), plus a Trusted-Devices step-up) is
-deferred to Phase 5; until then, account authentication plus opt-in and a kill
-switch (§7) are the boundary.
+deferred to Phase 5; until then, account authentication plus per-session opt-in
+(§7) are the boundary.
 
 ## 4. The Agent WebSocket
 
@@ -105,10 +133,12 @@ protocol shape):
 - `agent.heartbeat` — periodic liveness; the server records last-seen (§5).
 - `agent.event` — one serialized run event (§6), appended to the session's
   stream.
+- `agent.approval` / `agent.approval_resolved` — a pending tool-approval prompt,
+  and notice that it was answered (locally or remotely) so devices dismiss it.
 
-Inbound message kinds (`prompt`, `approval`, `cancel`) are defined but not
-handled in Phase 1; adding them is Phase 2–4 and requires an in-memory registry
-to route a command to the replica holding the socket (§9).
+Inbound, the server sends `agent.registered` and the commands `agent.prompt`,
+`agent.approval_response`, and `agent.cancel`. Delivering a command requires an
+in-memory registry to route it to the replica holding the socket (§9).
 
 ## 5. Live-Session Registry And Presence
 
@@ -157,13 +187,17 @@ session list. This reuses the Portal streaming-chat render path unchanged.
 
 Remote Control is **off by default** and activates only by explicit opt-in, never
 implicitly, because exposing a session is remote code execution on the user's
-machine under their account. Phase 1 exposes the opt-in on the CLI/TUI first (a
-flag and/or command); the relay itself is surface-agnostic (§6), so Desktop and
-print-mode opt-ins are additive later.
+machine under their account. The opt-in is per session: the interactive TUI's
+`--remote-control` flag (with `--remote-control-name` for the label other devices
+show), which takes effect only when the client is logged in to a managed server.
+The relay itself is surface-agnostic (§6), so Desktop and print-mode opt-ins are
+additive later. A session stops being reachable when the local process ends; a
+clean disconnect marks it offline at once (§5).
 
-Two controls bound the risk from the start: a **kill switch** setting that
-disables Remote Control on a machine regardless of account state, and the ability
-to end a session's reachability. Because the broker is the user's own
+Two further controls are **not built**: a machine-level **kill switch** setting
+that disables Remote Control regardless of account state, and a control to end a
+session's reachability from another device. Both remain open with Phase 5 (§8).
+Because the broker is the user's own
 `buildmax-server`, the relayed transcript never leaves infrastructure the user
 controls — a stronger data story than a third-party relay. The local sandbox
 posture is unchanged: Remote Control does not alter where code runs, unlike the
@@ -173,21 +207,26 @@ Phase 5 (§8).
 
 ## 8. Phasing
 
-1. **Read-only remote observation** — the entity, the agent WebSocket
+1. **Read-only remote observation** — shipped (#703 server, #704 local relay
+   and CLI opt-in, #705 Portal view): the entity, the agent WebSocket
    (register/heartbeat/event), presence, the relay tee, SSE observation, the
    session list, and a Portal read-only view.
-2. **Remote follow-up prompt** — an inbound `prompt` delivered to the local
-   session's existing mid-run input seam ([queued messages](queued-messages.md));
-   introduces the in-memory registry for cross-replica command routing.
-3. **Remote tool approval** — forward permission prompts and return the decision.
-4. **Cancel and reconnect hardening** — inbound cancel; queue and replay across
-   brief disconnects.
-5. **Notification and per-device trust** — the first outbound push mechanism and a
-   device credential plus Trusted-Devices step-up.
+2. **Remote follow-up prompt** — shipped (#706): an inbound `prompt` delivered to
+   the local session's existing mid-run input seam
+   ([queued messages](queued-messages.md)); introduces the in-memory registry for
+   cross-replica command routing.
+3. **Remote tool approval** — shipped (#707): forward permission prompts and
+   return the decision.
+4. **Cancel and reconnect hardening** — shipped (#708 cancel, #709 reconnect and
+   reattach, #720 SSE keep-alive): inbound cancel; the relay buffers outbound
+   frames and reconnects with backoff to the same session across brief
+   disconnects.
+5. **Notification and per-device trust** — open: the first outbound push
+   mechanism and a device credential plus Trusted-Devices step-up, alongside the
+   unbuilt kill switch and remote end-reachability control (§7).
 
 Extending Remote Control to a *cloud* host is a separate track built on the
-environment substrate of the [proposal](../proposals/remote-control.md) §5, not on
-these phases.
+environment substrate (§2), not on these phases.
 
 ## 9. Open Questions
 

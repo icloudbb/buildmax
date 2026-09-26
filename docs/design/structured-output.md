@@ -54,9 +54,10 @@ value that does not validate is not silently accepted.
 
 This has supplied the shared primitive that Workflow's typed routes, bounded
 planners, and evaluator loops are waiting on
-([workflow runtime §13](workflow-runtime.md)). Linear Workflow steps can already
-declare `output_schema`, and the validated value is persisted on TaskRun and
-step-run state; the versioned node envelope and typed control flow remain open.
+([workflow runtime §13](workflow-runtime.md)). Workflow graph nodes can already
+declare `output_schema`, the validated value is persisted on TaskRun and
+node-run state, and a downstream binding can select it from the node's output
+envelope; typed control flow remains open.
 
 ## 2. Problem And Current Baseline
 
@@ -277,10 +278,11 @@ settles. No new streaming protocol is introduced.
   reserves; it is `null` for a run that did not request output. The `xxxRow`
   structs in `internal/infra/db` remain the schema source of truth; the nullable
   structured column is shipped.
-- **Workflow:** a linear `agent_task` step's `output_schema` is a real
-  constraint. The runtime validates the node's structured output before the node
-  succeeds, and a typed route or planner reads `/structured/...` from the
-  envelope ([workflow runtime §13.1–§13.2](workflow-runtime.md)). No Portal
+- **Workflow:** an `agent_task` node's `output_schema` is a real constraint.
+  The runtime validates the node's structured output before the node succeeds,
+  and a downstream node's binding selects `/structured/...` from the envelope at
+  an RFC 6901 pointer; typed routes and planners, not yet built, would read it
+  the same way ([workflow runtime §13.1–§13.2](workflow-runtime.md)). No Portal
   parser validates; the runtime already did.
 - **Task result envelope:** a Task result may carry the structured value in
   addition to its text, so a caller that wanted a typed outcome gets one and a
@@ -335,10 +337,11 @@ value fails the step, so no absent value is passed downstream (§9,
 its first producer.
 
 **Follow-up — typed dataflow (adaptive Workflow).** Typed routes, planners, and
-map reading `/structured/...` through an RFC-6901 pointer on a binding, and the
-Portal step-form editor for `output_schema`, are a further slice: today a binding
-still binds an upstream step's whole output, with no pointer selection. They
-belong with the adaptive-Workflow work in [workflow runtime §13](workflow-runtime.md)
+map reading `/structured/...`, and a Portal form control for `output_schema`
+(authored in raw JSON today), are a further slice. Pointer selection itself has
+since shipped with the Workflow data contract: a binding selects from an upstream
+node's output envelope, including `/structured/...`, at an RFC 6901 pointer. The
+remaining slice belongs with the adaptive-Workflow work in [workflow runtime §13](workflow-runtime.md)
 and build on the persisted structured value this phase establishes.
 
 Phases 1–3 are the shared primitive; Phase 4 is its first real consumer and

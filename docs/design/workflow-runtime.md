@@ -113,13 +113,14 @@ through the shared runtime.
 ### 1.2 Roadmap Position
 
 This record accepts the architecture, not immediate breadth. The reliability
-foundation belongs before new Workflow control flow. Static graph execution is
-an R5 capability selected after the R0–R3 Beta evidence and later product
-evidence justify it, or earlier only when a concrete deployment supplies the
-need and priority. Dynamic expansion, human waits, Workflow-level schedules,
-and inbound events remain later slices; recurring runs of a single Agent
-already ship on the Task plane (see
-[scheduled Agent execution](scheduled-agent-execution.md)).
+foundation belongs before new Workflow control flow. Static graph execution,
+an R5 capability, has since shipped on that foundation (§1.1). Dynamic
+expansion, human waits, and inbound events remain later slices, selected when
+the R0–R3 Beta evidence and later product evidence justify them, or earlier
+only when a concrete deployment supplies the need and priority. Recurring runs
+already ship on the Task plane: a schedule fires either one Agent or one
+Workflow (see
+[scheduled Agent execution §15](scheduled-agent-execution.md#15-extension-workflow-executors)).
 
 The durable coordination substrate this record builds first — idempotent Task
 admission, reconciliation, lease-based recovery, and compare-and-set
@@ -129,10 +130,11 @@ would need to admit durable child Tasks, wait without holding a worker, and
 recover a parent after a lost callback (see
 [assistant orchestration and the Workflow boundary](../proposals/assistant-orchestration-and-workflow-boundary.md)).
 Building it first is therefore a no-regret investment that does not commit the
-product to graph breadth: whether Workflow later widens into a static DAG or
+product to graph breadth: whether Workflow widens beyond a static DAG or
 narrows toward a deterministic Automation envelope around adaptive delegation,
-this layer is reused unchanged. Deciding how much graph breadth to ship is
-deferred to that later evidence; the substrate is not.
+this layer is reused unchanged. Workflow has since widened into a static DAG on
+it; deciding how much further graph breadth to ship is deferred to later
+evidence; the substrate was not.
 
 ## 2. Problem And Design Principles
 

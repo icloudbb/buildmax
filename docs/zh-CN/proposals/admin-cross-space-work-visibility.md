@@ -9,7 +9,6 @@
 相关文档：[路线图](../ROADMAP.md)、
 [当前状态](../current-state.md)、
 [系统管理设计](../design/系统管理.md)、
-[系统管理操作提案](system-administration-operations.md)、
 [Space 治理](../design/Space治理.md)，以及
 [Server 架构](../contribute/architecture/server.md)。
 
@@ -68,8 +67,8 @@ Schedule 和 Issue。这说明导航和运维问题值得探讨，却不能证�
 - Agent、Workflow、Schedule 和 Issue 使用 Space 范围的路由与授权。改变浏览器
   导航不会安全地改变这些权限。即使在 Admin 页面提供，返回名称或定义的全局
   接口也等同于授予内容访问权限。
-- [系统管理操作提案](system-administration-operations.md)已负责一般性的运行健康、
-  容量与运维界面一致性。本文负责更窄的问题：何时从元数据进入具体 Space 工作，
+- [系统管理设计](../design/系统管理.md)已负责一般性的运行健康、
+  容量与运维界面一致性（§6.1，运行时汇总见其 §17 第 16 个开放问题）。本文负责更窄的问题：何时从元数据进入具体 Space 工作，
   以及如何呈现用户已经拥有成员身份的多个 Space 的工作；不重复设计运行看板。
 - [R2 与 R3](../ROADMAP.md)仍缺生命周期和候选版本的运维证据。只有当运维旅程
   证明现有视图无法支持必需的诊断或恢复时，新的跨 Space 界面才进入 Beta 门槛。
@@ -117,7 +116,7 @@ Schedule 和 Issue。这说明导航和运维问题值得探讨，却不能证�
 
 Administration 的 Overview 与 Spaces 区域基于覆盖整个部署的持久事实回答运维问题。
 现有 TaskRun 数量和每个 Space 的用量是起点。如果事故演练证明这些数据不足，
-[运行操作提案](system-administration-operations.md)可以增加有界的状态与时长汇总、
+[系统管理设计](../design/系统管理.md)可以增加有界的状态与时长汇总、
 安全的错误类别，或其他确实缩短诊断时间的元数据。不应只为填充四个标签页，
 就增加四类内容列表接口。
 
@@ -198,7 +197,7 @@ Administration 中。
 ## 10. 如获采纳的可能归宿
 
 将获采纳的权限决定记入[系统管理设计](../design/系统管理.md)及相关 Space 治理
-记录。将有证据支持的运行元数据切片纳入[系统管理操作提案](system-administration-operations.md)
-或其获采纳后的文档；将仅限成员的工作视图纳入 Portal 的 Space 导航计划。
+记录。将有证据支持的运行元数据切片纳入[系统管理设计](../design/系统管理.md)；
+将仅限成员的工作视图纳入 Portal 的 Space 导航计划。
 只有对应决策获采纳后，才增加路线图与 backlog 工作。支持访问设计如有必要，
 仍应单独决策。届时删除本提案，Git 历史保留讨论。

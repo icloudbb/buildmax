@@ -92,8 +92,9 @@ fills in that named slot.
   (`webhook` already exists as a trigger source). This record is time only.
 - **Sub-minute granularity.** The smallest interval is one minute; finer
   cadence is a streaming/event concern, not a schedule.
-- **Workflow-level schedules.** A schedule runs one Agent. Scheduling a
-  Workflow remains a later Workflow-runtime slice.
+- **Workflow-level schedules, at first.** The first slices bound a schedule to
+  one Agent. §15 later generalized the target so a schedule can also fire a
+  Workflow.
 
 ## 5. First-Principles Shape
 
@@ -149,6 +150,9 @@ Schedule
   cron_expr               recurrence rule (standard five fields)
   timezone                IANA name, e.g. "Asia/Shanghai"
   enabled                 bool; a paused schedule keeps its row and next time
+  pause_reason            why a disabled schedule is paused: manual,
+                          creator_disabled, creator_not_member,
+                          consecutive_failures, or invalid_cron; empty when enabled
   next_fire_at            UTC instant the dispatcher claims on; the due index
   last_fire_at            UTC instant of the most recent fire (nullable)
   last_fire_ref           what the most recent fire produced -- a Task (agent)
@@ -224,10 +228,12 @@ relation, exactly as it carries optional `issue_id` and `workflow_step_run_id`
   membership — the same rule Tasks use. The firing Task's `created_by` is the
   schedule's creator, so quota, audit, and the run token attribute to a real
   actor, matching how Issue-originated runs attribute.
-- **Disabled creator.** The run scheduler already fails a run whose creator was
-  disabled. For a *repeating* trigger that would mint a failed Task every
-  firing, so a firing whose creator is disabled pauses the schedule
-  (`enabled = false`) instead; re-enabling is an explicit act. This reuses the
+- **Disabled creator.** The run scheduler cancels a pending run whose creator was
+  disabled or removed from the Space, recording `task_run.cancel_reason`
+  (`creator_disabled` or `creator_not_member`). For a *repeating* trigger that
+  would mint a canceled Task every firing, so a firing whose creator is no
+  longer eligible pauses the schedule instead (`enabled = false`, `pause_reason`
+  `creator_disabled` or `creator_not_member`); re-enabling is an explicit act. This reuses the
   disabled-account concept from system administration rather than inventing
   schedule-specific authorization.
 - **Quota.** Each firing passes through the existing quota check in
@@ -238,8 +244,8 @@ relation, exactly as it carries optional `issue_id` and `workflow_step_run_id`
   (`maxConsecutiveScheduleFailures`) the dispatcher pauses the schedule and
   logs why. This is the one guard included rather than deferred, because "an
   unattended trigger that fails forever" is a concrete cost failure, not a
-  hypothetical. The pause reason is logged, not yet stored or shown in Portal
-  (§13).
+  hypothetical. The pause reason is stored as
+  `pause_reason = consecutive_failures`; Portal does not yet show it (§13).
 
 ## 10. Surfaces
 
@@ -308,9 +314,9 @@ wired up where it sat.
 
 ## 13. Open Questions
 
-- **Pause reason.** A pause caused by consecutive failures or a disabled
-  creator is logged. Storing the reason and showing it beside the paused state
-  in Portal is a later, Portal-facing slice.
+- **Pause reason display.** Every pause stores its reason in `pause_reason`
+  (§6), and the API returns it. Showing it beside the paused state in Portal is
+  a later, Portal-facing slice.
 - **Long-outage suppression.** Whether a long outage should suppress the single
   catch-up fire (a max-staleness bound) rather than always firing once. The
   default remains one catch-up (§8) until there is evidence a stale run causes

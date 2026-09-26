@@ -24,8 +24,11 @@
   资源；它尚未进入[路线图](../ROADMAP.md)，将在排期时对应到 R5。
 - status：`implemented` —— 维护者已于 `2026-09-19` 接受：由单一的 `buildmax` 命令入口
   成为 Agent 触达 Server 的方式，**完全取代**进程内的 Issue 工具，而不是与之并存。
-  §11 全部已交付：服务端护栏、本地命令入口、worker 桥、`GetIssue` / `ReportToIssue`
-  的退役，以及 kind 端到端证明 —— 后者还发现并修复了沙箱 tmpfs 遮蔽桥套接字的缺陷（§4）。
+  §11 全部已交付：服务端护栏、本地命令入口（`issue show`/`list`/`comment`/`status`、
+  `agent trigger`、`task status`、`artifact publish`、`workflow run`/`list`/`status`，
+  以及 `--help` 分组）、worker 桥、`GetIssue` / `ReportToIssue` 的退役，以及 kind
+  端到端证明 —— 后者还发现并修复了沙箱 tmpfs 遮蔽桥套接字的缺陷（§4）。延后的后续工作、
+  尚未构建：`task create`、按运行的 `run status`，以及这些命令的 `--json` 输出（§12）。
 - reverses：[issue-agent-access.md](./Issue Agent访问.md) —— 反转其机制（进程内的
   `GetIssue` / `ReportToIssue` 工具），现已移除。其产品边界（本文 §8）保持不变，该
   记录被削减为该边界。
@@ -61,7 +64,7 @@ Agent 通过**一个命令入口**触达 BuildMax Server —— 也就是它本�
 
 ## 2. 本设计弥补的缺口
 
-如今，Agent 只能通过编译进运行时的 Go 工具触达 Server：`GetIssue`、`ReportToIssue`、
+在本记录之前，Agent 只能通过编译进运行时的 Go 工具触达 Server：`GetIssue`、`ReportToIssue`、
 `UploadArtifact` 以及托管推理。Agent 应能使用的每一项新 Server 能力 —— 触发一次运行、
 列出分配给它的 Issue、启动一个 Workflow —— 都是一个新工具，带着各自的注册、权限条目和
 提供商往返。这个入口每增加一项能力就多一个概念。
@@ -71,10 +74,10 @@ Agent 通过**一个命令入口**触达 BuildMax Server —— 也就是它本�
 1. **非原生 Agent 根本没有任何工具。** Harbor 自定义 Agent、shell 脚本，或任何不是
    BuildMax 自身循环的执行器，都无法调用 Go 工具。它能运行命令。如果 Server 访问是一个
    工具，这些执行器就被拒之门外；如果它是一个命令，它们就是一等公民。
-2. **如今运行中的子进程没有回到 Server 的通路。** 运行令牌被读取一次后立即从环境中
+2. **运行中的子进程曾经没有回到 Server 的通路。** 运行令牌被读取一次后立即从环境中
    抹除（`internal/bootstrap/worker.go` 中的 `takeEnv`），而 `FilterWorkerEnv`
    （`internal/config/env_spec.go`）会从子进程中剥离非自有的 `BUILDMAX_*` 变量。
-   Go 层面的能力保存在进程内；`Bash` 派生的命令能使用的东西并不存在。命令入口必须弥合
+   Go 层面的能力曾保存在进程内；`Bash` 派生的命令能使用的东西并不存在。命令入口必须弥合
    这个缺口，而弥合它正是让该入口保持统一的原因。
 
 一个命令入口消除了“每项能力一个工具”的膨胀，并接纳每一个能运行程序的执行器。
@@ -88,11 +91,11 @@ Agent 通过**一个命令入口**触达 BuildMax Server —— 也就是它本�
 构造函数参数，因此模型无法寻址第二个 Issue。命令入口保留了这一点，但把这一保证从工具
 构造函数转移到了凭据上。在 Worker 运行中，运行令牌恰好指明一个 TaskRun 及其唯一的
 Issue；无论传入什么参数，worker 路由都会拒绝任何其他 Issue（见
-[worker-run-token.md](./Worker运行令牌.md)）。不带参数的 `buildmax issue view` 会
+[worker-run-token.md](./Worker运行令牌.md)）。不带参数的 `buildmax issue show` 会
 解析到*那个* Issue，因为它没有别的被允许寻址的 Issue。范围在权限真正所在之处得到强制
 执行 —— 令牌和路由 —— 而不是在一个第二个客户端可以绕过的客户端侧构造函数里。
 
-**护栏。** 评论预算（`issueReportBudget = 3`）和正文长度限制（2000 字符）如今位于
+**护栏。** 评论预算（`issueReportBudget = 3`）和正文长度限制（2000 字符）曾位于
 工具层，这意味着它们只对经过工具的调用方生效。迁移到命令入口迫使它们进入 Server 路由，
 在那里它们对工具、CLI、Portal 以及任何未来的客户端一视同仁地生效。这正是
 [AGENTS.md](../../../AGENTS.md) 中的单一权威实现规则：验证规则属于 Server，而不应在每个
@@ -132,8 +135,9 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
 
 上下文选择依据存在性：设置了 `BUILDMAX_BRIDGE_SOCK` → Worker 上下文；否则若有已存储的
 登录 → 本地上下文；两者皆无 → 命令说明它未连接。某上下文不允许的命令（例如运行令牌下的
-`agent trigger`，而 worker 路由刻意不暴露它）会以清晰、对 LLM 有意义的消息失败 ——
-绝不静默降级，也绝不为强求对称而新开一条 worker 路由。
+`agent trigger`，而 worker 路由刻意不暴露它）没有桥接路径，因此会走本地路径，并因
+运行范围的 `BUILDMAX_HOME` 中没有登录而非零失败（`not signed in`）—— 绝不静默降级，
+也绝不为强求对称而新开一条 worker 路由。
 
 ## 5. 现在权限范围与护栏的归属
 
@@ -149,7 +153,7 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
   `issue.Service.CreateComment`，因此 Agent 正文长度限制（`AgentCommentBodyLimit`，
   在追加 Artifact 引用之前作用于 `agent`/`local_agent` 作者）与每-run 预算
   （`RunCommentBudget`，按 `source_task_run_id` 计数）都在此处强制执行——一个权威实现，
-  约束运行时工具、CLI 以及任何未来客户端。这条更严格的 Agent 限制不影响人的评论，人仍受
+  约束 CLI、Portal 以及任何未来客户端。这条更严格的 Agent 限制不影响人的评论，人仍受
   通用的 `CommentBodyLimit`。工具层的常量已随工具一并移除（§11 第 4 阶段）。
 
 ## 6. 凭据处理
@@ -178,8 +182,8 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
 确切写法。
 
 **组织方式。** Server 资源命令保留在顶层，作为单数资源名词——`buildmax issue`、
-`buildmax agent`、`buildmax task`、`buildmax artifact`、`buildmax workflow`、
-`buildmax run`——扩展既有的 `buildmax issue` 组，而**不**收拢到某个包装层（如
+`buildmax agent`、`buildmax task`、`buildmax artifact`、`buildmax workflow`
+——扩展既有的 `buildmax issue` 组，而**不**收拢到某个包装层（如
 `buildmax connect …`）之下。资源名词本身就是分组：`buildmax issue --help` 就回答了
 “我能对一个 Issue 做什么”。三个理由决定了这一点：
 
@@ -190,25 +194,28 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
    决定的，而不是调用方主动进入的一种模式。`connect` 读起来是一个动作（正是
    `buildmax login` 已在做的），把名词嵌套在它之下是范畴错误。
 3. **Agent 使用体验。** Agent 是通过 `Bash` **打出**这些命令的；每多一个必填段就是
-   多一个 token、多一次出错机会。`buildmax issue view` 优于
-   `buildmax connect issues view`。
+   多一个 token、多一次出错机会。`buildmax issue show` 优于
+   `buildmax connect issues show`。
 
 为让较长的顶层保持可读，命令在 `--help` 中以 cobra command group 排序
 （`cmd.AddGroup` / `GroupID`，vendored 的 cobra `v1.10.2` 已支持）：一个 “Server” 组
-（`issue`、`agent`、`task`、`run`、`artifact`、`workflow`、`admin`、`plugin`、`usage`）
-和一个 “Local” 组（`init`、`doctor`、`version`、`sandbox`、`tools`、`project`）。分组
+（`login`、`logout`、`me`、`issue`、`agent`、`task`、`artifact`、`workflow`、`admin`、
+`plugin`、`usage`）和一个容纳其余所有顶层命令的 “Local” 组（`init`、`doctor`、`version`、
+`sandbox`、`tools`、`project` 等）。分组
 只改变 `--help` 如何呈现命令，调用路径不变。这样用户无需一层模型还得复现的命名树，就能
 看出一组命令属于同一类。
 
 | 命令 | 本地（用户权限） | Worker（运行范围） |
 |---|---|---|
-| `issue view` | 用户可读的任意 Issue | 本次运行唯一的 Issue |
-| `issue list` | 分配给该用户的 Issue | 不可用 |
+| `issue show` | 用户可读的任意 Issue | 本次运行唯一的 Issue |
+| `issue list` | 该用户拥有的 Issue | 不可用 |
 | `issue comment` | Server 强制的预算/限制 | 同上，作用于本次运行的 Issue |
 | `artifact publish <path>` | 进入一个具名的 Space | 进入本次运行的 Space |
-| `run status` | 用户可读的某次运行 | 本次运行（状态、取消标志） |
-| `agent trigger` / `task create` | 是 | 不可用（单次运行边界） |
-| `workflow run` | 是 | 不可用 |
+| `task status` | 用户可读的某个 Task | 本次运行（状态、是否已请求停止） |
+| `agent trigger` | 是 | 不可用（单次运行边界） |
+| `workflow run` / `list` / `status` | 是 | 不可用 |
+
+`task create` 与按运行的 `run status` 曾在此规划，仍是延后的后续工作；两条命令都不存在。
 
 两条规则让该入口保持诚实：
 
@@ -217,8 +224,9 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
    遵循 [AGENTS.md](../../../AGENTS.md) 中的工具输出规则。它不会静默降级，也绝不会为了让
    本地命令在运行令牌下工作而拓宽 worker 路由集合。
 
-输出首先为 LLM 读者撰写：成功和失败时都有意义、稳定、且不含凭据。为脚本化 Agent 提供
-机器可读输出（`--json`）。
+输出首先为 LLM 读者撰写：成功和失败时都有意义、稳定、且不含凭据。这些命令只输出文本；
+面向脚本化 Agent 的机器可读输出（`--json`）尚未构建，§12 询问哪些命令会承诺一种 JSON
+形态。
 
 ## 8. Agent 永远不能做的事
 
@@ -226,8 +234,9 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
 都成立：
 
 - **状态、所有者、执行者和层级不可由 Agent 写入。** Agent 通过评论陈述发生了什么；
-  只有人能陈述工作处于何种状态。在任一上下文中，都没有命令把这些暴露为 Agent 可用的
-  写操作。
+  只有人能陈述工作处于何种状态。没有 worker 路由能写它们，因此 Worker 中的 Agent 做不到。
+  在本地，`buildmax issue status` 是一条面向人的命令；由于 §6 让本地 Agent 拥有用户的
+  全部权限，阻止本地 Agent 运行它的是与 Issue 关联的运行所带的 `issue` 提示层，而非 Server 强制。
 - **本地 Agent 的报告作为一项声明存储**（`local_agent` 作者身份），而非作为经 Worker
   验证的结果。
 - **Issue 与评论文本是数据，绝非提示词层级**（§3）。
@@ -265,7 +274,7 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
    service。
 2. **本地命令入口。** 在既有 auth broker 之上，用广度命令（§7）扩展
    `internal/interface/cli` 和 `internal/interface/client`；确认 Agent 的 `Bash`
-   子进程能以用户凭据触达它们。价值最高，新增管道最少。**已交付部分：**
+   子进程能以用户凭据触达它们。价值最高，新增管道最少。**已交付：**
    `buildmax issue comment`（经 `CommentOnIssue` 发一条 `local_agent` 报告）、
    `buildmax agent trigger` 与 `buildmax task status`（触发并观察这对命令，经
    `TriggerAgent`/`GetTask`，并由 `FindAgent`/`FindTask` 跨 space fan-out——因为没有
@@ -274,9 +283,10 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
    `buildmax workflow run`/`list`/`status`（启动已发布 workflow 并跟踪，经
    `RunWorkflow`/`ListWorkflows`/`GetWorkflowRun`，并由 `FindWorkflow` fan-out），
    以及 `--help` 的命令分组（Server 与 Local，root.go 的 `groupTopLevelCommands`）。
-   剩余：`task create`、`run status`。
+   延后的后续工作、尚未构建：`task create` 与按运行的 `run status`（`task status` 在本地
+   覆盖某个 Task，在 Worker 中覆盖本次运行）。
 3. **Worker 桥接。** 在 worker 运行内跑一个 Unix socket 反向代理，注入 run token 并转发
-   到 worker listener，使子进程无需持有 token 即可访问 worker API。**已交付部分：** 传输
+   到 worker listener，使子进程无需持有 token 即可访问 worker API。**已交付：** 传输
    层——`internal/infra/runbridge`，在 `bootstrap.RunWorker` 中随运行启动，导出
    `BUILDMAX_BRIDGE_SOCK` 与 `BUILDMAX_TASK_RUN_ID`（Bash 子进程自动继承；二者都不是机密，
    且 `_SOCK`/`_ID` 名称能通过沙箱环境擦除，因此无需改动 `FilterWorkerEnv`）。它只转发
@@ -285,9 +295,9 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
    issue（worker 路由、无 id、受运行预算）并拒绝携带 issue id，`buildmax artifact
    publish` 经桥接上传到本运行的 artifact 路由、space 取自 run token。`issue show` 与
    `task status` 在运行内不带 id，经桥接读取本运行自身的 issue 与状态。没有 worker 路由的
-   命令——`agent trigger`、`task create`、`workflow run`——保持仅本地，在 run token 下
-   会失败，这是单次运行边界而非缺口。剩余：kind 验证一次运行的桥接无法触达另一次运行的
-   路由（这由 run token 本身保证，桥接只是携带它）。
+   命令——`agent trigger`、`workflow run`——保持仅本地，在 run token 下会失败，这是单次
+   运行边界而非缺口。第 5 阶段的 kind 运行证明了一次运行的桥接无法触达另一次运行的路由
+   （桥接只是携带的 run token 会拒绝它们）。
 4. **退役工具。** 从 `internal/tool` 移除 `GetIssue` / `ReportToIssue`，更新
    `internal/tool/names.go`，并按 §9 削减或退役
    [issue-agent-access.md](./Issue Agent访问.md)。确保 `buildmax` 二进制位于 worker

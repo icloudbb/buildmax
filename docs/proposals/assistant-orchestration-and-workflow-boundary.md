@@ -57,7 +57,10 @@ The provisional recommendation is:
    approvals, and important side effects must be deterministic.
 5. Do not prioritize a general-purpose graph editor. If Assistant evidence is
    positive, make Assistant the default interface for adaptive work and narrow
-   Workflow's user-facing role toward Automation.
+   Workflow's user-facing role toward Automation. (A visual editor for the
+   static Workflow DAG has since shipped under its own
+   [design record](../design/portal-workflow-visual-editor.md); it edits the
+   existing definition and sits outside this paper's question.)
 
 The resulting product principle would be:
 
@@ -75,15 +78,17 @@ graph breadth worth shipping, and the Portal vocabulary.
 
 ### 2.1 What The Product Exposes
 
-Portal currently exposes Home, Issues, Workflows, Agents, and Artifacts at the
-same navigation level. Home starts a Conversation; an Agent can also be invoked
-directly through a durable Task and TaskRun. Workflow is a Space-scoped reusable
-linear plan whose steps each start an Agent Task.
+Portal's Space sidebar groups Chat, Issues, Agents, Workflows, and Schedules
+under **Work**, and Files and Artifacts under **Resources**. Chat starts a
+Conversation; an Agent can also be invoked directly through a durable Task and
+TaskRun. Workflow is a Space-scoped reusable plan: a static DAG of Agent Task
+nodes joined by `needs` edges.
 
-The current Workflow editor asks an administrator to maintain ordered step
-records and the underlying JSON definition. This is acceptable for the Alpha
-linear precursor but does not scale into an approachable editor for bindings,
-branches, fan-out, retries, human waits, and result contracts.
+The Workflow editor is a visual node-and-edge canvas with a raw JSON view (see
+[Portal Workflow visual editor](../design/portal-workflow-visual-editor.md)).
+It authors that static graph — nodes, dependencies, bindings, and result
+contracts — but the definition has no conditional branches, retries, or human
+waits for it to express.
 
 The accepted Workflow design addresses runtime correctness by replacing the
 linear callback sequencer with a durable graph. It deliberately says that a
@@ -575,33 +580,31 @@ bindings, limits, Agent revisions, and side-effect policy.
 ### 9.5 Invoking A Callable Unit From The Conversation Surface
 
 The principle in section 1 — Agent, delegation, and Workflow all execute
-through Task and TaskRun — has a consequence for the foreground conversation
-that the current tool surface does not yet honor. From the caller's side, a
-direct Agent Task and a Workflow run are the same shape: a typed objective
-admitted onto Task and TaskRun that yields a durable, observable result. The
-foreground surface should treat "run this Agent" and "run this Workflow" as two
-ways to launch a **callable unit**, not two unrelated features.
+through Task and TaskRun — has a consequence for the foreground conversation.
+From the caller's side, a direct Agent Task and a Workflow run are the same
+shape: a typed objective admitted onto Task and TaskRun that yields a durable,
+observable result. The foreground surface should treat "run this Agent" and
+"run this Workflow" as two ways to launch a **callable unit**, not two
+unrelated features.
 
-Today they are asymmetric. The foreground conversation agent builds four Task
-tools — start, list, get, and continue a Task — and nothing else. It has no
-Workflow tool and no Issue tool; in fact no Agent tier exposes a Workflow tool
-at all, because Workflows are created and run only through the Portal API and
-the reconciler. A foreground agent asked to run a Space's published Workflow
-can neither see it nor start it, even though the Workflow is a callable unit
-that already lands on the same Task plane the agent uses for a direct Task.
+When this section was written they were asymmetric: the foreground
+conversation agent built only four Task tools — start, list, get, and continue
+a Task — so an agent asked to run a Space's published Workflow could neither
+see it nor start it, even though the Workflow already lands on the same Task
+plane the agent uses for a direct Task.
 
-The recommendation is to give the conversation surface **invoke-and-observe**
-access to Workflows, mirroring the Task tools, and to withhold authoring:
+That gap is now closed. The conversation surface has **invoke-and-observe**
+access to Workflows, mirroring the Task tools, and authoring is withheld. The
+space-scoped tools live in `internal/service/conversation`:
 
-| Foreground capability | Task-tool analog | What it does |
+| Foreground tool | Task-tool analog | What it does |
 |---|---|---|
-| List Workflows | List Tasks | Enumerate the Space's published Workflows with their input contract |
-| Run Workflow | Start Task | Start a run of one published Workflow with typed input |
-| Get Workflow run | Get Task | Read a run's status, result, and node states |
+| `ListWorkflows` | List Tasks | Enumerate the Space's published Workflows with their input schema |
+| `RunWorkflow` | Start Task | Start a run of one published Workflow with typed input |
+| `GetWorkflowRun` | Get Task | Read a run's status, result, and node states |
 
-These are logical capabilities, not committed LLM-facing tool names, on the
-same footing as the delegation capabilities in section 8.2. Four constraints
-are load-bearing:
+Locally, `buildmax workflow list`, `run`, and `status` give a person the same
+invoke-and-observe surface. Four constraints are load-bearing:
 
 - Only a published Workflow is a callable unit. A draft or archived definition
   is not listable or runnable from the conversation.
@@ -914,7 +917,10 @@ Portal terminology together. This proposal is then retired.
   permissions.
 - Building a new Assistant execution loop, scheduler, trace, or Artifact store.
 - Treating a successful run trace as a safe executable definition.
-- Adding a general visual DAG editor.
+- Adding a general visual DAG editor. (The static-DAG editor that has since
+  shipped is governed by
+  [its own design record](../design/portal-workflow-visual-editor.md), not
+  this paper.)
 - Claiming that stronger future models remove the need for durable execution,
   authorization, or audit.
 

@@ -6,7 +6,8 @@
 >
 > **Opened:** 2026-08-22
 
-Related: [roadmap](../ROADMAP.md) P0.5, [product vision](../design/product-vision.md),
+Related: [roadmap](../ROADMAP.md) R5 (local follow-ons after the Beta gate),
+[local session storage](../design/local-session-storage.md), [product vision](../design/product-vision.md),
 [surface positioning](../design/surface-positioning.md),
 [context durability](../design/context-durability.md),
 [queued messages](../design/queued-messages.md),
@@ -51,7 +52,7 @@ user-facing model:
   with directly;
 - Portal Conversations, which own foreground chat and may orchestrate Tasks;
   and
-- subagents with private, temporary Sessions, plus durable background execution
+- subagents with private, hidden Sessions, plus durable background execution
   represented by Task and TaskRun.
 
 A linear Session works for one path from question to answer. It does not
@@ -74,7 +75,7 @@ This proposal evaluates a longer-term direction:
    to accept the associated workspace changes.
 
 This is neither an arbitrary chat network between Sessions nor a claim that
-adding `parent_id` to the existing Session file creates safe parallel Agents. It
+the fork provenance local Sessions already record creates safe parallel Agents. It
 requires context inheritance, execution isolation, result delivery,
 lifecycle management, scheduling, permissions, cost bounds, and change
 integration to have one coherent meaning.
@@ -117,8 +118,10 @@ The current `Task` tool starts a subagent that:
   context snapshot;
 - runs in its own private Session;
 - returns one text result to the calling tool when complete; and
-- discards that Session after completion, so the user cannot open it and
-  continue the discussion.
+- keeps that Session as a hidden, private journal — retained indefinitely today
+  (see [local session storage](../design/local-session-storage.md) §9 and
+  §19.1) — which the ordinary picker and `--continue` exclude, so the user
+  still cannot open it and continue the discussion.
 
 That is appropriate for bounded, one-shot delegation. It does not cover a user
 who wants to inspect exploration, redirect a child, keep a branch, continue it
@@ -126,34 +129,37 @@ later, or return selected findings to the parent.
 
 ### 2.3 Portal currently has a narrow return-to-origin pattern
 
-When a Portal Tier 2 TaskRun completes, BuildMax sends a `[Task Result]` back to
-the Tier 1 Conversation that started it. The Conversation Agent then produces
-the user-facing reply. This is current implementation, not the accepted product
-boundary. [Agent execution and Task threads](../design/agent-execution-and-task-threads.md)
-makes TaskRun result state authoritative, makes Conversation an optional origin
-and projection, and gives a Task its own user-visible continuation surface.
+A Portal Conversation may start a Task, but under
+[Agent execution and Task threads](../design/agent-execution-and-task-threads.md)
+the TaskRun result is authoritative on the TaskRun itself, and the Task records
+the Conversation only as an optional origin (`conversation_id`), never as its
+ownership or authorization boundary. A Task has its own user-visible
+continuation surface. The earlier path — sending a `[Task Result]` message back
+to the originating Conversation through an in-memory turn queue over the user's
+WebSocket, followed by a mandatory foreground summary turn — has been removed
+([current state](../current-state.md)). The Conversation now reads its Tasks'
+durable state, through its task tools and a projected Task card.
 
-The current path is not a general Session communication mechanism:
+That remaining relation is not a general Session communication mechanism:
 
-- the result returns only to the fixed Conversation currently required by the
-  Task schema;
-- the result is truncated, unstructured text;
-- delivery depends on an active user WebSocket connection and is skipped while
-  the user is offline;
-- the turn queue is in memory, so a Server restart loses turns that have not
-  started; and
-- it has no fork base, workspace-change reference, evidence, join group, or
-  processing acknowledgement.
+- it links a Task only to the Conversation that started it;
+- the Conversation reads the result; nothing delivers a report that the parent
+  must process or acknowledge; and
+- it has no fork base, workspace-change reference, evidence, or join group.
 
-This proposal treats that path as a conceptual precedent, not as a durable
+This proposal treats that relation as a conceptual precedent, not as a durable
 message bus that can simply be generalized.
 
 ### 2.4 Worktrees are required for parallel execution
 
-Desktop currently permits at most one running Agent per Project. Removing that
-restriction would still not make concurrent Sessions safe: several Agents
-writing one directory can overwrite files, interfere with commands and tests,
-and leave an unexplained final state.
+Desktop now runs different Sessions of one Project concurrently: its run
+scheduler serializes turns per Session, not per Project. It does not isolate
+their files. Isolation is left to the user, for example a per-Session worktree,
+which the CLI and TUI can move a Session onto and Desktop only displays
+([workspace root and worktrees](../design/workspace-root-and-worktrees.md) D8);
+otherwise concurrent Sessions share one directory. That is not safe by itself:
+several Agents writing one directory can overwrite files, interfere with
+commands and tests, and leave an unexplained final state.
 
 The proposal separates four questions:
 
@@ -377,11 +383,13 @@ but the runtime maps that action to a safe internal boundary:
   current turn to finish.
 
 Portal already has stable `conversation_message_id` values. Local Sessions
-persist an array of `llm.Message` values without message IDs. A minimal option is
-`{message_count, prefix_digest}`: the count locates an append-only prefix and the
-digest detects out-of-band file modification. If local message editing or
-deletion is added later, persisted local messages need stable IDs rather than
-array positions.
+already have stable IDs too: every `history.jsonl` item carries an `id` and a
+`parent_id`, and a local fork records its origin as `forked_from.session_id` and
+`forked_from.head_id` in the child's `meta.json`
+([local session storage](../design/local-session-storage.md) §5 and §8.3). The
+shipped local fork offers only user messages and replies that ended a turn,
+never an assistant message that asked for tools, and holds the parent's writer
+lock while copying, so it cannot fork from an unstable head.
 
 ### 8.2 Context-copy options
 
@@ -392,7 +400,8 @@ array positions.
 | Generate only a summary | Minimal context and storage | Lossy; can omit code constraints, identifiers, and unresolved decisions |
 
 The candidate direction is **frozen snapshot semantics with a physical copy in
-the first slice**. Later content-addressed or copy-on-write storage may optimize
+the first slice**. Local fork already ships this way: it copies the parent's
+branch through the selected item into a new Session bundle, preserving item IDs. Later content-addressed or copy-on-write storage may optimize
 the implementation without changing the product guarantee that later parent
 content never enters the child.
 
@@ -426,10 +435,12 @@ just raw messages with compaction discarded:
 | Trace identity | Start a new trace and record causality | Keeps each execution explainable |
 | Workspace | Create from a stable isolated base | Avoids shared writes |
 
-The current local `selectedModel` lives only in a runtime wrapper and is not
-persisted. An implementation must decide whether to persist the effective model
-in Session metadata or explicitly use the fork-time default. It must not assume
-that today's Session JSON file already supports reproducible model inheritance.
+A local Session persists its selected model as `selected_model` in
+`meta.json`, and each turn's `turn_started` record names the model that turn
+actually used. Today's local fork does not copy the parent's selection: the
+child's `selected_model` is whatever model the forking surface supplies. An
+implementation must still decide whether a fork should inherit the parent's
+effective model or explicitly use the fork-time default.
 
 ### 8.5 Fork intent
 
@@ -632,7 +643,7 @@ loop.
 
 ### 11.1 Session lifecycle
 
-The proposal needs explicit runtime state beyond the current Session file.
+The proposal needs explicit runtime state beyond the current Session bundle.
 Candidate states are:
 
 | State | Meaning | Signal arrival |
@@ -881,14 +892,17 @@ Desktop is the best first surface for validating user-created forks:
 
 The first slice does not need a full tree canvas. The data is a tree, while main
 navigation may remain recency-sorted with breadcrumbs, child counts, and an
-on-demand tree view. Concurrent execution is exposed only after workspace
-isolation exists.
+on-demand tree view. Desktop already forks from its History picker and shows a
+read-only fork tree in `/info`. It already runs different Sessions
+concurrently without isolating their files (§2.4), so automatic child execution
+must not assume that concurrency implies isolation.
 
 ### 15.2 CLI and TUI
 
-Candidate interactions include:
+The TUI already has `/fork`, which creates a child from a chosen turn-ending
+message and switches to it, and `buildmax info` plus the TUI `/info` show the
+current Session's read-only fork tree. Further candidate interactions include:
 
-- `/fork` creates a child from the current stable turn;
 - `/sessions` shows lineage markers;
 - `/inbox` lists pending child reports; and
 - `buildmax --resume <parent>` prompts for pending reports.
@@ -905,8 +919,8 @@ MVP:
 
 - a Conversation is a Space resource, so forks and child reads need Space
   authorization;
-- a Task belongs to one Conversation, so copied child context does not confer
-  Task ownership;
+- a Task may name the Conversation that started it only as an optional origin,
+  and copied child context does not confer access to that Task;
 - continuing a parent Task needs an explicit result-routing decision;
 - shared work requires fork creator, child owner, and visibility provenance;
 - durable delivery and scheduling must work while everyone is offline; and
@@ -916,14 +930,17 @@ MVP:
 A conservative default is that a child inherits parent Task results already in
 context but not mutable Task ownership. Continuing work should use an explicit
 clone or adopt operation, or a new family-level orchestration concept. It should
-not weaken the existing `conversation_id` ownership check.
+not weaken the existing check that a Conversation's task tools see only Tasks
+whose origin is that Conversation.
 
 ### 15.4 Worker and TaskRun
 
 TaskRun may gradually become one kind of detached execution child, but the
-proposal does not require rewriting the current Task/TaskRun model. A smaller
-path is to send terminal TaskRun results through the same durable report service,
-replacing the current active-WebSocket-only delivery path.
+proposal does not require rewriting the current Task/TaskRun model. Terminal
+TaskRun results are already durable on the TaskRun, and the earlier
+WebSocket-only delivery to a Conversation is removed. A smaller path is to
+publish a report into the same durable report service when a TaskRun that has a
+Session parent terminates.
 
 ### 15.5 Existing subagents
 
@@ -932,7 +949,7 @@ interpretation is:
 
 ```text
 visibility: hidden
-persistence: ephemeral
+persistence: private journal, not user-resumable
 return_policy: immediate tool result
 workspace: inherited or isolated by agent definition
 ```
@@ -988,10 +1005,14 @@ but should not drive the first data migration.
 
 ### Phase 1: Local lineage and manual report
 
-- Add parent and fork metadata to local Sessions.
-- Physically copy a context snapshot at a stable message point.
+- Add parent and fork metadata to local Sessions. *Shipped:* a fork records
+  `forked_from` in `meta.json`.
+- Physically copy a context snapshot at a stable message point. *Shipped:* TUI
+  `/fork` and the Desktop History picker.
 - Create an isolated worktree for writable children.
-- Show parent and child relationships in the UI.
+- Show parent and child relationships in the UI. *Partly shipped:* a read-only
+  fork tree in `buildmax info` and the TUI and Desktop `/info`; session lists
+  show no lineage markers yet.
 - Let the user manually send a structured summary and change reference to the
   parent inbox.
 - Default to `notify`; do not auto-run the parent.
@@ -1041,7 +1062,7 @@ first building automatic scheduling.
 - Add offline Server supervision.
 - Move TaskRun completion to durable reports.
 - Evaluate Task clone or adopt semantics.
-- Decide whether an ephemeral subagent can detach into a visible Session.
+- Decide whether a hidden subagent Session can detach into a visible Session.
 
 ## 19. Prototype Acceptance Criteria
 
@@ -1093,7 +1114,6 @@ Phase 3 automatic resume must additionally show that:
 - Must a fork freeze model and Agent profile, or may it follow configuration
   changes?
 - Does a summary-only fork offer enough real cost reduction to justify loss?
-- When must local messages move from array positions to stable message IDs?
 
 ### Workspace
 
@@ -1136,7 +1156,8 @@ Phase 3 automatic resume must additionally show that:
   result routing?
 - Does a TaskRun eventually appear as a Session Tree node, or only as a report
   producer?
-- Is retaining an ephemeral subagent as a Session worth the additional state?
+- Is exposing a retained, hidden subagent journal as a user-openable Session
+  worth the additional state?
 
 ## 21. Evidence Needed Before Acceptance
 

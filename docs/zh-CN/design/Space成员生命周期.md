@@ -22,7 +22,7 @@
 ## 状态
 
 - roadmap_priority：路线图 R3 候选版本资格验证的已实现基础
-- status：`implemented` —— §5.1（邀请）、§5.2（角色变更）、§5.3（所有权转让）和 §5.4（Space 范围的访问恢复）均已端到端交付：`internal/core/space`、`internal/service/space`、`internal/server/handlers/space`、`internal/infra/db`，以及 §9 中的 Portal 界面（Space → Members：邀请、待处理列表、角色选择器、转让确认、登录码；Account → Invitations：列表与接受）。§12 的四个开放问题均已决定
+- status：`implemented` —— §5.1（邀请）、§5.2（角色变更）、§5.3（所有权转让）和 §5.4（Space 范围的访问恢复）均已端到端交付：`internal/core/space`、`internal/service/space`、`internal/server/handlers/space`、`internal/infra/db`，以及 §9 中的 Portal 界面（Space → Members：邀请、待处理列表、角色选择器、转让确认、登录码；Account → Invitations：列表与接受）。§12 的四个开放问题均已决定。§5.5 记录移除的效果与所有者均已禁用时的恢复，随账户停用生命周期一同交付
 - follows：[space-governance.md](./Space治理.md)、[system-administration.md](./系统管理.md)
 - roadmap：[../ROADMAP.md](../ROADMAP.md)
 - created_at：`2026-08-30`
@@ -148,6 +148,21 @@ Space 所有者应当能够日常管理自己 Space 的成员关系，除了引�
 这并不会取代 [system-administration.md](./系统管理.md) 中的 `system_admin` 路由——那条路由依然存在，依然在部署范围内生效，用来恢复那些在自己 Space 中既没有共同所有者、也没有任何 admin 的所有者。这条新路由只是在"某个成员在一个原本健康的 Space 中被锁定"这一常见情形下，消除了对 `system_admin` 是否存在的依赖。
 
 这也是本文档中唯一会发放登录码的地方——相较于 §5.1 初稿，这是一个刻意收窄、重新划定的边界：这里的目标已经是调用者自己 Space 中已知的成员，因此不存在所有者为陌生账户铸造凭证的问题。
+
+### 5.5 移除的效果与所有者恢复
+
+移除成员会硬删除其唯一的 `space_member` 记录。离开的来源记录保存在 `space.member_removed` 审计事件中，而不是一条保留或软删除的记录里——那样的记录还会与 `(space_id, user_id)` 上的唯一索引冲突。之后的邀请是一次新的加入，带有新的 `created_at`；它不恢复任何东西，也不会复活该成员已暂停的 Schedule 或已取消的运行。这是[系统管理](系统管理.md) §8 所述两条轴中的破坏性一轴；账户禁用是可逆的一轴，会保留每一条成员记录。
+
+移除会收回此人在该 Space 中驱动工作的权限，包括由持久 Schedule 或 Workflow 而非请求发起的工作：
+
+- 其在该 Space 中已启用的 Schedule 会在下一个到期时间以 `pause_reason = creator_not_member` 暂停；
+- 其在该 Space 中待处理和正在运行的 TaskRun 会经由派发和 worker 拉取闸门，或资格对账器的下一次扫描，以 `cancel_reason = creator_not_member` 结束为 `CANCELED`；
+- 其在其他 Space 中的工作和访问不受影响；并且
+- Task、结果、Artifact、轨迹和审计记录都留在该 Space 中，其余成员仍可继续读取。
+
+移除本身不触发任何清理；由各道闸门和每分钟运行的对账器收敛。执行资格规则、检查点及其缺口见[系统管理](系统管理.md) §8.2。
+
+所有权通常在所有者离开前按 §5.3 转移。如果一个共享 Space 的每一位已记录所有者都已被禁用，就没有所有者能完成这一步，因此系统管理员可以在狭窄条件下恢复该 Space：每一位已记录所有者都已禁用、继任者已经是已启用的成员、该 Space 不是个人 Space，并且不创建任何成员关系。该操作复用 §5.3 的转移，不给管理员任何内容访问权，并记录 `space.ownership_recovered`。它可通过 `PUT /api/admin/spaces/{space_id}/owner`、Portal 管理区 Spaces 中的 “Make owner”，以及在公共 Server 或 IdP 不可用时使用的紧急救援命令 `buildmax-server space recover-owner <space_id> <successor_email>` 访问。它绝不转移一个仍有所有者能登录的 Space。见[系统管理](系统管理.md) §8.4。
 
 ## 6. 范围外事项
 

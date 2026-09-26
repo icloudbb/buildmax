@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](zh-CN/current-state.md)
 >
-> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-20
+> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-26
 
 This page describes implemented behavior, test coverage, and remaining limits
 against the current repository code. Priority and future
@@ -139,6 +139,16 @@ run per session key, queues later prompts in order, and gives queued background
 events the same lifecycle. The Server TaskRun scheduler remains a separate
 durable execution-plane concern.
 
+The Desktop workspace is one center surface of heterogeneous tabs — chat,
+terminal, file, and diff — fed by a project-scoped Explorer sidebar with
+Directory and Changes views. Tabs can be dragged between panes and split into a
+rows-and-columns grid or collapsed back to one tab strip; the layout is
+remembered per project, and terminal tabs restore their scrollback across a
+restart. A file tab can edit and save a workspace file. Each chat tab is its own
+session, so chats in different sessions run concurrently. A status-bar Launchpad
+opens user-pinned applications and websites. Resizable pane splitters and
+session-scoped tool approvals are not built.
+
 Desktop also has local scheduled tasks: a Schedules view (a first-class sidebar
 entry) where a user schedules a fixed prompt to run in a working directory —
 their home directory by default, so a task needs no project — under a model they
@@ -172,7 +182,8 @@ to end on kind, including that a run cannot reach another run's routes. See
 [`docs/design/agent-bridge-cli.md`](design/agent-bridge-cli.md).
 
 Local inspection includes `buildmax info`, TUI `/info`, and the Desktop `/info`
-panel for one session; `buildmax usage` sums token and cost totals across
+panel for one session, with session statistics, the session's fork tree, and
+Project Memory tabs; `buildmax usage` sums token and cost totals across
 sessions, grouped by day, workspace, or model. Desktop is intentionally
 read-only for memory: users edit the Markdown files directly, delete or clear
 with `buildmax project forget`, and disable memory for one run with
@@ -317,7 +328,9 @@ The basic and production Kubernetes manifests include a worker API Service and
 a Server-ingress NetworkPolicy admitting the worker port only from matching
 worker pods in the namespace. The public API port remains open to cluster
 traffic under that policy. Enforcement requires a CNI that implements
-NetworkPolicy; manifest presence alone is not proof of enforcement.
+NetworkPolicy; manifest presence alone is not proof of enforcement. The local
+kind reference cluster runs Cilium, so there the policy is enforced and the
+worker API boundary probe in `./make kind smoke` exercises it.
 
 Sources and coverage:
 [`internal/server/server.go`](../internal/server/server.go),
@@ -507,9 +520,9 @@ call, filtered by user, model, status, surface, and time, and carrying no
 prompts or generated content.
 Remaining administration gaps include transactional authority audit, admin CLI
 Session listing/revocation parity, quota-tier assignment, and runtime metadata
-for queue/worker diagnosis. These are tracked in the
-[administration operations proposal](proposals/system-administration-operations.md);
-proposal status must not be confused with an implemented feature. Plugin
+for queue/worker diagnosis. These are open questions in the
+[system administration](design/system-administration.md) record, not implemented
+features. Plugin
 publication remains CLI-only, while Portal can inspect, retire, restore, and
 yank catalog releases.
 

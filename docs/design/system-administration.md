@@ -32,9 +32,9 @@
   search and space metadata routes, the Portal administration area, and the
   model catalog surface. What remains is in §17, and none of it is a gap in
   the first slice. Later grant integrity, Portal discoverability, pagination,
-  model creation, and authenticated `buildmax admin` operations have also
-  shipped; [system administration operations](../proposals/system-administration-operations.md)
-  distinguishes them from its remaining proposed work
+  model creation, authenticated `buildmax admin` operations, the operator
+  surface split (§6.1), and the account deactivation lifecycle with execution
+  eligibility and Space owner recovery (§8) have also shipped
 - follows: [space-governance.md](./space-governance.md) and
   [enterprise-deployment.md](./enterprise-deployment.md)
 - relates to: [enterprise identity and access](enterprise-identity-and-access.md),
@@ -270,13 +270,65 @@ One invariant guards the gap between the two:
 Self-revocation through the API is allowed when another admin remains. Refusing
 it would only mean asking a colleague to do the same thing.
 
+### 6.1 Operator Surfaces
+
+Operator surfaces are split by the authority a caller can present, not by
+feature:
+
+| Surface | Use | Authentication | Availability |
+|---|---|---|---|
+| `buildmax-server` | Break glass and bootstrap only, plus running the Server | Direct access to Server configuration, the database, and the signing key | Works without Portal and without a healthy public Server |
+| Admin API (`/api/admin/*`) | Stable programmatic contract for routine administration | User session plus a live system grant | Requires the Server |
+| `buildmax admin` | Scriptable routine administration | The Admin API, reusing the `buildmax` client login | Requires the Server |
+| Portal | Guided routine administration | The Admin API | Requires the Server and Portal |
+
+`buildmax admin` and Portal are peer clients of one Admin API, and neither
+touches the database. `buildmax-server` keeps only what must sit next to the
+database or the signing key:
+
+- `admin grant | revoke` — the first grant, recovery from zero administrators,
+  and final-holder force revocation (§6);
+- `run-token` — a diagnostic credential for one run's worker routes;
+- `space recover-owner` — the disabled-owner-only Space recovery of §8.4 when
+  the public Server or the IdP is unavailable;
+- `user create | login-code` and `model add | set-key | list | enable |
+  disable` — seeding a fresh deployment before any client can authenticate.
+  They are bootstrap primitives, not a routine surface; routine account and
+  model work goes through the Admin API.
+
+An authenticated surface does not offer an operation only for these reasons,
+stated where it would otherwise appear:
+
+- the first grant and recovery from zero administrators cannot depend on an
+  already authenticated administrator;
+- final-holder force revocation is deliberately a database-authorized action;
+- a run token is a bearer credential for worker-route diagnosis, not a routine
+  management outcome;
+- process-start configuration cannot truthfully be edited through one Server
+  replica (§7.2).
+
+The rule is one owning service per mutation. HTTP handlers are adapters over
+it, and `buildmax-server` calls the same service directly as a system actor, so
+bootstrap and recovery work while the HTTP API is down. Grants belong to
+`internal/service/systemadmin`, account deactivation to
+`internal/service/accountlifecycle`, owner recovery to
+`internal/service/spacerecovery`, model creation and credentials to
+`internal/service/llmcatalog`, and the plugin catalog to
+`internal/service/plugin`. Convergence is not complete: account creation, login
+codes, and session revocation are still single store calls made by the admin
+handlers and by `buildmax-server user`, each recording its own audit event, and
+`buildmax-server model list | enable | disable` bypasses the catalog service
+that the Admin API uses.
+
 ## 7. Server Administration API
 
 All routes are `/api/admin/*`, all require `system_admin`, and none takes a
 `space_id` path parameter — an admin route that looked space-scoped would invite
 exactly the confusion §4 exists to prevent.
 
-### 7.1 First Slice
+### 7.1 Routes
+
+The table is the registered surface; `internal/server/handlers/admin` owns it.
 
 | Route | Returns | Refuses to return |
 |---|---|---|
@@ -288,7 +340,10 @@ exactly the confusion §4 exists to prevent.
 | `GET /api/admin/users/{user_id}` | One account: email, name, quota tier, last login and platform, `has_password`, `disabled_at`, space memberships with roles, active session count | Everything in the row above |
 | `POST /api/admin/users` | Creates an account and its personal space | — |
 | `POST /api/admin/users/{user_id}/login-code` | Issues a single-use code, shown once | A code that can be read back later |
-| `PUT /api/admin/users/{user_id}/state` | Sets the account's `disabled` flag, disabling or re-enabling it (§8) | — |
+| `GET /api/admin/users/{user_id}/deactivation-impact` | What a disable would stop (§8.3): live sessions, webhook keys, shared-Space memberships and roles, sole-owned shared Space IDs, enabled Schedules, active runs by status, the cancellation bound | Prompts, inputs, outputs, Artifact names, traces, raw errors, secrets |
+| `PUT /api/admin/users/{user_id}/state` | Sets the account's `disabled` flag (§8). A disable accepts `retire_webhook_keys` and returns the reloaded account with its cleanup counts | — |
+| `GET /api/admin/users/{user_id}/identities` | The account's external-identity links: issuer, subject, last-seen email and name, last login | — |
+| `DELETE /api/admin/users/{user_id}/identities/{identity_id}` | Unlinks one, audited in the same transaction | An unlink while the account is enabled |
 | `GET /api/admin/users/{user_id}/sessions` | Live login chains: session ID, platform, creation, rotation, expiry | Token values |
 | `DELETE /api/admin/users/{user_id}/sessions/{session_id}` | Revokes one login chain's refresh tokens | A session belonging to another account |
 | `DELETE /api/admin/users/{user_id}/sessions` | Revokes every refresh session, returns the count | — |
@@ -297,10 +352,17 @@ exactly the confusion §4 exists to prevent.
 | `GET /api/admin/spaces` | Team spaces with member count, quota tier, created at; personal spaces excluded | Space contents of any kind, and every account's personal space |
 | `GET /api/admin/spaces/{space_id}` | The same, plus members and roles, plus usage against the tier | Issues, conversations, artifacts, files, traces |
 | `GET /api/admin/audit-events` | The trail across every space, filtered by `space_id`, `actor_id`, `action`, `since`, `until`, paged | Anything the event does not already hold |
+| `GET /api/admin/audit-events/export` | The same filtered trail as a CSV or JSONL download; the export is itself audited | The same |
+| `PUT /api/admin/spaces/{space_id}/owner` | Promotes an enabled member to owner when every recorded owner is disabled (§8.4) | A healthy Space, a personal Space, a successor who is not already a member |
 | `POST /api/admin/llm/models` | Creates a model, encrypting a write-only credential | Credential material in the response |
 | `GET /api/admin/llm/models` | The catalog: name, provider, model, capabilities, enabled | `api_key`, in any form |
 | `PUT /api/admin/llm/models/{model_id}/state` | Sets the model's `enabled` flag, retiring or restoring it | — |
+| `PUT /api/admin/llm/models/{model_id}/credential` | Replaces the upstream key in place, write-only | The key, in any form |
 | `GET /api/admin/llm/calls` | The managed call ledger across every space, filtered by `user_id`, `model`, `status`, `surface`, `since`, `until`, paged | Prompts, tool arguments, generated content — the ledger never held them |
+| `GET /api/admin/plugins`, `POST /api/admin/plugins` | Lists or creates plugin catalog entries | — |
+| `GET /api/admin/plugins/{plugin_name}/releases`, `POST /api/admin/plugins/{plugin_name}/releases` | Lists releases, or publishes one from a streamed archive | — |
+| `PUT /api/admin/plugins/{plugin_name}/releases/{version}/state` | Yanks a release; the only supported transition | Any other transition |
+| `PUT /api/admin/plugins/{plugin_name}/state` | Archives or restores a catalog entry | — |
 
 `POST /api/admin/users` returns the created account and **no credential**. An
 operator who wants the person to sign in issues a login code as a second,
@@ -337,15 +399,51 @@ decisions, and the CLI already separates them for the same reason.
 - **Quota tier assignment.** `GET /api/admin/spaces/{space_id}` shows the tier
   and the usage against it. Changing it needs a store method that does not
   exist (§3, gap 5), and it is the one item here that is a feature rather than
-  an operator's window into existing state. It lands in M6 or later, after the
-  read surface has shown which spaces actually need it.
+  an operator's window into existing state. It is unbuilt and waits for a
+  deployment that needs it. When built, it assigns an existing tier only —
+  tier definitions stay seeded until evidence says otherwise — through
+  `internal/service/quota` rather than raw stores in the handler, refuses an
+  unknown tier, takes effect at the next quota check without terminating running
+  work, and records `space.quota_tier_changed` naming the actor, the Space, and
+  the old and new tier. The duplicate user-level quota tier goes with it if
+  nothing else still reads it.
 
 ## 8. Account Disablement Semantics
 
-This answers proposal question 3, which needs a decision per affected
-credential rather than one sentence.
+A nullable `disabled_at` timestamp on `userRow`, nil for an ordinary account, is
+the deployment-wide gate. The absence of a `space_member` row is the per-Space
+gate. Every path that admits or dispatches work checks both (§8.2). Offboarding
+a person is a coordinated use of these two existing states, not an employee,
+offboarding-job, or policy entity.
 
-A nullable `disabled_at` timestamp on `userRow`, nil for an ordinary account.
+The two gates differ in kind, and keeping them apart is what makes recovery
+predictable:
+
+- **Account disablement is a reversible gate over retained state.**
+  Memberships, Space data, and unretired webhook keys are kept and refused while
+  `disabled_at` holds. Enabling reopens them with no restoration step. `email`
+  stays a unique key, so a disabled account keeps its address: the same person
+  returns by re-enabling that account, and an address is never rebound to a
+  different person. Freeing one would take account deletion, which does not
+  exist (§16).
+- **Membership removal is a destructive change to one relationship.** The
+  `space_member` row is hard-deleted, and a later re-invitation is a fresh join
+  with a new `created_at`. See
+  [Space membership lifecycle](space-membership-lifecycle.md) §5.5.
+
+Three invariants hold across both:
+
+- **Data outlives access.** Memberships, Tasks, results, Artifacts, traces,
+  usage, and audit records are neither deleted nor reassigned. Remaining members
+  keep access through the Space, which is the retention boundary, not the
+  creator.
+- **Restoration is explicit.** Enabling an account or re-inviting a member does
+  not resurrect revoked sessions, retired webhook keys, canceled runs, or paused
+  Schedules.
+- **History keeps the original actor.** Creator IDs are never rewritten to the
+  operator or a successor. Recovery actions record their own actor.
+
+### 8.1 Credentials And Work
 
 | What | Effect of disabling | Why |
 |---|---|---|
@@ -353,10 +451,12 @@ A nullable `disabled_at` timestamp on `userRow`, nil for an ordinary account.
 | **Login code** | Same, and any outstanding code is spent | A code issued before the disable must not be a way back in |
 | **Refresh** | Refused; all sessions revoked at disable time | This is the credential that can actually be revoked, so it is revoked immediately |
 | **Access token** | Refused on the next request | See below |
-| **Webhook keys** | Refused at `POST /api/webhook` | The route already resolves the key's owner; the check is one field on a row it has |
-| **Pending task runs** | Failed at dispatch, with the reason in `error_message` | Nothing has started, and leaving them queued means a disabled account's work starting after the disable. *Cancelled* was the original word here and turned out to name a status BuildMax does not have — see below |
-| **Running task runs** | Left to finish | Killing one loses work the *space* owns, and the run's credential is already scoped to that run and already expiring. The space, not the departing user, is the party harmed by a kill |
-| **Run tokens already minted** | Not revocable | A signature, not a row. Bounded by scope and by `worker.run_token_ttl`, as [deploy/authentication.md](../deploy/authentication.md) already documents |
+| **Webhook keys** | Refused at `POST /api/webhook` while disabled. A suspension keeps them, so a deliberate re-enable restores the integration unchanged; a leaver disable with `retire_webhook_keys` revokes them permanently. The operator opts in: the API field and Portal's checkbox both default to keeping them | An integration that must outlive a person needs a separately designed machine principal, not a forgotten personal credential |
+| **Enabled Schedules the account created** | Paused with `pause_reason = creator_disabled` | Otherwise a Schedule would keep admitting work under withdrawn authority at every due time |
+| **PENDING runs the account initiated** | The disable records a cancel request; the dispatch gate (§8.2) moves the claimed run to `CANCELED` with `cancel_reason = creator_disabled` before a run token or worker exists | Nothing has started, and withdrawn authority is a cancellation, not a failure |
+| **SCHEDULED and RUNNING runs** | Cancel requested with `cancel_reason = creator_disabled`. The worker stops on its next cancel poll and reports `CANCELED`; the stale-run backstop settles a run whose worker never answers | Work under way is stopped, not rewritten. Partial output and Artifacts remain evidence; a tool call or external write already in progress may complete, and BuildMax does not roll back external side effects |
+| **Completed runs** | Unchanged | They are the Space's history |
+| **Run tokens already minted** | Not revocable | A signature, not a row. Bounded by scope and by `worker.run_token_ttl`, as [deploy/authentication.md](../deploy/authentication.md) documents. The worker-fetch gate (§8.2) keeps a token minted just before the disable from starting an Agent |
 
 The access token is the interesting one. It is a signed JWT the server does not
 store, so "revoke it" means "stop honouring it", and the only place that can
@@ -375,19 +475,111 @@ The alternative — wait out the access token TTL, which defaults to seven days 
 was rejected. "Disable this account" that means "in about a week" is not the
 feature.
 
-`CANCELED` now exists for an explicit run cancellation, but account disablement
-still does not synthesize that user action. This design's dispatch-time refusal
-uses the same failure path as an unavailable run credential, so a newly admitted
-run for a disabled account reaches terminal `FAILED` and explains the refusal in
-`error_message`. That remains distinct from a user-requested cancellation.
+Enabling reverses the gate and nothing else. Sessions stay revoked, canceled
+runs stay canceled, paused Schedules stay paused, retired keys stay retired, and
+the person signs in again. Undo is not a goal.
 
-The guard fails open on a store error: a database blip must not turn into a
-space's work being refused. A run starting for an account disabled moments ago is
-the smaller harm, since that run's credential is scoped to it and expiring and
-the account's sessions are already gone.
+### 8.2 Execution Eligibility
 
-Enabling reverses the state and nothing else. Sessions stay revoked, runs that
-failed stay failed, and the person signs in again. Undo is not a goal.
+`internal/core/eligibility` owns one question: may this user run work in this
+Space now? `Checker.Check(ctx, userID, spaceID)` returns nil,
+`ErrAccountDisabled` (disabled or missing account), `ErrNotSpaceMember`, or
+`ErrUnavailable` when an authority store failed. Ordinary membership is enough;
+it decides no role-specific management right.
+
+The principal is always the run's initiator, `task_run.created_by`, which is
+also the run token's user claim. `task.created_by` is provenance for the
+continuing Task, not authority for its later turns, so a Continue by an eligible
+colleague runs even after the Task's creator is disabled. See
+[Agent execution and Task threads](agent-execution-and-task-threads.md) §10.
+
+Unattended work is checked at four points:
+
+| Checkpoint | Where | Ineligible | Authority store unavailable |
+|---|---|---|---|
+| Schedule fire | `ScheduleDispatcher`, after claiming the due fire | Pauses the Schedule with `creator_disabled` or `creator_not_member`; admits nothing | Fires anyway; the dispatch and worker gates re-check |
+| Dispatch | `Scheduler`, after claiming a PENDING run and before minting its run token | `CANCELED` with the matching `cancel_reason` | Dispatches; the worker fetch re-checks |
+| Worker fetch | The worker's initial `GET` of its run | Records a cancel request with the reason, so the worker starts no Agent and reports `CANCELED` | Proceeds; the reconciler revisits |
+| Reconciler | `EligibilityReconciler`: every minute, active runs with no cancel request, in batches of 200 | Requests cancel with the reason | Leaves the run alone |
+
+Human requests keep their own per-request checks: `access.Guard` for the account
+and session, the Space authorization helper for membership. IM channel messages
+call the same Checker and refuse on every error, including an unavailable store.
+
+The reconciler needs no offboarding record, because eligibility itself is the
+durable unfinished-work predicate: while an ineligible initiator owns active
+work, a sweep finds it. Every action is idempotent and goes through the existing
+guarded run transitions, so concurrent disable, removal, dispatch, completion,
+and cancellation converge and a terminal run is never changed.
+
+Deviations from the stated contract, recorded rather than hidden:
+
+- **The unattended gates fail open on an unavailable store.** Schedule fire,
+  dispatch, and worker fetch each let work proceed when eligibility cannot be
+  determined, relying on the next gate and finally the reconciler. A deployment
+  cannot claim that an authority-store outage refuses work at admission.
+- **Task admission is not re-checked in the service layer.** Create, Continue,
+  and Retry rely on the HTTP guards; the Task service does not call the Checker.
+- **Workflow reconciliation does not check eligibility.** A later step's
+  TaskRun is admitted as the WorkflowRun's creator and stopped at dispatch or
+  worker fetch; its `CANCELED` step settles the WorkflowRun as `canceled`.
+- **Membership removal triggers no immediate cleanup.** The removed member's
+  active runs in that Space are reached by the reconciler within a sweep, and
+  their Schedules there pause at their next due time. Until then an infrequent
+  Schedule stays visibly enabled.
+
+### 8.3 Deactivation Orchestration And Impact
+
+`internal/service/accountlifecycle` sequences a disable; the handler does not.
+It commits the account gate first, then revokes sessions, retires webhook keys
+when asked, pauses the account's enabled Schedules, and requests cancellation
+for its active runs. The gate is the authority, so a cleanup failure is
+inconvenient rather than authorizing: every admission and dispatch path already
+refuses, and the reconciler converges on the runs. `PUT
+/api/admin/users/{user_id}/state` returns the reloaded account and the cleanup
+counts (`sessions_revoked`, `webhook_keys_retired`, `schedules_paused`,
+`runs_canceled`) as separate facts. A cleanup error today is answered with a 500
+after the gate has committed, and `user.disabled` is not recorded for that call.
+
+`GET /api/admin/users/{user_id}/deactivation-impact` is the read-only projection
+an operator sees first: live sessions, webhook keys, shared-Space memberships
+and roles, the shared Spaces the account solely owns, enabled Schedules, active
+runs by status, and the cancellation bound. It returns counts and IDs only — no
+prompt, input, output, Artifact name, trace, raw error, or secret. The bound is
+a fixed value, the worker's five-second cancel poll plus the stale-run
+backstop's two-minute cancel grace, not a reading of configuration. Portal shows
+this projection in `DeactivationImpactModal` before the disable and offers the
+webhook-key retirement choice there.
+
+IdP-only offboarding stays bounded rather than immediate: without SCIM or a
+validated logout channel, BuildMax learns nothing when the provider disables a
+person. The supported immediate procedure is BuildMax disablement; the OIDC
+absolute-session lifetime is the IdP-only bound, recorded by the
+[enterprise identity](enterprise-identity-and-access.md) Phase 3 qualification.
+
+### 8.4 Space Owner Recovery
+
+The planned path is for a departing sole owner to transfer ownership first; the
+impact projection names the Spaces that need it. An emergency disable is never
+blocked by ownership and may leave a shared Space whose owners cannot sign in.
+`internal/service/spacerecovery` is the one narrow System Administrator action
+for that case:
+
+- it applies only when every recorded owner of a shared Space is disabled;
+- the successor must already be an enabled member;
+- it refuses a personal Space and creates no membership;
+- it reuses the ordinary ownership transfer, demoting one disabled owner to
+  admin;
+- it gives the administrator no membership and no content access; and
+- it records `space.ownership_recovered` naming the actor, the successor, and
+  the demoted owner.
+
+It is reachable as `PUT /api/admin/spaces/{space_id}/owner`, as Portal's "Make
+owner" in Administration → Spaces, and as the break-glass
+`buildmax-server space recover-owner <space_id> <successor_email>` (actor
+`buildmax-server`) when the public Server or the IdP is unavailable. It is not a
+general power to transfer a healthy Space. The audit event is best-effort after
+the transfer commits, like every other audit write (§9), not transactional.
 
 ## 9. Audit Events
 
@@ -408,7 +600,9 @@ AuditAccessDenied       // exists; reused for admin routes, with space_id empty
 
 All are written with `space_id` empty, because none of them is space-scoped. The
 `AuditEvent` shape already allows that — it was designed for `user.login` — so
-no schema change is needed.
+no schema change is needed. Owner recovery (§8.4) later added
+`space.ownership_recovered`, which is written with the recovered Space's id so
+the Space's own trail shows it.
 
 Two things fall out of adding these:
 
@@ -464,8 +658,11 @@ eight sections:
    and revoke with last-effective-holder protection.
 3. **Accounts** — paginated filters, reloadable detail, creation, login codes,
    disable/enable, and live-session listing with single or bulk revocation.
-4. **Spaces** — paginated metadata, membership and usage, without content access
-   or quota-tier mutation.
+   Disable first shows the deactivation impact (§8.3) and the webhook-key
+   retirement choice.
+4. **Spaces** — paginated metadata, membership and usage, and "Make owner" for
+   the disabled-owner-only recovery (§8.4), without content access or
+   quota-tier mutation.
 5. **Models** — list, create with a write-only encrypted credential, enable and
    disable. No read returns the credential.
 6. **LLM calls** — the managed call ledger across every Space: model, tokens,
@@ -481,9 +678,6 @@ issued access token, and a last-rotation time is not a live presence signal.
 The session listing is covered in `portal/e2e/admin.spec.ts`; single revocation
 is exercised by `TestAdminSessionsListAndSingleRevoke`, not by that browser
 scenario, which deliberately preserves its own login.
-
-Broader operating choices remain in
-[system administration operations](../proposals/system-administration-operations.md).
 
 ## 11. The Authorization Matrix
 
@@ -585,7 +779,9 @@ the trail.
 
 Three things landed differently from the sketch:
 
-- **Pending runs fail rather than cancel**, for the reason in §8.
+- **Pending runs failed rather than canceled.** `CANCELED` did not exist yet.
+  The deactivation lifecycle later replaced that with cancellation carrying
+  `cancel_reason` (§8.1).
 - **`requireActiveUser` refuses only an account that exists and is disabled.**
   A token naming an account the store does not have is allowed through
   unchanged. Nothing deletes accounts, so this is not a state a deployment
@@ -657,7 +853,7 @@ mentions no issue, conversation, artifact, task, workflow, or trace at all.
 
 ### M5. Portal `/admin` — DONE
 
-The initial Portal slice shipped and has since expanded to §10's seven
+The initial Portal slice shipped and has since expanded to §10's eight
 sections, with first-level navigation, grant management, pagination, account
 session controls, and redacted configuration. The old five-page plan no longer
 describes the current Portal.
@@ -757,8 +953,9 @@ Manual scenarios, each of which is a claim in this document:
    token expiry.
 5. The API refuses to revoke the last grant; the command allows it and says so.
 6. Disabling an account: an in-flight request fails, refresh fails, the
-   password login says `account_disabled`, a webhook key is refused, pending
-   runs fail at dispatch, a running one finishes.
+   password login says `account_disabled`, a webhook key is refused, Schedules
+   pause with `creator_disabled`, and pending and running runs end `CANCELED`
+   with `cancel_reason = creator_disabled`.
 7. Every step above appears in the cross-space audit trail with the right actor.
 8. `buildmax-server user create` now appears in the trail as a system actor.
 9. No admin response contains an API key, a hash, or a token.
@@ -793,13 +990,12 @@ Manual scenarios, each of which is a claim in this document:
    the role should not, until someone needs to give a person status and audit
    without account control.
 2. ~~Should `disabled_at` also block a personal space's existing task runs from
-   being retried by a *spacemate*?~~ **Decided: no**, by the principle §8
-   already commits to for a running run — the space owns the work, and the
-   departing user is not the party harmed by losing it. Disabling withdraws
-   that account's ability to ask for work; it does not quarantine the backlog
-   of a space whose remaining members are in good standing. The scheduler guard
-   keys on the run's own `created_by`, so a rerun by someone else is a new run
-   by a non-disabled actor and dispatches. What is genuinely unsettled sits a
+   being retried by a *spacemate*?~~ **Decided: no.** The space owns the work,
+   and authority follows each run's initiator (§8.2). Disabling withdraws that
+   account's ability to ask for work; it does not quarantine the backlog of a
+   space whose remaining members are in good standing. Eligibility keys on the
+   run's own `created_by`, so a rerun by someone else is a new run by a
+   non-disabled actor and dispatches. What is genuinely unsettled sits a
    level down and is a space-model question rather than an administration one:
    nothing stops an owner adding members to a *personal* space, which is the
    only reason this case is reachable.
@@ -813,16 +1009,49 @@ Manual scenarios, each of which is a claim in this document:
 5. When OIDC lands, does a grant follow the account or the identity? If an IdP
    subject is re-linked to a new user row, an unfollowed grant is a lockout and
    a followed one is a privilege transfer nobody approved.
-6. Should a run stopped by a disable be distinguishable from one that failed?
-   Today both are `FAILED` and only `error_message` separates them, so a Portal
-   filter or a metric counts them together. The fix is a run-lifecycle change
-   rather than an administration one — see §8.
-7. Should an account's webhook keys survive a disable? They do today: the key
-   is refused while the account is off and works again when it is back on,
-   which keeps an operator from having to reissue keys to whatever is calling
-   the webhook. If a leaver's integrations should die permanently, that is a
-   different action from disabling.
+6. ~~Should a run stopped by a disable be distinguishable from one that
+   failed?~~ **Decided: yes.** Withdrawn authority ends a run `CANCELED` with
+   `task_run.cancel_reason` (`creator_disabled` or `creator_not_member`), which
+   is immutable once recorded and distinct from `user_requested` (§8.1).
+7. ~~Should an account's webhook keys survive a disable?~~ **Decided: the
+   operator chooses.** A suspension keeps them, refused while disabled and
+   usable again on re-enable; a leaver disable with `retire_webhook_keys`
+   revokes them permanently (§8.1).
 8. ~~Should model aliases become editable through the API?~~ **Retired.**
    [Client modes](client-modes.md) removed the alias layer: clients name the
    unique deployment-wide catalog entry directly, and the admin response names
    the configured default.
+9. Is the cancellation bound — the worker's cancel poll plus the stale-run
+   cancel grace — acceptable for the first named enterprise deployment, or must
+   the runner delete or terminate the worker after a shorter emergency bound?
+10. Is disabled-owner-only recovery (§8.4) enough, or must a deployment require
+    a second Space owner before offboarding?
+11. Does a target deployment need managed CLI and Desktop SSO, which would add
+    native session and local credential cleanup to the leaver journey?
+12. At what observed cardinality does the eligibility reconciler need a durable
+    work queue rather than bounded scans of active runs?
+13. Should `buildmax admin` reach parity with Portal and the Admin API? It has
+    no session list or single-session revoke verb, no deactivation impact or
+    webhook-key retirement choice, and no owner recovery; §6.1 names no reason
+    to keep those off the automation surface.
+14. Portal's audit search and export omit the API's `since` and `until` bounds.
+    Adding them needs only a caller that wants them.
+15. Portal plugin publication is deferred by decision: `buildmax plugin publish`
+    stays the release surface, and Portal inspects, archives, restores, and
+    yanks. Reopen it only if an operator without a checkout needs to publish.
+16. Which runtime aggregates are actionable without revealing Space content —
+    TaskRuns by status and age, oldest pending age, cancel requests and
+    stale-run candidates, worker heartbeat freshness, Spaces near a quota
+    limit? Any such view must take deployment-wide meaning from durable state or
+    the shared coordinator, never one process's memory; group failures by a
+    safe error class, never raw error text; and keep global dispatch pause,
+    force-cancel, and cross-Space retry out unless each gets its own authority
+    and multi-instance consistency decision and audit action.
+17. Which session metadata is useful without becoming a device-fingerprinting
+    surface? Platform and timestamps exist; IP address and user agent are not
+    recorded.
+18. Should authority changes get transactional audit? `internal/service/systemadmin`
+    records grant and revoke audit after the store call commits, so a committed
+    change does not guarantee its audit row (§9, §16). Acceptance would need
+    either a rollback or an explicit reported outcome when audit storage fails,
+    proved against MySQL.

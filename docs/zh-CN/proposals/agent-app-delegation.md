@@ -3,7 +3,7 @@
 > **翻译说明：** 本文是[英文原文](../../proposals/agent-app-delegation.md)的简体中文派生翻译；如有歧义，以英文原文为准。
 > **Status:** proposal — under discussion
 > **Opened:** 2026-09-20
-> **相关文档：** [Desktop 工作区 Tab](desktop-workspace-tabs.md)、[工具权限](../../design/tool-permissions.md)、[插件市场](../../design/plugin-marketplace.md)、[客户端凭证](client-sessions-and-api-credentials.md)、[当前状态](../../current-state.md)
+> **相关文档：** [Desktop 架构](../contribute/architecture/desktop.md)、[工具权限](../../design/tool-permissions.md)、[插件市场](../../design/plugin-marketplace.md)、[客户端凭证](client-sessions-and-api-credentials.md)、[当前状态](../../current-state.md)
 
 ## Contents
 

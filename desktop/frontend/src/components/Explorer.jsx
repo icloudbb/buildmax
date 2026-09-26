@@ -2,7 +2,7 @@ import { ExplorerTree } from './ExplorerTree';
 import { ExplorerChanges } from './ExplorerChanges';
 
 // Explorer is the project-scoped sidebar section that indexes the active
-// project's workspace (see the desktop-workspace-tabs proposal). It has two
+// project's workspace (see docs/contribute/architecture/desktop.md). It has two
 // display modes — Directory and Changes — and only browses: a click opens a
 // file or diff tab in the center, it never renders content itself. Mode is
 // controlled so a slash command (/diff) can switch it.

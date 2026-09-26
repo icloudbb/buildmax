@@ -63,8 +63,11 @@ Three rules make that boundary:
 ## 2. What The Agent May Never State
 
 `status`, `owner_id`, `executor_kind`, `executor_id`, and `parent_issue_id` are
-not writable by any Agent path. Creating a child Issue is not one either. No
-command exposes these as an Agent-usable write in any context.
+not writable by any Agent path. Creating a child Issue is not one either. A
+worker run has no route that writes them. Locally, `buildmax issue status` exists
+for the person and runs with their full authority, so an Agent in a local
+session is held back by the issue-linked run's `issue` prompt layer, not by the
+Server (see [Agent Bridge CLI](agent-bridge-cli.md) §8).
 
 This preserves an invariant the product already holds — nothing in the codebase
 moves an Issue's status on its own — rather than inventing one. The reasoning is

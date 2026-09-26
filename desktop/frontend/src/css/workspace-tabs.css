@@ -1,7 +1,8 @@
-/* The center workspace tab surface (see the desktop-workspace-tabs proposal):
-   a row of panes, each a tab bar over a content region that holds one active
-   tab. Splitting adds a pane; new activities open in the focused pane. Chat
-   renders in normal flow; terminal panes fill the region and hide when inactive. */
+/* The center workspace tab surface (see
+   docs/contribute/architecture/desktop.md): rows of panes, each a tab bar over
+   a content region that holds one active tab. Splitting adds a pane; new
+   activities open in the focused pane. Chat renders in normal flow; terminal
+   panes fill the region and hide when inactive. */
 
 /* Project notices and management errors, shown above the workspace. */
 .workspace-banners {

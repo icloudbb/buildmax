@@ -109,7 +109,7 @@ func newTerminalManager(emit func(name string, data any)) *terminalManager {
 
 // defaultShellCommand runs the user's own interactive shell at cwd. The terminal
 // is the user's authority, so it inherits the user's environment unscrubbed —
-// unlike an Agent child (see the desktop-terminal-tabs proposal §9.1).
+// unlike an Agent child (see docs/design/surface-positioning.md §5.4).
 func defaultShellCommand(cwd string) *exec.Cmd {
 	shell := os.Getenv("SHELL")
 	if shell == "" {

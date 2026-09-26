@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/设计文档索引.md)
 
-> **Audience:** contributors · **Status:** current · **Progress reviewed:** 2026-09-14
+> **Audience:** contributors · **Status:** current · **Progress reviewed:** 2026-09-26
 
 Why BuildMax is built the way it is. These are **rationale, not user
 documentation** — when a design ships something configurable, the user-facing
@@ -62,7 +62,7 @@ remaining list. Update this snapshot when either changes.
 | [Agent execution and Task threads](agent-execution-and-task-threads.md) | Direction | Partial | Task and TaskRun as the durable Agent execution plane, independent of Conversation |
 | [Orchestration and continuity decisions](orchestration-and-continuity-decisions.md) | Direction | Decision only | Decisions connecting Task continuity, Space ownership, structured output, and orchestration |
 | [Portal execution model](portal-execution-model.md) | Specification | Superseded in part | Outcome-projection rationale; execution ownership is superseded by Agent execution and Task threads |
-| [Scheduled Agent execution](scheduled-agent-execution.md) | Specification | Complete | Recurring Agent runs on the Task plane: the Schedule entity, exactly-once firing across replicas, and runaway control |
+| [Scheduled Agent execution](scheduled-agent-execution.md) | Specification | Complete | Recurring Agent and Workflow runs on the Task plane: the Schedule entity, exactly-once firing across replicas, and runaway control |
 | [Instant-messaging channels](instant-messaging-channels.md) | Active plan | Partial | Chat platforms as a transport into Space Conversations: pairing, per-message authorization, the receive lease, and outcome reports; Telegram direct messages ship, groups and other platforms remain |
 
 ## Agent Runtime and Models
@@ -73,8 +73,8 @@ remaining list. Update this snapshot when either changes.
 | [Managed LLM gateway](llm-gateway.md) | Active plan | Partial | Managed inference, model resolution, usage, and quota boundaries |
 | [Prompt cache control](prompt-cache-control.md) | Active plan | Partial | Provider-native prompt caching and its telemetry |
 | [Parallel tool execution](parallel-tool-execution.md) | Active plan | Complete | Safe concurrency for read-only tools and subagents |
-| [Agent Bridge CLI](agent-bridge-cli.md) | Direction | Not started | One `buildmax` command surface from Agent to Server, replacing the in-process Issue tools; local user credential and worker run-token bridge |
-| [Structured output](structured-output.md) | Active plan | Partial | Provider-neutral schema-constrained model results; runtime, providers, run persistence, and the linear Workflow consumer ship, while prompted fallback and typed routing remain |
+| [Agent Bridge CLI](agent-bridge-cli.md) | Specification | Complete | One `buildmax` command surface from Agent to Server, replacing the in-process Issue tools; local user credential and worker run-token bridge |
+| [Structured output](structured-output.md) | Active plan | Partial | Provider-neutral schema-constrained model results; runtime, providers, run persistence, and the Workflow graph consumer ship, while prompted fallback and typed routing remain |
 | [ACP interoperability boundary](acp-interoperability.md) | Direction | Decision only | How BuildMax may expose its native Agent Core to ACP clients without making ACP an internal or external-executor contract |
 | [Client modes: local and managed](client-modes.md) | Specification | Complete | Login-derived mode selection, model inventory, and usage attribution |
 | [LLM provider adapters](llm-provider-adapters.md) | Specification | Complete | Canonical messages and provider protocol differences |
@@ -88,12 +88,12 @@ remaining list. Update this snapshot when either changes.
 | Document | Lifecycle | Progress | Covers |
 |---|---|---|---|
 | [Local Projects and Project Memory](local-project-memory.md) | Specification | Complete | Shared local Project identity and bounded cross-session memory |
-| [Local session storage](local-session-storage.md) | Active plan | Complete | Atomic session bundles, linked history, rewind, and fork |
+| [Local session storage](local-session-storage.md) | Specification | Complete | Atomic session bundles, linked history, rewind, and fork |
 | [Session usage stats](session-usage-stats.md) | Specification | Complete | Per-session and cross-session usage reporting |
 | [Local background jobs](local-background-jobs.md) | Active plan | Complete | Process-scoped command, subagent, and monitor jobs |
 | [Local Ollama provider](local-ollama-provider.md) | Active plan | Complete | Credential-free local model discovery and inference |
 | [Workspace root and worktrees](workspace-root-and-worktrees.md) | Active plan | Complete | Mutable workspace roots and Agent-managed Git worktrees |
-| [Agent browser capability](agent-browser-capability.md) | Active plan | Not started | Go-owned Chromium over CDP so an Agent can verify against a real rendered page, enabled first on local surfaces |
+| [Agent browser capability](agent-browser-capability.md) | Active plan | Partial | Go-owned Chromium over CDP so an Agent can verify against a real rendered page; CLI headless, Desktop window, and the read-only Desktop tab view ship, workers stay off |
 
 ## Space Platform
 
@@ -103,13 +103,13 @@ remaining list. Update this snapshot when either changes.
 | [Portal navigation and Space context](portal-navigation-and-space-context.md) | Specification | Complete | Canonical Space routes, scoped navigation, switching, and orientation |
 | [Portal work and execution experience](portal-work-and-execution-experience.md) | Specification | Complete | Issue-centered work, explicit execution, and trustworthy provenance |
 | [Portal frontend page system](portal-frontend-page-system.md) | Active plan | Partial | Shared actions, page anatomy, and staged migration of Portal work views |
-| [Portal workflow visual editor](portal-workflow-visual-editor.md) | Active plan | Partial | Graph-first workflow authoring with a visual canvas and raw JSON |
+| [Portal workflow visual editor](portal-workflow-visual-editor.md) | Specification | Complete | Graph-first workflow authoring with a visual canvas and raw JSON |
 | [Portal state and permission feedback](portal-state-and-permission-feedback.md) | Active plan | Partial | Loading, empty, error, stale, and authorization presentation |
 | [Portal data and plugin surfaces](portal-data-and-plugin-surfaces.md) | Specification | Complete | Files, Artifacts, Marketplace, and scoped plugin actions |
 | [Portal responsive and accessible interaction](portal-responsive-and-accessible-interaction.md) | Specification | Complete | Narrow layouts, keyboard behavior, dialogs, and viewport evidence |
-| [Issue agent access](issue-agent-access.md) | Product boundary | Mechanism superseded by [agent-bridge-cli](agent-bridge-cli.md) | What an Agent may assert about the Issue it works |
+| [Issue agent access](issue-agent-access.md) | Specification | Superseded in part | What an Agent may assert about the Issue it works; the `buildmax` mechanism is owned by [Agent Bridge CLI](agent-bridge-cli.md) |
 | [Space governance](space-governance.md) | Active plan | Complete | Roles, quota, workflow lifecycle, audit, and retention |
-| [System administration](system-administration.md) | Active plan | Complete | Deployment-wide authority and operator surfaces |
+| [System administration](system-administration.md) | Specification | Complete | Deployment-wide authority and operator surfaces |
 | [Plugin distribution and private marketplace](plugin-marketplace.md) | Active plan | Partial | Publishing, installing, and managing plugins |
 | [Space and worker plugin distribution](plugin-space-distribution.md) | Active plan | Partial | Space activation, Agent selection, and worker delivery |
 | [Entity identity and relational keys](entity-identity.md) | Active plan | Complete | Public identifiers, relational keys, and store boundaries |

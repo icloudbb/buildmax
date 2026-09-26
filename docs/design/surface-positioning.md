@@ -227,6 +227,33 @@ not:
 
 > administer the cloud workspace locally.
 
+### 5.4 Local Workbench Boundaries
+
+The Desktop workbench puts user tools -- terminal, file, and diff tabs -- beside
+the Agent and lets several chat sessions run at once. Three decisions keep that
+from blurring authority; the behavior is described in the
+[Desktop architecture](../contribute/architecture/desktop.md#workspace-tabs-panes-and-terminals).
+
+- **A terminal tab is the user's shell, not the Agent's Bash tool.** It runs
+  with the user's unscrubbed environment and no sandbox, the interactive
+  analogue of the CLI's default-off posture ([sandbox boundaries](sandbox-boundaries.md)
+  §10). The Agent's Bash tool is scoped, sandboxable, capped, and part of a run's
+  authority and trace. Keeping them apart avoids routing user input through
+  Agent policy and avoids laundering Agent authority through a "user" terminal,
+  so no Agent reads a terminal's output. Sandboxing a terminal on request is a
+  possible later option, not a requirement.
+- **Workbench tabs are local-only.** Terminal, file, and diff tabs reach the
+  workspace through the in-process Wails bridge and have no route, socket, or
+  server binding, so neither Portal nor a worker can drive them.
+- **Concurrent sessions leave writer isolation to the user.** Runs are keyed per
+  session, so different sessions of a Project run at once, and two Agents
+  writing one workspace can clobber each other. The user already has the tool
+  for that: a session can run in its own Git worktree. Running two Agents in one
+  shared workspace is the user's choice, as running two terminals against it
+  is; the platform does not withhold concurrency until it can force isolation.
+  Terminal, file, and diff tabs raise no writer question -- terminals are
+  separate processes, a save is a direct user write, and a diff is read-only.
+
 ---
 
 ## 6. Product Mental Model

@@ -150,7 +150,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// is not disabled and still a member of the run's Space. The HTTP guard
 	// enforces the same two facts on human requests; this reaches the Schedule,
 	// Workflow, and worker-dispatch paths that never pass through a handler. See
-	// docs/proposals/personnel-deactivation-lifecycle.md §7.
+	// docs/design/system-administration.md §8.2.
 	elig := eligibility.New(store, store)
 
 	// Chat platforms reach the same Tier 1 conversation as Portal chat. Nil when

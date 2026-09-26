@@ -449,6 +449,17 @@ An optional relation never grants authority. In particular:
 - the Worker derives Space, Task, Agent, and origin data from Server state, not
   from model-provided arguments.
 
+Execution authority belongs to the TaskRun, not the Task. `task_run.created_by`
+is the principal whose eligibility is checked and whose user id the run token
+carries; `task.created_by` is provenance for the continuing thread only. A
+Continue by another member therefore runs as that member, and disabling the
+Task's creator does not stop it. Unattended work re-checks that the initiator's
+account is enabled and still a member of the Space at Schedule fire, at
+dispatch, at the worker's first fetch, and in a one-minute reconciler over
+active runs; withdrawn authority ends a run `CANCELED` with a `cancel_reason`
+rather than `FAILED`. The rule and its known gaps are in
+[system administration](system-administration.md) §8.2.
+
 Task history distinguishes content by trust level. User input is an
 instruction. Worker output is untrusted result data. Runtime state and policy
 evidence are structured facts. Projecting them into one page does not make them

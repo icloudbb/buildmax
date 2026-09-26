@@ -39,7 +39,7 @@ type EligibilityReconcilerStore interface {
 // It needs no offboarding record because eligibility itself is the durable
 // unfinished-work predicate: as long as an ineligible initiator owns active
 // work, a sweep finds and stops it. See
-// docs/proposals/personnel-deactivation-lifecycle.md §8.
+// docs/design/system-administration.md §8.2.
 type EligibilityReconciler struct {
 	runs     EligibilityReconcilerStore
 	eligible eligibility.Checker

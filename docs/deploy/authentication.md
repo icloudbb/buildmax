@@ -96,9 +96,15 @@ in your space cannot read them.
 
 Disabling an account refuses every credential it holds: password, login code,
 refresh token, the access token it is already carrying, and its webhook keys.
-Sessions are revoked at the same time, and work it queued but that has not
-started fails instead of running. It is not deletion — nothing is removed, and
-enabling reverses the state and nothing else.
+Sessions are revoked at the same time, its Schedules pause, and its queued and
+running work is canceled; a running Agent stops at its worker's next cancel
+check. Portal first shows what the disable will stop and lets you retire the
+account's webhook keys permanently for someone who is leaving; otherwise they
+are kept for a return. It is not deletion — nothing is removed, and enabling
+reverses the state and nothing else. When every owner of a shared Space has
+been disabled, "Make owner" in Administration → Spaces, or
+`buildmax-server space recover-owner <space_id> <successor_email>`, promotes an
+enabled member.
 
 This command is also the recovery path, which is why the authority lives in the
 database rather than in a configuration value. It behaves the same whether the

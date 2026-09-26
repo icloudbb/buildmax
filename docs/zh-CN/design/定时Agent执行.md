@@ -48,7 +48,7 @@
 - **本地 CLI 定时。** CLI 是单次运行的进程，没有常驻循环或多副本协调。想按定时运行本地二进制的用户，使用操作系统自带的 cron、launchd 或任务计划程序。桌面应用是另一种情况：它作为常驻 GUI，自带一个小型的进程内调度器，在应用打开期间触发本地任务，与本设计不共享任何状态（见 [`docs/current-state.md`](../../current-state.md)）。本记录所讲的服务端定时能力，放在已经有常驻、协调、多用户进程的地方：Server。
 - **事件与 webhook 触发。** 入站事件是另一种类型化来源（`webhook` 作为触发来源已存在）。本记录只涉及时间。
 - **亚分钟粒度。** 最小间隔是一分钟；更细的节奏属于流式/事件问题，而不是 schedule。
-- **Workflow 级定时。** 一个 schedule 运行一个 Agent。定时运行 Workflow 仍是更晚的 Workflow 运行时切片。
+- **最初不含 Workflow 级定时。** 最初的切片把一个 schedule 绑定到一个 Agent。§15 随后把目标泛化，使 schedule 也可以触发一个 Workflow。
 
 ## 5. 第一性原理下的形态
 
@@ -89,6 +89,9 @@ Schedule
   cron_expr               重复规则（标准五字段）
   timezone                IANA 名称，例如 "Asia/Shanghai"
   enabled                 布尔；暂停的 schedule 保留其行与下次时间
+  pause_reason            被禁用的 schedule 为何暂停：manual、creator_disabled、
+                          creator_not_member、consecutive_failures 或 invalid_cron；
+                          启用时为空
   next_fire_at            分发器据以认领的 UTC 时刻；到期索引
   last_fire_at            最近一次触发的 UTC 时刻（可空）
   last_fire_ref           最近一次触发产生的东西——按 executor_kind，是 Task（agent）或 workflow 运行（workflow）（可空）
@@ -135,9 +138,9 @@ tick:
 ## 9. 授权、配额与失控保护
 
 - **授权。** 创建、编辑、启用、禁用与删除 schedule 通过 `schedule.space_id` 与普通 Space 成员资格授权——与 Task 使用同一规则。触发产生的 Task 的 `created_by` 是 schedule 的创建者，因此配额、审计与运行令牌都归属到真实的操作者，与 Issue 发起的运行一致。
-- **创建者被禁用。** 运行调度器已经会让创建者被禁用的运行失败。对*重复*触发器而言，那会每次触发都铸造一个失败的 Task，因此创建者被禁用时的触发会改为暂停 schedule（`enabled = false`）；重新启用是显式操作。这复用了系统管理中的禁用账号概念，而不是发明 schedule 专属的授权。
+- **创建者被禁用。** 运行调度器会取消创建者已被禁用或已被移出 Space 的待执行运行，并记录 `task_run.cancel_reason`（`creator_disabled` 或 `creator_not_member`）。对*重复*触发器而言，那会每次触发都铸造一个被取消的 Task，因此创建者不再具备资格时的触发会改为暂停 schedule（`enabled = false`，`pause_reason` 为 `creator_disabled` 或 `creator_not_member`）；重新启用是显式操作。这复用了系统管理中的禁用账号概念，而不是发明 schedule 专属的授权。
 - **配额。** 每次触发都经过 `task.Service` 中既有的配额检查。被配额拒绝的触发是一次失败的触发，本身不是让 schedule 停止的错误。
-- **失控保护。** 一个每次触发都失败的 schedule 会无限消耗配额。连续五次触发失败（`maxConsecutiveScheduleFailures`）后，分发器暂停该 schedule 并记录原因。这是唯一一项被纳入而非推迟的保护，因为"一个永远失败的无人值守触发器"是具体的成本故障，不是假设。暂停原因目前只写日志，尚未存储或在 Portal 中展示（§13）。
+- **失控保护。** 一个每次触发都失败的 schedule 会无限消耗配额。连续五次触发失败（`maxConsecutiveScheduleFailures`）后，分发器暂停该 schedule 并记录原因。这是唯一一项被纳入而非推迟的保护，因为"一个永远失败的无人值守触发器"是具体的成本故障，不是假设。暂停原因存储为 `pause_reason = consecutive_failures`；Portal 尚未展示它（§13）。
 
 ## 10. 界面
 
@@ -183,7 +186,7 @@ tick:
 
 ## 13. 未决问题
 
-- **暂停原因。** 连续失败或创建者被禁用导致的暂停只写日志。存储原因并在 Portal 的暂停状态旁展示，是更晚的 Portal 侧切片。
+- **暂停原因的展示。** 每次暂停都会把原因存入 `pause_reason`（§6），API 也会返回它。在 Portal 的暂停状态旁展示它，是更晚的 Portal 侧切片。
 - **长时间停机抑制。** 长时间停机是否应抑制那一次补触发（最大陈旧度上限），而非总是触发一次。在有证据表明陈旧运行造成危害之前，默认仍是一次补触发（§8）。
 - **延续线程模式。** 固定目标切片有了使用量之后，是否值得增加"每次触发延续同一个 Task"的模式，以及如何约束其上下文增长。在此记录是为了让默认值成为有意的选择，而不是遗漏。
 

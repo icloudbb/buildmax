@@ -21,7 +21,7 @@ import (
 //
 // It is deliberately narrow. It cannot transfer a healthy Space, touch a
 // personal Space, or create a membership — the same preconditions the service
-// enforces for the Admin API. See docs/proposals/personnel-deactivation-lifecycle.md §9.
+// enforces for the Admin API. See docs/design/system-administration.md §8.4.
 
 // SpaceCommandUsage is the help text for `buildmax-server space`.
 const SpaceCommandUsage = `Usage: buildmax-server space <command> [args]
