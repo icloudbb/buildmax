@@ -11,8 +11,7 @@ Related: [roadmap](../ROADMAP.md), [product vision](product-vision.md),
 [navigation and Space context](portal-navigation-and-space-context.md),
 [work and execution experience](portal-work-and-execution-experience.md),
 [state and permission feedback](portal-state-and-permission-feedback.md),
-[responsive and accessible interaction](portal-responsive-and-accessible-interaction.md),
-and the separate [Issue board proposal](../proposals/portal-issue-board-view.md).
+and [responsive and accessible interaction](portal-responsive-and-accessible-interaction.md).
 
 ## Contents
 
@@ -241,8 +240,10 @@ verification.
 | **Small system plus staged migration (recommended)** | Creates one action grammar and five page templates; lets core work improve first and removes obsolete styles as pages migrate. |
 | New visual framework or broad component library | Adds dependency and conceptual surface before current Portal patterns are settled. No observed user outcome requires it. |
 
-This design does not add a Dashboard, Board, new work entity, brand campaign,
-or Desktop page redesign. The Board question remains in its own proposal.
+This design does not add a Dashboard, new work entity, brand campaign, or
+Desktop page redesign. The Issue Board is owned by the
+[work and execution experience](portal-work-and-execution-experience.md#issue-collection-list-and-board)
+record, as a view over the collection template rather than a new page kind.
 Desktop should receive a shared primitive change only when its presentation is
 reviewed and verified; Portal-specific layout must not leak into `@buildmax/gui`.
 
@@ -278,5 +279,3 @@ The first complete slice is accepted only when:
 2. Which real Issue results and failure states should seed the specimen and
    operator review? Existing QA data did not complete an Issue-to-result run
    during this inspection.
-3. Does the Issue board proposal earn priority after the improved filtered
-   list is tested? The page system should support either answer.

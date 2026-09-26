@@ -13,8 +13,7 @@
 [导航与 Space 上下文](../../design/portal-navigation-and-space-context.md)、
 [工作与执行体验](../../design/portal-work-and-execution-experience.md)、
 [状态与权限反馈](../../design/portal-state-and-permission-feedback.md)、
-[响应式与无障碍交互](../../design/portal-responsive-and-accessible-interaction.md)，
-以及独立的 [Issue 看板提案](../proposals/portal-issue-board-view.md)。
+以及[响应式与无障碍交互](../../design/portal-responsive-and-accessible-interaction.md)。
 
 ## 目录
 
@@ -129,7 +128,7 @@ Portal 是否应采用一套小而可执行的页面与组件系统，让相同�
 | **小型页面系统加分阶段迁移（推荐）** | 统一操作规则与五种页面模板，先改善核心工作路径，并随迁移删除过时样式。 |
 | 引入新视觉框架或大型组件库 | 在现有 Portal 模式确定前增加依赖与概念；当前没有用户目标要求它。 |
 
-本设计不增加 Dashboard、Board、新工作实体、品牌视觉活动或 Desktop 页面重设计。Board 仍由独立提案决定。只有在 Desktop 展示经过评审和验证时才向它应用共享基础组件变化；Portal 专属布局不能进入 `@buildmax/gui`。
+本设计不增加 Dashboard、新工作实体、品牌视觉活动或 Desktop 页面重设计。Issue Board 由[工作与执行体验](Portal工作与执行体验.md#issue-集合list-与-board)记录负责，它是集合模板上的一个视图，而不是新的页面类型。只有在 Desktop 展示经过评审和验证时才向它应用共享基础组件变化；Portal 专属布局不能进入 `@buildmax/gui`。
 
 ## 证据与验收
 
@@ -146,4 +145,3 @@ Portal 是否应采用一套小而可执行的页面与组件系统，让相同�
 
 1. 在运维旅程验证之后，默认 Space 入口应保持 Chat，还是改为 Issues？页面系统无需先决定此事。
 2. 应使用哪些真实 Issue 结果和失败状态作为样本与运维评审数据？本次走查的现有 QA 数据没有完成 Issue 到结果的整条链路。
-3. 经过改进的筛选列表验证后，Issue 看板提案是否仍应优先实施？页面系统支持两种答案。

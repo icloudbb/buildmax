@@ -627,7 +627,13 @@ button rules are removed. In-flight actions keep their label and width and show
 a busy state. The Help language switch and shell navigation are controls rather
 than page actions and keep their own styling.
 A new Issue is created with its status, Owner, and Executor in one request, so a
-refused value creates nothing and retrying cannot make a duplicate. A component
+refused value creates nothing and retrying cannot make a duplicate. The Issues
+page offers a List / Board switch and shared Owner and Executor filters, carried
+in the URL. Board projects top-level Issues into fixed To do, In progress, and
+Done lanes, each its own filtered query with its own total, paging, and failure
+state; a card moves through a named action that sends the ordinary versioned
+status update, so a stale card is refused and nothing is run. Board has no drag,
+rank, or stored lane. A component
 specimen is now served at `/specimen`, outside the authenticated shell: it
 renders the shared action grammar, semantic tokens, status vocabulary, and every
 resource state once, in both themes, reusing the real components. A non-author

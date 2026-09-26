@@ -73,7 +73,7 @@ export type Route =
   | { name: "workflow"; spaceId: string; workflowId: string }
   | { name: "workflowRun"; spaceId: string; workflowRunId: string }
   | { name: "schedules"; spaceId: string }
-  | { name: "issues"; spaceId: string }
+  | ({ name: "issues"; spaceId: string } & IssueCollectionQuery)
   | { name: "issue"; spaceId: string; issueId: string }
   | { name: "artifacts"; spaceId: string }
   | { name: "artifact"; artifactId: string }
@@ -124,6 +124,19 @@ export interface AgentRevision {
   createdBy: string
   createdAt: string
   createdLabel: string
+}
+
+/**
+ * The Issue collection's projection, carried in the URL so a reload or a
+ * copied link reproduces it. Navigation state, not a saved view. Every field
+ * absent is the default List over the whole collection.
+ */
+export interface IssueCollectionQuery {
+  view?: "board"
+  /** "me", or a member's user id. */
+  owner?: string
+  /** `agent:<id>` or `workflow:<id>`, the same encoding the Issue editor uses. */
+  executor?: string
 }
 
 export interface Issue {

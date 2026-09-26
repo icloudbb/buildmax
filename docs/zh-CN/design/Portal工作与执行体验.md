@@ -2,7 +2,7 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/portal-work-and-execution-experience.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** Portal、service 与执行平面贡献者 · **状态：**
-> 已实现——全部六个切片均已交付，包括针对真实 MySQL 验证过的 owner/executor 拆分。
+> 已实现——全部七个切片均已交付，包括针对真实 MySQL 验证过的 owner/executor 拆分和派生的 Issue Board。
 
 本文定义从 Issue 经 Agent 执行到持久结果的 Portal 体验。它是 R3 候选版本运维流程的
 已实现基础；它不替代执行模型，也不改变路线图顺序。
@@ -84,6 +84,31 @@ Save 与 Run 使用各自的标签、进度、错误和成功反馈。Executor �
 Issue、Task、TaskRun、Workflow 和卡片使用同一套状态展示词汇。API enum 继续保持
 稳定的机器值，但不再直接作为未翻译的主标签展示。
 
+### Issue 集合：List 与 Board
+
+Space 的 Issue 集合在同一查询之上有两个平等视图：默认的 List 和 Board。Board 让参与者
+看清顶层工作在各业务状态间的分布，并在不逐个打开 Issue 的情况下有意识地改变状态。它是一种
+投影，而不是规划模型，不拥有任何持久状态：
+
+| 关注点 | 权威来源 | Board 的行为 |
+|---|---|---|
+| 所在列 | `issue.status` | 固定三列——To do、In progress、Done——按 domain 顺序排列；不另存列值 |
+| 状态变更 | 现有的带版本 Issue 更新 | 移动只发送卡片加载时的版本和新状态；Owner 与 Executor 不变 |
+| 执行 | Task、TaskRun 与 Workflow | 永远不会移动卡片，也永远不会因移动而启动 |
+| 子项进度 | 派生的子 Issue 计数 | 显示在父卡片上；父子状态保持相互独立 |
+| 过滤 | 列表查询契约 | 视图、Owner 与 Executor 保存在 URL 中，对 List 和每一列同样生效 |
+
+每一列都是独立的过滤请求，拥有自己的总数、增量分页和资源状态。否决“对已取回的一页分组”，
+因为分页会先于分组发生，某列可能只因其 Issue 落在该页之外而显得为空。加载失败的列显示为
+失败并提供本地重试，已加载的列带有明确的“看板不完整”提示。各列沿用集合的 `updated_at`
+降序，因此被移动的 Issue 会出现在目标列顶部附近；没有手动排序值，也不持久化拖拽位置。
+分别加载的各列是最终刷新一致的视图，而不是同一数据库时刻的快照。
+
+版本冲突不会自动重试：Portal 说明该 Issue 已变更，重新加载所有列，并把决定交还给读者。
+具名的 **Move to** 操作是键盘、辅助技术、触控和指针共同使用的移动契约，操作结束后焦点回到
+被移动的卡片或其所在列。若将来加入拖拽，它只是与该操作等价的增强。整个 Space 的看板只显示
+顶层 Issue；父 Issue 的拆分仍在 Issue Detail 中查看。
+
 ## Workflow 编写
 
 普通 Workflow 编辑器只暴露运行时支持的概念。只要 `agent_task` 仍是唯一可执行 step
@@ -135,6 +160,9 @@ Breadcrumb 以来源优先：源于 Issue 的 Task 经 Issue 导航；源于 Con
    且只有一个权威 constructor。
 6. **拆分 owner/executor。** 在 domain、store、API、Portal、fixture 与文档中一致替换
    合并的 assignee 模型。由于此项修改 `internal/infra/db`，必须运行真实 MySQL 测试。
+7. **Issue Board。** 加入 List / Board 切换、保存在 URL 中的 Owner 与 Executor 过滤、
+   基于现有列表路由的按状态分列，以及带版本的 **Move to** 操作。不改变 schema、路由或
+   Server 实体。
 
 ## 验收标准
 
@@ -148,6 +176,10 @@ Breadcrumb 以来源优先：源于 Issue 的 Task 经 Issue 导航；源于 Con
 - 普通 Workflow 编写无法持久化不受支持的 step type，普通与高级模式使用相同 validation。
 - Service 测试证明授权、配额、来源和保存不运行；Portal 测试证明各类 trigger 标签和
   Issue 到结果的路径。
+- 在相同过滤条件下，List 与 Board 显示相同的顶层 Issue；每列显示自己的总数，加载失败的列
+  永远不会显示成空列。
+- Board 移动使用加载时的版本，绝不覆盖并发编辑，绝不调度执行；发生冲突时重新加载并要求
+  读者重新决定。
 
 ## 被否决的替代方案
 
@@ -157,6 +189,10 @@ Breadcrumb 以来源优先：源于 Issue 的 Task 经 Issue 导航；源于 Con
   存在的责任归属和自动化，并使来源产生歧义。
 - **在 Portal 推断来源。** 当 Task 同时参与多种关系时，外键是否存在不足以判断来源，
   而且推断会随时间变化。
+- **可配置的规划看板。** 自定义列、排序值、WIP 限制、保存的视图、泳道和迭代都是独立
+  概念，目前没有已证实的 BuildMax 结果需要它们，而且会与专门的规划产品竞争。
+- **根据执行状态移动卡片。** Agent 开始执行或 run 结束并不代表业务结果；只有显式的状态
+  变更才代表。
 - **现在新增独立 Outcome 实体。** TaskRun 已拥有权威结果；Artifact 和结构化输出可以
   从该契约展示，无需另一套生命周期。
 
@@ -167,3 +203,4 @@ Breadcrumb 以来源优先：源于 Issue 的 Task 经 Issue 导航；源于 Con
 - [Issue Agent 访问](Issue Agent访问.md)
 - [Workflow 运行时](Workflow运行时.md)
 - [Portal 状态与权限反馈](Portal状态与权限反馈.md)
+- [Portal 响应式与无障碍交互](Portal响应式与无障碍交互.md)

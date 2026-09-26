@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import type { Route } from "./lib/types"
+import type { IssueCollectionQuery, Route } from "./lib/types"
 
 /**
  * Path segment names used in the hash URL. Single source of truth for parseHash/buildHash.
@@ -37,13 +37,13 @@ export const SEGMENT = {
  * Resolve the segments after `#/spaces/{space_id}/` into a Route. `rest[0]`
  * is the canonical plural resource word (`issues`, `agents`, ...).
  */
-function parseSpaceScopedRoute(spaceId: string, rest: string[]): Route {
+function parseSpaceScopedRoute(spaceId: string, rest: string[], query = new URLSearchParams()): Route {
   const [resource, id, sub] = rest
   switch (resource) {
     case SEGMENT.chat:
       return { name: "chat", spaceId, conversationId: id || undefined }
     case SEGMENT.issues:
-      return id ? { name: "issue", spaceId, issueId: id } : { name: "issues", spaceId }
+      return id ? { name: "issue", spaceId, issueId: id } : { name: "issues", spaceId, ...parseIssueQuery(query) }
     case SEGMENT.agents:
       return id ? { name: "agent", spaceId, agentId: id } : { name: "agents", spaceId }
     case SEGMENT.workflows:
@@ -77,12 +77,35 @@ function parseSpaceScopedRoute(spaceId: string, rest: string[]): Route {
 }
 
 /**
+ * Only the Issue collection reads a query today. Unknown or malformed values
+ * are dropped rather than refused: a hand-edited link still opens the page.
+ */
+function parseIssueQuery(query: URLSearchParams): IssueCollectionQuery {
+  const out: IssueCollectionQuery = {}
+  if (query.get("view") === "board") out.view = "board"
+  const owner = query.get("owner")
+  if (owner) out.owner = owner
+  const executor = query.get("executor")
+  if (executor && /^(agent|workflow):.+/.test(executor)) out.executor = executor
+  return out
+}
+
+function issueQueryString(query: IssueCollectionQuery): string {
+  const params = new URLSearchParams()
+  if (query.view) params.set("view", query.view)
+  if (query.owner) params.set("owner", query.owner)
+  if (query.executor) params.set("executor", query.executor)
+  const q = params.toString()
+  return q ? `?${q}` : ""
+}
+
+/**
  * Parse window.location.hash into a typed Route. `currentSpaceId` resolves
  * the bare `#/` entry point, the one route that carries no Space id of its
  * own.
  */
 export function parseHash(hash: string, currentSpaceId: string): Route {
-  const raw = hash.replace(/^#\/?/, "")
+  const [raw, search = ""] = hash.replace(/^#\/?/, "").split("?", 2)
   const parts = raw.split("/").filter(Boolean)
 
   // --- Global routes: never carry a Space prefix. ---
@@ -132,7 +155,7 @@ export function parseHash(hash: string, currentSpaceId: string): Route {
 
   // --- Canonical Space-prefixed routes. ---
   if (parts[0] === SEGMENT.spaces && parts[1]) {
-    return parseSpaceScopedRoute(parts[1], parts.slice(2))
+    return parseSpaceScopedRoute(parts[1], parts.slice(2), new URLSearchParams(search))
   }
 
   // Bare `#/` is the one legitimate empty path: the Space's Chat. Anything
@@ -230,7 +253,7 @@ export function buildHash(route: Route): string {
     case "schedules":
       return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.schedules}`
     case "issues":
-      return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.issues}`
+      return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.issues}${issueQueryString(route)}`
     case "issue":
       return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.issues}/${route.issueId}`
     case "artifacts":
