@@ -71,14 +71,18 @@ FAILED with the refused write named and no record pointing at a missing object.
 `buildmax-server storage verify` now gives an operator a read-only check that
 every live artifact, checkpoint payload, run trace, and plugin package the
 database names resolves in storage, optionally by checksum. The MySQL scope
-upgrades a real predecessor's schema and data, currently 0.2.0-alpha.14's.
+upgrades a real predecessor's schema and data, currently 0.2.0-alpha.14.
 Credential rotation has a [runbook](deploy/credential-rotation.md) rehearsed on
 kind by `./make kind drill rotation`, which rotates the JWT secret, database
 password, object-storage key, managed model key, and KEK and asserts each old
 value is refused while sessions, stored data, and new runs survive; the run in
 flight across the JWT rotation is settled FAILED, the one disruption it
-measures. Exercising a paired restore, the release-time Compose upgrade drill,
-and credential rotation on a candidate remain open. Shared Redis
+measures. A paired database-and-bucket restore is written up in
+[deploy/backup-restore.md](deploy/backup-restore.md) and rehearsed on kind by
+`./make kind drill restore`, which backs up, wipes, restores, runs that check,
+and compares with no loss. Exercising a paired restore, the release-time
+Compose upgrade drill, and credential rotation on a candidate remain open.
+Shared Redis
 coordination is implemented, including distributed lease fencing at
 message-history writes. The worker API already has a separate listener, TLS
 support, and a shipped ingress NetworkPolicy; that bounded network slice must

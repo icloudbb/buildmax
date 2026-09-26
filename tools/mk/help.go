@@ -509,7 +509,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "kind",
-			usage:   "kind <up|reload [service]|seed|fixtures [--runs]|use-model <name>|mock|smoke [managed]|drill rotation|info [email]|login [email]|forward|status|logs [service]|down>",
+			usage:   "kind <up|reload [service]|seed|fixtures [--runs]|use-model <name>|mock|smoke [managed]|drill <rotation|restore>|info [email]|login [email]|forward|status|logs [service]|down>",
 			summary: "Manage the local Kubernetes reference deployment.",
 			details: []string{
 				"Needs Docker and kubectl, and creates a kind cluster — set BUILDMAX_KIND_CLUSTER\n" +
@@ -556,6 +556,12 @@ func helpTopics() []helpTopic {
 					"and the data and sessions survive, and prints the measured disruption. It is\n" +
 					"destructive, so it runs only on a cluster created with\n" +
 					"BUILDMAX_KIND_EPHEMERAL=1; remove that cluster with `down` afterwards.",
+				"`drill restore` rehearses a paired database and bucket restore: it seeds data,\n" +
+					"records it through the API, quiesces the server, backs up the database and\n" +
+					"then the bucket to " + localDir + "/drill/, deletes the db, storage, and buildmax\n" +
+					"namespaces, restores both before the server starts, and compares. It runs only\n" +
+					"on the worktree's ephemeral cluster (BUILDMAX_KIND_EPHEMERAL=1 kind up) and is\n" +
+					"not part of `smoke`. See docs/deploy/backup-restore.md.",
 			},
 			args: []helpRow{
 				{"up", "Create the cluster and apply the reference deployment"},
@@ -566,6 +572,7 @@ func helpTopics() []helpTopic {
 				{"mock", "Switch conversations and task runs back to the free in-cluster mock"},
 				{"smoke [managed]", "Run the deployment smoke against the cluster"},
 				{"drill rotation", "Rotate every deployment credential on an ephemeral cluster and measure the effect"},
+				{"drill restore", "Back up, wipe, and restore the database and bucket; ephemeral clusters only"},
 				{"info [email]", "Print the endpoints and issue a fresh login code"},
 				{"login [email]", "Issue a fresh login code as {email,code,portal_url} JSON, for a script"},
 				{"forward", "Forward MySQL (3306) and MinIO (9000, 9001) to 127.0.0.1"},

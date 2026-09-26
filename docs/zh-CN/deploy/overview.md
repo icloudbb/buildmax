@@ -144,6 +144,7 @@ Agent 运行时执行模型选择的 shell 命令和文件编辑。请将每个�
 - [Compose 快速入门](compose.md)：单机完整栈，服务器与 Worker 处于同一信任域
 - [身份认证](authentication.md)：创建账户和签发登录码
 - [本地 kind](local-kind.md)：一条命令启动本地开发集群
+- [备份与恢复](backup-restore.md)：成对备份并恢复数据库与存储桶
 - [DigitalOcean](digitalocean.md)：用于 Beta 验证的可销毁外部 DOKS 和 MySQL
 - [凭证轮换](credential-rotation.md)：逐一轮换部署凭证及其影响
 - [Webhook 参考](../reference/webhook.md)：由外部系统触发运行

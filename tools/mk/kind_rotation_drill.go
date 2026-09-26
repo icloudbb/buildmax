@@ -101,33 +101,6 @@ func (d *rotationDrill) space() string {
 	return d.target.apiBase + "/api/spaces/" + url.PathEscape(d.spaceID)
 }
 
-// cmdKindDrill runs one named drill. Each is destructive, so each checks for
-// the ephemeral cluster itself.
-func cmdKindDrill(args []string) error {
-	if len(args) != 1 {
-		return usageErrorf("kind", "drill needs one drill name: rotation")
-	}
-	switch args[0] {
-	case "rotation":
-		return kindRotationDrill()
-	default:
-		return usageErrorf("kind", "unknown drill %q; want rotation", args[0])
-	}
-}
-
-// requireEphemeralKindCluster refuses to drill a cluster this worktree does not
-// own: the resident buildmaxdev, one named by BUILDMAX_KIND_CLUSTER, or none.
-func requireEphemeralKindCluster() error {
-	e, ok := readEphemeralKind()
-	if !ok {
-		return fmt.Errorf("the rotation drill replaces every credential on the cluster it runs against, so it runs only on this worktree's ephemeral cluster, and %s records none; create one with BUILDMAX_KIND_EPHEMERAL=1 %s kind up", ephemeralKindMarker, mk())
-	}
-	if cluster := kindClusterName(); cluster != e.cluster {
-		return fmt.Errorf("BUILDMAX_KIND_CLUSTER selects %q, not this worktree's ephemeral cluster %q; the rotation drill runs only on the ephemeral one", cluster, e.cluster)
-	}
-	return nil
-}
-
 func kindRotationDrill() error {
 	if err := requireEphemeralKindCluster(); err != nil {
 		return err

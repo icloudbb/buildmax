@@ -56,8 +56,11 @@ Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的
 ./make kind status  # read-only summary of the cluster, ingress, and workloads
 ./make kind logs    # pods, jobs, events, server, Portal, and worker logs
 ./make kind logs server  # just the server's logs (or portal, worker, mysql, minio, ingress)
+./make kind drill restore  # rehearse a paired backup, wipe, and restore (ephemeral clusters only)
 ./make kind down    # delete the selected cluster
 ```
+
+`drill restore` 具有破坏性，且独立于 `smoke`：它在备份后删除 `db`、`storage` 和 `buildmax` 命名空间，因此只在用 `BUILDMAX_KIND_EPHEMERAL=1` 创建的集群上运行，在其他地方一律拒绝。它证明什么、以及该流程如何用于真实部署，见 [backup-restore.md](backup-restore.md)。
 
 `smoke managed` 将 `buildmax-config` ConfigMap 替换为 `deployment/smoke/server.kind.managed.yaml`，重启服务器，并在 TaskRun 推理经过网关的条件下重跑相同断言。它证明默认运行无法证明的一点：Worker Job 不持有提供商凭证也能完成真实 Task，其 Run 令牌通过 Job spec 传到 Pod。之后集群保持托管模式；重新运行 `./make kind up` 可恢复直连模式。
 

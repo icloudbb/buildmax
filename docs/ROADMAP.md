@@ -141,13 +141,20 @@ has a [runbook](deploy/credential-rotation.md) and a kind rehearsal,
 key, managed model key, and KEK are each rotated by Secret patch and rollout,
 their old values are refused, sessions recover through refresh, stored data
 survives, and the one measured disruption is the run in flight across the JWT
-rotation, settled FAILED. A kind rehearsal is not candidate evidence. No
-candidate has yet proved paired restore, the release-time Compose upgrade
-drill, or credential rotation.
+rotation, settled FAILED. Paired restore has a
+[runbook](deploy/backup-restore.md) and a kind rehearsal,
+`./make kind drill restore`: a quiesced `mysqldump --single-transaction`
+then `mc mirror` backup, a wipe of the database, bucket, and server
+namespaces, a restore with the original KEK, a clean
+`storage verify --checksums`, and an unchanged API fingerprint, row counts,
+and object digests, with a measured recovery time. A kind rehearsal is not
+candidate evidence. No candidate has yet proved paired restore, the
+release-time Compose upgrade drill, or credential rotation.
 
 **Next:** the remaining lifecycle evidence — paired database-and-bucket
-restore, the Compose upgrade drill from the predecessor binary, and credential
-rotation on the candidate — several of which land as the R3 operator journey. Real-MySQL coverage for
+restore on the candidate's own dependencies, the Compose upgrade drill from the
+predecessor binary, and credential rotation on the candidate — several of which
+land as the R3 operator journey. Real-MySQL coverage for
 [quota windows](https://github.com/icloudbb/buildmax/issues/498) and cross-Space
 store scoping, and the deployed worker-loss, database-outage,
 object-storage-readiness outage/recovery, and worker object-storage write-denial
