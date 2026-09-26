@@ -80,6 +80,13 @@ Workflow 一经发布，就可用 **Run Workflow** 运行它。你会被带到�
 和 Agent 一样，Workflow 也保留一份带编号的历史，一次运行会记录它所展开的
 Workflow 版本，从而使过去运行的记录保持准确。
 
+某个步骤失败后，运行会显示 **Stopping after failure**，并要求其他执行中的
+步骤停止。取消某个步骤的 Task 后，Workflow 同样会进入 **Canceling**。
+尚未启动的步骤会被阻止。所有已创建的 TaskRun 都结束后，运行才会变成
+**Failed** 或 **Canceled**；已有输出仍可在步骤和 Task 中查看。详情页在
+等待期间会继续刷新。Server 重启后会继续收尾；失联 worker 由现有的
+TaskRun 恢复机制处理。
+
 ## 定时运行一个 Agent
 
 Agent 可以按时间表运行，无需有人点击 Run。打开 Agent 的详情视图，使用

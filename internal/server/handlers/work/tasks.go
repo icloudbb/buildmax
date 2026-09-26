@@ -529,12 +529,14 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// backstop measures, and it stays true whichever of the two paths below the
 	// run turns out to be on.
 	now := time.Now().UTC()
-	requested, err := h.cfg.TaskRuns.RequestTaskRunCancel(r.Context(), run.ID, userID, coretask.CancelReasonUserRequested, now)
+	finished, err := h.taskService().RequestRunCancel(r.Context(), run.ID, userID, coretask.CancelReasonUserRequested, now)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.ID)
 		return
 	}
-	if h.finishUndispatchedRun(r, run.ID, now) {
+	if finished {
+		message := "this run was canceled before it started"
+		h.runAnnouncer().Announce(r.Context(), run.ID, string(coretask.RunStatusCanceled), nil, &message)
 		httputil.WriteJSON(w, http.StatusOK, cancelTaskResponse{
 			TaskID:    target.ID,
 			TaskRunID: run.ID,
@@ -554,7 +556,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusConflict, "this run has already finished")
 		return
 	}
-	if !requested && current.CancelRequestedAt == nil {
+	if current.CancelRequestedAt == nil {
 		httputil.WriteJSONError(w, http.StatusConflict, "this run could not be canceled")
 		return
 	}
@@ -565,30 +567,6 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 		Status:          current.Status,
 		CancelRequested: true,
 	})
-}
-
-// finishUndispatchedRun cancels a run that is still PENDING and reports whether
-// it did. The claim is conditional on PENDING, so a run the scheduler picked up
-// in the meantime is left to its worker rather than being marked over while it
-// runs.
-func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, endedAt time.Time) bool {
-	message := "this run was canceled before it started"
-	claimed, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), coretask.TransitionRunInput{
-		TaskRunID:      taskRunID,
-		ExpectedStatus: coretask.RunStatusPending,
-		NewStatus:      coretask.RunStatusCanceled,
-		EndedAt:        &endedAt,
-		ErrorMessage:   &message,
-	})
-	if err != nil {
-		slog.Warn("could not cancel a pending run", "task_run_id", taskRunID, "err", err)
-		return false
-	}
-	if !claimed {
-		return false
-	}
-	h.runAnnouncer().Announce(r.Context(), taskRunID, string(coretask.RunStatusCanceled), nil, &message)
-	return true
 }
 
 type SessionMessage struct {

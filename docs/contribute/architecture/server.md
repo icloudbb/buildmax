@@ -240,6 +240,15 @@ A canceled run keeps its output and artifacts. It stopped early, but what it
 produced is real work, and discarding it would make cancelling more expensive
 than waiting.
 
+`service/task.RequestRunCancel` owns the shared request-and-pending-finalization
+operation used by the Task HTTP handler and Workflow reconciliation. A failed
+or canceled Workflow node first commits `failing` or `canceling` on its run and
+blocks pending nodes. The reconciler then requests cancellation for each active
+sibling TaskRun and waits for terminal facts before ending the Workflow. That
+durable state stays in the recovery sweep across restarts. Node state and output
+reflect the actual TaskRun outcome even when success races with cancellation;
+the Workflow retains its original failure or cancellation outcome.
+
 ## Retrying A Run
 
 `POST /api/spaces/{space_id}/tasks/{task_id}/retry` runs the task's most recent

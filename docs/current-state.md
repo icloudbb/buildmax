@@ -58,8 +58,9 @@ decide the order, and publication rejects a cyclic graph, a `needs` edge to a mi
 node, or a binding that reads a node which is not a predecessor. A run dispatches every
 ready node at once, bounded by `policy.max_parallel_nodes` (1 to the deployment
 ceiling, which also applies when a definition names no limit). Failure stays fail-fast:
-one node's failure blocks the pending nodes, cancels the siblings running alongside it,
-and ends the run. Typed `/structured/...` routing remains open.
+one node's failure blocks the pending nodes, requests cancellation for the
+siblings running alongside it, and ends the run after admitted TaskRuns become
+terminal. Typed `/structured/...` routing remains open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. A Server can now expire old run traces on an operator-set retention
@@ -431,7 +432,7 @@ The database coverage is broader than the previous assessment reported:
 | Task claiming, run transitions, one active run, and cancellation/report races | [concurrency_test.go](../internal/infra/db/concurrency_test.go) |
 | Artifact soft deletion, concurrent deletion, expiry, byte accounting, and purge lifecycle | [artifact_retention_test.go](../internal/infra/db/artifact_retention_test.go) |
 | Checkpoint head advancement and partial checkpoint retention | [workspace_checkpoint_test.go](../internal/infra/db/workspace_checkpoint_test.go) |
-| Workflow guarded run/step transitions and atomic failure finalization | [workflow_test.go](../internal/infra/db/workflow_test.go) |
+| Workflow guarded transitions, atomic stop intent, admission/stop contention, and drain recovery | [workflow_test.go](../internal/infra/db/workflow_test.go), [workflow_admission_test.go](../internal/infra/db/workflow_admission_test.go), [drain_mysql_test.go](../internal/service/workflow/drain_mysql_test.go) |
 | Idempotent Workflow Task admission, replay, payload conflict, space scope, and its contention winner | [task_admission_test.go](../internal/infra/db/task_admission_test.go) |
 | Workflow due-run discovery and reconciliation lease claim/renew/release under contention | [workflow_reconciliation_test.go](../internal/infra/db/workflow_reconciliation_test.go) |
 | Linear reconciler folding terminal TaskRun facts: step advance, final success, failure/cancel distinction and later-step blocking, lost-callback recovery, and one outcome under concurrent reconciliation | [reconcile_mysql_test.go](../internal/service/workflow/reconcile_mysql_test.go), [service_test.go](../internal/service/workflow/service_test.go) |
@@ -448,7 +449,8 @@ The database coverage is broader than the previous assessment reported:
 | Expired run-trace discovery and idempotent trace-pointer clearing | [task_run_trace_retention_test.go](../internal/infra/db/task_run_trace_retention_test.go) |
 
 The guarded transitions prevent illegal terminal rewrites and make failed-step,
-later-step blocking, and failed-run finalization atomic. Workflow step dispatch
+later-step blocking, and failure intent atomic. Actual TaskRuns drain before a
+failed/canceled run is finalized. Workflow step dispatch
 now admits its Task idempotently through `AdmitTask`, keyed
 `workflow/<workflow_run_id>/node/<node_id>` and unique within the space, so a
 retried or concurrent dispatch — the crash window between admitting the Task and
@@ -590,6 +592,17 @@ yank catalog releases.
 
 Space approval workflows remain unimplemented and deliberately out of scope;
 that is not evidence of an unfinished invitation or ownership-transfer feature.
+
+Workflow failure and step cancellation now drain admitted work before ending the
+run. `failing` and `canceling` are durable non-terminal states: no new nodes are
+admitted, pending nodes are blocked, and the reconciler requests TaskRun
+cancellation through the shared Task service. Running nodes retain their actual
+state until worker completion or the TaskRun reaper supplies a terminal fact.
+The first stop cause survives late sibling success and Server restart. Task
+admission and node linkage commit together under the same WorkflowRun lock as
+stop intent, closing the create-before-link cancellation race. The Portal keeps
+polling throughout the drain. Whole-Workflow cancel actions and Workflow-owned
+deadlines/retries remain follow-ups; cancellation here starts from a node Task.
 
 Workflow definitions are a graph of `agent_task` nodes joined by `needs` edges,
 with versioned definitions and durable run/node records. A node names its Agent

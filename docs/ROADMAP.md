@@ -224,6 +224,8 @@ Design: [evaluation system](design/evaluation-system.md).
 
 **Later; scope depends on demand and qualification results.** Durable Workflow
 reconciliation, graph execution, and typed data bindings are implemented.
+Failure and step cancellation now drain the actual TaskRuns before the Workflow
+ends, with atomic Task admission/linkage and restart recovery of stop intent.
 Candidate work includes conditional routing, further chat-platform adapters,
 executable Space plugins, Portal performance, Desktop automation beyond its
 in-app scheduled tasks, and throughput. The first real channel adapter ships: Telegram private chats reach

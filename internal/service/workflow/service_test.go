@@ -349,8 +349,8 @@ func TestReconcile_ConcurrencyLimitBinds(t *testing.T) {
 	}
 }
 
-// TestReconcile_FailFastCancelsRunningSiblings proves one node's failure ends the
-// run and cancels the siblings that were running concurrently.
+// TestReconcile_FailFastCancelsRunningSiblings proves one node's failure starts
+// the drain and waits for siblings that were running concurrently.
 func TestReconcile_FailFastCancelsRunningSiblings(t *testing.T) {
 	svc, store, taskRuns, runID := concurrencySvc(t, `{"schema_version":1,"nodes":[`+
 		`{"id":"a","type":"agent_task","agent":{"id":"a_1"},"input":{"instruction":"a"}},`+
@@ -361,15 +361,20 @@ func TestReconcile_FailFastCancelsRunningSiblings(t *testing.T) {
 	}
 	finishNode(t, svc, store, taskRuns, runID, "a", string(coretask.RunStatusFailed))
 	run, _ := store.GetWorkflowRun(context.Background(), runID)
-	if run.Status != string(coreworkflow.RunStatusFailed) {
-		t.Fatalf("run status = %q, want failed", run.Status)
+	if run.Status != string(coreworkflow.RunStatusFailing) {
+		t.Fatalf("run status = %q, want failing", run.Status)
 	}
 	got := nodesByStatus(t, store, runID)
 	if len(got["failed"]) != 1 || got["failed"][0] != "a" {
 		t.Fatalf("failed = %v, want [a]", got["failed"])
 	}
-	if len(got["canceled"]) != 1 || got["canceled"][0] != "b" {
-		t.Fatalf("canceled = %v, want [b] (the running sibling)", got["canceled"])
+	if len(got["running"]) != 1 || got["running"][0] != "b" {
+		t.Fatalf("running = %v, want [b] while waiting for its worker", got["running"])
+	}
+	finishNode(t, svc, store, taskRuns, runID, "b", string(coretask.RunStatusCanceled))
+	run, _ = store.GetWorkflowRun(context.Background(), runID)
+	if run.Status != string(coreworkflow.RunStatusFailed) {
+		t.Fatalf("drained run = %s", run.Status)
 	}
 }
 

@@ -346,7 +346,7 @@ func TestWorkflowNodeRunTransition_CAS(t *testing.T) {
 	}
 }
 
-func TestFinalizeFailedWorkflowRun_BlocksLaterSteps(t *testing.T) {
+func TestBeginWorkflowRunDrain_BlocksLaterSteps(t *testing.T) {
 	s, runID, steps := workflowRunFixture(t, 3)
 	ctx := context.Background()
 
@@ -360,13 +360,13 @@ func TestFinalizeFailedWorkflowRun_BlocksLaterSteps(t *testing.T) {
 		t.Fatalf("start step 0: %v", err)
 	}
 	now := time.Now().UTC()
-	applied, err := s.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
+	applied, err := s.BeginWorkflowRunDrain(ctx, coreworkflow.BeginRunDrainInput{
 		WorkflowRunID: runID,
 		NodeRunID:     steps[0],
 		NodeExpected:  coreworkflow.NodeRunStatusRunning,
 		NodeStatus:    coreworkflow.NodeRunStatusFailed,
 		RunExpected:   coreworkflow.RunStatusRunning,
-		RunStatus:     coreworkflow.RunStatusFailed,
+		RunStatus:     coreworkflow.RunStatusFailing,
 		EndedAt:       &now,
 	})
 	if err != nil || !applied {
@@ -391,16 +391,15 @@ func TestFinalizeFailedWorkflowRun_BlocksLaterSteps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetWorkflowRun: %v", err)
 	}
-	if run.Status != string(coreworkflow.RunStatusFailed) {
-		t.Errorf("run status = %s, want failed", run.Status)
+	if run.Status != string(coreworkflow.RunStatusFailing) || run.EndedAt != nil {
+		t.Errorf("run should be draining without an end timestamp: %+v", run)
 	}
 }
 
-// TestFinalizeFailedWorkflowRun_CancelsRunningSiblings proves fail-fast under
-// concurrency: when one running node fails, a sibling that was running
-// concurrently is canceled (not left running) and the remaining pending node is
-// blocked, all in one transaction.
-func TestFinalizeFailedWorkflowRun_CancelsRunningSiblings(t *testing.T) {
+// TestBeginWorkflowRunDrain_PreservesRunningSiblings proves fail-fast under
+// concurrency: when one running node fails, pending nodes are blocked while a
+// concurrently running sibling keeps its actual TaskRun-owned state.
+func TestBeginWorkflowRunDrain_PreservesRunningSiblings(t *testing.T) {
 	s, runID, steps := workflowRunFixture(t, 3)
 	ctx := context.Background()
 
@@ -415,13 +414,13 @@ func TestFinalizeFailedWorkflowRun_CancelsRunningSiblings(t *testing.T) {
 		}
 	}
 	now := time.Now().UTC()
-	applied, err := s.FinalizeFailedWorkflowRun(ctx, coreworkflow.FinalizeFailedRunInput{
+	applied, err := s.BeginWorkflowRunDrain(ctx, coreworkflow.BeginRunDrainInput{
 		WorkflowRunID: runID,
 		NodeRunID:     steps[0],
 		NodeExpected:  coreworkflow.NodeRunStatusRunning,
 		NodeStatus:    coreworkflow.NodeRunStatusFailed,
 		RunExpected:   coreworkflow.RunStatusRunning,
-		RunStatus:     coreworkflow.RunStatusFailed,
+		RunStatus:     coreworkflow.RunStatusFailing,
 		EndedAt:       &now,
 	})
 	if err != nil || !applied {
@@ -432,9 +431,9 @@ func TestFinalizeFailedWorkflowRun_CancelsRunningSiblings(t *testing.T) {
 		t.Fatalf("ListWorkflowNodeRuns: %v", err)
 	}
 	want := []string{
-		string(coreworkflow.NodeRunStatusFailed),   // the node that failed
-		string(coreworkflow.NodeRunStatusCanceled), // the running sibling
-		string(coreworkflow.NodeRunStatusBlocked),  // the pending node
+		string(coreworkflow.NodeRunStatusFailed),  // the node that failed
+		string(coreworkflow.NodeRunStatusRunning), // still waiting for the worker
+		string(coreworkflow.NodeRunStatusBlocked), // the pending node
 	}
 	for i := range got {
 		if got[i].Status != want[i] {

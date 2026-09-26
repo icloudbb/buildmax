@@ -38,6 +38,8 @@ type NodeRunStatus string
 const (
 	RunStatusPending   RunStatus = "pending"
 	RunStatusRunning   RunStatus = "running"
+	RunStatusFailing   RunStatus = "failing"
+	RunStatusCanceling RunStatus = "canceling"
 	RunStatusSucceeded RunStatus = "succeeded"
 	RunStatusFailed    RunStatus = "failed"
 	RunStatusCanceled  RunStatus = "canceled"
@@ -91,7 +93,11 @@ func ValidRunStatusTransition(from, to RunStatus) bool {
 	case RunStatusPending:
 		return to == RunStatusRunning || to == RunStatusFailed || to == RunStatusCanceled
 	case RunStatusRunning:
-		return to == RunStatusSucceeded || to == RunStatusFailed || to == RunStatusCanceled
+		return to == RunStatusSucceeded || to == RunStatusFailed || to == RunStatusCanceled || to == RunStatusFailing || to == RunStatusCanceling
+	case RunStatusFailing:
+		return to == RunStatusFailed
+	case RunStatusCanceling:
+		return to == RunStatusCanceled
 	default:
 		return false
 	}
@@ -379,6 +385,11 @@ func NodeOutputSource(nodeID string) string {
 	return "node." + nodeID + ".output"
 }
 
+// TaskAdmissionKey identifies the single Task owned by a logical graph node.
+func TaskAdmissionKey(workflowRunID, nodeID string) string {
+	return "workflow/" + workflowRunID + "/node/" + nodeID
+}
+
 // ParseNodeOutputSource returns the node id a "node.<node_id>.output" source
 // names, or ("", false) when source is not that shape. The node id may itself
 // contain dots, so only the fixed "node." prefix and ".output" suffix are
@@ -498,14 +509,11 @@ type TransitionNodeRunInput struct {
 	EndedAt        *time.Time
 }
 
-// FinalizeFailedRunInput ends a run because one node ended badly. In one
-// transaction the store moves the node to NodeStatus (failed or canceled),
-// blocks every node still pending, cancels every sibling still running, and
-// moves the run to RunStatus. Failure is fail-fast: the run terminates, so no
-// not-yet-started node runs and no in-flight sibling is left under a terminal
-// run. The node and run moves are guarded: nothing is written unless the node
-// is at NodeExpected and both transitions are valid.
-type FinalizeFailedRunInput struct {
+// BeginRunDrainInput commits the first failed/canceled node and stops further
+// admission atomically. RunStatus is failing or canceling; running siblings
+// remain observable until their TaskRuns end. EndedAt applies only to the node.
+// Both expected states and the node's membership must match or nothing changes.
+type BeginRunDrainInput struct {
 	WorkflowRunID string
 	NodeRunID     string
 	NodeExpected  NodeRunStatus
@@ -513,6 +521,8 @@ type FinalizeFailedRunInput struct {
 	RunExpected   RunStatus
 	RunStatus     RunStatus
 	TaskRunID     *string
+	Output        *string
+	Structured    *string
 	ErrorMessage  *string
 	StartedAt     *time.Time
 	EndedAt       *time.Time
@@ -562,11 +572,11 @@ type Store interface {
 	CreateWorkflowNodeRuns(ctx context.Context, workflowRunID string, steps []CreateNodeRunInput) ([]NodeRun, error)
 	// TransitionWorkflowRun and TransitionWorkflowNodeRun apply one guarded
 	// status change each; a false result means the row was not at the expected
-	// status, so another actor won the transition. FinalizeFailedWorkflowRun
-	// ends a run and blocks its remaining steps in one transaction.
+	// status, so another actor won the transition. BeginWorkflowRunDrain
+	// records stop intent and blocks pending nodes in one transaction.
 	TransitionWorkflowRun(ctx context.Context, in TransitionRunInput) (bool, error)
 	TransitionWorkflowNodeRun(ctx context.Context, in TransitionNodeRunInput) (bool, error)
-	FinalizeFailedWorkflowRun(ctx context.Context, in FinalizeFailedRunInput) (bool, error)
+	BeginWorkflowRunDrain(ctx context.Context, in BeginRunDrainInput) (bool, error)
 	// ListDueWorkflowRuns returns non-terminal runs that need a reconciliation
 	// pass at now -- their scheduled time has arrived or their lease expired --
 	// in stable oldest-due order, bounded by limit (a documented default when

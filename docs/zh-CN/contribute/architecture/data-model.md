@@ -919,11 +919,12 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 `agent_*` 列为整次运行固定每个节点使用的 Agent 定义。就绪节点按定义中的
 `policy.max_parallel_nodes` 上限派发；之后编辑 Agent 不会改变待运行节点发送给模型的内容。
 
-`blocked` 在 `workflow_run.status` 中没有对应状态。某个节点失败时，运行会被标记为
-`failed`，待运行节点变为 `blocked`，同时运行的兄弟节点会被取消。
+`blocked` 在 `workflow_run.status` 中没有对应状态。某个节点失败时，运行会先进入
+`failing`，待运行节点变为 `blocked`，同时运行的兄弟 TaskRun 会收到取消请求。
+只有所有已接纳 TaskRun 都进入终态后，运行才会被标记为 `failed`。
 
-节点的 TaskRun 被取消时写入 `canceled`。它同样会使待运行节点被阻塞并结束运行，
-但运行标记为 `canceled` 而非 `failed`，因为并没有出错。
+节点的 TaskRun 被取消时写入 `canceled`。它同样会使待运行节点被阻塞并推动运行进入
+`canceling`；排空完成后，运行标记为 `canceled` 而非 `failed`，因为并没有出错。
 
 ## 托管推理
 

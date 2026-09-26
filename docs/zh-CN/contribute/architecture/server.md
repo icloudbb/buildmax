@@ -81,6 +81,12 @@ Server 从不自己终结一次已经开始的运行：只有运行自身的进�
 
 一次被取消的运行会保留它的产出和 Artifact。它只是提早停止了，但它产出的内容是真实的工作成果，丢弃它只会让取消这个动作，比等待运行结束的代价更大。
 
+`service/task.RequestRunCancel` 统一拥有请求取消和未派发运行即时终结的操作，Task HTTP
+handler 与 Workflow 协调都会调用它。一个 Workflow 节点失败或被取消时，会先在运行上提交
+`failing` 或 `canceling`，并阻塞待执行节点。随后协调器为每个活跃兄弟 TaskRun 请求取消，
+并等待终态事实到达后再结束 Workflow。这个持久状态会被恢复扫描跨重启继续处理。即便成功与取消
+发生竞争，节点状态和输出仍反映实际 TaskRun 结果；Workflow 保留最早的失败或取消原因。
+
 ## 重试运行
 
 `POST /api/spaces/{space_id}/tasks/{task_id}/retry` 会把该 Task 最近一次的运行再执行一遍。它不需要请求体：新的运行会携带上一次运行的输入，并把它记录在 `retry_of_task_run_id` 中，`trigger_source` 为 `task_retry`。
