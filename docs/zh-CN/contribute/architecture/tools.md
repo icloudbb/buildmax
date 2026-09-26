@@ -147,7 +147,7 @@ memory 相关的工具遵循同样的“由 context 携带”模式（`agent.Ctx
 | `TodoWrite`、`NoteWrite` | 写的是 Agent 自己的草稿状态，而不是用户的文件 |
 | `Bash` | 在 `CheckArgs` 中自有一套更精细的判断；类别层面的默认值会导致连一次 `ls` 都会弹出提示 |
 
-**`GrantScope` 是给那些做分发的工具用的。** 没有它，一次针对 `CallMcpTool` 的 Session 授权，就会覆盖每个已配置 server 上的每一个工具。
+**`GrantScope` 是给那些做分发的工具用的。** 没有它，一次针对 `CallMcpTool` 的 Session 授权，就会覆盖每个已配置 server 上的每一个工具；一次针对 `BrowserNavigate` 的授权就会准入每一个来源（它通过 `BrowserOrigin` 返回 URL 的来源）。循环把返回的目标传给审批处理器，TUI 与 Desktop 的提示会显示它。
 
 ### 并发
 

@@ -800,7 +800,8 @@ func gateCall(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, guard *l
 		return
 	}
 
-	scope := grantScope(c.tool, name, c.args)
+	target := grantTarget(c.tool, c.args)
+	scope := grantScope(name, target)
 	action := resolveAction(policy, c.tool, name, scope, c.args, opts.interactive())
 	// A session grant answers an Ask that was already put to the user. It is
 	// applied here rather than before resolution so it can never soften a Deny.
@@ -822,7 +823,7 @@ func gateCall(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, guard *l
 			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, c.args, "no approval handler configured")
 			return
 		}
-		decision := opts.Approval.RequestApproval(ctx, name, c.args)
+		decision := opts.Approval.RequestApproval(ctx, name, c.args, target)
 		if decision == ApprovalDeny {
 			slog.Info("tool denied by user", "tool", name)
 			deny(DenyReasonUser, fmt.Sprintf(denyMsgUser, name))
@@ -1021,17 +1022,25 @@ func ResolveToolAction(policy ToolPolicy, tool llm.Tool, args map[string]any, in
 		args = map[string]any{}
 	}
 	name := tool.Name()
-	return resolveAction(policy, tool, name, grantScope(tool, name, args), args, interactive)
+	return resolveAction(policy, tool, name, grantScope(name, grantTarget(tool, args)), args, interactive)
+}
+
+// grantTarget is the tool's own narrowing of a session grant — an MCP
+// server/tool, a browser origin — or empty when a grant covers every call.
+func grantTarget(tool llm.Tool, args map[string]any) string {
+	if s, ok := tool.(llm.GrantScoper); ok {
+		return s.GrantScope(args)
+	}
+	return ""
 }
 
 // grantScope is what one session grant covers. Defaults to the tool name, which
 // is what the prompt showed the user; a dispatching tool narrows it so one
-// approval does not cover every target it can reach.
-func grantScope(tool llm.Tool, name string, args map[string]any) string {
-	if s, ok := tool.(llm.GrantScoper); ok {
-		if scope := s.GrantScope(args); scope != "" {
-			return name + ":" + scope
-		}
+// approval does not cover every target it can reach, and the prompt shows that
+// target so the user sees what "allow for session" covers.
+func grantScope(name, target string) string {
+	if target != "" {
+		return name + ":" + target
 	}
 	return name
 }

@@ -430,11 +430,12 @@ tools:
     Bash: deny                          # no shell at all
     "CallMcpTool:github/*": allow       # trust one server's tools
     "CallMcpTool:jira/delete_issue": deny
+    "BrowserNavigate:http://localhost:3000": allow   # one browser origin
 ```
 
 | 字段 | 含义 |
 |---|---|
-| key | 一个工具名，或者工具加上它所分发到的目标，可带一个末尾的 `*`。大小写不敏感。 |
+| key | 一个工具名，或者工具加上它所分发到的目标，可带一个末尾的 `*`。大小写不敏感。`CallMcpTool` 的目标是 `server/tool_name`；`BrowserNavigate` 的目标是一个 origin（`scheme://host`，端口非默认时再加 `:port`）。 |
 | value | `allow`、`ask` 或 `deny`。无法识别的取值会被忽略，`buildmax tools status` 会将其列出。 |
 
 最匹配的规则优先：先是精确匹配的目标，然后是最长匹配的模式，最后是裸工具名。

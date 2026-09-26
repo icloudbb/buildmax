@@ -264,15 +264,16 @@ type interactResult struct {
 	Found bool `json:"found"`
 }
 
-func (p *chromedpPage) interact(ctx context.Context, action, selector, text string) (bool, string, string, error) {
+func (p *chromedpPage) interact(ctx context.Context, action, selector, text, origin string) (bool, string, string, error) {
 	sel, _ := json.Marshal(selector)
+	org, _ := json.Marshal(origin)
 	var expr string
 	switch action {
 	case "click":
-		expr = fmt.Sprintf(clickJS, string(sel))
+		expr = fmt.Sprintf(clickJS, string(org), string(sel))
 	case "type":
 		txt, _ := json.Marshal(text)
-		expr = fmt.Sprintf(typeJS, string(sel), string(txt))
+		expr = fmt.Sprintf(typeJS, string(org), string(sel), string(txt))
 	default:
 		return false, "", "", fmt.Errorf("unknown action %q", action)
 	}
@@ -342,8 +343,11 @@ const snapshotJS = `(() => {
   return {elements: out, text};
 })()`
 
-// clickJS clicks the referenced element, reporting whether it existed.
+// clickJS clicks the referenced element, reporting whether it existed. It acts
+// only on the admitted origin: a document elsewhere could carry a planted
+// data-bm-ref that matches the selector.
 const clickJS = `(() => {
+  if (location.origin !== %s) return {found: false};
   const el = document.querySelector(%s);
   if (!el) return {found: false};
   el.scrollIntoView({block: 'center'});
@@ -352,8 +356,10 @@ const clickJS = `(() => {
 })()`
 
 // typeJS sets the referenced element's value and dispatches input/change so
-// frameworks observe the edit, reporting whether it existed.
+// frameworks observe the edit, reporting whether it existed. Confined to the
+// admitted origin, as clickJS is.
 const typeJS = `(() => {
+  if (location.origin !== %s) return {found: false};
   const el = document.querySelector(%s);
   if (!el) return {found: false};
   el.focus();

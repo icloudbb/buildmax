@@ -55,6 +55,14 @@ export function ApprovalPanel({ request, onRespond, keys = true }) {
         </table>
       )}
 
+      {/* What "Allow session" admits when the tool narrows it: one browser
+          origin or one MCP server/tool, not every later call. */}
+      {request.target && (
+        <div className="approval-panel__target">
+          Allow session covers only: <code>{request.target}</code>
+        </div>
+      )}
+
       <div className="approval-panel__footer">
         {APPROVAL_CHOICES.map((choice, i) => (
           <button

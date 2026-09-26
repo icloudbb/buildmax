@@ -19,6 +19,9 @@ type approvalRequestMsg struct {
 	id       string
 	ToolName string
 	Args     map[string]any
+	// Target is what "Allow session" covers within the tool (an MCP
+	// server/tool, a browser origin); empty when it covers every call.
+	Target   string
 	response chan agent.ApprovalDecision
 }
 
@@ -70,7 +73,7 @@ func (h *TUIApprovalHandler) SetForwarders(request func(id, tool, summary string
 
 // RequestApproval shows the prompt locally, forwards it to connected devices, and
 // blocks until it is answered from either side or the run is cancelled.
-func (h *TUIApprovalHandler) RequestApproval(ctx context.Context, name string, args map[string]any) agent.ApprovalDecision {
+func (h *TUIApprovalHandler) RequestApproval(ctx context.Context, name string, args map[string]any, target string) agent.ApprovalDecision {
 	if h.program == nil {
 		return agent.ApprovalDeny
 	}
@@ -80,7 +83,7 @@ func (h *TUIApprovalHandler) RequestApproval(ctx context.Context, name string, a
 	h.pending[id] = respCh
 	h.mu.Unlock()
 
-	h.program.Send(approvalRequestMsg{id: id, ToolName: name, Args: args, response: respCh})
+	h.program.Send(approvalRequestMsg{id: id, ToolName: name, Args: args, Target: target, response: respCh})
 	if h.forwardRequest != nil {
 		h.forwardRequest(id, name, summarizeArgs(args))
 	}

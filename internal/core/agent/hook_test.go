@@ -393,7 +393,7 @@ func (askAlwaysPolicy) Check(_, _ string, _ map[string]any) (llm.ToolAction, boo
 // denyAlwaysApproval denies every approval request.
 type denyAlwaysApproval struct{}
 
-func (denyAlwaysApproval) RequestApproval(_ context.Context, _ string, _ map[string]any) ApprovalDecision {
+func (denyAlwaysApproval) RequestApproval(_ context.Context, _ string, _ map[string]any, _ string) ApprovalDecision {
 	return ApprovalDeny
 }
 

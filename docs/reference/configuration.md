@@ -675,11 +675,12 @@ tools:
     Bash: deny                          # no shell at all
     "CallMcpTool:github/*": allow       # trust one server's tools
     "CallMcpTool:jira/delete_issue": deny
+    "BrowserNavigate:http://localhost:3000": allow   # one browser origin
 ```
 
 | Field | Meaning |
 |---|---|
-| key | A tool name, or a tool plus the target it dispatches to, with an optional trailing `*`. Case-insensitive. |
+| key | A tool name, or a tool plus the target it dispatches to, with an optional trailing `*`. Case-insensitive. The `CallMcpTool` target is `server/tool_name`; the `BrowserNavigate` target is an origin (`scheme://host`, plus `:port` when not the default). |
 | value | `allow`, `ask`, or `deny`. An unrecognised value is ignored, and `buildmax tools status` lists it. |
 
 The most specific rule wins: an exact target, then the longest matching

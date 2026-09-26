@@ -25,8 +25,11 @@ type pageDriver interface {
 	navigate(ctx context.Context, rawURL string) (finalURL, title string, status int, err error)
 	snapshot(ctx context.Context) (elems []rawElement, text, finalURL, title string, err error)
 	// interact performs "click" or "type" against selector; found reports
-	// whether the element existed (a stale or replaced reference does not).
-	interact(ctx context.Context, action, selector, text string) (found bool, finalURL, title string, err error)
+	// whether the element existed (a stale or replaced reference does not). It
+	// acts only while the live document is on origin, reporting not found
+	// otherwise, so a page that navigated itself since the last observation is
+	// never acted on.
+	interact(ctx context.Context, action, selector, text, origin string) (found bool, finalURL, title string, err error)
 	screenshot(ctx context.Context) (png []byte, finalURL, title string, err error)
 	consoleErrors() []string
 	// startScreencast begins streaming JPEG frames of the live page to onFrame
@@ -40,10 +43,15 @@ type pageDriver interface {
 // sessionPage is one BuildMax session's page and the controller's bookkeeping
 // for it. refs are the references handed out by the last snapshot; they are
 // valid only while revision equals refRevision.
+//
+// origin is the origin the last Navigate opened. Navigate is the call the
+// approval gate scopes per origin, so it is the only way an origin becomes one
+// the session may interact with; url can drift off it by redirect or link.
 type sessionPage struct {
 	driver        pageDriver
 	cancel        func()
 	revision      int
+	origin        string
 	url           string
 	title         string
 	refs          map[string]string // ref -> CSS selector
@@ -171,20 +179,33 @@ func (c *Controller) maybeStartScreencast(ctx context.Context, sessionID string,
 	}
 }
 
-// validateNavURL admits only http(s) origins with a host. It rejects file:,
-// javascript:, data:, and browser-internal schemes before anything is loaded.
-func validateNavURL(raw string) (string, error) {
+// validateNavURL admits only http(s) URLs with a host, per tool.BrowserOrigin,
+// and returns the URL to load plus the origin it admits.
+func validateNavURL(raw string) (clean, origin string, err error) {
+	origin, err = tool.BrowserOrigin(raw)
+	if err != nil {
+		return "", "", err
+	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		return "", fmt.Errorf("invalid url %q: %w", raw, err)
+		return "", "", err
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return "", fmt.Errorf("unsupported url scheme %q: only http and https are allowed", u.Scheme)
+	return u.String(), origin, nil
+}
+
+// offOrigin reports why pageURL may not be acted on when it is not on the
+// admitted origin, or nil when it is.
+func offOrigin(pageURL, admitted string) error {
+	origin, err := tool.BrowserOrigin(pageURL)
+	if err == nil && origin == admitted {
+		return nil
 	}
-	if u.Host == "" {
-		return "", fmt.Errorf("url %q has no host", raw)
+	where := origin
+	if err != nil {
+		where = pageURL
 	}
-	return u.String(), nil
+	return fmt.Errorf("the page is on %s, but %s opened %s and interaction is confined to that origin; call %s with the page URL to request approval of it before interacting",
+		where, tool.ToolNameBrowserNavigate, admitted, tool.ToolNameBrowserNavigate)
 }
 
 // ensureSession returns the session's page, creating it (and launching the
@@ -221,7 +242,7 @@ func (c *Controller) existingSession(sessionID string) (*sessionPage, error) {
 }
 
 func (c *Controller) Navigate(ctx context.Context, sessionID, rawURL string) (tool.PageState, error) {
-	clean, err := validateNavURL(rawURL)
+	clean, origin, err := validateNavURL(rawURL)
 	if err != nil {
 		return tool.PageState{}, err
 	}
@@ -235,6 +256,9 @@ func (c *Controller) Navigate(ctx context.Context, sessionID, rawURL string) (to
 	}
 	sp.revision++
 	sp.refs = nil
+	// The requested origin is admitted, not the final one: a redirect elsewhere
+	// was never shown at the approval prompt.
+	sp.origin = origin
 	sp.url, sp.title = finalURL, title
 	c.notify(Event{SessionID: sessionID, URL: finalURL, Title: title})
 	// Desktop embeds a live view: start streaming this session's page once.
@@ -274,9 +298,19 @@ func (c *Controller) Type(ctx context.Context, sessionID, ref, text string) (too
 // act resolves a reference against the current revision and drives one
 // interaction, rejecting a reference from an older revision or a vanished node
 // as stale rather than acting on a guessed target.
+//
+// Interaction is confined to the admitted origin. Approving a click is
+// approving it on a page someone chose to open; once a redirect or link has
+// taken the page elsewhere, the next act is refused until BrowserNavigate puts
+// that origin through its own approval. The navigation that left the origin
+// has already happened by then — blocking it would need request interception —
+// so the result reports it rather than hiding it.
 func (c *Controller) act(ctx context.Context, sessionID, action, ref, text string) (tool.PageState, error) {
 	sp, err := c.existingSession(sessionID)
 	if err != nil {
+		return tool.PageState{}, err
+	}
+	if err := offOrigin(sp.url, sp.origin); err != nil {
 		return tool.PageState{}, err
 	}
 	if sp.refs == nil || sp.refRevision != sp.revision {
@@ -286,11 +320,16 @@ func (c *Controller) act(ctx context.Context, sessionID, action, ref, text strin
 	if !ok {
 		return tool.PageState{}, fmt.Errorf("unknown element reference %q; take a fresh %s", ref, tool.ToolNameBrowserSnapshot)
 	}
-	found, finalURL, title, err := sp.driver.interact(ctx, action, selector, text)
+	found, finalURL, title, err := sp.driver.interact(ctx, action, selector, text, sp.origin)
 	if err != nil {
 		return tool.PageState{}, fmt.Errorf("%s %q: %w", action, ref, err)
 	}
 	if !found {
+		// The page may have navigated itself off the origin since the snapshot;
+		// the driver then refused to act, and that is the error worth reporting.
+		if err := offOrigin(finalURL, sp.origin); err != nil {
+			return tool.PageState{}, err
+		}
 		return tool.PageState{}, fmt.Errorf("element reference %q is stale; the page changed, take a fresh %s", ref, tool.ToolNameBrowserSnapshot)
 	}
 	navigated := finalURL != sp.url
@@ -331,11 +370,12 @@ func (c *Controller) ConsoleErrors(ctx context.Context, sessionID string) ([]str
 // current bookkeeping.
 func (c *Controller) stateOf(sp *sessionPage, status int) tool.PageState {
 	return tool.PageState{
-		URL:      sp.url,
-		Title:    sp.title,
-		Status:   status,
-		Viewport: sp.driver.viewport(),
-		Revision: sp.revision,
+		URL:            sp.url,
+		Title:          sp.title,
+		Status:         status,
+		Viewport:       sp.driver.viewport(),
+		Revision:       sp.revision,
+		AdmittedOrigin: sp.origin,
 	}
 }
 

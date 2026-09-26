@@ -350,6 +350,7 @@ models:
 #     Bash: deny                          # no shell at all
 #     "CallMcpTool:github/*": allow       # trust one server's tools
 #     "CallMcpTool:jira/delete_issue": deny
+#     "BrowserNavigate:http://localhost:3000": allow   # one browser origin
 
 # Agent loop tuning.
 #

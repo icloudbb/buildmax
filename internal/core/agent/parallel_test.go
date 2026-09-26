@@ -227,7 +227,7 @@ type orderedApproval struct {
 	approve bool
 }
 
-func (a *orderedApproval) RequestApproval(_ context.Context, name string, args map[string]any) ApprovalDecision {
+func (a *orderedApproval) RequestApproval(_ context.Context, name string, args map[string]any, _ string) ApprovalDecision {
 	a.mu.Lock()
 	id, _ := args["id"].(string)
 	a.asked = append(a.asked, name+":"+id)
