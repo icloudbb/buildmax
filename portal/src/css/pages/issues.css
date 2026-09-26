@@ -133,6 +133,153 @@
   gap: 0.4rem;
 }
 
+.issues-page__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.issues-page__view-switch {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.issues-page__filter {
+  display: grid;
+  gap: 0.35rem;
+  flex: 0 1 16rem;
+  min-width: 10rem;
+}
+
+/* --- Issue Board: one lane per status, over the same filters as the list --- */
+.issue-board {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.issue-board__lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.issue-board__lane {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-bg-elevated);
+}
+
+.issue-board__lane-title {
+  margin: 0;
+  font-size: var(--font-size-section);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.issue-board__count {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.issue-board__cards {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.issue-board__card {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.issue-board__card[aria-busy="true"] {
+  opacity: 0.7;
+}
+
+.issue-board__open {
+  font-weight: 600;
+  color: var(--color-text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.issue-board__open:hover {
+  text-decoration: underline;
+}
+
+.issue-board__facts {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.issue-board__facts > div {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.issue-board__facts dt {
+  font-weight: 600;
+}
+
+.issue-board__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.issue-board__move {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.issue-board__move-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.issue-board__more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.issue-board__announcement {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.issue-board__announcement--alert {
+  color: var(--color-danger);
+}
+
+/* Lanes stack before Narrow width: three columns of cards stop being readable
+   well before the shell collapses. Stacking keeps every lane's name, total,
+   and move actions visible without a horizontal scroll region. */
+@media (max-width: 960px) {
+  .issue-board__lanes {
+    grid-template-columns: 1fr;
+  }
+}
+
 .issues-page__pagination {
   display: flex;
   justify-content: flex-end;

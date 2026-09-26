@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@buildmax/gui"
-import type { Agent, Issue } from "../../lib/types"
+import type { Agent, Issue, IssueCollectionQuery } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { statusLabel } from "../../lib/statusLabels"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../lib/api/mappers"
-import { createIssue, getIssues } from "../../features/issues"
+import { collectionFilter, createIssue, getIssues } from "../../features/issues"
+import { IssueBoard } from "./IssueBoard"
 import { getAgents } from "../../features/agents"
 import { getSpaceMembers } from "../../features/spaces/api"
 import { getWorkflows } from "../../features/workflows"
@@ -25,9 +26,12 @@ interface IssuesProps {
   token: string | null
   spaceId: string
   userId?: string
+  query?: IssueCollectionQuery
 }
 
-export function Issues({ token, spaceId, userId }: IssuesProps) {
+export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
+  const { view, owner, executor } = query
+  const isBoard = view === "board"
   const { currentUserRole } = useSpace()
   // null means "not yet successfully fetched", distinct from [] meaning this
   // page of the collection is genuinely empty. See deriveResourceState.
@@ -38,6 +42,9 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
   const [members, setMembers] = useState<ApiSpaceMember[]>([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<RequestError | null>(null)
+  // Members, Agents, and Workflows name the cards and fill the filters; their
+  // failure is reported apart from the Issues so it never reads as an empty list.
+  const [supportError, setSupportError] = useState<RequestError | null>(null)
   const [saving, setSaving] = useState(false)
   // Distinct from listError: the create-issue mutation's own error, shown
   // inside IssueModal rather than as a page-level Alert.
@@ -53,12 +60,27 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  const fetchIssues = useCallback(() => {
+  const fetchSupport = useCallback(() => {
     if (!token || !spaceId) {
-      setIssuesData(null)
       setAgents([])
       setWorkflows([])
       setMembers([])
+      setSupportError(null)
+      return
+    }
+    setSupportError(null)
+    Promise.all([getAgents(spaceId, token), getSpaceMembers(spaceId, token), getWorkflows(spaceId, token)])
+      .then(([agentRes, memberRes, workflowRes]) => {
+        setAgents(agentRes.map(apiAgentToAgent))
+        setMembers(memberRes)
+        setWorkflows(workflowRes.workflows.map(apiWorkflowToWorkflow))
+      })
+      .catch((err) => setSupportError(classifyError(err, "Failed to load members, agents, and workflows")))
+  }, [token, spaceId])
+
+  const fetchIssues = useCallback(() => {
+    if (!token || !spaceId || isBoard) {
+      setIssuesData(null)
       setTotal(0)
       setLoading(false)
       setListError(null)
@@ -66,26 +88,19 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
     }
     setLoading(true)
     setListError(null)
-    return Promise.all([
-      // The board shows top-level issues; sub-issues appear under the parent
-      // they were split out of, not as siblings in the same list.
-      getIssues(spaceId, token, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, parentId: "none" }),
-      getAgents(spaceId, token),
-      getSpaceMembers(spaceId, token),
-      getWorkflows(spaceId, token),
-    ])
-      .then(([issueRes, agentRes, memberRes, workflowRes]) => {
+    // Top-level issues under the same filters every Board lane applies;
+    // sub-issues appear under the parent they were split out of.
+    const filter = collectionFilter({ owner, executor })
+    return getIssues(spaceId, token, { ...filter, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE })
+      .then((issueRes) => {
         setIssuesData(issueRes.issues.map(apiIssueToIssue))
         setTotal(issueRes.total)
-        setAgents(agentRes.map(apiAgentToAgent))
-        setMembers(memberRes)
-        setWorkflows(workflowRes.workflows.map(apiWorkflowToWorkflow))
       })
       // issuesData from a prior successful fetch (if any) is left in place, so
-      // a failed refresh reads as Stale rather than wiping the board.
+      // a failed refresh reads as Stale rather than wiping the list.
       .catch((err) => setListError(classifyError(err, "Failed to load issues")))
       .finally(() => setLoading(false))
-  }, [page, token, spaceId])
+  }, [page, token, spaceId, isBoard, owner, executor])
 
   const issuesState = useMemo(
     () => deriveResourceState({ loading, data: issuesData, error: listError, isEmpty: (data) => data.length === 0 }),
@@ -97,15 +112,23 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
   }, [fetchIssues])
 
   useEffect(() => {
+    fetchSupport()
+  }, [fetchSupport])
+
+  useEffect(() => {
     setPage(1)
-  }, [spaceId])
+  }, [spaceId, owner, executor])
 
   // A reload invalidates every cached breakdown: statuses may have moved, and a
   // stale child list is worse than a second fetch.
   useEffect(() => {
     setExpanded({})
     setChildren({})
-  }, [page, spaceId])
+  }, [page, spaceId, owner, executor])
+
+  function setQuery(next: IssueCollectionQuery) {
+    navigate({ name: "issues", spaceId, view, owner, executor, ...next })
+  }
 
   function toggleChildren(issueId: string) {
     const nowOpen = !expanded[issueId]
@@ -119,14 +142,17 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
   // What is being done needs both halves at a glance: who is accountable and
   // what will execute, since an Issue can have one, the other, both, or
   // neither.
+  function memberName(member: ApiSpaceMember): string {
+    if (member.user_name) return member.user_name
+    if (member.user_email) return member.user_email
+    return `Member ${member.user_id.slice(0, 8)}`
+  }
+
   function ownerLabel(issue: Issue): string | null {
     if (!issue.ownerId) return null
     if (issue.ownerId === userId) return "Me"
     const member = members.find((item) => item.user_id === issue.ownerId)
-    if (member?.user_name) return member.user_name
-    if (member?.user_email) return member.user_email
-    if (member) return `Member ${member.user_id.slice(0, 8)}`
-    return "Member"
+    return member ? memberName(member) : "Member"
   }
 
   function executorLabel(issue: Issue): string | null {
@@ -207,6 +233,13 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
           retry={{ label: "Retry", onClick: () => void fetchIssues() }}
         />
       )}
+      {supportError ? (
+        <Alert
+          tone={supportError.kind}
+          message={supportError.message}
+          retry={supportError.kind === "forbidden" ? undefined : { label: "Retry", onClick: fetchSupport }}
+        />
+      ) : null}
       {canAssignWorkflowState === "denied" ? (
         <p className="page-activity__empty">
           You can create issues and assign people or agents here. Workflow assignment is reserved for space owners and admins.
@@ -219,6 +252,77 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
         <p className="page-activity__empty">Checking whether you can assign workflows…</p>
       ) : null}
 
+      {/* List and Board share one filter vocabulary, carried in the URL so a
+          reload or a copied link reproduces the same projection. */}
+      <div className="issues-page__controls">
+        <div className="issues-page__view-switch" role="group" aria-label="View">
+          <Button variant={isBoard ? "tertiary" : "secondary"} size="compact" aria-pressed={!isBoard} onClick={() => setQuery({ view: undefined })}>
+            List
+          </Button>
+          <Button variant={isBoard ? "secondary" : "tertiary"} size="compact" aria-pressed={isBoard} onClick={() => setQuery({ view: "board" })}>
+            Board
+          </Button>
+        </div>
+        <label className="issues-page__filter">
+          <span className="issues-page__field-label">Owner</span>
+          <select className="issues-page__select" value={owner ?? ""} onChange={(e) => setQuery({ owner: e.target.value || undefined })}>
+            <option value="">Anyone</option>
+            <option value="me">Me</option>
+            {members
+              .filter((member) => member.user_id !== userId)
+              .map((member) => (
+                <option key={member.user_id} value={member.user_id}>
+                  {memberName(member)}
+                </option>
+              ))}
+            {owner && owner !== "me" && !members.some((member) => member.user_id === owner) ? (
+              <option value={owner}>{owner === userId ? "Me" : "Selected member"}</option>
+            ) : null}
+          </select>
+        </label>
+        <label className="issues-page__filter">
+          <span className="issues-page__field-label">Executor</span>
+          <select className="issues-page__select" value={executor ?? ""} onChange={(e) => setQuery({ executor: e.target.value || undefined })}>
+            <option value="">Any executor</option>
+            {agents.length > 0 ? (
+              <optgroup label="Agents">
+                {agents.map((agent) => (
+                  <option key={agent.id} value={`agent:${agent.id}`}>
+                    {agent.name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            {workflows.length > 0 ? (
+              <optgroup label="Workflows">
+                {workflows.map((workflow) => (
+                  <option key={workflow.id} value={`workflow:${workflow.id}`}>
+                    {workflow.name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            {executor && !agents.some((agent) => `agent:${agent.id}` === executor) && !workflows.some((workflow) => `workflow:${workflow.id}` === executor) ? (
+              <option value={executor}>Selected {executor.startsWith("workflow:") ? "workflow" : "agent"}</option>
+            ) : null}
+          </select>
+        </label>
+        {owner || executor ? (
+          <Button variant="tertiary" size="compact" onClick={() => setQuery({ owner: undefined, executor: undefined })}>
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+
+      {isBoard ? (
+        <IssueBoard
+          token={token}
+          spaceId={spaceId}
+          filter={collectionFilter({ owner, executor })}
+          ownerLabel={ownerLabel}
+          executorLabel={executorLabel}
+        />
+      ) : (
       <section className="issues-page__panel" aria-label="Issue list">
         <div className="issues-page__toolbar">
           {issuesData !== null ? <span className="page-activity__meta">{pageLabel}</span> : null}
@@ -227,7 +331,11 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
         {issuesState.kind === "loading" ? (
           <p className="page-activity__empty">Loading…</p>
         ) : issuesState.kind === "readyEmpty" ? (
-          <EmptyState message="No issues yet. Create one to track work, ownership, and progress in this space." />
+          owner || executor ? (
+            <EmptyState message="No top-level issues match these filters." />
+          ) : (
+            <EmptyState message="No issues yet. Create one to track work, ownership, and progress in this space." />
+          )
         ) : issuesState.kind === "error" || issuesState.kind === "forbidden" || issuesState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
             {(issuesData ?? []).map((issue) => (
@@ -327,6 +435,7 @@ export function Issues({ token, spaceId, userId }: IssuesProps) {
           </Button>
         </div> : null}
       </section>
+      )}
 
       <IssueModal
         open={createOpen}

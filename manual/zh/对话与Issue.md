@@ -44,6 +44,20 @@ Issue 可以嵌套：你可以从一个 Issue 添加**子 Issue**来分解工作
 
 你可以在 Issue 的评论中讨论它，人和 Agent 都会在那里留下笔记。
 
+## List 与 Board
+
+**Issues** 默认以 **List** 显示顶层 Issue。选择 **Board** 可以在三列中查看同一批 Issue——
+**To do**、**In progress** 和 **Done**——每列都有自己的总数，放不下时提供 **Show more** 按钮。
+父 Issue 的卡片会显示其子 Issue 已完成多少；子 Issue 本身仍在父 Issue 的详情页中查看。
+
+两种视图都可以按 **Owner**（包括 **Me**）或 **Executor** 过滤。视图和过滤条件是页面地址的
+一部分，因此刷新或分享链接会打开相同的视图。
+
+要在看板上改变 Issue 的状态，请使用卡片上的 **Move to**。它与编辑 Issue 时改变状态完全相同：
+永远不会启动运行，也不会改变 Owner 或 Executor。如果在看板加载之后有人修改了该 Issue，
+这次移动会被拒绝，看板会重新加载，让你重新决定。某一列加载失败时会明确说明并提供 **Retry**——
+空列始终表示该列确实没有匹配的 Issue。
+
 ## Owner、Executor 与运行工作
 
 Owner 与 Executor 是两个相互独立的选择，可以同时都设置、只设置一个，或都不设置：

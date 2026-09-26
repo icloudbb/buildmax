@@ -119,7 +119,8 @@ export function AppRouter({
   }
 
   if (route.name === "issues") {
-    return <Issues token={token ?? null} spaceId={route.spaceId} userId={userId} />
+    const { view, owner, executor } = route
+    return <Issues token={token ?? null} spaceId={route.spaceId} userId={userId} query={{ view, owner, executor }} />
   }
 
   if (route.name === "issue") {

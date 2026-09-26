@@ -49,6 +49,25 @@ to finish setup. It does not offer a second Create action for the same Issue.
 
 You can discuss an issue in its comments, where both people and agents leave notes.
 
+## List and Board
+
+**Issues** shows top-level issues as a **List** by default. Choose **Board** to see
+the same issues in three lanes — **To do**, **In progress**, and **Done** — each
+with its own total and a **Show more** button when it holds more than fit. A
+parent's card shows how many of its sub-issues are done; the sub-issues
+themselves stay on the parent's detail page.
+
+Filter either view by **Owner** (including **Me**) or **Executor**. The view
+and filters are part of the page address, so a reload or a shared link opens
+the same projection.
+
+To change an issue's status from the board, use **Move to** on its card. That
+is the same status change as editing the issue: it never starts a run and never
+changes the owner or executor. If someone else changed the issue after the
+board loaded it, the move is refused and the board reloads so you can decide
+again. If a lane fails to load, it says so and offers **Retry** — an empty lane
+always means the lane really has no matching issues.
+
 ## Owner, executor, and running the work
 
 Owner and executor are independent choices, and either, both, or neither can

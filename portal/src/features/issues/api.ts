@@ -14,6 +14,12 @@ export interface GetIssuesOptions {
    * before sub-issues existed.
    */
   parentId?: string
+  status?: "todo" | "in_progress" | "done"
+  /** "me" resolves to the caller server-side; anything else is a user id. */
+  owner?: string
+  /** Narrows only when both are set, matching the server. */
+  executorKind?: "agent" | "workflow"
+  executorId?: string
 }
 
 export async function getIssues(spaceId: string, token: string, options?: GetIssuesOptions): Promise<ApiIssuesListResponse> {
@@ -21,6 +27,13 @@ export async function getIssues(spaceId: string, token: string, options?: GetIss
   if (options?.limit != null) params.set("limit", String(options.limit))
   if (options?.offset != null) params.set("offset", String(options.offset))
   if (options?.parentId) params.set("parent_id", options.parentId)
+  if (options?.status) params.set("status", options.status)
+  if (options?.owner === "me") params.set("owner", "me")
+  else if (options?.owner) params.set("owner_id", options.owner)
+  if (options?.executorKind && options.executorId) {
+    params.set("executor_kind", options.executorKind)
+    params.set("executor_id", options.executorId)
+  }
   const q = params.toString()
   return requestJson<ApiIssuesListResponse>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues${q ? `?${q}` : ""}`, {
     headers: authHeaders(token),

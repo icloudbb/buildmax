@@ -126,6 +126,24 @@ describe("hash router", () => {
     expect(parseHash(`#/spaces/${SPACE}/tasks`, SPACE)).toEqual({ name: "notFound" })
   })
 
+  it("carries the Issue collection's view and filters in the URL, so a copied link reproduces the projection", () => {
+    const route: Route = { name: "issues", spaceId: SPACE, view: "board", owner: "me", executor: "agent:a_1" }
+    const hash = buildHash(route)
+    expect(hash).toBe(`#/spaces/${SPACE}/issues?view=board&owner=me&executor=agent%3Aa_1`)
+    expect(parseHash(hash, SPACE)).toEqual(route)
+  })
+
+  it("drops unknown or malformed Issue query values instead of refusing the page", () => {
+    expect(parseHash(`#/spaces/${SPACE}/issues?view=grid&executor=person:u_1&owner=`, SPACE)).toEqual({
+      name: "issues",
+      spaceId: SPACE,
+    })
+  })
+
+  it("ignores a query on a route that has none", () => {
+    expect(parseHash(`#/spaces/${SPACE}/agents?view=board`, SPACE)).toEqual({ name: "agents", spaceId: SPACE })
+  })
+
   it("builds a stable, self-parsing marker for not-found", () => {
     const hash = buildHash({ name: "notFound" })
     expect(parseHash(hash, SPACE)).toEqual({ name: "notFound" })

@@ -2,8 +2,8 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Portal工作与执行体验.md)
 > **Audience:** Portal, service, and execution-plane contributors · **Status:**
-> implemented — all six slices shipped, including the owner/executor split
-> against a real MySQL.
+> implemented — all seven slices shipped, including the owner/executor split
+> against a real MySQL and the derived Issue Board.
 
 This record defines the Portal experience from an Issue through Agent execution
 to a durable result. It is an implemented foundation for the R3 candidate
@@ -99,6 +99,38 @@ Status labels use one shared presentation vocabulary across Issue, Task,
 TaskRun, Workflow, and cards. API enum values remain stable machine values but
 are not exposed as untranslated primary labels.
 
+### Issue collection: List and Board
+
+The Space Issue collection has two equal views over the same query: List, the
+default, and Board. Board lets a participant see how top-level work is spread
+across business states and deliberately change a state without opening each
+Issue. It is a projection, not a planning model, and owns no durable state:
+
+| Concern | Authority | Board behavior |
+|---|---|---|
+| Lane membership | `issue.status` | Exactly three fixed lanes — To do, In progress, Done — in domain order; no stored lane value |
+| Status change | The existing versioned Issue update | A move sends the card's loaded version and new status only; Owner and Executor are untouched |
+| Execution | Task, TaskRun, and Workflow | Never moves a card and is never started by a move |
+| Child progress | Derived child counts | Shown on the parent card; parent and child statuses stay independent |
+| Filters | The list query contract | View, Owner, and Executor live in the URL and apply identically to List and every lane |
+
+Each lane is its own filtered request with its own total, incremental paging,
+and resource state. Grouping one fetched page is rejected because pagination
+would happen before grouping, making a lane look empty only because its Issues
+fell off the page. A lane that fails is shown as failed with a local retry, and
+loaded lanes carry an explicit "board incomplete" warning. Lanes keep the
+collection's `updated_at` descending order, so a moved Issue appears near the
+top of its destination; there is no manual rank or persisted drag position.
+Separately loaded lanes are an eventually refreshed view, not one database
+snapshot.
+
+A version conflict is not retried: Portal says the Issue changed, reloads every
+lane, and leaves the decision to the reader. The named **Move to** action is
+the move contract for keyboard, assistive technology, touch, and pointer, and
+focus returns to the moved card or its lane afterward. Drag, if ever added, is
+only an enhancement with parity to that action. The whole-Space board shows
+top-level Issues only; a parent's breakdown stays on Issue Detail.
+
 ## Workflow authoring
 
 The normal Workflow editor exposes only concepts the runtime supports. While
@@ -158,6 +190,9 @@ The following slices are independently useful and can merge in order:
 6. **Owner/executor split.** Replace the combined assignee model coherently in
    domain, store, API, Portal, fixtures, and documentation. Because this changes
    `internal/infra/db`, it requires the real-MySQL test scope.
+7. **Issue Board.** Add the List / Board switch, URL-carried Owner and Executor
+   filters, per-status lanes over the existing list route, and the versioned
+   **Move to** action. No schema, route, or Server entity changes.
 
 ## Acceptance criteria
 
@@ -174,6 +209,12 @@ The following slices are independently useful and can merge in order:
   normal and advanced modes use the same validation.
 - Service tests prove authorization, quota, provenance, and no-run-on-save.
   Portal tests prove each trigger label and the Issue-to-result journey.
+- List and Board show the same top-level Issue identities under the same
+  filters; each lane shows its own total, and a failed lane never reads as an
+  empty one.
+- A Board move uses the loaded version, never overwrites a concurrent edit,
+  never schedules execution, and on conflict reloads and requires a new
+  decision.
 
 ## Alternatives rejected
 
@@ -183,6 +224,12 @@ The following slices are independently useful and can merge in order:
   simultaneous accountability and automation and makes provenance ambiguous.
 - **Infer provenance in Portal.** Foreign-key presence is insufficient when a
   Task participates in multiple relationships, and inference changes over time.
+- **A configurable planning board.** Custom columns, rank, WIP limits, saved
+  views, swimlanes, and sprints are independent concepts no demonstrated
+  BuildMax outcome requires, and they would compete with dedicated planning
+  products.
+- **Move a card from execution state.** An Agent starting or a run finishing
+  does not declare the business outcome; only an explicit status change does.
 - **Create a separate Outcome entity now.** TaskRun already owns the
   authoritative result; artifacts and structured outputs can be presented from
   that contract without another lifecycle.
@@ -194,3 +241,4 @@ The following slices are independently useful and can merge in order:
 - [Issue Agent access](issue-agent-access.md)
 - [Workflow runtime](workflow-runtime.md)
 - [Portal state and permission feedback](portal-state-and-permission-feedback.md)
+- [Portal responsive and accessible interaction](portal-responsive-and-accessible-interaction.md)

@@ -47,6 +47,16 @@ test("Issues and Issue Detail reflow to one column with reachable actions", asyn
   await expect(page.getByRole("button", { name: "New Issue" })).toHaveCount(1)
   await expectNoHorizontalOverflow(page)
 
+  // The Board stacks its lanes at this width; each keeps its name, total, and
+  // move actions, and List stays one press away.
+  await page.goto(`/#/spaces/${current.spaceId}/issues?view=board`)
+  const todo = page.getByRole("region", { name: /^To do \d+/ })
+  await expect(todo).toBeVisible()
+  await expect(page.getByRole("region", { name: /^Done \d+/ })).toBeVisible()
+  await expect(todo.getByRole("button", { name: "Move to In progress" }).first()).toBeVisible()
+  await expect(page.getByRole("button", { name: "List", exact: true })).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+
   await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
   await expect(page.getByRole("link", { name: "Back to Issues" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Edit issue" })).toBeVisible()
