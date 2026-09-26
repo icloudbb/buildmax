@@ -135,13 +135,19 @@ traces on an operator-set window, defaulting to keep-forever and recording each
 prune. Binary rollback is not supported: a binary refuses to start against a
 database a newer release has migrated, and recovery is a paired restore. Every
 pull request's MySQL job upgrades a real predecessor's schema and data: a dump
-of what the declared upgrade source's server image wrote. No candidate has yet
-proved paired restore, the release-time Compose upgrade drill, or credential
-rotation.
+of what the declared upgrade source's server image wrote. Credential rotation
+has a [runbook](deploy/credential-rotation.md) and a kind rehearsal,
+`./make kind drill rotation`: the JWT secret, database password, object-storage
+key, managed model key, and KEK are each rotated by Secret patch and rollout,
+their old values are refused, sessions recover through refresh, stored data
+survives, and the one measured disruption is the run in flight across the JWT
+rotation, settled FAILED. A kind rehearsal is not candidate evidence. No
+candidate has yet proved paired restore, the release-time Compose upgrade
+drill, or credential rotation.
 
 **Next:** the remaining lifecycle evidence — paired database-and-bucket
 restore, the Compose upgrade drill from the predecessor binary, and credential
-rotation — several of which land as the R3 operator journey. Real-MySQL coverage for
+rotation on the candidate — several of which land as the R3 operator journey. Real-MySQL coverage for
 [quota windows](https://github.com/icloudbb/buildmax/issues/498) and cross-Space
 store scoping, and the deployed worker-loss, database-outage,
 object-storage-readiness outage/recovery, and worker object-storage write-denial

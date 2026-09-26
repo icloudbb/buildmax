@@ -40,7 +40,11 @@ Server 现在可以按运维配置的保留窗口清理旧 Run 轨迹，并记�
 的写入，且不留下指向缺失对象的记录。`buildmax-server storage verify` 现在为运维人员提供只读
 检查，确认数据库所指向的每个存活 Artifact、checkpoint 载荷、Run 轨迹和插件包都能在存储中解析，
 并可选按校验和比对。MySQL 范围会升级真实前序版本的 schema 与数据，当前为 0.2.0-alpha.14。
-借助它演练数据库和存储桶配对恢复、发布时的 Compose 升级演练，以及凭证轮换仍待验证。共享 Redis 协调已经实现，包括消息历史写入对分布式
+凭证轮换已有[操作手册](../deploy/credential-rotation.md)，并由 `./make kind drill rotation`
+在 kind 上演练：它轮换 JWT 密钥、数据库密码、对象存储密钥、托管模型密钥和 KEK，断言每个旧值
+都被拒绝，而会话、已存储数据和新运行不受影响；跨越 JWT 轮换的执行中运行被结算为 FAILED，是其
+实测到的唯一中断。在候选版本上演练数据库和存储桶配对恢复、发布时的 Compose 升级演练以及凭证
+轮换仍待验证。共享 Redis 协调已经实现，包括消息历史写入对分布式
 租约 fencing token 的校验。worker API 已有独立监听器、TLS 支持和已交付的入站
 NetworkPolicy；不能把这部分网络边界与尚未限制的 worker 出站网络混为一谈。
 
@@ -361,7 +365,7 @@ service、handler、provider fake 与真实 MySQL 覆盖。固定的真实 Okta 
 `buildmax-server` 保留直连数据库的引导与恢复命令。
 模型凭证由部署级密钥加密；未配置加密时拒绝存储带凭证的模型。
 `buildmax-server secret rewrap` 把已存储的数据密钥重新封装到当前 KEK 下；
-只要有数据行引用密钥文件中没有的 KEK，server 就拒绝启动。KEK 轮换演练尚未进行。
+只要有数据行引用密钥文件中没有的 KEK，server 就拒绝启动。kind 轮换演练覆盖添加、切换、重新封装和退役全过程。
 Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，采用 Run 级授权。
 这些实现不能将已投递的 Secret 与消费它的 worker 进程隔离。
 

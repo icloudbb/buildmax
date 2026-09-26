@@ -43,6 +43,7 @@ Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的
 ```bash
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
 ./make kind smoke managed  # the same, with task runs reaching models through the gateway
+./make kind drill rotation # rotate every credential; ephemeral clusters only
 ./make kind seed    # put the models in .local/settings.yaml into the cluster's catalog
 ./make kind fixtures # seed idempotent business data for automated testing
 ./make kind use-model "Claude Sonnet 5"  # run the cluster's own inference on a seeded model
@@ -59,6 +60,8 @@ Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的
 ```
 
 `smoke managed` 将 `buildmax-config` ConfigMap 替换为 `deployment/smoke/server.kind.managed.yaml`，重启服务器，并在 TaskRun 推理经过网关的条件下重跑相同断言。它证明默认运行无法证明的一点：Worker Job 不持有提供商凭证也能完成真实 Task，其 Run 令牌通过 Job spec 传到 Pod。之后集群保持托管模式；重新运行 `./make kind up` 可恢复直连模式。
+
+`drill rotation` 演练[凭证轮换手册](credential-rotation.md)：它通过修改 Secret 并滚动重启 Server，依次轮换 JWT 密钥、数据库密码、存储密钥、一个托管模型的密钥和 KEK；断言每个旧凭证都被拒绝，而会话、已存储的 Artifact 和新运行不受影响，最后输出滚动耗时和实测中断的表格。它有意让一个运行跨越 JWT 轮换，因此该运行会以 `FAILED` 结束。由于它会替换所有凭证，只有当前工作树用 `BUILDMAX_KIND_EPHEMERAL=1 ./make kind up` 创建了集群时才会运行；结束后用 `./make kind down` 删除该集群。
 
 `info` 输出集群、Portal URL 及其健康状态、MinIO 凭证，并签发单次使用登录码。默认账户是 `deployment-smoke@buildmax.local`，也可通过 `./make kind info alice@example.com` 指定。`login` 省略面向人的横幅，改为输出 `{"email","code","portal_url"}` JSON；账户不存在时会先创建。`drive-portal` skill（`.buildmax/skills/drive-portal/`）使用它登录无头浏览器，无需人工复制验证码。
 
@@ -135,7 +138,7 @@ MySQL 和 MinIO 使用 ClusterIP Service，集群只发布入口端口，因此�
 
 转发运行期间，可使用任意客户端连接 MySQL，例如 `mysql -h 127.0.0.1 -P 3306 -ubuildmax -pbuildmax buildmax`，或 DSN `buildmax:buildmax@tcp(127.0.0.1:3306)/buildmax`。这些是 `deployment/kind/mysql.yaml` 中的开发凭证；数据库使用 `emptyDir`，随集群删除。该账户可以使用任意 schema，不限于 `buildmax`，因此本地 `server.yaml` 中的 `database.name` 可自由指定，服务器首次启动会创建目标 schema。将同一 DSN 设置为 `BUILDMAX_TEST_DSN`，即可让 `internal/infra/db` 下的存储集成测试针对真实 MySQL 运行。
 
-MinIO 控制台位于 <http://127.0.0.1:9001>，凭证为 `minio` / `minio123`，运行 Artifact 位于 `bmstore` 存储桶。
+MinIO 控制台位于 <http://127.0.0.1:9001>，凭证为 `minio` / `minio123`，运行 Artifact 位于 `bmstore` 存储桶。这是 MinIO 的管理员账户；Server 和 Worker 使用各自的用户 `buildmax` / `buildmax-storage`，由 `deployment/kind/minio-init.yaml` 创建，且只能访问 `bmstore`——这与真实部署的存储身份形态一致，也是轮换演练所轮换的身份。
 
 只执行一条查询时，可跳过转发，直接使用 kubectl：
 

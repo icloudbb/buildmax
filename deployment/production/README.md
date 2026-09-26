@@ -167,7 +167,8 @@ backup holding both the dump and the key protects nothing, and losing the key
 makes every sealed credential and Space Secret permanently unreadable — no
 BuildMax command can recover them. Never regenerate the file or change the bytes
 under an existing key id: the stored values stop decrypting, which breaks every
-model and Secret that uses one.
+model and Secret that uses one. To replace the key, follow the
+[credential rotation runbook](../../docs/deploy/credential-rotation.md#key-encryption-key).
 
 ### Model access
 
@@ -212,6 +213,15 @@ message, and exits. A worker that disappears before it can report is closed as
 silently re-dispatch it. Retrying is an explicit operator action and creates a
 new TaskRun. The exact shutdown contract is in
 [`docs/design/graceful-shutdown.md`](../../docs/design/graceful-shutdown.md).
+
+## Rotating Credentials
+
+Every credential above — the JWT secret, database password, storage key,
+provider keys, KEK, and worker API certificate — is replaced by changing its
+Secret and rolling the server, with an overlap or a drain chosen per
+credential. The
+[credential rotation runbook](../../docs/deploy/credential-rotation.md) gives
+each procedure and what users and runs notice.
 
 ## What This Reference Does Not Cover
 

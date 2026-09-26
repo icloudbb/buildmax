@@ -132,9 +132,12 @@ screens, TaskRun JSON, trace, audit rows, and artifact listings for each case.
   Unsupported rollback is an explicit candidate limit, not a passed rollback
   test. Database down-migrations are not supported.
 - [ ] Rotate the JWT secret, database credential, storage identity or credential,
-  and model credential using a documented drain/restart procedure. Record what
-  happens to existing browser sessions, in-flight runs, and already-created
-  worker Jobs; no hot-rotation claim is required.
+  model credential, and KEK using the
+  [credential rotation runbook](credential-rotation.md). Record what happens to
+  existing browser sessions, in-flight runs, and already-created worker Jobs; no
+  hot-rotation claim is required. The runbook's kind rehearsal
+  (`./make kind drill rotation`) shows the expected results but is not
+  candidate evidence.
 - [ ] Record the exact Kubernetes, MySQL, S3, ingress, and TLS versions exercised.
   This is the first Beta's tested set, not an unsupported promise about a broad
   compatibility matrix.

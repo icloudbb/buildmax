@@ -320,11 +320,14 @@ Rotating the JWT secret invalidates every issued access token and run token
 immediately. Refresh tokens survive it — they are stored rows, not signatures —
 so clients recover without anyone signing in again: Portal, the CLI, Desktop,
 and a Remote Control session each treat the server's 401 as a cue to exchange
-their refresh token once and retry. Runs in flight lose their run token and fail
-when they next call the server; drain the workers before rotating if those runs
-matter. There is one signing key at a time, so the rotation takes effect at
-once rather than overlapping with the old key. Because refresh tokens survive,
-the secret is not the way to sign everyone out — revoke sessions for that.
+their refresh token once and retry. Runs in flight lose their run token, can no
+longer report, and are settled `FAILED` by the liveness reaper a few minutes
+later; drain the workers before rotating if those runs matter. There is one
+signing key at a time, so the rotation takes effect at once rather than
+overlapping with the old key. Because refresh tokens survive,
+the secret is not the way to sign everyone out — revoke sessions for that. The
+[credential rotation runbook](credential-rotation.md) has the procedure for this
+and every other deployment credential, with its measured effect.
 
 A run token cannot be revoked before it expires either, for the same reason: it
 is a signature, not a row. What bounds it instead is scope — one run — and run

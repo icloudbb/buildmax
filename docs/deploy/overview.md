@@ -208,5 +208,6 @@ Vulnerability disclosure: [SECURITY.md](../../SECURITY.md).
 - [authentication.md](authentication.md) — creating accounts and issuing login codes
 - [local-kind.md](local-kind.md) — one-command local cluster for development
 - [digitalocean.md](digitalocean.md) — disposable external DOKS and MySQL for beta qualification
+- [credential-rotation.md](credential-rotation.md) — rotating each deployment credential and what it disturbs
 - [reference/webhook.md](../reference/webhook.md) — triggering runs from
   external systems
