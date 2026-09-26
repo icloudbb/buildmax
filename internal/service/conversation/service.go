@@ -9,6 +9,7 @@ import (
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	"github.com/icloudbb/buildmax/internal/core/llm"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
 	"github.com/icloudbb/buildmax/internal/service/task"
@@ -29,6 +30,9 @@ type Service struct {
 	LLMClient         llm.LLMClient
 	TitleGenerator    llm.TitleGenerator
 	AgentStore        agentdef.Store
+	// Spaces names the conversation's Space in the prompt and backs ListSpaces.
+	// Nil leaves both out.
+	Spaces corespace.Store
 }
 
 // HandleTurnCmd describes one normalized portal conversation turn.
@@ -100,6 +104,8 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		Channel:         cmd.Channel,
 		UserID:          cmd.UserID,
 		SpaceID:         spaceID,
+		SpaceName:       s.fetchSpaceName(ctx, spaceID),
+		Spaces:          s.spacesForChannel(cmd.Channel),
 		TaskService:     s.taskServiceForChannel(cmd.Channel),
 		WorkflowService: s.workflowServiceForChannel(cmd.Channel),
 		AgentSummaries:  s.fetchAgentSummaries(ctx, spaceID, cmd.Channel),
@@ -136,6 +142,26 @@ func (s *Service) fetchSpaceID(ctx context.Context, conversationID, channel stri
 		return ""
 	}
 	return conv.SpaceID
+}
+
+func (s *Service) spacesForChannel(channel string) spaceLister {
+	if channel == convchannel.ChannelSystem || s.Spaces == nil {
+		return nil
+	}
+	return s.Spaces
+}
+
+// fetchSpaceName returns "" when the Space cannot be read; the turn then runs
+// without naming it rather than failing.
+func (s *Service) fetchSpaceName(ctx context.Context, spaceID string) string {
+	if s.Spaces == nil || spaceID == "" {
+		return ""
+	}
+	sp, err := s.Spaces.GetSpace(ctx, spaceID)
+	if err != nil || sp == nil {
+		return ""
+	}
+	return sp.Name
 }
 
 func (s *Service) fetchAgentSummaries(ctx context.Context, spaceID, channel string) []agentSummary {

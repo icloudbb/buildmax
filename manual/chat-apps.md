@@ -30,6 +30,10 @@ starts a conversation in your personal Space; later messages continue it.
 When the assistant starts a task, the bot sends a short report when the task
 finishes, fails, or is canceled, with a link to the full result in Portal.
 
+The assistant knows which Space the conversation is in, and can list your
+Spaces when you ask. It cannot switch Space for you: send `/space` to do that.
+In Portal chat, these conversations are marked **Telegram**.
+
 | Command | What it does |
 |---|---|
 | `/new` | Start a new conversation in the current Space |

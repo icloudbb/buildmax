@@ -412,5 +412,6 @@ func (h *Handler) buildConversationService() *conversation.Service {
 		LLMClient:         h.cfg.ConversationLLMClient,
 		TitleGenerator:    h.cfg.TitleGenerator,
 		AgentStore:        h.cfg.AgentStore,
+		Spaces:            h.cfg.SpaceStore,
 	}
 }

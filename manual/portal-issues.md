@@ -10,7 +10,10 @@ tracked and handed to an agent. This page walks through both.
 Shift+Enter for a new line). A conversation can answer you directly, or, when the
 work is bigger, start background work and show you the result when it's ready.
 
-Recent conversations are listed on Chat so you can pick one back up.
+Recent conversations are listed on Chat so you can pick one back up. One that
+started outside Portal is marked with where it came from, such as **Telegram**
+for a [chat app](chat-apps.md) conversation. The assistant works in the current
+space and can list your spaces; switch spaces in the sidebar to work elsewhere.
 Use the **Recent Conversations** and **Files** tabs to switch between the list
 and a link to the space's working files; Left and Right Arrow switch tabs when
 one has keyboard focus. A background task started by a conversation appears

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/core/agent"
@@ -37,11 +38,38 @@ First evaluate whether the user's request should continue an existing task (use 
 - ListWorkflows: list the space's published workflows and the input each needs. Use when the user asks what workflows exist or wants to run one.
 - RunWorkflow: start a run of a published workflow by workflow_id (find it with ListWorkflows), passing input that matches its input_schema. It runs in the background like a task. You cannot create or edit a workflow, only run one.
 - GetWorkflowRun: get the status and result of a workflow run by workflow_run_id.
+- ListSpaces: list the Spaces the user belongs to, marking the current one. Use when the user asks which Spaces they have or where work would run.
 
 When starting or continuing a task, or running a workflow, tell the user it is running. Do not expose internal IDs.`
 
-func currentSystemPrompt() string {
-	return systemPromptBase + "\n\nToday's date: " + time.Now().Format("2006-01-02") + "."
+// systemPrompt adds what this turn knows about where it runs. The Space name
+// matters because a person who belongs to several Spaces cannot otherwise tell
+// where the work the assistant starts will land.
+func systemPrompt(in turnRunInput) string {
+	var b strings.Builder
+	b.WriteString(systemPromptBase)
+	if in.SpaceName != "" {
+		fmt.Fprintf(&b, "\n\n# Space\nThis conversation belongs to the Space %q. Every task and workflow you start runs there, and you cannot move the conversation to another Space. ", in.SpaceName)
+		b.WriteString(spaceSwitchHint(in.Channel))
+	}
+	b.WriteString("\n\nToday's date: " + time.Now().Format("2006-01-02") + ".")
+	return b.String()
+}
+
+// spaceSwitchHint says how the user reaches another Space from where this
+// conversation lives. A chat-app conversation can also be continued in Portal,
+// so it names both routes.
+func spaceSwitchHint(channel string) string {
+	const portal = "In Portal, the user picks another Space in the sidebar and starts a conversation there."
+	switch channel {
+	case convchannel.ChannelPortal, "":
+		return portal
+	case convchannel.ChannelWebhook, convchannel.ChannelSystem:
+		return ""
+	}
+	// Channels are lowercase platform ids ("telegram"); the prompt names the app.
+	app := strings.ToUpper(channel[:1]) + channel[1:]
+	return fmt.Sprintf("This conversation started in %s, where the user sends /space to list their Spaces and /space <number> to switch, which starts a new conversation in that Space. ", app) + portal
 }
 
 // turnRunInput configures one conversation turn execution.
@@ -51,6 +79,8 @@ type turnRunInput struct {
 	Channel         string
 	UserID          string
 	SpaceID         string
+	SpaceName       string
+	Spaces          spaceLister
 	TaskService     *task.Service
 	WorkflowService *workflow.Service
 	AgentSummaries  []agentSummary
@@ -101,6 +131,9 @@ func buildConversationTools(in turnRunInput, sourceMessageID *string) []llm.Tool
 		if r := newGetWorkflowRunServiceRunner(wf, in.SpaceID); r != nil {
 			tools = append(tools, newGetWorkflowRunTool(r))
 		}
+	}
+	if in.Spaces != nil {
+		tools = append(tools, newListSpacesTool(in.Spaces, in.UserID, in.SpaceID))
 	}
 	return tools
 }
@@ -247,7 +280,7 @@ func executeRun(ctx context.Context, llmClient llm.LLMClient, in turnRunInput, p
 
 	reply, _, _, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:        llmClient,
-		SystemPrompt:     currentSystemPrompt(),
+		SystemPrompt:     systemPrompt(in),
 		ToolRegistry:     tools,
 		MaxIter:          maxIterations,
 		History:          prepared.buffer,

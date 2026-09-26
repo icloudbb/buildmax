@@ -5,6 +5,10 @@ import (
 	"testing"
 
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	"github.com/icloudbb/buildmax/internal/core/llm"
+	"github.com/icloudbb/buildmax/internal/mock"
+	convchannel "github.com/icloudbb/buildmax/internal/service/conversation/channel"
+	"github.com/icloudbb/buildmax/internal/service/task"
 )
 
 // Internal input keeps its stored role when a conversation is replayed.
@@ -74,4 +78,45 @@ func TestReplayMessageFromStore_ToleratesMissingAndUnreadableState(t *testing.T)
 			}
 		})
 	}
+}
+
+func TestSystemPromptNamesTheSpaceAndHowToSwitch(t *testing.T) {
+	portal := systemPrompt(turnRunInput{Channel: convchannel.ChannelPortal, SpaceName: "QA"})
+	if !strings.Contains(portal, `belongs to the Space "QA"`) || !strings.Contains(portal, "sidebar") {
+		t.Errorf("portal prompt lacks the Space or the Portal route:\n%s", portal)
+	}
+	if strings.Contains(portal, "/space") {
+		t.Errorf("portal prompt mentions the chat command:\n%s", portal)
+	}
+
+	chat := systemPrompt(turnRunInput{Channel: "telegram", SpaceName: "QA"})
+	for _, want := range []string{`"QA"`, "started in Telegram", "/space <number>", "sidebar"} {
+		if !strings.Contains(chat, want) {
+			t.Errorf("chat prompt lacks %q:\n%s", want, chat)
+		}
+	}
+
+	if unnamed := systemPrompt(turnRunInput{Channel: convchannel.ChannelPortal}); strings.Contains(unnamed, "# Space") {
+		t.Errorf("prompt without a Space name has a Space section:\n%s", unnamed)
+	}
+}
+
+func TestBuildConversationToolsListsSpacesOnlyWithAStore(t *testing.T) {
+	base := turnRunInput{Channel: convchannel.ChannelPortal, UserID: "u_1", SpaceID: "s_1", TaskService: &task.Service{}}
+	if hasTool(buildConversationTools(base, nil), toolNameListSpaces) {
+		t.Error("ListSpaces registered without a space store")
+	}
+	base.Spaces = &mock.MockSpaceStore{}
+	if !hasTool(buildConversationTools(base, nil), toolNameListSpaces) {
+		t.Error("ListSpaces missing with a space store")
+	}
+}
+
+func hasTool(tools []llm.Tool, name string) bool {
+	for _, t := range tools {
+		if t.Name() == name {
+			return true
+		}
+	}
+	return false
 }
