@@ -101,11 +101,18 @@ func (d *rotationDrill) space() string {
 	return d.target.apiBase + "/api/spaces/" + url.PathEscape(d.spaceID)
 }
 
+// cmdKindDrill runs one named drill. Each is destructive, so each checks for
+// the ephemeral cluster itself.
 func cmdKindDrill(args []string) error {
-	if len(args) != 1 || args[0] != "rotation" {
-		return usageErrorf("kind", "drill needs a drill name: rotation")
+	if len(args) != 1 {
+		return usageErrorf("kind", "drill needs one drill name: rotation")
 	}
-	return kindRotationDrill()
+	switch args[0] {
+	case "rotation":
+		return kindRotationDrill()
+	default:
+		return usageErrorf("kind", "unknown drill %q; want rotation", args[0])
+	}
 }
 
 // requireEphemeralKindCluster refuses to drill a cluster this worktree does not
