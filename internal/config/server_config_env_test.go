@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/icloudbb/buildmax/internal/config"
 )
@@ -245,5 +246,29 @@ func TestServerModelEntryRuntimeModelEntry(t *testing.T) {
 		got.APIURL != serverModel.APIURL || got.APIKey != serverModel.APIKey ||
 		got.ContextWindow != serverModel.ContextWindow || got.CallTimeout != serverModel.CallTimeout {
 		t.Fatalf("RuntimeModelEntry() = %+v, want all server model fields", got)
+	}
+}
+
+// TestServerConfigFinishedJobTTL pins the short default and that an explicit
+// zero survives as "delete on finish" instead of falling back to the default.
+func TestServerConfigFinishedJobTTL(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		want       time.Duration
+	}{
+		{"default", "", 5 * time.Minute},
+		{"configured", "worker:\n  k8s:\n    finished_job_ttl: 1h\n", time.Hour},
+		{"zero", "worker:\n  k8s:\n    finished_job_ttl: 0s\n", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			writeServerYAML(t, tc.body)
+			cfg, err := config.LoadServerConfig()
+			if err != nil {
+				t.Fatalf("LoadServerConfig: %v", err)
+			}
+			if got := cfg.Worker.K8s.FinishedJobTTL; got != tc.want {
+				t.Errorf("worker.k8s.finished_job_ttl = %s, want %s", got, tc.want)
+			}
+		})
 	}
 }

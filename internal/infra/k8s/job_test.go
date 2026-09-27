@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -511,6 +512,43 @@ func TestK8sJobRunner_LabelsWorkerPod(t *testing.T) {
 	}
 	if fake.lastJob.Spec.Template.Labels["app.kubernetes.io/name"] != "buildmax-worker" {
 		t.Error("the pod template must carry the worker name label the NetworkPolicy selects")
+	}
+}
+
+// TestK8sJobRunner_FinishedJobExpires guards against finished worker Jobs
+// accumulating: nothing else deletes them. Zero must still be set on the Job —
+// it means delete on finish, while an unset field means never.
+func TestK8sJobRunner_FinishedJobExpires(t *testing.T) {
+	for _, tc := range []struct {
+		ttl  time.Duration
+		want int32
+	}{
+		{5 * time.Minute, 300},
+		{0, 0},
+	} {
+		fake := &fakeJobCreator{}
+		runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{FinishedJobTTL: tc.ttl}, fake)
+		if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "run1", Status: "SCHEDULED"}, ""); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		got := fake.lastJob.Spec.TTLSecondsAfterFinished
+		if got == nil || *got != tc.want {
+			t.Errorf("FinishedJobTTL %s: TTLSecondsAfterFinished = %v, want %d", tc.ttl, got, tc.want)
+		}
+	}
+}
+
+func TestNewK8sJobRunner_RejectsNegativeFinishedJobTTL(t *testing.T) {
+	pod := PodConfig{
+		FinishedJobTTL: -time.Second,
+		Resources: PodResources{
+			CPURequest: "250m", CPULimit: "1", MemoryRequest: "512Mi", MemoryLimit: "1Gi",
+			EphemeralStorageRequest: "256Mi", EphemeralStorageLimit: "2Gi",
+		},
+	}
+	_, err := NewK8sJobRunner("buildmax", "buildmax:local", nil, pod, &fakeJobCreator{})
+	if err == nil || !strings.Contains(err.Error(), "worker.k8s.finished_job_ttl") {
+		t.Fatalf("err = %v, want a refusal naming worker.k8s.finished_job_ttl", err)
 	}
 }
 

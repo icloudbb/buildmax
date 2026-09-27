@@ -103,6 +103,10 @@ Set `worker.run_mode: k8s_job` to have the scheduler create a Kubernetes Job per
 run instead of a local process, using `worker.k8s.namespace` and
 `worker.k8s.image`. That mode also requires all four `worker.k8s.resources`
 bounds; the server refuses to start rather than schedule an unbounded worker.
+Kubernetes deletes a finished worker Job and its pod after
+`worker.k8s.finished_job_ttl` (5 minutes by default), so read a worker's pod
+logs within that window or raise it; the run's result and trace do not depend
+on them.
 
 In that mode a worker pod needs the same `server.yaml` the server has.
 `worker.k8s.config_map` names a ConfigMap with a `server.yaml` key, which the

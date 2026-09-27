@@ -153,12 +153,13 @@ confinement is therefore entirely the capability/seccomp/AppArmor set above
 plus `bwrap`'s own workspace-scoped sandboxing of the worker's Bash calls,
 not the pod's own uid.
 
-One setting under `worker.k8s` remains an operator's:
+These settings under `worker.k8s` remain an operator's:
 
 | Setting | Default | Purpose |
 |---|---|---|
 | `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | none — required | Kubernetes quantity strings such as `500m`, `2`, `512Mi`, or `4Gi`. All are required under `k8s_job`; BuildMax chooses no numbers for you, because the right ones depend on the work a deployment runs. |
 | `resources.ephemeral_storage_request` / `ephemeral_storage_limit` | none — required | Bound the worker pod's local scratch disk — the writable layer plus every emptyDir, where the materialized workspace, the staged checkpoint payload, and tool output all land. The limit is also applied as the `sizeLimit` of each of the pod's emptyDir volumes, so a runaway workspace is evicted cleanly instead of filling the node. |
+| `finished_job_ttl` | `5m` | How long a finished worker Job and its pod stay before Kubernetes deletes them; `0s` deletes them on finish, and a negative value stops the server from starting. Nothing reads a Job after it finishes — the run's result and trace do not depend on it — so this is only a window for `kubectl logs`. Raise it in production if no log collector ships worker pod logs; a finished pod still holds its scratch disk on the node. |
 
 The server refuses to start when a bound is missing, is not a Kubernetes
 quantity, is zero or negative, or names a limit below its own request. The error
@@ -850,6 +851,7 @@ worker:
     image: buildmax:local
     config_map: buildmax-config      # ConfigMap holding server.yaml for worker pods
     home_dir: /buildmax              # BUILDMAX_HOME inside a worker pod
+    finished_job_ttl: 5m             # delete a finished worker Job after this
 
 worker_api:                          # the internal listener serving /api/worker/*
   listen: 127.0.0.1:5679             # loopback by default; :5679 on Kubernetes

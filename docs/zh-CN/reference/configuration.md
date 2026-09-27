@@ -103,12 +103,13 @@ Worker 在读取到 `BUILDMAX_RUN_TOKEN` 后会将其从自身环境中清除，
 
 该 pod 以 root（uid 0）身份运行，而非非 root：容器运行时赋予非 root pod 的某个 capability（此处是 `SYS_ADMIN`，在更早、后来被回退的一次尝试中是 `SETUID`/`SETGID`）只会落入该 pod capability 的 *bounding* 集合，而在 exec 时永远不会进入其 *effective* 集合——这一点已在真实集群上验证过——而 `bwrap` 需要该 capability 处于 effective 状态而不仅仅是 permitted，才能构建起自己的沙箱。Root 没有这个缺口。因此该 pod 的限制完全来自上述 capability/seccomp/AppArmor 的组合，加上 `bwrap` 自身对 worker Bash 调用的、限定在工作区范围内的沙箱化处理，而不是来自 pod 自身的 uid。
 
-`worker.k8s` 下有一项设置仍由运维人员掌控：
+`worker.k8s` 下以下设置仍由运维人员掌控：
 
 | 设置 | 默认值 | 用途 |
 |---|---|---|
 | `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | 无——必填 | Kubernetes 数量字符串，例如 `500m`、`2`、`512Mi` 或 `4Gi`。在 `k8s_job` 下全部为必填项；BuildMax 不会替你选定数字，因为合适的值取决于该部署所运行的工作内容。 |
 | `resources.ephemeral_storage_request` / `ephemeral_storage_limit` | 无——必填 | 限定 worker pod 的本地临时磁盘——包括可写层以及每一个 emptyDir，物化后的工作区、暂存的检查点内容和工具输出都落在这里。该上限同时会作为该 pod 每个 emptyDir 卷的 `sizeLimit`，因此失控的工作区会被干净地驱逐，而不是把节点填满。 |
+| `finished_job_ttl` | `5m` | 已结束的 Worker Job 及其 Pod 保留多久后由 Kubernetes 删除；`0s` 表示结束即删除，负值会使服务器拒绝启动。Job 结束后不再被读取——运行结果和 Trace 不依赖它——所以这只是留给 `kubectl logs` 的窗口。生产环境若没有日志采集器收集 Worker Pod 日志，可调大该值；已结束的 Pod 仍占用节点上的临时磁盘。 |
 
 若某个上限缺失、不是合法的 Kubernetes 数量、为零或负数，或者某个 limit 低于对应的 request，server 会拒绝启动。错误信息会指出需要修改哪个键。这是刻意为之：不受限的 worker pod 会执行模型选择的 shell 命令，一次失控的构建就会拖垮节点上的其他一切；而一个因拼写错误被悄悄丢弃的限制，看起来与真正生效的限制一模一样。
 
@@ -561,6 +562,7 @@ worker:
     image: buildmax:local
     config_map: buildmax-config      # ConfigMap holding server.yaml for worker pods
     home_dir: /buildmax              # BUILDMAX_HOME inside a worker pod
+    finished_job_ttl: 5m             # delete a finished worker Job after this
 
 worker_api:                          # the internal listener serving /api/worker/*
   listen: 127.0.0.1:5679             # loopback by default; :5679 on Kubernetes

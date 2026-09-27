@@ -644,6 +644,10 @@ type ServerK8sConfig struct {
 	CAConfigMap string `mapstructure:"ca_config_map"`
 	// HomeDir is BUILDMAX_HOME inside a worker pod; server.yaml is mounted there.
 	HomeDir string `mapstructure:"home_dir"`
+	// FinishedJobTTL is how long a finished worker Job and its pod stay before
+	// Kubernetes deletes them; zero deletes them as soon as they finish. Nothing
+	// reads a Job after it finishes, so this is only a window for pod logs.
+	FinishedJobTTL time.Duration `mapstructure:"finished_job_ttl"`
 	// Resources bounds a worker pod. Every bound is required in this run mode:
 	// the server refuses to start rather than schedule a worker that model-
 	// chosen commands could run unbounded.
@@ -819,6 +823,7 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("worker.k8s.image", "buildmax:local")
 	v.SetDefault("worker.k8s.config_map", "buildmax-config")
 	v.SetDefault("worker.k8s.home_dir", "/buildmax")
+	v.SetDefault("worker.k8s.finished_job_ttl", "5m")
 	v.SetDefault("storage.persist_backend", ProviderLocalFS)
 	v.SetDefault("storage.artifact_backend", ProviderLocalFS)
 	// endpoint, region, and the two keys have no defaults on purpose.
