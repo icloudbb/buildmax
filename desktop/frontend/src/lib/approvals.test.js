@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { withApproval, withoutApproval, withQuestion, withoutQuestion } from './approvals';
+import { waitingOn, withApproval, withoutApproval, withQuestion, withoutQuestion } from './approvals';
 
 const reqA = { approval_id: '1', session_id: 'sA', tool_name: 'Write' };
 const reqB = { approval_id: '2', session_id: 'sB', tool_name: 'Bash' };
@@ -45,5 +45,16 @@ describe('pending questions', () => {
 
   it('ignores a question without a question id', () => {
     expect(withQuestion({}, { approval_id: '1', session_id: 'sA' })).toEqual({});
+  });
+});
+
+describe('waitingOn', () => {
+  it('collects the sessions and projects blocked on the user across prompt kinds', () => {
+    const approvals = { sA: { approval_id: '1', session_id: 'sA', project_id: 'p1' } };
+    const questions = { sB: { question_id: '2', session_id: 'sB', project_id: 'p2' } };
+    const { sessions, projects } = waitingOn(approvals, questions);
+    expect([...sessions].sort()).toEqual(['sA', 'sB']);
+    expect([...projects].sort()).toEqual(['p1', 'p2']);
+    expect(waitingOn({}, {}).sessions.size).toBe(0);
   });
 });

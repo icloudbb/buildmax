@@ -15,7 +15,7 @@ import { LaunchpadButton } from './components/LaunchpadButton';
 import { GridIcon, MoonIcon, SidebarIcon, SplitRightIcon, SunIcon } from './components/icons';
 import { readStored, writeStored } from './lib/storage';
 import { activeTab, tabIdentity } from './lib/tabs';
-import { withApproval, withoutApproval, withQuestion, withoutQuestion } from './lib/approvals';
+import { waitingOn, withApproval, withoutApproval, withQuestion, withoutQuestion } from './lib/approvals';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
   closeOtherPaneTabs, closeRightPaneTabs,
@@ -195,6 +195,9 @@ export default function App() {
   const [approvals, setApprovals] = useState({});
   // AskUser questions, held the same way and for the same reason.
   const [questions, setQuestions] = useState({});
+  // Who is blocked on the user, for the tabs and sidebar rows that are not
+  // showing that chat's prompt.
+  const waiting = useMemo(() => waitingOn(approvals, questions), [approvals, questions]);
 
   useEffect(() => {
     const unsubs = [
@@ -1170,6 +1173,7 @@ export default function App() {
             if (d) moveCenterTab(d.fromPane, d.key, pane.id, beforeKey);
           }}
           onCloseOthers={(key) => closeCenterOthers(pane.id, key)}
+          waitingSessions={waiting.sessions}
           onCloseRight={(key) => closeCenterRight(pane.id, key)}
           onCopyPath={copyCenterPath}
         />
@@ -1212,6 +1216,7 @@ export default function App() {
             projects={projects}
             currentProject={currentProject}
             sessionsByProject={sessionsByProject}
+            waiting={waiting}
             highlightSessionId={highlightSessionId}
             sessionFilter={sessionFilter}
             onSessionFilterChange={setSessionFilter}

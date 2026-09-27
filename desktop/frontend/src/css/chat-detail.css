@@ -790,6 +790,20 @@
   margin-left: auto;
 }
 
+/* ── Attention dot: a chat not on screen is waiting on the user ────────── */
+
+.attention-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #f59e0b 25%, transparent);
+  vertical-align: middle;
+}
+
 /* ── Question panel (AskUser; reuses the approval panel's frame) ───────── */
 
 .question-panel {

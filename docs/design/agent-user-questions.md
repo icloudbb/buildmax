@@ -148,7 +148,10 @@ an option, or check it on a multi-select question, which a Confirm button
 then sends. Each question also has its own answer field, and a Dismiss button
 dismisses the whole set. A digit picks or checks an option unless focus is in
 a text field. Like approval keys, question keys work only in the
-focused pane.
+focused pane. A chat that is not on screen still says it is waiting: an amber
+dot marks its tab when another tab is active, its session and project rows in
+the sidebar, and the collapsed Projects header. A pending approval sets the
+same dot, since both stop the run on the user.
 
 ## Lifecycle And Failure
 
@@ -189,6 +192,3 @@ focused pane.
   questions, the likely shape is to end the TaskRun with the question in its
   result and answer it by Continue. First measure whether the tool makes
   unattended Agents ask instead of act.
-- **Attention signals.** Desktop does not yet badge a hidden chat tab that is
-  waiting on a question. The `user_question` notification hook is the
-  integration point for now.

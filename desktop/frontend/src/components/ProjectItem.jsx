@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatSessionMeta } from '../lib/format';
 import { Chevron, MoreIcon, PinIcon, PlusIcon } from './icons';
+import { AttentionDot } from './TabBar';
 
 export const SESSION_PAGE_SIZE = 10;
 
-export function ProjectItem({ project, sessions, isActive, selectedSessionId, onSelectSession, onNewChat, onRename, onDelete, onClearSessions, onRenameSession, onDeleteSession, onPinSession }) {
+export function ProjectItem({ project, sessions, isActive, selectedSessionId, onSelectSession, onNewChat, onRename, onDelete, onClearSessions, onRenameSession, onDeleteSession, onPinSession, waitingSessions, waiting = false }) {
   const [expanded, setExpanded] = useState(isActive);
   const [showMenu, setShowMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -118,6 +119,7 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
           ) : (
             <span className="sidebar__row-label">{project.name}</span>
           )}
+          {waiting && !renaming && <AttentionDot />}
         </button>
 
         <div className={`sidebar__row-actions${showMenu ? ' sidebar__row-actions--open' : ''}`} ref={menuRef}>
@@ -182,6 +184,7 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
                 >
                   {s.pinned && <span className="sidebar__row-pin" aria-label="Pinned"><PinIcon /></span>}
                   <span className="sidebar__row-label">{s.title?.trim() || 'Chat'}</span>
+                  {waitingSessions?.has(s.id) && <AttentionDot />}
                   <span className="sidebar__row-meta">{formatSessionMeta(s.created_at)}</span>
                 </button>
               )}

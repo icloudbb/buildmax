@@ -11,6 +11,20 @@ const tabs = [
 ];
 
 describe('TabBar', () => {
+  // A chat behind the active tab has no other way to say its run is stopped on
+  // the user; the active one already shows its prompt.
+  it('marks a hidden chat tab that is waiting on the user', () => {
+    const chats = [
+      { key: 'chat:a', kind: 'chat', title: 'A', sessionId: 'a' },
+      { key: 'chat:b', kind: 'chat', title: 'B', sessionId: 'b' },
+      { key: 'chat:c', kind: 'chat', title: 'C', sessionId: 'c' },
+    ];
+    render(<TabBar tabs={chats} activeKey="chat:a" onSelect={() => {}} onClose={() => {}} waitingSessions={new Set(['a', 'b'])} />);
+    const marked = screen.getAllByLabelText('Waiting for your answer');
+    expect(marked).toHaveLength(1);
+    expect(screen.getByRole('tab', { name: /B/ }).contains(marked[0])).toBe(true);
+  });
+
   it('renders one tab per entry with the active one selected', () => {
     render(<TabBar tabs={tabs} activeKey="terminal:t1" onSelect={() => {}} onClose={() => {}} />);
     expect(screen.getAllByRole('tab')).toHaveLength(3);

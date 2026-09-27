@@ -40,6 +40,7 @@ export function Sidebar({
   projectActions,
   explorer,
   account,
+  waiting,
 }) {
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [projectSectionOpen, setProjectSectionOpen] = useState(true);
@@ -146,7 +147,7 @@ export function Sidebar({
       </nav>
 
       <section className={`sidebar__projects ${projectsFlex}`} aria-label="Projects">
-        <SidebarSectionHeader label="Projects" open={projectsOpen} onToggle={() => setProjectsOpen((v) => !v)}>
+        <SidebarSectionHeader label="Projects" open={projectsOpen} onToggle={() => setProjectsOpen((v) => !v)} attention={(waiting?.projects.size ?? 0) > 0}>
           <button
             type="button"
             className="sidebar__icon-btn"
@@ -208,6 +209,8 @@ export function Sidebar({
                       onRenameSession={projectActions.onRenameSession}
                       onDeleteSession={projectActions.onDeleteSession}
                       onPinSession={projectActions.onPinSession}
+                      waitingSessions={waiting?.sessions}
+                      waiting={!!waiting?.projects.has(proj.id)}
                     />
                   ))}
                   {!showAllProjects && projects.length > PROJECT_PAGE_SIZE && (

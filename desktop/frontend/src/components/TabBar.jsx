@@ -51,10 +51,16 @@ function RestoreIcon() {
   );
 }
 
+export function AttentionDot() {
+  return (
+    <span className="attention-dot" role="status" title="Waiting for your answer" aria-label="Waiting for your answer" />
+  );
+}
+
 export function TabBar({
   tabs, activeKey, onSelect, onClose, onPin, onRename, onNewTab, onSplitRight, onSplitDown,
   onToggleMaximize, maximized, onTabDragStart, onTabDragEnd, onTabDrop,
-  onCloseOthers, onCloseRight, onCopyPath,
+  onCloseOthers, onCloseRight, onCopyPath, waitingSessions,
 }) {
   // The open context menu ({ key, x, y }), the tab being renamed inline and its
   // draft text, and the live drop indicator ({ key, after }) while a tab is
@@ -144,6 +150,11 @@ export function TabBar({
             >
               <span className="workspace-tabs__tab-icon" aria-hidden>{KIND_ICON[t.kind] ?? ''}</span>
               <span className="workspace-tabs__tab-title">{t.title}</span>
+              {/* The active tab shows its own prompt; a tab behind it has no
+                  other way to say its run is stopped on the user. */}
+              {t.kind === 'chat' && t.key !== activeKey && waitingSessions?.has(t.sessionId) && (
+                <AttentionDot />
+              )}
             </button>
           )}
           {t.closable !== false && (
