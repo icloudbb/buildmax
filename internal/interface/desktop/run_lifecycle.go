@@ -28,6 +28,8 @@ type desktopRun struct {
 	// OnStart announces the real id it created for the frontend to adopt.
 	wasNew  bool
 	handler agent.ApprovalHandler
+	// questioner answers AskUser; bound with handler, and nil where it is.
+	questioner agent.UserQuestioner
 	// touchLastUsed advances the project's recency stamp after each good turn.
 	// A user prompt does; a background delivery does not, because the user did
 	// not reach for the project.
@@ -43,10 +45,11 @@ type desktopRun struct {
 
 func (r *desktopRun) RunOpts() agentapp.RunPromptOpts {
 	return agentapp.RunPromptOpts{
-		Stream:    &desktopStreamSink{ctx: r.ctx, emit: r.app.emit, session: func() string { return r.sessionID }},
-		Approval:  r.handler,
-		EventSink: desktopEventSink(r.app.emit, r.ctx, func() string { return r.sessionID }, func() []string { return r.app.scheduler.Queued(r.key) }),
-		Digest:    true,
+		Stream:     &desktopStreamSink{ctx: r.ctx, emit: r.app.emit, session: func() string { return r.sessionID }},
+		Approval:   r.handler,
+		Questioner: r.questioner,
+		EventSink:  desktopEventSink(r.app.emit, r.ctx, func() string { return r.sessionID }, func() []string { return r.app.scheduler.Queued(r.key) }),
+		Digest:     true,
 	}
 }
 

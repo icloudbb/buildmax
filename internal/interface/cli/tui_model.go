@@ -37,6 +37,7 @@ type TUIOpts struct {
 	Workspace    util.Workspace
 	SessionsDir  string
 	Approval     agent.ApprovalHandler
+	Questioner   agent.UserQuestioner
 	GlamourStyle string // "dark" or "light", detected once before the program starts
 	RunStatus    agentapp.RunUsage
 }
@@ -156,7 +157,9 @@ type Model struct {
 	userEmail           string
 	pendingApproval     *approvalRequestMsg
 	approvalSelected    int
-	runStatus           agentapp.RunUsage
+	// question is the AskUser panel while a question set waits for answers.
+	question  *questionForm
+	runStatus agentapp.RunUsage
 	// queue holds messages typed while a run was in flight. It is drained one
 	// message per turn, after the run that was busy when they arrived finishes.
 	queue *agent.MessageQueue
@@ -313,11 +316,12 @@ func runAgentWithStream(owner *tuiRunOwner, opts TUIOpts, text string, channel c
 		sink := &streamSinkToChannel{ctx: ctx, channel: channel}
 		evSink := eventSinkToChannel(ctx, channel)
 		result, err := opts.App.RunPrompt(ctx, opts.Session, text, agentapp.RunPromptOpts{
-			Stream:    sink,
-			Approval:  opts.Approval,
-			EventSink: evSink,
-			Pending:   queue,
-			Digest:    true,
+			Stream:     sink,
+			Approval:   opts.Approval,
+			Questioner: opts.Questioner,
+			EventSink:  evSink,
+			Pending:    queue,
+			Digest:     true,
 		})
 		sendTUIMessage(ctx, channel, agentDoneMsg{Result: result, Err: err})
 	})
@@ -409,6 +413,12 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.answerApproval(agent.ApprovalDeny)
 		}
 		return m, nil
+	}
+	// A question panel owns the keyboard, answer field included. Approval comes
+	// first: a question is itself a tool call, so the two cannot be up at once,
+	// but a prompt that is up must not lose its keys.
+	if m.question != nil {
+		return m, handleQuestionKey(m, msg)
 	}
 	// Tab accepts the ghost suggestion. With nothing on offer it stays what it
 	// was: a no-op, because transcript mode has no viewport to move focus to.
@@ -1064,6 +1074,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pendingApproval = &msg
 		m.approvalSelected = 0
 		return m, nil
+	case questionRequestMsg:
+		m.question = newQuestionForm(&msg, m.width)
+		return m, nil
+	case tea.PasteMsg:
+		if m.question != nil {
+			return m, handleQuestionPaste(m, msg)
+		}
+		cmd := m.inputBlock.Update(msg)
+		m.inputBlock.SyncHeight()
+		m.syncSlashPopupFromInput()
+		return m, cmd
+	case questionWithdrawnMsg:
+		return handleQuestionWithdrawn(m, msg)
 	case assistantRenderedMsg:
 		if msg.continueStream {
 			if msg.line == "" {
@@ -1117,7 +1140,11 @@ func (m *Model) View() tea.View {
 				parts = append(parts, "  "+spinner+" "+t.label())
 			}
 		}
-		parts = append(parts, m.renderBusyHint())
+		// The hint offers "enter: queue message", which is not what Enter does
+		// while a question panel has the keyboard.
+		if m.question == nil {
+			parts = append(parts, m.renderBusyHint())
+		}
 	}
 
 	// Slash panels (only shown when not busy).
@@ -1134,8 +1161,15 @@ func (m *Model) View() tea.View {
 	if s := m.renderApprovalPanel(); s != "" {
 		parts = append(parts, s)
 	}
+	if s := m.renderQuestionPanel(); s != "" {
+		parts = append(parts, s)
+	}
 
-	parts = append(parts, m.renderInputView())
+	// The question panel carries its own answer field; a second, idle input
+	// under it would suggest the answer goes there.
+	if m.question == nil {
+		parts = append(parts, m.renderInputView())
+	}
 	parts = append(parts, m.renderFooterView())
 	return tea.NewView(strings.Join(parts, "\n"))
 }

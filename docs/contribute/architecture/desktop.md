@@ -70,7 +70,9 @@ terminal shell, cancels active runs, and closes all cached runtimes.
 3. The core run emits LLM, tool, usage, and stream events.
 4. The bridge forwards those events through Wails (`desktop/*` event names).
 5. The React frontend renders deltas and returns approval decisions through
-   `RespondApproval`, quoting the `approval_id` of the request it answers.
+   `RespondApproval`, quoting the `approval_id` of the request it answers, and
+   answers to `AskUser` questions through `RespondQuestion`, quoting the
+   `question_id`.
 6. Session persistence and durable traces are handled by `agentapp`, exactly as
    for the CLI.
 
@@ -267,6 +269,16 @@ session's request when its run ends. Approval shortcuts are active only in the
 focused pane, so one key press never answers two sessions. "Allow for session"
 grants are held per session by `agentapp`, so they never carry to another
 session of the project.
+
+`AskUser` questions follow the same per-run, per-id model. Each project run
+also gets a `runQuestioner`, and `App` holds unanswered questions in the same
+`pendingAnswers` bookkeeping. `desktop/question-request` carries `question_id`,
+the project and session ids, and `questions`. The frontend shows the set above
+that session's composer, one question at a time, and answers with
+`RespondQuestion(question_id, answers, declined)`, one answer per question. An
+empty answer that is not a dismissal is refused. Only project apps set `EnableAskUser`; the
+directory-hosted apps for scheduled and projectless runs never offer the tool.
+See [design/agent-user-questions.md](../../design/agent-user-questions.md).
 
 A browser tab shows a read-only live view of the Agent's browser page for one
 session, rendered from the `desktop/browser/frame` screencast.

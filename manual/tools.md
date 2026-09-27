@@ -27,6 +27,7 @@ so they are worth knowing exactly.
 | `JobOutput` | Read a background job's status and output incrementally | `job_id`, `stream`, `cursor` |
 | `JobStop` | Stop a background job (kills the whole process tree) | `job_id` |
 | `Monitor` | Watch logs, files, or CI: each stdout line becomes a bounded event | `command`, `description`, `timeout`, `persistent`, `react` |
+| `AskUser` | Ask you up to four questions and wait for your answers: pick an option, check several, or type your own (TUI and Desktop) | `questions[]` of `{question, header, options[], multi_select}` |
 | `Worktree` | Create, enter, leave, list, or remove a Git worktree, moving the session into it | `action`, `name`, `path`, `discard_changes` |
 | `LoadMcpTools` / `CallMcpTool` | Discover and invoke MCP server tools | see [MCP](mcp.md) |
 | `MemoryRead` | Open the bodies of project memories. Available on a local run with project memory. | `names` |
@@ -68,6 +69,22 @@ background job shares the workspace with the conversation — avoid delegating
 edits that would race yours — and quitting the application stops every job it
 started. A background subagent's final reply appears in `JobOutput` when it
 completes.
+
+`AskUser` is how the agent asks you to decide something instead of guessing: an
+ambiguous requirement, a choice between approaches, a fact only you know. It
+can ask up to four questions at once, each in its own form: pick one option,
+check several, or type an answer. The panel appears above the input and
+shows one question at a time. In the TUI, press an option's number (or move
+with ↑↓ and press Enter). Space checks an option on a multi-select question.
+To type your own answer, move down to the ✎ line under the question. Tab
+switches between questions, and Esc dismisses the whole set. Desktop shows the
+same choices as buttons, with a tab per question, an answer field under each
+question, and a Dismiss button. The run waits until every question is
+answered; cancelling the turn withdraws the questions. It exists only in
+the TUI and Desktop project chats. Print mode, workers, scheduled runs, and
+subagents never get it, because nobody is there to answer. A `Notification`
+hook fires with `notification_kind` `user_question` when a question goes up, so a
+notifier can tell you the agent is waiting on you.
 
 The `Browser` tools let the agent verify a change against a real, rendered page
 — it navigates, snapshots the page's interactive elements and text, clicks and

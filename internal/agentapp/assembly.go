@@ -75,6 +75,9 @@ func buildSystemPromptWithLayers(workspaceDir, modelName, spaceInstructions, add
 	if caps.Artifacts {
 		appendLayer("artifacts", artifactPromptLayer)
 	}
+	if caps.AskUser {
+		appendLayer("ask_user", askUserPromptLayer)
+	}
 	if caps.Issue != nil {
 		appendLayer("issue", issuePromptLayer(caps.Issue))
 	}

@@ -62,6 +62,8 @@ When referring to specific code, use the pattern file_path:line_number so the us
 type PromptCapabilities struct {
 	// Artifacts is true when this surface registered the artifact tool.
 	Artifacts bool
+	// AskUser is true when this surface registered the AskUser tool.
+	AskUser bool
 	// Issue, when non-nil, says this run is working one space Issue, so the
 	// prompt can point the Agent at `buildmax issue`. There is no in-process
 	// Issue tool to discover; the command surface is how the Agent reaches it.
@@ -106,6 +108,12 @@ func issuePromptLayer(ctx *IssueContext) string {
 // how to call it stays on the tool.
 const artifactPromptLayer = `# Delivering files
 When your work produces a file someone is meant to receive — a report, an export, a generated document — publish it with the UploadArtifact tool and cite the reference it returns in your final answer. A path on this machine is not something the person can open. Publish the finished file only, once, and never one holding credentials or configuration.`
+
+// askUserPromptLayer steers the one habit the tool's description could not:
+// in a real-model run a model given only the description still asked in prose
+// and ended its turn, leaving the user to type what one click would have sent.
+const askUserPromptLayer = `# Asking the user
+When the user has to decide something — an ambiguous requirement, a choice between approaches, a fact only they know — ask with the AskUser tool instead of ending your reply with a question — several related decisions together in one call — and offer the likely answers as options with your recommendation first. You get the answer back and continue in the same turn. Do not ask about what you can find out or reasonably decide yourself.`
 
 // AgentsMdFilename is the name of the workspace-level agent instructions file
 // per the agents.md convention (https://agents.md/).

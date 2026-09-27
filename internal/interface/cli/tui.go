@@ -51,7 +51,10 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		// The TUI is where a user can see which tree the session is in and
 		// answer a removal prompt, which is what makes moving the root safe
 		// to do autonomously. See docs/design/workspace-root-and-worktrees.md D8.
-		EnableWorktrees:      true,
+		EnableWorktrees: true,
+		// Someone is at the terminal to answer. See
+		// docs/design/agent-user-questions.md.
+		EnableAskUser:        true,
 		EnableLocalProject:   true,
 		DisableProjectMemory: overrides.NoProjectMemory,
 		// Local run under the user's own authority: the browser capability is
@@ -76,6 +79,7 @@ func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, over
 	// and the approval handler's relay forwarders are set once the app exists.
 	promptSink := newRemotePromptSink()
 	approval := NewTUIApprovalHandler()
+	questions := NewTUIQuestionHandler()
 	cfg := tuiAppConfig(workspace, additionalSystemPrompt, source, overrides)
 	cfg.RemotePromptHandler = promptSink.Deliver
 	cfg.RemoteCancelHandler = promptSink.Cancel
@@ -141,6 +145,7 @@ func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, over
 		Workspace:    app.Workspace(),
 		SessionsDir:  app.SessionsDir(),
 		Approval:     approval,
+		Questioner:   questions,
 		GlamourStyle: glamourStyle,
 		RunStatus:    runStatus,
 	}
@@ -148,6 +153,7 @@ func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, over
 	defer model.Close()
 	p := tea.NewProgram(model)
 	approval.SetProgram(p)
+	questions.SetProgram(p)
 	promptSink.SetProgram(p)
 	if _, err := p.Run(); err != nil {
 		slog.Error("TUI failed", "err", err)

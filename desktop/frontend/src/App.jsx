@@ -15,7 +15,7 @@ import { LaunchpadButton } from './components/LaunchpadButton';
 import { GridIcon, MoonIcon, SidebarIcon, SplitRightIcon, SunIcon } from './components/icons';
 import { readStored, writeStored } from './lib/storage';
 import { activeTab, tabIdentity } from './lib/tabs';
-import { withApproval, withoutApproval } from './lib/approvals';
+import { withApproval, withoutApproval, withQuestion, withoutQuestion } from './lib/approvals';
 import {
   emptyWorkspace, openInFocused, focusPaneTab, focusPane, pinPaneTab, closePaneTab,
   closeOtherPaneTabs, closeRightPaneTabs,
@@ -193,12 +193,21 @@ export default function App() {
   // not in ChatSession, so a prompt raised while its chat tab is not on screen is
   // still waiting when the tab is shown. A run that ends withdraws its prompt.
   const [approvals, setApprovals] = useState({});
+  // AskUser questions, held the same way and for the same reason.
+  const [questions, setQuestions] = useState({});
 
   useEffect(() => {
     const unsubs = [
       EventsOn('desktop/approval-request', (payload) => setApprovals((prev) => withApproval(prev, payload))),
-      EventsOn('desktop/stream-done', (p) => setApprovals((prev) => withoutApproval(prev, p?.session_id))),
-      EventsOn('desktop/stream-error', (p) => setApprovals((prev) => withoutApproval(prev, p?.session_id))),
+      EventsOn('desktop/question-request', (payload) => setQuestions((prev) => withQuestion(prev, payload))),
+      EventsOn('desktop/stream-done', (p) => {
+        setApprovals((prev) => withoutApproval(prev, p?.session_id));
+        setQuestions((prev) => withoutQuestion(prev, p?.session_id));
+      }),
+      EventsOn('desktop/stream-error', (p) => {
+        setApprovals((prev) => withoutApproval(prev, p?.session_id));
+        setQuestions((prev) => withoutQuestion(prev, p?.session_id));
+      }),
     ];
     return () => unsubs.forEach((unsub) => unsub?.());
   }, []);
@@ -943,6 +952,18 @@ export default function App() {
     }
   }, [app]);
 
+  // Answer one session's question set by its id: { answers } with one answer
+  // per question, or { declined: true }.
+  const handleAnswer = useCallback(async (request, { answers = [], declined = false }) => {
+    if (!request || !app) return;
+    setQuestions((prev) => withoutQuestion(prev, request.session_id, request.question_id));
+    try {
+      await app.RespondQuestion(request.question_id, answers, declined);
+    } catch (err) {
+      console.error('RespondQuestion failed:', err);
+    }
+  }, [app]);
+
   // --- Loading / auth screens ---
 
   if (!wailsReady) {
@@ -1049,6 +1070,8 @@ export default function App() {
             app={app}
             approvals={approvals}
             onRespond={handleRespond}
+            questions={questions}
+            onAnswer={handleAnswer}
             focused={pane.id === workspace.focused}
             onSessionAdopted={handleSessionAdopted}
             onSessionsChanged={refreshSessions}

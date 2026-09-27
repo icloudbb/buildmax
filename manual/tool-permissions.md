@@ -30,6 +30,7 @@ Two entries in that table are not what they look like:
 
 - **`Bash` says `allow`** because it judges each command instead of the category. An ordinary `ls` runs; a risky command asks; a catastrophic one is refused outright. It would otherwise prompt for every `git status`.
 - **`TodoWrite` and `NoteWrite` say `allow`** although they are writes. What they write is the agent's own scratch state, not your files.
+- **`AskUser` says `allow`** too: it only asks you a question, and a prompt asking whether to show a prompt would help nobody.
 
 ## Answering a prompt
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { withApproval, withoutApproval } from './approvals';
+import { withApproval, withoutApproval, withQuestion, withoutQuestion } from './approvals';
 
 const reqA = { approval_id: '1', session_id: 'sA', tool_name: 'Write' };
 const reqB = { approval_id: '2', session_id: 'sB', tool_name: 'Bash' };
@@ -30,5 +30,20 @@ describe('pending approvals', () => {
     const pending = withApproval(withApproval({}, reqA), reqB);
     expect(withoutApproval(pending, 'sB')).toEqual({ sA: reqA });
     expect(withoutApproval(pending, 'other')).toBe(pending);
+  });
+});
+
+describe('pending questions', () => {
+  const qA = { question_id: '1', session_id: 'sA', questions: [{ question: 'Which DB?' }] };
+
+  it('routes a question by session and clears it only by its own id', () => {
+    const pending = withQuestion({}, qA);
+    expect(pending).toEqual({ sA: qA });
+    expect(withoutQuestion(pending, 'sA', '2')).toBe(pending);
+    expect(withoutQuestion(pending, 'sA', '1')).toEqual({});
+  });
+
+  it('ignores a question without a question id', () => {
+    expect(withQuestion({}, { approval_id: '1', session_id: 'sA' })).toEqual({});
   });
 });

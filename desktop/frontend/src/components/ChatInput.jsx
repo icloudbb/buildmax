@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChatComposer } from '@buildmax/gui';
 import { formatTokenCount } from '../lib/format';
 import { ApprovalPanel } from './ApprovalPanel';
+import { QuestionPanel } from './QuestionPanel';
 import { JobsDrawer } from './JobsDrawer';
 import { HistoryModal } from './HistoryModal';
 import { AgentsModal, MCPModal, PluginsModal, ToolsModal, WorktreeModal } from './Modals';
@@ -133,7 +134,7 @@ export function ContextDonut({ status }) {
 
 // --- ChatInput ---
 
-export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, approvalKeys = true, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onShowInfo, onShowChanges, infoOpen, onToggleInfo }) {
+export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, approvalKeys = true, questionRequest, onAnswer, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onShowInfo, onShowChanges, infoOpen, onToggleInfo }) {
   const [prompt, setPrompt] = useState('');
 
   // A draft handed in (an Issue's "Start chat") fills the composer once and is
@@ -395,6 +396,9 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
     <div className="chat-input-wrap">
       {approvalRequest && (
         <ApprovalPanel key={approvalRequest.approval_id} request={approvalRequest} onRespond={onRespond} keys={approvalKeys} />
+      )}
+      {questionRequest && !approvalRequest && (
+        <QuestionPanel key={questionRequest.question_id} request={questionRequest} onAnswer={onAnswer} keys={approvalKeys} />
       )}
 
       {toolActivity && (
