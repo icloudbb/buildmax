@@ -69,6 +69,8 @@ func (h *Handler) RegisterPublic(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/remote-control/sessions/{session_id}/approval-stream", h.remoteSessionApprovalStreamHandler)
 	mux.HandleFunc("POST /api/remote-control/sessions/{session_id}/prompt", h.promptRemoteSessionHandler)
 	mux.HandleFunc("POST /api/remote-control/sessions/{session_id}/approval", h.approveRemoteSessionHandler)
+	mux.HandleFunc("GET /api/remote-control/sessions/{session_id}/question-stream", h.remoteSessionQuestionStreamHandler)
+	mux.HandleFunc("POST /api/remote-control/sessions/{session_id}/question", h.answerRemoteSessionQuestionHandler)
 	mux.HandleFunc("POST /api/remote-control/sessions/{session_id}/cancel", h.cancelRemoteSessionHandler)
 
 	// System administration lives in its own package: every route there requires

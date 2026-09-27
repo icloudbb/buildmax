@@ -86,6 +86,9 @@ func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, over
 	cfg.RemoteApprovalHandler = func(id, decision string) {
 		approval.Resolve(id, parseApprovalDecision(decision))
 	}
+	cfg.RemoteQuestionHandler = func(id string, answers []string, declined bool) {
+		questions.ResolveRemote(id, answers, declined)
+	}
 	app, err := agentapp.NewAgentApp(cfg)
 	if err != nil {
 		return err
@@ -94,6 +97,7 @@ func runTUI(sessionID, modelName, additionalSystemPrompt, workspace string, over
 	// The relay exists now; let the approval handler forward prompts to, and be
 	// resolved from, connected devices. No-ops when Remote Control is off.
 	approval.SetForwarders(app.SendRemoteApprovalRequest, app.SendRemoteApprovalResolved)
+	questions.SetForwarders(app.SendRemoteQuestionRequest, app.SendRemoteQuestionResolved)
 	for _, notice := range app.StartupNotices(relinkCommandHint) {
 		fmt.Fprintln(os.Stderr, notice)
 	}

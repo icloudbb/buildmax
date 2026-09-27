@@ -66,6 +66,8 @@ const (
 	TypeAgentEvent            = "agent.event"
 	TypeAgentApproval         = "agent.approval"
 	TypeAgentApprovalResolved = "agent.approval_resolved"
+	TypeAgentQuestion         = "agent.question"
+	TypeAgentQuestionResolved = "agent.question_resolved"
 )
 
 // AgentRegister is the payload for TypeAgentRegister: a local session announcing
@@ -99,12 +101,27 @@ type AgentApprovalResolved struct {
 	ID string `json:"id"`
 }
 
+// AgentQuestion is the payload for TypeAgentQuestion: an AskUser question set
+// the session raised, to be shown on connected devices so one of them can answer.
+// Questions stays raw: the server relays it to the viewer unread.
+type AgentQuestion struct {
+	ID        string          `json:"id"`
+	Questions json.RawMessage `json:"questions"`
+}
+
+// AgentQuestionResolved is the payload for TypeAgentQuestionResolved: a question
+// set was answered, dismissed, or withdrawn, so devices dismiss their copy.
+type AgentQuestionResolved struct {
+	ID string `json:"id"`
+}
+
 // Remote Control agent socket (server → client).
 const (
 	TypeAgentRegistered       = "agent.registered"
 	TypeAgentPrompt           = "agent.prompt"
 	TypeAgentApprovalResponse = "agent.approval_response"
 	TypeAgentCancel           = "agent.cancel"
+	TypeAgentQuestionResponse = "agent.question_response"
 )
 
 // AgentRegistered is the payload for TypeAgentRegistered: the server's reply to a
@@ -126,6 +143,15 @@ type AgentPrompt struct {
 type AgentApprovalResponse struct {
 	ID       string `json:"id"`
 	Decision string `json:"decision"`
+}
+
+// AgentQuestionResponse is the payload for TypeAgentQuestionResponse: another
+// device's answer to a pending question set, one answer per question, or a
+// dismissal of the whole set.
+type AgentQuestionResponse struct {
+	ID       string   `json:"id"`
+	Answers  []string `json:"answers,omitempty"`
+	Declined bool     `json:"declined,omitempty"`
 }
 
 // SubscribeTask is the payload for TypeSubscribeTask.

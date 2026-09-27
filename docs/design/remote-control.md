@@ -135,9 +135,16 @@ protocol shape):
   stream.
 - `agent.approval` / `agent.approval_resolved` — a pending tool-approval prompt,
   and notice that it was answered (locally or remotely) so devices dismiss it.
+- `agent.question` / `agent.question_resolved` — a pending `AskUser` question
+  set ([Agent questions to the user](agent-user-questions.md)) in the
+  `agent.Question` shape, and notice that it was answered, dismissed, or
+  withdrawn. The server relays the questions unread on a third stream-hub key,
+  `<session>:question`, beside the approval stream.
 
 Inbound, the server sends `agent.registered` and the commands `agent.prompt`,
-`agent.approval_response`, and `agent.cancel`. Delivering a command requires an
+`agent.approval_response`, `agent.question_response` (one answer per question,
+or a dismissal), and `agent.cancel`. The session, not the server, checks that an
+answer covers every question: the server never learns the set's shape. Delivering a command requires an
 in-memory registry to route it to the replica holding the socket (§9).
 
 ## 5. Live-Session Registry And Presence
@@ -216,7 +223,8 @@ Phase 5 (§8).
    ([queued messages](queued-messages.md)); introduces the in-memory registry for
    cross-replica command routing.
 3. **Remote tool approval** — shipped (#707): forward permission prompts and
-   return the decision.
+   return the decision. `AskUser` question sets ride the same pattern (a
+   question stream and a `question` command), first answer wins.
 4. **Cancel and reconnect hardening** — shipped (#708 cancel, #709 reconnect and
    reattach, #720 SSE keep-alive): inbound cancel; the relay buffers outbound
    frames and reconnects with backoff to the same session across brief

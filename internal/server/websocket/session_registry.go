@@ -75,6 +75,23 @@ func (r *SessionRegistry) DeliverApprovalResponse(sessionID, id, decision string
 	return true
 }
 
+// DeliverQuestionResponse sends a remote answer to a pending question set to the
+// session's socket if it is on this replica, returning whether it was delivered
+// here. A false result means the caller forwards over the bus.
+func (r *SessionRegistry) DeliverQuestionResponse(sessionID, id string, answers []string, declined bool) bool {
+	if r == nil || sessionID == "" {
+		return false
+	}
+	r.mu.RLock()
+	c := r.conns[sessionID]
+	r.mu.RUnlock()
+	if c == nil {
+		return false
+	}
+	c.sendEvent(TypeAgentQuestionResponse, AgentQuestionResponse{ID: id, Answers: answers, Declined: declined})
+	return true
+}
+
 // DeliverCancel asks the session to stop its current run, if its socket is on
 // this replica, returning whether it was delivered here.
 func (r *SessionRegistry) DeliverCancel(sessionID string) bool {

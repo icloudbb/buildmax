@@ -4940,6 +4940,52 @@
         }
       }
     },
+    "/api/remote-control/sessions/{session_id}/question-stream": {
+      "parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Watch a Remote Control session's pending AskUser questions",
+        "description": "Server-Sent Events carrying one or more newline-separated JSON question frames, each {id, questions} with questions in the AskUser shape (question, header, options[{label, description}], multi_select); a frame with resolved=true dismisses the one with the same id. Only the owning account may watch.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "An event stream of question frames"},
+          "401": {"description": "Missing or invalid token"},
+          "404": {"description": "No such session, or not owned by the caller"},
+          "503": {"description": "Remote control is not configured"}
+        }
+      }
+    },
+    "/api/remote-control/sessions/{session_id}/question": {
+      "parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Answer a pending AskUser question set on a Remote Control session",
+        "description": "Delivers one answer per question, in order, or a dismissal of the whole set, into the live session. The session checks that the answers cover every question; the first answer from any device wins. Only the owning account may answer.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["id"],
+                "properties": {
+                  "id": {"type": "string", "description": "The question set id"},
+                  "answers": {"type": "array", "items": {"type": "string"}, "description": "One non-empty answer per question, in order; required unless declined"},
+                  "declined": {"type": "boolean", "description": "Dismiss the whole set without answering"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {"description": "The answer was accepted for delivery"},
+          "400": {"description": "Missing id, or neither answers nor declined"},
+          "401": {"description": "Missing or invalid token"},
+          "404": {"description": "No such session, or not owned by the caller"},
+          "409": {"description": "The session is offline"},
+          "503": {"description": "Remote control is not configured"}
+        }
+      }
+    },
     "/api/remote-control/sessions/{session_id}/cancel": {
       "parameters": [{"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "post": {

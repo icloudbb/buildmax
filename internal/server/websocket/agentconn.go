@@ -25,6 +25,18 @@ type approvalFrame struct {
 	Resolved bool   `json:"resolved,omitempty"`
 }
 
+// QuestionStreamKey is the stream-hub key carrying a session's pending AskUser
+// question sets, beside the approval stream and for the same reason.
+func QuestionStreamKey(sessionID string) string { return sessionID + ":question" }
+
+// questionFrame is one line on the question stream: a pending set (Resolved
+// false) or its dismissal (Resolved true).
+type questionFrame struct {
+	ID        string          `json:"id"`
+	Questions json.RawMessage `json:"questions,omitempty"`
+	Resolved  bool            `json:"resolved,omitempty"`
+}
+
 // AgentConnDeps is everything a Remote Control agent socket needs. It is
 // deliberately narrow: this socket registers a live session, heartbeats it, and
 // relays its output into the stream hub — nothing else.
@@ -159,6 +171,24 @@ func (ac *agentConn) handleClientEvent(ctx context.Context, env Envelope) {
 			return
 		}
 		ac.appendApprovalFrame(approvalFrame{ID: p.ID, Resolved: true})
+	case TypeAgentQuestion:
+		if ac.sessionID == "" {
+			return
+		}
+		p, err := DecodePayload[AgentQuestion](env)
+		if err != nil || p.ID == "" {
+			return
+		}
+		ac.appendQuestionFrame(questionFrame{ID: p.ID, Questions: p.Questions})
+	case TypeAgentQuestionResolved:
+		if ac.sessionID == "" {
+			return
+		}
+		p, err := DecodePayload[AgentQuestionResolved](env)
+		if err != nil || p.ID == "" {
+			return
+		}
+		ac.appendQuestionFrame(questionFrame{ID: p.ID, Resolved: true})
 	default:
 		ac.sendEvent(TypeSystemError, SystemError{Error: "unknown event type: " + env.Type})
 	}
@@ -211,6 +241,16 @@ func (ac *agentConn) appendApprovalFrame(f approvalFrame) {
 		return
 	}
 	ac.deps.Hub.Append(ApprovalStreamKey(ac.sessionID), string(js)+"\n")
+}
+
+// appendQuestionFrame publishes one question frame onto the session's question
+// stream, newline-terminated like an approval frame.
+func (ac *agentConn) appendQuestionFrame(f questionFrame) {
+	js, err := json.Marshal(f)
+	if err != nil {
+		return
+	}
+	ac.deps.Hub.Append(QuestionStreamKey(ac.sessionID), string(js)+"\n")
 }
 
 func (ac *agentConn) writeLoop(ctx context.Context) {

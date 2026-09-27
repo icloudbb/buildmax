@@ -1085,8 +1085,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.inputBlock.SyncHeight()
 		m.syncSlashPopupFromInput()
 		return m, cmd
-	case questionWithdrawnMsg:
-		return handleQuestionWithdrawn(m, msg)
+	case questionResolvedMsg:
+		return handleQuestionResolved(m, msg)
 	case assistantRenderedMsg:
 		if msg.continueStream {
 			if msg.line == "" {

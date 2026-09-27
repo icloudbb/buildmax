@@ -51,17 +51,21 @@ func (h *Handler) agentWSUpgradeHandler(w http.ResponseWriter, r *http.Request) 
 // for the replica that holds the session's socket. Kind selects prompt vs
 // approval-response delivery.
 type remoteCommand struct {
-	SessionID  string `json:"session_id"`
-	Kind       string `json:"kind"`
-	Content    string `json:"content,omitempty"`
-	ApprovalID string `json:"approval_id,omitempty"`
-	Decision   string `json:"decision,omitempty"`
+	SessionID  string   `json:"session_id"`
+	Kind       string   `json:"kind"`
+	Content    string   `json:"content,omitempty"`
+	ApprovalID string   `json:"approval_id,omitempty"`
+	Decision   string   `json:"decision,omitempty"`
+	QuestionID string   `json:"question_id,omitempty"`
+	Answers    []string `json:"answers,omitempty"`
+	Declined   bool     `json:"declined,omitempty"`
 }
 
 const (
 	commandKindPrompt   = "prompt"
 	commandKindApproval = "approval"
 	commandKindCancel   = "cancel"
+	commandKindQuestion = "question"
 )
 
 type remotePromptRequest struct {
@@ -71,6 +75,12 @@ type remotePromptRequest struct {
 type remoteApprovalRequest struct {
 	ID       string `json:"id"`
 	Decision string `json:"decision"`
+}
+
+type remoteQuestionRequest struct {
+	ID       string   `json:"id"`
+	Answers  []string `json:"answers"`
+	Declined bool     `json:"declined"`
 }
 
 // promptRemoteSessionHandler delivers a follow-up prompt to a live session, after
@@ -110,6 +120,43 @@ func (h *Handler) approveRemoteSessionHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	h.deliverRemoteApproval(sess.ID, req.ID, req.Decision)
+	httputil.WriteJSON(w, http.StatusAccepted, map[string]bool{"accepted": true})
+}
+
+// answerRemoteSessionQuestionHandler delivers an answer to a pending AskUser
+// question set to a live session. The server does not know the set's shape; the
+// session checks that the answer covers every question, and a pending set whose
+// answer it refuses stays up there to be answered again.
+func (h *Handler) answerRemoteSessionQuestionHandler(w http.ResponseWriter, r *http.Request) {
+	var req remoteQuestionRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	if req.ID == "" {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "id required")
+		return
+	}
+	if !req.Declined {
+		if len(req.Answers) == 0 {
+			httputil.WriteJSONError(w, http.StatusBadRequest, "answers or declined required")
+			return
+		}
+		for _, a := range req.Answers {
+			if strings.TrimSpace(a) == "" {
+				httputil.WriteJSONError(w, http.StatusBadRequest, "every answer must be non-empty")
+				return
+			}
+		}
+	}
+	sess, ok := h.ownedOnlineSession(w, r)
+	if !ok {
+		return
+	}
+	answers := req.Answers
+	if req.Declined {
+		answers = nil
+	}
+	h.deliverRemoteQuestion(sess.ID, req.ID, answers, req.Declined)
 	httputil.WriteJSON(w, http.StatusAccepted, map[string]bool{"accepted": true})
 }
 
@@ -155,6 +202,15 @@ func (h *Handler) deliverRemoteApproval(sessionID, id, decision string) {
 	h.forwardCommand(remoteCommand{SessionID: sessionID, Kind: commandKindApproval, ApprovalID: id, Decision: decision})
 }
 
+// deliverRemoteQuestion sends an answer to the session's socket, or forwards it
+// over the bus for the replica that holds the socket.
+func (h *Handler) deliverRemoteQuestion(sessionID, id string, answers []string, declined bool) {
+	if h.sessionRegistry.DeliverQuestionResponse(sessionID, id, answers, declined) {
+		return
+	}
+	h.forwardCommand(remoteCommand{SessionID: sessionID, Kind: commandKindQuestion, QuestionID: id, Answers: answers, Declined: declined})
+}
+
 // deliverRemoteCancel asks the session to stop its run, locally or over the bus.
 func (h *Handler) deliverRemoteCancel(sessionID string) {
 	if h.sessionRegistry.DeliverCancel(sessionID) {
@@ -187,6 +243,8 @@ func (h *Handler) consumeRemoteCommands(incoming <-chan []byte) {
 			h.sessionRegistry.DeliverApprovalResponse(cmd.SessionID, cmd.ApprovalID, cmd.Decision)
 		case commandKindCancel:
 			h.sessionRegistry.DeliverCancel(cmd.SessionID)
+		case commandKindQuestion:
+			h.sessionRegistry.DeliverQuestionResponse(cmd.SessionID, cmd.QuestionID, cmd.Answers, cmd.Declined)
 		}
 	}
 }
@@ -285,6 +343,16 @@ func (h *Handler) remoteSessionApprovalStreamHandler(w http.ResponseWriter, r *h
 		return
 	}
 	h.serveHubSSE(w, r, wsconn.ApprovalStreamKey(sess.ID))
+}
+
+// remoteSessionQuestionStreamHandler streams a session's pending AskUser
+// question sets over SSE, on the question hub key.
+func (h *Handler) remoteSessionQuestionStreamHandler(w http.ResponseWriter, r *http.Request) {
+	sess, ok := h.ownedSession(w, r)
+	if !ok {
+		return
+	}
+	h.serveHubSSE(w, r, wsconn.QuestionStreamKey(sess.ID))
 }
 
 // sseHeartbeatInterval is how often serveHubSSE emits a keep-alive comment. It

@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from "react"
+import { QuestionForm, type QuestionAnswer } from "@buildmax/gui"
 import { navigate } from "../../router"
 import {
   cancelRemoteSession,
   listRemoteSessions,
   respondRemoteApproval,
+  respondRemoteQuestion,
   sendRemotePrompt,
   streamRemoteApprovals,
+  streamRemoteQuestions,
   streamRemoteSession,
   type ApprovalFrame,
+  type QuestionFrame,
   type RemoteSession,
 } from "../../features/remoteControl/api"
 
@@ -74,6 +78,7 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [approval, setApproval] = useState<ApprovalFrame | null>(null)
+  const [question, setQuestion] = useState<QuestionFrame | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
 
   // Header meta and presence: fetched from the list, which is the only place a
@@ -158,6 +163,34 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
     return () => controller.abort()
   }, [token, sessionId])
 
+  // Pending AskUser question sets: a third stream of request/dismiss frames,
+  // reconnected like the approval stream. The session's own panel is still up;
+  // whichever device answers first wins, and the other is dismissed.
+  useEffect(() => {
+    if (!token) return
+    const controller = new AbortController()
+    setQuestion(null)
+    void reconnectingStream(controller.signal, async () => {
+      await streamRemoteQuestions(
+        sessionId,
+        token,
+        {
+          onFrame: (frame) => {
+            setQuestion((prev) => {
+              if (frame.resolved) return prev && prev.id === frame.id ? null : prev
+              return frame.questions?.length ? frame : prev
+            })
+          },
+          onDone: () => {},
+          onError: () => {},
+          onDraining: () => {},
+        },
+        { signal: controller.signal }
+      )
+    })
+    return () => controller.abort()
+  }, [token, sessionId])
+
   // Keep the newest output in view as it streams.
   useEffect(() => {
     const el = bodyRef.current
@@ -182,6 +215,17 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
     setApproval(null) // optimistic; a resolved frame confirms
     try {
       await respondRemoteApproval(sessionId, id, decision, token)
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  async function answerQuestion(answer: QuestionAnswer) {
+    if (!question || !token) return
+    const id = question.id
+    setQuestion(null) // optimistic; a resolved frame confirms
+    try {
+      await respondRemoteQuestion(sessionId, id, answer, token)
     } catch (err) {
       setSendError(err instanceof Error ? err.message : String(err))
     }
@@ -261,6 +305,13 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
               Deny
             </button>
           </div>
+        </div>
+      ) : null}
+
+      {question?.questions && online ? (
+        <div className="rc-question" role="dialog" aria-label="Question from the agent">
+          {/* keyed by id: a new set starts on its first question with no answers */}
+          <QuestionForm key={question.id} questions={question.questions} onAnswer={(a) => void answerQuestion(a)} />
         </div>
       ) : null}
 
