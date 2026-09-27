@@ -910,6 +910,7 @@ func buildWorkerRunner(wc config.ServerWorkerConfig, stopGrace time.Duration) (s
 				CAConfigMapName: wc.K8s.CAConfigMap,
 				CAMountPath:     wc.ServerCAFile,
 				HomeDir:         wc.K8s.HomeDir,
+				FinishedJobTTL:  wc.K8s.FinishedJobTTL,
 				Resources: k8s.PodResources{
 					CPURequest:              wc.K8s.Resources.CPURequest,
 					CPULimit:                wc.K8s.Resources.CPULimit,

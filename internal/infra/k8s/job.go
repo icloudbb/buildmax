@@ -81,6 +81,14 @@ type PodConfig struct {
 	// Resources bounds the pod's CPU and memory. Every bound is required;
 	// NewK8sJobRunner refuses a configuration that would leave one off the Job.
 	Resources PodResources
+	// FinishedJobTTL becomes the Job's ttlSecondsAfterFinished, and Kubernetes'
+	// TTL controller deletes the Job and its pod once it passes; zero deletes
+	// them on finish. Nothing reads a Job after it finishes — the run's result
+	// arrives through the worker API — so the window exists only for
+	// `kubectl logs`. It is short by default because a finished pod still holds
+	// its emptyDir scratch disk on the node and its Job spec carries the run
+	// token.
+	FinishedJobTTL time.Duration
 }
 
 // PodResources holds Kubernetes quantity strings, e.g. "500m" or "1Gi". All
@@ -283,6 +291,9 @@ func NewK8sJobRunner(namespace, image string, env []corev1.EnvVar, pod PodConfig
 	if err != nil {
 		return nil, err
 	}
+	if pod.FinishedJobTTL < 0 {
+		return nil, fmt.Errorf("worker.k8s.finished_job_ttl = %s must not be negative", pod.FinishedJobTTL)
+	}
 	return &K8sJobRunner{namespace: namespace, image: image, env: env, pod: pod, resources: resources, client: client}, nil
 }
 
@@ -402,7 +413,8 @@ func (r *K8sJobRunner) Run(ctx context.Context, run coretask.Run, runToken strin
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: jobName, Namespace: r.namespace, Labels: WorkerPodLabels()},
 		Spec: batchv1.JobSpec{
-			BackoffLimit: util.Ptr(int32(3)),
+			BackoffLimit:            util.Ptr(int32(3)),
+			TTLSecondsAfterFinished: util.Ptr(int32(r.pod.FinishedJobTTL / time.Second)),
 			Template: corev1.PodTemplateSpec{
 				// The pod labels are what the NetworkPolicy selects, so they must
 				// be on the template, not only the Job.

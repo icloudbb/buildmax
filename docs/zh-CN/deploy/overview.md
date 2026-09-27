@@ -72,7 +72,7 @@ buildmax-server                 # honours port from server.yaml, or --port
 
 调度器随服务器启动。它启动 `worker.binary`，因此 `buildmax-worker` 必须位于 `PATH` 中或服务器二进制旁边，且 Worker 必须能携带服务器签发的 Run 令牌访问 `worker.server_url`。在默认的 `local_process` 模式下，Worker 是服务器同一 uid 下的子进程，两者处于同一信任域，见[运行边界](#运行边界)。
 
-设置 `worker.run_mode: k8s_job` 后，调度器会使用 `worker.k8s.namespace` 和 `worker.k8s.image`，为每次运行创建 Kubernetes Job，而非本地进程。此模式还要求完整配置四个 `worker.k8s.resources` 边界；否则服务器拒绝启动，不会调度资源无界的 Worker。
+设置 `worker.run_mode: k8s_job` 后，调度器会使用 `worker.k8s.namespace` 和 `worker.k8s.image`，为每次运行创建 Kubernetes Job，而非本地进程。此模式还要求完整配置四个 `worker.k8s.resources` 边界；否则服务器拒绝启动，不会调度资源无界的 Worker。已结束的 Worker Job 及其 Pod 会在 `worker.k8s.finished_job_ttl`（默认 5 分钟）后由 Kubernetes 删除，因此请在该窗口内读取 Worker 的 Pod 日志，或调大该值；运行结果和 Trace 不依赖这些日志。
 
 此模式中，Worker Pod 需要与服务器相同的 `server.yaml`。`worker.k8s.config_map` 指定包含 `server.yaml` 键的 ConfigMap，调度器将其挂载到每个 Worker Pod 的 `worker.k8s.home_dir`，并将 Pod 的 `BUILDMAX_HOME` 设为该目录。凭证通过继承的 `BUILDMAX_*` 环境变量传入 Worker Pod。如果 `config_map` 为空，Worker Pod 会回退到内置默认值，这几乎不会是你想要的配置。
 

@@ -101,6 +101,10 @@ data:
         # it from the same CA that signed the buildmax-worker-api-tls Secret.
         ca_config_map: buildmax-worker-api-ca
         home_dir: /buildmax
+        # Keep finished worker Jobs and their pods long enough to read a failed
+        # run's pod logs; the 5m default suits development clusters. Drop it to
+        # 0s when a log collector already ships worker pod logs.
+        finished_job_ttl: 1h
         # Worker pods run root with every Linux capability dropped except
         # SYS_ADMIN, a Localhost seccomp profile, and an Unconfined AppArmor
         # profile -- see docs/reference/configuration.md's "How A Worker Pod
