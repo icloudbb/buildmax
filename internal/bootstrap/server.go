@@ -673,7 +673,6 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		},
 		Webhook: httpserver.WebhookConfig{
 			MessagePath: sc.Webhook.MessagePath,
-			UserID:      sc.Webhook.UserID,
 		},
 		Audit:     audit.NewRecorder(st),
 		Readiness: readinessChecks(st, storage.persist),

@@ -183,10 +183,10 @@ type ConversationConfig struct {
 	LLMGateway *llmgateway.Service
 }
 
-// WebhookConfig holds webhook handler options (message path and optional user ID for created runs).
+// WebhookConfig holds webhook handler options. The account a webhook turn
+// belongs to is always the webhook key's owner, so there is no identity here.
 type WebhookConfig struct {
 	MessagePath string // JSON path for message in body (default "message")
-	UserID      string // CreatedBy for webhook runs (default "webhook")
 }
 
 // Config holds server configuration. Grouped fields document what is required for auth, storage, worker, and conversation.
@@ -340,10 +340,6 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 	if msgPath == "" {
 		msgPath = "message"
 	}
-	webhookUserID := cfg.Webhook.UserID
-	if webhookUserID == "" {
-		webhookUserID = convchannel.DefaultWebhookUserID
-	}
 	var webhookAdapter convchannel.Adapter
 	var webhookEngine conversation.TurnEngine
 	if cfg.Stores.UserWebhookKeyStore != nil {
@@ -354,7 +350,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 			QuotaChecker:   cfg.Auth.QuotaService,
 			TitleGenerator: nil,
 		}
-		webhookAdapter = convchannel.NewWebhookAdapter(msgPath, webhookUserID)
+		webhookAdapter = convchannel.NewWebhookAdapter(msgPath)
 		webhookEngine = &conversation.WebhookEngine{TaskService: taskSvc, Conversations: cfg.Conv.ConversationStore}
 	}
 	return handlers.Config{

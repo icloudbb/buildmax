@@ -569,7 +569,6 @@ func itoa(n int) string {
 // ServerWebhookConfig holds webhook handler options.
 type ServerWebhookConfig struct {
 	MessagePath string `mapstructure:"message_path"`
-	UserID      string `mapstructure:"user_id"`
 }
 
 // ServerWorkerConfig holds worker launch and connection options.
@@ -812,7 +811,6 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("shutdown_grace", "25s")
 	v.SetDefault("default_quota_tier", "free_trial")
 	v.SetDefault("webhook.message_path", "message")
-	v.SetDefault("webhook.user_id", "webhook")
 	v.SetDefault("worker.binary", "buildmax-worker")
 	v.SetDefault("worker.run_mode", "local_process")
 	// Loopback by default: the secure default opens no new cluster port. A

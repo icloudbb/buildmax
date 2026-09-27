@@ -187,7 +187,6 @@ database:
 
 webhook:
   message_path: message
-  user_id: webhook
 
 worker:
   binary: buildmax-worker

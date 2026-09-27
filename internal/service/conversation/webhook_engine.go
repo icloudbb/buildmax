@@ -37,7 +37,7 @@ func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID stri
 	}
 	userID := turn.UserID
 	if userID == "" {
-		userID = convchannel.DefaultWebhookUserID
+		return ConversationResult{}, errors.New("user required")
 	}
 	conv, err := e.Conversations.GetConversation(ctx, conversationID)
 	if err != nil {

@@ -7,7 +7,7 @@ import (
 
 func TestWebhookAdapter_Receive(t *testing.T) {
 	ctx := context.Background()
-	adapter := NewWebhookAdapter("message", "webhook")
+	adapter := NewWebhookAdapter("message")
 
 	t.Run("valid body", func(t *testing.T) {
 		req := &WebhookRequest{
@@ -23,13 +23,13 @@ func TestWebhookAdapter_Receive(t *testing.T) {
 		if turn.Message != "hello world" {
 			t.Errorf("message = %q, want hello world", turn.Message)
 		}
-		if turn.UserID != "webhook" {
-			t.Errorf("user_id = %q, want webhook", turn.UserID)
+		if turn.UserID != "" {
+			t.Errorf("user_id = %q, want empty: only the webhook key names the account", turn.UserID)
 		}
 	})
 
 	t.Run("custom path body.text", func(t *testing.T) {
-		a := NewWebhookAdapter("body.text", "")
+		a := NewWebhookAdapter("body.text")
 		req := &WebhookRequest{
 			Body: []byte(`{"body":{"text":"nested"}}`),
 		}
@@ -62,7 +62,7 @@ func TestWebhookAdapter_Receive(t *testing.T) {
 
 func TestWebhookAdapter_Receive_callbackUrl(t *testing.T) {
 	ctx := context.Background()
-	adapter := NewWebhookAdapter("message", "")
+	adapter := NewWebhookAdapter("message")
 	req := &WebhookRequest{
 		Body: []byte(`{"message":"run","callback_url":"https://example.com/cb"}`),
 	}
@@ -81,7 +81,7 @@ func TestWebhookAdapter_Receive_callbackUrl(t *testing.T) {
 // Send is no-op when conversationID is not a URL; we don't test HTTP POST here.
 func TestWebhookAdapter_Send_emptyNoOp(t *testing.T) {
 	ctx := context.Background()
-	adapter := NewWebhookAdapter("message", "")
+	adapter := NewWebhookAdapter("message")
 	if err := adapter.Send(ctx, "", "output"); err != nil {
 		t.Error(err)
 	}
