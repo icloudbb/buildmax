@@ -150,6 +150,9 @@ func seedTeamFixtures(ctx context.Context, client *http.Client, target smokeTarg
 	if err := seedPluginFixtures(ctx, client, target, team.ID, token); err != nil {
 		return err
 	}
+	if err := seedFeatureFixtures(ctx, client, target, team.ID, token, writer, reviewer, workflowID); err != nil {
+		return err
+	}
 	// Bulk accounts need System Administrator authority, which the plugin
 	// fixtures grant Alice, so this follows them and reuses her token.
 	if err := seedFixtureAccounts(ctx, client, target, token); err != nil {
@@ -167,7 +170,7 @@ func seedTeamFixtures(ctx context.Context, client *http.Client, target smokeTarg
 		}
 	}
 	if withRuns {
-		if err := seedFixtureRuns(ctx, client, base, token); err != nil {
+		if err := seedFixtureRuns(ctx, client, target, base, token); err != nil {
 			return err
 		}
 	}

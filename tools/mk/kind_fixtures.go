@@ -65,7 +65,13 @@ func kindFixtures(withRuns bool) error {
 		return fmt.Errorf("kind cluster %q does not exist; run %s kind up", cluster, mk())
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	// Execution waits on worker Jobs, including a five-node Workflow run and two
+	// deliberate model stalls, so it gets a longer budget than the data alone.
+	budget := 10 * time.Minute
+	if withRuns {
+		budget = 25 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
 	if withRuns {
 		if err := requireFixtureMock(); err != nil {

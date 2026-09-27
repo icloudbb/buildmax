@@ -130,15 +130,15 @@ scenarios and **BuildMax QA Pagination** for long lists.
 | Accounts and isolation | Alice and Bob retain their populated personal Spaces; Carol and Dave have empty personal Spaces; Alice holds System Administrator authority so the admin surfaces are reachable |
 | Collaboration | Alice owns BuildMax QA, Bob is admin, Carol is member, Dave has a pending invitation; all emails end in `@buildmax.local` |
 | Issues | All three statuses; unassigned, person, Agent, and Workflow assignment; parent with two children and mixed progress; Markdown, Unicode, empty descriptions, comment threads |
-| Agents and Workflows | Personal Docs Writer/Release Notes; shared QA Writer/QA Reviewer; two-step draft, published, and archived Workflows, with lifecycle revision history |
+| Agents and Workflows | Personal Docs Writer/Release Notes; shared QA Writer/QA Reviewer; two-step draft, published, and archived Workflows, with lifecycle revision history; QA Release Readiness, a published fan-out/fan-in graph with a typed `input_schema`, `max_parallel_nodes`, input and node-output bindings, per-node `issue_access`, and a result selector; QA Triage Classifier, with an `output_schema` node and a required-Issue node; QA Release Engineer at revision 3 with a plugin, sandbox tiers, and Secret consumption; QA Blocked Agent, which requires the disabled Secret |
 | Files | Five files under `fixtures/`: nested Markdown, CSV, JSON, Unicode filename, and empty text |
-| Artifacts | Synthetic text, HTML sandbox preview, and binary download fixtures |
-| Space settings | Nonempty Agent instructions and active/disabled Secrets containing explicitly fake values; account webhook keys; API changes also populate audit events |
+| Artifacts | Synthetic text, HTML sandbox preview, and binary download fixtures; a live public share on the HTML artifact (its URL is printed when created) and a revoked one on the report |
+| Space settings | Nonempty Agent instructions and active/disabled Secrets containing explicitly fake values; `registries` sandbox network default and curated plugin activation in BuildMax QA; account webhook keys; API changes also populate audit events |
 | Plugins and Marketplace | The three `sample-plugins/` published to the deployment catalog, one activated in BuildMax QA and the rest left available to activate |
-| Schedules | Recurring agent schedules with varied cron expressions and timezones, some paused (in BuildMax QA Pagination) |
+| Schedules | Recurring agent schedules with varied cron expressions and timezones, some paused (in BuildMax QA Pagination); a weekly Workflow schedule with typed input and a paused one without (in BuildMax QA) |
 | Pagination and volume | Separate Space with 105 Issues (35 per status) including a 25-comment thread, plus long lists to page and scroll: 12 agents, 9 workflows across all three statuses, 60 artifacts (past the "Load more" threshold), 8 extra secrets, and 8 schedules |
 | Admin scale | 60 synthetic accounts (roughly one in eight disabled) so the Accounts page spans more than one page and its status filter has a cohort; each also gets a personal Space |
-| Execution (`--runs`) | Conversation transcript, a Task with Continue and Retry, Issue Agent result, two-step Workflow result, worker traces and workspace checkpoints |
+| Execution (`--runs`) | Conversation transcript, a Task with Continue and Retry, Issue Agent result, two-step Workflow result, worker traces and workspace checkpoints; a succeeded and a canceled QA Release Readiness run; a FAILED QA Blocked Agent Task; a CANCELED conversation Task; a webhook-channel conversation in Alice's personal Space |
 
 ```bash
 ./make kind fixtures --runs
@@ -148,31 +148,41 @@ scenarios and **BuildMax QA Pagination** for long lists.
 configuration. It refuses model-selection overrides and customized server
 configuration; it does not switch a deployment's model. If you previously used
 `kind use-model`, run `./make kind mock` first. It does not call a paid provider.
-A failed or canceled execution is reported rather than replaced with a fake
-success. Fix the underlying failure and retry that Task before seeding again.
+An execution that fails or is canceled when it should succeed is reported
+rather than replaced with a fake success. Fix the underlying failure and retry that Task before seeding again.
 
 Reruns match resource names/titles, artifact filenames, file paths, and the
 fixture conversation's first message. Lists are paginated fully and missing
 comments are matched individually by body, so an interrupted comment seed can
 resume. Existing Issue statuses, descriptions, file contents, Agent definitions,
-and member roles are preserved. Fixture Issue assignments, Workflow lifecycle
-states, Secret states, schedule paused/enabled state, and account disabled state
-are reconciled; empty Space instructions are filled. Webhook keys and bulk
-accounts are matched by name and email so a rerun adds only what is missing.
-An already-published plugin version and an existing activation are left as they
+and member roles are preserved, except that QA Release Engineer is revised up
+to its third revision when it has fewer. Fixture Issue assignments, Workflow
+lifecycle states, Secret states, schedule paused/enabled state, and account
+disabled state are reconciled; empty Space instructions and sandbox defaults
+are filled, and an open plugin curation is set to curated. A public share is
+recreated once the previous one expires. Execution outcomes are matched by
+Workflow run status and by Task input. Webhook keys and bulk accounts are
+matched by name and email so a rerun adds only what is missing. An
+already-published plugin version and an existing activation are left as they
 are rather than republished.
 Do not rename fixture resources if you want them reused. These are named test
 data in a development cluster, not a concurrent seed transaction: run one
 fixture command at a time. A lost response to a create without a server
 idempotency key is recovered by looking up its stable fixture identity on rerun.
 
+The failed and canceled records come from real runs, not rewritten rows: the
+blocked Agent's required grant is refused when its run starts, and the
+cancellations hold the mock's replies the way `kind smoke` does, so a run is
+mid-turn when it is canceled. The webhook conversation is sent with a key that
+is deleted again afterwards.
+
 This is populated test data, not proof of every product feature. It does not
-seed managed-model grants (those need an explicit catalog), send webhooks, or
-manufacture running/failed/canceled records. Use `kind smoke` for
-worker failure-boundary and cancellation checks, `kind smoke managed` for the
-managed gateway, and `e2e kind` for browser journeys. Artifact public sharing
-remains an action to test from the seeded artifact rather than creating public
-links during initialization.
+seed managed-model grants (those need an explicit catalog), chat-platform
+conversations or channel links (only the channel gateway creates those, from a
+real bot), Remote Control sessions (they need a connected CLI), or schedule fire
+history. Use `kind smoke` for worker failure-boundary and cancellation checks,
+`kind smoke managed` for the managed gateway, and `e2e kind` for browser
+journeys.
 
 `status` changes nothing. It prints the selected cluster and context, probes
 <http://localhost:8080/healthz> through the ingress, and lists nodes plus the
