@@ -219,6 +219,14 @@ type AppConfig struct {
 	// See docs/design/workspace-root-and-worktrees.md D8.
 	EnableWorktrees bool
 
+	// EnableAskUser registers the AskUser tool, which holds a run until a
+	// person answers. Only surfaces with someone at the session set it: the
+	// TUI and Desktop project chats. Print mode, workers, and Desktop's
+	// scheduled and projectless runs do not. A run on an enabled app that
+	// supplies no RunPromptOpts.Questioner still gets the tool and is told
+	// nobody can answer. See docs/design/agent-user-questions.md.
+	EnableAskUser bool
+
 	// EnableLocalProject resolves the workspace to a local Project and stamps
 	// it on every session this app creates. CLI, TUI, and Desktop set it.
 	//
@@ -279,6 +287,7 @@ type AgentApp struct {
 	// had one.
 	memoryDisabled  bool
 	worktrees       *worktree.Manager
+	askUser         bool
 	settings        config.Settings
 	webSearchAPIKey string
 	llmClients      *LLMClientCache
@@ -1154,6 +1163,9 @@ type RunPromptOpts struct {
 	// Approval resolves tool calls the policy sends to "ask". Nil collapses ask
 	// to deny, which is what a surface with nobody to ask should do.
 	Approval agent.ApprovalHandler
+	// Questioner answers the AskUser tool. Nil tells the model nobody can
+	// answer; it matters only on an app built with EnableAskUser.
+	Questioner agent.UserQuestioner
 	// EventSink receives runtime events. Nil disables the caller's leg only — the
 	// durable trace records the run either way.
 	EventSink func(agent.Event)
@@ -1342,6 +1354,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		StreamSink:   a.relayStreamSink(opts.Stream),
 		Policy:       a.policy,
 		Approval:     opts.Approval,
+		Questioner:   opts.Questioner,
 		PendingInput: opts.Pending,
 		Grants:       a.grantsFor(sess.ID()),
 
@@ -1648,7 +1661,7 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 // promptCapabilities reports what this surface can actually do, so the prompt
 // describes the tools the agent was given rather than the ones it might have.
 func (a *AgentApp) promptCapabilities() PromptCapabilities {
-	return PromptCapabilities{Artifacts: a.artifactPublisher != nil, Issue: a.issue}
+	return PromptCapabilities{Artifacts: a.artifactPublisher != nil, AskUser: a.askUser, Issue: a.issue}
 }
 
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {
@@ -1702,6 +1715,11 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	}
 	// After BuildAgentTypes like Task, so subagents never see the job tools:
 	// a job must be owned by a session the user can still reach.
+	// After BuildAgentTypes too: a subagent reports to its parent, which
+	// decides whether the user needs asking.
+	if a.askUser {
+		registry.AppendTools(tools.NewAskUser())
+	}
 	if a.jobs != nil {
 		registry.AppendTools(
 			tools.NewJobList(a.jobs), tools.NewJobOutput(a.jobs), tools.NewJobStop(a.jobs),

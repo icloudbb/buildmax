@@ -261,6 +261,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	app.plugins.addFindings(app.subagentsRegistry.findings...)
 	app.plugins.addShadowed(app.subagentsRegistry.shadowed...)
 
+	app.askUser = cfg.EnableAskUser
 	if cfg.EnableWorktrees {
 		// sessionRoot, not the bare root: moving it must re-resolve the
 		// configuration the root decides, or the session runs one tree's hooks

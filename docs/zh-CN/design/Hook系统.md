@@ -197,7 +197,7 @@ v2 把事件集从 5 个扩展到了 13 个，工作树生命周期又带来了�
 - `Prompt string`——在 `UserPromptSubmit` 时填充。
 - `AgentType string`——在 `SubagentStart/Stop` 时填充；在子代理内运行时，也会盖在每一个事件上，便于审计 Hook 做归因。
 - `IsSubagent bool`——无需解析 `AgentType` 即可区分 `Stop` 和 `SubagentStop`。
-- `NotificationKind string`——取值为 `approval_required` 或 `permission_denied`。
+- `NotificationKind string`——取值为 `approval_required`、`permission_denied` 或 `user_question`（有一个 `AskUser` 问题在等待作答；见 [Agent 向用户提问](Agent向用户提问.md)）。
 
 `WorktreeCreate`、`WorktreeRemove` 和 `CwdChanged` 之前之所以被推迟，是因为依赖一项 BuildMax 当时还没有的能力；现在这项能力已经具备，三者都随[工作区根与工作树](工作区根与工作树.md)一文所述的工作树生命周期一并交付。三者都只是提示性（advisory）事件。请求创建工作树的工具调用本身已经经过 `PreToolUse`，针对同一个决策再加一道门，只会导致某个工作树处于半创建状态；而且一个失败的 Hook 也无法撤销一个已经发生的移动。想知道“这个会话现在在哪里工作”应该订阅 `CwdChanged`；另外两个事件说明的是工作树本身发生了什么变化。
 

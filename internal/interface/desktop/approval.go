@@ -25,32 +25,32 @@ type ApprovalRequestPayload struct {
 	Target string `json:"target,omitempty"`
 }
 
-// pendingApprovals holds the tool approvals awaiting an answer, keyed by a
-// per-request id rather than by project or session: an id is answered at most
-// once, so a late answer to a request its run already withdrew cannot resolve
-// the next request that run makes.
-type pendingApprovals struct {
+// pendingAnswers holds the prompts awaiting an answer — tool approvals, or
+// AskUser questions — keyed by a per-request id rather than by project or
+// session: an id is answered at most once, so a late answer to a request its
+// run already withdrew cannot resolve the next request that run makes.
+type pendingAnswers[T any] struct {
 	mu      sync.Mutex
 	next    uint64
-	waiting map[string]chan agent.ApprovalDecision
+	waiting map[string]chan T
 }
 
 // open registers a new pending request and returns its id and answer channel.
-func (p *pendingApprovals) open() (string, chan agent.ApprovalDecision) {
+func (p *pendingAnswers[T]) open() (string, chan T) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.next++
 	id := strconv.FormatUint(p.next, 10)
-	ch := make(chan agent.ApprovalDecision, 1)
+	ch := make(chan T, 1)
 	if p.waiting == nil {
-		p.waiting = make(map[string]chan agent.ApprovalDecision)
+		p.waiting = make(map[string]chan T)
 	}
 	p.waiting[id] = ch
 	return id, ch
 }
 
 // withdraw drops a request its run stopped waiting for.
-func (p *pendingApprovals) withdraw(id string) {
+func (p *pendingAnswers[T]) withdraw(id string) {
 	p.mu.Lock()
 	delete(p.waiting, id)
 	p.mu.Unlock()
@@ -58,15 +58,15 @@ func (p *pendingApprovals) withdraw(id string) {
 
 // resolve answers one pending request. It fails for an id that is unknown,
 // already answered, or withdrawn, so a stale answer reaches no run.
-func (p *pendingApprovals) resolve(id string, decision agent.ApprovalDecision) error {
+func (p *pendingAnswers[T]) resolve(id string, answer T) error {
 	p.mu.Lock()
 	ch, ok := p.waiting[id]
 	delete(p.waiting, id)
 	p.mu.Unlock()
 	if !ok {
-		return fmt.Errorf("no pending approval %q: it was already answered or its run ended", id)
+		return fmt.Errorf("no pending request %q: it was already answered or its run ended", id)
 	}
-	ch <- decision // buffered, and only one resolve can find it
+	ch <- answer // buffered, and only one resolve can find it
 	return nil
 }
 

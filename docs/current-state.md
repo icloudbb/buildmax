@@ -155,6 +155,13 @@ page in a workspace tab by streaming CDP screencast frames (the same page, not a
 second instance). See [the design record](design/agent-browser-capability.md).
 Interactive takeover of the embedded view is not built.
 
+On the TUI and Desktop project chats, the `AskUser` tool lets an Agent put up
+to four questions to the user at once and wait for the answers. Each question
+can be single-choice, multi-select, or open, and the answers return as the tool
+result. Print mode, workers, scheduled runs, subagents, and
+Remote Control viewers do not get it. See
+[the design record](design/agent-user-questions.md).
+
 Interactive Desktop turns now use `agentapp.RunScheduler`, which serializes one
 run per session key, queues later prompts in order, and gives queued background
 events the same lifecycle. The Server TaskRun scheduler remains a separate
@@ -167,7 +174,8 @@ rows-and-columns grid or collapsed back to one tab strip; the layout is
 remembered per project, and terminal tabs restore their scrollback across a
 restart. A file tab can edit and save a workspace file. Each chat tab is its own
 session, so chats in different sessions run concurrently, and each session's
-tool approvals appear and are answered in its own chat tab. A status-bar
+tool approvals and `AskUser` questions appear and are answered in its own chat
+tab. A status-bar
 Launchpad opens user-pinned applications and websites. Resizable pane splitters
 are not built.
 

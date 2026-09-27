@@ -189,7 +189,9 @@ type App struct {
 	agentApps map[string]*agentapp.AgentApp // keyed by project ID
 	// approvals holds every run's unanswered tool approval, each under its own
 	// id, so concurrent sessions of one project each wait on their own answer.
-	approvals pendingApprovals
+	approvals pendingAnswers[agent.ApprovalDecision]
+	// questions holds every run's unanswered AskUser question, the same way.
+	questions pendingAnswers[agent.Answer]
 	// scheduleApps are AgentApps for scheduled fires, keyed by working directory.
 	// A scheduled task targets a directory, not a project, so its runs are built
 	// with EnableLocalProject off: sessions are stamped with no project (invisible
@@ -320,7 +322,10 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		ArtifactPublisher:    auth.ArtifactPublisherForSession(),
 		Surface:              coregw.CallSurfaceDesktop,
 		EnableBackgroundJobs: true,
-		EnableLocalProject:   true,
+		// A project chat has someone at it. The directory apps below serve
+		// scheduled and projectless runs, which bind no questioner.
+		EnableAskUser:      true,
+		EnableLocalProject: true,
 		// Local run under the user's authority; Desktop shows the browser as a
 		// visible window the user can watch, plus an activity indicator. See
 		// docs/design/agent-browser-capability.md.
@@ -1102,6 +1107,7 @@ func (a *App) hostForProject(projectID string, lc *desktopRun) agentapp.HostFunc
 			return nil, err
 		}
 		lc.handler = &runApprover{app: a, run: lc}
+		lc.questioner = &runQuestioner{app: a, run: lc}
 		return ag, nil
 	}
 }

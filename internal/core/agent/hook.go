@@ -72,6 +72,9 @@ const (
 const (
 	NotificationApprovalRequired = "approval_required"
 	NotificationPermissionDenied = "permission_denied"
+	// NotificationUserQuestion fires when the Agent puts a question to the
+	// user through AskUser and is waiting for the answer.
+	NotificationUserQuestion = "user_question"
 )
 
 // HookInput carries the payload sent to hooks for one event.

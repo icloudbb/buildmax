@@ -1,7 +1,7 @@
 // Package tool provides concrete agent tools. Every runtime gets Read, Write,
 // Edit, Glob, Grep, Bash, WebFetch, WebSearch, TodoWrite, NoteWrite, Skill, Task, and the
 // MCP gateway tools; UploadArtifact, Worktree, MemoryRead, MemoryWrite, JobList,
-// JobOutput, JobStop, and Monitor are registered only where the surface can
+// JobOutput, JobStop, Monitor, and AskUser are registered only where the surface can
 // serve them, as the constants below say. Reaching a space Issue is no longer a
 // tool: an Agent reads and reports on its Issue by running `buildmax issue`
 // through Bash, per docs/design/agent-bridge-cli.md.
@@ -56,4 +56,8 @@ const (
 	ToolNameBrowserType       = "BrowserType"
 	ToolNameBrowserScreenshot = "BrowserScreenshot"
 	ToolNameBrowserConsole    = "BrowserConsole"
+	// ToolNameAskUser is registered only where a person answers at the
+	// session — TUI and Desktop project chats — and never inside subagents,
+	// print mode, or workers. See docs/design/agent-user-questions.md.
+	ToolNameAskUser = agent.ToolNameAskUser
 )

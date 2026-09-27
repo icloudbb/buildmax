@@ -39,6 +39,7 @@ results are sent back to the model as tool-role messages.
 | **Worktree** | struct | Manages the primary run's Git worktrees and current root |
 | **JobList**, **JobOutput**, **JobStop** | structs | Inspect and stop local background jobs |
 | **Monitor** | struct | Starts a watched command as a local background job |
+| **AskUser** | struct | Puts up to four questions to the person at the session and waits for the answers |
 | **BrowserNavigate**, **BrowserSnapshot**, **BrowserClick**, **BrowserType**, **BrowserScreenshot**, **BrowserConsole** | structs | Verify against a real rendered page over a Go-owned headless browser |
 | MCP gateway | structs | `LoadMcpTools` and `CallMcpTool` |
 
@@ -120,6 +121,7 @@ is not a permission denial.
 | `JobOutput` | Local background jobs are enabled (TUI or Desktop) | `job_id` (required); `stream`, `cursor` (optional) | Reads a bounded, incremental slice of a job's standard output or error stream. |
 | `JobStop` | Local background jobs are enabled (TUI or Desktop) | `job_id` (required) | Stops one background job started by the runtime. |
 | `Monitor` | Local background jobs are enabled (TUI or Desktop); never a subagent | `command` (required); `description`, `timeout`, `persistent`, `react` (optional) | Runs a watched command under the Bash risk and sandbox rules. Its output and lifecycle are handled by the job tools. |
+| `AskUser` | The surface has someone at the session (`EnableAskUser`: TUI and Desktop project chats); never a subagent, print mode, or worker | `questions` (required): one to four of `{question, header, options, multi_select}`, with `options` holding at most four `{label, description}` | Blocks until the user answers every question in the set (picking one option, checking several, or typing their own words) or dismisses the set, and returns each answer under its question as the result. It reaches the run's `agent.UserQuestioner` through the context; a run without one is told nobody can answer. A run with the tool also gets the `ask_user` prompt layer, which tells the model to prefer it over asking in prose. See [design/agent-user-questions.md](../../design/agent-user-questions.md). |
 | `BrowserNavigate` | The run enables the browser and a system Chrome/Edge is found (CLI first; never the unattended worker or a subagent) | `url` (required) | Opens an http(s) URL in the session's headless page and reports the resulting URL, title, and status. |
 | `BrowserSnapshot` | As `BrowserNavigate` | None | Returns a bounded snapshot of the current page: interactive elements with revision-scoped references plus visible text. |
 | `BrowserClick` | As `BrowserNavigate` | `ref` (required) | Clicks a referenced element, rejecting a stale reference. |

@@ -242,7 +242,9 @@ work and has no external consumers.
   every event when running inside a subagent so audit hooks can attribute.
 - `IsSubagent bool` — distinguishes `Stop` vs `SubagentStop` without parsing
   `AgentType`.
-- `NotificationKind string` — `approval_required` | `permission_denied`.
+- `NotificationKind string` — `approval_required` | `permission_denied` |
+  `user_question` (an `AskUser` question is waiting; see
+  [agent-user-questions.md](agent-user-questions.md)).
 
 `WorktreeCreate`, `WorktreeRemove`, and `CwdChanged` were deferred for
 depending on a feature BuildMax did not have; it has it now, and all three

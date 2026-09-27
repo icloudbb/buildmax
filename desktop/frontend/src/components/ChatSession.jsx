@@ -32,10 +32,11 @@ const EV_TURN_DIGEST = 'desktop/turn-digest';
 // approvals maps session id to that session's pending tool approval; this tab
 // shows only its own and answers it through onRespond(request, decision). Only
 // the focused pane's tab takes approval keystrokes, so a key press never answers
-// two sessions' prompts at once.
+// two sessions' prompts at once. questions and onAnswer(request, answer) do the
+// same for the Agent's AskUser questions.
 export function ChatSession({
   projectId, projectName, defaultWorkspace, sessions, tab, app,
-  approvals, onRespond, focused = true,
+  approvals, onRespond, questions, onAnswer, focused = true,
   onSessionAdopted, onSessionsChanged, onTitle, onOpenSession, onShowChanges,
   draft = null, onDraftConsumed,
 }) {
@@ -388,6 +389,8 @@ export function ChatSession({
 
   const approvalRequest = (sessionId && approvals?.[sessionId]) || null;
   const respondToApproval = (decision) => onRespond?.(approvalRequest, decision);
+  const questionRequest = (sessionId && questions?.[sessionId]) || null;
+  const answerQuestion = (answer) => onAnswer?.(questionRequest, answer);
 
   return (
     <div className="page-chat">
@@ -436,6 +439,8 @@ export function ChatSession({
           approvalRequest={approvalRequest}
           onRespond={respondToApproval}
           approvalKeys={focused}
+          questionRequest={questionRequest}
+          onAnswer={answerQuestion}
           toolActivity={toolActivity}
           runStatus={runStatus}
           suggestion={turnDigest?.suggestion ?? ''}

@@ -42,7 +42,7 @@ Desktop 与 CLI 一样，使用以下两种模式之一：
 2. `App` 解析本地 Project，并在需要时创建共享的 `AgentApp`。
 3. 核心运行发出 LLM、工具、用量和流事件。
 4. 桥接层通过 Wails 转发这些事件（事件名为 `desktop/*`）。
-5. React 前端渲染增量内容，并通过 `RespondApproval` 返回审批决定，同时带上所回答请求的 `approval_id`。
+5. React 前端渲染增量内容，并通过 `RespondApproval` 返回审批决定，同时带上所回答请求的 `approval_id`；`AskUser` 问题的答案通过 `RespondQuestion` 返回，并带上 `question_id`。
 6. 会话持久化和持久 trace 由 `agentapp` 处理，与 CLI 完全一致。
 
 每个 Session 最多一个运行正在进行。Session 的运行进行期间向它提交的提示词会排队：`SendMessageStream` 返回从 1 开始的队列位置（0 表示启动了运行），`QueuedMessages` 重新读取 Session 的队列。全新聊天以空 Session ID 为键，因此同一 Project 中的新聊天在获得 ID 之前仍会串行。队列通过 `RunPromptOpts.Pending` 交给运行，因此排队提示词通常会在下一次迭代边界加入当前回合；之后入队的内容由运行 goroutine 的回合循环继续接收。两种情况下前端都会收到 `desktop/message-dequeued`；hook 拒绝消息时收到 `desktop/message-blocked`，但拒绝不会终止运行本身。`CancelRun` 在取消前丢弃队列。参见[排队消息](../../design/排队消息.md)。
@@ -86,6 +86,8 @@ Project 的中央界面是由 tab 组成的网格。每个 tab 渲染一种类�
 每个聊天 tab 是绑定到一个 Session 的 `ChatSession`：它持有该 Session 的对话记录和运行状态，只处理带有其 `session_id` 的事件。新聊天在运行开始前没有 ID；运行在任何流事件之前发出一次带有所创建 ID 的 `desktop/session-adopted`，且只有以新聊天开始的运行会发出，因此即使其他 Session 正在流式输出，待定 tab 也能获得正确的 ID。
 
 工具审批按运行划分。每个 Project 运行都有自己的审批处理器，`App` 以新生成的 `approval_id` 持有每个未回答的请求。`desktop/approval-request` 携带该 ID、Project 以及该运行的 Session ID；此时新聊天已经获得了自己的 ID，因此两个新聊天不会共用同一个提示。前端为每个 Session 保留一个待处理请求，只在该 Session 的聊天 tab 中显示（隐藏的 tab 再次显示时请求仍在），并通过 `RespondApproval(approval_id, decision)` 回答。一个 ID 只能回答一次：未知、已回答或已撤回的 ID 会返回错误且不会到达任何运行。取消一个运行只会撤回它自己的请求，运行结束时前端也会丢弃该 Session 的请求。审批快捷键只在获得焦点的 pane 中生效，因此一次按键不会同时回答两个 Session。“本 Session 内允许”的授权由 `agentapp` 按 Session 保存，不会延续到该 Project 的其他 Session。
+
+`AskUser` 问题沿用同样的按运行、按 ID 模型。每个 Project 运行还会得到一个 `runQuestioner`，`App` 用同一套 `pendingAnswers` 记账保存未回答的问题。`desktop/question-request` 携带 `question_id`、Project 与 Session ID 以及 `questions`。前端在该 Session 的输入框上方逐个显示这组问题，并通过 `RespondQuestion(question_id, answers, declined)` 作答，每个问题一个答案。非忽略的空答案会被拒绝。只有 Project app 会设置 `EnableAskUser`；为定时运行和无项目会话按目录托管的 app 从不提供该工具。见[设计记录](../../design/Agent向用户提问.md)。
 
 浏览器 tab 显示某个 Session 中 Agent 浏览器页面的只读实时视图，由 `desktop/browser/frame` 屏幕流渲染。
 

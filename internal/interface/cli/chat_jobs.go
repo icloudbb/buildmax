@@ -137,11 +137,12 @@ func runBackgroundEventWithStream(owner *tuiRunOwner, opts TUIOpts, ev agentapp.
 		sink := &streamSinkToChannel{ctx: ctx, channel: channel}
 		evSink := eventSinkToChannel(ctx, channel)
 		result, err := opts.App.RunBackgroundEvent(ctx, opts.Session, ev, agentapp.RunPromptOpts{
-			Stream:    sink,
-			Approval:  opts.Approval,
-			EventSink: evSink,
-			Pending:   queue,
-			Digest:    true,
+			Stream:     sink,
+			Approval:   opts.Approval,
+			Questioner: opts.Questioner,
+			EventSink:  evSink,
+			Pending:    queue,
+			Digest:     true,
 		})
 		sendTUIMessage(ctx, channel, agentDoneMsg{Result: result, Err: err})
 	})

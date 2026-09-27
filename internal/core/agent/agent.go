@@ -192,6 +192,10 @@ type RunLoopOpts struct {
 	// Nil approval with ToolActionAsk denies the call: an unattended surface
 	// must not widen Ask into Allow.
 	Approval ApprovalHandler
+	// Questioner answers the AskUser tool. Nil means nobody is there to ask,
+	// and the tool tells the model to proceed on its own judgment. Like
+	// Approval, only a surface with a person at it sets this.
+	Questioner UserQuestioner
 	// PendingInput carries messages the user submitted after this run started.
 	// They are appended to the history at the next iteration boundary, so they
 	// reach the model after the current batch of tool calls rather than after the
@@ -276,6 +280,13 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 	// to its own loop's accumulator, not this one.
 	delegated := &DelegatedUsage{}
 	ctx = CtxWithDelegatedUsage(ctx, delegated)
+	// Always set, so a nil Questioner clears one inherited from a parent run's
+	// tool-call context rather than letting a subagent reach the parent's user.
+	var questioner UserQuestioner
+	if opts.Questioner != nil {
+		questioner = notifyingQuestioner{opts: opts, inner: opts.Questioner}
+	}
+	ctx = ctxWithQuestioner(ctx, questioner)
 	guard := newLoopGuard(defaultMaxRepeatedCalls)
 	// Most recent compaction summary, rendered into the system prompt when non-empty.
 	// Seeded from the history so a session compacted in an earlier turn keeps its summary
