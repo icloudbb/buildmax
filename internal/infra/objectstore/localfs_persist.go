@@ -12,7 +12,7 @@ import (
 type LocalFSPersistStorage struct {
 	persistRoot func(spaceID string) string
 	// runGlobalDir resolves the on-disk directory a worker wrote a run's global
-	// files to, so the store can remove one. Home files live under persistRoot;
+	// files to, so the store can read or remove one. Home files live under persistRoot;
 	// run-global files live in a separate subtree the caller owns the layout of,
 	// which is why this is injected rather than derived from persistRoot.
 	runGlobalDir func(spaceID, taskID, taskRunID string) string
@@ -85,9 +85,25 @@ func (s *LocalFSPersistStorage) PutRunGlobal(ctx context.Context, ref RunObjectR
 	return nil
 }
 
-// GetRunGlobal returns apierr.ErrNotFound; task run global files are not in the persist root for local_fs (caller uses local path).
+// GetRunGlobal reads one run-global file from the worker disk it was written
+// to: on local_fs that disk is the storage, since PutRunGlobal stores nothing
+// elsewhere. Reporting every file as missing here broke a Continue run's session
+// restore, which reads the previous run's bundle through this method and has no
+// disk path of its own to fall back to. Without a resolver the store does not
+// know the layout and reports the file as not found.
 func (s *LocalFSPersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	return nil, apierr.ErrNotFound
+	if s.runGlobalDir == nil {
+		return nil, apierr.ErrNotFound
+	}
+	clean, err := CleanRelPath(ref.RelPath)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(filepath.Join(s.runGlobalDir(ref.SpaceID, ref.TaskID, ref.TaskRunID), filepath.FromSlash(clean)))
+	if os.IsNotExist(err) {
+		return nil, apierr.ErrNotFound
+	}
+	return data, err
 }
 
 // DeleteRunGlobal removes one run-global file from the worker disk it was

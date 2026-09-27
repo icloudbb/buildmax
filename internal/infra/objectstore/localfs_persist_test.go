@@ -3,9 +3,12 @@ package objectstore
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 )
 
 func TestLocalFSPersistStorage_PutGetListMaterialize(t *testing.T) {
@@ -91,5 +94,44 @@ func TestLocalFSPersistStorage_DeleteRunGlobalNoResolver(t *testing.T) {
 	s := NewLocalFSPersistStorage(func(string) string { return t.TempDir() }, nil)
 	if err := s.DeleteRunGlobal(context.Background(), RunObjectRef{SpaceID: "sp", TaskID: "t", TaskRunID: "r", RelPath: "x.jsonl"}); err != nil {
 		t.Errorf("nil resolver must be a no-op, got %v", err)
+	}
+}
+
+// A Continue run restores the previous run's session bundle through
+// GetRunGlobal. On local_fs that bundle is on the worker disk, so the store has
+// to read it from there; reporting it missing silently started every Continue
+// run with no history.
+func TestLocalFSPersistStorage_GetRunGlobalReadsTheWorkerDisk(t *testing.T) {
+	root := t.TempDir()
+	runGlobalDir := func(spaceID, taskID, taskRunID string) string {
+		return filepath.Join(root, spaceID, "tasks", taskID, taskRunID, "global")
+	}
+	s := NewLocalFSPersistStorage(func(string) string { return root }, runGlobalDir)
+	ctx := context.Background()
+	ref := RunObjectRef{SpaceID: "sp", TaskID: "t", TaskRunID: "r1", RelPath: "sessions/s1/history.jsonl"}
+	full := filepath.Join(runGlobalDir("sp", "t", "r1"), "sessions", "s1", "history.jsonl")
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(full, []byte(`{"type":"history"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.GetRunGlobal(ctx, ref)
+	if err != nil || string(got) != `{"type":"history"}` {
+		t.Fatalf("GetRunGlobal = %q, %v", got, err)
+	}
+	missing := ref
+	missing.RelPath = "sessions/s1/meta.json"
+	if _, err := s.GetRunGlobal(ctx, missing); !errors.Is(err, apierr.ErrNotFound) {
+		t.Errorf("a missing file = %v, want ErrNotFound", err)
+	}
+	escape := ref
+	escape.RelPath = "../../r2/global/secret"
+	if _, err := s.GetRunGlobal(ctx, escape); err == nil {
+		t.Error("a path out of the run directory was read")
+	}
+	if _, err := NewLocalFSPersistStorage(func(string) string { return root }, nil).GetRunGlobal(ctx, ref); !errors.Is(err, apierr.ErrNotFound) {
+		t.Errorf("no resolver = %v, want ErrNotFound", err)
 	}
 }
