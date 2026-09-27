@@ -834,7 +834,6 @@ database:                            # MySQL
 
 webhook:
   message_path: message              # JSON path to the prompt in the request body
-  user_id: webhook                   # fallback identity for webhook-created runs
 
 worker:
   binary: buildmax-worker

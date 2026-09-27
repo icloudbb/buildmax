@@ -307,8 +307,9 @@ turns, replies, and reports are platform-neutral. `Inbound.Tenant` and the
 Two ordinary fixes surfaced while designing this. Neither blocks Phase 1:
 
 - the stale-run reaper should fire the terminal hook;
-- the inbound webhook's default `webhook.user_id: "webhook"` is looked up as a
-  user and cannot succeed.
+- the inbound webhook's default `webhook.user_id: "webhook"` was looked up as a
+  user and could not succeed. Fixed by removing the setting: the webhook key's
+  owner is the only identity a webhook turn has.
 
 ## 12. Open Questions
 

@@ -77,15 +77,15 @@ Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的
 | 账户与隔离 | Alice、Bob 保留有数据的个人 Space；Carol、Dave 的个人 Space 为空；Alice 持有系统管理员权限，以便访问管理界面 |
 | 协作 | Alice 为 owner，Bob 为 admin，Carol 为 member，Dave 有待接受邀请；邮箱后缀均为 `@buildmax.local` |
 | Issue | 三种状态；未分配、人、Agent、Workflow 分配；父 Issue 与进度不同的两个子 Issue；Markdown、中文、空描述及评论 |
-| Agent / Workflow | 个人 Docs Writer/Release Notes；共享 QA Writer/QA Reviewer；两步骤 Workflow 的 draft、published、archived 状态与生命周期修订记录 |
+| Agent / Workflow | 个人 Docs Writer/Release Notes；共享 QA Writer/QA Reviewer；两步骤 Workflow 的 draft、published、archived 状态与生命周期修订记录；已发布的扇出/汇合图 QA Release Readiness，含类型化 `input_schema`、`max_parallel_nodes`、运行输入与节点输出绑定、逐节点 `issue_access` 和结果选择器；含 `output_schema` 节点与必需 Issue 节点的 QA Triage Classifier；处于第 3 个修订、配置了插件、沙箱级别与 Secret 使用的 QA Release Engineer；依赖已禁用 Secret 的 QA Blocked Agent |
 | 文件 | `fixtures/` 下五个文件，包含嵌套 Markdown、CSV、JSON、中文文件名和空文本 |
-| Artifact | 合成文本、HTML 沙箱预览、二进制下载 |
-| Space 设置 | 非空 Agent instructions、active/disabled 的虚构 Secret；账户 Webhook 密钥；API 操作自然产生审计事件 |
+| Artifact | 合成文本、HTML 沙箱预览、二进制下载；HTML Artifact 有一个有效的公开分享（创建时打印其 URL），报告有一个已撤销的分享 |
+| Space 设置 | 非空 Agent instructions、active/disabled 的虚构 Secret；BuildMax QA 的沙箱网络默认值为 `registries`、插件启用为 curated；账户 Webhook 密钥；API 操作自然产生审计事件 |
 | 插件与 Marketplace | 将 `sample-plugins/` 三个插件发布到部署目录，其中一个在 BuildMax QA 中启用，其余保留供启用 |
-| 定时任务 | 具有不同 cron 表达式与时区的循环 Agent 定时任务，部分处于暂停状态（位于 BuildMax QA Pagination） |
+| 定时任务 | 具有不同 cron 表达式与时区的循环 Agent 定时任务，部分处于暂停状态（位于 BuildMax QA Pagination）；一个带类型化输入的每周 Workflow 定时任务和一个无输入的已暂停 Workflow 定时任务（位于 BuildMax QA） |
 | 分页与规模 | 独立 Space 中有 105 个 Issue（每种状态 35 个）并有 25 条评论的线程，另有可翻页/滚动的长列表：12 个 Agent、覆盖三种状态的 9 个 Workflow、60 个 Artifact（超过“加载更多”阈值）、8 个额外 Secret 与 8 个定时任务 |
 | 管理规模 | 60 个合成账户（约每八个禁用一个），使管理员 Accounts 页面跨多页且其状态筛选有对应分组；每个账户也会获得个人 Space |
-| 执行（`--runs`） | Conversation 对话、含 Continue/Retry 的 Task、Issue Agent 结果、两步骤 Workflow 结果、worker trace 与 workspace checkpoint |
+| 执行（`--runs`） | Conversation 对话、含 Continue/Retry 的 Task、Issue Agent 结果、两步骤 Workflow 结果、worker trace 与 workspace checkpoint；QA Release Readiness 的一次成功运行与一次取消运行；FAILED 的 QA Blocked Agent Task；CANCELED 的对话 Task；Alice 个人 Space 中一个 webhook 渠道的对话 |
 
 ```bash
 ./make kind fixtures --runs
@@ -94,21 +94,27 @@ Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的
 `--runs` 会执行 Kubernetes worker，仅接受参考部署的免费 mock 配置。
 检测到模型选择覆盖或自定义 server 配置时会拒绝，不会自动切换模型。
 之前使用过 `kind use-model` 时，先执行 `./make kind mock`。不会调用付费模型。
-失败或取消的执行会报错，不会伪造成功；修复原因并重试相应 Task 后可再次初始化。
+本应成功的执行若失败或被取消会报错，不会伪造成功；修复原因并重试相应 Task 后可再次初始化。
 
 重跑按名称/标题、Artifact 文件名、文件路径和 Conversation 首条消息复用资源。
 列表读取全部分页，评论逐条按正文补齐，支持中断恢复。
-保留已有 Issue 状态、描述、文件内容、Agent 定义和成员角色；校准测试 Issue 的
-分配、Workflow 生命周期状态、Secret 状态、定时任务的暂停/启用状态与账户禁用状态，
-仅在 Space instructions 为空时填入。Webhook 密钥与批量账户分别按名称和邮箱匹配，
+保留已有 Issue 状态、描述、文件内容、Agent 定义和成员角色，但 QA Release Engineer
+不足三个修订时会补到第三个修订；校准测试 Issue 的分配、Workflow 生命周期状态、
+Secret 状态、定时任务的暂停/启用状态与账户禁用状态；Space instructions 与沙箱默认值
+仅在为空时填入，open 的插件启用方式改为 curated。公开分享过期后会重新创建。
+执行结果按 Workflow 运行状态和 Task 输入匹配。Webhook 密钥与批量账户分别按名称和邮箱匹配，
 重跑时只补齐缺失部分。已发布的插件版本和已存在的启用记录保持原样，不会重新发布。
 不要重命名希望复用的测试资源。该命令不是并发事务，应一次运行一个实例。
 不支持服务端幂等键的创建请求若丢失响应，下次运行通过稳定的测试资源标识查找恢复。
 
-测试数据不等于所有功能均已验证：不初始化需要目录来源的托管模型授权，
-不发送 webhook，不伪造 running/failed/canceled 状态。worker 边界和取消检查使用
-`kind smoke`，托管网关使用 `kind smoke managed`，浏览器流程使用 `e2e kind`。
-Artifact 分享应从已有测试 Artifact 手动或通过测试创建，初始化不生成公开链接。
+失败和取消记录来自真实运行，而不是改写的数据行：Blocked Agent 的必需授权在运行启动时
+被拒绝；取消时像 `kind smoke` 一样暂缓 mock 的回复，使运行在执行中途被取消。
+webhook 对话使用一个用完即删的密钥发送。
+
+测试数据不等于所有功能均已验证：不初始化需要目录来源的托管模型授权、聊天平台对话与
+渠道绑定（只有渠道网关能根据真实机器人创建）、Remote Control 会话（需要已连接的 CLI）
+或定时任务的触发历史。worker 边界和取消检查使用 `kind smoke`，托管网关使用
+`kind smoke managed`，浏览器流程使用 `e2e kind`。
 
 `status` 不修改状态。它输出选定集群和 Context，通过入口探测 <http://localhost:8080/healthz>，并列出节点以及 `ingress-nginx`、`db`、`storage` 和 `buildmax` 中的 Deployment、Job 和 Pod。在阅读更长的 `kind logs` 输出前，可用它区分集群不存在还是不健康。
 

@@ -64,14 +64,12 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if turn.UserID == "" {
-		turn.UserID = resolvedUserID
-	}
+	turn.UserID = resolvedUserID
 	if h.cfg.ConversationStore == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversations not configured")
 		return
 	}
-	conv, err := h.cfg.ConversationStore.CreateConversation(r.Context(), resolvedUserID, convchannel.ChannelWebhook, turn.UserID)
+	conv, err := h.cfg.ConversationStore.CreateConversation(r.Context(), resolvedUserID, convchannel.ChannelWebhook, resolvedUserID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "webhook handler", "handler", "create_conversation")
 		return

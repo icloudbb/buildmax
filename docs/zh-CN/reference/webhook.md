@@ -36,8 +36,9 @@ Content-Type: application/json
 # <BUILDMAX_HOME>/server.yaml
 webhook:
   message_path: message      # e.g. "body.text" for a nested field
-  user_id: webhook           # identity recorded when the payload names none
 ```
+
+运行属于密钥所有者，并在其个人 Space 中开启一个新对话；载荷无法指定其他身份。
 
 ### 响应
 

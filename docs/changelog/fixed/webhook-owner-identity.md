@@ -1,0 +1,1 @@
+- `POST /api/webhook` now runs as the webhook key's owner. It failed with a server error on every call because a fictitious `webhook` identity from the removed `webhook.user_id` setting was recorded as the conversation creator.

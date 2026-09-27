@@ -546,18 +546,22 @@ func helpTopics() []helpTopic {
 					"`mock` switches back to the free in-cluster mock. Both take effect by setting\n" +
 					"environment on the server and restarting it; the committed config is untouched.",
 				"`fixtures` seeds four accounts, personal and shared QA spaces, membership\n" +
-					"roles and an invitation, assigned and nested issues, comments, workflows,\n" +
-					"files, artifacts, synthetic secrets, schedules, and account webhook keys. It\n" +
+					"roles and an invitation, assigned and nested issues, comments, workflows\n" +
+					"(including a branching graph with typed input and one with structured\n" +
+					"output), agents with revision history, plugin, sandbox, and Secret settings,\n" +
+					"files, artifacts with public shares, synthetic secrets, agent and workflow\n" +
+					"schedules, Space sandbox and curation settings, and account webhook keys. It\n" +
 					"grants Alice System Administrator authority and publishes the sample plugins\n" +
 					"to the Marketplace, with one activated in the QA space. A separate space\n" +
 					"carries the long lists — many agents, workflows, artifacts, secrets, and\n" +
 					"schedules — and 105 issues for pagination, and it seeds a cohort of\n" +
 					"synthetic accounts so the admin Accounts page pages and filters.\n" +
 					"Reruns reuse named resources and fill missing data. `fixtures --runs` also\n" +
-					"creates a conversation, Task Continue/Retry history, and Issue Agent/Workflow\n" +
-					"results. Execution requires the reference free mock configuration; it refuses\n" +
-					"model overrides. Sign in with `login alice@buildmax.local`. See local-kind.md\n" +
-					"for the coverage matrix and fields reconciled on reruns.",
+					"creates a conversation, Task Continue/Retry history, Issue Agent/Workflow\n" +
+					"results, a graph Workflow run, real failed and canceled runs, and a webhook\n" +
+					"conversation. Execution requires the reference free mock configuration; it\n" +
+					"refuses model overrides. Sign in with `login alice@buildmax.local`. See\n" +
+					"local-kind.md for the coverage matrix and fields reconciled on reruns.",
 				"`drill rotation` rehearses docs/deploy/credential-rotation.md: it rotates the\n" +
 					"JWT secret, database password, storage key, a managed model key, and the KEK\n" +
 					"by Secret patch and rollout restart, asserts the old credentials are refused\n" +

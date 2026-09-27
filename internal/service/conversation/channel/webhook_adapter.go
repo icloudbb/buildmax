@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-const DefaultWebhookUserID = "webhook"
-
 type WebhookRequest struct {
 	Body   []byte
 	Header map[string][]string
@@ -18,20 +16,19 @@ type WebhookCallbackSender interface {
 	SendWebhookCallback(ctx context.Context, callbackURL string, output string) error
 }
 
+// WebhookAdapter parses an inbound webhook body into a Turn. It names no user:
+// the webhook key already identifies the account, and the handler that
+// resolved it is the only place that may say who the turn belongs to.
 type WebhookAdapter struct {
 	MessagePath    string
-	UserID         string
 	CallbackSender WebhookCallbackSender
 }
 
-func NewWebhookAdapter(messagePath string, userID string) *WebhookAdapter {
+func NewWebhookAdapter(messagePath string) *WebhookAdapter {
 	if messagePath == "" {
 		messagePath = "message"
 	}
-	if userID == "" {
-		userID = DefaultWebhookUserID
-	}
-	return &WebhookAdapter{MessagePath: messagePath, UserID: userID}
+	return &WebhookAdapter{MessagePath: messagePath}
 }
 
 func (a *WebhookAdapter) Receive(ctx context.Context, raw any) (Turn, error) {
@@ -60,7 +57,6 @@ func (a *WebhookAdapter) Receive(ctx context.Context, raw any) (Turn, error) {
 	return Turn{
 		Channel:        ChannelWebhook,
 		ConversationID: "",
-		UserID:         a.UserID,
 		Message:        message,
 		Raw:            rawMap,
 	}, nil

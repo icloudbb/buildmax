@@ -82,7 +82,7 @@ type fxTask struct {
 	Status string `json:"status"`
 }
 
-func seedFixtureRuns(ctx context.Context, client *http.Client, base, token string) error {
+func seedFixtureRuns(ctx context.Context, client *http.Client, target smokeTarget, base, token string) error {
 	// Match the first user message, not the generated conversation title: titles
 	// are mutable and model generated, so they cannot identify fixture ownership.
 	const message = "[kind fixture] Plan a QA release using the synthetic workspace files."
@@ -181,7 +181,13 @@ func seedFixtureRuns(ctx context.Context, client *http.Client, base, token strin
 	if err := seedFixtureIssueRuns(ctx, client, base, token); err != nil {
 		return err
 	}
-	fmt.Printf("    execution: conversation %s, Task %s with Continue/Retry, traces and workspace checkpoints\n", conversationID, task.ID)
+	if err := seedFixtureOutcomes(ctx, client, target, base, token, taskBase); err != nil {
+		return err
+	}
+	if err := seedFixtureWebhookConversation(ctx, client, target); err != nil {
+		return err
+	}
+	fmt.Printf("    execution: conversation %s, Task %s with Continue/Retry, traces and workspace checkpoints; Workflow graph run, failed and canceled outcomes, webhook conversation\n", conversationID, task.ID)
 	return nil
 }
 
@@ -246,31 +252,7 @@ func seedFixtureIssueRuns(ctx context.Context, client *http.Client, base, token 
 					return err
 				}
 			}
-			deadline := time.NewTimer(3 * time.Minute)
-			ticker := time.NewTicker(time.Second)
-			err := func() error {
-				defer deadline.Stop()
-				defer ticker.Stop()
-				for {
-					if err := requestJSON(ctx, client, http.MethodGet, base+"/workflow-runs/"+current.Run.ID, token, nil, &current, http.StatusOK); err != nil {
-						return err
-					}
-					switch current.Run.Status {
-					case "succeeded":
-						return nil
-					case "failed", "canceled":
-						return fmt.Errorf("fixture workflow %s ended %s", current.Run.ID, current.Run.Status)
-					}
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case <-deadline.C:
-						return fmt.Errorf("fixture workflow %s timed out", current.Run.ID)
-					case <-ticker.C:
-					}
-				}
-			}()
-			if err != nil {
+			if err := waitForWorkflowRun(ctx, client, base, token, current.Run.ID, "succeeded", 3*time.Minute); err != nil {
 				return err
 			}
 		}

@@ -43,8 +43,10 @@ at a payload shape you do not control:
 # <BUILDMAX_HOME>/server.yaml
 webhook:
   message_path: message      # e.g. "body.text" for a nested field
-  user_id: webhook           # identity recorded when the payload names none
 ```
+
+The run belongs to the key's owner and starts a new conversation in their
+personal Space; the payload cannot name another identity.
 
 ### Responses
 
