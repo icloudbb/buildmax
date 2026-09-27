@@ -3,6 +3,7 @@ package runrelay
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	gws "github.com/gorilla/websocket"
+
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 func TestAgentWSURL(t *testing.T) {
@@ -422,5 +425,80 @@ func TestDialDoesNotRenewOnAnOutage(t *testing.T) {
 	}
 	if renewed {
 		t.Error("a 503 spent a token renewal")
+	}
+}
+
+// A remote answer to a question set reaches OnRemoteQuestion; and the relay's
+// outbound question set and its resolution reach the server.
+func TestRelayQuestionRoundTrip(t *testing.T) {
+	got := make(chan envelope, 8)
+	upgrader := gws.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		if _, _, err := c.ReadMessage(); err != nil { // the register
+			return
+		}
+		reg, _ := json.Marshal(registeredPayload{SessionID: "s1"})
+		_ = c.WriteMessage(gws.TextMessage, mustEnvelope(typeAgentRegistered, reg))
+		resp, _ := json.Marshal(questionResponsePayload{ID: "q1", Answers: []string{"Postgres", "orders-api"}})
+		_ = c.WriteMessage(gws.TextMessage, mustEnvelope(typeAgentQuestionResponse, resp))
+		for {
+			_, data, err := c.ReadMessage()
+			if err != nil {
+				return
+			}
+			var env envelope
+			if json.Unmarshal(data, &env) == nil {
+				got <- env
+			}
+		}
+	}))
+	defer server.Close()
+
+	answers := make(chan string, 1)
+	r := New(Config{
+		ServerURL: server.URL,
+		TokenFunc: func() (string, error) { return "tok", nil },
+		OnRemoteQuestion: func(id string, values []string, declined bool) {
+			answers <- fmt.Sprintf("%s:%v:%v", id, values, declined)
+		},
+	})
+	r.Start(t.Context())
+	defer r.Close()
+
+	select {
+	case a := <-answers:
+		if a != "q1:[Postgres orders-api]:false" {
+			t.Errorf("remote answer = %q", a)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnRemoteQuestion never fired")
+	}
+
+	r.SendQuestionRequest("q2", []agent.Question{{Header: "DB", Text: "Which database?", Options: []agent.QuestionOption{{Label: "Postgres"}}}})
+	r.SendQuestionResolved("q2")
+	sawRequest := false
+	for {
+		select {
+		case env := <-got:
+			switch env.Type {
+			case typeAgentQuestion:
+				var p questionPayload
+				if json.Unmarshal(env.Payload, &p) == nil && p.ID == "q2" && len(p.Questions) == 1 && p.Questions[0].Options[0].Label == "Postgres" {
+					sawRequest = true
+				}
+			case typeAgentQuestionResolved:
+				if !sawRequest {
+					t.Fatal("resolution arrived before the question set")
+				}
+				return
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("outbound question frames never reached the server")
+		}
 	}
 }

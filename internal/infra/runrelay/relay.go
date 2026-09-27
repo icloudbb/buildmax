@@ -19,6 +19,8 @@ import (
 	"time"
 
 	gws "github.com/gorilla/websocket"
+
+	"github.com/icloudbb/buildmax/internal/core/agent"
 )
 
 const (
@@ -51,6 +53,9 @@ const (
 	typeAgentPrompt           = "agent.prompt"
 	typeAgentApprovalResponse = "agent.approval_response"
 	typeAgentCancel           = "agent.cancel"
+	typeAgentQuestion         = "agent.question"
+	typeAgentQuestionResolved = "agent.question_resolved"
+	typeAgentQuestionResponse = "agent.question_response"
 )
 
 type registerPayload struct {
@@ -89,6 +94,23 @@ type approvalResponsePayload struct {
 	Decision string `json:"decision"`
 }
 
+// questionPayload carries an AskUser question set in the agent.Question wire
+// shape, so a viewer renders exactly what the local panel shows.
+type questionPayload struct {
+	ID        string           `json:"id"`
+	Questions []agent.Question `json:"questions"`
+}
+
+type questionResolvedPayload struct {
+	ID string `json:"id"`
+}
+
+type questionResponsePayload struct {
+	ID       string   `json:"id"`
+	Answers  []string `json:"answers,omitempty"`
+	Declined bool     `json:"declined,omitempty"`
+}
+
 // TokenFunc yields a fresh user access token per call, because a client outlives
 // any one token.
 type TokenFunc func() (string, error)
@@ -122,6 +144,10 @@ type Config struct {
 	// prompt, with the request id and the decision ("once"/"session"/"deny").
 	// Called from the relay's read goroutine. Optional.
 	OnRemoteApproval func(id, decision string)
+	// OnRemoteQuestion is called when another device answers an AskUser
+	// question set: one answer per question, or declined for a dismissal.
+	// Called from the relay's read goroutine. Optional.
+	OnRemoteQuestion func(id string, answers []string, declined bool)
 	// OnRemoteCancel is called when another device asks the session to stop its
 	// current run. Called from the relay's read goroutine. Optional.
 	OnRemoteCancel func()
@@ -295,6 +321,11 @@ func (r *Relay) readLoop(conn *gws.Conn) {
 			if json.Unmarshal(env.Payload, &p) == nil && p.ID != "" && r.cfg.OnRemoteApproval != nil {
 				r.cfg.OnRemoteApproval(p.ID, p.Decision)
 			}
+		case typeAgentQuestionResponse:
+			var p questionResponsePayload
+			if json.Unmarshal(env.Payload, &p) == nil && p.ID != "" && r.cfg.OnRemoteQuestion != nil {
+				r.cfg.OnRemoteQuestion(p.ID, p.Answers, p.Declined)
+			}
 		case typeAgentCancel:
 			if r.cfg.OnRemoteCancel != nil {
 				r.cfg.OnRemoteCancel()
@@ -367,6 +398,24 @@ func (r *Relay) SendApprovalResolved(id string) {
 		return
 	}
 	r.enqueue(typeAgentApprovalResolved, approvalResolvedPayload{ID: id})
+}
+
+// SendQuestionRequest relays a pending AskUser question set so another device
+// can answer it. Dropped if the buffer is full (the local panel still stands).
+func (r *Relay) SendQuestionRequest(id string, questions []agent.Question) {
+	if r == nil || id == "" {
+		return
+	}
+	r.enqueue(typeAgentQuestion, questionPayload{ID: id, Questions: questions})
+}
+
+// SendQuestionResolved tells the server a question set was answered, dismissed,
+// or withdrawn, so connected devices dismiss their copy of it.
+func (r *Relay) SendQuestionResolved(id string) {
+	if r == nil || id == "" {
+		return
+	}
+	r.enqueue(typeAgentQuestionResolved, questionResolvedPayload{ID: id})
 }
 
 // enqueue marshals a frame and queues it for the write loop, dropping it rather

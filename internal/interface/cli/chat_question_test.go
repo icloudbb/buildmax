@@ -21,7 +21,7 @@ func questionModel(t *testing.T, qs ...agent.Question) (*Model, chan agent.Answe
 	m.width = 100
 	m.busy = true
 	ch := make(chan agent.Answer, 1)
-	h.pending["q1"] = ch
+	h.pending["q1"] = pendingQuestion{ch: ch, count: len(qs)}
 	next, _ := m.Update(questionRequestMsg{id: "q1", Questions: qs, response: ch})
 	return next.(*Model), ch
 }
@@ -211,8 +211,8 @@ func TestQuestionEscDismissesTheSet(t *testing.T) {
 func TestWithdrawnQuestionClearsThePanel(t *testing.T) {
 	m, ch := questionModel(t, dbQuestion)
 	h := m.opts.Questioner.(*TUIQuestionHandler)
-	h.withdraw("q1")
-	next, _ := m.Update(questionWithdrawnMsg{id: "q1"})
+	h.take("q1")
+	next, _ := m.Update(questionResolvedMsg{id: "q1"})
 	m = next.(*Model)
 	if m.question != nil {
 		t.Fatal("the panel outlived its run")
@@ -221,4 +221,53 @@ func TestWithdrawnQuestionClearsThePanel(t *testing.T) {
 		t.Fatal("a withdrawn question accepted an answer")
 	}
 	notAnswered(t, ch)
+}
+
+// A remote device answers through Remote Control: first answer wins, the local
+// panel goes, the exchange still lands in scrollback, and connected devices are
+// told the set is settled.
+func TestRemoteAnswerSettlesTheLocalPanel(t *testing.T) {
+	m, ch := questionModel(t, dbQuestion, nameQuestion)
+	h := m.opts.Questioner.(*TUIQuestionHandler)
+	var resolved []string
+	h.SetForwarders(nil, func(id string) { resolved = append(resolved, id) })
+
+	if h.ResolveRemote("q1", []string{"Postgres"}, false) {
+		t.Fatal("an answer missing a question was accepted")
+	}
+	if h.ResolveRemote("q1", []string{"Postgres", "  "}, false) {
+		t.Fatal("an empty answer was accepted")
+	}
+	notAnswered(t, ch)
+	if !h.ResolveRemote("q1", []string{"Postgres", "orders-api"}, false) {
+		t.Fatal("a complete remote answer was refused")
+	}
+	if a := answered(t, ch); !reflect.DeepEqual(a.Values, []string{"Postgres", "orders-api"}) {
+		t.Fatalf("answer = %+v", a)
+	}
+	if !reflect.DeepEqual(resolved, []string{"q1"}) {
+		t.Fatalf("devices told %v, want q1 resolved once", resolved)
+	}
+	a := agent.Answer{Values: []string{"Postgres", "orders-api"}}
+	next, cmd := m.Update(questionResolvedMsg{id: "q1", answer: &a})
+	if next.(*Model).question != nil || cmd == nil {
+		t.Fatal("the local panel should close and print the exchange")
+	}
+	// The local answer that loses the race reaches no run.
+	if h.deliver("q1", agent.Answer{Values: []string{"late", "late"}}) || h.ResolveRemote("q1", nil, true) {
+		t.Fatal("a settled set accepted a second answer")
+	}
+}
+
+// Answering locally tells connected devices to dismiss their copy.
+func TestLocalAnswerIsForwardedAsResolved(t *testing.T) {
+	m, ch := questionModel(t, dbQuestion)
+	h := m.opts.Questioner.(*TUIQuestionHandler)
+	var resolved []string
+	h.SetForwarders(nil, func(id string) { resolved = append(resolved, id) })
+	press(m, digit('1'))
+	answered(t, ch)
+	if !reflect.DeepEqual(resolved, []string{"q1"}) {
+		t.Fatalf("devices told %v, want q1 resolved", resolved)
+	}
 }

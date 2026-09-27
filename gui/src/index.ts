@@ -13,3 +13,4 @@ export {
 export { Avatar, getInitials, type AvatarProps } from "./Avatar"
 export { ChatComposer, type ChatComposerProps } from "./ChatComposer"
 export { ChatThread, type ChatThreadItem, type ChatThreadProps } from "./ChatThread"
+export { QuestionForm, type Question, type QuestionAnswer, type QuestionFormProps, type QuestionOption } from "./QuestionForm"

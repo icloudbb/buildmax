@@ -122,8 +122,9 @@ registers itself against the user's account, and relays its output; execution,
 the filesystem, and tools stay on the machine. From the Remote Control area in
 Portal, another device lists the user's live sessions with presence, watches one
 session's stream, sends follow-up messages, approves or denies its tool calls,
-and stops a running turn. The local prompt and any connected device resolve a
-tool approval on a first-answer-wins basis. The relay reconnects with backoff and
+answers its `AskUser` questions, and stops a running turn. The local prompt and
+any connected device resolve a tool approval or a question set on a
+first-answer-wins basis. The relay reconnects with backoff and
 reattaches to the same session across a network drop, keeping the session's URL
 and stream stable. Cross-replica command routing rides the coordination command
 bus, and the approval stream reuses the coordination-backed stream hub, so both
@@ -158,8 +159,9 @@ Interactive takeover of the embedded view is not built.
 On the TUI and Desktop project chats, the `AskUser` tool lets an Agent put up
 to four questions to the user at once and wait for the answers. Each question
 can be single-choice, multi-select, or open, and the answers return as the tool
-result. Print mode, workers, scheduled runs, subagents, and
-Remote Control viewers do not get it. See
+result. A TUI session under Remote Control shows the questions in Portal too,
+and either side can answer. Print mode, workers, scheduled runs, and subagents
+do not get it. See
 [the design record](design/agent-user-questions.md).
 
 Interactive Desktop turns now use `agentapp.RunScheduler`, which serializes one

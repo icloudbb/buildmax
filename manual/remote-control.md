@@ -33,6 +33,9 @@ sessions, each with an online dot. Open one to:
   terminal.
 - **Approve or deny a tool call** when the session asks for permission. Whoever
   answers first — the terminal or the device — wins, and the other prompt clears.
+- **Answer the agent's questions** when it asks you to decide something: pick an
+  option, check several, or type your own answer, one question at a time. As
+  with approvals, the first answer from either side wins.
 - **Stop a running turn** with the Stop button. It interrupts that turn; the
   session stays usable.
 

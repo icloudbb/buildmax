@@ -518,3 +518,117 @@ func TestRemoteSessionStreamEmitsHeartbeat(t *testing.T) {
 		}
 	}
 }
+
+// registeredAgent dials the agent socket, registers, and marks the session
+// online in the store, returning the handler, server, socket, and session id.
+func registeredAgent(t *testing.T) (*Handler, *httptest.Server, *gws.Conn, string) {
+	t.Helper()
+	store := &fakeRemoteStore{}
+	h := NewHandler(Config{JWTSecret: wsTestSecret, CORSOrigin: "*", RemoteSessionStore: store})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	conn := dialAgentWS(t, server, testsupport.SignJWT("u1", wsTestSecret))
+	t.Cleanup(func() { conn.Close() })
+	sendEnvelope(t, conn, wsconn.TypeAgentRegister, wsconn.AgentRegister{Platform: "cli"})
+	reg := readEnvelope(t, conn)
+	var registered wsconn.AgentRegistered
+	if err := json.Unmarshal(reg.Payload, &registered); err != nil {
+		t.Fatal(err)
+	}
+	store.setGet(coreremote.RemoteSession{ID: registered.SessionID, UserID: "u1", Status: coreremote.StatusOnline})
+	return h, server, conn, registered.SessionID
+}
+
+func postQuestion(t *testing.T, server *httptest.Server, sessionID, body string) int {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodPost, server.URL+"/api/remote-control/sessions/"+sessionID+"/question", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", wsTestSecret))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
+
+// An answer POSTed by the owner reaches the agent socket as
+// agent.question_response; malformed answers never leave the server.
+func TestQuestionAnswerDeliveredToAgentSocket(t *testing.T) {
+	_, server, conn, sid := registeredAgent(t)
+	for _, bad := range []string{`{"answers":["a"]}`, `{"id":"q1"}`, `{"id":"q1","answers":["a"," "]}`} {
+		if code := postQuestion(t, server, sid, bad); code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", bad, code)
+		}
+	}
+	if code := postQuestion(t, server, sid, `{"id":"q1","answers":["Postgres","orders-api"]}`); code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", code)
+	}
+	env := readEnvelope(t, conn)
+	if env.Type != wsconn.TypeAgentQuestionResponse {
+		t.Fatalf("agent received %q, want question_response", env.Type)
+	}
+	var qr wsconn.AgentQuestionResponse
+	if err := json.Unmarshal(env.Payload, &qr); err != nil {
+		t.Fatal(err)
+	}
+	if qr.ID != "q1" || strings.Join(qr.Answers, "|") != "Postgres|orders-api" || qr.Declined {
+		t.Errorf("question response = %+v", qr)
+	}
+
+	if code := postQuestion(t, server, sid, `{"id":"q2","answers":["ignored"],"declined":true}`); code != http.StatusAccepted {
+		t.Fatalf("dismissal status = %d, want 202", code)
+	}
+	env = readEnvelope(t, conn)
+	qr = wsconn.AgentQuestionResponse{}
+	if err := json.Unmarshal(env.Payload, &qr); err != nil {
+		t.Fatal(err)
+	}
+	if qr.ID != "q2" || !qr.Declined || len(qr.Answers) != 0 {
+		t.Errorf("dismissal = %+v, want declined with no answers", qr)
+	}
+}
+
+// A question set the agent raises, and its resolution, reach the session's
+// question stream with the questions passed through unread.
+func TestAgentQuestionReachesStream(t *testing.T) {
+	h, _, conn, sid := registeredAgent(t)
+	events, unsub := h.hub.Subscribe(wsconn.QuestionStreamKey(sid))
+	defer unsub()
+	sendEnvelope(t, conn, wsconn.TypeAgentQuestion, wsconn.AgentQuestion{
+		ID: "q1", Questions: json.RawMessage(`[{"question":"Which database?","options":[{"label":"Postgres"}]}]`),
+	})
+	sendEnvelope(t, conn, wsconn.TypeAgentQuestionResolved, wsconn.AgentQuestionResolved{ID: "q1"})
+	var frames []string
+	for len(frames) < 2 {
+		select {
+		case frame := <-events:
+			frames = append(frames, frame)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("question frames never reached the stream; got %q", frames)
+		}
+	}
+	if !strings.Contains(frames[0], `"id":"q1"`) || !strings.Contains(frames[0], `"label":"Postgres"`) {
+		t.Errorf("question frame = %q", frames[0])
+	}
+	if !strings.Contains(frames[1], `"resolved":true`) {
+		t.Errorf("resolution frame = %q", frames[1])
+	}
+}
+
+// A bus-forwarded answer reaches a session held by this replica.
+func TestForwardedQuestionAnswerReachesSocket(t *testing.T) {
+	h, _, conn, sid := registeredAgent(t)
+	incoming := make(chan []byte, 1)
+	go h.consumeRemoteCommands(incoming)
+	payload, _ := json.Marshal(remoteCommand{SessionID: sid, Kind: commandKindQuestion, QuestionID: "q9", Answers: []string{"yes"}})
+	incoming <- payload
+	close(incoming)
+	env := readEnvelope(t, conn)
+	var qr wsconn.AgentQuestionResponse
+	if env.Type != wsconn.TypeAgentQuestionResponse || json.Unmarshal(env.Payload, &qr) != nil || qr.ID != "q9" {
+		t.Fatalf("forwarded answer = %q %s", env.Type, env.Payload)
+	}
+}

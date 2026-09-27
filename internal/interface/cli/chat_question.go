@@ -23,26 +23,53 @@ type questionRequestMsg struct {
 	response  chan agent.Answer
 }
 
-// questionWithdrawnMsg dismisses the panel of a question set whose run stopped
-// waiting for it.
-type questionWithdrawnMsg struct{ id string }
+// questionResolvedMsg dismisses the panel of a question set settled somewhere
+// other than the panel: withdrawn because its run stopped waiting (answer nil),
+// or answered from another device through Remote Control.
+type questionResolvedMsg struct {
+	id     string
+	answer *agent.Answer
+}
+
+// pendingQuestion is a question set its run is blocked on. count lets a remote
+// answer be checked against the set it claims to answer.
+type pendingQuestion struct {
+	ch    chan agent.Answer
+	count int
+}
 
 // TUIQuestionHandler implements agent.UserQuestioner for the Bubble Tea TUI.
 // Create it before the program and wire the program in after tea.NewProgram.
+// When Remote Control is on it also forwards the set outward and accepts a
+// remote answer; whichever of {local, remote} answers first wins, as for
+// approvals.
 type TUIQuestionHandler struct {
 	program *tea.Program
 
 	mu      sync.Mutex
-	pending map[string]chan agent.Answer
+	pending map[string]pendingQuestion
+
+	// forwardRequest and forwardResolved bridge to the Remote Control relay. Nil
+	// when Remote Control is off.
+	forwardRequest  func(id string, questions []agent.Question)
+	forwardResolved func(id string)
 }
 
 func NewTUIQuestionHandler() *TUIQuestionHandler {
-	return &TUIQuestionHandler{pending: make(map[string]chan agent.Answer)}
+	return &TUIQuestionHandler{pending: make(map[string]pendingQuestion)}
 }
 
 func (h *TUIQuestionHandler) SetProgram(p *tea.Program) { h.program = p }
 
-// AskUser shows the questions and blocks until they are answered or the run ends.
+// SetForwarders wires the relay bridges once the AgentApp exists. Both may be
+// nil (Remote Control off).
+func (h *TUIQuestionHandler) SetForwarders(request func(id string, questions []agent.Question), resolved func(id string)) {
+	h.forwardRequest = request
+	h.forwardResolved = resolved
+}
+
+// AskUser shows the questions locally, forwards them to connected devices, and
+// blocks until they are answered from either side or the run ends.
 func (h *TUIQuestionHandler) AskUser(ctx context.Context, qs []agent.Question) (agent.Answer, error) {
 	if h.program == nil {
 		return agent.Answer{}, errors.New("no terminal to ask in")
@@ -50,38 +77,82 @@ func (h *TUIQuestionHandler) AskUser(ctx context.Context, qs []agent.Question) (
 	id, _ := util.NewPublicID()
 	ch := make(chan agent.Answer, 1)
 	h.mu.Lock()
-	h.pending[id] = ch
+	h.pending[id] = pendingQuestion{ch: ch, count: len(qs)}
 	h.mu.Unlock()
 
 	h.program.Send(questionRequestMsg{id: id, Questions: qs, response: ch})
+	if h.forwardRequest != nil {
+		h.forwardRequest(id, qs)
+	}
 
 	select {
 	case a := <-ch:
 		return a, nil
 	case <-ctx.Done():
-		h.withdraw(id)
-		h.program.Send(questionWithdrawnMsg{id: id})
+		if h.take(id) {
+			h.program.Send(questionResolvedMsg{id: id})
+		}
 		return agent.Answer{}, ctx.Err()
 	}
 }
 
-// deliver hands the answer to the waiting run. It is a no-op for a question set
-// already answered or withdrawn, so a late key press reaches no run.
-func (h *TUIQuestionHandler) deliver(id string, a agent.Answer) bool {
-	h.mu.Lock()
-	ch, ok := h.pending[id]
-	delete(h.pending, id)
-	h.mu.Unlock()
-	if ok {
-		ch <- a // buffered, and only one deliver can find it
+// ResolveRemote applies an answer another device sent and dismisses the local
+// panel, leaving the exchange in scrollback. It is a no-op for a set already
+// settled, and refuses an answer that does not cover every question: the tool
+// would reject it, and the local panel is still there to answer properly.
+func (h *TUIQuestionHandler) ResolveRemote(id string, answers []string, declined bool) bool {
+	a := agent.Answer{Declined: declined}
+	if !declined {
+		for _, v := range answers {
+			if strings.TrimSpace(v) == "" {
+				return false
+			}
+		}
+		a.Values = answers
 	}
-	return ok
+	h.mu.Lock()
+	p, ok := h.pending[id]
+	if ok && !declined && len(answers) != p.count {
+		ok = false
+	}
+	h.mu.Unlock()
+	if !ok || !h.deliver(id, a) {
+		return false
+	}
+	if h.program != nil {
+		h.program.Send(questionResolvedMsg{id: id, answer: &a})
+	}
+	return true
 }
 
-func (h *TUIQuestionHandler) withdraw(id string) {
+// deliver hands the answer to the waiting run. It is a no-op for a question set
+// already answered or withdrawn, so a late key press or a second device's answer
+// reaches no run.
+func (h *TUIQuestionHandler) deliver(id string, a agent.Answer) bool {
 	h.mu.Lock()
+	p, ok := h.pending[id]
 	delete(h.pending, id)
 	h.mu.Unlock()
+	if !ok {
+		return false
+	}
+	p.ch <- a // buffered, and only one deliver can find it
+	if h.forwardResolved != nil {
+		h.forwardResolved(id)
+	}
+	return true
+}
+
+// take retires a set its run stopped waiting for, telling connected devices.
+func (h *TUIQuestionHandler) take(id string) bool {
+	h.mu.Lock()
+	_, ok := h.pending[id]
+	delete(h.pending, id)
+	h.mu.Unlock()
+	if ok && h.forwardResolved != nil {
+		h.forwardResolved(id)
+	}
+	return ok
 }
 
 // questionForm is the panel's state for one question set. Each question has one
@@ -280,11 +351,19 @@ func (m *Model) finishQuestion(a agent.Answer) tea.Cmd {
 	return tea.Println(formatQuestionsForScrollback(req.Questions, a) + "\n")
 }
 
-func handleQuestionWithdrawn(m *Model, msg questionWithdrawnMsg) (tea.Model, tea.Cmd) {
-	if m.question != nil && m.question.req.id == msg.id {
-		m.question = nil
+// handleQuestionResolved dismisses the panel of a set settled elsewhere. A
+// remote answer is printed like a local one, so scrollback shows what was
+// decided whichever device decided it.
+func handleQuestionResolved(m *Model, msg questionResolvedMsg) (tea.Model, tea.Cmd) {
+	if m.question == nil || m.question.req.id != msg.id {
+		return m, nil
 	}
-	return m, nil
+	req := m.question.req
+	m.question = nil
+	if msg.answer == nil {
+		return m, nil
+	}
+	return m, tea.Println(formatQuestionsForScrollback(req.Questions, *msg.answer) + "\n")
 }
 
 func formatQuestionsForScrollback(qs []agent.Question, a agent.Answer) string {

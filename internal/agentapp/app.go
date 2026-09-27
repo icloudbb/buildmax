@@ -68,6 +68,10 @@ type AppConfig struct {
 	// Nil ignores remote approvals. The surface supplies it because it owns the
 	// approval prompt.
 	RemoteApprovalHandler func(id, decision string)
+	// RemoteQuestionHandler receives another device's answer to a pending
+	// AskUser question set: one answer per question, or declined. Nil ignores
+	// remote answers. The surface supplies it because it owns the question panel.
+	RemoteQuestionHandler func(id string, answers []string, declined bool)
 	// RemoteCancelHandler is called when another device asks the session to stop
 	// its current run. Nil ignores remote cancels. The surface supplies it because
 	// it owns the run's cancellation.
@@ -604,6 +608,22 @@ func (a *AgentApp) SendRemoteApprovalRequest(id, tool, summary string) {
 func (a *AgentApp) SendRemoteApprovalResolved(id string) {
 	if a != nil && a.remoteRelay != nil {
 		a.remoteRelay.SendApprovalResolved(id)
+	}
+}
+
+// SendRemoteQuestionRequest forwards a pending AskUser question set to
+// connected devices. A no-op when the session is not being observed.
+func (a *AgentApp) SendRemoteQuestionRequest(id string, questions []agent.Question) {
+	if a != nil && a.remoteRelay != nil {
+		a.remoteRelay.SendQuestionRequest(id, questions)
+	}
+}
+
+// SendRemoteQuestionResolved tells connected devices a question set was
+// answered or withdrawn, so they dismiss it. A no-op when not observed.
+func (a *AgentApp) SendRemoteQuestionResolved(id string) {
+	if a != nil && a.remoteRelay != nil {
+		a.remoteRelay.SendQuestionResolved(id)
 	}
 }
 

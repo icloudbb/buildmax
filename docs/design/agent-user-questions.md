@@ -2,8 +2,8 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Agent向用户提问.md)
 
-> **Audience:** contributors · **Status:** implemented on the TUI and Desktop
-> project chats. Remote Control relay, workers, and richer question shapes are
+> **Audience:** contributors · **Status:** implemented on the TUI (answerable
+> from Remote Control viewers too) and Desktop project chats. Workers are
 > deferred (see [Deferred](#deferred)).
 
 ## Contents
@@ -142,7 +142,9 @@ answer are printed to scrollback.
 per-id bookkeeping (`pendingAnswers[T]`) that approvals use, so an id is
 answered at most once and a stale answer reaches no run. An empty answer that
 is not a dismissal is refused, because the Agent would read it as the user
-choosing to say nothing. The question panel sits above the composer. It shows
+choosing to say nothing. The question panel frames `QuestionForm` from
+`@buildmax/gui`, the form Portal's Remote Control page also uses, and sits
+above the composer. It shows
 one question at a time, with tabs when there are several. Option buttons pick
 an option, or check it on a multi-select question, which a Confirm button
 then sends. Each question also has its own answer field, and a Dismiss button
@@ -152,6 +154,17 @@ focused pane. A chat that is not on screen still says it is waiting: an amber
 dot marks its tab when another tab is active, its session and project rows in
 the sidebar, and the collapsed Projects header. A pending approval sets the
 same dot, since both stop the run on the user.
+
+**Remote Control.** A TUI session with Remote Control on forwards each set,
+exactly as it forwards approvals: `agent.question` carries the set in the
+`agent.Question` shape, `agent.question_resolved` retires it, and a viewer's
+`agent.question_response` answers it. The Portal session page renders the same
+form Desktop does, `QuestionForm` from `@buildmax/gui`, so the two surfaces
+cannot drift. The first answer wins: the local panel and the remote copy both
+deliver through one pending entry, the loser reaches no run, and the settled
+set is announced so the other side dismisses it. A remote answer is checked
+against the set it claims to answer (one non-empty answer per question) before
+it is delivered, and it is printed to the TUI scrollback like a local one.
 
 ## Lifecycle And Failure
 
@@ -184,10 +197,6 @@ same dot, since both stop the run on the user.
 
 ## Deferred
 
-- **Remote Control.** A TUI session watched from another device shows no
-  question, and a remote user cannot answer one; they can still cancel the
-  turn. Relaying the question needs a frame beside `agent.approval` and a
-  Portal panel.
 - **Workers.** An unattended run cannot block. If Portal Tasks need
   questions, the likely shape is to end the TaskRun with the question in its
   result and answer it by Continue. First measure whether the tool makes

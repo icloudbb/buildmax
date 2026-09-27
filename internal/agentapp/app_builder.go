@@ -213,6 +213,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 			},
 			OnRemotePrompt:   cfg.RemotePromptHandler,
 			OnRemoteApproval: cfg.RemoteApprovalHandler,
+			OnRemoteQuestion: cfg.RemoteQuestionHandler,
 			OnRemoteCancel:   cfg.RemoteCancelHandler,
 		})
 		app.remoteRelay.Start(context.Background())

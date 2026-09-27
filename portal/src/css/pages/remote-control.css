@@ -214,6 +214,13 @@
   cursor: not-allowed;
 }
 
+/* The AskUser question set, rendered by @buildmax/gui QuestionForm. */
+.rc-question {
+  border: 1px solid var(--color-accent, #3b82f6);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
 .rc-approval {
   border: 1px solid var(--color-warning);
   border-radius: 10px;

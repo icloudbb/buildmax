@@ -1,6 +1,7 @@
 import { apiFetch, getApiBase, parseErrorResponse, requestJson, throwIfNotOk } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import { readSSEStream } from "../../lib/api/sse"
+import type { Question, QuestionAnswer } from "@buildmax/gui"
 
 /** One live, device-resident session the signed-in user has made reachable. */
 export interface RemoteSession {
@@ -33,26 +34,30 @@ export interface ApprovalFrame {
   resolved?: boolean
 }
 
+interface FrameStreamCallbacks<T> {
+  onFrame: (frame: T) => void
+  onDone: () => void
+  onError: (err: Error) => void
+  onDraining?: () => void
+}
+
 /**
- * Stream a session's pending tool-approval prompts. Each SSE payload carries one
- * or more newline-separated JSON frames; a frame with resolved=true dismisses the
- * one with the same id.
+ * Read one of a session's prompt streams. Each SSE payload carries one or more
+ * newline-separated JSON frames; a frame with resolved=true dismisses the one
+ * with the same id.
  */
-export async function streamRemoteApprovals(
+async function streamPromptFrames<T>(
   sessionId: string,
+  stream: "approval-stream" | "question-stream",
+  label: string,
   token: string,
-  callbacks: {
-    onFrame: (frame: ApprovalFrame) => void
-    onDone: () => void
-    onError: (err: Error) => void
-    onDraining?: () => void
-  },
+  callbacks: FrameStreamCallbacks<T>,
   options?: { signal?: AbortSignal }
 ): Promise<void> {
-  const url = `${getApiBase()}/api/remote-control/sessions/${encodeURIComponent(sessionId)}/approval-stream`
+  const url = `${getApiBase()}/api/remote-control/sessions/${encodeURIComponent(sessionId)}/${stream}`
   const res = await apiFetch(url, { headers: authHeaders(token), signal: options?.signal })
   if (!res.ok) {
-    callbacks.onError(new Error(await parseErrorResponse(res, "Approval stream failed")))
+    callbacks.onError(new Error(await parseErrorResponse(res, `${label} stream failed`)))
     return
   }
   await readSSEStream(res, {
@@ -64,7 +69,7 @@ export async function streamRemoteApprovals(
       for (const line of data.split("\n")) {
         if (!line.trim()) continue
         try {
-          callbacks.onFrame(JSON.parse(line) as ApprovalFrame)
+          callbacks.onFrame(JSON.parse(line) as T)
         } catch {
           // A malformed frame is ignored rather than breaking the stream.
         }
@@ -79,6 +84,48 @@ export async function streamRemoteApprovals(
     onDone: callbacks.onDone,
     onError: callbacks.onError,
   })
+}
+
+/** Stream a session's pending tool-approval prompts. */
+export function streamRemoteApprovals(
+  sessionId: string,
+  token: string,
+  callbacks: FrameStreamCallbacks<ApprovalFrame>,
+  options?: { signal?: AbortSignal }
+): Promise<void> {
+  return streamPromptFrames(sessionId, "approval-stream", "Approval", token, callbacks, options)
+}
+
+/** One frame on a session's question stream: a pending AskUser set or its dismissal. */
+export interface QuestionFrame {
+  id: string
+  questions?: Question[]
+  resolved?: boolean
+}
+
+/** Stream a session's pending AskUser question sets. */
+export function streamRemoteQuestions(
+  sessionId: string,
+  token: string,
+  callbacks: FrameStreamCallbacks<QuestionFrame>,
+  options?: { signal?: AbortSignal }
+): Promise<void> {
+  return streamPromptFrames(sessionId, "question-stream", "Question", token, callbacks, options)
+}
+
+/** Answer a pending AskUser question set: one answer per question, or a dismissal. */
+export async function respondRemoteQuestion(
+  sessionId: string,
+  id: string,
+  answer: QuestionAnswer,
+  token: string
+): Promise<void> {
+  const body = "declined" in answer ? { id, declined: true } : { id, answers: answer.answers }
+  const res = await apiFetch(
+    `${getApiBase()}/api/remote-control/sessions/${encodeURIComponent(sessionId)}/question`,
+    { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) }, body: JSON.stringify(body) }
+  )
+  await throwIfNotOk(res)
 }
 
 /** Ask a live session to stop its current run. */
