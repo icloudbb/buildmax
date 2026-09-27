@@ -40,3 +40,18 @@ export function withQuestion(pending, request) {
 export function withoutQuestion(pending, sessionId, questionId) {
   return withoutRequest(pending, sessionId, questionId, 'question_id');
 }
+
+// waitingOn indexes the sessions, and their projects, that are blocked on the
+// user — an approval or a question up — so a surface not showing that chat can
+// still say so.
+export function waitingOn(...pendings) {
+  const sessions = new Set();
+  const projects = new Set();
+  for (const pending of pendings) {
+    for (const request of Object.values(pending ?? {})) {
+      if (request?.session_id) sessions.add(request.session_id);
+      if (request?.project_id) projects.add(request.project_id);
+    }
+  }
+  return { sessions, projects };
+}

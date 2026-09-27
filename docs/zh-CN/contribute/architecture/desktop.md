@@ -89,6 +89,8 @@ Project 的中央界面是由 tab 组成的网格。每个 tab 渲染一种类�
 
 `AskUser` 问题沿用同样的按运行、按 ID 模型。每个 Project 运行还会得到一个 `runQuestioner`，`App` 用同一套 `pendingAnswers` 记账保存未回答的问题。`desktop/question-request` 携带 `question_id`、Project 与 Session ID 以及 `questions`。前端在该 Session 的输入框上方逐个显示这组问题，并通过 `RespondQuestion(question_id, answers, declined)` 作答，每个问题一个答案。非忽略的空答案会被拒绝。只有 Project app 会设置 `EnableAskUser`；为定时运行和无项目会话按目录托管的 app 从不提供该工具。见[设计记录](../../design/Agent向用户提问.md)。
 
+两个待处理映射还会输入 `waitingOn`（`lib/approvals.js`），它给出正在等待用户的 Session 与 Project。`TabBar` 会标记处于等待状态但未激活的聊天 tab，侧边栏会标记对应的会话行、项目行以及折叠起来的 Projects 标题，这样在屏幕外弹出的提示也能被发现。
+
 浏览器 tab 显示某个 Session 中 Agent 浏览器页面的只读实时视图，由 `desktop/browser/frame` 屏幕流渲染。
 
 状态栏是全局的：在 Home 和 Project 中都包含侧边栏开关（同一个按钮负责隐藏和显示侧边栏）、Launchpad 和主题切换，打开 Project 时还会增加新建终端和网格/tab 切换控件。Launchpad 是一组快速启动条目（应用、可执行文件、文档或 URL，可带参数），由 `internal/infra/locallaunchpadstore` 保存在 `<BUILDMAX_HOME>/launchpad.json` 中。条目是全局的，而不是按 Project 划分。`LaunchEntry` 把目标交给操作系统（macOS 上用 `open`，Windows 上用 `start`，Linux 上用 `xdg-open` 或直接执行目标），且不等待其结束，因此固定的网站在默认浏览器中打开，而不是在 tab 中。

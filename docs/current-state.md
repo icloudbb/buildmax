@@ -175,7 +175,8 @@ remembered per project, and terminal tabs restore their scrollback across a
 restart. A file tab can edit and save a workspace file. Each chat tab is its own
 session, so chats in different sessions run concurrently, and each session's
 tool approvals and `AskUser` questions appear and are answered in its own chat
-tab. A status-bar
+tab; a chat waiting on one while off screen shows an amber dot on its tab and
+sidebar rows. A status-bar
 Launchpad opens user-pinned applications and websites. Resizable pane splitters
 are not built.
 

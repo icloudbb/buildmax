@@ -46,6 +46,22 @@ function renderSidebar(overrides = {}) {
 }
 
 describe('Sidebar', () => {
+  // A project whose chat is stopped on the user says so on its own row, and
+  // the Projects header says so once it is collapsed over that row.
+  it('marks a project waiting on the user, and the collapsed section over it', () => {
+    renderSidebar({ waiting: { sessions: new Set(['s1']), projects: new Set(['p1']) } });
+    const projectRow = screen.getAllByRole('button', { name: /buildmax/ }).find((b) => b.hasAttribute('aria-expanded'));
+    expect(within(projectRow).getByLabelText('Waiting for your answer')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Projects/ }));
+    const header = screen.getByRole('button', { name: /^Projects/ });
+    expect(within(header).getByLabelText('Waiting for your answer')).toBeTruthy();
+  });
+
+  it('marks nothing when nobody is waiting', () => {
+    renderSidebar({ waiting: { sessions: new Set(), projects: new Set() } });
+    expect(screen.queryByLabelText('Waiting for your answer')).toBeNull();
+  });
+
   it('marks Home current and shows no project section when no project is open', () => {
     const props = renderSidebar();
     const home = screen.getByRole('button', { name: 'Home' });

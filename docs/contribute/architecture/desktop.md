@@ -280,6 +280,11 @@ empty answer that is not a dismissal is refused. Only project apps set `EnableAs
 directory-hosted apps for scheduled and projectless runs never offer the tool.
 See [design/agent-user-questions.md](../../design/agent-user-questions.md).
 
+Both pending maps also feed `waitingOn` (`lib/approvals.js`), which names the
+sessions and projects blocked on the user. `TabBar` marks a waiting chat tab
+that is not the active one, and the sidebar marks the session row, the project
+row, and a collapsed Projects header, so a prompt raised off screen is found.
+
 A browser tab shows a read-only live view of the Agent's browser page for one
 session, rendered from the `desktop/browser/frame` screencast.
 
