@@ -56,7 +56,10 @@ type runResult struct {
 	// Structured is the validated structured-output value as JSON text, nil when
 	// the run requested no output schema or the value did not validate. See
 	// docs/design/structured-output.md.
-	Structured       *string
+	Structured *string
+	// Questions is the AskUser question set the run ended on, as JSON text;
+	// nil when it asked nothing.
+	Questions        *string
 	PromptTokens     *int
 	CompletionTokens *int
 	// TracePath locates this run's durable trace inside run-global storage,
@@ -186,6 +189,10 @@ type RunTaskInput struct {
 	// kill the worker on its own deadline passes that deadline here, so the run
 	// stops reporting before it is killed mid-upload rather than after.
 	InterruptGrace time.Duration
+	// AskUser gives the run the AskUser tool in its deferred form: a question
+	// ends the turn for the user to answer by continuing the Task. The server
+	// decides it per run; evaluation and Workflow steps leave it off.
+	AskUser bool
 }
 
 // artifactPublisher gives a run the artifact capability, or nil when it has no
@@ -439,12 +446,13 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	}
 	agentRun, err := runAgentTask(ctx, run, dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID), issueContext(input.WorkerAPI, task),
-		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants, task.OutputSchema)
+		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants, task.OutputSchema, input.AskUser)
 	result := runResult{
 		EndTime:          time.Now().UTC(),
 		OutputStr:        string(agentRun.output),
 		Output:           agentRun.output,
 		Structured:       agentRun.structured,
+		Questions:        agentRun.questions,
 		PromptTokens:     agentRun.promptTokens,
 		CompletionTokens: agentRun.completionTokens,
 		TracePath:        traceRelPath(dirs.runGlobal, agentRun.tracePath),
@@ -527,6 +535,7 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *coretask.Task, run
 type agentRunOutput struct {
 	output           []byte
 	structured       *string
+	questions        *string
 	promptTokens     *int
 	completionTokens *int
 	// tracePath is the trace file's absolute path on the worker's disk, before
@@ -568,7 +577,7 @@ func runProvenance(run *coretask.Run) agentapp.RunProvenance {
 	}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issue *agentapp.IssueContext, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issue *agentapp.IssueContext, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string, askUser bool) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
@@ -576,6 +585,12 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 	}
 
 	var out agentapp.RunResult
+	askMode := agentapp.AskUserOff
+	var questioner *deferredQuestioner
+	if askUser {
+		askMode = agentapp.AskUserDeferred
+		questioner = &deferredQuestioner{}
+	}
 	err := withRunEnv(runOSHome, runGlobalDir, secretGrants, func() error {
 		app, err := agentapp.NewAgentApp(agentapp.AppConfig{
 			WorkspaceDir:                runWorkspaceDir,
@@ -619,6 +634,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 			SecretEnvNames:  mapKeys(secretGrants),
 			SecretEnvValues: mapValues(secretGrants),
 			WebSearchAPIKey: secretGrants["FIRECRAWL_API_KEY"],
+			AskUser:         askMode,
 		})
 		if err != nil {
 			return err
@@ -632,7 +648,11 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 		// has to be closed and its lock dropped before anything reads the
 		// bundle back off disk.
 		defer app.CloseSession(sess)
-		out, err = app.RunPrompt(ctx, sess, run.Input, agentapp.RunPromptOpts{Stream: sink, Output: outputSchemaFor(outputSchema)})
+		opts := agentapp.RunPromptOpts{Stream: sink, Output: outputSchemaFor(outputSchema)}
+		if questioner != nil {
+			opts.Questioner = questioner
+		}
+		out, err = app.RunPrompt(ctx, sess, run.Input, opts)
 		return err
 	})
 	if streamSender != nil {
@@ -651,9 +671,11 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 	}
 	promptTokens := out.PromptTokens
 	completionTokens := out.CompletionTokens
+	asked := questioner.questions()
 	return agentRunOutput{
-		output:           []byte(out.Reply),
+		output:           []byte(withQuestions(out.Reply, asked)),
 		structured:       structuredValueJSON(out.Structured),
+		questions:        questionsJSON(asked),
 		promptTokens:     &promptTokens,
 		completionTokens: &completionTokens,
 		tracePath:        out.TracePath,
@@ -800,6 +822,7 @@ func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, sta
 		EndedAt:    &result.EndTime,
 		Output:     &result.OutputStr,
 		Structured: result.Structured,
+		Questions:  result.Questions,
 	}
 	if result.PromptTokens != nil {
 		req.PromptTokens = result.PromptTokens

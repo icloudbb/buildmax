@@ -39,7 +39,9 @@ type taskRow struct {
 	ErrorMessage *string    `gorm:"type:text"`
 	SessionID    *string    `gorm:"type:varchar(36)"`
 	LastRunID    *uint64    `gorm:"column:last_run_id;index"`
-	AgentID      *uint64    `gorm:"column:agent_id;index"`
+	// AwaitingAnswer projects the latest run ending on AskUser questions.
+	AwaitingAnswer bool    `gorm:"not null;default:false"`
+	AgentID        *uint64 `gorm:"column:agent_id;index"`
 	// WorkspaceHeadCheckpointID points at the latest checkpoint accepted as this
 	// Task's recoverable workspace (its seed, then each successful result). A
 	// projection maintained in the same transaction as checkpoint finalization;
@@ -113,6 +115,7 @@ func toTask(row *taskReadRow) *coretask.Task {
 		EndedAt:               row.Row.EndedAt,
 		ErrorMessage:          row.Row.ErrorMessage,
 		SessionID:             row.Row.SessionID,
+		AwaitingAnswer:        row.Row.AwaitingAnswer,
 	}
 	if row.Row.LastRunID != nil {
 		lastRun := derefPublicID(row.LastRunPublicID)

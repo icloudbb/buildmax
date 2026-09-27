@@ -292,6 +292,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		Plugins:                fetched.Plugins,
 		SandboxNetworkTier:     config.SandboxNetworkTier(fetched.SandboxNetworkTier),
 		SandboxFilesystemTier:  config.SandboxFilesystemTier(fetched.SandboxFilesystemTier),
+		AskUser:                fetched.AskUser,
 		SecretEnvGrants:        secretGrants,
 		InterruptGrace:         interruptGraceFromEnv(),
 	})

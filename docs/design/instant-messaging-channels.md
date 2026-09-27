@@ -264,7 +264,10 @@ A Connector's `Receive` runs only on the replica holding the connector's lease.
   owner still passes eligibility for its Space, and still has a link on that
   platform.
 - **What it says.** The report gives the Task title and status, up to 1500
-  characters of output (500 of an error), and a Portal link.
+  characters of output (500 of an error), and a Portal link. A run that ended
+  on `AskUser` questions is reported as waiting for an answer, and keeps the
+  end of a long output, where the questions are
+  ([Agent questions to the user](agent-user-questions.md)).
 
 Known gaps:
 

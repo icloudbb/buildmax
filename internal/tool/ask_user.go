@@ -10,15 +10,22 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/llm"
 )
 
-// AskUser puts up to four questions to the person driving the run and waits
-// for the answers, which come back as the tool result. It is registered only where a
-// person sits at the session (TUI and Desktop project chats); the questioner
-// reaches it through the context because the registry is shared across runs.
-// See docs/design/agent-user-questions.md.
-type AskUser struct{}
+// AskUser puts up to four questions to the user. Interactively (TUI and
+// Desktop project chats) it waits for the answers, which come back as the tool
+// result. Deferred (worker TaskRuns) nobody is waiting: the questions are handed
+// on, the turn ends, and the user answers later in their own words. The
+// questioner reaches it through the context because the registry is shared
+// across runs. See docs/design/agent-user-questions.md.
+type AskUser struct {
+	deferred bool
+}
 
-// NewAskUser creates an AskUser tool.
+// NewAskUser creates the interactive AskUser tool.
 func NewAskUser() *AskUser { return &AskUser{} }
+
+// NewDeferredAskUser creates the AskUser tool for unattended runs, whose
+// description tells the model the turn ends when it asks.
+func NewDeferredAskUser() *AskUser { return &AskUser{deferred: true} }
 
 func (t *AskUser) Name() string { return ToolNameAskUser }
 
@@ -32,6 +39,15 @@ func (t *AskUser) Access(_ map[string]any) llm.Access { return llm.AccessWrite }
 func (t *AskUser) DefaultAction() llm.ToolAction { return llm.ToolActionAllow }
 
 func (t *AskUser) Description() string {
+	if t.deferred {
+		return "Ask the user questions you are blocked on. Nobody is watching this run: calling it ends " +
+			"your turn, the questions go to the user, and they answer later in their own words as the next " +
+			"message. Use it only when you cannot make reasonable progress without a decision only the user " +
+			"can make or a fact you cannot find; otherwise decide, state your assumption, and keep working. " +
+			"Before asking, finish what you can and say what you have done. Ask everything you need in one " +
+			"call (up to four questions), each with options when the likely answers are known, recommended " +
+			"option first. Never add an \"Other\" option, and never use it to ask permission to run a tool."
+	}
 	return "Ask the user questions and wait for the answers. Use it when you need a decision only " +
 		"the user can make — an ambiguous requirement, a choice between approaches with different " +
 		"trade-offs, a preference — or a fact you cannot find yourself. When you need several decisions, " +
@@ -112,6 +128,10 @@ func (t *AskUser) Execute(ctx context.Context, args map[string]any) (string, err
 	answer, err := questioner.AskUser(ctx, qs)
 	if err != nil {
 		return "", fmt.Errorf("questions were not answered: %w", err)
+	}
+	if answer.Deferred {
+		return "The questions were sent to the user, who will answer in their own words in the next " +
+			"message. Your turn ends now: do not guess the answers or continue the work that depends on them.", nil
 	}
 	if answer.Declined {
 		return "The user dismissed the questions without answering. Do not ask them again. Proceed on " +

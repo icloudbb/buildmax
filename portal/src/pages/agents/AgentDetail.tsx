@@ -22,7 +22,7 @@ import { listSecrets } from "../../features/spaceSecrets/api"
 import { listActivations } from "../../features/spacePlugins/api"
 import { listPlugins } from "../../features/plugins/api"
 import { nameablePlugins } from "../../features/plugins/nameablePlugins"
-import { runStatusLabel, runStatusTone, taskRunFailed, taskRunFinished } from "../../features/conversations/thread"
+import { runStatusTone, taskRunFailed, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { AgentConfigForm } from "../../components/AgentConfigForm"
 import { RevisionHistory } from "../../components/RevisionHistory"
@@ -275,7 +275,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
                 }}>
                 <td className="agent-runs__title">{ui.title}</td>
                 <td>
-                  <span className={`agent-runs__status agent-runs__status--${tone}`}>{runStatusLabel(t.status)}</span>
+                  <span className={`agent-runs__status agent-runs__status--${tone}`}>{taskStatusLabel(t)}</span>
                 </td>
                 <td className="agent-runs__when">{ui.timeLabel}</td>
               </tr>

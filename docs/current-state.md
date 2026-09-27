@@ -160,7 +160,10 @@ On the TUI and Desktop project chats, the `AskUser` tool lets an Agent put up
 to four questions to the user at once and wait for the answers. Each question
 can be single-choice, multi-select, or open, and the answers return as the tool
 result. A TUI session under Remote Control shows the questions in Portal too,
-and either side can answer. Print mode, workers, scheduled runs, and subagents
+and either side can answer. A worker TaskRun gets a deferred form instead:
+asking ends the run with the questions in its output, the Task shows "Needs
+your answer" in Portal, and the user answers in plain text by continuing it.
+Print mode, Workflow steps, evaluation, scheduled Desktop runs, and subagents
 do not get it. See
 [the design record](design/agent-user-questions.md).
 

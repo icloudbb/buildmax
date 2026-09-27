@@ -97,6 +97,9 @@ type WorkerTaskRun struct {
 	// strictest tier on that axis. See docs/design/agent-sandbox-policy.md.
 	SandboxNetworkTier    string
 	SandboxFilesystemTier string
+	// AskUser says the run may end its turn on AskUser questions for the user
+	// to answer by continuing the Task.
+	AskUser bool
 }
 
 // GetWorkerTaskRun fetches the run from the server (GET /api/worker/task-runs/{task_run_id}). Returns nil, nil if not found.
@@ -141,6 +144,7 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 		PluginError:            got.PluginError,
 		SandboxNetworkTier:     sandboxNetworkTierOf(got.Sandbox),
 		SandboxFilesystemTier:  sandboxFilesystemTierOf(got.Sandbox),
+		AskUser:                got.Run.AskUser,
 	}, nil
 }
 

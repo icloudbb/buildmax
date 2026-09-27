@@ -48,6 +48,7 @@ func (a *Announcer) Announce(ctx context.Context, taskRunID, status string, outp
 		Status:         status,
 		Output:         output,
 		ErrorMessage:   errorMessage,
+		AwaitingAnswer: len(run.Questions) > 0,
 	}
 	a.Group.Go(func() {
 		slog.Default().Info("firing task run terminal callbacks", "task_run_id", info.TaskRunID, "status", info.Status)

@@ -21,7 +21,8 @@ Shift+Enter 换行）。一段对话可以直接回答你，或者，当工作�
 
 直接运行 Agent 时，Task 页面按轮次展示输入与输出。**Continue** 发送新指令；
 **Retry last run** 重复上一轮。**Details** 收纳来源、时间、ID 和轨迹；
-页头使用 **Done** 等可读状态词。
+页头使用 **Done** 等可读状态词。当 Agent 停下来向你提问时，状态显示为 **Needs your answer**，
+问题列在输出末尾；用 **Continue** 以自己的话回答即可。
 
 ## 创建一个 Issue
 

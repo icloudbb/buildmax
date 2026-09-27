@@ -49,6 +49,14 @@ export function runStatusLabel(status: string): string {
 }
 
 /**
+ * A task's status label. A task whose latest run ended on AskUser questions is
+ * finished as a run but waiting on the user, and says so rather than "Done".
+ */
+export function taskStatusLabel(task: { status: string; awaiting_answer?: boolean }): string {
+  return task.awaiting_answer ? "Needs your answer" : runStatusLabel(task.status)
+}
+
+/**
  * Order the transcript and the conversation's task cards into one list.
  *
  * A message and a task are separate records with separate lifecycles, so the

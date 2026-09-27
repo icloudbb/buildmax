@@ -36,6 +36,10 @@ type TaskResponse struct {
 	// routes -- trace, LLM calls -- are keyed by it, so a caller that can see a
 	// task can reach what that task actually did.
 	LastRunID *string `json:"last_run_id,omitempty"`
+	// AwaitingAnswer is true while the latest run ended on AskUser questions
+	// the user has not answered by continuing the task. The questions are on
+	// that run.
+	AwaitingAnswer bool `json:"awaiting_answer,omitempty"`
 	// WorkflowRunID names the workflow run that dispatched this task, when the
 	// task carries neither an IssueID nor a ConversationID of its own. A
 	// workflow step task's only origin is its step run, so without this a
@@ -68,6 +72,7 @@ func taskToResponse(task coretask.Task) TaskResponse {
 		AgentID:        task.AgentID,
 		IssueID:        task.IssueID,
 		LastRunID:      task.LastRunID,
+		AwaitingAnswer: task.AwaitingAnswer,
 	}
 }
 

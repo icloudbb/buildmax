@@ -223,13 +223,16 @@ type AppConfig struct {
 	// See docs/design/workspace-root-and-worktrees.md D8.
 	EnableWorktrees bool
 
-	// EnableAskUser registers the AskUser tool, which holds a run until a
-	// person answers. Only surfaces with someone at the session set it: the
-	// TUI and Desktop project chats. Print mode, workers, and Desktop's
-	// scheduled and projectless runs do not. A run on an enabled app that
-	// supplies no RunPromptOpts.Questioner still gets the tool and is told
-	// nobody can answer. See docs/design/agent-user-questions.md.
-	EnableAskUser bool
+	// AskUser registers the AskUser tool and says how its questions are
+	// answered. AskUserInteractive is for surfaces with someone at the session
+	// (the TUI and Desktop project chats): the run waits for the answer.
+	// AskUserDeferred is for worker TaskRuns the server allows it on: the turn
+	// ends and the user answers later as the next message. Print mode,
+	// evaluation, and Desktop's scheduled and projectless runs leave it off. A
+	// run on an enabled app that supplies no RunPromptOpts.Questioner still
+	// gets the tool and is told nobody can answer. See
+	// docs/design/agent-user-questions.md.
+	AskUser AskUserMode
 
 	// EnableLocalProject resolves the workspace to a local Project and stamps
 	// it on every session this app creates. CLI, TUI, and Desktop set it.
@@ -291,7 +294,7 @@ type AgentApp struct {
 	// had one.
 	memoryDisabled  bool
 	worktrees       *worktree.Manager
-	askUser         bool
+	askUser         AskUserMode
 	settings        config.Settings
 	webSearchAPIKey string
 	llmClients      *LLMClientCache
@@ -1184,7 +1187,7 @@ type RunPromptOpts struct {
 	// to deny, which is what a surface with nobody to ask should do.
 	Approval agent.ApprovalHandler
 	// Questioner answers the AskUser tool. Nil tells the model nobody can
-	// answer; it matters only on an app built with EnableAskUser.
+	// answer; it matters only on an app built with AskUser set.
 	Questioner agent.UserQuestioner
 	// EventSink receives runtime events. Nil disables the caller's leg only — the
 	// durable trace records the run either way.
@@ -1733,13 +1736,16 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	if a.memoryEnabled() {
 		registry.AppendTools(tools.NewMemoryRead(), tools.NewMemoryWrite())
 	}
-	// After BuildAgentTypes like Task, so subagents never see the job tools:
-	// a job must be owned by a session the user can still reach.
 	// After BuildAgentTypes too: a subagent reports to its parent, which
 	// decides whether the user needs asking.
-	if a.askUser {
+	switch a.askUser {
+	case AskUserInteractive:
 		registry.AppendTools(tools.NewAskUser())
+	case AskUserDeferred:
+		registry.AppendTools(tools.NewDeferredAskUser())
 	}
+	// After BuildAgentTypes like Task, so subagents never see the job tools:
+	// a job must be owned by a session the user can still reach.
 	if a.jobs != nil {
 		registry.AppendTools(
 			tools.NewJobList(a.jobs), tools.NewJobOutput(a.jobs), tools.NewJobStop(a.jobs),

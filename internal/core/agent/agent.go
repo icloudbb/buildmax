@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/core/llm"
@@ -283,8 +284,9 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 	// Always set, so a nil Questioner clears one inherited from a parent run's
 	// tool-call context rather than letting a subagent reach the parent's user.
 	var questioner UserQuestioner
+	yielded := new(atomic.Bool)
 	if opts.Questioner != nil {
-		questioner = notifyingQuestioner{opts: opts, inner: opts.Questioner}
+		questioner = notifyingQuestioner{opts: opts, inner: opts.Questioner, yield: yielded}
 	}
 	ctx = ctxWithQuestioner(ctx, questioner)
 	guard := newLoopGuard(defaultMaxRepeatedCalls)
@@ -416,6 +418,15 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		s.absorb(delegated.Drain())
 		if err != nil {
 			return "", s, nil, err
+		}
+		// Questions handed on for a later answer end the turn here, with no
+		// further model call: the answer arrives as the next user message, and
+		// a model left to continue would guess it. There is no structured
+		// value to extract, because the run has not settled on an answer.
+		if yielded.Load() {
+			emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s})
+			fireRunEndHook(ctx, opts, s, nil)
+			return strings.Join(assistantTexts, "\n\n"), s, nil, nil
 		}
 	}
 	slog.Warn("agent max iterations exceeded", "max", opts.MaxIter)

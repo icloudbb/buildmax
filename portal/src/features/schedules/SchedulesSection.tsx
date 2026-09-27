@@ -5,7 +5,7 @@ import { navigate } from "../../router"
 import { Alert } from "../../components/state/Alert"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiTaskToTask } from "../../lib/api/mappers"
-import { runStatusLabel, runStatusTone } from "../conversations/thread"
+import { runStatusLabel, runStatusTone, taskStatusLabel } from "../conversations/thread"
 import { CreateScheduleForm } from "./CreateScheduleForm"
 import {
   deleteSchedule,
@@ -316,7 +316,7 @@ function ScheduleCard({
                     <td className="agent-runs__title">{ui.title}</td>
                     <td>
                       <span className={`agent-runs__status agent-runs__status--${runStatusTone(t.status)}`}>
-                        {runStatusLabel(t.status)}
+                        {taskStatusLabel(t)}
                       </span>
                     </td>
                     <td className="agent-runs__when">{ui.timeLabel}</td>

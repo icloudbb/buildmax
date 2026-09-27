@@ -1,6 +1,6 @@
 import { Button } from "@buildmax/gui"
 import type { ApiTask } from "../../../lib/api/types"
-import { runStatusLabel, taskRunFailed, taskRunFinished } from "../thread"
+import { taskRunFailed, taskRunFinished, taskStatusLabel } from "../thread"
 
 const previewMaxLen = 600
 
@@ -52,7 +52,7 @@ export function TaskCard({
   return (
     <article className={`task-card task-card--${tone}`}>
       <header className="task-card__head">
-        <span className={`task-card__status task-card__status--${tone}`}>{runStatusLabel(task.status)}</span>
+        <span className={`task-card__status task-card__status--${tone}`}>{taskStatusLabel(task)}</span>
         <span className="task-card__title">{task.title || task.input}</span>
       </header>
       {task.error_message ? <p className="task-card__error">{task.error_message}</p> : null}

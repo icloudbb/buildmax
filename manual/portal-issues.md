@@ -25,7 +25,10 @@ load, Chat shows a warning and **Retry tasks** without hiding the conversation.
 When you run an agent directly, its Task page keeps the input and output for
 each turn together. **Continue** sends new instructions; **Retry last run**
 repeats the previous turn. **Details** holds the run's origin, timing, ID, and
-trace, while the page header uses readable status words such as **Done**.
+trace, while the page header uses readable status words such as **Done**. When
+the agent stopped to ask you something, the status reads **Needs your answer**
+and the questions close its output; answer them with **Continue**, in your own
+words.
 
 ## Create an issue
 

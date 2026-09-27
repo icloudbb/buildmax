@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
@@ -120,7 +121,11 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			// how a cancel reaches a run that is already under way — including
 			// one this fetch just canceled for an initiator that lost authority.
 			CancelRequested: cancelRequested,
-			CreatedAt:       run.CreatedAt,
+			// A question ends the run for the user to answer by continuing the
+			// Task. A Workflow step's Task is advanced by the workflow, not
+			// continued by anyone, so its run gets no way to stop and ask.
+			AskUser:   run.TriggerSource != coretask.RunTriggerSourceWorkflowStep,
+			CreatedAt: run.CreatedAt,
 		},
 		Task: workerclient.TaskRunTask{
 			ID:                             task.ID,
@@ -229,6 +234,26 @@ func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, tas
 	return true
 }
 
+// maxQuestionsBytes bounds a reported question set. Four questions of four
+// options each fit in a small fraction of it; anything larger is not a set the
+// runtime produced.
+const maxQuestionsBytes = 32 << 10
+
+// acceptedQuestions is the question set to store for a terminal report, or nil.
+// A worker runs model-chosen code, so its report is checked rather than stored
+// as sent: only a run that succeeded ends on questions, and only a bounded JSON
+// array is kept for Portal to render.
+func acceptedQuestions(req *workerclient.PatchTaskRunRequest) *string {
+	if req.Questions == nil || req.Status != string(coretask.RunStatusSucceeded) {
+		return nil
+	}
+	q := strings.TrimSpace(*req.Questions)
+	if q == "" || len(q) > maxQuestionsBytes || q[0] != '[' || !json.Valid([]byte(q)) {
+		return nil
+	}
+	return &q
+}
+
 func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Request, taskRunID string, req *workerclient.PatchTaskRunRequest) bool {
 	updated, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), coretask.TransitionRunInput{
 		TaskRunID:        taskRunID,
@@ -238,6 +263,7 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		EndedAt:          req.EndedAt,
 		Output:           req.Output,
 		Structured:       req.Structured,
+		Questions:        acceptedQuestions(req),
 		ErrorMessage:     req.ErrorMessage,
 		SessionID:        req.SessionID,
 		PromptTokens:     req.PromptTokens,

@@ -247,6 +247,13 @@ It retains:
 Continue does not require or create a Conversation. It is refused while the
 Task already has an active `PENDING`, `SCHEDULED`, or `RUNNING` TaskRun.
 
+Continue is also how the user answers an Agent that stopped to ask. A run that
+ended on `AskUser` questions succeeds with the questions in its output and on
+`task_run.questions`, and its Task projects `awaiting_answer` until the next
+run is created. The follow-up input is the answer, in the user's own words.
+Nothing waits in between: the Task consumes no worker until the answer arrives.
+See [Agent questions to the user](agent-user-questions.md).
+
 ### 6.2 Retry
 
 Retry repeats a selected terminal TaskRun's input as another attempt. It records

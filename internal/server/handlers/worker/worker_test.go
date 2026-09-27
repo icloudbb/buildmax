@@ -572,3 +572,86 @@ func TestGetWorkerTaskRunHandler_FallsBackToSpaceSandboxDefaults(t *testing.T) {
 		t.Errorf("network tier = %q after the space default changed, want the pinned value registries", got.Sandbox.NetworkTier)
 	}
 }
+
+// A run that ends on AskUser questions reports them; the server keeps a
+// bounded JSON array from a successful run and leaves the Task awaiting the
+// user's answer. Anything else from a worker — which runs model-chosen code —
+// is dropped rather than stored for Portal to render.
+func TestPatchWorkerTaskRun_KeepsOnlyWellFormedQuestionsFromASuccess(t *testing.T) {
+	valid := `[{"question":"Which database?","options":[{"label":"Postgres"}]}]`
+	cases := []struct {
+		name      string
+		status    coretask.RunStatus
+		questions string
+		kept      bool
+	}{
+		{"success with questions", coretask.RunStatusSucceeded, valid, true},
+		{"failure", coretask.RunStatusFailed, valid, false},
+		{"not an array", coretask.RunStatusSucceeded, `{"question":"x"}`, false},
+		{"not json", coretask.RunStatusSucceeded, `[{"question":`, false},
+		{"oversized", coretask.RunStatusSucceeded, `["` + strings.Repeat("x", maxQuestionsBytes) + `"]`, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			taskRunID := "run-q"
+			runs := &mock.MockTaskRunStore{
+				Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
+				TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
+			}
+			h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
+			mux := http.NewServeMux()
+			h.Register(mux)
+			endedAt := time.Unix(1_800_000_010, 0).UTC()
+			body, _ := json.Marshal(workerclient.PatchTaskRunRequest{
+				Status: string(c.status), EndedAt: &endedAt, Output: util.Ptr("asked"), Questions: util.Ptr(c.questions),
+			})
+			req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(body))
+			req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d; body = %s", w.Code, w.Body.String())
+			}
+			if got := string(runs.Runs[0].Questions); (got == c.questions) != c.kept || (!c.kept && got != "") {
+				t.Errorf("stored questions = %q, kept want %v", got, c.kept)
+			}
+			if runs.TaskList[0].AwaitingAnswer != c.kept {
+				t.Errorf("task awaiting_answer = %v, want %v", runs.TaskList[0].AwaitingAnswer, c.kept)
+			}
+		})
+	}
+}
+
+// The server lets a run stop and ask unless nobody would continue its Task: a
+// Workflow step is advanced by the workflow, so it is not told it may ask.
+func TestGetWorkerTaskRunHandler_AllowsAskUserExceptForWorkflowSteps(t *testing.T) {
+	for _, c := range []struct {
+		trigger string
+		want    bool
+	}{
+		{coretask.RunTriggerSourcePortalConversation, true},
+		{coretask.RunTriggerSourceIssueAgentRun, true},
+		{coretask.RunTriggerSourceWorkflowStep, false},
+	} {
+		taskRunID := "run-" + c.trigger
+		runs := &mock.MockTaskRunStore{
+			Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Input: "go", Status: string(coretask.RunStatusScheduled), TriggerSource: c.trigger}},
+			TaskList: []coretask.Task{{ID: "task-1", SpaceID: "tm_1", CreatedBy: "u1", LastRunID: &taskRunID}},
+		}
+		h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
+		mux := http.NewServeMux()
+		h.Register(mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+taskRunID, nil)
+		req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		var got workerclient.GetTaskRunResponse
+		if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &got) != nil {
+			t.Fatalf("%s: status = %d; body = %s", c.trigger, w.Code, w.Body.String())
+		}
+		if got.Run.AskUser != c.want {
+			t.Errorf("%s: ask_user = %v, want %v", c.trigger, got.Run.AskUser, c.want)
+		}
+	}
+}
