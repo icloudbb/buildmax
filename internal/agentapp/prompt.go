@@ -62,8 +62,8 @@ When referring to specific code, use the pattern file_path:line_number so the us
 type PromptCapabilities struct {
 	// Artifacts is true when this surface registered the artifact tool.
 	Artifacts bool
-	// AskUser is true when this surface registered the AskUser tool.
-	AskUser bool
+	// AskUser is how this surface registered the AskUser tool, if at all.
+	AskUser AskUserMode
 	// Issue, when non-nil, says this run is working one space Issue, so the
 	// prompt can point the Agent at `buildmax issue`. There is no in-process
 	// Issue tool to discover; the command surface is how the Agent reaches it.
@@ -109,11 +109,30 @@ func issuePromptLayer(ctx *IssueContext) string {
 const artifactPromptLayer = `# Delivering files
 When your work produces a file someone is meant to receive — a report, an export, a generated document — publish it with the UploadArtifact tool and cite the reference it returns in your final answer. A path on this machine is not something the person can open. Publish the finished file only, once, and never one holding credentials or configuration.`
 
+// AskUserMode says whether a surface offers the AskUser tool and how its
+// questions are answered.
+type AskUserMode uint8
+
+const (
+	// AskUserOff registers no AskUser tool.
+	AskUserOff AskUserMode = iota
+	// AskUserInteractive waits for an answer from someone at the session.
+	AskUserInteractive
+	// AskUserDeferred ends the turn; the user answers later as the next message.
+	AskUserDeferred
+)
+
 // askUserPromptLayer steers the one habit the tool's description could not:
 // in a real-model run a model given only the description still asked in prose
 // and ended its turn, leaving the user to type what one click would have sent.
 const askUserPromptLayer = `# Asking the user
 When the user has to decide something — an ambiguous requirement, a choice between approaches, a fact only they know — ask with the AskUser tool instead of ending your reply with a question — several related decisions together in one call — and offer the likely answers as options with your recommendation first. You get the answer back and continue in the same turn. Do not ask about what you can find out or reasonably decide yourself.`
+
+// deferredAskUserPromptLayer is the unattended variant. Nobody answers during
+// the run, so the risk flips: an Agent that asks where it could have decided
+// stops work that nobody will resume until they read it.
+const deferredAskUserPromptLayer = `# Asking the user
+Nobody is watching this run. When you cannot make reasonable progress without a decision only the user can make, finish what you can, then ask everything you need in one AskUser call, with options where the likely answers are known. Your turn ends there, and the user answers later in their own words. Anything you can reasonably decide yourself, decide and state the assumption in your reply rather than asking.`
 
 // AgentsMdFilename is the name of the workspace-level agent instructions file
 // per the agents.md convention (https://agents.md/).

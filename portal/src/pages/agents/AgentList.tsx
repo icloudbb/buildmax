@@ -11,7 +11,7 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiTaskToTask } from "../../lib/api/mappers"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
 import { getAgents, createAgent, listAgentModels } from "../../features/agents"
-import { runStatusLabel, runStatusTone, taskRunFailed, taskRunFinished } from "../../features/conversations/thread"
+import { runStatusTone, taskRunFailed, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
 import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
@@ -385,7 +385,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                         <span className="agent-activity__row-sub">{agent.name}</span>
                       </div>
                       <span className={`agent-activity__status agent-activity__status--${runStatusTone(task.status)}`}>
-                        {runStatusLabel(task.status)}
+                        {taskStatusLabel(task)}
                       </span>
                       <span className="agent-activity__time">{ui.timeLabel}</span>
                     </button>

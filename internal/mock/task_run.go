@@ -214,6 +214,9 @@ func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in coretask.Tr
 		if in.ErrorMessage != nil {
 			m.Runs[i].ErrorMessage = in.ErrorMessage
 		}
+		if in.Questions != nil {
+			m.Runs[i].Questions = []byte(*in.Questions)
+		}
 		if in.SessionID != nil {
 			m.Runs[i].SessionID = in.SessionID
 		}
@@ -266,6 +269,7 @@ func (m *MockTaskRunStore) syncTaskFromRun(_ context.Context, taskRunID string) 
 			m.TaskList[j].StartedAt = run.StartedAt
 			m.TaskList[j].EndedAt = run.EndedAt
 			m.TaskList[j].ErrorMessage = run.ErrorMessage
+			m.TaskList[j].AwaitingAnswer = len(run.Questions) > 0
 		}
 		return nil
 	}

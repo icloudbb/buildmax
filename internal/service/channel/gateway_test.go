@@ -306,6 +306,19 @@ func TestFormatReportForFailures(t *testing.T) {
 	}
 }
 
+// A run that ended on questions is reported as waiting, and a long reply keeps
+// its end, where the questions are, rather than losing them to the cut.
+func TestFormatReportForARunWaitingOnTheUser(t *testing.T) {
+	h := newHarness(t)
+	out := strings.Repeat("progress notes ", 300) + "**Waiting for your answer**\n\n1. Which database? (Postgres or SQLite)"
+	got := h.g.formatReport(coretask.RunTerminalInfo{
+		TaskID: "t", SpaceID: "s", Status: string(coretask.RunStatusSucceeded), Output: &out, AwaitingAnswer: true,
+	}, "Scaffold")
+	if !strings.HasPrefix(got, "Task “Scaffold” is waiting for your answer.") || !strings.Contains(got, "1. Which database?") {
+		t.Errorf("waiting report = %q", got)
+	}
+}
+
 // Only the lease holder receives, and it stops when the lease is lost.
 func TestConnectorReceivesOnlyWhileHoldingTheLease(t *testing.T) {
 	h := newHarness(t)

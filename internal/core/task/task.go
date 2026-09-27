@@ -2,8 +2,10 @@ package task
 
 import (
 	"context"
-	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
+	"encoding/json"
 	"time"
+
+	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 )
 
 // RunStatus is the canonical lifecycle status for task runs.
@@ -130,7 +132,11 @@ type Task struct {
 	ErrorMessage *string    `json:"error_message,omitempty"`
 	SessionID    *string    `json:"session_id,omitempty"`
 	LastRunID    *string    `json:"last_run_id,omitempty"`
-	AgentID      *string    `json:"agent_id,omitempty"`
+	// AwaitingAnswer projects the latest run ending on AskUser questions: the
+	// Task is waiting for the user to answer them by continuing it. See
+	// docs/design/agent-user-questions.md.
+	AwaitingAnswer bool    `json:"awaiting_answer,omitempty"`
+	AgentID        *string `json:"agent_id,omitempty"`
 	// WorkspaceHeadCheckpointID points at the latest checkpoint accepted as this
 	// Task's recoverable workspace: its initial seed, then each successful
 	// result. It is a database pointer among immutable checkpoints, never a
@@ -163,16 +169,20 @@ type Run struct {
 	// when the run requested an output schema and the value validated. Nil for a
 	// free-text run, or when the model's answer did not satisfy the schema. See
 	// docs/design/structured-output.md.
-	Structured       *string    `json:"structured,omitempty"`
-	ErrorMessage     *string    `json:"error_message,omitempty"`
-	StartedAt        *time.Time `json:"started_at,omitempty"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	SessionID        *string    `json:"session_id,omitempty"`
-	WorkerType       string     `json:"worker_type,omitempty"`
-	K8sJobName       *string    `json:"k8s_job_name,omitempty"`
-	K8sJobCreatedAt  *time.Time `json:"k8s_job_created_at,omitempty"`
-	PromptTokens     *int       `json:"prompt_tokens,omitempty"`
-	CompletionTokens *int       `json:"completion_tokens,omitempty"`
+	Structured *string `json:"structured,omitempty"`
+	// Questions is the AskUser question set the run ended on, in the
+	// agent.Question JSON shape, for the user to answer by continuing the
+	// Task. Nil when the run did not ask. The server stores it unread.
+	Questions        json.RawMessage `json:"questions,omitempty"`
+	ErrorMessage     *string         `json:"error_message,omitempty"`
+	StartedAt        *time.Time      `json:"started_at,omitempty"`
+	EndedAt          *time.Time      `json:"ended_at,omitempty"`
+	SessionID        *string         `json:"session_id,omitempty"`
+	WorkerType       string          `json:"worker_type,omitempty"`
+	K8sJobName       *string         `json:"k8s_job_name,omitempty"`
+	K8sJobCreatedAt  *time.Time      `json:"k8s_job_created_at,omitempty"`
+	PromptTokens     *int            `json:"prompt_tokens,omitempty"`
+	CompletionTokens *int            `json:"completion_tokens,omitempty"`
 	// TracePath locates this run's durable trace inside run-global storage,
 	// e.g. "traces/<session>/rt_….jsonl". Nil when no trace was stored — the
 	// run failed before an agent started, tracing was disabled, or storage
@@ -284,6 +294,9 @@ type RunTerminalInfo struct {
 	Status       string
 	Output       *string
 	ErrorMessage *string
+	// AwaitingAnswer marks a run that ended on AskUser questions: it finished,
+	// but its Task waits for the user's answer. The questions close its output.
+	AwaitingAnswer bool
 }
 
 // CreateInput is the input for CreateTask.
@@ -360,13 +373,16 @@ type ActiveRunRef struct {
 }
 
 type TransitionRunInput struct {
-	TaskRunID        string
-	ExpectedStatus   RunStatus
-	NewStatus        RunStatus
-	StartedAt        *time.Time
-	EndedAt          *time.Time
-	Output           *string
-	Structured       *string
+	TaskRunID      string
+	ExpectedStatus RunStatus
+	NewStatus      RunStatus
+	StartedAt      *time.Time
+	EndedAt        *time.Time
+	Output         *string
+	Structured     *string
+	// Questions is the AskUser question set as JSON text; nil leaves the
+	// column alone.
+	Questions        *string
 	ErrorMessage     *string
 	SessionID        *string
 	PromptTokens     *int

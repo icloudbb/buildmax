@@ -3,8 +3,8 @@
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Agent向用户提问.md)
 
 > **Audience:** contributors · **Status:** implemented on the TUI (answerable
-> from Remote Control viewers too) and Desktop project chats. Workers are
-> deferred (see [Deferred](#deferred)).
+> from Remote Control viewers too) and Desktop project chats, and in a deferred
+> form for worker TaskRuns. Open questions are under [Deferred](#deferred).
 
 ## Contents
 
@@ -39,13 +39,18 @@ session answers, and the answer comes back as the tool's result, so the turn
 continues. This matches the interaction the maintainer relies on, and keeps the
 question and its answer together as one call and one result in the history.
 
-Blocking is acceptable because the tool is registered only where someone is
-present. It is not registered on unattended runs, where blocking would hold a
-worker and its lease with nobody to release them. That is the reason workers are
-out of scope. It also follows the [Task thread](agent-execution-and-task-threads.md)
-rule that a Task waiting for input consumes no worker, and
+Blocking is acceptable because it happens only where someone is present. An
+unattended worker TaskRun must not block: that would hold a worker and its
+lease with nobody to release them, against the
+[Task thread](agent-execution-and-task-threads.md) rule that a Task waiting for
+input consumes no worker, and
 [Workflow runtime §14](workflow-runtime.md#14-durable-human-requests), which
-says a human request is not a blocking Agent call.
+says a human request is not a blocking Agent call. A worker therefore gets the
+tool in a deferred form: asking ends the turn, the run finishes with the
+questions, and the user answers in their own words by continuing the Task. The
+answer arrives as the next user message rather than as the tool's result, which
+is the one thing the deferred form gives up, and the Task thread already
+carries that message.
 
 The mechanism mirrors tool approval rather than extending it. Approval answers
 one of three fixed decisions from the permission gate; a question carries free
@@ -100,17 +105,24 @@ handler, a request id, cancellation through the run context) but not a type.
 
 ## Where It Is Registered
 
-`AppConfig.EnableAskUser` registers the tool after `BuildAgentTypes`, so no
-subagent definition can name it.
+`AppConfig.AskUser` registers the tool after `BuildAgentTypes`, so no subagent
+definition can name it, and says which form: `AskUserInteractive` or
+`AskUserDeferred`.
 
 | Run | Registered | Why |
 |---|---|---|
-| TUI | yes | A person is at the terminal |
-| Desktop project chat | yes | A person is at the chat |
+| TUI | interactive | A person is at the terminal |
+| Desktop project chat | interactive | A person is at the chat |
+| Worker TaskRun | deferred, when the server allows it | Nobody is at the run, but someone continues the Task |
+| Workflow step TaskRun | no | The workflow advances its Task; nobody continues it |
 | Desktop scheduled fire, projectless session | no | Directory-hosted apps have no approval or question handler |
 | `buildmax run` (print mode) | no | Nobody answers mid-run; a script reads the final reply |
 | Subagent | no | It reports to its parent, which decides whether to ask |
-| Worker TaskRun, Portal Conversation, evaluation | no | Unattended; blocking would hold resources with nobody to release them |
+| Portal Conversation, evaluation | no | Its reply already reaches the user; evaluation has nobody to answer |
+
+The server decides per run: `GET /api/worker/task-runs/{id}` sets `ask_user`
+unless the run was admitted for a Workflow step. An evaluation control plane,
+or an older server, sends no such field, so the tool stays off there.
 
 A run on an enabled app that supplies no questioner still offers the tool, and
 the tool tells the model that nobody can answer.
@@ -166,6 +178,27 @@ set is announced so the other side dismisses it. A remote answer is checked
 against the set it claims to answer (one non-empty answer per question) before
 it is delivered, and it is printed to the TUI scrollback like a local one.
 
+**Workers.** A worker TaskRun the server allows gets `NewDeferredAskUser`, whose
+description says calling it ends the turn, and a prompt layer that tells the
+model to ask only when blocked and to decide and state an assumption
+otherwise. Its questioner records the set and answers `Deferred`. The loop
+ends the turn once the current tool batch finishes, with no further model
+call and no structured-output extraction. The run then finishes `SUCCEEDED`:
+the questions are appended to its output under "Waiting for your answer", and
+they travel as `questions` on the terminal report. The server keeps a bounded
+JSON array only from a successful run, stores it on `task_run.questions`, and
+projects `awaiting_answer` onto the Task. The next run clears it as it is
+created.
+
+The user answers by continuing the Task with plain text. The session restore
+puts the question, the tool result, and the answer in order in front of the
+model. Every reader of a run's output shows the questions with nothing new to
+render: the Task thread, the Issue report comment, and a chat channel's outcome
+message, which says the task is waiting for an answer. Portal labels such a
+Task "Needs your answer" and changes the composer placeholder accordingly. The
+Issue and channel reports keep the end of a long output, where the questions
+are, rather than cutting it.
+
 ## Lifecycle And Failure
 
 - **Cancellation.** A cancelled run withdraws its pending question and returns
@@ -179,14 +212,18 @@ it is delivered, and it is printed to the TUI scrollback like a local one.
   redacted trace, with no separate store.
 - **Loop guard.** An identical repeated question is blocked like any other
   repeated call.
+- **Unanswered in a worker.** Nothing expires and nothing holds a worker. The
+  Task stays waiting until someone continues it or starts over. A worker's
+  report is untrusted input, so a malformed or oversized question set is
+  dropped and the run's output still carries the questions.
 
 ## Alternatives Considered
 
-- **End the turn with the question.** The answer would arrive as the user's
-  next message. This works on every surface, including workers, with no pending
-  state. It was the proposal's recommendation. The maintainer chose the
-  blocking form for the interactive surfaces: it is the interaction they use
-  daily, and workers were deferred anyway, which removed its main advantage.
+- **End the turn with the question everywhere.** The answer would arrive as
+  the user's next message, on every surface, with no pending state. It was the
+  proposal's recommendation. The maintainer chose the blocking form for the
+  interactive surfaces, because it is the interaction they use daily. Ending
+  the turn is kept where it is the only safe option: worker TaskRuns.
 - **Widen `ApprovalHandler`.** This would turn a three-value permission
   decision into a general prompt channel and couple two concerns with
   different callers: the permission gate for approval, and a tool for
@@ -197,7 +234,8 @@ it is delivered, and it is printed to the TUI scrollback like a local one.
 
 ## Deferred
 
-- **Workers.** An unattended run cannot block. If Portal Tasks need
-  questions, the likely shape is to end the TaskRun with the question in its
-  result and answer it by Continue. First measure whether the tool makes
-  unattended Agents ask instead of act.
+- **Asking rate in unattended runs.** A worker Agent that asks where it could
+  have decided stops work nobody resumes until they read it. The deferred
+  description and prompt layer steer against that; evaluation keeps the tool
+  off, so it measures acting, not asking. Measuring the asking rate on real
+  Space work is still open.

@@ -84,8 +84,13 @@ type TaskRunRun struct {
 	// worker polls for it and is what actually stops: the server records the
 	// intent, the run's own process ends it. Absent means no request, so a
 	// worker built before cancellation existed reads what it always did.
-	CancelRequested bool      `json:"cancel_requested,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
+	CancelRequested bool `json:"cancel_requested,omitempty"`
+	// AskUser lets the run end its turn on AskUser questions for the user to
+	// answer by continuing the Task. The server leaves it off where nobody
+	// continues a Task — a Workflow step — and an absent field (an evaluation
+	// control plane, an older server) keeps the tool off.
+	AskUser   bool      `json:"ask_user,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // TaskRunTask is the task portion of the GET response.
@@ -124,7 +129,11 @@ type PatchTaskRunRequest struct {
 	// Structured is the validated structured-output value as JSON text, sent on a
 	// terminal report when the run requested an output schema and it validated.
 	// See docs/design/structured-output.md.
-	Structured       *string `json:"structured,omitempty"`
+	Structured *string `json:"structured,omitempty"`
+	// Questions is the AskUser question set the run ended on, as JSON text in
+	// the agent.Question shape; the Task then waits for the user's answer. Nil
+	// when the run did not ask.
+	Questions        *string `json:"questions,omitempty"`
 	ErrorMessage     *string `json:"error_message,omitempty"`
 	PromptTokens     *int    `json:"prompt_tokens,omitempty"`
 	CompletionTokens *int    `json:"completion_tokens,omitempty"`

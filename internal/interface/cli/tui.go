@@ -54,7 +54,7 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		EnableWorktrees: true,
 		// Someone is at the terminal to answer. See
 		// docs/design/agent-user-questions.md.
-		EnableAskUser:        true,
+		AskUser:              agentapp.AskUserInteractive,
 		EnableLocalProject:   true,
 		DisableProjectMemory: overrides.NoProjectMemory,
 		// Local run under the user's own authority: the browser capability is

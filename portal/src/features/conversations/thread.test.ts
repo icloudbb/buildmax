@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ApiConversationMessage, ApiTask } from "../../lib/api/types"
-import { buildConversationThread, taskRunFailed, taskRunFinished } from "./thread"
+import { buildConversationThread, taskRunFailed, taskRunFinished, taskStatusLabel } from "./thread"
 
 // The tests order entries by a small seed; the wire carries RFC 3339, whose
 // lexicographic order over UTC instants is chronological order.
@@ -70,5 +70,13 @@ describe("taskRunFinished", () => {
     expect(taskRunFailed("FAILED")).toBe(true)
     expect(taskRunFailed("CANCELED")).toBe(true)
     expect(taskRunFailed("SUCCEEDED")).toBe(false)
+  })
+})
+
+describe("taskStatusLabel", () => {
+  it("names a task waiting on the user's answer instead of calling it done", () => {
+    expect(taskStatusLabel({ status: "SUCCEEDED", awaiting_answer: true })).toBe("Needs your answer")
+    expect(taskStatusLabel({ status: "SUCCEEDED" })).toBe("Done")
+    expect(taskStatusLabel({ status: "RUNNING" })).toBe("Running")
   })
 })

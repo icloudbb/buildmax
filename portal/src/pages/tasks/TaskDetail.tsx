@@ -8,7 +8,7 @@ import { useAuth } from "../../contexts/AuthContext"
 import { cancelTask, continueTask, getTask, getTaskRuns, retryTask, streamTaskOutput } from "../../features/tasks"
 import { getAgent } from "../../features/agents"
 import { RunTraceModal, runInputLabel } from "../../features/runs"
-import { runStatusLabel } from "../../features/conversations/thread"
+import { runStatusLabel, taskStatusLabel } from "../../features/conversations/thread"
 import { buildHash, navigate } from "../../router"
 import type { ApiTask, ApiTaskRun } from "../../lib/api/types"
 import type { BreadcrumbCrumb } from "../../lib/types"
@@ -233,7 +233,9 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
           role: "assistant",
           // While a run is in flight the label stays "Agent" — the working dots
           // carry the state; only a finished run shows Done / Failed / Stopped.
-          label: active ? "Agent" : `Agent · ${runStatusLabel(run.status)}`,
+          label: active
+            ? "Agent"
+            : `Agent · ${run.questions?.length ? "Needs your answer" : runStatusLabel(run.status)}`,
           avatar: <AgentAvatar size="sm" />,
           body: run.output ? (
             <div className="page-chat__msg-content page-chat__markdown">
@@ -325,7 +327,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
           <h1 className="page-activity__title">{task?.title || "Task"}</h1>
           <p className="page-activity__subtitle">
             {agentName ? `${agentName} · ` : ""}
-            {task ? runStatusLabel(task.status) : "Loading"}
+            {task ? taskStatusLabel(task) : "Loading"}
           </p>
         </div>
         <div className="task-thread__header-actions">
@@ -365,7 +367,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
               )}
             </dd>
             <dt>Status</dt>
-            <dd>{runStatusLabel(task.status)}</dd>
+            <dd>{taskStatusLabel(task)}</dd>
             <dt>Trigger</dt>
             <dd>{runs[0]?.trigger_source ? statusLabel(runs[0].trigger_source) : "—"}</dd>
             <dt>Started</dt>
@@ -433,7 +435,13 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
           loading={sending}
           disabled={running || !task?.agent_id}
           error={error}
-          placeholder={running ? "Wait for the current run to finish…" : "Continue this task…"}
+          placeholder={
+            running
+              ? "Wait for the current run to finish…"
+              : task?.awaiting_answer
+                ? "Answer the agent's questions in your own words…"
+                : "Continue this task…"
+          }
           ariaLabel="Continue task"
           submitLabel="Continue"
         />

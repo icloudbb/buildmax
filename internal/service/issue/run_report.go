@@ -91,7 +91,23 @@ func runSummaryBody(info coretask.RunTerminalInfo) string {
 	if detail == "" {
 		return ""
 	}
+	if info.AwaitingAnswer {
+		return keepEnd(detail, runSummaryLimit)
+	}
 	return truncateRunes(detail, runSummaryLimit)
+}
+
+// keepEnd keeps the end of a run's output that is waiting on the user: its
+// questions close the output, and they are what the reader has to act on.
+func keepEnd(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+	cut := s[len(s)-limit:]
+	for len(cut) > 0 && !utf8.ValidString(cut) {
+		cut = cut[1:]
+	}
+	return "…earlier output truncated; see the issue's results for all of it.\n\n" + cut
 }
 
 // truncateRunes cuts on a rune boundary so a multi-byte character is never

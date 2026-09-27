@@ -39,7 +39,10 @@ type taskRunRow struct {
 	Output        *string `gorm:"type:text"`
 	// Structured is the validated structured-output value as JSON text, nil for a
 	// free-text run. See docs/design/structured-output.md.
-	Structured       *string    `gorm:"type:text"`
+	Structured *string `gorm:"type:text"`
+	// Questions is the AskUser question set the run ended on, as JSON text; nil
+	// when the run did not ask. See docs/design/agent-user-questions.md.
+	Questions        *string    `gorm:"type:text"`
 	ErrorMessage     *string    `gorm:"type:text"`
 	StartedAt        *time.Time `gorm:""`
 	EndedAt          *time.Time `gorm:""`
@@ -148,6 +151,7 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		Status:                         row.Row.Status,
 		Output:                         row.Row.Output,
 		Structured:                     row.Row.Structured,
+		Questions:                      rawQuestions(row.Row.Questions),
 		ErrorMessage:                   row.Row.ErrorMessage,
 		StartedAt:                      row.Row.StartedAt,
 		EndedAt:                        row.Row.EndedAt,
@@ -188,6 +192,15 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 	return out
 }
 
+// rawQuestions exposes the stored question set as JSON, or nil when the run
+// did not ask.
+func rawQuestions(stored *string) json.RawMessage {
+	if stored == nil || *stored == "" {
+		return nil
+	}
+	return json.RawMessage(*stored)
+}
+
 // taskRunUpdate is the set of columns a run status transition may write. A
 // struct rather than positional parameters: four of the fields are *string, and
 // transposing two of them would still compile.
@@ -197,6 +210,7 @@ type taskRunUpdate struct {
 	endedAt          *time.Time
 	output           *string
 	structured       *string
+	questions        *string
 	errorMessage     *string
 	sessionID        *string
 	tracePath        *string
@@ -221,6 +235,9 @@ func buildTaskRunUpdates(in taskRunUpdate) map[string]interface{} {
 	}
 	if in.structured != nil {
 		updates["structured"] = *in.structured
+	}
+	if in.questions != nil {
+		updates["questions"] = *in.questions
 	}
 	if in.errorMessage != nil {
 		updates["error_message"] = *in.errorMessage
@@ -378,12 +395,13 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 		// this one, which a caller reading the task right after Continue or
 		// Retry would otherwise see as a stale success or failure.
 		return tx.Model(&taskRow{}).Where("id = ?", taskKey).Updates(map[string]interface{}{
-			"last_run_id":   row.ID,
-			"status":        row.Status,
-			"output":        nil,
-			"started_at":    nil,
-			"ended_at":      nil,
-			"error_message": nil,
+			"last_run_id":     row.ID,
+			"status":          row.Status,
+			"output":          nil,
+			"started_at":      nil,
+			"ended_at":        nil,
+			"error_message":   nil,
+			"awaiting_answer": false,
 		}).Error
 	})
 	if err != nil {
@@ -792,6 +810,7 @@ func (s *Store) TransitionTaskRun(ctx context.Context, in coretask.TransitionRun
 				endedAt:          in.EndedAt,
 				output:           in.Output,
 				structured:       in.Structured,
+				questions:        in.Questions,
 				errorMessage:     in.ErrorMessage,
 				sessionID:        in.SessionID,
 				tracePath:        in.TracePath,
@@ -817,6 +836,9 @@ func (s *Store) TransitionTaskRun(ctx context.Context, in coretask.TransitionRun
 			"started_at":    run.StartedAt,
 			"ended_at":      run.EndedAt,
 			"error_message": run.ErrorMessage,
+			// A run that ended on questions leaves its Task waiting for the
+			// answer; the next run clears it when it is created.
+			"awaiting_answer": run.Questions != nil && *run.Questions != "",
 		}
 		if run.SessionID != nil {
 			taskUpdates["session_id"] = *run.SessionID

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"unicode/utf8"
 )
 
@@ -47,9 +48,15 @@ type QuestionOption struct {
 // joined with ", ", or the user's own words. Declined means they dismissed the
 // whole set without answering, which is an answer too: the Agent must not ask
 // it again.
+//
+// Deferred means nobody is waiting at the session: the set was handed on for
+// the user to answer later, in their own words, as the next message of the
+// conversation. RunLoop ends the turn once the current tool batch finishes,
+// because an unattended run must not hold a worker for an answer.
 type Answer struct {
 	Values   []string
 	Declined bool
+	Deferred bool
 }
 
 // UserQuestioner puts a question set to the person driving the run and blocks
@@ -139,14 +146,22 @@ func QuestionerFromCtx(ctx context.Context) (UserQuestioner, bool) {
 // notifyingQuestioner fires the Notification hook before the question goes up,
 // as the approval gate does, so an operator's notifier can tell "needs a
 // decision" apart from "done".
+//
+// It also records a deferred answer in yield, which is how the loop learns to
+// end the turn: the tool's result alone would only ask the model to stop.
 type notifyingQuestioner struct {
 	opts  RunLoopOpts
 	inner UserQuestioner
+	yield *atomic.Bool
 }
 
 func (n notifyingQuestioner) AskUser(ctx context.Context, qs []Question) (Answer, error) {
 	fireNotification(ctx, n.opts, NotificationUserQuestion, ToolNameAskUser, ToolCallFromCtx(ctx), questionArgs(qs), "")
-	return n.inner.AskUser(ctx, qs)
+	a, err := n.inner.AskUser(ctx, qs)
+	if err == nil && a.Deferred {
+		n.yield.Store(true)
+	}
+	return a, err
 }
 
 // questionArgs is what the hook sees: the question texts, not the options,

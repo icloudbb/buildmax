@@ -27,7 +27,7 @@ so they are worth knowing exactly.
 | `JobOutput` | Read a background job's status and output incrementally | `job_id`, `stream`, `cursor` |
 | `JobStop` | Stop a background job (kills the whole process tree) | `job_id` |
 | `Monitor` | Watch logs, files, or CI: each stdout line becomes a bounded event | `command`, `description`, `timeout`, `persistent`, `react` |
-| `AskUser` | Ask you up to four questions and wait for your answers: pick an option, check several, or type your own (TUI and Desktop) | `questions[]` of `{question, header, options[], multi_select}` |
+| `AskUser` | Ask you up to four questions and wait for your answers: pick an option, check several, or type your own (TUI and Desktop; on a Portal agent run, the run stops and you answer by continuing it) | `questions[]` of `{question, header, options[], multi_select}` |
 | `Worktree` | Create, enter, leave, list, or remove a Git worktree, moving the session into it | `action`, `name`, `path`, `discard_changes` |
 | `LoadMcpTools` / `CallMcpTool` | Discover and invoke MCP server tools | see [MCP](mcp.md) |
 | `MemoryRead` | Open the bodies of project memories. Available on a local run with project memory. | `names` |
@@ -80,9 +80,13 @@ To type your own answer, move down to the ✎ line under the question. Tab
 switches between questions, and Esc dismisses the whole set. Desktop shows the
 same choices as buttons, with a tab per question, an answer field under each
 question, and a Dismiss button. The run waits until every question is
-answered; cancelling the turn withdraws the questions. It exists only in
-the TUI and Desktop project chats. Print mode, workers, scheduled runs, and
-subagents never get it, because nobody is there to answer. A `Notification`
+answered; cancelling the turn withdraws the questions.
+
+An agent running in Portal has nobody watching it, so it asks differently: the
+run stops with the questions listed at the end of its output, the task shows
+**Needs your answer**, and you reply in your own words with **Continue**. Chat
+apps that report the task say it is waiting for your answer. Print mode,
+workflow steps, scheduled Desktop runs, and subagents never get the tool. A `Notification`
 hook fires with `notification_kind` `user_question` when a question goes up, so a
 notifier can tell you the agent is waiting on you.
 

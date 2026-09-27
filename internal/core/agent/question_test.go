@@ -146,3 +146,36 @@ func TestValidateQuestions(t *testing.T) {
 		})
 	}
 }
+
+// An unattended run hands its questions on and must not keep going: the turn
+// ends after the tool batch with no further model call, so the model neither
+// guesses the answer nor holds the worker waiting for one.
+func TestDeferredAnswerEndsTheTurnAfterTheBatch(t *testing.T) {
+	history := newTestBuffer()
+	_ = history.Append(llm.Message{Role: "user", Content: "go"})
+	client := &mockLLMClient{responses: []mockResponse{
+		{content: "I have looked at the repo.", toolCalls: []llm.ToolCall{{ID: "call_1", Name: ToolNameAskUser, Arguments: "{}"}}},
+		{content: "this call must never happen"},
+	}}
+	tool := &askingTool{}
+	reply, _, structured, err := RunLoop(context.Background(), RunLoopOpts{
+		LLMClient:    client,
+		ToolRegistry: newTestToolRegistry(tool),
+		MaxIter:      5,
+		History:      history,
+		Questioner:   &fixedQuestioner{answer: Answer{Deferred: true}},
+	})
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if client.calls != 1 {
+		t.Fatalf("model called %d times, want 1: the turn must end after the question", client.calls)
+	}
+	if reply != "I have looked at the repo." || structured != nil {
+		t.Fatalf("reply = %q, structured = %v", reply, structured)
+	}
+	last := history.messages[len(history.messages)-1]
+	if last.Role != "tool" {
+		t.Fatalf("history ends with %q, want the tool result the next user message follows", last.Role)
+	}
+}

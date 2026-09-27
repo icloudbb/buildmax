@@ -3,6 +3,8 @@
  * Single source of truth for DTOs; see design/archive/004-portal-api-contract.md for historical contract context.
  */
 
+import type { Question } from "@buildmax/gui"
+
 export interface LoginUser {
   id: string
   email: string
@@ -208,6 +210,8 @@ export interface ApiWorkflowNodeRun {
   task_run_id?: string | null
   resolved_input?: string | null
   output?: string | null
+  /** The AskUser question set the run ended on; the output also lists them. */
+  questions?: Question[] | null
   error_message?: string | null
   created_at: string
   started_at?: string | null
@@ -323,6 +327,9 @@ export interface ApiTask {
   issue_id?: string | null
   /** The run behind the current status. Keys the trace route. */
   last_run_id?: string | null
+  /** True while the latest run ended on AskUser questions that continuing the
+   *  task has not answered yet. */
+  awaiting_answer?: boolean
   /** Set only when the task has neither issue_id nor conversation_id: the
    *  workflow run that dispatched it. */
   workflow_run_id?: string | null
@@ -339,6 +346,8 @@ export interface ApiTaskRun {
   trigger_source?: string
   status: string
   output?: string | null
+  /** The AskUser question set the run ended on; the output also lists them. */
+  questions?: Question[] | null
   error_message?: string | null
   created_at: string
   started_at?: string | null

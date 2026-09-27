@@ -69,6 +69,15 @@ func (g *Gateway) formatReport(info coretask.RunTerminalInfo, title string) stri
 	var b strings.Builder
 	switch coretask.RunStatus(info.Status) {
 	case coretask.RunStatusSucceeded:
+		if info.AwaitingAnswer {
+			// The questions close the output, so a long reply keeps its end: the
+			// part the user has to act on.
+			fmt.Fprintf(&b, "%s is waiting for your answer.", name)
+			if info.Output != nil && strings.TrimSpace(*info.Output) != "" {
+				b.WriteString("\n\n" + truncateHead(strings.TrimSpace(*info.Output), reportOutputLimit))
+			}
+			break
+		}
 		fmt.Fprintf(&b, "%s finished.", name)
 		if info.Output != nil && strings.TrimSpace(*info.Output) != "" {
 			b.WriteString("\n\n" + truncate(strings.TrimSpace(*info.Output), reportOutputLimit))
@@ -85,6 +94,16 @@ func (g *Gateway) formatReport(info coretask.RunTerminalInfo, title string) stri
 		b.WriteString("\n\n" + link)
 	}
 	return b.String()
+}
+
+// truncateHead keeps the end of s, where a run waiting on the user put its
+// questions.
+func truncateHead(s string, limit int) string {
+	r := []rune(s)
+	if len(r) <= limit {
+		return s
+	}
+	return "…" + string(r[len(r)-limit:])
 }
 
 func truncate(s string, limit int) string {

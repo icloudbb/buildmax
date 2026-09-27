@@ -184,6 +184,8 @@ Task 页面上的聊天历史，只是对执行事实的一种投影：
 
 "继续"不需要、也不会创建 Conversation。当 Task 已经存在处于 `PENDING`、`SCHEDULED` 或 `RUNNING` 状态的活动 TaskRun 时，"继续"会被拒绝。
 
+"继续"也是用户回答一个停下来提问的 Agent 的方式。以 `AskUser` 问题结束的运行会成功结束，问题出现在其输出和 `task_run.questions` 中，其 Task 投影出 `awaiting_answer`，直到下一个运行被创建。后续输入就是答案，由用户用自己的话写出。中间没有任何东西在等待：答案到来之前，Task 不占用 worker。见 [Agent 向用户提问](Agent向用户提问.md)。
+
 ### 6.2 重试
 
 "重试"把某个已选定的终态 TaskRun 的输入原样作为另一次尝试重新执行。它会记录 `retry_of_task_run_id`，且不会宣称用户提供了新消息。它在 Task 服务所定义的重试规则下，沿用同一个 Task 与同一条会话谱系。

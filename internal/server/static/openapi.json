@@ -157,6 +157,7 @@
           "agent_id": { "type": "string", "nullable": true },
           "issue_id": { "type": "string", "nullable": true },
           "last_run_id": { "type": "string", "nullable": true },
+          "awaiting_answer": { "type": "boolean", "description": "True while the latest run ended on AskUser questions that continuing the task has not yet answered." },
           "workflow_run_id": {
             "type": "string",
             "nullable": true,
@@ -174,6 +175,19 @@
           "status": { "type": "string" },
           "output": { "type": "string", "nullable": true },
           "error_message": { "type": "string", "nullable": true },
+          "questions": {
+            "type": "array",
+            "description": "The AskUser question set the run ended on, for the user to answer by continuing the task; absent when the run did not ask.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "question": { "type": "string" },
+                "header": { "type": "string" },
+                "options": { "type": "array", "items": { "type": "object", "properties": { "label": { "type": "string" }, "description": { "type": "string" } } } },
+                "multi_select": { "type": "boolean" }
+              }
+            }
+          },
           "cancel_reason": { "type": "string" },
           "created_by": { "type": "string" },
           "trigger_source": { "type": "string" },

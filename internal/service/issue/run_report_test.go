@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
@@ -129,6 +130,26 @@ func TestReportRunTerminal_TruncatesLongOutput(t *testing.T) {
 	// The cut lands on a rune boundary, never inside a multi-byte character.
 	if !utf8ValidPrefix(body) {
 		t.Fatalf("truncation split a multi-byte character")
+	}
+}
+
+// A run waiting on the user closes its output with the questions, so a long
+// output keeps its end in the comment rather than cutting the questions off.
+func TestReportRunTerminal_WaitingRunKeepsItsQuestions(t *testing.T) {
+	comments := &mock.MockIssueCommentStore{}
+	reporter := reporterFor(coretask.Task{ID: "t_1", IssueID: util.Ptr("i_1")}, comments)
+	out := strings.Repeat("é", runSummaryLimit) + "\n\n**Waiting for your answer**\n\n1. Which database?"
+	if err := reporter.ReportRunTerminal(context.Background(), coretask.RunTerminalInfo{
+		TaskRunID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusSucceeded), Output: &out, AwaitingAnswer: true,
+	}); err != nil {
+		t.Fatalf("ReportRunTerminal: %v", err)
+	}
+	body := comments.Comments[0].Body
+	if !strings.Contains(body, "1. Which database?") || !strings.Contains(body, "earlier output truncated") {
+		t.Fatalf("waiting run lost its questions: %q", body[:min(len(body), 120)])
+	}
+	if !utf8.ValidString(body) {
+		t.Fatal("truncation split a multi-byte character")
 	}
 }
 

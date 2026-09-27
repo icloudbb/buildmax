@@ -324,7 +324,7 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		EnableBackgroundJobs: true,
 		// A project chat has someone at it. The directory apps below serve
 		// scheduled and projectless runs, which bind no questioner.
-		EnableAskUser:      true,
+		AskUser:            agentapp.AskUserInteractive,
 		EnableLocalProject: true,
 		// Local run under the user's authority; Desktop shows the browser as a
 		// visible window the user can watch, plus an activity indicator. See
