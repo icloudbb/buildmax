@@ -11,6 +11,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -22,9 +23,12 @@ import (
 	"github.com/icloudbb/buildmax/internal/util"
 )
 
-// JobCreator creates Kubernetes Jobs. Used by K8sJobRunner; can be implemented by a clientset wrapper or a fake in tests.
-type JobCreator interface {
+// JobClient creates and deletes Kubernetes Jobs. Used by K8sJobRunner; can be implemented by a clientset wrapper or a fake in tests.
+type JobClient interface {
 	CreateJob(ctx context.Context, namespace string, job *batchv1.Job) error
+	// DeleteJob removes the Job and its pods. A Job that is already gone is not
+	// an error.
+	DeleteJob(ctx context.Context, namespace, name string) error
 }
 
 // Volume and mount names for the worker pod's configuration.
@@ -277,7 +281,7 @@ type K8sJobRunner struct {
 	env       []corev1.EnvVar
 	pod       PodConfig
 	resources corev1.ResourceRequirements
-	client    JobCreator
+	client    JobClient
 }
 
 // NewK8sJobRunner returns a runner that creates a Job in the given namespace with
@@ -286,7 +290,7 @@ type K8sJobRunner struct {
 // The resource bounds are resolved here rather than per run, so a deployment
 // configured to produce an unbounded worker fails at startup, where an operator
 // is reading errors, instead of at the first run that needed the bound.
-func NewK8sJobRunner(namespace, image string, env []corev1.EnvVar, pod PodConfig, client JobCreator) (*K8sJobRunner, error) {
+func NewK8sJobRunner(namespace, image string, env []corev1.EnvVar, pod PodConfig, client JobClient) (*K8sJobRunner, error) {
 	resources, err := pod.Resources.Requirements()
 	if err != nil {
 		return nil, err
@@ -459,13 +463,30 @@ func (r *K8sJobRunner) Run(ctx context.Context, run coretask.Run, runToken strin
 	return "k8s_job", &jobName, &createdAt, nil
 }
 
-// jobCreatorImpl implements JobCreator using a Kubernetes clientset.
-type jobCreatorImpl struct {
-	clientset *kubernetes.Clientset
+// DeleteWorkerJob removes a run's Job and its pods, for a run the server has
+// already ended without its worker.
+func (r *K8sJobRunner) DeleteWorkerJob(ctx context.Context, jobName string) error {
+	return r.client.DeleteJob(ctx, r.namespace, jobName)
 }
 
-func (c *jobCreatorImpl) CreateJob(ctx context.Context, namespace string, job *batchv1.Job) error {
+// jobClientImpl implements JobClient using a Kubernetes clientset.
+type jobClientImpl struct {
+	clientset kubernetes.Interface
+}
+
+func (c *jobClientImpl) CreateJob(ctx context.Context, namespace string, job *batchv1.Job) error {
 	_, err := c.clientset.BatchV1().Jobs(namespace).Create(ctx, job, metav1.CreateOptions{})
+	return err
+}
+
+// DeleteJob deletes in the background: the Job's own default is to orphan its
+// pods, which would leave the worker running.
+func (c *jobClientImpl) DeleteJob(ctx context.Context, namespace, name string) error {
+	policy := metav1.DeletePropagationBackground
+	err := c.clientset.BatchV1().Jobs(namespace).Delete(ctx, name, metav1.DeleteOptions{PropagationPolicy: &policy})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
 	return err
 }
 
@@ -499,9 +520,9 @@ func WorkerEnvFromEnviron(managedLLM bool) []corev1.EnvVar {
 	return out
 }
 
-// BuildK8sJobCreator builds rest config (in-cluster or kubeconfig), creates a clientset, and returns a JobCreator.
+// BuildK8sJobClient builds rest config (in-cluster or kubeconfig), creates a clientset, and returns a JobClient.
 // For use when worker.run_mode is k8s_job in server.yaml. Returns an error if not in cluster and no usable kubeconfig.
-func BuildK8sJobCreator() (JobCreator, error) {
+func BuildK8sJobClient() (JobClient, error) {
 	restCfg, err := rest.InClusterConfig()
 	if err != nil {
 		kubeconfig := os.Getenv("KUBECONFIG")
@@ -514,7 +535,7 @@ func BuildK8sJobCreator() (JobCreator, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &jobCreatorImpl{clientset: clientset}, nil
+	return &jobClientImpl{clientset: clientset}, nil
 }
 
 // Identity belongs in an attr, not in every message string.

@@ -79,6 +79,8 @@ Server 从不自己终结一次已经开始的运行：只有运行自身的进�
 
 正是同一次轮询，让 Server 得知一个 worker 还活着。这条路由在每次调用时都会记录 `task_run.last_seen_at`，因此一个处于 `RUNNING` 状态、却沉默超过回收器存活宽限期的运行，会被判定为失去了自己的 worker——从这里看，SIGKILL、OOM kill 或者节点丢失，表现出来都是这个样子，它们都不会给 worker 留下上报的机会。`worker.run_timeout` 依然是这次清扫所看不到的情形的最后防线：一个从未到达 `RUNNING` 的运行，以及一个完全没有记录过任何信号的运行。这两种情况都不会被重新运行：一个被回收的运行，其 worker 可能已经造成了副作用，Server 无法得知重复执行这个 Task 是否安全。
 
+在 `k8s_job` 模式下，回收器结束一个运行之后，会以后台级联（background propagation）方式删除该运行的 Job，其 Pod 也随之删除。沉默并不证明 worker 已经死亡：一个挂起或网络分区的 worker 仍然占着它的 Pod，而一个在 `SCHEDULED` 状态被判为放弃的运行，会留下一个仍在尝试创建 Pod 的 Job。回收器只删除由它赢得终态转换的运行的 Job。删除失败会连同 `task_run_id` 一起记入日志，运行仍保持终态。
+
 每次失败都会记录 `task_run.failure_class`，由让运行失败的组件设置，从不解析 `error_message`：
 
 - 调度器记录 `dispatch`；本地 worker 在运行中途未上报就退出时，记录 `worker_lost`；

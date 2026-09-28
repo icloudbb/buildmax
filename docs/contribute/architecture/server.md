@@ -236,6 +236,13 @@ one with no recorded signal at all. Nothing is re-run: a reaped run had a worker
 that may already have caused side effects, and the server cannot know whether
 the task was safe to repeat.
 
+Under `k8s_job`, once the reaper has ended a run it deletes the run's Job with
+background propagation, so the pod goes too. Silence does not prove a worker is
+dead: a hung or partitioned one still holds its pod, and a run abandoned in
+`SCHEDULED` leaves a Job still trying to create one. The reaper deletes only
+Jobs of runs whose terminal transition it won. A deletion failure is logged
+with `task_run_id` and leaves the run terminal.
+
 Every failure records `task_run.failure_class`, set by whichever component
 failed the run and never parsed from `error_message`:
 

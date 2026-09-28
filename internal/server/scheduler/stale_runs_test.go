@@ -55,7 +55,7 @@ func (f *fakeStaleStore) TransitionTaskRun(_ context.Context, in coretask.Transi
 
 func newStaleFixture(stale ...coretask.Run) (*fakeStaleStore, *StaleRunReaper) {
 	f := &fakeStaleStore{stale: stale}
-	return f, NewStaleRunReaper(f, 6*time.Hour, time.Hour)
+	return f, NewStaleRunReaper(f, nil, 6*time.Hour, time.Hour)
 }
 
 // TestReaperClosesAbandonedRuns is the safety net that makes a per-run
@@ -102,7 +102,7 @@ func TestReaperClosesUnconfirmedCancels(t *testing.T) {
 	store := &fakeStaleStore{
 		canceled: []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}},
 	}
-	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+	reaper := NewStaleRunReaper(store, nil, 6*time.Hour, time.Hour)
 
 	now := time.Unix(1_800_000_000, 0)
 	reaper.Sweep(context.Background(), now)
@@ -132,7 +132,7 @@ func TestReaperSweepsAbandonedRunsWhenTheCancelQueryFails(t *testing.T) {
 		stale:         []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}},
 		cancelListErr: errors.New("database is away"),
 	}
-	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+	reaper := NewStaleRunReaper(store, nil, 6*time.Hour, time.Hour)
 
 	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
 
@@ -181,7 +181,7 @@ func TestReaperDoesNotOverwriteAConcurrentWorkerOutcome(t *testing.T) {
 		stale:         []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}},
 		transitionWon: &won,
 	}
-	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+	reaper := NewStaleRunReaper(store, nil, 6*time.Hour, time.Hour)
 
 	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
 
@@ -197,7 +197,7 @@ func TestReaperDoesNotOverwriteAConcurrentWorkerOutcome(t *testing.T) {
 // Sweep all have to be safe so the caller does not need a nil check.
 func TestNilReaperIsInert(t *testing.T) {
 	var reaper *StaleRunReaper
-	if got := NewStaleRunReaper(nil, 0, 0); got != nil {
+	if got := NewStaleRunReaper(nil, nil, 0, 0); got != nil {
 		t.Error("a reaper was built with no store to sweep")
 	}
 	reaper.Start()
@@ -207,7 +207,7 @@ func TestNilReaperIsInert(t *testing.T) {
 
 func TestReaperDefaultsAreApplied(t *testing.T) {
 	store := &fakeStaleStore{}
-	reaper := NewStaleRunReaper(store, 0, 0)
+	reaper := NewStaleRunReaper(store, nil, 0, 0)
 	if reaper.timeout != defaultRunTimeout {
 		t.Errorf("timeout = %v, want %v", reaper.timeout, defaultRunTimeout)
 	}
@@ -229,7 +229,7 @@ func TestReaperClosesRunsWhoseWorkerWentSilent(t *testing.T) {
 	store := &fakeStaleStore{
 		lost: []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}},
 	}
-	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+	reaper := NewStaleRunReaper(store, nil, 6*time.Hour, time.Hour)
 
 	now := time.Unix(1_800_000_000, 0)
 	reaper.Sweep(context.Background(), now)
@@ -270,7 +270,7 @@ func TestReaperAnswersACancelBeforeALostWorker(t *testing.T) {
 	store := &fakeStaleStore{canceled: []coretask.Run{run}, lost: []coretask.Run{run}}
 	won := true
 	store.transitionWon = &won
-	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+	reaper := NewStaleRunReaper(store, nil, 6*time.Hour, time.Hour)
 
 	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
 
@@ -286,11 +286,94 @@ func TestReaperSweepsOnWhenTheLivenessQueryFails(t *testing.T) {
 		stale:       []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}},
 		lostListErr: errors.New("database is away"),
 	}
-	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+	reaper := NewStaleRunReaper(store, nil, 6*time.Hour, time.Hour)
 
 	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
 
 	if len(store.transitions) != 1 || store.transitions[0].NewStatus != coretask.RunStatusFailed {
 		t.Errorf("transitions = %v, want the abandoned run still failed", store.transitions)
+	}
+}
+
+// fakeJobDeleter records which worker Jobs the reaper asked to delete.
+type fakeJobDeleter struct {
+	deleted []string
+	err     error
+}
+
+func (f *fakeJobDeleter) DeleteWorkerJob(_ context.Context, jobName string) error {
+	f.deleted = append(f.deleted, jobName)
+	return f.err
+}
+
+func runWithJob(id string) coretask.Run {
+	job := "buildmax-worker-" + id + "-1"
+	return coretask.Run{ID: id, Status: string(coretask.RunStatusRunning), K8sJobName: &job}
+}
+
+// A hung or partitioned worker still holds its pod after its run is reaped, so
+// every sweep that ends a run deletes its Job.
+func TestReaperDeletesTheJobOfEachRunItEnds(t *testing.T) {
+	for name, store := range map[string]*fakeStaleStore{
+		"unconfirmed cancel": {canceled: []coretask.Run{runWithJob("r_1")}},
+		"lost worker":        {lost: []coretask.Run{runWithJob("r_1")}},
+		"abandoned":          {stale: []coretask.Run{runWithJob("r_1")}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			jobs := &fakeJobDeleter{}
+			NewStaleRunReaper(store, jobs, 6*time.Hour, time.Hour).Sweep(context.Background(), time.Unix(1_800_000_000, 0))
+
+			if len(store.transitions) != 1 {
+				t.Fatalf("transitions = %d, want 1", len(store.transitions))
+			}
+			if len(jobs.deleted) != 1 || jobs.deleted[0] != "buildmax-worker-r_1-1" {
+				t.Errorf("deleted jobs = %v, want the run's own Job", jobs.deleted)
+			}
+		})
+	}
+}
+
+// The reaper deletes only the Jobs of runs it ended. A run someone else
+// finished is theirs; a run it failed to finish is retried next sweep.
+func TestReaperLeavesJobsOfRunsItDidNotEnd(t *testing.T) {
+	lost := false
+	for name, store := range map[string]*fakeStaleStore{
+		"no job was recorded":   {stale: []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}}},
+		"the race was lost":     {stale: []coretask.Run{runWithJob("r_1")}, transitionWon: &lost},
+		"the transition failed": {stale: []coretask.Run{runWithJob("r_1")}, updateErr: errors.New("database is away")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			jobs := &fakeJobDeleter{}
+			NewStaleRunReaper(store, jobs, 6*time.Hour, time.Hour).Sweep(context.Background(), time.Unix(1_800_000_000, 0))
+			if len(jobs.deleted) != 0 {
+				t.Errorf("deleted jobs = %v, want none", jobs.deleted)
+			}
+		})
+	}
+}
+
+// Deleting the Job is cleanup after the outcome, not part of it: a failure is
+// logged and the run stays ended.
+func TestReaperJobDeletionFailureLeavesTheRunTerminal(t *testing.T) {
+	store := &fakeStaleStore{lost: []coretask.Run{runWithJob("r_1")}}
+	jobs := &fakeJobDeleter{err: errors.New("the API server is away")}
+
+	NewStaleRunReaper(store, jobs, 6*time.Hour, time.Hour).Sweep(context.Background(), time.Unix(1_800_000_000, 0))
+
+	if len(jobs.deleted) != 1 {
+		t.Fatalf("deletion attempts = %d, want 1", len(jobs.deleted))
+	}
+	if len(store.transitions) != 1 || store.transitions[0].NewStatus != coretask.RunStatusFailed {
+		t.Errorf("transitions = %v, want the run failed and nothing after", store.transitions)
+	}
+}
+
+// A local-process deployment has no Job runner; a recorded name must not stop
+// the reaper from ending the run.
+func TestReaperWithoutAJobRunnerStillEndsRuns(t *testing.T) {
+	store := &fakeStaleStore{stale: []coretask.Run{runWithJob("r_1")}}
+	NewStaleRunReaper(store, nil, 6*time.Hour, time.Hour).Sweep(context.Background(), time.Unix(1_800_000_000, 0))
+	if len(store.transitions) != 1 {
+		t.Errorf("transitions = %d, want 1", len(store.transitions))
 	}
 }
