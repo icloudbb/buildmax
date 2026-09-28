@@ -34,7 +34,9 @@
   the first slice. Later grant integrity, Portal discoverability, pagination,
   model creation, authenticated `buildmax admin` operations, the operator
   surface split (§6.1), and the account deactivation lifecycle with execution
-  eligibility and Space owner recovery (§8) have also shipped
+  eligibility and Space owner recovery (§8) have also shipped. Runtime
+  operations metadata (§13 M7) was accepted on 2026-09-28 from an operator
+  incident drill and is not yet built
 - follows: [space-governance.md](./space-governance.md) and
   [enterprise-deployment.md](./enterprise-deployment.md)
 - relates to: [enterprise identity and access](enterprise-identity-and-access.md),
@@ -396,6 +398,17 @@ decisions, and the CLI already separates them for the same reason.
   support path that reaches space content needs its own design covering
   request, space consent, expiry, redaction, and a distinct audit action; it is
   not a parameter on a route in this table.
+- **Cross-space work inventories.** Administration does not list, search, or
+  manage Agents, Workflows, Schedules, or Issues across Spaces, and a System
+  Administrator does not enter Spaces implicitly. Their names and definitions
+  are Space content (§16), so a global list grants content authority just as a
+  bypass on the Space routes would. The 2026-09-28 operator drill (§13 M7) found
+  that diagnosing capacity, lost-worker, failure, and queue incidents needed no
+  Space content: what the operator lacked was run metadata, which M7 adds. A
+  combined view over a member's own Spaces was considered and not adopted; no
+  multi-Space member has shown a navigation problem. It would belong to Portal
+  Space navigation, not Administration, and would use each item's ordinary
+  Space route and role check.
 - **Quota tier assignment.** `GET /api/admin/spaces/{space_id}` shows the tier
   and the usage against it. Changing it needs a store method that does not
   exist (§3, gap 5), and it is the one item here that is a feature rather than
@@ -911,6 +924,97 @@ Quota tier assignment, if it is wanted, comes after M6 with its own store
 method and its own audit action. It is the one item in §7.1 that was a feature
 rather than a window onto existing state, and nothing has asked for it yet.
 
+### M7. Runtime Operations Metadata — ACCEPTED, NOT BUILT
+
+**Evidence.** On 2026-09-28 a System Administrator with no Space membership
+diagnosed four injected incidents on a two-replica kind deployment, using
+Administration first and `kubectl` and server logs as fallback:
+
+- a namespace pod quota that left runs SCHEDULED with no pod;
+- a frozen worker, which the reaper failed after about 2m20s;
+- a mix of platform and Space-configuration failures;
+- a burst of 30 runs across three Spaces.
+
+The operator could not answer four questions from Administration:
+
+- **Is work stalled?** Overview reported Ready while no worker could start.
+  `SCHEDULED 3` and `PENDING 30` carry no age, so stuck and draining look the
+  same.
+- **Is a failure ours or the Space's?** Three platform failures (storage,
+  worker shutdown) and one disabled Secret appeared as one `FAILED 4`. The
+  `error_message` column distinguishes them but cannot be shown: it contains
+  internal URLs and object paths.
+- **Which Spaces are affected?** Nothing lists Spaces by stuck or failed runs.
+  Scheduler, runner, and reaper logs carry `task_run_id` but not `space_id`.
+  Only SQL across `task_run`, `task`, and `space` answered it.
+- **What about personal Spaces?** The platform failures were in a personal
+  Space, and the Spaces list omits personal Spaces.
+
+No incident needed Space content, and recovery needed platform access rather
+than Space authority. This answers question 16 of §17.
+
+**Decision.** Add a durable failure class and a bounded runtime projection, both
+derived from `task_run` state so that every replica gives the same answer:
+
+1. **Failure class.** `task_run.failure_class` records why a run failed as a
+   closed enum. The component that fails the run sets it; nothing parses error
+   text. The initial classes and who sets them:
+
+   | Class | Set by | Meaning |
+   |---|---|---|
+   | `dispatch` | scheduler | spawn or run-token mint failed |
+   | `worker_lost` | reaper | the worker's heartbeat went stale |
+   | `abandoned` | reaper | the run timed out |
+   | `interrupted` | worker | the worker was shut down |
+   | `infrastructure` | worker | storage, checkpoint, or worker API failure |
+   | `space_configuration` | worker | plugin refusal, or a Secret or grant the Space must fix |
+   | `model` | worker | provider or model error |
+   | `run` | worker | any other failure inside the Agent run |
+   | `unclassified` | any | the fallback when no rule applies |
+
+   The class is metadata. `error_message` stays behind Space membership.
+2. **Runtime summary** on `GET /api/admin/system`:
+   - the oldest PENDING `created_at`;
+   - the oldest SCHEDULED-but-not-started `created_at`;
+   - the count of RUNNING runs whose `last_seen_at` is older than the reaper's
+     liveness grace;
+   - failure counts by class over the last 24 hours.
+
+   Portal computes ages from `server_time`. Each read stays best-effort, as M3
+   requires.
+3. **Spaces needing attention.** `GET /api/admin/runtime/spaces` is a paginated
+   list of Spaces, team and personal, that have an active run or a failure in
+   the window. It is ordered by oldest active run. Each row carries only:
+   - Space id, name, and personal flag;
+   - owners (user id and email);
+   - active counts by status;
+   - the oldest active `created_at`;
+   - failure counts by class.
+
+   It carries no run input, output, error text, Agent, Workflow, Schedule, or
+   Issue field.
+4. **Log correlation.** The dispatch, runner, and reaper log lines that name a
+   `task_run_id` also carry `space_id`, so an operator can go from a log line
+   to the Space and its owner.
+5. **Portal.** Overview shows the stall ages, stale RUNNING count, and failure
+   classes next to the status counts, and lists the Spaces needing attention.
+   Each row links to the Admin Space detail, which already names the owner.
+
+Out of M7: global dispatch pause, force-cancel, and cross-Space retry, each of
+which needs its own authority, multi-instance, and audit decision. Also out:
+audit events for scheduler and reaper outcomes, because audit records actions
+and the failure class already answers the operator's question. `buildmax admin`
+parity stays with question 13.
+
+Acceptance:
+
+- a System Administrator without membership sees stall ages, failure classes,
+  and affected Spaces, including personal ones;
+- a Space owner without a grant is refused the new route;
+- distinctive run inputs, error text, and Agent instructions never appear in
+  any response;
+- two replicas return the same projection.
+
 ## 14. Frontend Plan
 
 1. **Gate and shell.** `getAdminMe`, the `admin` route segment, and a nav entry
@@ -1051,14 +1155,13 @@ Manual scenarios, each of which is a claim in this document:
 15. Portal plugin publication is deferred by decision: `buildmax plugin publish`
     stays the release surface, and Portal inspects, archives, restores, and
     yanks. Reopen it only if an operator without a checkout needs to publish.
-16. Which runtime aggregates are actionable without revealing Space content —
-    TaskRuns by status and age, oldest pending age, cancel requests and
-    stale-run candidates, worker heartbeat freshness, Spaces near a quota
-    limit? Any such view must take deployment-wide meaning from durable state or
-    the shared coordinator, never one process's memory; group failures by a
-    safe error class, never raw error text; and keep global dispatch pause,
-    force-cancel, and cross-Space retry out unless each gets its own authority
-    and multi-instance consistency decision and audit action.
+16. ~~Which runtime aggregates are actionable without revealing Space
+    content?~~ **Decided (§13 M7):** oldest PENDING and unstarted SCHEDULED
+    age, stale-heartbeat RUNNING count, failures by a durable safe class, and
+    Spaces (including personal ones) needing attention, all derived from
+    durable run state. Global dispatch pause, force-cancel, and cross-Space
+    retry stay out. Spaces near a quota limit were not needed by the drill and
+    are not included.
 17. Which session metadata is useful without becoming a device-fingerprinting
     surface? Platform and timestamps exist; IP address and user agent are not
     recorded.

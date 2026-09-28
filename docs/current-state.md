@@ -597,10 +597,12 @@ Space through `GET /api/admin/llm/calls` — model, tokens, cost, and status per
 call, filtered by user, model, status, surface, and time, and carrying no
 prompts or generated content.
 Remaining administration gaps include transactional authority audit, admin CLI
-Session listing/revocation parity, quota-tier assignment, and runtime metadata
-for queue/worker diagnosis. These are open questions in the
-[system administration](design/system-administration.md) record, not implemented
-features. Plugin
+Session listing/revocation parity, and quota-tier assignment, which are open
+questions in the [system administration](design/system-administration.md)
+record, and runtime metadata for queue/worker diagnosis — stall ages, run
+failure classes, and Spaces needing attention — which that record accepts as
+§13 M7 but which is not built. The Overview shows only TaskRun counts by
+status, and the Spaces list omits personal Spaces. Plugin
 publication remains CLI-only, while Portal can inspect, retire, restore, and
 yank catalog releases.
 

@@ -34,7 +34,6 @@
 |---|---|---|---|
 | [企业功能要求盘点](enterprise-capability-requirements.md) | 运维与部署 | 企业部署可能需要哪些候选要求，应以什么证据逐项验证？ | 仅盘点要求；尚无任何要求经具名部署验证。相关基础已交付（OIDC 登录、管理界面、带执行资格闸门的引导式账户停用、已停用 owner 的恢复）；配额、暂停与事件处置旅程尚未检视 |
 | [单一维护者的 Agent 开发工作流](single-maintainer-agent-development.md) | 验证 | 一位维护者如何借助编码 Agent 提升被接受的开发吞吐量，同时不成为工作流瓶颈？ | 仓库内 backlog（单一认领 frontmatter）、`./make board` 状态视图及其 frontmatter 检查已交付；变更范围验证、自动就绪性复核、pull request 交付检查、独立验收与工作区回收尚未建设 |
-| [部署管理员的跨 Space 工作可见性](admin-cross-space-work-visibility.md) | 运维与部署 | 管理员应进入所有 Space，还是在 Administration 查看跨 Space 工作？没有 Space 成员身份时能看到哪些运维事实？ | 仅为提案；Administration 已展示 Space 元数据、用量、已停用 owner 的恢复、跨 Space 审计、LLM 调用账本及 TaskRun 状态计数。尚无全局 Agent、Workflow、Schedule 或 Issue 清单，也无按成员身份限定的跨 Space 视图 |
 | [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md) | 信任与安全 | 交互式、原生与无人值守客户端应获得哪些凭证？ | 持久 Session 状态、绝对过期、逐请求撤销、Portal cookie 认证与原生 OS Secret 存储已交付；scope、签名密钥轮换、自助管理、PAT 与服务账号仍待决定 |
 | [持久化 Agent Session](durable-agent-sessions.md) | 本地体验 | 已认证的本地 Agent Session 是否应成为带 revision 的 Server 资源？ | 尚未开始；没有带 revision 的 Server Session 资源或路由。Task 级 worker session bundle 持久化在运行存储中，Remote Control 中继本地活动 Session 但不保存其对话记录 |
 | [Assistant 编排与 Workflow 边界](assistant-orchestration-and-workflow-boundary.md) | 产品与执行模型 | 管理者 Agent 是否足以支持 Assistant 产品，Workflow 是否应收窄为确定性的 Automation？ | Portal 聊天可列出、运行并观察已发布的 Workflow（§9.5）；尚无有界的 Agent 间委派——Agent 无法承接持久的子级 Space Agent Task |
