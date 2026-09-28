@@ -54,3 +54,4 @@ before committing.
 
 | Report | Surface | Summary |
 |---|---|---|
+| [2026-09-28 operator incident drill](2026-09-28-portal-admin-operator-incident-drill.md) | Portal Administration, worker | Evidence for the cross-Space visibility proposal: stall ages, safe failure classes, and per-Space counts (incl. personal spaces) are missing; no incident needed Space content |
