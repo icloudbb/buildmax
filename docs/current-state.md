@@ -595,14 +595,15 @@ System administration, quota, audit, role checks, and Space lifecycle UI exist.
 The administration area also reads the managed LLM call ledger across every
 Space through `GET /api/admin/llm/calls` — model, tokens, cost, and status per
 call, filtered by user, model, status, surface, and time, and carrying no
-prompts or generated content.
+prompts or generated content. Its Overview reports work progress without Space
+content: the oldest waiting PENDING and unstarted SCHEDULED runs, silent RUNNING
+runs, failures in the last 24 hours by `task_run.failure_class` with who acts,
+and the Spaces needing attention, including personal ones, with their owners
+(`GET /api/admin/runtime/spaces`).
 Remaining administration gaps include transactional authority audit, admin CLI
-Session listing/revocation parity, and quota-tier assignment, which are open
+Session listing/revocation parity, and quota-tier assignment. These are open
 questions in the [system administration](design/system-administration.md)
-record, and runtime metadata for queue/worker diagnosis — stall ages, run
-failure classes, and Spaces needing attention — which that record accepts as
-§13 M7 but which is not built. The Overview shows only TaskRun counts by
-status, and the Spaces list omits personal Spaces. Plugin
+record, not implemented features. Plugin
 publication remains CLI-only, while Portal can inspect, retire, restore, and
 yank catalog releases.
 

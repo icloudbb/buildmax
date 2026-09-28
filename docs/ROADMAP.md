@@ -187,9 +187,10 @@ and Portal artifacts proposed for release with external dependencies.
 the features perform the documented account, Space, execution, diagnosis,
 failure, restore, upgrade, rollback, and rotation journeys. Fix only gaps that
 the journey demonstrates. A 2026-09-28 operator drill showed the diagnosis
-journey cannot detect stalled or failing work from Administration, so runtime
-operations metadata is accepted as
-[system administration](design/system-administration.md) §13 M7. Transactional
+journey could not detect stalled or failing work from Administration; runtime
+operations metadata
+([system administration](design/system-administration.md) §13 M7) now closes
+that gap. Transactional
 authority audit, admin CLI Session parity, and quota-tier assignment remain
 open questions in that record unless they block this outcome.
 

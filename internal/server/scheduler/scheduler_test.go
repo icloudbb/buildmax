@@ -67,6 +67,14 @@ func (s *spyTaskRunStore) CountTaskRunsByStatus(_ context.Context) (map[string]i
 	return nil, nil
 }
 
+func (s *spyTaskRunStore) RuntimeSummary(context.Context, time.Time, time.Time) (coretask.RuntimeSummary, error) {
+	return coretask.RuntimeSummary{}, nil
+}
+
+func (s *spyTaskRunStore) ListSpaceRunActivity(context.Context, time.Time, int, int) ([]coretask.SpaceRunActivity, int, error) {
+	return nil, 0, nil
+}
+
 func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*coretask.Run, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

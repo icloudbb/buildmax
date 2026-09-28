@@ -2816,6 +2816,48 @@
         }
       }
     },
+    "/api/admin/runtime/spaces": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "List Spaces, team and personal, with active runs or failures in the last 24 hours, with their owners and counts; no run content",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "space_id": {"type": "string"},
+                          "name": {"type": "string"},
+                          "personal": {"type": "boolean"},
+                          "owners": {"type": "array", "items": {"type": "object"}},
+                          "active": {"type": "object", "additionalProperties": {"type": "integer"}},
+                          "oldest_active_at": {"type": "string", "format": "date-time"},
+                          "failures": {"type": "object", "additionalProperties": {"type": "integer"}}
+                        }
+                      }
+                    },
+                    "total": {"type": "integer"},
+                    "failure_window_hours": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/spaces": {
       "get": {
         "tags": ["admin"],

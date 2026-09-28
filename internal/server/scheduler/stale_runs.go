@@ -40,8 +40,9 @@ const defaultCancelGrace = 2 * time.Minute
 // is that generous on purpose: a worker whose polls fail keeps working (a
 // server it cannot reach is not one that canceled it), so reaping early does
 // not stop the run, it only throws away the result the run was about to report.
-// A partition has to look like a dead process before this fires.
-const defaultLivenessGrace = 2 * time.Minute
+// A partition has to look like a dead process before this fires. The value is
+// coretask.WorkerLivenessGrace, which administration reads too.
+const defaultLivenessGrace = coretask.WorkerLivenessGrace
 
 // staleRunLimit bounds one sweep so a backlog cannot hold the loop or the
 // database for an unbounded time. The next tick continues.

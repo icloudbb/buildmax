@@ -68,6 +68,9 @@ export type Route =
       // The account whose detail is open, so the panel survives a reload and can
       // be linked. Only meaningful for the accounts section.
       userId?: string
+      // The Space whose metadata detail is open, so Overview can link a Space
+      // needing attention to it. Only meaningful for the spaces section.
+      spaceId?: string
     }
   | { name: "workflows"; spaceId: string }
   | { name: "workflow"; spaceId: string; workflowId: string }

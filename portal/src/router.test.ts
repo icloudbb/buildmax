@@ -35,6 +35,7 @@ describe("hash router", () => {
     // An open account detail is a linkable address, so it survives a reload.
     ["#/admin/accounts/u_7Kq2", { name: "admin", section: "accounts", userId: "u_7Kq2" }],
     ["#/admin/spaces", { name: "admin", section: "spaces" }],
+    ["#/admin/spaces/sp_9x", { name: "admin", section: "spaces", spaceId: "sp_9x" }],
     // Account's plugin catalog was a duplicate of Marketplace; the old address
     // redirects rather than landing on a removed tab. See
     // docs/design/portal-data-and-plugin-surfaces.md.
@@ -72,6 +73,7 @@ describe("hash router", () => {
     [{ name: "admin", section: "accounts" }, "#/admin/accounts"],
     [{ name: "admin", section: "accounts", userId: "u_7Kq2" }, "#/admin/accounts/u_7Kq2"],
     [{ name: "admin", section: "spaces" }, "#/admin/spaces"],
+    [{ name: "admin", section: "spaces", spaceId: "sp_9x" }, "#/admin/spaces/sp_9x"],
     [{ name: "admin", section: "models" }, "#/admin/models"],
     [{ name: "admin", section: "plugins" }, "#/admin/plugins"],
     [{ name: "admin", section: "audit" }, "#/admin/audit"],

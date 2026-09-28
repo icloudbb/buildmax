@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
@@ -62,8 +63,11 @@ type AdminSystemResponse struct {
 	SandboxSurface     string         `json:"sandbox_surface,omitempty"`
 	AllowSignup        bool           `json:"allow_signup"`
 	TaskRuns           map[string]int `json:"task_runs"`
-	SystemAdmins       int            `json:"system_admins"`
-	ServerTime         time.Time      `json:"server_time"`
+	// Runtime is nil when it could not be read, so Portal shows it as
+	// unavailable rather than as a deployment with nothing stalled.
+	Runtime      *adminRuntime `json:"runtime,omitempty"`
+	SystemAdmins int           `json:"system_admins"`
+	ServerTime   time.Time     `json:"server_time"`
 	// OIDC is the live SSO provider health. Nil when SSO is not configured. It
 	// is separate from Dependencies because a degraded IdP does not make the
 	// deployment not-ready — the fetch is retryable.
@@ -79,6 +83,22 @@ type adminOIDCStatus struct {
 	LastRefresh *time.Time `json:"last_refresh,omitempty"`
 	LastError   string     `json:"last_error,omitempty"`
 }
+
+// adminRuntime says whether work is moving: when the oldest waiting run was
+// created, how many started runs have gone silent, and why runs failed lately.
+// Timestamps rather than ages, so Portal measures against server_time.
+type adminRuntime struct {
+	OldestPendingAt   *time.Time `json:"oldest_pending_at,omitempty"`
+	OldestUnstartedAt *time.Time `json:"oldest_unstarted_at,omitempty"`
+	StaleRunning      int        `json:"stale_running"`
+	// StaleAfterSeconds is the silence after which a RUNNING run counts as stale.
+	StaleAfterSeconds  int            `json:"stale_after_seconds"`
+	Failures           map[string]int `json:"failures"`
+	FailureWindowHours int            `json:"failure_window_hours"`
+}
+
+// runtimeFailureWindow is how far back the failure counts look.
+const runtimeFailureWindow = 24 * time.Hour
 
 type adminSchemaMigration struct {
 	ID        string    `json:"id"`
@@ -152,6 +172,17 @@ func (h *Handler) adminSystemHandler(w http.ResponseWriter, r *http.Request) {
 	if h.cfg.TaskRuns != nil {
 		if counts, err := h.cfg.TaskRuns.CountTaskRunsByStatus(ctx); err == nil {
 			out.TaskRuns = counts
+		}
+		now := out.ServerTime
+		if summary, err := h.cfg.TaskRuns.RuntimeSummary(ctx, now.Add(-coretask.WorkerLivenessGrace), now.Add(-runtimeFailureWindow)); err == nil {
+			out.Runtime = &adminRuntime{
+				OldestPendingAt:    summary.OldestPendingAt,
+				OldestUnstartedAt:  summary.OldestUnstartedAt,
+				StaleRunning:       summary.StaleRunning,
+				StaleAfterSeconds:  int(coretask.WorkerLivenessGrace / time.Second),
+				Failures:           summary.FailuresByClass,
+				FailureWindowHours: int(runtimeFailureWindow / time.Hour),
+			}
 		}
 	}
 	if h.cfg.Grants != nil {

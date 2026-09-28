@@ -10,6 +10,9 @@ const PAGE_SIZE = 50
 /**
  * AdminSpaces shows the deployment's team spaces as metadata.
  *
+ * selectedSpaceId opens one Space's detail from a link — Overview's Spaces
+ * needing attention — including a personal Space the list omits.
+ *
  * Personal spaces are left out: every account has exactly one, so listing them
  * would double the rows with nothing an administrator governs. There is also
  * deliberately nothing here to click through into a space's contents. An
@@ -17,7 +20,13 @@ const PAGE_SIZE = 50
  * using; reaching what is in it still requires membership. A link that 403s
  * would read as a bug rather than as a boundary, so there is no link.
  */
-export function AdminSpaces({ token }: { token: string | null }) {
+export function AdminSpaces({
+  token,
+  selectedSpaceId,
+}: {
+  token: string | null
+  selectedSpaceId?: string
+}) {
   const [spaces, setSpaces] = useState<ApiAdminSpace[]>([])
   const [total, setTotal] = useState(0)
   const [offset, setOffset] = useState(0)
@@ -86,6 +95,13 @@ export function AdminSpaces({ token }: { token: string | null }) {
   useEffect(() => {
     load("", 0)
   }, [load])
+
+  useEffect(() => {
+    if (!token || !selectedSpaceId) return
+    getAdminSpace(token, selectedSpaceId)
+      .then(setSelected)
+      .catch((err) => setError(getErrorMessage(err, "Failed to load the space")))
+  }, [token, selectedSpaceId])
 
   return (
     <div className="admin-sections">

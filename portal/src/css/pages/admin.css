@@ -37,6 +37,13 @@
   color: var(--color-text);
 }
 
+.admin-subtitle {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 .admin-pill {
   display: inline-flex;
   align-items: center;

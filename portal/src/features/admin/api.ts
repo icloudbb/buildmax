@@ -11,6 +11,7 @@ import type {
   ApiAdminSessionsRevoked,
   ApiAdminSystem,
   ApiAdminSpaceDetail,
+  ApiAdminSpacesAttentionResponse,
   ApiAdminSpacesResponse,
   ApiAdminUser,
   ApiAdminUserAfterDisable,
@@ -221,6 +222,14 @@ export function listAdminSpaces(
   options?: { q?: string; limit?: number; offset?: number },
 ): Promise<ApiAdminSpacesResponse> {
   return get<ApiAdminSpacesResponse>("/spaces", token, options)
+}
+
+/** Spaces, team and personal, with active runs or recent failures. */
+export function listAdminRuntimeSpaces(
+  token: string,
+  options?: { limit?: number; offset?: number },
+): Promise<ApiAdminSpacesAttentionResponse> {
+  return get<ApiAdminSpacesAttentionResponse>("/runtime/spaces", token, options)
 }
 
 export function getAdminSpace(token: string, spaceId: string): Promise<ApiAdminSpaceDetail> {
