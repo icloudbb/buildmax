@@ -35,7 +35,7 @@ type taskRunRow struct {
 	CreatedBy     string  `gorm:"type:varchar(64);index"`
 	CreatedByType string  `gorm:"type:varchar(32)"`
 	TriggerSource string  `gorm:"type:varchar(64)"`
-	Status        string  `gorm:"type:varchar(32);not null"`
+	Status        string  `gorm:"type:varchar(32);not null;index:idx_task_run_status_created,priority:1"`
 	Output        *string `gorm:"type:text"`
 	// Structured is the validated structured-output value as JSON text, nil for a
 	// free-text run. See docs/design/structured-output.md.
@@ -91,7 +91,7 @@ type taskRunRow struct {
 	// Indexed because the stale-run reaper's liveness sweep is the only reader
 	// and it selects on this column.
 	LastSeenAt *time.Time `gorm:"column:last_seen_at;index"`
-	CreatedAt  time.Time  `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
+	CreatedAt  time.Time  `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2;index:idx_task_run_status_created,priority:2"`
 
 	// Workspace checkpoint provenance. See
 	// docs/design/task-workspace-checkpoints.md §9.3. Numeric references to

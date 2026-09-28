@@ -129,6 +129,38 @@ const (
 	FailureUnclassified FailureClass = "unclassified"
 )
 
+// WorkerLivenessGrace is how long a RUNNING run's worker may go without
+// polling its own route before the run counts as having lost its worker. The
+// stale-run reaper fails such runs; administration counts them as stale.
+const WorkerLivenessGrace = 2 * time.Minute
+
+// RuntimeSummary is deployment-wide run execution state for an administrator:
+// timestamps and counts only, derived from durable run rows so every server
+// replica gives the same answer.
+type RuntimeSummary struct {
+	// OldestPendingAt is when the oldest PENDING run was created; nil when none waits.
+	OldestPendingAt *time.Time
+	// OldestUnstartedAt is when the oldest SCHEDULED run that has not started
+	// was created — a run dispatched to a worker that never came up.
+	OldestUnstartedAt *time.Time
+	// StaleRunning counts RUNNING runs whose worker has not polled since the
+	// staleBefore cutoff.
+	StaleRunning int
+	// FailuresByClass counts runs that failed since the failedSince cutoff.
+	FailuresByClass map[string]int
+}
+
+// SpaceRunActivity is one Space's active runs and recent failures, without any
+// run content.
+type SpaceRunActivity struct {
+	SpaceID string
+	// Active counts PENDING, SCHEDULED, and RUNNING runs by status.
+	Active map[string]int
+	// OldestActiveAt is when the Space's oldest active run was created.
+	OldestActiveAt  *time.Time
+	FailuresByClass map[string]int
+}
+
 // FailureClasses lists every class, in a stable order for reports.
 func FailureClasses() []FailureClass {
 	return []FailureClass{
@@ -524,6 +556,12 @@ type RunStore interface {
 	// the one number that answers "is work flowing through this deployment",
 	// and it carries no space, input, or output — only counts.
 	CountTaskRunsByStatus(ctx context.Context) (map[string]int, error)
+	// RuntimeSummary reports stall ages, stale RUNNING runs (no worker poll
+	// since staleBefore), and failures by class since failedSince.
+	RuntimeSummary(ctx context.Context, staleBefore, failedSince time.Time) (RuntimeSummary, error)
+	// ListSpaceRunActivity pages through the Spaces that have an active run or
+	// a failure since failedSince, oldest active run first, with the total.
+	ListSpaceRunActivity(ctx context.Context, failedSince time.Time, limit, offset int) ([]SpaceRunActivity, int, error)
 	// GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
 	GetNextPendingTaskRun(ctx context.Context) (*Run, error)
 	GetTaskRun(ctx context.Context, taskRunID string) (*Run, error)

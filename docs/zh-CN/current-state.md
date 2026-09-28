@@ -382,11 +382,12 @@ Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，
 系统管理、配额、审计、角色检查和 Space 生命周期 UI 已存在。
 管理区域还可通过 `GET /api/admin/llm/calls` 读取跨所有 Space 的受管 LLM 调用账本
 ——每次调用的模型、token、成本与状态，可按用户、模型、状态、surface 和时间过滤，
-且不含提示词或生成内容。
+且不含提示词或生成内容。其 Overview 在不涉及 Space 内容的前提下报告工作进度：最老等待中的
+PENDING 与未启动 SCHEDULED run、沉默的 RUNNING run、最近 24 小时按 `task_run.failure_class`
+统计并标明处理方的失败，以及需要关注的 Space（含个人 Space）及其所有者
+（`GET /api/admin/runtime/spaces`）。
 管理方面仍缺少权限变更的事务性审计、管理 CLI 的 Session 列出/撤销能力对齐和
-配额层级分配，这些是[系统管理](design/系统管理.md)记录中的开放问题；以及诊断队列与
-worker 的运行元数据——停滞时长、run 失败类别和需要关注的 Space——该记录已将其作为
-§13 M7 采纳，但尚未实现。Overview 只显示按状态统计的 TaskRun 数，Spaces 列表省略个人 Space。插件发布仍仅通过 CLI，Portal 已能检查、退役、恢复插件
+配额层级分配。这些是[系统管理](design/系统管理.md)记录中的开放问题，并非已实现功能。插件发布仍仅通过 CLI，Portal 已能检查、退役、恢复插件
 以及撤回发布版本。
 
 Space 审批流程仍未实现且明确不在范围内；这不能被视为邀请或所有权转移功能未完成。

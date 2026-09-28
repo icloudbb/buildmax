@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
+import { session } from "./fixtures"
 
 // The administration area is deployment-scoped and reachable only through the
 // UI, so this is the first place its wiring runs end to end: hash route,
@@ -18,6 +19,26 @@ test("an administrator can open the deployment overview by URL", async ({ page }
   // the deployment is ready is not this test's business — that it could say is.
   await expect(page.locator(".admin-pill").first()).toBeVisible()
   await expect(page.locator(".settings-section__error")).toHaveCount(0)
+})
+
+// Work progress is the operator's first question in an incident: is anything
+// stuck, why did runs fail, and which Space's owner can act.
+test("the overview reports work progress without falling back to unavailable", async ({ page }) => {
+  await page.goto("/#/admin")
+  await expect(page.getByRole("heading", { name: "Work progress" })).toBeVisible()
+  await expect(page.getByText("Oldest pending", { exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Spaces needing attention" })).toBeVisible()
+  await expect(page.getByText(/unavailable right now/)).toHaveCount(0)
+})
+
+// A Space needing attention links to its metadata detail, which has to open from
+// the address alone — including a personal Space the Spaces list omits.
+test("a Space's administration detail opens from its address", async ({ page }) => {
+  const current = await session(page)
+  await page.goto(`/#/admin/spaces/${current.spaceId}`)
+  await expect(page.getByText(/Members and capacity, not work/)).toBeVisible()
+  await page.reload()
+  await expect(page.getByText(/Members and capacity, not work/)).toBeVisible()
 })
 
 test("each administration section is linkable and survives a reload", async ({ page }) => {

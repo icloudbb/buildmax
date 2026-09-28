@@ -966,6 +966,7 @@ One execution attempt. This is the row quota and token accounting read.
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
 `last_seen_at`; index `previous_task_run_id`; index `retry_of_task_run_id`; index `source_message_id`; index
 `idx_task_run_task_created` on (`task_id`, `created_at`); index
+`idx_task_run_status_created` on (`status`, `created_at`); index
 `idx_task_run_failure_ended` on (`failure_class`, `ended_at`); unique `public_id`;
 unique `idx_task_run_idempotency` on (`task_id`, `idempotency_key`).
 

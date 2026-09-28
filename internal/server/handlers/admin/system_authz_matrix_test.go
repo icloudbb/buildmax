@@ -68,6 +68,7 @@ var adminRoutes = []adminCase{
 	{"GET", "/api/admin/config"},
 	{"GET", "/api/admin/audit-events"},
 	{"GET", "/api/admin/audit-events/export"},
+	{"GET", "/api/admin/runtime/spaces"},
 	{"GET", "/api/admin/spaces"},
 	{"GET", "/api/admin/spaces/{space_id}"},
 	{"GET", "/api/admin/llm/models"},

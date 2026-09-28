@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react"
-import type { ApiAdminMe, ApiAdminSystem } from "../../lib/api/types"
+import type {
+  ApiAdminMe,
+  ApiAdminSpacesAttentionResponse,
+  ApiAdminSystem,
+} from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { getAdminConfig, getAdminMe, getAdminSystem } from "./api"
+import { buildHash } from "../../router"
+import { getAdminConfig, getAdminMe, getAdminSystem, listAdminRuntimeSpaces } from "./api"
+import { FAILURE_CLASSES, ageSince, failureLabel, orderedFailures } from "./runtime"
 
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -31,6 +37,7 @@ export function AdminOverview({ token }: { token: string | null }) {
   const [system, setSystem] = useState<ApiAdminSystem | null>(null)
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [me, setMe] = useState<ApiAdminMe | null>(null)
+  const [attention, setAttention] = useState<ApiAdminSpacesAttentionResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -42,12 +49,14 @@ export function AdminOverview({ token }: { token: string | null }) {
       getAdminSystem(token),
       getAdminConfig(token).catch(() => null),
       getAdminMe(token).catch(() => null),
+      listAdminRuntimeSpaces(token, { limit: 20 }).catch(() => null),
     ])
-      .then(([sys, cfg, mine]) => {
+      .then(([sys, cfg, mine, spaces]) => {
         if (cancelled) return
         setSystem(sys)
         setConfig(cfg)
         setMe(mine)
+        setAttention(spaces)
       })
       .catch((err) => {
         if (!cancelled) setError(getErrorMessage(err, "Failed to load the deployment status"))
@@ -72,6 +81,8 @@ export function AdminOverview({ token }: { token: string | null }) {
 
   const warnings = Array.isArray(config?.warnings) ? (config.warnings as string[]) : []
   const runStatuses = Object.entries(system.task_runs).sort(([a], [b]) => a.localeCompare(b))
+  const runtime = system.runtime
+  const failures = orderedFailures(runtime?.failures)
   const myGrant = me?.grants?.[0]
   const grantedBy = myGrant
     ? myGrant.granted_by === "buildmax-server"
@@ -172,6 +183,117 @@ export function AdminOverview({ token }: { token: string | null }) {
             ))
           )}
         </div>
+      </section>
+
+      <section className="settings-page__section" aria-labelledby="admin-work-progress">
+        <div className="settings-page__section-head">
+          <div>
+            <h2 id="admin-work-progress" className="settings-page__section-title">
+              Work progress
+            </h2>
+            <p className="settings-page__section-copy">
+              Whether work is moving. Ages are measured by the server&apos;s clock; nothing
+              here is a run&apos;s content.
+            </p>
+          </div>
+        </div>
+        {runtime ? (
+          <>
+            <div className="admin-facts">
+              <Fact
+                label="Oldest pending"
+                value={ageSince(runtime.oldest_pending_at, system.server_time) ?? "none waiting"}
+              />
+              <Fact
+                label="Oldest scheduled, not started"
+                value={ageSince(runtime.oldest_unstarted_at, system.server_time) ?? "none waiting"}
+              />
+              <Fact
+                label={`Running, silent over ${Math.round(runtime.stale_after_seconds / 60)} min`}
+                value={String(runtime.stale_running)}
+              />
+            </div>
+            <h3 className="admin-subtitle">
+              Failures in the last {runtime.failure_window_hours} hours
+            </h3>
+            {failures.length === 0 ? (
+              <p className="admin-empty">No failed runs.</p>
+            ) : (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Cause</th>
+                    <th scope="col">Runs</th>
+                    <th scope="col">Who acts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {failures.map(([cls, n]) => (
+                    <tr key={cls}>
+                      <td>{failureLabel(cls)}</td>
+                      <td>{n}</td>
+                      <td className="admin-table__muted">{FAILURE_CLASSES[cls]?.owner ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        ) : (
+          <p className="admin-empty" role="status">
+            Work progress is unavailable right now; the server could not read it.
+          </p>
+        )}
+
+        <h3 className="admin-subtitle">Spaces needing attention</h3>
+        {attention === null ? (
+          <p className="admin-empty" role="status">
+            The Spaces needing attention are unavailable right now.
+          </p>
+        ) : attention.spaces.length === 0 ? (
+          <p className="admin-empty">No Space has waiting work or recent failures.</p>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th scope="col">Space</th>
+                <th scope="col">Owners</th>
+                <th scope="col">Active</th>
+                <th scope="col">Oldest active</th>
+                <th scope="col">Failed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attention.spaces.map((space) => (
+                <tr key={space.space_id}>
+                  <td>
+                    <a href={buildHash({ name: "admin", section: "spaces", spaceId: space.space_id })}>
+                      {space.name || space.space_id}
+                    </a>
+                    {space.personal ? <span className="admin-table__muted"> · personal</span> : null}
+                  </td>
+                  <td>{space.owners.map((o) => o.email || o.user_id).join(", ") || "—"}</td>
+                  <td>
+                    {Object.entries(space.active)
+                      .map(([status, n]) => `${n} ${status.toLowerCase()}`)
+                      .join(", ") || "—"}
+                  </td>
+                  <td>{ageSince(space.oldest_active_at, system.server_time) ?? "—"}</td>
+                  <td>
+                    {orderedFailures(space.failures)
+                      .map(([cls, n]) => `${n} ${failureLabel(cls).toLowerCase()}`)
+                      .join(", ") || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {attention && attention.total > attention.spaces.length ? (
+          <p className="admin-empty">
+            Showing the {attention.spaces.length} longest-waiting of {attention.total} Spaces.
+          </p>
+        ) : null}
       </section>
 
       {warnings.length > 0 ? (

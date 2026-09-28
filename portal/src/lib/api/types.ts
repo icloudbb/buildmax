@@ -833,8 +833,38 @@ export interface ApiAdminSystem {
   sandbox_surface?: string
   allow_signup: boolean
   task_runs: Record<string, number>
+  /** Absent when the server could not read it: unavailable, not "nothing stalled". */
+  runtime?: ApiAdminRuntime
   system_admins: number
-  server_time: number
+  /** RFC 3339; the clock runtime ages are measured against. */
+  server_time: string
+}
+
+/** Whether work is moving: stall timestamps, silent runs, and failures by class. */
+export interface ApiAdminRuntime {
+  oldest_pending_at?: string
+  oldest_unstarted_at?: string
+  stale_running: number
+  stale_after_seconds: number
+  failures: Record<string, number>
+  failure_window_hours: number
+}
+
+/** A Space with active runs or recent failures. Counts and owners, never content. */
+export interface ApiAdminSpaceAttention {
+  space_id: string
+  name: string
+  personal: boolean
+  owners: ApiAdminSpaceMember[]
+  active: Record<string, number>
+  oldest_active_at?: string
+  failures: Record<string, number>
+}
+
+export interface ApiAdminSpacesAttentionResponse {
+  spaces: ApiAdminSpaceAttention[]
+  total: number
+  failure_window_hours: number
 }
 
 /**

@@ -34,9 +34,9 @@
   the first slice. Later grant integrity, Portal discoverability, pagination,
   model creation, authenticated `buildmax admin` operations, the operator
   surface split (§6.1), and the account deactivation lifecycle with execution
-  eligibility and Space owner recovery (§8) have also shipped. Runtime
-  operations metadata (§13 M7) was accepted on 2026-09-28 from an operator
-  incident drill and is not yet built
+  eligibility and Space owner recovery (§8) have also shipped, as has runtime
+  operations metadata (§13 M7), accepted on 2026-09-28 from an operator
+  incident drill
 - follows: [space-governance.md](./space-governance.md) and
   [enterprise-deployment.md](./enterprise-deployment.md)
 - relates to: [enterprise identity and access](enterprise-identity-and-access.md),
@@ -349,7 +349,8 @@ The table is the registered surface; `internal/server/handlers/admin` owns it.
 | `GET /api/admin/users/{user_id}/sessions` | Live login chains: session ID, platform, creation, rotation, expiry | Token values |
 | `DELETE /api/admin/users/{user_id}/sessions/{session_id}` | Revokes one login chain's refresh tokens | A session belonging to another account |
 | `DELETE /api/admin/users/{user_id}/sessions` | Revokes every refresh session, returns the count | — |
-| `GET /api/admin/system` | Version, commit, schema migrations applied, readiness checks and their status, worker runner mode, signup and sandbox settings, run counts by status | Anything with a credential in it |
+| `GET /api/admin/system` | Version, commit, schema migrations applied, readiness checks and their status, worker runner mode, signup and sandbox settings, run counts by status, and the M7 runtime summary (oldest PENDING and unstarted SCHEDULED `created_at`, stale RUNNING count, failures by class over 24 hours), omitted when unreadable | Anything with a credential in it; run input, output, or error text |
+| `GET /api/admin/runtime/spaces` | Spaces, team and personal, with active runs or failures in the last 24 hours, oldest active first: id, name, personal flag, owners, active counts by status, oldest active `created_at`, failures by class; paged | Run input, output, error text, and any Agent, Workflow, Schedule, or Issue field |
 | `GET /api/admin/config` | The effective configuration, redacted, plus computed warnings | Every secret — **presence only**. Not a length, not a prefix, not a hash: each of those narrows a search for someone who has the response and wants the secret |
 | `GET /api/admin/spaces` | Team spaces with member count, quota tier, created at; personal spaces excluded | Space contents of any kind, and every account's personal space |
 | `GET /api/admin/spaces/{space_id}` | The same, plus members and roles, plus usage against the tier | Issues, conversations, artifacts, files, traces |
@@ -677,7 +678,9 @@ request independently.
 `portal/src/pages/admin/AdminSettings.tsx` and `portal/src/features/admin` own
 eight sections:
 
-1. **Overview** — build/readiness, worker mode, run counts, caller grant, and
+1. **Overview** — build/readiness, worker mode, run counts, work progress
+   (stall ages, stale RUNNING count, failures by class with who acts), the
+   Spaces needing attention linked to their detail, caller grant, and
    collapsible redacted configuration.
 2. **Administrators** — current and historical grants, grant by account email,
    and revoke with last-effective-holder protection.
@@ -687,7 +690,8 @@ eight sections:
    retirement choice.
 4. **Spaces** — paginated metadata, membership and usage, and "Make owner" for
    the disabled-owner-only recovery (§8.4), without content access or
-   quota-tier mutation.
+   quota-tier mutation. `#/admin/spaces/{space_id}` opens one Space's detail,
+   including a personal Space the list omits.
 5. **Models** — list, create with a write-only encrypted credential, enable and
    disable. No read returns the credential.
 6. **LLM calls** — the managed call ledger across every Space: model, tokens,
@@ -924,7 +928,7 @@ Quota tier assignment, if it is wanted, comes after M6 with its own store
 method and its own audit action. It is the one item in §7.1 that was a feature
 rather than a window onto existing state, and nothing has asked for it yet.
 
-### M7. Runtime Operations Metadata — ACCEPTED, NOT BUILT
+### M7. Runtime Operations Metadata — DONE
 
 **Evidence.** On 2026-09-28 a System Administrator with no Space membership
 diagnosed four injected incidents on a two-replica kind deployment, using

@@ -127,6 +127,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/config", h.adminConfigHandler)
 	mux.HandleFunc("GET /api/admin/audit-events", h.listAdminAuditEventsHandler)
 	mux.HandleFunc("GET /api/admin/audit-events/export", h.exportAdminAuditEventsHandler)
+	mux.HandleFunc("GET /api/admin/runtime/spaces", h.listRuntimeSpacesHandler)
 	mux.HandleFunc("GET /api/admin/spaces", h.listAdminSpacesHandler)
 	mux.HandleFunc("GET /api/admin/spaces/{space_id}", h.getAdminSpaceHandler)
 	// The owner is a state sub-resource: recovery sets it when every recorded

@@ -60,6 +60,83 @@ func (m *MockTaskRunStore) CountTaskRunsByStatus(_ context.Context) (map[string]
 	return out, nil
 }
 
+// RuntimeSummary mirrors the store's selection over the in-memory runs.
+func (m *MockTaskRunStore) RuntimeSummary(_ context.Context, staleBefore, failedSince time.Time) (coretask.RuntimeSummary, error) {
+	out := coretask.RuntimeSummary{FailuresByClass: map[string]int{}}
+	older := func(cur *time.Time, t time.Time) *time.Time {
+		if cur == nil || t.Before(*cur) {
+			return &t
+		}
+		return cur
+	}
+	for _, run := range m.Runs {
+		switch {
+		case run.Status == string(coretask.RunStatusPending):
+			out.OldestPendingAt = older(out.OldestPendingAt, run.CreatedAt)
+		case run.Status == string(coretask.RunStatusScheduled) && run.StartedAt == nil:
+			out.OldestUnstartedAt = older(out.OldestUnstartedAt, run.CreatedAt)
+		case run.Status == string(coretask.RunStatusRunning) && run.LastSeenAt != nil && !run.LastSeenAt.After(staleBefore):
+			out.StaleRunning++
+		}
+		if failedSinceCutoff(run, failedSince) {
+			out.FailuresByClass[run.FailureClass]++
+		}
+	}
+	return out, nil
+}
+
+// ListSpaceRunActivity groups the in-memory runs by their task's Space.
+func (m *MockTaskRunStore) ListSpaceRunActivity(_ context.Context, failedSince time.Time, limit, offset int) ([]coretask.SpaceRunActivity, int, error) {
+	bySpace := map[string]*coretask.SpaceRunActivity{}
+	var order []string
+	for _, run := range m.Runs {
+		active := !coretask.RunStatusTerminal(run.Status)
+		failed := failedSinceCutoff(run, failedSince)
+		if !active && !failed {
+			continue
+		}
+		spaceID := run.SpaceID
+		for _, task := range m.TaskList {
+			if task.ID == run.TaskID {
+				spaceID = task.SpaceID
+			}
+		}
+		a := bySpace[spaceID]
+		if a == nil {
+			a = &coretask.SpaceRunActivity{SpaceID: spaceID, Active: map[string]int{}, FailuresByClass: map[string]int{}}
+			bySpace[spaceID] = a
+			order = append(order, spaceID)
+		}
+		if active {
+			a.Active[run.Status]++
+			if a.OldestActiveAt == nil || run.CreatedAt.Before(*a.OldestActiveAt) {
+				t := run.CreatedAt
+				a.OldestActiveAt = &t
+			}
+		}
+		if failed {
+			a.FailuresByClass[run.FailureClass]++
+		}
+	}
+	out := make([]coretask.SpaceRunActivity, 0, len(order))
+	for _, id := range order {
+		out = append(out, *bySpace[id])
+	}
+	total := len(out)
+	if offset > len(out) {
+		offset = len(out)
+	}
+	out = out[offset:]
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
+	}
+	return out, total, nil
+}
+
+func failedSinceCutoff(run coretask.Run, since time.Time) bool {
+	return run.FailureClass != "" && run.EndedAt != nil && !run.EndedAt.Before(since)
+}
+
 func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*coretask.Run, error) {
 	return nil, nil
 }
