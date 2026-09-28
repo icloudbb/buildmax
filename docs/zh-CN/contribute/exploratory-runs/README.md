@@ -30,4 +30,3 @@
 
 | 报告 | 界面 | 摘要 |
 |---|---|---|
-| [2026-09-28 运维事故演练](2026-09-28-portal-admin-operator-incident-drill.md) | Portal Administration、worker | 跨 Space 可见性提案的证据：缺少停滞时长、安全失败类别和按 Space 计数（含个人 Space）；没有事故需要 Space 内容 |

@@ -186,10 +186,12 @@ and Portal artifacts proposed for release with external dependencies.
 **Next:** pin the candidate image digests and have an operator who did not build
 the features perform the documented account, Space, execution, diagnosis,
 failure, restore, upgrade, rollback, and rotation journeys. Fix only gaps that
-the journey demonstrates. Transactional authority audit, admin CLI Session
-parity, quota-tier assignment, and richer runtime metadata remain open questions
-in the [system administration](design/system-administration.md) record unless
-they block this outcome.
+the journey demonstrates. A 2026-09-28 operator drill showed the diagnosis
+journey cannot detect stalled or failing work from Administration, so runtime
+operations metadata is accepted as
+[system administration](design/system-administration.md) §13 M7. Transactional
+authority audit, admin CLI Session parity, and quota-tier assignment remain
+open questions in that record unless they block this outcome.
 
 **Done when:** every required row in the Beta readiness record has durable
 evidence, failures and accepted limits are explicit, and the qualification
