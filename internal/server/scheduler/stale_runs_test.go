@@ -88,6 +88,9 @@ func TestReaperClosesAbandonedRuns(t *testing.T) {
 		if in.ErrorMessage == nil || !strings.Contains(*in.ErrorMessage, "6h0m0s") {
 			t.Errorf("run %s message = %v, want it to name the timeout", in.TaskRunID, in.ErrorMessage)
 		}
+		if in.FailureClass != coretask.FailureAbandoned {
+			t.Errorf("run %s class = %q, want abandoned", in.TaskRunID, in.FailureClass)
+		}
 	}
 }
 
@@ -250,6 +253,9 @@ func TestReaperClosesRunsWhoseWorkerWentSilent(t *testing.T) {
 	// than naming a cause the server cannot tell apart from a partition.
 	if got.ErrorMessage == nil || !strings.Contains(*got.ErrorMessage, defaultLivenessGrace.String()) {
 		t.Errorf("message = %v, want it to name the liveness grace", got.ErrorMessage)
+	}
+	if got.FailureClass != coretask.FailureWorkerLost {
+		t.Errorf("class = %q, want worker_lost", got.FailureClass)
 	}
 	if want := now.Add(-defaultLivenessGrace); !store.lastLostCutoff.Equal(want) {
 		t.Errorf("liveness cutoff = %v, want %v", store.lastLostCutoff, want)

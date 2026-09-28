@@ -94,14 +94,25 @@ func classifyLLMError(err error) string {
 	return err.Error()
 }
 
+// callError is a model call that failed, with its classified description. It
+// marks the failure as the call's — a provider refusal, a timeout, a dropped
+// connection — so a caller can tell it from a failure of the run around it.
+type callError struct {
+	msg string
+	err error
+}
+
+func (e *callError) Error() string { return e.msg + ": " + e.err.Error() }
+
+func (e *callError) Unwrap() error { return e.err }
+
 // wrapLLMError wraps err with a classified human-readable prefix.
-// The original error is preserved via %w so errors.As / errors.Is still work.
+// The original error is preserved so errors.As / errors.Is still work.
 func wrapLLMError(err error) error {
 	if err == nil {
 		return nil
 	}
-	msg := classifyLLMError(err)
-	return fmt.Errorf("%s: %w", msg, err)
+	return &callError{msg: classifyLLMError(err), err: err}
 }
 
 // isConnectionRefused reports whether a dial failed because nothing is
@@ -114,4 +125,17 @@ func isConnectionRefused(err error) bool {
 	text := err.Error()
 	return strings.Contains(text, "connection refused") ||
 		strings.Contains(text, "actively refused")
+}
+
+// IsProviderError reports whether err is a model call that failed — refused,
+// timed out, or cut off — rather than a failure of the run around it. A request
+// this package could not build never reached a provider, so it is not one.
+func IsProviderError(err error) bool {
+	var reqErr *requestError
+	if errors.As(err, &reqErr) {
+		return false
+	}
+	var call *callError
+	var apiErr *apiError
+	return errors.As(err, &call) || errors.As(err, &apiErr)
 }

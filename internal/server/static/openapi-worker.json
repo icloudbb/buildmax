@@ -477,6 +477,11 @@
                   "error_message": {
                     "type": "string"
                   },
+                  "failure_class": {
+                    "type": "string",
+                    "description": "Why a FAILED run failed. The server stores a missing or unknown class as unclassified.",
+                    "enum": ["dispatch", "worker_lost", "abandoned", "interrupted", "infrastructure", "space_configuration", "model", "run", "unclassified"]
+                  },
                   "workspace_checkpoint": {
                     "type": "object",
                     "description": "Result checkpoint captured from workspace/ after a successful run; committed as the terminal outcome is accepted.",

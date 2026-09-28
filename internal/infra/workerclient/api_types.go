@@ -133,8 +133,11 @@ type PatchTaskRunRequest struct {
 	// Questions is the AskUser question set the run ended on, as JSON text in
 	// the agent.Question shape; the Task then waits for the user's answer. Nil
 	// when the run did not ask.
-	Questions        *string `json:"questions,omitempty"`
-	ErrorMessage     *string `json:"error_message,omitempty"`
+	Questions    *string `json:"questions,omitempty"`
+	ErrorMessage *string `json:"error_message,omitempty"`
+	// FailureClass is the coretask.FailureClass of a FAILED report. The server
+	// stores an unknown or missing class as unclassified.
+	FailureClass     *string `json:"failure_class,omitempty"`
 	PromptTokens     *int    `json:"prompt_tokens,omitempty"`
 	CompletionTokens *int    `json:"completion_tokens,omitempty"`
 	// TracePath locates the run's durable trace inside run-global storage, e.g.

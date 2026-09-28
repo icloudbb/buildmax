@@ -176,7 +176,7 @@ func (c *StaleRunReaper) sweepLostWorkers(ctx context.Context, now time.Time) {
 	}
 	message := "this run lost its worker: nothing was heard from it for " + c.livenessGrace.String()
 	for _, run := range lost {
-		c.finish(ctx, run, coretask.RunStatusFailed, message, now, "failed a task run whose worker stopped reporting")
+		c.finish(ctx, run, coretask.RunStatusFailed, coretask.FailureWorkerLost, message, now, "failed a task run whose worker stopped reporting")
 	}
 }
 
@@ -189,7 +189,7 @@ func (c *StaleRunReaper) sweepAbandoned(ctx context.Context, now time.Time) {
 	}
 	message := "this run was abandoned: no worker reported an outcome within " + c.timeout.String()
 	for _, run := range stale {
-		c.finish(ctx, run, coretask.RunStatusFailed, message, now, "failed an abandoned task run")
+		c.finish(ctx, run, coretask.RunStatusFailed, coretask.FailureAbandoned, message, now, "failed an abandoned task run")
 	}
 }
 
@@ -206,7 +206,7 @@ func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
 	}
 	message := "this run was canceled: no worker confirmed the cancel within " + c.cancelGrace.String()
 	for _, run := range canceled {
-		c.finish(ctx, run, coretask.RunStatusCanceled, message, now, "canceled a task run whose worker never confirmed")
+		c.finish(ctx, run, coretask.RunStatusCanceled, "", message, now, "canceled a task run whose worker never confirmed")
 	}
 }
 
@@ -215,8 +215,8 @@ func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
 // The message names what the server observed rather than guessing a cause,
 // because from here a dead worker, an evicted pod, and an expired credential
 // look identical.
-func (c *StaleRunReaper) finish(ctx context.Context, run coretask.Run, status coretask.RunStatus, message string, now time.Time, logMsg string) {
-	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
+func (c *StaleRunReaper) finish(ctx context.Context, run coretask.Run, status coretask.RunStatus, class coretask.FailureClass, message string, now time.Time, logMsg string) {
+	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID, "space_id", run.SpaceID)
 	endedAt := now
 	updated, err := c.runs.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      run.ID,
@@ -224,6 +224,7 @@ func (c *StaleRunReaper) finish(ctx context.Context, run coretask.Run, status co
 		NewStatus:      status,
 		EndedAt:        &endedAt,
 		ErrorMessage:   &message,
+		FailureClass:   class,
 	})
 	if err != nil {
 		c.log().ErrorContext(ctx, "could not finish an unreported run", "status", status, "err", err)

@@ -211,7 +211,7 @@ func (s *Scheduler) pollOnce() {
 	if run == nil {
 		return
 	}
-	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
+	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID, "space_id", run.SpaceID)
 
 	// The task carries the Space this run belongs to, which the eligibility
 	// check and the run token both need. It is loaded before the claim so a
@@ -298,7 +298,7 @@ func (s *Scheduler) pollOnce() {
 // has already been created is unaffected, which is right — it outlives the
 // server that dispatched it.
 func (s *Scheduler) dispatch(ctx context.Context, run coretask.Run, runToken string) {
-	dispatchCtx := buildmaxlog.With(s.dispatchCtx, "task_run_id", run.ID)
+	dispatchCtx := buildmaxlog.With(s.dispatchCtx, "task_run_id", run.ID, "space_id", run.SpaceID)
 	workerType, k8sName, k8sAt, err := s.runner.Run(dispatchCtx, run, runToken)
 	if err != nil {
 		// A worker stopped because this process is going away has already
@@ -385,6 +385,7 @@ func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) 
 		s.log().ErrorContext(ctx, "could not mark missing run FAILED")
 		return
 	}
+	ctx = buildmaxlog.With(ctx, "space_id", run.SpaceID)
 	if coretask.RunStatusTerminal(run.Status) {
 		s.log().InfoContext(ctx, "worker exited non-zero but the run already reported an outcome",
 			"status", run.Status, "err", cause)
@@ -394,6 +395,12 @@ func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) 
 	if len(errorMsg) > maxErrorMessageLength {
 		errorMsg = errorMsg[:maxErrorMessageLength]
 	}
+	// A run its worker had already started failed with that worker — a local
+	// worker process exiting mid-run without reporting — not at dispatch.
+	class := coretask.FailureDispatch
+	if run.Status == string(coretask.RunStatusRunning) {
+		class = coretask.FailureWorkerLost
+	}
 	endedAt := time.Now().UTC()
 	updated, err := s.taskRuns.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      taskRunID,
@@ -401,6 +408,7 @@ func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) 
 		NewStatus:      coretask.RunStatusFailed,
 		EndedAt:        &endedAt,
 		ErrorMessage:   &errorMsg,
+		FailureClass:   class,
 	})
 	if err != nil {
 		s.log().ErrorContext(ctx, "could not set run to FAILED", "err", err)

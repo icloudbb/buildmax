@@ -101,6 +101,54 @@ const (
 	CancelReasonCreatorNotMember = "creator_not_member"
 )
 
+// FailureClass says why a run failed, as operational metadata an administrator
+// may read without Space membership. The component that fails the run sets it;
+// nothing derives it from error text, which can carry Space content and internal
+// addresses. See docs/design/system-administration.md §13 M7.
+type FailureClass string
+
+const (
+	// FailureDispatch is the server failing to start the run's worker.
+	FailureDispatch FailureClass = "dispatch"
+	// FailureWorkerLost is a started run whose worker stopped reporting.
+	FailureWorkerLost FailureClass = "worker_lost"
+	// FailureAbandoned is a run no worker finished within the run timeout.
+	FailureAbandoned FailureClass = "abandoned"
+	// FailureInterrupted is the worker process being shut down mid-run.
+	FailureInterrupted FailureClass = "interrupted"
+	// FailureInfrastructure is storage, checkpoint, or worker API failure.
+	FailureInfrastructure FailureClass = "infrastructure"
+	// FailureSpaceConfiguration is something the Space must fix: a plugin it
+	// could not be given, or a Secret its agent names that is unavailable.
+	FailureSpaceConfiguration FailureClass = "space_configuration"
+	// FailureModel is the model provider refusing or failing a call.
+	FailureModel FailureClass = "model"
+	// FailureRun is any other failure inside the Agent run itself.
+	FailureRun FailureClass = "run"
+	// FailureUnclassified is the fallback when no rule applied.
+	FailureUnclassified FailureClass = "unclassified"
+)
+
+// FailureClasses lists every class, in a stable order for reports.
+func FailureClasses() []FailureClass {
+	return []FailureClass{
+		FailureDispatch, FailureWorkerLost, FailureAbandoned, FailureInterrupted,
+		FailureInfrastructure, FailureSpaceConfiguration, FailureModel, FailureRun,
+		FailureUnclassified,
+	}
+}
+
+// NormalizeFailureClass returns the class named by s, or FailureUnclassified
+// for an empty or unknown value, so a stored class is always one of the enum.
+func NormalizeFailureClass(s string) FailureClass {
+	for _, c := range FailureClasses() {
+		if string(c) == s {
+			return c
+		}
+	}
+	return FailureUnclassified
+}
+
 // Task holds the user-visible state for a background task.
 type Task struct {
 	ID string `json:"id"`
@@ -154,6 +202,10 @@ type Task struct {
 type Run struct {
 	ID     string `json:"id"`
 	TaskID string `json:"task_id"`
+	// SpaceID is the owning Task's Space, read with the run so server logs can
+	// name it. Never serialized: the worker API returns this struct, and a
+	// worker is not told which Space it runs for.
+	SpaceID string `json:"-"`
 	// PreviousTaskRunID names the immediately preceding run in this Task's
 	// linear history. It is fixed when the run is created, so later updates to
 	// Task.LastRunID cannot change where this run restores its session from.
@@ -201,6 +253,9 @@ type Run struct {
 	// authority withdrawal (creator disabled or removed from the Space). Empty on
 	// a run that was not canceled. Immutable once set.
 	CancelReason string `json:"cancel_reason,omitempty"`
+	// FailureClass says why a FAILED run failed. Empty on a run that did not
+	// fail and on runs that predate the column.
+	FailureClass string `json:"failure_class,omitempty"`
 	// RetryOfTaskRunID names the run this one repeats. Nil for every run that
 	// carries its own instructions. The lineage is one level deep by record but
 	// unbounded by use: retrying a retry points at the run it repeated, not at
@@ -393,6 +448,10 @@ type TransitionRunInput struct {
 	// A run canceled through RequestTaskRunCancel already carries its reason, so
 	// the reaper settling it later leaves this nil.
 	CancelReason *string
+	// FailureClass is written when NewStatus is FAILED. A FAILED transition
+	// that names none is stored as FailureUnclassified, so every failed run
+	// carries a class.
+	FailureClass FailureClass
 }
 
 // Store provides task persistence. Tasks belong to a space and may optionally

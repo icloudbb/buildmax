@@ -232,6 +232,9 @@ func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in coretask.Tr
 		if in.CancelReason != nil {
 			m.Runs[i].CancelReason = *in.CancelReason
 		}
+		if in.NewStatus == coretask.RunStatusFailed {
+			m.Runs[i].FailureClass = string(coretask.NormalizeFailureClass(string(in.FailureClass)))
+		}
 		return true, m.syncTaskFromRun(ctx, in.TaskRunID)
 	}
 	return false, nil

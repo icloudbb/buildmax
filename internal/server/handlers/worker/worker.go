@@ -255,7 +255,7 @@ func acceptedQuestions(req *workerclient.PatchTaskRunRequest) *string {
 }
 
 func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Request, taskRunID string, req *workerclient.PatchTaskRunRequest) bool {
-	updated, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), coretask.TransitionRunInput{
+	in := coretask.TransitionRunInput{
 		TaskRunID:        taskRunID,
 		ExpectedStatus:   coretask.RunStatusRunning,
 		NewStatus:        coretask.RunStatus(req.Status),
@@ -269,7 +269,19 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		PromptTokens:     req.PromptTokens,
 		CompletionTokens: req.CompletionTokens,
 		TracePath:        req.TracePath,
-	})
+	}
+	if req.FailureClass != nil {
+		in.FailureClass = coretask.FailureClass(*req.FailureClass)
+	}
+	updated, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), in)
+	// A worker ends a run it has not claimed when the server could not give it a
+	// plugin, or a cancel landed before it started. That report ends the run from
+	// SCHEDULED; otherwise the run would wait out the run timeout. Only success
+	// requires the claim.
+	if err == nil && !updated && req.Status != string(coretask.RunStatusSucceeded) {
+		in.ExpectedStatus = coretask.RunStatusScheduled
+		updated, err = h.cfg.TaskRuns.TransitionTaskRun(r.Context(), in)
+	}
 	if err != nil {
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)
 		return false

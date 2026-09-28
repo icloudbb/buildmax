@@ -45,7 +45,7 @@ type taskRunRow struct {
 	Questions        *string    `gorm:"type:text"`
 	ErrorMessage     *string    `gorm:"type:text"`
 	StartedAt        *time.Time `gorm:""`
-	EndedAt          *time.Time `gorm:""`
+	EndedAt          *time.Time `gorm:"index:idx_task_run_failure_ended,priority:2"`
 	SessionID        *string    `gorm:"type:varchar(36)"`
 	WorkerType       string     `gorm:"type:varchar(32)"`
 	K8sJobName       *string    `gorm:"type:varchar(128)"`
@@ -59,6 +59,9 @@ type taskRunRow struct {
 	CancelRequestedAt *time.Time `gorm:"column:cancel_requested_at;index"`
 	CancelRequestedBy *uint64    `gorm:"column:cancel_requested_by"`
 	CancelReason      string     `gorm:"column:cancel_reason;type:varchar(32);not null;default:''"`
+	// FailureClass is the coretask.FailureClass of a FAILED run, and empty
+	// otherwise. Indexed with ended_at for the administration failure window.
+	FailureClass string `gorm:"column:failure_class;type:varchar(32);not null;default:'';index:idx_task_run_failure_ended,priority:1"`
 	// RetryOfTaskRunID names the run this one repeats. A nullable column rather
 	// than a trigger_source detail because the question a reader asks is which
 	// run this repeated, and a source string cannot answer it.
@@ -119,6 +122,7 @@ type taskRunReadRow struct {
 	RetryOfPublicID       *string    `gorm:"column:retry_of_public_id"`
 	CancelRequestedByPub  *string    `gorm:"column:cancel_requested_by_public_id"`
 	SourceMessagePublicID *string    `gorm:"column:source_message_public_id"`
+	SpacePublicID         string     `gorm:"column:space_public_id"`
 }
 
 func (s *Store) taskRunSelect(ctx context.Context) *gorm.DB {
@@ -128,8 +132,10 @@ func (s *Store) taskRunSelect(ctx context.Context) *gorm.DB {
 func taskRunSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&taskRunRow{}).
 		Select("task_run.*, t.public_id AS task_public_id, pr.public_id AS previous_public_id, ro.public_id AS retry_of_public_id, " +
-			"cb.public_id AS cancel_requested_by_public_id, sm.public_id AS source_message_public_id").
+			"cb.public_id AS cancel_requested_by_public_id, sm.public_id AS source_message_public_id, " +
+			"COALESCE(sp.public_id, '') AS space_public_id").
 		Joins("INNER JOIN task t ON t.id = task_run.task_id").
+		Joins("LEFT JOIN space sp ON sp.id = t.space_id").
 		Joins("LEFT JOIN task_run pr ON pr.id = task_run.previous_task_run_id").
 		Joins("LEFT JOIN task_run ro ON ro.id = task_run.retry_of_task_run_id").
 		Joins("LEFT JOIN `user` cb ON cb.id = task_run.cancel_requested_by").
@@ -169,6 +175,8 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		SandboxFilesystemTier:          row.Row.SandboxFilesystemTier,
 		CancelRequestedAt:              row.Row.CancelRequestedAt,
 		CancelReason:                   row.Row.CancelReason,
+		FailureClass:                   row.Row.FailureClass,
+		SpaceID:                        row.SpacePublicID,
 		LastSeenAt:                     row.Row.LastSeenAt,
 		CreatedAt:                      row.Row.CreatedAt,
 		IdempotencyKey:                 row.Row.IdempotencyKey,
@@ -217,6 +225,7 @@ type taskRunUpdate struct {
 	promptTokens     *int
 	completionTokens *int
 	cancelReason     *string
+	failureClass     *string
 }
 
 // buildTaskRunUpdates renders the update into GORM's column map. A nil field
@@ -256,6 +265,9 @@ func buildTaskRunUpdates(in taskRunUpdate) map[string]interface{} {
 	}
 	if in.cancelReason != nil {
 		updates["cancel_reason"] = *in.cancelReason
+	}
+	if in.failureClass != nil {
+		updates["failure_class"] = *in.failureClass
 	}
 	return updates
 }
@@ -817,6 +829,7 @@ func (s *Store) TransitionTaskRun(ctx context.Context, in coretask.TransitionRun
 				promptTokens:     in.PromptTokens,
 				completionTokens: in.CompletionTokens,
 				cancelReason:     in.CancelReason,
+				failureClass:     failureClassFor(in),
 			}))
 		if result.Error != nil {
 			return result.Error
@@ -850,6 +863,16 @@ func (s *Store) TransitionTaskRun(ctx context.Context, in coretask.TransitionRun
 		return nil
 	})
 	return updated, err
+}
+
+// failureClassFor is the class a transition records: the named one, normalized,
+// on a move to FAILED, so every failed run carries a class from the enum.
+func failureClassFor(in coretask.TransitionRunInput) *string {
+	if in.NewStatus != coretask.RunStatusFailed {
+		return nil
+	}
+	class := string(coretask.NormalizeFailureClass(string(in.FailureClass)))
+	return &class
 }
 
 // UpdateTaskRunWorkerInfo updates worker_type, k8s_job_name, k8s_job_created_at for the run.

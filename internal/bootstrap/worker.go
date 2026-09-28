@@ -319,10 +319,12 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 func reportPluginRefusal(ctx context.Context, updater taskrun.TaskRunUpdater, taskRunID, reason string) error {
 	slog.Error("this run cannot start", "reason", reason)
 	endedAt := time.Now().UTC()
+	class := string(coretask.FailureSpaceConfiguration)
 	if err := updater.UpdateRunStatus(ctx, taskRunID, &workerclient.PatchTaskRunRequest{
 		Status:       string(coretask.RunStatusFailed),
 		EndedAt:      &endedAt,
 		ErrorMessage: &reason,
+		FailureClass: &class,
 	}); err != nil {
 		slog.Error("could not report the refusal", "err", err)
 		return err

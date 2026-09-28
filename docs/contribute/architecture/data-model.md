@@ -940,6 +940,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `cancel_requested_at` | `datetime(6)` | yes | When someone asked this run to stop; `NULL` when nobody has |
 | `cancel_requested_by` | `bigint unsigned` | yes | `user.id` of whoever asked |
 | `cancel_reason` | `varchar(32)` | no | Bounded cause of cancellation; empty when none was recorded |
+| `failure_class` | `varchar(32)` | no | Why a `FAILED` run failed: `dispatch`, `worker_lost`, `abandoned`, `interrupted`, `infrastructure`, `space_configuration`, `model`, `run`, or `unclassified`; set by the component that failed the run, never parsed from `error_message`; empty on a run that did not fail |
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
@@ -964,7 +965,8 @@ One execution attempt. This is the row quota and token accounting read.
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
 `last_seen_at`; index `previous_task_run_id`; index `retry_of_task_run_id`; index `source_message_id`; index
-`idx_task_run_task_created` on (`task_id`, `created_at`); unique `public_id`;
+`idx_task_run_task_created` on (`task_id`, `created_at`); index
+`idx_task_run_failure_ended` on (`failure_class`, `ended_at`); unique `public_id`;
 unique `idx_task_run_idempotency` on (`task_id`, `idempotency_key`).
 
 A repeated `POST .../tasks/{task_id}/runs` naming the same idempotency key on

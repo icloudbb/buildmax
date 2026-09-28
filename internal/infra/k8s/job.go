@@ -452,10 +452,10 @@ func (r *K8sJobRunner) Run(ctx context.Context, run coretask.Run, runToken strin
 	}
 
 	if err := r.client.CreateJob(ctx, r.namespace, job); err != nil {
-		componentLog().Warn("failed to create k8s Job", "task_run_id", run.ID, "job_name", jobName, "err", err)
+		componentLog().Warn("failed to create k8s Job", "task_run_id", run.ID, "space_id", run.SpaceID, "job_name", jobName, "err", err)
 		return "", nil, nil, err
 	}
-	componentLog().Info("created k8s Job", "task_run_id", run.ID, "job_name", jobName, "namespace", r.namespace)
+	componentLog().Info("created k8s Job", "task_run_id", run.ID, "space_id", run.SpaceID, "job_name", jobName, "namespace", r.namespace)
 	return "k8s_job", &jobName, &createdAt, nil
 }
 

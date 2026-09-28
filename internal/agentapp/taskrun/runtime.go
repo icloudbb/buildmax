@@ -24,6 +24,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/llm"
 	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	infrallm "github.com/icloudbb/buildmax/internal/infra/llm"
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	tool "github.com/icloudbb/buildmax/internal/tool"
@@ -252,7 +253,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		// No partial checkpoint here: preparation failed before execution, so
 		// there is no run-produced workspace to preserve — only the seed or the
 		// restored base, which are already durable.
-		reportRunFailure(ctx, run.ID, err, "", nil, input.Updater)
+		reportRunFailure(ctx, run.ID, err, coretask.FailureInfrastructure, "", nil, input.Updater)
 		return err
 	}
 	result, err := executeRunTask(ctx, input, task, run, dirs)
@@ -271,7 +272,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		// the terminal report like a result but never advances the head; it
 		// preserves the work for an operator to recover from. Fail-open.
 		partial := captureWorkspaceCheckpoint(ctx, input, task, dirs)
-		reportRunFailure(ctx, run.ID, err, result.TracePath, partial, input.Updater)
+		reportRunFailure(ctx, run.ID, err, classifyRunError(err), result.TracePath, partial, input.Updater)
 		return err
 	}
 
@@ -284,7 +285,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		// whose message names the storage failure.
 		err := fmt.Errorf("could not persist this run's state to object storage: %w", persistErr)
 		partial := captureWorkspaceCheckpoint(ctx, input, task, dirs)
-		if reportErr := reportRunOutcome(ctx, scope, result, coretask.RunStatusFailed, err.Error(), partial, input.Updater); reportErr != nil {
+		if reportErr := reportRunOutcome(ctx, scope, result, coretask.RunStatusFailed, err.Error(), coretask.FailureInfrastructure, partial, input.Updater); reportErr != nil {
 			return reportErr
 		}
 		return err
@@ -294,7 +295,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	// as it accepts the outcome. Fail-open: a capture failure leaves the head
 	// where it was and the run still succeeds (§13).
 	resultCheckpoint := captureWorkspaceCheckpoint(ctx, input, task, dirs)
-	if err := reportRunOutcome(ctx, scope, result, coretask.RunStatusSucceeded, "", resultCheckpoint, input.Updater); err != nil {
+	if err := reportRunOutcome(ctx, scope, result, coretask.RunStatusSucceeded, "", "", resultCheckpoint, input.Updater); err != nil {
 		return err
 	}
 	componentLog().Info("run succeeded", "task_run_id", run.ID)
@@ -350,7 +351,7 @@ func reportStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 // reporting gets a fresh, bounded one, or the cancel would also destroy the
 // evidence of what the run had done.
 func reportCanceledRun(ctx context.Context, scope RunScope, result runResult, dirs runDirs, input RunTaskInput) error {
-	if err := finishStoppedRun(ctx, scope, result, dirs, input, coretask.RunStatusCanceled, "", reportFinishTimeout); err != nil {
+	if err := finishStoppedRun(ctx, scope, result, dirs, input, coretask.RunStatusCanceled, "", "", reportFinishTimeout); err != nil {
 		componentLog().Error("could not report a canceled run", "task_run_id", scope.TaskRunID, "err", err)
 		return err
 	}
@@ -371,7 +372,7 @@ func reportInterruptedRun(ctx context.Context, scope RunScope, result runResult,
 	if grace <= 0 {
 		grace = interruptReportTimeout
 	}
-	if err := finishStoppedRun(ctx, scope, result, dirs, input, coretask.RunStatusFailed, coretask.ErrRunInterrupted.Error(), grace); err != nil {
+	if err := finishStoppedRun(ctx, scope, result, dirs, input, coretask.RunStatusFailed, coretask.ErrRunInterrupted.Error(), coretask.FailureInterrupted, grace); err != nil {
 		componentLog().Error("could not report an interrupted run", "task_run_id", scope.TaskRunID, "err", err)
 		return err
 	}
@@ -385,7 +386,7 @@ func reportInterruptedRun(ctx context.Context, scope RunScope, result runResult,
 // The detached context is the whole point: the run's own is dead by definition
 // here, and reporting on it would destroy the evidence of the work along with
 // the run.
-func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dirs runDirs, input RunTaskInput, status coretask.RunStatus, errMessage string, timeout time.Duration) error {
+func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dirs runDirs, input RunTaskInput, status coretask.RunStatus, errMessage string, class coretask.FailureClass, timeout time.Duration) error {
 	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 	if result.EndTime.IsZero() {
@@ -398,7 +399,7 @@ func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 	// advances the Task head. Fail-open — if it does not fit the budget, the run
 	// still reports its stop.
 	partial := captureWorkspaceCheckpoint(reportCtx, input, input.Task, dirs)
-	return reportRunOutcome(reportCtx, scope, result, status, errMessage, partial, input.Updater)
+	return reportRunOutcome(reportCtx, scope, result, status, errMessage, class, partial, input.Updater)
 }
 
 func resolveRunDirs(paths RuntimePaths, task *coretask.Task, run *coretask.Run) runDirs {
@@ -788,13 +789,15 @@ func mapValues(m map[string]string) []string {
 // reportRunFailure records the failure. tracePath may be empty — the run can
 // fail before an agent ever starts — but when a trace exists it is recorded
 // here too: diagnosing a failure is the trace's main job.
-func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePath string, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) {
+func reportRunFailure(ctx context.Context, taskRunID string, err error, class coretask.FailureClass, tracePath string, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) {
 	endTime := time.Now().UTC()
 	errMsg := fmt.Sprintf("%v", err)
+	classStr := string(class)
 	req := &workerclient.PatchTaskRunRequest{
 		Status:       string(coretask.RunStatusFailed),
 		EndedAt:      &endTime,
 		ErrorMessage: &errMsg,
+		FailureClass: &classStr,
 	}
 	if tracePath != "" {
 		req.TracePath = &tracePath
@@ -816,7 +819,7 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 // the Artifact service; the runtime neither scans a directory for incidental
 // output nor stores a separate result file. See
 // docs/design/task-workspace-checkpoints.md §4.
-func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status coretask.RunStatus, errMessage string, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) error {
+func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status coretask.RunStatus, errMessage string, class coretask.FailureClass, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) error {
 	req := &workerclient.PatchTaskRunRequest{
 		Status:     string(status),
 		EndedAt:    &result.EndTime,
@@ -836,8 +839,21 @@ func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, sta
 	if errMessage != "" {
 		req.ErrorMessage = &errMessage
 	}
+	if class != "" {
+		classStr := string(class)
+		req.FailureClass = &classStr
+	}
 	req.WorkspaceCheckpoint = checkpoint
 	return updater.UpdateRunStatus(ctx, scope.TaskRunID, req)
+}
+
+// classifyRunError says why the agent run itself failed: the model provider,
+// or anything else inside the run.
+func classifyRunError(err error) coretask.FailureClass {
+	if infrallm.IsProviderError(err) {
+		return coretask.FailureModel
+	}
+	return coretask.FailureRun
 }
 
 // uploadTaskGlobal uploads the run's global dir to blob storage. It is an

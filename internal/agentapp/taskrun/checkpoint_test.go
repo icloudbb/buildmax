@@ -493,7 +493,7 @@ func TestReportRunFailure_CarriesPartialDescriptor(t *testing.T) {
 	desc := &workerclient.WorkspaceCheckpointDescriptor{
 		PayloadFormat: wsarchive.PayloadFormat, PayloadSHA256: "abc", SizeBytes: 5,
 	}
-	reportRunFailure(context.Background(), "rt_1", context.DeadlineExceeded, "traces/x.jsonl", desc, up)
+	reportRunFailure(context.Background(), "rt_1", context.DeadlineExceeded, coretask.FailureRun, "traces/x.jsonl", desc, up)
 	if up.req == nil || up.req.Status != "FAILED" {
 		t.Fatalf("failure not reported: %+v", up.req)
 	}
