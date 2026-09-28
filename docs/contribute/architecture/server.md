@@ -236,6 +236,23 @@ one with no recorded signal at all. Nothing is re-run: a reaped run had a worker
 that may already have caused side effects, and the server cannot know whether
 the task was safe to repeat.
 
+Every failure records `task_run.failure_class`, set by whichever component
+failed the run and never parsed from `error_message`:
+
+- the scheduler records `dispatch`, or `worker_lost` when a local worker exits
+  mid-run without reporting;
+- the reaper records `worker_lost` or `abandoned`;
+- a worker reports its own class, and the server stores an unknown or missing
+  one as `unclassified`.
+
+A worker that refuses a run before claiming it ends the run from `SCHEDULED`.
+It does this for a plugin the server could not give it, or for a cancel that
+landed first. Success still requires the claim.
+
+The scheduler, runner, and reaper log lines carry `space_id` beside
+`task_run_id`, so an operator can reach the owning Space from a log. See
+[system administration §13 M7](../../design/system-administration.md).
+
 A canceled run keeps its output and artifacts. It stopped early, but what it
 produced is real work, and discarding it would make cancelling more expensive
 than waiting.

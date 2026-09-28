@@ -671,6 +671,7 @@ Space 拥有的重复时间触发器。每次到期触发由 `executor_kind` 与
 | `cancel_requested_at` | `datetime(6)` | 是 | 有人请求停止此次运行的时间；无人请求时为 `NULL` |
 | `cancel_requested_by` | `bigint unsigned` | 是 | 请求者的 `user.id` |
 | `cancel_reason` | `varchar(32)` | 否 | 长度受限的取消原因；未记录时为空 |
+| `failure_class` | `varchar(32)` | 否 | `FAILED` run 的失败原因：`dispatch`、`worker_lost`、`abandoned`、`interrupted`、`infrastructure`、`space_configuration`、`model`、`run` 或 `unclassified`；由让 run 失败的组件设置，从不解析 `error_message`；未失败的 run 为空 |
 | `retry_of_task_run_id` | `bigint unsigned` | 是 | 本次重复执行的运行；携带自身指令的运行为 `NULL` |
 | `source_message_id` | `bigint unsigned` | 是 | 请求本次运行的 `conversation_message.id`；没有消息发起请求时为 `NULL` |
 | `agent_revision` | `int` | 是 | 本次运行收到的 `task.agent_id` 修订号；没有 Agent 或从未到达 worker 的运行为 `NULL` |
@@ -693,7 +694,7 @@ Space 拥有的重复时间触发器。每次到期触发由 `executor_kind` 与
 | `plugin_environment_error` | `text` | 是 | 长度受限的安装或物化原因 |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 
-索引：主键 `id`；索引 `cancel_requested_at`；索引 `created_by`；索引 `last_seen_at`；索引 `previous_task_run_id`；索引 `retry_of_task_run_id`；索引 `source_message_id`；(`task_id`, `created_at`) 上的索引 `idx_task_run_task_created`；唯一索引 `public_id`；(`task_id`, `idempotency_key`) 上的唯一索引 `idx_task_run_idempotency`。
+索引：主键 `id`；索引 `cancel_requested_at`；索引 `created_by`；索引 `last_seen_at`；索引 `previous_task_run_id`；索引 `retry_of_task_run_id`；索引 `source_message_id`；(`task_id`, `created_at`) 上的索引 `idx_task_run_task_created`；(`failure_class`, `ended_at`) 上的索引 `idx_task_run_failure_ended`；唯一索引 `public_id`；(`task_id`, `idempotency_key`) 上的唯一索引 `idx_task_run_idempotency`。
 
 对同一 Task 使用相同幂等键重复发送 `POST .../tasks/{task_id}/runs`，会返回首次调用创建的运行，而不启动第二次运行；无论原运行仍在活动还是已经结束都如此。MySQL 唯一索引中 `NULL` 不视为另一个 `NULL` 的重复，因此所有未带键创建的运行都能共存。`CreateTaskRun` 在检查这一点及下述活动运行计数前，先对 Task 行加锁读取，因此同一 Task 的两个并发调用者不能都看到空状态并各自插入；见 [Agent 执行与 Task 线程 §12](../../design/Agent执行与Task线程.md#12-故障恢复和并发)。
 

@@ -118,6 +118,9 @@ func TestRunTask_FailsARunWhoseStateCannotBeStored(t *testing.T) {
 	if req.ErrorMessage == nil || !strings.Contains(*req.ErrorMessage, "object storage") || !strings.Contains(*req.ErrorMessage, "403") {
 		t.Errorf("error message = %v, want the storage failure named", req.ErrorMessage)
 	}
+	if c := req.FailureClass; c == nil || *c != string(coretask.FailureInfrastructure) {
+		t.Errorf("failure_class = %v, want infrastructure", c)
+	}
 	if req.Output == nil || *req.Output != "all done" {
 		t.Errorf("output = %v, want the reply the run produced", req.Output)
 	}
@@ -137,6 +140,9 @@ func TestRunTask_RecordsTheTraceItStored(t *testing.T) {
 	req := updater.req
 	if req == nil || req.Status != string(coretask.RunStatusSucceeded) {
 		t.Fatalf("report = %+v, want SUCCEEDED", req)
+	}
+	if req.FailureClass != nil {
+		t.Errorf("failure_class = %q on a success, want none", *req.FailureClass)
 	}
 	if req.TracePath == nil || *req.TracePath == "" {
 		t.Fatal("a stored trace was not recorded")

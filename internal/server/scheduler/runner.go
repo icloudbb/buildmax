@@ -71,7 +71,7 @@ func NewLocalRunner(workerPath string, env []string, runTokenEnvKey string, stop
 // is executing can report what it produced. It is killed if it does not manage
 // that inside stopGrace — see docs/design/graceful-shutdown.md §6.1.
 func (r *LocalRunner) Run(ctx context.Context, run coretask.Run, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error) {
-	componentLog("worker_runner").InfoContext(ctx, "spawning worker", "task_run_id", run.ID, "task_id", run.TaskID)
+	componentLog("worker_runner").InfoContext(ctx, "spawning worker", "task_run_id", run.ID, "space_id", run.SpaceID, "task_id", run.TaskID)
 	cmd := exec.CommandContext(ctx, r.workerPath, "--task-run-id", run.ID)
 	cmd.Env = r.env
 	if runToken != "" && r.runTokenEnvKey != "" {

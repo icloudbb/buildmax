@@ -7,6 +7,7 @@ package llm
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -92,5 +93,30 @@ func TestWrapLLMError_PreservesUnwrap(t *testing.T) {
 func TestWrapLLMError_Nil(t *testing.T) {
 	if wrapLLMError(nil) != nil {
 		t.Error("wrapLLMError(nil) should return nil")
+	}
+}
+
+func TestIsProviderError(t *testing.T) {
+	provider := &apiError{status: 503}
+	if !IsProviderError(provider) {
+		t.Error("an apiError is a provider error")
+	}
+	if !IsProviderError(fmt.Errorf("llm call: %w", wrapLLMError(provider))) {
+		t.Error("a wrapped apiError is still a provider error")
+	}
+	// A timeout or dropped connection carries no HTTP status but is still the
+	// model call failing, which is what the drill's stalled model produced.
+	timedOut := fmt.Errorf("agent: llm call: %w", wrapLLMError(context.DeadlineExceeded))
+	if !IsProviderError(timedOut) {
+		t.Error("a timed-out model call is a provider error")
+	}
+	if IsProviderError(&requestError{err: errors.New("bad history")}) {
+		t.Error("a request that never reached a provider is not a provider error")
+	}
+	if IsProviderError(wrapLLMError(&requestError{err: errors.New("bad history")})) {
+		t.Error("a wrapped request error is still not a provider error")
+	}
+	if IsProviderError(errors.New("tool crashed")) {
+		t.Error("an arbitrary error is not a provider error")
 	}
 }

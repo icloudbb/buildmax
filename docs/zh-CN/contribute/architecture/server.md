@@ -79,6 +79,16 @@ Server 从不自己终结一次已经开始的运行：只有运行自身的进�
 
 正是同一次轮询，让 Server 得知一个 worker 还活着。这条路由在每次调用时都会记录 `task_run.last_seen_at`，因此一个处于 `RUNNING` 状态、却沉默超过回收器存活宽限期的运行，会被判定为失去了自己的 worker——从这里看，SIGKILL、OOM kill 或者节点丢失，表现出来都是这个样子，它们都不会给 worker 留下上报的机会。`worker.run_timeout` 依然是这次清扫所看不到的情形的最后防线：一个从未到达 `RUNNING` 的运行，以及一个完全没有记录过任何信号的运行。这两种情况都不会被重新运行：一个被回收的运行，其 worker 可能已经造成了副作用，Server 无法得知重复执行这个 Task 是否安全。
 
+每次失败都会记录 `task_run.failure_class`，由让运行失败的组件设置，从不解析 `error_message`：
+
+- 调度器记录 `dispatch`；本地 worker 在运行中途未上报就退出时，记录 `worker_lost`；
+- 回收器记录 `worker_lost` 或 `abandoned`；
+- worker 上报自己的类别，Server 把未知或缺失的类别存为 `unclassified`。
+
+worker 在认领运行之前就拒绝它时，会让运行从 `SCHEDULED` 直接结束。拒绝的原因可能是 Server 无法给它某个插件，也可能是先到达了一次取消。成功仍然需要先认领。
+
+调度器、runner 和回收器的日志行在 `task_run_id` 旁都带有 `space_id`，运维可以从一行日志找到所属 Space。见[系统管理 §13 M7](../../design/系统管理.md)。
+
 一次被取消的运行会保留它的产出和 Artifact。它只是提早停止了，但它产出的内容是真实的工作成果，丢弃它只会让取消这个动作，比等待运行结束的代价更大。
 
 `service/task.RequestRunCancel` 统一拥有请求取消和未派发运行即时终结的操作，Task HTTP

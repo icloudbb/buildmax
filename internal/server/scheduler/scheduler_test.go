@@ -33,6 +33,7 @@ type spyTaskRunStore struct {
 		endedAt      *time.Time
 		errorMessage *string
 		cancelReason string
+		failureClass coretask.FailureClass
 	}
 }
 
@@ -137,7 +138,8 @@ func (s *spyTaskRunStore) TransitionTaskRun(_ context.Context, in coretask.Trans
 			endedAt      *time.Time
 			errorMessage *string
 			cancelReason string
-		}{in.TaskRunID, string(in.NewStatus), in.EndedAt, in.ErrorMessage, cancelReason}
+			failureClass coretask.FailureClass
+		}{in.TaskRunID, string(in.NewStatus), in.EndedAt, in.ErrorMessage, cancelReason, in.FailureClass}
 	}
 	return true, nil
 }
@@ -253,5 +255,7 @@ func TestScheduler_Loop_SpawnFailure_MarksRunFailed(t *testing.T) {
 	if spy.lastUpdateStatus.errorMessage == nil || *spy.lastUpdateStatus.errorMessage == "" {
 		t.Error("UpdateRun errorMessage is nil or empty, want non-empty")
 	}
-
+	if spy.lastUpdateStatus.failureClass != coretask.FailureDispatch {
+		t.Errorf("failure class = %q, want dispatch", spy.lastUpdateStatus.failureClass)
+	}
 }

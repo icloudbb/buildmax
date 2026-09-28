@@ -69,6 +69,9 @@ func TestReportInterruptedRunReportsFailedAndKeepsPartialWork(t *testing.T) {
 	if updater.req.ErrorMessage == nil || !strings.Contains(*updater.req.ErrorMessage, "shut down") {
 		t.Errorf("error_message = %v, want one naming the shutdown", updater.req.ErrorMessage)
 	}
+	if c := updater.req.FailureClass; c == nil || *c != string(coretask.FailureInterrupted) {
+		t.Errorf("failure_class = %v, want interrupted", c)
+	}
 	// The reply is the run's one persisted output, carried on the status patch.
 	if updater.req.Output == nil || *updater.req.Output != "as far as I got" {
 		t.Errorf("output = %v, want the partial reply the run had produced", updater.req.Output)
