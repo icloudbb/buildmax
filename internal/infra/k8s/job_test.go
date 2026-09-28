@@ -10,26 +10,32 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 
 	"github.com/icloudbb/buildmax/internal/config"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
-// fakeJobCreator records the last created Job for tests.
-type fakeJobCreator struct {
+// fakeJobClient records the last created Job for tests.
+type fakeJobClient struct {
 	lastJob *batchv1.Job
 }
 
-func (f *fakeJobCreator) CreateJob(ctx context.Context, namespace string, job *batchv1.Job) error {
+func (f *fakeJobClient) CreateJob(ctx context.Context, namespace string, job *batchv1.Job) error {
 	f.lastJob = job.DeepCopy()
 	return nil
 }
+
+func (f *fakeJobClient) DeleteJob(context.Context, string, string) error { return nil }
 
 // newTestRunner builds a runner for a test whose subject is something other
 // than the resource bounds, supplying valid ones when the case did not set its
 // own. Every bound is required, so a test that says nothing about resources
 // still has to carry a set; TestJobPodResources owns the cases that do not.
-func newTestRunner(t *testing.T, namespace, image string, env []corev1.EnvVar, pod PodConfig, client JobCreator) *K8sJobRunner {
+func newTestRunner(t *testing.T, namespace, image string, env []corev1.EnvVar, pod PodConfig, client JobClient) *K8sJobRunner {
 	t.Helper()
 	if pod.Resources == (PodResources{}) {
 		pod.Resources = PodResources{
@@ -45,7 +51,7 @@ func newTestRunner(t *testing.T, namespace, image string, env []corev1.EnvVar, p
 }
 
 func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
-	fake := &fakeJobCreator{}
+	fake := &fakeJobClient{}
 	runner := newTestRunner(t, "buildmax", "buildmax:local", []corev1.EnvVar{}, PodConfig{}, fake)
 	run := coretask.Run{ID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", TaskID: "chat1", Status: "SCHEDULED"}
 
@@ -76,7 +82,7 @@ func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
 // BUILDMAX_HOME pointing at the directory it lands in. Without both, the worker
 // falls back to built-in defaults and cannot reach the database or storage.
 func TestK8sJobRunner_MountsServerConfig(t *testing.T) {
-	fake := &fakeJobCreator{}
+	fake := &fakeJobClient{}
 	inherited := []corev1.EnvVar{
 		{Name: config.EnvKeyBuildmaxMinIOAccessKey, Value: "minio-key"},
 		{Name: config.EnvKeyBuildmaxHome, Value: "/server-side-path"},
@@ -147,7 +153,7 @@ func TestK8sJobRunner_MountsServerConfig(t *testing.T) {
 // TestK8sJobRunner_NoConfigMap keeps the degenerate case explicit: with no
 // ConfigMap configured the pod still gets a writable home, just no config file.
 func TestK8sJobRunner_NoConfigMap(t *testing.T) {
-	fake := &fakeJobCreator{}
+	fake := &fakeJobClient{}
 	runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{}, fake)
 	if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "r_2"}, ""); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -208,7 +214,7 @@ func TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials(t *testing.T) {
 // A worker runs model-chosen shell commands, so each of these is load-bearing
 // rather than hygiene, and each has silently regressed elsewhere before.
 func TestJobPodIsConfined(t *testing.T) {
-	fake := &fakeJobCreator{}
+	fake := &fakeJobClient{}
 	r := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{ConfigMapName: "buildmax-config"}, fake)
 	if _, _, _, err := r.Run(context.Background(), coretask.Run{ID: "run-1"}, ""); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -289,7 +295,7 @@ func TestJobPodIsConfined(t *testing.T) {
 // one without a bound has to end in a refusal an operator can read.
 func TestJobPodResources(t *testing.T) {
 	t.Run("configured bounds reach the pod", func(t *testing.T) {
-		fake := &fakeJobCreator{}
+		fake := &fakeJobClient{}
 		r := newTestRunner(t, "buildmax", "img", nil, PodConfig{
 			Resources: PodResources{
 				CPURequest: "250m", CPULimit: "2", MemoryRequest: "512Mi", MemoryLimit: "4Gi",
@@ -382,7 +388,7 @@ func TestJobPodResources(t *testing.T) {
 	}
 	for _, tc := range rejected {
 		t.Run(tc.name, func(t *testing.T) {
-			fake := &fakeJobCreator{}
+			fake := &fakeJobClient{}
 			r, err := NewK8sJobRunner("buildmax", "img", nil, PodConfig{Resources: tc.resources}, fake)
 			if err == nil {
 				t.Fatalf("the configuration was accepted; a worker Job would run unbounded")
@@ -418,7 +424,7 @@ func TestK8sJobRunner_CarriesRunToken(t *testing.T) {
 	}
 
 	t.Run("minted", func(t *testing.T) {
-		fake := &fakeJobCreator{}
+		fake := &fakeJobClient{}
 		runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{HomeDir: "/buildmax"}, fake)
 		if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "r_1"}, "signed-token"); err != nil {
 			t.Fatalf("Run: %v", err)
@@ -429,7 +435,7 @@ func TestK8sJobRunner_CarriesRunToken(t *testing.T) {
 	})
 
 	t.Run("none", func(t *testing.T) {
-		fake := &fakeJobCreator{}
+		fake := &fakeJobClient{}
 		runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{HomeDir: "/buildmax"}, fake)
 		if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "r_2"}, ""); err != nil {
 			t.Fatalf("Run: %v", err)
@@ -497,7 +503,7 @@ func TestWorkerEnvFromEnviron_ManagedPodHasNoProviderKey(t *testing.T) {
 // Job, or the policy would admit nothing. See
 // docs/design/worker-api-network-boundary.md §7.2.
 func TestK8sJobRunner_LabelsWorkerPod(t *testing.T) {
-	fake := &fakeJobCreator{}
+	fake := &fakeJobClient{}
 	runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{}, fake)
 	if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "run1", Status: "SCHEDULED"}, ""); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -526,7 +532,7 @@ func TestK8sJobRunner_FinishedJobExpires(t *testing.T) {
 		{5 * time.Minute, 300},
 		{0, 0},
 	} {
-		fake := &fakeJobCreator{}
+		fake := &fakeJobClient{}
 		runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{FinishedJobTTL: tc.ttl}, fake)
 		if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "run1", Status: "SCHEDULED"}, ""); err != nil {
 			t.Fatalf("Run: %v", err)
@@ -546,7 +552,7 @@ func TestNewK8sJobRunner_RejectsNegativeFinishedJobTTL(t *testing.T) {
 			EphemeralStorageRequest: "256Mi", EphemeralStorageLimit: "2Gi",
 		},
 	}
-	_, err := NewK8sJobRunner("buildmax", "buildmax:local", nil, pod, &fakeJobCreator{})
+	_, err := NewK8sJobRunner("buildmax", "buildmax:local", nil, pod, &fakeJobClient{})
 	if err == nil || !strings.Contains(err.Error(), "worker.k8s.finished_job_ttl") {
 		t.Fatalf("err = %v, want a refusal naming worker.k8s.finished_job_ttl", err)
 	}
@@ -555,7 +561,7 @@ func TestNewK8sJobRunner_RejectsNegativeFinishedJobTTL(t *testing.T) {
 // TestK8sJobRunner_MountsWorkerAPICA covers the CA delivery a worker over HTTPS
 // depends on: the configured ConfigMap is mounted read-only at server_ca_file.
 func TestK8sJobRunner_MountsWorkerAPICA(t *testing.T) {
-	fake := &fakeJobCreator{}
+	fake := &fakeJobClient{}
 	runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{
 		CAConfigMapName: "buildmax-worker-api-ca",
 		CAMountPath:     "/buildmax/tls/worker-api-ca.crt",
@@ -595,7 +601,7 @@ func TestK8sJobRunner_MountsWorkerAPICA(t *testing.T) {
 // TestK8sJobRunner_NoCAWithoutConfig keeps the mount opt-in: a deployment that
 // configures none (plain HTTP development) gets no CA volume.
 func TestK8sJobRunner_NoCAWithoutConfig(t *testing.T) {
-	fake := &fakeJobCreator{}
+	fake := &fakeJobClient{}
 	runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{}, fake)
 	if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "run1", Status: "SCHEDULED"}, ""); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -604,5 +610,50 @@ func TestK8sJobRunner_NoCAWithoutConfig(t *testing.T) {
 		if v.Name == caVolumeName {
 			t.Error("a CA volume was mounted with no ca_config_map configured")
 		}
+	}
+}
+
+// A reaped run's Job must take its pod with it. The API's default policy for a
+// Job orphans the pod, which keeps the worker running.
+func TestDeleteWorkerJobRemovesTheJobInTheBackground(t *testing.T) {
+	ctx := context.Background()
+	clientset := fake.NewClientset()
+	runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{}, &jobClientImpl{clientset: clientset})
+	_, name, _, err := runner.Run(ctx, coretask.Run{ID: "01ARZ3NDEKTSV4RRFFQ69G5FAV"}, "")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if err := runner.DeleteWorkerJob(ctx, *name); err != nil {
+		t.Fatalf("DeleteWorkerJob: %v", err)
+	}
+
+	if _, err := clientset.BatchV1().Jobs("buildmax").Get(ctx, *name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Errorf("Job still exists after delete: err = %v", err)
+	}
+	var deletes []k8stesting.DeleteAction
+	for _, a := range clientset.Actions() {
+		if d, ok := a.(k8stesting.DeleteAction); ok {
+			deletes = append(deletes, d)
+		}
+	}
+	if len(deletes) != 1 {
+		t.Fatalf("delete actions = %d, want 1", len(deletes))
+	}
+	if d := deletes[0]; d.GetNamespace() != "buildmax" || d.GetName() != *name {
+		t.Errorf("deleted %s/%s, want buildmax/%s", d.GetNamespace(), d.GetName(), *name)
+	}
+	policy := deletes[0].GetDeleteOptions().PropagationPolicy
+	if policy == nil || *policy != metav1.DeletePropagationBackground {
+		t.Errorf("propagation policy = %v, want Background", policy)
+	}
+}
+
+// The TTL controller may have removed a finished Job before the reaper got to
+// it; that is the outcome the reaper wanted, not a failure to report.
+func TestDeleteWorkerJobToleratesAMissingJob(t *testing.T) {
+	runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{}, &jobClientImpl{clientset: fake.NewClientset()})
+	if err := runner.DeleteWorkerJob(context.Background(), "buildmax-worker-gone-1"); err != nil {
+		t.Errorf("DeleteWorkerJob of a missing Job = %v, want nil", err)
 	}
 }

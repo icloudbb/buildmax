@@ -177,7 +177,8 @@ func RunServer(ctx context.Context, portOverride int) error {
 	cleaner := scheduler.NewCredentialCleaner(store, 0)
 	cleaner.Start()
 
-	reaper := scheduler.NewStaleRunReaper(store, sc.Worker.RunTimeout, 0)
+	jobs, _ := runner.(scheduler.WorkerJobDeleter)
+	reaper := scheduler.NewStaleRunReaper(store, jobs, sc.Worker.RunTimeout, 0)
 	reaper.Start()
 
 	// Marks Remote Control sessions offline once their heartbeats lapse, the
@@ -890,12 +891,16 @@ func validateConfiguredModels(ctx context.Context, routing *llmRouting, sc confi
 	return nil
 }
 
+// The reaper finds this capability by type assertion, which would silently
+// stop matching if the method drifted.
+var _ scheduler.WorkerJobDeleter = (*k8s.K8sJobRunner)(nil)
+
 func buildWorkerRunner(wc config.ServerWorkerConfig, stopGrace time.Duration) (scheduler.WorkerRunner, error) {
 	switch wc.RunMode {
 	case "k8s_job":
-		jobClient, err := k8s.BuildK8sJobCreator()
+		jobClient, err := k8s.BuildK8sJobClient()
 		if err != nil {
-			return nil, fmt.Errorf("k8s job creator: %w", err)
+			return nil, fmt.Errorf("k8s job client: %w", err)
 		}
 		// Worker pods read the same server.yaml the server does: the ConfigMap
 		// supplies the file, the inherited BUILDMAX_* environment supplies the

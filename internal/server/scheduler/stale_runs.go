@@ -56,6 +56,16 @@ type StaleRunStore interface {
 	TransitionTaskRun(ctx context.Context, in coretask.TransitionRunInput) (bool, error)
 }
 
+// WorkerJobDeleter removes the Kubernetes Job a run was dispatched to, with its
+// pods. Only the Kubernetes runner has one; a local worker has no Job.
+type WorkerJobDeleter interface {
+	DeleteWorkerJob(ctx context.Context, jobName string) error
+}
+
+// workerJobDeleteTimeout bounds one Job deletion so an unresponsive API server
+// cannot stall the sweep loop, or the server shutdown that waits for it.
+const workerJobDeleteTimeout = 10 * time.Second
+
 // StaleRunReaper finishes runs that nothing else will finish.
 //
 // Three cases, one loop. A run whose worker never reported an outcome stays
@@ -77,9 +87,14 @@ type StaleRunStore interface {
 // a worker may have executed arbitrary side effects before it died, and the
 // server cannot know whether the task was safe to repeat.
 //
+// A reaped run's Kubernetes Job is deleted. Silence does not prove the worker
+// is dead — a hung or partitioned one still holds its pod — and nothing else
+// would remove a Job that never finishes.
+//
 // See docs/design/worker-run-token.md.
 type StaleRunReaper struct {
 	runs          StaleRunStore
+	jobs          WorkerJobDeleter
 	timeout       time.Duration
 	cancelGrace   time.Duration
 	livenessGrace time.Duration
@@ -89,9 +104,9 @@ type StaleRunReaper struct {
 }
 
 // NewStaleRunReaper returns a reaper for runs, or nil when there is no store to
-// sweep — so a caller does not need to check before starting it. Zero values
-// use the defaults.
-func NewStaleRunReaper(runs StaleRunStore, timeout, interval time.Duration) *StaleRunReaper {
+// sweep — so a caller does not need to check before starting it. jobs is nil
+// when workers do not run as Kubernetes Jobs. Zero durations use the defaults.
+func NewStaleRunReaper(runs StaleRunStore, jobs WorkerJobDeleter, timeout, interval time.Duration) *StaleRunReaper {
 	if runs == nil {
 		return nil
 	}
@@ -103,6 +118,7 @@ func NewStaleRunReaper(runs StaleRunStore, timeout, interval time.Duration) *Sta
 	}
 	return &StaleRunReaper{
 		runs:          runs,
+		jobs:          jobs,
 		timeout:       timeout,
 		cancelGrace:   defaultCancelGrace,
 		livenessGrace: defaultLivenessGrace,
@@ -231,9 +247,29 @@ func (c *StaleRunReaper) finish(ctx context.Context, run coretask.Run, status co
 		c.log().ErrorContext(ctx, "could not finish an unreported run", "status", status, "err", err)
 		return
 	}
+	// A lost race leaves the Job alone: whoever finished the run owns its
+	// worker — a worker that reported exits by itself, and another replica's
+	// reaper deletes the Job it reaped.
 	if !updated {
 		c.log().InfoContext(ctx, "run outcome changed during stale-run sweep", "status_was", run.Status)
 		return
 	}
 	c.log().WarnContext(ctx, logMsg, "status_was", run.Status)
+	c.deleteWorkerJob(ctx, run)
+}
+
+// deleteWorkerJob removes the Job of a run this reaper just ended. A failure is
+// only logged: the run is over either way, and the Job's TTL still applies if
+// its worker ever finishes.
+func (c *StaleRunReaper) deleteWorkerJob(ctx context.Context, run coretask.Run) {
+	if c.jobs == nil || run.K8sJobName == nil || *run.K8sJobName == "" {
+		return
+	}
+	deleteCtx, cancel := context.WithTimeout(ctx, workerJobDeleteTimeout)
+	defer cancel()
+	if err := c.jobs.DeleteWorkerJob(deleteCtx, *run.K8sJobName); err != nil {
+		c.log().ErrorContext(ctx, "could not delete the worker job of a reaped run", "job_name", *run.K8sJobName, "err", err)
+		return
+	}
+	c.log().InfoContext(ctx, "deleted the worker job of a reaped run", "job_name", *run.K8sJobName)
 }
