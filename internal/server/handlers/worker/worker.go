@@ -133,6 +133,7 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			SpaceID:                        task.SpaceID,
 			UserID:                         task.CreatedBy,
 			SessionID:                      task.SessionID,
+			IssueID:                        task.IssueID,
 			AgentInstructions:              agentInstructions,
 			SpaceAgentInstructions:         spaceInstructions,
 			SpaceAgentInstructionsRevision: spaceInstructionsRevision,

@@ -100,6 +100,9 @@ type TaskRunTask struct {
 	SpaceID        string  `json:"space_id"`
 	UserID         string  `json:"user_id"`
 	SessionID      *string `json:"session_id,omitempty"`
+	// IssueID names the Issue this Task works, so the run's prompt points the
+	// Agent at `buildmax issue`. Absent means the Task has no Issue.
+	IssueID *string `json:"issue_id,omitempty"`
 	// AgentInstructions is the instruction text of the agent this task names, resolved by
 	// the server. The worker appends it to the run's system prompt, which is re-sent whole on
 	// every call, rather than leaving it in the task input, which the conversation eventually
