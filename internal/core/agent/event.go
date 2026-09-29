@@ -99,7 +99,9 @@ type Event struct {
 	// EventToolStart, EventToolEnd, EventToolDenied
 	ToolName   string
 	ToolCallID string
-	ToolArgs   string // JSON-encoded arguments
+	// ToolArgs is the JSON-encoded arguments, set on EventToolStart only; a
+	// consumer pairs them with the later events by ToolCallID.
+	ToolArgs string
 
 	// EventToolEnd
 	ToolResult   string
