@@ -623,16 +623,16 @@ func TestPatchWorkerTaskRun_KeepsOnlyWellFormedQuestionsFromASuccess(t *testing.
 	}
 }
 
-// The server lets a run stop and ask unless nobody would continue its Task: a
-// Workflow step is advanced by the workflow, so it is not told it may ask.
-func TestGetWorkerTaskRunHandler_AllowsAskUserExceptForWorkflowSteps(t *testing.T) {
+// Every run the server hands out may stop and ask: a Workflow step's question
+// becomes a request on its workflow run, whose answer resumes the Task.
+func TestGetWorkerTaskRunHandler_AllowsAskUser(t *testing.T) {
 	for _, c := range []struct {
 		trigger string
 		want    bool
 	}{
 		{coretask.RunTriggerSourcePortalConversation, true},
 		{coretask.RunTriggerSourceIssueAgentRun, true},
-		{coretask.RunTriggerSourceWorkflowStep, false},
+		{coretask.RunTriggerSourceWorkflowStep, true},
 	} {
 		taskRunID := "run-" + c.trigger
 		runs := &mock.MockTaskRunStore{

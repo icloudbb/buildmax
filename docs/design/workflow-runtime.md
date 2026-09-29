@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
-> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable graph runtime is landing incrementally. Guarded compare-and-set run/node transitions, atomic stop intent, idempotent Task admission, the reconciliation lease, the graph reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds finished nodes from durable state, dispatches the ready nodes, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A node binding selects a value from the run input or a predecessor node's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer, and a definition may declare a `result` selector whose value a succeeding run stores and surfaces on the run and its issue. The definition is now a graph: `nodes` joined by DAG `needs` decide execution order (array position does not), publication validates acyclicity, edge existence, and predecessor-only bindings. Each reconciliation pass dispatches every ready node, bounded by `policy.max_parallel_nodes` and a deployment ceiling, so independent branches run in parallel; failure is fail-fast and drains the siblings running alongside the failed node before ending the run. A node may declare `policy.max_attempts` and a per-attempt `policy.timeout_seconds`, and a definition a run-wide `policy.timeout_seconds`: a failed or timed-out attempt waits out a durable backoff in `retry_wait` and is retried on the same Task, and a passed run deadline stops admission and fails the run after its active attempts drain. Still open in the graph engine are Workflow-level cancellation, durable human requests, typed routes, runtime schema-constrained routing, and adaptive control
+> **Audience:** contributors, product reviewers, and operators · **Status:** partially implemented — the accepted adaptive-graph direction remains planned, while the durable graph runtime is landing incrementally. Guarded compare-and-set run/node transitions, atomic stop intent, idempotent Task admission, the reconciliation lease, the graph reconciler, and the Server-owned due-run recovery loop are implemented. `Service.Reconcile` folds finished nodes from durable state, dispatches the ready nodes, and schedules the run; startup and periodic sweeps recover a lost callback or Server restart. The definition now carries an explicit `schema_version: 1` and may declare an `input_schema` and a `result` selector, both validated at publication. Starting a run admits an immutable input validated against that `input_schema` and freezes it onto the run, with the Portal generating the input form. Each per-step record is a `WorkflowNodeRun` that persists the full resolved input its node received and the whole output its accepted TaskRun produced. A node binding selects a value from the run input or a predecessor node's output envelope (text, structured output, or an Artifact reference) at an RFC 6901 pointer, and a definition may declare a `result` selector whose value a succeeding run stores and surfaces on the run and its issue. The definition is now a graph: `nodes` joined by DAG `needs` decide execution order (array position does not), publication validates acyclicity, edge existence, and predecessor-only bindings. Each reconciliation pass dispatches every ready node, bounded by `policy.max_parallel_nodes` and a deployment ceiling, so independent branches run in parallel; failure is fail-fast and drains the siblings running alongside the failed node before ending the run. A node may declare `policy.max_attempts` and a per-attempt `policy.timeout_seconds`, and a definition a run-wide `policy.timeout_seconds`: a failed or timed-out attempt waits out a durable backoff in `retry_wait` and is retried on the same Task, and a passed run deadline stops admission and fails the run after its active attempts drain. A person can cancel a run, and a run can wait durably on people: a `human_input` node opens a request whose validated answer is its output, and an `agent_task` attempt that ends on AskUser questions opens a request whose answer resumes its Task. Still open in the graph engine are typed routes, runtime schema-constrained routing, and adaptive control
 
 Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
@@ -103,9 +103,10 @@ and drains the siblings running alongside the failed node through durable
 `failing`/`canceling` states before ending the run. Task admission and node
 linkage commit atomically with respect to stop intent, and so does a retry
 attempt's admission (§12.2). Node retry, node timeouts, and the run deadline
-ship as §12.2 and §12.3 describe. What remains against the target is the rest
-of the graph engine: Workflow-level cancellation, durable human requests,
-typed routes, runtime schema-constrained routing, and adaptive control.
+ship as §12.2 and §12.3 describe, Workflow-level cancellation as §12.4 does,
+and durable human requests as §14 does. What remains against the target is the
+rest of the graph engine: typed routes, runtime schema-constrained routing, and
+adaptive control.
 
 The current Agent snapshot is also not execution authority. Workflow copies the
 old Agent instructions into Task user input while Task admission and the worker
@@ -267,7 +268,7 @@ flowchart TB
 | WorkflowNodeRun | One materialized logical node, resolved input, accepted output, policy state, Task relation, attempt aggregate | Worker lease or Agent loop |
 | Task | One Agent node's durable objective and session identity | Graph readiness or route decisions |
 | TaskRun | One attempt, output, Artifacts, trace, usage, runtime materialization, and failure | Workflow success policy |
-| WorkflowRequest | A future durable request for approval or typed information | A blocked worker or ordinary Agent completion |
+| WorkflowRequest | A durable request a node waits on a person to answer, and the answer | A blocked worker or ordinary Agent completion |
 | Conversation | Optional foreground origin and result card | Workflow state or authorization |
 | Issue | Shared work and result context | Workflow coordination state |
 
@@ -419,7 +420,9 @@ must be reachable and cannot be skipped on every valid first-version path.
 - Several ready nodes may execute concurrently within Workflow and Space limits.
 - Failure is fail-fast; there is no continue-on-error policy in the first graph
   slice.
-- There is one executor type, `agent_task`.
+- There is one executor type, `agent_task`. A `human_input` node executes
+  nothing: it names no Agent, has `issue_access` none and one attempt, and a
+  person completes it (§14).
 - Unknown fields fail validation.
 - UI layout is not part of the execution definition. Presentation metadata may
   be stored separately so moving a box does not deploy a new behavior revision.
@@ -505,8 +508,11 @@ stateDiagram-v2
 
 - `pending`: admitted and materialized; no dispatch has yet been committed.
 - `running`: at least one node may be ready, dispatching, running, or retrying.
-- `waiting`: no worker work is active and the run waits on a durable external
-  request. This state is unused until request nodes ship.
+- `waiting`: reserved. A run whose only open work is a durable request stays
+  `running`; its `waiting` node and pending request carry the wait, and the
+  Space's pending-request list is where people find it (§14). A separate run
+  state would add a transition to every admission and stop guard without
+  telling a reader anything the request does not.
 - `failing`: fail-fast has committed a terminal cause and active sibling work
   is being canceled or drained.
 - `canceling`: user or authorized system cancellation won the run transition;
@@ -543,8 +549,12 @@ stateDiagram-v2
 - `running`: linked TaskRun is non-terminal.
 - `retry_wait`: prior attempt failed and the explicit retry policy permits a
   later attempt.
-- `waiting`: future request node has a durable outstanding request and consumes
-  no worker.
+- `waiting`: the node has an outstanding durable request and consumes no
+  worker (§14). A `human_input` node reaches it from `pending`, an
+  `agent_task` node from `running` when its attempt ends on questions. An
+  answer moves a `human_input` node to `succeeded` and resumes an asking node
+  to `running`; a decline or expiry moves it to `failed`; stop intent to
+  `canceled`.
 - `succeeded`: one TaskRun outcome was accepted as this logical node's output.
 - `failed`: attempts are exhausted or the node contract cannot be satisfied.
 - `blocked`: a required predecessor failed, so this node cannot execute.
@@ -853,11 +863,14 @@ granularity: a pass observing active work runs at least every 30 seconds.
 
 ### 12.4 Cancellation And Races
 
-**Implemented slice:** failure or cancellation of a node Task commits stop
-intent, blocks pending nodes, requests sibling TaskRun cancellation through the
-Task service, and drains actual terminal outcomes before ending the Workflow.
-The due-run sweep resumes this work after a crash. A whole-Workflow cancellation
-command and its actor metadata remain planned below.
+**Implemented:** failure or cancellation of a node Task commits stop intent,
+blocks pending nodes, requests sibling TaskRun cancellation through the Task
+service, and drains actual terminal outcomes before ending the Workflow. The
+due-run sweep resumes this work after a crash. `POST
+.../workflow-runs/{id}/cancel` is the whole-Workflow command: it commits
+`running` to `canceling` in the same locked transaction that blocks pending
+nodes and cancels `retry_wait` and `waiting` nodes with their pending requests,
+then drains. The actor is recorded in the audit log rather than on the run.
 
 Cancel is an intent recorded on WorkflowRun, not a loop over whichever rows an
 HTTP handler happens to see. The successful CAS to `canceling` establishes that
@@ -964,28 +977,52 @@ already performs better.
 
 ## 14. Durable Human Requests
 
-Approval and missing information are future durable request types, not blocking
-Agent calls and not boolean columns on NodeRun.
+A Workflow waits on a person through a durable request, never a blocking Agent
+call and never a boolean column on NodeRun. Two node situations open one:
 
-A WorkflowRequest owns:
+- a `human_input` node, which runs no Agent: when ready it opens a request of
+  kind `input` whose prompt is its instruction with its bindings rendered in,
+  and whose answer, validated against the node's `output_schema` (free text
+  when it declares none), becomes the node's output envelope — the text, and the
+  structured value when a schema is declared; and
+- an `agent_task` attempt that ends on AskUser questions (the deferred form in
+  [Agent questions](agent-user-questions.md)): it opens a request of kind
+  `question` carrying the question set and the asking TaskRun, and the answer
+  continues the node's Task — the same attempt, a new TaskRun admitted under the
+  run lock with the request's key — so the session restore puts question and
+  answer before the model.
 
-- Space, WorkflowRun, and NodeRun identity;
-- request type and typed request payload;
-- allowed response schema;
-- requester and eligible responder roles or identities;
-- `pending`, `answered`, `expired`, or `canceled` state;
-- expiration and response actor/time;
-- response payload and audit correlation; and
-- one idempotency key for the response.
+A WorkflowRequest owns its run, node run, kind, prompt or questions, response
+schema, asking TaskRun, `pending`/`answered`/`declined`/`expired`/`canceled`
+state, expiry, response, responder, and time. `(workflow_run_id, request_key)`
+is unique, so a repeated open returns the one request; opening it and moving
+its node to `waiting` commit together under the run lock stop intent takes.
+Resolving it is a compare-and-set from `pending`, so the first response wins,
+and an answer after `expires_at` is refused.
 
-A node with an outstanding request is `waiting`; the run is `waiting` when no
-other work is active. It consumes no worker. A response transaction records the
-answer and wakes reconciliation. Repeated or unauthorized answers cannot resume
-two paths.
+**Who may respond.** The earlier plan waited for Space governance to own
+approvals, but [space governance §6](space-governance.md) puts approval
+workflows out of scope, so that gate could never open. A request is answered
+under the one rule already governing the run: anyone who may run the Space's
+Workflows (`ActionRunWorkflow`) may answer or decline it, and the audit log
+records who did. Delegation, escalation, and per-request responder lists stay
+out until governance demand defines them.
 
-This must integrate with the Space governance approval model when that model is
-designed. Workflow must not pre-empt delegation, role, expiry, escalation, and
-audit semantics with an isolated approval feature.
+**Decline and expiry.** Declining records a reason and fails the node, so the
+run stops fail-fast — this is how an approval is refused; a Yes/No answer is a
+value the next step reads. A `human_input` node's `policy.timeout_seconds` sets
+the request's expiry, after which the reconciler marks it `expired` and fails
+the node the same way; no expiry means the request waits as long as the run
+does, bounded by the run deadline. An asking node's per-attempt timeout pauses
+while it waits: a person's time to answer is not the Agent's time to work.
+
+**Waking.** An answer reconciles the run at once. A run with a waiting node
+also schedules a pass at the request's expiry, and at most five minutes out as
+a recovery bound for a lost wake-up, rather than being swept on every due-run
+interval for as long as nobody answers.
+
+A Workflow-owned Task still cannot be continued or retried directly (§5); its
+questions are answered through its request.
 
 ## 15. Service, API, And Store Contracts
 
@@ -1163,8 +1200,8 @@ claim a transition that did not commit.
 
 ### 16.6 `workflow_request`
 
-This table is added only with durable human requests. Its target contract is in
-section 14; it is not required for the static graph slices.
+Implemented with durable human requests; the contract is §14 and the columns
+are in the [data model](../contribute/architecture/data-model.md).
 
 ## 17. Portal And Operational Experience
 
@@ -1345,8 +1382,8 @@ interpreters or preserve stale table shapes as a compatibility layer.
 ### Phase 4: Bounded Policy And Typed Decisions
 
 - **Shipped cancellation slice:** node failure/cancellation drains sibling
-  TaskRuns with durable stop intent and atomic admission/linkage. Workflow-level
-  cancel actions remain open.
+  TaskRuns with durable stop intent and atomic admission/linkage.
+- **Shipped:** the Workflow-level cancel command (§12.4).
 - **Shipped:** Workflow-owned retry and node/run timeouts (§12.2, §12.3).
 - Consume the shipped provider-neutral structured Agent output in typed routes
   and decision nodes.
@@ -1355,7 +1392,9 @@ interpreters or preserve stale table shapes as a compatibility layer.
 
 ### Phase 5: Evidence-Gated Adaptation
 
-- Add durable external requests after Space governance owns them.
+- **Shipped:** durable human requests (§14) — `human_input` nodes and Agent
+  questions — without waiting on Space governance, whose §6 keeps approval
+  workflows out of scope.
 - Add bounded planner/map expansion.
 - Add bounded evaluator iteration.
 - Add nested Workflow templates only if reuse evidence requires them.

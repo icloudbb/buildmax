@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import type { Agent } from "../../lib/types"
 import {
+  HUMAN_INPUT_STEP_TYPE,
+  newHumanStep,
   newStep,
   normalizeNeeds,
   parseDefinition,
@@ -160,6 +162,26 @@ describe("stepsToDefinition / parseDefinition", () => {
     const wire = stepsToDefinition([step({ outputSchema: JSON.stringify(outputSchema) })])
     expect(JSON.parse(wire).nodes[0].output_schema).toEqual(outputSchema)
     expect(JSON.parse(parseDefinition(wire)!.steps[0].outputSchema!)).toEqual(outputSchema)
+  })
+})
+
+describe("input steps", () => {
+  const agents = [agent("a_1")]
+  it("serialize without an agent and round-trip their answer schema", () => {
+    const human = { ...newHumanStep(), id: "approve", outputSchema: JSON.stringify({ type: "boolean" }), timeoutSeconds: 3600 }
+    const node = JSON.parse(stepsToDefinition([human])).nodes[0]
+    expect(node.type).toBe(HUMAN_INPUT_STEP_TYPE)
+    expect(node.agent).toBeUndefined()
+    expect(node.output_schema).toEqual({ type: "boolean" })
+    expect(node.policy).toEqual({ timeout_seconds: 3600 })
+    expect(validateSteps([human], agents)).toEqual([])
+  })
+
+  it("refuse an agent, retries, or Issue access", () => {
+    const human = { ...newHumanStep(), id: "h" }
+    expect(validateSteps([{ ...human, targetAgentId: "a_1" }], agents)).toHaveLength(1)
+    expect(validateSteps([{ ...human, maxAttempts: 2 }], agents)).toHaveLength(1)
+    expect(validateSteps([{ ...human, issueAccess: "if_bound" }], agents)).toHaveLength(1)
   })
 })
 

@@ -63,6 +63,11 @@ issue. Build it on the **Definition** tab in the visual graph editor:
   empty for one attempt with no timeout. Only allow more than one attempt for a
   step that is safe to repeat: an attempt may already have changed something
   before it failed.
+- **Add input step** adds a step a person answers instead of an Agent. Write the
+  question, choose whether the answer is **Free text** or **Yes or no**, and
+  optionally when it **Expires**. Its inputs from earlier steps are shown to
+  the person with the question, and the answer is the step's output, so a later
+  step can bind it.
 - **Edit raw JSON** shows the same definition for exact inspection and for
   fields the visual editor does not yet author, including `input_schema`,
   `result`, and a node's `output_schema`. **Visual editor** returns to the
@@ -109,6 +114,20 @@ doubling each time up to 10 minutes). The step shows which attempt it is on,
 and the Task keeps every attempt's run. Canceling a step's Task is never
 retried. When a run passes its **Run timeout**, it starts no more steps and
 ends as **Failed** once its running steps stop.
+
+### Answer what a run is waiting on
+
+A run shows **Waiting for input** on a step that needs a person: an input step,
+or an Agent step whose Agent asked a question it could not decide. The run holds
+no worker while it waits. The **Waiting for input** list on the Workflows page
+shows every such request in the space; open one to reach its run, where the
+question and its answer controls sit at the top. Anyone who can run the space's
+workflows can answer; the first answer counts. An answer to an Agent's question
+continues that step's Task. **Decline** fails the step with your reason and
+stops the run, and so does letting a request expire.
+
+**Cancel run** stops a run you no longer want: no further step starts, open
+questions close, and running steps are asked to stop.
 
 ## Schedule an agent
 

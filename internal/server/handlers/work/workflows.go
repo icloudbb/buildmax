@@ -1,6 +1,7 @@
 package work
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -103,6 +104,65 @@ type workflowRunListResponse struct {
 type workflowRunDetailResponse struct {
 	Run   workflowRunResponse       `json:"run"`
 	Steps []workflowNodeRunResponse `json:"steps"`
+	// Requests are the durable requests the run has waited on, oldest first.
+	Requests []workflowRequestResponse `json:"requests"`
+}
+
+type workflowRequestResponse struct {
+	ID             string          `json:"id"`
+	WorkflowRunID  string          `json:"workflow_run_id"`
+	NodeRunID      string          `json:"node_run_id"`
+	NodeID         string          `json:"node_id"`
+	Kind           string          `json:"kind"`
+	Prompt         string          `json:"prompt,omitempty"`
+	Questions      json.RawMessage `json:"questions,omitempty"`
+	ResponseSchema json.RawMessage `json:"response_schema,omitempty"`
+	TaskRunID      *string         `json:"task_run_id,omitempty"`
+	Status         string          `json:"status"`
+	ExpiresAt      *time.Time      `json:"expires_at,omitempty"`
+	Response       json.RawMessage `json:"response,omitempty"`
+	RespondedBy    *string         `json:"responded_by,omitempty"`
+	RespondedAt    *time.Time      `json:"responded_at,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+}
+
+type workflowRequestListResponse struct {
+	Requests []workflowRequestResponse `json:"requests"`
+	Total    int                       `json:"total"`
+}
+
+type respondWorkflowRequestRequest struct {
+	Action   string          `json:"action"`
+	Response json.RawMessage `json:"response,omitempty"`
+	Reason   string          `json:"reason,omitempty"`
+}
+
+func workflowRequestToResponse(req coreworkflow.Request) workflowRequestResponse {
+	return workflowRequestResponse{
+		ID:             req.ID,
+		WorkflowRunID:  req.WorkflowRunID,
+		NodeRunID:      req.NodeRunID,
+		NodeID:         req.NodeID,
+		Kind:           req.Kind,
+		Prompt:         req.Prompt,
+		Questions:      rawJSONOrNil(req.Questions),
+		ResponseSchema: rawJSONOrNil(req.ResponseSchema),
+		TaskRunID:      req.TaskRunID,
+		Status:         req.Status,
+		ExpiresAt:      req.ExpiresAt,
+		Response:       rawJSONOrNil(req.Response),
+		RespondedBy:    req.RespondedBy,
+		RespondedAt:    req.RespondedAt,
+		CreatedAt:      req.CreatedAt,
+	}
+}
+
+func workflowRequestsToResponse(reqs []coreworkflow.Request) []workflowRequestResponse {
+	out := make([]workflowRequestResponse, len(reqs))
+	for i := range reqs {
+		out[i] = workflowRequestToResponse(reqs[i])
+	}
+	return out
 }
 
 type createWorkflowRequest struct {
@@ -217,19 +277,21 @@ func (h *Handler) workflowService() *workflow.Service {
 }
 
 func newWorkflowService(cfg Config, tasks *task.Service) *workflow.Service {
-	return &workflow.Service{
+	svc := &workflow.Service{
 		Workflows:   cfg.Workflows,
 		Agents:      cfg.Agents,
 		Issues:      cfg.Issues,
 		TaskService: tasks,
 		TaskRuns:    tasks.TaskRuns,
-		// Artifacts is left nil here: this service dispatches only the run's first
-		// step from the HTTP path, and a first step has no predecessor to bind a
-		// node output or Artifact from. Reconciliation of later steps -- which can
-		// bind Artifacts -- runs on the terminal-callback and recovery services,
-		// which are wired with the artifact store.
-		Audit: cfg.Audit,
+		Audit:       cfg.Audit,
 	}
+	// Answering a request or canceling reconciles from this path, and the pass
+	// an answer triggers may dispatch a later step that binds a predecessor's
+	// Artifacts, so this service reads them like the recovery service does.
+	if cfg.Artifacts != nil && cfg.Artifacts.Artifacts != nil {
+		svc.Artifacts = cfg.Artifacts.Artifacts
+	}
+	return svc
 }
 
 func (h *Handler) writeWorkflowSvcError(w http.ResponseWriter, err error) bool {
@@ -485,7 +547,102 @@ func (h *Handler) getWorkflowRunHandler(w http.ResponseWriter, r *http.Request) 
 	for i := range steps {
 		stepOut[i] = workflowNodeRunToResponse(steps[i])
 	}
-	httputil.WriteJSON(w, http.StatusOK, workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut})
+	requests, err := h.workflowService().ListWorkflowRunRequests(r.Context(), spaceID, runID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "get_workflow_run", "space_id", spaceID, "workflow_run_id", runID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut, Requests: workflowRequestsToResponse(requests)})
+}
+
+// workflowRunDetail renders a just-started run. A request a root human_input
+// node opened at start is part of it; failing to read requests leaves them out
+// rather than failing a run that already started.
+func (h *Handler) workflowRunDetail(ctx context.Context, spaceID string, run *coreworkflow.Run, steps []coreworkflow.NodeRun) workflowRunDetailResponse {
+	stepOut := make([]workflowNodeRunResponse, len(steps))
+	for i := range steps {
+		stepOut[i] = workflowNodeRunToResponse(steps[i])
+	}
+	requests, err := h.workflowService().ListWorkflowRunRequests(ctx, spaceID, run.ID)
+	if err != nil {
+		requests = nil
+	}
+	return workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut, Requests: workflowRequestsToResponse(requests)}
+}
+
+// cancelWorkflowRunHandler stops a run: no step starts, open requests close,
+// and active steps are asked to stop before the run ends canceled.
+func (h *Handler) cancelWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
+	if !ok {
+		return
+	}
+	if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionRunWorkflow); !ok {
+		return
+	}
+	runID, ok := httputil.PathValue(w, r, "workflow_run_id")
+	if !ok {
+		return
+	}
+	run, err := h.workflowService().CancelWorkflowRun(r.Context(), spaceID, userID, runID)
+	if err != nil {
+		if h.writeWorkflowSvcError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_workflow_run", "space_id", spaceID, "workflow_run_id", runID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, workflowRunToResponse(*run))
+}
+
+// listWorkflowRequestsHandler lists the space's requests waiting on a person.
+func (h *Handler) listWorkflowRequestsHandler(w http.ResponseWriter, r *http.Request) {
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
+	if !ok {
+		return
+	}
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
+	requests, total, err := h.workflowService().ListPendingRequests(r.Context(), spaceID, limit, offset)
+	if err != nil {
+		if h.writeWorkflowSvcError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_workflow_requests", "space_id", spaceID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, workflowRequestListResponse{Requests: workflowRequestsToResponse(requests), Total: total})
+}
+
+// respondWorkflowRequestHandler answers or declines a pending request. Anyone
+// who may run the space's workflows may respond; the first response wins.
+func (h *Handler) respondWorkflowRequestHandler(w http.ResponseWriter, r *http.Request) {
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Workflows, "workflows not configured")
+	if !ok {
+		return
+	}
+	if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionRunWorkflow); !ok {
+		return
+	}
+	requestID, ok := httputil.PathValue(w, r, "request_id")
+	if !ok {
+		return
+	}
+	var body respondWorkflowRequestRequest
+	if !httputil.DecodeJSONBody(w, r, &body) {
+		return
+	}
+	req, err := h.workflowService().RespondToRequest(r.Context(), workflow.RespondToRequestCmd{
+		SpaceID: spaceID, UserID: userID, RequestID: requestID,
+		Action: body.Action, Response: body.Response, Reason: body.Reason,
+	})
+	if err != nil {
+		if h.writeWorkflowSvcError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "respond_workflow_request", "space_id", spaceID, "request_id", requestID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, workflowRequestToResponse(*req))
 }
 
 func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
@@ -520,11 +677,7 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_workflow_run", "space_id", spaceID, "workflow_id", workflowID)
 		return
 	}
-	stepOut := make([]workflowNodeRunResponse, len(steps))
-	for i := range steps {
-		stepOut[i] = workflowNodeRunToResponse(steps[i])
-	}
-	httputil.WriteJSON(w, http.StatusCreated, workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut})
+	httputil.WriteJSON(w, http.StatusCreated, h.workflowRunDetail(r.Context(), spaceID, run, steps))
 }
 
 func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
@@ -568,9 +721,5 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_workflow_run", "space_id", spaceID, "issue_id", issueID)
 		return
 	}
-	stepOut := make([]workflowNodeRunResponse, len(steps))
-	for i := range steps {
-		stepOut[i] = workflowNodeRunToResponse(steps[i])
-	}
-	httputil.WriteJSON(w, http.StatusCreated, workflowRunDetailResponse{Run: workflowRunToResponse(*run), Steps: stepOut})
+	httputil.WriteJSON(w, http.StatusCreated, h.workflowRunDetail(r.Context(), spaceID, run, steps))
 }

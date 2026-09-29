@@ -1056,8 +1056,8 @@ func (s *Store) BeginWorkflowRunDrain(ctx context.Context, in coreworkflow.Begin
 }
 
 // stopPendingNodesTx ends every node that has no active TaskRun once stop
-// intent commits: pending nodes can never start (blocked) and retry_wait nodes
-// get no further attempt (canceled). The status filters make these guarded
+// intent commits: pending nodes can never start (blocked), and retry_wait and
+// waiting nodes get no further attempt or answer (canceled). The status filters make these guarded
 // bulk transitions.
 func stopPendingNodesTx(tx *gorm.DB, runKey uint64) error {
 	if err := tx.Model(&workflowNodeRunRow{}).
@@ -1065,13 +1065,20 @@ func stopPendingNodesTx(tx *gorm.DB, runKey uint64) error {
 		Update("status", string(coreworkflow.NodeRunStatusBlocked)).Error; err != nil {
 		return err
 	}
-	return tx.Model(&workflowNodeRunRow{}).
-		Where("workflow_run_id = ? AND status = ?", runKey, string(coreworkflow.NodeRunStatusRetryWait)).
+	if err := tx.Model(&workflowNodeRunRow{}).
+		Where("workflow_run_id = ? AND status IN ?", runKey, []string{
+			string(coreworkflow.NodeRunStatusRetryWait), string(coreworkflow.NodeRunStatusWaiting)}).
 		Updates(map[string]interface{}{
 			"status":          string(coreworkflow.NodeRunStatusCanceled),
 			"next_attempt_at": nil,
 			"ended_at":        time.Now().UTC(),
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+	// Nobody may answer a request whose run has stopped.
+	return tx.Model(&workflowRequestRow{}).
+		Where("workflow_run_id = ? AND status = ?", runKey, coreworkflow.RequestStatusPending).
+		Update("status", coreworkflow.RequestStatusCanceled).Error
 }
 
 // StopWorkflowRun commits run-level stop intent under the same run lock Task

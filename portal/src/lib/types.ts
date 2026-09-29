@@ -1,3 +1,4 @@
+import type { Question } from "@buildmax/gui"
 // --- Entity types ---
 
 /** Space-owned Agent execution thread. Backend: Task. */
@@ -228,7 +229,7 @@ export interface WorkflowNodeRun {
   agentDescription?: string | null
   agentInstructions?: string | null
   prompt: string
-  status: "pending" | "running" | "retry_wait" | "succeeded" | "failed" | "canceled" | "blocked"
+  status: "pending" | "running" | "retry_wait" | "waiting" | "succeeded" | "failed" | "canceled" | "blocked"
   /** Attempts admitted so far (0 before dispatch) and the node's budget. */
   attempt: number
   maxAttempts: number
@@ -244,6 +245,26 @@ export interface WorkflowNodeRun {
   createdAt: string
   startedAt?: string | null
   endedAt?: string | null
+}
+
+/** A durable request a workflow run waits on: a human_input step's question
+ *  (kind "input") or questions a step's Agent asked (kind "question"). */
+export interface WorkflowRequest {
+  id: string
+  workflowRunId: string
+  nodeRunId: string
+  nodeId: string
+  kind: string
+  prompt: string
+  questions: Question[]
+  /** The JSON Schema an answer must satisfy; null means free text. */
+  responseSchema: unknown | null
+  status: "pending" | "answered" | "declined" | "expired" | "canceled" | string
+  expiresAt?: string | null
+  response?: unknown
+  respondedBy?: string | null
+  respondedAt?: string | null
+  createdAt: string
 }
 
 export interface IssueFlowRun {

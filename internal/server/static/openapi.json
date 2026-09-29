@@ -821,7 +821,7 @@
           "agent_instructions": {"type": "string"},
           "agent_revision": {"type": "integer"},
           "prompt": {"type": "string"},
-          "status": {"type": "string", "enum": ["pending", "running", "retry_wait", "succeeded", "failed", "canceled", "blocked"]},
+          "status": {"type": "string", "enum": ["pending", "running", "retry_wait", "waiting", "succeeded", "failed", "canceled", "blocked"]},
           "attempt": {"type": "integer", "description": "Attempts admitted so far; 0 before dispatch. task_run_id is always the latest attempt's run."},
           "max_attempts": {"type": "integer", "description": "The node's attempt budget, first attempt included."},
           "timeout_seconds": {"type": "integer", "description": "Per-attempt timeout; absent when the node has none."},
@@ -848,6 +848,27 @@
           "max_attempts",
           "created_at"
         ]
+      },
+      "WorkflowRequest": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "workflow_run_id": {"type": "string"},
+          "node_run_id": {"type": "string"},
+          "node_id": {"type": "string"},
+          "kind": {"type": "string", "enum": ["input", "question"]},
+          "prompt": {"type": "string", "description": "What a human_input step asks, with its bound values."},
+          "questions": {"type": "array", "items": {"type": "object"}, "description": "The questions a step's Agent asked, for kind question."},
+          "response_schema": {"type": "object", "description": "The JSON Schema an answer must satisfy; absent means free text."},
+          "task_run_id": {"type": "string", "description": "The attempt that asked, for kind question."},
+          "status": {"type": "string", "enum": ["pending", "answered", "declined", "expired", "canceled"]},
+          "expires_at": {"type": "string", "format": "date-time"},
+          "response": {"description": "The answer, or a decline's reason as a string."},
+          "responded_by": {"type": "string"},
+          "responded_at": {"type": "string", "format": "date-time"},
+          "created_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "workflow_run_id", "node_run_id", "node_id", "kind", "status", "created_at"]
       },
       "AgentRevision": {
         "type": "object",
@@ -4213,7 +4234,8 @@
                   "type": "object",
                   "properties": {
                     "run": {"$ref": "#/components/schemas/WorkflowRun"},
-                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}}
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}},
+                    "requests": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowRequest"}}
                   }
                 }
               }
@@ -4511,7 +4533,8 @@
                   "type": "object",
                   "properties": {
                     "run": {"$ref": "#/components/schemas/WorkflowRun"},
-                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}}
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}},
+                    "requests": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowRequest"}}
                   }
                 }
               }
@@ -4543,7 +4566,8 @@
                   "type": "object",
                   "properties": {
                     "run": {"$ref": "#/components/schemas/WorkflowRun"},
-                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}}
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowNodeRun"}},
+                    "requests": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowRequest"}}
                   }
                 }
               }
@@ -4553,6 +4577,66 @@
             "description": "Run not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/workflow-runs/{workflow_run_id}/cancel": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Cancel a workflow run",
+        "description": "Records stop intent: no step starts, open requests are canceled, and active steps are asked to stop. The run answers canceling and becomes canceled once its active TaskRuns end. Canceling a canceling run is a no-op. Takes no body.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "workflow_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {"description": "The run after the cancel", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowRun"}}}},
+          "403": {"description": "The caller may not run this space's workflows", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "Run not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "The run already finished, or is stopping after a failure", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
+    "/api/spaces/{space_id}/workflow-requests": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List the space's pending workflow requests",
+        "description": "Requests a workflow run is waiting on a person to answer: human_input steps and questions a step's Agent asked. Oldest first.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "limit", "in": "query", "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"type": "object", "properties": {
+              "requests": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowRequest"}},
+              "total": {"type": "integer"}
+            }, "required": ["requests", "total"]}}}
+          }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/workflow-requests/{request_id}/respond": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Answer or decline a pending workflow request",
+        "description": "An answer's response must satisfy the request's response_schema, or be a non-empty JSON string when it has none. A decline fails the step with the reason. The first response wins; the run advances at once.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "request_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "properties": {
+            "action": {"type": "string", "enum": ["answer", "decline"]},
+            "response": {"description": "The answer, for action answer."},
+            "reason": {"type": "string", "description": "Why, for action decline."}
+          }, "required": ["action"]}}}
+        },
+        "responses": {
+          "200": {"description": "The resolved request", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowRequest"}}}},
+          "400": {"description": "Invalid action or response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "403": {"description": "The caller may not run this space's workflows", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "Request not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "Already answered, declined, expired, or canceled", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
         }
       }
     },

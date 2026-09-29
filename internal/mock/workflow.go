@@ -16,6 +16,9 @@ type MockWorkflowStore struct {
 	Revisions []coreworkflow.Revision
 	Runs      []coreworkflow.Run
 	NodeRuns  []coreworkflow.NodeRun
+	Requests  []coreworkflow.Request
+	// requestKeys maps run id + key to the request it opened.
+	requestKeys map[string]string
 }
 
 func (m *MockWorkflowStore) appendRevision(w *coreworkflow.Workflow, createdBy string) {
@@ -232,6 +235,7 @@ func (m *MockWorkflowStore) CreateWorkflowNodeRuns(_ context.Context, workflowRu
 			AgentRevision:     steps[i].AgentRevision,
 			Prompt:            steps[i].Prompt,
 			Bindings:          steps[i].Bindings,
+			OutputSchema:      steps[i].OutputSchema,
 			MaxAttempts:       max(steps[i].MaxAttempts, 1),
 			TimeoutSeconds:    steps[i].TimeoutSeconds,
 			Status:            steps[i].Status,
@@ -312,6 +316,13 @@ func (m *MockWorkflowStore) TransitionWorkflowNodeRun(_ context.Context, in core
 				m.NodeRuns[i].Output = nil
 			} else {
 				m.NodeRuns[i].Output = in.Output
+			}
+		}
+		if in.Structured != nil {
+			if *in.Structured == "" {
+				m.NodeRuns[i].Structured = nil
+			} else {
+				m.NodeRuns[i].Structured = in.Structured
 			}
 		}
 		if in.ErrorMessage != nil {
@@ -418,6 +429,7 @@ func (m *MockWorkflowStore) BeginWorkflowRunDrain(_ context.Context, in corework
 // stopPendingNodes mirrors the store: pending nodes become blocked and
 // retry_wait nodes canceled once stop intent commits.
 func (m *MockWorkflowStore) stopPendingNodes(workflowRunID string) {
+	m.cancelPendingRequests(workflowRunID)
 	now := time.Now().UTC()
 	for i := range m.NodeRuns {
 		if m.NodeRuns[i].WorkflowRunID != workflowRunID {
@@ -426,12 +438,133 @@ func (m *MockWorkflowStore) stopPendingNodes(workflowRunID string) {
 		switch m.NodeRuns[i].Status {
 		case string(coreworkflow.NodeRunStatusPending):
 			m.NodeRuns[i].Status = string(coreworkflow.NodeRunStatusBlocked)
-		case string(coreworkflow.NodeRunStatusRetryWait):
+		case string(coreworkflow.NodeRunStatusRetryWait), string(coreworkflow.NodeRunStatusWaiting):
 			m.NodeRuns[i].Status = string(coreworkflow.NodeRunStatusCanceled)
 			m.NodeRuns[i].NextAttemptAt = nil
 			m.NodeRuns[i].EndedAt = &now
 		}
 	}
+}
+
+func (m *MockWorkflowStore) cancelPendingRequests(workflowRunID string) {
+	for i := range m.Requests {
+		if m.Requests[i].WorkflowRunID == workflowRunID && m.Requests[i].Status == coreworkflow.RequestStatusPending {
+			m.Requests[i].Status = coreworkflow.RequestStatusCanceled
+		}
+	}
+}
+
+func (m *MockWorkflowStore) OpenWorkflowRequest(_ context.Context, in coreworkflow.OpenRequestInput) (*coreworkflow.Request, bool, error) {
+	if !coreworkflow.ValidNodeRunTransition(in.NodeExpected, coreworkflow.NodeRunStatusWaiting) {
+		return nil, false, coreworkflow.ErrInvalidNodeRunTransition
+	}
+	if id, ok := m.requestKeys[in.WorkflowRunID+"\x00"+in.Key]; ok {
+		req, err := m.GetWorkflowRequest(context.Background(), id)
+		return req, true, err
+	}
+	run, _ := m.GetWorkflowRun(context.Background(), in.WorkflowRunID)
+	if run == nil || run.Status != string(coreworkflow.RunStatusRunning) {
+		return nil, false, nil
+	}
+	for i := range m.NodeRuns {
+		node := &m.NodeRuns[i]
+		if node.ID != in.NodeRunID || node.WorkflowRunID != in.WorkflowRunID {
+			continue
+		}
+		if node.Status != string(in.NodeExpected) {
+			return nil, false, nil
+		}
+		node.Status = string(coreworkflow.NodeRunStatusWaiting)
+		node.DeadlineAt = nil
+		if in.ResolvedInput != nil {
+			node.ResolvedInput = in.ResolvedInput
+		}
+		if node.StartedAt == nil {
+			now := in.Now
+			node.StartedAt = &now
+		}
+		req := coreworkflow.Request{
+			ID: fmt.Sprintf("wrq_mock_%d", len(m.Requests)+1), WorkflowRunID: in.WorkflowRunID, NodeRunID: node.ID,
+			NodeID: node.NodeID, Kind: in.Kind, Prompt: in.Prompt, Questions: in.Questions,
+			ResponseSchema: in.ResponseSchema, TaskRunID: in.TaskRunID, Status: coreworkflow.RequestStatusPending,
+			ExpiresAt: in.ExpiresAt, CreatedAt: in.Now,
+		}
+		m.Requests = append(m.Requests, req)
+		if m.requestKeys == nil {
+			m.requestKeys = map[string]string{}
+		}
+		m.requestKeys[in.WorkflowRunID+"\x00"+in.Key] = req.ID
+		return &m.Requests[len(m.Requests)-1], true, nil
+	}
+	return nil, false, nil
+}
+
+func (m *MockWorkflowStore) ResolveWorkflowRequest(_ context.Context, in coreworkflow.ResolveRequestInput) (bool, error) {
+	for i := range m.Requests {
+		req := &m.Requests[i]
+		if req.ID != in.RequestID {
+			continue
+		}
+		if req.Status != coreworkflow.RequestStatusPending {
+			return false, nil
+		}
+		expired := req.ExpiresAt != nil && !in.Now.Before(*req.ExpiresAt)
+		if (in.Status == coreworkflow.RequestStatusExpired) != expired {
+			return false, nil
+		}
+		req.Status = in.Status
+		if in.Status != coreworkflow.RequestStatusExpired {
+			now := in.Now
+			req.Response, req.RespondedBy, req.RespondedAt = in.Response, in.RespondedBy, &now
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func (m *MockWorkflowStore) GetWorkflowRequest(_ context.Context, requestID string) (*coreworkflow.Request, error) {
+	for i := range m.Requests {
+		if m.Requests[i].ID == requestID {
+			return &m.Requests[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockWorkflowStore) ListWorkflowRequestsByRun(_ context.Context, workflowRunID string) ([]coreworkflow.Request, error) {
+	var out []coreworkflow.Request
+	for _, req := range m.Requests {
+		if req.WorkflowRunID == workflowRunID {
+			out = append(out, req)
+		}
+	}
+	return out, nil
+}
+
+func (m *MockWorkflowStore) ListPendingWorkflowRequestsBySpace(_ context.Context, spaceID string, limit, offset int) ([]coreworkflow.Request, int, error) {
+	var out []coreworkflow.Request
+	for _, req := range m.Requests {
+		if req.Status != coreworkflow.RequestStatusPending {
+			continue
+		}
+		run, _ := m.GetWorkflowRun(context.Background(), req.WorkflowRunID)
+		if run == nil {
+			continue
+		}
+		wf, _ := m.GetWorkflow(context.Background(), run.WorkflowID)
+		if wf != nil && wf.SpaceID == spaceID {
+			out = append(out, req)
+		}
+	}
+	total := len(out)
+	if offset > len(out) {
+		offset = len(out)
+	}
+	out = out[offset:]
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
+	}
+	return out, total, nil
 }
 
 func (m *MockWorkflowStore) StopWorkflowRun(_ context.Context, in coreworkflow.StopRunInput) (bool, error) {

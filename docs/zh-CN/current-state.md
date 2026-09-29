@@ -402,9 +402,12 @@ Agent 不会改变已发布计划的运行内容。一次运行会一次性分�
 阻塞待执行节点、请求并行运行的兄弟节点取消，并在已接纳 TaskRun 进入终态后结束运行。节点可以选择最多五次尝试
 （`policy.max_attempts`）与按次尝试计算的超时（`policy.timeout_seconds`），定义可以选择作用于整个运行的超时：
 失败、超时或丢失 worker 的尝试会在 `retry_wait` 中等待一段持久化退避后在同一个 Task 上再次运行，超过截止时间的运行
-不再启动新工作，并在活跃尝试停止后失败。可视化编辑器可以编辑这两项，运行视图会显示每个节点的尝试次数与下次重试时间。节点可以通过 `output_schema` 约束结果，
-指针绑定可以把运行输入或前驱节点输出中选取的值传入某个节点的输入。定义契约仍没有类型化
-条件路由、人工审批或循环（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
+不再启动新工作，并在活跃尝试停止后失败。可视化编辑器可以编辑这两项，运行视图会显示每个节点的尝试次数与下次重试时间。运行还可以在不占用 worker 的情况下等待人：
+`human_input` 节点提出一个问题（自由文本、是/否或任意 `output_schema`），其回答就是节点输出；以 AskUser 问题结束的
+Agent 步骤会等到有人回答，然后继续它的 Task。任何可以运行该 Space Workflow 的人都可以在运行视图或 Workflows 页面的
+等待列表中回答或拒绝；拒绝或过期会让该步骤失败。人可以取消一个运行。节点可以通过 `output_schema` 约束结果，
+指针绑定可以把运行输入或前驱节点输出中选取的值传入某个节点的输入。`human_input` 节点会等待人的回答。定义契约仍没有类型化
+条件路由或循环（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
 
 Portal 与入站 webhook 执行已组装；webhook 回调发送器未组装进 Server。
 通过 `channels.telegram.bot_token` 配置的 Telegram 机器人，会把已链接用户的私聊送入

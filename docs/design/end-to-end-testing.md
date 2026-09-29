@@ -440,6 +440,15 @@ on the same Task recording `retry_of_task_run_id`. That is the retry claim of
 the terminal report, and the recovery loop together can prove: the backoff is
 waited out durably and the next attempt actually executes on a fresh worker.
 
+The Workflow-question case (`kindWorkflowQuestionProbe`) arms the mock to answer
+a step's first model call with an `AskUser` call. It asserts that the node waits
+on one pending question request, that answering it through the respond route
+finishes the run on the same Task and attempt, and that a later model call
+carries the question and the answer together. That last check is the one only
+a real worker can give: the continuation restored the step's session rather
+than starting over without the question it asked
+([Workflow runtime §14](workflow-runtime.md#14-durable-human-requests)).
+
 ### 6.4 Losing The Database
 
 The database-outage probe (`kindDBOutageProbe` in `tools/mk`) proves the

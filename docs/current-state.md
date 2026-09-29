@@ -66,6 +66,12 @@ timeout: a failed, timed-out, or worker-lost attempt waits out a durable backoff
 in `retry_wait` and runs again on the same Task, and a run past its deadline
 starts nothing new and fails once its active attempts stop. The visual editor
 authors both, and the run view shows each node's attempt and next retry.
+A run can also wait on people without holding a worker: a `human_input` node
+asks a question (free text, Yes/No, or any `output_schema`) and its answer is
+the node's output, and an Agent step that ends on AskUser questions waits until
+someone answers, then continues its Task. Anyone who may run the Space's
+Workflows answers or declines from the run view or the Workflows page's
+waiting list; declining or expiry fails the step. A person can cancel a run.
 Typed `/structured/...` routing remains open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
@@ -637,8 +643,8 @@ current revision), and a later run snapshots that pinned revision's content, so
 editing an Agent does not change what an already-published plan runs. A
 node can constrain its result with `output_schema`, and a pointer binding can
 pass a selected value from the run input or a predecessor node's output into a
-node's input. The definition contract still has no typed conditional routing,
-manual approval, or loops
+node's input. A `human_input` node waits for a person's answer. The definition
+contract still has no typed conditional routing or loops
 ([`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go)).
 
 Portal and inbound webhook execution are assembled; the webhook callback sender

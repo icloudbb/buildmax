@@ -342,3 +342,94 @@ test("a workflow binds one step's output into the next step's input", async ({ p
   const stepStatuses = steps.locator(".workflow-page__step .issues-page__status")
   await expect(stepStatuses).toHaveText(["Succeeded", "Succeeded"])
 })
+
+test("a run waits on an input step, and the answer in the run view lets it finish", async ({ page }) => {
+  test.setTimeout(RUN_TIMEOUT_MS + 60_000)
+  const current = await session(page)
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
+    name: tagged("Workflow input agent"),
+    description: "Created by the Portal browser tests.",
+    instructions: "Reply with exactly: deployment smoke ok",
+  })
+  const workflow = await postJSON<{ id: string }>(page, `${current.space}/workflows`, current, {
+    name: tagged("Workflow input probe"),
+    definition: JSON.stringify({
+      schema_version: 1,
+      nodes: [
+        { id: "approve", type: "human_input", input: { instruction: "Ship the report?" }, output_schema: { type: "boolean" } },
+        {
+          id: "ship",
+          type: "agent_task",
+          needs: ["approve"],
+          agent: { id: agent.id },
+          input: { instruction: "Reply with exactly: deployment smoke ok" },
+        },
+      ],
+    }),
+  })
+  await patchJSON(page, `${current.space}/workflows/${encodeURIComponent(workflow.id)}`, current, { status: "published" })
+  const started = await postJSON<{ run: { id: string }; requests: { status: string }[] }>(
+    page,
+    `${current.space}/workflows/${encodeURIComponent(workflow.id)}/runs`,
+    current,
+    {}
+  )
+  const runId = started.run.id
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`, `workflow ${workflow.id}`, `workflow run ${runId}`])
+  // The input step is a root, so its request opens as the run starts.
+  expect(started.requests.map((r) => r.status)).toEqual(["pending"])
+
+  // The Workflows page is where a waiting run is found without its link.
+  await page.goto(`/#/spaces/${current.spaceId}/workflows`)
+  const waiting = page.getByRole("region", { name: "Waiting for input" })
+  await expect(waiting.getByText("Ship the report?")).toBeVisible()
+  await waiting.getByRole("button", { name: /approve/ }).click()
+  await expect(page).toHaveURL(new RegExp(`workflow-runs/${runId}$`))
+
+  const request = page.getByRole("region", { name: "Request from step approve" })
+  await expect(request.getByText("Ship the report?")).toBeVisible()
+  await request.getByRole("button", { name: "Yes" }).click()
+  await expect(request).toHaveCount(0)
+
+  await expect
+    .poll(
+      async () => {
+        const res = await page.request.get(`${current.space}/workflow-runs/${encodeURIComponent(runId)}`, {
+          headers: { Authorization: `Bearer ${current.token}` },
+        })
+        const body = (await res.json()) as { run: { status: string } }
+        return body.run.status
+      },
+      { timeout: RUN_TIMEOUT_MS, intervals: [2000] }
+    )
+    .toBe("succeeded")
+  await page.reload()
+  await expect(page.getByText("Input answered: Yes")).toBeVisible()
+})
+
+test("a waiting run is canceled from its run view", async ({ page }) => {
+  const current = await session(page)
+  const workflow = await postJSON<{ id: string }>(page, `${current.space}/workflows`, current, {
+    name: tagged("Workflow cancel probe"),
+    definition: JSON.stringify({
+      schema_version: 1,
+      nodes: [{ id: "brief", type: "human_input", input: { instruction: "What should we research?" } }],
+    }),
+  })
+  await patchJSON(page, `${current.space}/workflows/${encodeURIComponent(workflow.id)}`, current, { status: "published" })
+  const started = await postJSON<{ run: { id: string } }>(
+    page,
+    `${current.space}/workflows/${encodeURIComponent(workflow.id)}/runs`,
+    current,
+    {}
+  )
+  reportLeftovers(current.spaceId, [`workflow ${workflow.id}`, `workflow run ${started.run.id}`])
+
+  await page.goto(`/#/spaces/${current.spaceId}/workflow-runs/${started.run.id}`)
+  await expect(page.getByRole("region", { name: "Request from step brief" })).toBeVisible()
+  await page.getByRole("button", { name: "Cancel run" }).click()
+  // Nothing was running, so the run is canceled at once and its request closes.
+  await expect(page.locator(".page-activity__subtitle")).toContainText("Canceled")
+  await expect(page.getByRole("region", { name: "Request from step brief" })).toHaveCount(0)
+  await expect(page.getByText("Input canceled")).toBeVisible()
+})

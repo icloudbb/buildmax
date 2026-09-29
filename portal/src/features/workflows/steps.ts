@@ -8,6 +8,13 @@ import type { Agent } from "../../lib/types"
  */
 export const AGENT_TASK_STEP_TYPE = "agent_task"
 
+/** A step a person completes: the run waits, holding no worker, until someone
+ *  answers its request, and the answer is the step's output. */
+export const HUMAN_INPUT_STEP_TYPE = "human_input"
+
+/** The output schema an approval step uses: a Yes/No answer. */
+export const YES_NO_SCHEMA = JSON.stringify({ type: "boolean" })
+
 /** The only workflow definition contract version the runtime accepts. The
  *  Portal always emits it so a published plan names the contract it targets;
  *  the server rejects any other value. */
@@ -165,6 +172,15 @@ export function newStep(agentId = ""): WorkflowStepDraft {
   }
 }
 
+export function newHumanStep(): WorkflowStepDraft {
+  return {
+    id: newStepId(),
+    type: HUMAN_INPUT_STEP_TYPE,
+    targetAgentId: "",
+    prompt: "What should the person decide or provide?",
+  }
+}
+
 /** Re-embeds a field carried as verbatim JSON text back into the definition as a
  *  JSON value. The text originated from a successful parse, so it re-parses; a
  *  value that somehow does not is omitted rather than emitted as a string. */
@@ -200,12 +216,14 @@ export function stepsToDefinition(steps: WorkflowStepDraft[], options: Definitio
         const needs = effectiveNeeds(steps, index)
         const outputSchemaValue = embedRawJSON(step.outputSchema)
         const nodePolicy = policyObject({ timeout_seconds: step.timeoutSeconds, max_attempts: step.maxAttempts })
+        const human = step.type === HUMAN_INPUT_STEP_TYPE
         return {
           id: step.id,
           type: step.type,
           ...(needs.length > 0 ? { needs } : {}),
           ...(step.issueAccess && step.issueAccess !== "none" ? { issue_access: step.issueAccess } : {}),
-          agent: { id: step.targetAgentId, ...(step.agentRevision ? { revision: step.agentRevision } : {}) },
+          // A person's step runs no Agent, so it names none.
+          ...(human ? {} : { agent: { id: step.targetAgentId, ...(step.agentRevision ? { revision: step.agentRevision } : {}) } }),
           input: {
             instruction: step.prompt,
             ...(step.bindings && step.bindings.length > 0
@@ -382,19 +400,30 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
         errors.push({ index, message: `Steps "${step.id}" and "${need}" depend on each other.` })
       }
     }
-    if (step.type !== AGENT_TASK_STEP_TYPE) {
+    if (step.type !== AGENT_TASK_STEP_TYPE && step.type !== HUMAN_INPUT_STEP_TYPE) {
       errors.push({
         index,
-        message: `"${step.type}" is not a step type the runtime supports yet -- only Agent steps are.`,
+        message: `"${step.type}" is not a step type the runtime supports -- only Agent and input steps are.`,
       })
     }
-    if (!step.targetAgentId) {
-      errors.push({ index, message: "Choose an agent for this step." })
-    } else if (!agents.some((agent) => agent.id === step.targetAgentId)) {
-      errors.push({ index, message: "The agent this step targets no longer exists." })
-    }
-    if (!step.prompt.trim()) {
-      errors.push({ index, message: "This step needs a prompt." })
+    if (step.type === HUMAN_INPUT_STEP_TYPE) {
+      if (step.targetAgentId) errors.push({ index, message: "An input step is answered by a person and names no agent." })
+      if (step.maxAttempts !== undefined && step.maxAttempts > 1) {
+        errors.push({ index, message: "An input step is answered once; it cannot retry." })
+      }
+      if (step.issueAccess && step.issueAccess !== "none") {
+        errors.push({ index, message: "An input step runs no Task, so it has no Issue access." })
+      }
+      if (!step.prompt.trim()) errors.push({ index, message: "This step needs a question for the person." })
+    } else {
+      if (!step.targetAgentId) {
+        errors.push({ index, message: "Choose an agent for this step." })
+      } else if (!agents.some((agent) => agent.id === step.targetAgentId)) {
+        errors.push({ index, message: "The agent this step targets no longer exists." })
+      }
+      if (!step.prompt.trim()) {
+        errors.push({ index, message: "This step needs a prompt." })
+      }
     }
     if (step.maxAttempts !== undefined && (!Number.isInteger(step.maxAttempts) || step.maxAttempts < 1 || step.maxAttempts > MAX_NODE_ATTEMPTS)) {
       errors.push({ index, message: `Attempts must be a whole number from 1 to ${MAX_NODE_ATTEMPTS}.` })

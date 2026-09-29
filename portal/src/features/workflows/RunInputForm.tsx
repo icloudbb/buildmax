@@ -5,6 +5,8 @@ interface RunInputFormProps {
   values: InputFormValues
   disabled?: boolean
   onChange: (name: string, value: string | boolean) => void
+  /** The form's heading; a run's input form is the default. */
+  title?: string
 }
 
 /**
@@ -14,11 +16,11 @@ interface RunInputFormProps {
  * assembled input against the full schema, so this form aims to be usable rather
  * than to re-implement schema validation.
  */
-export function WorkflowRunInputForm({ fields, values, disabled, onChange }: RunInputFormProps) {
+export function WorkflowRunInputForm({ fields, values, disabled, onChange, title = "Run input" }: RunInputFormProps) {
   if (fields.length === 0) return null
   return (
     <div className="workflow-run-input">
-      <h3 className="workflow-run-input__title">Run input</h3>
+      <h3 className="workflow-run-input__title">{title}</h3>
       {fields.map((field) => {
         const value = values[field.name]
         const label = (

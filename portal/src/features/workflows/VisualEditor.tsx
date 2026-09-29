@@ -17,7 +17,14 @@ import {
 import "@xyflow/react/dist/style.css"
 import { Button } from "@buildmax/gui"
 import type { Agent } from "../../lib/types"
-import { MAX_NODE_ATTEMPTS, nodeOutputSource, WORKFLOW_INPUT_SOURCE, type WorkflowStepDraft } from "./steps"
+import {
+  HUMAN_INPUT_STEP_TYPE,
+  MAX_NODE_ATTEMPTS,
+  nodeOutputSource,
+  WORKFLOW_INPUT_SOURCE,
+  YES_NO_SCHEMA,
+  type WorkflowStepDraft,
+} from "./steps"
 import type { WorkflowStepsState } from "./useWorkflowSteps"
 
 const ISSUE_ACCESS_OPTIONS = ["none", "if_bound", "required"]
@@ -194,7 +201,7 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
         draggable: !disabled,
         data: {
           label: step.id,
-          agentName: agentName.get(step.targetAgentId) ?? "",
+          agentName: step.type === HUMAN_INPUT_STEP_TYPE ? "Answered by a person" : (agentName.get(step.targetAgentId) ?? ""),
           prompt: step.prompt,
           issueAccess: step.issueAccess,
           maxAttempts: step.maxAttempts,
@@ -274,6 +281,18 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
             }}
           >
             Add step
+          </Button>
+        ) : null}
+        {!disabled ? (
+          <Button
+            variant="secondary"
+            size="compact"
+            onClick={() => {
+              const id = state.addStep("human")
+              setSelectedId(id)
+            }}
+          >
+            Add input step
           </Button>
         ) : null}
         <Button variant="tertiary" size="compact" onClick={() => setPositions({})}>
@@ -375,6 +394,7 @@ interface StepInspectorProps {
  *  depends on, matching the server rule. */
 function StepInspector({ state, agents, disabled, step, stepErrors, predecessors, allSteps, onRename }: StepInspectorProps) {
   const predecessorSteps = allSteps.filter((s) => predecessors.has(s.id))
+  const human = step.type === HUMAN_INPUT_STEP_TYPE
   const bindings = step.bindings ?? []
   // The id is edited as a local draft and committed on blur/Enter, so the step's
   // id (and thus this node's identity) changes once per rename rather than on
@@ -403,7 +423,7 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
   return (
     <div className="wf-inspector">
       <div className="wf-inspector__head">
-        <strong>Step</strong>
+        <strong>{human ? "Input step" : "Step"}</strong>
         {!disabled ? (
           <Button variant="danger" size="compact" disabled={allSteps.length === 1} onClick={() => state.removeStep(step.id)}>
             Remove
@@ -428,6 +448,10 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
         />
         {idError ? <span className="modal__error">{idError}</span> : null}
       </label>
+      {human ? (
+        <HumanStepFields state={state} step={step} disabled={disabled} />
+      ) : (
+        <>
       <label className="issues-page__field">
         <span className="issues-page__field-label">Agent</span>
         <select
@@ -504,6 +528,8 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
         A failed or timed-out attempt is retried after a backoff while attempts remain. Retry only steps that are
         safe to run again: an attempt may already have acted before it failed.
       </p>
+        </>
+      )}
       <div className="workflow-page__step-bindings">
         <span className="issues-page__field-label">Inputs from the workflow input and steps this one depends on</span>
         {bindings.map((binding, bindingIndex) => (
@@ -558,5 +584,60 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
         </p>
       ))}
     </div>
+  )
+}
+
+const FREE_TEXT = "free"
+const YES_NO = "yes_no"
+const CUSTOM = "custom"
+
+/** The fields of an input step: the question a person answers, what kind of
+ *  answer it takes, and how long it stays open. A custom answer schema is
+ *  authored in raw JSON and shown here as such, not rewritten. */
+function HumanStepFields({ state, step, disabled }: { state: WorkflowStepsState; step: WorkflowStepDraft; disabled: boolean }) {
+  const answerKind =
+    step.outputSchema === undefined ? FREE_TEXT : JSON.stringify(JSON.parse(step.outputSchema)) === YES_NO_SCHEMA ? YES_NO : CUSTOM
+  return (
+    <>
+      <label className="issues-page__field">
+        <span className="issues-page__field-label">Question for a person</span>
+        <textarea
+          className="issues-page__textarea"
+          rows={4}
+          value={step.prompt}
+          disabled={disabled}
+          onChange={(e) => state.changeStep(step.id, { prompt: e.target.value })}
+        />
+      </label>
+      <label className="issues-page__field">
+        <span className="issues-page__field-label">Answer</span>
+        <select
+          className="issues-page__input"
+          value={answerKind}
+          disabled={disabled || answerKind === CUSTOM}
+          onChange={(e) => state.changeStep(step.id, { outputSchema: e.target.value === YES_NO ? YES_NO_SCHEMA : undefined })}
+        >
+          <option value={FREE_TEXT}>Free text</option>
+          <option value={YES_NO}>Yes or no</option>
+          {answerKind === CUSTOM ? <option value={CUSTOM}>Custom schema (edit in raw JSON)</option> : null}
+        </select>
+      </label>
+      <label className="issues-page__field">
+        <span className="issues-page__field-label">Expires after (min)</span>
+        <input
+          className="issues-page__input"
+          type="number"
+          min={1}
+          placeholder="never"
+          value={secondsToMinutesInput(step.timeoutSeconds)}
+          disabled={disabled}
+          onChange={(e) => state.changeStep(step.id, { timeoutSeconds: minutesInputToSeconds(e.target.value) })}
+        />
+      </label>
+      <p className="page-activity__meta">
+        The run waits here, without holding a worker, until someone who can run this workflow answers. Declining,
+        or letting it expire, fails the step and stops the run.
+      </p>
+    </>
   )
 }

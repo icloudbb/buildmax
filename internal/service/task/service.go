@@ -34,6 +34,9 @@ var (
 	// succeeded and dispatch the next step of a workflow run that is already
 	// over.
 	ErrRetryOfWorkflowStep = apierr.New(apierr.KindConflict, "this run belongs to a workflow step and cannot be retried on its own")
+	// ErrContinueOfWorkflowStep is the same boundary for Continue: a step's
+	// questions are answered through its workflow run, which resumes the Task.
+	ErrContinueOfWorkflowStep = apierr.New(apierr.KindConflict, "this task belongs to a workflow step: answer or follow up from its workflow run")
 )
 
 // WorkflowStepLookup answers whether a task is a workflow step's task. It is
@@ -55,8 +58,8 @@ type Service struct {
 	TaskRuns       coretask.RunStore
 	QuotaChecker   QuotaChecker
 	TitleGenerator llm.TitleGenerator
-	// WorkflowSteps is only consulted by RetryRun. Callers that never retry
-	// leave it nil.
+	// WorkflowSteps is consulted by RetryRun and CreateRun to refuse running a
+	// workflow step's Task behind its workflow. Nil means nothing to protect.
 	WorkflowSteps WorkflowStepLookup
 }
 
@@ -239,6 +242,9 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*coretask.Ru
 	if target == nil {
 		return nil, ErrTaskNotFound
 	}
+	if err := s.refuseWorkflowStep(ctx, cmd.TaskID, ErrContinueOfWorkflowStep); err != nil {
+		return nil, err
+	}
 	if err := s.checkQuota(ctx, target.SpaceID, 0); err != nil {
 		return nil, err
 	}
@@ -298,7 +304,7 @@ func (s *Service) RetryRun(ctx context.Context, cmd RetryRunCmd) (*RetryResult, 
 	if target == nil {
 		return nil, ErrTaskNotFound
 	}
-	if err := s.refuseWorkflowStepRetry(ctx, cmd.TaskID); err != nil {
+	if err := s.refuseWorkflowStep(ctx, cmd.TaskID, ErrRetryOfWorkflowStep); err != nil {
 		return nil, err
 	}
 	// Ask about an in-flight run before looking for a finished one. The store
@@ -354,13 +360,54 @@ type WorkflowRetryCmd struct {
 // CreateRun does, so a retry is the same work run again. The attempt's
 // admission key makes a repeated call return the one run.
 func (s *Service) AdmitWorkflowRetryRun(ctx context.Context, cmd WorkflowRetryCmd) (*coretask.Run, error) {
+	return s.admitWorkflowNodeRun(ctx, cmd.UserID, cmd.Previous, coretask.CreateRunInput{
+		Input:             cmd.Previous.Input,
+		RetryOfTaskRunID:  &cmd.Previous.ID,
+		IdempotencyKey:    util.Ptr(coreworkflow.TaskRunAdmissionKey(cmd.WorkflowRunID, cmd.NodeID, cmd.Attempt)),
+		WorkflowNodeRunID: cmd.WorkflowNodeRunID,
+		WorkflowNodeFrom:  string(coreworkflow.NodeRunStatusRetryWait),
+		WorkflowAttempt:   cmd.Attempt,
+	})
+}
+
+// WorkflowAnswerCmd resumes a Workflow node whose attempt ended on questions.
+type WorkflowAnswerCmd struct {
+	UserID            string
+	WorkflowRunID     string
+	WorkflowNodeRunID string
+	NodeID            string
+	RequestID         string
+	// Attempt is the node's current attempt; an answer continues it.
+	Attempt int
+	// Asked is the run that ended on the questions; Answer continues its Task.
+	Asked  *coretask.Run
+	Answer string
+}
+
+// AdmitWorkflowAnswerRun continues the node's Task with the answer, the way a
+// person continuing a Task that asked does: the session restore puts the
+// questions and the answer before the model. The run keeps Asked's Agent
+// revision and sandbox tiers, and the request's key makes it idempotent.
+func (s *Service) AdmitWorkflowAnswerRun(ctx context.Context, cmd WorkflowAnswerCmd) (*coretask.Run, error) {
+	return s.admitWorkflowNodeRun(ctx, cmd.UserID, cmd.Asked, coretask.CreateRunInput{
+		Input:             cmd.Answer,
+		IdempotencyKey:    util.Ptr(coreworkflow.TaskAdmissionKey(cmd.WorkflowRunID, cmd.NodeID) + "/request/" + cmd.RequestID),
+		WorkflowNodeRunID: cmd.WorkflowNodeRunID,
+		WorkflowNodeFrom:  string(coreworkflow.NodeRunStatusWaiting),
+		WorkflowAttempt:   cmd.Attempt,
+	})
+}
+
+// admitWorkflowNodeRun creates a Workflow node's next run on the Task previous
+// ran on, pinned to previous's Agent revision and sandbox tiers.
+func (s *Service) admitWorkflowNodeRun(ctx context.Context, userID string, previous *coretask.Run, in coretask.CreateRunInput) (*coretask.Run, error) {
 	if s.TaskRuns == nil {
 		return nil, ErrTaskRunsNotConfigured
 	}
 	if s.Tasks == nil {
 		return nil, ErrTasksNotConfigured
 	}
-	target, err := s.Tasks.GetTask(ctx, cmd.Previous.TaskID)
+	target, err := s.Tasks.GetTask(ctx, previous.TaskID)
 	if err != nil {
 		return nil, err
 	}
@@ -370,24 +417,17 @@ func (s *Service) AdmitWorkflowRetryRun(ctx context.Context, cmd WorkflowRetryCm
 	if err := s.checkQuota(ctx, target.SpaceID, 0); err != nil {
 		return nil, err
 	}
-	key := coreworkflow.TaskRunAdmissionKey(cmd.WorkflowRunID, cmd.NodeID, cmd.Attempt)
-	return s.TaskRuns.CreateTaskRun(ctx, coretask.CreateRunInput{
-		TaskID:                cmd.Previous.TaskID,
-		Input:                 cmd.Previous.Input,
-		CreatedBy:             cmd.UserID,
-		CreatedByType:         coretask.RunCreatedByTypeUser,
-		TriggerSource:         coretask.RunTriggerSourceWorkflowStep,
-		RetryOfTaskRunID:      &cmd.Previous.ID,
-		AgentRevision:         cmd.Previous.AgentRevision,
-		SandboxNetworkTier:    cmd.Previous.SandboxNetworkTier,
-		SandboxFilesystemTier: cmd.Previous.SandboxFilesystemTier,
-		IdempotencyKey:        &key,
-		WorkflowNodeRunID:     cmd.WorkflowNodeRunID,
-		WorkflowAttempt:       cmd.Attempt,
-	})
+	in.TaskID = previous.TaskID
+	in.CreatedBy = userID
+	in.CreatedByType = coretask.RunCreatedByTypeUser
+	in.TriggerSource = coretask.RunTriggerSourceWorkflowStep
+	in.AgentRevision = previous.AgentRevision
+	in.SandboxNetworkTier = previous.SandboxNetworkTier
+	in.SandboxFilesystemTier = previous.SandboxFilesystemTier
+	return s.TaskRuns.CreateTaskRun(ctx, in)
 }
 
-func (s *Service) refuseWorkflowStepRetry(ctx context.Context, taskID string) error {
+func (s *Service) refuseWorkflowStep(ctx context.Context, taskID string, refusal error) error {
 	if s.WorkflowSteps == nil {
 		return nil
 	}
@@ -396,7 +436,7 @@ func (s *Service) refuseWorkflowStepRetry(ctx context.Context, taskID string) er
 		return err
 	}
 	if step != nil {
-		return ErrRetryOfWorkflowStep
+		return refusal
 	}
 	return nil
 }

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/core/apierr"
@@ -77,9 +78,10 @@ func (s *Store) admitWorkflowNodeTask(ctx context.Context, in *coretask.CreateIn
 	return result, err
 }
 
-// admitWorkflowNodeRetryRun creates a retry attempt's TaskRun and links it onto
-// its node under the run lock, for the same reason admitWorkflowNodeTask does:
-// an attempt admitted after stop intent would execute behind a canceled node.
+// admitWorkflowNodeRetryRun creates a node's next TaskRun -- a retry attempt or
+// an answered question's continuation -- and links it onto the node under the
+// run lock, for the same reason admitWorkflowNodeTask does: a run admitted
+// after stop intent would execute behind a canceled node.
 // Locks are taken run, node, then task -- the order first admission uses.
 func (s *Store) admitWorkflowNodeRetryRun(ctx context.Context, canonicalTaskID string, in coretask.CreateRunInput) (*coretask.Run, error) {
 	var created *createdTaskRun
@@ -100,21 +102,26 @@ func (s *Store) admitWorkflowNodeRetryRun(ctx context.Context, canonicalTaskID s
 			return err
 		}
 		if node.TaskID == nil || *node.TaskID != taskKey || in.IdempotencyKey == nil ||
-			*in.IdempotencyKey != coreworkflow.TaskRunAdmissionKey(run.PublicID, node.NodeID, in.WorkflowAttempt) {
+			!strings.HasPrefix(*in.IdempotencyKey, coreworkflow.TaskAdmissionKey(run.PublicID, node.NodeID)+"/") {
 			return apierr.ErrNotFound
 		}
-		// A repeated admission of the attempt already linked returns its run.
-		if node.Attempt == in.WorkflowAttempt && node.TaskRunID != nil {
+		// A repeated admission of the run already linked returns it.
+		if node.TaskRunID != nil {
 			var existing taskRunReadRow
 			if err := taskRunSelectTx(tx).Where("task_run.id = ?", *node.TaskRunID).Take(&existing).Error; err != nil {
 				return err
 			}
-			created = &createdTaskRun{row: &existing.Row, previous: existing.PreviousPublicID, retryOf: existing.RetryOfPublicID, sourceMessage: existing.SourceMessagePublicID}
-			return nil
+			if existing.Row.IdempotencyKey != nil && *existing.Row.IdempotencyKey == *in.IdempotencyKey {
+				created = &createdTaskRun{row: &existing.Row, previous: existing.PreviousPublicID, retryOf: existing.RetryOfPublicID, sourceMessage: existing.SourceMessagePublicID}
+				return nil
+			}
 		}
-		if run.Status != string(coreworkflow.RunStatusRunning) || node.Status != string(coreworkflow.NodeRunStatusRetryWait) ||
-			node.Attempt != in.WorkflowAttempt-1 {
-			return apierr.New(apierr.KindConflict, "workflow is stopping or node is not waiting for this attempt")
+		wantAttempt := in.WorkflowAttempt
+		if in.WorkflowNodeFrom == string(coreworkflow.NodeRunStatusRetryWait) {
+			wantAttempt--
+		}
+		if run.Status != string(coreworkflow.RunStatusRunning) || node.Status != in.WorkflowNodeFrom || node.Attempt != wantAttempt {
+			return apierr.New(apierr.KindConflict, "workflow is stopping or node is not waiting for this run")
 		}
 		created, err = createTaskRunTx(ctx, tx, canonicalTaskID, in)
 		if err != nil {

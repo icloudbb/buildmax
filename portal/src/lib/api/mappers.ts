@@ -15,6 +15,7 @@ import type {
   ApiWorkflowRevision,
   ApiWorkflowRun,
   ApiWorkflowNodeRun,
+  ApiWorkflowRequest,
 } from "./types"
 import type {
   Agent,
@@ -28,6 +29,7 @@ import type {
   WorkflowRevision,
   WorkflowRun,
   WorkflowNodeRun,
+  WorkflowRequest,
 } from "../types"
 
 /** Format an RFC 3339 instant as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
@@ -162,6 +164,25 @@ export function apiWorkflowRunToWorkflowRun(api: ApiWorkflowRun): WorkflowRun {
     deadlineAt: api.deadline_at ?? null,
     result: api.result ?? null,
     createdLabel: formatRelativeTime(api.created_at),
+  }
+}
+
+export function apiWorkflowRequestToWorkflowRequest(api: ApiWorkflowRequest): WorkflowRequest {
+  return {
+    id: api.id,
+    workflowRunId: api.workflow_run_id,
+    nodeRunId: api.node_run_id,
+    nodeId: api.node_id,
+    kind: api.kind,
+    prompt: api.prompt ?? "",
+    questions: api.questions ?? [],
+    responseSchema: api.response_schema ?? null,
+    status: api.status,
+    expiresAt: api.expires_at ?? null,
+    response: api.response,
+    respondedBy: api.responded_by ?? null,
+    respondedAt: api.responded_at ?? null,
+    createdAt: api.created_at,
   }
 }
 

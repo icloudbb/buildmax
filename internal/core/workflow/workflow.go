@@ -13,6 +13,10 @@ const (
 	StatusArchived  = "archived"
 
 	NodeTypeAgentTask = "agent_task"
+	// NodeTypeHumanInput is a node a person completes: it opens a durable
+	// request and its output is the validated answer. It runs no Agent and
+	// holds no worker while it waits.
+	NodeTypeHumanInput = "human_input"
 
 	// DefinitionSchemaVersion is the only workflow definition contract version the
 	// runtime accepts. A definition must declare it explicitly; publication rejects
@@ -71,6 +75,10 @@ const (
 	// max_attempts still allows another; the next attempt is admitted at
 	// NextAttemptAt.
 	NodeRunStatusRetryWait NodeRunStatus = "retry_wait"
+	// NodeRunStatusWaiting is a node with an outstanding durable request: a
+	// human_input node awaiting its answer, or an agent_task node whose attempt
+	// ended on questions. It consumes no worker.
+	NodeRunStatusWaiting NodeRunStatus = "waiting"
 )
 
 // RunStatusTerminal reports whether a run in this status has finished; a
@@ -120,6 +128,81 @@ func ValidRunStatusTransition(from, to RunStatus) bool {
 	}
 }
 
+// Request kinds and statuses. A request is the durable record of a Workflow
+// waiting on a person: RequestKindInput for a human_input node, and
+// RequestKindQuestion for an agent_task attempt that ended on AskUser
+// questions. Only a pending request can be resolved, once.
+const (
+	RequestKindInput    = "input"
+	RequestKindQuestion = "question"
+
+	RequestStatusPending  = "pending"
+	RequestStatusAnswered = "answered"
+	RequestStatusDeclined = "declined"
+	RequestStatusExpired  = "expired"
+	RequestStatusCanceled = "canceled"
+)
+
+// Request is one durable request a Workflow run waits on. It belongs to one
+// node run; Key makes opening it idempotent within the run.
+type Request struct {
+	ID            string `json:"id"`
+	WorkflowRunID string `json:"workflow_run_id"`
+	NodeRunID     string `json:"node_run_id"`
+	NodeID        string `json:"node_id"`
+	Kind          string `json:"kind"`
+	// Prompt is what the responder is asked: a human_input node's instruction
+	// with its bound values. Empty for a question, which carries Questions.
+	Prompt string `json:"prompt,omitempty"`
+	// Questions is the AskUser question set as JSON, for a question request.
+	Questions *string `json:"questions,omitempty"`
+	// ResponseSchema is the JSON Schema the answer must satisfy; nil means the
+	// answer is free text (a JSON string).
+	ResponseSchema *string `json:"response_schema,omitempty"`
+	// TaskRunID is the attempt that asked, for a question request.
+	TaskRunID *string    `json:"task_run_id,omitempty"`
+	Status    string     `json:"status"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	// Response is the answer as JSON, or a decline's reason as a JSON string.
+	Response    *string    `json:"response,omitempty"`
+	RespondedBy *string    `json:"responded_by,omitempty"`
+	RespondedAt *time.Time `json:"responded_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+// OpenRequestInput opens a request and moves its node to waiting in one
+// transaction under the run lock, so a request is never opened on a run that
+// is already stopping. NodeExpected is pending for a human_input node and
+// running for a question. A repeated open with the same Key returns the
+// existing request.
+type OpenRequestInput struct {
+	WorkflowRunID  string
+	NodeRunID      string
+	NodeExpected   NodeRunStatus
+	Key            string
+	Kind           string
+	Prompt         string
+	Questions      *string
+	ResponseSchema *string
+	TaskRunID      *string
+	ExpiresAt      *time.Time
+	// ResolvedInput lands on the node with the move to waiting (a human_input
+	// node's rendered prompt), like an agent node's Task input.
+	ResolvedInput *string
+	Now           time.Time
+}
+
+// ResolveRequestInput moves a pending request to Status (answered, declined,
+// or expired). An answer or decline is refused once ExpiresAt has passed at
+// Now, so an expired request cannot be answered in a race with expiry.
+type ResolveRequestInput struct {
+	RequestID   string
+	Status      string
+	Response    *string
+	RespondedBy *string
+	Now         time.Time
+}
+
 // ValidNodeRunTransition reports whether a step run may move directly from one
 // status to another. A pending step may start (running), be blocked by an
 // earlier failure, or fail outright when its task cannot be created; a running
@@ -130,12 +213,17 @@ func ValidNodeRunTransition(from, to NodeRunStatus) bool {
 	switch from {
 	case NodeRunStatusPending:
 		return to == NodeRunStatusRunning || to == NodeRunStatusBlocked ||
-			to == NodeRunStatusFailed || to == NodeRunStatusCanceled
+			to == NodeRunStatusFailed || to == NodeRunStatusCanceled || to == NodeRunStatusWaiting
 	case NodeRunStatusRunning:
 		return to == NodeRunStatusSucceeded || to == NodeRunStatusFailed || to == NodeRunStatusCanceled ||
-			to == NodeRunStatusRetryWait
+			to == NodeRunStatusRetryWait || to == NodeRunStatusWaiting
 	case NodeRunStatusRetryWait:
 		return to == NodeRunStatusRunning || to == NodeRunStatusFailed || to == NodeRunStatusCanceled
+	case NodeRunStatusWaiting:
+		// An answered human_input node succeeds; an answered question resumes
+		// its Agent; a declined or expired request fails the node.
+		return to == NodeRunStatusSucceeded || to == NodeRunStatusRunning ||
+			to == NodeRunStatusFailed || to == NodeRunStatusCanceled
 	default:
 		return false
 	}
@@ -380,8 +468,9 @@ type DefinitionNode struct {
 	// ready. It forms a directed acyclic graph; array position is not control
 	// flow. An empty list is a root that is ready at run start.
 	Needs []string `json:"needs,omitempty"`
-	// Agent names the Agent this node runs as.
-	Agent NodeAgent `json:"agent"`
+	// Agent names the Agent an agent_task node runs as. A human_input node has
+	// none.
+	Agent NodeAgent `json:"agent,omitzero"`
 	// Input is the node's task instruction and the values bound into it.
 	Input NodeInput `json:"input"`
 	// IssueAccess controls whether this node's Task receives the run's Issue.
@@ -622,8 +711,8 @@ type TransitionNodeRunInput struct {
 // StopRunInput records run-level stop intent that no single node caused: the
 // run deadline passing, or a person canceling the run. RunStatus is failing or
 // canceling. In one transaction the run moves from RunExpected, pending nodes
-// become blocked, and retry_wait nodes become canceled; running nodes keep
-// their state until their TaskRuns end.
+// become blocked, and retry_wait and waiting nodes become canceled with their
+// pending requests; running nodes keep their state until their TaskRuns end.
 type StopRunInput struct {
 	WorkflowRunID string
 	RunExpected   RunStatus
@@ -700,6 +789,17 @@ type Store interface {
 	TransitionWorkflowNodeRun(ctx context.Context, in TransitionNodeRunInput) (bool, error)
 	BeginWorkflowRunDrain(ctx context.Context, in BeginRunDrainInput) (bool, error)
 	StopWorkflowRun(ctx context.Context, in StopRunInput) (bool, error)
+	// OpenWorkflowRequest opens a request and moves its node to waiting. A false
+	// result means the run or node was no longer at the expected status.
+	OpenWorkflowRequest(ctx context.Context, in OpenRequestInput) (*Request, bool, error)
+	// ResolveWorkflowRequest moves a pending, unexpired request to its outcome;
+	// false means another actor resolved it first or it had expired.
+	ResolveWorkflowRequest(ctx context.Context, in ResolveRequestInput) (bool, error)
+	GetWorkflowRequest(ctx context.Context, requestID string) (*Request, error)
+	ListWorkflowRequestsByRun(ctx context.Context, workflowRunID string) ([]Request, error)
+	// ListPendingWorkflowRequestsBySpace returns the space's pending requests,
+	// oldest first, with the total count.
+	ListPendingWorkflowRequestsBySpace(ctx context.Context, spaceID string, limit, offset int) ([]Request, int, error)
 	// ListDueWorkflowRuns returns non-terminal runs that need a reconciliation
 	// pass at now -- their scheduled time has arrived or their lease expired --
 	// in stable oldest-due order, bounded by limit (a documented default when

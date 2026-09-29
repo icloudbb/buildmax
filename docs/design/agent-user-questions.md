@@ -114,15 +114,18 @@ definition can name it, and says which form: `AskUserInteractive` or
 | TUI | interactive | A person is at the terminal |
 | Desktop project chat | interactive | A person is at the chat |
 | Worker TaskRun | deferred, when the server allows it | Nobody is at the run, but someone continues the Task |
-| Workflow step TaskRun | no | The workflow advances its Task; nobody continues it |
+| Workflow step TaskRun | deferred | The question becomes a request on its workflow run, whose answer continues the Task |
 | Desktop scheduled fire, projectless session | no | Directory-hosted apps have no approval or question handler |
 | `buildmax run` (print mode) | no | Nobody answers mid-run; a script reads the final reply |
 | Subagent | no | It reports to its parent, which decides whether to ask |
 | Portal Conversation, evaluation | no | Its reply already reaches the user; evaluation has nobody to answer |
 
-The server decides per run: `GET /api/worker/task-runs/{id}` sets `ask_user`
-unless the run was admitted for a Workflow step. An evaluation control plane,
-or an older server, sends no such field, so the tool stays off there.
+The server sets `ask_user` on every run `GET /api/worker/task-runs/{id}`
+hands out. A Workflow step's questions become a durable request on its run
+([Workflow runtime §14](workflow-runtime.md#14-durable-human-requests)): the
+node waits without a worker, and the answer, given in the run view, continues
+the step's Task, which cannot be continued directly. An evaluation control
+plane sends no such field, so the tool stays off there.
 
 A run on an enabled app that supplies no questioner still offers the tool, and
 the tool tells the model that nobody can answer.
@@ -230,9 +233,10 @@ questions appear, but a comment there does not continue the run.
   decision into a general prompt channel and couple two concerns with
   different callers: the permission gate for approval, and a tool for
   questions.
-- **A durable human request.** Workflow §14's request entity, with responders,
-  expiry, and audit, is the right shape for governed approvals but too large
-  for a clarifying question. It waits on Space governance.
+- **A durable human request for every question.** Workflow §14's request
+  entity is the answer path for a Workflow step, because nobody continues a
+  step's Task directly. For an ordinary Task, continuing it with the answer
+  already is that path, so a second entity would duplicate it.
 
 ## Deferred
 

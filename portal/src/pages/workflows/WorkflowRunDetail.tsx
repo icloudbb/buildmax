@@ -1,14 +1,24 @@
 import { useCallback, useEffect, useState } from "react"
 import { Button, ButtonLink } from "@buildmax/gui"
-import type { Workflow, WorkflowRun, WorkflowNodeRun } from "../../lib/types"
+import type { Workflow, WorkflowRun, WorkflowNodeRun, WorkflowRequest } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { statusLabel } from "../../lib/statusLabels"
 import {
   apiWorkflowRunToWorkflowRun,
   apiWorkflowNodeRunToWorkflowNodeRun,
+  apiWorkflowRequestToWorkflowRequest,
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
-import { getWorkflow, getWorkflowRunDetail, WorkflowGraph } from "../../features/workflows"
+import {
+  cancelWorkflowRun,
+  getWorkflow,
+  getWorkflowRunDetail,
+  respondToWorkflowRequest,
+  WorkflowGraph,
+  WorkflowRequestCard,
+  describeResponse,
+  type RequestResponse,
+} from "../../features/workflows"
 import { buildHash, navigate } from "../../router"
 import { useApp } from "../../contexts/AppContext"
 import { ApiRequestError } from "../../lib/api/client"
@@ -25,6 +35,9 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [run, setRun] = useState<WorkflowRun | null>(null)
   const [steps, setSteps] = useState<WorkflowNodeRun[]>([])
+  const [requests, setRequests] = useState<WorkflowRequest[]>([])
+  const [canceling, setCanceling] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,6 +65,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
       const mappedRun = apiWorkflowRunToWorkflowRun(detail.run)
       setRun(mappedRun)
       setSteps(detail.steps.map(apiWorkflowNodeRunToWorkflowNodeRun))
+      setRequests((detail.requests ?? []).map(apiWorkflowRequestToWorkflowRequest))
       const workflowApi = await getWorkflow(spaceId, detail.run.workflow_id, token)
       setWorkflow(apiWorkflowToWorkflow(workflowApi))
       setLastRefreshedAt(Date.now())
@@ -99,6 +113,27 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
   }, [run, load])
 
   const isLive = run != null && ["pending", "running", "failing", "canceling"].includes(run.status)
+  const pendingRequests = requests.filter((request) => request.status === "pending")
+
+  async function respond(request: WorkflowRequest, response: RequestResponse) {
+    if (!token) return
+    await respondToWorkflowRequest(spaceId, request.id, response, token)
+    await load(true)
+  }
+
+  async function cancelRun() {
+    if (!token || !run) return
+    setCanceling(true)
+    setActionError(null)
+    try {
+      await cancelWorkflowRun(spaceId, run.id, token)
+      await load(true)
+    } catch (err) {
+      setActionError(getErrorMessage(err, "Could not cancel the run"))
+    } finally {
+      setCanceling(false)
+    }
+  }
   const refreshedLabel = lastRefreshedAt
     ? new Date(lastRefreshedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : null
@@ -144,6 +179,11 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
           >
             Refresh
           </Button>
+          {run && ["pending", "running"].includes(run.status) ? (
+            <Button variant="danger" busy={canceling} disabled={canceling} onClick={() => void cancelRun()}>
+              Cancel run
+            </Button>
+          ) : null}
           {workflow ? (
             <ButtonLink variant="tertiary" href={buildHash({ name: "workflow", spaceId, workflowId: workflow.id })}>
               Back to Workflow
@@ -151,6 +191,15 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
           ) : null}
         </div>
       </div>
+
+      {actionError ? <p className="modal__error" role="alert">{actionError}</p> : null}
+      {pendingRequests.length > 0 ? (
+        <div className="workflow-run-page__requests">
+          {pendingRequests.map((request, i) => (
+            <WorkflowRequestCard key={request.id} request={request} keys={i === 0} onRespond={(response) => respond(request, response)} />
+          ))}
+        </div>
+      ) : null}
 
       {run && (
         <div className="workflow-run-page__grid">
@@ -224,6 +273,13 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                       <div className="page-activity__meta">{statusLabel(step.nodeType)}</div>
                       <div>{step.prompt}</div>
                       <StepAttempt step={step} />
+                      {requests
+                        .filter((request) => request.nodeRunId === step.id && request.status !== "pending")
+                        .map((request) => (
+                          <div key={request.id} className="page-activity__meta">
+                            {resolvedRequestLabel(request)}
+                          </div>
+                        ))}
                       {step.targetAgentId ? (
                         <div className="page-activity__meta">
                           Agent: {step.agentName ? `${step.agentName} (${step.targetAgentId})` : step.targetAgentId}
@@ -281,9 +337,24 @@ function StepAttempt({ step }: { step: WorkflowNodeRun }) {
   if (step.status === "retry_wait" && step.nextAttemptAt) {
     parts.push(`next attempt at ${new Date(step.nextAttemptAt).toLocaleTimeString()}`)
   }
+  if (step.status === "waiting") parts.push("waiting for a person")
   if (step.status === "running" && step.deadlineAt) {
     parts.push(`times out at ${new Date(step.deadlineAt).toLocaleString()}`)
   }
   if (parts.length === 0) return null
   return <div className="page-activity__meta">{parts.join(" · ")}</div>
+}
+
+/** One line recording how a request a step waited on was resolved. */
+function resolvedRequestLabel(request: WorkflowRequest): string {
+  const what = request.kind === "question" ? "Question" : "Input"
+  const answer = describeResponse(request.response)
+  switch (request.status) {
+    case "answered":
+      return `${what} answered${answer ? `: ${answer}` : ""}`
+    case "declined":
+      return `${what} declined${answer ? `: ${answer}` : ""}`
+    default:
+      return `${what} ${request.status}`
+  }
 }

@@ -334,6 +334,7 @@ button.wf-graph__node:focus-visible {
 
 /* A retrying node is between attempts: still live, not yet failed. */
 .wf-graph__node--retry_wait,
+.wf-graph__node--waiting,
 .wf-graph__node--blocked {
   border-left-color: var(--color-warning, #9a6700);
 }
@@ -561,4 +562,60 @@ button.wf-graph__node:focus-visible {
   padding: var(--space-2);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-control);
+}
+
+/* A pending request is the one thing a waiting run needs from the reader, so
+   it sits above the run's result and steps. */
+.workflow-run-page__requests {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.workflow-request {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-status-running);
+  border-radius: var(--radius-control);
+}
+
+.workflow-request__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.workflow-request__prompt {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.workflow-request__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.workflow-request__decline {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.workflow-page__pending {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.workflow-page__pending-link {
+  background: none;
+  border: none;
+  padding: var(--space-1) 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
 }
