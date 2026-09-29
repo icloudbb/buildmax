@@ -76,16 +76,18 @@ Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的
 |---|---|
 | 账户与隔离 | Alice、Bob 保留有数据的个人 Space；Carol、Dave 的个人 Space 为空；Alice 持有系统管理员权限，以便访问管理界面 |
 | 协作 | Alice 为 owner，Bob 为 admin，Carol 为 member，Dave 有待接受邀请；邮箱后缀均为 `@buildmax.local` |
+| 治理 | Frank 加入 BuildMax QA、为一个 Workflow 创建定时任务后被移除，该定时任务在下一次调度检查时以 `creator_not_member` 暂停；Erin 已被禁用，她曾是 BuildMax QA Archive 的唯一 owner（Bob 为 member），该 Space 等待 owner 恢复，她在其中的定时任务以 `creator_disabled` 暂停；Carol 拥有一个启用的定时任务，因此她的停用影响不为空 |
 | Issue | 三种状态；未分配、人、Agent、Workflow 分配；父 Issue 与进度不同的两个子 Issue；Markdown、中文、空描述及评论 |
 | Agent / Workflow | 个人 Docs Writer/Release Notes；共享 QA Writer/QA Reviewer；两步骤 Workflow 的 draft、published、archived 状态与生命周期修订记录；已发布的扇出/汇合图 QA Release Readiness，含类型化 `input_schema`、`max_parallel_nodes`、运行输入与节点输出绑定、逐节点 `issue_access` 和结果选择器；含 `output_schema` 节点与必需 Issue 节点的 QA Triage Classifier；处于第 3 个修订、配置了插件、沙箱级别与 Secret 使用的 QA Release Engineer；依赖已禁用 Secret 的 QA Blocked Agent |
+| 人工请求与策略 | BuildMax QA 中已发布：QA Release Sign-off（Agent 起草、带响应 schema 且一周过期的 `human_input` 审批、绑定审批结果的 Agent 发布）；QA Clarify Scope（用于 `AskUser` 提问的 Agent 步骤）；QA Expiring Approval（一分钟后过期的请求）；QA Run Deadline（一分钟的运行级 `timeout_seconds`）；QA Flaky Gate（在 Blocked Agent 上 `max_attempts: 2` 的关卡，旁边有兄弟节点和汇合节点）；QA Slow Step（一分钟的单次尝试超时） |
 | 文件 | `fixtures/` 下五个文件，包含嵌套 Markdown、CSV、JSON、中文文件名和空文本 |
 | Artifact | 合成文本、HTML 沙箱预览、二进制下载；HTML Artifact 有一个有效的公开分享（创建时打印其 URL），报告有一个已撤销的分享 |
 | Space 设置 | 非空 Agent instructions、active/disabled 的虚构 Secret；BuildMax QA 的沙箱网络默认值为 `registries`、插件启用为 curated；账户 Webhook 密钥；API 操作自然产生审计事件 |
 | 插件与 Marketplace | 将 `sample-plugins/` 三个插件发布到部署目录，其中一个在 BuildMax QA 中启用，其余保留供启用 |
-| 定时任务 | 具有不同 cron 表达式与时区的循环 Agent 定时任务，部分处于暂停状态（位于 BuildMax QA Pagination）；一个带类型化输入的每周 Workflow 定时任务和一个无输入的已暂停 Workflow 定时任务（位于 BuildMax QA） |
+| 定时任务 | 具有不同 cron 表达式与时区的循环 Agent 定时任务，部分处于暂停状态（位于 BuildMax QA Pagination）；一个带类型化输入的每周 Workflow 定时任务和一个无输入的已暂停 Workflow 定时任务（位于 BuildMax QA）；QA Retired Check 在被调度后归档，其定时任务每分钟启动失败，初始化几分钟后以 `consecutive_failures` 暂停 |
 | 分页与规模 | 独立 Space 中有 105 个 Issue（每种状态 35 个）并有 25 条评论的线程，另有可翻页/滚动的长列表：12 个 Agent、覆盖三种状态的 9 个 Workflow、60 个 Artifact（超过“加载更多”阈值）、8 个额外 Secret 与 8 个定时任务 |
 | 管理规模 | 60 个合成账户（约每八个禁用一个），使管理员 Accounts 页面跨多页且其状态筛选有对应分组；每个账户也会获得个人 Space |
-| 执行（`--runs`） | Conversation 对话、含 Continue/Retry 的 Task、Issue Agent 结果、两步骤 Workflow 结果、worker trace 与 workspace checkpoint；QA Release Readiness 的一次成功运行与一次取消运行；FAILED 的 QA Blocked Agent Task；CANCELED 的对话 Task；Alice 个人 Space 中一个 webhook 渠道的对话 |
+| 执行（`--runs`） | Conversation 对话、含 Continue/Retry 的 Task、Issue Agent 结果、两步骤 Workflow 结果、worker trace 与 workspace checkpoint；QA Release Readiness 的一次成功运行与一次取消运行；FAILED 的 QA Blocked Agent Task；CANCELED 的对话 Task；Alice 个人 Space 中一个 webhook 渠道的对话；QA Release Sign-off 的审批分别被回答、被拒绝、仍在等待、以及随整个运行被取消的运行；QA Clarify Scope 一个已回答、一个等待中的提问运行；一个等待回答的 QA Writer 直接 Task 和一个通过 Continue 回答的 Task；请求过期、运行截止、关卡重试与步骤超时的 Workflow 运行，均为 `failed`；Carol 的一个 Task 保持 `RUNNING` 约十分钟，供管理员运行时视图和她的停用影响查看 |
 
 ```bash
 ./make kind fixtures --runs
@@ -102,18 +104,23 @@ Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的
 不足三个修订时会补到第三个修订；校准测试 Issue 的分配、Workflow 生命周期状态、
 Secret 状态、定时任务的暂停/启用状态与账户禁用状态；Space instructions 与沙箱默认值
 仅在为空时填入，open 的插件启用方式改为 curated。公开分享过期后会重新创建。
-执行结果按 Workflow 运行状态和 Task 输入匹配。Webhook 密钥与批量账户分别按名称和邮箱匹配，
+执行结果按 Workflow 运行状态和 Task 输入匹配；Carol 的长时间 Task 仅在没有仍在运行的实例时
+重新启动。治理数据按定时任务名称和 Erin 的禁用状态匹配：Frank 的定时任务存在后不会再次邀请他，
+Erin 被禁用后其 Space 保持原样。Webhook 密钥与批量账户分别按名称和邮箱匹配，
 重跑时只补齐缺失部分。已发布的插件版本和已存在的启用记录保持原样，不会重新发布。
 不要重命名希望复用的测试资源。该命令不是并发事务，应一次运行一个实例。
 不支持服务端幂等键的创建请求若丢失响应，下次运行通过稳定的测试资源标识查找恢复。
 
 失败和取消记录来自真实运行，而不是改写的数据行：Blocked Agent 的必需授权在运行启动时
 被拒绝；取消时像 `kind smoke` 一样暂缓 mock 的回复，使运行在执行中途被取消。
+提问、超时步骤和 Carol 的运行中 Task 像 `kind smoke` 一样让 mock 应答一次性的 `AskUser` 或
+`Bash` 调用；每个此类步骤单独执行，确保调用落到目标运行。发布不允许低于一分钟的超时，
+因此 `--runs` 比以前多花几分钟。
 webhook 对话使用一个用完即删的密钥发送。
 
 测试数据不等于所有功能均已验证：不初始化需要目录来源的托管模型授权、聊天平台对话与
-渠道绑定（只有渠道网关能根据真实机器人创建）、Remote Control 会话（需要已连接的 CLI）
-或定时任务的触发历史。worker 边界和取消检查使用 `kind smoke`，托管网关使用
+渠道绑定（只有渠道网关能根据真实机器人创建）、Remote Control 会话（需要已连接的 CLI）、
+定时任务的成功触发或配额拒绝。worker 边界和取消检查使用 `kind smoke`，托管网关使用
 `kind smoke managed`，浏览器流程使用 `e2e kind`。
 
 `status` 不修改状态。它输出选定集群和 Context，通过入口探测 <http://localhost:8080/healthz>，并列出节点以及 `ingress-nginx`、`db`、`storage` 和 `buildmax` 中的 Deployment、Job 和 Pod。在阅读更长的 `kind logs` 输出前，可用它区分集群不存在还是不健康。

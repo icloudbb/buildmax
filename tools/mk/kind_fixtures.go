@@ -65,11 +65,12 @@ func kindFixtures(withRuns bool) error {
 		return fmt.Errorf("kind cluster %q does not exist; run %s kind up", cluster, mk())
 	}
 
-	// Execution waits on worker Jobs, including a five-node Workflow run and two
-	// deliberate model stalls, so it gets a longer budget than the data alone.
+	// Execution waits on worker Jobs, including a five-node Workflow run, two
+	// deliberate model stalls, and the minute-long timeouts publication allows
+	// at the least, so it gets a longer budget than the data alone.
 	budget := 10 * time.Minute
 	if withRuns {
-		budget = 25 * time.Minute
+		budget = 40 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
@@ -89,7 +90,7 @@ func kindFixtures(withRuns bool) error {
 	// Accounts come first, through the operator CLI, because a personal space is
 	// created with the user and every other fixture hangs off it. "already has
 	// an account" is the idempotent success here, not a failure.
-	for _, email := range []string{"alice@buildmax.local", "bob@buildmax.local", "carol@buildmax.local", "dave@buildmax.local"} {
+	for _, email := range []string{"alice@buildmax.local", "bob@buildmax.local", "carol@buildmax.local", "dave@buildmax.local", fixtureDisabledEmail, fixtureDepartedEmail} {
 		out, err := target.admin("user", "create", email)
 		switch {
 		case err == nil:

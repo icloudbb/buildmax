@@ -187,7 +187,19 @@ func seedFixtureRuns(ctx context.Context, client *http.Client, target smokeTarge
 	if err := seedFixtureWebhookConversation(ctx, client, target); err != nil {
 		return err
 	}
-	fmt.Printf("    execution: conversation %s, Task %s with Continue/Retry, traces and workspace checkpoints; Workflow graph run, failed and canceled outcomes, webhook conversation\n", conversationID, task.ID)
+	if err := seedFixturePolicyRuns(ctx, client, target, base, token); err != nil {
+		return err
+	}
+	// Last, because its armed Bash call must answer the worker's first turn and
+	// nothing else.
+	writer, err := fixtureAgentByName(ctx, client, base, token, "QA Writer")
+	if err != nil {
+		return err
+	}
+	if err := seedFixtureStalledTask(ctx, client, target, base, writer); err != nil {
+		return err
+	}
+	fmt.Printf("    execution: conversation %s, Task %s with Continue/Retry, traces and workspace checkpoints; Workflow graph run, failed and canceled outcomes, webhook conversation; human requests, AskUser questions, retry, timeout, deadline, and a RUNNING Task\n", conversationID, task.ID)
 	return nil
 }
 

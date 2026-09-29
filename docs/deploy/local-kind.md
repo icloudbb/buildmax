@@ -129,16 +129,18 @@ scenarios and **BuildMax QA Pagination** for long lists.
 |---|---|
 | Accounts and isolation | Alice and Bob retain their populated personal Spaces; Carol and Dave have empty personal Spaces; Alice holds System Administrator authority so the admin surfaces are reachable |
 | Collaboration | Alice owns BuildMax QA, Bob is admin, Carol is member, Dave has a pending invitation; all emails end in `@buildmax.local` |
+| Governance | Frank joined BuildMax QA, scheduled a Workflow, and was removed, so his schedule pauses as `creator_not_member` at the next tick; Erin is disabled and was the only owner of BuildMax QA Archive (Bob is a member), which awaits owner recovery, and her schedule there is paused as `creator_disabled`; Carol owns an enabled schedule, so her deactivation impact is not empty |
 | Issues | All three statuses; unassigned, person, Agent, and Workflow assignment; parent with two children and mixed progress; Markdown, Unicode, empty descriptions, comment threads |
 | Agents and Workflows | Personal Docs Writer/Release Notes; shared QA Writer/QA Reviewer; two-step draft, published, and archived Workflows, with lifecycle revision history; QA Release Readiness, a published fan-out/fan-in graph with a typed `input_schema`, `max_parallel_nodes`, input and node-output bindings, per-node `issue_access`, and a result selector; QA Triage Classifier, with an `output_schema` node and a required-Issue node; QA Release Engineer at revision 3 with a plugin, sandbox tiers, and Secret consumption; QA Blocked Agent, which requires the disabled Secret |
+| Human requests and policy | Published in BuildMax QA: QA Release Sign-off (Agent draft, `human_input` approval with a response schema and a one-week expiry, Agent publish bound to the answer); QA Clarify Scope (an Agent step for `AskUser` questions); QA Expiring Approval (a request that expires after a minute); QA Run Deadline (a one-minute run `timeout_seconds`); QA Flaky Gate (a `max_attempts: 2` gate on the blocked Agent beside a sibling and a join); QA Slow Step (a one-minute attempt timeout) |
 | Files | Five files under `fixtures/`: nested Markdown, CSV, JSON, Unicode filename, and empty text |
 | Artifacts | Synthetic text, HTML sandbox preview, and binary download fixtures; a live public share on the HTML artifact (its URL is printed when created) and a revoked one on the report |
 | Space settings | Nonempty Agent instructions and active/disabled Secrets containing explicitly fake values; `registries` sandbox network default and curated plugin activation in BuildMax QA; account webhook keys; API changes also populate audit events |
 | Plugins and Marketplace | The three `sample-plugins/` published to the deployment catalog, one activated in BuildMax QA and the rest left available to activate |
-| Schedules | Recurring agent schedules with varied cron expressions and timezones, some paused (in BuildMax QA Pagination); a weekly Workflow schedule with typed input and a paused one without (in BuildMax QA) |
+| Schedules | Recurring agent schedules with varied cron expressions and timezones, some paused (in BuildMax QA Pagination); a weekly Workflow schedule with typed input and a paused one without (in BuildMax QA); a schedule of QA Retired Check, archived after it was scheduled, which fails to start every minute until it pauses as `consecutive_failures` a few minutes after seeding |
 | Pagination and volume | Separate Space with 105 Issues (35 per status) including a 25-comment thread, plus long lists to page and scroll: 12 agents, 9 workflows across all three statuses, 60 artifacts (past the "Load more" threshold), 8 extra secrets, and 8 schedules |
 | Admin scale | 60 synthetic accounts (roughly one in eight disabled) so the Accounts page spans more than one page and its status filter has a cohort; each also gets a personal Space |
-| Execution (`--runs`) | Conversation transcript, a Task with Continue and Retry, Issue Agent result, two-step Workflow result, worker traces and workspace checkpoints; a succeeded and a canceled QA Release Readiness run; a FAILED QA Blocked Agent Task; a CANCELED conversation Task; a webhook-channel conversation in Alice's personal Space |
+| Execution (`--runs`) | Conversation transcript, a Task with Continue and Retry, Issue Agent result, two-step Workflow result, worker traces and workspace checkpoints; a succeeded and a canceled QA Release Readiness run; a FAILED QA Blocked Agent Task; a CANCELED conversation Task; a webhook-channel conversation in Alice's personal Space; QA Release Sign-off runs whose approval was answered, declined, is still pending, and was canceled with the whole run; QA Clarify Scope runs with an answered and a pending question; a direct QA Writer Task awaiting an answer and one answered through Continue; expired-request, run-deadline, retried-gate, and timed-out Workflow runs, all `failed`; one of Carol's Tasks left `RUNNING` for about ten minutes, for the admin runtime view and her deactivation impact |
 
 ```bash
 ./make kind fixtures --runs
@@ -161,7 +163,10 @@ lifecycle states, Secret states, schedule paused/enabled state, and account
 disabled state are reconciled; empty Space instructions and sandbox defaults
 are filled, and an open plugin curation is set to curated. A public share is
 recreated once the previous one expires. Execution outcomes are matched by
-Workflow run status and by Task input. Webhook keys and bulk accounts are
+Workflow run status and by Task input; Carol's long-running Task is started
+again only when none is still active. Governance fixtures are matched by
+schedule name and by Erin's disabled state: once Frank's schedule exists he is
+not re-invited, and once Erin is disabled her Space is left as it is. Webhook keys and bulk accounts are
 matched by name and email so a rerun adds only what is missing. An
 already-published plugin version and an existing activation are left as they
 are rather than republished.
@@ -173,14 +178,18 @@ idempotency key is recovered by looking up its stable fixture identity on rerun.
 The failed and canceled records come from real runs, not rewritten rows: the
 blocked Agent's required grant is refused when its run starts, and the
 cancellations hold the mock's replies the way `kind smoke` does, so a run is
-mid-turn when it is canceled. The webhook conversation is sent with a key that
+mid-turn when it is canceled. The questions, the timed-out step, and Carol's
+running Task come from arming the mock with a one-shot `AskUser` or `Bash`
+call, as `kind smoke` does; each armed step runs alone so the call reaches the
+intended run. Publication allows no timeout below a minute, so `--runs` takes
+several minutes longer than before. The webhook conversation is sent with a key that
 is deleted again afterwards.
 
 This is populated test data, not proof of every product feature. It does not
 seed managed-model grants (those need an explicit catalog), chat-platform
 conversations or channel links (only the channel gateway creates those, from a
-real bot), Remote Control sessions (they need a connected CLI), or schedule fire
-history. Use `kind smoke` for worker failure-boundary and cancellation checks,
+real bot), Remote Control sessions (they need a connected CLI), successful
+schedule fires, or a quota refusal. Use `kind smoke` for worker failure-boundary and cancellation checks,
 `kind smoke managed` for the managed gateway, and `e2e kind` for browser
 journeys.
 
