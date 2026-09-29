@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](zh-CN/current-state.md)
 >
-> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-26
+> **Audience:** users, operators, and contributors · **Status:** current as of 2026-09-29
 
 This page describes implemented behavior, test coverage, and remaining limits
 against the current repository code. Priority and future
@@ -630,8 +630,10 @@ state until worker completion or the TaskRun reaper supplies a terminal fact.
 The first stop cause survives late sibling success and Server restart. Task
 admission and node linkage commit together under the same WorkflowRun lock as
 stop intent, closing the create-before-link cancellation race. The Portal keeps
-polling throughout the drain. Whole-Workflow cancel actions and Workflow-owned
-deadlines/retries remain follow-ups; cancellation here starts from a node Task.
+polling throughout the drain. A person can cancel the whole Workflow run. A
+node may declare a retry limit and per-attempt timeout, and the definition may
+declare a run-wide timeout; backoff, attempt counts, and deadlines are durable
+and remain correct across Server restart.
 
 Workflow definitions are a graph of `agent_task` nodes joined by `needs` edges,
 with versioned definitions and durable run/node records. A node names its Agent
@@ -683,6 +685,21 @@ releases containing hooks or MCP servers
 Conversations do not load Space plugins.
 
 ## Qualification And Operating Evidence
+
+The first private-deployment Beta now qualifies one bounded profile for a
+trusted organization on a private network, not every implemented feature and
+not only one unchallenged Space. Its candidate environment must contain at
+least two Spaces and two roles so the authorization boundary is exercised. The
+core profile includes the Portal/Server/Kubernetes worker path, native identity
+and administration, managed models, Conversations, Issues, direct Task threads
+and deferred `AskUser`, graph Workflows, Agent and Workflow Schedules,
+Artifacts/checkpoints/traces, Space Secret delivery, the non-executable
+skill/subagent Plugin profile, and inbound webhooks. Local CLI/TUI and Desktop
+remain release-regression profiles, including Desktop's signed-in Issues
+bridge. Remote Control, Telegram, OIDC, Browser, app connectors, and remote MCP
+remain Experimental profiles and do not silently inherit or block the Beta claim.
+The complete contract and evidence matrix are in the
+[Beta readiness record](deploy/beta-readiness.md).
 
 The evaluation contract, built-binary local and worker adapters, graders,
 repeated and paired experiments, and pinned Harbor adapter are implemented.
@@ -768,16 +785,18 @@ the unsigned [Beta readiness record](deploy/beta-readiness.md).
 ## Verification For This Review
 
 This is a source-and-tests reassessment, not a fresh deployment qualification.
-For this documentation update, `./make test`, `./make check docs`,
-`./make check portal`, and `git diff --check` passed locally. The ordinary test scope includes
-the architecture, runtime, provider, identity, handler, scheduler, CLI, and
-Desktop bridge suites. Documentation checks cover links and formatting; the
-Portal check builds the Help content and runs its unit tests. These checks do
-not prove a deployed candidate.
+For this update, `./make check ci`, `./make e2e cli`, `./make e2e desktop`, and
+`git diff --check` passed locally. That local CI-equivalent run covered Go race
+tests, architecture, runtime, providers, identity, handlers, scheduler, CLI,
+Desktop bridge, GUI/Portal/Desktop builds and component tests, lint,
+vulnerability and license checks, release configuration, secrets, and
+documentation. The local run did not execute its MySQL or native-Windows jobs.
 
-The review did not run the real-MySQL scope (no `BUILDMAX_TEST_DSN` was supplied),
-full builds, browser suites, Compose/kind deployment smoke, external
-recovery drills, or paid model evaluation. Database test assertions above were
-read, not claimed as executed against MySQL. Hosted CI state, historical
-coverage, and earlier deployment results have not been carried forward as
-current measurements.
+For the same `26a37db7` revision, hosted CI supplied passing real-MySQL,
+Windows, Desktop UI/package, CodeQL, Compose, kind Kubernetes worker, Portal
+browser, and direct/managed inference jobs. This is current engineering evidence
+that the revision is ready for qualification; it is not a pinned candidate
+record. This review did not run external-dependency recovery drills, the new
+24-hour operating window, a non-author candidate journey, or paid model
+evaluation. No historical coverage percentage or benchmark score is carried
+forward.

@@ -2,7 +2,7 @@
 
 > **英文原文：** [BuildMax Current State](../current-state.md)
 >
-> **读者：** 用户、运维人员与贡献者 · **状态：** 截至 2026-09-26 当前有效
+> **读者：** 用户、运维人员与贡献者 · **状态：** 截至 2026-09-29 当前有效
 >
 > 本文是英文原文的简体中文镜像；如有差异，以英文原文为准。
 
@@ -406,7 +406,7 @@ Agent 不会改变已发布计划的运行内容。一次运行会一次性分�
 `human_input` 节点提出一个问题（自由文本、是/否或任意 `output_schema`），其回答就是节点输出；以 AskUser 问题结束的
 Agent 步骤会等到有人回答，然后继续它的 Task。任何可以运行该 Space Workflow 的人都可以在运行视图或 Workflows 页面的
 等待列表中回答或拒绝；拒绝或过期会让该步骤失败。人可以取消一个运行。节点可以通过 `output_schema` 约束结果，
-指针绑定可以把运行输入或前驱节点输出中选取的值传入某个节点的输入。`human_input` 节点会等待人的回答。定义契约仍没有类型化
+指针绑定可以把运行输入或前驱节点输出中选取的值传入某个节点的输入。定义契约仍没有类型化
 条件路由或循环（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
 
 Portal 与入站 webhook 执行已组装；webhook 回调发送器未组装进 Server。
@@ -433,6 +433,16 @@ schedule 上（`pause_reason`），但 Portal 尚未展示。它们不是
 （[激活服务](../../internal/service/plugin/activation.go)）。前台 Conversation 不加载 Space 插件。
 
 ## 资格验证与运行证据
+
+首次私有部署 Beta 现在验证私有网络中一个可信组织的有边界配置，而不是验证每项已实现功能，
+也不是只使用一个未经挑战的 Space。候选环境必须包含至少两个 Space 和两种角色，从而实际验证
+授权边界。核心配置包括 Portal/Server/Kubernetes Worker 路径、原生身份与 Administration、
+托管模型、Conversation、Issue、直接 Task 线程和延迟式 `AskUser`、图形 Workflow、Agent 和
+Workflow Schedule、Artifact/checkpoint/trace、Space Secret 交付、非可执行 skill/subagent
+Plugin 配置以及 inbound webhook。本地 CLI/TUI 和 Desktop（包括 Desktop 登录后的 Issues
+bridge）保持为发布回归配置。Remote Control、Telegram、OIDC、Browser、app connector 和
+remote MCP 仍是 Experimental 配置，不会静默继承或阻塞 Beta 承诺。完整合同和证据矩阵见
+[Beta 就绪记录](deploy/beta-readiness.md)。
 
 评估契约、构建产物驱动的本地和 worker 适配器、grader、重复/配对实验及固定版本的
 Harbor 适配器均已实现。[evaluation/suite](../../evaluation/suite)包含三个自有任务。
@@ -482,13 +492,14 @@ Compose、kind、生产 Kubernetes 清单、发布验证、SBOM、镜像扫描�
 
 ## 本次复核的验证
 
-本次是源码与测试复核，不是重新进行部署资格验证。
-本次文档更新在本地通过了 `./make test`、`./make check docs`、`./make check portal`
-与 `git diff --check`。普通测试范围包括架构、runtime、提供商、身份、handler、scheduler、
-CLI 与 Desktop bridge 套件。文档检查覆盖链接与格式；Portal 检查构建 Help 内容并运行单元测试。
-这些检查不能证明一个已部署候选版本。
+本次是源码与测试复核，不是重新进行部署资格验证。本次更新在本地通过了
+`./make check ci`、`./make e2e cli`、`./make e2e desktop` 和 `git diff --check`。
+本地 CI 等价检查覆盖 Go race test、架构、runtime、provider、身份、handler、scheduler、
+CLI、Desktop bridge、GUI/Portal/Desktop 构建和组件测试、lint、漏洞与 license 检查、
+release configuration、secret 和文档；本地未执行其中的 MySQL 和原生 Windows job。
 
-本次未运行真实 MySQL 测试（未提供 `BUILDMAX_TEST_DSN`）、全量构建、
-浏览器测试、Compose/kind 部署冒烟、外部恢复演练或付费模型评估。
-上文数据库测试的断言经过阅读，但未在 MySQL 上重新执行。托管 CI 状态、历史覆盖率与
-之前的部署结果均未沿用为当前测量值。
+同一 `26a37db7` revision 的托管 CI 提供了通过的真实 MySQL、Windows、Desktop UI/package、
+CodeQL、Compose、kind Kubernetes Worker、Portal 浏览器以及 direct/managed inference job。
+这是当前 revision 已可开始资格验证的工程证据，不是固定候选版本的资格记录。本次没有执行外部
+依赖恢复演练、新增的 24 小时运行窗口、非作者候选旅程或付费模型 evaluation，也不沿用历史
+coverage 百分比或 benchmark 分数。

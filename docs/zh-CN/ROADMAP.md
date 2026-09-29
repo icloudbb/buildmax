@@ -135,13 +135,16 @@ worker 对象存储写入拒绝演练，均已完成。删除针对已移除机�
 
 **Status:** candidate-proof-remains
 
-**产品路径已实现；证据记录仍为空。** 账号引导、登录码恢复、Space 成员管理、
-托管模型、Agent 与 Workflow 运行、Artifact、轨迹、用量、审计、Compose/kind 和生产
-参考均已存在。这些都不能替代使用外部依赖，对拟发布的不可变 Server、worker 与 Portal
-制品进行验证。
+**候选配置已定义；证据记录仍为空。** 账号引导、登录码恢复、Space 成员管理、
+托管模型、直接和 Issue 关联的 Task、包含人工请求和 retry/timeout policy 的图形 Workflow、
+Schedule、Secret、受支持的 Plugin
+配置、Artifact、轨迹、用量、审计、Compose/kind 和生产参考均已存在。这些都不能替代
+使用外部依赖，对拟发布的不可变 Server、worker 与 Portal 制品进行验证。扩展后的就绪
+合同可以暴露小型产品缺口；当缺口阻止文档规定的核心旅程或运维诊断时，它就是 R3 工作。
 
-**下一步：** 固定候选镜像摘要，让未参与功能实现的运维人员完成文档中的账号、Space、
-执行、诊断、故障、恢复、升级、回滚与轮换流程。只修复流程实际暴露的缺口。
+**下一步：** 固定候选镜像摘要，让未参与功能实现的运维人员完成文档中的多 Space 身份、
+核心产品、执行边界、分布式运行、故障、恢复、升级、轮换和 24 小时运行窗口旅程。
+只修复流程实际暴露的缺口。
 2026-09-28 的运维演练表明，诊断流程无法从 Administration 察觉停滞或失败的工作；
 运行时运维元数据（[系统管理](design/系统管理.md) §13 M7）现已补上这一缺口。
 事务性权限审计、管理 CLI 的 Session 能力对齐和配额层级分配，除非阻塞这一结果，
@@ -234,26 +237,30 @@ Workflow `output_schema`、图执行和 JSON Pointer 绑定已经实现。类型
 
 ## Beta 门槛
 
-首个 Beta 面向**私有网络中的一个可信 Space**，不代表已具备公共多租户服务能力。
-验证必须使用与拟发布版本完全相同的不可变 Server、worker 和 Portal 制品。
+首个 Beta 面向**私有网络中的一个可信组织**。资格环境至少使用两个 Space 和两种角色，
+以实际验证 Space 授权边界，但不代表已具备公共、不可信多租户服务能力。验证必须使用
+与拟发布版本完全相同的不可变 Server、worker 和 Portal 制品，以及与它们一起记录的
+精确启用/禁用功能配置。
 
 | 必要证据 | 验收结果 |
 |---|---|
-| 候选版本部署 | 固定镜像摘要，使用外部 MySQL、S3 与 TLS 部署；记录版本、配置、运维人员与日期。 |
-| 执行边界与拓扑 | 验证受支持的沙箱、资源限制、hook/MCP 处理和 Server 拓扑。仅记录 `none` 边界的无限制 Bash 不合格；除非 stdio MCP 子进程受声明的 worker 边界约束，否则必须禁用 stdio MCP。明确记录剩余 Pod 级出站网络与存储凭证限制。 |
-| 持久化与故障行为 | 附上通过的关键 MySQL 测试；演练取消、worker 丢失、数据库中断与存储拒绝访问。Run 达到文档规定的终态，并保留可获得的结果与诊断证据。 |
-| 恢复与维护 | 配对恢复数据库与存储桶；演练模式升级、前一版本二进制对已升级数据库的拒绝，以及凭证轮换。记录恢复时间、数据检查与接受的损失。 |
-| 运维流程 | 未参与实现的运维人员能够登录、使用托管模型执行和重试工作，并通过 TaskRun、Artifact、轨迹、用量与审计历史诊断结果。 |
-| 发布验证 | 附上当前 CI、直接与托管模式 Compose/kind 冒烟、Portal 浏览器 E2E、归档验证、镜像扫描、SBOM 与来源证明。 |
+| 候选合同 | 固定镜像摘要、渲染配置、启用/禁用功能配置、拓扑、依赖/模型版本、保留/容量范围、RPO/RTO、运维人员与日期。 |
+| 身份与 Space 边界 | 演练原生登录和 Session 生命周期、两个用户与两个 Space、角色和跨 Space 拒绝、账户停用、owner recovery、quota 拒绝及 audit。 |
+| 核心产品旅程 | 验证 Conversation、包含 Continue/Retry/cancel/AskUser 的直接 Task、Issue 执行、包含人工请求和 retry/timeout policy 的图形 Workflow、Schedule、Artifact/checkpoint、Space Secret、受支持的非可执行 Plugin 配置、inbound webhook 和 Administration 诊断。 |
+| 执行边界与拓扑 | 验证受支持的 sandbox、run-token 和 Worker API 隔离、资源限制、Secret 脱敏、hook/MCP/Plugin 处理、双 Server + Redis 行为、优雅 drain 和 Server 滚动恢复。明确记录剩余 Pod 级出站网络与存储凭证限制。 |
+| 持久化与故障行为 | 附上通过的关键 MySQL 测试；演练并发、取消、Worker 丢失、MySQL/Redis/存储/provider 故障、Workflow 恢复和 Schedule claim。工作达到文档规定的终态，并保留可用结果与诊断证据。 |
+| 恢复与维护 | 跨完整资源模型配对恢复数据库与 bucket；演练 schema 升级、旧 binary 拒绝、配对恢复回退、credential/TLS 轮换、retention 和有边界的运行窗口。记录 RPO、RTO、数据检查、容量和接受的损失。 |
+| 产品与发布质量 | 未参与实现的 operator 完成并诊断这些旅程；选定真实模型有记录的产品 evaluation 报告；当前 CI、MySQL、Windows、本地/Desktop 回归、直连和托管 Compose/kind smoke、Portal 浏览器 E2E、archive verification、镜像扫描、SBOM 和 provenance 全部通过。 |
 
 工程上先关闭受支持的 worker 契约，再处理剩余的状态正确性与长期运行恢复缺口。
 随后验证外部环境中的候选版本，最后签署就绪记录。更广泛的模型评估与公共基准
 不阻塞这一决策。
 
-[Beta 就绪记录](deploy/beta-readiness.md)保存详细步骤与证据。
-单元测试或本地冒烟通过不能替代候选版本的恢复、故障与升级演练。
-Desktop 打磨、SSO、可执行 Space 插件内容、更多模型提供商及通用持久 Session
-同步不属于首个 Beta 门槛。
+[Beta 就绪记录](deploy/beta-readiness.md)保存详细步骤、功能配置分层与证据。
+单元测试或本地 smoke 不能替代候选版本的产品旅程、故障、恢复、升级、轮换和运行窗口演练。
+Remote Control、Telegram、OIDC、Browser、app connector 和 remote MCP 仍是 Experimental
+配置，而不是隐藏的 Beta 阻塞项。Desktop 打磨、已资格验证的 SSO、可执行 Space Plugin
+内容、更多模型 provider 及通用持久 Session 同步不属于首个 Beta 门槛。
 
 ## 如何参与
 
