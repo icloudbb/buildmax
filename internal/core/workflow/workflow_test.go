@@ -1,6 +1,9 @@
 package workflow
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestValidRunStatusTransition(t *testing.T) {
 	allowed := map[RunStatus][]RunStatus{
@@ -34,12 +37,13 @@ func TestValidRunStatusTransition(t *testing.T) {
 
 func TestValidNodeRunTransition(t *testing.T) {
 	allowed := map[NodeRunStatus][]NodeRunStatus{
-		NodeRunStatusPending: {NodeRunStatusRunning, NodeRunStatusBlocked, NodeRunStatusFailed, NodeRunStatusCanceled},
-		NodeRunStatusRunning: {NodeRunStatusSucceeded, NodeRunStatusFailed, NodeRunStatusCanceled},
+		NodeRunStatusPending:   {NodeRunStatusRunning, NodeRunStatusBlocked, NodeRunStatusFailed, NodeRunStatusCanceled},
+		NodeRunStatusRunning:   {NodeRunStatusSucceeded, NodeRunStatusFailed, NodeRunStatusCanceled, NodeRunStatusRetryWait},
+		NodeRunStatusRetryWait: {NodeRunStatusRunning, NodeRunStatusFailed, NodeRunStatusCanceled},
 	}
 	all := []NodeRunStatus{
 		NodeRunStatusPending, NodeRunStatusRunning, NodeRunStatusSucceeded,
-		NodeRunStatusFailed, NodeRunStatusCanceled, NodeRunStatusBlocked,
+		NodeRunStatusFailed, NodeRunStatusCanceled, NodeRunStatusBlocked, NodeRunStatusRetryWait,
 	}
 	for _, from := range all {
 		ok := make(map[NodeRunStatus]bool)
@@ -66,7 +70,7 @@ func TestStatusTerminal(t *testing.T) {
 			t.Errorf("%s run should be terminal", s)
 		}
 	}
-	if NodeRunStatusTerminal(NodeRunStatusPending) || NodeRunStatusTerminal(NodeRunStatusRunning) {
+	if NodeRunStatusTerminal(NodeRunStatusPending) || NodeRunStatusTerminal(NodeRunStatusRunning) || NodeRunStatusTerminal(NodeRunStatusRetryWait) {
 		t.Error("pending/running steps are not terminal")
 	}
 	// Blocked is terminal alongside the natural ends.
@@ -74,5 +78,20 @@ func TestStatusTerminal(t *testing.T) {
 		if !NodeRunStatusTerminal(s) {
 			t.Errorf("%s step should be terminal", s)
 		}
+	}
+}
+
+func TestRetryBackoffDoublesToACeiling(t *testing.T) {
+	want := map[int]time.Duration{1: 30 * time.Second, 2: time.Minute, 3: 2 * time.Minute, 5: 8 * time.Minute, 6: 10 * time.Minute, 40: 10 * time.Minute}
+	for attempt, d := range want {
+		if got := RetryBackoff(attempt); got != d {
+			t.Errorf("RetryBackoff(%d) = %s, want %s", attempt, got, d)
+		}
+	}
+}
+
+func TestTaskRunAdmissionKeyNamesTheAttempt(t *testing.T) {
+	if got := TaskRunAdmissionKey("wr_1", "a", 2); got != "workflow/wr_1/node/a/attempt/2" {
+		t.Fatalf("key = %q", got)
 	}
 }

@@ -431,6 +431,15 @@ create-and-run of §6.2 left none. The case still waits for `RUNNING` before it
 deletes the Job, so it acts only on a run it actually caught mid-flight; a run
 that finished first is never mistaken for a stranded one.
 
+The Workflow-retry case (`kindWorkflowRetryProbe`) repeats the kill with the run
+as the only step of a Workflow that allows two attempts, and disarms the stall
+right after the kill. It asserts that the lost attempt settles `FAILED`, that
+the Workflow run then succeeds on attempt 2, and that attempt 2 is a new TaskRun
+on the same Task recording `retry_of_task_run_id`. That is the retry claim of
+[Workflow runtime §12.2](workflow-runtime.md#122-retry) that only a real worker,
+the terminal report, and the recovery loop together can prove: the backoff is
+waited out durably and the next attempt actually executes on a fresh worker.
+
 ### 6.4 Losing The Database
 
 The database-outage probe (`kindDBOutageProbe` in `tools/mk`) proves the

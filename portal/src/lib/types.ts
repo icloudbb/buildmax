@@ -208,6 +208,8 @@ export interface WorkflowRun {
   startedAt?: string | null
   endedAt?: string | null
   errorMessage?: string | null
+  /** When the run fails if unfinished; null when its definition sets no timeout. */
+  deadlineAt?: string | null
   result?: unknown | null
   createdLabel: string
 }
@@ -226,7 +228,14 @@ export interface WorkflowNodeRun {
   agentDescription?: string | null
   agentInstructions?: string | null
   prompt: string
-  status: "pending" | "running" | "succeeded" | "failed" | "canceled" | "blocked"
+  status: "pending" | "running" | "retry_wait" | "succeeded" | "failed" | "canceled" | "blocked"
+  /** Attempts admitted so far (0 before dispatch) and the node's budget. */
+  attempt: number
+  maxAttempts: number
+  timeoutSeconds?: number | null
+  /** When the current attempt times out, and when a retry_wait node retries. */
+  deadlineAt?: string | null
+  nextAttemptAt?: string | null
   taskId?: string | null
   taskRunId?: string | null
   resolvedInput?: string | null

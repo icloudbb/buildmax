@@ -128,6 +128,12 @@ func (r *getWorkflowRunServiceRunner) GetWorkflowRun(ctx context.Context, workfl
 		b.WriteString("nodes:\n")
 		for _, n := range nodes {
 			fmt.Fprintf(&b, "  - %s | %s", n.NodeID, n.Status)
+			if n.MaxAttempts > 1 && n.Attempt > 0 {
+				fmt.Fprintf(&b, " | attempt %d of %d", n.Attempt, n.MaxAttempts)
+			}
+			if n.NextAttemptAt != nil {
+				fmt.Fprintf(&b, " | next attempt %s", util.FormatMinute(*n.NextAttemptAt))
+			}
 			if n.ErrorMessage != nil && *n.ErrorMessage != "" {
 				fmt.Fprintf(&b, " | %s", util.TruncateRunes(*n.ErrorMessage, 120))
 			}

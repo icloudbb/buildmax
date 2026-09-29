@@ -868,6 +868,7 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `started_at` | `datetime(6)` | 是 | |
 | `ended_at` | `datetime(6)` | 是 | |
 | `error_message` | `text` | 是 | |
+| `deadline_at` | `datetime(6)` | 是 | 未结束时运行失败的时间，准入时由定义的 `policy.timeout_seconds` 得出；未设置时为 NULL |
 | `reconcile_owner` | `varchar(64)` | 是 | 当前协调租约持有者；未持有时为 `NULL` |
 | `lease_expires_at` | `datetime(6)` | 是 | 租约到期时间；过期后可被接管 |
 | `next_reconcile_at` | `datetime(6)` | 是 | 下次协调时间；`NULL` 视为到期 |
@@ -904,9 +905,14 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `prompt` | `text` | 否 | 此节点渲染后的 prompt |
 | `bindings` | `text` | 是 | 输入绑定的 JSON 快照；没有绑定时为 `NULL` |
 | `output_schema` | `text` | 是 | 节点 JSON Schema 的快照；自由文本时为 `NULL` |
-| `status` | `varchar(32)` | 否 | `pending`、`running`、`succeeded`、`failed`、`canceled`、`blocked` |
-| `task_id` | `bigint unsigned` | 是 | 此节点创建的 Tier 2 Task |
-| `task_run_id` | `bigint unsigned` | 是 | 具体的那次尝试 |
+| `max_attempts` | `bigint` | 否 | 节点 `policy.max_attempts` 的快照，包含第一次尝试；默认 1 |
+| `timeout_seconds` | `bigint` | 否 | 节点按次尝试计算的 `policy.timeout_seconds` 的快照；未设置时为 0 |
+| `attempt` | `bigint` | 否 | 目前已准入的尝试次数；派发前为 0 |
+| `deadline_at` | `datetime(6)` | 是 | 当前尝试的超时时间；仅在 `running` 时设置 |
+| `next_attempt_at` | `datetime(6)` | 是 | `retry_wait` 节点准入下一次尝试的时间；仅在 `retry_wait` 时设置 |
+| `status` | `varchar(32)` | 否 | `pending`、`running`、`retry_wait`、`succeeded`、`failed`、`canceled`、`blocked` |
+| `task_id` | `bigint unsigned` | 是 | 此节点创建的 Tier 2 Task；每次尝试都在它上面运行 |
+| `task_run_id` | `bigint unsigned` | 是 | 最近一次尝试；更早的尝试是该 Task 上通过 `retry_of_task_run_id` 关联的运行 |
 | `resolved_input` | `longtext` | 是 | 节点启动时收到的完整 Task 输入 |
 | `output` | `longtext` | 是 | 节点成功时捕获的完整输出文本；供下游绑定读取 |
 | `structured` | `text` | 是 | 经校验的结构化 JSON 结果；自由文本或校验失败时为 `NULL` |
@@ -926,6 +932,11 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 
 节点的 TaskRun 被取消时写入 `canceled`。它同样会使待运行节点被阻塞并推动运行进入
 `canceling`；排空完成后，运行标记为 `canceled` 而非 `failed`，因为并没有出错。
+
+仍有剩余尝试次数的失败或超时尝试会让节点进入 `retry_wait`，而不是失败。重试尝试的
+TaskRun 与首次准入一样，在 Run 锁下于同一事务中创建在节点的 Task 上并关联到节点；停止
+意图会在阻塞待运行节点的同一事务中取消 `retry_wait` 节点。以原因 `workflow_node_timeout`
+取消的尝试计为一次失败的尝试，而不是取消。
 
 ## 托管推理
 

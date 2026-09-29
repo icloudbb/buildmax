@@ -289,9 +289,44 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 	if !ok {
 		return nil, apierr.ErrNotFound
 	}
+	if in.WorkflowNodeRunID != "" {
+		return s.admitWorkflowNodeRetryRun(ctx, canonicalTaskID, in)
+	}
+	var created *createdTaskRun
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		created, err = createTaskRunTx(ctx, tx, canonicalTaskID, in)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return created.toRun(canonicalTaskID), nil
+}
+
+// createdTaskRun is a run createTaskRunTx wrote or found, with the handles its
+// references resolve to.
+type createdTaskRun struct {
+	row                              *taskRunRow
+	previous, retryOf, sourceMessage *string
+}
+
+func (c *createdTaskRun) toRun(canonicalTaskID string) *coretask.Run {
+	return toTaskRun(&taskRunReadRow{
+		Row:                   *c.row,
+		TaskPublicID:          canonicalTaskID,
+		PreviousPublicID:      c.previous,
+		RetryOfPublicID:       c.retryOf,
+		SourceMessagePublicID: c.sourceMessage,
+	})
+}
+
+// createTaskRunTx is CreateTaskRun's body inside the caller's transaction, so
+// a Workflow retry can create the run and link its node atomically.
+func createTaskRunTx(ctx context.Context, tx *gorm.DB, canonicalTaskID string, in coretask.CreateRunInput) (*createdTaskRun, error) {
 	var row *taskRunRow
 	var previous, retryOf, sourceMessage *string
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := func() error {
 		var taskLock taskRow
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Select("id", "last_run_id", "workspace_head_checkpoint_id").Where("public_id = ?", canonicalTaskID).Take(&taskLock).Error; err != nil {
@@ -415,17 +450,11 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 			"error_message":   nil,
 			"awaiting_answer": false,
 		}).Error
-	})
+	}()
 	if err != nil {
 		return nil, err
 	}
-	return toTaskRun(&taskRunReadRow{
-		Row:                   *row,
-		TaskPublicID:          canonicalTaskID,
-		PreviousPublicID:      previous,
-		RetryOfPublicID:       retryOf,
-		SourceMessagePublicID: sourceMessage,
-	}), nil
+	return &createdTaskRun{row: row, previous: previous, retryOf: retryOf, sourceMessage: sourceMessage}, nil
 }
 
 // RecordTaskRunAgentRevision stores which agent definition a run was given.

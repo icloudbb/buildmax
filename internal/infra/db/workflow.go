@@ -101,6 +101,8 @@ type workflowRunRow struct {
 	StartedAt    *time.Time `gorm:""`
 	EndedAt      *time.Time `gorm:""`
 	ErrorMessage *string    `gorm:"type:text"`
+	// DeadlineAt is when the run fails if unfinished; NULL for no run timeout.
+	DeadlineAt *time.Time `gorm:"column:deadline_at"`
 	// Reconciliation lease and schedule. The due query walks
 	// idx_workflow_run_next_reconcile; idx_workflow_run_lease_expires supports the
 	// expired-lease takeover branch of the same query. All three are nulled when
@@ -160,9 +162,15 @@ type workflowNodeRunRow struct {
 	// OutputSchema is the run's snapshot of this node's output schema (JSON text),
 	// NULL for a free-text node.
 	OutputSchema *string `gorm:"type:text"`
-	Status       string  `gorm:"type:varchar(32);not null"`
-	TaskID       *uint64 `gorm:"column:task_id;index"`
-	TaskRunID    *uint64 `gorm:"column:task_run_id;index"`
+	// Retry and timeout policy snapshot, and the current attempt's progress.
+	MaxAttempts    int        `gorm:"column:max_attempts;not null;default:1"`
+	TimeoutSeconds int        `gorm:"column:timeout_seconds;not null;default:0"`
+	Attempt        int        `gorm:"column:attempt;not null;default:0"`
+	DeadlineAt     *time.Time `gorm:"column:deadline_at"`
+	NextAttemptAt  *time.Time `gorm:"column:next_attempt_at"`
+	Status         string     `gorm:"type:varchar(32);not null"`
+	TaskID         *uint64    `gorm:"column:task_id;index"`
+	TaskRunID      *uint64    `gorm:"column:task_run_id;index"`
 	// ResolvedInput is the full Task input the node received, captured when it
 	// started; NULL until the node is dispatched.
 	ResolvedInput *string `gorm:"column:resolved_input;type:longtext"`
@@ -270,6 +278,7 @@ func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 		StartedAt:        row.Row.StartedAt,
 		EndedAt:          row.Row.EndedAt,
 		ErrorMessage:     row.Row.ErrorMessage,
+		DeadlineAt:       row.Row.DeadlineAt,
 		ReconcileOwner:   row.Row.ReconcileOwner,
 		LeaseExpiresAt:   row.Row.LeaseExpiresAt,
 		NextReconcileAt:  row.Row.NextReconcileAt,
@@ -312,6 +321,11 @@ func toWorkflowNodeRun(row *workflowNodeRunReadRow) *coreworkflow.NodeRun {
 		IssueAccess:       row.Row.IssueAccess,
 		Bindings:          decodeStepBindings(row.Row.Bindings),
 		OutputSchema:      row.Row.OutputSchema,
+		MaxAttempts:       row.Row.MaxAttempts,
+		TimeoutSeconds:    row.Row.TimeoutSeconds,
+		Attempt:           row.Row.Attempt,
+		DeadlineAt:        row.Row.DeadlineAt,
+		NextAttemptAt:     row.Row.NextAttemptAt,
 		Status:            row.Row.Status,
 		ResolvedInput:     row.Row.ResolvedInput,
 		Output:            row.Row.Output,
@@ -611,6 +625,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 		CreatedBy:        in.CreatedBy,
 		CreatedAt:        now,
 		StartedAt:        in.StartedAt,
+		DeadlineAt:       in.DeadlineAt,
 	}
 	row := &workflowRunRow{
 		WorkflowRevision: in.WorkflowRevision,
@@ -618,6 +633,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 		Status:           in.Status,
 		CreatedAt:        now,
 		StartedAt:        in.StartedAt,
+		DeadlineAt:       in.DeadlineAt,
 	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		workflowKey, err := lookupKey(ctx, tx, "workflow", in.WorkflowID)
@@ -783,6 +799,8 @@ func (s *Store) CreateWorkflowNodeRuns(ctx context.Context, workflowRunID string
 				IssueAccess:       steps[i].IssueAccess,
 				Bindings:          encodeStepBindings(steps[i].Bindings),
 				OutputSchema:      steps[i].OutputSchema,
+				MaxAttempts:       max(steps[i].MaxAttempts, 1),
+				TimeoutSeconds:    steps[i].TimeoutSeconds,
 				Status:            steps[i].Status,
 				CreatedAt:         now,
 			}
@@ -897,6 +915,23 @@ func stepTransitionUpdates(ctx context.Context, tx *gorm.DB, in coreworkflow.Tra
 	if in.EndedAt != nil {
 		updates["ended_at"] = *in.EndedAt
 	}
+	if in.Attempt != nil {
+		updates["attempt"] = *in.Attempt
+	}
+	// An attempt's deadline lives only while it runs, and a retry time only
+	// while the node waits for it; leaving either state clears the stale value.
+	if in.ExpectedStatus == coreworkflow.NodeRunStatusRunning {
+		updates["deadline_at"] = nil
+	}
+	if in.ExpectedStatus == coreworkflow.NodeRunStatusRetryWait {
+		updates["next_attempt_at"] = nil
+	}
+	if in.DeadlineAt != nil {
+		updates["deadline_at"] = *in.DeadlineAt
+	}
+	if in.NextAttemptAt != nil {
+		updates["next_attempt_at"] = *in.NextAttemptAt
+	}
 	return updates, nil
 }
 
@@ -973,7 +1008,7 @@ func (s *Store) BeginWorkflowRunDrain(ctx context.Context, in coreworkflow.Begin
 		if run.Status != string(in.RunExpected) {
 			return nil
 		}
-		stepUpdates := map[string]interface{}{"status": string(in.NodeStatus)}
+		stepUpdates := map[string]interface{}{"status": string(in.NodeStatus), "deadline_at": nil, "next_attempt_at": nil}
 		if in.Output != nil {
 			stepUpdates["output"] = *in.Output
 		}
@@ -1007,17 +1042,7 @@ func (s *Store) BeginWorkflowRunDrain(ctx context.Context, in coreworkflow.Begin
 		}
 		stepApplied = true
 
-		runKey, err := lookupKey(ctx, tx, "workflow_run", in.WorkflowRunID)
-		if err != nil {
-			return err
-		}
-		// Block every node still pending -- fail-fast stops admission, so nothing
-		// else may start. The status filter makes this a guarded bulk
-		// pending -> blocked, which is a valid transition.
-		if err := tx.Model(&workflowNodeRunRow{}).
-			Where("workflow_run_id = ? AND status = ?",
-				runKey, string(coreworkflow.NodeRunStatusPending)).
-			Update("status", string(coreworkflow.NodeRunStatusBlocked)).Error; err != nil {
+		if err := stopPendingNodesTx(tx, run.ID); err != nil {
 			return err
 		}
 		// Running siblings keep their actual state until the Task plane confirms
@@ -1028,6 +1053,63 @@ func (s *Store) BeginWorkflowRunDrain(ctx context.Context, in coreworkflow.Begin
 			Updates(runUpdates).Error
 	})
 	return stepApplied, err
+}
+
+// stopPendingNodesTx ends every node that has no active TaskRun once stop
+// intent commits: pending nodes can never start (blocked) and retry_wait nodes
+// get no further attempt (canceled). The status filters make these guarded
+// bulk transitions.
+func stopPendingNodesTx(tx *gorm.DB, runKey uint64) error {
+	if err := tx.Model(&workflowNodeRunRow{}).
+		Where("workflow_run_id = ? AND status = ?", runKey, string(coreworkflow.NodeRunStatusPending)).
+		Update("status", string(coreworkflow.NodeRunStatusBlocked)).Error; err != nil {
+		return err
+	}
+	return tx.Model(&workflowNodeRunRow{}).
+		Where("workflow_run_id = ? AND status = ?", runKey, string(coreworkflow.NodeRunStatusRetryWait)).
+		Updates(map[string]interface{}{
+			"status":          string(coreworkflow.NodeRunStatusCanceled),
+			"next_attempt_at": nil,
+			"ended_at":        time.Now().UTC(),
+		}).Error
+}
+
+// StopWorkflowRun commits run-level stop intent under the same run lock Task
+// admission takes, so no node can be admitted after the stop is visible.
+func (s *Store) StopWorkflowRun(ctx context.Context, in coreworkflow.StopRunInput) (bool, error) {
+	if in.RunStatus != coreworkflow.RunStatusFailing && in.RunStatus != coreworkflow.RunStatusCanceling {
+		return false, coreworkflow.ErrInvalidRunTransition
+	}
+	if !coreworkflow.ValidRunStatusTransition(in.RunExpected, in.RunStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidRunTransition, in.RunExpected, in.RunStatus)
+	}
+	runID, ok := util.CanonicalPublicID(in.WorkflowRunID)
+	if !ok {
+		return false, nil
+	}
+	applied := false
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var run workflowRunRow
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("public_id = ?", runID).Take(&run).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if run.Status != string(in.RunExpected) {
+			return nil
+		}
+		if err := stopPendingNodesTx(tx, run.ID); err != nil {
+			return err
+		}
+		if err := tx.Model(&workflowRunRow{}).Where("id = ?", run.ID).
+			Updates(runStatusUpdates(in.RunStatus, nil, nil, in.ErrorMessage, nil)).Error; err != nil {
+			return err
+		}
+		applied = true
+		return nil
+	})
+	return applied, err
 }
 
 // defaultDueRunLimit bounds a due-run batch when the caller passes no limit. It

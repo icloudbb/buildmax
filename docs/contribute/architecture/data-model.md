@@ -1251,6 +1251,7 @@ revision cannot unpublish a workflow spaces are running.
 | `started_at` | `datetime(6)` | yes | |
 | `ended_at` | `datetime(6)` | yes | |
 | `error_message` | `text` | yes | |
+| `deadline_at` | `datetime(6)` | yes | When the run fails if unfinished, from the definition's `policy.timeout_seconds` at admission; NULL when none is set |
 | `reconcile_owner` | `varchar(64)` | yes | Holder of the current reconciliation lease; NULL when unleased |
 | `lease_expires_at` | `datetime(6)` | yes | When the current lease expires; a lease at or past this may be taken over |
 | `next_reconcile_at` | `datetime(6)` | yes | When this run next wants a reconciliation pass; NULL is treated as due |
@@ -1303,9 +1304,14 @@ the node's dependency edges, and readiness is decided from those edges, not from
 | `prompt` | `text` | no | Rendered prompt for this node |
 | `bindings` | `text` | yes | Snapshot of input bindings as JSON; `NULL` when none |
 | `output_schema` | `text` | yes | Snapshot of the node's JSON Schema; `NULL` for free text |
-| `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled`, `blocked` |
-| `task_id` | `bigint unsigned` | yes | The Tier 2 task this node created |
-| `task_run_id` | `bigint unsigned` | yes | The specific attempt |
+| `max_attempts` | `bigint` | no | Snapshot of the node's `policy.max_attempts`, first attempt included; default 1 |
+| `timeout_seconds` | `bigint` | no | Snapshot of the node's per-attempt `policy.timeout_seconds`; 0 for none |
+| `attempt` | `bigint` | no | Attempts admitted so far; 0 before dispatch |
+| `deadline_at` | `datetime(6)` | yes | When the current attempt times out; set only while `running` |
+| `next_attempt_at` | `datetime(6)` | yes | When a `retry_wait` node admits its next attempt; set only while `retry_wait` |
+| `status` | `varchar(32)` | no | `pending`, `running`, `retry_wait`, `succeeded`, `failed`, `canceled`, `blocked` |
+| `task_id` | `bigint unsigned` | yes | The Tier 2 task this node created; every attempt runs on it |
+| `task_run_id` | `bigint unsigned` | yes | The latest attempt; earlier attempts are the task's runs linked by `retry_of_task_run_id` |
 | `resolved_input` | `longtext` | yes | The full Task input the node received, captured when it started |
 | `output` | `longtext` | yes | The node's full output text, captured when it succeeded; read by downstream bindings |
 | `structured` | `text` | yes | Validated structured result as JSON; `NULL` for free text or failed validation |
@@ -1329,6 +1335,13 @@ nodes are canceled.
 `canceled` is written when the node's TaskRun is canceled. It stops the run the
 way a failure does — pending nodes are blocked, the run ends — and the run is
 marked `canceled` rather than `failed`, because nothing went wrong.
+
+A failed or timed-out attempt with attempts left moves the node to `retry_wait`
+instead of failing it. A retry attempt's TaskRun is created on the node's Task
+and linked onto the node in one transaction under the run lock, like first
+admission; stop intent cancels `retry_wait` nodes in the same transaction that
+blocks pending ones. An attempt canceled with reason `workflow_node_timeout`
+counts as a failed attempt, not a cancellation.
 
 ## Managed Inference
 

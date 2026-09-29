@@ -13,6 +13,7 @@ export function statusLabel(value: string): string {
     failed: "Failed",
     canceled: "Canceled",
     blocked: "Blocked",
+    retry_wait: "Waiting to retry",
     draft: "Draft",
     published: "Published",
     archived: "Archived",

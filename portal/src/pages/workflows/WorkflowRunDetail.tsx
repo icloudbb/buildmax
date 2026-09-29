@@ -177,6 +177,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
               <div><strong>Created:</strong> {run.createdLabel}</div>
               {run.startedAt ? <div><strong>Started:</strong> {new Date(run.startedAt).toLocaleString()}</div> : null}
               {run.endedAt ? <div><strong>Ended:</strong> {new Date(run.endedAt).toLocaleString()}</div> : null}
+              {run.deadlineAt ? <div><strong>Deadline:</strong> {new Date(run.deadlineAt).toLocaleString()}</div> : null}
               {run.issueId ? <div><strong>Issue ID:</strong> {run.issueId}</div> : null}
               <div>
                 <strong>Mode:</strong> {isLive ? "Live updates enabled" : "Final snapshot"}
@@ -222,6 +223,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                     <div className="workflow-page__step-body">
                       <div className="page-activity__meta">{statusLabel(step.nodeType)}</div>
                       <div>{step.prompt}</div>
+                      <StepAttempt step={step} />
                       {step.targetAgentId ? (
                         <div className="page-activity__meta">
                           Agent: {step.agentName ? `${step.agentName} (${step.targetAgentId})` : step.targetAgentId}
@@ -268,4 +270,20 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
       )}
     </div>
   )
+}
+
+/** A step's retry and timeout progress: which attempt it is on, when a waiting
+ *  step retries, and when a running attempt times out. Silent for a one-attempt
+ *  step with no timeout, which is most of them. */
+function StepAttempt({ step }: { step: WorkflowNodeRun }) {
+  const parts: string[] = []
+  if (step.maxAttempts > 1 && step.attempt > 0) parts.push(`Attempt ${step.attempt} of ${step.maxAttempts}`)
+  if (step.status === "retry_wait" && step.nextAttemptAt) {
+    parts.push(`next attempt at ${new Date(step.nextAttemptAt).toLocaleTimeString()}`)
+  }
+  if (step.status === "running" && step.deadlineAt) {
+    parts.push(`times out at ${new Date(step.deadlineAt).toLocaleString()}`)
+  }
+  if (parts.length === 0) return null
+  return <div className="page-activity__meta">{parts.join(" · ")}</div>
 }

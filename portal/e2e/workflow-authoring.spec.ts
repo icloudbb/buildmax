@@ -164,3 +164,45 @@ test("the visual editor renders a branching graph, adds a step, and round-trips 
   await expect(raw).toHaveValue(/"needs":\s*\[\s*"gather"\s*\]/)
   await expect(raw).toHaveValue(/"source":\s*"node\.gather\.output"/)
 })
+
+test("a step's attempts and timeout, and the run timeout, are authored in the editor and saved as policy", async ({
+  page,
+}) => {
+  const current = await session(page)
+  const agentName = tagged("Workflow retry policy agent")
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
+    name: agentName,
+    description: "Created by the Portal browser tests.",
+    instructions: "Reply with exactly: deployment smoke ok",
+  })
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`])
+
+  await page.goto(`/#/spaces/${current.spaceId}/workflows`)
+  await page.getByRole("button", { name: "New Workflow" }).click()
+  const dialog = page.getByRole("dialog", { name: "New Workflow" })
+  await dialog.getByLabel("Name").fill(tagged("Workflow retry policy"))
+  await dialog.getByLabel("Agent").selectOption({ label: `${agentName} (${agent.id})` })
+  await dialog.getByLabel("Prompt").fill("Reply with exactly: deployment smoke ok")
+
+  // Six attempts is past the runtime's ceiling, so Save stays disabled until
+  // the author picks a value publication would accept.
+  const submit = dialog.getByRole("button", { name: "Create workflow" })
+  await dialog.getByLabel("Attempts").fill("6")
+  await expect(submit).toBeDisabled()
+  await dialog.getByLabel("Attempts").fill("3")
+  await dialog.getByLabel("Timeout per attempt (min)").fill("10")
+  await dialog.getByLabel("Run timeout (min)").fill("60")
+  await expect(dialog.locator(".wf-node", { hasText: "3 attempts" })).toBeVisible()
+  await expect(dialog.locator(".wf-node", { hasText: "timeout 10m" })).toBeVisible()
+
+  await dialog.getByRole("button", { name: "Edit raw JSON" }).click()
+  const raw = dialog.getByLabel(/^Definition \(JSON\)/)
+  await expect(raw).toHaveValue(/"max_attempts":\s*3/)
+  await expect(raw).toHaveValue(/"timeout_seconds":\s*600/)
+  await expect(raw).toHaveValue(/"timeout_seconds":\s*3600/)
+
+  await expect(submit).toBeEnabled()
+  await submit.click()
+  await expect(dialog).toBeHidden()
+  await expect(page).toHaveURL(new RegExp(`#/spaces/${current.spaceId}/workflows/[^/]+$`))
+})

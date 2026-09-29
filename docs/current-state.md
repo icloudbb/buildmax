@@ -60,7 +60,13 @@ ready node at once, bounded by `policy.max_parallel_nodes` (1 to the deployment
 ceiling, which also applies when a definition names no limit). Failure stays fail-fast:
 one node's failure blocks the pending nodes, requests cancellation for the
 siblings running alongside it, and ends the run after admitted TaskRuns become
-terminal. Typed `/structured/...` routing remains open.
+terminal. A node may opt into up to five attempts (`policy.max_attempts`) and a
+per-attempt timeout (`policy.timeout_seconds`), and a definition into a run-wide
+timeout: a failed, timed-out, or worker-lost attempt waits out a durable backoff
+in `retry_wait` and runs again on the same Task, and a run past its deadline
+starts nothing new and fails once its active attempts stop. The visual editor
+authors both, and the run view shows each node's attempt and next retry.
+Typed `/structured/...` routing remains open.
 Automatic re-dispatch of a worker TaskRun lost after it was claimed is a
 documented, accepted first-Beta limit, distinct from that Workflow-progression
 recovery. A Server can now expire old run traces on an operator-set retention

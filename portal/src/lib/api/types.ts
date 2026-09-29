@@ -188,6 +188,7 @@ export interface ApiWorkflowRun {
   started_at?: string | null
   ended_at?: string | null
   error_message?: string | null
+  deadline_at?: string | null
   result?: unknown
 }
 
@@ -206,6 +207,11 @@ export interface ApiWorkflowNodeRun {
   agent_revision?: number | null
   prompt: string
   status: string
+  attempt?: number
+  max_attempts?: number
+  timeout_seconds?: number | null
+  deadline_at?: string | null
+  next_attempt_at?: string | null
   task_id?: string | null
   task_run_id?: string | null
   resolved_input?: string | null

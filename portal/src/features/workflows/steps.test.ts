@@ -6,6 +6,7 @@ import {
   parseDefinition,
   renameStepId,
   stepsToDefinition,
+  validateDefinitionPolicy,
   validateSteps,
   type WorkflowStepDraft,
 } from "./steps"
@@ -106,10 +107,26 @@ describe("stepsToDefinition / parseDefinition", () => {
 
   it("carries policy.max_parallel_nodes through parse and serialize", () => {
     expect(stepsToDefinition([step()])).not.toContain("policy")
-    const wire = stepsToDefinition([step()], 3)
+    const wire = stepsToDefinition([step()], { maxParallelNodes: 3 })
     expect(JSON.parse(wire).policy).toEqual({ max_parallel_nodes: 3 })
     expect(parseDefinition(wire)?.maxParallelNodes).toBe(3)
     expect(parseDefinition(stepsToDefinition([step()]))?.maxParallelNodes).toBeNull()
+  })
+
+  it("carries the run timeout beside max_parallel_nodes in one policy", () => {
+    const wire = stepsToDefinition([step()], { maxParallelNodes: 2, runTimeoutSeconds: 3600 })
+    expect(JSON.parse(wire).policy).toEqual({ max_parallel_nodes: 2, timeout_seconds: 3600 })
+    expect(parseDefinition(wire)?.runTimeoutSeconds).toBe(3600)
+    expect(parseDefinition(stepsToDefinition([step()]))?.runTimeoutSeconds).toBeNull()
+  })
+
+  it("carries a node's retry and timeout policy, only when set", () => {
+    expect(JSON.parse(stepsToDefinition([step()])).nodes[0].policy).toBeUndefined()
+    const wire = stepsToDefinition([step({ maxAttempts: 3, timeoutSeconds: 600 })])
+    expect(JSON.parse(wire).nodes[0].policy).toEqual({ timeout_seconds: 600, max_attempts: 3 })
+    const parsed = parseDefinition(wire)!.steps[0]
+    expect(parsed.maxAttempts).toBe(3)
+    expect(parsed.timeoutSeconds).toBe(600)
   })
 
   it("emits bindings in the wire snake_case shape only when a step has them", () => {
@@ -124,7 +141,7 @@ describe("stepsToDefinition / parseDefinition", () => {
   it("carries input_schema through parse and serialize, only when present", () => {
     expect(stepsToDefinition([step()])).not.toContain("input_schema")
     const schema = { type: "object", properties: { topic: { type: "string" } } }
-    const wire = stepsToDefinition([step()], null, JSON.stringify(schema))
+    const wire = stepsToDefinition([step()], { inputSchema: JSON.stringify(schema) })
     expect(JSON.parse(wire).input_schema).toEqual(schema)
     expect(JSON.parse(parseDefinition(wire)!.inputSchema!)).toEqual(schema)
   })
@@ -132,7 +149,7 @@ describe("stepsToDefinition / parseDefinition", () => {
   it("carries result through parse and serialize, only when present", () => {
     expect(stepsToDefinition([step()])).not.toContain(`"result"`)
     const result = { source: "node.step_1.output", pointer: "/text" }
-    const wire = stepsToDefinition([step()], null, undefined, JSON.stringify(result))
+    const wire = stepsToDefinition([step()], { result: JSON.stringify(result) })
     expect(JSON.parse(wire).result).toEqual(result)
     expect(JSON.parse(parseDefinition(wire)!.result!)).toEqual(result)
   })
@@ -143,6 +160,21 @@ describe("stepsToDefinition / parseDefinition", () => {
     const wire = stepsToDefinition([step({ outputSchema: JSON.stringify(outputSchema) })])
     expect(JSON.parse(wire).nodes[0].output_schema).toEqual(outputSchema)
     expect(JSON.parse(parseDefinition(wire)!.steps[0].outputSchema!)).toEqual(outputSchema)
+  })
+})
+
+describe("policy validation", () => {
+  const agents = [agent("a_1")]
+  it("rejects attempts and timeouts outside the server's bounds", () => {
+    expect(validateSteps([step({ maxAttempts: 5, timeoutSeconds: 60 })], agents)).toEqual([])
+    expect(validateSteps([step({ maxAttempts: 6 })], agents)[0].message).toContain("Attempts")
+    expect(validateSteps([step({ maxAttempts: 1.5 })], agents)).toHaveLength(1)
+    expect(validateSteps([step({ timeoutSeconds: 30 })], agents)[0].message).toContain("timeout")
+  })
+
+  it("rejects a run timeout below a minute", () => {
+    expect(validateDefinitionPolicy({ runTimeoutSeconds: 3600 })).toEqual([])
+    expect(validateDefinitionPolicy({ runTimeoutSeconds: 30 })[0].index).toBe(-1)
   })
 })
 

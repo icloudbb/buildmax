@@ -138,6 +138,7 @@ func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in coreworkflow
 		CreatedBy:        in.CreatedBy,
 		CreatedAt:        time.Now().UTC(),
 		StartedAt:        in.StartedAt,
+		DeadlineAt:       in.DeadlineAt,
 	}
 	m.Runs = append(m.Runs, run)
 	return &m.Runs[len(m.Runs)-1], nil
@@ -231,6 +232,8 @@ func (m *MockWorkflowStore) CreateWorkflowNodeRuns(_ context.Context, workflowRu
 			AgentRevision:     steps[i].AgentRevision,
 			Prompt:            steps[i].Prompt,
 			Bindings:          steps[i].Bindings,
+			MaxAttempts:       max(steps[i].MaxAttempts, 1),
+			TimeoutSeconds:    steps[i].TimeoutSeconds,
 			Status:            steps[i].Status,
 			CreatedAt:         time.Now().UTC(),
 		}
@@ -324,6 +327,21 @@ func (m *MockWorkflowStore) TransitionWorkflowNodeRun(_ context.Context, in core
 		if in.EndedAt != nil {
 			m.NodeRuns[i].EndedAt = in.EndedAt
 		}
+		if in.Attempt != nil {
+			m.NodeRuns[i].Attempt = *in.Attempt
+		}
+		if in.ExpectedStatus == coreworkflow.NodeRunStatusRunning {
+			m.NodeRuns[i].DeadlineAt = nil
+		}
+		if in.ExpectedStatus == coreworkflow.NodeRunStatusRetryWait {
+			m.NodeRuns[i].NextAttemptAt = nil
+		}
+		if in.DeadlineAt != nil {
+			m.NodeRuns[i].DeadlineAt = in.DeadlineAt
+		}
+		if in.NextAttemptAt != nil {
+			m.NodeRuns[i].NextAttemptAt = in.NextAttemptAt
+		}
 		return true, nil
 	}
 	return false, nil
@@ -358,6 +376,8 @@ func (m *MockWorkflowStore) BeginWorkflowRunDrain(_ context.Context, in corework
 			return false, nil
 		}
 		m.NodeRuns[i].Status = string(in.NodeStatus)
+		m.NodeRuns[i].DeadlineAt = nil
+		m.NodeRuns[i].NextAttemptAt = nil
 		m.NodeRuns[i].Output = in.Output
 		m.NodeRuns[i].Structured = in.Structured
 		if in.TaskRunID != nil && *in.TaskRunID != "" {
@@ -379,14 +399,7 @@ func (m *MockWorkflowStore) BeginWorkflowRunDrain(_ context.Context, in corework
 		return false, nil
 	}
 	// The real store retains running siblings until Task termination is observed.
-	for i := range m.NodeRuns {
-		if m.NodeRuns[i].WorkflowRunID != in.WorkflowRunID {
-			continue
-		}
-		if m.NodeRuns[i].Status == string(coreworkflow.NodeRunStatusPending) {
-			m.NodeRuns[i].Status = string(coreworkflow.NodeRunStatusBlocked)
-		}
-	}
+	m.stopPendingNodes(in.WorkflowRunID)
 	for i := range m.Runs {
 		if m.Runs[i].ID != in.WorkflowRunID {
 			continue
@@ -400,6 +413,49 @@ func (m *MockWorkflowStore) BeginWorkflowRunDrain(_ context.Context, in corework
 		break
 	}
 	return true, nil
+}
+
+// stopPendingNodes mirrors the store: pending nodes become blocked and
+// retry_wait nodes canceled once stop intent commits.
+func (m *MockWorkflowStore) stopPendingNodes(workflowRunID string) {
+	now := time.Now().UTC()
+	for i := range m.NodeRuns {
+		if m.NodeRuns[i].WorkflowRunID != workflowRunID {
+			continue
+		}
+		switch m.NodeRuns[i].Status {
+		case string(coreworkflow.NodeRunStatusPending):
+			m.NodeRuns[i].Status = string(coreworkflow.NodeRunStatusBlocked)
+		case string(coreworkflow.NodeRunStatusRetryWait):
+			m.NodeRuns[i].Status = string(coreworkflow.NodeRunStatusCanceled)
+			m.NodeRuns[i].NextAttemptAt = nil
+			m.NodeRuns[i].EndedAt = &now
+		}
+	}
+}
+
+func (m *MockWorkflowStore) StopWorkflowRun(_ context.Context, in coreworkflow.StopRunInput) (bool, error) {
+	if in.RunStatus != coreworkflow.RunStatusFailing && in.RunStatus != coreworkflow.RunStatusCanceling {
+		return false, coreworkflow.ErrInvalidRunTransition
+	}
+	if !coreworkflow.ValidRunStatusTransition(in.RunExpected, in.RunStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", coreworkflow.ErrInvalidRunTransition, in.RunExpected, in.RunStatus)
+	}
+	for i := range m.Runs {
+		if m.Runs[i].ID != in.WorkflowRunID {
+			continue
+		}
+		if m.Runs[i].Status != string(in.RunExpected) {
+			return false, nil
+		}
+		m.stopPendingNodes(in.WorkflowRunID)
+		m.Runs[i].Status = string(in.RunStatus)
+		if in.ErrorMessage != nil {
+			m.Runs[i].ErrorMessage = in.ErrorMessage
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // clearRunLease drops the reconciliation lease and schedule, as the store does

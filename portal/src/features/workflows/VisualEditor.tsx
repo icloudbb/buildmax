@@ -17,7 +17,7 @@ import {
 import "@xyflow/react/dist/style.css"
 import { Button } from "@buildmax/gui"
 import type { Agent } from "../../lib/types"
-import { nodeOutputSource, WORKFLOW_INPUT_SOURCE, type WorkflowStepDraft } from "./steps"
+import { MAX_NODE_ATTEMPTS, nodeOutputSource, WORKFLOW_INPUT_SOURCE, type WorkflowStepDraft } from "./steps"
 import type { WorkflowStepsState } from "./useWorkflowSteps"
 
 const ISSUE_ACCESS_OPTIONS = ["none", "if_bound", "required"]
@@ -27,7 +27,29 @@ interface StepNodeData extends Record<string, unknown> {
   agentName: string
   prompt: string
   issueAccess?: string
+  maxAttempts?: number
+  timeoutSeconds?: number
   errorCount: number
+}
+
+/** Timeouts are stored in seconds but authored in minutes: the floor is one
+ *  minute and real Agent steps run for many. Empty input means no timeout. */
+function secondsToMinutesInput(seconds: number | null | undefined): string {
+  return seconds ? String(seconds / 60) : ""
+}
+
+function minutesInputToSeconds(value: string): number | undefined {
+  const trimmed = value.trim()
+  if (trimmed === "") return undefined
+  return Math.round(Number(trimmed) * 60)
+}
+
+/** A compact duration for a node badge: "90s", "30m", "2h", "1d". */
+export function formatTimeout(seconds: number): string {
+  if (seconds % 86400 === 0) return `${seconds / 86400}d`
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`
+  if (seconds % 60 === 0) return `${seconds / 60}m`
+  return `${seconds}s`
 }
 
 type StepNode = Node<StepNodeData, "wfStep">
@@ -48,6 +70,10 @@ function StepNodeComponent({ data, selected }: NodeProps<StepNode>) {
         {data.issueAccess && data.issueAccess !== "none" ? (
           <span className="wf-node__badge">issue: {data.issueAccess}</span>
         ) : null}
+        {data.maxAttempts && data.maxAttempts > 1 ? (
+          <span className="wf-node__badge">{data.maxAttempts} attempts</span>
+        ) : null}
+        {data.timeoutSeconds ? <span className="wf-node__badge">timeout {formatTimeout(data.timeoutSeconds)}</span> : null}
         {data.errorCount > 0 ? (
           <span className="wf-node__badge wf-node__badge--error">
             {data.errorCount} {data.errorCount === 1 ? "issue" : "issues"}
@@ -171,6 +197,8 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
           agentName: agentName.get(step.targetAgentId) ?? "",
           prompt: step.prompt,
           issueAccess: step.issueAccess,
+          maxAttempts: step.maxAttempts,
+          timeoutSeconds: step.timeoutSeconds,
           errorCount: errorCountById[step.id] ?? 0,
         },
       })),
@@ -264,6 +292,18 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
               const value = e.target.value.trim()
               state.setMaxParallelNodes(value === "" ? null : Number(value))
             }}
+          />
+        </label>
+        <label className="wf-visual__parallel">
+          <span className="issues-page__field-label">Run timeout (min)</span>
+          <input
+            className="issues-page__input"
+            type="number"
+            min={1}
+            placeholder="none"
+            value={secondsToMinutesInput(state.runTimeoutSeconds)}
+            disabled={disabled}
+            onChange={(e) => state.setRunTimeoutSeconds(minutesInputToSeconds(e.target.value) ?? null)}
           />
         </label>
       </div>
@@ -429,6 +469,41 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
           ))}
         </select>
       </label>
+      <div className="wf-inspector__row">
+        <label className="issues-page__field">
+          <span className="issues-page__field-label">Attempts</span>
+          <input
+            className="issues-page__input"
+            type="number"
+            min={1}
+            max={MAX_NODE_ATTEMPTS}
+            placeholder="1"
+            value={step.maxAttempts ?? ""}
+            disabled={disabled}
+            onChange={(e) => {
+              const value = e.target.value.trim()
+              // One attempt is the default, so it is stored as absent.
+              state.changeStep(step.id, { maxAttempts: value === "" || Number(value) === 1 ? undefined : Number(value) })
+            }}
+          />
+        </label>
+        <label className="issues-page__field">
+          <span className="issues-page__field-label">Timeout per attempt (min)</span>
+          <input
+            className="issues-page__input"
+            type="number"
+            min={1}
+            placeholder="none"
+            value={secondsToMinutesInput(step.timeoutSeconds)}
+            disabled={disabled}
+            onChange={(e) => state.changeStep(step.id, { timeoutSeconds: minutesInputToSeconds(e.target.value) })}
+          />
+        </label>
+      </div>
+      <p className="page-activity__meta">
+        A failed or timed-out attempt is retried after a backoff while attempts remain. Retry only steps that are
+        safe to run again: an attempt may already have acted before it failed.
+      </p>
       <div className="workflow-page__step-bindings">
         <span className="issues-page__field-label">Inputs from the workflow input and steps this one depends on</span>
         {bindings.map((binding, bindingIndex) => (
