@@ -562,7 +562,11 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 				sink(Event{Kind: EventLLMDelta, Content: delta})
 			}
 		}
-		return opts.LLMClient.ChatCompletionStreaming(ctx, call, onDelta)
+		completion, err := opts.LLMClient.ChatCompletionStreaming(ctx, call, onDelta)
+		if ender, ok := opts.StreamSink.(llm.StreamEnder); ok {
+			ender.OnStreamEnd()
+		}
+		return completion, err
 	}
 	return opts.LLMClient.ChatCompletionBlocking(ctx, call)
 }

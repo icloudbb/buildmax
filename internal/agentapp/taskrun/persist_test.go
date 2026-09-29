@@ -53,7 +53,7 @@ func TestUploadTaskGlobal_StopsAtTheFirstRefusedWrite(t *testing.T) {
 	writeRunGlobalFile(t, globalDir, "settings.yaml", "{}")
 
 	denied := &deniedPersistStorage{fakePersistStorage: newFakePersistStorage()}
-	stored, err := uploadTaskGlobal(context.Background(), globalDir, RunScope{SpaceID: "s", TaskID: "t", TaskRunID: "r"}, denied, traceKey)
+	stored, err := uploadTaskGlobal(context.Background(), globalDir, RunScope{SpaceID: "s", TaskID: "t", TaskRunID: "r"}, denied, traceKey, nil)
 
 	if !errors.Is(err, errWriteDenied) {
 		t.Fatalf("err = %v, want the storage refusal", err)

@@ -1512,6 +1512,16 @@ func (t teeStreamSink) OnDelta(delta string) {
 	t.relay.OnDelta(delta)
 }
 
+// OnStreamEnd passes the end of a model call to whichever leg holds text back
+// across deltas, so the tee does not swallow the signal that releases it.
+func (t teeStreamSink) OnStreamEnd() {
+	for _, leg := range []cllm.StreamSink{t.inner, t.relay} {
+		if ender, ok := leg.(cllm.StreamEnder); ok {
+			ender.OnStreamEnd()
+		}
+	}
+}
+
 func (a *AgentApp) finalizeTurn(sess *SessionContext, client cllm.LLMClient, stats agent.RunStats) (TurnFinalizeResult, error) {
 	return a.sessionManager.Finalize(context.Background(), client, sess, a.workspace.Root(), stats, a.pricingFor(sess))
 }

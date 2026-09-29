@@ -218,7 +218,7 @@ func TestUploadTaskGlobal_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	if _, err := uploadTaskGlobal(ctx, globalDir, RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}, fake, ""); err != nil {
+	if _, err := uploadTaskGlobal(ctx, globalDir, RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}, fake, "", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -250,7 +250,7 @@ func TestUploadTaskGlobal_SkipsMissingFiles(t *testing.T) {
 	globalDir := t.TempDir()
 	// Empty global dir: no files created
 	fake := newFakePersistStorage()
-	if _, err := uploadTaskGlobal(ctx, globalDir, RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}, fake, ""); err != nil {
+	if _, err := uploadTaskGlobal(ctx, globalDir, RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}, fake, "", nil); err != nil {
 		t.Fatal(err)
 	}
 	got := fake.taskGlobalRelPaths("tm1", "task1", "run1")
@@ -356,7 +356,7 @@ func TestTraceRelPath_MatchesUploadedKey(t *testing.T) {
 
 	fake := newFakePersistStorage()
 	scope := RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}
-	stored, err := uploadTaskGlobal(ctx, globalDir, scope, fake, recorded)
+	stored, err := uploadTaskGlobal(ctx, globalDir, scope, fake, recorded, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -403,7 +403,7 @@ func TestRestoreSessionFromPreviousRun_RoundTripsTheBundle(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope := RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}
-	if _, err := uploadTaskGlobal(ctx, prevDir, scope, fake, ""); err != nil {
+	if _, err := uploadTaskGlobal(ctx, prevDir, scope, fake, "", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -448,7 +448,7 @@ func TestContinueRunSendsRestoredHistoryToModel(t *testing.T) {
 		sessionID, nil, model, ManagedInference{}, nil, "", "", nil, nil, "", "", nil, nil, false); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	if _, err := uploadTaskGlobal(ctx, firstDirs.runGlobal, RunScope{SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: firstRun.ID}, persist, ""); err != nil {
+	if _, err := uploadTaskGlobal(ctx, firstDirs.runGlobal, RunScope{SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: firstRun.ID}, persist, "", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -502,7 +502,7 @@ func TestRestoreSessionFromPreviousRun_PartialBundleRestoresNothing(t *testing.T
 		t.Fatal(err)
 	}
 	scope := RunScope{SpaceID: "tm1", TaskID: "task1", TaskRunID: "run1"}
-	if _, err := uploadTaskGlobal(ctx, prevDir, scope, fake, ""); err != nil {
+	if _, err := uploadTaskGlobal(ctx, prevDir, scope, fake, "", nil); err != nil {
 		t.Fatal(err)
 	}
 

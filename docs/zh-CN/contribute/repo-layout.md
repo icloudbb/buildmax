@@ -314,7 +314,8 @@ internal/
 └── util/               公共 ID 编解码、带前缀的 ID、工作区路径解析、
     │                   小型字符串与时间辅助函数
     └── secretscan/     识别常见的密钥形态；run trace 据此脱敏发现的
-                        内容，project memory 拒绝持久化它
+                        内容，project memory 拒绝持久化它。它也会脱敏一次
+                        运行的精确 Space Secret 值，包括跨流式增量的值
 ```
 
 ## `evaluation/`

@@ -338,7 +338,9 @@ internal/
 └── util/               Public ID codec, prefixed IDs, workspace path resolution,
     │                   small string and time helpers
     └── secretscan/     Recognizes common secret shapes; the run trace redacts
-                        what it finds, project memory refuses to persist it
+                        what it finds, project memory refuses to persist it.
+                        Also redacts a run's exact Space Secret values, including
+                        across streamed deltas
 ```
 
 ## `evaluation/`

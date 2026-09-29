@@ -39,15 +39,17 @@
   no reveal), an Agent revision declares it, a run receives it in its
   environment through the worker route and the `env_scrub` allow-list, the
   materialization is recorded in `task_run_secret`, and the run's values are
-  redacted from the trace, from tool results before the model, and from streamed
-  output, manages Secrets through an owner-only Portal page, and configures an
+  redacted from the trace, from tool results before the model, from streamed
+  output, from the reported run output, and from the stored session journal,
+  manages Secrets through an owner-only Portal page, and configures an
   Agent's consumption in the agent editor, which flags a grant whose Secret or
   item no longer resolves. Phase 1 is complete; Phases 2–5 (file delivery,
   short-lived exchange, external providers, workload identity) follow.
 - phase_1: complete — storage, agent consumption and its validation, the
   owner-only HTTP surface and worker delivery, the `task_run_secret` audit,
-  exact-value redaction across trace, tool results, and stream, the Portal
-  management page, the agent consumption editor, and its consumption-health.
+  exact-value redaction across trace, tool results, stream, reported output,
+  and stored session journal, the Portal management page, the agent
+  consumption editor, and its consumption-health.
 - supersedes: the `run-scoped-secret-broker` proposal, whose settled decisions
   are here and whose remaining uncertainty is §20.
 - model: a Secret is one Space-owned group of named items, stored as a single
@@ -701,15 +703,44 @@ values, and the sinks the design names are covered:
   free-text field it writes passes through it, exact values then shape-based;
 - **tool results before they enter model context** — `RunLoop` redacts a tool
   result once, in `executeCall`, before it reaches the `EventToolEnd` event, the
-  model context, the hooks, and the application log (`logToolResult`); and
-- **streamed output** — the worker's stream adapter redacts each delta before
-  it reaches the watcher.
+  model context, the hooks, and the application log (`logToolResult`);
+- **streamed output** — the worker's stream adapter passes the model's deltas
+  through a `StreamRedactor` before they reach the watcher. A provider splits a
+  value the model writes over several tokens, so redacting each delta alone
+  lets the joined stream carry it whole. The stream redactor holds back only a
+  tail that could still become a value — a proper prefix of one, or an
+  incomplete UTF-8 character — emits the rest redacted, and releases the tail
+  when the model call ends (`llm.StreamEnder`, called by the agent loop) and at
+  the end of the run, so a turn's last words are not withheld while its tools
+  run. A run with no Secret values gets no stream redactor and streams as
+  before;
+- **the reported run output** — the reply that becomes the TaskRun and Task
+  `output`, and the structured value and deferred questions reported beside
+  it, are the same model-written text Space members read, and are redacted
+  before the worker reports them; and
+- **the stored session journal** — `history.jsonl`, the conversation a
+  Continue run restores, is redacted record by record as the worker uploads it
+  to object storage.
 
-The tool-result and stream paths use `RedactExact` — exact values only, not the
-shape scan — because there the output is one the consumer must still read: a
-model continuing its work on a tool result, a person watching a stream, would be
-mangled by blanking every token-shaped substring. The durable trace, a
-diagnostic artifact, applies both.
+The journal is redacted on the way out, not as it is appended. Tool results in
+it were already redacted before the model saw them; what remained was the
+model's own text — its messages and the arguments it wrote into tool calls —
+and that copy outlives the run in object storage, past the grant and the
+Secret's own rotation or destruction, which is exactly the drift this section
+exists to stop. Redacting at upload keeps the run's own context whole while it
+works and leaves no stored copy carrying a value. The cost is that a Continue
+run reads `[redacted]` in its own earlier words, as it already does in tool
+results; a Continue run that still needs the value has it again from its own
+grant. Each record is redacted as JSON — decoded strings, re-encoded only when
+something changed — so the journal stays readable; JSON numbers are left alone
+because in the journal they are structural, which means a value the model emits
+as a bare JSON number in structured output is not caught.
+
+The tool-result, stream, and output paths use `RedactExact` — exact values only,
+not the shape scan — because there the output is one the consumer must still
+read: a model continuing its work on a tool result, a person watching a stream
+or reading a reply, would be mangled by blanking every token-shaped substring.
+The durable trace, a diagnostic artifact, applies both.
 
 Exact-value redaction ignores empty and very short values (below six bytes), so
 ordinary output is not replaced everywhere, and skips oversized values so a
@@ -1014,7 +1045,9 @@ a worker holds only what its run needs.
   that already got its grant; and
 - **done** — per-run exact-value redaction removes a run's grant values from the
   durable trace, from tool results before they enter model context (and the
-  hooks and log with them), and from streamed output; and
+  hooks and log with them), from streamed output even when a value spans
+  deltas, from the reported run output, and from the session journal stored
+  for Continue; and
 - **done** — the Portal Secrets page (owner-only management of metadata and
   items, create with a row editor or raw JSON, per-item edit, disable, destroy,
   §3's consequences in a notice) and the agent-side consumption editor (an

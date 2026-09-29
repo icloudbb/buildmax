@@ -62,7 +62,7 @@ func TestDeferredQuestionEndsTheRunAndTheAnswerContinuesIt(t *testing.T) {
 			t.Errorf("output is missing %q:\n%s", want, output)
 		}
 	}
-	if _, err := uploadTaskGlobal(ctx, firstDirs.runGlobal, RunScope{SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: firstRun.ID}, persist, ""); err != nil {
+	if _, err := uploadTaskGlobal(ctx, firstDirs.runGlobal, RunScope{SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: firstRun.ID}, persist, "", nil); err != nil {
 		t.Fatal(err)
 	}
 
