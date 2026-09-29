@@ -178,7 +178,6 @@ var spaceRoutes = []authzCase{
 	// role, so it is not on a space-scoped route -- see the artifact package.
 	{"GET", "/api/spaces/{space_id}/artifacts", corespace.RoleMember, false},
 	{"POST", "/api/spaces/{space_id}/artifacts", corespace.RoleMember, false},
-	{"GET", "/api/spaces/{space_id}/tasks/{task_id}/conversation", corespace.RoleMember, false},
 	{"GET", "/api/spaces/{space_id}/tasks/{task_id}/stream", corespace.RoleMember, false},
 
 	{"GET", "/api/spaces/{space_id}/task-runs/{task_run_id}", corespace.RoleMember, false},

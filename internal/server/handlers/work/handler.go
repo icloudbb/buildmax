@@ -186,7 +186,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/spaces/{space_id}/tasks/{task_id}/runs", h.createTaskRunHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/tasks/{task_id}/cancel", h.cancelTaskHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/tasks/{task_id}/retry", h.retryTaskHandler)
-	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/conversation", h.getTaskConversationHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/stream", h.getChatStreamHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}", h.getTaskRunProvenanceHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}/trace", h.getTaskRunTraceHandler)

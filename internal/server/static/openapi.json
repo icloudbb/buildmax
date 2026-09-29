@@ -2372,21 +2372,6 @@
         }
       }
     },
-    "/api/spaces/{space_id}/tasks/{task_id}/conversation": {
-      "parameters": [
-        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
-      ],
-      "get": {
-        "summary": "Get task execution conversation",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "OK" }
-        }
-      }
-    },
     "/api/spaces/{space_id}/tasks/{task_id}/stream": {
       "parameters": [
         {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
