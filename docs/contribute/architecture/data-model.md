@@ -1456,8 +1456,8 @@ One managed inference call. The metering and debugging record.
 | `upstream_started_at` | `datetime(6)` | yes | |
 | `first_delta_at` | `datetime(6)` | yes | Time to first token, on streaming calls |
 | `completed_at` | `datetime(6)` | yes | |
-| `status` | `varchar(16)` | no | `ACCEPTED`, `SUCCEEDED`, `FAILED`, `CANCELED`; indexed |
-| `error_class` | `varchar(64)` | yes | Stable BuildMax error code, not the upstream message |
+| `status` | `varchar(16)` | no | `ACCEPTED`, `SUCCEEDED`, `FAILED`, `CANCELED`; indexed. `CANCELED` only when the caller went away; a call that hit the model's `call_timeout` is `FAILED` |
+| `error_class` | `varchar(64)` | yes | Stable BuildMax error code, not the upstream message. A provider failure is `upstream_timeout`, `upstream_auth_failed` (401/403), `upstream_rate_limited` (429), or `upstream_error`; a caller that went away is `canceled` |
 | `attempts` | `bigint` | no | Default `0` |
 | `prompt_tokens` | `bigint` | yes | |
 | `completion_tokens` | `bigint` | yes | |

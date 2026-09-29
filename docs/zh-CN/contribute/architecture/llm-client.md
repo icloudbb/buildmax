@@ -180,6 +180,10 @@ Responses API 无论是否被要求，都会进行缓存，因此 BuildMax 发�
 
 重试判断和分类都读取自 `apiError`——一种中性的形状，每个适配器都会把自己所用库的失败转换成这种形状。原始错误会被保留并可以被解包，因此确实了解某个具体库的错误类型的调用方，依然能够拿到它。
 
+只有调用方知道被拒绝的密钥该在哪里修复，因此由 `Config.CredentialHint` 为 401 或 403 提供下一步。为空表示本地模型条目，提示为 "check api_key in settings.yaml"；服务器的客户端工厂会给出目录模型及其 `model set-key` 命令，派生的对话目标则给出 `conversation.model.api_key`。
+
+本包之外的调用方通过 `errors.Is` 对照 `core/llm.ErrProviderAuth`（401、403）和 `core/llm.ErrProviderRateLimited`（429）来区分拒绝，`apiError` 按状态码匹配它们。受管网关用它们分类，因此从不读取提供方的原文，也不导入本包。
+
 ## 用量采集
 
 Chat Completions 所用的库不会从流式分片中暴露 token 用量，因此 `usageCaptureTransport` 会在响应体流式经过时对其进行检查，并在出现用量块时将其解析出来。这就是为什么流式运行依然能够报告 token 计数。

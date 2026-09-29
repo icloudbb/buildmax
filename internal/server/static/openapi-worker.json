@@ -393,6 +393,15 @@
           },
           "429": {
             "description": "Space quota exceeded"
+          },
+          "502": {
+            "description": "The model provider failed (code upstream_error) or refused the deployment's credential for the model (code upstream_auth_failed)"
+          },
+          "503": {
+            "description": "Managed inference is not configured, or the model provider is rate limiting this deployment (code upstream_rate_limited)"
+          },
+          "504": {
+            "description": "The model provider did not answer within the model's call timeout (code upstream_timeout)"
           }
         },
         "tags": [

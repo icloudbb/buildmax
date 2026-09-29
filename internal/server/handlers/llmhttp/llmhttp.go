@@ -187,6 +187,15 @@ func statusFor(class string, err error) (int, string) {
 		// logs it with the ledger row's ID — because it can carry account
 		// identifiers, endpoints, and request fragments.
 		return http.StatusBadGateway, "model provider unavailable"
+	case llmgateway.ErrorClassUpstreamTimeout:
+		return http.StatusGatewayTimeout, "model provider did not answer within the model's call timeout"
+	case llmgateway.ErrorClassUpstreamAuth:
+		// Not 401: the caller's own credential is fine, and a client that
+		// read 401 would try to sign in again instead of reporting it.
+		return http.StatusBadGateway, "model provider refused the deployment's credential for this model"
+	case llmgateway.ErrorClassUpstreamRateLimited:
+		// Not 429, which this route uses for the Space's own quota.
+		return http.StatusServiceUnavailable, "model provider is rate limiting this deployment"
 	default:
 		return http.StatusInternalServerError, "internal error"
 	}

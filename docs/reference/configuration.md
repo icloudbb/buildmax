@@ -1196,6 +1196,22 @@ Managed calls need a database for two reasons: the catalog lives there, and
 every call is recorded in the `llm_call` ledger. Without a store the routes
 answer `503` rather than serving inference nobody can account for.
 
+A failed call records the gateway's decision, never the provider's text, as its
+`error_class`:
+
+| Class | Meaning | Next step |
+|---|---|---|
+| `upstream_auth_failed` | The provider refused the model's key (HTTP 401 or 403) | Replace it with `set-key` |
+| `upstream_rate_limited` | The provider is throttling this deployment (HTTP 429) | Wait, or raise the provider account's limit |
+| `upstream_timeout` | The provider did not answer within the model's `call_timeout` | Check the provider and the route to it, or raise the timeout |
+| `upstream_error` | Any other provider failure | Read the server log line |
+
+Each of these is a `FAILED` row and one server `WARN` line, `managed llm call
+failed upstream`, carrying the row's `llm_call_id`, the model, and the
+provider's own message, which is the one place that message is kept. A
+`CANCELED` row means the caller went away before the call finished. A task run
+that fails on any of these classes is recorded with `failure_class` `model`.
+
 Credentials are stored in the `llm_model` table and read by exactly one query,
 the one that builds a provider client. They are never returned by a model
 listing, an API response, or an error. Note what that implies for operations:

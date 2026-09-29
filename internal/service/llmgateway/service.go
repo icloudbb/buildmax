@@ -280,12 +280,9 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		CompletedAt:       s.now().UTC(),
 	}
 	if callErr != nil {
-		class := ErrorClassFor(callErr)
-		if class == ErrorClassInternal {
-			class = ErrorClassUpstream
-		}
+		class := upstreamClass(ctx.Err(), callErr)
 		outcome.Status = coregw.CallStatusFailed
-		if errors.Is(callErr, context.Canceled) || errors.Is(callErr, context.DeadlineExceeded) {
+		if class == ErrorClassCanceled {
 			outcome.Status = coregw.CallStatusCanceled
 		}
 		outcome.ErrorClass = &class
@@ -305,7 +302,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 				"error_class", class,
 				"err", callErr)
 		}
-		return CompleteResult{LLMCallID: call.ID}, fmt.Errorf("%w: %w", ErrUpstream, callErr)
+		return CompleteResult{LLMCallID: call.ID}, &UpstreamError{Class: class, Err: callErr}
 	}
 
 	usage := completion.Usage

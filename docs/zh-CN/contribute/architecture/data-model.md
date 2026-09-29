@@ -1040,8 +1040,8 @@ Workflow 运行等待人回答的持久化请求。打开请求与把节点移�
 | `upstream_started_at` | `datetime(6)` | 是 | |
 | `first_delta_at` | `datetime(6)` | 是 | 流式调用中首个 token 的到达时间 |
 | `completed_at` | `datetime(6)` | 是 | |
-| `status` | `varchar(16)` | 否 | `ACCEPTED`、`SUCCEEDED`、`FAILED`、`CANCELED`；已建索引 |
-| `error_class` | `varchar(64)` | 是 | 稳定的 BuildMax 错误代码，不是上游的错误信息 |
+| `status` | `varchar(16)` | 否 | `ACCEPTED`、`SUCCEEDED`、`FAILED`、`CANCELED`；已建索引。只有调用方离开时才是 `CANCELED`；触及模型 `call_timeout` 的调用是 `FAILED` |
+| `error_class` | `varchar(64)` | 是 | 稳定的 BuildMax 错误代码，不是上游的错误信息。提供方失败为 `upstream_timeout`、`upstream_auth_failed`（401/403）、`upstream_rate_limited`（429）或 `upstream_error`；调用方离开为 `canceled` |
 | `attempts` | `bigint` | 否 | 默认 `0` |
 | `prompt_tokens` | `bigint` | 是 | |
 | `completion_tokens` | `bigint` | 是 | |

@@ -27,6 +27,7 @@ import (
 	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	infrallm "github.com/icloudbb/buildmax/internal/infra/llm"
+	"github.com/icloudbb/buildmax/internal/infra/llmremote"
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	tool "github.com/icloudbb/buildmax/internal/tool"
@@ -903,12 +904,44 @@ func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, sta
 }
 
 // classifyRunError says why the agent run itself failed: the model provider,
-// or anything else inside the run.
+// or anything else inside the run. A managed run reaches the provider through
+// the gateway, whose code says whose failure it was.
 func classifyRunError(err error) coretask.FailureClass {
 	if infrallm.IsProviderError(err) {
 		return coretask.FailureModel
 	}
+	var gw *llmremote.GatewayError
+	if errors.As(err, &gw) {
+		return gatewayFailureClass(gw)
+	}
 	return coretask.FailureRun
+}
+
+// gatewayFailureClass files a managed-call refusal by who acts next.
+//
+// The provider failing, and a catalog model the run was assigned being
+// unknown, disabled, or unable to serve it, are all the model: the operator
+// fixes the provider or the catalog. The Space's usage quota is the Space's
+// own limit, the same owner as its other configuration. A call the gateway
+// saw canceled while this run was still going was cut by something between
+// worker and server, and a gateway that is unconfigured, failing, or answering
+// without a BuildMax code is the platform: all three are infrastructure. A
+// request the gateway could not accept is this run's own bug.
+func gatewayFailureClass(gw *llmremote.GatewayError) coretask.FailureClass {
+	switch gw.Code {
+	case llmremote.CodeUpstream, llmremote.CodeUpstreamTimeout, llmremote.CodeUpstreamAuth,
+		llmremote.CodeUpstreamRateLimited, llmremote.CodeTargetNotFound,
+		llmremote.CodeTargetDisabled, llmremote.CodeCapability:
+		return coretask.FailureModel
+	case llmremote.CodeQuotaExceeded:
+		return coretask.FailureSpaceConfiguration
+	case llmremote.CodeCanceled, llmremote.CodeNotConfigured, llmremote.CodeInternal, "":
+		return coretask.FailureInfrastructure
+	case llmremote.CodeInvalidRequest, llmremote.CodeDuplicateCall:
+		return coretask.FailureRun
+	default:
+		return coretask.FailureUnclassified
+	}
 }
 
 // uploadTaskGlobal uploads the run's global dir to blob storage. It is an

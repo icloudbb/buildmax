@@ -57,6 +57,7 @@ func (c *llmStubClient) ContextWindow() int { return 0 }
 type llmStubLedger struct {
 	opened  int
 	last    coregw.Call
+	outcome coregw.CallOutcome
 	calls   []coregw.Call
 	listErr error
 }
@@ -69,7 +70,8 @@ func (l *llmStubLedger) OpenLLMCall(_ context.Context, call *coregw.Call) (*core
 	return &stored, nil
 }
 
-func (l *llmStubLedger) CompleteLLMCall(context.Context, string, coregw.CallOutcome) error {
+func (l *llmStubLedger) CompleteLLMCall(_ context.Context, _ string, outcome coregw.CallOutcome) error {
+	l.outcome = outcome
 	return nil
 }
 

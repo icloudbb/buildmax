@@ -2,12 +2,16 @@ package handlers
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 	llm "github.com/icloudbb/buildmax/internal/infra/llm"
 	"github.com/icloudbb/buildmax/internal/infra/llmremote"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
@@ -38,6 +42,13 @@ func fakeUpstream(t *testing.T, body string) *httptest.Server {
 // the given upstream, and returns a managed client pointed at it.
 func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 	t.Helper()
+	return managedGatewayWith(t, upstreamURL, 10*time.Second, &llmStubLedger{})
+}
+
+// managedGatewayWith is managedGateway with the target's call timeout and the
+// ledger chosen by the test.
+func managedGatewayWith(t *testing.T, upstreamURL string, callTimeout time.Duration, ledger *llmStubLedger) *llmremote.Client {
+	t.Helper()
 
 	target := llmgateway.Target{
 		ID:            "mt_fast",
@@ -57,10 +68,10 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 		Router: &llmgateway.Router{
 			Resolver: &llmgateway.Resolver{Catalog: catalog, DefaultModel: "Fast"},
 			Factory: func(_ context.Context, target llmgateway.Target) (cllm.LLMClient, error) {
-				return directClient(t, target.Endpoint), nil
+				return directClientWith(t, target.Endpoint, callTimeout), nil
 			},
 		},
-		Ledger: &llmStubLedger{},
+		Ledger: ledger,
 	}
 
 	h := NewHandler(Config{
@@ -82,11 +93,16 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 
 func directClient(t *testing.T, upstreamURL string) cllm.LLMClient {
 	t.Helper()
+	return directClientWith(t, upstreamURL, 10*time.Second)
+}
+
+func directClientWith(t *testing.T, upstreamURL string, callTimeout time.Duration) cllm.LLMClient {
+	t.Helper()
 	client, err := llm.NewClient(llm.Config{
 		APIKey:      "upstream-key",
 		BaseURL:     upstreamURL,
 		Model:       "vendor/x",
-		CallTimeout: 10 * time.Second,
+		CallTimeout: callTimeout,
 	})
 	if err != nil {
 		t.Fatalf("build direct client: %v", err)
@@ -345,5 +361,93 @@ func TestManagedCallHidesTheUpstream(t *testing.T) {
 	}
 	if models[0].Name == "vendor/x" || models[0].Name == "mt_fast" {
 		t.Errorf("listing exposed an internal identifier: %q", models[0].Name)
+	}
+}
+
+// The Beta failure drills, end to end: the real provider client, the real
+// handler, and the real remote client must agree on what happened, and the
+// ledger must agree with them. A timeout of the model's own call_timeout is a
+// provider failure the operator acts on, never a cancellation.
+func TestManagedProviderFailuresReachTheClientClassified(t *testing.T) {
+	tests := []struct {
+		name     string
+		handler  http.HandlerFunc
+		wantCode string
+	}{
+		{
+			name: "provider timeout",
+			handler: func(_ http.ResponseWriter, r *http.Request) {
+				// The server notices a departed client only once the body
+				// is read; the bound keeps a regression from hanging Close.
+				_, _ = io.Copy(io.Discard, r.Body)
+				select {
+				case <-r.Context().Done():
+				case <-time.After(5 * time.Second):
+				}
+			},
+			wantCode: llmgateway.ErrorClassUpstreamTimeout,
+		},
+		{
+			name: "credential refused",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`{"error":{"message":"Incorrect API key provided: upstream-key","type":"invalid_request_error"}}`))
+			},
+			wantCode: llmgateway.ErrorClassUpstreamAuth,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := httptest.NewServer(tc.handler)
+			t.Cleanup(upstream.Close)
+
+			ledger := &llmStubLedger{}
+			client := managedGatewayWith(t, upstream.URL, 200*time.Millisecond, ledger)
+			_, err := client.ChatCompletionBlocking(context.Background(),
+				cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
+
+			var gwErr *llmremote.GatewayError
+			if !errors.As(err, &gwErr) {
+				t.Fatalf("want *GatewayError, got %T: %v", err, err)
+			}
+			if gwErr.Code != tc.wantCode {
+				t.Errorf("code = %q, want %q (%v)", gwErr.Code, tc.wantCode, err)
+			}
+			if strings.Contains(err.Error(), "upstream-key") || strings.Contains(err.Error(), "Incorrect API key") {
+				t.Errorf("the provider's text reached the client: %v", err)
+			}
+			if ledger.outcome.Status != coregw.CallStatusFailed {
+				t.Errorf("ledger status = %q, want %q", ledger.outcome.Status, coregw.CallStatusFailed)
+			}
+			if ledger.outcome.ErrorClass == nil || *ledger.outcome.ErrorClass != tc.wantCode {
+				t.Errorf("ledger class = %v, want %q", ledger.outcome.ErrorClass, tc.wantCode)
+			}
+		})
+	}
+}
+
+// The remote client mirrors the server's codes because it cannot import them.
+// This is the one place both are in reach, so it holds them equal.
+func TestRemoteClientCodesMatchTheGatewayClasses(t *testing.T) {
+	pairs := [][2]string{
+		{llmremote.CodeTargetNotFound, llmgateway.ErrorClassTargetNotFound},
+		{llmremote.CodeTargetDisabled, llmgateway.ErrorClassTargetDisabled},
+		{llmremote.CodeCapability, llmgateway.ErrorClassCapability},
+		{llmremote.CodeQuotaExceeded, llmgateway.ErrorClassQuotaExceeded},
+		{llmremote.CodeDuplicateCall, llmgateway.ErrorClassDuplicateCall},
+		{llmremote.CodeInvalidRequest, llmgateway.ErrorClassInvalidRequest},
+		{llmremote.CodeNotConfigured, llmgateway.ErrorClassNotConfigured},
+		{llmremote.CodeCanceled, llmgateway.ErrorClassCanceled},
+		{llmremote.CodeUpstream, llmgateway.ErrorClassUpstream},
+		{llmremote.CodeUpstreamTimeout, llmgateway.ErrorClassUpstreamTimeout},
+		{llmremote.CodeUpstreamAuth, llmgateway.ErrorClassUpstreamAuth},
+		{llmremote.CodeUpstreamRateLimited, llmgateway.ErrorClassUpstreamRateLimited},
+		{llmremote.CodeInternal, llmgateway.ErrorClassInternal},
+	}
+	for _, p := range pairs {
+		if p[0] != p[1] {
+			t.Errorf("remote code %q != gateway class %q", p[0], p[1])
+		}
 	}
 }

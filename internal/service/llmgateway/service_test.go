@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 	"sync"
 	"testing"
@@ -309,6 +311,139 @@ func TestCompleteLogsTheProviderFailureForTheOperator(t *testing.T) {
 	}
 }
 
+// cancelingClient blocks until the caller's context ends, like an upstream that
+// is still thinking when the caller gives up.
+type cancelingClient struct{ scriptedClient }
+
+func (c *cancelingClient) ChatCompletionBlocking(ctx context.Context, _ cllm.Request) (cllm.Completion, error) {
+	<-ctx.Done()
+	return cllm.Completion{}, fmt.Errorf("llm call cancelled: %w", ctx.Err())
+}
+
+// A provider that times out, refuses the key, or throttles is each a failure an
+// operator acts on differently. The ledger, the caller's code, and the log must
+// all say which, and none of them may call it a cancellation.
+func TestCompleteClassifiesProviderFailures(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			// The provider client's own call_timeout: the caller is still here.
+			name: "provider timeout",
+			err:  fmt.Errorf("LLM call timed out: %w", context.DeadlineExceeded),
+			want: llmgateway.ErrorClassUpstreamTimeout,
+		},
+		{
+			name: "network timeout",
+			err:  fmt.Errorf("dial: %w", &net.OpError{Op: "dial", Err: timeoutErr{}}),
+			want: llmgateway.ErrorClassUpstreamTimeout,
+		},
+		{
+			name: "credential refused",
+			err:  fmt.Errorf("authentication failed (HTTP 401): %w", cllm.ErrProviderAuth),
+			want: llmgateway.ErrorClassUpstreamAuth,
+		},
+		{
+			name: "rate limited",
+			err:  fmt.Errorf("rate limited by provider: %w", cllm.ErrProviderRateLimited),
+			want: llmgateway.ErrorClassUpstreamRateLimited,
+		},
+		{
+			name: "provider outage",
+			err:  errors.New("provider service unavailable (HTTP 503)"),
+			want: llmgateway.ErrorClassUpstream,
+		},
+		{
+			// A cancel nobody on this side asked for is not the caller's.
+			name: "stray cancellation",
+			err:  fmt.Errorf("stream reset: %w", context.Canceled),
+			want: llmgateway.ErrorClassUpstream,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			previous := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+			t.Cleanup(func() { slog.SetDefault(previous) })
+
+			ledger := newFakeLedger()
+			svc := serviceWith(t, &scriptedClient{err: tc.err}, ledger, nil)
+			_, err := svc.Complete(context.Background(), userRequest())
+			if !errors.Is(err, llmgateway.ErrUpstream) {
+				t.Fatalf("want ErrUpstream, got %v", err)
+			}
+			if got := llmgateway.ErrorClassFor(err); got != tc.want {
+				t.Errorf("caller's class = %q, want %q", got, tc.want)
+			}
+			_, outcome := ledger.only(t)
+			if outcome.Status != coregw.CallStatusFailed {
+				t.Errorf("ledger status = %q, want %q", outcome.Status, coregw.CallStatusFailed)
+			}
+			if outcome.ErrorClass == nil || *outcome.ErrorClass != tc.want {
+				t.Errorf("ledger class = %v, want %q", outcome.ErrorClass, tc.want)
+			}
+			out := logs.String()
+			for _, want := range []string{"managed llm call failed upstream", "error_class=" + tc.want, "llm_call_id="} {
+				if !strings.Contains(out, want) {
+					t.Errorf("log missing %q:\n%s", want, out)
+				}
+			}
+		})
+	}
+}
+
+// A caller that goes away canceled the call, even though the provider client
+// reports it as a context error just like its own timeout. That is not a
+// provider failure, so it is not logged as one.
+func TestCompleteRecordsACallerCancellation(t *testing.T) {
+	for _, name := range []string{"canceled", "caller deadline"} {
+		t.Run(name, func(t *testing.T) {
+			var logs bytes.Buffer
+			previous := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+			t.Cleanup(func() { slog.SetDefault(previous) })
+
+			var ctx context.Context
+			var cancel context.CancelFunc
+			if name == "canceled" {
+				ctx, cancel = context.WithCancel(context.Background())
+				time.AfterFunc(10*time.Millisecond, cancel)
+			} else {
+				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Millisecond)
+			}
+			defer cancel()
+
+			ledger := newFakeLedger()
+			svc := serviceWith(t, &cancelingClient{}, ledger, nil)
+			_, err := svc.Complete(ctx, userRequest())
+			if got := llmgateway.ErrorClassFor(err); got != llmgateway.ErrorClassCanceled {
+				t.Errorf("caller's class = %q, want %q", got, llmgateway.ErrorClassCanceled)
+			}
+			_, outcome := ledger.only(t)
+			if outcome.Status != coregw.CallStatusCanceled {
+				t.Errorf("ledger status = %q, want %q", outcome.Status, coregw.CallStatusCanceled)
+			}
+			if outcome.ErrorClass == nil || *outcome.ErrorClass != llmgateway.ErrorClassCanceled {
+				t.Errorf("ledger class = %v, want %q", outcome.ErrorClass, llmgateway.ErrorClassCanceled)
+			}
+			if strings.Contains(logs.String(), "failed upstream") {
+				t.Errorf("a caller cancellation was logged as a provider failure:\n%s", logs.String())
+			}
+		})
+	}
+}
+
+// timeoutErr is a network error that reports a timeout, as a dial or read
+// deadline does.
+type timeoutErr struct{}
+
+func (timeoutErr) Error() string   { return "i/o timeout" }
+func (timeoutErr) Timeout() bool   { return true }
+func (timeoutErr) Temporary() bool { return true }
+
 func TestCompleteRefusesOverQuota(t *testing.T) {
 	ledger := newFakeLedger()
 	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, denyQuota{reason: "quota exceeded: token limit"})
@@ -589,10 +724,18 @@ func TestDuplicateDetectedByTheIndexIsRefused(t *testing.T) {
 }
 
 func TestRetryableClass(t *testing.T) {
-	if !llmgateway.RetryableClass(llmgateway.ErrorClassUpstream) {
-		t.Error("an upstream failure should be reported as retryable")
+	for _, class := range []string{
+		llmgateway.ErrorClassUpstream,
+		llmgateway.ErrorClassUpstreamTimeout,
+		llmgateway.ErrorClassUpstreamRateLimited,
+	} {
+		if !llmgateway.RetryableClass(class) {
+			t.Errorf("%s should be reported as retryable", class)
+		}
 	}
 	for _, class := range []string{
+		// A refused key stays refused until an operator replaces it.
+		llmgateway.ErrorClassUpstreamAuth,
 		llmgateway.ErrorClassQuotaExceeded,
 		llmgateway.ErrorClassTargetNotFound,
 		llmgateway.ErrorClassDuplicateCall,
@@ -624,6 +767,13 @@ func TestErrorClassFor(t *testing.T) {
 		{err: context.Canceled, want: llmgateway.ErrorClassCanceled},
 		{err: context.DeadlineExceeded, want: llmgateway.ErrorClassCanceled},
 		{err: llmgateway.ErrUpstream, want: llmgateway.ErrorClassUpstream},
+		// The gateway's decision travels with the error, so the caller's code
+		// cannot disagree with the ledger even though the wrapped provider error
+		// is a context error.
+		{
+			err:  &llmgateway.UpstreamError{Class: llmgateway.ErrorClassUpstreamTimeout, Err: context.DeadlineExceeded},
+			want: llmgateway.ErrorClassUpstreamTimeout,
+		},
 		// Anything unrecognized is our problem until someone classifies it.
 		{err: errors.New("something new"), want: llmgateway.ErrorClassInternal},
 	}

@@ -1746,11 +1746,12 @@
           "200": { "description": "OK. A streamed call that fails after its first delta still answers 200 and reports the failure as an error event" },
           "400": { "description": "Invalid request, unknown field, or a model that is not in the catalog or is disabled" },
           "401": { "description": "Unauthorized" },
-          "408": { "description": "The call was canceled" },
+          "408": { "description": "The caller canceled the call (code canceled)" },
           "409": { "description": "This call_id has already been used" },
           "429": { "description": "Quota exceeded" },
-          "502": { "description": "The model provider failed" },
-          "503": { "description": "Managed inference is not configured" }
+          "502": { "description": "The model provider failed (code upstream_error) or refused the deployment's credential for the model (code upstream_auth_failed)" },
+          "503": { "description": "Managed inference is not configured, or the model provider is rate limiting this deployment (code upstream_rate_limited)" },
+          "504": { "description": "The model provider did not answer within the model's call timeout (code upstream_timeout)" }
         }
       }
     },
