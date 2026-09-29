@@ -45,7 +45,7 @@ MCP 的 `bearer_token_env` 字段或插件声明指定的集成专用变量，�
 | `BUILDMAX_SERVER_URL` | — | 该进程用来访问 `buildmax-server` 的地址。为 CLI/Desktop 覆盖 `settings.yaml` 中的 `server_url`，为 worker 覆盖 `server.yaml` 中的 `worker.server_url`。 |
 | `BUILDMAX_JWT_SECRET` | — | 覆盖 `server.yaml` 中的 `jwt_secret`。请在部署时注入该值，而不要把密钥提交到文件中。 |
 | `BUILDMAX_CORS_ORIGIN` | — | 覆盖 `server.yaml` 中的 `cors_origin`。它必须写明 Portal 所在的来源（origin），也就是部署所选择的宿主端口——Compose 编排栈会从 `BUILDMAX_PORTAL_PORT` 推导出它，因此更改该端口只需改一处而不是两处。 |
-| `BUILDMAX_PUBLIC_BASE_URL` | — | 覆盖 `server.yaml` 中的 `public_base_url`：人们打开 BuildMax 所使用的外部可达来源（origin）。Artifact 的公开分享链接由它构建；不设置则保持公开分享关闭。它与 `BUILDMAX_SERVER_URL`（进程用来*访问*服务器的地址）是不同的概念。 |
+| `BUILDMAX_PUBLIC_BASE_URL` | — | 覆盖 `server.yaml` 中的 `public_base_url`：人们打开 BuildMax 所使用的外部可达来源（origin）。Artifact 的公开分享链接以及交给 Agent 的 Artifact Portal 链接都由它构建；不设置则保持公开分享关闭。它与 `BUILDMAX_SERVER_URL`（进程用来*访问*服务器的地址）是不同的概念。 |
 | `BUILDMAX_WORKER_LLM_TRANSPORT` | — | 覆盖 `worker.llm.transport`（`direct` 或 `buildmax`）。在 task run 直接调用提供商与使用受管网关之间切换。Server 读取该值，并按每次运行把使用哪种传输方式告诉对应的 worker，因此这一选择始终留在 server 端；worker 永远不会拿到这个变量。 |
 | `BUILDMAX_LLM_DEFAULT_MODEL` | — | 覆盖 `llm.default_model`——受管运行以及任何未指定模型的调用方最终解析到的目录模型名称。若名称不在目录中，server 会在启动时停止。 |
 | `BUILDMAX_CONVERSATION_MODEL_TARGET` | — | 覆盖 `conversation.model_target`——用于 Tier 1 conversation 的目录模型名称或 ID。结合上面两项，仅凭环境变量即可让一个运行中的集群在 mock 模型和某个已 seed 的模型之间切换；`./make kind use-model` 和 `./make kind mock` 正是这样做的。 |

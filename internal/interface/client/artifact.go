@@ -16,6 +16,7 @@ type artifactResponse struct {
 	ID         string         `json:"id"`
 	Filename   string         `json:"filename"`
 	SizeBytes  int64          `json:"size_bytes"`
+	URL        string         `json:"url,omitempty"`
 	Share      *artifactShare `json:"share,omitempty"`
 	ShareError string         `json:"share_error,omitempty"`
 }
@@ -94,7 +95,9 @@ func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 		ArtifactID: out.ID,
 		Filename:   out.Filename,
 		SizeBytes:  out.SizeBytes,
-		URL:        p.ServerURL + "/api/artifacts/" + url.PathEscape(out.ID),
+		// The server's Portal link, not an API path: the reference names a
+		// page a person opens, which only the server knows how to address.
+		URL:        out.URL,
 		ShareError: out.ShareError,
 	}
 	if out.Share != nil {

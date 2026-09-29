@@ -59,7 +59,7 @@ func runArtifactPublish(cmd *cobra.Command, args []string) error {
 	// --space does not apply; the upload goes through the bridge to the worker
 	// route.
 	if wb := inWorkerRun(); wb != nil {
-		pub := workerclient.NewArtifactPublisher(wb.cfg, wb.taskRunID, "")
+		pub := workerclient.NewArtifactPublisher(wb.cfg, wb.taskRunID)
 		art, err := pub.PublishArtifact(cmd.Context(), tool.ArtifactUpload{
 			Path: path, Filename: filepath.Base(path), Title: title, Share: share,
 		})

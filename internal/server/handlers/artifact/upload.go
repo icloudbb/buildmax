@@ -126,6 +126,7 @@ func ReceiveUpload(w http.ResponseWriter, r *http.Request, svc *artifactsvc.Serv
 		return
 	}
 	resp := toResponse(rec)
+	resp.URL = svc.PortalURL(rec.ID)
 	if in.Share {
 		attachShare(r, svc, rec, &resp)
 	}

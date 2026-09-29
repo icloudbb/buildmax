@@ -41,6 +41,7 @@
           "preview": {"type": "string", "enum": ["inline", "sandbox", "none"], "description": "How the deployment renders the content: inline, sandbox (opaque-origin frame), or none (download-only)."},
           "expires_at": {"type": "string", "format": "date-time"},
           "created_at": {"type": "string", "format": "date-time"},
+          "url": {"type": "string", "description": "The artifact's Portal page. Present on an upload response when the deployment sets public_base_url."},
           "share": {
             "type": "object",
             "description": "Present only on an upload that requested and got a public link; the sole place the link token is returned.",

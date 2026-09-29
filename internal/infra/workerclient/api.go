@@ -62,7 +62,8 @@ func workerDo(ctx context.Context, cfg WorkerAPIClientConfig, method, pathSuffix
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		slog.Debug("worker API request failed", "method", method, "url", url, "err", err)
+		return nil, hideServerAddress(err, cfg.BaseURL)
 	}
 	return resp, nil
 }
@@ -114,7 +115,7 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 		return nil, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, httpclient.DecodeError(resp, "worker API GET "+cfg.BaseURL+pathSuffix)
+		return nil, httpclient.DecodeError(resp, "worker API GET "+pathSuffix)
 	}
 	var got GetTaskRunResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
@@ -205,7 +206,7 @@ func GetWorkerTaskRunSecrets(ctx context.Context, cfg WorkerAPIClientConfig, tas
 		return nil, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, httpclient.DecodeError(resp, "worker API GET "+cfg.BaseURL+pathSuffix)
+		return nil, httpclient.DecodeError(resp, "worker API GET "+pathSuffix)
 	}
 	var got TaskRunSecretsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
@@ -257,7 +258,7 @@ func DownloadPluginPackage(ctx context.Context, cfg WorkerAPIClientConfig, taskR
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", httpclient.DecodeError(resp, "worker API GET "+cfg.BaseURL+pathSuffix)
+		return "", httpclient.DecodeError(resp, "worker API GET "+pathSuffix)
 	}
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		return "", fmt.Errorf("read package: %w", err)
@@ -277,6 +278,17 @@ func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, taskRunID strin
 	if req == nil {
 		req = &PatchTaskRunRequest{}
 	}
+	// Every run error message a person reads passes through here, from causes
+	// that are not this package's — a managed-gateway transport error, say — so
+	// the worker API's address is removed at this one choke point.
+	if req.ErrorMessage != nil {
+		if redacted := redactServerAddress(*req.ErrorMessage, u.BaseURL); redacted != *req.ErrorMessage {
+			slog.Debug("run error message named the worker API address; reporting it redacted", "error_message", *req.ErrorMessage)
+			copied := *req
+			copied.ErrorMessage = &redacted
+			req = &copied
+		}
+	}
 	raw, err := json.Marshal(req)
 	if err != nil {
 		return err
@@ -292,7 +304,7 @@ func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, taskRunID strin
 		return ErrTaskRunAlreadyClaimed
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return httpclient.DecodeError(resp, "worker API PATCH "+cfg.BaseURL+pathSuffix)
+		return httpclient.DecodeError(resp, "worker API PATCH "+pathSuffix)
 	}
 	return nil
 }
@@ -322,7 +334,7 @@ func (u *WorkerHTTPStreamSender) SendDelta(ctx context.Context, taskRunID, delta
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return httpclient.DecodeError(resp, "worker API POST stream "+cfg.BaseURL+pathSuffix)
+		return httpclient.DecodeError(resp, "worker API POST stream "+pathSuffix)
 	}
 	return nil
 }

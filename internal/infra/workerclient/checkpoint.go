@@ -72,7 +72,7 @@ func GetWorkspaceBase(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 		return nil, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, httpclient.DecodeError(resp, "worker API GET "+cfg.BaseURL+pathSuffix)
+		return nil, httpclient.DecodeError(resp, "worker API GET "+pathSuffix)
 	}
 	var got WorkspaceBaseResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
@@ -94,7 +94,7 @@ func RecordWorkspaceRestore(ctx context.Context, cfg WorkerAPIClientConfig, task
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return httpclient.DecodeError(resp, "worker API POST "+cfg.BaseURL+pathSuffix)
+		return httpclient.DecodeError(resp, "worker API POST "+pathSuffix)
 	}
 	return nil
 }
@@ -113,7 +113,7 @@ func FinalizeSeedCheckpoint(ctx context.Context, cfg WorkerAPIClientConfig, task
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", httpclient.DecodeError(resp, "worker API POST "+cfg.BaseURL+pathSuffix)
+		return "", httpclient.DecodeError(resp, "worker API POST "+pathSuffix)
 	}
 	var got SeedCheckpointResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {

@@ -202,6 +202,23 @@ func TestSharingUnconfigured(t *testing.T) {
 	}
 }
 
+// An upload names the artifact's Portal page on the public origin, and names
+// no page at all without one: a client relays this address rather than
+// rendering one from however it reached the server.
+func TestUploadNamesThePortalPageOnlyOnAPublicOrigin(t *testing.T) {
+	f := newFixture(t)
+	created := f.upload(t, userOwner, spaceA, "report.md", "# hi")
+	if want := testPublicBaseURL + "/#/artifact/" + created.ID; created.URL != want {
+		t.Errorf("url = %q, want %q", created.URL, want)
+	}
+
+	f.svc.PublicBaseURL = ""
+	bare := f.upload(t, userOwner, spaceA, "again.md", "# hi")
+	if bare.URL != "" {
+		t.Errorf("url = %q with no public origin, want none", bare.URL)
+	}
+}
+
 // A deployment with the artifact capability but no share store cannot share.
 func TestSharesAvailableRequiresBothHalves(t *testing.T) {
 	store := &mock.MockArtifactStore{}

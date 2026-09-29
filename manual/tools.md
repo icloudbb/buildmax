@@ -217,7 +217,9 @@ the first. The agent chooses the file: nothing is uploaded automatically, which
 is what keeps `.env` files, caches, and intermediate output out of the space's
 artifact list. A symlink whose target is outside the workspace is refused even
 though the link itself is inside it. An operator sets `storage.max_artifact_mb`,
-the per-file limit.
+the per-file limit. When the deployment sets `public_base_url`, the result also
+carries the artifact's Portal page for space members; otherwise the reference is
+the artifact id and filename alone.
 
 Set `share: true` to also create a public link the agent receives and can hand
 to a person: it opens without a BuildMax login and renders in the Portal — a

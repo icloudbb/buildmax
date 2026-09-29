@@ -215,7 +215,7 @@ func artifactPublisher(cfg workerclient.WorkerAPIClientConfig, taskRunID string)
 	if cfg.BaseURL == "" || cfg.Token == "" || taskRunID == "" {
 		return nil
 	}
-	return workerclient.NewArtifactPublisher(cfg, taskRunID, cfg.BaseURL)
+	return workerclient.NewArtifactPublisher(cfg, taskRunID)
 }
 
 // issueContext says a run is working one Issue, so its prompt points the Agent
