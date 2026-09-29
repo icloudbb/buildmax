@@ -243,6 +243,10 @@ func issueContext(cfg workerclient.WorkerAPIClientConfig, task *coretask.Task) *
 // nothing chose to stop it and it did not finish. Any other end of ctx is the
 // process going away without warning, which is not this run's outcome to
 // report — the stale-run reaper closes those.
+//
+// A run that failed at its work returns its cause marked ErrRunFailed once
+// the FAILED outcome is reported; only an outcome the server never received
+// comes back unmarked.
 func RunTask(ctx context.Context, input RunTaskInput) error {
 	task, run := input.Task, input.Run
 	if task == nil || run == nil {
@@ -261,8 +265,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		// No partial checkpoint here: preparation failed before execution, so
 		// there is no run-produced workspace to preserve — only the seed or the
 		// restored base, which are already durable.
-		reportRunFailure(ctx, run.ID, err, coretask.FailureInfrastructure, "", nil, input.Updater)
-		return err
+		return reportRunFailure(ctx, run.ID, err, coretask.FailureInfrastructure, "", nil, input.Updater)
 	}
 	result, err := executeRunTask(ctx, input, task, run, dirs)
 	// The stop check comes first because the agent loop treats cancellation as
@@ -280,8 +283,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		// the terminal report like a result but never advances the head; it
 		// preserves the work for an operator to recover from. Fail-open.
 		partial := captureWorkspaceCheckpoint(ctx, input, task, dirs)
-		reportRunFailure(ctx, run.ID, err, classifyRunError(err), result.TracePath, partial, input.Updater)
-		return err
+		return reportRunFailure(ctx, run.ID, err, classifyRunError(err), result.TracePath, partial, input.Updater)
 	}
 
 	result, persistErr := persistRunState(ctx, input.Persist, input.redactor(), scope, dirs, result)
@@ -296,7 +298,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		if reportErr := reportRunOutcome(ctx, scope, result, coretask.RunStatusFailed, err.Error(), coretask.FailureInfrastructure, partial, input.Updater); reportErr != nil {
 			return reportErr
 		}
-		return err
+		return fmt.Errorf("%w: %w", coretask.ErrRunFailed, err)
 	}
 	// Capture the successful run's workspace as its result checkpoint and carry it
 	// on the terminal report, so the server commits it and advances the Task head
@@ -842,10 +844,12 @@ func mapValues(m map[string]string) []string {
 	return out
 }
 
-// reportRunFailure records the failure. tracePath may be empty — the run can
-// fail before an agent ever starts — but when a trace exists it is recorded
-// here too: diagnosing a failure is the trace's main job.
-func reportRunFailure(ctx context.Context, taskRunID string, err error, class coretask.FailureClass, tracePath string, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) {
+// reportRunFailure records the failure and returns what RunTask returns for
+// it: the cause marked ErrRunFailed once the server holds the outcome, or the
+// report error when it does not. tracePath may be empty — the run can fail
+// before an agent ever starts — but when a trace exists it is recorded here
+// too: diagnosing a failure is the trace's main job.
+func reportRunFailure(ctx context.Context, taskRunID string, err error, class coretask.FailureClass, tracePath string, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) error {
 	endTime := time.Now().UTC()
 	errMsg := fmt.Sprintf("%v", err)
 	classStr := string(class)
@@ -859,7 +863,11 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, class co
 		req.TracePath = &tracePath
 	}
 	req.WorkspaceCheckpoint = checkpoint
-	_ = updater.UpdateRunStatus(ctx, taskRunID, req)
+	if reportErr := updater.UpdateRunStatus(ctx, taskRunID, req); reportErr != nil {
+		componentLog().Error("could not report a failed run", "task_run_id", taskRunID, "err", reportErr)
+		return fmt.Errorf("report FAILED for %q: %w", errMsg, reportErr)
+	}
+	return fmt.Errorf("%w: %w", coretask.ErrRunFailed, err)
 }
 
 // reportRunOutcome records a run's terminal status and reply.

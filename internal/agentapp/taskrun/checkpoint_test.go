@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -493,11 +494,29 @@ func TestReportRunFailure_CarriesPartialDescriptor(t *testing.T) {
 	desc := &workerclient.WorkspaceCheckpointDescriptor{
 		PayloadFormat: wsarchive.PayloadFormat, PayloadSHA256: "abc", SizeBytes: 5,
 	}
-	reportRunFailure(context.Background(), "rt_1", context.DeadlineExceeded, coretask.FailureRun, "traces/x.jsonl", desc, up)
+	err := reportRunFailure(context.Background(), "rt_1", context.DeadlineExceeded, coretask.FailureRun, "traces/x.jsonl", desc, up)
 	if up.req == nil || up.req.Status != "FAILED" {
 		t.Fatalf("failure not reported: %+v", up.req)
 	}
 	if up.req.WorkspaceCheckpoint != desc {
 		t.Fatalf("failure report did not carry the partial descriptor: %+v", up.req.WorkspaceCheckpoint)
+	}
+	if !errors.Is(err, coretask.ErrRunFailed) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want the cause marked ErrRunFailed", err)
+	}
+}
+
+// A failure the server never received is not a reported outcome: the worker
+// must not exit as if the run were terminal.
+func TestReportRunFailure_UnreportedFailureIsNotMarked(t *testing.T) {
+	up := &fakeUpdater{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := reportRunFailure(ctx, "rt_1", errors.New("the model refused"), coretask.FailureRun, "", nil, up)
+	if err == nil || errors.Is(err, coretask.ErrRunFailed) {
+		t.Fatalf("err = %v, want the report error without ErrRunFailed", err)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want it to carry the report error", err)
 	}
 }

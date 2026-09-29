@@ -84,7 +84,13 @@ func workerExitCode(taskRunID string, err error) int {
 		// produced and why it stopped.
 		slog.Info("worker run interrupted by shutdown", "task_run_id", taskRunID)
 		return 0
+	case errors.Is(err, coretask.ErrRunFailed):
+		// The run failed at its work and has already reported FAILED with the
+		// cause; a restart would only find it terminal and refuse it.
+		slog.Error("worker run failed and reported it", "task_run_id", taskRunID, "err", err)
+		return 0
 	default:
+		// Failed before the claim, or could not report its outcome.
 		slog.Error("worker run failed", "task_run_id", taskRunID, "err", err)
 		return 1
 	}

@@ -108,6 +108,9 @@ func TestRunTask_FailsARunWhoseStateCannotBeStored(t *testing.T) {
 	if !errors.Is(err, errWriteDenied) {
 		t.Fatalf("RunTask err = %v, want the storage refusal", err)
 	}
+	if !errors.Is(err, coretask.ErrRunFailed) {
+		t.Fatalf("RunTask err = %v, want it marked as a reported failure", err)
+	}
 	req := updater.req
 	if req == nil {
 		t.Fatal("the run never reported an outcome")

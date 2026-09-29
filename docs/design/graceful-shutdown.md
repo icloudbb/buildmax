@@ -393,7 +393,8 @@ The worker then **exits 0**. It has reported its own outcome, and a non-zero
 exit under `RestartPolicy: OnFailure` with `BackoffLimit: 3`
 ([`internal/infra/k8s/job.go`](../../internal/infra/k8s/job.go)) would restart a
 pod whose new process immediately refuses the run for not being `SCHEDULED`.
-That is the same reasoning `main.go` already applies to a cancelled run.
+That is the same reasoning `main.go` already applies to a cancelled run, and
+to a run that failed at its work and reported FAILED (`ErrRunFailed`).
 
 It now applies to `ErrAlreadyClaimed` as well, which is what both the status
 guard and the lost `RUNNING` transition report. That case had been exiting `2`
