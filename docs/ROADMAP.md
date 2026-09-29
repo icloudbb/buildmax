@@ -177,16 +177,21 @@ Design: [verification program](design/verification-program.md) and
 
 **Status:** candidate-proof-remains
 
-**Product path implemented; the evidence record is empty.** Account bootstrap,
-login-code recovery, Space membership, managed models, Agent and Workflow runs,
+**Candidate profile defined; the evidence record is empty.** Account bootstrap,
+login-code recovery, Space membership, managed models, direct and Issue-linked
+Tasks, graph Workflows with human requests and retry/timeout policy, Schedules,
+Secrets, the supported Plugin profile,
 artifacts, traces, usage, audit, Compose/kind, and the production reference all
 exist. None of that substitutes for exercising the immutable Server, worker,
-and Portal artifacts proposed for release with external dependencies.
+and Portal artifacts proposed for release with external dependencies. The
+expanded readiness contract is allowed to reveal small product gaps; such a gap
+is R3 work when it prevents a documented core journey or operator diagnosis.
 
 **Next:** pin the candidate image digests and have an operator who did not build
-the features perform the documented account, Space, execution, diagnosis,
-failure, restore, upgrade, rollback, and rotation journeys. Fix only gaps that
-the journey demonstrates. A 2026-09-28 operator drill showed the diagnosis
+the features perform the documented multi-Space identity, core-product,
+execution-boundary, distributed-operation, failure, restore, upgrade, rotation,
+and 24-hour operating-window journeys. Fix only gaps that the journey
+demonstrates. A 2026-09-28 operator drill showed the diagnosis
 journey could not detect stalled or failing work from Administration; runtime
 operations metadata
 ([system administration](design/system-administration.md) §13 M7) now closes
@@ -310,18 +315,22 @@ being duplicated here.
 
 ## Beta Gate
 
-The first Beta targets **one trusted Space on a private network**. It is not a
-claim of public multi-tenant readiness. Qualification uses the same immutable
-Server, worker, and Portal artifacts proposed for release.
+The first Beta targets **one trusted organization on a private network**. Its
+qualification environment uses at least two Spaces and two roles so the Space
+authorization boundary is exercised, without claiming public, untrusted
+multi-tenant readiness. Qualification uses the same immutable Server, worker,
+and Portal artifacts proposed for release and the exact enabled/disabled
+feature profile recorded with them.
 
 | Required proof | Acceptance outcome |
 |---|---|
-| Candidate deployment | Deploy pinned image digests with external MySQL, S3, and TLS; record versions, configuration, operator, and date. |
-| Execution boundary and topology | Prove the supported sandbox, resource limits, hook/MCP treatment, and Server topology. Unrestricted Bash with a recorded `none` boundary does not pass, and stdio MCP must be disabled unless its child process is confined by the declared worker boundary. Record residual Pod-wide egress and storage-credential limits explicitly. |
-| Persistence and failure behavior | Attach passing critical MySQL tests; exercise cancellation, worker loss, database outage, and storage denial. Runs reach documented terminal states and retain available results and diagnostic evidence. |
-| Recovery and maintenance | Restore the database and bucket together; exercise a schema upgrade and the previous binary's refusal of the upgraded database, plus credential rotation. Record recovery time, data checks, and accepted loss. |
-| Operator journey | An operator who did not implement the feature can sign in, execute and retry work with a managed model, and diagnose results from TaskRun, Artifacts, traces, usage, and audit history. |
-| Release verification | Attach current CI, direct and managed Compose/kind smoke, Portal browser E2E, archive verification, image scans, SBOMs, and provenance. |
+| Candidate contract | Pin image digests, rendered configuration, enabled/disabled feature profile, topology, dependency/model versions, retention/capacity envelope, RPO/RTO, operator, and date. |
+| Identity and Space boundary | Exercise native sign-in and Session lifecycle, two users and two Spaces, role and cross-Space refusal, account disablement, owner recovery, quota refusal, and audit. |
+| Core product journeys | Qualify Conversations, direct Tasks with Continue/Retry/cancel/AskUser, Issue execution, graph Workflows with human requests and retry/timeout policy, Schedules, Artifacts/checkpoints, Space Secrets, the supported non-executable Plugin profile, inbound webhooks, and Administration diagnostics. |
+| Execution boundary and topology | Prove the supported sandbox, run-token and worker-API isolation, resource limits, Secret redaction, hook/MCP/Plugin treatment, two-Server + Redis behavior, graceful drain, and Server rolling recovery. Record residual Pod-wide egress and storage-credential limits explicitly. |
+| Persistence and failure behavior | Attach passing critical MySQL tests; exercise concurrency, cancellation, worker loss, MySQL/Redis/storage/provider outages, Workflow recovery, and Schedule claims. Work reaches documented terminal states and retains available results and diagnostic evidence. |
+| Recovery and maintenance | Restore the database and bucket together across the full resource model; exercise a schema upgrade, previous-binary refusal, paired-restore rollback, credential/TLS rotation, retention, and a bounded operating window. Record RPO, RTO, data checks, capacity, and accepted loss. |
+| Product and release quality | A non-author operator completes and diagnoses the journeys; the selected real model has a recorded product-evaluation report; current CI, MySQL, Windows, local/Desktop regressions, direct and managed Compose/kind smoke, Portal browser E2E, archive verification, image scans, SBOMs, and provenance pass. |
 
 Engineering closes the supported worker contract first, then the remaining
 state-correctness and long-running recovery gaps. External candidate
@@ -329,10 +338,13 @@ qualification follows and ends with a signed readiness record. Broader model
 evaluation and public benchmarks do not block that decision.
 
 The [Beta readiness record](deploy/beta-readiness.md) holds the detailed
-procedure and evidence. Passing unit tests or local smoke does not replace
-candidate restore, failure, and upgrade exercises. Desktop polish, SSO,
-executable Space plugin content, additional providers, and general durable
-Session sync are outside the first Beta gate.
+procedure, feature-profile split, and evidence. Passing unit tests or local
+smoke does not replace candidate journeys, failure, restore, upgrade, rotation,
+and operating-window exercises. Remote Control, Telegram, OIDC, Browser, app
+connectors, and remote MCP remain Experimental profiles rather than hidden Beta
+blockers. Desktop polish, qualified SSO, executable Space Plugin content,
+additional providers, and general durable Session sync are outside the first
+Beta gate.
 
 ## How To Help
 
