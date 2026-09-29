@@ -85,6 +85,18 @@ test("Portal states what confined a run, and what the run spent", async ({ page 
   // Discussion is its own tab, not part of the default Overview.
   await page.getByRole("navigation", { name: "Issue sections" }).getByRole("button", { name: "Discussion" }).click()
 
+  // An agent's report is Markdown, and a reply to it belongs on the run's task,
+  // so the comment renders Markdown and links to that task.
+  await postJSON(page, `${current.space}/issues/${encodeURIComponent(issueId)}/comments`, current, {
+    body: "Checked with **emphasis**.",
+  })
+  await page.reload()
+  await page.getByRole("navigation", { name: "Issue sections" }).getByRole("button", { name: "Discussion" }).click()
+  await expect(page.locator(".issue-discussion__body strong", { hasText: "emphasis" })).toBeVisible()
+  await expect(
+    page.locator(".issue-discussion__actions").getByRole("link", { name: "Open Task" }).first()
+  ).toHaveAttribute("href", new RegExp(`#/spaces/${current.spaceId}/tasks/`))
+
   // The agent run's comment carries the way in. An issue's outputs are its
   // published artifacts now, and this run only replied, so it has no output
   // card — but every agent run posts a comment, and that comment carries a

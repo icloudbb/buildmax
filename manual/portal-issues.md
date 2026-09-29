@@ -125,10 +125,12 @@ From the Overview or Runs tab, a run in progress offers:
   and leaves the original run's record intact. A run that is a workflow step is
   retried by re-running its workflow, not from here.
 
-The agent's final reply is posted to **Discussion** as its report. When the
-agent stopped to ask you something, the run reads **Needs your answer** and the
-report says so. Answer with **Answer in Task**, which opens the run's task, and
-reply there with **Continue** — a comment on the issue does not reach the agent.
+The agent's final reply is posted to **Discussion** as its report, with an
+**Open Task** link to the run's task. Comments render Markdown. When the agent
+stopped to ask you something, the run reads **Needs your answer** and the report
+says so. Open the task with **Answer in Task** or the report's **Open Task**,
+and reply there with **Continue** — a comment on the issue does not reach the
+agent.
 
 ## Work an issue on your machine
 

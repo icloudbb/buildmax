@@ -135,6 +135,10 @@
 }
 
 .page-issues__comment-body {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Comments render Markdown; a writer's single line breaks stay visible. */
+.page-issues__comment-body p {
+  white-space: pre-wrap;
 }

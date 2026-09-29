@@ -257,7 +257,7 @@ export function IssuesView({ app, projects, currentProject, onStartChat }) {
                 {detail.comments.map((c, i) => (
                   <li key={`${c.created_at}-${i}`} className="page-issues__comment">
                     <span className="page-issues__row-meta">{commentAuthorLabel(c)} · {formatWhen(c.created_at)}</span>
-                    <div className="page-issues__comment-body">{c.body}</div>
+                    <div className="page-issues__comment-body"><MarkdownMessage content={c.body} /></div>
                   </li>
                 ))}
               </ul>

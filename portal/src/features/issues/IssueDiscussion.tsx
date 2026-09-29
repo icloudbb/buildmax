@@ -1,5 +1,8 @@
-import { Button } from "@buildmax/gui"
+import { Button, ButtonLink } from "@buildmax/gui"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import Markdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+import { buildHash } from "../../router"
 import type { ApiIssueComment, ApiSpaceMember } from "../../lib/api/types"
 import { createIssueComment, deleteIssueComment, getIssueComments, updateIssueComment } from "./comments"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -221,9 +224,21 @@ export function IssueDiscussion({
                   </div>
                 </div>
               ) : (
-                <p className="issue-discussion__body">{comment.body}</p>
+                // Agents report in Markdown and people write it too; react-markdown
+                // renders no raw HTML, so a comment cannot inject markup.
+                <div className="issue-discussion__body page-chat__markdown">
+                  <Markdown remarkPlugins={[remarkGfm]}>{comment.body}</Markdown>
+                </div>
               )}
               <div className="issue-discussion__actions">
+                {comment.source_task_id && spaceId ? (
+                  <ButtonLink
+                    variant="tertiary" size="compact"
+                    href={buildHash({ name: "task", spaceId, taskId: comment.source_task_id })}
+                  >
+                    Open Task
+                  </ButtonLink>
+                ) : null}
                 {comment.source_task_run_id && onOpenTrace ? (
                   <Button
                     variant="tertiary" size="compact"

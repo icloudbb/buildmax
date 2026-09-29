@@ -100,7 +100,7 @@ func runSummaryBody(info coretask.RunTerminalInfo) string {
 }
 
 // waitingLead opens the report of a run that stopped on questions.
-const waitingLead = "**Waiting for your answer.** Answer by continuing this run's task (Open Task); a comment on this issue does not reach the agent.\n\n"
+const waitingLead = "The agent is waiting for your answer. Reply by continuing this run's task (Open Task); a comment on this issue does not reach the agent.\n\n"
 
 // keepEnd keeps the end of a run's output that is waiting on the user: its
 // questions close the output, and they are what the reader has to act on.
