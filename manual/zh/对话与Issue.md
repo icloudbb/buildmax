@@ -101,6 +101,10 @@ Owner 与 Executor 是两个相互独立的选择，可以同时都设置、只�
   一次重试会计入你 space 的配额，并保留原始运行的记录不变。
   作为 Workflow 步骤的运行是通过重新运行其 Workflow 来重试的，而不是从这里。
 
+Agent 的最终回复会作为报告贴到 **Discussion**。当 Agent 停下来向你提问时，这次运行显示为
+**Needs your answer**，报告里也会说明。点击 **Answer in Task** 打开这次运行的 Task，在那里用
+**Continue** 回答——在 Issue 上发表评论不会传到 Agent。
+
 ## 在本机处理 Issue
 
 你负责的 Issue 也可以在本地处理，那里有你的文件和工具。

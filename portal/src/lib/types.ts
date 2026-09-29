@@ -14,6 +14,8 @@ export interface Task {
   agentId?: string
   /** Set when the task was started from an issue. */
   issueId?: string
+  /** The latest run ended on questions the user answers by continuing it. */
+  awaitingAnswer?: boolean
 }
 
 /** Tier 1 conversation (user-facing dialogue). */

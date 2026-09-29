@@ -134,7 +134,8 @@ func TestReportRunTerminal_TruncatesLongOutput(t *testing.T) {
 }
 
 // A run waiting on the user closes its output with the questions, so a long
-// output keeps its end in the comment rather than cutting the questions off.
+// output keeps its end in the comment rather than cutting the questions off,
+// and the comment says the answer goes to the task, not the thread.
 func TestReportRunTerminal_WaitingRunKeepsItsQuestions(t *testing.T) {
 	comments := &mock.MockIssueCommentStore{}
 	reporter := reporterFor(coretask.Task{ID: "t_1", IssueID: util.Ptr("i_1")}, comments)
@@ -145,6 +146,9 @@ func TestReportRunTerminal_WaitingRunKeepsItsQuestions(t *testing.T) {
 		t.Fatalf("ReportRunTerminal: %v", err)
 	}
 	body := comments.Comments[0].Body
+	if !strings.HasPrefix(body, waitingLead) {
+		t.Fatalf("waiting run does not say where the answer goes: %q", body[:min(len(body), 120)])
+	}
 	if !strings.Contains(body, "1. Which database?") || !strings.Contains(body, "earlier output truncated") {
 		t.Fatalf("waiting run lost its questions: %q", body[:min(len(body), 120)])
 	}
