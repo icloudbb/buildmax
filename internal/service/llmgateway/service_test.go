@@ -24,15 +24,19 @@ type scriptedClient struct {
 	err       error
 	// providerState is what an upstream that carries reasoning state returns.
 	providerState *cllm.ProviderState
+	// structured is the provider client's verdict on a requested schema.
+	structured *cllm.Structured
 
 	gotMessages []cllm.Message
 	gotTools    []cllm.ToolDef
 	gotOrigin   cllm.CallOrigin
+	gotOutput   *cllm.OutputSchema
 }
 
 func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
 	c.gotMessages = req.Messages
 	c.gotTools = req.Tools
+	c.gotOutput = req.Output
 	c.gotOrigin, _ = cllm.CallOriginFromContext(ctx)
 	if c.err != nil {
 		return cllm.Completion{}, c.err
@@ -42,6 +46,7 @@ func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, req cllm.Re
 		ToolCalls:     c.toolCalls,
 		Usage:         c.usage,
 		ProviderState: c.providerState,
+		Structured:    c.structured,
 	}, nil
 }
 
@@ -445,6 +450,28 @@ func TestCompletePassesMessagesAndToolsThrough(t *testing.T) {
 	}
 	if len(client.gotTools) != 1 || client.gotTools[0].Name != "read_file" {
 		t.Errorf("client got tools %+v", client.gotTools)
+	}
+}
+
+// A managed call's output schema reaches the provider client, and that client's
+// verdict — the one validation — comes back unchanged. A worker on the managed
+// transport has no other way to obtain a structured value.
+func TestCompletePassesOutputSchemaAndStructuredThrough(t *testing.T) {
+	verdict := &cllm.Structured{Value: []byte(`{"label":"bug"}`), Mode: cllm.StructuredNative, Enforced: true}
+	client := &scriptedClient{content: `{"label":"bug"}`, structured: verdict}
+	svc := serviceWith(t, client, newFakeLedger(), nil)
+
+	req := userRequest()
+	req.Output = &cllm.OutputSchema{Name: "output", Schema: []byte(`{"type":"object"}`)}
+	result, err := svc.Complete(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if client.gotOutput != req.Output {
+		t.Errorf("provider client got output %+v, want the request's", client.gotOutput)
+	}
+	if result.Structured != verdict {
+		t.Errorf("result structured = %+v, want the provider client's verdict", result.Structured)
 	}
 }
 

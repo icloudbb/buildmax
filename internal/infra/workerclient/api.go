@@ -136,6 +136,7 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 			CreatedBy:      got.Task.UserID,
 			SessionID:      got.Task.SessionID,
 			IssueID:        got.Task.IssueID,
+			OutputSchema:   got.Task.OutputSchema,
 		},
 		LLM:                    got.LLM,
 		AgentInstructions:      got.Task.AgentInstructions,

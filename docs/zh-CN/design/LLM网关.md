@@ -306,6 +306,10 @@ POST /api/worker/task-runs/{task_run_id}/llm/completions
   "tools": [],
   "stream": true,
   "call_profile": "agent_turn",
+  "output": {
+    "name": "output",
+    "schema": {"type": "object"}
+  },
   "metadata": {
     "surface": "desktop",
     "session_id": "optional correlation value"
@@ -331,6 +335,11 @@ POST /api/worker/task-runs/{task_run_id}/llm/completions
 误以为自己要求的是一件事、实际却被按另一件事计费。参见
 [prompt-cache-control.md](提示缓存控制.md)。
 
+`output` 是[结构化输出](结构化输出.md)中可选的结构化输出 Schema,即
+`core/llm.Request.Output` 的线上形式。Server 把它交给提供商客户端,由后者
+映射为目标的原生机制并验证候选值——这是一次托管调用唯一的验证。带有
+`output` 却没有 `schema` 的请求会被拒绝。
+
 元数据是用于关联的上下文信息,而不是授权层面的输入。Server 从身份验证
 结果中推导出用户 ID 和 Space ID,并在 Worker 路由上推导出 Task 的 Run
 身份。
@@ -341,6 +350,11 @@ POST /api/worker/task-runs/{task_run_id}/llm/completions
 {
   "content": "...",
   "tool_calls": [],
+  "structured": {
+    "value": {"label": "bug"},
+    "mode": "native",
+    "enforced": true
+  },
   "usage": {
     "prompt_tokens": 100,
     "completion_tokens": 20,
@@ -350,7 +364,10 @@ POST /api/worker/task-runs/{task_run_id}/llm/completions
 ```
 
 这份响应刻意返回的是 BuildMax 自己的工具调用和用量结构。它不会暴露上游
-的响应体,也不会暴露携带供应商凭证的响应头。
+的响应体,也不会暴露携带供应商凭证的响应头。`structured` 只在请求带有
+`output` 时出现:它是提供商客户端的判定结果,要么带着验证通过的 `value`,
+要么带着说明候选值为何未通过验证的 `error`。远程客户端原样转交,不再重新
+验证,因此一次托管调用得到的结果与直接调用同一目标完全相同。
 
 ### 8.3 流式响应
 
@@ -359,7 +376,7 @@ POST /api/worker/task-runs/{task_run_id}/llm/completions
 | 事件 | 载荷 | 含义 |
 |---|---|---|
 | `delta` | 内容增量 | 需要交付给本地流接收端的文本 |
-| `result` | 最终内容、工具调用、用量 | 完成这次 `LLMClient` 调用 |
+| `result` | 最终内容、工具调用、结构化结果、用量 | 完成这次 `LLMClient` 调用 |
 | `error` | 稳定错误码、安全的错误信息、是否可重试的标志 | 以错误方式终止这次调用 |
 
 现有的核心契约会在流式传输过程中暴露内容增量,并在流结束后返回组装好的

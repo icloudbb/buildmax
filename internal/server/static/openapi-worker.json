@@ -287,6 +287,10 @@
               },
               "space_agent_instructions_revision": {
                 "type": "integer"
+              },
+              "output_schema": {
+                "type": "string",
+                "description": "JSON Schema (as text) the run's final answer must satisfy; the worker requests structured output and reports the validated value as structured on its terminal report. Absent for a free-text Task."
               }
             },
             "required": [

@@ -79,14 +79,19 @@ type llmStubClient struct {
 	// gotProfile is what the gateway passed the provider client, so a test can
 	// check that a worker's stated intent survived the route.
 	gotProfile cllm.CallProfile
+	// structured is returned on a blocking call; gotOutput is the schema the
+	// gateway passed the provider client.
+	structured *cllm.Structured
+	gotOutput  *cllm.OutputSchema
 }
 
 func (c *llmStubClient) ChatCompletionBlocking(_ context.Context, req cllm.Request) (cllm.Completion, error) {
 	c.gotProfile = req.Profile
+	c.gotOutput = req.Output
 	if c.err != nil {
 		return cllm.Completion{}, c.err
 	}
-	return cllm.Completion{Content: c.content, Usage: c.usage}, nil
+	return cllm.Completion{Content: c.content, Usage: c.usage, Structured: c.structured}, nil
 }
 func (c *llmStubClient) ChatCompletionStreaming(_ context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
 	c.gotProfile = req.Profile

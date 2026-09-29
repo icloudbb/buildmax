@@ -254,6 +254,14 @@ does not pretend a value exists.
 The model proposes; the runtime validates and records. Nothing downstream
 re-validates or re-parses.
 
+A managed call — a CLI or Desktop in managed mode, or a worker on the managed
+transport — has one validator too: the server's provider client, behind the
+gateway. The request's schema crosses the managed wire contract, and the
+verdict (value or typed failure) crosses back and is relayed without a second
+check ([LLM gateway §8](llm-gateway.md)). A worker run receives its Task's
+`output_schema` from the worker API when it claims the run and reports the
+validated value on its terminal status report, whichever transport it uses.
+
 ## 10. Streaming
 
 Structured output and token streaming coexist without streaming a half-built

@@ -282,7 +282,9 @@ model produces a no-tool-call answer the runtime re-issues one constrained call
 to render that settled answer as the value, returned on `RunResult.Structured`.
 A Workflow `agent_task` step consumes it: a step may declare an `output_schema`
 (rejected at publication if outside the subset), the step's Task carries it so
-the run is constrained, the validated value is persisted on the TaskRun and
+the run is constrained — the worker API hands the schema to the worker run, and
+on the managed transport the gateway wire contract carries the schema out and
+the server-validated value back — the validated value is persisted on the TaskRun and
 folded onto the node run, and the step succeeds only when the run returned a
 value that validated — otherwise the step fails. Still open: typed `/structured/...`
 routing and planners (adaptive Workflow), the Portal step-form editor for

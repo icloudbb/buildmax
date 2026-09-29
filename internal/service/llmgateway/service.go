@@ -111,6 +111,8 @@ type CompleteRequest struct {
 	// operator's own target policy, and a client cannot use it to select a
 	// stronger cache request than the deployment allows.
 	CallProfile cllm.CallProfile
+	// Output, when set, asks the upstream for a schema-constrained answer.
+	Output *cllm.OutputSchema
 }
 
 // CompleteResult is a finished managed call.
@@ -126,6 +128,9 @@ type CompleteResult struct {
 	// ProviderState is reasoning state the upstream needs back on the next
 	// request. The gateway carries it without reading it.
 	ProviderState *cllm.ProviderState
+	// Structured is the validated value (or typed failure) for a request that
+	// carried an Output schema; nil otherwise.
+	Structured *cllm.Structured
 }
 
 // Models lists the models this deployment offers.
@@ -249,6 +254,11 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		// than from the request: a caller that could name its own scope could
 		// aim at another space's bucket.
 		CacheScope: req.SpaceID,
+		// The routed client is the provider client, which maps the schema to
+		// the target's native mechanism and validates the candidate. That is
+		// the one validation for a managed call: the gateway and the remote
+		// client relay its verdict and never re-check it.
+		Output: req.Output,
 	}
 	if streaming {
 		observed := func(delta string) {
@@ -321,6 +331,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		Usage:         usage,
 		UsageReported: reported,
 		ProviderState: completion.ProviderState,
+		Structured:    completion.Structured,
 	}, nil
 }
 

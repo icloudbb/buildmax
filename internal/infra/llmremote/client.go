@@ -172,6 +172,7 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (
 		ToolCalls:     fromWireToolCalls(out.ToolCalls),
 		Usage:         usage,
 		ProviderState: fromWireProviderState(out.ProviderState),
+		Structured:    fromWireStructured(out.Structured),
 	}, nil
 }
 
@@ -303,6 +304,7 @@ func (s *streamState) finish() (cllm.Completion, error) {
 		ToolCalls:     fromWireToolCalls(s.result.ToolCalls),
 		Usage:         usage,
 		ProviderState: fromWireProviderState(s.result.ProviderState),
+		Structured:    fromWireStructured(s.result.Structured),
 	}, nil
 }
 
@@ -326,6 +328,7 @@ func (c *Client) post(ctx context.Context, stream bool, call cllm.Request) (*htt
 		// retention from here would let a client spend the operator's money on
 		// retention the operator did not choose.
 		CallProfile: string(call.Profile),
+		Output:      toWireOutput(call.Output),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("encode managed request: %w", err)
@@ -469,6 +472,32 @@ func toWireParts(in []cllm.ContentPart) []llmwire.ContentPart {
 			Type: part.Type, Text: part.Text, MediaType: part.MediaType, Data: part.Data,
 		})
 	}
+	return out
+}
+
+func toWireOutput(in *cllm.OutputSchema) *llmwire.OutputSchema {
+	if in == nil {
+		return nil
+	}
+	return &llmwire.OutputSchema{Name: in.Name, Schema: in.Schema}
+}
+
+// fromWireStructured relays the gateway's verdict without re-validating it. The
+// server's provider client is the one validator (infra/llm finalizeStructured):
+// it sees the schema and the provider's candidate together, so checking again
+// here would be a second implementation of the same rule, and a managed run
+// gets exactly the outcome a direct call to the same target would.
+func fromWireStructured(in *llmwire.Structured) *cllm.Structured {
+	if in == nil {
+		return nil
+	}
+	out := &cllm.Structured{Mode: cllm.StructuredMode(in.Mode), Enforced: in.Enforced}
+	if in.Error != "" {
+		out.Err = &cllm.StructuredError{Message: in.Error}
+		out.Enforced = false
+		return out
+	}
+	out.Value = in.Value
 	return out
 }
 

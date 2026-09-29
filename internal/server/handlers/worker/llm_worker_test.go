@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	"github.com/icloudbb/buildmax/internal/infra/llmwire"
 	"github.com/icloudbb/buildmax/internal/mock"
 	"github.com/icloudbb/buildmax/internal/server/authtoken"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
@@ -257,6 +259,51 @@ func TestWorkerLLMCompletionCarriesTheCallProfile(t *testing.T) {
 	}
 	if client.gotProfile != cllm.ProfileAgentTurn {
 		t.Errorf("provider saw profile %q, want %q", client.gotProfile, cllm.ProfileAgentTurn)
+	}
+}
+
+// A managed worker run requests its output schema through this route and needs
+// the provider client's verdict back. Dropping either half leaves a Workflow
+// node with an output_schema unable to succeed on any managed worker.
+func TestWorkerLLMCompletionCarriesStructuredOutput(t *testing.T) {
+	client := &llmStubClient{content: `{"label":"bug"}`, structured: &cllm.Structured{
+		Value: json.RawMessage(`{"label":"bug"}`), Mode: cllm.StructuredNative, Enforced: true,
+	}}
+	gateway := llmTestService(t, client, nil)
+
+	rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning),
+		`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"output":{"name":"output","schema":{"type":"object"}}}`,
+		validWorkerRunToken(t))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if client.gotOutput == nil || client.gotOutput.Name != "output" || string(client.gotOutput.Schema) != `{"type":"object"}` {
+		t.Errorf("provider saw output %+v, want the requested schema", client.gotOutput)
+	}
+	var got llmwire.CompletionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Structured == nil || string(got.Structured.Value) != `{"label":"bug"}` ||
+		got.Structured.Mode != string(cllm.StructuredNative) || !got.Structured.Enforced {
+		t.Errorf("structured = %+v, want the provider client's validated value", got.Structured)
+	}
+}
+
+// An output with no schema is a malformed request, refused before any
+// provider call rather than turned into a structured failure after one.
+func TestWorkerLLMCompletionRefusesAnOutputWithoutSchema(t *testing.T) {
+	client := &llmStubClient{content: "answer"}
+	gateway := llmTestService(t, client, nil)
+
+	rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning),
+		`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"output":{"name":"output"}}`,
+		validWorkerRunToken(t))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if client.gotOutput != nil || client.gotProfile != "" {
+		t.Error("a refused request still reached the provider")
 	}
 }
 

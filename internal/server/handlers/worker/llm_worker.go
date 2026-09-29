@@ -88,6 +88,11 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	output, err := llmhttp.CoreOutput(req.Output)
+	if err != nil {
+		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	cmd := llmgateway.CompleteRequest{
 		SpaceID:      claims.SpaceID,
 		UserID:       &userID,
@@ -99,6 +104,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		Tools:        llmhttp.CoreTools(req.Tools),
 		Surface:      workerSurface,
 		CallProfile:  profile,
+		Output:       output,
 	}
 	if req.Metadata != nil {
 		cmd.SessionID = req.Metadata.SessionID
@@ -115,21 +121,5 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	resp := llmwire.CompletionResponse{
-		LLMCallID:     result.LLMCallID,
-		Model:         result.Model,
-		Content:       result.Content,
-		ToolCalls:     llmhttp.WireToolCalls(result.ToolCalls),
-		ProviderState: llmhttp.WireProviderState(result.ProviderState),
-	}
-	if result.UsageReported {
-		resp.Usage = &llmwire.Usage{
-			PromptTokens:     result.Usage.PromptTokens,
-			CompletionTokens: result.Usage.CompletionTokens,
-			TotalTokens:      result.Usage.TotalTokens,
-			CacheReadTokens:  result.Usage.CacheReadTokens,
-			CacheWriteTokens: result.Usage.CacheWriteTokens,
-		}
-	}
-	httputil.WriteJSON(w, http.StatusOK, resp)
+	httputil.WriteJSON(w, http.StatusOK, llmhttp.WireCompletion(result))
 }
