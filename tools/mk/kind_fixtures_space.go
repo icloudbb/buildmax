@@ -158,6 +158,11 @@ func seedTeamFixtures(ctx context.Context, client *http.Client, target smokeTarg
 	if err := seedFixtureAccounts(ctx, client, target, token); err != nil {
 		return err
 	}
+	// Removing a member and disabling an owner also need that authority, and
+	// the departed member's schedule targets a policy fixture Workflow.
+	if err := seedGovernanceFixtures(ctx, client, target, team.ID, token, writer); err != nil {
+		return err
+	}
 	var instructions struct {
 		Instructions string `json:"instructions"`
 	}

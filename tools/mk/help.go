@@ -547,22 +547,28 @@ func helpTopics() []helpTopic {
 					"environment on the server and restarting it; the committed config is untouched.\n" +
 					"Enabled schedules run on that model too, unattended: after `fixtures`, one fires\n" +
 					"every 15 minutes.",
-				"`fixtures` seeds four accounts, personal and shared QA spaces, membership\n" +
+				"`fixtures` seeds named accounts, personal and shared QA spaces, membership\n" +
 					"roles and an invitation, assigned and nested issues, comments, workflows\n" +
-					"(including a branching graph with typed input and one with structured\n" +
-					"output), agents with revision history, plugin, sandbox, and Secret settings,\n" +
-					"files, artifacts with public shares, synthetic secrets, agent and workflow\n" +
+					"(including a branching graph with typed input, one with structured output,\n" +
+					"human_input approvals, and retry, attempt-timeout, and run-deadline policy),\n" +
+					"agents with revision history, plugin, sandbox, and Secret settings, files,\n" +
+					"artifacts with public shares, synthetic secrets, agent and workflow\n" +
 					"schedules, Space sandbox and curation settings, and account webhook keys. It\n" +
 					"grants Alice System Administrator authority and publishes the sample plugins\n" +
-					"to the Marketplace, with one activated in the QA space. A separate space\n" +
-					"carries the long lists — many agents, workflows, artifacts, secrets, and\n" +
-					"schedules — and 105 issues for pagination, and it seeds a cohort of\n" +
-					"synthetic accounts so the admin Accounts page pages and filters.\n" +
+					"to the Marketplace, with one activated in the QA space. It removes a member\n" +
+					"who owns a schedule, disables the sole owner of a shared space, and archives\n" +
+					"a scheduled Workflow, so those schedules pause on their own within minutes.\n" +
+					"A separate space carries the long lists — many agents, workflows, artifacts,\n" +
+					"secrets, and schedules — and 105 issues for pagination, and it seeds a\n" +
+					"cohort of synthetic accounts so the admin Accounts page pages and filters.\n" +
 					"Reruns reuse named resources and fill missing data. `fixtures --runs` also\n" +
 					"creates a conversation, Task Continue/Retry history, Issue Agent/Workflow\n" +
-					"results, a graph Workflow run, real failed and canceled runs, and a webhook\n" +
-					"conversation. Execution requires the reference free mock configuration; it\n" +
-					"refuses model overrides. Sign in with `login alice@buildmax.local`. See\n" +
+					"results, a graph Workflow run, real failed and canceled runs, a webhook\n" +
+					"conversation, answered, declined, pending, expired, and canceled human\n" +
+					"requests, AskUser questions on a Workflow step and a direct Task, retried,\n" +
+					"timed-out, and deadline-failed Workflow runs, and a Task left RUNNING for\n" +
+					"about ten minutes. Execution requires the reference free mock configuration;\n" +
+					"it refuses model overrides. Sign in with `login alice@buildmax.local`. See\n" +
 					"local-kind.md for the coverage matrix and fields reconciled on reruns.",
 				"`drill rotation` rehearses docs/deploy/credential-rotation.md: it rotates the\n" +
 					"JWT secret, database password, storage key, a managed model key, and the KEK\n" +

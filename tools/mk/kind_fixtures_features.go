@@ -19,9 +19,9 @@ const (
 
 // seedFeatureFixtures fills the surfaces the curated QA space would otherwise
 // show only in their simplest shape: a branching Workflow with a typed input
-// and structured output, Workflow-executor schedules, an Agent with revision
-// history and every definition field set, non-default Space settings, and
-// artifact share links. It follows the Secret and plugin fixtures because the
+// and structured output, Workflows with human requests and retry/timeout
+// policy, Workflow-executor schedules, an Agent with revision history and every
+// definition field set, non-default Space settings, and artifact share links. It follows the Secret and plugin fixtures because the
 // configured Agent names both.
 func seedFeatureFixtures(ctx context.Context, client *http.Client, target smokeTarget, spaceID, token, writer, reviewer, reviewWorkflow string) error {
 	base := target.apiBase + "/api/spaces/" + url.PathEscape(spaceID)
@@ -36,6 +36,13 @@ func seedFeatureFixtures(ctx context.Context, client *http.Client, target smokeT
 		return err
 	}
 	if err := ensureFixtureConfiguredAgents(ctx, client, target, spaceID, base, token); err != nil {
+		return err
+	}
+	blocked, err := fixtureAgentByName(ctx, client, base, token, fixtureBlockedAgent)
+	if err != nil {
+		return err
+	}
+	if err := ensureFixturePolicyWorkflows(ctx, client, base, token, writer, reviewer, blocked); err != nil {
 		return err
 	}
 	return ensureFixtureArtifactShares(ctx, client, target, base, token)
