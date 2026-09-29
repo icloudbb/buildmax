@@ -186,12 +186,12 @@ var agentsMDPathRe = regexp.MustCompile("`((?:internal|cmd|docs|manual|portal|gu
 
 // generatedSegments name directories absent from a fresh checkout. Documentation
 // legitimately refers to them -- gui/dist, portal/dist, gui/node_modules after a
-// build, .local after `./make setup local` -- but whether they happen to be on
-// the machine running the tests says nothing about whether the document is
-// accurate, and .local would make these tests depend on one contributor's own
-// configuration.
+// build, .local after `./make setup local`, .artifacts after a drill or an
+// exploratory session -- but whether they happen to be on the machine running
+// the tests says nothing about whether the document is accurate, and .local
+// would make these tests depend on one contributor's own configuration.
 var generatedSegments = map[string]bool{
-	"dist": true, "node_modules": true, "bin": true, "build": true, ".local": true,
+	"dist": true, "node_modules": true, "bin": true, "build": true, ".local": true, ".artifacts": true,
 }
 
 // generatedFiles are single paths in the same category: written by a command
