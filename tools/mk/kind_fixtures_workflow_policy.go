@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -23,6 +24,12 @@ const (
 	fixtureShortTimeout = 60
 	// A week keeps the pending sign-off open for manual testing.
 	fixtureLongTimeout = 7 * 24 * 60 * 60
+
+	// The Agent steps whose first model call a fixture arms. Each arm is
+	// reserved for requests carrying its step's own text, so these must stay
+	// unique among everything that calls the mock.
+	fixtureClarifyInstruction = "Ask which area to check if the brief does not say, then check it."
+	fixtureSlowInstruction    = "Run the long installation check."
 
 	fixtureTaskQuestionInput = "[kind fixture] Ask which checklist to use before summarizing."
 	fixtureTaskAnsweredInput = "[kind fixture] Ask which archive to read, then summarize it."
@@ -76,7 +83,7 @@ func ensureFixturePolicyWorkflows(ctx context.Context, client *http.Client, base
 	}
 	clarify := map[string]any{
 		"schema_version": 1,
-		"nodes":          []fxNode{fixtureNode("scope", writer, "Ask which area to check if the brief does not say, then check it.", nil, nil, "")},
+		"nodes":          []fxNode{fixtureNode("scope", writer, fixtureClarifyInstruction, nil, nil, "")},
 	}
 	expiring := map[string]any{
 		"schema_version": 1,
@@ -97,7 +104,7 @@ func ensureFixturePolicyWorkflows(ctx context.Context, client *http.Client, base
 			fixtureNode("ship", reviewer, "Ship once the gate and notes both pass.", []string{"gate", "notes"}, nil, ""),
 		},
 	}
-	step := fixtureNode("check", writer, "Run the long installation check.", nil, nil, "")
+	step := fixtureNode("check", writer, fixtureSlowInstruction, nil, nil, "")
 	step["policy"] = map[string]int{"timeout_seconds": fixtureShortTimeout}
 	slow := map[string]any{"schema_version": 1, "nodes": []fxNode{step}}
 
@@ -222,14 +229,21 @@ func respondFixtureRequest(ctx context.Context, client *http.Client, base, token
 	return requestJSON(ctx, client, http.MethodPost, base+"/workflow-requests/"+url.PathEscape(requestID)+"/respond", token, body, nil, http.StatusOK)
 }
 
-// armFixtureToolCall makes the mock answer its next model calls with a tool
-// call. The returned release clears whatever the run did not consume, so an
-// arm cannot leak into later fixtures or a person's own testing.
-func armFixtureToolCall(ctx context.Context, client *http.Client, target smokeTarget, name string, args map[string]any, times int) (func(), error) {
+// armFixtureToolCall makes the mock answer the next model call whose request
+// carries match with a tool call. The reservation is what keeps the arm for
+// the fixture's own run: the cluster's enabled schedules fire Agent runs on
+// their own clock, and a run an earlier invocation left going makes calls of
+// its own, so "the next call" alone could be anybody's. The returned release
+// clears whatever the run did not consume, so an arm cannot leak into later
+// fixtures or a person's own testing.
+func armFixtureToolCall(ctx context.Context, client *http.Client, target smokeTarget, name string, args map[string]any, match string) (func(), error) {
 	if target.llmControlToolCallURL == "" {
 		return nil, fmt.Errorf("this stack does not publish its mock model's tool-call route")
 	}
-	if err := requestJSON(ctx, client, http.MethodPost, target.llmControlToolCallURL, "", map[string]any{"name": name, "args": args, "times": times}, nil, http.StatusOK); err != nil {
+	if match == "" {
+		return nil, fmt.Errorf("a fixture arm for %s must be reserved for its own run's request", name)
+	}
+	if err := requestJSON(ctx, client, http.MethodPost, target.llmControlToolCallURL, "", fixtureArmBody(name, args, match), nil, http.StatusOK); err != nil {
 		return nil, fmt.Errorf("arm a %s tool call: %w", name, err)
 	}
 	return func() {
@@ -237,14 +251,38 @@ func armFixtureToolCall(ctx context.Context, client *http.Client, target smokeTa
 	}, nil
 }
 
+// fxModelCall is one request the mock recorded; its control route reports
+// the body base64-encoded, which []byte decodes.
+type fxModelCall struct {
+	Body []byte `json:"Body"`
+}
+
+// modelCalledWith reports whether a call recorded after the first since
+// carried match — the fixture's own run reaching the mock, as opposed to any
+// other caller.
+func modelCalledWith(calls []fxModelCall, since int, match string) bool {
+	for i := max(since, 0); i < len(calls); i++ {
+		if bytes.Contains(calls[i].Body, []byte(match)) {
+			return true
+		}
+	}
+	return false
+}
+
+// fixtureArmBody is the mock's control request for one reserved tool call.
+func fixtureArmBody(name string, args map[string]any, match string) map[string]any {
+	return map[string]any{"name": name, "args": args, "times": 1, "match": match}
+}
+
 func fixtureAskUserArgs(question string) map[string]any {
 	return map[string]any{"questions": []any{map[string]any{"question": question}}}
 }
 
 // seedFixturePolicyRuns produces the human-request and policy outcomes. Runs
-// that only wait on the clock start first and are collected last. Every step
-// that arms the mock runs alone, because an armed tool call answers whichever
-// model call comes next.
+// that only wait on the clock start first and are collected last; their only
+// nodes wait on a person, so they never call the model. Every step that arms
+// the mock reserves the arm for its own run's request (armFixtureToolCall),
+// because other runs on the cluster call the model whenever they like.
 func seedFixturePolicyRuns(ctx context.Context, client *http.Client, target smokeTarget, base, token string) error {
 	ids, err := fixtureWorkflowIDs(ctx, client, base, token)
 	if err != nil {
@@ -314,7 +352,7 @@ func seedFixtureClarifyRuns(ctx context.Context, client *http.Client, target smo
 		}
 		// Armed after the start, whose Task title was its one synchronous model
 		// call; the next call is the worker's first turn, which then asks.
-		release, err := armFixtureToolCall(ctx, client, target, "AskUser", fixtureAskUserArgs("Which area should this check cover: docs, install, or upgrade?"), 1)
+		release, err := armFixtureToolCall(ctx, client, target, "AskUser", fixtureAskUserArgs("Which area should this check cover: docs, install, or upgrade?"), fixtureClarifyInstruction)
 		if err != nil {
 			return err
 		}
@@ -366,7 +404,7 @@ func seedFixtureTaskQuestions(ctx context.Context, client *http.Client, target s
 			if err := requestJSON(ctx, client, http.MethodPost, agentTasks, token, map[string]string{"input": spec.input}, &task, http.StatusCreated); err != nil {
 				return err
 			}
-			release, err := armFixtureToolCall(ctx, client, target, "AskUser", fixtureAskUserArgs(spec.question), 1)
+			release, err := armFixtureToolCall(ctx, client, target, "AskUser", fixtureAskUserArgs(spec.question), spec.input)
 			if err != nil {
 				return err
 			}
@@ -506,7 +544,7 @@ func seedFixtureSlowRun(ctx context.Context, client *http.Client, target smokeTa
 	if err != nil {
 		return err
 	}
-	release, err := armFixtureToolCall(ctx, client, target, "Bash", map[string]any{"command": "sleep 300", "timeout": 310000}, 1)
+	release, err := armFixtureToolCall(ctx, client, target, "Bash", map[string]any{"command": "sleep 300", "timeout": 310000}, fixtureSlowInstruction)
 	if err != nil {
 		return err
 	}

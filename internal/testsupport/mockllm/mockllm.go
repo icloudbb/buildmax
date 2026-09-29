@@ -14,10 +14,15 @@
 // the run to its own end, and duration is the one property of a scripted turn
 // that says nothing about what the agent did.
 //
+// An armed tool call may be reserved for requests containing a marker. That
+// reads the request only to decide which call the suite's override answers,
+// never what any reply says.
+//
 // See docs/design/end-to-end-testing.md §4.
 package mockllm
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -130,7 +135,16 @@ type Handler struct {
 	// the suite actually cares about. Popped front-first and never advances
 	// h.next, so the first call past the queue resumes exactly where
 	// Steps/Repeat would have answered had none of this happened.
-	armedSteps []Step
+	armedSteps []armedStep
+}
+
+// armedStep is one queued override. match, when set, reserves it for a
+// request whose body contains it: a deployed mock also answers traffic the
+// suite does not control — a schedule firing, a run left going by an earlier
+// suite — and an unreserved arm answers whichever of those calls first.
+type armedStep struct {
+	step  Step
+	match []byte
 }
 
 // ControlStallPath is the route that arms a stall on a mock a suite cannot
@@ -263,6 +277,9 @@ func (h *Handler) serveControlToolCall(w http.ResponseWriter, r *http.Request) {
 		Name  string         `json:"name"`
 		Args  map[string]any `json:"args,omitempty"`
 		Times int            `json:"times,omitempty"`
+		// Match reserves the arm for a request whose body contains it, so only
+		// the call the suite means consumes it. Empty answers the next call.
+		Match string `json:"match,omitempty"`
 		// Clear drops every still-queued arm without consuming a call, so a
 		// suite that armed more than the run actually used cannot leak an
 		// unconsumed override into whatever runs next.
@@ -286,7 +303,7 @@ func (h *Handler) serveControlToolCall(w http.ResponseWriter, r *http.Request) {
 	if times <= 0 {
 		times = 1
 	}
-	h.ArmToolCall(body.Name, body.Args, times)
+	h.ArmToolCallMatching(body.Name, body.Args, times, body.Match)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"armed": body.Name, "times": times})
 }
@@ -298,10 +315,19 @@ func (h *Handler) serveControlToolCall(w http.ResponseWriter, r *http.Request) {
 // however many of those come first; each is popped and discarded the same as
 // the one the suite actually wanted.
 func (h *Handler) ArmToolCall(name string, args map[string]any, times int) {
+	h.ArmToolCallMatching(name, args, times, "")
+}
+
+// ArmToolCallMatching is ArmToolCall reserved for requests whose body contains
+// match; an empty match reserves nothing.
+func (h *Handler) ArmToolCallMatching(name string, args map[string]any, times int, match string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for range times {
-		h.armedSteps = append(h.armedSteps, Step{ToolCalls: []ToolCall{{Name: name, Args: args}}})
+		h.armedSteps = append(h.armedSteps, armedStep{
+			step:  Step{ToolCalls: []ToolCall{{Name: name, Args: args}}},
+			match: []byte(match),
+		})
 	}
 }
 
@@ -340,15 +366,19 @@ func (h *Handler) delayFor(step Step) time.Duration {
 // take consumes the next step and records the call that consumed it. An
 // armed one-shot tool call answers before Steps/Repeat is even consulted, and
 // does not advance h.next: the call after it resumes exactly where the
-// script would have answered had the arming never happened.
+// script would have answered had the arming never happened. A reserved arm
+// is passed over by a request it does not match, which is answered as if that
+// arm were not queued.
 func (h *Handler) take(req Request) (Step, int, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.requests = append(h.requests, req)
-	if len(h.armedSteps) > 0 {
-		step := h.armedSteps[0]
-		h.armedSteps = h.armedSteps[1:]
-		return step, h.next, true
+	for i, armed := range h.armedSteps {
+		if len(armed.match) > 0 && !bytes.Contains(req.Body, armed.match) {
+			continue
+		}
+		h.armedSteps = append(h.armedSteps[:i:i], h.armedSteps[i+1:]...)
+		return armed.step, h.next, true
 	}
 	if h.next >= len(h.steps) {
 		if !h.repeat || len(h.steps) == 0 {
