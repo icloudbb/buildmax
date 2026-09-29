@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button, ButtonLink } from "@buildmax/gui"
-import type { Agent, Issue, IssueFlow, IssueFlowRun, Workflow } from "../../lib/types"
+import type { Agent, Issue, IssueFlow, IssueFlowRun, Task, Workflow } from "../../lib/types"
 import type { ApiIssueComment, ApiIssueFlowResponse, ApiSpaceMember } from "../../lib/api/types"
 import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -72,6 +72,11 @@ function mapIssueFlow(api: ApiIssueFlowResponse): IssueFlow {
 
 function formatTimestamp(rfc3339: string): string {
   return new Date(rfc3339).toLocaleString()
+}
+
+/** A run that stopped on questions finished, but the work is waiting on a person. */
+function agentTaskLabel(task: Task): string {
+  return task.awaitingAnswer ? "Needs your answer" : statusLabel(task.status)
 }
 
 function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
@@ -541,7 +546,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                     </select>
                     <span className="issues-page__field-label">
                       {canAssignWorkflow
-                        ? "What runs the work. Only `published` workflows are available for new assignment."
+                        ? "What runs the work. Only published workflows are available for new assignment."
                         : "What runs the work. Workflow assignment is limited to space owners and admins."}
                     </span>
                   </label>
@@ -646,7 +651,9 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
               <section className="issues-page__panel issue-detail-page__wide">
                 <div className="issues-page__toolbar">
                   <h2 className="issues-page__section-title">Latest Outcome</h2>
-                  <span className="issues-page__status">{statusLabel(currentRun?.run.status ?? latestAgentTask?.status ?? "no_runs")}</span>
+                  <span className="issues-page__status">
+                    {currentRun ? statusLabel(currentRun.run.status) : latestAgentTask ? agentTaskLabel(latestAgentTask) : statusLabel("no_runs")}
+                  </span>
                 </div>
                 {currentRun ? (
                   <div className="workflow-run-page__meta">
@@ -674,10 +681,15 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                     <div><strong>Latest agent task:</strong> {latestAgentTask.id}</div>
                     <div><strong>Agent:</strong> {executorLabel(flow.issue) ?? "Agent"}</div>
                     <div><strong>Created:</strong> {formatTimestamp(latestAgentTask.createdAt)}</div>
-                    <div><strong>Status:</strong> {statusLabel(latestAgentTask.status)}</div>
+                    <div><strong>Status:</strong> {agentTaskLabel(latestAgentTask)}</div>
+                    {latestAgentTask.awaitingAnswer ? (
+                      <p className="page-activity__meta">
+                        The agent asked a question. Answer it by continuing the task — a comment here does not reach it.
+                      </p>
+                    ) : null}
                     <div className="workflow-run-page__step-actions">
                       <ButtonLink variant="secondary" href={buildHash({ name: "task", spaceId, taskId: latestAgentTask.id })}>
-                        Open Task
+                        {latestAgentTask.awaitingAnswer ? "Answer in Task" : "Open Task"}
                       </ButtonLink>
                       {taskIsStoppable(latestAgentTask.status) ? (
                         <Button
@@ -819,7 +831,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                               {task.timeLabel}
                             </span>
                           </span>
-                          <span className="issues-page__status">{statusLabel(task.status)}</span>
+                          <span className="issues-page__status">{agentTaskLabel(task)}</span>
                         </button>
                         {taskIsStoppable(task.status) ? (
                           <Button

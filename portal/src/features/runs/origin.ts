@@ -30,7 +30,7 @@ const triggerText: Record<string, string> = {
   task_retry: "A repeat of an earlier run, with the same input.",
   portal_conversation: "Asked for in a conversation.",
   portal_task_create: "Created from the Portal.",
-  portal_task_rerun: "Run again from the Portal.",
+  portal_task_rerun: "Continued from the Portal with a new message.",
   issue_agent_run: "Started by an issue's agent.",
   workflow_step: "Dispatched by a workflow step.",
   webhook: "Started by an inbound webhook.",

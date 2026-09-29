@@ -154,13 +154,14 @@ export function AdminOverview({ token }: { token: string | null }) {
           <Fact label="Worker run mode" value={system.worker_run_mode ?? "unknown"} />
           <Fact label="Worker model transport" value={system.worker_llm_transport ?? "unknown"} />
           {/*
-            Empty means no worker path passes a sandbox surface, which is every
-            deployment today. Saying so is the point: an unreported boundary is
-            worse than a missing one.
+            Empty means no worker path reports a sandbox surface, which is every
+            deployment today. It is not a claim that runs are unconfined — each
+            run's details say how it was sandboxed — so the label says exactly
+            what is missing: the report.
           */}
           <Fact
             label="Sandbox surface"
-            value={system.sandbox_surface ? system.sandbox_surface : "none applied"}
+            value={system.sandbox_surface ? system.sandbox_surface : "not reported"}
           />
           <Fact label="Self-registration" value={system.allow_signup ? "open" : "closed"} />
           <Fact label="System administrators" value={String(system.system_admins)} />

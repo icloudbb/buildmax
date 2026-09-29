@@ -92,10 +92,15 @@ func runSummaryBody(info coretask.RunTerminalInfo) string {
 		return ""
 	}
 	if info.AwaitingAnswer {
-		return keepEnd(detail, runSummaryLimit)
+		// The questions ask for a reply, and the thread is where they appear,
+		// but a comment does not reach the run. Say where the answer goes.
+		return waitingLead + keepEnd(detail, runSummaryLimit)
 	}
 	return truncateRunes(detail, runSummaryLimit)
 }
+
+// waitingLead opens the report of a run that stopped on questions.
+const waitingLead = "The agent is waiting for your answer. Reply by continuing this run's task (Open Task); a comment on this issue does not reach the agent.\n\n"
 
 // keepEnd keeps the end of a run's output that is waiting on the user: its
 // questions close the output, and they are what the reader has to act on.

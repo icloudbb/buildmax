@@ -251,6 +251,15 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
             )
           ) : run.error_message ? (
             <p className="bm-chat-thread__text bm-chat-thread__text--muted">{run.error_message}</p>
+          ) : run.status === "SUCCEEDED" ? (
+            // A run can finish its work in tool calls and end without a word;
+            // "No output" would read as if it did nothing.
+            <p className="bm-chat-thread__text bm-chat-thread__text--muted">
+              Finished without a written reply.{" "}
+              <Button variant="tertiary" size="compact" onClick={() => setTraceRunId(run.id)}>
+                See what it did
+              </Button>
+            </p>
           ) : (
             <p className="bm-chat-thread__text bm-chat-thread__text--muted">No output.</p>
           ),

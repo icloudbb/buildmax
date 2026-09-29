@@ -287,36 +287,34 @@ const COMMANDS = {
     }
   },
 
-  // Replays a GET with the exact bearer token Portal itself sends, so the
-  // reported status matches what the app's own request receives — a real 403
-  // reads as 403, not the 401 an unauthenticated probe would return. The fetch
-  // runs inside page.evaluate, which keeps it same-origin and lets it read the
-  // token straight from where the app keeps it: localStorage 'buildmax_token'
-  // (the key portal/src/lib/api/session.ts writes) against the API base the app
-  // resolves (window.__BUILDMAX_CONFIG__.apiBase, else the serving origin). A
-  // plain `eval fetch(url, {credentials:"include"})` carries no Authorization
-  // header — Portal is bearer-token, not cookie, auth — so it comes back 401
-  // wherever the app would get 200 or 403.
+  // Replays a GET with a bearer token for the same signed-in session Portal
+  // uses, so the reported status matches what the app's own request receives —
+  // a real 403 reads as 403, not the 401 an unauthenticated probe would return.
+  // Portal keeps its access token in module memory, out of reach of a script,
+  // and the renewable credential in an HttpOnly cookie. So the probe does what
+  // the app does on a reload: it trades that cookie at
+  // /api/auth/portal/session for a fresh access token. The exchange rotates the
+  // cookie; the browser keeps the new one, and the app's next refresh uses it.
+  // Both calls run inside page.evaluate, which keeps them same-origin, against
+  // the API base the app resolves (window.__BUILDMAX_CONFIG__.apiBase, else the
+  // serving origin).
   async probe(pathArg) {
     if (!page) return console.log('ERROR: launch first')
     const rel = (pathArg || '').trim()
     if (!rel) return console.log('ERROR: usage: probe <api-path> (e.g. /api/spaces/<id>/members)')
     try {
       const r = await page.evaluate(async (p) => {
-        let token = null
-        try {
-          token = localStorage.getItem('buildmax_token')
-        } catch {
-          /* storage blocked */
-        }
         const cfg = window.__BUILDMAX_CONFIG__ && window.__BUILDMAX_CONFIG__.apiBase
         const base = typeof cfg === 'string' && cfg !== '' ? cfg.replace(/\/+$/, '') : ''
+        let token = null
+        const session = await fetch(base + '/api/auth/portal/session', { method: 'POST', credentials: 'include' })
+        if (session.ok) token = (await session.json()).access_token || null
         const url = /^https?:\/\//.test(p) ? p : base + p
         const res = await fetch(url, { headers: token ? { Authorization: 'Bearer ' + token } : {} })
         const body = await res.text()
         return { status: res.status, url, hadToken: !!token, body: body.slice(0, 300) }
       }, rel)
-      const note = r.hadToken ? '' : ' (no token in storage — login first)'
+      const note = r.hadToken ? '' : ' (no signed-in session — login first)'
       console.log(`probe ${rel} -> ${r.status}${note} ${r.url}`)
       console.log(r.body || '(empty body)')
     } catch (e) {

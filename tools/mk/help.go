@@ -544,7 +544,9 @@ func helpTopics() []helpTopic {
 				"`use-model` then points the cluster's own conversations and task runs at a\n" +
 					"seeded model through the managed gateway — it spends real provider quota, so\n" +
 					"`mock` switches back to the free in-cluster mock. Both take effect by setting\n" +
-					"environment on the server and restarting it; the committed config is untouched.",
+					"environment on the server and restarting it; the committed config is untouched.\n" +
+					"Enabled schedules run on that model too, unattended: after `fixtures`, one fires\n" +
+					"every 15 minutes.",
 				"`fixtures` seeds four accounts, personal and shared QA spaces, membership\n" +
 					"roles and an invitation, assigned and nested issues, comments, workflows\n" +
 					"(including a branching graph with typed input and one with structured\n" +

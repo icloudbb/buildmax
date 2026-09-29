@@ -44,3 +44,17 @@ func TestIssuePromptLayerCarriesTheLocalIDOnly(t *testing.T) {
 		t.Error("a local run should be told the issue id its commands need")
 	}
 }
+
+// A worker's final reply is already posted to the Issue by the server, so the
+// worker layer asks for a reply rather than a second, duplicate comment.
+func TestIssuePromptLayerTellsAWorkerItsReplyIsTheReport(t *testing.T) {
+	dir := t.TempDir()
+	worker := BuildEffectiveSystemPrompt(dir, "m", "", PromptCapabilities{Issue: &IssueContext{}})
+	if !strings.Contains(worker, "final reply is posted to the issue") {
+		t.Error("a worker run should know its final reply is the Issue report")
+	}
+	local := BuildEffectiveSystemPrompt(dir, "m", "", PromptCapabilities{Issue: &IssueContext{ID: "i_abc"}})
+	if strings.Contains(local, "final reply is posted to the issue") {
+		t.Error("nothing posts a local run's reply, so it must report with the command")
+	}
+}

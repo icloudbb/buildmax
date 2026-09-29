@@ -655,3 +655,33 @@ func TestGetWorkerTaskRunHandler_AllowsAskUserExceptForWorkflowSteps(t *testing.
 		}
 	}
 }
+
+// A run working an Issue must reach the worker knowing so, or its prompt never
+// points the Agent at `buildmax issue`. Exercised through the worker client, the
+// boundary where the Issue was once dropped.
+func TestGetWorkerTaskRunHandler_CarriesIssueToWorker(t *testing.T) {
+	taskRunID := "run-issue"
+	issueID := "issue-1"
+	runs := &mock.MockTaskRunStore{
+		Runs: []coretask.Run{{ID: taskRunID, TaskID: "task-1", Input: "go", Status: string(coretask.RunStatusScheduled), TriggerSource: coretask.RunTriggerSourceIssueAgentRun}},
+		TaskList: []coretask.Task{
+			{ID: "task-1", SpaceID: "tm_1", CreatedBy: "u1", LastRunID: &taskRunID, IssueID: &issueID},
+		},
+	}
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	got, err := workerclient.GetWorkerTaskRun(context.Background(), workerclient.WorkerAPIClientConfig{
+		BaseURL: server.URL,
+		Token:   runTokenFor(t, taskRunID, "task-1"),
+	}, taskRunID)
+	if err != nil {
+		t.Fatalf("GetWorkerTaskRun: %v", err)
+	}
+	if got.Task.IssueID == nil || *got.Task.IssueID != issueID {
+		t.Fatalf("task issue_id = %v, want %q", got.Task.IssueID, issueID)
+	}
+}

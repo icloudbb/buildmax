@@ -146,6 +146,26 @@ func kindContext() string {
 	return "kind-" + kindClusterName()
 }
 
+// restoreKubectlContext puts back the context that was current before kind
+// created a cluster. An empty previous context means none was selected, and
+// leaving the new cluster current would point a later bare kubectl at it.
+func restoreKubectlContext(previous string) error {
+	switch previous {
+	case kindContext():
+		return nil
+	case "":
+		if err := runCmd("kubectl", "config", "unset", "current-context"); err != nil {
+			return fmt.Errorf("clear the kubectl context kind selected: %w", err)
+		}
+		return nil
+	default:
+		if err := runCmd("kubectl", "config", "use-context", previous); err != nil {
+			return fmt.Errorf("restore kubectl context %q: %w", previous, err)
+		}
+		return nil
+	}
+}
+
 func kindKubectl(args ...string) error {
 	return runCmd("kubectl", append([]string{"--context", kindContext()}, args...)...)
 }
@@ -266,11 +286,10 @@ func kindUp() error {
 			return err
 		}
 		// kind makes the new cluster globally current. Every command below uses
-		// an explicit context, so restore the contributor's previous selection.
-		if previousContext != "" && previousContext != kindContext() {
-			if err := runCmd("kubectl", "config", "use-context", previousContext); err != nil {
-				return fmt.Errorf("restore kubectl context %q: %w", previousContext, err)
-			}
+		// an explicit context, so restore the contributor's previous selection,
+		// including having none.
+		if err := restoreKubectlContext(previousContext); err != nil {
+			return err
 		}
 	} else {
 		fmt.Printf("Using existing kind cluster %q.\n", cluster)

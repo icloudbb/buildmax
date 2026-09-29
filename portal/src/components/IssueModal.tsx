@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { BaseModal, Button } from "@buildmax/gui"
 import type { ApiSpaceMember } from "../lib/api/types"
 import type { Agent, Issue, Workflow } from "../lib/types"
@@ -48,14 +48,17 @@ export function IssueModal({
     (workflow) => workflow.status === "published" || workflow.id === selectedWorkflowId,
   )
 
-  useEffect(() => {
-    if (!open) return
+  // Dismissing the dialog (Escape, the close button, the backdrop) keeps the
+  // draft, so a stray key does not lose what was typed; Cancel is the explicit
+  // discard. A created issue navigates away, which unmounts the draft.
+  function discard() {
     setTitle("")
     setDescription("")
     setStatus("todo")
     setOwnerValue("")
     setExecutorValue("")
-  }, [open])
+    onClose()
+  }
 
   function memberLabel(member: ApiSpaceMember): string {
     if (member.user_id === userId) return "Me"
@@ -120,7 +123,7 @@ export function IssueModal({
               </select>
               <span className="issues-page__field-label">
                 {allowWorkflowAssignment
-                  ? "What runs the work. Only `published` workflows are available."
+                  ? "What runs the work. Only published workflows are available."
                   : "What runs the work. Workflow assignment is limited to space owners and admins."}
               </span>
             </label>
@@ -131,7 +134,7 @@ export function IssueModal({
             </p>
           ) : null}
           <div className="modal__actions">
-            <Button variant="secondary" onClick={onClose} disabled={loading}>
+            <Button variant="secondary" onClick={discard} disabled={loading}>
               Cancel
             </Button>
             <Button

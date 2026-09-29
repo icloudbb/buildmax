@@ -276,6 +276,9 @@
               "session_id": {
                 "type": "string"
               },
+              "issue_id": {
+                "type": "string"
+              },
               "agent_instructions": {
                 "type": "string"
               },

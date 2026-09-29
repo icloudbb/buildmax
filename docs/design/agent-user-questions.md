@@ -195,9 +195,11 @@ puts the question, the tool result, and the answer in order in front of the
 model. Every reader of a run's output shows the questions with nothing new to
 render: the Task thread, the Issue report comment, and a chat channel's outcome
 message, which says the task is waiting for an answer. Portal labels such a
-Task "Needs your answer" and changes the composer placeholder accordingly. The
-Issue and channel reports keep the end of a long output, where the questions
-are, rather than cutting it.
+Task "Needs your answer" and changes the composer placeholder accordingly, on
+the Task page and on an Issue's latest outcome. The Issue and channel reports
+keep the end of a long output, where the questions are, rather than cutting it.
+The Issue report also says the answer goes to the Task: its thread is where the
+questions appear, but a comment there does not continue the run.
 
 ## Lifecycle And Failure
 

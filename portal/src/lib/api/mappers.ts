@@ -212,6 +212,7 @@ export function apiTaskToTask(api: ApiTask): Task {
     createdAt: api.created_at,
     agentId: api.agent_id ?? undefined,
     issueId: api.issue_id ?? undefined,
+    awaitingAnswer: api.awaiting_answer ?? false,
   }
 }
 
