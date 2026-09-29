@@ -158,6 +158,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/spaces/{space_id}/workflows/{workflow_id}/runs", h.listWorkflowRunsHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/workflows/{workflow_id}/runs", h.createWorkflowRunHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/workflow-runs/{workflow_run_id}", h.getWorkflowRunHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/workflow-runs/{workflow_run_id}/cancel", h.cancelWorkflowRunHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/workflow-requests", h.listWorkflowRequestsHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/workflow-requests/{request_id}/respond", h.respondWorkflowRequestHandler)
 
 	// Files
 	mux.HandleFunc("POST /api/spaces/{space_id}/upload", h.uploadHandler)

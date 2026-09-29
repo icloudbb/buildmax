@@ -14,7 +14,7 @@
 - conversation / conversation_message
 - issue
 - agent / agent_revision
-- workflow / workflow_revision / workflow_run / workflow_node_run / schedule
+- workflow / workflow_revision / workflow_run / workflow_node_run / workflow_request / schedule
 - task / task_run / workspace_checkpoint / plugin_environment
 - artifact（Space 的持久文件；见 data-model.md）
 - quota_tier

@@ -235,6 +235,12 @@ const (
 	WorkflowPublished   = "workflow.published"
 	WorkflowArchived    = "workflow.archived"
 	WorkflowUnpublished = "workflow.unpublished"
+	// WorkflowRunCanceled is a person canceling a workflow run;
+	// WorkflowRequestAnswered and WorkflowRequestDeclined a person resolving a
+	// request the run waited on.
+	WorkflowRunCanceled     = "workflow_run.canceled"
+	WorkflowRequestAnswered = "workflow_request.answered"
+	WorkflowRequestDeclined = "workflow_request.declined"
 	// SecretCreated, SecretDisabled, and SecretDestroyed record a space Secret
 	// entering and leaving service. A Secret is a credential an agent granted it
 	// can read, so its lifecycle is as security-relevant as a webhook key's;

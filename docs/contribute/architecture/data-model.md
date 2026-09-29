@@ -1293,7 +1293,7 @@ the node's dependency edges, and readiness is decided from those edges, not from
 | `workflow_run_id` | `bigint unsigned` | no | `workflow_run.id` |
 | `node_id` | `varchar(128)` | no | Node identifier authored in the workflow definition, not a reference to a row |
 | `node_index` | `bigint` | no | Position in the definition's topological order; a stable display order, not the execution authority |
-| `node_type` | `varchar(32)` | no | `agent_task` |
+| `node_type` | `varchar(32)` | no | `agent_task`, or `human_input` for a node a person completes (no Agent, no Task) |
 | `needs` | `text` | yes | JSON array of the node ids that must succeed before this node runs; `NULL` for a root |
 | `issue_access` | `varchar(16)` | no | The node's Issue access mode: `none`, `if_bound`, or `required`; empty on rows written before nodes carried it |
 | `target_agent_id` | `bigint unsigned` | yes | `agent.id` to run the node as |
@@ -1309,7 +1309,7 @@ the node's dependency edges, and readiness is decided from those edges, not from
 | `attempt` | `bigint` | no | Attempts admitted so far; 0 before dispatch |
 | `deadline_at` | `datetime(6)` | yes | When the current attempt times out; set only while `running` |
 | `next_attempt_at` | `datetime(6)` | yes | When a `retry_wait` node admits its next attempt; set only while `retry_wait` |
-| `status` | `varchar(32)` | no | `pending`, `running`, `retry_wait`, `succeeded`, `failed`, `canceled`, `blocked` |
+| `status` | `varchar(32)` | no | `pending`, `running`, `retry_wait`, `waiting`, `succeeded`, `failed`, `canceled`, `blocked` |
 | `task_id` | `bigint unsigned` | yes | The Tier 2 task this node created; every attempt runs on it |
 | `task_run_id` | `bigint unsigned` | yes | The latest attempt; earlier attempts are the task's runs linked by `retry_of_task_run_id` |
 | `resolved_input` | `longtext` | yes | The full Task input the node received, captured when it started |
@@ -1342,6 +1342,39 @@ and linked onto the node in one transaction under the run lock, like first
 admission; stop intent cancels `retry_wait` nodes in the same transaction that
 blocks pending ones. An attempt canceled with reason `workflow_node_timeout`
 counts as a failed attempt, not a cancellation.
+
+`waiting` is a node with a pending `workflow_request`: a `human_input` node, or
+an `agent_task` node whose attempt ended on questions. It holds no worker.
+
+### `workflow_request`
+
+A durable request a Workflow run waits on a person to answer. Opening one and
+moving its node to `waiting` commit in one transaction under the run lock; stop
+intent cancels a run's pending requests in the transaction that stops it.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
+| `workflow_run_id` | `bigint unsigned` | no | `workflow_run.id` |
+| `request_key` | `varchar(191)` | no | Idempotency key within the run: `node/<node_id>` for an input, `task_run/<id>` for a question |
+| `node_run_id` | `bigint unsigned` | no | `workflow_node_run.id` of the waiting node |
+| `kind` | `varchar(16)` | no | `input` (a `human_input` node) or `question` (an Agent's AskUser questions) |
+| `prompt` | `longtext` | no | What an input request asks, with its bound values; empty for a question |
+| `questions` | `text` | yes | The AskUser question set as JSON, for a question |
+| `response_schema` | `text` | yes | The JSON Schema an answer must satisfy; `NULL` means free text |
+| `task_run_id` | `bigint unsigned` | yes | The attempt that asked, for a question |
+| `status` | `varchar(16)` | no | `pending`, `answered`, `declined`, `expired`, `canceled` |
+| `expires_at` | `datetime(6)` | yes | After this an answer is refused and the request expires |
+| `response` | `longtext` | yes | The answer as JSON, or a decline's reason as a JSON string |
+| `responded_by` | `bigint unsigned` | yes | `user.id` of the responder |
+| `responded_at` | `datetime(6)` | yes | |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+
+Indexes: PK `id`; unique `uq_workflow_request_key` on (`workflow_run_id`,
+`request_key`); index `node_run_id`; index `status`; unique `public_id`.
+
+Resolution is a compare-and-set from `pending`, so the first response wins.
 
 ## Managed Inference
 

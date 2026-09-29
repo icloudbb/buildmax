@@ -6,6 +6,9 @@ import type {
   ApiWorkflowRevisionListResponse,
   ApiWorkflowRunDetailResponse,
   ApiWorkflowRunListResponse,
+  ApiWorkflowRequest,
+  ApiWorkflowRequestListResponse,
+  ApiWorkflowRun,
 } from "../../lib/api/types"
 
 export async function getWorkflows(spaceId: string, token: string): Promise<ApiWorkflowListResponse> {
@@ -113,5 +116,35 @@ export async function restoreWorkflowRevision(
   return requestJson<ApiWorkflow>(
     `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflows/${encodeURIComponent(workflowId)}/revisions/${revision}/restore`,
     { method: "POST", headers: authHeaders(token) },
+  )
+}
+
+/** Stops a workflow run: no step starts, open requests close, and active steps
+ *  are asked to stop. */
+export async function cancelWorkflowRun(spaceId: string, workflowRunId: string, token: string): Promise<ApiWorkflowRun> {
+  return requestJson<ApiWorkflowRun>(
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflow-runs/${encodeURIComponent(workflowRunId)}/cancel`,
+    { method: "POST", headers: authHeaders(token) },
+  )
+}
+
+/** The space's requests waiting on a person, oldest first. */
+export async function getPendingWorkflowRequests(spaceId: string, token: string): Promise<ApiWorkflowRequestListResponse> {
+  return requestJson<ApiWorkflowRequestListResponse>(
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflow-requests`,
+    { headers: authHeaders(token) },
+  )
+}
+
+/** Answers a request with a response, or declines it with a reason. */
+export async function respondToWorkflowRequest(
+  spaceId: string,
+  requestId: string,
+  body: { action: "answer"; response: unknown } | { action: "decline"; reason?: string },
+  token: string,
+): Promise<ApiWorkflowRequest> {
+  return requestJson<ApiWorkflowRequest>(
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/workflow-requests/${encodeURIComponent(requestId)}/respond`,
+    { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) }, body: JSON.stringify(body) },
   )
 }

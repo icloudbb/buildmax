@@ -894,7 +894,7 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `workflow_run_id` | `bigint unsigned` | 否 | `workflow_run.id` |
 | `node_id` | `varchar(128)` | 否 | 在 Workflow 定义中撰写的节点标识符，不是对某一行的引用 |
 | `node_index` | `bigint` | 否 | 在定义拓扑序中的位置；稳定的展示顺序，而非执行权威 |
-| `node_type` | `varchar(32)` | 否 | `agent_task` |
+| `node_type` | `varchar(32)` | 否 | `agent_task`，或由人完成的节点 `human_input`（无 Agent、无 Task） |
 | `needs` | `text` | 是 | JSON 数组，列出必须先成功的节点 id；根节点为 `NULL` |
 | `issue_access` | `varchar(16)` | 否 | 节点的 Issue 访问模式：`none`、`if_bound` 或 `required`；早于该列之前写入的行为空 |
 | `target_agent_id` | `bigint unsigned` | 是 | 该节点所运行的 `agent.id` |
@@ -910,7 +910,7 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `attempt` | `bigint` | 否 | 目前已准入的尝试次数；派发前为 0 |
 | `deadline_at` | `datetime(6)` | 是 | 当前尝试的超时时间；仅在 `running` 时设置 |
 | `next_attempt_at` | `datetime(6)` | 是 | `retry_wait` 节点准入下一次尝试的时间；仅在 `retry_wait` 时设置 |
-| `status` | `varchar(32)` | 否 | `pending`、`running`、`retry_wait`、`succeeded`、`failed`、`canceled`、`blocked` |
+| `status` | `varchar(32)` | 否 | `pending`、`running`、`retry_wait`、`waiting`、`succeeded`、`failed`、`canceled`、`blocked` |
 | `task_id` | `bigint unsigned` | 是 | 此节点创建的 Tier 2 Task；每次尝试都在它上面运行 |
 | `task_run_id` | `bigint unsigned` | 是 | 最近一次尝试；更早的尝试是该 Task 上通过 `retry_of_task_run_id` 关联的运行 |
 | `resolved_input` | `longtext` | 是 | 节点启动时收到的完整 Task 输入 |
@@ -937,6 +937,38 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 TaskRun 与首次准入一样，在 Run 锁下于同一事务中创建在节点的 Task 上并关联到节点；停止
 意图会在阻塞待运行节点的同一事务中取消 `retry_wait` 节点。以原因 `workflow_node_timeout`
 取消的尝试计为一次失败的尝试，而不是取消。
+
+`waiting` 表示节点有一个待处理的 `workflow_request`：`human_input` 节点，或其尝试以问题结束的
+`agent_task` 节点。它不占用 worker。
+
+### `workflow_request`
+
+Workflow 运行等待人回答的持久化请求。打开请求与把节点移到 `waiting` 在 Run 锁下于同一事务中提交；
+停止意图会在停止该 Run 的事务中取消其待处理请求。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
+| `workflow_run_id` | `bigint unsigned` | 否 | `workflow_run.id` |
+| `request_key` | `varchar(191)` | 否 | 运行内的幂等键：输入请求为 `node/<node_id>`，问题为 `task_run/<id>` |
+| `node_run_id` | `bigint unsigned` | 否 | 等待中节点的 `workflow_node_run.id` |
+| `kind` | `varchar(16)` | 否 | `input`（`human_input` 节点）或 `question`（Agent 的 AskUser 问题） |
+| `prompt` | `longtext` | 否 | 输入请求所问的内容及其绑定值；问题为空 |
+| `questions` | `text` | 是 | 问题请求的 AskUser 问题集合 JSON |
+| `response_schema` | `text` | 是 | 回答必须满足的 JSON Schema；`NULL` 表示自由文本 |
+| `task_run_id` | `bigint unsigned` | 是 | 问题请求中提问的那次尝试 |
+| `status` | `varchar(16)` | 否 | `pending`、`answered`、`declined`、`expired`、`canceled` |
+| `expires_at` | `datetime(6)` | 是 | 此后回答会被拒绝，请求过期 |
+| `response` | `longtext` | 是 | 回答的 JSON，或以 JSON 字符串表示的拒绝原因 |
+| `responded_by` | `bigint unsigned` | 是 | 回答者的 `user.id` |
+| `responded_at` | `datetime(6)` | 是 | |
+| `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
+
+索引：主键 `id`；(`workflow_run_id`, `request_key`) 上的唯一索引 `uq_workflow_request_key`；索引 `node_run_id`；
+索引 `status`；唯一索引 `public_id`。
+
+解决请求是从 `pending` 出发的 compare-and-set，因此第一个回答获胜。
 
 ## 托管推理
 

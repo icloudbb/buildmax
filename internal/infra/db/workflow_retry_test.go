@@ -63,7 +63,7 @@ func TestWorkflowRetryAdmissionAndStopHaveOneWinner(t *testing.T) {
 			key := coreworkflow.TaskRunAdmissionKey(runID, "a", 2)
 			retryIn := coretask.CreateRunInput{TaskID: first.ID, Input: "work", CreatedBy: run.CreatedBy,
 				CreatedByType: coretask.RunCreatedByTypeUser, TriggerSource: coretask.RunTriggerSourceWorkflowStep,
-				RetryOfTaskRunID: first.LastRunID, IdempotencyKey: &key, WorkflowNodeRunID: ids[0], WorkflowAttempt: 2}
+				RetryOfTaskRunID: first.LastRunID, IdempotencyKey: &key, WorkflowNodeRunID: ids[0], WorkflowNodeFrom: "retry_wait", WorkflowAttempt: 2}
 			var retry *coretask.Run
 			var admitErr, stopErr error
 			var stopped bool
@@ -143,7 +143,7 @@ func TestWorkflowRetryAdmissionRefusesAForeignKey(t *testing.T) {
 	key := "workflow/elsewhere/node/a/attempt/2"
 	_, err = s.CreateTaskRun(ctx, coretask.CreateRunInput{TaskID: first.ID, Input: "work", CreatedBy: run.CreatedBy,
 		CreatedByType: coretask.RunCreatedByTypeUser, TriggerSource: coretask.RunTriggerSourceWorkflowStep,
-		IdempotencyKey: &key, WorkflowNodeRunID: ids[0], WorkflowAttempt: 2})
+		IdempotencyKey: &key, WorkflowNodeRunID: ids[0], WorkflowNodeFrom: "retry_wait", WorkflowAttempt: 2})
 	if !errors.Is(err, apierr.ErrNotFound) {
 		t.Fatalf("foreign attempt key err = %v, want not found", err)
 	}

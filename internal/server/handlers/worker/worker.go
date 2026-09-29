@@ -121,10 +121,10 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			// how a cancel reaches a run that is already under way — including
 			// one this fetch just canceled for an initiator that lost authority.
 			CancelRequested: cancelRequested,
-			// A question ends the run for the user to answer by continuing the
-			// Task. A Workflow step's Task is advanced by the workflow, not
-			// continued by anyone, so its run gets no way to stop and ask.
-			AskUser:   run.TriggerSource != coretask.RunTriggerSourceWorkflowStep,
+			// A question ends the run for someone to answer: by continuing the
+			// Task, or for a Workflow step through a request on its workflow
+			// run, which resumes the Task with the answer.
+			AskUser:   true,
 			CreatedAt: run.CreatedAt,
 		},
 		Task: workerclient.TaskRunTask{

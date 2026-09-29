@@ -158,6 +158,11 @@ var spaceRoutes = []authzCase{
 	{"GET", "/api/spaces/{space_id}/workflows/{workflow_id}/runs", corespace.RoleMember, false},
 	{"POST", "/api/spaces/{space_id}/workflows/{workflow_id}/runs", corespace.RoleMember, false},
 	{"GET", "/api/spaces/{space_id}/workflow-runs/{workflow_run_id}", corespace.RoleMember, false},
+	// Stopping a run and answering what it waits on are the same level of act
+	// as starting it: whoever may run the space's workflows may do both.
+	{"POST", "/api/spaces/{space_id}/workflow-runs/{workflow_run_id}/cancel", corespace.RoleMember, false},
+	{"GET", "/api/spaces/{space_id}/workflow-requests", corespace.RoleMember, false},
+	{"POST", "/api/spaces/{space_id}/workflow-requests/{request_id}/respond", corespace.RoleMember, false},
 
 	{"GET", "/api/spaces/{space_id}/tasks/{task_id}", corespace.RoleMember, false},
 	{"GET", "/api/spaces/{space_id}/tasks/{task_id}/runs", corespace.RoleMember, false},

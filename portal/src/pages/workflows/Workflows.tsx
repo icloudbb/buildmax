@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@buildmax/gui"
-import type { Agent, Workflow } from "../../lib/types"
+import type { Agent, Workflow, WorkflowRequest } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { statusLabel } from "../../lib/statusLabels"
 import {
   apiAgentToAgent,
+  apiWorkflowRequestToWorkflowRequest,
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
 import { getAgents } from "../../features/agents"
 import {
   createWorkflow,
+  getPendingWorkflowRequests,
   getWorkflows,
 } from "../../features/workflows"
 import { WorkflowModal } from "../../components/WorkflowModal"
@@ -28,6 +30,7 @@ interface WorkflowsProps {
 export function Workflows({ token, spaceId }: WorkflowsProps) {
   const { currentUserRole } = useSpace()
   const [agents, setAgents] = useState<Agent[]>([])
+  const [pendingRequests, setPendingRequests] = useState<WorkflowRequest[]>([])
   // null means "not yet successfully fetched", distinct from [] meaning the
   // space genuinely has no workflows. See deriveResourceState.
   const [workflowsData, setWorkflowsData] = useState<Workflow[] | null>(null)
@@ -50,6 +53,11 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
     }
     setLoading(true)
     setListError(null)
+    // Pending requests are a side panel: failing to read them must not fail
+    // the workflow list.
+    void getPendingWorkflowRequests(spaceId, token)
+      .then((res) => setPendingRequests(res.requests.map(apiWorkflowRequestToWorkflowRequest)))
+      .catch(() => setPendingRequests([]))
     return Promise.all([
       getWorkflows(spaceId, token),
       getAgents(spaceId, token),
@@ -138,6 +146,34 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
         </p>
       ) : canManageWorkflowsState === "unknown" ? (
         <p className="page-activity__empty">Checking whether you can manage workflows…</p>
+      ) : null}
+
+      {pendingRequests.length > 0 ? (
+        <section className="issues-page__panel" aria-label="Waiting for input">
+          <div className="issues-page__toolbar">
+            <h2 className="issues-page__section-title">Waiting for input</h2>
+            <span className="page-activity__meta">
+              {pendingRequests.length === 1 ? "1 request needs an answer" : `${pendingRequests.length} requests need an answer`}
+            </span>
+          </div>
+          <ul className="workflow-page__pending">
+            {pendingRequests.map((request) => (
+              <li key={request.id}>
+                <button
+                  type="button"
+                  className="workflow-page__pending-link"
+                  onClick={() => navigate({ name: "workflowRun", spaceId, workflowRunId: request.workflowRunId })}
+                >
+                  <strong>{request.nodeId}</strong>{" "}
+                  <span className="page-activity__meta">
+                    {request.kind === "question" ? "asked a question" : "needs input"}
+                    {request.prompt ? ` · ${request.prompt.split("\n")[0]}` : ""}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
 
       <section className="issues-page__panel" aria-label="Workflow list">

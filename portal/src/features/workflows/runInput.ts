@@ -37,7 +37,15 @@ export function parseInputSchema(definition: string): ParsedInputSchema | null {
   } catch {
     return null
   }
-  const schema = (parsed as { input_schema?: unknown } | null)?.input_schema
+  return schemaFields((parsed as { input_schema?: unknown } | null)?.input_schema)
+}
+
+/**
+ * Reads an object schema's top-level properties into form fields, or null when
+ * the value is not a schema object. A workflow request's response schema uses
+ * the same reader as a run's input schema.
+ */
+export function schemaFields(schema: unknown): ParsedInputSchema | null {
   if (!schema || typeof schema !== "object") return null
   const obj = schema as Record<string, unknown>
   const props = obj.properties

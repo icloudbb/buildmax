@@ -38,7 +38,8 @@ var (
 	ErrInvalidInputSchema         = apierr.New(apierr.KindInvalid, "invalid workflow input_schema: must be within the supported JSON Schema subset")
 	ErrInvalidResult              = apierr.New(apierr.KindInvalid, "invalid workflow result: source must be node.<id>.output naming an existing node, with a valid RFC 6901 pointer")
 	ErrInvalidRunInput            = apierr.New(apierr.KindInvalid, "invalid workflow run input: it must be JSON satisfying the workflow input_schema, and is only accepted when the workflow declares one")
-	ErrInvalidNodeType            = apierr.New(apierr.KindInvalid, "invalid workflow node type")
+	ErrInvalidNodeType            = apierr.New(apierr.KindInvalid, "invalid workflow node type: must be agent_task or human_input")
+	ErrInvalidHumanInputNode      = apierr.New(apierr.KindInvalid, "invalid human_input node: it needs an instruction, names no agent, has issue_access none, and allows one attempt")
 	ErrInvalidNodeID              = apierr.New(apierr.KindInvalid, "invalid workflow node id: each node needs a unique non-empty id")
 	ErrInvalidNeeds               = apierr.New(apierr.KindInvalid, "invalid workflow node needs: each entry must name a distinct existing node, the edges must form a directed acyclic graph, and a node may not need itself")
 	ErrInvalidPolicy              = apierr.New(apierr.KindInvalid, "invalid workflow policy: max_parallel_nodes must be between 1 and the deployment maximum, and timeout_seconds between 60 and 2592000 (30 days)")
@@ -115,6 +116,10 @@ const (
 	// lease TTL with every node stranded pending. Detaching removes the cancel;
 	// the timeout keeps the cleanup itself from hanging.
 	reconcileReleaseTimeout = 10 * time.Second
+	// requestObserveInterval is when a run waiting only on people next wants a
+	// pass, so a lost answer wake-up is recovered without sweeping the run on
+	// every due-run interval for as long as nobody answers.
+	requestObserveInterval = 5 * time.Minute
 )
 
 type CreateWorkflowCmd struct {
@@ -478,6 +483,22 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	}
 	stepsIn := make([]coreworkflow.CreateNodeRunInput, len(def.Nodes))
 	for i := range def.Nodes {
+		if def.Nodes[i].Type == coreworkflow.NodeTypeHumanInput {
+			stepsIn[i] = coreworkflow.CreateNodeRunInput{
+				NodeID:         def.Nodes[i].ID,
+				NodeIndex:      topoIndex[def.Nodes[i].ID],
+				NodeType:       def.Nodes[i].Type,
+				Needs:          def.Nodes[i].Needs,
+				IssueAccess:    def.Nodes[i].IssueAccess,
+				Prompt:         def.Nodes[i].Input.Instruction,
+				Bindings:       def.Nodes[i].Input.Bindings,
+				OutputSchema:   outputSchemaSnapshot(def.Nodes[i].OutputSchema),
+				MaxAttempts:    1,
+				TimeoutSeconds: def.Nodes[i].TimeoutSeconds(),
+				Status:         string(coreworkflow.NodeRunStatusPending),
+			}
+			continue
+		}
 		target := def.Nodes[i].Agent.ID
 		snap, err := s.resolveNodeAgentSnapshot(ctx, def.Nodes[i], agents)
 		if err != nil {
@@ -678,6 +699,12 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 			continue
 		}
 		outcome := classifyAttempt(steps[i], taskRun)
+		if outcome.asked {
+			if err := s.openQuestionRequest(ctx, run, steps[i], taskRun, now); err != nil {
+				return err
+			}
+			continue
+		}
 		if outcome.succeeded {
 			if err := s.applyNodeSuccess(ctx, steps[i], taskRun, now); err != nil {
 				return err
@@ -695,6 +722,15 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 		if err := s.finalizeFailedFromNode(ctx, run, steps[i], taskRun, outcome, now); err != nil {
 			return err
 		}
+		return s.reconcilePass(ctx, workflowRunID, now, nextReconcileAt)
+	}
+	// Fold every waiting node whose request was answered, declined, or expired.
+	// A decline or expiry fails the node and starts the drain.
+	requestWake, stopped, err := s.foldWaitingNodes(ctx, run, steps, now)
+	if err != nil {
+		return err
+	}
+	if stopped {
 		return s.reconcilePass(ctx, workflowRunID, now, nextReconcileAt)
 	}
 	// Re-read after folding successes, then dispatch the ready nodes up to the
@@ -717,6 +753,12 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 		next = util.Ptr(now.Add(reconcileObserveInterval))
 	}
 	next = earliest(next, retryAt)
+	next = earliest(next, requestWake)
+	if hasWaitingNode(steps) {
+		// An answer wakes the run itself; this only bounds recovery when that
+		// wake-up is lost, without sweeping a long wait every interval.
+		next = earliest(next, util.Ptr(now.Add(requestObserveInterval)))
+	}
 	if next != nil {
 		// A run with work left must also wake for its deadline.
 		next = earliest(next, run.DeadlineAt)
@@ -744,13 +786,19 @@ type attemptOutcome struct {
 	// a person or the Workflow is a stop, not a failure, and never retries.
 	retryable bool
 	timedOut  bool
-	message   *string
+	// asked is an attempt that ended on AskUser questions: the node waits for
+	// an answer rather than succeeding.
+	asked   bool
+	message *string
 }
 
 // classifyAttempt decides how a finished attempt ended from its TaskRun facts.
 func classifyAttempt(node coreworkflow.NodeRun, taskRun *coretask.Run) attemptOutcome {
 	schemaUnsatisfied := node.OutputSchema != nil && taskRun.Structured == nil
 	switch {
+	case taskRun.Status == string(coretask.RunStatusSucceeded) && len(bytes.TrimSpace(taskRun.Questions)) > 0 &&
+		string(bytes.TrimSpace(taskRun.Questions)) != "null":
+		return attemptOutcome{asked: true}
 	case taskRun.Status == string(coretask.RunStatusSucceeded) && !schemaUnsatisfied:
 		return attemptOutcome{succeeded: true}
 	case taskRun.Status == string(coretask.RunStatusSucceeded):
@@ -874,7 +922,7 @@ func nodeReady(node coreworkflow.NodeRun, statusByID map[string]coreworkflow.Nod
 // retrying, or running. It returns how many attempts it dispatched, whether the
 // run is still active (a node is running or a ready node is only waiting on the
 // concurrency limit), and the earliest retry not yet due, so the caller can
-// schedule the next pass.
+// schedule the next pass. That time also covers a request this pass opened.
 //
 // Readiness -- not array position -- decides what runs: a pending node starts
 // only when every node it needs has succeeded. steps arrive in topological
@@ -908,11 +956,26 @@ func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string
 			running++
 			continue
 		}
+		if steps[i].Status == string(coreworkflow.NodeRunStatusWaiting) {
+			pendingRemains = true
+			continue
+		}
 		if steps[i].Status != string(coreworkflow.NodeRunStatusPending) {
 			continue
 		}
 		pendingRemains = true
 		if !nodeReady(steps[i], statusByID) {
+			continue
+		}
+		if steps[i].NodeType == coreworkflow.NodeTypeHumanInput {
+			// A person's input holds no worker, so it is not bounded by the
+			// concurrency limit.
+			if err := s.openInputRequest(ctx, run, steps[i], steps, now); err != nil {
+				return dispatched, false, nil, err
+			}
+			// The request's expiry, or else the recovery bound, is when this
+			// run next needs a pass for it.
+			retryAt = earliest(retryAt, earliest(coreworkflow.Deadline(now, steps[i].TimeoutSeconds), util.Ptr(now.Add(requestObserveInterval))))
 			continue
 		}
 		if running >= limit {
@@ -1213,7 +1276,7 @@ func resolveRunInput(def *coreworkflow.Definition, raw string) (*string, error) 
 // "latest".
 func pinDefinitionAgents(def *coreworkflow.Definition, agents map[string]agentdef.Agent) (string, error) {
 	for i := range def.Nodes {
-		if def.Nodes[i].Agent.Revision == 0 {
+		if def.Nodes[i].Agent.Revision == 0 && def.Nodes[i].Type == coreworkflow.NodeTypeAgentTask {
 			def.Nodes[i].Agent.Revision = agents[def.Nodes[i].Agent.ID].Revision
 		}
 	}
@@ -1283,11 +1346,19 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 			return nil, ErrInvalidNodeID
 		}
 		ids[node.ID] = struct{}{}
-		if node.Type != coreworkflow.NodeTypeAgentTask {
+		switch node.Type {
+		case coreworkflow.NodeTypeAgentTask:
+			if node.Agent.ID == "" || node.Input.Instruction == "" {
+				return nil, ErrInvalidDefinition
+			}
+		case coreworkflow.NodeTypeHumanInput:
+			if node.Agent.ID != "" || node.Agent.Revision != 0 || node.Input.Instruction == "" ||
+				(node.IssueAccess != "" && node.IssueAccess != coreworkflow.IssueAccessNone) ||
+				(node.Policy != nil && node.Policy.MaxAttempts > 1) {
+				return nil, apierr.Detail(ErrInvalidHumanInputNode, "node %q", node.ID)
+			}
+		default:
 			return nil, ErrInvalidNodeType
-		}
-		if node.Agent.ID == "" || node.Input.Instruction == "" {
-			return nil, ErrInvalidDefinition
 		}
 		if node.Agent.Revision < 0 {
 			return nil, apierr.Detail(ErrInvalidDefinition, "node %q agent.revision cannot be negative", node.ID)
@@ -1400,6 +1471,9 @@ func (s *Service) resolveDefinitionAgents(ctx context.Context, spaceID string, d
 	agents := make(map[string]agentdef.Agent, len(def.Nodes))
 	for i := range def.Nodes {
 		agentID := def.Nodes[i].Agent.ID
+		if def.Nodes[i].Type == coreworkflow.NodeTypeHumanInput {
+			continue
+		}
 		if _, ok := agents[agentID]; ok {
 			continue
 		}
@@ -1417,7 +1491,7 @@ func (s *Service) resolveDefinitionAgents(ctx context.Context, spaceID string, d
 	// per-node check, not a per-agent one.
 	for i := range def.Nodes {
 		rev := def.Nodes[i].Agent.Revision
-		if rev <= 0 {
+		if rev <= 0 || def.Nodes[i].Type == coreworkflow.NodeTypeHumanInput {
 			continue
 		}
 		got, err := s.Agents.GetAgentRevision(ctx, def.Nodes[i].Agent.ID, rev)

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react"
 import type { Agent } from "../../lib/types"
 import {
+  newHumanStep,
   newStep,
   newStepId,
   nodeOutputSource,
@@ -31,9 +32,9 @@ export interface WorkflowStepsState {
   /** The definition's `policy.timeout_seconds`, the whole run's deadline. */
   runTimeoutSeconds: number | null
   setRunTimeoutSeconds: (value: number | null) => void
-  /** Appends a root step (no needs) and returns its id so the caller can select
-   *  and position it. */
-  addStep: () => string
+  /** Appends a root step (no needs) -- an Agent step, or an input step a person
+   *  answers -- and returns its id so the caller can select and position it. */
+  addStep: (kind?: "agent" | "human") => string
   removeStep: (id: string) => void
   /** Renames a step's id, rewriting every reference to it — other steps' `needs`
    *  edges, binding sources that read its output, and the definition's `result`
@@ -42,7 +43,7 @@ export interface WorkflowStepsState {
   renameStep: (oldId: string, newId: string) => void
   changeStep: (
     id: string,
-    patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess" | "maxAttempts" | "timeoutSeconds">>,
+    patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess" | "maxAttempts" | "timeoutSeconds" | "outputSchema">>,
   ) => void
   /** Add or remove a `needs` edge — the graph's dependency between two steps. */
   connectNeed: (targetId: string, sourceId: string) => void
@@ -87,8 +88,9 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     setAdvanced(!parsed)
   }, [])
 
-  const addStep = useCallback(() => {
-    const step: WorkflowStepDraft = { ...newStep(agents[0]?.id ?? ""), id: newStepId(), needs: [] }
+  const addStep = useCallback((kind: "agent" | "human" = "agent") => {
+    const base = kind === "human" ? newHumanStep() : newStep(agents[0]?.id ?? "")
+    const step: WorkflowStepDraft = { ...base, id: newStepId(), needs: [] }
     setSteps((prev) => [...prev, step])
     return step.id
   }, [agents])
@@ -104,7 +106,7 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   }, [])
 
   const changeStep = useCallback(
-    (id: string, patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess" | "maxAttempts" | "timeoutSeconds">>) => {
+    (id: string, patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess" | "maxAttempts" | "timeoutSeconds" | "outputSchema">>) => {
       setSteps((prev) => prev.map((step) => (step.id === id ? { ...step, ...patch } : step)))
     },
     [],

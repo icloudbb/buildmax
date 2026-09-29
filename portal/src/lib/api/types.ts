@@ -224,6 +224,30 @@ export interface ApiWorkflowNodeRun {
   ended_at?: string | null
 }
 
+/** A durable request a workflow run waits on a person to answer. */
+export interface ApiWorkflowRequest {
+  id: string
+  workflow_run_id: string
+  node_run_id: string
+  node_id: string
+  kind: "input" | "question" | string
+  prompt?: string
+  questions?: Question[] | null
+  response_schema?: unknown
+  task_run_id?: string | null
+  status: string
+  expires_at?: string | null
+  response?: unknown
+  responded_by?: string | null
+  responded_at?: string | null
+  created_at: string
+}
+
+export interface ApiWorkflowRequestListResponse {
+  requests: ApiWorkflowRequest[]
+  total: number
+}
+
 export interface ApiWorkflowRunListResponse {
   runs: ApiWorkflowRun[]
   total: number
@@ -232,6 +256,7 @@ export interface ApiWorkflowRunListResponse {
 export interface ApiWorkflowRunDetailResponse {
   run: ApiWorkflowRun
   steps: ApiWorkflowNodeRun[]
+  requests?: ApiWorkflowRequest[]
 }
 
 export interface ApiIssueFlowRun {

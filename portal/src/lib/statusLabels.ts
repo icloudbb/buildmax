@@ -14,6 +14,7 @@ export function statusLabel(value: string): string {
     canceled: "Canceled",
     blocked: "Blocked",
     retry_wait: "Waiting to retry",
+    waiting: "Waiting for input",
     draft: "Draft",
     published: "Published",
     archived: "Archived",

@@ -92,14 +92,16 @@ Agent 经常遇到本应由用户做的决定：需求有歧义、几种做法�
 | TUI | 交互式 | 终端前有人 |
 | Desktop 项目聊天 | 交互式 | 聊天前有人 |
 | Worker TaskRun | 延迟式，服务端允许时 | 运行旁无人，但有人会 Continue 这个 Task |
-| Workflow 步骤 TaskRun | 否 | 它的 Task 由 workflow 推进，没人会 Continue |
+| Workflow 步骤 TaskRun | 延迟 | 问题成为其 workflow 运行上的一个请求，回答会继续该 Task |
 | Desktop 定时触发、无项目会话 | 否 | 按目录托管的 app 没有批准或提问 handler |
 | `buildmax run`（print 模式） | 否 | 运行中途没人作答；脚本读取的是最终回复 |
 | 子 Agent | 否 | 它向父 Agent 汇报，由父 Agent 决定是否提问 |
 | Portal Conversation、评估 | 否 | 它的回复本来就会送达用户；评估中无人作答 |
 
-服务端按运行决定：`GET /api/worker/task-runs/{id}` 会设置 `ask_user`，除非该运行是为
-Workflow 步骤而创建的。评估控制面或旧版服务端不会发送该字段，因此在那里工具保持关闭。
+服务端在 `GET /api/worker/task-runs/{id}` 交出的每个运行上都设置 `ask_user`。Workflow
+步骤的问题会成为其运行上的持久化请求（[Workflow 运行时 §14](Workflow运行时.md#14-持久化的人工请求)）：
+节点在不占用 worker 的情况下等待，在运行视图中给出的回答会继续该步骤的 Task，而该 Task
+不能被直接继续。评估控制面不会发送该字段，因此在那里工具保持关闭。
 
 在已启用的 app 上，没有提供 questioner 的运行仍会提供该工具，工具会告诉模型
 没有人能作答。
@@ -174,8 +176,9 @@ Task 标为「Needs your answer」，并相应地修改输入框占位文字。I
   每天使用的交互方式。结束本轮的做法保留在它唯一安全的地方：worker TaskRun。
 - **扩展 `ApprovalHandler`。** 这会把三值权限决定变成通用提示通道，并耦合两个
   调用方不同的关注点：批准来自权限关卡，提问来自工具。
-- **持久化人工请求。** Workflow §14 的请求实体（含应答者、过期与审计）是受治理
-  批准的正确形态，但对澄清问题来说过大，而且要等 Space 治理就绪。
+- **每个问题都用持久化人工请求。** Workflow §14 的请求实体是 Workflow 步骤的回答路径，
+  因为没有人会直接继续步骤的 Task。对普通 Task 而言，用回答继续它本身就是这条路径，
+  再加一个实体只会重复。
 
 ## 推迟事项
 
