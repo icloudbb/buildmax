@@ -70,7 +70,18 @@ export interface WorkflowStepDraft {
    *  a save from stripping a schema the definition already had. `undefined` means
    *  the node declares none. */
   outputSchema?: string
+  /** The node's `policy.max_attempts` (first attempt included) and
+   *  `policy.timeout_seconds` (per attempt). `undefined` is the default: one
+   *  attempt, no timeout. */
+  maxAttempts?: number
+  timeoutSeconds?: number
 }
+
+/** Bounds the server enforces on node and run policy, mirrored so Save stays
+ *  disabled for a definition publication would refuse. */
+export const MAX_NODE_ATTEMPTS = 5
+export const MIN_TIMEOUT_SECONDS = 60
+export const MAX_TIMEOUT_SECONDS = 30 * 24 * 60 * 60
 
 export interface ParsedWorkflowDefinition {
   steps: WorkflowStepDraft[]
@@ -78,6 +89,9 @@ export interface ParsedWorkflowDefinition {
    *  through parse and serialize so a hand-authored concurrency limit is not
    *  stripped when the definition round-trips through the step model. */
   maxParallelNodes: number | null
+  /** The definition's `policy.timeout_seconds` -- the whole run's deadline --
+   *  or null when absent. */
+  runTimeoutSeconds: number | null
   /** The definition's `input_schema` and `result` as verbatim JSON text, when it
    *  declares them. Authored in raw JSON, not the visual editor, but preserved
    *  through the round-trip so switching to the visual editor and saving does not
@@ -163,24 +177,29 @@ function embedRawJSON(text: string | undefined): unknown {
   }
 }
 
-export function stepsToDefinition(
-  steps: WorkflowStepDraft[],
-  maxParallelNodes: number | null = null,
-  inputSchema?: string,
-  result?: string,
-): string {
-  const inputSchemaValue = embedRawJSON(inputSchema)
-  const resultValue = embedRawJSON(result)
+/** The definition-level fields that travel beside the steps. */
+export type DefinitionOptions = Partial<Omit<ParsedWorkflowDefinition, "steps">>
+
+/** Builds a `policy` object from the fields that are set, or undefined when
+ *  none is, so a definition without policy does not grow an empty one. */
+function policyObject(fields: Record<string, number | null | undefined>): Record<string, number> | undefined {
+  const entries = Object.entries(fields).filter((entry): entry is [string, number] => typeof entry[1] === "number" && entry[1] > 0)
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
+export function stepsToDefinition(steps: WorkflowStepDraft[], options: DefinitionOptions = {}): string {
+  const inputSchemaValue = embedRawJSON(options.inputSchema)
+  const resultValue = embedRawJSON(options.result)
+  const policy = policyObject({ max_parallel_nodes: options.maxParallelNodes, timeout_seconds: options.runTimeoutSeconds })
   return JSON.stringify(
     {
       schema_version: WORKFLOW_SCHEMA_VERSION,
       ...(inputSchemaValue !== undefined ? { input_schema: inputSchemaValue } : {}),
-      ...(maxParallelNodes && maxParallelNodes > 0
-        ? { policy: { max_parallel_nodes: maxParallelNodes } }
-        : {}),
+      ...(policy ? { policy } : {}),
       nodes: steps.map((step, index) => {
         const needs = effectiveNeeds(steps, index)
         const outputSchemaValue = embedRawJSON(step.outputSchema)
+        const nodePolicy = policyObject({ timeout_seconds: step.timeoutSeconds, max_attempts: step.maxAttempts })
         return {
           id: step.id,
           type: step.type,
@@ -200,6 +219,7 @@ export function stepsToDefinition(
               : {}),
           },
           ...(outputSchemaValue !== undefined ? { output_schema: outputSchemaValue } : {}),
+          ...(nodePolicy ? { policy: nodePolicy } : {}),
         }
       }),
       ...(resultValue !== undefined ? { result: resultValue } : {}),
@@ -274,20 +294,23 @@ export function parseDefinition(definition: string): ParsedWorkflowDefinition | 
   try {
     const parsed = JSON.parse(definition) as {
       nodes?: unknown
-      policy?: { max_parallel_nodes?: unknown }
+      policy?: { max_parallel_nodes?: unknown; timeout_seconds?: unknown }
       input_schema?: unknown
       result?: unknown
     }
     if (!Array.isArray(parsed.nodes)) return null
     const limit = parsed.policy?.max_parallel_nodes
+    const runTimeout = parsed.policy?.timeout_seconds
     return {
       maxParallelNodes: typeof limit === "number" ? limit : null,
+      runTimeoutSeconds: typeof runTimeout === "number" ? runTimeout : null,
       inputSchema: parsed.input_schema !== undefined ? JSON.stringify(parsed.input_schema) : undefined,
       result: parsed.result !== undefined ? JSON.stringify(parsed.result) : undefined,
       steps: parsed.nodes.map((node): WorkflowStepDraft => {
         const record = typeof node === "object" && node != null ? (node as Record<string, unknown>) : {}
         const agent = typeof record.agent === "object" && record.agent != null ? (record.agent as Record<string, unknown>) : {}
         const input = typeof record.input === "object" && record.input != null ? (record.input as Record<string, unknown>) : {}
+        const policy = typeof record.policy === "object" && record.policy != null ? (record.policy as Record<string, unknown>) : {}
         return {
           id: typeof record.id === "string" && record.id.trim() ? record.id : newStepId(),
           type: typeof record.type === "string" && record.type.trim() ? record.type : AGENT_TASK_STEP_TYPE,
@@ -300,6 +323,8 @@ export function parseDefinition(definition: string): ParsedWorkflowDefinition | 
           prompt: typeof input.instruction === "string" ? input.instruction : "",
           bindings: parseStepBindings(input.bindings),
           outputSchema: record.output_schema !== undefined ? JSON.stringify(record.output_schema) : undefined,
+          maxAttempts: typeof policy.max_attempts === "number" ? policy.max_attempts : undefined,
+          timeoutSeconds: typeof policy.timeout_seconds === "number" ? policy.timeout_seconds : undefined,
         }
       }),
     }
@@ -371,6 +396,12 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
     if (!step.prompt.trim()) {
       errors.push({ index, message: "This step needs a prompt." })
     }
+    if (step.maxAttempts !== undefined && (!Number.isInteger(step.maxAttempts) || step.maxAttempts < 1 || step.maxAttempts > MAX_NODE_ATTEMPTS)) {
+      errors.push({ index, message: `Attempts must be a whole number from 1 to ${MAX_NODE_ATTEMPTS}.` })
+    }
+    if (step.timeoutSeconds !== undefined && !validTimeout(step.timeoutSeconds)) {
+      errors.push({ index, message: "A step timeout must be between 1 minute and 30 days." })
+    }
     // A binding selects from the run input or a predecessor node's output at a
     // pointer. A node source can only name a transitive predecessor, each name on
     // a step is distinct, and a pointer is empty or begins with "/" -- the same
@@ -402,5 +433,19 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
       }
     })
   })
+  return errors
+}
+
+function validTimeout(seconds: number): boolean {
+  return Number.isInteger(seconds) && seconds >= MIN_TIMEOUT_SECONDS && seconds <= MAX_TIMEOUT_SECONDS
+}
+
+/** Validates the definition-level policy the toolbar edits. Its problems have
+ *  no step, so they carry index -1. */
+export function validateDefinitionPolicy(options: DefinitionOptions): StepError[] {
+  const errors: StepError[] = []
+  if (options.runTimeoutSeconds != null && !validTimeout(options.runTimeoutSeconds)) {
+    errors.push({ index: -1, message: "The run timeout must be between 1 minute and 30 days." })
+  }
   return errors
 }

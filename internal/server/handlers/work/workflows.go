@@ -56,6 +56,7 @@ type workflowRunResponse struct {
 	StartedAt        *time.Time      `json:"started_at,omitempty"`
 	EndedAt          *time.Time      `json:"ended_at,omitempty"`
 	ErrorMessage     *string         `json:"error_message,omitempty"`
+	DeadlineAt       *time.Time      `json:"deadline_at,omitempty"`
 	Input            json.RawMessage `json:"input,omitempty"`
 	Result           json.RawMessage `json:"result,omitempty"`
 }
@@ -75,6 +76,11 @@ type workflowNodeRunResponse struct {
 	AgentRevision     int        `json:"agent_revision,omitempty"`
 	Prompt            string     `json:"prompt"`
 	Status            string     `json:"status"`
+	Attempt           int        `json:"attempt"`
+	MaxAttempts       int        `json:"max_attempts"`
+	TimeoutSeconds    int        `json:"timeout_seconds,omitempty"`
+	DeadlineAt        *time.Time `json:"deadline_at,omitempty"`
+	NextAttemptAt     *time.Time `json:"next_attempt_at,omitempty"`
 	TaskID            *string    `json:"task_id,omitempty"`
 	TaskRunID         *string    `json:"task_run_id,omitempty"`
 	ResolvedInput     *string    `json:"resolved_input,omitempty"`
@@ -159,6 +165,7 @@ func workflowRunToResponse(run coreworkflow.Run) workflowRunResponse {
 		StartedAt:        run.StartedAt,
 		EndedAt:          run.EndedAt,
 		ErrorMessage:     run.ErrorMessage,
+		DeadlineAt:       run.DeadlineAt,
 		Input:            rawJSONOrNil(run.Input),
 		Result:           rawJSONOrNil(run.Result),
 	}
@@ -189,6 +196,11 @@ func workflowNodeRunToResponse(step coreworkflow.NodeRun) workflowNodeRunRespons
 		AgentRevision:     step.AgentRevision,
 		Prompt:            step.Prompt,
 		Status:            step.Status,
+		Attempt:           step.Attempt,
+		MaxAttempts:       step.MaxAttempts,
+		TimeoutSeconds:    step.TimeoutSeconds,
+		DeadlineAt:        step.DeadlineAt,
+		NextAttemptAt:     step.NextAttemptAt,
 		TaskID:            step.TaskID,
 		TaskRunID:         step.TaskRunID,
 		ResolvedInput:     step.ResolvedInput,

@@ -55,8 +55,14 @@ issue. Build it on the **Definition** tab in the visual graph editor:
   `agent_task` is the only node type the runtime executes today.
 - Drag from one node's right edge to another's left edge to make the second
   depend on the first. A node runs after all its dependencies succeed;
-  independent nodes may run together. **Max parallel** sets a per-run ceiling.
+  independent nodes may run together. **Max parallel** sets a per-run ceiling,
+  and **Run timeout (min)** fails a run that has not finished in time.
   **Re-layout** arranges the graph without changing its execution rules.
+- A step's **Attempts** (1 to 5) lets a failed step run again, and its
+  **Timeout per attempt (min)** stops an attempt that runs too long. Leave both
+  empty for one attempt with no timeout. Only allow more than one attempt for a
+  step that is safe to repeat: an attempt may already have changed something
+  before it failed.
 - **Edit raw JSON** shows the same definition for exact inspection and for
   fields the visual editor does not yet author, including `input_schema`,
   `result`, and a node's `output_schema`. **Visual editor** returns to the
@@ -95,6 +101,14 @@ becomes **Failed** or **Canceled** after every admitted TaskRun is terminal;
 partial output remains available on the step and its Task. The detail view
 continues refreshing during this wait. Server restarts resume the same drain,
 and a worker that disappears is handled by the normal TaskRun recovery policy.
+
+A step with attempts left does not stop the run when it fails, times out, or
+loses its worker. It shows **Waiting to retry** with the time of its next
+attempt, which runs on the same Task after a short backoff (30 seconds,
+doubling each time up to 10 minutes). The step shows which attempt it is on,
+and the Task keeps every attempt's run. Canceling a step's Task is never
+retried. When a run passes its **Run timeout**, it starts no more steps and
+ends as **Failed** once its running steps stop.
 
 ## Schedule an agent
 

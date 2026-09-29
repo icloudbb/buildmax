@@ -332,6 +332,8 @@ button.wf-graph__node:focus-visible {
   border-left-color: var(--color-danger, #d1242f);
 }
 
+/* A retrying node is between attempts: still live, not yet failed. */
+.wf-graph__node--retry_wait,
 .wf-graph__node--blocked {
   border-left-color: var(--color-warning, #9a6700);
 }
@@ -542,6 +544,13 @@ button.wf-graph__node:focus-visible {
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-3);
+}
+
+/* Attempts and timeout are short numbers, so they share a row. */
+.wf-inspector__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
 }
 
 /* Bindings stack in the narrow inspector so each control stays readable. */

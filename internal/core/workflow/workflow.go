@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"time"
 )
 
@@ -24,6 +25,18 @@ const (
 	// stay within, and it caps a run's concurrent worker Tasks regardless of graph
 	// width. A definition that names no limit runs up to this ceiling.
 	MaxParallelNodesCeiling = 8
+
+	// MaxNodeAttemptsCeiling bounds a node's max_attempts, first attempt
+	// included. Every attempt is a full Agent run that may have side effects, so
+	// retry is bounded tightly rather than left to the author.
+	MaxNodeAttemptsCeiling = 5
+
+	// MinTimeoutSeconds and MaxTimeoutSeconds bound every timeout_seconds a
+	// definition declares. The floor stays above the reconciler's observation
+	// interval so a timeout is enforced near when it is due; the ceiling keeps a
+	// forgotten run from holding a deadline nobody will ever reach.
+	MinTimeoutSeconds = 60
+	MaxTimeoutSeconds = 30 * 24 * 60 * 60
 )
 
 // RunStatus is the lifecycle status of one workflow run. NodeRunStatus is one
@@ -54,6 +67,10 @@ const (
 	// NodeRunStatusBlocked is terminal: an earlier step ended badly, so this
 	// still-pending step will never run.
 	NodeRunStatusBlocked NodeRunStatus = "blocked"
+	// NodeRunStatusRetryWait is an attempt that failed while the node's
+	// max_attempts still allows another; the next attempt is admitted at
+	// NextAttemptAt.
+	NodeRunStatusRetryWait NodeRunStatus = "retry_wait"
 )
 
 // RunStatusTerminal reports whether a run in this status has finished; a
@@ -106,17 +123,44 @@ func ValidRunStatusTransition(from, to RunStatus) bool {
 // ValidNodeRunTransition reports whether a step run may move directly from one
 // status to another. A pending step may start (running), be blocked by an
 // earlier failure, or fail outright when its task cannot be created; a running
-// step ends succeeded, failed, or canceled. Terminal statuses are immutable.
+// step ends succeeded, failed, or canceled, or waits to retry. A retrying step
+// starts its next attempt, fails when that attempt cannot be admitted, or is
+// canceled when the run stops. Terminal statuses are immutable.
 func ValidNodeRunTransition(from, to NodeRunStatus) bool {
 	switch from {
 	case NodeRunStatusPending:
 		return to == NodeRunStatusRunning || to == NodeRunStatusBlocked ||
 			to == NodeRunStatusFailed || to == NodeRunStatusCanceled
 	case NodeRunStatusRunning:
-		return to == NodeRunStatusSucceeded || to == NodeRunStatusFailed || to == NodeRunStatusCanceled
+		return to == NodeRunStatusSucceeded || to == NodeRunStatusFailed || to == NodeRunStatusCanceled ||
+			to == NodeRunStatusRetryWait
+	case NodeRunStatusRetryWait:
+		return to == NodeRunStatusRunning || to == NodeRunStatusFailed || to == NodeRunStatusCanceled
 	default:
 		return false
 	}
+}
+
+// RetryBackoff is how long a node waits after its failed attempt'th attempt
+// before the next one: 30s doubling per attempt, capped at 10 minutes. The
+// common failures an automatic retry can outlive -- a provider outage, a lost
+// worker -- take minutes, not milliseconds, to clear.
+func RetryBackoff(attempt int) time.Duration {
+	const base, ceiling = 30 * time.Second, 10 * time.Minute
+	d := base
+	for i := 1; i < attempt && d < ceiling; i++ {
+		d *= 2
+	}
+	return min(d, ceiling)
+}
+
+// Deadline is start plus timeoutSeconds, or nil when no timeout is set.
+func Deadline(start time.Time, timeoutSeconds int) *time.Time {
+	if timeoutSeconds <= 0 {
+		return nil
+	}
+	d := start.Add(time.Duration(timeoutSeconds) * time.Second)
+	return &d
 }
 
 // Workflow is a reusable space-scoped execution plan.
@@ -177,6 +221,9 @@ type Run struct {
 	StartedAt    *time.Time `json:"started_at,omitempty"`
 	EndedAt      *time.Time `json:"ended_at,omitempty"`
 	ErrorMessage *string    `json:"error_message,omitempty"`
+	// DeadlineAt is when the run fails if it has not finished, from the
+	// definition's policy.timeout_seconds at admission. Nil when none is set.
+	DeadlineAt *time.Time `json:"deadline_at,omitempty"`
 	// Reconciliation scheduling and ownership. ReconcileOwner and LeaseExpiresAt
 	// are a bounded lease that reduces duplicate reconciliation work; they are not
 	// the correctness mechanism. NextReconcileAt is when this run next wants a
@@ -221,9 +268,22 @@ type NodeRun struct {
 	// start so a later definition edit cannot change what an in-flight node must
 	// satisfy. Nil for a free-text node.
 	OutputSchema *string `json:"output_schema,omitempty"`
-	Status       string  `json:"status"`
-	TaskID       *string `json:"task_id,omitempty"`
-	TaskRunID    *string `json:"task_run_id,omitempty"`
+	// MaxAttempts and TimeoutSeconds are the run's snapshot of the node's retry
+	// and per-attempt timeout policy. MaxAttempts is at least 1; TimeoutSeconds
+	// is 0 when the node has no timeout.
+	MaxAttempts    int `json:"max_attempts"`
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+	// Attempt counts the attempts admitted so far: 0 before dispatch, 1 for the
+	// first. TaskRunID is always the latest attempt's run; earlier attempts are
+	// the TaskRuns under TaskID, linked by retry_of_task_run_id.
+	Attempt int `json:"attempt"`
+	// DeadlineAt is when the current attempt times out; NextAttemptAt is when a
+	// retry_wait node admits its next attempt. Nil when not applicable.
+	DeadlineAt    *time.Time `json:"deadline_at,omitempty"`
+	NextAttemptAt *time.Time `json:"next_attempt_at,omitempty"`
+	Status        string     `json:"status"`
+	TaskID        *string    `json:"task_id,omitempty"`
+	TaskRunID     *string    `json:"task_run_id,omitempty"`
 	// ResolvedInput is the full Task input this node received -- its prompt with
 	// every binding materialized -- captured when the node started so the run
 	// record shows exactly what the agent was given. Nil until the node is
@@ -275,6 +335,22 @@ type DefinitionPolicy struct {
 	// (absent) means no definition-set limit, so the run uses the deployment
 	// ceiling. Publication rejects a value above MaxParallelNodesCeiling.
 	MaxParallelNodes int `json:"max_parallel_nodes,omitempty"`
+	// TimeoutSeconds bounds the whole run from admission. When it passes, no new
+	// node starts and the run fails after its active work drains. Zero means no
+	// run deadline.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+}
+
+// NodePolicy is one node's execution policy.
+type NodePolicy struct {
+	// TimeoutSeconds bounds each attempt from its dispatch, queue time included.
+	// A timed-out attempt is canceled and counts as a failed attempt. Zero means
+	// no per-attempt timeout.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+	// MaxAttempts is how many attempts the node may make, first included. Zero
+	// means one: retry is opt-in because a failed Agent run may already have
+	// acted on an external system.
+	MaxAttempts int `json:"max_attempts,omitempty"`
 }
 
 // MaxParallelNodes is the effective concurrency limit for a run of this
@@ -317,6 +393,24 @@ type DefinitionNode struct {
 	// that validates against it. Empty leaves the node free text. See
 	// docs/design/structured-output.md.
 	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
+	// Policy, when set, carries the node's retry and timeout policy.
+	Policy *NodePolicy `json:"policy,omitempty"`
+}
+
+// MaxAttempts is the node's effective attempt budget: its policy's value, or 1.
+func (n *DefinitionNode) MaxAttempts() int {
+	if n.Policy != nil && n.Policy.MaxAttempts > 0 {
+		return n.Policy.MaxAttempts
+	}
+	return 1
+}
+
+// TimeoutSeconds is the node's per-attempt timeout, or 0 for none.
+func (n *DefinitionNode) TimeoutSeconds() int {
+	if n.Policy != nil {
+		return n.Policy.TimeoutSeconds
+	}
+	return 0
 }
 
 // NodeAgent names the Agent a node runs as. Revision, when set, pins a specific
@@ -390,6 +484,12 @@ func TaskAdmissionKey(workflowRunID, nodeID string) string {
 	return "workflow/" + workflowRunID + "/node/" + nodeID
 }
 
+// TaskRunAdmissionKey identifies one retry attempt's TaskRun under the node's
+// Task, so a repeated admission of the same attempt resolves to one run.
+func TaskRunAdmissionKey(workflowRunID, nodeID string, attempt int) string {
+	return TaskAdmissionKey(workflowRunID, nodeID) + "/attempt/" + strconv.Itoa(attempt)
+}
+
 // ParseNodeOutputSource returns the node id a "node.<node_id>.output" source
 // names, or ("", false) when source is not that shape. The node id may itself
 // contain dots, so only the fixed "node." prefix and ".output" suffix are
@@ -436,10 +536,11 @@ type CreateRunInput struct {
 	ScheduleID *string
 	// Input is the run's immutable input JSON, already validated against the
 	// definition's input_schema. Nil when the definition declares no input_schema.
-	Input     *string
-	Status    string
-	CreatedBy string
-	StartedAt *time.Time
+	Input      *string
+	Status     string
+	CreatedBy  string
+	StartedAt  *time.Time
+	DeadlineAt *time.Time
 }
 
 type UpdateInput struct {
@@ -471,6 +572,8 @@ type CreateNodeRunInput struct {
 	Prompt            string
 	Bindings          []StepBinding
 	OutputSchema      *string
+	MaxAttempts       int
+	TimeoutSeconds    int
 	Status            string
 }
 
@@ -507,6 +610,25 @@ type TransitionNodeRunInput struct {
 	ErrorMessage   *string
 	StartedAt      *time.Time
 	EndedAt        *time.Time
+	// Attempt and DeadlineAt land with a move to running (the attempt's number
+	// and its timeout); NextAttemptAt lands with a move to retry_wait. A move
+	// out of retry_wait clears NextAttemptAt; a move out of running clears
+	// DeadlineAt.
+	Attempt       *int
+	DeadlineAt    *time.Time
+	NextAttemptAt *time.Time
+}
+
+// StopRunInput records run-level stop intent that no single node caused: the
+// run deadline passing, or a person canceling the run. RunStatus is failing or
+// canceling. In one transaction the run moves from RunExpected, pending nodes
+// become blocked, and retry_wait nodes become canceled; running nodes keep
+// their state until their TaskRuns end.
+type StopRunInput struct {
+	WorkflowRunID string
+	RunExpected   RunStatus
+	RunStatus     RunStatus
+	ErrorMessage  *string
 }
 
 // BeginRunDrainInput commits the first failed/canceled node and stops further
@@ -577,6 +699,7 @@ type Store interface {
 	TransitionWorkflowRun(ctx context.Context, in TransitionRunInput) (bool, error)
 	TransitionWorkflowNodeRun(ctx context.Context, in TransitionNodeRunInput) (bool, error)
 	BeginWorkflowRunDrain(ctx context.Context, in BeginRunDrainInput) (bool, error)
+	StopWorkflowRun(ctx context.Context, in StopRunInput) (bool, error)
 	// ListDueWorkflowRuns returns non-terminal runs that need a reconciliation
 	// pass at now -- their scheduled time has arrived or their lease expired --
 	// in stable oldest-due order, bounded by limit (a documented default when

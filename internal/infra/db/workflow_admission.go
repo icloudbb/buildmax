@@ -60,9 +60,11 @@ func (s *Store) admitWorkflowNodeTask(ctx context.Context, in *coretask.CreateIn
 		if err := createTaskAndRunTx(ctx, tx, in, taskRow, taskRun); err != nil {
 			return err
 		}
+		now := time.Now().UTC()
 		if err := tx.Model(&workflowNodeRunRow{}).Where("id = ?", node.ID).Updates(map[string]any{
 			"status": string(coreworkflow.NodeRunStatusRunning), "task_id": taskRow.ID, "task_run_id": taskRun.ID,
-			"resolved_input": in.Input, "started_at": time.Now().UTC(),
+			"resolved_input": in.Input, "started_at": now,
+			"attempt": 1, "deadline_at": coreworkflow.Deadline(now, node.TimeoutSeconds),
 		}).Error; err != nil {
 			return err
 		}
@@ -73,4 +75,63 @@ func (s *Store) admitWorkflowNodeTask(ctx context.Context, in *coretask.CreateIn
 		return nil, apierr.ErrNotFound
 	}
 	return result, err
+}
+
+// admitWorkflowNodeRetryRun creates a retry attempt's TaskRun and links it onto
+// its node under the run lock, for the same reason admitWorkflowNodeTask does:
+// an attempt admitted after stop intent would execute behind a canceled node.
+// Locks are taken run, node, then task -- the order first admission uses.
+func (s *Store) admitWorkflowNodeRetryRun(ctx context.Context, canonicalTaskID string, in coretask.CreateRunInput) (*coretask.Run, error) {
+	var created *createdTaskRun
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var node workflowNodeRunRow
+		if err := tx.Where("public_id = ?", in.WorkflowNodeRunID).Take(&node).Error; err != nil {
+			return err
+		}
+		var run workflowRunRow
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", node.WorkflowRunID).Take(&run).Error; err != nil {
+			return err
+		}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", node.ID).Take(&node).Error; err != nil {
+			return err
+		}
+		taskKey, err := lookupKey(ctx, tx, "task", canonicalTaskID)
+		if err != nil {
+			return err
+		}
+		if node.TaskID == nil || *node.TaskID != taskKey || in.IdempotencyKey == nil ||
+			*in.IdempotencyKey != coreworkflow.TaskRunAdmissionKey(run.PublicID, node.NodeID, in.WorkflowAttempt) {
+			return apierr.ErrNotFound
+		}
+		// A repeated admission of the attempt already linked returns its run.
+		if node.Attempt == in.WorkflowAttempt && node.TaskRunID != nil {
+			var existing taskRunReadRow
+			if err := taskRunSelectTx(tx).Where("task_run.id = ?", *node.TaskRunID).Take(&existing).Error; err != nil {
+				return err
+			}
+			created = &createdTaskRun{row: &existing.Row, previous: existing.PreviousPublicID, retryOf: existing.RetryOfPublicID, sourceMessage: existing.SourceMessagePublicID}
+			return nil
+		}
+		if run.Status != string(coreworkflow.RunStatusRunning) || node.Status != string(coreworkflow.NodeRunStatusRetryWait) ||
+			node.Attempt != in.WorkflowAttempt-1 {
+			return apierr.New(apierr.KindConflict, "workflow is stopping or node is not waiting for this attempt")
+		}
+		created, err = createTaskRunTx(ctx, tx, canonicalTaskID, in)
+		if err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		return tx.Model(&workflowNodeRunRow{}).Where("id = ?", node.ID).Updates(map[string]any{
+			"status": string(coreworkflow.NodeRunStatusRunning), "task_run_id": created.row.ID,
+			"attempt": in.WorkflowAttempt, "deadline_at": coreworkflow.Deadline(now, node.TimeoutSeconds),
+			"next_attempt_at": nil, "error_message": nil,
+		}).Error
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, apierr.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return created.toRun(canonicalTaskID), nil
 }

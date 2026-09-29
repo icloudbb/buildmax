@@ -336,6 +336,57 @@ func (s *Service) RetryRun(ctx context.Context, cmd RetryRunCmd) (*RetryResult, 
 	return &RetryResult{Run: run, RetriedRun: *previous}, nil
 }
 
+// WorkflowRetryCmd admits the next attempt of a Workflow node.
+type WorkflowRetryCmd struct {
+	UserID            string
+	WorkflowRunID     string
+	WorkflowNodeRunID string
+	NodeID            string
+	// Attempt is the number of the attempt being admitted, 2 or more.
+	Attempt int
+	// Previous is the attempt this one repeats.
+	Previous *coretask.Run
+}
+
+// AdmitWorkflowRetryRun creates a Workflow node's next attempt on the node's
+// Task. The attempt repeats Previous exactly -- same input, Agent revision, and
+// sandbox tiers -- rather than resolving the Agent's current definition as
+// CreateRun does, so a retry is the same work run again. The attempt's
+// admission key makes a repeated call return the one run.
+func (s *Service) AdmitWorkflowRetryRun(ctx context.Context, cmd WorkflowRetryCmd) (*coretask.Run, error) {
+	if s.TaskRuns == nil {
+		return nil, ErrTaskRunsNotConfigured
+	}
+	if s.Tasks == nil {
+		return nil, ErrTasksNotConfigured
+	}
+	target, err := s.Tasks.GetTask(ctx, cmd.Previous.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	if target == nil {
+		return nil, ErrTaskNotFound
+	}
+	if err := s.checkQuota(ctx, target.SpaceID, 0); err != nil {
+		return nil, err
+	}
+	key := coreworkflow.TaskRunAdmissionKey(cmd.WorkflowRunID, cmd.NodeID, cmd.Attempt)
+	return s.TaskRuns.CreateTaskRun(ctx, coretask.CreateRunInput{
+		TaskID:                cmd.Previous.TaskID,
+		Input:                 cmd.Previous.Input,
+		CreatedBy:             cmd.UserID,
+		CreatedByType:         coretask.RunCreatedByTypeUser,
+		TriggerSource:         coretask.RunTriggerSourceWorkflowStep,
+		RetryOfTaskRunID:      &cmd.Previous.ID,
+		AgentRevision:         cmd.Previous.AgentRevision,
+		SandboxNetworkTier:    cmd.Previous.SandboxNetworkTier,
+		SandboxFilesystemTier: cmd.Previous.SandboxFilesystemTier,
+		IdempotencyKey:        &key,
+		WorkflowNodeRunID:     cmd.WorkflowNodeRunID,
+		WorkflowAttempt:       cmd.Attempt,
+	})
+}
+
 func (s *Service) refuseWorkflowStepRetry(ctx context.Context, taskID string) error {
 	if s.WorkflowSteps == nil {
 		return nil

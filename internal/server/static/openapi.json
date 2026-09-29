@@ -799,6 +799,7 @@
           "started_at": {"type": "string", "format": "date-time"},
           "ended_at": {"type": "string", "format": "date-time"},
           "error_message": {"type": "string"},
+          "deadline_at": {"type": "string", "format": "date-time", "description": "When the run fails if unfinished, from the definition's policy.timeout_seconds; absent when none is set."},
           "input": {"type": "object", "description": "The run's immutable input, validated against the workflow input_schema."},
           "result": {"description": "The run's declared result, resolved from a node output when the run succeeded; present only when the definition declares a result selector."}
         },
@@ -820,7 +821,12 @@
           "agent_instructions": {"type": "string"},
           "agent_revision": {"type": "integer"},
           "prompt": {"type": "string"},
-          "status": {"type": "string"},
+          "status": {"type": "string", "enum": ["pending", "running", "retry_wait", "succeeded", "failed", "canceled", "blocked"]},
+          "attempt": {"type": "integer", "description": "Attempts admitted so far; 0 before dispatch. task_run_id is always the latest attempt's run."},
+          "max_attempts": {"type": "integer", "description": "The node's attempt budget, first attempt included."},
+          "timeout_seconds": {"type": "integer", "description": "Per-attempt timeout; absent when the node has none."},
+          "deadline_at": {"type": "string", "format": "date-time", "description": "When the current attempt times out."},
+          "next_attempt_at": {"type": "string", "format": "date-time", "description": "When a retry_wait node admits its next attempt."},
           "task_id": {"type": "string"},
           "task_run_id": {"type": "string"},
           "resolved_input": {"type": "string"},
@@ -838,6 +844,8 @@
           "node_type",
           "prompt",
           "status",
+          "attempt",
+          "max_attempts",
           "created_at"
         ]
       },

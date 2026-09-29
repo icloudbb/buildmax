@@ -41,7 +41,8 @@ var (
 	ErrInvalidNodeType            = apierr.New(apierr.KindInvalid, "invalid workflow node type")
 	ErrInvalidNodeID              = apierr.New(apierr.KindInvalid, "invalid workflow node id: each node needs a unique non-empty id")
 	ErrInvalidNeeds               = apierr.New(apierr.KindInvalid, "invalid workflow node needs: each entry must name a distinct existing node, the edges must form a directed acyclic graph, and a node may not need itself")
-	ErrInvalidPolicy              = apierr.New(apierr.KindInvalid, "invalid workflow policy: max_parallel_nodes must be between 1 and the deployment maximum")
+	ErrInvalidPolicy              = apierr.New(apierr.KindInvalid, "invalid workflow policy: max_parallel_nodes must be between 1 and the deployment maximum, and timeout_seconds between 60 and 2592000 (30 days)")
+	ErrInvalidNodePolicy          = apierr.New(apierr.KindInvalid, "invalid workflow node policy: max_attempts must be between 1 and 5, and timeout_seconds between 60 and 2592000 (30 days)")
 	ErrInvalidIssueAccess         = apierr.New(apierr.KindInvalid, "invalid workflow node issue_access: must be none, if_bound, or required")
 	ErrInvalidAgentRevision       = apierr.New(apierr.KindInvalid, "invalid workflow node agent revision: the pinned revision does not exist")
 	ErrIssueRequired              = apierr.New(apierr.KindInvalid, "workflow run requires an issue: a node declares issue_access required but the run has none")
@@ -86,6 +87,16 @@ type Service struct {
 	// that shared work runs against, so its creation, edits, and lifecycle moves
 	// are governed acts worth the trail.
 	Audit *audit.Recorder
+	// now is the reconciler's clock; nil is the wall clock. Tests set it to
+	// reach a retry backoff or a deadline without waiting for it.
+	now func() time.Time
+}
+
+func (s *Service) clock() time.Time {
+	if s.now != nil {
+		return s.now().UTC()
+	}
+	return time.Now().UTC()
 }
 
 const (
@@ -435,6 +446,10 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 		return nil, nil, err
 	}
 	now := time.Now().UTC()
+	runTimeout := 0
+	if def.Policy != nil {
+		runTimeout = def.Policy.TimeoutSeconds
+	}
 	run, err := s.Workflows.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
 		WorkflowID:       workflow.ID,
 		WorkflowRevision: workflow.Revision,
@@ -444,6 +459,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 		Status:           string(coreworkflow.RunStatusRunning),
 		CreatedBy:        cmd.UserID,
 		StartedAt:        &now,
+		DeadlineAt:       coreworkflow.Deadline(now, runTimeout),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -481,6 +497,8 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 			Prompt:            def.Nodes[i].Input.Instruction,
 			Bindings:          def.Nodes[i].Input.Bindings,
 			OutputSchema:      outputSchemaSnapshot(def.Nodes[i].OutputSchema),
+			MaxAttempts:       def.Nodes[i].MaxAttempts(),
+			TimeoutSeconds:    def.Nodes[i].TimeoutSeconds(),
 			Status:            string(coreworkflow.NodeRunStatusPending),
 		}
 	}
@@ -564,7 +582,7 @@ func (s *Service) Reconcile(ctx context.Context, workflowRunID string) error {
 	if err != nil {
 		return err
 	}
-	now := time.Now().UTC()
+	now := s.clock()
 	claimed, err := s.Workflows.ClaimWorkflowRunLease(ctx, coreworkflow.ClaimLeaseInput{
 		WorkflowRunID:  workflowRunID,
 		Owner:          owner,
@@ -619,11 +637,24 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 	if run.Status == string(coreworkflow.RunStatusFailing) || run.Status == string(coreworkflow.RunStatusCanceling) {
 		return s.drainRun(ctx, run, steps, now, nextReconcileAt)
 	}
+	// A passed run deadline stops admission first; the drain then cancels the
+	// active attempts and fails the run once they end.
+	if run.DeadlineAt != nil && !now.Before(*run.DeadlineAt) {
+		if _, err := s.Workflows.StopWorkflowRun(ctx, coreworkflow.StopRunInput{
+			WorkflowRunID: run.ID,
+			RunExpected:   coreworkflow.RunStatus(run.Status),
+			RunStatus:     coreworkflow.RunStatusFailing,
+			ErrorMessage:  util.Ptr(fmt.Sprintf("workflow run exceeded its timeout (deadline %s)", run.DeadlineAt.UTC().Format(time.RFC3339))),
+		}); err != nil {
+			return err
+		}
+		return s.reconcilePass(ctx, workflowRunID, now, nextReconcileAt)
+	}
 	// Fold every running node whose TaskRun has finished. Failure is fail-fast: the
-	// first node that ended badly finalizes the whole run and returns, so no later
-	// dispatch happens. A node still executing keeps the run active for a later
-	// pass. Concurrency means several nodes may be running at once, so this folds
-	// them all rather than only the first.
+	// first node that ended badly with no attempt left finalizes the whole run and
+	// returns, so no later dispatch happens. A node still executing keeps the run
+	// active for a later pass. Concurrency means several nodes may be running at
+	// once, so this folds them all rather than only the first.
 	active := false
 	for i := range steps {
 		if steps[i].Status != string(coreworkflow.NodeRunStatusRunning) {
@@ -633,20 +664,35 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 		if err != nil {
 			return err
 		}
+		if taskRun != nil && !coretask.RunStatusTerminal(taskRun.Status) &&
+			steps[i].DeadlineAt != nil && !now.Before(*steps[i].DeadlineAt) {
+			// The attempt's timeout passed. Only its worker can stop it, so this
+			// records the cancel and folds the attempt once it actually ends; the
+			// cancel reason is what later marks it a timeout rather than a stop.
+			if taskRun, err = s.cancelTimedOutAttempt(ctx, taskRun, now); err != nil {
+				return err
+			}
+		}
 		if taskRun == nil || !coretask.RunStatusTerminal(taskRun.Status) {
 			active = true
 			continue
 		}
-		schemaUnsatisfied := steps[i].OutputSchema != nil && taskRun.Structured == nil
-		if taskRun.Status == string(coretask.RunStatusSucceeded) && !schemaUnsatisfied {
+		outcome := classifyAttempt(steps[i], taskRun)
+		if outcome.succeeded {
 			if err := s.applyNodeSuccess(ctx, steps[i], taskRun, now); err != nil {
+				return err
+			}
+			continue
+		}
+		if outcome.retryable && max(steps[i].Attempt, 1) < steps[i].MaxAttempts {
+			if err := s.scheduleRetry(ctx, steps[i], outcome, now); err != nil {
 				return err
 			}
 			continue
 		}
 		// Commit stop intent before asking any workers to stop. A restart can
 		// recover the drain independently of this callback or lease holder.
-		if err := s.finalizeFailedFromNode(ctx, run, steps[i], taskRun, schemaUnsatisfied, now); err != nil {
+		if err := s.finalizeFailedFromNode(ctx, run, steps[i], taskRun, outcome, now); err != nil {
 			return err
 		}
 		return s.reconcilePass(ctx, workflowRunID, now, nextReconcileAt)
@@ -662,14 +708,89 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 	if err != nil {
 		return err
 	}
-	dispatched, dispatchActive, err := s.dispatchReadyNodes(ctx, "", run.CreatedBy, run, steps, def.MaxParallelNodes())
+	dispatched, dispatchActive, retryAt, err := s.dispatchReadyNodes(ctx, "", run.CreatedBy, run, steps, def.MaxParallelNodes(), now)
 	if err != nil {
 		return err
 	}
+	var next *time.Time
 	if active || dispatchActive || dispatched > 0 {
-		*nextReconcileAt = util.Ptr(now.Add(reconcileObserveInterval))
+		next = util.Ptr(now.Add(reconcileObserveInterval))
 	}
+	next = earliest(next, retryAt)
+	if next != nil {
+		// A run with work left must also wake for its deadline.
+		next = earliest(next, run.DeadlineAt)
+	}
+	*nextReconcileAt = next
 	return nil
+}
+
+// earliest returns the earlier of two optional times.
+func earliest(a, b *time.Time) *time.Time {
+	if a == nil {
+		return b
+	}
+	if b == nil || a.Before(*b) {
+		return a
+	}
+	return b
+}
+
+// attemptOutcome is how one finished attempt of a node ended.
+type attemptOutcome struct {
+	succeeded bool
+	// retryable is a failure another attempt may fix: the run failed, timed
+	// out, or returned no value satisfying the output schema. A cancellation by
+	// a person or the Workflow is a stop, not a failure, and never retries.
+	retryable bool
+	timedOut  bool
+	message   *string
+}
+
+// classifyAttempt decides how a finished attempt ended from its TaskRun facts.
+func classifyAttempt(node coreworkflow.NodeRun, taskRun *coretask.Run) attemptOutcome {
+	schemaUnsatisfied := node.OutputSchema != nil && taskRun.Structured == nil
+	switch {
+	case taskRun.Status == string(coretask.RunStatusSucceeded) && !schemaUnsatisfied:
+		return attemptOutcome{succeeded: true}
+	case taskRun.Status == string(coretask.RunStatusSucceeded):
+		// The run finished, but its answer did not satisfy the declared output
+		// schema, so the node fails with a reason rather than the run's empty one.
+		return attemptOutcome{retryable: true, message: util.Ptr("node required structured output but the run did not return a value satisfying its output_schema")}
+	case taskRun.Status == string(coretask.RunStatusCanceled) && taskRun.CancelReason == coretask.CancelReasonWorkflowNodeTimeout:
+		return attemptOutcome{retryable: true, timedOut: true, message: util.Ptr(fmt.Sprintf("attempt %d exceeded the node timeout of %ds", max(node.Attempt, 1), node.TimeoutSeconds))}
+	case taskRun.Status == string(coretask.RunStatusCanceled):
+		return attemptOutcome{message: taskRun.ErrorMessage}
+	default:
+		return attemptOutcome{retryable: true, message: taskRun.ErrorMessage}
+	}
+}
+
+// cancelTimedOutAttempt records durable cancel intent for an attempt whose
+// timeout passed and returns the run as it now stands: a run still pending ends
+// here, a dispatched one ends when its worker honors the cancel.
+func (s *Service) cancelTimedOutAttempt(ctx context.Context, taskRun *coretask.Run, now time.Time) (*coretask.Run, error) {
+	if s.TaskService == nil {
+		return nil, ErrTasksNotConfigured
+	}
+	if _, err := s.TaskService.RequestRunCancel(ctx, taskRun.ID, "", coretask.CancelReasonWorkflowNodeTimeout, now); err != nil {
+		return nil, err
+	}
+	return s.TaskRuns.GetTaskRun(ctx, taskRun.ID)
+}
+
+// scheduleRetry moves a node whose attempt failed into retry_wait. The next
+// attempt is admitted by a later pass once NextAttemptAt arrives, so the
+// backoff holds no worker and survives a restart.
+func (s *Service) scheduleRetry(ctx context.Context, node coreworkflow.NodeRun, outcome attemptOutcome, now time.Time) error {
+	_, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+		NodeRunID:      node.ID,
+		ExpectedStatus: coreworkflow.NodeRunStatusRunning,
+		NewStatus:      coreworkflow.NodeRunStatusRetryWait,
+		ErrorMessage:   outcome.message,
+		NextAttemptAt:  util.Ptr(now.Add(coreworkflow.RetryBackoff(max(node.Attempt, 1)))),
+	})
+	return err
 }
 
 // applyNodeSuccess records a finished node's success and its output. A node that
@@ -694,19 +815,14 @@ func (s *Service) applyNodeSuccess(ctx context.Context, node coreworkflow.NodeRu
 
 // finalizeFailedFromNode commits the original outcome before draining siblings.
 // A canceled node chooses canceling; sibling completion cannot hide that cause.
-func (s *Service) finalizeFailedFromNode(ctx context.Context, run *coreworkflow.Run, node coreworkflow.NodeRun, taskRun *coretask.Run, schemaUnsatisfied bool, now time.Time) error {
+func (s *Service) finalizeFailedFromNode(ctx context.Context, run *coreworkflow.Run, node coreworkflow.NodeRun, taskRun *coretask.Run, outcome attemptOutcome, now time.Time) error {
 	nodeStatus := coreworkflow.NodeRunStatusFailed
 	runStatus := coreworkflow.RunStatusFailing
-	if taskRun.Status == string(coretask.RunStatusCanceled) {
+	if taskRun.Status == string(coretask.RunStatusCanceled) && !outcome.timedOut {
 		nodeStatus = coreworkflow.NodeRunStatusCanceled
 		runStatus = coreworkflow.RunStatusCanceling
 	}
-	errorMessage := taskRun.ErrorMessage
-	if schemaUnsatisfied && taskRun.Status == string(coretask.RunStatusSucceeded) {
-		// The run finished, but its answer did not satisfy the declared output
-		// schema, so the node fails with a reason rather than the run's empty one.
-		errorMessage = util.Ptr("node required structured output but the run did not return a value satisfying its output_schema")
-	}
+	errorMessage := outcome.message
 	_, err := s.Workflows.BeginWorkflowRunDrain(ctx, coreworkflow.BeginRunDrainInput{
 		WorkflowRunID: run.ID,
 		NodeRunID:     node.ID,
@@ -752,17 +868,19 @@ func nodeReady(node coreworkflow.NodeRun, statusByID map[string]coreworkflow.Nod
 	return true
 }
 
-// dispatchReadyNodes starts every pending node whose needs have all succeeded,
-// up to limit nodes running at once, and finalizes the run as succeeded when no
-// node remains pending or running. It returns how many nodes it dispatched and
-// whether the run is still active (a node is running or a pending node is only
-// waiting on the concurrency limit), so the caller can schedule the next pass.
+// dispatchReadyNodes starts every pending node whose needs have all succeeded
+// and every retry_wait node whose next attempt is due, up to limit nodes running
+// at once, and finalizes the run as succeeded when no node remains pending,
+// retrying, or running. It returns how many attempts it dispatched, whether the
+// run is still active (a node is running or a ready node is only waiting on the
+// concurrency limit), and the earliest retry not yet due, so the caller can
+// schedule the next pass.
 //
 // Readiness -- not array position -- decides what runs: a pending node starts
 // only when every node it needs has succeeded. steps arrive in topological
 // order, so a deterministic prefix of the ready nodes is chosen when the limit
 // binds.
-func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.NodeRun, limit int) (dispatched int, active bool, err error) {
+func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string, run *coreworkflow.Run, steps []coreworkflow.NodeRun, limit int, now time.Time) (dispatched int, active bool, retryAt *time.Time, err error) {
 	statusByID := make(map[string]coreworkflow.NodeRunStatus, len(steps))
 	running := 0
 	for i := range steps {
@@ -773,6 +891,23 @@ func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string
 	}
 	pendingRemains := false
 	for i := range steps {
+		if steps[i].Status == string(coreworkflow.NodeRunStatusRetryWait) {
+			pendingRemains = true
+			if steps[i].NextAttemptAt != nil && now.Before(*steps[i].NextAttemptAt) {
+				retryAt = earliest(retryAt, steps[i].NextAttemptAt)
+				continue
+			}
+			if running >= limit {
+				active = true
+				break
+			}
+			if err := s.dispatchRetry(ctx, userID, run, steps[i]); err != nil {
+				return dispatched, false, nil, err
+			}
+			dispatched++
+			running++
+			continue
+		}
 		if steps[i].Status != string(coreworkflow.NodeRunStatusPending) {
 			continue
 		}
@@ -789,10 +924,10 @@ func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string
 		if spaceID == "" {
 			workflow, err := s.Workflows.GetWorkflow(ctx, run.WorkflowID)
 			if err != nil {
-				return dispatched, active, err
+				return dispatched, active, nil, err
 			}
 			if workflow == nil {
-				return dispatched, active, ErrWorkflowNotFound
+				return dispatched, active, nil, ErrWorkflowNotFound
 			}
 			spaceID = workflow.SpaceID
 		}
@@ -813,9 +948,9 @@ func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string
 				EndedAt:       &startedAt,
 			})
 			if drainErr != nil {
-				return dispatched, false, drainErr
+				return dispatched, false, nil, drainErr
 			}
-			return dispatched, false, err
+			return dispatched, false, nil, err
 		}
 		if _, err := s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
 			NodeRunID:      steps[i].ID,
@@ -825,8 +960,10 @@ func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string
 			TaskRunID:      &taskRunID,
 			ResolvedInput:  &resolvedInput,
 			StartedAt:      &startedAt,
+			Attempt:        util.Ptr(1),
+			DeadlineAt:     coreworkflow.Deadline(startedAt, steps[i].TimeoutSeconds),
 		}); err != nil {
-			return dispatched, active, err
+			return dispatched, active, nil, err
 		}
 		dispatched++
 		running++
@@ -835,10 +972,10 @@ func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string
 		active = true
 	}
 	if pendingRemains || running > 0 {
-		// Work remains: either nodes are running or pending nodes are waiting on
-		// their predecessors or the limit. The run is not done, so it must not
-		// succeed here.
-		return dispatched, active, nil
+		// Work remains: nodes are running, or pending or retrying nodes are
+		// waiting on their predecessors, their backoff, or the limit. The run is
+		// not done, so it must not succeed here.
+		return dispatched, active, retryAt, nil
 	}
 	endedAt := time.Now().UTC()
 	// Every node is terminal and none is pending: the run succeeds. Resolve its
@@ -846,7 +983,7 @@ func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string
 	// authoritative answer, stored in the same transaction that ends it.
 	result, err := s.resolveRunResult(ctx, run, steps)
 	if err != nil {
-		return dispatched, active, err
+		return dispatched, active, nil, err
 	}
 	if _, err := s.Workflows.TransitionWorkflowRun(ctx, coreworkflow.TransitionRunInput{
 		WorkflowRunID:  run.ID,
@@ -855,9 +992,62 @@ func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string
 		EndedAt:        &endedAt,
 		Result:         result,
 	}); err != nil {
-		return dispatched, active, err
+		return dispatched, active, nil, err
 	}
-	return dispatched, false, nil
+	return dispatched, false, nil, nil
+}
+
+// dispatchRetry admits a retry_wait node's next attempt on its existing Task
+// and links it. The attempt repeats the previous one's input and pins; the
+// Task store links it atomically with the run's stop intent, and the guarded
+// transition here is the same link for a store that does not. An admission
+// failure fails the node and starts the drain, as a first-attempt one does.
+func (s *Service) dispatchRetry(ctx context.Context, userID string, run *coreworkflow.Run, node coreworkflow.NodeRun) error {
+	previous, err := s.stepTaskRun(ctx, &node)
+	if err != nil {
+		return err
+	}
+	attempt := max(node.Attempt, 1) + 1
+	var taskRun *coretask.Run
+	if previous == nil {
+		err = fmt.Errorf("workflow node %s has no previous attempt to retry", node.NodeID)
+	} else {
+		taskRun, err = s.TaskService.AdmitWorkflowRetryRun(ctx, task.WorkflowRetryCmd{
+			UserID:            userID,
+			WorkflowRunID:     run.ID,
+			WorkflowNodeRunID: node.ID,
+			NodeID:            node.NodeID,
+			Attempt:           attempt,
+			Previous:          previous,
+		})
+	}
+	now := time.Now().UTC()
+	if err != nil {
+		_, drainErr := s.Workflows.BeginWorkflowRunDrain(ctx, coreworkflow.BeginRunDrainInput{
+			WorkflowRunID: run.ID,
+			NodeRunID:     node.ID,
+			NodeExpected:  coreworkflow.NodeRunStatusRetryWait,
+			NodeStatus:    coreworkflow.NodeRunStatusFailed,
+			RunExpected:   coreworkflow.RunStatusRunning,
+			RunStatus:     coreworkflow.RunStatusFailing,
+			ErrorMessage:  util.Ptr(fmt.Sprintf("attempt %d could not be admitted: %v", attempt, err)),
+			EndedAt:       &now,
+		})
+		if drainErr != nil {
+			return drainErr
+		}
+		return err
+	}
+	_, err = s.Workflows.TransitionWorkflowNodeRun(ctx, coreworkflow.TransitionNodeRunInput{
+		NodeRunID:      node.ID,
+		ExpectedStatus: coreworkflow.NodeRunStatusRetryWait,
+		NewStatus:      coreworkflow.NodeRunStatusRunning,
+		TaskRunID:      &taskRun.ID,
+		Attempt:        &attempt,
+		DeadlineAt:     coreworkflow.Deadline(now, node.TimeoutSeconds),
+		ErrorMessage:   util.Ptr(""),
+	})
+	return err
 }
 
 // stepAgent returns the agent definition a step must run with. Steps recorded since
@@ -1069,6 +1259,9 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 			return nil, ErrInvalidPolicy
 		}
 	}
+	if def.Policy != nil && !validTimeout(def.Policy.TimeoutSeconds) {
+		return nil, ErrInvalidPolicy
+	}
 	if len(def.Nodes) == 0 {
 		return nil, ErrInvalidDefinition
 	}
@@ -1141,6 +1334,11 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 		if len(bytes.TrimSpace(node.OutputSchema)) > 0 {
 			if _, err := jsonschema.Compile(node.OutputSchema); err != nil {
 				return nil, apierr.Detail(ErrInvalidOutputSchema, "%v", err)
+			}
+		}
+		if node.Policy != nil {
+			if node.Policy.MaxAttempts < 0 || node.Policy.MaxAttempts > coreworkflow.MaxNodeAttemptsCeiling || !validTimeout(node.Policy.TimeoutSeconds) {
+				return nil, apierr.Detail(ErrInvalidNodePolicy, "node %q", node.ID)
 			}
 		}
 	}
@@ -1256,6 +1454,12 @@ func (s *Service) resolveNodeAgentSnapshot(ctx context.Context, node coreworkflo
 	}
 	a := agents[node.Agent.ID]
 	return nodeAgentSnapshot{name: a.Name, description: a.Description, instructions: a.Instructions, revision: a.Revision}, nil
+}
+
+// validTimeout reports whether a declared timeout_seconds is absent (0) or
+// within the supported bounds.
+func validTimeout(seconds int) bool {
+	return seconds == 0 || (seconds >= coreworkflow.MinTimeoutSeconds && seconds <= coreworkflow.MaxTimeoutSeconds)
 }
 
 func isValidWorkflowStatus(status string) bool {

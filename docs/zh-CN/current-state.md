@@ -399,7 +399,10 @@ Run/节点记录。节点在 `agent` 下命名其 Agent，在 `input` 下给出�
 某一 revision（未指定的固定到当前 revision），之后的运行会快照该 revision 的内容，因此编辑
 Agent 不会改变已发布计划的运行内容。一次运行会一次性分发所有就绪节点，
 受 `policy.max_parallel_nodes`（1 到部署上限，未声明时用上限）约束；失败为 fail-fast：
-阻塞待执行节点、请求并行运行的兄弟节点取消，并在已接纳 TaskRun 进入终态后结束运行。节点可以通过 `output_schema` 约束结果，
+阻塞待执行节点、请求并行运行的兄弟节点取消，并在已接纳 TaskRun 进入终态后结束运行。节点可以选择最多五次尝试
+（`policy.max_attempts`）与按次尝试计算的超时（`policy.timeout_seconds`），定义可以选择作用于整个运行的超时：
+失败、超时或丢失 worker 的尝试会在 `retry_wait` 中等待一段持久化退避后在同一个 Task 上再次运行，超过截止时间的运行
+不再启动新工作，并在活跃尝试停止后失败。可视化编辑器可以编辑这两项，运行视图会显示每个节点的尝试次数与下次重试时间。节点可以通过 `output_schema` 约束结果，
 指针绑定可以把运行输入或前驱节点输出中选取的值传入某个节点的输入。定义契约仍没有类型化
 条件路由、人工审批或循环（[Workflow 契约](../../internal/core/workflow/workflow.go)）。
 

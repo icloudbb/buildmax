@@ -95,6 +95,9 @@ const (
 	CancelReasonUserRequested = "user_requested"
 	// CancelReasonWorkflowStopped is a sibling failure or cancellation stopping the graph.
 	CancelReasonWorkflowStopped = "workflow_stopped"
+	// CancelReasonWorkflowNodeTimeout is a Workflow node's per-attempt timeout
+	// passing. The Workflow counts such a run as a failed attempt, not a stop.
+	CancelReasonWorkflowNodeTimeout = "workflow_node_timeout"
 	// CancelReasonCreatorDisabled is the run's initiating account being disabled.
 	CancelReasonCreatorDisabled = "creator_disabled"
 	// CancelReasonCreatorNotMember is the initiator being removed from the Space.
@@ -536,6 +539,12 @@ type CreateRunInput struct {
 	// case) creates a new run unconditionally, the same as before this field
 	// existed.
 	IdempotencyKey *string
+	// WorkflowNodeRunID and WorkflowAttempt make a Workflow node's retry
+	// admission atomic with its node link and the run's stop intent: the run is
+	// created only while the run is running and the node is in retry_wait after
+	// attempt WorkflowAttempt-1. Empty for every other run.
+	WorkflowNodeRunID string
+	WorkflowAttempt   int
 }
 
 // RunStore provides task run persistence.

@@ -8,6 +8,7 @@ import {
   parseDefinition,
   renameStepId,
   stepsToDefinition,
+  validateDefinitionPolicy,
   validateSteps,
   type StepError,
   type WorkflowStepBinding,
@@ -27,6 +28,9 @@ export interface WorkflowStepsState {
   /** The definition's `policy.max_parallel_nodes`, editable beside the canvas. */
   maxParallelNodes: number | null
   setMaxParallelNodes: (value: number | null) => void
+  /** The definition's `policy.timeout_seconds`, the whole run's deadline. */
+  runTimeoutSeconds: number | null
+  setRunTimeoutSeconds: (value: number | null) => void
   /** Appends a root step (no needs) and returns its id so the caller can select
    *  and position it. */
   addStep: () => string
@@ -38,7 +42,7 @@ export interface WorkflowStepsState {
   renameStep: (oldId: string, newId: string) => void
   changeStep: (
     id: string,
-    patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess">>,
+    patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess" | "maxAttempts" | "timeoutSeconds">>,
   ) => void
   /** Add or remove a `needs` edge — the graph's dependency between two steps. */
   connectNeed: (targetId: string, sourceId: string) => void
@@ -64,6 +68,7 @@ export interface WorkflowStepsState {
 export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   const [steps, setSteps] = useState<WorkflowStepDraft[]>([])
   const [maxParallelNodes, setMaxParallelNodesRaw] = useState<number | null>(null)
+  const [runTimeoutSeconds, setRunTimeoutSecondsRaw] = useState<number | null>(null)
   const [inputSchema, setInputSchema] = useState<string | undefined>(undefined)
   const [result, setResult] = useState<string | undefined>(undefined)
   const [advanced, setAdvanced] = useState(false)
@@ -74,6 +79,7 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     const parsed = parseDefinition(definition)
     setSteps(parsed ? normalizeNeeds(parsed.steps) : [])
     setMaxParallelNodesRaw(parsed?.maxParallelNodes ?? null)
+    setRunTimeoutSecondsRaw(parsed?.runTimeoutSeconds ?? null)
     setInputSchema(parsed?.inputSchema)
     setResult(parsed?.result)
     setDefinitionTextRaw(definition)
@@ -98,7 +104,7 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   }, [])
 
   const changeStep = useCallback(
-    (id: string, patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess">>) => {
+    (id: string, patch: Partial<Pick<WorkflowStepDraft, "targetAgentId" | "prompt" | "issueAccess" | "maxAttempts" | "timeoutSeconds">>) => {
       setSteps((prev) => prev.map((step) => (step.id === id ? { ...step, ...patch } : step)))
     },
     [],
@@ -189,12 +195,17 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     setMaxParallelNodesRaw(value)
   }, [])
 
+  const setRunTimeoutSeconds = useCallback((value: number | null) => {
+    setRunTimeoutSecondsRaw(value)
+  }, [])
+
   const setDefinitionText = useCallback((text: string) => {
     setDefinitionTextRaw(text)
     const parsed = parseDefinition(text)
     if (parsed) {
       setSteps(normalizeNeeds(parsed.steps))
       setMaxParallelNodesRaw(parsed.maxParallelNodes)
+      setRunTimeoutSecondsRaw(parsed.runTimeoutSeconds)
       setInputSchema(parsed.inputSchema)
       setResult(parsed.result)
       setDefinitionParseError(null)
@@ -214,21 +225,25 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
       }
       setSteps(normalizeNeeds(parsed.steps))
       setMaxParallelNodesRaw(parsed.maxParallelNodes)
+      setRunTimeoutSecondsRaw(parsed.runTimeoutSeconds)
       setInputSchema(parsed.inputSchema)
       setResult(parsed.result)
       setDefinitionParseError(null)
       setAdvanced(false)
       return
     }
-    setDefinitionTextRaw(stepsToDefinition(steps, maxParallelNodes, inputSchema, result))
+    setDefinitionTextRaw(stepsToDefinition(steps, { maxParallelNodes, runTimeoutSeconds, inputSchema, result }))
     setDefinitionParseError(null)
     setAdvanced(true)
-  }, [advanced, definitionText, steps, maxParallelNodes, inputSchema, result])
+  }, [advanced, definitionText, steps, maxParallelNodes, runTimeoutSeconds, inputSchema, result])
 
-  const errors = useMemo(() => validateSteps(steps, agents), [steps, agents])
+  const errors = useMemo(
+    () => [...validateDefinitionPolicy({ runTimeoutSeconds }), ...validateSteps(steps, agents)],
+    [steps, agents, runTimeoutSeconds],
+  )
   const definition = useMemo(
-    () => stepsToDefinition(steps, maxParallelNodes, inputSchema, result),
-    [steps, maxParallelNodes, inputSchema, result],
+    () => stepsToDefinition(steps, { maxParallelNodes, runTimeoutSeconds, inputSchema, result }),
+    [steps, maxParallelNodes, runTimeoutSeconds, inputSchema, result],
   )
 
   return {
@@ -240,6 +255,8 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     definitionParseError,
     maxParallelNodes,
     setMaxParallelNodes,
+    runTimeoutSeconds,
+    setRunTimeoutSeconds,
     addStep,
     removeStep,
     renameStep,
