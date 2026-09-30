@@ -174,6 +174,17 @@ the message is refused with `conversation.error` carrying `code: "queue_full"`
 (HTTP: `429`), which does not end the turn in flight. Queues are in memory. See
 [Queued messages](../../design/queued-messages.md).
 
+Every turn, from any of those paths, answers through `conversation.Service`,
+which binds the conversation model to the turn before its first call
+(`llmgateway.ServerModel.ForConversation`). The bound client runs each call —
+the reply loop and a new conversation's title — through the managed gateway
+service in process, so each is an `llm_call` row with surface `conversation`,
+the turn's user, and its `conversation_id`, and the conversation's Space pays
+for it in usage and token quota. A Space already over its token limit gets a
+`429` (a fixed reply in a chat app) instead of an answer. The server does not
+wire Tier 1 at all without a database to record those rows. See
+[LLM gateway](../../design/llm-gateway.md) section 10.
+
 ## Where A Run Came From
 
 `GET /api/spaces/{space_id}/task-runs/{task_run_id}` answers one run's

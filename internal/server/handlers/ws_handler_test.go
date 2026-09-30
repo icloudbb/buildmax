@@ -128,7 +128,7 @@ func TestWSConversationCreateFlow(t *testing.T) {
 		t.Error("conversation_id is empty")
 	}
 
-	// Since LLMClient is nil, we should get an error then completed
+	// Since no conversation model is configured, we should get an error then completed
 	seen := map[string]bool{}
 	for i := 0; i < 3; i++ {
 		env = readEnvelope(t, conn)
@@ -215,6 +215,13 @@ func (c *gatedLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Re
 
 func (c *gatedLLMClient) ContextWindow() int { return 0 }
 
+// staticModel hands every turn the same client.
+type staticModel struct{ client llm.LLMClient }
+
+func (m staticModel) ForConversation(context.Context, string, string, string) (llm.LLMClient, error) {
+	return m.client, nil
+}
+
 // A message sent while a turn is running is queued and then runs as its own turn.
 // It used to come back as conversation.error and be dropped.
 func TestWSConversationMessageQueuesWhileBusy(t *testing.T) {
@@ -226,7 +233,7 @@ func TestWSConversationMessageQueuesWhileBusy(t *testing.T) {
 		SpaceStore:               &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}}},
 		ConversationStore:        &mock.MockConversationStore{},
 		ConversationMessageStore: &mock.MockConversationMessageStore{},
-		ConversationLLMClient:    client,
+		ConversationModel:        staticModel{client: client},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

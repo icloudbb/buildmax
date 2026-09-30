@@ -82,10 +82,10 @@ func (s *Service) now() time.Time {
 // Identity fields are derived from authentication by the caller of this
 // service; nothing here may be taken from a client request body.
 type CompleteRequest struct {
-	// SpaceID is what the call is metered against, and is set only on a worker
-	// call, where the run names the space it was scheduled for. A foreground call
-	// belongs to no space and is not counted against one — see
-	// docs/design/client-modes.md section 9.
+	// SpaceID is what the call is metered against. A worker call takes it from
+	// the run, which names the space it was scheduled for; a conversation turn
+	// takes it from the conversation. A foreground call belongs to no space and
+	// is not counted against one — see docs/design/client-modes.md section 9.
 	SpaceID string
 	// UserID is who the call is for, and what the ledger attributes it to. A
 	// user-authenticated call takes it from the login; a worker call takes it
@@ -95,6 +95,9 @@ type CompleteRequest struct {
 	// TaskRunID and TaskID are set on worker calls, from the run token.
 	TaskRunID *string
 	TaskID    *string
+	// ConversationID is set on a conversation turn the server answers itself.
+	// It is how the ledger reaches the turn's space.
+	ConversationID *string
 
 	// ClientCallID is the caller's idempotency key. Optional.
 	ClientCallID *string
@@ -103,7 +106,11 @@ type CompleteRequest struct {
 	SessionID *string
 
 	// Model is the catalog model name. Empty selects the deployment default.
-	Model    string
+	Model string
+	// TargetID names the catalog target directly and takes precedence over
+	// Model. Only server-owned inference sets it: the deployment chose that
+	// target, and no request from outside the process may.
+	TargetID string
 	Messages []cllm.Message
 	Tools    []cllm.ToolDef
 	// CallProfile is what the caller says the call is for. It is operational
@@ -183,10 +190,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		return CompleteResult{}, err
 	}
 
-	routed, err := s.Router.ClientFor(ctx, ResolveRequest{
-		Name:     req.Model,
-		Requires: requiredCapabilities(req, streaming),
-	})
+	routed, err := s.route(ctx, req, streaming)
 	if err != nil {
 		return CompleteResult{}, err
 	}
@@ -211,19 +215,20 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 
 	acceptedAt := s.now().UTC()
 	ledgerEntry := &coregw.Call{
-		ClientCallID:  req.ClientCallID,
-		UserID:        req.UserID,
-		TaskRunID:     req.TaskRunID,
-		TaskID:        req.TaskID,
-		Surface:       req.Surface,
-		SessionID:     req.SessionID,
-		Model:         routed.Resolution.Name,
-		TargetID:      routed.Resolution.Target.ID,
-		ProviderType:  routed.Resolution.Target.ProviderType,
-		UpstreamModel: routed.Resolution.Target.UpstreamModel,
-		Streaming:     streaming,
-		AcceptedAt:    acceptedAt,
-		Status:        coregw.CallStatusAccepted,
+		ClientCallID:   req.ClientCallID,
+		UserID:         req.UserID,
+		TaskRunID:      req.TaskRunID,
+		TaskID:         req.TaskID,
+		ConversationID: req.ConversationID,
+		Surface:        req.Surface,
+		SessionID:      req.SessionID,
+		Model:          routed.Resolution.Name,
+		TargetID:       routed.Resolution.Target.ID,
+		ProviderType:   routed.Resolution.Target.ProviderType,
+		UpstreamModel:  routed.Resolution.Target.UpstreamModel,
+		Streaming:      streaming,
+		AcceptedAt:     acceptedAt,
+		Status:         coregw.CallStatusAccepted,
 	}
 	// The rates are copied onto the row at acceptance, not looked up when
 	// someone reads it back. A catalog price changes; what a space spent last
@@ -332,6 +337,22 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	}, nil
 }
 
+// route resolves the target a call runs on. A deployment-selected target is
+// addressed by ID and recorded under its catalog name, since no caller named
+// one.
+func (s *Service) route(ctx context.Context, req CompleteRequest, streaming bool) (RoutedClient, error) {
+	requires := requiredCapabilities(req, streaming)
+	if req.TargetID == "" {
+		return s.Router.ClientFor(ctx, ResolveRequest{Name: req.Model, Requires: requires})
+	}
+	routed, err := s.Router.ClientForTarget(ctx, req.TargetID, requires)
+	if err != nil {
+		return RoutedClient{}, err
+	}
+	routed.Resolution.Name = routed.Resolution.Target.Name
+	return routed, nil
+}
+
 // upstreamCallOrigin preserves only runtime-owned surfaces. CompleteRequest is
 // assembled by handlers, but its metadata may have crossed the network and
 // must not become an arbitrary HTTP header value at an upstream provider.
@@ -339,8 +360,10 @@ func upstreamCallOrigin(surface string) cllm.CallOrigin {
 	switch surface {
 	case coregw.CallSurfaceCLI, coregw.CallSurfaceDesktop, coregw.CallSurfaceWorker:
 		return cllm.CallOrigin{Surface: surface, ViaGateway: true}
-	case coregw.CallSurfaceServer:
-		return cllm.CallOrigin{Surface: surface}
+	case coregw.CallSurfaceServer, coregw.CallSurfaceConversation:
+		// A conversation turn is the server's own inference: the provider sees
+		// the server as the caller, not a client forwarded through a gateway.
+		return cllm.CallOrigin{Surface: coregw.CallSurfaceServer}
 	default:
 		return cllm.CallOrigin{Surface: coregw.CallSurfaceServer}
 	}

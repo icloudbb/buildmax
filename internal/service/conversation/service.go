@@ -21,15 +21,27 @@ var (
 	ErrLLMRequired   = apierr.New(apierr.KindNotConfigured, "conversation LLM not configured")
 )
 
+// Model supplies the conversation model, bound to one turn.
+//
+// A turn gets a client of its own rather than sharing one because every call it
+// makes is paid for by someone: binding the person, the conversation, and its
+// Space before the first call is what lets each call be recorded in the managed
+// call ledger and counted against the Space's quota. See
+// docs/design/llm-gateway.md section 10.
+type Model interface {
+	ForConversation(ctx context.Context, userID, spaceID, conversationID string) (llm.LLMClient, error)
+}
+
 // Service is the single Tier 1 orchestration entry point for portal turns.
 type Service struct {
 	TaskService       *task.Service
 	WorkflowService   *workflow.Service
 	ConversationStore coreconv.Store
 	MessageStore      coreconv.MessageStore
-	LLMClient         llm.LLMClient
-	TitleGenerator    llm.TitleGenerator
-	AgentStore        agentdef.Store
+	// Model answers the turn and titles a new conversation. Nil leaves
+	// conversations unable to answer.
+	Model      Model
+	AgentStore agentdef.Store
 	// Spaces names the conversation's Space in the prompt and backs ListSpaces.
 	// Nil leaves both out.
 	Spaces corespace.Store
@@ -92,11 +104,22 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 	if s.ConversationStore == nil || s.MessageStore == nil {
 		return ConversationResult{}, fmt.Errorf("conversation stores not configured")
 	}
-	if s.LLMClient == nil {
+	if s.Model == nil {
 		return ConversationResult{}, ErrLLMRequired
 	}
 
-	spaceID := s.fetchSpaceID(ctx, cmd.ConversationID)
+	conv, err := s.ConversationStore.GetConversation(ctx, cmd.ConversationID)
+	if err != nil {
+		return ConversationResult{}, fmt.Errorf("read conversation %s: %w", cmd.ConversationID, err)
+	}
+	if conv == nil {
+		return ConversationResult{}, ErrInvalidTarget
+	}
+	spaceID := conv.SpaceID
+	client, err := s.Model.ForConversation(ctx, cmd.UserID, spaceID, cmd.ConversationID)
+	if err != nil {
+		return ConversationResult{}, err
+	}
 
 	runInput := turnRunInput{
 		ConversationID:  cmd.ConversationID,
@@ -109,25 +132,14 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		TaskService:     s.TaskService,
 		WorkflowService: s.WorkflowService,
 		AgentSummaries:  s.fetchAgentSummaries(ctx, spaceID),
-		TitleGenerator:  s.TitleGenerator,
-		StreamSink:      cmd.StreamSink,
-		Fence:           cmd.Fence,
+		// The title is one more call of this turn's, so it is made through the
+		// turn's client and recorded with the rest.
+		TitleGenerator: llm.NewTitleGenerator(client),
+		StreamSink:     cmd.StreamSink,
+		Fence:          cmd.Fence,
 	}
-	reply, err := runConversationTurn(ctx, s.ConversationStore, s.MessageStore, s.LLMClient, runInput)
+	reply, err := runConversationTurn(ctx, s.ConversationStore, s.MessageStore, client, runInput)
 	return ConversationResult{Reply: reply}, err
-}
-
-// fetchSpaceID looks up the conversation's space once so StartTask and agent listing share it.
-// Returns "" when no TaskService is configured (task tools disabled).
-func (s *Service) fetchSpaceID(ctx context.Context, conversationID string) string {
-	if s.TaskService == nil || s.ConversationStore == nil {
-		return ""
-	}
-	conv, err := s.ConversationStore.GetConversation(ctx, conversationID)
-	if err != nil || conv == nil {
-		return ""
-	}
-	return conv.SpaceID
 }
 
 // fetchSpaceName returns "" when the Space cannot be read; the turn then runs

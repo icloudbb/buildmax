@@ -3184,7 +3184,7 @@
           {"name": "user_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Calls attributed to one account"},
           {"name": "model", "in": "query", "required": false, "schema": {"type": "string"}, "description": "The model the caller asked for, matched exactly"},
           {"name": "status", "in": "query", "required": false, "schema": {"type": "string"}, "description": "ACCEPTED, SUCCEEDED, FAILED, or CANCELED"},
-          {"name": "surface", "in": "query", "required": false, "schema": {"type": "string"}, "description": "server, cli, desktop, or worker"},
+          {"name": "surface", "in": "query", "required": false, "schema": {"type": "string"}, "description": "cli, desktop, worker, or conversation"},
           {"name": "since", "in": "query", "required": false, "schema": {"type": "string", "format": "date-time"}, "description": "Lower bound on accepted_at (RFC 3339)"},
           {"name": "until", "in": "query", "required": false, "schema": {"type": "string", "format": "date-time"}, "description": "Upper bound on accepted_at (RFC 3339)"}
         ],

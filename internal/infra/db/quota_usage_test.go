@@ -1,9 +1,11 @@
 package db
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/util"
 )
@@ -198,6 +200,91 @@ func TestSpaceUsageInWindowCountsNullRunTokensAsZero(t *testing.T) {
 	}
 	if tokens != 0 {
 		t.Errorf("tokens = %d, want 0 (NULL token columns fold to zero)", tokens)
+	}
+}
+
+// seedLedgerCall records one completed managed call with the given usage and
+// attribution and removes it when the test ends.
+func seedLedgerCall(t *testing.T, s *Store, userID string, conversationID, taskRunID *string, acceptedAt time.Time, prompt, completion int) {
+	t.Helper()
+	ctx := context.Background()
+	call := sampleLLMCall()
+	call.Surface = coregw.CallSurfaceConversation
+	call.UserID = &userID
+	call.ConversationID = conversationID
+	call.TaskRunID = taskRunID
+	call.AcceptedAt = acceptedAt
+	opened, err := s.OpenLLMCall(ctx, call)
+	if err != nil {
+		t.Fatalf("OpenLLMCall: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = s.db.WithContext(context.Background()).Delete(&llmCallRow{}, "public_id = ?", canonicalPublicID(opened.ID)).Error
+	})
+	if err := s.CompleteLLMCall(ctx, opened.ID, coregw.CallOutcome{
+		Status: coregw.CallStatusSucceeded, Attempts: 1, CompletedAt: acceptedAt,
+		Usage: &coregw.CallUsage{PromptTokens: prompt, CompletionTokens: completion, TotalTokens: prompt + completion, Source: coregw.UsageSourceReported},
+	}); err != nil {
+		t.Fatalf("CompleteLLMCall: %v", err)
+	}
+}
+
+// A conversation turn is the space's work and no run records it, so the ledger
+// is the only place its tokens are, and quota has to read them there. A call a
+// run made is the run's, already counted through the run's totals; reading it
+// from the ledger as well would bill it twice.
+func TestSpaceUsageInWindowCountsConversationCalls(t *testing.T) {
+	s, ctx := newTestStore(t)
+	userID := newTestUser(t, s, "quota-chat")
+	spaceA := newTestSpace(t, s, userID)
+	spaceB := newTestSpace(t, s, userID)
+
+	since := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
+	until := since.Add(time.Hour)
+	mid := since.Add(30 * time.Minute)
+
+	convA, err := s.CreateConversationInSpace(ctx, spaceA, userID, "portal", userID)
+	if err != nil {
+		t.Fatalf("CreateConversationInSpace: %v", err)
+	}
+	convB, err := s.CreateConversationInSpace(ctx, spaceB, userID, "telegram", userID)
+	if err != nil {
+		t.Fatalf("CreateConversationInSpace: %v", err)
+	}
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{SpaceID: spaceA, ConversationID: convA.ID, Input: "input", CreatedBy: userID})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = s.db.Delete(&taskRunRow{}, "public_id = ?", canonicalPublicID(*task.LastRunID)).Error
+		_ = s.db.Delete(&taskRow{}, "public_id = ?", canonicalPublicID(task.ID)).Error
+		_ = s.db.Delete(&conversationRow{}, "public_id IN ?", []string{canonicalPublicID(convA.ID), canonicalPublicID(convB.ID)}).Error
+	})
+	if err := s.db.Model(&taskRow{}).Where("public_id = ?", canonicalPublicID(task.ID)).
+		Update("created_at", since.Add(-365*24*time.Hour)).Error; err != nil {
+		t.Fatalf("push task out of window: %v", err)
+	}
+	if err := s.db.Model(&taskRunRow{}).Where("public_id = ?", canonicalPublicID(*task.LastRunID)).
+		Updates(map[string]any{"created_at": mid, "prompt_tokens": 10, "completion_tokens": 5}).Error; err != nil {
+		t.Fatalf("place run: %v", err)
+	}
+
+	seedLedgerCall(t, s, userID, &convA.ID, nil, since, 40, 8)                      // counted: on the boundary
+	seedLedgerCall(t, s, userID, &convA.ID, nil, until, 2, 0)                       // counted: on the boundary
+	seedLedgerCall(t, s, userID, &convA.ID, nil, since.Add(-time.Second), 999, 999) // outside the window
+	seedLedgerCall(t, s, userID, &convB.ID, nil, mid, 999, 999)                     // another space's conversation
+	seedLedgerCall(t, s, userID, &convA.ID, task.LastRunID, mid, 999, 999)          // a run's call: counted by the run
+	seedLedgerCall(t, s, userID, nil, nil, mid, 999, 999)                           // a foreground session: no space
+
+	runCount, tokens, err := s.SpaceUsageInWindow(ctx, spaceA, since, until)
+	if err != nil {
+		t.Fatalf("SpaceUsageInWindow: %v", err)
+	}
+	if runCount != 1 {
+		t.Errorf("runCount = %d, want 1: a conversation call is not a run", runCount)
+	}
+	if want := 15 + 48 + 2; tokens != want {
+		t.Errorf("tokens = %d, want %d (the run's 15 plus the conversation's 50)", tokens, want)
 	}
 }
 

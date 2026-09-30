@@ -66,6 +66,39 @@ func TestSummarizeForegroundLLMCalls(t *testing.T) {
 	seed(user, nil, now.Add(-40*24*time.Hour), true, 7_000, 700) // outside the window
 	seed(other, nil, now, true, 8_000, 800)                      // someone else's
 
+	// A conversation turn's call is the space's, counted in its usage, so it is
+	// not also the user's own session spend. It reads back naming the
+	// conversation, which is how the space is reached.
+	conv, err := s.CreateConversationInSpace(ctx, spaceID, user, "portal", user)
+	if err != nil {
+		t.Fatalf("CreateConversationInSpace: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
+	})
+	chat := sampleLLMCall()
+	chat.UserID = ptrString(user)
+	chat.ConversationID = &conv.ID
+	chat.Surface = coregw.CallSurfaceConversation
+	chat.Model = model
+	chat.AcceptedAt = now
+	opened, err := s.OpenLLMCall(ctx, chat)
+	if err != nil {
+		t.Fatalf("OpenLLMCall: %v", err)
+	}
+	if opened.ConversationID == nil || *opened.ConversationID != conv.ID {
+		t.Errorf("opened conversation = %v, want %s", opened.ConversationID, conv.ID)
+	}
+	if got, err := s.GetLLMCall(ctx, opened.ID); err != nil || got == nil || got.ConversationID == nil || *got.ConversationID != conv.ID {
+		t.Errorf("read back = %+v, %v; want it to name conversation %s", got, err, conv.ID)
+	}
+	if err := s.CompleteLLMCall(ctx, opened.ID, coregw.CallOutcome{
+		Status: coregw.CallStatusSucceeded, Attempts: 1, CompletedAt: now,
+		Usage: &coregw.CallUsage{PromptTokens: 6_000, CompletionTokens: 600, TotalTokens: 6_600, Source: coregw.UsageSourceReported},
+	}); err != nil {
+		t.Fatalf("CompleteLLMCall: %v", err)
+	}
+
 	groups, err := s.SummarizeForegroundLLMCalls(ctx, user, now.Add(-30*24*time.Hour))
 	if err != nil {
 		t.Fatalf("SummarizeForegroundLLMCalls: %v", err)

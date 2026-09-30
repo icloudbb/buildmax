@@ -30,8 +30,11 @@ type AdminLLMCall struct {
 	UserID    *string `json:"user_id,omitempty"`
 	TaskID    *string `json:"task_id,omitempty"`
 	TaskRunID *string `json:"task_run_id,omitempty"`
-	Surface   string  `json:"surface,omitempty"`
-	SessionID *string `json:"session_id,omitempty"`
+	// ConversationID names the Tier 1 conversation a turn's call answered; the
+	// call's space is that conversation's.
+	ConversationID *string `json:"conversation_id,omitempty"`
+	Surface        string  `json:"surface,omitempty"`
+	SessionID      *string `json:"session_id,omitempty"`
 
 	// Model is what the caller asked for; the three that follow are how the
 	// deployment served it.
@@ -109,6 +112,7 @@ func toAdminLLMCall(call coregw.Call) AdminLLMCall {
 		UserID:           call.UserID,
 		TaskID:           call.TaskID,
 		TaskRunID:        call.TaskRunID,
+		ConversationID:   call.ConversationID,
 		Surface:          call.Surface,
 		SessionID:        call.SessionID,
 		Model:            call.Model,

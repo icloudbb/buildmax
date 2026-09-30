@@ -3,12 +3,15 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/icloudbb/buildmax/internal/config"
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
@@ -427,33 +430,158 @@ func TestLLMRoutingErrorsCarryNoCredential(t *testing.T) {
 	}
 }
 
+// fakeLLMStore is the catalog plus an in-memory call ledger.
+type fakeLLMStore struct {
+	*fakeModels
+	mu       sync.Mutex
+	opened   []coregw.Call
+	outcomes map[string]coregw.CallOutcome
+}
+
+func newFakeLLMStore(rows ...coregw.Model) *fakeLLMStore {
+	return &fakeLLMStore{fakeModels: newFakeModels(rows...), outcomes: map[string]coregw.CallOutcome{}}
+}
+
+func (s *fakeLLMStore) OpenLLMCall(_ context.Context, call *coregw.Call) (*coregw.Call, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stored := *call
+	stored.ID = fmt.Sprintf("lc_%d", len(s.opened)+1)
+	s.opened = append(s.opened, stored)
+	return &stored, nil
+}
+
+func (s *fakeLLMStore) CompleteLLMCall(_ context.Context, id string, outcome coregw.CallOutcome) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.outcomes[id] = outcome
+	return nil
+}
+
+func (s *fakeLLMStore) GetLLMCall(context.Context, string) (*coregw.Call, error) { return nil, nil }
+
+func (s *fakeLLMStore) GetLLMCallByClientID(context.Context, string, string) (*coregw.Call, error) {
+	return nil, nil
+}
+
+func (s *fakeLLMStore) ListLLMCallsByTaskRun(context.Context, string) ([]coregw.Call, error) {
+	return nil, nil
+}
+
+func (s *fakeLLMStore) SearchLLMCalls(context.Context, coregw.CallFilter, int, int) ([]coregw.Call, int, error) {
+	return nil, 0, nil
+}
+
+func (s *fakeLLMStore) SummarizeForegroundLLMCalls(context.Context, string, time.Time) ([]coregw.CallTotals, error) {
+	return nil, nil
+}
+
 // TestWireLLMPreservesExistingDeployments checks what the handler layer
 // actually receives.
 func TestWireLLMPreservesExistingDeployments(t *testing.T) {
 	var cfg httpserver.Config
 	sc := config.ServerConfig{Conversation: config.ServerConvConfig{Model: conversationModel()}}
 
-	if err := wireLLM(&cfg, sc, nil, nil); err != nil {
+	if err := wireLLM(&cfg, sc, newFakeLLMStore(), nil); err != nil {
 		t.Fatalf("wireLLM: %v", err)
 	}
-	if cfg.Conv.ConversationLLMClient == nil {
-		t.Error("the Tier 1 client was not wired")
+	if cfg.Conv.ConversationModel == nil {
+		t.Error("the Tier 1 model was not wired")
 	}
 	if cfg.Conv.TitleGenerator == nil {
 		t.Error("the title generator was not wired")
 	}
+	if cfg.Conv.LLMGateway == nil {
+		t.Error("the gateway was not wired")
+	}
+
 	// Without a store there is nowhere to record managed calls, so the gateway
-	// stays off rather than serving unmetered inference.
-	if cfg.Conv.LLMGateway != nil {
-		t.Error("the gateway was wired with no store")
+	// stays off rather than serving unmetered inference, and Tier 1 with it:
+	// a conversation turn is a managed call like any other.
+	var storeless httpserver.Config
+	if err := wireLLM(&storeless, sc, nil, nil); err != nil {
+		t.Fatalf("wireLLM without a store: %v", err)
+	}
+	if storeless.Conv.LLMGateway != nil || storeless.Conv.ConversationModel != nil {
+		t.Error("managed inference was wired with no ledger to record it")
 	}
 
 	var unconfigured httpserver.Config
-	if err := wireLLM(&unconfigured, config.ServerConfig{}, nil, nil); err != nil {
+	if err := wireLLM(&unconfigured, config.ServerConfig{}, newFakeLLMStore(), nil); err != nil {
 		t.Fatalf("wireLLM without a model: %v", err)
 	}
-	if unconfigured.Conv.ConversationLLMClient != nil || unconfigured.Conv.TitleGenerator != nil {
+	if unconfigured.Conv.ConversationModel != nil || unconfigured.Conv.TitleGenerator != nil {
 		t.Error("Tier 1 was wired with no conversation model configured")
+	}
+}
+
+// The gap this closes: Tier 1 turns ran on a catalog model and cost money, yet
+// only worker calls reached the ledger. A turn's call must land there attributed
+// to the person, marked as a conversation call, and naming the conversation the
+// Space's usage is reached through, with the usage the provider reported.
+func TestWiredConversationModelRecordsEveryCallInTheLedger(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"c1","object":"chat.completion","model":"m","choices":[{"index":0,` +
+			`"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],` +
+			`"usage":{"prompt_tokens":12,"completion_tokens":3,"total_tokens":15}}`))
+	}))
+	defer upstream.Close()
+
+	row := catalogRow("lm_chat")
+	row.APIURL = upstream.URL
+	row.InputPerMTok = 1_000_000_000
+	row.OutputPerMTok = 2_000_000_000
+	row.Currency = "USD"
+	store := newFakeLLMStore(row)
+	sc := config.ServerConfig{Conversation: config.ServerConvConfig{ModelTarget: "LM_CHAT"}}
+
+	var cfg httpserver.Config
+	if err := wireLLM(&cfg, sc, store, nil); err != nil {
+		t.Fatalf("wireLLM: %v", err)
+	}
+	client, err := cfg.Conv.ConversationModel.ForConversation(context.Background(), "u_member", "tm_team", "cv_one")
+	if err != nil {
+		t.Fatalf("ForConversation: %v", err)
+	}
+	if client.ContextWindow() != row.ContextWindow {
+		t.Errorf("context window = %d, want the target's %d", client.ContextWindow(), row.ContextWindow)
+	}
+	completion, err := client.ChatCompletionBlocking(context.Background(),
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
+	if err != nil {
+		t.Fatalf("ChatCompletionBlocking: %v", err)
+	}
+	if completion.Content != "hello" {
+		t.Errorf("content = %q", completion.Content)
+	}
+
+	if len(store.opened) != 1 {
+		t.Fatalf("ledger rows = %d, want 1", len(store.opened))
+	}
+	call := store.opened[0]
+	if call.Surface != coregw.CallSurfaceConversation {
+		t.Errorf("surface = %q, want %q", call.Surface, coregw.CallSurfaceConversation)
+	}
+	if call.UserID == nil || *call.UserID != "u_member" {
+		t.Errorf("user = %v, want u_member", call.UserID)
+	}
+	if call.ConversationID == nil || *call.ConversationID != "cv_one" {
+		t.Errorf("conversation = %v, want cv_one", call.ConversationID)
+	}
+	if call.TaskRunID != nil {
+		t.Errorf("task run = %v, want none: a turn is not a run", *call.TaskRunID)
+	}
+	if call.TargetID != "lm_chat" || call.Model != "LM_CHAT" {
+		t.Errorf("model = %q (%q), want the configured target", call.Model, call.TargetID)
+	}
+	if call.Currency != "USD" || call.RateOutputPerMTok == nil || *call.RateOutputPerMTok != 2_000_000_000 {
+		t.Errorf("rate snapshot = %q %v, want the target's prices", call.Currency, call.RateOutputPerMTok)
+	}
+	outcome := store.outcomes[call.ID]
+	if outcome.Status != coregw.CallStatusSucceeded || outcome.Usage == nil ||
+		outcome.Usage.PromptTokens != 12 || outcome.Usage.CompletionTokens != 3 {
+		t.Errorf("outcome = %+v, want a success carrying the reported usage", outcome)
 	}
 }
 
@@ -466,11 +594,11 @@ func TestWireLLMFailsStartupOnAnUnknownDefaultModel(t *testing.T) {
 		LLM:          config.ServerLLMConfig{DefaultModel: "Gone"},
 	}
 
-	if err := wireLLM(&cfg, sc, nil, nil); err == nil {
+	if err := wireLLM(&cfg, sc, newFakeLLMStore(), nil); err == nil {
 		t.Fatal("a default_model naming nothing did not fail startup")
 	}
-	if cfg.Conv.ConversationLLMClient != nil {
-		t.Error("a failed wiring left a client behind")
+	if cfg.Conv.ConversationModel != nil || cfg.Conv.LLMGateway != nil {
+		t.Error("a failed wiring left a model behind")
 	}
 }
 

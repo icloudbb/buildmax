@@ -158,6 +158,7 @@ erDiagram
     user ||--o{ system_grant : "holds deployment authority via"
     llm_model ||--o{ llm_call : serves
     task_run ||--o{ llm_call : attributes
+    conversation ||--o{ llm_call : attributes
 ```
 
 Space is the authorization boundary: a request is allowed because the caller has
@@ -1446,7 +1447,8 @@ One managed inference call. The metering and debugging record.
 | `client_call_id` | `varchar(128)` | yes | Caller's idempotency key; part of the composite unique index |
 | `user_id` | `bigint unsigned` | yes | Who the call is attributed to; leads the composite unique index |
 | `task_run_id` | `bigint unsigned` | yes | Attributes the call to a Tier 2 run |
-| `surface` | `varchar(32)` | yes | `server`, `cli`, `desktop`, `worker` |
+| `conversation_id` | `bigint unsigned` | yes | Attributes the call to the Tier 1 conversation turn the server answered |
+| `surface` | `varchar(32)` | yes | `cli`, `desktop`, `worker`, or `conversation` (the server answering a Tier 1 turn) |
 | `session_id` | `varchar(64)` | yes | |
 | `task_id` | `bigint unsigned` | yes | |
 | `model` | `varchar(128)` | yes | The catalog name the caller asked for |
@@ -1475,10 +1477,11 @@ One managed inference call. The metering and debugging record.
 
 Indexes: PK `id`; index `accepted_at`; unique `idx_llm_call_client` on
 (`user_id`, `client_call_id`); index `status`; index `task_id`; index
-`task_run_id`; unique `public_id`.
+`task_run_id`; index `conversation_id`; unique `public_id`.
 
 A call is attributed to a person, not a space: a foreground CLI or Desktop call
-belongs to no space, and a run's space is reached through `task_run_id`. The
+belongs to no space, a run's space is reached through `task_run_id`, and a
+Tier 1 conversation turn's through `conversation_id`. The
 composite unique index leads with `user_id`, which both scopes idempotency per
 caller and serves per-user lookups — so there is deliberately no second index on
 `user_id` alone. See
@@ -1502,9 +1505,12 @@ Amounts are nano-currency-units — one currency unit is 1e9 of them — held as
 integers because a float would round a published price before anything read it
 and drift a few hundred calls into a figure someone compares against a bill.
 
-Note that `llm_call` is *not* what quota reads. Quota aggregates `task_run`
-tokens; `llm_call` records gateway traffic including calls with no task behind
-them. The two will not agree, by design.
+Quota reads `llm_call` only for the calls no run records. A run's tokens come
+from its `task_run` row, never from its ledger rows, which would count them
+twice; a conversation turn's calls exist only here, so quota sums the rows
+whose `conversation_id` belongs to the space and that carry no `task_run_id`.
+Foreground CLI and Desktop calls belong to no space and count toward none, so
+the ledger and quota will not agree in total, by design.
 
 ## Plugin Catalog
 

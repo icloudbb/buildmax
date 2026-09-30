@@ -55,6 +55,8 @@
 
 在一个回合运行期间到达的消息会被排队，每个 Conversation 最多排队 10 条，之后各自作为独立的回合运行。WebSocket 客户端会看到 `conversation.message.queued`，等它开始运行时再看到 `conversation.message.dequeued`；`conversation.message.completed` 会携带 `queued_remaining`。超出上限的消息会被 `conversation.error` 拒绝，并携带 `code: "queue_full"`（HTTP：`429`），但这不会终止正在进行的那个回合。队列保存在内存中。参见[排队消息](../../design/排队消息.md)。
 
+无论来自上述哪条路径，每个回合都经由 `conversation.Service` 回答，它会在第一次调用之前把 Conversation 模型绑定到该回合（`llmgateway.ServerModel.ForConversation`）。绑定后的客户端会在进程内经过托管网关服务发出每一次调用——回复循环以及新 Conversation 的标题——因此每次调用都是一条 `llm_call` 行，surface 为 `conversation`，带有该回合的用户和它的 `conversation_id`，并由该 Conversation 所属的 Space 在用量和 token 配额中承担。一个已经超出 token 上限的 Space 会得到 `429`（在聊天应用中是一条固定回复），而不是回答。没有数据库来记录这些行时，Server 根本不会接通 Tier 1。参见 [LLM 网关](../../design/LLM网关.md) 第 10 节。
+
 ## 运行的来源
 
 `GET /api/spaces/{space_id}/task-runs/{task_run_id}` 回答的是一次运行的来龙去脉：是谁或什么发起的、经由哪种触发方式、重复的是哪一次更早的尝试，以及它是在哪条 Conversation 消息中被请求的——这条消息会与 worker 拿到的指令并排引用。这两段文本是不同的——指令是 Tier 1 决定发送的内容——同时保留两者，是区分“模型遗漏的约束”与“用户从未给出的约束”的唯一办法。

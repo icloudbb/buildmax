@@ -165,8 +165,8 @@ type Config struct {
 	QuotaService     *quota.Service
 
 	// Conversation / LLM
-	TitleGenerator        llm.TitleGenerator
-	ConversationLLMClient llm.LLMClient
+	TitleGenerator    llm.TitleGenerator
+	ConversationModel conversation.Model
 
 	// LLMGateway serves managed inference. Nil means the deployment offers no
 	// managed models and the /llm routes answer 503.
