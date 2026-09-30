@@ -117,6 +117,11 @@ Record that the operator and participants accepted all of these limits:
   declared boundary. The native worker pod uses root plus `SYS_ADMIN` with the
   documented seccomp/AppArmor profile; an outer runtime such as gVisor is not
   required for this Beta.
+- [ ] The sandbox confines Bash writes to the run workspace, not its reads: Bash
+  can read the pod's read-only filesystem, including the mounted server
+  configuration, which must therefore hold no credentials; the reference
+  manifests keep them in Secret-backed environment variables, which Bash does
+  not inherit.
 - [ ] General worker egress has no enforced Pod-level destination allow-list.
   The worker-port `NetworkPolicy` restricts control-channel ingress; it does
   not restrict all outbound traffic.
@@ -186,8 +191,9 @@ must not need source-code knowledge.
   Job. View its streamed and durable result, trace, managed-call ledger, usage,
   audit, workspace checkpoint, and downloadable Artifact.
 - [ ] Continue the Task and prove it restores the latest workspace and Session;
-  Retry an earlier run and prove it uses that run's original base. Each creates
-  a new TaskRun with its own evidence rather than mutating history.
+  Retry the Task's latest run and prove it uses that run's original base
+  rather than its result. Each creates a new TaskRun with its own evidence
+  rather than mutating history.
 - [ ] Cancel a running Task and confirm its partial output, Artifact, and
   checkpoint semantics match the documented contract.
 - [ ] Let a worker run call `AskUser`, confirm the Task says it needs an answer,
@@ -210,7 +216,8 @@ must not need source-code knowledge.
   prove the value is absent from trace, stream, tool results, and logs.
 - [ ] Activate a Plugin release containing only the supported skill/subagent
   profile, select it on an Agent, and prove the worker materializes the exact
-  version and digest recorded on the run. Executable content must be refused.
+  version and digest recorded on the run. Activating a release that
+  contributes hooks or MCP servers must be refused.
 - [ ] Send an authenticated inbound webhook and prove the Conversation turn
   runs as the webhook key's owner and remains Space-scoped.
 - [ ] Use Administration to find intentionally stalled and failing work, name
@@ -223,16 +230,18 @@ must not need source-code knowledge.
   capabilities (all but `SYS_ADMIN`), seccomp and AppArmor profiles, absent
   service-account token, effective CPU/memory/ephemeral-storage resources,
   minimized environment, and per-run credential.
-- [ ] Prove Bash cannot read or write outside the run workspace and that the
-  trace reports the actual sandbox boundary rather than a configured intent.
+- [ ] Prove Bash cannot write outside the run workspace, does not inherit the
+  worker's credentials, and that the trace reports the actual sandbox boundary
+  rather than a configured intent.
 - [ ] Prove the public Service exposes no worker routes, an unlabelled pod is
   denied by the worker `NetworkPolicy`, and a labelled worker uses the internal
   TLS listener.
 - [ ] Prove a run token cannot access another run, cannot act before claim or
   after terminal state, and grants only the documented worker routes.
-- [ ] Resolve a stdio MCP server and executable Plugin content in the worker
-  profile and prove assembly fails before a command or model call rather than
-  silently running outside the boundary.
+- [ ] Prove a Plugin release with executable content is refused at activation,
+  and that a stdio MCP server resolved in the worker profile from any layer,
+  such as the workspace's `.buildmax/mcp.json`, fails assembly before a command
+  or model call rather than silently running outside the boundary.
 - [ ] Prove Space Secret values are redacted across trace, stream, tool results,
   and retained diagnostics while the consuming worker can use them.
 - [ ] Let the finished-Job TTL delete the Job and pod; confirm the TaskRun,
