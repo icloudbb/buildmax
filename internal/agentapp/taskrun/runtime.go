@@ -157,6 +157,10 @@ type RunTaskInput struct {
 	StreamSender           workerclient.StreamSender
 	Model                  config.ModelEntry
 	Managed                ManagedInference
+	// ModelCredentialHint is where Model's API key is configured, named by a
+	// refused-credential error; never the key. Empty means settings.yaml. A
+	// direct run's model is the server's, so its dispatcher names that source.
+	ModelCredentialHint string
 	// ManagedHTTPClient carries the worker's server trust to managed inference,
 	// which reaches the gateway on the same internal listener as every other
 	// worker call. Nil uses http.DefaultClient, which is correct only for a
@@ -479,7 +483,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	agentRun, err := runAgentTask(ctx, run, dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
+	agentRun, err := runAgentTask(ctx, run, dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.ModelCredentialHint, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID), issueContext(input.WorkerAPI, task),
 		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants, task.OutputSchema, input.AskUser)
 	result := runResult{
@@ -612,7 +616,7 @@ func runProvenance(run *coretask.Run) agentapp.RunProvenance {
 	}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issue *agentapp.IssueContext, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string, askUser bool) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, modelCredentialHint string, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issue *agentapp.IssueContext, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string, askUser bool) (agentRunOutput, error) {
 	// One redactor over this run's Secret values covers every model-written text
 	// the run hands to the server: the live stream, the reply, and the
 	// structured and question data reported with it. See
@@ -639,6 +643,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 			EnableMCP:                   true,
 			Policy:                      agent.AllowAllPolicy(),
 			ModelEntries:                runtimeModelEntries(runtimeModel, managed),
+			ModelCredentialHint:         modelCredentialHint,
 			ManagedServerURL:            managed.ServerURL,
 			ManagedToken:                managed.tokenFunc(),
 			ManagedHTTPClient:           managedHTTPClient,

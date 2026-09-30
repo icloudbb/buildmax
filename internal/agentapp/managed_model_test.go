@@ -67,6 +67,24 @@ func TestBuildsADirectClient(t *testing.T) {
 	}
 }
 
+// A direct model whose key is configured somewhere other than settings.yaml --
+// a worker calling the server's model -- names that place when the key is
+// missing, instead of a settings.yaml field the operator cannot fix it in.
+func TestMissingDirectKeyNamesTheConfiguredKeySource(t *testing.T) {
+	entry := directEntry()
+	entry.APIKey = ""
+	cache := localCacheFor([]config.ModelEntry{entry})
+	cache.credentialHint = "check the server's conversation key"
+
+	_, err := cache.Get("Direct")
+	if err == nil {
+		t.Fatal("a direct model with no key produced a client")
+	}
+	if !strings.Contains(err.Error(), "check the server's conversation key") || strings.Contains(err.Error(), "settings.yaml") {
+		t.Errorf("err = %q, want the configured key source and not settings.yaml", err)
+	}
+}
+
 func TestBuildsAManagedClient(t *testing.T) {
 	var askedFor string
 	cache := managedCacheFor([]config.ModelEntry{managedEntry()}, func(serverURL string) (string, error) {

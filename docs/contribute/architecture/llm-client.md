@@ -334,7 +334,10 @@ Only the caller knows where a refused key is fixed, so `Config.CredentialHint`
 supplies the next step for a 401 or 403. Empty means a local model entry and
 reads "check api_key in settings.yaml"; the server's client factory names the
 catalog model and its `model set-key` command, or `conversation.model.api_key`
-for the derived conversation target.
+and its `BUILDMAX_CONVERSATION_MODEL_API_KEY` override for the derived
+conversation target. A direct-transport worker calls that same model with the
+same key, so it passes the same hint through `AppConfig.ModelCredentialHint`,
+which also words the error for a missing key.
 
 A caller outside this package tells refusals apart with `errors.Is` against
 `core/llm.ErrProviderAuth` (401, 403) and `core/llm.ErrProviderRateLimited`
