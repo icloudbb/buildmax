@@ -53,7 +53,7 @@ func TestUploadTaskGlobal_StopsAtTheFirstRefusedWrite(t *testing.T) {
 	writeRunGlobalFile(t, globalDir, "settings.yaml", "{}")
 
 	denied := &deniedPersistStorage{fakePersistStorage: newFakePersistStorage()}
-	stored, err := uploadTaskGlobal(context.Background(), globalDir, RunScope{SpaceID: "s", TaskID: "t", TaskRunID: "r"}, denied, traceKey)
+	stored, err := uploadTaskGlobal(context.Background(), globalDir, RunScope{SpaceID: "s", TaskID: "t", TaskRunID: "r"}, denied, traceKey, nil)
 
 	if !errors.Is(err, errWriteDenied) {
 		t.Fatalf("err = %v, want the storage refusal", err)
@@ -107,6 +107,9 @@ func TestRunTask_FailsARunWhoseStateCannotBeStored(t *testing.T) {
 
 	if !errors.Is(err, errWriteDenied) {
 		t.Fatalf("RunTask err = %v, want the storage refusal", err)
+	}
+	if !errors.Is(err, coretask.ErrRunFailed) {
+		t.Fatalf("RunTask err = %v, want it marked as a reported failure", err)
 	}
 	req := updater.req
 	if req == nil {

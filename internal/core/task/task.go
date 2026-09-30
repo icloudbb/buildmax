@@ -122,9 +122,11 @@ const (
 	// FailureInfrastructure is storage, checkpoint, or worker API failure.
 	FailureInfrastructure FailureClass = "infrastructure"
 	// FailureSpaceConfiguration is something the Space must fix: a plugin it
-	// could not be given, or a Secret its agent names that is unavailable.
+	// could not be given, a Secret its agent names that is unavailable, or its
+	// usage quota being spent.
 	FailureSpaceConfiguration FailureClass = "space_configuration"
-	// FailureModel is the model provider refusing or failing a call.
+	// FailureModel is the model provider refusing, throttling, timing out, or
+	// failing a call, or the catalog model the run was given being unusable.
 	FailureModel FailureClass = "model"
 	// FailureRun is any other failure inside the Agent run itself.
 	FailureRun FailureClass = "run"

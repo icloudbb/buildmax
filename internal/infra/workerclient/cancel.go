@@ -33,7 +33,7 @@ func IsCancelRequested(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID
 		return false, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return false, httpclient.DecodeError(resp, "worker API GET "+cfg.BaseURL+pathSuffix)
+		return false, httpclient.DecodeError(resp, "worker API GET "+pathSuffix)
 	}
 	var got GetTaskRunResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {

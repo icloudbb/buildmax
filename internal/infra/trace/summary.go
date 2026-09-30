@@ -99,6 +99,10 @@ type ToolSummary struct {
 // that means the caller got nothing.
 func Summarize(r io.Reader) (Summary, error) {
 	var s Summary
+	// A call's arguments are recorded once, on its tool_start; tool_end carries
+	// the result. So a call's file_path is held here from its start until its
+	// end or denial, keyed by tool_call_id because parallel calls interleave.
+	openPaths := make(map[string]string)
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for sc.Scan() {
@@ -110,7 +114,7 @@ func Summarize(r io.Reader) (Summary, error) {
 		if err := json.Unmarshal(line, &rec); err != nil {
 			continue
 		}
-		s.apply(rec)
+		s.apply(rec, openPaths)
 	}
 	if err := sc.Err(); err != nil {
 		return s, fmt.Errorf("read trace: %w", err)
@@ -118,8 +122,9 @@ func Summarize(r io.Reader) (Summary, error) {
 	return s, nil
 }
 
-// apply folds one record into the summary.
-func (s *Summary) apply(rec Record) {
+// apply folds one record into the summary. openPaths holds the file_path of
+// each call that has started and not yet ended, by tool_call_id.
+func (s *Summary) apply(rec Record, openPaths map[string]string) {
 	switch rec.Type {
 	case "run_start":
 		s.RunID = rec.RunID
@@ -143,6 +148,12 @@ func (s *Summary) apply(rec Record) {
 		}
 	case "llm_start":
 		s.LLMCalls++
+	case "tool_start":
+		// A call without an id cannot be told apart from a parallel one, so it
+		// gets no path rather than possibly another call's.
+		if path := filePathArg(rec.Args); path != "" && rec.ToolCallID != "" {
+			openPaths[rec.ToolCallID] = path
+		}
 	case "tool_end":
 		s.ToolCalls++
 		if rec.ErrorKind != "" {
@@ -151,12 +162,13 @@ func (s *Summary) apply(rec Record) {
 		s.addTool(ToolSummary{
 			Name:       rec.Tool,
 			DurationMS: rec.DurationMS,
-			Path:       filePathArg(rec.Args),
+			Path:       takePath(openPaths, rec.ToolCallID),
 			ErrorKind:  rec.ErrorKind,
 		})
 	case "tool_denied":
 		s.addTool(ToolSummary{
 			Name:       rec.Tool,
+			Path:       takePath(openPaths, rec.ToolCallID),
 			Denied:     true,
 			DenyReason: rec.DenyReason,
 		})
@@ -184,6 +196,16 @@ func (s *Summary) addTool(t ToolSummary) {
 		return
 	}
 	s.Tools = append(s.Tools, t)
+}
+
+// takePath returns and forgets the file_path recorded at a call's start.
+func takePath(openPaths map[string]string, toolCallID string) string {
+	if toolCallID == "" {
+		return ""
+	}
+	path := openPaths[toolCallID]
+	delete(openPaths, toolCallID)
+	return path
 }
 
 // filePathArg pulls the file_path argument out of a tool call's recorded

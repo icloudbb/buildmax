@@ -2,12 +2,9 @@ package work
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"github.com/icloudbb/buildmax/internal/core/apierr"
 	"log/slog"
 	"net/http"
-	"os"
 	"time"
 
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
@@ -572,69 +569,4 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 		Status:          current.Status,
 		CancelRequested: true,
 	})
-}
-
-type SessionMessage struct {
-	Role       string            `json:"role"`
-	Content    string            `json:"content,omitempty"`
-	ToolCallID string            `json:"tool_call_id,omitempty"`
-	ToolCalls  []SessionToolCall `json:"tool_calls,omitempty"`
-}
-
-type SessionToolCall struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Arguments string `json:"arguments,omitempty"`
-}
-
-type ConversationResponse struct {
-	ID        string           `json:"id"`
-	Title     string           `json:"title,omitempty"`
-	CreatedAt string           `json:"created_at"`
-	Messages  []SessionMessage `json:"messages,omitempty"`
-}
-
-func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Request) {
-	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Tasks, "tasks not configured")
-	if !ok {
-		return
-	}
-	taskID := r.PathValue("task_id")
-	if taskID == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "task_id required")
-		return
-	}
-	task, _, ok := h.getTaskForSpace(w, r, spaceID, taskID)
-	if !ok {
-		return
-	}
-	if task.SessionID == nil || *task.SessionID == "" {
-		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
-		return
-	}
-	if task.LastRunID == nil || *task.LastRunID == "" {
-		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
-		return
-	}
-	sessionID := *task.SessionID
-	lastRunID := *task.LastRunID
-	data, err := h.loadTaskConversationData(r.Context(), task, lastRunID, sessionID)
-	if err != nil {
-		if os.IsNotExist(err) || errors.Is(err, apierr.ErrNotFound) {
-			httputil.WriteJSONError(w, http.StatusNotFound, "conversation file not found")
-			return
-		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_conversation", "task_id", task.ID)
-		return
-	}
-	var out ConversationResponse
-	if err := json.Unmarshal(data, &out); err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_conversation", "task_id", task.ID)
-		return
-	}
-	httputil.WriteJSON(w, http.StatusOK, out)
-}
-
-func (h *Handler) loadTaskConversationData(ctx context.Context, task *coretask.Task, lastRunID, sessionID string) ([]byte, error) {
-	return h.readRunGlobal(ctx, task, lastRunID, "sessions/"+sessionID+".json")
 }

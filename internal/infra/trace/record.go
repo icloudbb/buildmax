@@ -141,7 +141,9 @@ type Record struct {
 	// tool_start, tool_end, tool_denied
 	Tool       string `json:"tool,omitempty"`
 	ToolCallID string `json:"tool_call_id,omitempty"`
-	Args       string `json:"args,omitempty"`
+	// tool_start only: a call's arguments are recorded once, and a reader
+	// pairs them with the call's tool_end or tool_denied by tool_call_id.
+	Args string `json:"args,omitempty"`
 
 	// tool_end
 	Result     string `json:"result,omitempty"`
@@ -294,7 +296,6 @@ func recordFromEvent(e agent.Event, maxField int, red *secretscan.Redactor) (Rec
 	case agent.EventToolEnd:
 		r.Tool = e.ToolName
 		r.ToolCallID = e.ToolCallID
-		r.Args = bound(red.Redact(e.ToolArgs), maxField)
 		r.Result = bound(red.Redact(e.ToolResult), maxField)
 		r.DurationMS = e.ToolDuration.Milliseconds()
 		r.ErrorKind = e.ToolErrorKind

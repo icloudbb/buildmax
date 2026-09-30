@@ -55,6 +55,10 @@ type Config struct {
 	// call. Only the Ollama adapter has a model to keep loaded; the hosted
 	// protocols ignore it.
 	KeepAlive string
+	// CredentialHint is what a refused-credential error tells the reader to do,
+	// because only the caller knows where this key lives. Empty means a local
+	// settings.yaml model entry; the server passes the catalog command.
+	CredentialHint string
 	// HTTPClient overrides the transport. Tests use it; production leaves it nil.
 	HTTPClient *http.Client
 }
@@ -72,9 +76,10 @@ type adapter interface {
 // Client calls one model through one wire protocol and holds the
 // configuration for those calls.
 type Client struct {
-	adapter       adapter
-	contextWindow int
-	callTimeout   time.Duration
+	adapter        adapter
+	contextWindow  int
+	callTimeout    time.Duration
+	credentialHint string
 }
 
 // ContextWindow returns the configured context window size (0 = no windowing).
@@ -142,9 +147,10 @@ func NewClient(cfg Config) (*Client, error) {
 	}
 
 	return &Client{
-		adapter:       impl,
-		contextWindow: cw,
-		callTimeout:   callTimeout,
+		adapter:        impl,
+		contextWindow:  cw,
+		callTimeout:    callTimeout,
+		credentialHint: cfg.CredentialHint,
 	}, nil
 }
 
@@ -171,7 +177,7 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (
 		if attempt > 0 {
 			logRetry(attempt, err)
 			if sleepErr := sleepWithContext(ctx, retryBackoff[attempt-1]); sleepErr != nil {
-				return cllm.Completion{}, wrapLLMError(sleepErr)
+				return cllm.Completion{}, wrapLLMError(sleepErr, c.credentialHint)
 			}
 		}
 		callCtx, cancel := c.withCallTimeout(ctx)
@@ -182,7 +188,7 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (
 		}
 	}
 	if err != nil {
-		err = wrapLLMError(err)
+		err = wrapLLMError(err, c.credentialHint)
 		return
 	}
 	finalizeStructured(req, &completion)
@@ -199,7 +205,7 @@ func (c *Client) ChatCompletionStreaming(ctx context.Context, req cllm.Request, 
 		if attempt > 0 {
 			logRetry(attempt, err)
 			if sleepErr := sleepWithContext(ctx, retryBackoff[attempt-1]); sleepErr != nil {
-				return cllm.Completion{}, wrapLLMError(sleepErr)
+				return cllm.Completion{}, wrapLLMError(sleepErr, c.credentialHint)
 			}
 		}
 		var deltaEmitted bool
@@ -217,7 +223,7 @@ func (c *Client) ChatCompletionStreaming(ctx context.Context, req cllm.Request, 
 		}
 	}
 	if err != nil {
-		err = wrapLLMError(err)
+		err = wrapLLMError(err, c.credentialHint)
 		return
 	}
 	finalizeStructured(req, &completion)

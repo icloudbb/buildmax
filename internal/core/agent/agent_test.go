@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -577,6 +578,31 @@ func TestProcess_Streaming(t *testing.T) {
 	}
 	if msgs[1].Role != "assistant" || msgs[1].Content != fullReply {
 		t.Errorf("session last message = %q %q", msgs[1].Role, msgs[1].Content)
+	}
+}
+
+// endMarkingStreamSink records deltas and marks where each streamed call ended.
+type endMarkingStreamSink struct{ recordingStreamSink }
+
+func (r *endMarkingStreamSink) OnStreamEnd() { r.OnDelta("<end>") }
+
+// A sink that holds text back across deltas is told when each model call's
+// stream ends -- before the separator the loop streams ahead of a tool call --
+// so a turn's tail is released while its tools run rather than after.
+func TestRunLoop_StreamEndClosesEachCall(t *testing.T) {
+	mock := &mockLLMClient{responses: []mockResponse{
+		{content: "Checking.", toolCalls: []llm.ToolCall{{ID: "c1", Name: "echo", Arguments: "{}"}}},
+		{content: "Done."},
+	}}
+	sink := &endMarkingStreamSink{}
+	if _, _, err := runLoopWithUserMsg(context.Background(), mock, newTestToolRegistry(&mockTool{name: "echo", result: "ok"}), newTestBuffer(), "Hi", func(o *RunLoopOpts) {
+		o.StreamSink = sink
+	}); err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	want := []string{"Checking.", "<end>", "\n\n", "Done.", "<end>"}
+	if got := sink.getDeltas(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("stream = %q, want %q", got, want)
 	}
 }
 

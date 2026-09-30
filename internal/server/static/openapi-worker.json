@@ -75,6 +75,10 @@
             "type": "string",
             "format": "date-time"
           },
+          "url": {
+            "type": "string",
+            "description": "The artifact's Portal page. Present on an upload response when the deployment sets public_base_url."
+          },
           "share": {
             "type": "object",
             "description": "Present only on an upload that requested and got a public link; the sole place the link token is returned.",
@@ -287,6 +291,10 @@
               },
               "space_agent_instructions_revision": {
                 "type": "integer"
+              },
+              "output_schema": {
+                "type": "string",
+                "description": "JSON Schema (as text) the run's final answer must satisfy; the worker requests structured output and reports the validated value as structured on its terminal report. Absent for a free-text Task."
               }
             },
             "required": [
@@ -389,6 +397,15 @@
           },
           "429": {
             "description": "Space quota exceeded"
+          },
+          "502": {
+            "description": "The model provider failed (code upstream_error) or refused the deployment's credential for the model (code upstream_auth_failed)"
+          },
+          "503": {
+            "description": "Managed inference is not configured, or the model provider is rate limiting this deployment (code upstream_rate_limited)"
+          },
+          "504": {
+            "description": "The model provider did not answer within the model's call timeout (code upstream_timeout)"
           }
         },
         "tags": [

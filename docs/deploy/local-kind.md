@@ -180,8 +180,11 @@ blocked Agent's required grant is refused when its run starts, and the
 cancellations hold the mock's replies the way `kind smoke` does, so a run is
 mid-turn when it is canceled. The questions, the timed-out step, and Carol's
 running Task come from arming the mock with a one-shot `AskUser` or `Bash`
-call, as `kind smoke` does; each armed step runs alone so the call reaches the
-intended run. Publication allows no timeout below a minute, so `--runs` takes
+call, as `kind smoke` does. Each armed call is reserved for a model request
+carrying that step's own instruction or Task input, so a schedule firing or
+another run calling the mock at the same moment cannot take it; `kind up`
+builds the mock image that honours the reservation. Publication allows no
+timeout below a minute, so `--runs` takes
 several minutes longer than before. The webhook conversation is sent with a key that
 is deleted again afterwards.
 

@@ -195,12 +195,25 @@ func newClientFactory(conversationKey string, models coregw.ModelStore) llmgatew
 			Vision:        target.Vision,
 			Surface:       coregw.CallSurfaceServer,
 			CallTimeout:   target.CallTimeout,
+			// The key is the server's, so a refusal must not send the operator
+			// to a settings.yaml that holds no key.
+			CredentialHint: credentialHint(target),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("model %q: %w", target.Name, err)
 		}
 		return client, nil
 	}
+}
+
+// credentialHint names where the operator replaces a target's key: the command
+// and the model ID, never the key.
+func credentialHint(target llmgateway.Target) string {
+	if target.CredentialRef == conversationCredentialRef {
+		return "check " + conversationCredentialRef + " in server.yaml"
+	}
+	return fmt.Sprintf("replace the key of catalog model %s with `buildmax admin model set-key %s` or `buildmax-server model set-key --id %s`",
+		target.ID, target.ID, target.ID)
 }
 
 // resolveCredential turns a target's reference into the secret behind it.

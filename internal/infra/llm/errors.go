@@ -6,7 +6,14 @@ import (
 	"fmt"
 	"strings"
 	"syscall"
+
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
+
+// localCredentialHint is where a local model entry's key is fixed. A client
+// built from the server catalog passes its own hint instead; see
+// Config.CredentialHint.
+const localCredentialHint = "check api_key in settings.yaml"
 
 // apiError is a provider failure reduced to what every caller of this package
 // reacts to. Each adapter converts its own library's error into one, so retry
@@ -48,6 +55,18 @@ func (e *apiError) Error() string {
 
 func (e *apiError) Unwrap() error { return e.err }
 
+// Is lets a caller outside this package recognise the refusals it can act on
+// from the status alone, without reading the provider's message.
+func (e *apiError) Is(target error) bool {
+	switch target {
+	case cllm.ErrProviderAuth:
+		return e.status == 401 || e.status == 403
+	case cllm.ErrProviderRateLimited:
+		return e.status == 429
+	}
+	return false
+}
+
 // requestError is a failure to build a request from the history the caller
 // supplied. It never reached a provider, so it is deterministic: retrying it
 // would repeat the same failure three times and report it three attempts late.
@@ -59,7 +78,9 @@ func (e *requestError) Unwrap() error { return e.err }
 
 // classifyLLMError returns a concise, human-readable description of an LLM call error.
 // It is used to wrap raw provider errors before they propagate to callers.
-func classifyLLMError(err error) string {
+// credentialHint says where a refused key is fixed; empty means a local
+// settings.yaml entry.
+func classifyLLMError(err error, credentialHint string) string {
 	if err == nil {
 		return ""
 	}
@@ -73,7 +94,10 @@ func classifyLLMError(err error) string {
 	if errors.As(err, &apiErr) {
 		switch apiErr.status {
 		case 401, 403:
-			return fmt.Sprintf("authentication failed (HTTP %d): check api_key in settings.yaml", apiErr.status)
+			if credentialHint == "" {
+				credentialHint = localCredentialHint
+			}
+			return fmt.Sprintf("authentication failed (HTTP %d): %s", apiErr.status, credentialHint)
 		case 429:
 			return "rate limited by provider: too many requests"
 		case 500:
@@ -108,11 +132,11 @@ func (e *callError) Unwrap() error { return e.err }
 
 // wrapLLMError wraps err with a classified human-readable prefix.
 // The original error is preserved so errors.As / errors.Is still work.
-func wrapLLMError(err error) error {
+func wrapLLMError(err error, credentialHint string) error {
 	if err == nil {
 		return nil
 	}
-	return &callError{msg: classifyLLMError(err), err: err}
+	return &callError{msg: classifyLLMError(err, credentialHint), err: err}
 }
 
 // isConnectionRefused reports whether a dial failed because nothing is

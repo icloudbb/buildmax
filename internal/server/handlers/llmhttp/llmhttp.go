@@ -86,15 +86,23 @@ func Stream(w http.ResponseWriter, r *http.Request, gateway *llmgateway.Service,
 		return
 	}
 
-	final := llmwire.CompletionResponse{
+	_ = stream.send(llmwire.EventResult, WireCompletion(result))
+}
+
+// WireCompletion is a finished managed call in the wire contract: the body of a
+// non-streaming response and the payload of a stream's result event, built once
+// so the two cannot carry different fields.
+func WireCompletion(result llmgateway.CompleteResult) llmwire.CompletionResponse {
+	out := llmwire.CompletionResponse{
 		LLMCallID:     result.LLMCallID,
 		Model:         result.Model,
 		Content:       result.Content,
 		ToolCalls:     WireToolCalls(result.ToolCalls),
 		ProviderState: WireProviderState(result.ProviderState),
+		Structured:    wireStructured(result.Structured),
 	}
 	if result.UsageReported {
-		final.Usage = &llmwire.Usage{
+		out.Usage = &llmwire.Usage{
 			PromptTokens:     result.Usage.PromptTokens,
 			CompletionTokens: result.Usage.CompletionTokens,
 			TotalTokens:      result.Usage.TotalTokens,
@@ -102,7 +110,33 @@ func Stream(w http.ResponseWriter, r *http.Request, gateway *llmgateway.Service,
 			CacheWriteTokens: result.Usage.CacheWriteTokens,
 		}
 	}
-	_ = stream.send(llmwire.EventResult, final)
+	return out
+}
+
+func wireStructured(in *cllm.Structured) *llmwire.Structured {
+	if in == nil {
+		return nil
+	}
+	out := &llmwire.Structured{Value: in.Value, Mode: string(in.Mode), Enforced: in.Enforced}
+	if in.Err != nil {
+		out.Value = nil
+		out.Error = in.Err.Message
+	}
+	return out
+}
+
+// CoreOutput converts a requested output schema to the core contract. The
+// schema is not checked against the supported subset here: the provider client
+// does that once and reports a schema outside it as a typed structured failure,
+// the same answer a direct call gets.
+func CoreOutput(in *llmwire.OutputSchema) (*cllm.OutputSchema, error) {
+	if in == nil {
+		return nil, nil
+	}
+	if len(in.Schema) == 0 {
+		return nil, errors.New("output.schema is required when output is set")
+	}
+	return &cllm.OutputSchema{Name: in.Name, Schema: in.Schema}, nil
 }
 
 // requireLLMGateway reports whether managed inference is configured.
@@ -153,6 +187,15 @@ func statusFor(class string, err error) (int, string) {
 		// logs it with the ledger row's ID — because it can carry account
 		// identifiers, endpoints, and request fragments.
 		return http.StatusBadGateway, "model provider unavailable"
+	case llmgateway.ErrorClassUpstreamTimeout:
+		return http.StatusGatewayTimeout, "model provider did not answer within the model's call timeout"
+	case llmgateway.ErrorClassUpstreamAuth:
+		// Not 401: the caller's own credential is fine, and a client that
+		// read 401 would try to sign in again instead of reporting it.
+		return http.StatusBadGateway, "model provider refused the deployment's credential for this model"
+	case llmgateway.ErrorClassUpstreamRateLimited:
+		// Not 429, which this route uses for the Space's own quota.
+		return http.StatusServiceUnavailable, "model provider is rate limiting this deployment"
 	default:
 		return http.StatusInternalServerError, "internal error"
 	}

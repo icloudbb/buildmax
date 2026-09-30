@@ -172,6 +172,7 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (
 		ToolCalls:     fromWireToolCalls(out.ToolCalls),
 		Usage:         usage,
 		ProviderState: fromWireProviderState(out.ProviderState),
+		Structured:    fromWireStructured(out.Structured),
 	}, nil
 }
 
@@ -303,6 +304,7 @@ func (s *streamState) finish() (cllm.Completion, error) {
 		ToolCalls:     fromWireToolCalls(s.result.ToolCalls),
 		Usage:         usage,
 		ProviderState: fromWireProviderState(s.result.ProviderState),
+		Structured:    fromWireStructured(s.result.Structured),
 	}, nil
 }
 
@@ -326,6 +328,7 @@ func (c *Client) post(ctx context.Context, stream bool, call cllm.Request) (*htt
 		// retention from here would let a client spend the operator's money on
 		// retention the operator did not choose.
 		CallProfile: string(call.Profile),
+		Output:      toWireOutput(call.Output),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("encode managed request: %w", err)
@@ -367,6 +370,25 @@ func (c *Client) metadata() *llmwire.Metadata {
 	return &llmwire.Metadata{Surface: c.cfg.Surface}
 }
 
+// Gateway error codes. The server's classes in internal/service/llmgateway are
+// authoritative; these mirror them because a client does not import the
+// server, and a server test holds the two lists equal.
+const (
+	CodeTargetNotFound      = "target_not_found"
+	CodeTargetDisabled      = "target_disabled"
+	CodeCapability          = "capability_unsupported"
+	CodeQuotaExceeded       = "quota_exceeded"
+	CodeDuplicateCall       = "duplicate_call"
+	CodeInvalidRequest      = "invalid_request"
+	CodeNotConfigured       = "not_configured"
+	CodeCanceled            = "canceled"
+	CodeUpstream            = "upstream_error"
+	CodeUpstreamTimeout     = "upstream_timeout"
+	CodeUpstreamAuth        = "upstream_auth_failed"
+	CodeUpstreamRateLimited = "upstream_rate_limited"
+	CodeInternal            = "internal_error"
+)
+
 // GatewayError is a refusal from the managed gateway. Code is the server's
 // stable classification, so callers branch on it instead of matching prose.
 type GatewayError struct {
@@ -388,8 +410,18 @@ func (e *GatewayError) Error() string {
 		// The server answered and failed. Saying it is down would send the
 		// user to wait for an outage that is not happening.
 		return fmt.Sprintf("the BuildMax server failed this call (HTTP %d); its log names the cause", e.StatusCode)
-	case e.Code == "upstream_error":
+	case e.Code == CodeUpstream:
 		return fmt.Sprintf("the deployment's model provider failed this call (%s): %s", e.Code, e.Message)
+	// The code already says everything these messages would, so the next step
+	// replaces the server's message rather than repeating it.
+	case e.Code == CodeUpstreamTimeout:
+		return fmt.Sprintf("the deployment's model provider did not answer within the model's call timeout (%s); try again, or ask an administrator to check the provider or raise the timeout", e.Code)
+	case e.Code == CodeUpstreamAuth:
+		// The user's own sign-in is fine; saying so keeps them from logging in
+		// again to fix a key only an operator can replace.
+		return fmt.Sprintf("the deployment's model provider refused the server's credential for this model (%s); an administrator must replace the model's key", e.Code)
+	case e.Code == CodeUpstreamRateLimited:
+		return fmt.Sprintf("the deployment's model provider is rate limiting this deployment (%s); try again shortly", e.Code)
 	case e.Message != "" && e.Code != "":
 		return fmt.Sprintf("managed gateway refused the call (%s): %s", e.Code, e.Message)
 	case e.Message != "":
@@ -469,6 +501,32 @@ func toWireParts(in []cllm.ContentPart) []llmwire.ContentPart {
 			Type: part.Type, Text: part.Text, MediaType: part.MediaType, Data: part.Data,
 		})
 	}
+	return out
+}
+
+func toWireOutput(in *cllm.OutputSchema) *llmwire.OutputSchema {
+	if in == nil {
+		return nil
+	}
+	return &llmwire.OutputSchema{Name: in.Name, Schema: in.Schema}
+}
+
+// fromWireStructured relays the gateway's verdict without re-validating it. The
+// server's provider client is the one validator (infra/llm finalizeStructured):
+// it sees the schema and the provider's candidate together, so checking again
+// here would be a second implementation of the same rule, and a managed run
+// gets exactly the outcome a direct call to the same target would.
+func fromWireStructured(in *llmwire.Structured) *cllm.Structured {
+	if in == nil {
+		return nil
+	}
+	out := &cllm.Structured{Mode: cllm.StructuredMode(in.Mode), Enforced: in.Enforced}
+	if in.Error != "" {
+		out.Err = &cllm.StructuredError{Message: in.Error}
+		out.Enforced = false
+		return out
+	}
+	out.Value = in.Value
 	return out
 }
 

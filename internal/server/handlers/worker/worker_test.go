@@ -262,6 +262,43 @@ func TestPatchWorkerTaskRun_CanceledKeepsReplyAndSyncsTheTask(t *testing.T) {
 	}
 }
 
+// A succeeded run's structured value must land on the TaskRun: it is the fact a
+// Workflow node with an output_schema folds, and without it the node fails on a
+// run that returned a valid answer.
+func TestPatchWorkerTaskRun_SucceededKeepsStructuredValue(t *testing.T) {
+	taskRunID := "run-structured"
+	runs := &mock.MockTaskRunStore{
+		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
+	}
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	endedAt := time.Unix(1_800_000_010, 0).UTC()
+	body, err := json.Marshal(workerclient.PatchTaskRunRequest{
+		Status:     string(coretask.RunStatusSucceeded),
+		EndedAt:    &endedAt,
+		Output:     util.Ptr("it is a bug"),
+		Structured: util.Ptr(`{"label":"bug"}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	if got := runs.Runs[0].Structured; got == nil || *got != `{"label":"bug"}` {
+		t.Errorf("run structured = %v, want the reported value", got)
+	}
+}
+
 // A run interrupted by its worker shutting down reports FAILED, because nothing
 // chose to stop it and it did not finish — but it produced real work first, and
 // the status must not be what decides whether that work is kept.
@@ -683,5 +720,36 @@ func TestGetWorkerTaskRunHandler_CarriesIssueToWorker(t *testing.T) {
 	}
 	if got.Task.IssueID == nil || *got.Task.IssueID != issueID {
 		t.Fatalf("task issue_id = %v, want %q", got.Task.IssueID, issueID)
+	}
+}
+
+// A Task with an output schema must reach the worker with it, or the run never
+// requests structured output and a Workflow node that requires a value fails
+// on a run that otherwise succeeded. Exercised through the worker client, the
+// boundary where the schema was once dropped.
+func TestGetWorkerTaskRunHandler_CarriesOutputSchemaToWorker(t *testing.T) {
+	taskRunID := "run-schema"
+	schema := `{"type":"object","properties":{"label":{"type":"string"}},"required":["label"]}`
+	runs := &mock.MockTaskRunStore{
+		Runs: []coretask.Run{{ID: taskRunID, TaskID: "task-1", Input: "go", Status: string(coretask.RunStatusScheduled)}},
+		TaskList: []coretask.Task{
+			{ID: "task-1", SpaceID: "tm_1", CreatedBy: "u1", LastRunID: &taskRunID, OutputSchema: &schema},
+		},
+	}
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	got, err := workerclient.GetWorkerTaskRun(context.Background(), workerclient.WorkerAPIClientConfig{
+		BaseURL: server.URL,
+		Token:   runTokenFor(t, taskRunID, "task-1"),
+	}, taskRunID)
+	if err != nil {
+		t.Fatalf("GetWorkerTaskRun: %v", err)
+	}
+	if got.Task.OutputSchema == nil || *got.Task.OutputSchema != schema {
+		t.Fatalf("task output_schema = %v, want %q", got.Task.OutputSchema, schema)
 	}
 }

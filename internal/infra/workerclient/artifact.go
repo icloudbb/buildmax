@@ -14,9 +14,14 @@ import (
 // a worker reports back to the model are decoded; the storage key is not among
 // them and never leaves the server.
 type artifactResponse struct {
-	ID         string         `json:"id"`
-	Filename   string         `json:"filename"`
-	SizeBytes  int64          `json:"size_bytes"`
+	ID        string `json:"id"`
+	Filename  string `json:"filename"`
+	SizeBytes int64  `json:"size_bytes"`
+	// URL is the artifact's Portal page, absent when the deployment has no
+	// public origin. The worker relays it and never renders one itself: the
+	// address it reaches the server at is internal and opens nothing for a
+	// person.
+	URL        string         `json:"url,omitempty"`
 	Share      *artifactShare `json:"share,omitempty"`
 	ShareError string         `json:"share_error,omitempty"`
 }
@@ -38,19 +43,16 @@ type artifactShare struct {
 type artifactPublisher struct {
 	Cfg       WorkerAPIClientConfig
 	TaskRunID string
-	// ServerBaseURL renders the artifact's address for the model. Empty leaves
-	// the reference as its id, which still means the same thing.
-	ServerBaseURL string
 }
 
 // NewArtifactPublisher builds the run-token adapter for the artifact tool.
-func NewArtifactPublisher(cfg WorkerAPIClientConfig, taskRunID, serverBaseURL string) tool.ArtifactPublisher {
-	return &artifactPublisher{Cfg: cfg, TaskRunID: taskRunID, ServerBaseURL: serverBaseURL}
+func NewArtifactPublisher(cfg WorkerAPIClientConfig, taskRunID string) tool.ArtifactPublisher {
+	return &artifactPublisher{Cfg: cfg, TaskRunID: taskRunID}
 }
 
 // PublishArtifact implements tool.ArtifactPublisher.
 func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.ArtifactUpload) (tool.PublishedArtifact, error) {
-	endpoint := p.Cfg.BaseURL + "/api/worker/task-runs/" + url.PathEscape(p.TaskRunID) + "/artifacts"
+	path := "/api/worker/task-runs/" + url.PathEscape(p.TaskRunID) + "/artifacts"
 	query := url.Values{}
 	if in.Title != "" {
 		query.Set("title", in.Title)
@@ -58,16 +60,17 @@ func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 	if in.Share {
 		query.Set("share", "1")
 	}
+	endpoint := p.Cfg.BaseURL + path
 	if encoded := query.Encode(); encoded != "" {
 		endpoint += "?" + encoded
 	}
 	resp, err := httpclient.UploadFile(ctx, p.Cfg.Client, endpoint, p.Cfg.Token, "file", in.Path, in.Filename)
 	if err != nil {
-		return tool.PublishedArtifact{}, err
+		return tool.PublishedArtifact{}, hideServerAddress(err, p.Cfg.BaseURL)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusCreated {
-		return tool.PublishedArtifact{}, httpclient.DecodeError(resp, "worker API POST "+endpoint)
+		return tool.PublishedArtifact{}, httpclient.DecodeError(resp, "worker API POST "+path)
 	}
 	var out artifactResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -77,7 +80,7 @@ func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 		ArtifactID: out.ID,
 		Filename:   out.Filename,
 		SizeBytes:  out.SizeBytes,
-		URL:        ArtifactURL(p.ServerBaseURL, out.ID),
+		URL:        out.URL,
 		ShareError: out.ShareError,
 	}
 	if out.Share != nil {
@@ -85,14 +88,4 @@ func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 		published.ShareDownloadURL = out.Share.DownloadURL
 	}
 	return published, nil
-}
-
-// ArtifactURL renders where an authorized person opens the artifact. Empty when
-// the caller does not know a public base URL, which leaves the id as the whole
-// reference.
-func ArtifactURL(baseURL, artifactID string) string {
-	if baseURL == "" || artifactID == "" {
-		return ""
-	}
-	return baseURL + "/api/artifacts/" + url.PathEscape(artifactID)
 }

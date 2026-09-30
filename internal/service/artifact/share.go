@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"net/url"
 	"strings"
 	"time"
 
@@ -166,6 +167,17 @@ func (s *Service) RevokeShare(ctx context.Context, rec *coreartifact.Artifact, s
 		})
 	}
 	return nil
+}
+
+// PortalURL is where a space member opens the artifact in the Portal, or ""
+// when the deployment has no public origin. It is the only address an agent
+// is given for an artifact: the address a worker reaches the server at is
+// internal and opens nothing for a person.
+func (s *Service) PortalURL(artifactID string) string {
+	if s == nil || strings.TrimSpace(s.PublicBaseURL) == "" || artifactID == "" {
+		return ""
+	}
+	return strings.TrimRight(s.PublicBaseURL, "/") + "/#/artifact/" + url.PathEscape(artifactID)
 }
 
 func (s *Service) sharePageURL(token string) string {

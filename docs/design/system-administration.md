@@ -970,13 +970,25 @@ derived from `task_run` state so that every replica gives the same answer:
    | `worker_lost` | reaper | the worker's heartbeat went stale |
    | `abandoned` | reaper | the run timed out |
    | `interrupted` | worker | the worker was shut down |
-   | `infrastructure` | worker | storage, checkpoint, or worker API failure |
-   | `space_configuration` | worker | plugin refusal, or a Secret or grant the Space must fix |
-   | `model` | worker | provider or model error |
+   | `infrastructure` | worker | storage, checkpoint, worker API, or managed gateway failure |
+   | `space_configuration` | worker | plugin refusal, a Secret or grant the Space must fix, or its quota spent |
+   | `model` | worker | provider or model error, direct or through the managed gateway |
    | `run` | worker | any other failure inside the Agent run |
    | `unclassified` | any | the fallback when no rule applies |
 
    The class is metadata. `error_message` stays behind Space membership.
+
+   A managed run learns what the gateway decided from its stable code, so the
+   worker files it without reading the provider's text:
+
+   | Gateway code | Class |
+   |---|---|
+   | `upstream_error`, `upstream_timeout`, `upstream_auth_failed`, `upstream_rate_limited` | `model` |
+   | `target_not_found`, `target_disabled`, `capability_unsupported` | `model` — the operator fixes the catalog |
+   | `quota_exceeded` | `space_configuration` |
+   | `canceled` while the run continues, `not_configured`, `internal_error`, or no code | `infrastructure` |
+   | `invalid_request`, `duplicate_call` | `run` |
+   | anything newer | `unclassified` |
 2. **Runtime summary** on `GET /api/admin/system`:
    - the oldest PENDING `created_at`;
    - the oldest SCHEDULED-but-not-started `created_at`;

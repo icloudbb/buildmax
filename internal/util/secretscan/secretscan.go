@@ -13,6 +13,9 @@
 package secretscan
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"regexp"
 	"strings"
 )
@@ -61,12 +64,14 @@ const (
 	// maxExactValue bounds a single exact value so one very large credential
 	// (a certificate, a key file) cannot make every redaction pass unbounded.
 	maxExactValue = 4096
+	// exactMarker replaces a registered exact value wherever it is redacted.
+	exactMarker = "[redacted]"
 )
 
 // Redactor redacts both recognized secret shapes and a fixed set of exact
 // values. The exact set is a run's materialized Space Secret values, registered
-// before the Agent starts so they do not drift into a durable trace, a log, or
-// a tool result. It is defense in depth, not a boundary: a value can be encoded
+// before the Agent starts so they do not drift into a durable trace, a log, a
+// tool result, the live stream, or what the run reports and stores. It is defense in depth, not a boundary: a value can be encoded
 // or transformed past it, which is why the primary control is withholding the
 // value from the general environment. See docs/design/space-secrets.md §12.
 type Redactor struct {
@@ -102,9 +107,76 @@ func (r *Redactor) RedactExact(s string) string {
 		return s
 	}
 	for _, v := range r.exact {
-		s = strings.ReplaceAll(s, v, "[redacted]")
+		s = strings.ReplaceAll(s, v, exactMarker)
 	}
 	return s
+}
+
+// RedactExactJSON applies RedactExact to the strings of one JSON document --
+// its string values and object keys, after unescaping -- and re-encodes it only
+// when something was replaced. Matching the decoded strings is the point: a
+// value holding a quote, a backslash, or a character the encoder escapes is not
+// present verbatim in the document's bytes, and replacing inside those bytes
+// could cut a number or a structural token and leave the document unreadable.
+//
+// Numbers and literals are left alone. In the documents this serves they are
+// structural -- sequence numbers, token counts -- and rewriting one into a
+// string would break the reader, so a value the model emits as a bare JSON
+// number is not caught here. Input that is not a single JSON document is
+// redacted as plain text. A nil Redactor, or one with no exact values, returns
+// doc unchanged.
+func (r *Redactor) RedactExactJSON(doc []byte) []byte {
+	if r == nil || len(r.exact) == 0 || len(doc) == 0 {
+		return doc
+	}
+	dec := json.NewDecoder(bytes.NewReader(doc))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return []byte(r.RedactExact(string(doc)))
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return []byte(r.RedactExact(string(doc)))
+	}
+	v, changed := r.redactJSONValue(v)
+	if !changed {
+		return doc
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return []byte(r.RedactExact(string(doc)))
+	}
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
+}
+
+func (r *Redactor) redactJSONValue(v any) (any, bool) {
+	switch t := v.(type) {
+	case string:
+		s := r.RedactExact(t)
+		return s, s != t
+	case []any:
+		changed := false
+		for i, e := range t {
+			ne, c := r.redactJSONValue(e)
+			t[i] = ne
+			changed = changed || c
+		}
+		return t, changed
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		changed := false
+		for k, e := range t {
+			nk := r.RedactExact(k)
+			ne, c := r.redactJSONValue(e)
+			out[nk] = ne
+			changed = changed || c || nk != k
+		}
+		return out, changed
+	default:
+		return v, false
+	}
 }
 
 // Findings names the secret shapes recognized in s, in the order the patterns

@@ -75,7 +75,9 @@ and no artifact tool appears in its tool list.
 The shared Agent runtime exposes an `UploadArtifact` tool only where that
 capability is present. It accepts an explicitly named local file, streams it
 through the artifact service, records an Artifact, and returns the artifact's
-ID and canonical URL.
+ID and, when the deployment has a public origin, its Portal page URL as the
+server renders it — never an address derived from how the caller reached the
+server.
 
 The object store remains an implementation detail. A BuildMax artifact URL is
 not a bucket key and is not an object-store presigned URL.
@@ -368,7 +370,8 @@ The agent supplies:
 The tool must reject directories, device files, symlinks that escape the
 allowed root, files over the active quota, and paths it cannot safely open. It
 streams the file, creates the Artifact only after storage succeeds, and returns
-the Artifact ID, filename, size, and canonical URL. A storage failure returns a
+the Artifact ID, filename, size, and the server-rendered Portal URL when the
+deployment has a public origin. A storage failure returns a
 meaningful tool error and leaves no successful artifact record.
 
 The tool does not auto-upload every file an agent writes. The model must choose

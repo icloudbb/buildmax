@@ -35,3 +35,10 @@ var ErrRunCanceled = errors.New("task run canceled")
 // until the stale-run reaper closes it hours later. See
 // docs/design/graceful-shutdown.md §6.2.
 var ErrRunInterrupted = errors.New("task run interrupted: the worker was shut down")
+
+// ErrRunFailed marks an error from a run that has already reported its own
+// FAILED outcome, wrapped around the cause it reported. Like ErrRunCanceled it
+// is an outcome, not a dispatch fault: the run is terminal, so a worker that
+// returns it has nothing a restart could redo. A run that failed and could not
+// say so returns its report error instead, without this mark.
+var ErrRunFailed = errors.New("task run failed")

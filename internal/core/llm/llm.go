@@ -275,6 +275,15 @@ type StreamSink interface {
 	OnDelta(delta string)
 }
 
+// StreamEnder is an optional StreamSink extension told when one streamed model
+// call has delivered its last delta, on success or failure. A sink that holds
+// text back across deltas -- a worker holds a possible Space Secret value until
+// it can tell whether the next delta completes it -- releases it here, so a
+// turn's tail is not withheld while the tools it asked for run.
+type StreamEnder interface {
+	OnStreamEnd()
+}
+
 // TitleGenerator generates a short title from an input string, e.g. via LLM.
 // Returns token usage for metering; on error or when nil, callers fall back to truncated input.
 type TitleGenerator interface {

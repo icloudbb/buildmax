@@ -37,6 +37,10 @@ type artifactResponse struct {
 	Preview   string     `json:"preview"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`
+	// URL is the artifact's Portal page, set on an upload when the deployment
+	// has a public origin. The server renders it so no client derives an
+	// address from however it happens to reach the server.
+	URL string `json:"url,omitempty"`
 	// Share is present only on an upload that asked for a public link and got
 	// one; it is the sole place the link's token is returned. ShareError is set
 	// instead when a link was asked for but could not be made — the artifact is

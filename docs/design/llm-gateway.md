@@ -330,6 +330,10 @@ The versioned request DTO contains only fields BuildMax understands:
   "tools": [],
   "stream": true,
   "call_profile": "agent_turn",
+  "output": {
+    "name": "output",
+    "schema": {"type": "object"}
+  },
   "metadata": {
     "surface": "desktop",
     "session_id": "optional correlation value"
@@ -357,6 +361,12 @@ rather than absorbed, so a newer client cannot believe it asked for one thing
 and be charged for another. See
 [prompt-cache-control.md](prompt-cache-control.md).
 
+`output` is the optional structured-output schema of
+[structured-output.md](structured-output.md), the wire form of
+`core/llm.Request.Output`. The Server hands it to the provider client, which
+maps it to the target's native mechanism and validates the candidate — the one
+validation for a managed call. An `output` without a `schema` is rejected.
+
 Metadata is correlation context, not authorization input. The Server derives
 user ID and space ID from authentication, and derives task-run identity on the
 worker route.
@@ -367,6 +377,11 @@ worker route.
 {
   "content": "...",
   "tool_calls": [],
+  "structured": {
+    "value": {"label": "bug"},
+    "mode": "native",
+    "enforced": true
+  },
   "usage": {
     "prompt_tokens": 100,
     "completion_tokens": 20,
@@ -377,6 +392,11 @@ worker route.
 
 The response deliberately returns BuildMax tool-call and usage shapes. It does
 not expose an upstream response body or provider credential-bearing headers.
+`structured` is present only when the request carried `output`: the provider
+client's verdict, carrying either the validated `value` or an `error` saying
+why the candidate did not validate. The remote client relays it without
+re-validating, so a managed call gets the same outcome as a direct call to the
+same target.
 
 ### 8.3 Streaming Response
 
@@ -385,7 +405,7 @@ Streaming uses typed SSE events, not byte-for-byte upstream chunks:
 | Event | Payload | Meaning |
 |---|---|---|
 | `delta` | content delta | Text to deliver to the local stream sink |
-| `result` | final content, tool calls, usage | Completes the `LLMClient` call |
+| `result` | final content, tool calls, structured result, usage | Completes the `LLMClient` call |
 | `error` | stable code, safe message, retryable flag | Terminates the call with an error |
 
 The existing core contract exposes content deltas during streaming and returns

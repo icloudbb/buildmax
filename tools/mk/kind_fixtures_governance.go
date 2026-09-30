@@ -242,24 +242,24 @@ func seedFixtureStalledTask(ctx context.Context, client *http.Client, target smo
 	if err := requestJSON(ctx, client, http.MethodPost, agentTasks, carol, map[string]string{"input": fixtureStalledInput}, &task, http.StatusCreated); err != nil {
 		return err
 	}
-	var before []struct{ Body []byte }
+	var before []fxModelCall
 	if err := requestJSON(ctx, client, http.MethodGet, target.llmControlRequestsURL, "", nil, &before, http.StatusOK); err != nil {
 		return err
 	}
-	release, err := armFixtureToolCall(ctx, client, target, "Bash", map[string]any{"command": "sleep 590", "timeout": 600000}, 1)
+	release, err := armFixtureToolCall(ctx, client, target, "Bash", map[string]any{"command": "sleep 590", "timeout": 600000}, fixtureStalledInput)
 	if err != nil {
 		return err
 	}
 	defer release()
 	// Clearing before the worker's turn would drop the arm, so wait for that
-	// call to reach the mock; nothing else is calling it at this point.
+	// call — this Task's, not any schedule's — to reach the mock.
 	deadline := time.Now().Add(3 * time.Minute)
 	for {
-		var after []struct{ Body []byte }
+		var after []fxModelCall
 		if err := requestJSON(ctx, client, http.MethodGet, target.llmControlRequestsURL, "", nil, &after, http.StatusOK); err != nil {
 			return err
 		}
-		if len(after) > len(before) {
+		if modelCalledWith(after, len(before), fixtureStalledInput) {
 			break
 		}
 		if time.Now().After(deadline) {

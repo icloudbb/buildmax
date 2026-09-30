@@ -675,3 +675,26 @@ func TestGatewayErrorNamesAnUnavailableServer(t *testing.T) {
 		t.Errorf("upstream Error() = %q", upstream)
 	}
 }
+
+// Each provider failure names the next step, and none of them reads as a
+// cancellation or as the user's own sign-in failing.
+func TestGatewayErrorNamesTheProviderFailure(t *testing.T) {
+	tests := []struct {
+		code   string
+		status int
+		wantIn string
+	}{
+		{code: llmremote.CodeUpstreamTimeout, status: http.StatusGatewayTimeout, wantIn: "did not answer within the model's call timeout"},
+		{code: llmremote.CodeUpstreamAuth, status: http.StatusBadGateway, wantIn: "replace the model's key"},
+		{code: llmremote.CodeUpstreamRateLimited, status: http.StatusServiceUnavailable, wantIn: "rate limiting"},
+	}
+	for _, tc := range tests {
+		msg := (&llmremote.GatewayError{StatusCode: tc.status, Code: tc.code, Message: "server text"}).Error()
+		if !strings.Contains(msg, tc.wantIn) || !strings.Contains(msg, tc.code) {
+			t.Errorf("%s: Error() = %q, want %q and the code", tc.code, msg, tc.wantIn)
+		}
+		if strings.Contains(msg, "cancel") || strings.Contains(msg, "BuildMax server did not answer") {
+			t.Errorf("%s: Error() = %q misnames the failure", tc.code, msg)
+		}
+	}
+}

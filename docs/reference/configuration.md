@@ -51,7 +51,7 @@ read only when that integration is configured.
 | `BUILDMAX_SERVER_URL` | — | Address this process uses to reach `buildmax-server`. Overrides `settings.yaml` `server_url` for CLI/Desktop and `server.yaml` `worker.server_url` for workers. |
 | `BUILDMAX_JWT_SECRET` | — | Overrides `jwt_secret` in `server.yaml`. Inject this at deploy time rather than committing the secret to a file. |
 | `BUILDMAX_CORS_ORIGIN` | — | Overrides `cors_origin` in `server.yaml`. It has to name the origin the Portal is served from, which is a host port the deployment picks — the Compose stack derives it from `BUILDMAX_PORTAL_PORT`, so moving that port is one change rather than two. |
-| `BUILDMAX_PUBLIC_BASE_URL` | — | Overrides `public_base_url` in `server.yaml`: the externally reachable origin at which people open BuildMax. Artifact public share links are built from it; leave it unset to keep public sharing off. It is distinct from `BUILDMAX_SERVER_URL`, which is the address a process uses to *reach* the server. |
+| `BUILDMAX_PUBLIC_BASE_URL` | — | Overrides `public_base_url` in `server.yaml`: the externally reachable origin at which people open BuildMax. Artifact public share links, and the artifact Portal links an agent is given, are built from it; leave it unset to keep public sharing off. It is distinct from `BUILDMAX_SERVER_URL`, which is the address a process uses to *reach* the server. |
 | `BUILDMAX_WORKER_LLM_TRANSPORT` | — | Overrides `worker.llm.transport` (`direct` or `buildmax`). Flips task runs between a direct provider call and the managed gateway. The server reads it and tells each worker its transport per run, so the choice stays on the server; a worker is never handed this variable. |
 | `BUILDMAX_LLM_DEFAULT_MODEL` | — | Overrides `llm.default_model` — the catalog model name a managed run and any caller that names none resolves to. A name not in the catalog stops the server at startup. |
 | `BUILDMAX_CONVERSATION_MODEL_TARGET` | — | Overrides `conversation.model_target` — a catalog model name or ID for Tier 1 conversations. Together with the two above, this flips a running cluster between the mock and a seeded model by environment alone; `./make kind use-model` and `./make kind mock` do exactly that. |
@@ -1195,6 +1195,22 @@ an error: rows are added while the server runs.
 Managed calls need a database for two reasons: the catalog lives there, and
 every call is recorded in the `llm_call` ledger. Without a store the routes
 answer `503` rather than serving inference nobody can account for.
+
+A failed call records the gateway's decision, never the provider's text, as its
+`error_class`:
+
+| Class | Meaning | Next step |
+|---|---|---|
+| `upstream_auth_failed` | The provider refused the model's key (HTTP 401 or 403) | Replace it with `set-key` |
+| `upstream_rate_limited` | The provider is throttling this deployment (HTTP 429) | Wait, or raise the provider account's limit |
+| `upstream_timeout` | The provider did not answer within the model's `call_timeout` | Check the provider and the route to it, or raise the timeout |
+| `upstream_error` | Any other provider failure | Read the server log line |
+
+Each of these is a `FAILED` row and one server `WARN` line, `managed llm call
+failed upstream`, carrying the row's `llm_call_id`, the model, and the
+provider's own message, which is the one place that message is kept. A
+`CANCELED` row means the caller went away before the call finished. A task run
+that fails on any of these classes is recorded with `failure_class` `model`.
 
 Credentials are stored in the `llm_model` table and read by exactly one query,
 the one that builds a provider client. They are never returned by a model

@@ -120,6 +120,11 @@ type TaskRunTask struct {
 	// TaskRun. Both are absent when the space has never configured the layer.
 	SpaceAgentInstructions         string `json:"space_agent_instructions,omitempty"`
 	SpaceAgentInstructionsRevision int    `json:"space_agent_instructions_revision,omitempty"`
+	// OutputSchema is the JSON Schema (as text) the run's final answer must
+	// satisfy, so the worker requests structured output and reports the
+	// validated value on its terminal PATCH. Absent means a free-text Task. See
+	// docs/design/structured-output.md.
+	OutputSchema *string `json:"output_schema,omitempty"`
 }
 
 // PatchTaskRunRequest is the JSON body for PATCH /api/worker/task-runs/{task_run_id} (snake_case).

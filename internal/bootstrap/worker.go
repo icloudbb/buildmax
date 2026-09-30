@@ -316,6 +316,8 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 // It reports FAILED rather than CANCELED: nobody asked for this to stop, and a
 // space reading its runs needs the two apart. The reason is the server's text,
 // which names the plugin, because the fix is an activation somebody has to make.
+// A reported refusal is marked ErrRunFailed: the run is terminal, so a
+// restarted worker could only refuse it again.
 func reportPluginRefusal(ctx context.Context, updater taskrun.TaskRunUpdater, taskRunID, reason string) error {
 	slog.Error("this run cannot start", "reason", reason)
 	endedAt := time.Now().UTC()
@@ -329,7 +331,7 @@ func reportPluginRefusal(ctx context.Context, updater taskrun.TaskRunUpdater, ta
 		slog.Error("could not report the refusal", "err", err)
 		return err
 	}
-	return fmt.Errorf("%s", reason)
+	return fmt.Errorf("%w: %s", coretask.ErrRunFailed, reason)
 }
 
 // interruptGraceFromEnv reads how long this worker may spend reporting after it

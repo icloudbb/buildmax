@@ -95,6 +95,11 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	output, err := llmhttp.CoreOutput(req.Output)
+	if err != nil {
+		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	// No SpaceID: a foreground call is somebody's own work and is metered against
 	// no space. See docs/design/client-modes.md section 9.
@@ -105,6 +110,7 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 		Messages:     messages,
 		Tools:        llmhttp.CoreTools(req.Tools),
 		CallProfile:  profile,
+		Output:       output,
 	}
 	if req.Metadata != nil {
 		cmd.Surface = req.Metadata.Surface
@@ -122,23 +128,7 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp := llmwire.CompletionResponse{
-		LLMCallID:     result.LLMCallID,
-		Model:         result.Model,
-		Content:       result.Content,
-		ToolCalls:     llmhttp.WireToolCalls(result.ToolCalls),
-		ProviderState: llmhttp.WireProviderState(result.ProviderState),
-	}
-	if result.UsageReported {
-		resp.Usage = &llmwire.Usage{
-			PromptTokens:     result.Usage.PromptTokens,
-			CompletionTokens: result.Usage.CompletionTokens,
-			TotalTokens:      result.Usage.TotalTokens,
-			CacheReadTokens:  result.Usage.CacheReadTokens,
-			CacheWriteTokens: result.Usage.CacheWriteTokens,
-		}
-	}
-	httputil.WriteJSON(w, http.StatusOK, resp)
+	httputil.WriteJSON(w, http.StatusOK, llmhttp.WireCompletion(result))
 }
 
 // streamLLMCompletion serves a streaming managed call over SSE.

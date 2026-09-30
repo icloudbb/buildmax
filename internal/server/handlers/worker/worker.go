@@ -137,6 +137,7 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			AgentInstructions:              agentInstructions,
 			SpaceAgentInstructions:         spaceInstructions,
 			SpaceAgentInstructionsRevision: spaceInstructionsRevision,
+			OutputSchema:                   task.OutputSchema,
 		},
 		Plugins:     toWirePlugins(pins),
 		PluginError: pluginRefusal,

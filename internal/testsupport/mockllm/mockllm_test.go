@@ -500,6 +500,49 @@ func TestControlToolCallTimesQueuesSeveral(t *testing.T) {
 	}
 }
 
+// TestControlToolCallMatchReservesTheArm asserts a reserved arm is passed over
+// by a call that does not carry its marker — which gets what it would have got
+// with no arm queued, an unreserved arm included — and answers the one that
+// does.
+func TestControlToolCallMatchReservesTheArm(t *testing.T) {
+	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "scripted reply"}}, Repeat: true})
+	arm := func(body string) {
+		t.Helper()
+		resp, err := http.Post(server.URL()+mockllm.ControlToolCallPath, "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("post control/toolcall: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("control/toolcall returned %d, want 200", resp.StatusCode)
+		}
+	}
+	call := func(content string) cllm.Completion {
+		t.Helper()
+		resp, err := client(t, server, mockllm.ProtocolOpenAIChat).ChatCompletionBlocking(
+			context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: content}}})
+		if err != nil {
+			t.Fatalf("call: %v", err)
+		}
+		return resp
+	}
+
+	arm(`{"name":"AskUser","match":"marker-7"}`)
+	arm(`{"name":"Bash"}`)
+	if got := call("someone else"); len(got.ToolCalls) != 1 || got.ToolCalls[0].Name != "Bash" {
+		t.Fatalf("unmarked call = %+v, want the unreserved Bash arm", got.ToolCalls)
+	}
+	if got := call("someone else again"); len(got.ToolCalls) != 0 || got.Content != "scripted reply" {
+		t.Fatalf("unmarked call = %+v, want the scenario's reply past the reserved arm", got)
+	}
+	if got := call("the run with marker-7"); len(got.ToolCalls) != 1 || got.ToolCalls[0].Name != "AskUser" {
+		t.Fatalf("marked call = %+v, want the reserved AskUser arm", got.ToolCalls)
+	}
+	if got := call("the run with marker-7"); len(got.ToolCalls) != 0 {
+		t.Fatalf("second marked call = %+v, want the arm spent", got.ToolCalls)
+	}
+}
+
 // TestControlRequestsReportsEveryCall asserts a suite that can only reach a
 // deployed mock over HTTP can still see what it was actually sent, which is
 // the only way to check a tool result a scripted final reply never echoes.

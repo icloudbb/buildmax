@@ -6,10 +6,11 @@
 // on one side and something else on the other.
 //
 // The contract is deliberately narrower than any provider API. It carries
-// messages, tool definitions, tool calls, and usage — the semantic content of
-// internal/core/llm — and nothing about where a call goes. Upstream URLs,
-// provider credentials, provider model identifiers, and free-form generation
-// parameters are not part of it in either direction.
+// messages, tool definitions, tool calls, an optional output schema and its
+// structured result, and usage — the semantic content of internal/core/llm —
+// and nothing about where a call goes. Upstream URLs, provider credentials,
+// provider model identifiers, and free-form generation parameters are not part
+// of it in either direction.
 //
 // Mirrors the design in docs/design/llm-gateway.md section 8.
 package llmwire
@@ -119,6 +120,28 @@ type CompletionRequest struct {
 	// then has no evidence that anything will read the prefix back, which is
 	// not a reason to buy a cache write.
 	CallProfile string `json:"call_profile,omitempty"`
+	// Output asks for a final answer that satisfies a JSON Schema, the wire form
+	// of core/llm.Request.Output. Absent is free text.
+	Output *OutputSchema `json:"output,omitempty"`
+}
+
+// OutputSchema is a requested structured-output schema. Name is the stable
+// identifier some providers require; Schema is JSON Schema in the shared subset
+// (docs/design/structured-output.md §6).
+type OutputSchema struct {
+	Name   string          `json:"name"`
+	Schema json.RawMessage `json:"schema"`
+}
+
+// Structured is the server's verdict on a requested structured value, the wire
+// form of core/llm.Structured. The server's provider client has already
+// validated it: Value is set only when the candidate validated, Error only when
+// it did not.
+type Structured struct {
+	Value    json.RawMessage `json:"value,omitempty"`
+	Mode     string          `json:"mode,omitempty"`
+	Enforced bool            `json:"enforced,omitempty"`
+	Error    string          `json:"error,omitempty"`
 }
 
 // Usage is the token usage for one call.
@@ -142,6 +165,8 @@ type CompletionResponse struct {
 	// ProviderState is the reasoning state this turn produced, to be sent back
 	// on the next request. Absent when the upstream protocol produced none.
 	ProviderState *ProviderState `json:"provider_state,omitempty"`
+	// Structured is present only when the request carried an Output schema.
+	Structured *Structured `json:"structured,omitempty"`
 	// Usage is absent when the provider reported none. An absent usage is not
 	// the same fact as zero tokens.
 	Usage *Usage `json:"usage,omitempty"`

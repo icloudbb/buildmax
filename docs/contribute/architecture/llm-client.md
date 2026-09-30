@@ -330,6 +330,17 @@ each adapter converts its own library's failure into. The original error is kept
 and unwrapped, so a caller that does know a specific library's error type can
 still reach it.
 
+Only the caller knows where a refused key is fixed, so `Config.CredentialHint`
+supplies the next step for a 401 or 403. Empty means a local model entry and
+reads "check api_key in settings.yaml"; the server's client factory names the
+catalog model and its `model set-key` command, or `conversation.model.api_key`
+for the derived conversation target.
+
+A caller outside this package tells refusals apart with `errors.Is` against
+`core/llm.ErrProviderAuth` (401, 403) and `core/llm.ErrProviderRateLimited`
+(429), which `apiError` matches by status. The managed gateway classifies with
+them, so it never reads the provider's text or imports this package.
+
 ## Usage Capture
 
 The Chat Completions library does not surface token usage from stream chunks, so

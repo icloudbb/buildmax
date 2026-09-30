@@ -5,6 +5,7 @@
 package taskrun
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/agentapp"
@@ -25,6 +27,7 @@ import (
 	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	infrallm "github.com/icloudbb/buildmax/internal/infra/llm"
+	"github.com/icloudbb/buildmax/internal/infra/llmremote"
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	tool "github.com/icloudbb/buildmax/internal/tool"
@@ -196,6 +199,11 @@ type RunTaskInput struct {
 	AskUser bool
 }
 
+// redactor is the exact-value redactor over this run's Secret grants.
+func (in RunTaskInput) redactor() *secretscan.Redactor {
+	return secretscan.NewRedactor(mapValues(in.SecretEnvGrants))
+}
+
 // artifactPublisher gives a run the artifact capability, or nil when it has no
 // way to reach a server.
 //
@@ -207,7 +215,7 @@ func artifactPublisher(cfg workerclient.WorkerAPIClientConfig, taskRunID string)
 	if cfg.BaseURL == "" || cfg.Token == "" || taskRunID == "" {
 		return nil
 	}
-	return workerclient.NewArtifactPublisher(cfg, taskRunID, cfg.BaseURL)
+	return workerclient.NewArtifactPublisher(cfg, taskRunID)
 }
 
 // issueContext says a run is working one Issue, so its prompt points the Agent
@@ -235,6 +243,10 @@ func issueContext(cfg workerclient.WorkerAPIClientConfig, task *coretask.Task) *
 // nothing chose to stop it and it did not finish. Any other end of ctx is the
 // process going away without warning, which is not this run's outcome to
 // report — the stale-run reaper closes those.
+//
+// A run that failed at its work returns its cause marked ErrRunFailed once
+// the FAILED outcome is reported; only an outcome the server never received
+// comes back unmarked.
 func RunTask(ctx context.Context, input RunTaskInput) error {
 	task, run := input.Task, input.Run
 	if task == nil || run == nil {
@@ -253,8 +265,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		// No partial checkpoint here: preparation failed before execution, so
 		// there is no run-produced workspace to preserve — only the seed or the
 		// restored base, which are already durable.
-		reportRunFailure(ctx, run.ID, err, coretask.FailureInfrastructure, "", nil, input.Updater)
-		return err
+		return reportRunFailure(ctx, run.ID, err, coretask.FailureInfrastructure, "", nil, input.Updater)
 	}
 	result, err := executeRunTask(ctx, input, task, run, dirs)
 	// The stop check comes first because the agent loop treats cancellation as
@@ -266,17 +277,16 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	if err != nil {
 		// The agent's error stays the run's cause. A storage failure on top of it
 		// is logged, and drops a trace pointer that would not resolve.
-		result, _ = persistRunState(ctx, input.Persist, scope, dirs, result)
+		result, _ = persistRunState(ctx, input.Persist, input.redactor(), scope, dirs, result)
 		componentLog().Error("run failed", "task_run_id", run.ID, "err", err, "output_len", len(result.OutputStr))
 		// Capture what the failed run produced as a partial checkpoint. It rides
 		// the terminal report like a result but never advances the head; it
 		// preserves the work for an operator to recover from. Fail-open.
 		partial := captureWorkspaceCheckpoint(ctx, input, task, dirs)
-		reportRunFailure(ctx, run.ID, err, classifyRunError(err), result.TracePath, partial, input.Updater)
-		return err
+		return reportRunFailure(ctx, run.ID, err, classifyRunError(err), result.TracePath, partial, input.Updater)
 	}
 
-	result, persistErr := persistRunState(ctx, input.Persist, scope, dirs, result)
+	result, persistErr := persistRunState(ctx, input.Persist, input.redactor(), scope, dirs, result)
 	if persistErr != nil {
 		// A run whose state did not reach storage has not finished. Its session
 		// bundle is what the next turn resumes from, so reporting success would let
@@ -288,7 +298,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		if reportErr := reportRunOutcome(ctx, scope, result, coretask.RunStatusFailed, err.Error(), coretask.FailureInfrastructure, partial, input.Updater); reportErr != nil {
 			return reportErr
 		}
-		return err
+		return fmt.Errorf("%w: %w", coretask.ErrRunFailed, err)
 	}
 	// Capture the successful run's workspace as its result checkpoint and carry it
 	// on the terminal report, so the server commits it and advances the Task head
@@ -392,7 +402,7 @@ func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 	if result.EndTime.IsZero() {
 		result.EndTime = time.Now().UTC()
 	}
-	result, _ = persistRunState(reportCtx, input.Persist, scope, dirs, result)
+	result, _ = persistRunState(reportCtx, input.Persist, input.redactor(), scope, dirs, result)
 	// A stopped run's workspace is a partial checkpoint: capture it within the
 	// same bounded reporting budget as everything else this run still does, and
 	// carry it on the terminal report. A partial preserves the work but never
@@ -468,8 +478,8 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 // trace pointer kept only when the trace is now in storage: a terminal report
 // must never point at an object storage does not hold. The error names what
 // could not be stored; each caller decides what it means for the outcome.
-func persistRunState(ctx context.Context, persist blob.RunStorage, scope RunScope, dirs runDirs, result runResult) (runResult, error) {
-	stored, err := uploadTaskGlobal(ctx, dirs.runGlobal, scope, persist, result.TracePath)
+func persistRunState(ctx context.Context, persist blob.RunStorage, redactor *secretscan.Redactor, scope RunScope, dirs runDirs, result runResult) (runResult, error) {
+	stored, err := uploadTaskGlobal(ctx, dirs.runGlobal, scope, persist, result.TracePath, redactor)
 	result.TracePath = stored
 	if err != nil {
 		componentLog().Error("could not persist run state to object storage", "task_run_id", scope.TaskRunID, "err", err)
@@ -500,7 +510,7 @@ func ensureRunDirs(runWorkspace, runGlobal, runOSHome string) error {
 // without them resumes correctly and simply has no record of what the previous
 // run did — which is the right trade when the alternative is fetching an
 // unbounded set of files whose names this side does not know.
-var sessionBundleFiles = []string{"meta.json", "history.jsonl"}
+var sessionBundleFiles = []string{"meta.json", sessionJournalFile}
 
 func restoreSessionFromPreviousRun(ctx context.Context, task *coretask.Task, run *coretask.Run, runGlobalDir string, persist blob.RunStorage) {
 	if task.SessionID == nil || run.PreviousTaskRunID == nil {
@@ -579,10 +589,17 @@ func runProvenance(run *coretask.Run) agentapp.RunProvenance {
 }
 
 func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issue *agentapp.IssueContext, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string, askUser bool) (agentRunOutput, error) {
+	// One redactor over this run's Secret values covers every model-written text
+	// the run hands to the server: the live stream, the reply, and the
+	// structured and question data reported with it. See
+	// docs/design/space-secrets.md §12.
+	redactor := secretscan.NewRedactor(mapValues(secretGrants))
 	var sink llm.StreamSink
+	var adapter *streamSinkAdapter
 	if streamSender != nil {
-		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
-			redactor: secretscan.NewRedactor(mapValues(secretGrants))}
+		adapter = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
+			redact: redactor.Stream()}
+		sink = adapter
 	}
 
 	var out agentapp.RunResult
@@ -661,6 +678,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 		// tail is the part of the reply the reader has not seen yet.
 		flushCtx, cancelFlush := context.WithTimeout(context.WithoutCancel(ctx), reportFinishTimeout)
 		defer cancelFlush()
+		adapter.releaseHeld(flushCtx)
 		if flushErr := streamSender.Flush(flushCtx, run.ID); flushErr != nil {
 			componentLog().Warn("stream flush failed", "task_run_id", run.ID, "err", flushErr)
 		}
@@ -674,13 +692,23 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 	completionTokens := out.CompletionTokens
 	asked := questioner.questions()
 	return agentRunOutput{
-		output:           []byte(withQuestions(out.Reply, asked)),
-		structured:       structuredValueJSON(out.Structured),
-		questions:        questionsJSON(asked),
+		output:           []byte(redactor.RedactExact(withQuestions(out.Reply, asked))),
+		structured:       redactJSONText(redactor, structuredValueJSON(out.Structured)),
+		questions:        redactJSONText(redactor, questionsJSON(asked)),
 		promptTokens:     &promptTokens,
 		completionTokens: &completionTokens,
 		tracePath:        out.TracePath,
 	}, nil
+}
+
+// redactJSONText removes the run's exact Secret values from a JSON value the run
+// reports, keeping it a valid document. Nil stays nil.
+func redactJSONText(redactor *secretscan.Redactor, doc *string) *string {
+	if doc == nil {
+		return nil
+	}
+	redacted := string(redactor.RedactExactJSON([]byte(*doc)))
+	return &redacted
 }
 
 // structuredValueJSON is the validated structured value as JSON text to persist,
@@ -729,18 +757,48 @@ type streamSinkAdapter struct {
 	ctx          context.Context
 	streamSender workerclient.StreamSender
 	taskRunID    string
-	// redactor removes this run's exact Secret values from a streamed delta
-	// before it reaches the watcher. Nil is a no-op. See
+	// redact removes this run's exact Secret values from the stream before it
+	// reaches the watcher. It works across deltas, holding back a tail that
+	// could still become a value, because a provider splits a value the model
+	// writes over several tokens. Nil passes deltas through. See
 	// docs/design/space-secrets.md §12.
-	redactor *secretscan.Redactor
+	redact *secretscan.StreamRedactor
+	// mu keeps a delta and a release of the held tail from interleaving, which
+	// would reorder the text the watcher reads.
+	mu sync.Mutex
 }
 
 func (s *streamSinkAdapter) OnDelta(delta string) {
 	if s.streamSender == nil || delta == "" {
 		return
 	}
-	delta = s.redactor.RedactExact(delta)
-	if err := s.streamSender.SendDelta(s.ctx, s.taskRunID, delta); err != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.send(s.ctx, s.redact.Write(delta))
+}
+
+// OnStreamEnd releases the held tail when a model call ends.
+func (s *streamSinkAdapter) OnStreamEnd() {
+	s.releaseHeld(s.ctx)
+}
+
+// releaseHeld sends whatever the redactor is still holding. The run's end
+// calls it with a detached context, since a canceled run's own is dead and the
+// tail is still text the watcher has not seen.
+func (s *streamSinkAdapter) releaseHeld(ctx context.Context) {
+	if s.streamSender == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.send(ctx, s.redact.Flush())
+}
+
+func (s *streamSinkAdapter) send(ctx context.Context, text string) {
+	if text == "" {
+		return
+	}
+	if err := s.streamSender.SendDelta(ctx, s.taskRunID, text); err != nil {
 		componentLog().Warn("stream send delta failed", "task_run_id", s.taskRunID, "err", err)
 	}
 }
@@ -786,10 +844,12 @@ func mapValues(m map[string]string) []string {
 	return out
 }
 
-// reportRunFailure records the failure. tracePath may be empty — the run can
-// fail before an agent ever starts — but when a trace exists it is recorded
-// here too: diagnosing a failure is the trace's main job.
-func reportRunFailure(ctx context.Context, taskRunID string, err error, class coretask.FailureClass, tracePath string, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) {
+// reportRunFailure records the failure and returns what RunTask returns for
+// it: the cause marked ErrRunFailed once the server holds the outcome, or the
+// report error when it does not. tracePath may be empty — the run can fail
+// before an agent ever starts — but when a trace exists it is recorded here
+// too: diagnosing a failure is the trace's main job.
+func reportRunFailure(ctx context.Context, taskRunID string, err error, class coretask.FailureClass, tracePath string, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) error {
 	endTime := time.Now().UTC()
 	errMsg := fmt.Sprintf("%v", err)
 	classStr := string(class)
@@ -803,7 +863,11 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, class co
 		req.TracePath = &tracePath
 	}
 	req.WorkspaceCheckpoint = checkpoint
-	_ = updater.UpdateRunStatus(ctx, taskRunID, req)
+	if reportErr := updater.UpdateRunStatus(ctx, taskRunID, req); reportErr != nil {
+		componentLog().Error("could not report a failed run", "task_run_id", taskRunID, "err", reportErr)
+		return fmt.Errorf("report FAILED for %q: %w", errMsg, reportErr)
+	}
+	return fmt.Errorf("%w: %w", coretask.ErrRunFailed, err)
 }
 
 // reportRunOutcome records a run's terminal status and reply.
@@ -848,12 +912,44 @@ func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, sta
 }
 
 // classifyRunError says why the agent run itself failed: the model provider,
-// or anything else inside the run.
+// or anything else inside the run. A managed run reaches the provider through
+// the gateway, whose code says whose failure it was.
 func classifyRunError(err error) coretask.FailureClass {
 	if infrallm.IsProviderError(err) {
 		return coretask.FailureModel
 	}
+	var gw *llmremote.GatewayError
+	if errors.As(err, &gw) {
+		return gatewayFailureClass(gw)
+	}
 	return coretask.FailureRun
+}
+
+// gatewayFailureClass files a managed-call refusal by who acts next.
+//
+// The provider failing, and a catalog model the run was assigned being
+// unknown, disabled, or unable to serve it, are all the model: the operator
+// fixes the provider or the catalog. The Space's usage quota is the Space's
+// own limit, the same owner as its other configuration. A call the gateway
+// saw canceled while this run was still going was cut by something between
+// worker and server, and a gateway that is unconfigured, failing, or answering
+// without a BuildMax code is the platform: all three are infrastructure. A
+// request the gateway could not accept is this run's own bug.
+func gatewayFailureClass(gw *llmremote.GatewayError) coretask.FailureClass {
+	switch gw.Code {
+	case llmremote.CodeUpstream, llmremote.CodeUpstreamTimeout, llmremote.CodeUpstreamAuth,
+		llmremote.CodeUpstreamRateLimited, llmremote.CodeTargetNotFound,
+		llmremote.CodeTargetDisabled, llmremote.CodeCapability:
+		return coretask.FailureModel
+	case llmremote.CodeQuotaExceeded:
+		return coretask.FailureSpaceConfiguration
+	case llmremote.CodeCanceled, llmremote.CodeNotConfigured, llmremote.CodeInternal, "":
+		return coretask.FailureInfrastructure
+	case llmremote.CodeInvalidRequest, llmremote.CodeDuplicateCall:
+		return coretask.FailureRun
+	default:
+		return coretask.FailureUnclassified
+	}
 }
 
 // uploadTaskGlobal uploads the run's global dir to blob storage. It is an
@@ -870,7 +966,10 @@ func classifyRunError(err error) coretask.FailureClass {
 // at the first failed upload: the rest would hit the same dependency, and an
 // outage that times out every request must not hold the run's report once per
 // file.
-func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, persist blob.RunStorage, traceKey string) (string, error) {
+//
+// redactor carries the run's Secret values out of the session journal on the
+// way to storage; see uploadSessionJournal.
+func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, persist blob.RunStorage, traceKey string, redactor *secretscan.Redactor) (string, error) {
 	var relPaths []string
 	if traceKey != "" {
 		relPaths = append(relPaths, traceKey)
@@ -897,7 +996,12 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		if err := uploadRunGlobalFile(ctx, persist, scope, fullPath, relPath); err != nil {
+		if filepath.Base(fullPath) == sessionJournalFile {
+			err = uploadSessionJournal(ctx, persist, scope, fullPath, relPath, redactor)
+		} else {
+			err = uploadRunGlobalFile(ctx, persist, scope, fullPath, relPath)
+		}
+		if err != nil {
 			return storedTrace, err
 		}
 		if relPath == traceKey {
@@ -905,6 +1009,42 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 		}
 	}
 	return storedTrace, nil
+}
+
+// sessionJournalFile is the session's conversation journal inside a bundle.
+const sessionJournalFile = "history.jsonl"
+
+// uploadSessionJournal stores a session journal with the run's Secret values
+// removed from every record.
+//
+// The journal is the conversation a Continue run resumes, and it leaves the run
+// for object storage where it outlives the Secret grant. Tool results in it are
+// already redacted, before the model saw them; the model's own messages, and the
+// arguments it wrote into tool calls, are not. Redacting them here, on the way
+// out rather than as they are appended, keeps the run's own context whole while
+// it works and means no stored copy carries a value -- at the cost that a
+// Continue run reads [redacted] in its own earlier words, just as it already
+// does in tool results. Each record is redacted as JSON so the journal stays
+// readable. See docs/design/space-secrets.md §12.
+func uploadSessionJournal(ctx context.Context, persist blob.RunStorage, scope RunScope, fullPath, relPath string, redactor *secretscan.Redactor) error {
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", relPath, err)
+	}
+	lines := bytes.SplitAfter(data, []byte("\n"))
+	for i, line := range lines {
+		record := bytes.TrimSuffix(line, []byte("\n"))
+		if redacted := redactor.RedactExactJSON(record); !bytes.Equal(redacted, record) {
+			lines[i] = append(redacted, line[len(record):]...)
+		}
+	}
+	if err := persist.PutRunGlobal(ctx, blob.RunObjectRef{
+		SpaceID: scope.SpaceID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID,
+		RelPath: relPath,
+	}, bytes.NewReader(bytes.Join(lines, nil))); err != nil {
+		return fmt.Errorf("upload %s: %w", relPath, err)
+	}
+	return nil
 }
 
 func uploadRunGlobalFile(ctx context.Context, persist blob.RunStorage, scope RunScope, fullPath, relPath string) error {

@@ -3,6 +3,9 @@ package llmgateway
 import (
 	"context"
 	"errors"
+	"net"
+
+	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 )
 
 // Stable error classifications.
@@ -19,18 +22,68 @@ const (
 	ErrorClassDuplicateCall  = "duplicate_call"
 	ErrorClassInvalidRequest = "invalid_request"
 	ErrorClassNotConfigured  = "not_configured"
-	ErrorClassCanceled       = "canceled"
-	ErrorClassUpstream       = "upstream_error"
-	ErrorClassInternal       = "internal_error"
+	// ErrorClassCanceled is the caller going away. It is never a timeout of
+	// the gateway's own: that is ErrorClassUpstreamTimeout.
+	ErrorClassCanceled = "canceled"
+	// The upstream classes split a provider failure only where the operator's
+	// next action differs, and only by what BuildMax observed — a status or a
+	// deadline — never by the provider's text.
+	ErrorClassUpstream            = "upstream_error"
+	ErrorClassUpstreamTimeout     = "upstream_timeout"
+	ErrorClassUpstreamAuth        = "upstream_auth_failed"
+	ErrorClassUpstreamRateLimited = "upstream_rate_limited"
+	ErrorClassInternal            = "internal_error"
 )
+
+// UpstreamError is a provider call that failed, carrying the class the
+// gateway decided for it when it closed the ledger row. Carrying the decision,
+// rather than re-deriving it from the error, is what keeps the ledger and the
+// caller's error code from disagreeing. It satisfies errors.Is(err,
+// ErrUpstream) and still unwraps to the provider client's error.
+type UpstreamError struct {
+	Class string
+	Err   error
+}
+
+func (e *UpstreamError) Error() string { return ErrUpstream.Error() + ": " + e.Err.Error() }
+
+func (e *UpstreamError) Unwrap() []error { return []error{ErrUpstream, e.Err} }
+
+// upstreamClass decides what a failed provider call was. callerErr is the
+// caller's context error when the call returned.
+//
+// Only a caller that has gone away makes a call canceled. A deadline with the
+// caller still present is the provider client's own per-call timeout (the
+// catalog model's call_timeout), so it is a provider failure the operator acts
+// on, not a cancellation nobody asked for.
+func upstreamClass(callerErr, callErr error) string {
+	contextEnded := errors.Is(callErr, context.Canceled) || errors.Is(callErr, context.DeadlineExceeded)
+	var netErr net.Error
+	switch {
+	case callerErr != nil && contextEnded:
+		return ErrorClassCanceled
+	case errors.Is(callErr, context.DeadlineExceeded),
+		errors.As(callErr, &netErr) && netErr.Timeout():
+		return ErrorClassUpstreamTimeout
+	case errors.Is(callErr, cllm.ErrProviderAuth):
+		return ErrorClassUpstreamAuth
+	case errors.Is(callErr, cllm.ErrProviderRateLimited):
+		return ErrorClassUpstreamRateLimited
+	default:
+		return ErrorClassUpstream
+	}
+}
 
 // ErrorClassFor maps an error to its stable classification. Anything
 // unrecognized is internal rather than upstream, so a new failure mode is
 // reported as our problem until someone classifies it.
 func ErrorClassFor(err error) string {
+	var upstream *UpstreamError
 	switch {
 	case err == nil:
 		return ""
+	case errors.As(err, &upstream):
+		return upstream.Class
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return ErrorClassCanceled
 	case errors.Is(err, ErrTargetNotFound), errors.Is(err, ErrCatalogEmpty):
@@ -58,7 +111,13 @@ func ErrorClassFor(err error) string {
 
 // RetryableClass reports whether trying the same call again could plausibly
 // succeed. It describes the failure; it never authorizes a replay after the
-// caller has already seen output.
+// caller has already seen output. A refused credential is the one provider
+// failure a retry cannot fix.
 func RetryableClass(class string) bool {
-	return class == ErrorClassUpstream
+	switch class {
+	case ErrorClassUpstream, ErrorClassUpstreamTimeout, ErrorClassUpstreamRateLimited:
+		return true
+	default:
+		return false
+	}
 }

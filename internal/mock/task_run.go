@@ -288,6 +288,9 @@ func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in coretask.Tr
 		if in.Output != nil {
 			m.Runs[i].Output = in.Output
 		}
+		if in.Structured != nil {
+			m.Runs[i].Structured = in.Structured
+		}
 		if in.ErrorMessage != nil {
 			m.Runs[i].ErrorMessage = in.ErrorMessage
 		}

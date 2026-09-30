@@ -872,7 +872,7 @@ and a `server.yaml` naming the control plane. What it exercises that the CLI can
 of the product only a worker has — materializing the space's persistent workspace into a
 run-scoped directory, executing with no interactive surface, and reporting an outcome over the
 API rather than to a terminal. The outcome is read from what the worker reported, not from its
-exit code: a worker that failed the run reports FAILED and exits non-zero, while one that was
+exit code: a worker that reported any outcome, FAILED included, exits zero, while one that was
 killed reports nothing at all, and only the control plane separates those.
 
 The conversation and deployment adapters remain unbuilt.

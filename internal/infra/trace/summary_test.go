@@ -24,8 +24,12 @@ func TestSummarize_RoundTripsARealTrace(t *testing.T) {
 		t.Fatal("expected recorder")
 	}
 	rec.Record(agent.Event{Kind: agent.EventLLMStart, Iter: 1})
-	rec.Record(agent.Event{Kind: agent.EventToolEnd, ToolName: "Write", ToolArgs: `{"file_path":"/ws/out.md","content":"hi"}`, ToolDuration: 0})
-	rec.Record(agent.Event{Kind: agent.EventToolDenied, ToolName: "Bash", DenyReason: "hook"})
+	// The shapes the agent loop emits: arguments on the start only, the result
+	// on the end, a denied call started and then denied.
+	rec.Record(agent.Event{Kind: agent.EventToolStart, ToolName: "Write", ToolCallID: "c1", ToolArgs: `{"file_path":"/ws/out.md","content":"hi"}`})
+	rec.Record(agent.Event{Kind: agent.EventToolEnd, ToolName: "Write", ToolCallID: "c1", ToolResult: "ok"})
+	rec.Record(agent.Event{Kind: agent.EventToolStart, ToolName: "Bash", ToolCallID: "c2", ToolArgs: `{"command":"rm -rf /"}`})
+	rec.Record(agent.Event{Kind: agent.EventToolDenied, ToolName: "Bash", ToolCallID: "c2", DenyReason: "hook"})
 	rec.Record(agent.Event{Kind: agent.EventContextCompacted, Summarized: 3, Kept: 2})
 	rec.Record(agent.Event{Kind: agent.EventRunEnd, Stats: agent.RunStats{
 		ToolCalls: 2, PromptTokens: 120, CompletionTokens: 30,
@@ -140,7 +144,8 @@ func TestSummarize_SurvivesATruncatedTrace(t *testing.T) {
 func TestSummarize_OmitsFreeTextBodies(t *testing.T) {
 	body := `{"ts":"t0","type":"run_start","run_id":"rt_x"}
 {"ts":"t1","type":"llm_end","iter":1,"content":"SECRET-MODEL-OUTPUT"}
-{"ts":"t2","type":"tool_end","tool":"Read","args":"{\"file_path\":\"/ws/a.txt\"}","result":"SECRET-FILE-BODY"}
+{"ts":"t2","type":"tool_start","tool":"Read","tool_call_id":"c1","args":"{\"file_path\":\"/ws/a.txt\"}"}
+{"ts":"t2","type":"tool_end","tool":"Read","tool_call_id":"c1","result":"SECRET-FILE-BODY"}
 {"ts":"t3","type":"run_end"}`
 
 	got, err := Summarize(strings.NewReader(body))
@@ -155,6 +160,29 @@ func TestSummarize_OmitsFreeTextBodies(t *testing.T) {
 		if strings.Contains(dumpJSON(t, got), banned) {
 			t.Errorf("summary leaked %q", banned)
 		}
+	}
+}
+
+// Parallel calls interleave, so a call's path comes from its own start, found
+// by tool_call_id, not from whichever start came last. A call without an id
+// cannot be paired and gets no path rather than a wrong one.
+func TestSummarize_PairsPathsByToolCallID(t *testing.T) {
+	body := `{"type":"tool_start","tool":"Write","tool_call_id":"a","args":"{\"file_path\":\"/ws/a.md\"}"}
+{"type":"tool_start","tool":"Edit","tool_call_id":"b","args":"{\"file_path\":\"/ws/b.md\"}"}
+{"type":"tool_end","tool":"Edit","tool_call_id":"b"}
+{"type":"tool_end","tool":"Write","tool_call_id":"a"}
+{"type":"tool_start","tool":"Write","args":"{\"file_path\":\"/ws/c.md\"}"}
+{"type":"tool_end","tool":"Write"}`
+	got, err := Summarize(strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("Summarize: %v", err)
+	}
+	var paths []string
+	for _, tool := range got.Tools {
+		paths = append(paths, tool.Name+"="+tool.Path)
+	}
+	if want := "Edit=/ws/b.md Write=/ws/a.md Write="; strings.Join(paths, " ") != want {
+		t.Errorf("tools = %q, want %q", strings.Join(paths, " "), want)
 	}
 }
 

@@ -22,9 +22,12 @@ import (
 const testTraceBody = `{"ts":"t0","type":"run_start","run_id":"rt_abc","session_id":"c_s1","model":"test-model"}
 {"ts":"t1","type":"sandbox_boundary","sandboxed":false,"backend":"none","sources":["default:cli"]}
 {"ts":"t2","type":"llm_start","iter":1}
-{"ts":"t3","type":"tool_end","tool":"Write","args":"{\"file_path\":\"/ws/out.md\",\"content\":\"SECRET-BODY\"}","duration_ms":12}
-{"ts":"t4","type":"tool_end","tool":"Read","args":"{\"file_path\":\"/ws/in.md\"}"}
-{"ts":"t5","type":"tool_denied","tool":"Bash","deny_reason":"hook"}
+{"ts":"t3","type":"tool_start","tool":"Write","tool_call_id":"c1","args":"{\"file_path\":\"/ws/out.md\",\"content\":\"SECRET-BODY\"}"}
+{"ts":"t3","type":"tool_end","tool":"Write","tool_call_id":"c1","result":"ok","duration_ms":12}
+{"ts":"t4","type":"tool_start","tool":"Read","tool_call_id":"c2","args":"{\"file_path\":\"/ws/in.md\"}"}
+{"ts":"t4","type":"tool_end","tool":"Read","tool_call_id":"c2"}
+{"ts":"t5","type":"tool_start","tool":"Bash","tool_call_id":"c3","args":"{\"command\":\"true\"}"}
+{"ts":"t5","type":"tool_denied","tool":"Bash","tool_call_id":"c3","deny_reason":"hook"}
 {"ts":"t6","type":"run_end","tool_calls":2,"prompt_tokens":120,"completion_tokens":30,"error":"agent: context deadline exceeded"}
 `
 
