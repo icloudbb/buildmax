@@ -290,6 +290,34 @@ func (s *Store) CompleteLLMCall(ctx context.Context, llmCallID string, outcome c
 		Updates(updates).Error
 }
 
+// SettleOrphanedLLMCallsForRun closes every call still ACCEPTED for one run,
+// which is what a run declared lost leaves behind: the worker that opened them
+// stopped reporting, so the terminal write that would settle each never comes.
+// They move to FAILED with error_class run_lost and the given completed_at,
+// leaving usage untouched — no outcome measured any — and return the count
+// settled so the caller can log it. A call already terminal is not rewritten.
+func (s *Store) SettleOrphanedLLMCallsForRun(ctx context.Context, taskRunID string, completedAt time.Time) (int, error) {
+	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	class := coregw.ErrorClassRunLost
+	res := s.db.WithContext(ctx).Model(&llmCallRow{}).
+		Where("task_run_id = ? AND status = ?", runKey, coregw.CallStatusAccepted).
+		Updates(map[string]any{
+			"status":       coregw.CallStatusFailed,
+			"error_class":  class,
+			"completed_at": completedAt.UTC(),
+		})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return int(res.RowsAffected), nil
+}
+
 // GetLLMCall returns one call by ID, or (nil, nil) when not found.
 func (s *Store) GetLLMCall(ctx context.Context, llmCallID string) (*coregw.Call, error) {
 	id, ok := util.CanonicalPublicID(llmCallID)

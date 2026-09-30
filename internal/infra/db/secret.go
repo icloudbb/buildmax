@@ -123,6 +123,9 @@ func (s *Store) CreateSecret(ctx context.Context, in coresecret.CreateInput) (*c
 			func(id string) { row.PublicID = id }, row)
 	})
 	if err != nil {
+		if isDuplicateOnIndex(err, "ux_secret_space_name") {
+			return nil, coresecret.ErrNameTaken
+		}
 		return nil, err
 	}
 	return s.GetSecret(ctx, row.PublicID)

@@ -105,6 +105,50 @@ func TestCreateRun_DefaultsProvenanceWhenTheCallerNamesNone(t *testing.T) {
 	}
 }
 
+// Whitespace is no instruction. Admitting it spent a worker run and model
+// tokens on nothing, where the empty string was already refused.
+func TestBlankInputIsRefusedBeforeAnythingIsCreated(t *testing.T) {
+	taskStore := &mock.MockTaskStore{List: []coretask.Task{{ID: "t_1", SpaceID: "tm_1", Status: "SUCCEEDED"}}}
+	runStore := &mock.MockTaskRunStore{}
+	svc := &Service{Tasks: taskStore, TaskRuns: runStore}
+
+	for _, input := range []string{"", " ", "\n\t  \r\n"} {
+		if _, err := svc.CreateTask(context.Background(), CreateTaskCmd{
+			UserID: "u1", SpaceID: "tm_1", Input: input,
+		}); !errors.Is(err, ErrInputRequired) {
+			t.Errorf("CreateTask(%q) err = %v, want %v", input, err, ErrInputRequired)
+		}
+		if _, err := svc.CreateRun(context.Background(), CreateRunCmd{
+			UserID: "u1", TaskID: "t_1", Input: input,
+		}); !errors.Is(err, ErrInputRequired) {
+			t.Errorf("CreateRun(%q) err = %v, want %v", input, err, ErrInputRequired)
+		}
+	}
+	if len(taskStore.Created) != 0 || len(runStore.Runs) != 0 {
+		t.Errorf("created %d tasks and %d runs from blank input, want none", len(taskStore.Created), len(runStore.Runs))
+	}
+}
+
+// With an Agent selected, blank input means "no extra instruction" exactly as
+// the empty string does: the run takes the Agent's own definition as its input.
+func TestBlankInputWithAnAgentRunsTheAgentsDefinition(t *testing.T) {
+	agentID := "a_1"
+	taskStore := &mock.MockTaskStore{}
+	svc := &Service{
+		Tasks:  taskStore,
+		Agents: &mock.MockAgentStore{Agents: []agentdef.Agent{{ID: agentID, SpaceID: "tm_1", Name: "digest", Instructions: "summarize"}}},
+	}
+
+	if _, err := svc.CreateTask(context.Background(), CreateTaskCmd{
+		UserID: "u1", SpaceID: "tm_1", Input: "  \n", AgentID: &agentID,
+	}); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if len(taskStore.Created) != 1 || taskStore.Created[0].Input != buildTaskInputFromAgent(&agentdef.Agent{Name: "digest", Instructions: "summarize"}, "") {
+		t.Fatalf("created = %+v, want one task whose input is the Agent's definition", taskStore.Created)
+	}
+}
+
 // A deleted agent is invisible to every path that would start new work with
 // it (agentdef.Agent.DeletedAt's own contract). Direct admission is one of
 // those paths, and the only thing that keeps it that way is CreateTask

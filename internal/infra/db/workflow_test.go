@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/config"
+	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 )
 
@@ -264,6 +265,67 @@ func TestWorkflowNodeRunBindingsRoundTrip(t *testing.T) {
 	if len(got[1].Bindings) != 1 || got[1].Bindings[0].Name != "research" ||
 		got[1].Bindings[0].Source != "node.collect.output" || got[1].Bindings[0].Pointer != "/text" {
 		t.Errorf("step[1] bindings = %v, want [{research node.collect.output /text}]", got[1].Bindings)
+	}
+}
+
+// A scheduled workflow run's terminal outcome counts toward its schedule's
+// consecutive failures exactly as a scheduled Task run's does; a run nothing
+// scheduled touches no schedule.
+func TestScheduledWorkflowRunOutcomeCountsTowardConsecutiveFailures(t *testing.T) {
+	s, userID, spaceID, workflowID := workflowFixture(t, "workflow-schedule-outcome@example.com")
+	ctx := context.Background()
+	t.Cleanup(func() {
+		s.db.Exec(`DELETE wr FROM workflow_run wr
+			JOIN workflow w ON w.id = wr.workflow_id WHERE w.public_id = ?`, workflowID)
+	})
+	sched, err := s.CreateSchedule(ctx, &coreschedule.CreateInput{
+		SpaceID: spaceID, ExecutorKind: coreschedule.ExecutorWorkflow, ExecutorID: workflowID,
+		CreatedBy: userID, Name: "weekly", CronExpr: "0 9 * * 1", Timezone: "UTC",
+		Enabled: true, NextFireAt: time.Unix(1_800_000_000, 0).UTC(),
+	})
+	if err != nil {
+		t.Fatalf("CreateSchedule: %v", err)
+	}
+	t.Cleanup(func() { _ = s.db.Delete(&scheduleRow{}, "public_id = ?", canonicalPublicID(sched.ID)).Error })
+
+	settle := func(scheduleID *string, final coreworkflow.RunStatus) {
+		t.Helper()
+		run, err := s.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
+			WorkflowID: workflowID, ScheduleID: scheduleID,
+			Status: string(coreworkflow.RunStatusRunning), CreatedBy: userID,
+		})
+		if err != nil {
+			t.Fatalf("CreateWorkflowRun: %v", err)
+		}
+		moved, err := s.TransitionWorkflowRun(ctx, coreworkflow.TransitionRunInput{
+			WorkflowRunID: run.ID, ExpectedStatus: coreworkflow.RunStatusRunning, NewStatus: final,
+		})
+		if err != nil || !moved {
+			t.Fatalf("TransitionWorkflowRun -> %s: moved=%v err=%v", final, moved, err)
+		}
+	}
+	failures := func() int {
+		t.Helper()
+		got, err := s.GetSchedule(ctx, sched.ID)
+		if err != nil || got == nil {
+			t.Fatalf("GetSchedule: %v %v", got, err)
+		}
+		return got.ConsecutiveFailures
+	}
+
+	settle(&sched.ID, coreworkflow.RunStatusFailed)
+	settle(&sched.ID, coreworkflow.RunStatusFailed)
+	if got := failures(); got != 2 {
+		t.Fatalf("consecutive_failures = %d after two failed scheduled runs, want 2", got)
+	}
+	settle(nil, coreworkflow.RunStatusFailed)
+	settle(&sched.ID, coreworkflow.RunStatusCanceled)
+	if got := failures(); got != 2 {
+		t.Errorf("consecutive_failures = %d after an unscheduled failure and a canceled run, want it unchanged at 2", got)
+	}
+	settle(&sched.ID, coreworkflow.RunStatusSucceeded)
+	if got := failures(); got != 0 {
+		t.Errorf("consecutive_failures = %d after a succeeded scheduled run, want 0", got)
 	}
 }
 

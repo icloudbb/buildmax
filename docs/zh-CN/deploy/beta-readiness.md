@@ -75,8 +75,8 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 
 - [ ] 部署不直接暴露给不可信公共网络。
 - [ ] 官方 Worker 镜像选择并探测严格 OS sandbox 基线；候选版本证明 Bash 受约束。受支持的 Worker 配置会禁用 stdio MCP，除非其子进程受声明边界约束。原生 Worker Pod 按文档使用 root、`SYS_ADMIN` 以及 seccomp/AppArmor 配置；本次 Beta 不要求 gVisor 等外层 runtime。
-- [ ] Sandbox 将 Bash 的写入限制在 Run workspace 内，但不限制读取：Bash 可以读取 Pod 的只读文件系统，包括挂载的 server 配置，因此该配置不得包含任何凭证；参考清单将凭证放在由 Secret 提供的环境变量中，Bash 不继承这些变量。
-- [ ] 一般 Worker 出站没有强制 Pod 级目标 allow-list。Worker 端口 `NetworkPolicy` 限制控制通道入站，但不限制全部出站流量。
+- [ ] Sandbox 将 Bash 的写入限制在 Run workspace 内，但不限制读取：Bash 可以读取 Pod 的只读文件系统，包括挂载的 server 配置，因此该配置不得包含任何凭证。Bash 不继承 Worker 自身的环境，但 sandbox 会以只读方式重新绑定容器的 `/proc`（在 Pod 的 PID namespace 内无法挂载全新的 procfs，见 `deployment/seccomp/README.md`），因此命令可以通过 `/proc/<pid>/environ` 读取 Worker 进程的环境——存储凭证与 run token，以及非托管路径下的 provider key。run token 一次性且限定单次运行，托管路径将 provider key 保留在 server 一侧，但应把 Worker 进程持有的任何凭证都视为模型的 Bash 可触及。保留的 `BUILDMAX_*` 环境变量名不能作为 Secret 授权目标。
+- [ ] 一般 Worker 出站没有强制 Pod 级目标 allow-list，且每个 Agent 的网络层是建议性的，而非 Pod 边界。注入的代理对配合的工具强制该层级，但绕过代理的命令可直接到达网络、对象存储和公共 API。Worker 端口 `NetworkPolicy` 限制控制通道入站，但不限制出站流量。
 - [ ] Worker 可以获得存储凭证或投射的存储身份，因为它直接读写运行状态和 Artifact。
 - [ ] Hook 按文档 fail open；Worker 配置会禁用不受支持的可执行 Plugin 和 stdio MCP 内容，而不是宣称它们受到约束。
 - [ ] SSO、multi-region、丢失 Run 自动重新派发、binary rollback 和以上 Experimental 配置不属于此次 Beta。

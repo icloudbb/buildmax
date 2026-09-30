@@ -332,6 +332,13 @@ The resolved variable names of a revision must not collide — across two
 whole-group grants, or a whole-group and a selected one — and the collision is
 refused when the config is saved, with `prefix` available to resolve it.
 
+A resolved variable name may not begin with `BUILDMAX_`, the namespace the
+platform sets in a worker's own environment (`agentdef.ReservedEnvPrefix`). A
+Space's own configuration must not be able to name a variable the runtime
+relies on — the run token, the storage keys, `BUILDMAX_HOME` — so a grant that
+would resolve into that prefix is refused when the config is saved, the same as
+a collision. The identifier constraint above still applies on top of it.
+
 ### 6.3 Credential Files
 
 A file grant names a **renderer** and maps its parameters. The renderer is

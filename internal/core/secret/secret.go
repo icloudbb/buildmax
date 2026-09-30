@@ -8,10 +8,14 @@ package secret
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
 )
+
+// ErrNameTaken is returned when a Space already has a Secret with the name.
+var ErrNameTaken = errors.New("a secret with this name already exists in the space")
 
 // itemNamePattern is the identifier an item name must be, so a whole group can
 // be injected as environment variables without an item that cannot become a
@@ -137,6 +141,7 @@ type UpdateItemsInput struct {
 // GetSecret so a listing or detail view cannot accidentally ship the sealed
 // bytes.
 type Store interface {
+	// CreateSecret reports ErrNameTaken when the Space already has the name.
 	CreateSecret(ctx context.Context, in CreateInput) (*Secret, error)
 	GetSecret(ctx context.Context, id string) (*Secret, error)
 	ListSecretsBySpace(ctx context.Context, spaceID string) ([]Secret, error)

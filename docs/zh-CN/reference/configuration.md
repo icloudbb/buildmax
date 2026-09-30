@@ -91,7 +91,7 @@ MCP 的 `bearer_token_env` 字段或插件声明指定的集成专用变量，�
 
 `BUILDMAX_RUN_TOKEN` 通过另一条路径传给 worker。它不是从 server 继承而来的——上面的过滤逻辑会把它剥离，因此不会带上一个过期的旧值——而是在分发时添加到进程或 pod 中，并指明它所授权的那一次运行。它是 worker 在每个 `/api/worker/*` 路由上出示的凭据，也是这些路由唯一接受的凭据，因此一次运行只能读写它自己的记录。分发时若没有该令牌，运行会在启动时失败；见 [design/worker-run-token.md](../design/Worker运行令牌.md)。
 
-Worker 在读取到 `BUILDMAX_RUN_TOKEN` 后会将其从自身环境中清除，只在内存中保留该值。沙箱本应从子进程中剥离形如密钥的变量，但沙箱默认关闭，因此模型选择执行的 `printenv` 原本会把它打印出来。
+Worker 在读取到 `BUILDMAX_RUN_TOKEN` 后会将其从自身环境中清除，只在内存中保留该值。沙箱本应从子进程中剥离形如密钥的变量，但沙箱默认关闭，因此模型选择执行的 `printenv` 原本会把它打印出来。这种清除不影响 `/proc/<pid>/environ`——它报告的是进程启动时的环境：沙箱内的命令以只读方式重新绑定容器的 `/proc`，可在那里读取 Worker 启动时的环境，因此无论进程内是否清除，run token 与 Worker 持有的存储凭证都可被模型选择执行的 Bash 触及。run token 一次性且限定单次运行，托管传输将 provider key 保留在 server 一侧；应把 Worker 必然持有的存储凭证视为在某次 task 的可触及范围内。见 Beta 就绪的 Accepted Limits 与 [`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md)。
 
 `BUILDMAX_JWT_SECRET` 和 `BUILDMAX_DATABASE_PASSWORD` 被刻意扣留。Worker 从不读取它们——它通过 HTTP、凭借自己的 run token 访问 server，从不直接接触数据库——而且它会执行模型选择的 shell 命令，因此持有签名密钥就能让它为任意用户铸造 token，持有数据库密码就能让它获得每个 space 的数据。未被识别的 `BUILDMAX_` 变量同样会被扣留，这样一来，添加到 server 端却尚未就是否发给 worker 做出决定的变量，就会留在 server 一侧。
 

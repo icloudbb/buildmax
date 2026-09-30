@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
@@ -75,7 +76,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coreschedule.Sche
 	// An agent firing's input is the prompt it runs, so it is always required. A
 	// workflow firing's input is the run input its input_schema declares; a
 	// workflow that declares none takes empty input, so only agents require it.
-	if cmd.ExecutorKind == coreschedule.ExecutorAgent && cmd.Input == "" {
+	if cmd.ExecutorKind == coreschedule.ExecutorAgent && strings.TrimSpace(cmd.Input) == "" {
 		return nil, ErrInputRequired
 	}
 	if cmd.CronExpr == "" {
@@ -151,7 +152,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateCmd) (*coreschedule.Sche
 	}
 	// Clearing input is only invalid for an agent, whose input is its prompt; a
 	// workflow schedule may legitimately hold empty input (see Create).
-	if cmd.Input != nil && *cmd.Input == "" && existing.ExecutorKind == coreschedule.ExecutorAgent {
+	if cmd.Input != nil && strings.TrimSpace(*cmd.Input) == "" && existing.ExecutorKind == coreschedule.ExecutorAgent {
 		return nil, ErrInputRequired
 	}
 	in := coreschedule.UpdateInput{

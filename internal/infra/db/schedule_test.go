@@ -254,8 +254,9 @@ func TestClaimScheduleRefusesDisabled(t *testing.T) {
 	}
 }
 
-// RecordFire counts consecutive admission failures and resets the count on a
-// success, and a successful fire records the Task it created.
+// RecordFire counts a firing that could not start its executor. A firing that
+// started records what it produced and leaves the count alone: only the outcome
+// of what it started may clear it.
 func TestRecordFireCountsFailuresAndRecordsTask(t *testing.T) {
 	s, ctx := newTestStore(t)
 	f := newScheduleFixture(t, s, "sched-fire")
@@ -280,7 +281,6 @@ func TestRecordFireCountsFailuresAndRecordsTask(t *testing.T) {
 		}
 	}
 
-	// A successful fire records what it produced and resets the failure count.
 	task := newScheduledTaskForTest(t, s, ctx, f, sched.ID)
 	if err := s.RecordFire(ctx, coreschedule.RecordFireInput{
 		ScheduleID: sched.ID, FiredAt: fireAt, FireRef: &task.ID, Failed: false,
@@ -291,11 +291,119 @@ func TestRecordFireCountsFailuresAndRecordsTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSchedule: %v", err)
 	}
-	if got.ConsecutiveFailures != 0 {
-		t.Errorf("consecutive_failures = %d after a success, want 0", got.ConsecutiveFailures)
+	if got.ConsecutiveFailures != 2 {
+		t.Errorf("consecutive_failures = %d after a firing that only started, want it unchanged at 2", got.ConsecutiveFailures)
 	}
 	if got.LastFireRef == nil || *got.LastFireRef != task.ID {
 		t.Errorf("last_fire_ref = %v, want %q", got.LastFireRef, task.ID)
+	}
+}
+
+// settleTaskRunForTest walks a run from PENDING to the given terminal status.
+func settleTaskRunForTest(t *testing.T, s *Store, ctx context.Context, runID string, final coretask.RunStatus) {
+	t.Helper()
+	path := []coretask.RunStatus{coretask.RunStatusPending, coretask.RunStatusScheduled, coretask.RunStatusRunning, final}
+	if final == coretask.RunStatusCanceled {
+		path = []coretask.RunStatus{coretask.RunStatusPending, final}
+	}
+	for i := 0; i+1 < len(path); i++ {
+		moved, err := s.TransitionTaskRun(ctx, coretask.TransitionRunInput{
+			TaskRunID: runID, ExpectedStatus: path[i], NewStatus: path[i+1],
+		})
+		if err != nil || !moved {
+			t.Fatalf("TransitionTaskRun %s -> %s: moved=%v err=%v", path[i], path[i+1], moved, err)
+		}
+	}
+}
+
+func scheduleFailuresForTest(t *testing.T, s *Store, ctx context.Context, scheduleID string) int {
+	t.Helper()
+	got, err := s.GetSchedule(ctx, scheduleID)
+	if err != nil || got == nil {
+		t.Fatalf("GetSchedule: %v %v", got, err)
+	}
+	return got.ConsecutiveFailures
+}
+
+// The run a firing admitted settles into its schedule's failure count: failed
+// adds one, succeeded clears it, canceled is neither. A schedule whose runs
+// start and then always fail used to stay at zero and never pause.
+func TestScheduledRunOutcomeCountsTowardConsecutiveFailures(t *testing.T) {
+	s, ctx := newTestStore(t)
+	f := newScheduleFixture(t, s, "sched-outcome")
+	sched := newTestSchedule(t, s, f, time.Unix(1_800_000_000, 0).UTC(), true)
+	other := newTestSchedule(t, s, f, time.Unix(1_800_000_000, 0).UTC(), true)
+
+	first := newScheduledTaskForTest(t, s, ctx, f, sched.ID)
+	settleTaskRunForTest(t, s, ctx, *first.LastRunID, coretask.RunStatusFailed)
+	second := newScheduledTaskForTest(t, s, ctx, f, sched.ID)
+	settleTaskRunForTest(t, s, ctx, *second.LastRunID, coretask.RunStatusFailed)
+	if got := scheduleFailuresForTest(t, s, ctx, sched.ID); got != 2 {
+		t.Fatalf("consecutive_failures = %d after two failed firings, want 2", got)
+	}
+	if got := scheduleFailuresForTest(t, s, ctx, other.ID); got != 0 {
+		t.Errorf("another schedule's consecutive_failures = %d, want 0", got)
+	}
+
+	// A person retrying the failed Task is their run, not the schedule's firing.
+	retry, err := s.CreateTaskRun(ctx, coretask.CreateRunInput{
+		TaskID: first.ID, Input: "summarize new issues", CreatedBy: f.userID,
+		CreatedByType: coretask.RunCreatedByTypeUser, TriggerSource: coretask.RunTriggerSourceTaskRetry,
+	})
+	if err != nil {
+		t.Fatalf("CreateTaskRun: %v", err)
+	}
+	t.Cleanup(func() { _ = s.db.Delete(&taskRunRow{}, "public_id = ?", canonicalPublicID(retry.ID)).Error })
+	settleTaskRunForTest(t, s, ctx, retry.ID, coretask.RunStatusFailed)
+	if got := scheduleFailuresForTest(t, s, ctx, sched.ID); got != 2 {
+		t.Errorf("consecutive_failures = %d after a failed manual retry, want it unchanged at 2", got)
+	}
+
+	canceled := newScheduledTaskForTest(t, s, ctx, f, sched.ID)
+	settleTaskRunForTest(t, s, ctx, *canceled.LastRunID, coretask.RunStatusCanceled)
+	if got := scheduleFailuresForTest(t, s, ctx, sched.ID); got != 2 {
+		t.Errorf("consecutive_failures = %d after a canceled firing, want it unchanged at 2", got)
+	}
+
+	ok := newScheduledTaskForTest(t, s, ctx, f, sched.ID)
+	settleTaskRunForTest(t, s, ctx, *ok.LastRunID, coretask.RunStatusSucceeded)
+	if got := scheduleFailuresForTest(t, s, ctx, sched.ID); got != 0 {
+		t.Errorf("consecutive_failures = %d after a succeeded firing, want 0", got)
+	}
+}
+
+// Enabling a schedule starts a fresh count. One left at the bound would pause
+// the schedule again at its next due time without firing it once.
+func TestEnablingScheduleClearsFailureCount(t *testing.T) {
+	s, ctx := newTestStore(t)
+	f := newScheduleFixture(t, s, "sched-reenable")
+	sched := newTestSchedule(t, s, f, time.Unix(1_800_000_000, 0).UTC(), true)
+
+	for i := 0; i < 3; i++ {
+		if err := s.RecordFire(ctx, coreschedule.RecordFireInput{
+			ScheduleID: sched.ID, FiredAt: time.Unix(1_800_000_060, 0).UTC(), Failed: true,
+		}); err != nil {
+			t.Fatalf("RecordFire: %v", err)
+		}
+	}
+	off, reason := false, coreschedule.PauseReasonConsecutiveFailures
+	paused, err := s.UpdateSchedule(ctx, coreschedule.UpdateInput{ScheduleID: sched.ID, Enabled: &off, PauseReason: &reason})
+	if err != nil {
+		t.Fatalf("UpdateSchedule pause: %v", err)
+	}
+	if paused.ConsecutiveFailures != 3 || paused.PauseReason != reason {
+		t.Fatalf("paused: consecutive_failures = %d pause_reason = %q, want 3 and %q",
+			paused.ConsecutiveFailures, paused.PauseReason, reason)
+	}
+
+	on := true
+	enabled, err := s.UpdateSchedule(ctx, coreschedule.UpdateInput{ScheduleID: sched.ID, Enabled: &on})
+	if err != nil {
+		t.Fatalf("UpdateSchedule enable: %v", err)
+	}
+	if !enabled.Enabled || enabled.ConsecutiveFailures != 0 || enabled.PauseReason != "" {
+		t.Errorf("enabled = %v consecutive_failures = %d pause_reason = %q, want a fresh enabled schedule",
+			enabled.Enabled, enabled.ConsecutiveFailures, enabled.PauseReason)
 	}
 }
 

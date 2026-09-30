@@ -114,7 +114,15 @@ record. A run dispatched without one fails at startup; see
 A worker clears `BUILDMAX_RUN_TOKEN` from its own environment once it has read
 it, keeping the value in memory only. The sandbox would strip secret-shaped
 variables from a child process, but it is off by default, so a model-chosen
-`printenv` would otherwise print it.
+`printenv` would otherwise print it. This clearing does not reach
+`/proc/<pid>/environ`, which reports the environment a process was started with:
+a sandboxed command re-binds the container's `/proc` read-only and can read the
+worker's start-time environment there, so the run token and the storage
+credentials the worker holds are reachable by model-chosen Bash regardless of
+the in-process clearing. The run token is single-use and run-scoped, and the
+managed transport keeps the provider key server-side; treat the storage
+credentials the worker necessarily holds as within a task's reach. See the Beta
+readiness Accepted Limits and [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md).
 
 `BUILDMAX_JWT_SECRET` and `BUILDMAX_DATABASE_PASSWORD` are deliberately
 withheld. A worker never reads them — it reaches the server over HTTP with its
