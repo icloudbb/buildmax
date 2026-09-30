@@ -14,6 +14,178 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.17] - 2026-09-30
+
+### Added
+
+- A System Administrator can move any Space, shared or personal, to another
+  existing quota tier from its Administration detail or with
+  `buildmax admin quota-tier set`; the new limits apply from the Space's next
+  quota check and the change is audited with the old and new tier. Accounts no
+  longer carry a separate, unused quota tier.
+
+- Administration's Overview now shows whether work is moving: how long the
+  oldest runs have waited to start, runs whose worker went silent, why runs
+  failed in the last day and who can act, and which Spaces, including
+  personal ones, need attention, with their owners and no Space content.
+
+- Administration's Overview now shows Workflow requests waiting on Space
+  members, with their age and next expiry, and Workflow runs that failed in
+  the last day by cause, such as a declined or expired request or an unmet
+  output schema, naming the run ids to give the Space and no Space content.
+
+- The agent can now ask you questions and wait for your answers in the TUI and
+  Desktop: the new `AskUser` tool asks up to four questions at once, each
+  answered by picking an option, checking several, or typing your own answer
+  under the question, or you can dismiss them. A `Notification`
+  hook fires with `user_question` while it waits.
+
+- Desktop now shows an amber dot on a chat tab, its sidebar rows, and a
+  collapsed Projects header when a chat that is not on screen is waiting for
+  you to answer a question or approve a tool call.
+
+- Remote Control now relays the agent's questions: when a TUI session under
+  `--remote-control` asks you something, Portal's session page shows the same
+  questions and you can answer from there; whichever side answers first wins.
+
+- Agents running in Portal can now stop and ask you questions: the run ends
+  with the questions listed at the end of its output, the task shows "Needs
+  your answer", and you reply in your own words with Continue. Chat apps that
+  report the task say it is waiting for your answer. Workflow steps and
+  evaluation runs do not ask.
+
+- Workflows can wait on people: an input step asks a question whose answer
+  becomes its output, and an Agent step that asks a question waits for an
+  answer and then continues. Pending questions are listed on the Workflows
+  page and answered from the run view, and a run can now be canceled.
+
+- Workflow steps can retry: a step allowed more than one attempt runs again on
+  the same Task after a backoff when it fails, times out, or loses its worker.
+  Steps can also time out per attempt, and a whole run can have a deadline;
+  both are set in the visual editor, and the run view shows each step's attempt
+  and next retry.
+
+### Changed
+
+- The private-deployment Beta gate now qualifies the complete supported profile
+  across two Spaces, distributed operation, recovery, and a 24-hour operating
+  window while keeping Experimental integrations outside the release claim.
+
+- Seed the Beta journey states in `./make kind fixtures`: human-input,
+  retry, attempt-timeout, and run-deadline Workflows; a removed member, a
+  disabled sole Space owner, and schedules that pause on their own. `--runs`
+  adds answered, declined, pending, expired, and canceled human requests,
+  Workflow and direct-Task `AskUser` questions, retried and timed-out runs, and
+  a Task left running for the admin runtime view.
+
+- Seed recent features in `./make kind fixtures`: a branching Workflow with typed input, a structured-output Workflow, Workflow schedules, an Agent with revision history and plugin, sandbox, and Secret settings, Space sandbox and curation settings, and live and revoked artifact shares. `--runs` adds a graph Workflow run, real failed and canceled runs, and a webhook conversation.
+
+- `GET /api/spaces/{space_id}/tasks/{task_id}/conversation` is removed. It has
+  answered 404 "conversation file not found" for every task since sessions
+  became bundles, and no Portal, Desktop, or CLI surface called it; a task's
+  thread is read from its runs and each run's trace.
+
+### Fixed
+
+- Continuing a task on a deployment that keeps run files on local disk (the
+  Compose quickstart) now resumes the earlier conversation; before, every
+  Continue run started with no memory of the previous turns.
+
+- Conversation turns — Portal chat, chat apps, and WebSocket — now appear in the
+  managed call ledger with surface `conversation`, and their tokens count toward
+  the conversation's Space usage and token quota; before, a turn's model calls
+  cost money but were missing from Space usage, the admin LLM calls view, and
+  quota, so a Space over its token limit could keep chatting.
+
+- A task run on a `direct`-transport worker whose model key is refused or
+  missing now says to check `conversation.model.api_key` in `server.yaml` or
+  `BUILDMAX_CONVERSATION_MODEL_API_KEY`, where that key actually lives; before,
+  it pointed at `api_key` in a `settings.yaml` the worker never reads.
+
+- Issue comments in Portal and Desktop now render Markdown instead of showing
+  raw asterisks and list markers, and an agent's report comment has an **Open
+  Task** link to the run it came from.
+
+- When an agent running an issue stops to ask you something, the issue now
+  shows "Needs your answer" with an **Answer in Task** button, and the report
+  comment says to answer in the task: a comment on the issue does not reach the
+  agent.
+
+- A managed model call that hits the model's `call_timeout` is now recorded as
+  a failed `upstream_timeout` call and logged, not as a cancellation; a refused
+  provider key and provider rate limiting get their own `upstream_auth_failed`
+  and `upstream_rate_limited` codes, a task run failed by the managed gateway
+  is classed `model` (or by who must act) instead of `run`, and a refused
+  catalog key names `model set-key` instead of `settings.yaml`.
+
+- Portal wording fixes: a run that finished without a written reply says so
+  and links to what it did instead of "No output."; a continued run's origin
+  says it was continued, not run again; Administration shows an unreported
+  sandbox surface as "not reported" rather than "none applied"; and closing
+  the New Issue dialog with Escape keeps your draft (Cancel discards it).
+
+- When the server ends a run whose worker went silent, never confirmed a cancel,
+  or never reported within `worker.run_timeout`, it now deletes the run's
+  Kubernetes Job, so a hung or partitioned worker no longer keeps its pod
+  running.
+
+- A run's trace view in the Portal now lists the files the run wrote or edited
+  under **Files changed**, and the trace summary now names each file tool
+  call's path; both were always empty before.
+
+- A run whose worker refuses it before starting, because a plugin could not be
+  provided or a cancel arrived first, now ends at once; before, it stayed
+  Scheduled until the six-hour run timeout. Every failed run now also records
+  why it failed, and server logs for dispatch and reaping name its Space.
+
+- `POST /api/webhook` now runs as the webhook key's owner. It failed with a server error on every call because a fictitious `webhook` identity from the removed `webhook.user_id` setting was recorded as the conversation creator.
+
+- A Kubernetes worker whose run failed and reported FAILED now exits zero, so
+  its Job no longer restarts a pod that only refuses the run as already
+  claimed and hides the first container's log behind that restart.
+
+- An artifact a Portal run publishes is now referenced by its Portal page when
+  `public_base_url` is set, or by its id alone, instead of a link to the
+  internal worker API that no person or later workflow step could open; run
+  error messages, such as a disabled Space Secret's, no longer show that
+  internal address either.
+
+- An agent running an issue in Portal is now told it is working that issue and
+  pointed at `buildmax issue show` for its discussion and sub-issues; the worker
+  never received the issue before. Its final reply is the issue's report, so it
+  is no longer asked to post a second comment.
+
+- Kubernetes worker Jobs and their pods are now deleted after
+  `worker.k8s.finished_job_ttl` (5 minutes by default) instead of accumulating
+  in the worker namespace indefinitely.
+
+- A Workflow node with an `output_schema` now succeeds when its Task runs in a
+  worker: the worker receives the schema, requests structured output on both
+  the direct and managed model transports, and reports the validated value.
+
+- Workflow failures and step cancellations now stop sibling TaskRuns and wait
+  for them to finish before ending the workflow, recover this wait after server
+  restarts, and show the stopping state in Portal without losing partial output.
+
+### Security
+
+- A Space Secret value a worker run quotes is now redacted from the run's
+  reported error message, from the session metadata, session index, and run
+  logs uploaded with its state, and from the trace's error and denial reasons;
+  before, a failure quoting the value, a session title derived from the
+  prompt, or a log line carried it in plain text.
+
+- A Space Secret value the model writes is now redacted from the live Task
+  stream even when the provider splits it across several tokens, and from the
+  run's reported output and the session history stored for Continue; before,
+  a value spanning streamed deltas reached stream watchers, the Task output,
+  and stored history in plain text.
+
+- The server now checks a worker-reported structured value against the Task's
+  own `output_schema` before storing it, and drops a value that does not
+  conform, so a buggy or compromised worker cannot hand a Workflow node an
+  off-schema value; before, the value was stored exactly as reported.
+
 ## [0.2.0-alpha.16] - 2026-09-26
 
 ### Added
@@ -3550,7 +3722,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.16...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.17...HEAD
+[0.2.0-alpha.17]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.16...v0.2.0-alpha.17
 [0.2.0-alpha.16]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.15...v0.2.0-alpha.16
 [0.2.0-alpha.15]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.14...v0.2.0-alpha.15
 [0.2.0-alpha.14]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.13...v0.2.0-alpha.14

@@ -1,1 +1,0 @@
-- Seed recent features in `./make kind fixtures`: a branching Workflow with typed input, a structured-output Workflow, Workflow schedules, an Agent with revision history and plugin, sandbox, and Secret settings, Space sandbox and curation settings, and live and revoked artifact shares. `--runs` adds a graph Workflow run, real failed and canceled runs, and a webhook conversation.
