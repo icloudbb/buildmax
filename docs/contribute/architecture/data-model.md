@@ -148,7 +148,6 @@ erDiagram
     user ||--o| space : "has personal"
     space ||--o{ space_invitation : offers
     user ||--o{ space_invitation : "is invited by"
-    quota_tier ||--o{ user : rates
     quota_tier ||--o{ space : rates
     user ||--o{ user_webhook_key : owns
     user ||--o{ login_code : "authenticates with"
@@ -185,7 +184,6 @@ native self-registration is disabled by default (see
 | `name` | `varchar(255)` | yes | Display name |
 | `password_hash` | `varchar(255)` | yes | argon2id, PHC-encoded. `NULL` until a password is set |
 | `password_set_at` | `datetime(6)` | yes |  |
-| `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
 | `last_login_at` | `datetime(6)` | yes |  |
 | `last_login_platform` | `varchar(32)` | yes | Where the last login came from |
 | `disabled_at` | `datetime(6)` | yes | Non-`NULL` means every credential this account holds is refused |
@@ -243,7 +241,7 @@ The ownership and authorization boundary for every Portal resource.
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `name` | `varchar(255)` | no | Display name |
 | `personal_for_user_id` | `bigint unsigned` | yes | Set on a user's personal space; unique, so a user has at most one |
-| `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
+| `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name`; set at creation, changed only by System Administrator tier assignment |
 | `plugin_curation` | `varchar(16)` | no | Default `'open'`; `open` or `curated`, see `plugin_activation` |
 | `agent_instructions` | `text` | yes | Space-level instructions appended to every background Agent run; empty means no layer |
 | `agent_instructions_revision` | `bigint` | no | Advances whenever `agent_instructions` changes; starts at 0 |
@@ -492,7 +490,8 @@ account; index `expires_at`.
 
 ### `quota_tier`
 
-Rate limits, referenced by name from `user.quota_tier` and `space.quota_tier`.
+Rate limits, referenced by name from `space.quota_tier`; quota is enforced per
+Space, so accounts carry no tier.
 This is the one table whose primary key is not `id`.
 
 | Column | Type | Null | Notes |

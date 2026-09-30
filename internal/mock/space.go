@@ -165,6 +165,16 @@ func (m *MockSpaceStore) SetSpacePluginCuration(_ context.Context, spaceID strin
 	return apierr.ErrNotFound
 }
 
+func (m *MockSpaceStore) SetSpaceQuotaTier(_ context.Context, spaceID, tierName string) error {
+	for i := range m.Spaces {
+		if m.Spaces[i].ID == spaceID {
+			m.Spaces[i].QuotaTier = tierName
+			return nil
+		}
+	}
+	return apierr.ErrNotFound
+}
+
 func (m *MockSpaceStore) SetSpaceSandboxDefaults(_ context.Context, spaceID, networkTier, filesystemTier string) error {
 	for i := range m.Spaces {
 		if m.Spaces[i].ID == spaceID {

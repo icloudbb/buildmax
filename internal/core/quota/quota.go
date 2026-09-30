@@ -22,9 +22,14 @@ type Tier struct {
 }
 
 // TierStore provides quota tier limits by tier name.
+//
+// Tier definitions are seeded, not edited: a System Administrator assigns a
+// Space to an existing tier, and nothing here writes one.
 type TierStore interface {
 	// GetQuotaTier returns the tier limits by tier name, or (nil, nil) when not found.
 	GetQuotaTier(ctx context.Context, tierName string) (*Tier, error)
+	// ListQuotaTiers returns every defined tier, ordered by name.
+	ListQuotaTiers(ctx context.Context) ([]Tier, error)
 }
 
 // UsageInWindowReader provides usage aggregation for a space in a time window.

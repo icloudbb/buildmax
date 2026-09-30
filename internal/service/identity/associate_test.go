@@ -154,8 +154,8 @@ func TestAssociateJITProvisionsAllowedDomain(t *testing.T) {
 	if !out.Created || out.User.Email != "new@example.com" {
 		t.Errorf("resolved to %+v, want a created account", out)
 	}
-	if out.User.QuotaTier != "free_trial" {
-		t.Errorf("quota tier = %q, want the deployment default", out.User.QuotaTier)
+	if got := users.PersonalSpaceTier[out.User.ID]; got != "free_trial" {
+		t.Errorf("personal space quota tier = %q, want the deployment default", got)
 	}
 	if link, _ := eids.IdentityBySubject(context.Background(), testIssuer, testSubject); link == nil {
 		t.Error("JIT did not create the identity link")

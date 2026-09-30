@@ -36,7 +36,9 @@
   surface split (§6.1), and the account deactivation lifecycle with execution
   eligibility and Space owner recovery (§8) have also shipped, as has runtime
   operations metadata (§13 M7), accepted on 2026-09-28 from an operator
-  incident drill
+  incident drill, and quota tier assignment (§7.2), built on 2026-09-30
+  because a Beta quota-refusal journey could not otherwise change a tier
+  through a documented surface
 - follows: [space-governance.md](./space-governance.md) and
   [enterprise-deployment.md](./enterprise-deployment.md)
 - relates to: [enterprise identity and access](enterprise-identity-and-access.md),
@@ -132,6 +134,8 @@ Five gaps follow from that list, and they are what the first slice closes:
 5. A space's quota tier is set once, from `default_quota_tier`, at space
    creation. `internal/infra/db/quota_tier.go` has `GetQuotaTier` and
    `SeedDefaultQuotaTiers` and no way to assign a different tier afterwards.
+   Unlike the other four, this one stayed open after the first slice; quota
+   tier assignment (§7.2) closed it later.
 
 ## 4. Principals And What Each May Reach
 
@@ -324,9 +328,11 @@ that the Admin API uses.
 
 ## 7. Server Administration API
 
-All routes are `/api/admin/*`, all require `system_admin`, and none takes a
-`space_id` path parameter — an admin route that looked space-scoped would invite
-exactly the confusion §4 exists to prevent.
+All routes are `/api/admin/*`, all require `system_admin`, and none is
+space-scoped — an admin route that acted as a Space member would invite exactly
+the confusion §4 exists to prevent. The `/api/admin/spaces/{space_id}` routes
+describe or adjust a Space from outside: its metadata, its capacity, and owner
+recovery, never its contents.
 
 ### 7.1 Routes
 
@@ -339,7 +345,7 @@ The table is the registered surface; `internal/server/handlers/admin` owns it.
 | `POST /api/admin/grants` | Grants `system_admin` to a user id | A grant to an account that does not exist |
 | `DELETE /api/admin/grants/{user_id}` | Revokes it | The last effective holder (§6) |
 | `GET /api/admin/users` | Accounts, newest first, `?q=` on email, paged | Password hashes, login codes, token values |
-| `GET /api/admin/users/{user_id}` | One account: email, name, quota tier, last login and platform, `has_password`, `disabled_at`, space memberships with roles, active session count | Everything in the row above |
+| `GET /api/admin/users/{user_id}` | One account: email, name, last login and platform, `has_password`, `disabled_at`, space memberships with roles, active session count | Everything in the row above |
 | `POST /api/admin/users` | Creates an account and its personal space | — |
 | `POST /api/admin/users/{user_id}/login-code` | Issues a single-use code, shown once | A code that can be read back later |
 | `GET /api/admin/users/{user_id}/deactivation-impact` | What a disable would stop (§8.3): live sessions, webhook keys, shared-Space memberships and roles, sole-owned shared Space IDs, enabled Schedules, active runs by status, the cancellation bound | Prompts, inputs, outputs, Artifact names, traces, raw errors, secrets |
@@ -357,6 +363,8 @@ The table is the registered surface; `internal/server/handlers/admin` owns it.
 | `GET /api/admin/audit-events` | The trail across every space, filtered by `space_id`, `actor_id`, `action`, `since`, `until`, paged | Anything the event does not already hold |
 | `GET /api/admin/audit-events/export` | The same filtered trail as a CSV or JSONL download; the export is itself audited | The same |
 | `PUT /api/admin/spaces/{space_id}/owner` | Promotes an enabled member to owner when every recorded owner is disabled (§8.4) | A healthy Space, a personal Space, a successor who is not already a member |
+| `GET /api/admin/quota-tiers` | The seeded tiers: name, run and token limits per period, storage limit, period | — |
+| `PUT /api/admin/spaces/{space_id}/quota-tier` | Assigns a Space, team or personal, to an existing tier (§7.2) | An unknown tier, named in the refusal alongside the valid ones |
 | `POST /api/admin/llm/models` | Creates a model, encrypting a write-only credential | Credential material in the response |
 | `GET /api/admin/llm/models` | The catalog: name, provider, model, capabilities, enabled | `api_key`, in any form |
 | `PUT /api/admin/llm/models/{model_id}/state` | Sets the model's `enabled` flag, retiring or restoring it | — |
@@ -410,17 +418,27 @@ decisions, and the CLI already separates them for the same reason.
   multi-Space member has shown a navigation problem. It would belong to Portal
   Space navigation, not Administration, and would use each item's ordinary
   Space route and role check.
-- **Quota tier assignment.** `GET /api/admin/spaces/{space_id}` shows the tier
-  and the usage against it. Changing it needs a store method that does not
-  exist (§3, gap 5), and it is the one item here that is a feature rather than
-  an operator's window into existing state. It is unbuilt and waits for a
-  deployment that needs it. When built, it assigns an existing tier only —
-  tier definitions stay seeded until evidence says otherwise — through
-  `internal/service/quota` rather than raw stores in the handler, refuses an
-  unknown tier, takes effect at the next quota check without terminating running
-  work, and records `space.quota_tier_changed` naming the actor, the Space, and
-  the old and new tier. The duplicate user-level quota tier goes with it if
-  nothing else still reads it.
+- **Quota tier assignment — later implemented.** It waited, as the one item
+  here that is a feature rather than an operator's window into existing state,
+  until a deployment needed it: the 2026-09-30 Beta rehearsal could exercise a
+  quota refusal only by editing MySQL. `PUT /api/admin/spaces/{space_id}/quota-tier`,
+  `buildmax admin quota-tier set`, and the tier control on Portal's Space detail
+  assign an existing tier only; tier definitions stay seeded until evidence
+  says otherwise, and `GET /api/admin/quota-tiers` lists them. The mutation
+  belongs to `internal/service/quota` (`AssignTier`), not the handler: it
+  refuses an unknown tier with a message naming the valid ones, so a typo can
+  never reach the column that `Check` would read as "no limit". It takes effect
+  at the next quota check, because `Check` reads the Space's tier on every
+  admission, and terminates nothing already admitted. It records
+  `space.quota_tier_changed` naming the actor, the Space, and the old and new
+  tier; assigning the tier the Space already records changes nothing and is not
+  recorded. Personal Spaces are included: each is quota-checked like any other,
+  and a personal Space's tier is exactly how one person's capacity changes, so
+  the detail route that already opens them also offers the control. The
+  duplicate user-level tier went with it: `user.quota_tier` was written at
+  account creation and read only by the admin account view, never by
+  enforcement, so the column, the API field, and the `quota_tier` on
+  `GET /api/admin/users` are gone (migration `user_quota_tier_drop`).
 
 ## 8. Account Disablement Semantics
 
@@ -627,8 +645,10 @@ AuditAccessDenied       // exists; reused for admin routes, with space_id empty
 All are written with `space_id` empty, because none of them is space-scoped. The
 `AuditEvent` shape already allows that — it was designed for `user.login` — so
 no schema change is needed. Owner recovery (§8.4) later added
-`space.ownership_recovered`, which is written with the recovered Space's id so
-the Space's own trail shows it.
+`space.ownership_recovered`, and quota tier assignment (§7.2)
+`space.quota_tier_changed`, with the old and new tier as `old -> new` in its
+detail. Both are written with the Space's id so the Space's own trail shows
+them.
 
 Two things fall out of adding these:
 
@@ -688,10 +708,10 @@ eight sections:
    disable/enable, and live-session listing with single or bulk revocation.
    Disable first shows the deactivation impact (§8.3) and the webhook-key
    retirement choice.
-4. **Spaces** — paginated metadata, membership and usage, and "Make owner" for
-   the disabled-owner-only recovery (§8.4), without content access or
-   quota-tier mutation. `#/admin/spaces/{space_id}` opens one Space's detail,
-   including a personal Space the list omits.
+4. **Spaces** — paginated metadata, membership and usage, "Make owner" for
+   the disabled-owner-only recovery (§8.4), and quota tier assignment (§7.2),
+   without content access. `#/admin/spaces/{space_id}` opens one Space's
+   detail, including a personal Space the list omits.
 5. **Models** — list, create with a write-only encrypted credential, enable and
    disable. No read returns the credential.
 6. **LLM calls** — the managed call ledger across every Space: model, tokens,
@@ -924,9 +944,9 @@ of the deployment, and its unique name is the stable client-facing identifier;
 the alias layer and per-Space model policy were withdrawn by
 [client-modes.md](client-modes.md).
 
-Quota tier assignment, if it is wanted, comes after M6 with its own store
-method and its own audit action. It is the one item in §7.1 that was a feature
-rather than a window onto existing state, and nothing has asked for it yet.
+Quota tier assignment came after M6 with its own store method
+(`SetSpaceQuotaTier`) and its own audit action (`space.quota_tier_changed`),
+once the Beta rehearsal asked for it; §7.2 records the shape.
 
 ### M7. Runtime Operations Metadata — DONE
 

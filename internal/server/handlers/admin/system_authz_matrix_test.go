@@ -64,6 +64,8 @@ var adminRoutes = []adminCase{
 	{"DELETE", "/api/admin/users/{user_id}/sessions"},
 	{"DELETE", "/api/admin/users/{user_id}/sessions/{session_id}"},
 	{"PUT", "/api/admin/spaces/{space_id}/owner"},
+	{"GET", "/api/admin/quota-tiers"},
+	{"PUT", "/api/admin/spaces/{space_id}/quota-tier"},
 	{"GET", "/api/admin/system"},
 	{"GET", "/api/admin/config"},
 	{"GET", "/api/admin/audit-events"},

@@ -198,11 +198,13 @@ const (
 	QuotaExceeded         = "quota.exceeded"
 	// SpaceCreated records a new space coming into existence, with its quota
 	// tier in the detail. A space is an authorization boundary, so its creation
-	// is a governed act; and because a space's tier is only ever assigned at
-	// creation — there is no reassignment path — this is also the one place the
-	// quota tier a space runs under is decided, and so the one place worth
-	// recording it.
+	// is a governed act, and the tier it starts on is decided there.
 	SpaceCreated = "space.created"
+	// SpaceQuotaTierChanged records a System Administrator moving a space to
+	// another existing tier. The detail is "old -> new", so the trail names
+	// the capacity the space had before as well as after; the actor is the
+	// administrator and the space is both the scope and the target.
+	SpaceQuotaTierChanged = "space.quota_tier_changed"
 	// WebhookKeyCreated and WebhookKeyRevoked record a webhook credential being
 	// minted and withdrawn. A webhook key admits work under its owner's
 	// identity, so its life is worth the trail; the key material never is, so the

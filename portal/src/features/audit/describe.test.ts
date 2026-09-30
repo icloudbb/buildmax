@@ -23,6 +23,14 @@ describe("describeEvent", () => {
     expect(got.summary).toContain("manage_agents")
   })
 
+  it("names both tiers when an administrator moves a space", () => {
+    const got = describeEvent(
+      event({ action: "space.quota_tier_changed", target_id: "tm_1", detail: "free_trial -> pro" }),
+    )
+    expect(got.denied).toBe(false)
+    expect(got.summary).toBe("Changed the quota tier: free_trial -> pro")
+  })
+
   it("shows an action it does not recognise verbatim", () => {
     // Action strings are permanent and a newer server may write one this
     // Portal predates. Dropping the row, or relabelling it "unknown", hides an

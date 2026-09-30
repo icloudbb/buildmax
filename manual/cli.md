@@ -52,6 +52,8 @@ buildmax <command> [flags]
 | `buildmax admin model add` | Add a model to the catalog; `--api-key` is stored encrypted and never read back |
 | `buildmax admin model enable` / `disable <model_id>` | Enable or retire a catalog model |
 | `buildmax admin model set-key <model_id>` | Replace a catalog model's key in place, read from standard input |
+| `buildmax admin quota-tier list` | List the seeded quota tiers and their limits |
+| `buildmax admin quota-tier set <space_id> <tier>` | Assign a Space, shared or personal, to an existing quota tier |
 | `buildmax plugin list` | List installed plugins, where each came from, and whether it loads |
 | `buildmax plugin status [name]` | Show what a plugin contributes, its checkout or release, and what shadowed it |
 | `buildmax plugin validate [path]` | Parse a plugin directory and report every problem; non-zero if any would stop it loading |
@@ -390,6 +392,19 @@ always does, so the key stays out of shell history and process listings.
 selects; the deployment uses the new key from the next call. `add` takes the
 same fields as `buildmax-server model add`; run
 `buildmax admin model add --help` for the full set.
+
+`buildmax admin quota-tier` moves a Space onto another seeded tier over the same
+API:
+
+```bash
+buildmax admin quota-tier list                  # tiers, their limits and period
+buildmax admin quota-tier set sp_4Hq9 pro       # shared or personal Space, by id
+```
+
+The new limits apply from the Space's next quota check; work already running is
+not stopped. An unknown tier is refused with the valid ones named, and the
+change is recorded in the audit trail with the old and new tier. Tiers
+themselves are seeded and cannot be edited.
 
 ### `buildmax doctor`
 

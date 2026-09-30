@@ -81,7 +81,6 @@ erDiagram
     user ||--o| space : "has personal"
     space ||--o{ space_invitation : offers
     user ||--o{ space_invitation : "is invited by"
-    quota_tier ||--o{ user : rates
     quota_tier ||--o{ space : rates
     user ||--o{ user_webhook_key : owns
     user ||--o{ login_code : "authenticates with"
@@ -110,7 +109,6 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 | `name` | `varchar(255)` | 是 | 显示名称 |
 | `password_hash` | `varchar(255)` | 是 | argon2id，PHC 编码。设置密码前为 `NULL` |
 | `password_set_at` | `datetime(6)` | 是 | |
-| `quota_tier` | `varchar(64)` | 是 | 引用 `quota_tier.tier_name` |
 | `last_login_at` | `datetime(6)` | 是 | |
 | `last_login_platform` | `varchar(32)` | 是 | 上次登录的来源 |
 | `disabled_at` | `datetime(6)` | 是 | 非 `NULL` 表示该账号持有的每个凭证都被拒绝 |
@@ -153,7 +151,7 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 | `public_id` | `char(20) ascii_bin` | 否 | 公开句柄，唯一 |
 | `name` | `varchar(255)` | 否 | 显示名称 |
 | `personal_for_user_id` | `bigint unsigned` | 是 | 在用户的个人 Space 上设置；唯一，因此一个用户最多拥有一个 |
-| `quota_tier` | `varchar(64)` | 是 | 引用 `quota_tier.tier_name` |
+| `quota_tier` | `varchar(64)` | 是 | 引用 `quota_tier.tier_name`；创建时设置，之后只能由系统管理员的层级分配修改 |
 | `plugin_curation` | `varchar(16)` | 否 | 默认 `'open'`；`open` 或 `curated`，见 `plugin_activation` |
 | `agent_instructions` | `text` | 是 | 追加到每次后台 Agent 运行的 Space 级指令；为空表示没有这一层 |
 | `agent_instructions_revision` | `bigint` | 否 | 每当 `agent_instructions` 变化时递增；从 0 开始 |
@@ -345,7 +343,7 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 
 ### `quota_tier`
 
-速率限制，由 `user.quota_tier` 和 `space.quota_tier` 按名称引用。这是唯一一张主键不是 `id` 的表。
+速率限制，由 `space.quota_tier` 按名称引用；配额按 Space 执行，因此账户不携带层级。这是唯一一张主键不是 `id` 的表。
 
 | 列 | 类型 | 可空 | 说明 |
 |---|---|---|---|

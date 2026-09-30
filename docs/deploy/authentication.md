@@ -119,6 +119,20 @@ user`. Actions taken from a command line are recorded as the system actor
 `buildmax-server`: the command holds the database credentials rather than a
 session, so there is no person to name.
 
+A Space starts on the tier named by `default_quota_tier`. To give one Space,
+shared or personal, more or less capacity, assign it to another seeded tier:
+"Change tier" on its detail in Administration → Spaces, or
+
+```bash
+buildmax admin quota-tier list                 # the tiers and their limits
+buildmax admin quota-tier set <space_id> pro   # takes effect at the next quota check
+```
+
+An unknown tier is refused with the valid ones named. Work already running
+keeps running; the Space's next admission is checked against the new tier.
+The change is recorded as `space.quota_tier_changed` with the old and new tier.
+Tier definitions themselves are seeded and cannot be edited.
+
 ## What Signing In Returns
 
 Two credentials, not one:

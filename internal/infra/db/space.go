@@ -425,6 +425,19 @@ func (s *Store) SetSpacePluginCuration(ctx context.Context, spaceID string, mode
 		Update("plugin_curation", string(mode)).Error
 }
 
+// SetSpaceQuotaTier records the quota tier the space runs under.
+//
+// The tier is validated above this layer, like the plugin curation mode: this
+// package translates, it does not decide which tiers exist.
+func (s *Store) SetSpaceQuotaTier(ctx context.Context, spaceID, tierName string) error {
+	key, err := lookupKey(ctx, s.db, "space", spaceID)
+	if err != nil {
+		return err
+	}
+	return s.db.WithContext(ctx).Model(&spaceRow{}).Where("id = ?", key).
+		Update("quota_tier", tierName).Error
+}
+
 // SetSpaceSandboxDefaults records the tiers an agent that declares neither
 // inherits.
 //

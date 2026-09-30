@@ -99,8 +99,9 @@ func (h *Handler) guard() *access.Guard {
 
 // Register adds the deployment-scoped routes.
 //
-// None takes a {space_id}: an admin route that looked space-scoped would invite
-// exactly the confusion the boundary exists to prevent. See
+// None is space-scoped: the /api/admin/spaces/{space_id} routes describe or
+// adjust a Space from outside — metadata, capacity, owner recovery — and none
+// reaches its contents, which still require membership. See
 // docs/design/system-administration.md.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/me", h.adminMeHandler)
@@ -133,6 +134,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// The owner is a state sub-resource: recovery sets it when every recorded
 	// owner is disabled. Not a general transfer — see the service's preconditions.
 	mux.HandleFunc("PUT /api/admin/spaces/{space_id}/owner", h.recoverSpaceOwnershipHandler)
+	// Assigns an existing, seeded tier; tier definitions are not editable here.
+	mux.HandleFunc("GET /api/admin/quota-tiers", h.listAdminQuotaTiersHandler)
+	mux.HandleFunc("PUT /api/admin/spaces/{space_id}/quota-tier", h.setAdminSpaceQuotaTierHandler)
 	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)
 	mux.HandleFunc("POST /api/admin/llm/models", h.createAdminModelHandler)
 	mux.HandleFunc("PUT /api/admin/llm/models/{model_id}/state", h.setAdminModelStateHandler)

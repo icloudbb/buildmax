@@ -24,7 +24,6 @@ type AdminUser struct {
 	ID                string     `json:"id"`
 	Email             string     `json:"email"`
 	Name              string     `json:"name,omitempty"`
-	QuotaTier         string     `json:"quota_tier,omitempty"`
 	HasPassword       bool       `json:"has_password"`
 	DisabledAt        *time.Time `json:"disabled_at,omitempty"`
 	LastLoginAt       *time.Time `json:"last_login_at,omitempty"`
@@ -37,7 +36,6 @@ func toAdminUser(u coreidentity.User) AdminUser {
 		ID:                u.ID,
 		Email:             u.Email,
 		Name:              u.Name,
-		QuotaTier:         u.QuotaTier,
 		HasPassword:       u.HasPassword,
 		DisabledAt:        u.DisabledAt,
 		LastLoginAt:       u.LastLoginAt,

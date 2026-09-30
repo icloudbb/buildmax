@@ -21,6 +21,7 @@ import type {
   ApiDeactivationImpact,
   ApiPluginReleasesResponse,
   ApiPluginsResponse,
+  ApiQuotaTiersResponse,
   ApiSystemGrant,
   ApiSystemGrantsResponse,
 } from "../../lib/api/types"
@@ -234,6 +235,19 @@ export function listAdminRuntimeSpaces(
 
 export function getAdminSpace(token: string, spaceId: string): Promise<ApiAdminSpaceDetail> {
   return get<ApiAdminSpaceDetail>(`/spaces/${encodeURIComponent(spaceId)}`, token)
+}
+
+/** The seeded tiers a space can be assigned to. Tiers are not editable. */
+export function listQuotaTiers(token: string): Promise<ApiQuotaTiersResponse> {
+  return get<ApiQuotaTiersResponse>("/quota-tiers", token)
+}
+
+/**
+ * Moves a space onto an existing tier. It applies from the space's next quota
+ * check; an unknown tier is refused with a message naming the valid ones.
+ */
+export function setSpaceQuotaTier(token: string, spaceId: string, tier: string): Promise<void> {
+  return send<void>("PUT", `/spaces/${encodeURIComponent(spaceId)}/quota-tier`, token, { tier })
 }
 
 export function searchAdminAuditEvents(

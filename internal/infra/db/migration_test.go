@@ -53,6 +53,7 @@ func TestMigrationsArePermanent(t *testing.T) {
 		"issue_owner_executor_split",
 		"workflow_step_run_to_node_run",
 		"schedule_agent_to_executor",
+		"user_quota_tier_drop",
 	}
 	if len(migrations) != len(want) {
 		t.Fatalf("migrations = %d entries, permanent list has %d; append the new ID to want", len(migrations), len(want))
@@ -376,6 +377,61 @@ func TestScheduleAgentToExecutorMigration(t *testing.T) {
 		if m.HasColumn(&scheduleRow{}, column) {
 			t.Errorf("%s column still exists after the migration", column)
 		}
+	}
+}
+
+// TestUserQuotaTierDropMigration proves an account row written before the
+// drop loses its duplicate tier column, the account and its personal Space's
+// own tier survive, and a second Apply against the dropped column is a no-op.
+func TestUserQuotaTierDropMigration(t *testing.T) {
+	s, ctx := newTestStore(t)
+	user, err := s.CreateUser(ctx, "quota-tier-drop-"+testPublicID(t)+"@example.com", "pro")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	t.Cleanup(func() {
+		deleteTestUser(t, s, user.ID)
+		// The scope's later tests share this table; a failure before Apply must
+		// not leave them the retired column.
+		if s.db.Migrator().HasColumn(&userRow{}, "quota_tier") {
+			_ = s.db.Migrator().DropColumn(&userRow{}, "quota_tier")
+		}
+	})
+	// Simulate an alpha.16 account: the column back, holding a tier.
+	if err := s.db.WithContext(ctx).Exec("ALTER TABLE `user` ADD COLUMN quota_tier VARCHAR(64) NULL").Error; err != nil {
+		t.Fatalf("simulate pre-drop column: %v", err)
+	}
+	if err := s.db.WithContext(ctx).Exec("UPDATE `user` SET quota_tier = 'pro' WHERE public_id = ?", canonicalPublicID(user.ID)).Error; err != nil {
+		t.Fatalf("seed quota_tier: %v", err)
+	}
+
+	var target Migration
+	for _, candidate := range migrations {
+		if candidate.ID == "user_quota_tier_drop" {
+			target = candidate
+		}
+	}
+	if target.Apply == nil {
+		t.Fatal("user_quota_tier_drop migration not found")
+	}
+	for i := 0; i < 2; i++ {
+		if err := target.Apply(ctx, s.db); err != nil {
+			t.Fatalf("Apply %d: %v", i+1, err)
+		}
+	}
+	if s.db.Migrator().HasColumn(&userRow{}, "quota_tier") {
+		t.Error("user.quota_tier still exists after the migration")
+	}
+	got, err := s.GetUser(ctx, user.ID)
+	if err != nil || got == nil {
+		t.Fatalf("GetUser after the migration: %v (got %v)", err, got)
+	}
+	space, err := s.GetPersonalSpaceByUser(ctx, user.ID)
+	if err != nil || space == nil {
+		t.Fatalf("GetPersonalSpaceByUser: %v (got %v)", err, space)
+	}
+	if space.QuotaTier != "pro" {
+		t.Errorf("personal space tier = %q, want it kept as pro", space.QuotaTier)
 	}
 }
 

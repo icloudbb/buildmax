@@ -809,7 +809,7 @@ shutdown_grace: 25s                  # whole budget for an orderly stop; keep be
 cors_origin: http://localhost:5173   # or inject via BUILDMAX_CORS_ORIGIN where the Portal's port is chosen
 public_base_url: ""                  # externally reachable origin for artifact share links; empty keeps sharing off
 workspaces_dir: /data/buildmax/workspaces
-default_quota_tier: free_trial
+default_quota_tier: free_trial       # tier a new Space starts on; buildmax admin quota-tier set moves one later
 
 conversation:                        # Tier 1 model used by the Portal agent loop
   model:

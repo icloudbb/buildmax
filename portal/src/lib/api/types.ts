@@ -760,7 +760,6 @@ export interface ApiAdminUser {
   id: string
   email: string
   name?: string
-  quota_tier?: string
   has_password: boolean
   /** Non-null means every credential this account holds is refused. */
   disabled_at?: string
@@ -1126,6 +1125,19 @@ export interface ApiAdminSpaceMember {
 export interface ApiAdminSpaceDetail extends ApiAdminSpace {
   members: ApiAdminSpaceMember[]
   usage?: ApiUsage
+}
+
+/** One seeded quota tier. Zero max_storage_bytes means no storage limit. */
+export interface ApiQuotaTier {
+  tier_name: string
+  max_runs_per_period: number
+  max_tokens_per_period: number
+  max_storage_bytes: number
+  period_days: number
+}
+
+export interface ApiQuotaTiersResponse {
+  tiers: ApiQuotaTier[]
 }
 
 /** Upload response from the space-scoped upload endpoint. */

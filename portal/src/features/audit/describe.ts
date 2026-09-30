@@ -160,6 +160,12 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
         denied: false,
         target,
       }
+    case "space.quota_tier_changed":
+      return {
+        summary: event.detail ? `Changed the quota tier: ${event.detail}` : "Changed the quota tier",
+        denied: false,
+        target,
+      }
     case "webhook_key.created":
       return { summary: "Created a webhook key", denied: false, target }
     case "webhook_key.revoked":

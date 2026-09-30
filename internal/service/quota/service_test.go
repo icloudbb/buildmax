@@ -70,6 +70,13 @@ func (m *mockTierStore) GetQuotaTier(_ context.Context, _ string) (*corequota.Ti
 	return m.tier, m.err
 }
 
+func (m *mockTierStore) ListQuotaTiers(_ context.Context) ([]corequota.Tier, error) {
+	if m.tier == nil {
+		return nil, m.err
+	}
+	return []corequota.Tier{*m.tier}, m.err
+}
+
 func TestCheck_NoSpace_Allows(t *testing.T) {
 	c := &Service{
 		SpaceStore:  &mockSpaceStore{space: nil},
@@ -158,6 +165,10 @@ func TestCheck_EmptySpaceTier_UsesDefault(t *testing.T) {
 }
 
 func (m *mockSpaceStore) SetSpacePluginCuration(_ context.Context, _ string, _ coreplugin.Curation) error {
+	return nil
+}
+
+func (m *mockSpaceStore) SetSpaceQuotaTier(_ context.Context, _, _ string) error {
 	return nil
 }
 

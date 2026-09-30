@@ -614,10 +614,16 @@ content: the oldest waiting PENDING and unstarted SCHEDULED runs, silent RUNNING
 runs, failures in the last 24 hours by `task_run.failure_class` with who acts,
 and the Spaces needing attention, including personal ones, with their owners
 (`GET /api/admin/runtime/spaces`).
-Remaining administration gaps include transactional authority audit, admin CLI
-Session listing/revocation parity, and quota-tier assignment. These are open
-questions in the [system administration](design/system-administration.md)
-record, not implemented features. Plugin
+A System Administrator can assign any Space, team or personal, to an existing
+seeded quota tier from Space detail, `buildmax admin quota-tier set`, or
+`PUT /api/admin/spaces/{space_id}/quota-tier`; the new limits apply from the
+Space's next quota check, running work is not stopped, and the change is
+audited as `space.quota_tier_changed`. Tier definitions stay seeded and are not
+editable, and accounts carry no quota tier of their own.
+Remaining administration gaps include transactional authority audit and admin
+CLI Session listing/revocation parity. These are open questions in the
+[system administration](design/system-administration.md) record, not
+implemented features. Plugin
 publication remains CLI-only, while Portal can inspect, retire, restore, and
 yank catalog releases.
 
