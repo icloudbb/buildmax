@@ -11,6 +11,7 @@ import (
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
+	"github.com/icloudbb/buildmax/internal/core/jsonschema"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
@@ -256,7 +257,43 @@ func acceptedQuestions(req *workerclient.PatchTaskRunRequest) *string {
 	return &q
 }
 
+// acceptedStructured is the structured value to store for a terminal report, or
+// nil. The worker validated it, but a worker runs model-chosen code and is not
+// trusted, so the value is checked again against the Task's own output_schema
+// before a Workflow fold or any other reader relies on it. Only a successful run
+// of a Task with a schema carries a value. A value that fails is dropped, as the
+// runtime drops one that fails its own check: the run keeps its outcome and a
+// node that required output fails with its schema reason
+// (docs/design/structured-output.md §9).
+func (h *Handler) acceptedStructured(ctx context.Context, taskRunID string, req *workerclient.PatchTaskRunRequest) (*string, error) {
+	if req.Structured == nil || req.Status != string(coretask.RunStatusSucceeded) {
+		return nil, nil
+	}
+	_, task, err := h.cfg.TaskRuns.GetTaskRunWithTask(ctx, taskRunID)
+	if err != nil {
+		return nil, err
+	}
+	var reason string
+	if task == nil || task.OutputSchema == nil || strings.TrimSpace(*task.OutputSchema) == "" {
+		reason = "the task declares no output_schema"
+	} else if schema, err := jsonschema.Compile(json.RawMessage(*task.OutputSchema)); err != nil {
+		reason = "the task's output_schema does not compile: " + err.Error()
+	} else if err := schema.Validate(json.RawMessage(*req.Structured)); err != nil {
+		reason = err.Error()
+	}
+	if reason != "" {
+		componentLog().Warn("worker handler: dropped a reported structured value", "task_run_id", taskRunID, "reason", reason)
+		return nil, nil
+	}
+	return req.Structured, nil
+}
+
 func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Request, taskRunID string, req *workerclient.PatchTaskRunRequest) bool {
+	structured, err := h.acceptedStructured(r.Context(), taskRunID, req)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)
+		return false
+	}
 	in := coretask.TransitionRunInput{
 		TaskRunID:        taskRunID,
 		ExpectedStatus:   coretask.RunStatusRunning,
@@ -264,7 +301,7 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		StartedAt:        req.StartedAt,
 		EndedAt:          req.EndedAt,
 		Output:           req.Output,
-		Structured:       req.Structured,
+		Structured:       structured,
 		Questions:        acceptedQuestions(req),
 		ErrorMessage:     req.ErrorMessage,
 		SessionID:        req.SessionID,
