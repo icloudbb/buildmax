@@ -227,6 +227,10 @@ func TestJobPodIsConfined(t *testing.T) {
 	if spec.AutomountServiceAccountToken == nil || *spec.AutomountServiceAccountToken {
 		t.Error("a worker never calls the Kubernetes API; its token must not be mounted")
 	}
+	// Unset means true: Kubernetes injects every Service in the namespace.
+	if spec.EnableServiceLinks == nil || *spec.EnableServiceLinks {
+		t.Error("service links must be disabled; they expose in-cluster service addresses to model-chosen commands")
+	}
 	psc := spec.SecurityContext
 	if psc == nil {
 		t.Fatal("pod security context missing")

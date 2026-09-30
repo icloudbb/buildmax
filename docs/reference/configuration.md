@@ -129,7 +129,9 @@ variable there is what sends it to workers.
 
 ### How A Worker Pod Is Confined
 
-Every worker Job pod is created with no service-account token, a `Localhost`
+Every worker Job pod is created with no service-account token, no Service
+environment variables (`enableServiceLinks: false`, so the addresses of the
+namespace's other Services are not written into its environment), a `Localhost`
 seccomp profile (`deployment/seccomp/worker-bwrap.json`, distributed by a
 `DaemonSet`), an `Unconfined` AppArmor profile, a read-only root filesystem
 plus a writable `/tmp`, and every Linux capability dropped except `SYS_ADMIN`.

@@ -437,7 +437,12 @@ func (r *K8sJobRunner) Run(ctx context.Context, run coretask.Run, runToken strin
 					// service-account token is only a credential for
 					// model-chosen commands to find.
 					AutomountServiceAccountToken: util.Ptr(false),
-					SecurityContext:              r.pod.podSecurityContext(),
+					// Kubernetes otherwise writes the address of every Service
+					// in the namespace into the container's environment, handing
+					// model-chosen commands a map of the database, object store,
+					// and cache. A worker reaches only BUILDMAX_SERVER_URL.
+					EnableServiceLinks: util.Ptr(false),
+					SecurityContext:    r.pod.podSecurityContext(),
 					Containers: []corev1.Container{
 						{
 							Name:            "worker",

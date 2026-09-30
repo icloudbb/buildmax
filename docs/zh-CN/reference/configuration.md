@@ -99,7 +99,7 @@ Worker 在读取到 `BUILDMAX_RUN_TOKEN` 后会将其从自身环境中清除，
 
 ### Worker Pod 是如何被限制的
 
-每个 worker Job pod 创建时都没有 service account token，使用 `Localhost` seccomp 配置文件（`deployment/seccomp/worker-bwrap.json`，由一个 `DaemonSet` 分发）、`Unconfined` 的 AppArmor 配置文件、只读根文件系统加一个可写的 `/tmp`，并且除 `SYS_ADMIN` 外的所有 Linux capability 都被移除。以上这些都不可配置：worker 执行的是模型选择的 shell 命令，因此即便提交该 task 的 space 是可信的——驱动这些命令的提示、仓库内容和工具输出却并不可信——它仍被当作运行不可信代码来对待。真正约束这些命令的是 `bwrap` 自身的沙箱，它正是凭借上述 seccomp、AppArmor 和 capability 授权在这个 pod 内部构建起来的；至于为什么需要每一项，见 [`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md)——每一项都是针对真实集群上一次 `Operation not permitted` 失败逐一排查出来的。
+每个 worker Job pod 创建时都没有 service account token，没有 Service 环境变量（`enableServiceLinks: false`，因此命名空间内其他 Service 的地址不会被写入它的环境），使用 `Localhost` seccomp 配置文件（`deployment/seccomp/worker-bwrap.json`，由一个 `DaemonSet` 分发）、`Unconfined` 的 AppArmor 配置文件、只读根文件系统加一个可写的 `/tmp`，并且除 `SYS_ADMIN` 外的所有 Linux capability 都被移除。以上这些都不可配置：worker 执行的是模型选择的 shell 命令，因此即便提交该 task 的 space 是可信的——驱动这些命令的提示、仓库内容和工具输出却并不可信——它仍被当作运行不可信代码来对待。真正约束这些命令的是 `bwrap` 自身的沙箱，它正是凭借上述 seccomp、AppArmor 和 capability 授权在这个 pod 内部构建起来的；至于为什么需要每一项，见 [`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md)——每一项都是针对真实集群上一次 `Operation not permitted` 失败逐一排查出来的。
 
 该 pod 以 root（uid 0）身份运行，而非非 root：容器运行时赋予非 root pod 的某个 capability（此处是 `SYS_ADMIN`，在更早、后来被回退的一次尝试中是 `SETUID`/`SETGID`）只会落入该 pod capability 的 *bounding* 集合，而在 exec 时永远不会进入其 *effective* 集合——这一点已在真实集群上验证过——而 `bwrap` 需要该 capability 处于 effective 状态而不仅仅是 permitted，才能构建起自己的沙箱。Root 没有这个缺口。因此该 pod 的限制完全来自上述 capability/seccomp/AppArmor 的组合，加上 `bwrap` 自身对 worker Bash 调用的、限定在工作区范围内的沙箱化处理，而不是来自 pod 自身的 uid。
 
