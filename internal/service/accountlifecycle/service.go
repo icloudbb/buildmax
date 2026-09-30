@@ -117,7 +117,8 @@ type DisableResult struct {
 	RunsCanceled       int   `json:"runs_canceled"`
 	// CleanupFailed names the steps that errored after the gate committed;
 	// empty means cleanup completed. Disabling again is safe: it re-runs every
-	// step, and each acts only on what is still live.
+	// step, and each acts only on what is still live, and it keeps the original
+	// disabled_at rather than moving the deactivation time forward.
 	CleanupFailed []string `json:"cleanup_failed,omitempty"`
 }
 
@@ -130,10 +131,18 @@ type DisableResult struct {
 // is the backstop for runs a failed step misses.
 func (s *Service) Disable(ctx context.Context, userID string, opts DisableOptions) (DisableResult, error) {
 	now := s.now()
-	if err := s.Users.SetUserDisabled(ctx, userID, &now); err != nil {
+	var res DisableResult
+	// Preserve the original disable time across a re-disable: the account was
+	// deactivated when it first happened, not each time cleanup is re-run. A
+	// read that fails is not fatal — the account still gets disabled — it just
+	// means this call cannot tell it was already disabled, so it audits as new.
+	disabledAt := now
+	if existing, err := s.Users.GetUser(ctx, userID); err == nil && existing != nil && existing.DisabledAt != nil {
+		disabledAt = *existing.DisabledAt
+	}
+	if err := s.Users.SetUserDisabled(ctx, userID, &disabledAt); err != nil {
 		return DisableResult{}, err
 	}
-	var res DisableResult
 	var errs []error
 	fail := func(step string, err error) {
 		if !slices.Contains(res.CleanupFailed, step) {

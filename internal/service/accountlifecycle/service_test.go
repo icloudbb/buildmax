@@ -127,6 +127,30 @@ func TestDisableSuspensionKeepsWebhookKeys(t *testing.T) {
 	}
 }
 
+// Disabling an account that is already disabled keeps the original disabled_at:
+// the account was deactivated when it first happened, not each time cleanup is
+// re-run, so a re-disable must not move the deactivation time forward.
+func TestReDisableKeepsTheOriginalTimestamp(t *testing.T) {
+	svc, users, _, _ := newService(t)
+
+	if _, err := svc.Disable(context.Background(), "u1", accountlifecycle.DisableOptions{}); err != nil {
+		t.Fatalf("first Disable: %v", err)
+	}
+	original := users.ByID["u1"].DisabledAt
+	if original == nil {
+		t.Fatal("account gate not set")
+	}
+
+	// The clock moves on before the account is disabled again.
+	svc.Now = func() time.Time { return time.Unix(9999, 0).UTC() }
+	if _, err := svc.Disable(context.Background(), "u1", accountlifecycle.DisableOptions{}); err != nil {
+		t.Fatalf("second Disable: %v", err)
+	}
+	if got := users.ByID["u1"].DisabledAt; got == nil || !got.Equal(*original) {
+		t.Errorf("disabled_at = %v after re-disable, want it unchanged at %v", got, original)
+	}
+}
+
 func TestEnableReopensGateWithoutResurrecting(t *testing.T) {
 	svc, users, schedules, _ := newService(t)
 	if _, err := svc.Disable(context.Background(), "u1", accountlifecycle.DisableOptions{}); err != nil {

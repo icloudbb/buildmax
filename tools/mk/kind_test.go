@@ -137,6 +137,15 @@ func TestRenderKindSmokeConfigRewritesCorsOrigin(t *testing.T) {
 			if strings.Contains(content, "cors_origin: http://localhost:8080") {
 				t.Errorf("rendered config still has the default origin:\n%s", content)
 			}
+			// public_base_url is what artifact share links and OIDC callbacks are
+			// built from, so it has to name the ephemeral port too, not the 8080
+			// default a shared link would otherwise point at.
+			if !strings.Contains(content, "public_base_url: http://localhost:18080") {
+				t.Errorf("rendered config does not carry the requested public_base_url:\n%s", content)
+			}
+			if strings.Contains(content, "public_base_url: http://localhost:8080") {
+				t.Errorf("rendered config still has the default public_base_url:\n%s", content)
+			}
 		})
 	}
 }

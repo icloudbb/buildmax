@@ -123,6 +123,12 @@ type taskRunReadRow struct {
 	CancelRequestedByPub  *string    `gorm:"column:cancel_requested_by_public_id"`
 	SourceMessagePublicID *string    `gorm:"column:source_message_public_id"`
 	SpacePublicID         string     `gorm:"column:space_public_id"`
+	// The checkpoint public ids the run's internal-key columns resolve to. The
+	// DTO exposes checkpoints by their public handle, so these carry that
+	// resolution rather than the raw keys.
+	BaseCheckpointPublicID    *string `gorm:"column:base_checkpoint_public_id"`
+	ResultCheckpointPublicID  *string `gorm:"column:result_checkpoint_public_id"`
+	PartialCheckpointPublicID *string `gorm:"column:partial_checkpoint_public_id"`
 }
 
 func (s *Store) taskRunSelect(ctx context.Context) *gorm.DB {
@@ -133,13 +139,20 @@ func taskRunSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&taskRunRow{}).
 		Select("task_run.*, t.public_id AS task_public_id, pr.public_id AS previous_public_id, ro.public_id AS retry_of_public_id, " +
 			"cb.public_id AS cancel_requested_by_public_id, sm.public_id AS source_message_public_id, " +
-			"COALESCE(sp.public_id, '') AS space_public_id").
+			"COALESCE(sp.public_id, '') AS space_public_id, " +
+			"wcb.public_id AS base_checkpoint_public_id, wcr.public_id AS result_checkpoint_public_id, wcp.public_id AS partial_checkpoint_public_id").
 		Joins("INNER JOIN task t ON t.id = task_run.task_id").
 		Joins("LEFT JOIN space sp ON sp.id = t.space_id").
 		Joins("LEFT JOIN task_run pr ON pr.id = task_run.previous_task_run_id").
 		Joins("LEFT JOIN task_run ro ON ro.id = task_run.retry_of_task_run_id").
 		Joins("LEFT JOIN `user` cb ON cb.id = task_run.cancel_requested_by").
-		Joins("LEFT JOIN conversation_message sm ON sm.id = task_run.source_message_id")
+		Joins("LEFT JOIN conversation_message sm ON sm.id = task_run.source_message_id").
+		// The three workspace-checkpoint provenance pointers, resolved to their
+		// public handles. base is also what the worker's checkpoint finalizer
+		// reads back to record which checkpoint a result was built from.
+		Joins("LEFT JOIN workspace_checkpoint wcb ON wcb.id = task_run.workspace_base_checkpoint_id").
+		Joins("LEFT JOIN workspace_checkpoint wcr ON wcr.id = task_run.workspace_result_checkpoint_id").
+		Joins("LEFT JOIN workspace_checkpoint wcp ON wcp.id = task_run.workspace_partial_checkpoint_id")
 }
 
 func toTaskRun(row *taskRunReadRow) *coretask.Run {
@@ -180,6 +193,9 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		LastSeenAt:                     row.Row.LastSeenAt,
 		CreatedAt:                      row.Row.CreatedAt,
 		IdempotencyKey:                 row.Row.IdempotencyKey,
+		WorkspaceBaseCheckpointID:      row.BaseCheckpointPublicID,
+		WorkspaceResultCheckpointID:    row.ResultCheckpointPublicID,
+		WorkspacePartialCheckpointID:   row.PartialCheckpointPublicID,
 		WorkspaceRestoreStatus:         row.Row.WorkspaceRestoreStatus,
 		WorkspaceRestoreError:          row.Row.WorkspaceRestoreError,
 		WorkspaceCheckpointStatus:      row.Row.WorkspaceCheckpointStatus,
