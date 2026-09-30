@@ -128,6 +128,53 @@ func ValidRunStatusTransition(from, to RunStatus) bool {
 	}
 }
 
+// FailureClass records why a Workflow run failed, as a closed enum. The
+// service sets it where it decides the failure — when the run starts failing —
+// and nothing derives it from error text, which may carry Space content. It is
+// the run's own cause: a node whose Agent run failed is FailureNode here, and
+// that TaskRun's own failure class says why the Agent run failed.
+type FailureClass string
+
+const (
+	// FailureNode is a node attempt that failed with no attempt left.
+	FailureNode FailureClass = "node_failed"
+	// FailureOutputSchema is a node whose run finished without a value
+	// satisfying its output_schema.
+	FailureOutputSchema FailureClass = "output_schema"
+	// FailureNodeTimeout is a node whose last attempt exceeded its timeout.
+	FailureNodeTimeout FailureClass = "node_timeout"
+	// FailureAdmission is a node whose Task, retry, or resumed attempt could not
+	// be admitted, or whose bound inputs could not be resolved.
+	FailureAdmission FailureClass = "admission"
+	// FailureRequestDeclined is a request a Space member declined.
+	FailureRequestDeclined FailureClass = "request_declined"
+	// FailureRequestExpired is a request nobody answered before it expired.
+	FailureRequestExpired FailureClass = "request_expired"
+	// FailureRunDeadline is a run that passed its policy.timeout_seconds.
+	FailureRunDeadline FailureClass = "run_deadline"
+	// FailureUnclassified is the fallback when no rule applied.
+	FailureUnclassified FailureClass = "unclassified"
+)
+
+// FailureClasses lists every class, in a stable order for reports.
+func FailureClasses() []FailureClass {
+	return []FailureClass{
+		FailureNode, FailureOutputSchema, FailureNodeTimeout, FailureAdmission,
+		FailureRequestDeclined, FailureRequestExpired, FailureRunDeadline, FailureUnclassified,
+	}
+}
+
+// NormalizeFailureClass returns the class named by s, or FailureUnclassified
+// for an empty or unknown value, so a stored class is always one of the enum.
+func NormalizeFailureClass(s string) FailureClass {
+	for _, c := range FailureClasses() {
+		if string(c) == s {
+			return c
+		}
+	}
+	return FailureUnclassified
+}
+
 // Request kinds and statuses. A request is the durable record of a Workflow
 // waiting on a person: RequestKindInput for a human_input node, and
 // RequestKindQuestion for an agent_task attempt that ended on AskUser
@@ -309,6 +356,9 @@ type Run struct {
 	StartedAt    *time.Time `json:"started_at,omitempty"`
 	EndedAt      *time.Time `json:"ended_at,omitempty"`
 	ErrorMessage *string    `json:"error_message,omitempty"`
+	// FailureClass is why the run failed, set when it starts failing; empty
+	// for a run that has not failed.
+	FailureClass string `json:"failure_class,omitempty"`
 	// DeadlineAt is when the run fails if it has not finished, from the
 	// definition's policy.timeout_seconds at admission. Nil when none is set.
 	DeadlineAt *time.Time `json:"deadline_at,omitempty"`
@@ -718,6 +768,8 @@ type StopRunInput struct {
 	RunExpected   RunStatus
 	RunStatus     RunStatus
 	ErrorMessage  *string
+	// FailureClass is recorded with a move to failing; the store normalizes it.
+	FailureClass FailureClass
 }
 
 // BeginRunDrainInput commits the first failed/canceled node and stops further
@@ -735,8 +787,10 @@ type BeginRunDrainInput struct {
 	Output        *string
 	Structured    *string
 	ErrorMessage  *string
-	StartedAt     *time.Time
-	EndedAt       *time.Time
+	// FailureClass is recorded with a move to failing; the store normalizes it.
+	FailureClass FailureClass
+	StartedAt    *time.Time
+	EndedAt      *time.Time
 }
 
 // ClaimLeaseInput acquires a reconciliation lease on a non-terminal run for

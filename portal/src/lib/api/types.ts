@@ -188,6 +188,8 @@ export interface ApiWorkflowRun {
   started_at?: string | null
   ended_at?: string | null
   error_message?: string | null
+  /** Why the run failed, recorded when it started failing. */
+  failure_class?: string
   deadline_at?: string | null
   result?: unknown
 }
@@ -870,8 +872,21 @@ export interface ApiAdminSystem {
   server_time: string
 }
 
+/**
+ * Workflow execution beside TaskRuns: requests waiting on a Space member, by
+ * kind, and Workflow runs failed in the window, by class. Never a request's
+ * prompt, questions, or answer.
+ */
+export interface ApiAdminWorkflowRuntime {
+  waiting_requests: Record<string, number>
+  oldest_waiting_request_at?: string
+  /** The earliest expiry among pending requests; absent when none expires. */
+  next_request_expiry_at?: string
+  workflow_failures: Record<string, number>
+}
+
 /** Whether work is moving: stall timestamps, silent runs, and failures by class. */
-export interface ApiAdminRuntime {
+export interface ApiAdminRuntime extends ApiAdminWorkflowRuntime {
   oldest_pending_at?: string
   oldest_unstarted_at?: string
   stale_running: number
@@ -880,8 +895,11 @@ export interface ApiAdminRuntime {
   failure_window_hours: number
 }
 
-/** A Space with active runs or recent failures. Counts and owners, never content. */
-export interface ApiAdminSpaceAttention {
+/**
+ * A Space with active runs, requests waiting on its members, or recent
+ * failures. Counts, owners, and run ids, never content.
+ */
+export interface ApiAdminSpaceAttention extends ApiAdminWorkflowRuntime {
   space_id: string
   name: string
   personal: boolean
@@ -889,6 +907,8 @@ export interface ApiAdminSpaceAttention {
   active: Record<string, number>
   oldest_active_at?: string
   failures: Record<string, number>
+  oldest_waiting_workflow_run_id?: string
+  latest_failed_workflow_run_id?: string
 }
 
 export interface ApiAdminSpacesAttentionResponse {

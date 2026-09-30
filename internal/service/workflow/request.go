@@ -64,7 +64,8 @@ func (s *Service) openInputRequest(ctx context.Context, run *coreworkflow.Run, n
 			WorkflowRunID: run.ID, NodeRunID: node.ID,
 			NodeExpected: coreworkflow.NodeRunStatusPending, NodeStatus: coreworkflow.NodeRunStatusFailed,
 			RunExpected: coreworkflow.RunStatusRunning, RunStatus: coreworkflow.RunStatusFailing,
-			ErrorMessage: ptrError(err), StartedAt: &startedAt, EndedAt: &startedAt,
+			ErrorMessage: ptrError(err), FailureClass: coreworkflow.FailureAdmission,
+			StartedAt: &startedAt, EndedAt: &startedAt,
 		})
 		if drainErr != nil {
 			return drainErr
@@ -151,7 +152,9 @@ func (s *Service) foldWaitingNodes(ctx context.Context, run *coreworkflow.Run, s
 			}
 		case coreworkflow.RequestStatusDeclined, coreworkflow.RequestStatusExpired:
 			message := fmt.Sprintf("the request was %s", req.Status)
+			class := coreworkflow.FailureRequestExpired
 			if req.Status == coreworkflow.RequestStatusDeclined {
+				class = coreworkflow.FailureRequestDeclined
 				message = "the request was declined"
 				if reason := decodeJSONString(req.Response); reason != "" {
 					message += ": " + reason
@@ -161,7 +164,7 @@ func (s *Service) foldWaitingNodes(ctx context.Context, run *coreworkflow.Run, s
 				WorkflowRunID: run.ID, NodeRunID: node.ID,
 				NodeExpected: coreworkflow.NodeRunStatusWaiting, NodeStatus: coreworkflow.NodeRunStatusFailed,
 				RunExpected: coreworkflow.RunStatusRunning, RunStatus: coreworkflow.RunStatusFailing,
-				ErrorMessage: &message, EndedAt: &now,
+				ErrorMessage: &message, FailureClass: class, EndedAt: &now,
 			}); err != nil {
 				return nil, false, err
 			}
@@ -202,7 +205,8 @@ func (s *Service) applyAnswer(ctx context.Context, run *coreworkflow.Run, node c
 			WorkflowRunID: run.ID, NodeRunID: node.ID,
 			NodeExpected: coreworkflow.NodeRunStatusWaiting, NodeStatus: coreworkflow.NodeRunStatusFailed,
 			RunExpected: coreworkflow.RunStatusRunning, RunStatus: coreworkflow.RunStatusFailing,
-			ErrorMessage: util.Ptr(fmt.Sprintf("the answer could not resume the step: %v", err)), EndedAt: &now,
+			ErrorMessage: util.Ptr(fmt.Sprintf("the answer could not resume the step: %v", err)),
+			FailureClass: coreworkflow.FailureAdmission, EndedAt: &now,
 		})
 		if drainErr != nil {
 			return drainErr

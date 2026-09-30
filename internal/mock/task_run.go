@@ -3,16 +3,21 @@ package mock
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 )
 
 // MockTaskRunStore is an in-memory TaskRunStore for tests.
 type MockTaskRunStore struct {
 	Runs     []coretask.Run
 	TaskList []coretask.Task
+	// Workflows, when set, supplies the Workflow requests and runs the
+	// administration runtime reads join to their Space.
+	Workflows *MockWorkflowStore
 }
 
 func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, in coretask.CreateRunInput) (*coretask.Run, error) {
@@ -82,13 +87,28 @@ func (m *MockTaskRunStore) RuntimeSummary(_ context.Context, staleBefore, failed
 			out.FailuresByClass[run.FailureClass]++
 		}
 	}
+	out.WorkflowRuntime = newWorkflowRuntime()
+	for _, fact := range m.workflowFacts(failedSince) {
+		fact.addTo(&out.WorkflowRuntime)
+	}
 	return out, nil
 }
 
-// ListSpaceRunActivity groups the in-memory runs by their task's Space.
+// ListSpaceRunActivity groups the in-memory runs and Workflow facts by Space.
 func (m *MockTaskRunStore) ListSpaceRunActivity(_ context.Context, failedSince time.Time, limit, offset int) ([]coretask.SpaceRunActivity, int, error) {
 	bySpace := map[string]*coretask.SpaceRunActivity{}
+	waitingSince := map[string]*time.Time{}
 	var order []string
+	space := func(spaceID string) *coretask.SpaceRunActivity {
+		a := bySpace[spaceID]
+		if a == nil {
+			a = &coretask.SpaceRunActivity{SpaceID: spaceID, Active: map[string]int{}, FailuresByClass: map[string]int{},
+				WorkflowRuntime: newWorkflowRuntime()}
+			bySpace[spaceID] = a
+			order = append(order, spaceID)
+		}
+		return a
+	}
 	for _, run := range m.Runs {
 		active := !coretask.RunStatusTerminal(run.Status)
 		failed := failedSinceCutoff(run, failedSince)
@@ -101,23 +121,40 @@ func (m *MockTaskRunStore) ListSpaceRunActivity(_ context.Context, failedSince t
 				spaceID = task.SpaceID
 			}
 		}
-		a := bySpace[spaceID]
-		if a == nil {
-			a = &coretask.SpaceRunActivity{SpaceID: spaceID, Active: map[string]int{}, FailuresByClass: map[string]int{}}
-			bySpace[spaceID] = a
-			order = append(order, spaceID)
-		}
+		a := space(spaceID)
 		if active {
 			a.Active[run.Status]++
 			if a.OldestActiveAt == nil || run.CreatedAt.Before(*a.OldestActiveAt) {
 				t := run.CreatedAt
 				a.OldestActiveAt = &t
 			}
+			waitingSince[spaceID] = earlier(waitingSince[spaceID], &run.CreatedAt)
 		}
 		if failed {
 			a.FailuresByClass[run.FailureClass]++
 		}
 	}
+	for _, fact := range m.workflowFacts(failedSince) {
+		a := space(fact.spaceID)
+		fact.addTo(&a.WorkflowRuntime)
+		if fact.request != nil {
+			if a.OldestWaitingRequestAt != nil && a.OldestWaitingRequestAt.Equal(fact.request.CreatedAt) {
+				a.OldestWaitingWorkflowRunID = fact.request.WorkflowRunID
+			}
+			waitingSince[fact.spaceID] = earlier(waitingSince[fact.spaceID], &fact.request.CreatedAt)
+		}
+		if fact.failed != nil && (a.LatestFailedWorkflowRunID == "" || !fact.failed.EndedAt.Before(m.latestEnded(a.LatestFailedWorkflowRunID))) {
+			a.LatestFailedWorkflowRunID = fact.failed.ID
+		}
+	}
+	// Longest waiting first; Spaces with only failures last, in first-seen order.
+	sort.SliceStable(order, func(i, j int) bool {
+		a, b := waitingSince[order[i]], waitingSince[order[j]]
+		if a == nil || b == nil {
+			return a != nil && b == nil
+		}
+		return a.Before(*b)
+	})
 	out := make([]coretask.SpaceRunActivity, 0, len(order))
 	for _, id := range order {
 		out = append(out, *bySpace[id])
@@ -131,6 +168,83 @@ func (m *MockTaskRunStore) ListSpaceRunActivity(_ context.Context, failedSince t
 		out = out[:limit]
 	}
 	return out, total, nil
+}
+
+// workflowFact is one pending request or one Workflow run failed in the
+// window, with the Space it belongs to.
+type workflowFact struct {
+	spaceID string
+	request *coreworkflow.Request
+	failed  *coreworkflow.Run
+}
+
+func newWorkflowRuntime() coretask.WorkflowRuntime {
+	return coretask.WorkflowRuntime{WaitingRequests: map[string]int{}, WorkflowFailuresByClass: map[string]int{}}
+}
+
+func (f workflowFact) addTo(w *coretask.WorkflowRuntime) {
+	if f.request != nil {
+		w.WaitingRequests[f.request.Kind]++
+		w.OldestWaitingRequestAt = earlier(w.OldestWaitingRequestAt, &f.request.CreatedAt)
+		w.NextRequestExpiryAt = earlier(w.NextRequestExpiryAt, f.request.ExpiresAt)
+	}
+	if f.failed != nil {
+		w.WorkflowFailuresByClass[f.failed.FailureClass]++
+	}
+}
+
+// workflowFacts reads the Workflow store the way the real store joins it:
+// request to run to workflow to Space.
+func (m *MockTaskRunStore) workflowFacts(failedSince time.Time) []workflowFact {
+	if m.Workflows == nil {
+		return nil
+	}
+	spaceOfRun := func(runID string) string {
+		for _, run := range m.Workflows.Runs {
+			if run.ID != runID {
+				continue
+			}
+			for _, w := range m.Workflows.Workflows {
+				if w.ID == run.WorkflowID {
+					return w.SpaceID
+				}
+			}
+		}
+		return ""
+	}
+	var out []workflowFact
+	for i := range m.Workflows.Requests {
+		req := &m.Workflows.Requests[i]
+		if req.Status == coreworkflow.RequestStatusPending {
+			out = append(out, workflowFact{spaceID: spaceOfRun(req.WorkflowRunID), request: req})
+		}
+	}
+	for i := range m.Workflows.Runs {
+		run := &m.Workflows.Runs[i]
+		if run.FailureClass != "" && run.EndedAt != nil && !run.EndedAt.Before(failedSince) {
+			out = append(out, workflowFact{spaceID: spaceOfRun(run.ID), failed: run})
+		}
+	}
+	return out
+}
+
+func (m *MockTaskRunStore) latestEnded(workflowRunID string) time.Time {
+	for _, run := range m.Workflows.Runs {
+		if run.ID == workflowRunID && run.EndedAt != nil {
+			return *run.EndedAt
+		}
+	}
+	return time.Time{}
+}
+
+func earlier(a, b *time.Time) *time.Time {
+	if a == nil {
+		return b
+	}
+	if b == nil || !b.Before(*a) {
+		return a
+	}
+	return b
 }
 
 func failedSinceCutoff(run coretask.Run, since time.Time) bool {

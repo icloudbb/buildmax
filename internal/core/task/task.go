@@ -153,10 +153,31 @@ type RuntimeSummary struct {
 	StaleRunning int
 	// FailuresByClass counts runs that failed since the failedSince cutoff.
 	FailuresByClass map[string]int
+	// Workflow runs wait on people as well as workers, and can fail while
+	// every node's TaskRun succeeded, so their waits and failures are counted
+	// from the Workflow's own rows.
+	WorkflowRuntime
 }
 
-// SpaceRunActivity is one Space's active runs and recent failures, without any
-// run content.
+// WorkflowRuntime is Workflow execution state an administrator reads beside
+// TaskRun state: pending requests and failed runs, never a request's prompt,
+// questions, answer, or any node content.
+type WorkflowRuntime struct {
+	// WaitingRequests counts pending Workflow requests by kind (input or
+	// question). Any member of the request's Space may answer one.
+	WaitingRequests map[string]int
+	// OldestWaitingRequestAt is when the oldest pending request was opened.
+	OldestWaitingRequestAt *time.Time
+	// NextRequestExpiryAt is the earliest expiry among pending requests; nil
+	// when none expires.
+	NextRequestExpiryAt *time.Time
+	// WorkflowFailuresByClass counts Workflow runs that failed since the
+	// failedSince cutoff, by coreworkflow.FailureClass.
+	WorkflowFailuresByClass map[string]int
+}
+
+// SpaceRunActivity is one Space's active runs, waiting Workflow requests, and
+// recent failures, without any run content.
 type SpaceRunActivity struct {
 	SpaceID string
 	// Active counts PENDING, SCHEDULED, and RUNNING runs by status.
@@ -164,6 +185,12 @@ type SpaceRunActivity struct {
 	// OldestActiveAt is when the Space's oldest active run was created.
 	OldestActiveAt  *time.Time
 	FailuresByClass map[string]int
+	WorkflowRuntime
+	// OldestWaitingWorkflowRunID is the Workflow run of the oldest pending
+	// request, and LatestFailedWorkflowRunID the most recently failed Workflow
+	// run in the window, so an operator can name the run to the Space's members.
+	OldestWaitingWorkflowRunID string
+	LatestFailedWorkflowRunID  string
 }
 
 // FailureClasses lists every class, in a stable order for reports.
@@ -571,10 +598,13 @@ type RunStore interface {
 	// and it carries no space, input, or output — only counts.
 	CountTaskRunsByStatus(ctx context.Context) (map[string]int, error)
 	// RuntimeSummary reports stall ages, stale RUNNING runs (no worker poll
-	// since staleBefore), and failures by class since failedSince.
+	// since staleBefore), pending Workflow requests, and TaskRun and Workflow
+	// run failures by class since failedSince.
 	RuntimeSummary(ctx context.Context, staleBefore, failedSince time.Time) (RuntimeSummary, error)
-	// ListSpaceRunActivity pages through the Spaces that have an active run or
-	// a failure since failedSince, oldest active run first, with the total.
+	// ListSpaceRunActivity pages through the Spaces that have an active run, a
+	// pending Workflow request, or a TaskRun or Workflow run failure since
+	// failedSince — longest waiting first, by the older of their oldest active
+	// run and oldest pending request — with the total.
 	ListSpaceRunActivity(ctx context.Context, failedSince time.Time, limit, offset int) ([]SpaceRunActivity, int, error)
 	// GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
 	GetNextPendingTaskRun(ctx context.Context) (*Run, error)

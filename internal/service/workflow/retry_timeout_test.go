@@ -70,6 +70,15 @@ func runStatus(t *testing.T, store *mock.MockWorkflowStore, runID string) *corew
 	return run
 }
 
+// wantFailureClass checks the class the run recorded when it started failing,
+// which is what administration counts; empty means it did not fail.
+func wantFailureClass(t *testing.T, store *mock.MockWorkflowStore, runID string, want coreworkflow.FailureClass) {
+	t.Helper()
+	if got := runStatus(t, store, runID).FailureClass; got != string(want) {
+		t.Fatalf("failure class = %q, want %q", got, want)
+	}
+}
+
 func TestReconcile_RetriesFailedAttemptOnTheSameTask(t *testing.T) {
 	svc, store, taskRuns, runID := concurrencySvc(t, `{"schema_version":1,"nodes":[`+
 		`{"id":"a","type":"agent_task","agent":{"id":"a_1"},"input":{"instruction":"a"},"policy":{"max_attempts":2}}]}`)
@@ -144,6 +153,7 @@ func TestReconcile_ExhaustedAttemptsFailTheRun(t *testing.T) {
 	if run := runStatus(t, store, runID); run.Status != string(coreworkflow.RunStatusFailed) {
 		t.Fatalf("run = %s, want failed", run.Status)
 	}
+	wantFailureClass(t, store, runID, coreworkflow.FailureNode)
 }
 
 func TestReconcile_CanceledAttemptIsNotRetried(t *testing.T) {
@@ -156,6 +166,7 @@ func TestReconcile_CanceledAttemptIsNotRetried(t *testing.T) {
 	if run := runStatus(t, store, runID); run.Status != string(coreworkflow.RunStatusCanceled) {
 		t.Fatalf("run = %s, want canceled", run.Status)
 	}
+	wantFailureClass(t, store, runID, "")
 }
 
 func TestReconcile_NodeTimeoutCancelsTheAttemptAndRetries(t *testing.T) {
@@ -209,6 +220,7 @@ func TestReconcile_TimeoutOnLastAttemptFailsTheRun(t *testing.T) {
 	if run := runStatus(t, store, runID); run.Status != string(coreworkflow.RunStatusFailed) {
 		t.Fatalf("run = %s, want failed", run.Status)
 	}
+	wantFailureClass(t, store, runID, coreworkflow.FailureNodeTimeout)
 }
 
 func TestReconcile_RunDeadlineStopsAndFailsTheRun(t *testing.T) {
@@ -241,6 +253,8 @@ func TestReconcile_RunDeadlineStopsAndFailsTheRun(t *testing.T) {
 	if run := runStatus(t, store, runID); run.Status != string(coreworkflow.RunStatusFailed) {
 		t.Fatalf("drained run = %s, want failed", run.Status)
 	}
+	// The run's own deadline is the cause, not the node it canceled.
+	wantFailureClass(t, store, runID, coreworkflow.FailureRunDeadline)
 }
 
 func TestReconcile_SiblingFailureCancelsAWaitingRetry(t *testing.T) {
@@ -271,6 +285,19 @@ func TestReconcile_RetryAdmissionFailureFailsTheNode(t *testing.T) {
 	if node.Status != string(coreworkflow.NodeRunStatusFailed) || node.ErrorMessage == nil || !strings.Contains(*node.ErrorMessage, "attempt 2") {
 		t.Fatalf("node = %s error=%v, want failed naming attempt 2", node.Status, node.ErrorMessage)
 	}
+	wantFailureClass(t, store, runID, coreworkflow.FailureAdmission)
+}
+
+// A node whose TaskRun succeeded can still fail the run: every TaskRun
+// counts as a success, so only the Workflow's own class shows the failure.
+func TestReconcile_UnsatisfiedOutputSchemaFailsTheRunAsOutputSchema(t *testing.T) {
+	svc, store, taskRuns, runID := concurrencySvc(t, `{"schema_version":1,"nodes":[`+
+		`{"id":"a","type":"agent_task","agent":{"id":"a_1"},"input":{"instruction":"a"},"output_schema":{"type":"string"}}]}`)
+	endAttempt(t, svc, store, taskRuns, runID, "a", string(coretask.RunStatusSucceeded))
+	if run := runStatus(t, store, runID); run.Status != string(coreworkflow.RunStatusFailed) {
+		t.Fatalf("run = %s, want failed", run.Status)
+	}
+	wantFailureClass(t, store, runID, coreworkflow.FailureOutputSchema)
 }
 
 type refuseQuota struct{}

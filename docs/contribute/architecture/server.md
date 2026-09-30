@@ -271,7 +271,11 @@ blocks pending nodes. The reconciler then requests cancellation for each active
 sibling TaskRun and waits for terminal facts before ending the Workflow. That
 durable state stays in the recovery sweep across restarts. Node state and output
 reflect the actual TaskRun outcome even when success races with cancellation;
-the Workflow retains its original failure or cancellation outcome.
+the Workflow retains its original failure or cancellation outcome. The move to
+`failing` records `workflow_run.failure_class` from the cause the Workflow
+service decided — a failed, timed-out, or schema-rejected node, an admission
+failure, a declined or expired request, or the run deadline — so
+Administration can count a Workflow failure whose TaskRuns all succeeded.
 
 ## Retrying A Run
 

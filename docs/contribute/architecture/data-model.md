@@ -1250,6 +1250,7 @@ revision cannot unpublish a workflow spaces are running.
 | `started_at` | `datetime(6)` | yes | |
 | `ended_at` | `datetime(6)` | yes | |
 | `error_message` | `text` | yes | |
+| `failure_class` | `varchar(32)` | no | Why the run failed: `node_failed`, `output_schema`, `node_timeout`, `admission`, `request_declined`, `request_expired`, `run_deadline`, or `unclassified`; set by the Workflow service when the run starts `failing`, never parsed from `error_message`; empty on a run that did not fail |
 | `deadline_at` | `datetime(6)` | yes | When the run fails if unfinished, from the definition's `policy.timeout_seconds` at admission; NULL when none is set |
 | `reconcile_owner` | `varchar(64)` | yes | Holder of the current reconciliation lease; NULL when unleased |
 | `lease_expires_at` | `datetime(6)` | yes | When the current lease expires; a lease at or past this may be taken over |
@@ -1258,7 +1259,9 @@ revision cannot unpublish a workflow spaces are running.
 Indexes: PK `id`; index `issue_id`; index `schedule_id`; index
 `idx_workflow_run_workflow_created` on (`workflow_id`, `created_at`); index
 `idx_workflow_run_next_reconcile` on (`next_reconcile_at`); index
-`idx_workflow_run_lease_expires` on (`lease_expires_at`); unique `public_id`.
+`idx_workflow_run_lease_expires` on (`lease_expires_at`); index
+`idx_workflow_run_failure_ended` on (`failure_class`, `ended_at`); unique
+`public_id`.
 
 A run is *due* when it is non-terminal and `next_reconcile_at` is NULL, has
 arrived, or its `lease_expires_at` has passed; the due scanner reads these in

@@ -100,6 +100,7 @@ func TestHumanInput_DeclineFailsTheRun(t *testing.T) {
 	if run := runStatus(t, store, runID); run.Status != string(coreworkflow.RunStatusFailed) {
 		t.Fatalf("run = %s, want failed", run.Status)
 	}
+	wantFailureClass(t, store, runID, coreworkflow.FailureRequestDeclined)
 }
 
 func TestHumanInput_ExpiresAfterItsTimeout(t *testing.T) {
@@ -128,6 +129,7 @@ func TestHumanInput_ExpiresAfterItsTimeout(t *testing.T) {
 	if run := runStatus(t, store, runID); run.Status != string(coreworkflow.RunStatusFailed) {
 		t.Fatalf("run = %s, want failed", run.Status)
 	}
+	wantFailureClass(t, store, runID, coreworkflow.FailureRequestExpired)
 }
 
 func TestHumanInput_FreeTextRootWaitsFromTheStart(t *testing.T) {
