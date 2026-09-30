@@ -75,6 +75,7 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 
 - [ ] 部署不直接暴露给不可信公共网络。
 - [ ] 官方 Worker 镜像选择并探测严格 OS sandbox 基线；候选版本证明 Bash 受约束。受支持的 Worker 配置会禁用 stdio MCP，除非其子进程受声明边界约束。原生 Worker Pod 按文档使用 root、`SYS_ADMIN` 以及 seccomp/AppArmor 配置；本次 Beta 不要求 gVisor 等外层 runtime。
+- [ ] Sandbox 将 Bash 的写入限制在 Run workspace 内，但不限制读取：Bash 可以读取 Pod 的只读文件系统，包括挂载的 server 配置，因此该配置不得包含任何凭证；参考清单将凭证放在由 Secret 提供的环境变量中，Bash 不继承这些变量。
 - [ ] 一般 Worker 出站没有强制 Pod 级目标 allow-list。Worker 端口 `NetworkPolicy` 限制控制通道入站，但不限制全部出站流量。
 - [ ] Worker 可以获得存储凭证或投射的存储身份，因为它直接读写运行状态和 Artifact。
 - [ ] Hook 按文档 fail open；Worker 配置会禁用不受支持的可执行 Plugin 和 stdio MCP 内容，而不是宣称它们受到约束。
@@ -110,7 +111,7 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 
 - [ ] 运行前台 Conversation，并通过它创建后台工作。
 - [ ] 通过托管模型在 Kubernetes Worker Job 中运行直接 Agent Task，查看 stream 和持久结果、trace、托管调用 ledger、usage、audit、workspace checkpoint 和可下载 Artifact。
-- [ ] Continue 此 Task，证明恢复最新 workspace 和 Session；Retry 较早的 Run，证明使用该 Run 的原始 base。两者都创建有独立证据的新 TaskRun，而不修改历史。
+- [ ] Continue 此 Task，证明恢复最新 workspace 和 Session；Retry 该 Task 的最新 Run，证明使用该 Run 的原始 base 而不是其结果。两者都创建有独立证据的新 TaskRun，而不修改历史。
 - [ ] 取消运行中的 Task，确认 partial output、Artifact 和 checkpoint 语义符合文档合同。
 - [ ] 让 Worker Run 调用 `AskUser`，确认 Task 显示需要回答；通过 Continue 回答，并验证 successor Run 收到答案而原始 Run 保持不可变。
 - [ ] 在一个请求中使用 Owner 和 Executor 创建 Issue，运行其 executor，并将 result、status 和 discussion 追踪回 Issue。
@@ -118,17 +119,17 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 - [ ] 演练 Workflow 每次尝试的 retry/backoff、node timeout、run deadline 及整条 Run 取消；随后让一个节点失败，证明已接纳 sibling 完成 drain、pending node 被阻止，重启恢复最终收敛，且不会创建重复 Task 或超过发布 policy 的 attempt。
 - [ ] 分别触发 Agent Schedule 和 Workflow Schedule。围绕 due time 重启 Server，证明只有一次 catch-up、没有重复 fire，并在连续失败或创建者失去资格后看到 pause reason。
 - [ ] 存储 Space Secret，将一个 item 授权给 Agent 并在 Worker 中使用，证明其值不出现在 trace、stream、tool result 或日志中。
-- [ ] 激活仅含受支持 skill/subagent 配置的 Plugin release，在 Agent 上选择它，证明 Worker 物化 Run 所记录的精确 version 和 digest；可执行内容必须被拒绝。
+- [ ] 激活仅含受支持 skill/subagent 配置的 Plugin release，在 Agent 上选择它，证明 Worker 物化 Run 所记录的精确 version 和 digest；激活包含 hook 或 MCP server 的 release 必须被拒绝。
 - [ ] 发送 authenticated inbound webhook，证明 Conversation turn 以 webhook key owner 身份运行且保持 Space scope。
 - [ ] 使用 Administration 找到人为制造的 stalled 和 failing work，指出 `failure_class`、下一步行动者，并在不读取无关 Space 内容的情况下进入底层 Run。
 
 ## Q3. 执行与 Secret 边界
 
 - [ ] 检查一个运行中的 Worker Job，记录只读 root filesystem、已移除 capabilities（除 `SYS_ADMIN` 外）、seccomp/AppArmor 配置、缺失的 ServiceAccount token、实际 CPU/内存/ephemeral storage 资源、最小环境变量和 per-run credential。
-- [ ] 证明 Bash 无法读写 Run workspace 之外的位置，trace 报告实际 sandbox boundary 而不是配置意图。
+- [ ] 证明 Bash 无法写入 Run workspace 之外的位置、不继承 Worker 的凭证，并且 trace 报告实际 sandbox boundary 而不是配置意图。
 - [ ] 证明公共 Service 不暴露 Worker route、无标签 Pod 被 Worker `NetworkPolicy` 拒绝、有标签 Worker 使用内部 TLS listener。
 - [ ] 证明 run token 不能访问其他 Run，不能在 claim 前或 terminal 后执行操作，并且只能访问文档规定的 Worker route。
-- [ ] 在 Worker 配置中解析 stdio MCP server 和可执行 Plugin 内容，证明 assembly 在执行命令或首次模型调用前失败，而不是静默在边界外运行。
+- [ ] 证明包含可执行内容的 Plugin release 在激活时被拒绝；并证明在 Worker 配置中从任一层（例如 workspace 的 `.buildmax/mcp.json`）解析到的 stdio MCP server 会让 assembly 在执行命令或首次模型调用前失败，而不是静默在边界外运行。
 - [ ] 证明 consuming Worker 能使用 Space Secret，但其值在 trace、stream、tool result 和保留诊断中都被脱敏。
 - [ ] 让 finished-Job TTL 删除 Job 和 Pod；确认 TaskRun、trace、checkpoint、result 和 Artifact 仍可读取。
 
