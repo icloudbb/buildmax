@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -360,5 +361,15 @@ func TestAdmitWorkflowTaskIsIdempotentByKey(t *testing.T) {
 	}
 	if len(taskStore.Created) != 1 {
 		t.Errorf("store created %d tasks, want 1: a replay must not create a second", len(taskStore.Created))
+	}
+}
+
+// Input over the TEXT column is a clean invalid error, not a write-time 500.
+func TestCreateRun_InputTooLong(t *testing.T) {
+	taskStore := &mock.MockTaskStore{List: []coretask.Task{{ID: "t_1", SpaceID: "tm_1", Status: "SUCCEEDED"}}}
+	svc := &Service{Tasks: taskStore, TaskRuns: &mock.MockTaskRunStore{}}
+	over := strings.Repeat("x", maxTaskInputBytes+1)
+	if _, err := svc.CreateRun(context.Background(), CreateRunCmd{UserID: "u1", TaskID: "t_1", Input: over}); err != ErrInputTooLong {
+		t.Errorf("over-long run input err = %v, want ErrInputTooLong", err)
 	}
 }

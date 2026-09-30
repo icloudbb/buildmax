@@ -2,7 +2,10 @@ package issue
 
 import (
 	"context"
+	"strings"
+
 	"github.com/icloudbb/buildmax/internal/core/apierr"
+	"github.com/icloudbb/buildmax/internal/util"
 	"log/slog"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
@@ -15,6 +18,8 @@ var (
 	ErrIssuesNotConfigured = apierr.New(apierr.KindNotConfigured, "issues not configured")
 	ErrSpacesNotConfigured = apierr.New(apierr.KindNotConfigured, "spaces not configured")
 	ErrTitleRequired       = apierr.New(apierr.KindInvalid, "title required")
+	ErrTitleTooLong        = apierr.New(apierr.KindInvalid, "title is too long")
+	ErrDescriptionTooLong  = apierr.New(apierr.KindInvalid, "description is too long")
 	ErrInvalidStatus       = apierr.New(apierr.KindInvalid, "invalid status")
 	ErrInvalidOwnerID      = apierr.New(apierr.KindInvalid, "invalid owner_id")
 	ErrInvalidExecutorKind = apierr.New(apierr.KindInvalid, "invalid executor_kind")
@@ -76,12 +81,45 @@ type UpdateIssueCmd struct {
 	ParentIssueID *string
 }
 
+// maxIssueTitleRunes bounds a title to its varchar(255) column; maxIssue
+// DescriptionBytes bounds a description to its TEXT column (65535 bytes), so an
+// over-long value is a 400 rather than a write error surfaced as a 500.
+const (
+	maxIssueTitleRunes       = 255
+	maxIssueDescriptionBytes = 65535
+)
+
+// normalizeTitle trims, requires, and length-bounds a title.
+func normalizeTitle(title string) (string, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return "", ErrTitleRequired
+	}
+	if util.ExceedsRuneLimit(title, maxIssueTitleRunes) {
+		return "", ErrTitleTooLong
+	}
+	return title, nil
+}
+
+// checkDescription length-bounds an issue description; empty is allowed.
+func checkDescription(desc string) error {
+	if util.ExceedsByteLimit(desc, maxIssueDescriptionBytes) {
+		return ErrDescriptionTooLong
+	}
+	return nil
+}
+
 func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*coreissue.Issue, error) {
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
-	if cmd.Title == "" {
-		return nil, ErrTitleRequired
+	title, err := normalizeTitle(cmd.Title)
+	if err != nil {
+		return nil, err
+	}
+	cmd.Title = title
+	if err := checkDescription(cmd.Description); err != nil {
+		return nil, err
 	}
 	if cmd.SpaceID == "" {
 		return nil, ErrSpacesNotConfigured
@@ -122,6 +160,18 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*coreiss
 	}
 	if cmd.SpaceID == "" {
 		return nil, ErrSpacesNotConfigured
+	}
+	if cmd.Title != nil {
+		title, err := normalizeTitle(*cmd.Title)
+		if err != nil {
+			return nil, err
+		}
+		cmd.Title = &title
+	}
+	if cmd.Description != nil {
+		if err := checkDescription(*cmd.Description); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.validateOwner(ctx, cmd.SpaceID, cmd.OwnerID); err != nil {
 		return nil, err

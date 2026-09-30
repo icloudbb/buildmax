@@ -21,6 +21,7 @@ import (
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	"github.com/icloudbb/buildmax/internal/service/audit"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 var (
@@ -36,7 +37,25 @@ var (
 	ErrSecretsNotConfigured = apierr.New(apierr.KindNotConfigured,
 		"this deployment has no secret store, so an agent cannot consume one")
 	ErrInstructionsTooLong = apierr.New(apierr.KindInvalid, "Space and Agent instructions exceed 8192 characters")
+	ErrNameTooLong         = apierr.New(apierr.KindInvalid, "name is too long")
 )
+
+// maxAgentNameRunes bounds an Agent name to its varchar(255) column, so an
+// over-long name is a 400 rather than a write error surfaced as a 500.
+const maxAgentNameRunes = 255
+
+// validateAgentName trims, requires, and length-bounds an Agent name, returning
+// the normalized value. Whitespace alone is no name, the same as empty.
+func validateAgentName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", ErrNameRequired
+	}
+	if util.ExceedsRuneLimit(name, maxAgentNameRunes) {
+		return "", ErrNameTooLong
+	}
+	return name, nil
+}
 
 // WorkflowUsage reports which published workflows still name an agent.
 //
@@ -204,9 +223,11 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 	if s.Agents == nil {
 		return nil, ErrAgentsNotConfigured
 	}
-	if cmd.Name == "" {
-		return nil, ErrNameRequired
+	name, err := validateAgentName(cmd.Name)
+	if err != nil {
+		return nil, err
 	}
+	cmd.Name = name
 	if err := s.validateInstructions(ctx, cmd.SpaceID, cmd.Instructions); err != nil {
 		return nil, err
 	}
@@ -312,9 +333,11 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 	if s.Agents == nil {
 		return nil, ErrAgentsNotConfigured
 	}
-	if cmd.Name == "" {
-		return nil, ErrNameRequired
+	name, err := validateAgentName(cmd.Name)
+	if err != nil {
+		return nil, err
 	}
+	cmd.Name = name
 	if err := s.validateInstructions(ctx, cmd.SpaceID, cmd.Instructions); err != nil {
 		return nil, err
 	}

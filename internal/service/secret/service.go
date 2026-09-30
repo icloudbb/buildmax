@@ -14,18 +14,29 @@ import (
 
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 var (
-	ErrNameRequired = apierr.New(apierr.KindInvalid, "secret name required")
-	ErrNameTaken    = apierr.New(apierr.KindConflict, "a secret with this name already exists in the space")
-	ErrNoItems      = apierr.New(apierr.KindInvalid, "a secret needs at least one item")
-	ErrInvalidItem  = apierr.New(apierr.KindInvalid, "an item name must be an identifier")
-	ErrUnknownState = apierr.New(apierr.KindInvalid, "unknown secret state")
-	ErrNotFound     = apierr.New(apierr.KindNotFound, "secret not found")
-	ErrDestroyed    = apierr.New(apierr.KindConflict, "secret is destroyed")
-	ErrItemNotFound = apierr.New(apierr.KindInvalid, "no such item to remove")
-	ErrDisabled     = apierr.New(apierr.KindConflict, "secret is disabled")
+	ErrNameRequired       = apierr.New(apierr.KindInvalid, "secret name required")
+	ErrNameTooLong        = apierr.New(apierr.KindInvalid, "secret name is too long")
+	ErrDescriptionTooLong = apierr.New(apierr.KindInvalid, "secret description is too long")
+	ErrNameTaken          = apierr.New(apierr.KindConflict, "a secret with this name already exists in the space")
+	ErrNoItems            = apierr.New(apierr.KindInvalid, "a secret needs at least one item")
+	ErrInvalidItem        = apierr.New(apierr.KindInvalid, "an item name must be an identifier")
+	ErrUnknownState       = apierr.New(apierr.KindInvalid, "unknown secret state")
+	ErrStateTransition    = apierr.New(apierr.KindConflict, "a destroyed secret is permanent and cannot be reactivated")
+	ErrNotFound           = apierr.New(apierr.KindNotFound, "secret not found")
+	ErrDestroyed          = apierr.New(apierr.KindConflict, "secret is destroyed")
+	ErrItemNotFound       = apierr.New(apierr.KindInvalid, "no such item to remove")
+	ErrDisabled           = apierr.New(apierr.KindConflict, "secret is disabled")
+)
+
+// maxSecretNameRunes and maxSecretDescriptionRunes bound the name and
+// description to their varchar(128)/varchar(1024) columns.
+const (
+	maxSecretNameRunes        = 128
+	maxSecretDescriptionRunes = 1024
 )
 
 // Service owns Secret lifecycle. Store persists metadata and sealed bytes and
@@ -47,8 +58,16 @@ type CreateCmd struct {
 
 // Create validates and seals the items, then stores the Secret.
 func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coresecret.Secret, error) {
-	if strings.TrimSpace(cmd.Name) == "" {
+	name := strings.TrimSpace(cmd.Name)
+	if name == "" {
 		return nil, ErrNameRequired
+	}
+	if util.ExceedsRuneLimit(name, maxSecretNameRunes) {
+		return nil, ErrNameTooLong
+	}
+	cmd.Name = name
+	if util.ExceedsRuneLimit(cmd.Description, maxSecretDescriptionRunes) {
+		return nil, ErrDescriptionTooLong
 	}
 	names, err := validateItems(cmd.Items)
 	if err != nil {
@@ -160,8 +179,15 @@ func (s *Service) SetState(ctx context.Context, spaceID, id string, state corese
 	default:
 		return nil, ErrUnknownState
 	}
-	if _, err := s.scoped(ctx, spaceID, id); err != nil {
+	sec, err := s.scoped(ctx, spaceID, id)
+	if err != nil {
 		return nil, err
+	}
+	// Destruction is terminal: a destroyed Secret has no sealed material left, so
+	// reviving it to active/disabled would leave one that reads usable but can
+	// never materialize. Refuse the transition rather than store an empty Secret.
+	if !coresecret.ValidStateTransition(sec.State, state) {
+		return nil, ErrStateTransition
 	}
 	return s.Store.SetState(ctx, id, state)
 }

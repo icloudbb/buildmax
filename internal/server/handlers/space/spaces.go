@@ -11,7 +11,12 @@ import (
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	spacesvc "github.com/icloudbb/buildmax/internal/service/space"
+	"github.com/icloudbb/buildmax/internal/util"
 )
+
+// maxSpaceNameRunes bounds a Space name to its varchar(255) column, so an
+// over-long name is a 400 rather than a write error surfaced as a 500.
+const maxSpaceNameRunes = 255
 
 type spaceResponse struct {
 	ID                string    `json:"id"`
@@ -132,6 +137,10 @@ func (h *Handler) createSpaceHandler(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if util.ExceedsRuneLimit(name, maxSpaceNameRunes) {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "name is too long")
 		return
 	}
 	space, err := h.cfg.Spaces.CreateSpace(r.Context(), name, userID, h.cfg.DefaultQuotaTier)

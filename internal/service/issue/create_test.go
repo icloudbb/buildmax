@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/icloudbb/buildmax/internal/core/agentdef"
@@ -75,5 +76,24 @@ func TestCreateIssue_RefusedDetailsCreateNothing(t *testing.T) {
 				t.Fatalf("store holds %d issues after a refused create, want 0", len(store.Issues))
 			}
 		})
+	}
+}
+
+// Title and description are bounded to their columns; whitespace-only title and
+// over-long fields are a clean invalid error rather than a write-time 500.
+func TestCreateIssue_FieldBounds(t *testing.T) {
+	svc := createService(&mock.MockIssueStore{})
+	ctx := context.Background()
+	if _, err := svc.CreateIssue(ctx, CreateIssueCmd{UserID: "u1", SpaceID: "tm_1", Title: "   "}); err != ErrTitleRequired {
+		t.Errorf("whitespace title err = %v, want ErrTitleRequired", err)
+	}
+	if _, err := svc.CreateIssue(ctx, CreateIssueCmd{UserID: "u1", SpaceID: "tm_1", Title: strings.Repeat("t", 256)}); err != ErrTitleTooLong {
+		t.Errorf("over-long title err = %v, want ErrTitleTooLong", err)
+	}
+	if _, err := svc.CreateIssue(ctx, CreateIssueCmd{UserID: "u1", SpaceID: "tm_1", Title: "ok", Description: strings.Repeat("d", 65536)}); err != ErrDescriptionTooLong {
+		t.Errorf("over-long description err = %v, want ErrDescriptionTooLong", err)
+	}
+	if _, err := svc.CreateIssue(ctx, CreateIssueCmd{UserID: "u1", SpaceID: "tm_1", Title: strings.Repeat("x", 255)}); err != nil {
+		t.Errorf("title at the cap should be accepted: %v", err)
 	}
 }

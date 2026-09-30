@@ -78,6 +78,23 @@ func FormatMinute(t time.Time) string {
 	return t.Local().Format("2006-01-02 15:04")
 }
 
+// ExceedsByteLimit reports whether s is longer than maxBytes bytes. A MySQL
+// TEXT column is bounded in bytes (65535), so a field that maps to one is
+// checked in bytes: the cap set to the column capacity refuses only input that
+// could not be stored anyway, turning a write error into a clean rejection.
+func ExceedsByteLimit(s string, maxBytes int) bool {
+	return len(s) > maxBytes
+}
+
+// ExceedsRuneLimit reports whether s is longer than maxRunes runes. It counts
+// runes, not bytes, because a MySQL varchar(N) bounds characters — so a
+// validation that mirrors a column cap has to count the same way, or a
+// multi-byte string that fits the column is wrongly refused (or one that does
+// not is wrongly stored and errors at write time).
+func ExceedsRuneLimit(s string, maxRunes int) bool {
+	return utf8.RuneCountInString(s) > maxRunes
+}
+
 // TruncateRunes truncates s to at most maxRunes runes and appends an ellipsis
 // when truncation happens. If maxRunes is non-positive, it returns the empty string.
 func TruncateRunes(s string, maxRunes int) string {

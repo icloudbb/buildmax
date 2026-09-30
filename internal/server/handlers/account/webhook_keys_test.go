@@ -80,3 +80,16 @@ func TestWebhookKeyLifecycleIsAudited(t *testing.T) {
 		t.Errorf("webhook_key.revoked event = %+v", rev)
 	}
 }
+
+// A key label over its varchar(255) column is a clean 400, not a write-time 500.
+func TestCreateWebhookKeyRejectsOverLongName(t *testing.T) {
+	mux, _ := webhookFixture(t)
+	body := strings.NewReader(`{"name":"` + strings.Repeat("x", 300) + `"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/webhook-keys", body)
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(acctMember, acctSecret))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 body=%s", rec.Code, rec.Body.String())
+	}
+}

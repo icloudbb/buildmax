@@ -36,6 +36,24 @@ const (
 	StateDestroyed State = "destroyed"
 )
 
+// ValidStateTransition reports whether a Secret may move from one state to
+// another. Destruction is terminal — it erases the sealed material, so a
+// destroyed Secret can never become active or disabled again; allowing it back
+// would leave a Secret that reads active with no recoverable value behind it. A
+// no-op transition (a state to itself) is allowed so re-issuing the current
+// state is not an error.
+func ValidStateTransition(from, to State) bool {
+	if from == to {
+		return true
+	}
+	switch from {
+	case StateActive, StateDisabled:
+		return to == StateDisabled || to == StateActive || to == StateDestroyed
+	default: // StateDestroyed is terminal
+		return false
+	}
+}
+
 // Provider names where a Secret's items live. Only the embedded encrypted
 // store exists today; external references are a later phase.
 type Provider string

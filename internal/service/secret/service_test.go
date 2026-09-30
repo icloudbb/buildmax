@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/icloudbb/buildmax/internal/core/apierr"
@@ -208,6 +209,77 @@ func TestService_SpaceScopeAndState(t *testing.T) {
 	}
 	if _, err := svc.ReplaceItems(ctx, "tm_1", created.ID, map[string]string{"k": "v2"}); err == nil {
 		t.Fatal("editing a destroyed secret should fail")
+	}
+}
+
+// Destruction is terminal: a destroyed Secret has no sealed material, so
+// reviving it to active/disabled must be refused rather than leave one that
+// reads usable but can never materialize.
+func TestService_DestroyedSecretCannotBeReactivated(t *testing.T) {
+	ctx := context.Background()
+	svc := testService(t)
+	created, err := svc.Create(ctx, CreateCmd{SpaceID: "tm_1", CreatedBy: "u", Name: "term", Items: map[string]string{"k": "v"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.SetState(ctx, "tm_1", created.ID, coresecret.StateDestroyed); err != nil {
+		t.Fatalf("destroy: %v", err)
+	}
+	for _, to := range []coresecret.State{coresecret.StateActive, coresecret.StateDisabled} {
+		if _, err := svc.SetState(ctx, "tm_1", created.ID, to); err != ErrStateTransition {
+			t.Errorf("reactivate destroyed -> %s: err = %v, want ErrStateTransition", to, err)
+		}
+	}
+	// It is still readable as destroyed, and re-destroying is a harmless no-op.
+	got, err := svc.Get(ctx, "tm_1", created.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.State != coresecret.StateDestroyed {
+		t.Errorf("state = %q after refused reactivations, want destroyed", got.State)
+	}
+	if _, err := svc.SetState(ctx, "tm_1", created.ID, coresecret.StateDestroyed); err != nil {
+		t.Errorf("re-destroy (no-op) err = %v, want nil", err)
+	}
+}
+
+// active and disabled toggle freely; both may still be destroyed.
+func TestService_ActiveDisabledToggleAndDestroy(t *testing.T) {
+	ctx := context.Background()
+	svc := testService(t)
+	created, err := svc.Create(ctx, CreateCmd{SpaceID: "tm_1", CreatedBy: "u", Name: "toggle", Items: map[string]string{"k": "v"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, to := range []coresecret.State{coresecret.StateDisabled, coresecret.StateActive, coresecret.StateDisabled, coresecret.StateDestroyed} {
+		if _, err := svc.SetState(ctx, "tm_1", created.ID, to); err != nil {
+			t.Fatalf("-> %s: %v", to, err)
+		}
+	}
+}
+
+// Name and description are bounded to their columns, and whitespace-only names
+// and over-long fields are a clean 400, not a write error.
+func TestService_CreateFieldBounds(t *testing.T) {
+	ctx := context.Background()
+	svc := testService(t)
+	cases := []struct {
+		name string
+		cmd  CreateCmd
+		want error
+	}{
+		{"whitespace name", CreateCmd{SpaceID: "tm_1", CreatedBy: "u", Name: "   ", Items: map[string]string{"k": "v"}}, ErrNameRequired},
+		{"name too long", CreateCmd{SpaceID: "tm_1", CreatedBy: "u", Name: strings.Repeat("x", maxSecretNameRunes+1), Items: map[string]string{"k": "v"}}, ErrNameTooLong},
+		{"description too long", CreateCmd{SpaceID: "tm_1", CreatedBy: "u", Name: "ok", Description: strings.Repeat("d", maxSecretDescriptionRunes+1), Items: map[string]string{"k": "v"}}, ErrDescriptionTooLong},
+	}
+	for _, tc := range cases {
+		if _, err := svc.Create(ctx, tc.cmd); err != tc.want {
+			t.Errorf("%s: err = %v, want %v", tc.name, err, tc.want)
+		}
+	}
+	// A name at exactly the cap is accepted.
+	if _, err := svc.Create(ctx, CreateCmd{SpaceID: "tm_1", CreatedBy: "u", Name: strings.Repeat("y", maxSecretNameRunes), Items: map[string]string{"k": "v"}}); err != nil {
+		t.Errorf("name at the cap should be accepted: %v", err)
 	}
 }
 
