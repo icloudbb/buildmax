@@ -470,7 +470,7 @@ The database coverage is broader than the previous assessment reported:
 | Workflow initial revision and revision queries | [revision_query_test.go](../internal/infra/db/revision_query_test.go) |
 | Space isolation for secrets and independent invitations | [secret_test.go](../internal/infra/db/secret_test.go), [space_invitation_test.go](../internal/infra/db/space_invitation_test.go) |
 | Cross-Space rejection for Workflow and Issue updates and plugin activation reads/writes | [cross_space_test.go](../internal/infra/db/cross_space_test.go) |
-| Quota usage-window boundaries, title-token accounting, null usage, and Space isolation | [quota_usage_test.go](../internal/infra/db/quota_usage_test.go) |
+| Quota usage-window boundaries, title-token and conversation-call accounting without double-counting run calls, null usage, and Space isolation | [quota_usage_test.go](../internal/infra/db/quota_usage_test.go) |
 | Durable auth-session activity, expiry, revocation, refresh-token cascade, touch throttling, listing, and counts | [auth_session_test.go](../internal/infra/db/auth_session_test.go) |
 | External-identity lookup and uniqueness, atomic JIT account/Space/link creation, concurrent first login, disable-before-unlink, and transactional audit | [external_identity_test.go](../internal/infra/db/external_identity_test.go) |
 | Task output-schema and validated TaskRun structured-value persistence | [task_run_structured_test.go](../internal/infra/db/task_run_structured_test.go) |
@@ -609,7 +609,11 @@ System administration, quota, audit, role checks, and Space lifecycle UI exist.
 The administration area also reads the managed LLM call ledger across every
 Space through `GET /api/admin/llm/calls` — model, tokens, cost, and status per
 call, filtered by user, model, status, surface, and time, and carrying no
-prompts or generated content. Its Overview reports work progress without Space
+prompts or generated content. The ledger includes Tier 1 conversation turns
+(surface `conversation`, from Portal, chat apps, and WebSocket alike), which
+run through the same gateway service in process; their tokens count toward
+the conversation's Space usage and token quota, and a Space over its token
+limit is refused a reply. The administration Overview reports work progress without Space
 content: the oldest waiting PENDING and unstarted SCHEDULED runs, silent RUNNING
 runs, failures in the last 24 hours by `task_run.failure_class` with who acts,
 and the Spaces needing attention, including personal ones, with their owners

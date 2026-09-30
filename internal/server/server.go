@@ -177,7 +177,7 @@ type ConversationConfig struct {
 	TitleGenerator           llm.TitleGenerator
 	ConversationStore        coreconv.Store
 	ConversationMessageStore coreconv.MessageStore
-	ConversationLLMClient    llm.LLMClient
+	ConversationModel        conversation.Model
 	// LLMGateway serves managed inference to authenticated clients. Nil leaves
 	// the /llm routes answering 503.
 	LLMGateway *llmgateway.Service
@@ -414,7 +414,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		DefaultQuotaTier:         cfg.Auth.DefaultQuotaTier,
 		QuotaService:             cfg.Auth.QuotaService,
 		TitleGenerator:           cfg.Conv.TitleGenerator,
-		ConversationLLMClient:    cfg.Conv.ConversationLLMClient,
+		ConversationModel:        cfg.Conv.ConversationModel,
 		LLMGateway:               cfg.Conv.LLMGateway,
 		WebhookAdapter:           webhookAdapter,
 		WebhookEngine:            webhookEngine,

@@ -277,7 +277,9 @@ The `llm_call` ledger records the user. `space_id` is **dropped from the row**,
 not made nullable: the ledger already carries `task_run_id`, and run → task →
 space reconstructs the space whenever the question is asked. A space column on
 every call would be a denormalization that only a foreground call — which
-belongs to no space — could fail to fill.
+belongs to no space — could fail to fill. A Tier 1 conversation turn, which the
+server answers itself, is reached the same way through `conversation_id`:
+conversation → space.
 
 The composite unique index `idx_llm_call_client` was rebuilt to lead with the
 user key, which is also the right scope for the idempotency key it guards: the
@@ -289,13 +291,15 @@ checks ownership first.
 
 A foreground call belonging to no space also means no space's usage includes it.
 `GET /api/usage`, the caller's personal view, therefore adds `managed_calls`: the
-caller's own calls outside any task run over the same period, summed by rate
-snapshot and priced with the ledger's formula. The space-scoped route does not,
-because one member's sessions are not the space's spend.
+caller's own calls outside any task run or conversation over the same period,
+summed by rate snapshot and priced with the ledger's formula. The space-scoped
+route does not, because one member's sessions are not the space's spend. A
+conversation turn's calls are the space's: they are in its usage and its token
+quota, so they are left out of `managed_calls` rather than shown twice.
 
-Quota per space is out of scope here. It returns only if space workspace
-selection is ever added, because a per-space ceiling needs each call to belong to
-exactly one space, and today a foreground call does not.
+Quota per space for foreground calls is out of scope here. It returns only if
+space workspace selection is ever added, because a per-space ceiling needs each
+call to belong to exactly one space, and today a foreground call does not.
 
 ## 10. What This Supersedes
 

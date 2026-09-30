@@ -161,7 +161,8 @@ use `core/channel.Connector`.
 3. **Turn.** `Handler.RunChannelTurn` submits the turn to `turnqueue` and runs
    `conversation.Service.HandleTurn`, as a Portal message does. A chat turn and
    a Portal turn on one conversation are therefore serialized against each other.
-   The acting user is the sender, with their quota.
+   The acting user is the sender; the turn's model calls are ledgered to them and
+   counted against the conversation's Space quota.
 4. **Reply.** The reply is sent as plain text with link previews disabled. It is
    split to the platform's limit, which is 4096 UTF-16 units on Telegram.
    - A typing indicator refreshes while the turn runs.
@@ -329,5 +330,5 @@ Two ordinary fixes surfaced while designing this. Neither blocks Phase 1:
 4. **Approvals in worker runs.** A chat approval for a server-side TaskRun needs
    a parked, resumable "waiting for approval" run state. That is a change to the
    execution plane with its own design.
-5. **Cost visibility.** Chat turns spend the user's quota like Portal turns. Does
+5. **Cost visibility.** Chat turns spend the Space's quota like Portal turns. Does
    a chat reply need to show its cost?

@@ -952,6 +952,8 @@ export interface ApiAdminLLMCall {
   user_id?: string
   task_id?: string
   task_run_id?: string
+  /** Set on a surface "conversation" call; the call's space is the conversation's. */
+  conversation_id?: string
   surface?: string
   session_id?: string
   /** What the caller asked for; the three that follow are how it was served. */

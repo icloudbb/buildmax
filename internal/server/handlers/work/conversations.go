@@ -101,8 +101,7 @@ func newConversationService(cfg Config, tasks *task.Service, workflows *workflow
 		WorkflowService:   workflows,
 		ConversationStore: cfg.Conversations,
 		MessageStore:      cfg.Messages,
-		LLMClient:         cfg.ConversationLLM,
-		TitleGenerator:    cfg.TitleGenerator,
+		Model:             cfg.ConversationModel,
 		AgentStore:        cfg.Agents,
 		Spaces:            cfg.Spaces,
 	}
@@ -239,7 +238,7 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_conversation", "user_id", userID, "space_id", spaceID)
 		return
 	}
-	if req.Message == "" || h.cfg.ConversationLLM == nil {
+	if req.Message == "" || h.cfg.ConversationModel == nil {
 		httputil.WriteJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ID, Reply: ""})
 		return
 	}
@@ -330,7 +329,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	if !httputil.RequireStore(w, h.cfg.Messages, "conversation messages not configured") {
 		return
 	}
-	if h.cfg.ConversationLLM == nil {
+	if h.cfg.ConversationModel == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return
 	}

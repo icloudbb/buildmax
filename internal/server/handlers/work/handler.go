@@ -69,10 +69,10 @@ type Config struct {
 
 	Quota          *quota.Service
 	TitleGenerator llm.TitleGenerator
-	// ConversationLLM answers a Tier 1 turn. Nil leaves conversations unable to
+	// ConversationModel answers a Tier 1 turn. Nil leaves conversations unable to
 	// run, which the routes report rather than assume.
-	ConversationLLM llm.LLMClient
-	Audit           *audit.Recorder
+	ConversationModel conversation.Model
+	Audit             *audit.Recorder
 
 	// Hub streams a running task's output; Turns keeps one conversation to one
 	// turn at a time. Both are server-scoped and shared with the socket, so

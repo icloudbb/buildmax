@@ -686,7 +686,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		// The served OpenAPI info.version comes from the one build-version source.
 		Version: config.Version,
 	}
-	if err := wireLLM(&cfg, sc, st, quotaService); err != nil {
+	if err := wireLLMFromStore(&cfg, sc, st, quotaService); err != nil {
 		return httpserver.Config{}, err
 	}
 	return cfg, nil
@@ -755,16 +755,26 @@ func readinessChecks(st *db.Store, persist blob.PersistStorage) []httpserver.Rea
 	}
 }
 
-func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quotaService *quota.Service) error {
-	// A nil *db.Store put straight into an interface parameter is a non-nil
-	// interface holding a nil pointer, so the absence of a store has to be
-	// stated rather than passed along.
-	var models coregw.ModelStore
-	if st != nil {
-		models = st
-	}
+// llmStore is what managed inference needs from the database: the catalog it
+// routes over and the ledger it records into.
+type llmStore interface {
+	coregw.ModelStore
+	coregw.CallStore
+}
 
-	routing, err := buildLLMRouting(sc, models)
+// wireLLMFromStore adapts the process's store to wireLLM. A nil *db.Store put
+// straight into an interface parameter is a non-nil interface holding a nil
+// pointer, so the absence of a store has to be stated rather than passed along.
+func wireLLMFromStore(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quotaService *quota.Service) error {
+	var store llmStore
+	if st != nil {
+		store = st
+	}
+	return wireLLM(cfg, sc, store, quotaService)
+}
+
+func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st llmStore, quotaService *quota.Service) error {
+	routing, err := buildLLMRouting(sc, st)
 	if err != nil {
 		return err
 	}
@@ -779,14 +789,21 @@ func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quota
 	}
 
 	// The gateway needs a ledger. Without a store there is nowhere to account
-	// managed calls, so it stays off rather than serving unmetered inference.
-	if st != nil {
-		cfg.Conv.LLMGateway = &llmgateway.Service{
-			Router: routing.Router,
-			Ledger: st,
-			Quota:  quotaService,
-		}
+	// managed calls, so it stays off rather than serving unmetered inference —
+	// and so does Tier 1, whose turns are managed calls like any other.
+	if st == nil {
+		return nil
 	}
+	gateway := &llmgateway.Service{
+		Router: routing.Router,
+		Ledger: st,
+	}
+	// Assigned through the nil check: a typed nil in the interface field would
+	// read as a quota to consult and panic on the first call.
+	if quotaService != nil {
+		gateway.Quota = quotaService
+	}
+	cfg.Conv.LLMGateway = gateway
 
 	if routing.Tier1TargetID == "" {
 		return nil
@@ -799,12 +816,16 @@ func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quota
 	if err != nil {
 		return err
 	}
+	// Building the client now is the startup check: a target that cannot serve
+	// a turn, or whose credential is missing, stops the server here.
 	routed, err := routing.Router.ClientForTarget(context.Background(), targetID, llmgateway.BaselineCapabilities())
 	if err != nil {
 		return fmt.Errorf("conversation model %q: %w", targetID, err)
 	}
+	// Task titles still use the routed client directly; their tokens are
+	// recorded on the task row, which quota already counts.
 	cfg.Conv.TitleGenerator = cllm.NewTitleGenerator(routed.Client)
-	cfg.Conv.ConversationLLMClient = routed.Client
+	cfg.Conv.ConversationModel = &llmgateway.ServerModel{Service: gateway, TargetID: targetID}
 	return nil
 }
 

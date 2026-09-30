@@ -56,7 +56,7 @@ func TestStartTaskRecordsTheMessageThatAskedForIt(t *testing.T) {
 		TaskService:       &task.Service{Tasks: tasks, TaskRuns: &mock.MockTaskRunStore{}},
 		ConversationStore: &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: conversationID, SpaceID: spaceID, Channel: convchannel.ChannelPortal}}},
 		MessageStore:      messages,
-		LLMClient:         &toolThenReplyClient{toolName: "StartTask", args: startTaskArgs(t, "investigate the flaky test")},
+		Model:             &fixedModel{client: &toolThenReplyClient{toolName: "StartTask", args: startTaskArgs(t, "investigate the flaky test")}},
 	}
 
 	if _, err := svc.HandleTurn(context.Background(), HandleTurnCmd{
@@ -108,7 +108,7 @@ func TestContinueTaskRecordsItsOwnMessage(t *testing.T) {
 		TaskService:       &task.Service{Tasks: tasks, TaskRuns: runs},
 		ConversationStore: &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: conversationID, SpaceID: spaceID, Channel: convchannel.ChannelPortal}}},
 		MessageStore:      messages,
-		LLMClient:         &toolThenReplyClient{toolName: "ContinueTask", args: string(args)},
+		Model:             &fixedModel{client: &toolThenReplyClient{toolName: "ContinueTask", args: string(args)}},
 	}
 
 	if _, err := svc.HandleTurn(context.Background(), HandleTurnCmd{

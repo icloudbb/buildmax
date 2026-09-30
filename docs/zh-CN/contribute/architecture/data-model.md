@@ -92,6 +92,7 @@ erDiagram
     user ||--o{ system_grant : "holds deployment authority via"
     llm_model ||--o{ llm_call : serves
     task_run ||--o{ llm_call : attributes
+    conversation ||--o{ llm_call : attributes
 ```
 
 Space 是授权边界：一个请求被允许，是因为调用者对该资源的 `space_id` 持有一条 `space_member` 行。Issue 是面向用户的主要工作对象。Conversation 拥有前台聊天，并可以创建或投影一个 Task。Task 加 task_run 是持久的 Agent 执行平面，其结果无需 Conversation 即具有权威性。所有权设计的依据见 [Agent 执行与 Task 线程](../../design/Agent执行与Task线程.md)。
@@ -1028,7 +1029,8 @@ Workflow 运行等待人回答的持久化请求。打开请求与把节点移�
 | `client_call_id` | `varchar(128)` | 是 | 调用者的幂等键；是组合唯一索引的一部分 |
 | `user_id` | `bigint unsigned` | 是 | 此次调用归属的对象；是组合唯一索引的首列 |
 | `task_run_id` | `bigint unsigned` | 是 | 将此次调用归属到一次 Tier 2 运行 |
-| `surface` | `varchar(32)` | 是 | `server`、`cli`、`desktop`、`worker` |
+| `conversation_id` | `bigint unsigned` | 是 | 将此次调用归属到 Server 所回答的那次 Tier 1 对话轮次 |
+| `surface` | `varchar(32)` | 是 | `cli`、`desktop`、`worker` 或 `conversation`（Server 回答一次 Tier 1 轮次） |
 | `session_id` | `varchar(64)` | 是 | |
 | `task_id` | `bigint unsigned` | 是 | |
 | `model` | `varchar(128)` | 是 | 调用者所请求的目录名称 |
@@ -1055,9 +1057,9 @@ Workflow 运行等待人回答的持久化请求。打开请求与把节点移�
 | `rate_output_per_mtok` | `bigint` | 是 | 当时生效的输出费率 |
 | `usage_source` | `varchar(16)` | 是 | `reported`、`estimated` 或 `unavailable` |
 
-索引：主键 `id`；索引 `accepted_at`；(`user_id`, `client_call_id`) 上的唯一索引 `idx_llm_call_client`；索引 `status`；索引 `task_id`；索引 `task_run_id`；唯一索引 `public_id`。
+索引：主键 `id`；索引 `accepted_at`；(`user_id`, `client_call_id`) 上的唯一索引 `idx_llm_call_client`；索引 `status`；索引 `task_id`；索引 `task_run_id`；索引 `conversation_id`；唯一索引 `public_id`。
 
-一次调用归属于某个人，而不是某个 Space：前台的 CLI 或 Desktop 调用不属于任何 Space，一次运行的 Space 是通过 `task_run_id` 到达的。组合唯一索引以 `user_id` 打头，这既按调用者划分了幂等范围，也服务于按用户查询，因此刻意没有为 `user_id` 单独再建一个索引。见 [../../design/client-modes.md](../../design/客户端模式.md) 第 9 节。
+一次调用归属于某个人，而不是某个 Space：前台的 CLI 或 Desktop 调用不属于任何 Space，一次运行的 Space 是通过 `task_run_id` 到达的，一次 Tier 1 对话轮次的 Space 是通过 `conversation_id` 到达的。组合唯一索引以 `user_id` 打头，这既按调用者划分了幂等范围，也服务于按用户查询，因此刻意没有为 `user_id` 单独再建一个索引。见 [../../design/client-modes.md](../../design/客户端模式.md) 第 9 节。
 
 缓存计数**是从 `prompt_tokens` 中拆分出来的细分数据，而不是额外累加的**。如果把三者相加统计支出，会把同样的 token 计两次。
 
@@ -1067,7 +1069,7 @@ Workflow 运行等待人回答的持久化请求。打开请求与把节点移�
 
 金额以纳货币单位存储——1 个货币单位等于 1e9 个纳货币单位——以整数形式保存，是因为浮点数会在任何读取之前就对一个已发布的价格做出舍入，几百次调用累积下来就会偏离到与账单对不上的数字。
 
-注意，`llm_call` **不是**配额读取的对象。配额聚合的是 `task_run` 的 token；`llm_call` 记录的是网关流量，包括那些背后没有 Task 的调用。两者不会一致，这是设计使然。
+配额只为没有任何运行记录的调用读取 `llm_call`。一次运行的 token 来自它的 `task_run` 行，从不来自它的账本行，否则会计两次；一次对话轮次的调用只存在于这里，所以配额对 `conversation_id` 属于该 Space 且不带 `task_run_id` 的行求和。前台 CLI 和 Desktop 调用不属于任何 Space，也不计入任何 Space，因此账本与配额的总量不会一致，这是设计使然。
 
 ## 插件目录
 

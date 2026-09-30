@@ -20,11 +20,13 @@ type llmCallRow struct {
 	ClientCallID *string `gorm:"type:varchar(128);uniqueIndex:idx_llm_call_client,priority:2"`
 
 	// A call is attributed to a person, not a space: a foreground call belongs to
-	// no space, and a run's space is reached through task_run_id. The composite
-	// unique index leads with user_id, which is both the idempotency scope and
-	// the column usage is grouped by.
-	UserID    *uint64 `gorm:"column:user_id;uniqueIndex:idx_llm_call_client,priority:1"`
-	TaskRunID *uint64 `gorm:"column:task_run_id;index"`
+	// no space, a run's space is reached through task_run_id, and a conversation
+	// turn's through conversation_id. The composite unique index leads with
+	// user_id, which is both the idempotency scope and the column usage is
+	// grouped by.
+	UserID         *uint64 `gorm:"column:user_id;uniqueIndex:idx_llm_call_client,priority:1"`
+	TaskRunID      *uint64 `gorm:"column:task_run_id;index"`
+	ConversationID *uint64 `gorm:"column:conversation_id;index"`
 
 	// SessionID names a file under a run's BUILDMAX_HOME, not a row.
 	Surface   string  `gorm:"type:varchar(32)"`
@@ -76,19 +78,22 @@ func (llmCallRow) TableName() string { return "llm_call" }
 // llmCallReadRow is the row plus the handles its references resolve to. A
 // pointer field is one a LEFT JOIN may leave NULL.
 type llmCallReadRow struct {
-	Row             llmCallRow `gorm:"embedded"`
-	UserPublicID    *string    `gorm:"column:user_public_id"`
-	TaskPublicID    *string    `gorm:"column:task_public_id"`
-	TaskRunPublicID *string    `gorm:"column:task_run_public_id"`
+	Row                  llmCallRow `gorm:"embedded"`
+	UserPublicID         *string    `gorm:"column:user_public_id"`
+	TaskPublicID         *string    `gorm:"column:task_public_id"`
+	TaskRunPublicID      *string    `gorm:"column:task_run_public_id"`
+	ConversationPublicID *string    `gorm:"column:conversation_public_id"`
 }
 
 func (s *Store) llmCallSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&llmCallRow{}).
 		Select("llm_call.*, u.public_id AS user_public_id, " +
-			"tk.public_id AS task_public_id, r.public_id AS task_run_public_id").
+			"tk.public_id AS task_public_id, r.public_id AS task_run_public_id, " +
+			"cv.public_id AS conversation_public_id").
 		Joins("LEFT JOIN `user` u ON u.id = llm_call.user_id").
 		Joins("LEFT JOIN task tk ON tk.id = llm_call.task_id").
-		Joins("LEFT JOIN task_run r ON r.id = llm_call.task_run_id")
+		Joins("LEFT JOIN task_run r ON r.id = llm_call.task_run_id").
+		Joins("LEFT JOIN conversation cv ON cv.id = llm_call.conversation_id")
 }
 
 func toLLMCall(row *llmCallReadRow) *coregw.Call {
@@ -136,6 +141,10 @@ func toLLMCall(row *llmCallReadRow) *coregw.Call {
 	if row.Row.TaskRunID != nil {
 		run := derefPublicID(row.TaskRunPublicID)
 		out.TaskRunID = &run
+	}
+	if row.Row.ConversationID != nil {
+		conversation := derefPublicID(row.ConversationPublicID)
+		out.ConversationID = &conversation
 	}
 	return out
 }
@@ -196,10 +205,15 @@ func (s *Store) toLLMCallRow(ctx context.Context, call *coregw.Call) (*llmCallRo
 	if err != nil {
 		return nil, err
 	}
+	conversationKey, err := optionalKey(ctx, s.db, "conversation", call.ConversationID)
+	if err != nil {
+		return nil, err
+	}
 	row := llmCallValues(call)
 	row.UserID = userKey
 	row.TaskID = taskKey
 	row.TaskRunID = runKey
+	row.ConversationID = conversationKey
 	return row, nil
 }
 
@@ -231,10 +245,11 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *coregw.Call) (*coregw.Cal
 		return nil, err
 	}
 	return toLLMCall(&llmCallReadRow{
-		Row:             *row,
-		UserPublicID:    optionalCanonicalPublicID(stored.UserID),
-		TaskPublicID:    optionalCanonicalPublicID(stored.TaskID),
-		TaskRunPublicID: optionalCanonicalPublicID(stored.TaskRunID),
+		Row:                  *row,
+		UserPublicID:         optionalCanonicalPublicID(stored.UserID),
+		TaskPublicID:         optionalCanonicalPublicID(stored.TaskID),
+		TaskRunPublicID:      optionalCanonicalPublicID(stored.TaskRunID),
+		ConversationPublicID: optionalCanonicalPublicID(stored.ConversationID),
 	}), nil
 }
 
@@ -427,6 +442,10 @@ type callTotalsRow struct {
 
 // SummarizeForegroundLLMCalls implements coregw.CallStore.
 //
+// A conversation turn's calls are left out with the runs' because they belong
+// to a space, and SpaceUsageInWindow already counts them there; summing them
+// here too would show one turn's spend on two usage figures.
+//
 // Only token counts are summed here. Pricing stays with the one function that
 // prices a call, applied to each group's own rates, so this query never grows
 // a second copy of the cost formula.
@@ -449,7 +468,7 @@ func (s *Store) SummarizeForegroundLLMCalls(ctx context.Context, userID string, 
 			"llm_call.rate_cache_write_per_mtok AS rate_cache_write_per_mtok, "+
 			"llm_call.rate_output_per_mtok AS rate_output_per_mtok").
 		Joins("JOIN `user` u ON u.id = llm_call.user_id").
-		Where("u.public_id = ? AND llm_call.task_run_id IS NULL AND llm_call.accepted_at >= ?", id, since).
+		Where("u.public_id = ? AND llm_call.task_run_id IS NULL AND llm_call.conversation_id IS NULL AND llm_call.accepted_at >= ?", id, since).
 		Group("llm_call.currency, llm_call.rate_input_per_mtok, llm_call.rate_cache_read_per_mtok, " +
 			"llm_call.rate_cache_write_per_mtok, llm_call.rate_output_per_mtok").
 		Scan(&rows).Error

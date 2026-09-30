@@ -27,8 +27,16 @@
 > - The gateway routes are `/api/llm/models` and `/api/llm/completions`. Being
 >   signed in is their whole authorization.
 > - The `llm_call` ledger is attributed to a user. A run's space is reached
->   through `task_run_id`; a foreground call belongs to no space and is metered
+>   through `task_run_id` and a Tier 1 conversation turn's through
+>   `conversation_id`; a foreground call belongs to no space and is metered
 >   against none.
+> - Tier 1 runs through the gateway service in process. Until 2026-09-30 it
+>   held a routed provider client directly, so conversation turns spent money
+>   with no ledger row and no quota: a Beta rehearsal found `llm_call` holding
+>   only worker rows. Each turn now binds a client to its user, conversation,
+>   and space (`llmgateway.ServerModel`), and every reply-loop and title call is
+>   a `conversation`-surface row counted against the conversation's space
+>   (§10).
 >
 > Task runs reach the gateway under `worker.llm.transport: buildmax`. The worker
 > entry point `POST /api/worker/task-runs/{task_run_id}/llm/completions`
@@ -476,6 +484,17 @@ The ledger is the accounting source for managed calls. Existing task-run token
 fields remain useful summaries, but aggregation must avoid counting the same
 worker call once in the ledger and again through task-run totals.
 
+Space usage therefore reads the ledger only for calls no run records. A run's
+calls are counted through its `task_run` totals; a Tier 1 conversation turn's
+calls exist nowhere but the ledger, so they are summed from rows whose
+`conversation_id` belongs to the space and which carry no `task_run_id`. Task
+titles stay counted from the task row. Chat thus spends the same Space token
+quota a run does, and the gateway's soft check refuses a turn once that quota
+is exhausted, exactly as it refuses a managed worker call. A Tier 1 call is
+ledgered whether the target is a catalog row or the `conversation.model`
+derived from `server.yaml`; the derived target carries no prices, so its rows
+report tokens with cost unavailable.
+
 Quota enforcement evolves in stages:
 
 | Stage | Behavior | Guarantee |
@@ -646,7 +665,8 @@ cache on the row's revision so a replaced key reaches the next call.
 - Add an operator model catalog and deployment-wide default aliases.
 - Reuse the existing OpenAI-compatible client behind the router.
 - Route Server-owned Tier 1 calls through the service in-process without
-  changing external behavior.
+  changing external behavior. The router was reached from the start, but the
+  metering service only from 2026-09-30; see the status note.
 - Test aliases, disabled targets, unsupported capabilities, and secret-safe
   errors.
 
@@ -678,8 +698,10 @@ cache on the row's revision so a replaced key reaches the next call.
 Done: the run-scoped entry point and credential, removing the provider
 credential from a managed worker, soft quota enforcement, and audit events for
 model-policy changes (model create, enable, disable). Space-run token counting
-stays separate from the call ledger, so quota still aggregates `task_run` totals
-only — do not add the ledger to that sum without resolving the double count.
+stays separate from the call ledger: quota aggregates a run's tokens from its
+`task_run` totals and never from its ledger rows, which would count them twice.
+The ledger enters the sum only for Tier 1 conversation calls, which no run
+records (§10).
 
 Remaining:
 

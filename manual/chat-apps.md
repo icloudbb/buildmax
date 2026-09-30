@@ -84,9 +84,12 @@ message to one receiver, and the others miss messages. With several server
 replicas (`coordination.mode: redis`), one replica receives at a time and
 another takes over if it stops.
 
-Chat turns use the same conversation model and each user's quota exactly as
-Portal chat does. Telegram stores the messages on its own servers; do not
-connect a bot if that is not acceptable for your deployment.
+Chat turns use the same conversation model as Portal chat and are metered the
+same way: every model call a turn makes counts toward the conversation's Space
+token quota and appears in the Space's usage, and a Space that has used up its
+token quota gets a refusal instead of a reply. Telegram stores the messages on
+its own servers; do not connect a bot if that is not acceptable for your
+deployment.
 
 ## Not yet available
 

@@ -34,6 +34,9 @@ const (
 	CallSurfaceCLI     = "cli"
 	CallSurfaceDesktop = "desktop"
 	CallSurfaceWorker  = "worker"
+	// CallSurfaceConversation is a Tier 1 conversation turn the server answers
+	// in process: the reply loop and the conversation's title.
+	CallSurfaceConversation = "conversation"
 )
 
 // Call is one logical managed inference call.
@@ -50,10 +53,12 @@ type Call struct {
 	// Identity — derived from authentication, never from the request body.
 	//
 	// A call is attributed to a person. There is no space column: a foreground
-	// call belongs to no space, and a run's space is reached through TaskRunID.
-	// See docs/design/client-modes.md section 9.
-	UserID    *string `json:"user_id,omitempty"`
-	TaskRunID *string `json:"task_run_id,omitempty"`
+	// call belongs to no space, a run's space is reached through TaskRunID, and
+	// a conversation turn's through ConversationID. See
+	// docs/design/client-modes.md section 9.
+	UserID         *string `json:"user_id,omitempty"`
+	TaskRunID      *string `json:"task_run_id,omitempty"`
+	ConversationID *string `json:"conversation_id,omitempty"`
 
 	// Correlation — context for investigation, not authorization input.
 	Surface   string  `json:"surface,omitempty"`
@@ -132,7 +137,8 @@ type CallOutcome struct {
 // call; each set field is one more bound.
 //
 // There is no space field because the ledger has no space column: a call is
-// attributed to a person, and a run's space is reached through its task run.
+// attributed to a person, and a run's or conversation's space is reached
+// through it.
 // The reader who applies this filter is a deployment administrator, which is why
 // it can span users at all.
 type CallFilter struct {
@@ -175,8 +181,8 @@ type CallStore interface {
 	// and space, so only a deployment administrator may reach it.
 	SearchLLMCalls(ctx context.Context, filter CallFilter, limit, offset int) ([]Call, int, error)
 	// SummarizeForegroundLLMCalls totals one user's calls made outside any
-	// task run — their own CLI and Desktop sessions — accepted at or after
-	// since. Calls are grouped by the rate snapshot they were priced at, so a
+	// task run or conversation — their own CLI and Desktop sessions — accepted
+	// at or after since. Calls are grouped by the rate snapshot they were priced at, so a
 	// reader prices each group without recomputing from today's catalog.
 	SummarizeForegroundLLMCalls(ctx context.Context, userID string, since time.Time) ([]CallTotals, error)
 }

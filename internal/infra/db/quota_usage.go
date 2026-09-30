@@ -10,7 +10,9 @@ import (
 
 // SpaceUsageInWindow returns run count and total tokens for the space in [since, until].
 // Runs: task_runs where the task's space = spaceID and run created_at in window.
-// Tokens: sum of run prompt+completion tokens for those runs, plus task title tokens for tasks created in the space in window.
+// Tokens: sum of run prompt+completion tokens for those runs, plus task title
+// tokens for tasks created in the space in window, plus the prompt+completion
+// tokens of the space's conversation-turn calls accepted in window.
 //
 // The space's handle is resolved once, at the top. Everything after it is a
 // numeric comparison: this is the hottest aggregation in the deployment and it
@@ -55,5 +57,19 @@ func (s *Store) SpaceUsageInWindow(ctx context.Context, spaceID string, since, u
 		return runCount, runTokens, err
 	}
 
-	return runCount, runTokens + titleTokens, nil
+	// A conversation turn is the space's work too, and no run records it: the
+	// ledger row is the only record of what the turn spent. A run's own calls
+	// are left to the run's totals above, which already count them, so the
+	// task_run_id bound is what keeps one worker call from counting twice.
+	var chatTokens int
+	err = s.db.WithContext(ctx).Model(&llmCallRow{}).
+		Select("COALESCE(SUM(COALESCE(llm_call.prompt_tokens, 0) + COALESCE(llm_call.completion_tokens, 0)), 0)").
+		Joins("INNER JOIN conversation ON conversation.id = llm_call.conversation_id AND conversation.space_id = ?", spaceKey).
+		Where("llm_call.task_run_id IS NULL AND llm_call.accepted_at >= ? AND llm_call.accepted_at <= ?", since, until).
+		Scan(&chatTokens).Error
+	if err != nil {
+		return runCount, runTokens + titleTokens, err
+	}
+
+	return runCount, runTokens + titleTokens + chatTokens, nil
 }

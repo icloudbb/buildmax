@@ -1196,6 +1196,16 @@ Managed calls need a database for two reasons: the catalog lives there, and
 every call is recorded in the `llm_call` ledger. Without a store the routes
 answer `503` rather than serving inference nobody can account for.
 
+Tier 1 conversations are managed calls too, whether they run on a
+`conversation.model_target` or on `conversation.model`. Every call a Portal,
+chat-app, or WebSocket turn makes — the reply and a new conversation's title —
+is an `llm_call` row with `surface` `conversation`, attributed to the person
+and naming the conversation, and its tokens count toward the conversation's
+Space token quota alongside its runs. A Space already over that limit gets the
+quota refusal instead of a reply. `conversation.model` has no prices, so its
+rows record tokens with the cost unavailable; price a model by adding it to the
+catalog and pointing `model_target` at it.
+
 A failed call records the gateway's decision, never the provider's text, as its
 `error_class`:
 
