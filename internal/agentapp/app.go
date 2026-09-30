@@ -39,6 +39,10 @@ type AppConfig struct {
 	// worker receives the server's resolved model without writing credentials to
 	// a run directory that is later persisted as an artifact.
 	ModelEntries []config.ModelEntry
+	// ModelCredentialHint is where ModelEntries' keys are configured, named by
+	// an error for a missing or refused key; never the key itself. Empty means
+	// settings.yaml, which is wrong for a worker whose model is the server's.
+	ModelCredentialHint string
 	// DefaultModel names the entry in ModelEntries a new session starts with.
 	// Read only when ModelEntries is set; otherwise settings.yaml says.
 	DefaultModel string
@@ -468,6 +472,9 @@ type LLMClientCache struct {
 	surface string
 	mu      sync.Mutex
 	clients map[string]cllm.LLMClient
+	// credentialHint is where a direct model's key is fixed; empty means
+	// settings.yaml. See AppConfig.ModelCredentialHint.
+	credentialHint string
 }
 
 type RunResult struct {
@@ -1668,22 +1675,26 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 	// A local runtime has no credential, and demanding one would make the
 	// provider unusable without inventing a fake key.
 	if cfg.APIKey == "" && cllm.ProviderNeedsCredential(cfg.Provider) {
+		if r.credentialHint != "" {
+			return nil, fmt.Errorf("model %q has no api_key: %s", cfg.Name, r.credentialHint)
+		}
 		return nil, fmt.Errorf("api_key is required for model %q in settings.yaml", cfg.Name)
 	}
 	client, err := llm.NewClient(llm.Config{
-		Provider:      cfg.Provider,
-		APIKey:        cfg.APIKey,
-		BaseURL:       cfg.BaseURL,
-		Model:         cfg.ProviderModel,
-		ContextWindow: cfg.ContextWindow,
-		MaxTokens:     cfg.MaxTokens,
-		Reasoning:     cfg.Reasoning,
-		CacheControl:  cfg.CacheControl,
-		Integration:   cfg.Integration,
-		Vision:        cfg.Vision,
-		Surface:       r.surface,
-		KeepAlive:     cfg.KeepAlive,
-		CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,
+		Provider:       cfg.Provider,
+		APIKey:         cfg.APIKey,
+		BaseURL:        cfg.BaseURL,
+		Model:          cfg.ProviderModel,
+		ContextWindow:  cfg.ContextWindow,
+		MaxTokens:      cfg.MaxTokens,
+		Reasoning:      cfg.Reasoning,
+		CacheControl:   cfg.CacheControl,
+		Integration:    cfg.Integration,
+		Vision:         cfg.Vision,
+		Surface:        r.surface,
+		KeepAlive:      cfg.KeepAlive,
+		CallTimeout:    time.Duration(cfg.CallTimeout) * time.Second,
+		CredentialHint: r.credentialHint,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("model %q: %w", cfg.Name, err)

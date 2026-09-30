@@ -136,7 +136,8 @@ type PatchTaskRunRequest struct {
 	Output    *string    `json:"output,omitempty"`
 	// Structured is the validated structured-output value as JSON text, sent on a
 	// terminal report when the run requested an output schema and it validated.
-	// See docs/design/structured-output.md.
+	// The server checks it against the Task's schema again and drops a value
+	// that does not conform. See docs/design/structured-output.md §9.
 	Structured *string `json:"structured,omitempty"`
 	// Questions is the AskUser question set the run ended on, as JSON text in
 	// the agent.Question shape; the Task then waits for the user's answer. Nil

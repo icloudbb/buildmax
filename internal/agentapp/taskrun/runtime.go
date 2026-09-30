@@ -15,6 +15,7 @@ import (
 	"maps"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -156,6 +157,10 @@ type RunTaskInput struct {
 	StreamSender           workerclient.StreamSender
 	Model                  config.ModelEntry
 	Managed                ManagedInference
+	// ModelCredentialHint is where Model's API key is configured, named by a
+	// refused-credential error; never the key. Empty means settings.yaml. A
+	// direct run's model is the server's, so its dispatcher names that source.
+	ModelCredentialHint string
 	// ManagedHTTPClient carries the worker's server trust to managed inference,
 	// which reaches the gateway on the same internal listener as every other
 	// worker call. Nil uses http.DefaultClient, which is correct only for a
@@ -202,6 +207,28 @@ type RunTaskInput struct {
 // redactor is the exact-value redactor over this run's Secret grants.
 func (in RunTaskInput) redactor() *secretscan.Redactor {
 	return secretscan.NewRedactor(mapValues(in.SecretEnvGrants))
+}
+
+// redactingUpdater removes the run's Secret values from the error message of
+// every status report. The message is built from whatever failed -- a provider
+// error quoting the model, a tool or storage error quoting its input -- so it is
+// redacted here, where every report of the run passes, rather than at each
+// cause. The output, structured value, and questions are redacted where the run
+// produces them and are not touched again. See docs/design/space-secrets.md §12.
+type redactingUpdater struct {
+	next     TaskRunUpdater
+	redactor *secretscan.Redactor
+}
+
+func (u redactingUpdater) UpdateRunStatus(ctx context.Context, taskRunID string, req *workerclient.PatchTaskRunRequest) error {
+	if req != nil && req.ErrorMessage != nil {
+		if redacted := u.redactor.RedactExact(*req.ErrorMessage); redacted != *req.ErrorMessage {
+			copied := *req
+			copied.ErrorMessage = &redacted
+			req = &copied
+		}
+	}
+	return u.next.UpdateRunStatus(ctx, taskRunID, req)
 }
 
 // artifactPublisher gives a run the artifact capability, or nil when it has no
@@ -255,6 +282,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	if input.Paths == nil || input.Persist == nil || input.Updater == nil {
 		return errors.New("runtime: paths, persist and updater must not be nil")
 	}
+	input.Updater = redactingUpdater{next: input.Updater, redactor: input.redactor()}
 	dirs := resolveRunDirs(input.Paths, task, run)
 	scope := RunScope{SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: run.ID}
 
@@ -455,7 +483,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	agentRun, err := runAgentTask(ctx, run, dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
+	agentRun, err := runAgentTask(ctx, run, dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.ModelCredentialHint, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID), issueContext(input.WorkerAPI, task),
 		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants, task.OutputSchema, input.AskUser)
 	result := runResult{
@@ -510,7 +538,7 @@ func ensureRunDirs(runWorkspace, runGlobal, runOSHome string) error {
 // without them resumes correctly and simply has no record of what the previous
 // run did — which is the right trade when the alternative is fetching an
 // unbounded set of files whose names this side does not know.
-var sessionBundleFiles = []string{"meta.json", sessionJournalFile}
+var sessionBundleFiles = []string{sessionMetaFile, sessionJournalFile}
 
 func restoreSessionFromPreviousRun(ctx context.Context, task *coretask.Task, run *coretask.Run, runGlobalDir string, persist blob.RunStorage) {
 	if task.SessionID == nil || run.PreviousTaskRunID == nil {
@@ -588,7 +616,7 @@ func runProvenance(run *coretask.Run) agentapp.RunProvenance {
 	}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issue *agentapp.IssueContext, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string, askUser bool) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, modelCredentialHint string, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issue *agentapp.IssueContext, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string, askUser bool) (agentRunOutput, error) {
 	// One redactor over this run's Secret values covers every model-written text
 	// the run hands to the server: the live stream, the reply, and the
 	// structured and question data reported with it. See
@@ -615,6 +643,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 			EnableMCP:                   true,
 			Policy:                      agent.AllowAllPolicy(),
 			ModelEntries:                runtimeModelEntries(runtimeModel, managed),
+			ModelCredentialHint:         modelCredentialHint,
 			ManagedServerURL:            managed.ServerURL,
 			ManagedToken:                managed.tokenFunc(),
 			ManagedHTTPClient:           managedHTTPClient,
@@ -967,8 +996,8 @@ func gatewayFailureClass(gw *llmremote.GatewayError) coretask.FailureClass {
 // outage that times out every request must not hold the run's report once per
 // file.
 //
-// redactor carries the run's Secret values out of the session journal on the
-// way to storage; see uploadSessionJournal.
+// redactor carries the run's Secret values out of what the run wrote as it
+// worked on the way to storage; see uploadRedaction.
 func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, persist blob.RunStorage, traceKey string, redactor *secretscan.Redactor) (string, error) {
 	var relPaths []string
 	if traceKey != "" {
@@ -977,11 +1006,11 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 	// Walked rather than listed: a session is a directory now — metadata,
 	// journal, and its own traces — so a flat read would upload nothing.
 	sessionsDir := filepath.Join(globalDir, "sessions")
-	_ = filepath.WalkDir(sessionsDir, func(path string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(sessionsDir, func(file string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
-		rel, relErr := filepath.Rel(globalDir, path)
+		rel, relErr := filepath.Rel(globalDir, file)
 		if relErr != nil || filepath.ToSlash(rel) == traceKey {
 			return nil
 		}
@@ -996,8 +1025,8 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		if filepath.Base(fullPath) == sessionJournalFile {
-			err = uploadSessionJournal(ctx, persist, scope, fullPath, relPath, redactor)
+		if redact := uploadRedaction(relPath, redactor); redact != nil {
+			err = uploadRedactedFile(ctx, persist, scope, fullPath, relPath, redact)
 		} else {
 			err = uploadRunGlobalFile(ctx, persist, scope, fullPath, relPath)
 		}
@@ -1011,26 +1040,44 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 	return storedTrace, nil
 }
 
-// sessionJournalFile is the session's conversation journal inside a bundle.
-const sessionJournalFile = "history.jsonl"
+// The session files that carry model-written text: the conversation journal,
+// the session's metadata (its title may come from the prompt or the model), and
+// the picker index under the sessions root, which repeats the titles.
+const (
+	sessionJournalFile = "history.jsonl"
+	sessionMetaFile    = "meta.json"
+	sessionIndexFile   = "index.json"
+)
 
-// uploadSessionJournal stores a session journal with the run's Secret values
-// removed from every record.
+// uploadRedaction is how a run-global file leaves the worker with the run's
+// Secret values removed, or nil for a file uploaded as written.
 //
-// The journal is the conversation a Continue run resumes, and it leaves the run
-// for object storage where it outlives the Secret grant. Tool results in it are
-// already redacted, before the model saw them; the model's own messages, and the
-// arguments it wrote into tool calls, are not. Redacting them here, on the way
-// out rather than as they are appended, keeps the run's own context whole while
-// it works and means no stored copy carries a value -- at the cost that a
-// Continue run reads [redacted] in its own earlier words, just as it already
-// does in tool results. Each record is redacted as JSON so the journal stays
-// readable. See docs/design/space-secrets.md §12.
-func uploadSessionJournal(ctx context.Context, persist blob.RunStorage, scope RunScope, fullPath, relPath string, redactor *secretscan.Redactor) error {
-	data, err := os.ReadFile(fullPath)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", relPath, err)
+// These files outlive the Secret grant in object storage, and each is redacted
+// here, once, on the way out. Redacting at upload rather than as they are
+// written keeps the run's own context whole while it works and means no stored
+// copy carries a value -- at the cost that a Continue run reads [redacted] in its
+// own earlier words, just as it already does in tool results. JSON is redacted
+// as JSON so it stays readable and restorable: the journal record by record, the
+// metadata and index as one document. The run's text logs are redacted in the
+// form the log writes a value, raw or quoted. The trace is not listed: its
+// recorder redacts every field as it writes it. See
+// docs/design/space-secrets.md §12.
+func uploadRedaction(relPath string, redactor *secretscan.Redactor) func([]byte) []byte {
+	switch path.Base(relPath) {
+	case sessionJournalFile:
+		return func(data []byte) []byte { return redactJSONLines(redactor, data) }
+	case sessionMetaFile, sessionIndexFile:
+		return redactor.RedactExactJSON
 	}
+	if strings.HasPrefix(relPath, "logs/") {
+		return func(data []byte) []byte { return []byte(redactor.RedactExactQuoted(string(data))) }
+	}
+	return nil
+}
+
+// redactJSONLines redacts each line of a JSON Lines file as its own document,
+// leaving line endings and unchanged records byte for byte.
+func redactJSONLines(redactor *secretscan.Redactor, data []byte) []byte {
 	lines := bytes.SplitAfter(data, []byte("\n"))
 	for i, line := range lines {
 		record := bytes.TrimSuffix(line, []byte("\n"))
@@ -1038,10 +1085,20 @@ func uploadSessionJournal(ctx context.Context, persist blob.RunStorage, scope Ru
 			lines[i] = append(redacted, line[len(record):]...)
 		}
 	}
+	return bytes.Join(lines, nil)
+}
+
+// uploadRedactedFile stores a run-global file after passing its content
+// through redact.
+func uploadRedactedFile(ctx context.Context, persist blob.RunStorage, scope RunScope, fullPath, relPath string, redact func([]byte) []byte) error {
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", relPath, err)
+	}
 	if err := persist.PutRunGlobal(ctx, blob.RunObjectRef{
 		SpaceID: scope.SpaceID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID,
 		RelPath: relPath,
-	}, bytes.NewReader(bytes.Join(lines, nil))); err != nil {
+	}, bytes.NewReader(redact(data))); err != nil {
 		return fmt.Errorf("upload %s: %w", relPath, err)
 	}
 	return nil

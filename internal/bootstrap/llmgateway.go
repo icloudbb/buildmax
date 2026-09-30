@@ -26,6 +26,11 @@ const conversationTargetID = "conversation"
 // cannot collide.
 const conversationCredentialRef = "conversation.model.api_key"
 
+// conversationKeyHint is where an operator replaces the conversation model's
+// key, for the server's derived target and for a direct-transport worker that
+// calls the same model: the setting and its environment override, never the key.
+const conversationKeyHint = "check " + conversationCredentialRef + " in server.yaml or its override " + config.EnvKeyBuildmaxConversationAPIKey
+
 // llmRouting is the gateway wiring for one server process.
 type llmRouting struct {
 	// Router resolves models and supplies clients.
@@ -210,7 +215,7 @@ func newClientFactory(conversationKey string, models coregw.ModelStore) llmgatew
 // and the model ID, never the key.
 func credentialHint(target llmgateway.Target) string {
 	if target.CredentialRef == conversationCredentialRef {
-		return "check " + conversationCredentialRef + " in server.yaml"
+		return conversationKeyHint
 	}
 	return fmt.Sprintf("replace the key of catalog model %s with `buildmax admin model set-key %s` or `buildmax-server model set-key --id %s`",
 		target.ID, target.ID, target.ID)

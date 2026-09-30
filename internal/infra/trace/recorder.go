@@ -187,7 +187,7 @@ func (r *Recorder) RecordRunEnd(errMsg string) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.write(Record{TS: now(), Type: "run_end", Error: errMsg})
+	r.write(Record{TS: now(), Type: "run_end", Error: r.redactor.Redact(errMsg)})
 }
 
 // Close flushes and closes the trace file. Safe to call on a nil recorder.

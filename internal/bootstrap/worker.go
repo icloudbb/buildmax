@@ -274,6 +274,9 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		_ = os.Setenv(config.EnvKeyBuildmaxTaskRunID, taskRunID)
 	}
 
+	// A direct run calls the server's conversation model with its key, so a
+	// refused key points there, not at a settings.yaml the worker never read. A
+	// managed run builds no provider client and never shows the hint.
 	err = taskrun.RunTask(runCtx, taskrun.RunTaskInput{
 		Task:                   task,
 		Run:                    run,
@@ -283,6 +286,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		Updater:                updater,
 		StreamSender:           streamSender,
 		Model:                  runtimeModel,
+		ModelCredentialHint:    conversationKeyHint,
 		Managed:                managed,
 		ManagedHTTPClient:      httpClient,
 		WorkerAPI:              apiCfg,

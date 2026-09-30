@@ -302,7 +302,7 @@ func recordFromEvent(e agent.Event, maxField int, red *secretscan.Redactor) (Rec
 	case agent.EventToolDenied:
 		r.Tool = e.ToolName
 		r.ToolCallID = e.ToolCallID
-		r.DenyReason = e.DenyReason
+		r.DenyReason = red.Redact(e.DenyReason)
 	case agent.EventContextCompacted:
 		r.Iter = e.Iter
 		r.Summarized = e.Summarized
@@ -323,7 +323,7 @@ func recordFromEvent(e agent.Event, maxField int, red *secretscan.Redactor) (Rec
 	case agent.EventUserInputBlocked:
 		r.Iter = e.Iter
 		r.Content = bound(red.Redact(e.Content), maxField)
-		r.DenyReason = e.DenyReason
+		r.DenyReason = red.Redact(e.DenyReason)
 	case agent.EventRunEnd:
 		r.ToolCalls = e.Stats.ToolCalls
 		r.PromptTokens = e.Stats.PromptTokens
@@ -334,7 +334,7 @@ func recordFromEvent(e agent.Event, maxField int, red *secretscan.Redactor) (Rec
 		r.CostIncomplete = e.Stats.CostIncomplete
 		r.Delegated = recordDelegated(e.Stats.Delegated)
 		if e.Err != nil {
-			r.Error = e.Err.Error()
+			r.Error = red.Redact(e.Err.Error())
 		}
 	}
 	return r, true

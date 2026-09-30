@@ -264,38 +264,67 @@ func TestPatchWorkerTaskRun_CanceledKeepsReplyAndSyncsTheTask(t *testing.T) {
 
 // A succeeded run's structured value must land on the TaskRun: it is the fact a
 // Workflow node with an output_schema folds, and without it the node fails on a
-// run that returned a valid answer.
-func TestPatchWorkerTaskRun_SucceededKeepsStructuredValue(t *testing.T) {
-	taskRunID := "run-structured"
-	runs := &mock.MockTaskRunStore{
-		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
-		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
+// run that returned a valid answer. The worker is untrusted, so the server
+// checks the value against the Task's own schema and drops one that does not
+// conform; the run keeps its reported outcome either way.
+func TestPatchWorkerTaskRun_KeepsOnlyAStructuredValueTheTaskSchemaAccepts(t *testing.T) {
+	schema := `{"type":"object","properties":{"label":{"type":"string","enum":["bug","feature"]}},"required":["label"],"additionalProperties":false}`
+	cases := []struct {
+		name       string
+		schema     *string
+		status     coretask.RunStatus
+		structured string
+		kept       bool
+	}{
+		{"conforming value", &schema, coretask.RunStatusSucceeded, `{"label":"bug"}`, true},
+		{"value outside the enum", &schema, coretask.RunStatusSucceeded, `{"label":"ship it"}`, false},
+		{"missing required property", &schema, coretask.RunStatusSucceeded, `{}`, false},
+		{"unexpected property", &schema, coretask.RunStatusSucceeded, `{"label":"bug","extra":1}`, false},
+		{"not json", &schema, coretask.RunStatusSucceeded, `{"label":`, false},
+		{"task declares no schema", nil, coretask.RunStatusSucceeded, `{"label":"bug"}`, false},
+		{"failed run", &schema, coretask.RunStatusFailed, `{"label":"bug"}`, false},
 	}
-	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
-	mux := http.NewServeMux()
-	h.Register(mux)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			taskRunID := "run-structured"
+			runs := &mock.MockTaskRunStore{
+				Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
+				TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning), OutputSchema: c.schema}},
+			}
+			h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
+			mux := http.NewServeMux()
+			h.Register(mux)
 
-	endedAt := time.Unix(1_800_000_010, 0).UTC()
-	body, err := json.Marshal(workerclient.PatchTaskRunRequest{
-		Status:     string(coretask.RunStatusSucceeded),
-		EndedAt:    &endedAt,
-		Output:     util.Ptr("it is a bug"),
-		Structured: util.Ptr(`{"label":"bug"}`),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
+			endedAt := time.Unix(1_800_000_010, 0).UTC()
+			body, err := json.Marshal(workerclient.PatchTaskRunRequest{
+				Status:     string(c.status),
+				EndedAt:    &endedAt,
+				Output:     util.Ptr("it is a bug"),
+				Structured: util.Ptr(c.structured),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(body))
+			req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
-	}
-	if got := runs.Runs[0].Structured; got == nil || *got != `{"label":"bug"}` {
-		t.Errorf("run structured = %v, want the reported value", got)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+			}
+			if runs.Runs[0].Status != string(c.status) {
+				t.Errorf("run status = %q, want the reported %q", runs.Runs[0].Status, c.status)
+			}
+			got := runs.Runs[0].Structured
+			if c.kept && (got == nil || *got != c.structured) {
+				t.Errorf("run structured = %v, want the reported value", got)
+			}
+			if !c.kept && got != nil {
+				t.Errorf("run structured = %q, want it dropped", *got)
+			}
+		})
 	}
 }
 

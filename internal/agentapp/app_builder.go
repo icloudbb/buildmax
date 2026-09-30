@@ -183,6 +183,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		managedTaskRunID:  cfg.ManagedTaskRunID,
 		managedHTTPClient: renewingManagedClient(cfg.ManagedHTTPClient, cfg.ManagedServerURL, cfg.ManagedTokenRenew),
 		surface:           cfg.Surface,
+		credentialHint:    cfg.ModelCredentialHint,
 		clients:           make(map[string]cllm.LLMClient),
 	}
 	// Remote Control: if this session opted in and has a managed server to reach,

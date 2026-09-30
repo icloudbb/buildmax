@@ -1,14 +1,66 @@
 package taskrun
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
+	"github.com/icloudbb/buildmax/internal/config"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/infra/llmremote"
+	"github.com/icloudbb/buildmax/internal/testsupport/mockllm"
 )
+
+// A direct-transport worker calls the server's model with the server's key, so
+// a refused key must send the operator to where the dispatcher says that key
+// lives, not to a settings.yaml the worker never read -- and must not quote it.
+func TestRunTaskNamesTheDispatcherKeySourceWhenTheProviderRefusesTheKey(t *testing.T) {
+	const key = "direct-worker-key"
+	const hint = "check the server's conversation key"
+	server, err := mockllm.Start(mockllm.Scenario{Steps: []mockllm.Step{
+		{Status: http.StatusUnauthorized, Error: "invalid api key"},
+	}, Repeat: true})
+	if err != nil {
+		t.Fatalf("start mock model: %v", err)
+	}
+	t.Cleanup(server.Close)
+
+	updater := &fakeUpdater{}
+	sessionID := "sid-key"
+	err = RunTask(context.Background(), RunTaskInput{
+		Task:      &coretask.Task{ID: "task1", SpaceID: "space1", SessionID: &sessionID},
+		Run:       &coretask.Run{ID: "run1", Input: "hello"},
+		SessionID: sessionID,
+		Paths:     NewRuntimePathsFromRoot(t.TempDir()),
+		Persist:   newFakePersistStorage(),
+		Updater:   updater,
+		Model: config.ModelEntry{
+			Model: "mock-model", Name: "mock", APIURL: server.BaseURL(mockllm.ProtocolOpenAIChat),
+			APIKey: key, ContextWindow: 128000,
+		},
+		ModelCredentialHint: hint,
+	})
+	if !errors.Is(err, coretask.ErrRunFailed) {
+		t.Fatalf("RunTask err = %v, want a reported failure", err)
+	}
+	req := updater.req
+	if req == nil || req.ErrorMessage == nil {
+		t.Fatalf("report = %+v, want an error message", req)
+	}
+	msg := *req.ErrorMessage
+	if !strings.Contains(msg, "authentication failed (HTTP 401): "+hint) {
+		t.Errorf("error message = %q, want the dispatcher's key source", msg)
+	}
+	if strings.Contains(msg, "settings.yaml") || strings.Contains(msg, key) {
+		t.Errorf("error message = %q points at settings.yaml or quotes the key", msg)
+	}
+	if c := req.FailureClass; c == nil || *c != string(coretask.FailureModel) {
+		t.Errorf("failure_class = %v, want model", c)
+	}
+}
 
 // A provider failure is covered by infra/llm's IsProviderError test; here an
 // ordinary error inside the run must not be filed as the model's.

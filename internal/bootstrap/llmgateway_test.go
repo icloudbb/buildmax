@@ -555,6 +555,43 @@ func TestStoredModelKeyRefusalNamesTheCatalogCommand(t *testing.T) {
 	}
 }
 
+// The conversation model's key lives in server.yaml or its environment
+// override; a direct-transport worker calls the same model with the same key
+// and names the same place (conversationKeyHint).
+func TestConversationModelKeyRefusalNamesTheServerSetting(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"invalid api key","type":"invalid_request_error"}}`))
+	}))
+	defer upstream.Close()
+
+	model := conversationModel()
+	model.APIURL = upstream.URL
+	routing, err := buildLLMRouting(config.ServerConfig{Conversation: config.ServerConvConfig{Model: model}}, newFakeModels())
+	if err != nil {
+		t.Fatalf("buildLLMRouting: %v", err)
+	}
+	routed, err := routing.Router.ClientForTarget(context.Background(), conversationTargetID, nil)
+	if err != nil {
+		t.Fatalf("ClientForTarget: %v", err)
+	}
+	_, err = routed.Client.ChatCompletionBlocking(context.Background(),
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
+	if err == nil {
+		t.Fatal("a refused key produced a completion")
+	}
+	msg := err.Error()
+	for _, want := range []string{"conversation.model.api_key", "server.yaml", config.EnvKeyBuildmaxConversationAPIKey} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("refusal %q does not name %s", msg, want)
+		}
+	}
+	if strings.Contains(msg, "settings.yaml") || strings.Contains(msg, model.APIKey) {
+		t.Errorf("refusal %q points at settings.yaml or leaks the key", msg)
+	}
+}
+
 // Tier 1 is the third managed path, and the design asks that it reach the same
 // decision as the other two by calling the same code rather than by issuing an
 // HTTP request back to the server. It does: the conversation client is built

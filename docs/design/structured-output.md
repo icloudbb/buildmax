@@ -252,7 +252,8 @@ retry-versus-fail. A direct Agent run surfaces the failure on its TaskRun; it
 does not pretend a value exists.
 
 The model proposes; the runtime validates and records. Nothing downstream
-re-validates or re-parses.
+re-validates or re-parses, with one exception at a trust boundary, described
+below for worker reports.
 
 A managed call — a CLI or Desktop in managed mode, or a worker on the managed
 transport — has one validator too: the server's provider client, behind the
@@ -261,6 +262,23 @@ verdict (value or typed failure) crosses back and is relayed without a second
 check ([LLM gateway §8](llm-gateway.md)). A worker run receives its Task's
 `output_schema` from the worker API when it claims the run and reports the
 validated value on its terminal status report, whichever transport it uses.
+
+The server checks that report again. A worker runs model-chosen code and is
+untrusted ([worker API network boundary](worker-api-network-boundary.md)), so
+its report is a claim, not a verdict: the terminal status handler validates a
+reported value against the Task's own `output_schema` with the same
+`internal/core/jsonschema` validator before storing it. It stores a value only
+from a `SUCCEEDED` run of a Task that declares a schema, and only when the value
+conforms. Otherwise it drops the value, logs why, and still accepts the report,
+as it does for a malformed question set. Dropping gives the same stored facts as
+the runtime's own typed failure, a successful run with no structured value, so
+consumers need no new case: a Workflow node that required output fails with its
+schema reason and follows its retry policy. The server does not reject the
+report with a 4xx, because that would leave the run without a terminal outcome
+until the stale-run reaper or run timeout closed it. It does not rewrite the run
+as `FAILED`
+either, because the run's text outcome is still real and the consumer already
+owns the retry-versus-fail decision.
 
 ## 10. Streaming
 
