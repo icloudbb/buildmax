@@ -926,13 +926,24 @@
         },
         "required": ["run_count", "total_tokens", "tier", "period_days"]
       },
+      "QuotaTier": {
+        "type": "object",
+        "description": "A seeded tier's limits. Zero max_storage_bytes means no storage limit; period_days does not apply to storage.",
+        "properties": {
+          "tier_name": {"type": "string"},
+          "max_runs_per_period": {"type": "integer"},
+          "max_tokens_per_period": {"type": "integer"},
+          "max_storage_bytes": {"type": "integer", "format": "int64"},
+          "period_days": {"type": "integer"}
+        },
+        "required": ["tier_name", "max_runs_per_period", "max_tokens_per_period", "max_storage_bytes", "period_days"]
+      },
       "AdminUser": {
         "type": "object",
         "properties": {
           "id": {"type": "string"},
           "email": {"type": "string"},
           "name": {"type": "string"},
-          "quota_tier": {"type": "string"},
           "has_password": {"type": "boolean"},
           "disabled_at": {"type": "string", "format": "date-time"},
           "last_login_at": {"type": "string", "format": "date-time"},
@@ -2940,6 +2951,50 @@
           "400": {"description": "A personal space, or a successor who is not a member", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
           "404": {"description": "Space not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
           "409": {"description": "An owner can still sign in, or the successor is disabled", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
+    "/api/admin/quota-tiers": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "List the quota tiers a space can be assigned to",
+        "description": "Tier definitions are seeded and not editable through the API; this is the set PUT /api/admin/spaces/{space_id}/quota-tier chooses from.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tiers": {"type": "array", "items": {"$ref": "#/components/schemas/QuotaTier"}}
+                  },
+                  "required": ["tiers"]
+                }
+              }
+            }
+          },
+          "503": {"description": "Quota not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
+    "/api/admin/spaces/{space_id}/quota-tier": {
+      "put": {
+        "tags": ["admin"],
+        "summary": "Assign a space to an existing quota tier",
+        "description": "Applies from the space's next quota check; work already admitted keeps running. Personal spaces are included. Recorded as space.quota_tier_changed with the old and new tier.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["tier"], "properties": {"tier": {"type": "string"}}}}}
+        },
+        "responses": {
+          "204": {"description": "Tier assigned"},
+          "400": {"description": "An unknown tier; the message names the valid ones", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "Space not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "503": {"description": "Quota not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
         }
       }
     },

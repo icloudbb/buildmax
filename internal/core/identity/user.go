@@ -11,7 +11,6 @@ type User struct {
 	ID                string     `json:"id"`
 	Email             string     `json:"email"`
 	Name              string     `json:"name"`
-	QuotaTier         string     `json:"quota_tier,omitempty"`
 	LastLoginAt       *time.Time `json:"last_login_at,omitempty"`
 	LastLoginPlatform *string    `json:"last_login_platform,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`

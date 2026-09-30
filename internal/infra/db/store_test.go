@@ -248,6 +248,44 @@ func TestCreateSpace(t *testing.T) {
 	}
 }
 
+// TestQuotaTierAssignment covers the two store halves of assigning a Space to
+// a tier: the seeded tiers are listable, and the Space's tier column moves
+// while an unknown Space is ErrNotFound rather than a silent no-op.
+func TestQuotaTierAssignment(t *testing.T) {
+	s, ctx := newTestStore(t)
+
+	tiers, err := s.ListQuotaTiers(ctx)
+	if err != nil {
+		t.Fatalf("ListQuotaTiers: %v", err)
+	}
+	names := make([]string, 0, len(tiers))
+	for _, tier := range tiers {
+		names = append(names, tier.TierName)
+	}
+	if len(names) < 2 || names[0] != "free_trial" || names[1] != "pro" {
+		t.Fatalf("ListQuotaTiers names = %v, want the seeded free_trial and pro in name order", names)
+	}
+
+	userID := newTestUser(t, s, "quota-tier")
+	space, err := s.GetPersonalSpaceByUser(ctx, userID)
+	if err != nil || space == nil {
+		t.Fatalf("GetPersonalSpaceByUser: %v (got %v)", err, space)
+	}
+	if err := s.SetSpaceQuotaTier(ctx, space.ID, "pro"); err != nil {
+		t.Fatalf("SetSpaceQuotaTier: %v", err)
+	}
+	got, err := s.GetSpace(ctx, space.ID)
+	if err != nil || got == nil {
+		t.Fatalf("GetSpace: %v (got %v)", err, got)
+	}
+	if got.QuotaTier != "pro" {
+		t.Errorf("quota tier = %q, want pro", got.QuotaTier)
+	}
+	if err := s.SetSpaceQuotaTier(ctx, testPublicID(t), "pro"); !errors.Is(err, apierr.ErrNotFound) {
+		t.Errorf("SetSpaceQuotaTier on an unknown space = %v, want ErrNotFound", err)
+	}
+}
+
 func TestTaskRunProvenancePersistence(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {

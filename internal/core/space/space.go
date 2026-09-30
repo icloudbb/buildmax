@@ -118,6 +118,10 @@ type Store interface {
 	// SetSpacePluginCuration records who fills the space's plugin activation
 	// list, or returns ErrNotFound. The value is validated above this layer.
 	SetSpacePluginCuration(ctx context.Context, spaceID string, mode coreplugin.Curation) error
+	// SetSpaceQuotaTier records the quota tier the space runs under, or returns
+	// ErrNotFound. The tier is validated above this layer, in
+	// internal/service/quota, which is the only caller.
+	SetSpaceQuotaTier(ctx context.Context, spaceID, tierName string) error
 	// SetSpaceSandboxDefaults records the tiers an agent that declares neither
 	// inherits, or returns ErrNotFound. The values are validated above this
 	// layer, the same way SetSpacePluginCuration's mode is.

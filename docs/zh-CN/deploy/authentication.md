@@ -66,6 +66,15 @@ buildmax-server admin revoke alice@example.com
 
 授予和撤销权限会记入审计轨迹，`buildmax-server user` 执行的账户创建、密码设置和登录码签发也会记录。命令行操作记为系统操作者 `buildmax-server`：命令持有的是数据库凭证而不是会话，无法归属到具体个人。
 
+一个 Space 从 `default_quota_tier` 指定的层级开始。要给某个 Space（共享或个人）更多或更少的容量，把它分配到另一个种子层级：在管理区 Spaces 中该 Space 的详情里使用 “Change tier”，或者
+
+```bash
+buildmax admin quota-tier list                 # 层级及其限额
+buildmax admin quota-tier set <space_id> pro   # 在下一次配额检查时生效
+```
+
+未知层级会被拒绝，并列出有效层级。正在运行的工作继续运行；该 Space 的下一次准入会按新层级检查。变更会以 `space.quota_tier_changed` 记录，带有新旧层级。层级定义本身由种子数据提供，不可编辑。
+
 ## 登录返回的凭证
 
 登录返回两种凭证：

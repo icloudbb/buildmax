@@ -23,7 +23,6 @@ type userRow struct {
 	// identity provider, when there is one — needs no local password to exist.
 	PasswordHash      *string    `gorm:"type:varchar(255)"`
 	PasswordSetAt     *time.Time `gorm:""`
-	QuotaTier         string     `gorm:"type:varchar(64)"`
 	LastLoginAt       *time.Time `gorm:""`
 	LastLoginPlatform *string    `gorm:"type:varchar(32)"`
 	// DisabledAt is NULL for an ordinary account. Non-NULL is checked on every
@@ -43,7 +42,6 @@ func toUser(row *userRow) *coreidentity.User {
 		ID:                row.PublicID,
 		Email:             row.Email,
 		Name:              row.Name,
-		QuotaTier:         row.QuotaTier,
 		LastLoginAt:       row.LastLoginAt,
 		LastLoginPlatform: row.LastLoginPlatform,
 		DisabledAt:        row.DisabledAt,
@@ -60,7 +58,6 @@ func toUserRow(m *coreidentity.User) *userRow {
 	return &userRow{
 		Email:             m.Email,
 		Name:              m.Name,
-		QuotaTier:         m.QuotaTier,
 		LastLoginAt:       m.LastLoginAt,
 		LastLoginPlatform: m.LastLoginPlatform,
 		DisabledAt:        m.DisabledAt,
@@ -220,7 +217,8 @@ func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt time
 }
 
 // CreateUser creates a user with the given email. Name is set to empty.
-// When defaultQuotaTier is non-empty, User.QuotaTier is set to it.
+// defaultQuotaTier is the tier of the personal space created with the account;
+// quota is enforced per space, so the account itself carries none.
 // Returns ErrEmailExists if the email is already registered.
 func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier string) (*coreidentity.User, error) {
 	existing, err := s.UserByEmail(ctx, email)
@@ -234,9 +232,6 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 		Email:     email,
 		Name:      "",
 		CreatedAt: time.Now().UTC(),
-	}
-	if defaultQuotaTier != "" {
-		u.QuotaTier = defaultQuotaTier
 	}
 	userDB := toUserRow(&u)
 	personalSpaceDB := &spaceRow{

@@ -36,6 +36,43 @@ func (m *MockTierStore) GetQuotaTier(_ context.Context, _ string) (*corequota.Ti
 	return m.Tier, nil
 }
 
+func (m *MockTierStore) ListQuotaTiers(_ context.Context) ([]corequota.Tier, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	if m.Tier == nil {
+		return nil, nil
+	}
+	return []corequota.Tier{*m.Tier}, nil
+}
+
+// MockTierCatalog is a TierStore holding several named tiers, for tests that
+// move a space between them.
+type MockTierCatalog struct {
+	Tiers []corequota.Tier
+	Err   error
+}
+
+func (m *MockTierCatalog) GetQuotaTier(_ context.Context, tierName string) (*corequota.Tier, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	for i := range m.Tiers {
+		if m.Tiers[i].TierName == tierName {
+			t := m.Tiers[i]
+			return &t, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockTierCatalog) ListQuotaTiers(_ context.Context) ([]corequota.Tier, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	return append([]corequota.Tier(nil), m.Tiers...), nil
+}
+
 // DenyQuotaSpaceStore is used by quota 429 tests to supply a space with tier.
 type DenyQuotaSpaceStore struct {
 	Space *corespace.Space
@@ -91,6 +128,13 @@ func (d *DenyQuotaTierStore) GetQuotaTier(_ context.Context, _ string) (*corequo
 	return d.Tier, nil
 }
 
+func (d *DenyQuotaTierStore) ListQuotaTiers(_ context.Context) ([]corequota.Tier, error) {
+	if d.Tier == nil {
+		return nil, nil
+	}
+	return []corequota.Tier{*d.Tier}, nil
+}
+
 func (d *DenyQuotaSpaceStore) ListTeamSpaces(_ context.Context, _ string, _, _ int) ([]corespace.Space, int, error) {
 	if d.Space == nil {
 		return nil, 0, nil
@@ -103,6 +147,10 @@ func (d *DenyQuotaSpaceStore) CountSpaceMembers(_ context.Context, _ []string) (
 }
 
 func (d *DenyQuotaSpaceStore) SetSpacePluginCuration(_ context.Context, _ string, _ coreplugin.Curation) error {
+	return nil
+}
+
+func (d *DenyQuotaSpaceStore) SetSpaceQuotaTier(_ context.Context, _, _ string) error {
 	return nil
 }
 

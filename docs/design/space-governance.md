@@ -153,12 +153,10 @@ the asset changes: a membership change grants access to everything a space holds
 and a catalog change moves prompts and spending. The second slice was the rest —
 each one a `Record` call at the point of change plus a permanent action string.
 
-Quota tier is the one item that resolved by observation rather than a new event
-of its own. A space's tier is assigned once, at creation, to the deployment
-default; there is no reassignment path, so there is no later change to record.
-The tier is therefore carried in the detail of `space.created`, which is the one
-place the tier a space runs under is decided. If a tier-reassignment capability
-is ever built, its own action is where that change would be recorded — see open
+Quota tier is carried in the detail of `space.created`, where the tier a space
+starts on is decided. A later change is a System Administrator's, not a space
+role's: it is recorded as `space.quota_tier_changed` with the old and new tier —
+see [system-administration.md](./system-administration.md) §7.2 and open
 question 4.
 
 ## 5. In Scope
@@ -384,11 +382,14 @@ Recommended starting matrix:
 | Manage space members | yes | no | no |
 | Change member roles | yes | no | no |
 | View space usage | yes | yes | yes |
-| Change quota tier | yes | no | no |
+| Change quota tier | no | no | no |
 | View activity events | yes | yes | no |
 
 This matrix intentionally stays simple. If later enterprise customers need more
 control, build from observed needs rather than inventing custom RBAC now.
+Changing a quota tier is no space role's: a tier is deployment capacity, so a
+System Administrator assigns it ([system-administration.md](./system-administration.md)
+§7.2).
 
 ## 8. Backend Plan
 
@@ -543,7 +544,9 @@ Manual scenarios:
    Answering that means deciding what the caller sees when the action succeeded
    and the record did not. See §5.4.
 3. Should workflow publish/archive require owner or allow admin?
-4. Should quota tier changes be implemented in P4 or only documented?
+4. ~~Should quota tier changes be implemented in P4 or only documented?~~
+   **Implemented** as System Administrator tier assignment, not a space-owner
+   action; see [system-administration.md](./system-administration.md) §7.2.
 5. Should webhook key creation/revocation require owner/admin only?
 
 The remaining questions came from the retired *Audit and data governance*

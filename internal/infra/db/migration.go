@@ -204,6 +204,22 @@ var migrations = []Migration{
 			return m.DropColumn(&scheduleRow{}, "agent_id")
 		},
 	},
+	{
+		// user.quota_tier duplicated space.quota_tier: it was written at account
+		// creation and read by nothing but the admin account view, while quota
+		// was always enforced per Space. Once a System Administrator could move a
+		// Space to another tier, the account copy could only drift from the tier
+		// that actually applies, so it is dropped. The personal Space keeps its
+		// own tier. See docs/design/system-administration.md §7.2.
+		ID: "user_quota_tier_drop",
+		Apply: func(ctx context.Context, db *gorm.DB) error {
+			m := db.WithContext(ctx).Migrator()
+			if m.HasColumn(&userRow{}, "quota_tier") {
+				return m.DropColumn(&userRow{}, "quota_tier")
+			}
+			return nil
+		},
+	},
 }
 
 // runMigrations applies every migration this binary knows and the database has

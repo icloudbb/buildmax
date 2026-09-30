@@ -49,6 +49,19 @@ func (s *Store) GetQuotaTier(ctx context.Context, tierName string) (*corequota.T
 	return toQuotaTier(&t), nil
 }
 
+// ListQuotaTiers returns every defined tier, ordered by name.
+func (s *Store) ListQuotaTiers(ctx context.Context) ([]corequota.Tier, error) {
+	var rows []quotaTierRow
+	if err := s.db.WithContext(ctx).Order("tier_name ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]corequota.Tier, 0, len(rows))
+	for i := range rows {
+		out = append(out, *toQuotaTier(&rows[i]))
+	}
+	return out, nil
+}
+
 // SeedDefaultQuotaTiers inserts free_trial and pro tiers if the quota_tier table is empty.
 func (s *Store) SeedDefaultQuotaTiers(ctx context.Context) error {
 	var count int64

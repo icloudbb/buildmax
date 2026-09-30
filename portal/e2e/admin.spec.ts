@@ -39,6 +39,12 @@ test("a Space's administration detail opens from its address", async ({ page }) 
   await expect(page.getByText(/Members and capacity, not work/)).toBeVisible()
   await page.reload()
   await expect(page.getByText(/Members and capacity, not work/)).toBeVisible()
+
+  // The tier control lists the seeded tiers and starts on the Space's own, so
+  // there is nothing to submit yet. Changing it is left to the handler and
+  // service tests: the rest of the suite runs work in this same Space.
+  await expect(page.getByLabel("Quota tier")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Change tier" })).toBeDisabled()
 })
 
 test("each administration section is linkable and survives a reload", async ({ page }) => {

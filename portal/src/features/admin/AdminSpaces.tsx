@@ -1,9 +1,21 @@
 import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { ApiAdminSpace, ApiAdminSpaceDetail, ApiAdminSpaceMember } from "../../lib/api/types"
+import type {
+  ApiAdminSpace,
+  ApiAdminSpaceDetail,
+  ApiAdminSpaceMember,
+  ApiQuotaTier,
+} from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { pageWindow } from "./pagination"
-import { getAdminSpace, listAdminSpaces, recoverSpaceOwner } from "./api"
+import { describeTierLimits } from "./quotaTier"
+import {
+  getAdminSpace,
+  listAdminSpaces,
+  listQuotaTiers,
+  recoverSpaceOwner,
+  setSpaceQuotaTier,
+} from "./api"
 
 const PAGE_SIZE = 50
 
@@ -19,6 +31,10 @@ const PAGE_SIZE = 50
  * administrator learns that a space exists, how large it is, and what it is
  * using; reaching what is in it still requires membership. A link that 403s
  * would read as a bug rather than as a boundary, so there is no link.
+ *
+ * The detail can move a Space, personal or shared, onto another seeded quota
+ * tier. That changes capacity, not access, and applies from the next quota
+ * check; tier definitions themselves are not editable anywhere.
  */
 export function AdminSpaces({
   token,
@@ -36,7 +52,26 @@ export function AdminSpaces({
   const [selected, setSelected] = useState<ApiAdminSpaceDetail | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [tiers, setTiers] = useState<ApiQuotaTier[]>([])
+  const [tierChoice, setTierChoice] = useState("")
   const detailRef = useRef<HTMLElement | null>(null)
+
+  // The tier the space runs under: its own, or the deployment default the
+  // usage figures were computed against when it records none.
+  const currentTier = selected ? selected.quota_tier || selected.usage?.tier || "" : ""
+
+  useEffect(() => {
+    setTierChoice(currentTier)
+  }, [currentTier])
+
+  // A deployment without quota answers 503 here; the detail already says it
+  // reports no quota, so the control is simply absent rather than an error.
+  useEffect(() => {
+    if (!token) return
+    listQuotaTiers(token)
+      .then((res) => setTiers(res.tiers))
+      .catch(() => setTiers([]))
+  }, [token])
 
   // Recover a shared space whose owners are all disabled by promoting an enabled
   // member. The server enforces the "every owner disabled" precondition and
@@ -95,6 +130,32 @@ export function AdminSpaces({
   useEffect(() => {
     load("", 0)
   }, [load])
+
+  async function changeTier(space: ApiAdminSpaceDetail, tier: string): Promise<void> {
+    if (!token) return
+    if (
+      !window.confirm(
+        `Move ${space.name} to the ${tier} tier?\n\n` +
+          "The new limits apply from the space's next quota check. Work already running is " +
+          "not stopped. The change is recorded in the audit trail with the old and new tier.",
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      await setSpaceQuotaTier(token, space.id, tier)
+      setNotice(`${space.name} is now on the ${tier} tier.`)
+      setSelected(await getAdminSpace(token, space.id))
+      load(query, offset)
+    } catch (err) {
+      setError(getErrorMessage(err, "The tier did not change"))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   useEffect(() => {
     if (!token || !selectedSpaceId) return
@@ -253,6 +314,39 @@ export function AdminSpaces({
             <p className="admin-empty">This deployment reports no quota.</p>
           )}
 
+          {tiers.length > 0 ? (
+            <form
+              className="admin-toolbar"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void changeTier(selected, tierChoice)
+              }}
+            >
+              <label className="admin-field">
+                <span className="admin-field__label">Quota tier</span>
+                <select
+                  className="admin-input"
+                  value={tierChoice}
+                  disabled={busy}
+                  onChange={(e) => setTierChoice(e.target.value)}
+                >
+                  {tiers.map((tier) => (
+                    <option key={tier.tier_name} value={tier.tier_name}>
+                      {tier.tier_name} — {describeTierLimits(tier)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button
+                type="submit"
+                variant="secondary"
+                disabled={busy || !tierChoice || tierChoice === currentTier}
+              >
+                Change tier
+              </Button>
+            </form>
+          ) : null}
+
           {notice ? <p className="admin-notice">{notice}</p> : null}
           <ul className="admin-list">
             {selected.members.map((member) => (
@@ -274,7 +368,8 @@ export function AdminSpaces({
           <p className="admin-scope-note">
             Members and capacity, not work. Issues, conversations, files, artifacts, and
             run traces stay behind membership. "Make owner" recovers a space whose owners are
-            all disabled; the server refuses it while any owner can still sign in.
+            all disabled; the server refuses it while any owner can still sign in. "Change tier"
+            changes capacity, not access.
           </p>
         </section>
       ) : null}

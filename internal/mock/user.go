@@ -22,6 +22,9 @@ type MockUserStore struct {
 	// in-memory double cannot reproduce on its own.
 	DisableErr error
 	NextUserID int
+	// PersonalSpaceTier records, by user id, the quota tier CreateUser gave the
+	// account's personal Space; the real store writes it on that Space's row.
+	PersonalSpaceTier map[string]string
 }
 
 // UserByEmail matches without regard to case, the way the real store's
@@ -67,12 +70,15 @@ func (m *MockUserStore) CreateUser(_ context.Context, email string, defaultQuota
 	u := &coreidentity.User{
 		ID:        fmt.Sprintf("mock-u-%d", m.NextUserID),
 		Email:     email,
-		QuotaTier: defaultQuotaTier,
 		Name:      "",
 		CreatedAt: time.Now().UTC(),
 	}
 	m.ByEmail[email] = u
 	m.ByID[u.ID] = u
+	if m.PersonalSpaceTier == nil {
+		m.PersonalSpaceTier = make(map[string]string)
+	}
+	m.PersonalSpaceTier[u.ID] = defaultQuotaTier
 	return u, nil
 }
 

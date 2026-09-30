@@ -336,7 +336,7 @@ than consequences to discover later:
 
 | Table | Reason |
 |---|---|
-| `quota_tier` | `tier_name` is a configuration-owned natural key. `user.quota_tier` and `space.quota_tier` keep referencing it by name |
+| `quota_tier` | `tier_name` is a configuration-owned natural key. `space.quota_tier` keeps referencing it by name |
 | `schema_migration` | `id` is the migration's permanent authored name |
 
 ## 7. Which References Stay Opaque

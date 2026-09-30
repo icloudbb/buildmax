@@ -48,8 +48,10 @@ type LinkIdentity struct {
 // identity link (§5.2 rule 5). Email is the verified address the domain
 // allow-list already admitted; the caller owns that check.
 type ProvisionUser struct {
-	Email     string
-	Name      string
+	Email string
+	Name  string
+	// QuotaTier is the tier of the personal Space created with the account.
+	// Quota is enforced per Space, so the account itself carries none.
 	QuotaTier string
 	Issuer    string
 	Subject   string

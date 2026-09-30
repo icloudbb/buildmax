@@ -386,8 +386,11 @@ Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，
 PENDING 与未启动 SCHEDULED run、沉默的 RUNNING run、最近 24 小时按 `task_run.failure_class`
 统计并标明处理方的失败，以及需要关注的 Space（含个人 Space）及其所有者
 （`GET /api/admin/runtime/spaces`）。
-管理方面仍缺少权限变更的事务性审计、管理 CLI 的 Session 列出/撤销能力对齐和
-配额层级分配。这些是[系统管理](design/系统管理.md)记录中的开放问题，并非已实现功能。插件发布仍仅通过 CLI，Portal 已能检查、退役、恢复插件
+系统管理员可以在 Space 详情、`buildmax admin quota-tier set` 或
+`PUT /api/admin/spaces/{space_id}/quota-tier` 中把任意 Space（团队或个人）分配到一个已有的种子配额层级；
+新的限额从该 Space 的下一次配额检查开始生效，正在运行的工作不会被停止，变更会以
+`space.quota_tier_changed` 审计。层级定义仍由种子数据提供且不可编辑，账户本身不再携带配额层级。
+管理方面仍缺少权限变更的事务性审计和管理 CLI 的 Session 列出/撤销能力对齐。这些是[系统管理](design/系统管理.md)记录中的开放问题，并非已实现功能。插件发布仍仅通过 CLI，Portal 已能检查、退役、恢复插件
 以及撤回发布版本。
 
 Space 审批流程仍未实现且明确不在范围内；这不能被视为邀请或所有权转移功能未完成。

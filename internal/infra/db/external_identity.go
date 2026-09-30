@@ -197,9 +197,6 @@ func (s *Store) CreateUserWithIdentity(ctx context.Context, in coreidentity.Prov
 	}
 	now := time.Now().UTC()
 	u := coreidentity.User{Email: in.Email, Name: in.Name, CreatedAt: now}
-	if in.QuotaTier != "" {
-		u.QuotaTier = in.QuotaTier
-	}
 	userDB := toUserRow(&u)
 	personalSpaceDB := &spaceRow{
 		Name:      corespace.DefaultPersonalName,

@@ -195,9 +195,10 @@ demonstrates. A 2026-09-28 operator drill showed the diagnosis
 journey could not detect stalled or failing work from Administration; runtime
 operations metadata
 ([system administration](design/system-administration.md) §13 M7) now closes
-that gap. Transactional
-authority audit, admin CLI Session parity, and quota-tier assignment remain
-open questions in that record unless they block this outcome.
+that gap. Quota-tier assignment blocked the quota-refusal journey, which could
+otherwise change a tier only in MySQL, so it is now built. Transactional
+authority audit and admin CLI Session parity remain open questions in that
+record unless they block this outcome.
 
 **Done when:** every required row in the Beta readiness record has durable
 evidence, failures and accepted limits are explicit, and the qualification
