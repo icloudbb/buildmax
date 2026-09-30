@@ -235,3 +235,44 @@ func ParseConfig(data []byte) (Config, error) {
 	}
 	return cfg, nil
 }
+
+// UnknownTopLevelKeys returns the top-level mapping keys of a hooks document
+// that name no event, so an inspector can tell a publisher that a stanza will
+// be silently ignored rather than run. The common mistake it catches is
+// wrapping the events in a `hooks:` block, which is the settings.yaml shape:
+// a plugin's hooks.yaml puts the events at the top level, so a `hooks:` wrapper
+// parses to nothing and the plugin contributes no hooks at all.
+//
+// A document that is not a mapping (empty, a comment, a list) has no keys and
+// returns none; malformed YAML is left for ParseConfig to report.
+func UnknownTopLevelKeys(data []byte) []string {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil
+	}
+	known := make(map[string]bool, len(EventNames()))
+	for _, e := range EventNames() {
+		known[e] = true
+	}
+	// The YAML tags are the snake_case event keys, not the Go field names.
+	for _, k := range []string{
+		"session_start", "session_end", "user_prompt_submit", "pre_tool_use",
+		"post_tool_use", "post_tool_use_failure", "notification", "pre_compact",
+		"post_compact", "subagent_start", "subagent_stop", "stop", "stop_failure",
+		"worktree_create", "worktree_remove", "cwd_changed",
+	} {
+		known[k] = true
+	}
+	var unknown []string
+	content := doc.Content[0].Content
+	for i := 0; i+1 < len(content); i += 2 {
+		key := content[i].Value
+		if !known[key] {
+			unknown = append(unknown, key)
+		}
+	}
+	return unknown
+}

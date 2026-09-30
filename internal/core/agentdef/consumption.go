@@ -3,6 +3,7 @@ package agentdef
 import (
 	"regexp"
 	"sort"
+	"strings"
 )
 
 // SecretConsumption is how an Agent revision consumes Space Secrets. It is part
@@ -43,6 +44,19 @@ var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // IsEnvName reports whether s is a valid environment variable name.
 func IsEnvName(s string) bool { return envNamePattern.MatchString(s) }
+
+// ReservedEnvPrefix is the namespace the platform sets in a worker's own
+// environment (BUILDMAX_RUN_TOKEN, BUILDMAX_HOME, the storage keys, …). A
+// Secret grant may not deliver an item under a name in it: doing so would let a
+// Space's own configuration name a variable the runtime relies on. See
+// internal/config/env_spec.go for the variables themselves.
+const ReservedEnvPrefix = "BUILDMAX_"
+
+// IsReservedEnvName reports whether name belongs to the platform's reserved
+// environment namespace, so a Secret grant that would set it can be refused.
+func IsReservedEnvName(name string) bool {
+	return strings.HasPrefix(name, ReservedEnvPrefix)
+}
 
 // Canonical returns the consumption in a stable order, so reordering grants is
 // not an edit that appends a revision. It does not validate; that is the

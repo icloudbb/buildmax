@@ -386,10 +386,6 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
-	if req.Input == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "input required")
-		return
-	}
 	run, err := h.taskService().CreateRun(r.Context(), task.CreateRunCmd{
 		UserID: userID, TaskID: target.ID, Input: req.Input,
 		CreatedByType:  coretask.RunCreatedByTypeUser,

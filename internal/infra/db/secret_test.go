@@ -225,8 +225,8 @@ func TestSecretStore_SpaceScopeAndUniqueness(t *testing.T) {
 	if err := mk(spaceA, "dup"); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
-	if err := mk(spaceA, "dup"); err == nil {
-		t.Fatal("second create with same (space,name) should fail")
+	if err := mk(spaceA, "dup"); !errors.Is(err, coresecret.ErrNameTaken) {
+		t.Fatalf("second create with same (space,name): err = %v, want ErrNameTaken", err)
 	}
 	// Same name in another space is fine.
 	if err := mk(spaceB, "dup"); err != nil {

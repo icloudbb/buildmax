@@ -963,13 +963,29 @@ func (s *Store) TransitionWorkflowRun(ctx context.Context, in coreworkflow.Trans
 		// A failure that skipped failing named no cause; it still carries a class.
 		updates["failure_class"] = string(coreworkflow.FailureUnclassified)
 	}
-	res := s.db.WithContext(ctx).Model(&workflowRunRow{}).
-		Where("public_id = ? AND status = ?", id, string(in.ExpectedStatus)).
-		Updates(updates)
-	if res.Error != nil {
-		return false, res.Error
-	}
-	return res.RowsAffected > 0, nil
+	updated := false
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&workflowRunRow{}).
+			Where("public_id = ? AND status = ?", id, string(in.ExpectedStatus)).
+			Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return nil
+		}
+		// A scheduled run's terminal outcome counts toward its schedule's
+		// consecutive-failure pause, as a scheduled Task run's does.
+		if in.NewStatus == coreworkflow.RunStatusSucceeded || in.NewStatus == coreworkflow.RunStatusFailed {
+			scheduleKey := tx.Model(&workflowRunRow{}).Select("schedule_id").Where("public_id = ?", id)
+			if err := foldScheduleOutcome(tx, scheduleKey, in.NewStatus == coreworkflow.RunStatusFailed); err != nil {
+				return err
+			}
+		}
+		updated = true
+		return nil
+	})
+	return updated, err
 }
 
 func (s *Store) TransitionWorkflowNodeRun(ctx context.Context, in coreworkflow.TransitionNodeRunInput) (bool, error) {

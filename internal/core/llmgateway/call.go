@@ -19,6 +19,13 @@ const (
 	CallStatusCanceled  = "CANCELED"
 )
 
+// ErrorClassRunLost is the ledger classification for a call still ACCEPTED when
+// its run was declared lost: the worker that made it stopped reporting, so no
+// outcome will ever arrive to settle the row. It is a BuildMax classification,
+// not an upstream one — the upstream request may well have succeeded — recorded
+// so the ledger has no call stranded ACCEPTED forever behind a dead run.
+const ErrorClassRunLost = "run_lost"
+
 // Where a call's token counts came from. Recording this keeps accounting honest
 // when a provider reports no usage: an absent number and a zero are different
 // facts, and only one of them may be billed.

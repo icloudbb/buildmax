@@ -831,7 +831,8 @@ func (s *Store) ListLostWorkerTaskRuns(ctx context.Context, cutoff time.Time, li
 // TransitionTaskRun moves a run only from the status the caller observed. The
 // run and its task projection commit together, so a worker and a recovery loop
 // cannot overwrite one another's outcome or leave the task disagreeing with its
-// last run.
+// last run. A schedule firing's terminal outcome joins the same commit as its
+// schedule's consecutive-failure count.
 func (s *Store) TransitionTaskRun(ctx context.Context, in coretask.TransitionRunInput) (bool, error) {
 	if !coretask.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
 		return false, fmt.Errorf("%w: %s -> %s", coretask.ErrInvalidRunTransition, in.ExpectedStatus, in.NewStatus)
@@ -887,6 +888,15 @@ func (s *Store) TransitionTaskRun(ctx context.Context, in coretask.TransitionRun
 		}
 		if err := tx.Model(&taskRow{}).Where("id = ?", run.TaskID).Updates(taskUpdates).Error; err != nil {
 			return err
+		}
+		// Only the run a firing admitted speaks for the firing; a later Continue
+		// or Retry on the same Task is a person's work, not the schedule's.
+		settled := in.NewStatus == coretask.RunStatusSucceeded || in.NewStatus == coretask.RunStatusFailed
+		if settled && run.TriggerSource == coretask.RunTriggerSourceSchedule {
+			scheduleKey := tx.Model(&taskRow{}).Select("schedule_id").Where("id = ?", run.TaskID)
+			if err := foldScheduleOutcome(tx, scheduleKey, in.NewStatus == coretask.RunStatusFailed); err != nil {
+				return err
+			}
 		}
 		updated = true
 		return nil

@@ -83,6 +83,7 @@ func (m *MockScheduleStore) UpdateSchedule(_ context.Context, in coreschedule.Up
 			m.Schedules[i].Enabled = *in.Enabled
 			if *in.Enabled {
 				m.Schedules[i].PauseReason = ""
+				m.Schedules[i].ConsecutiveFailures = 0
 			} else if in.PauseReason != nil {
 				m.Schedules[i].PauseReason = *in.PauseReason
 			}
@@ -155,8 +156,6 @@ func (m *MockScheduleStore) RecordFire(_ context.Context, in coreschedule.Record
 		}
 		if in.Failed {
 			m.Schedules[i].ConsecutiveFailures++
-		} else {
-			m.Schedules[i].ConsecutiveFailures = 0
 		}
 		return nil
 	}

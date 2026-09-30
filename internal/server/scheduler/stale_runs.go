@@ -54,6 +54,10 @@ type StaleRunStore interface {
 	ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]coretask.Run, error)
 	ListLostWorkerTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]coretask.Run, error)
 	TransitionTaskRun(ctx context.Context, in coretask.TransitionRunInput) (bool, error)
+	// SettleOrphanedLLMCallsForRun closes ledger calls left ACCEPTED by a run the
+	// reaper just finished, so none stays open behind a worker that will never
+	// report. It returns how many it settled.
+	SettleOrphanedLLMCallsForRun(ctx context.Context, taskRunID string, completedAt time.Time) (int, error)
 }
 
 // WorkerJobDeleter removes the Kubernetes Job a run was dispatched to, with its
@@ -255,6 +259,14 @@ func (c *StaleRunReaper) finish(ctx context.Context, run coretask.Run, status co
 		return
 	}
 	c.log().WarnContext(ctx, logMsg, "status_was", run.Status)
+	// The run is over, so nothing will settle the calls its worker opened. Close
+	// them here rather than leave them ACCEPTED forever behind a dead run. Best
+	// effort: a failure to settle the ledger must not stop the Job cleanup below.
+	if settled, err := c.runs.SettleOrphanedLLMCallsForRun(ctx, run.ID, endedAt); err != nil {
+		c.log().WarnContext(ctx, "could not settle a reaped run's open ledger calls", "err", err)
+	} else if settled > 0 {
+		c.log().InfoContext(ctx, "settled a reaped run's open ledger calls", "count", settled)
+	}
 	c.deleteWorkerJob(ctx, run)
 }
 

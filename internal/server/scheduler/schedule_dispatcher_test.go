@@ -82,8 +82,6 @@ func (f *fakeScheduleStore) RecordFire(_ context.Context, in coreschedule.Record
 	}
 	if in.Failed {
 		sc.ConsecutiveFailures++
-	} else {
-		sc.ConsecutiveFailures = 0
 	}
 	return nil
 }
@@ -99,6 +97,7 @@ func (f *fakeScheduleStore) UpdateSchedule(_ context.Context, in coreschedule.Up
 		sc.Enabled = *in.Enabled
 		if *in.Enabled {
 			sc.PauseReason = ""
+			sc.ConsecutiveFailures = 0
 		} else if in.PauseReason != nil {
 			sc.PauseReason = *in.PauseReason
 		}
@@ -392,6 +391,54 @@ func TestDispatcherPausesAfterConsecutiveFailures(t *testing.T) {
 	}
 	if admitter.count() != 1 {
 		t.Errorf("admitter calls = %d, want 1 failed attempt", admitter.count())
+	}
+}
+
+// A firing that starts its executor has not failed or succeeded yet, so it
+// leaves the count alone: only the run's own outcome may clear it.
+func TestDispatcherStartedFiringLeavesFailureCount(t *testing.T) {
+	t0 := time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC)
+	sched := hourlySchedule(t0)
+	sched.ConsecutiveFailures = maxConsecutiveScheduleFailures - 1
+	store := newFakeScheduleStore(sched)
+	admitter := &fakeAdmitter{}
+	d := newTestDispatcher(t, store, admitter, t0)
+
+	d.fireOne(context.Background(), *sched, t0)
+
+	stored := store.get("sched1")
+	if admitter.count() != 1 || !stored.Enabled {
+		t.Fatalf("admitter calls = %d enabled = %v, want one firing and still enabled", admitter.count(), stored.Enabled)
+	}
+	if stored.ConsecutiveFailures != maxConsecutiveScheduleFailures-1 {
+		t.Errorf("consecutive_failures = %d, want it unchanged at %d until the run settles",
+			stored.ConsecutiveFailures, maxConsecutiveScheduleFailures-1)
+	}
+}
+
+// Runs that were admitted and then failed count as the store settles them. Once
+// they reach the bound the schedule pauses at its next due time instead of
+// firing again, without spending a run and without consuming the due time.
+func TestDispatcherPausesWhenSettledFailuresReachTheBound(t *testing.T) {
+	t0 := time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC)
+	sched := hourlySchedule(t0)
+	sched.ConsecutiveFailures = maxConsecutiveScheduleFailures
+	store := newFakeScheduleStore(sched)
+	admitter := &fakeAdmitter{}
+	d := newTestDispatcher(t, store, admitter, t0)
+
+	d.fireOne(context.Background(), *sched, t0)
+
+	stored := store.get("sched1")
+	if stored.Enabled || stored.PauseReason != coreschedule.PauseReasonConsecutiveFailures {
+		t.Errorf("enabled = %v pause_reason = %q, want paused as %q",
+			stored.Enabled, stored.PauseReason, coreschedule.PauseReasonConsecutiveFailures)
+	}
+	if admitter.count() != 0 {
+		t.Errorf("admitter calls = %d, want none: the bound was already reached", admitter.count())
+	}
+	if !stored.NextFireAt.Equal(t0) || stored.LastFireAt != nil {
+		t.Errorf("next_fire_at = %v last_fire_at = %v, want the due time unclaimed", stored.NextFireAt, stored.LastFireAt)
 	}
 }
 

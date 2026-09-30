@@ -18,6 +18,7 @@ import (
 
 var (
 	ErrNameRequired = apierr.New(apierr.KindInvalid, "secret name required")
+	ErrNameTaken    = apierr.New(apierr.KindConflict, "a secret with this name already exists in the space")
 	ErrNoItems      = apierr.New(apierr.KindInvalid, "a secret needs at least one item")
 	ErrInvalidItem  = apierr.New(apierr.KindInvalid, "an item name must be an identifier")
 	ErrUnknownState = apierr.New(apierr.KindInvalid, "unknown secret state")
@@ -57,7 +58,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coresecret.Secret
 	if err != nil {
 		return nil, err
 	}
-	return s.Store.CreateSecret(ctx, coresecret.CreateInput{
+	created, err := s.Store.CreateSecret(ctx, coresecret.CreateInput{
 		SpaceID:     cmd.SpaceID,
 		Name:        cmd.Name,
 		Description: cmd.Description,
@@ -66,6 +67,10 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coresecret.Secret
 		ItemNames:   names,
 		Sealed:      sealed,
 	})
+	if errors.Is(err, coresecret.ErrNameTaken) {
+		return nil, ErrNameTaken
+	}
+	return created, err
 }
 
 // List returns a space's Secrets, metadata only.

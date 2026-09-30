@@ -196,10 +196,12 @@ func (s *Store) UpdateSchedule(ctx context.Context, in coreschedule.UpdateInput)
 	if in.Enabled != nil {
 		updates["enabled"] = *in.Enabled
 		// Enabling clears the reason so a re-enabled schedule never reads as paused
-		// for a cause that no longer holds. Disabling records the reason the caller
-		// gave, or none for a plain disable.
+		// for a cause that no longer holds, and the failure count with it: a count
+		// left at the bound would pause the schedule again before it fired once.
+		// Disabling records the reason the caller gave, or none for a plain disable.
 		if *in.Enabled {
 			updates["pause_reason"] = ""
+			updates["consecutive_failures"] = 0
 		} else if in.PauseReason != nil {
 			updates["pause_reason"] = *in.PauseReason
 		}
@@ -282,10 +284,11 @@ func (s *Store) ClaimSchedule(ctx context.Context, in coreschedule.ClaimInput) (
 	return res.RowsAffected == 1, nil
 }
 
-// RecordFire stores a firing's outcome. A success resets the consecutive-failure
-// counter; a failure increments it. last_fire_ref is set only when the firing
-// produced something -- the opaque public id of the task or workflow run it
-// started -- and is stored directly, not resolved against a table.
+// RecordFire stores a firing. One that could not start its executor increments
+// the consecutive-failure counter; one that started leaves it for
+// foldScheduleOutcome. last_fire_ref is set only when the firing produced
+// something -- the opaque public id of the task or workflow run it started --
+// and is stored directly, not resolved against a table.
 func (s *Store) RecordFire(ctx context.Context, in coreschedule.RecordFireInput) error {
 	id, ok := util.CanonicalPublicID(in.ScheduleID)
 	if !ok {
@@ -294,8 +297,6 @@ func (s *Store) RecordFire(ctx context.Context, in coreschedule.RecordFireInput)
 	updates := map[string]any{"last_fire_at": in.FiredAt.UTC()}
 	if in.Failed {
 		updates["consecutive_failures"] = gorm.Expr("consecutive_failures + 1")
-	} else {
-		updates["consecutive_failures"] = 0
 	}
 	if in.FireRef != nil {
 		updates["last_fire_ref"] = *in.FireRef
@@ -308,4 +309,21 @@ func (s *Store) RecordFire(ctx context.Context, in coreschedule.RecordFireInput)
 		return apierr.ErrNotFound
 	}
 	return nil
+}
+
+// foldScheduleOutcome folds the terminal outcome of what a firing started into
+// its schedule's consecutive-failure counter: a failure adds one, a success
+// clears it. It runs inside the transition that records the outcome, so the
+// counter cannot miss a run a worker, a reaper, or a cancellation settled.
+//
+// scheduleKey is a subquery yielding the schedule's row id. It yields NULL for
+// work no schedule started, and nothing for a schedule since deleted; both
+// match no row.
+func foldScheduleOutcome(tx *gorm.DB, scheduleKey *gorm.DB, failed bool) error {
+	var next any = 0
+	if failed {
+		next = gorm.Expr("consecutive_failures + 1")
+	}
+	return tx.Model(&scheduleRow{}).Where("id = (?)", scheduleKey).
+		Update("consecutive_failures", next).Error
 }

@@ -25,6 +25,11 @@ type storedSecret struct {
 func newMemStore() *memStore { return &memStore{byID: map[string]*storedSecret{}} }
 
 func (m *memStore) CreateSecret(_ context.Context, in coresecret.CreateInput) (*coresecret.Secret, error) {
+	for _, s := range m.byID {
+		if s.meta.SpaceID == in.SpaceID && s.meta.Name == in.Name {
+			return nil, coresecret.ErrNameTaken
+		}
+	}
 	m.seq++
 	id := "sec_" + string(rune('a'+m.seq))
 	meta := coresecret.Secret{
@@ -158,6 +163,29 @@ func TestService_Validation(t *testing.T) {
 	}
 	if _, err := svc.Create(ctx, CreateCmd{SpaceID: "t", CreatedBy: "u", Name: "n", Items: map[string]string{"bad-name": "v"}}); err != ErrInvalidItem {
 		t.Fatalf("invalid item err = %v", err)
+	}
+}
+
+// A name a Space already uses is the caller's conflict to resolve, not a server
+// fault: the store's unique index used to surface as a 500.
+func TestService_CreateDuplicateNameIsConflict(t *testing.T) {
+	ctx := context.Background()
+	svc := testService(t)
+	cmd := CreateCmd{SpaceID: "t", CreatedBy: "u", Name: "dup", Items: map[string]string{"k": "v"}}
+
+	if _, err := svc.Create(ctx, cmd); err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	if _, err := svc.Create(ctx, cmd); err != ErrNameTaken {
+		t.Fatalf("duplicate name err = %v, want ErrNameTaken", err)
+	}
+	if kind, _ := apierr.KindOf(ErrNameTaken); kind != apierr.KindConflict {
+		t.Fatalf("ErrNameTaken kind = %v, want conflict", kind)
+	}
+	other := cmd
+	other.SpaceID = "t2"
+	if _, err := svc.Create(ctx, other); err != nil {
+		t.Fatalf("same name in another space: %v", err)
 	}
 }
 

@@ -3,6 +3,8 @@ package task
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
@@ -229,7 +231,7 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*coretask.Ru
 	if s.TaskRuns == nil {
 		return nil, ErrTaskRunsNotConfigured
 	}
-	if cmd.Input == "" {
+	if blankInput(cmd.Input) {
 		return nil, ErrInputRequired
 	}
 	if s.Tasks == nil {
@@ -459,7 +461,7 @@ func (s *Service) StartBackgroundTask(ctx context.Context, cmd CreateTaskCmd) (*
 
 func (s *Service) resolveInput(ctx context.Context, spaceID, userID, input string, agentID *string) (string, *string, *agentdef.Agent, error) {
 	if agentID == nil || *agentID == "" {
-		if input == "" {
+		if blankInput(input) {
 			return "", nil, nil, ErrInputRequired
 		}
 		return input, nil, nil, nil
@@ -474,11 +476,15 @@ func (s *Service) resolveInput(ctx context.Context, spaceID, userID, input strin
 	if agent == nil || agent.SpaceID != spaceID {
 		return "", nil, nil, ErrAgentNotFound
 	}
-	if input != "" {
+	if !blankInput(input) {
 		return input, agentID, agent, nil
 	}
 	return buildTaskInputFromAgent(agent, ""), agentID, agent, nil
 }
+
+// blankInput reports whether input says nothing. Whitespace alone is no
+// instruction: admitting it would spend a worker run and model tokens on it.
+func blankInput(input string) bool { return strings.TrimSpace(input) == "" }
 
 func (s *Service) resolveTitle(ctx context.Context, input string) (string, int, int) {
 	title := truncateTaskTitle(input, defaultTitleRunes)

@@ -58,6 +58,9 @@ func (s *Service) validateConsumption(ctx context.Context, spaceID string, c age
 			if !agentdef.IsEnvName(n) {
 				return apierr.New(apierr.KindInvalid, "secret consumption: "+n+" is not a valid environment variable name")
 			}
+			if agentdef.IsReservedEnvName(n) {
+				return apierr.New(apierr.KindInvalid, "secret consumption: environment variable "+n+" is reserved for the platform ("+agentdef.ReservedEnvPrefix+"*) and cannot be a Secret grant target")
+			}
 			if _, dup := resolved[n]; dup {
 				return apierr.New(apierr.KindInvalid, "secret consumption: environment variable "+n+" is set by more than one grant")
 			}

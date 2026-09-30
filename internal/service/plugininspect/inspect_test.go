@@ -209,6 +209,33 @@ func TestDirReportsUnparseablePayload(t *testing.T) {
 	}
 }
 
+// A hooks.yaml wrapped in a settings.yaml `hooks:` block parses cleanly but
+// contributes nothing, because a plugin's events sit at the top level. That
+// used to activate with no sign anything was wrong; now the publisher is warned
+// their hooks are ignored, while the package still validates.
+func TestDirWarnsWhenPluginHooksUseTheSettingsWrapper(t *testing.T) {
+	fsys := fstest.MapFS{
+		"plugin.yaml": file("name: wrapped\nversion: 1.0.0\n"),
+		"hooks.yaml": file("hooks:\n  post_tool_use:\n    - type: command\n" +
+			"      command: \"${BUILDMAX_PLUGIN_ROOT}/hooks/x.sh\"\n"),
+		"hooks/x.sh": file("#!/bin/sh\n"),
+	}
+	got, err := Dir(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.HasErrors() {
+		t.Fatalf("a wrapper mistake should warn, not error:\n%s", findingText(got))
+	}
+	if len(got.Hooks) != 0 {
+		t.Errorf("Hooks = %+v, want none: the wrapped events do not load", got.Hooks)
+	}
+	text := findingText(got)
+	if !strings.Contains(text, "hooks.yaml") || !strings.Contains(text, "hooks:") {
+		t.Errorf("expected a warning naming the hooks: wrapper:\n%s", text)
+	}
+}
+
 func TestDirRequiresAManifest(t *testing.T) {
 	if _, err := Dir(fstest.MapFS{"skills/x/SKILL.md": file("# x\n")}); err == nil {
 		t.Error("a directory with no manifest is not a package")

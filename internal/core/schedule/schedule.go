@@ -34,7 +34,8 @@ const (
 	// PauseReasonCreatorNotMember is the creator being removed from the Space.
 	PauseReasonCreatorNotMember = "creator_not_member"
 	// PauseReasonConsecutiveFailures is the dispatcher pausing after a run of
-	// firings that could not admit a Task.
+	// failed firings: ones that could not start their executor, or whose
+	// execution ended failed.
 	PauseReasonConsecutiveFailures = "consecutive_failures"
 	// PauseReasonInvalidCron is a stored cron expression that no longer parses,
 	// so the schedule can never compute a next fire time.
@@ -75,9 +76,11 @@ type Schedule struct {
 	// firing has produced anything yet. It is an opaque handle read alongside
 	// ExecutorKind, not a joined reference.
 	LastFireRef *string `json:"last_fire_ref,omitempty"`
-	// ConsecutiveFailures counts firings that failed to start the executor since the
-	// last success. It bounds runaway cost: the dispatcher pauses a schedule that
-	// fails this many times in a row (the threshold lives with the dispatcher).
+	// ConsecutiveFailures counts failed firings since the last one that succeeded:
+	// a firing that could not start its executor, or whose Task run or workflow
+	// run ended failed. A canceled execution is neither. It bounds runaway cost:
+	// the dispatcher pauses a schedule that fails this many times in a row (the
+	// threshold lives with the dispatcher). Enabling a schedule clears it.
 	ConsecutiveFailures int       `json:"consecutive_failures"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
@@ -111,8 +114,9 @@ type UpdateInput struct {
 	Enabled    *bool
 	NextFireAt *time.Time
 	// PauseReason is written only alongside disabling. Enabling the schedule
-	// clears it regardless, so a re-enabled schedule never carries a stale
-	// reason; the store enforces that so no caller has to remember it.
+	// clears it and the consecutive-failure counter regardless, so a re-enabled
+	// schedule never carries a stale reason or a count that would pause it again
+	// before it fired; the store enforces that so no caller has to remember it.
 	PauseReason *string
 }
 
@@ -125,10 +129,12 @@ type ClaimInput struct {
 	NewNextFireAt      time.Time
 }
 
-// RecordFireInput records the outcome of one firing. Failed increments the
-// consecutive-failure counter; a success resets it to zero. FireRef is nil when
-// the firing produced nothing (the executor could not be started). It is the
-// Task id for an Agent firing, the workflow-run id for a Workflow firing.
+// RecordFireInput records one firing. Failed means the executor could not be
+// started, which counts toward the consecutive-failure counter at once. A
+// firing that started leaves the counter alone: what it started has not ended
+// yet, and the store folds that outcome in when it does. FireRef is nil when the
+// firing produced nothing. It is the Task id for an Agent firing, the
+// workflow-run id for a Workflow firing.
 type RecordFireInput struct {
 	ScheduleID string
 	FiredAt    time.Time
@@ -156,7 +162,9 @@ type Store interface {
 	// schedule changed under the caller — another replica claimed it, or it was
 	// disabled or edited — and this caller must not fire it.
 	ClaimSchedule(ctx context.Context, in ClaimInput) (claimed bool, err error)
-	// RecordFire stores a firing's outcome: last fire time, the Task it created,
-	// and the consecutive-failure counter.
+	// RecordFire stores a firing: last fire time, what it started, and one more
+	// consecutive failure when it could not start anything. The terminal outcome
+	// of what it started is folded into the counter by the run transition that
+	// records it, in the same transaction, so no caller reports it here.
 	RecordFire(ctx context.Context, in RecordFireInput) error
 }

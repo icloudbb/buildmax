@@ -25,6 +25,9 @@ type fakeStaleStore struct {
 	transitions      []coretask.TransitionRunInput
 	updateErr        error
 	transitionWon    *bool
+	settledRuns      []string
+	settleCount      int
+	settleErr        error
 }
 
 func (f *fakeStaleStore) ListStaleTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]coretask.Run, error) {
@@ -40,6 +43,14 @@ func (f *fakeStaleStore) ListCancelRequestedTaskRuns(_ context.Context, cutoff t
 func (f *fakeStaleStore) ListLostWorkerTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]coretask.Run, error) {
 	f.lastLostCutoff = cutoff
 	return f.lost, f.lostListErr
+}
+
+func (f *fakeStaleStore) SettleOrphanedLLMCallsForRun(_ context.Context, taskRunID string, _ time.Time) (int, error) {
+	if f.settleErr != nil {
+		return 0, f.settleErr
+	}
+	f.settledRuns = append(f.settledRuns, taskRunID)
+	return f.settleCount, nil
 }
 
 func (f *fakeStaleStore) TransitionTaskRun(_ context.Context, in coretask.TransitionRunInput) (bool, error) {
@@ -91,6 +102,39 @@ func TestReaperClosesAbandonedRuns(t *testing.T) {
 		if in.FailureClass != coretask.FailureAbandoned {
 			t.Errorf("run %s class = %q, want abandoned", in.TaskRunID, in.FailureClass)
 		}
+	}
+}
+
+// A reaped run's worker is gone, so nothing will settle the ledger calls it
+// opened. The reaper closes them itself; otherwise each stays ACCEPTED forever
+// behind a run that already read as failed.
+func TestReaperSettlesOrphanedLedgerCallsForFinishedRuns(t *testing.T) {
+	store, reaper := newStaleFixture(
+		coretask.Run{ID: "r_1", Status: string(coretask.RunStatusRunning)},
+	)
+	store.settleCount = 2
+
+	now := time.Unix(1_800_000_000, 0)
+	reaper.Sweep(context.Background(), now)
+
+	if len(store.settledRuns) != 1 || store.settledRuns[0] != "r_1" {
+		t.Fatalf("settled runs = %v, want [r_1]", store.settledRuns)
+	}
+}
+
+// A run whose outcome another replica already wrote is not this reaper's to
+// finish, and it must not touch that run's ledger either.
+func TestReaperLeavesLedgerAloneWhenItLosesTheRace(t *testing.T) {
+	store, reaper := newStaleFixture(
+		coretask.Run{ID: "r_1", Status: string(coretask.RunStatusRunning)},
+	)
+	lost := false
+	store.transitionWon = &lost
+
+	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
+
+	if len(store.settledRuns) != 0 {
+		t.Errorf("settled runs = %v, want none: the reaper did not finish this run", store.settledRuns)
 	}
 }
 

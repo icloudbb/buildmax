@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 
@@ -228,6 +229,21 @@ func inspectHooks(fsys fs.FS, p *Package, refs *refSet) []plugin.Hook {
 			Severity: plugin.SeverityError, Field: hooksFile, Message: err.Error(),
 		})
 		return nil
+	}
+
+	// Top-level keys that name no event are dropped on load, so a stanza under
+	// one never runs. Warn rather than fail: the file parses, the plugin still
+	// activates, but the publisher is told their hooks contribute nothing. The
+	// usual cause is the settings.yaml `hooks:` wrapper, which a plugin's
+	// hooks.yaml must not have — its events sit at the top level.
+	if unknown := corehook.UnknownTopLevelKeys(data); len(unknown) > 0 {
+		msg := "these top-level keys name no hook event and are ignored: " + strings.Join(unknown, ", ")
+		if slices.Contains(unknown, "hooks") {
+			msg += `; a plugin's hooks.yaml puts events at the top level, without the settings.yaml "hooks:" wrapper`
+		}
+		p.Findings = append(p.Findings, plugin.Finding{
+			Severity: plugin.SeverityWarning, Field: hooksFile, Message: msg,
+		})
 	}
 
 	var out []plugin.Hook

@@ -26,10 +26,11 @@ const (
 	// backlog after an outage is worked through over a few ticks rather than in
 	// one unbounded pass.
 	scheduleDueBatch = 100
-	// maxConsecutiveScheduleFailures pauses a schedule that fails to admit a Task
-	// this many times in a row, so an unattended trigger that fails forever stops
-	// spending quota. A small single-digit value; see the proposal's open
-	// questions for tuning it.
+	// maxConsecutiveScheduleFailures pauses a schedule whose firings fail this many
+	// times in a row -- they could not start their executor, or what they started
+	// ended failed -- so an unattended trigger that fails forever stops spending
+	// quota. A small single-digit value; see the proposal's open questions for
+	// tuning it.
 	maxConsecutiveScheduleFailures = 5
 )
 
@@ -166,6 +167,10 @@ func (d *ScheduleDispatcher) sweep(ctx context.Context) {
 // fire and moves to its next time, and a run of failures pauses it. The next
 // time is computed from now rather than the stale due time, so a schedule missed
 // during an outage fires once and resumes instead of replaying every slot.
+//
+// A firing that starts its executor can still fail, after this returns. The
+// store counts that outcome when the run settles, so the pause for it lands
+// here, the next time the schedule comes due, in place of another firing.
 func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedule, now time.Time) {
 	log := d.log().With("schedule_id", s.ID, "space_id", s.SpaceID)
 
@@ -204,6 +209,16 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 		}
 	}
 
+	// Checked before the claim so the bound is reached without spending one more
+	// run. Firings still in flight have not been counted; a schedule that fires
+	// faster than its runs end can therefore overshoot by those.
+	if s.ConsecutiveFailures >= d.maxFailures {
+		log.WarnContext(ctx, "schedule paused after consecutive failures",
+			"consecutive_failures", s.ConsecutiveFailures)
+		d.pause(ctx, s.ID, coreschedule.PauseReasonConsecutiveFailures, log)
+		return
+	}
+
 	claimed, err := d.schedules.ClaimSchedule(ctx, coreschedule.ClaimInput{
 		ScheduleID:         s.ID,
 		ExpectedNextFireAt: s.NextFireAt,
@@ -229,7 +244,8 @@ func (d *ScheduleDispatcher) fireOne(ctx context.Context, s coreschedule.Schedul
 			log.WarnContext(ctx, "record failed fire", "err", rErr)
 		}
 		// s.ConsecutiveFailures is the count before this fire; +1 is where it now
-		// stands. Pause once a run of failures reaches the bound.
+		// stands. Nothing is left to settle for a firing that started nothing, so
+		// pause at once when this one reaches the bound.
 		if s.ConsecutiveFailures+1 >= d.maxFailures {
 			log.WarnContext(ctx, "schedule paused after consecutive failures",
 				"consecutive_failures", s.ConsecutiveFailures+1)

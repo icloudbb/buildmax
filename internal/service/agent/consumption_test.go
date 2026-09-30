@@ -56,6 +56,12 @@ func TestValidateConsumption(t *testing.T) {
 		{"invalid env name", env(agentdef.SecretEnvGrant{Secret: "sec_gh", Item: "token", EnvName: "GH-TOKEN"}), true},
 		{"no secret named", env(agentdef.SecretEnvGrant{Item: "token", EnvName: "T"}), true},
 
+		// A grant may not deliver an item under a platform variable name: the
+		// worker sets those itself, and letting a Space's config name one would
+		// let it shadow a variable the runtime relies on.
+		{"reserved env name refused", env(agentdef.SecretEnvGrant{Secret: "sec_gh", Item: "token", EnvName: "BUILDMAX_RUN_TOKEN"}), true},
+		{"reserved prefix on a whole group refused", env(agentdef.SecretEnvGrant{Secret: "sec_aws", Prefix: "BUILDMAX_"}), true},
+
 		{"named collision", env(
 			agentdef.SecretEnvGrant{Secret: "sec_gh", Item: "token", EnvName: "DUP"},
 			agentdef.SecretEnvGrant{Secret: "sec_aws", Item: "region", EnvName: "DUP"},

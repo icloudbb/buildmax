@@ -195,6 +195,67 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 	}
 }
 
+// A run declared lost leaves its still-open calls stranded ACCEPTED, because
+// the worker that would settle each is gone. SettleOrphanedLLMCallsForRun closes
+// exactly those, leaving a call that already finished — and one on another run —
+// untouched.
+func TestSettleOrphanedLLMCallsForRun(t *testing.T) {
+	s, ctx := newTestStore(t)
+	f := newScheduleFixture(t, s, "ledger-orphan")
+	sched := newTestSchedule(t, s, f, time.Unix(1_800_000_000, 0).UTC(), true)
+	lostTask := newScheduledTaskForTest(t, s, ctx, f, sched.ID)
+	otherTask := newScheduledTaskForTest(t, s, ctx, f, sched.ID)
+	lostRun, otherRun := *lostTask.LastRunID, *otherTask.LastRunID
+	userID := f.userID
+
+	open := func(runID, status string) string {
+		t.Helper()
+		call := sampleLLMCall()
+		call.UserID = &userID
+		call.TaskRunID = &runID
+		call.ClientCallID = ptrString(testPublicID(t))
+		call.Status = status
+		c, err := s.OpenLLMCall(ctx, call)
+		if err != nil {
+			t.Fatalf("OpenLLMCall: %v", err)
+		}
+		t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "public_id = ?", canonicalPublicID(c.ID)) })
+		return c.ID
+	}
+	stranded := open(lostRun, coregw.CallStatusAccepted)
+	finished := open(lostRun, coregw.CallStatusSucceeded)
+	untouched := open(otherRun, coregw.CallStatusAccepted)
+
+	completedAt := time.Unix(1_800_000_600, 0).UTC()
+	n, err := s.SettleOrphanedLLMCallsForRun(ctx, lostRun, completedAt)
+	if err != nil {
+		t.Fatalf("SettleOrphanedLLMCallsForRun: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("settled %d calls, want 1 (only the ACCEPTED one on the lost run)", n)
+	}
+
+	get := func(id string) *coregw.Call {
+		t.Helper()
+		c, err := s.GetLLMCall(ctx, id)
+		if err != nil || c == nil {
+			t.Fatalf("GetLLMCall(%s): %v %v", id, c, err)
+		}
+		return c
+	}
+	if c := get(stranded); c.Status != coregw.CallStatusFailed || c.ErrorClass == nil || *c.ErrorClass != coregw.ErrorClassRunLost {
+		t.Errorf("stranded call: status=%q error_class=%v, want FAILED run_lost", c.Status, c.ErrorClass)
+	} else if c.CompletedAt == nil || !c.CompletedAt.Equal(completedAt) {
+		t.Errorf("stranded call completed_at = %v, want %v", c.CompletedAt, completedAt)
+	}
+	if c := get(finished); c.Status != coregw.CallStatusSucceeded {
+		t.Errorf("already-finished call was rewritten to %q", c.Status)
+	}
+	if c := get(untouched); c.Status != coregw.CallStatusAccepted {
+		t.Errorf("another run's open call was settled: status=%q", c.Status)
+	}
+}
+
 func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {

@@ -1322,6 +1322,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "A secret with this name already exists in the space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
