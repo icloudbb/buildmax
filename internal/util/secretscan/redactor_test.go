@@ -1,6 +1,11 @@
 package secretscan
 
-import "testing"
+import (
+	"bytes"
+	"log/slog"
+	"strings"
+	"testing"
+)
 
 func TestRedactor_ExactValues(t *testing.T) {
 	r := NewRedactor([]string{"ghs_abcdef123456", "short", "", "AKIAIOSFODNN7EXAMPLE"})
@@ -16,6 +21,26 @@ func TestRedactor_ExactValues(t *testing.T) {
 	// Shape-based redaction still runs on top of exact.
 	if got := r.Redact("Authorization: Bearer sometoken12345"); got == "Authorization: Bearer sometoken12345" {
 		t.Fatalf("shape redaction should still apply: got %q", got)
+	}
+}
+
+// A text log quotes an attribute that holds a newline or a quote, so a
+// multi-line value is present only escaped; the quoted form must still go.
+func TestRedactor_ExactQuotedCoversTheTextLogForm(t *testing.T) {
+	const value = "line one of the harbor canary\nline \"two\""
+	var buf bytes.Buffer
+	slog.New(slog.NewTextHandler(&buf, nil)).Info("tool output", "text", value, "plain", "harbor-canary-value")
+	r := NewRedactor([]string{value, "harbor-canary-value"})
+	got := r.RedactExactQuoted(buf.String())
+	if strings.Contains(got, "harbor canary") || strings.Contains(got, "harbor-canary-value") {
+		t.Fatalf("log line still carries a value: %q", got)
+	}
+	if !strings.Contains(got, `text="[redacted]"`) || !strings.Contains(got, "plain=[redacted]") {
+		t.Fatalf("log line = %q, want both values replaced in place", got)
+	}
+	var nilRedactor *Redactor
+	if got := nilRedactor.RedactExactQuoted(buf.String()); got != buf.String() {
+		t.Fatalf("nil redactor changed the log: %q", got)
 	}
 }
 

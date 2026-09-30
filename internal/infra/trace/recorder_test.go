@@ -179,11 +179,11 @@ func TestRecorder_RecordCap(t *testing.T) {
 
 func TestRecordRunEnd_Synthetic(t *testing.T) {
 	dir := t.TempDir()
-	rec := NewRecorder(runDirFor(dir, "s"), Meta{RunID: "rt_block", SessionID: "s"})
-	rec.RecordRunEnd("blocked by hook: nope")
+	rec := NewRecorder(runDirFor(dir, "s"), Meta{RunID: "rt_block", SessionID: "s", SecretValues: []string{"harbor-canary-value"}})
+	rec.RecordRunEnd("blocked by hook: nope, it held harbor-canary-value")
 	rec.Close()
 	recs := readRecords(t, filepath.Join(dir, "s", "rt_block.jsonl"))
-	if len(recs) != 5 || recs[4].Type != "run_end" || recs[4].Error != "blocked by hook: nope" {
+	if len(recs) != 5 || recs[4].Type != "run_end" || recs[4].Error != "blocked by hook: nope, it held [redacted]" {
 		t.Errorf("synthetic run_end wrong: %+v", recs)
 	}
 }

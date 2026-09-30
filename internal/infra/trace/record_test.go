@@ -185,3 +185,20 @@ func TestRecordFromEvent_RedactsExactSecretValue(t *testing.T) {
 		t.Fatalf("expected a redaction marker: %q", r.Result)
 	}
 }
+
+// A run's error and a denial's reason quote what failed -- a provider echoing
+// the prompt, a hook quoting the input it blocked -- so they are free text too.
+func TestRecordFromEvent_RedactsSecretValuesFromErrorsAndDenials(t *testing.T) {
+	const secret = "harbor-canary-value"
+	red := secretscan.NewRedactor([]string{secret})
+	for _, e := range []agent.Event{
+		{Kind: agent.EventRunEnd, Err: errors.New("provider error (HTTP 400): the request quoted " + secret)},
+		{Kind: agent.EventToolDenied, DenyReason: "hook refused an argument holding " + secret},
+		{Kind: agent.EventUserInputBlocked, DenyReason: "hook refused input holding " + secret},
+	} {
+		r, _ := recordFromEvent(e, defaultMaxFieldBytes, red)
+		if strings.Contains(r.Error+r.DenyReason, secret) || !strings.Contains(r.Error+r.DenyReason, "[redacted]") {
+			t.Errorf("%s record: error %q, deny reason %q", r.Type, r.Error, r.DenyReason)
+		}
+	}
+}

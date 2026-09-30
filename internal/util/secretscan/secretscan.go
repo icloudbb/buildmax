@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -108,6 +109,25 @@ func (r *Redactor) RedactExact(s string) string {
 	}
 	for _, v := range r.exact {
 		s = strings.ReplaceAll(s, v, exactMarker)
+	}
+	return s
+}
+
+// RedactExactQuoted is RedactExact for a text log, which also holds a value in
+// its Go-quoted form: slog's text handler quotes an attribute with a space, a
+// quote, or a newline, so a multi-line value such as a key file appears only
+// escaped. Both the raw value and that escaped body are replaced. A nil
+// Redactor returns s unchanged.
+func (r *Redactor) RedactExactQuoted(s string) string {
+	s = r.RedactExact(s)
+	if r == nil || s == "" {
+		return s
+	}
+	for _, v := range r.exact {
+		q := strconv.Quote(v)
+		if body := q[1 : len(q)-1]; body != v {
+			s = strings.ReplaceAll(s, body, exactMarker)
+		}
 	}
 	return s
 }
