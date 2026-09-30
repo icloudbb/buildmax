@@ -144,3 +144,32 @@ func TestFormatMinute(t *testing.T) {
 		t.Fatalf("FormatMinute() = %q, want %q", got, want)
 	}
 }
+
+func TestExceedsRuneLimit(t *testing.T) {
+	if ExceedsRuneLimit("abc", 3) {
+		t.Error("3 runes should fit a limit of 3")
+	}
+	if !ExceedsRuneLimit("abcd", 3) {
+		t.Error("4 runes should exceed a limit of 3")
+	}
+	// Counts runes, not bytes: 3 multi-byte characters fit a limit of 3.
+	if ExceedsRuneLimit("日本語", 3) {
+		t.Error("3 multi-byte runes should fit a limit of 3")
+	}
+	if !ExceedsRuneLimit("日本語", 2) {
+		t.Error("3 runes should exceed a limit of 2")
+	}
+}
+
+func TestExceedsByteLimit(t *testing.T) {
+	if ExceedsByteLimit("abc", 3) {
+		t.Error("3 bytes should fit a limit of 3")
+	}
+	if !ExceedsByteLimit("abcd", 3) {
+		t.Error("4 bytes should exceed a limit of 3")
+	}
+	// Counts bytes: one 3-byte rune exceeds a 2-byte limit.
+	if !ExceedsByteLimit("日", 2) {
+		t.Error("a 3-byte rune should exceed a 2-byte limit")
+	}
+}

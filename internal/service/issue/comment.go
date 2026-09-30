@@ -2,9 +2,9 @@ package issue
 
 import (
 	"context"
-	"github.com/icloudbb/buildmax/internal/core/apierr"
 	"strings"
 
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 )
 
@@ -142,11 +142,27 @@ func isAgentAuthoredKind(kind string) bool {
 // comment body. An Artifact is reachable by its own handle, so a second, weaker
 // reference would be one more thing to keep true. Composed here, at the one
 // choke point every write path reaches, rather than in each route.
+// Artifact references on a comment come from model-chosen worker code, so their
+// number and each one's length are bounded: an unbounded or huge list would
+// otherwise write arbitrary text — potentially over the comment's TEXT column —
+// into durable content. A reference is inert until fetched (that route re-checks
+// membership), so this only keeps the body bounded, not authorized. An id past
+// the length of a public id is dropped; the list is truncated past the cap.
+const (
+	maxCommentArtifactRefs   = 20
+	maxCommentArtifactRefLen = 64
+)
+
 func appendArtifactRefs(body string, ids []string) string {
 	refs := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if trimmed := strings.TrimSpace(id); trimmed != "" {
-			refs = append(refs, trimmed)
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" || len(trimmed) > maxCommentArtifactRefLen {
+			continue
+		}
+		refs = append(refs, trimmed)
+		if len(refs) == maxCommentArtifactRefs {
+			break
 		}
 	}
 	if len(refs) == 0 {

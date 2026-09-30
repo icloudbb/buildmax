@@ -333,3 +333,25 @@ func TestCreateStoresModelUncheckedWithoutACatalog(t *testing.T) {
 		t.Errorf("Model = %q, want whatever", a.Model)
 	}
 }
+
+// A name over its column cap or whitespace-only is a clean invalid error, not a
+// write failure surfaced as a 500.
+func TestCreateAgent_NameBounds(t *testing.T) {
+	svc, _, ctx := newService(t)
+	base := agent.CreateCmd{SpaceID: "tm_1", UserID: "u1", Instructions: "do"}
+	long := base
+	long.Name = strings.Repeat("x", 256)
+	if _, err := svc.CreateAgent(ctx, long); err != agent.ErrNameTooLong {
+		t.Errorf("over-long name err = %v, want ErrNameTooLong", err)
+	}
+	ws := base
+	ws.Name = "   \n\t"
+	if _, err := svc.CreateAgent(ctx, ws); err != agent.ErrNameRequired {
+		t.Errorf("whitespace name err = %v, want ErrNameRequired", err)
+	}
+	ok := base
+	ok.Name = strings.Repeat("y", 255)
+	if _, err := svc.CreateAgent(ctx, ok); err != nil {
+		t.Errorf("name at the cap should be accepted: %v", err)
+	}
+}

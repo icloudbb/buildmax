@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,6 +109,20 @@ func TestSpaceHandlers(t *testing.T) {
 		}
 		if len(list) != 3 {
 			t.Fatalf("spaces len after create = %d, want 3", len(list))
+		}
+	})
+
+	t.Run("POST create space rejects whitespace and over-long names", func(t *testing.T) {
+		for _, name := range []string{"   ", "", strings.Repeat("x", 300)} {
+			payload, _ := json.Marshal(map[string]string{"name": name})
+			req := httptest.NewRequest(http.MethodPost, "/api/spaces", bytes.NewReader(payload))
+			req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", spaceTestSecret))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("name %q status = %d, want 400 body=%s", name[:min(len(name), 8)], rec.Code, rec.Body.String())
+			}
 		}
 	})
 

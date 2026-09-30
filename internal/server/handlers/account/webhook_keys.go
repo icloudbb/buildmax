@@ -3,11 +3,16 @@ package account
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
+	"github.com/icloudbb/buildmax/internal/util"
 )
+
+// maxWebhookKeyNameRunes bounds a key's label to its varchar(255) column.
+const maxWebhookKeyNameRunes = 255
 
 type createWebhookKeyRequest struct {
 	Name string `json:"name"`
@@ -36,6 +41,11 @@ func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 	var req createWebhookKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if util.ExceedsRuneLimit(req.Name, maxWebhookKeyNameRunes) {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "name is too long")
 		return
 	}
 	plaintextKey, keyID, err := h.cfg.WebhookKeys.CreateKey(r.Context(), userID, req.Name)

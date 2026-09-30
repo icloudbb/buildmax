@@ -28,6 +28,8 @@ var (
 	ErrTasksNotConfigured         = apierr.New(apierr.KindNotConfigured, "tasks not configured")
 	ErrWorkflowNameRequired       = apierr.New(apierr.KindInvalid, "workflow name required")
 	ErrWorkflowDefinitionRequired = apierr.New(apierr.KindInvalid, "workflow definition required")
+	ErrWorkflowNameTooLong        = apierr.New(apierr.KindInvalid, "workflow name is too long")
+	ErrWorkflowDescriptionTooLong = apierr.New(apierr.KindInvalid, "workflow description is too long")
 	ErrWorkflowNotFound           = apierr.New(apierr.KindNotFound, "workflow not found")
 	ErrWorkflowRunNotFound        = apierr.New(apierr.KindNotFound, "workflow run not found")
 	ErrWorkflowRevisionNotFound   = apierr.New(apierr.KindNotFound, "workflow revision not found")
@@ -175,12 +177,26 @@ func (s *Service) ListWorkflows(ctx context.Context, spaceID string) ([]corework
 	return s.Workflows.ListWorkflowsBySpace(ctx, spaceID)
 }
 
+// maxWorkflowNameRunes bounds a workflow name to its varchar(255) column;
+// maxWorkflowDescriptionBytes bounds the description to its TEXT column.
+const (
+	maxWorkflowNameRunes        = 255
+	maxWorkflowDescriptionBytes = 65535
+)
+
 func (s *Service) CreateWorkflow(ctx context.Context, cmd CreateWorkflowCmd) (*coreworkflow.Workflow, error) {
 	if s.Workflows == nil {
 		return nil, ErrWorkflowsNotConfigured
 	}
-	if strings.TrimSpace(cmd.Name) == "" {
+	name := strings.TrimSpace(cmd.Name)
+	if name == "" {
 		return nil, ErrWorkflowNameRequired
+	}
+	if util.ExceedsRuneLimit(name, maxWorkflowNameRunes) {
+		return nil, ErrWorkflowNameTooLong
+	}
+	if util.ExceedsByteLimit(strings.TrimSpace(cmd.Description), maxWorkflowDescriptionBytes) {
+		return nil, ErrWorkflowDescriptionTooLong
 	}
 	if strings.TrimSpace(cmd.Definition) == "" {
 		return nil, ErrWorkflowDefinitionRequired
@@ -223,6 +239,12 @@ func (s *Service) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflowCmd) (*c
 	}
 	if cmd.Definition != nil && strings.TrimSpace(*cmd.Definition) == "" {
 		return nil, ErrWorkflowDefinitionRequired
+	}
+	if cmd.Name != nil && util.ExceedsRuneLimit(strings.TrimSpace(*cmd.Name), maxWorkflowNameRunes) {
+		return nil, ErrWorkflowNameTooLong
+	}
+	if cmd.Description != nil && util.ExceedsByteLimit(*cmd.Description, maxWorkflowDescriptionBytes) {
+		return nil, ErrWorkflowDescriptionTooLong
 	}
 	if cmd.Status != nil {
 		if !isValidWorkflowStatus(*cmd.Status) {

@@ -18,6 +18,7 @@ const defaultTitleRunes = 50
 
 var (
 	ErrInputRequired         = apierr.New(apierr.KindInvalid, "input required")
+	ErrInputTooLong          = apierr.New(apierr.KindInvalid, "input is too long")
 	ErrAgentsNotConfigured   = apierr.New(apierr.KindNotConfigured, "agents not configured")
 	ErrTasksNotConfigured    = apierr.New(apierr.KindNotConfigured, "tasks not configured")
 	ErrTaskRunsNotConfigured = apierr.New(apierr.KindNotConfigured, "task runs not configured")
@@ -233,6 +234,9 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*coretask.Ru
 	}
 	if blankInput(cmd.Input) {
 		return nil, ErrInputRequired
+	}
+	if util.ExceedsByteLimit(cmd.Input, maxTaskInputBytes) {
+		return nil, ErrInputTooLong
 	}
 	if s.Tasks == nil {
 		return nil, ErrTasksNotConfigured
@@ -460,6 +464,9 @@ func (s *Service) StartBackgroundTask(ctx context.Context, cmd CreateTaskCmd) (*
 }
 
 func (s *Service) resolveInput(ctx context.Context, spaceID, userID, input string, agentID *string) (string, *string, *agentdef.Agent, error) {
+	if util.ExceedsByteLimit(input, maxTaskInputBytes) {
+		return "", nil, nil, ErrInputTooLong
+	}
 	if agentID == nil || *agentID == "" {
 		if blankInput(input) {
 			return "", nil, nil, ErrInputRequired
@@ -481,6 +488,10 @@ func (s *Service) resolveInput(ctx context.Context, spaceID, userID, input strin
 	}
 	return buildTaskInputFromAgent(agent, ""), agentID, agent, nil
 }
+
+// maxTaskInputBytes bounds a Task or run input to its TEXT column (65535 bytes),
+// so an over-column input is a 400 rather than a write error surfaced as a 500.
+const maxTaskInputBytes = 65535
 
 // blankInput reports whether input says nothing. Whitespace alone is no
 // instruction: admitting it would spend a worker run and model tokens on it.

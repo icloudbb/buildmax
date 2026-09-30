@@ -1019,3 +1019,20 @@ func TestReconcile_FailedTaskRunFailsRunAndBlocksLaterSteps(t *testing.T) {
 		t.Fatalf("run status = %q, want failed", updatedRun.Status)
 	}
 }
+
+// Name and description are bounded to their columns; an over-long value is a
+// clean invalid error, checked before the definition is parsed.
+func TestCreateWorkflow_FieldBounds(t *testing.T) {
+	svc := &Service{Workflows: &mock.MockWorkflowStore{}}
+	ctx := context.Background()
+	validDef := `{"schema_version":1,"nodes":[{"id":"c","type":"agent_task","agent":{"id":"a_1"},"input":{"instruction":"x"}}]}`
+	if _, err := svc.CreateWorkflow(ctx, CreateWorkflowCmd{SpaceID: "tm_1", UserID: "u1", Name: strings.Repeat("n", maxWorkflowNameRunes+1), Definition: validDef}); err != ErrWorkflowNameTooLong {
+		t.Errorf("over-long name err = %v, want ErrWorkflowNameTooLong", err)
+	}
+	if _, err := svc.CreateWorkflow(ctx, CreateWorkflowCmd{SpaceID: "tm_1", UserID: "u1", Name: "ok", Description: strings.Repeat("d", maxWorkflowDescriptionBytes+1), Definition: validDef}); err != ErrWorkflowDescriptionTooLong {
+		t.Errorf("over-long description err = %v, want ErrWorkflowDescriptionTooLong", err)
+	}
+	if _, err := svc.CreateWorkflow(ctx, CreateWorkflowCmd{SpaceID: "tm_1", UserID: "u1", Name: "   ", Definition: validDef}); err != ErrWorkflowNameRequired {
+		t.Errorf("whitespace name err = %v, want ErrWorkflowNameRequired", err)
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 var (
@@ -22,6 +23,15 @@ var (
 	ErrWorkflowNotFound     = apierr.New(apierr.KindInvalid, "workflow not found in this space")
 	ErrWorkflowNotPublished = apierr.New(apierr.KindInvalid, "workflow must be published to schedule it")
 	ErrScheduleNotFound     = apierr.New(apierr.KindNotFound, "schedule not found")
+	ErrNameTooLong          = apierr.New(apierr.KindInvalid, "name is too long")
+	ErrInputTooLong         = apierr.New(apierr.KindInvalid, "input is too long")
+)
+
+// maxScheduleNameRunes bounds a schedule name to its varchar(256) column;
+// maxScheduleInputBytes bounds the fixed input to its TEXT column.
+const (
+	maxScheduleNameRunes  = 256
+	maxScheduleInputBytes = 65535
 )
 
 // WorkflowLookup is the workflow store narrowed to the one read this service
@@ -72,6 +82,12 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coreschedule.Sche
 	}
 	if cmd.ExecutorID == "" {
 		return nil, ErrExecutorRequired
+	}
+	if util.ExceedsRuneLimit(cmd.Name, maxScheduleNameRunes) {
+		return nil, ErrNameTooLong
+	}
+	if util.ExceedsByteLimit(cmd.Input, maxScheduleInputBytes) {
+		return nil, ErrInputTooLong
 	}
 	// An agent firing's input is the prompt it runs, so it is always required. A
 	// workflow firing's input is the run input its input_schema declares; a
@@ -154,6 +170,12 @@ func (s *Service) Update(ctx context.Context, cmd UpdateCmd) (*coreschedule.Sche
 	// workflow schedule may legitimately hold empty input (see Create).
 	if cmd.Input != nil && strings.TrimSpace(*cmd.Input) == "" && existing.ExecutorKind == coreschedule.ExecutorAgent {
 		return nil, ErrInputRequired
+	}
+	if cmd.Name != nil && util.ExceedsRuneLimit(*cmd.Name, maxScheduleNameRunes) {
+		return nil, ErrNameTooLong
+	}
+	if cmd.Input != nil && util.ExceedsByteLimit(*cmd.Input, maxScheduleInputBytes) {
+		return nil, ErrInputTooLong
 	}
 	in := coreschedule.UpdateInput{
 		ScheduleID: cmd.ScheduleID,

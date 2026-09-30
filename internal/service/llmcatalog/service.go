@@ -27,6 +27,7 @@ import (
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 	"github.com/icloudbb/buildmax/internal/service/audit"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 // Service is the catalog's administration workflows.
@@ -48,10 +49,23 @@ var ErrEncryptionUnavailable = apierr.New(apierr.KindNotConfigured, "no deployme
 
 // Validate rejects a row that could never serve a call, so a caller hears about
 // it here rather than at somebody's first prompt.
+// Catalog numeric bounds keep an absurd value out of the row: a name over its
+// varchar(128) column, or a window/timeout/token count large enough to be a
+// typo or a denial-of-service knob rather than a real setting. The ceilings are
+// generous — well past any real model — so they only catch nonsense.
+const (
+	maxModelNameRunes       = 128
+	maxModelContextWindow   = 100_000_000
+	maxModelMaxTokens       = 100_000_000
+	maxModelCallTimeoutSecs = 24 * 60 * 60
+)
+
 func Validate(in coregw.CreateModelInput) error {
 	switch {
 	case in.Name == "":
 		return invalidf("name", "is required")
+	case util.ExceedsRuneLimit(in.Name, maxModelNameRunes):
+		return invalidf("name", "is too long")
 	case in.APIURL == "":
 		return invalidf("api_url", "is required")
 	// A local runtime has no credential, and requiring a placeholder for it
@@ -60,12 +74,12 @@ func Validate(in coregw.CreateModelInput) error {
 		return invalidf("api_key", "is required")
 	case in.Model == "":
 		return invalidf("model", "is required")
-	case in.ContextWindow < 0:
-		return invalidf("context_window", "cannot be negative")
-	case in.CallTimeout < 0:
-		return invalidf("call_timeout", "cannot be negative")
-	case in.MaxTokens < 0:
-		return invalidf("max_tokens", "cannot be negative")
+	case in.ContextWindow < 0 || in.ContextWindow > maxModelContextWindow:
+		return invalidf("context_window", "must be between 0 and %d", maxModelContextWindow)
+	case in.CallTimeout < 0 || in.CallTimeout > maxModelCallTimeoutSecs:
+		return invalidf("call_timeout", "must be between 0 and %d seconds", maxModelCallTimeoutSecs)
+	case in.MaxTokens < 0 || in.MaxTokens > maxModelMaxTokens:
+		return invalidf("max_tokens", "must be between 0 and %d", maxModelMaxTokens)
 	case !config.KnownReasoningEffort(in.Reasoning):
 		return invalidf("reasoning", "%q is not a level; use one of %s",
 			in.Reasoning, strings.Join(config.ReasoningEfforts(), ", "))
