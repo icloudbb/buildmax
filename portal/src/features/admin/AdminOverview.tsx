@@ -1,17 +1,113 @@
 import { useEffect, useState } from "react"
 import type {
   ApiAdminMe,
+  ApiAdminSpaceAttention,
   ApiAdminSpacesAttentionResponse,
   ApiAdminSystem,
 } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { buildHash } from "../../router"
 import { getAdminConfig, getAdminMe, getAdminSystem, listAdminRuntimeSpaces } from "./api"
-import { FAILURE_CLASSES, ageSince, failureLabel, orderedFailures } from "./runtime"
+import {
+  FAILURE_CLASSES,
+  WORKFLOW_FAILURE_CLASSES,
+  ageSince,
+  failureLabel,
+  orderedFailures,
+  timeUntil,
+  waitingSummary,
+} from "./runtime"
 
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
     <span className={ok ? "admin-pill admin-pill--ok" : "admin-pill admin-pill--bad"}>{label}</span>
+  )
+}
+
+/** One failure class per row, with who acts on it. */
+function FailureTable({
+  failures,
+  classes,
+}: {
+  failures: [string, number][]
+  classes: Record<string, { label: string; owner: string }>
+}) {
+  return (
+    <table className="admin-table">
+      <thead>
+        <tr>
+          <th scope="col">Cause</th>
+          <th scope="col">Runs</th>
+          <th scope="col">Who acts</th>
+        </tr>
+      </thead>
+      <tbody>
+        {failures.map(([cls, n]) => (
+          <tr key={cls}>
+            <td>{failureLabel(cls, classes)}</td>
+            <td>{n}</td>
+            <td className="admin-table__muted">{classes[cls]?.owner ?? "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+/**
+ * The requests waiting on a Space's members: how many, how long, when the
+ * first expires, and the Workflow run to name to them. Never what was asked.
+ */
+function SpaceWaiting({
+  space,
+  serverTime,
+}: {
+  space: ApiAdminSpaceAttention
+  serverTime: string
+}) {
+  const summary = waitingSummary(space.waiting_requests)
+  if (!summary) return <>—</>
+  const expiry = timeUntil(space.next_request_expiry_at, serverTime)
+  return (
+    <>
+      {summary}
+      <span className="admin-table__muted">
+        {` · oldest ${ageSince(space.oldest_waiting_request_at, serverTime) ?? "—"}`}
+        {expiry ? ` · expiry ${expiry}` : null}
+      </span>
+      {space.oldest_waiting_workflow_run_id ? (
+        <div className="admin-table__muted">
+          Workflow run <code>{space.oldest_waiting_workflow_run_id}</code>
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+/** Task run and Workflow run failures in the window, each by its own classes. */
+function SpaceFailures({ space }: { space: ApiAdminSpaceAttention }) {
+  const taskRuns = orderedFailures(space.failures)
+    .map(([cls, n]) => `${n} ${failureLabel(cls).toLowerCase()}`)
+    .join(", ")
+  const workflowRuns = orderedFailures(space.workflow_failures, WORKFLOW_FAILURE_CLASSES)
+    .map(([cls, n]) => `${n} ${failureLabel(cls, WORKFLOW_FAILURE_CLASSES).toLowerCase()}`)
+    .join(", ")
+  if (!taskRuns && !workflowRuns) return <>—</>
+  return (
+    <>
+      {taskRuns ? <div>{taskRuns}</div> : null}
+      {workflowRuns ? (
+        <div>
+          {`Workflow: ${workflowRuns}`}
+          {space.latest_failed_workflow_run_id ? (
+            <span className="admin-table__muted">
+              {" · latest "}
+              <code>{space.latest_failed_workflow_run_id}</code>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </>
   )
 }
 
@@ -83,6 +179,7 @@ export function AdminOverview({ token }: { token: string | null }) {
   const runStatuses = Object.entries(system.task_runs).sort(([a], [b]) => a.localeCompare(b))
   const runtime = system.runtime
   const failures = orderedFailures(runtime?.failures)
+  const workflowFailures = orderedFailures(runtime?.workflow_failures, WORKFLOW_FAILURE_CLASSES)
   const myGrant = me?.grants?.[0]
   const grantedBy = myGrant
     ? myGrant.granted_by === "buildmax-server"
@@ -213,31 +310,38 @@ export function AdminOverview({ token }: { token: string | null }) {
                 label={`Running, silent over ${Math.round(runtime.stale_after_seconds / 60)} min`}
                 value={String(runtime.stale_running)}
               />
+              {/*
+                A Workflow run waiting on a person holds no worker, so none of the
+                task run numbers above show it. Any member of its Space may answer.
+              */}
+              <Fact
+                label="Workflow requests waiting on Space members"
+                value={waitingSummary(runtime.waiting_requests) ?? "none waiting"}
+              />
+              <Fact
+                label="Oldest waiting request"
+                value={ageSince(runtime.oldest_waiting_request_at, system.server_time) ?? "none waiting"}
+              />
+              <Fact
+                label="Next request expiry"
+                value={timeUntil(runtime.next_request_expiry_at, system.server_time) ?? "none set"}
+              />
             </div>
             <h3 className="admin-subtitle">
-              Failures in the last {runtime.failure_window_hours} hours
+              Task run failures in the last {runtime.failure_window_hours} hours
             </h3>
             {failures.length === 0 ? (
-              <p className="admin-empty">No failed runs.</p>
+              <p className="admin-empty">No failed task runs.</p>
             ) : (
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Cause</th>
-                    <th scope="col">Runs</th>
-                    <th scope="col">Who acts</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {failures.map(([cls, n]) => (
-                    <tr key={cls}>
-                      <td>{failureLabel(cls)}</td>
-                      <td>{n}</td>
-                      <td className="admin-table__muted">{FAILURE_CLASSES[cls]?.owner ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <FailureTable failures={failures} classes={FAILURE_CLASSES} />
+            )}
+            <h3 className="admin-subtitle">
+              Workflow run failures in the last {runtime.failure_window_hours} hours
+            </h3>
+            {workflowFailures.length === 0 ? (
+              <p className="admin-empty">No failed Workflow runs.</p>
+            ) : (
+              <FailureTable failures={workflowFailures} classes={WORKFLOW_FAILURE_CLASSES} />
             )}
           </>
         ) : (
@@ -252,7 +356,7 @@ export function AdminOverview({ token }: { token: string | null }) {
             The Spaces needing attention are unavailable right now.
           </p>
         ) : attention.spaces.length === 0 ? (
-          <p className="admin-empty">No Space has waiting work or recent failures.</p>
+          <p className="admin-empty">No Space has waiting work, waiting requests, or recent failures.</p>
         ) : (
           <table className="admin-table">
             <thead>
@@ -261,6 +365,7 @@ export function AdminOverview({ token }: { token: string | null }) {
                 <th scope="col">Owners</th>
                 <th scope="col">Active</th>
                 <th scope="col">Oldest active</th>
+                <th scope="col">Waiting on members</th>
                 <th scope="col">Failed</th>
               </tr>
             </thead>
@@ -281,9 +386,10 @@ export function AdminOverview({ token }: { token: string | null }) {
                   </td>
                   <td>{ageSince(space.oldest_active_at, system.server_time) ?? "—"}</td>
                   <td>
-                    {orderedFailures(space.failures)
-                      .map(([cls, n]) => `${n} ${failureLabel(cls).toLowerCase()}`)
-                      .join(", ") || "—"}
+                    <SpaceWaiting space={space} serverTime={system.server_time} />
+                  </td>
+                  <td>
+                    <SpaceFailures space={space} />
                   </td>
                 </tr>
               ))}

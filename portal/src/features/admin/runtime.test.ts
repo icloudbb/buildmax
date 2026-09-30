@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { ageSince, failureLabel, orderedFailures } from "./runtime"
+import {
+  WORKFLOW_FAILURE_CLASSES,
+  ageSince,
+  failureLabel,
+  orderedFailures,
+  timeUntil,
+  waitingSummary,
+} from "./runtime"
 
 describe("ageSince", () => {
   const now = "2026-09-28T12:00:00Z"
@@ -28,5 +35,41 @@ describe("failure classes", () => {
   it("shows an unknown class verbatim", () => {
     expect(failureLabel("space_configuration")).toBe("Space configuration")
     expect(failureLabel("mystery")).toBe("mystery")
+  })
+})
+
+describe("timeUntil", () => {
+  const now = "2026-09-28T12:00:00Z"
+
+  it("measures ahead against the server clock", () => {
+    expect(timeUntil("2026-09-28T14:30:00Z", now)).toBe("in 2 h 30 min")
+  })
+
+  it("calls a passed expiry overdue rather than a negative age", () => {
+    expect(timeUntil("2026-09-28T11:00:00Z", now)).toBe("overdue")
+  })
+
+  it("has nothing to say when no expiry is set", () => {
+    expect(timeUntil(undefined, now)).toBeNull()
+  })
+})
+
+describe("workflow runtime", () => {
+  it("summarizes waiting requests by kind and drops empty ones", () => {
+    expect(waitingSummary({ question: 1, input: 2, other: 0 })).toBe("2 input requests, 1 Agent question")
+    expect(waitingSummary({})).toBeNull()
+    expect(waitingSummary(undefined)).toBeNull()
+  })
+
+  it("orders and labels Workflow failure classes apart from task run ones", () => {
+    expect(
+      orderedFailures({ run_deadline: 1, request_expired: 2, output_schema: 1 }, WORKFLOW_FAILURE_CLASSES),
+    ).toEqual([
+      ["output_schema", 1],
+      ["request_expired", 2],
+      ["run_deadline", 1],
+    ])
+    expect(failureLabel("request_declined", WORKFLOW_FAILURE_CLASSES)).toBe("Request declined")
+    expect(failureLabel("request_declined")).toBe("request_declined")
   })
 })

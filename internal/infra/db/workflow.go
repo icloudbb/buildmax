@@ -99,8 +99,12 @@ type workflowRunRow struct {
 	CreatedBy    uint64     `gorm:"column:created_by;not null"`
 	CreatedAt    time.Time  `gorm:"autoCreateTime;index:idx_workflow_run_workflow_created,priority:2"`
 	StartedAt    *time.Time `gorm:""`
-	EndedAt      *time.Time `gorm:""`
+	EndedAt      *time.Time `gorm:"index:idx_workflow_run_failure_ended,priority:2"`
 	ErrorMessage *string    `gorm:"type:text"`
+	// FailureClass is the coreworkflow.FailureClass recorded when the run
+	// started failing, and empty otherwise. Indexed with ended_at for the
+	// administration failure window.
+	FailureClass string `gorm:"column:failure_class;type:varchar(32);not null;default:'';index:idx_workflow_run_failure_ended,priority:1"`
 	// DeadlineAt is when the run fails if unfinished; NULL for no run timeout.
 	DeadlineAt *time.Time `gorm:"column:deadline_at"`
 	// Reconciliation lease and schedule. The due query walks
@@ -278,6 +282,7 @@ func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 		StartedAt:        row.Row.StartedAt,
 		EndedAt:          row.Row.EndedAt,
 		ErrorMessage:     row.Row.ErrorMessage,
+		FailureClass:     row.Row.FailureClass,
 		DeadlineAt:       row.Row.DeadlineAt,
 		ReconcileOwner:   row.Row.ReconcileOwner,
 		LeaseExpiresAt:   row.Row.LeaseExpiresAt,
@@ -854,6 +859,16 @@ func runStatusUpdates(status coreworkflow.RunStatus, startedAt, endedAt *time.Ti
 	return updates
 }
 
+// stopRunUpdates is the write that records stop intent. A move to failing
+// always records a class from the enum, so every failed run carries one.
+func stopRunUpdates(status coreworkflow.RunStatus, errorMessage *string, class coreworkflow.FailureClass) map[string]interface{} {
+	updates := runStatusUpdates(status, nil, nil, errorMessage, nil)
+	if status == coreworkflow.RunStatusFailing {
+		updates["failure_class"] = string(coreworkflow.NormalizeFailureClass(string(class)))
+	}
+	return updates
+}
+
 // stepTransitionUpdates builds the column writes a step transition lands,
 // resolving the task and task-run handles to their row keys. An empty string
 // clears a handle; nil leaves it untouched.
@@ -943,9 +958,14 @@ func (s *Store) TransitionWorkflowRun(ctx context.Context, in coreworkflow.Trans
 	if !ok {
 		return false, nil
 	}
+	updates := runStatusUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.ErrorMessage, in.Result)
+	if in.NewStatus == coreworkflow.RunStatusFailed && in.ExpectedStatus != coreworkflow.RunStatusFailing {
+		// A failure that skipped failing named no cause; it still carries a class.
+		updates["failure_class"] = string(coreworkflow.FailureUnclassified)
+	}
 	res := s.db.WithContext(ctx).Model(&workflowRunRow{}).
 		Where("public_id = ? AND status = ?", id, string(in.ExpectedStatus)).
-		Updates(runStatusUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.ErrorMessage, in.Result))
+		Updates(updates)
 	if res.Error != nil {
 		return false, res.Error
 	}
@@ -1047,10 +1067,9 @@ func (s *Store) BeginWorkflowRunDrain(ctx context.Context, in coreworkflow.Begin
 		}
 		// Running siblings keep their actual state until the Task plane confirms
 		// termination. The non-terminal run stays discoverable after a crash.
-		runUpdates := runStatusUpdates(in.RunStatus, nil, nil, in.ErrorMessage, nil)
 		return tx.Model(&workflowRunRow{}).
 			Where("public_id = ? AND status = ?", runID, string(in.RunExpected)).
-			Updates(runUpdates).Error
+			Updates(stopRunUpdates(in.RunStatus, in.ErrorMessage, in.FailureClass)).Error
 	})
 	return stepApplied, err
 }
@@ -1110,7 +1129,7 @@ func (s *Store) StopWorkflowRun(ctx context.Context, in coreworkflow.StopRunInpu
 			return err
 		}
 		if err := tx.Model(&workflowRunRow{}).Where("id = ?", run.ID).
-			Updates(runStatusUpdates(in.RunStatus, nil, nil, in.ErrorMessage, nil)).Error; err != nil {
+			Updates(stopRunUpdates(in.RunStatus, in.ErrorMessage, in.FailureClass)).Error; err != nil {
 			return err
 		}
 		applied = true

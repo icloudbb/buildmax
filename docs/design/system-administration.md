@@ -36,9 +36,10 @@
   surface split (§6.1), and the account deactivation lifecycle with execution
   eligibility and Space owner recovery (§8) have also shipped, as has runtime
   operations metadata (§13 M7), accepted on 2026-09-28 from an operator
-  incident drill, and quota tier assignment (§7.2), built on 2026-09-30
-  because a Beta quota-refusal journey could not otherwise change a tier
-  through a documented surface
+  incident drill and extended to Workflow runs on 2026-09-30 after a Beta
+  rehearsal, and quota tier assignment (§7.2), built on 2026-09-30 because a
+  Beta quota-refusal journey could not otherwise change a tier through a
+  documented surface
 - follows: [space-governance.md](./space-governance.md) and
   [enterprise-deployment.md](./enterprise-deployment.md)
 - relates to: [enterprise identity and access](enterprise-identity-and-access.md),
@@ -355,8 +356,8 @@ The table is the registered surface; `internal/server/handlers/admin` owns it.
 | `GET /api/admin/users/{user_id}/sessions` | Live login chains: session ID, platform, creation, rotation, expiry | Token values |
 | `DELETE /api/admin/users/{user_id}/sessions/{session_id}` | Revokes one login chain's refresh tokens | A session belonging to another account |
 | `DELETE /api/admin/users/{user_id}/sessions` | Revokes every refresh session, returns the count | — |
-| `GET /api/admin/system` | Version, commit, schema migrations applied, readiness checks and their status, worker runner mode, signup and sandbox settings, run counts by status, and the M7 runtime summary (oldest PENDING and unstarted SCHEDULED `created_at`, stale RUNNING count, failures by class over 24 hours), omitted when unreadable | Anything with a credential in it; run input, output, or error text |
-| `GET /api/admin/runtime/spaces` | Spaces, team and personal, with active runs or failures in the last 24 hours, oldest active first: id, name, personal flag, owners, active counts by status, oldest active `created_at`, failures by class; paged | Run input, output, error text, and any Agent, Workflow, Schedule, or Issue field |
+| `GET /api/admin/system` | Version, commit, schema migrations applied, readiness checks and their status, worker runner mode, signup and sandbox settings, run counts by status, and the M7 runtime summary (oldest PENDING and unstarted SCHEDULED `created_at`, stale RUNNING count, TaskRun failures by class over 24 hours, pending Workflow requests by kind with the oldest `created_at` and earliest expiry, Workflow run failures by class), omitted when unreadable | Anything with a credential in it; run input, output, or error text; a request's prompt, questions, or answer |
+| `GET /api/admin/runtime/spaces` | Spaces, team and personal, with active runs, pending Workflow requests, or TaskRun or Workflow run failures in the last 24 hours, longest waiting first: id, name, personal flag, owners, active counts by status, oldest active `created_at`, TaskRun failures by class, pending requests by kind with the oldest `created_at` and earliest expiry, Workflow run failures by class, and the ids of the oldest waiting and the latest failed Workflow run; paged | Run input, output, error text, a request's prompt, questions, or answer, and any other Agent, Workflow, Schedule, or Issue field |
 | `GET /api/admin/config` | The effective configuration, redacted, plus computed warnings | Every secret — **presence only**. Not a length, not a prefix, not a hash: each of those narrows a search for someone who has the response and wants the secret |
 | `GET /api/admin/spaces` | Team spaces with member count, quota tier, created at; personal spaces excluded | Space contents of any kind, and every account's personal space |
 | `GET /api/admin/spaces/{space_id}` | The same, plus members and roles, plus usage against the tier | Issues, conversations, artifacts, files, traces |
@@ -1051,6 +1052,53 @@ Acceptance:
   any response;
 - two replicas return the same projection.
 
+**Workflow runs (2026-09-30).** A Beta rehearsal of the readiness question
+"find stalled and failing work, name the class, identify who acts next, and
+reach the run" found two blind spots, because the projection above reads only
+`task_run`:
+
+- a Workflow run waiting on a person — a `human_input` node or an Agent's
+  question — holds no TaskRun, so a request pending for days appeared nowhere;
+- a Workflow run can fail while every node's TaskRun succeeded — an output
+  schema not met, a declined or expired request, a node timeout, or the run's
+  deadline — so its failure was absent from every count.
+
+The same principles extend to Workflow rows:
+
+1. **Failure class.** `workflow_run.failure_class` records why a Workflow run
+   failed, as a closed enum. The Workflow service sets it at the one point it
+   decides the failure, when the run starts `failing`; the store normalizes an
+   unknown or missing value to `unclassified`, and a canceled run records none.
+   Nothing parses error text.
+
+   | Class | Set when |
+   |---|---|
+   | `node_failed` | a node's last attempt failed; its TaskRun's class says why |
+   | `output_schema` | a node's run returned no value satisfying its `output_schema` |
+   | `node_timeout` | a node's last attempt exceeded its timeout |
+   | `admission` | a node's Task, retry, or resumed attempt could not be admitted, or its bound inputs could not be resolved |
+   | `request_declined` | a Space member declined a request |
+   | `request_expired` | a request expired unanswered |
+   | `run_deadline` | the run passed its `policy.timeout_seconds` |
+   | `unclassified` | the fallback when no rule applies |
+2. **Waiting on people.** The runtime summary and each Space row add pending
+   `workflow_request` counts by kind (`input` or `question`), the oldest
+   request's `created_at`, and the earliest `expires_at`. Any member of the
+   Space may answer a request, so the owners the row already names are who
+   the operator contacts. A Space with only a waiting request is listed, and
+   the list orders by the older of a Space's oldest active run and its oldest
+   pending request.
+3. **Workflow failures** in the same 24-hour window are counted by class,
+   deployment-wide and per Space, separately from TaskRun failures.
+4. **Reaching the run.** Each Space row names the Workflow run of its oldest
+   pending request and its most recently failed Workflow run by id. Opening
+   either still requires Space membership; the id is what the operator gives
+   the Space.
+
+The projection reads statuses, kinds, timestamps, classes, and ids — never a
+request's prompt, questions, or answer, a Workflow's name or definition, or
+node content.
+
 ## 14. Frontend Plan
 
 1. **Gate and shell.** `getAdminMe`, the `admin` route segment, and a nav entry
@@ -1197,7 +1245,8 @@ Manual scenarios, each of which is a claim in this document:
     Spaces (including personal ones) needing attention, all derived from
     durable run state. Global dispatch pause, force-cancel, and cross-Space
     retry stay out. Spaces near a quota limit were not needed by the drill and
-    are not included.
+    are not included. The 2026-09-30 extension adds pending Workflow requests
+    and Workflow run failures by a durable class, on the same terms.
 17. Which session metadata is useful without becoming a device-fingerprinting
     surface? Platform and timestamps exist; IP address and user agent are not
     recorded.

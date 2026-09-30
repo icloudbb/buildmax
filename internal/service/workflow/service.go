@@ -666,6 +666,7 @@ func (s *Service) reconcilePass(ctx context.Context, workflowRunID string, now t
 			RunExpected:   coreworkflow.RunStatus(run.Status),
 			RunStatus:     coreworkflow.RunStatusFailing,
 			ErrorMessage:  util.Ptr(fmt.Sprintf("workflow run exceeded its timeout (deadline %s)", run.DeadlineAt.UTC().Format(time.RFC3339))),
+			FailureClass:  coreworkflow.FailureRunDeadline,
 		}); err != nil {
 			return err
 		}
@@ -790,6 +791,9 @@ type attemptOutcome struct {
 	// an answer rather than succeeding.
 	asked   bool
 	message *string
+	// failure is the run's failure class when this outcome fails the node
+	// with no attempt left.
+	failure coreworkflow.FailureClass
 }
 
 // classifyAttempt decides how a finished attempt ended from its TaskRun facts.
@@ -804,13 +808,15 @@ func classifyAttempt(node coreworkflow.NodeRun, taskRun *coretask.Run) attemptOu
 	case taskRun.Status == string(coretask.RunStatusSucceeded):
 		// The run finished, but its answer did not satisfy the declared output
 		// schema, so the node fails with a reason rather than the run's empty one.
-		return attemptOutcome{retryable: true, message: util.Ptr("node required structured output but the run did not return a value satisfying its output_schema")}
+		return attemptOutcome{retryable: true, failure: coreworkflow.FailureOutputSchema,
+			message: util.Ptr("node required structured output but the run did not return a value satisfying its output_schema")}
 	case taskRun.Status == string(coretask.RunStatusCanceled) && taskRun.CancelReason == coretask.CancelReasonWorkflowNodeTimeout:
-		return attemptOutcome{retryable: true, timedOut: true, message: util.Ptr(fmt.Sprintf("attempt %d exceeded the node timeout of %ds", max(node.Attempt, 1), node.TimeoutSeconds))}
+		return attemptOutcome{retryable: true, timedOut: true, failure: coreworkflow.FailureNodeTimeout,
+			message: util.Ptr(fmt.Sprintf("attempt %d exceeded the node timeout of %ds", max(node.Attempt, 1), node.TimeoutSeconds))}
 	case taskRun.Status == string(coretask.RunStatusCanceled):
 		return attemptOutcome{message: taskRun.ErrorMessage}
 	default:
-		return attemptOutcome{retryable: true, message: taskRun.ErrorMessage}
+		return attemptOutcome{retryable: true, failure: coreworkflow.FailureNode, message: taskRun.ErrorMessage}
 	}
 }
 
@@ -882,6 +888,7 @@ func (s *Service) finalizeFailedFromNode(ctx context.Context, run *coreworkflow.
 		Output:        taskRun.Output,
 		Structured:    taskRun.Structured,
 		ErrorMessage:  errorMessage,
+		FailureClass:  outcome.failure,
 		EndedAt:       &now,
 	})
 	return err
@@ -1007,6 +1014,7 @@ func (s *Service) dispatchReadyNodes(ctx context.Context, spaceID, userID string
 				RunExpected:   coreworkflow.RunStatusRunning,
 				RunStatus:     coreworkflow.RunStatusFailing,
 				ErrorMessage:  ptrError(err),
+				FailureClass:  coreworkflow.FailureAdmission,
 				StartedAt:     &startedAt,
 				EndedAt:       &startedAt,
 			})
@@ -1094,6 +1102,7 @@ func (s *Service) dispatchRetry(ctx context.Context, userID string, run *corewor
 			RunExpected:   coreworkflow.RunStatusRunning,
 			RunStatus:     coreworkflow.RunStatusFailing,
 			ErrorMessage:  util.Ptr(fmt.Sprintf("attempt %d could not be admitted: %v", attempt, err)),
+			FailureClass:  coreworkflow.FailureAdmission,
 			EndedAt:       &now,
 		})
 		if drainErr != nil {

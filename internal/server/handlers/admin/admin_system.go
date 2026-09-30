@@ -95,6 +95,34 @@ type adminRuntime struct {
 	StaleAfterSeconds  int            `json:"stale_after_seconds"`
 	Failures           map[string]int `json:"failures"`
 	FailureWindowHours int            `json:"failure_window_hours"`
+	adminWorkflowRuntime
+}
+
+// adminWorkflowRuntime is what Workflow runs add: requests waiting on a Space
+// member, by kind, and Workflow runs that failed in the window, by class. A
+// Workflow run can fail while all its TaskRuns succeeded, so its failures are
+// counted apart from the TaskRun ones rather than hidden among them.
+type adminWorkflowRuntime struct {
+	WaitingRequests        map[string]int `json:"waiting_requests"`
+	OldestWaitingRequestAt *time.Time     `json:"oldest_waiting_request_at,omitempty"`
+	NextRequestExpiryAt    *time.Time     `json:"next_request_expiry_at,omitempty"`
+	WorkflowFailures       map[string]int `json:"workflow_failures"`
+}
+
+func toAdminWorkflowRuntime(w coretask.WorkflowRuntime) adminWorkflowRuntime {
+	out := adminWorkflowRuntime{
+		WaitingRequests:        w.WaitingRequests,
+		OldestWaitingRequestAt: w.OldestWaitingRequestAt,
+		NextRequestExpiryAt:    w.NextRequestExpiryAt,
+		WorkflowFailures:       w.WorkflowFailuresByClass,
+	}
+	if out.WaitingRequests == nil {
+		out.WaitingRequests = map[string]int{}
+	}
+	if out.WorkflowFailures == nil {
+		out.WorkflowFailures = map[string]int{}
+	}
+	return out
 }
 
 // runtimeFailureWindow is how far back the failure counts look.
@@ -176,12 +204,13 @@ func (h *Handler) adminSystemHandler(w http.ResponseWriter, r *http.Request) {
 		now := out.ServerTime
 		if summary, err := h.cfg.TaskRuns.RuntimeSummary(ctx, now.Add(-coretask.WorkerLivenessGrace), now.Add(-runtimeFailureWindow)); err == nil {
 			out.Runtime = &adminRuntime{
-				OldestPendingAt:    summary.OldestPendingAt,
-				OldestUnstartedAt:  summary.OldestUnstartedAt,
-				StaleRunning:       summary.StaleRunning,
-				StaleAfterSeconds:  int(coretask.WorkerLivenessGrace / time.Second),
-				Failures:           summary.FailuresByClass,
-				FailureWindowHours: int(runtimeFailureWindow / time.Hour),
+				OldestPendingAt:      summary.OldestPendingAt,
+				OldestUnstartedAt:    summary.OldestUnstartedAt,
+				StaleRunning:         summary.StaleRunning,
+				StaleAfterSeconds:    int(coretask.WorkerLivenessGrace / time.Second),
+				Failures:             summary.FailuresByClass,
+				FailureWindowHours:   int(runtimeFailureWindow / time.Hour),
+				adminWorkflowRuntime: toAdminWorkflowRuntime(summary.WorkflowRuntime),
 			}
 		}
 	}

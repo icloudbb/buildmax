@@ -612,7 +612,10 @@ call, filtered by user, model, status, surface, and time, and carrying no
 prompts or generated content. Its Overview reports work progress without Space
 content: the oldest waiting PENDING and unstarted SCHEDULED runs, silent RUNNING
 runs, failures in the last 24 hours by `task_run.failure_class` with who acts,
-and the Spaces needing attention, including personal ones, with their owners
+Workflow requests waiting on Space members by kind with their age and next
+expiry, Workflow run failures by `workflow_run.failure_class`, and the Spaces
+needing attention, including personal ones, with their owners and the ids of
+their oldest waiting and latest failed Workflow runs
 (`GET /api/admin/runtime/spaces`).
 A System Administrator can assign any Space, team or personal, to an existing
 seeded quota tier from Space detail, `buildmax admin quota-tier set`, or

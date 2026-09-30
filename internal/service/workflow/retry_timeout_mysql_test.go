@@ -94,8 +94,9 @@ func TestWorkflowRetryThenRunDeadlineThroughTheStore(t *testing.T) {
 	}
 	e.mustTransition(t, active.ID, coretask.RunStatusRunning, coretask.RunStatusCanceled, coretask.TransitionRunInput{EndedAt: &now})
 	e.reconcileAt(t, run.ID, 2*time.Hour)
-	if final := e.run(t, run.ID); final.Status != string(coreworkflow.RunStatusFailed) {
-		t.Fatalf("drained run = %s, want failed", final.Status)
+	if final := e.run(t, run.ID); final.Status != string(coreworkflow.RunStatusFailed) ||
+		final.FailureClass != string(coreworkflow.FailureRunDeadline) {
+		t.Fatalf("drained run = %s class %q, want failed by run_deadline", final.Status, final.FailureClass)
 	}
 }
 
@@ -120,8 +121,9 @@ func TestWorkflowNodeTimeoutThroughTheStore(t *testing.T) {
 	if attempt.Status != string(coretask.RunStatusCanceled) || attempt.CancelReason != coretask.CancelReasonWorkflowNodeTimeout {
 		t.Fatalf("attempt: %+v", attempt)
 	}
-	if final := e.run(t, run.ID); final.Status != string(coreworkflow.RunStatusFailed) {
-		t.Fatalf("run = %s, want failed", final.Status)
+	if final := e.run(t, run.ID); final.Status != string(coreworkflow.RunStatusFailed) ||
+		final.FailureClass != string(coreworkflow.FailureNodeTimeout) {
+		t.Fatalf("run = %s class %q, want failed by node_timeout", final.Status, final.FailureClass)
 	}
 }
 

@@ -8,9 +8,10 @@ import (
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
-// AdminSpaceAttention is one Space with active or recently failed runs. It is
-// metadata an operator needs to find who can act — never a run's input,
-// output, error text, or anything the Space's members wrote.
+// AdminSpaceAttention is one Space with active runs, Workflow requests waiting
+// on its members, or recent failures. It is metadata an operator needs to find
+// who can act — never a run's input, output, error text, a request's prompt or
+// answer, or anything else the Space's members wrote.
 type AdminSpaceAttention struct {
 	SpaceID  string             `json:"space_id"`
 	Name     string             `json:"name"`
@@ -21,6 +22,11 @@ type AdminSpaceAttention struct {
 	// run was created.
 	OldestActiveAt *time.Time     `json:"oldest_active_at,omitempty"`
 	Failures       map[string]int `json:"failures"`
+	adminWorkflowRuntime
+	// The ids let an operator name the run to the Space's members, who alone
+	// can open it.
+	OldestWaitingWorkflowRunID string `json:"oldest_waiting_workflow_run_id,omitempty"`
+	LatestFailedWorkflowRunID  string `json:"latest_failed_workflow_run_id,omitempty"`
 }
 
 // AdminSpacesAttentionResponse is a page of Spaces needing attention.
@@ -31,8 +37,9 @@ type AdminSpacesAttentionResponse struct {
 }
 
 // listRuntimeSpacesHandler serves GET /api/admin/runtime/spaces: the Spaces,
-// team and personal, that have active runs or failures in the window, with
-// their owners. Personal Spaces are included because a person working alone
+// team and personal, that have active runs, pending Workflow requests, or
+// failures in the window, with their owners. Any member may answer a request;
+// the owners are who an operator contacts. Personal Spaces are included because a person working alone
 // can hit a platform fault as easily as a team.
 func (h *Handler) listRuntimeSpacesHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.guard().SystemAdmin(w, r); !ok {
@@ -53,11 +60,14 @@ func (h *Handler) listRuntimeSpacesHandler(w http.ResponseWriter, r *http.Reques
 	out := make([]AdminSpaceAttention, 0, len(activity))
 	for _, a := range activity {
 		row := AdminSpaceAttention{
-			SpaceID:        a.SpaceID,
-			Owners:         []AdminSpaceMember{},
-			Active:         a.Active,
-			OldestActiveAt: a.OldestActiveAt,
-			Failures:       a.FailuresByClass,
+			SpaceID:                    a.SpaceID,
+			Owners:                     []AdminSpaceMember{},
+			Active:                     a.Active,
+			OldestActiveAt:             a.OldestActiveAt,
+			Failures:                   a.FailuresByClass,
+			adminWorkflowRuntime:       toAdminWorkflowRuntime(a.WorkflowRuntime),
+			OldestWaitingWorkflowRunID: a.OldestWaitingWorkflowRunID,
+			LatestFailedWorkflowRunID:  a.LatestFailedWorkflowRunID,
 		}
 		// A Space that cannot be read is still listed by id: the operator's
 		// question is that it needs attention, which the counts already answer.

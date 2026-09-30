@@ -97,7 +97,10 @@ worker 在认领运行之前就拒绝它时，会让运行从 `SCHEDULED` 直接
 handler 与 Workflow 协调都会调用它。一个 Workflow 节点失败或被取消时，会先在运行上提交
 `failing` 或 `canceling`，并阻塞待执行节点。随后协调器为每个活跃兄弟 TaskRun 请求取消，
 并等待终态事实到达后再结束 Workflow。这个持久状态会被恢复扫描跨重启继续处理。即便成功与取消
-发生竞争，节点状态和输出仍反映实际 TaskRun 结果；Workflow 保留最早的失败或取消原因。
+发生竞争，节点状态和输出仍反映实际 TaskRun 结果；Workflow 保留最早的失败或取消原因。进入
+`failing` 时会根据 Workflow 服务判定的原因记录 `workflow_run.failure_class`——节点失败、超时或
+未满足输出 schema、准入失败、请求被拒绝或过期，或 run 截止时间已过——因此 Administration 能统计
+那些所有 TaskRun 都成功的 Workflow 失败。
 
 ## 重试运行
 

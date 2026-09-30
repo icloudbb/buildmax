@@ -257,6 +257,9 @@ func (m *MockWorkflowStore) TransitionWorkflowRun(_ context.Context, in corework
 		if m.Runs[i].Status != string(in.ExpectedStatus) {
 			return false, nil
 		}
+		if in.NewStatus == coreworkflow.RunStatusFailed && in.ExpectedStatus != coreworkflow.RunStatusFailing {
+			m.Runs[i].FailureClass = string(coreworkflow.FailureUnclassified)
+		}
 		m.Runs[i].Status = string(in.NewStatus)
 		if in.StartedAt != nil {
 			m.Runs[i].StartedAt = in.StartedAt
@@ -420,6 +423,7 @@ func (m *MockWorkflowStore) BeginWorkflowRunDrain(_ context.Context, in corework
 			if in.ErrorMessage != nil {
 				m.Runs[i].ErrorMessage = in.ErrorMessage
 			}
+			recordFailureClass(&m.Runs[i], in.RunStatus, in.FailureClass)
 		}
 		break
 	}
@@ -586,9 +590,18 @@ func (m *MockWorkflowStore) StopWorkflowRun(_ context.Context, in coreworkflow.S
 		if in.ErrorMessage != nil {
 			m.Runs[i].ErrorMessage = in.ErrorMessage
 		}
+		recordFailureClass(&m.Runs[i], in.RunStatus, in.FailureClass)
 		return true, nil
 	}
 	return false, nil
+}
+
+// recordFailureClass mirrors the store: a move to failing always records a
+// class from the enum.
+func recordFailureClass(run *coreworkflow.Run, status coreworkflow.RunStatus, class coreworkflow.FailureClass) {
+	if status == coreworkflow.RunStatusFailing {
+		run.FailureClass = string(coreworkflow.NormalizeFailureClass(string(class)))
+	}
 }
 
 // clearRunLease drops the reconciliation lease and schedule, as the store does

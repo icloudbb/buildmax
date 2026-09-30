@@ -90,6 +90,19 @@ func TestRetryBackoffDoublesToACeiling(t *testing.T) {
 	}
 }
 
+func TestNormalizeFailureClassKeepsTheEnumClosed(t *testing.T) {
+	for _, c := range FailureClasses() {
+		if got := NormalizeFailureClass(string(c)); got != c {
+			t.Errorf("NormalizeFailureClass(%q) = %q", c, got)
+		}
+	}
+	for _, s := range []string{"", "worker_lost", "the request was declined: not ready"} {
+		if got := NormalizeFailureClass(s); got != FailureUnclassified {
+			t.Errorf("NormalizeFailureClass(%q) = %q, want unclassified", s, got)
+		}
+	}
+}
+
 func TestTaskRunAdmissionKeyNamesTheAttempt(t *testing.T) {
 	if got := TaskRunAdmissionKey("wr_1", "a", 2); got != "workflow/wr_1/node/a/attempt/2" {
 		t.Fatalf("key = %q", got)

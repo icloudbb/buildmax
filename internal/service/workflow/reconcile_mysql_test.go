@@ -250,8 +250,9 @@ func TestWorkflowReconcileFailedTaskRunFailsRun(t *testing.T) {
 	if after[1].Status != string(coreworkflow.NodeRunStatusBlocked) {
 		t.Fatalf("step[1] status = %q, want blocked", after[1].Status)
 	}
-	if final := e.run(t, run.ID); final.Status != string(coreworkflow.RunStatusFailed) {
-		t.Fatalf("run status = %q, want failed", final.Status)
+	if final := e.run(t, run.ID); final.Status != string(coreworkflow.RunStatusFailed) ||
+		final.FailureClass != string(coreworkflow.FailureNode) {
+		t.Fatalf("run status = %q class %q, want failed by node_failed", final.Status, final.FailureClass)
 	}
 	if e.tasksForAgent(t, e.agentB) != 0 {
 		t.Fatalf("agent B tasks = %d, want 0 — a blocked step dispatches nothing", e.tasksForAgent(t, e.agentB))

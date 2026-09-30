@@ -866,13 +866,15 @@ Workflow 的一次版本记录。行仅追加，从不更新或删除。规则�
 | `started_at` | `datetime(6)` | 是 | |
 | `ended_at` | `datetime(6)` | 是 | |
 | `error_message` | `text` | 是 | |
+| `failure_class` | `varchar(32)` | 否 | 运行失败的原因：`node_failed`、`output_schema`、`node_timeout`、`admission`、`request_declined`、`request_expired`、`run_deadline` 或 `unclassified`；由 Workflow 服务在运行进入 `failing` 时设置，从不解析 `error_message`；未失败的运行为空 |
 | `deadline_at` | `datetime(6)` | 是 | 未结束时运行失败的时间，准入时由定义的 `policy.timeout_seconds` 得出；未设置时为 NULL |
 | `reconcile_owner` | `varchar(64)` | 是 | 当前协调租约持有者；未持有时为 `NULL` |
 | `lease_expires_at` | `datetime(6)` | 是 | 租约到期时间；过期后可被接管 |
 | `next_reconcile_at` | `datetime(6)` | 是 | 下次协调时间；`NULL` 视为到期 |
 
 索引：主键 `id`；索引 `issue_id`、`schedule_id`、`next_reconcile_at`、`lease_expires_at`；
-(`workflow_id`, `created_at`) 上的 `idx_workflow_run_workflow_created`；唯一索引 `public_id`。
+(`workflow_id`, `created_at`) 上的 `idx_workflow_run_workflow_created`；(`failure_class`, `ended_at`)
+上的 `idx_workflow_run_failure_ended`；唯一索引 `public_id`。
 
 每个 Agent node run 都会直接创建一个 Space 所有的 Task（`task.space_id`，
 无 `conversation_id`）；运行进度从各节点的 `task_id` / `task_run_id` 读取，

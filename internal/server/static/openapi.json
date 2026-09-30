@@ -800,6 +800,7 @@
           "started_at": {"type": "string", "format": "date-time"},
           "ended_at": {"type": "string", "format": "date-time"},
           "error_message": {"type": "string"},
+          "failure_class": {"type": "string", "enum": ["node_failed", "output_schema", "node_timeout", "admission", "request_declined", "request_expired", "run_deadline", "unclassified"], "description": "Why the run failed, recorded when it started failing; absent for a run that has not failed."},
           "deadline_at": {"type": "string", "format": "date-time", "description": "When the run fails if unfinished, from the definition's policy.timeout_seconds; absent when none is set."},
           "input": {"type": "object", "description": "The run's immutable input, validated against the workflow input_schema."},
           "result": {"description": "The run's declared result, resolved from a node output when the run succeeded; present only when the definition declares a result selector."}
@@ -2846,7 +2847,7 @@
     "/api/admin/runtime/spaces": {
       "get": {
         "tags": ["admin"],
-        "summary": "List Spaces, team and personal, with active runs or failures in the last 24 hours, with their owners and counts; no run content",
+        "summary": "List Spaces, team and personal, with active runs, Workflow requests waiting on their members, or failures in the last 24 hours, with their owners and counts; no run or request content",
         "security": [{"bearerAuth": []}],
         "parameters": [
           {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
@@ -2871,7 +2872,13 @@
                           "owners": {"type": "array", "items": {"type": "object"}},
                           "active": {"type": "object", "additionalProperties": {"type": "integer"}},
                           "oldest_active_at": {"type": "string", "format": "date-time"},
-                          "failures": {"type": "object", "additionalProperties": {"type": "integer"}}
+                          "failures": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "TaskRun failures in the window by failure_class."},
+                          "waiting_requests": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Pending Workflow requests by kind (input or question); any Space member may answer one."},
+                          "oldest_waiting_request_at": {"type": "string", "format": "date-time"},
+                          "next_request_expiry_at": {"type": "string", "format": "date-time", "description": "The earliest expiry among pending requests; absent when none expires."},
+                          "oldest_waiting_workflow_run_id": {"type": "string", "description": "The Workflow run of the oldest pending request."},
+                          "workflow_failures": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Workflow runs failed in the window by their failure_class."},
+                          "latest_failed_workflow_run_id": {"type": "string", "description": "The most recently failed Workflow run in the window."}
                         }
                       }
                     },
