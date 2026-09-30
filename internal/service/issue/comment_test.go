@@ -299,3 +299,28 @@ func TestListComments(t *testing.T) {
 		t.Fatalf("thread order = %q, %q; want oldest first", list[0].Body, list[1].Body)
 	}
 }
+
+// Artifact references come from model-chosen worker code, so their count and
+// each id's length are bounded: a huge or unbounded list must not write
+// arbitrary text into the durable comment body.
+func TestCreateComment_ArtifactRefsAreBounded(t *testing.T) {
+	svc, _ := commentService()
+	ids := make([]string, 100)
+	for i := range ids {
+		ids[i] = "art_ref"
+	}
+	ids = append(ids, strings.Repeat("z", 5000)) // one absurdly long id
+	comment, err := svc.CreateComment(context.Background(), CreateCommentCmd{
+		IssueID: "i_1", AuthorKind: coreissue.CommentAuthorAgent, AuthorID: "a_1",
+		Body: "done", ArtifactIDs: ids,
+	})
+	if err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+	if strings.Contains(comment.Body, strings.Repeat("z", 5000)) {
+		t.Error("an over-long artifact id was written into the comment body")
+	}
+	if got := strings.Count(comment.Body, "art_ref"); got != maxCommentArtifactRefs {
+		t.Errorf("recorded %d artifact refs, want the cap of %d", got, maxCommentArtifactRefs)
+	}
+}
