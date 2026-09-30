@@ -113,6 +113,9 @@ func kindRotationDrill() error {
 	} else if !exists {
 		return fmt.Errorf("kind cluster %q does not exist; run BUILDMAX_KIND_EPHEMERAL=1 %s kind up", kindClusterName(), mk())
 	}
+	if err := requireMockModel("rotation drill"); err != nil {
+		return err
+	}
 
 	d := &rotationDrill{ctx: context.Background(), client: &http.Client{Timeout: 30 * time.Second}, target: kindSmokeTarget()}
 	started := time.Now()

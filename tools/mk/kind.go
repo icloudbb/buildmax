@@ -170,6 +170,25 @@ func kindKubectl(args ...string) error {
 	return runCmd("kubectl", append([]string{"--context", kindContext()}, args...)...)
 }
 
+// requireMockModel refuses a drill on a cluster switched to a real model. The
+// restore and rotation drills seed through the API expecting the mock's scripted
+// replies and tool calls; a real model answers differently, so the seed fails
+// deep inside with a confusing "no artifact" or "unexpected output" error. This
+// names the cause and the fix up front. `kind use-model` sets the conversation
+// model-target override on the server Deployment; the mock leaves it unset.
+func requireMockModel(what string) error {
+	out, err := captureKindKubectl("get", "deployment", "buildmax-server", "-n", "buildmax",
+		"-o", "jsonpath={.spec.template.spec.containers[0].env[?(@.name==\""+config.EnvKeyBuildmaxConversationModelTarget+"\")].value}")
+	if err != nil {
+		return fmt.Errorf("check the cluster's model before the %s: %w", what, err)
+	}
+	if model := strings.TrimSpace(out); model != "" {
+		return fmt.Errorf("the %s seeds through the API expecting the mock model, but this cluster is on %q; run `%s kind mock` first, then re-run the drill (switch back with `%s kind use-model <name>`)",
+			what, model, mk(), mk())
+	}
+	return nil
+}
+
 // kindDatabasePreflight refuses to run the browser suite against a database that
 // is not ready right now. The kind MySQL is a single pod on an emptyDir
 // (deployment/kind/mysql.yaml); one that is currently not Ready fails the suite
@@ -1278,13 +1297,14 @@ func applyKindSmokeConfig() error {
 }
 
 // applyKindSmokeConfigFrom mounts path as the server's config, with its
-// cors_origin rewritten to this run's portal port. The committed file always
-// says 8080: the browser's Origin header is http://localhost:<port>, and the
-// server's WebSocket upgrade rejects any other origin, so a cluster on a
-// different port needs a config that agrees with it — a mismatch here is
-// invisible to every check except an actual conversation turn, which is what
-// made it worth getting right rather than leaving the ingress port to imply
-// it.
+// cors_origin and public_base_url rewritten to this run's portal port. The
+// committed file always says 8080: the browser's Origin header is
+// http://localhost:<port>, and the server's WebSocket upgrade rejects any other
+// origin, so a cluster on a different port needs a config that agrees with it —
+// a mismatch there is invisible to every check except an actual conversation
+// turn. public_base_url is the externally reachable origin artifact share links
+// and OIDC callbacks are built from, so on an ephemeral cluster it must name the
+// same port or a shared link points at nothing.
 func applyKindSmokeConfigFrom(path string) error {
 	renderedPath, cleanup, err := renderKindSmokeConfig(path)
 	if err != nil {
@@ -1312,6 +1332,13 @@ func renderKindSmokeConfig(path string) (string, func(), error) {
 		return "", nil, fmt.Errorf("%s does not contain exactly one %q line to rewrite", path, defaultOrigin)
 	}
 	rendered := strings.Replace(string(content), defaultOrigin, "cors_origin: "+kindPortalURL(), 1)
+	// public_base_url shares the committed 8080 default; on an ephemeral cluster
+	// it has to name the same port cors_origin now does. It is optional, so a
+	// config that omits it is left as is rather than refused.
+	const defaultPublicBase = "public_base_url: http://localhost:" + defaultKindPortalPort
+	if kindPortalPort() != defaultKindPortalPort {
+		rendered = strings.Replace(rendered, defaultPublicBase, "public_base_url: "+kindPortalURL(), 1)
+	}
 	file, err := os.CreateTemp("", "buildmax-kind-server-*.yaml")
 	if err != nil {
 		return "", nil, fmt.Errorf("create a rendered server config: %w", err)

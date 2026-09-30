@@ -156,6 +156,88 @@ func TestFinalizeSuccessfulAdvancesHeadAndPartialDoesNot(t *testing.T) {
 	}
 }
 
+// A run read exposes its workspace-checkpoint provenance by public handle: the
+// base it started from and the result/partial it produced. This is what
+// GET /tasks/{id}/runs returns and what the worker's checkpoint finalizer reads
+// back to record which checkpoint a result was built from — both were nil before
+// toTaskRun resolved these columns, so a result recorded no base.
+func TestTaskRunReadExposesCheckpointProvenance(t *testing.T) {
+	s, spaceID, taskID, run1 := seedTaskForCheckpoint(t)
+	ctx := t.Context()
+
+	seed, err := s.FinalizeWorkspaceCheckpoint(ctx, coretask.FinalizeCheckpointInput{
+		SpaceID: spaceID, TaskID: taskID, SourceTaskRunID: run1,
+		Kind: coretask.CheckpointKindSeed, PayloadFormat: coretask.PayloadFormatTarZstV1,
+		PayloadSHA256: hex64('a'), StorageKey: "k/seed", SizeBytes: 10, UncompressedBytes: 20, EntryCount: 3,
+	})
+	if err != nil {
+		t.Fatalf("finalize seed: %v", err)
+	}
+	finishRun(t, s, ctx, run1)
+
+	run2, err := s.CreateTaskRun(ctx, coretask.CreateRunInput{TaskID: taskID, Input: "continue", CreatedBy: newTestUser(t, s, "prov")})
+	if err != nil {
+		t.Fatalf("CreateTaskRun: %v", err)
+	}
+	// A Continue run starts from the Task's committed head, the seed here.
+	if err := s.db.WithContext(ctx).Exec(
+		"UPDATE task_run SET workspace_base_checkpoint_id = (SELECT id FROM workspace_checkpoint WHERE public_id = ?) WHERE public_id = ?",
+		seed.ID, run2.ID,
+	).Error; err != nil {
+		t.Fatalf("set run2 base: %v", err)
+	}
+
+	// The base resolves to a public handle on a read, so the worker finalizer
+	// reads a real base instead of nil.
+	got, err := s.GetTaskRun(ctx, run2.ID)
+	if err != nil || got == nil {
+		t.Fatalf("GetTaskRun: %v", err)
+	}
+	if got.WorkspaceBaseCheckpointID == nil || *got.WorkspaceBaseCheckpointID != seed.ID {
+		t.Fatalf("run base = %v, want the seed %q", got.WorkspaceBaseCheckpointID, seed.ID)
+	}
+	if got.WorkspaceResultCheckpointID != nil {
+		t.Errorf("run result checkpoint = %v before any result, want nil", got.WorkspaceResultCheckpointID)
+	}
+
+	result, err := s.FinalizeWorkspaceCheckpoint(ctx, coretask.FinalizeCheckpointInput{
+		SpaceID: spaceID, TaskID: taskID, SourceTaskRunID: run2.ID, BaseCheckpointID: got.WorkspaceBaseCheckpointID,
+		Kind: coretask.CheckpointKindSuccessful, PayloadFormat: coretask.PayloadFormatTarZstV1,
+		PayloadSHA256: hex64('c'), StorageKey: "k/result", SizeBytes: 12, UncompressedBytes: 22, EntryCount: 5,
+	})
+	if err != nil {
+		t.Fatalf("finalize successful: %v", err)
+	}
+
+	// The list read now carries the result checkpoint the run produced.
+	runs, err := s.ListTaskRunsByTask(ctx, taskID)
+	if err != nil {
+		t.Fatalf("ListTaskRunsByTask: %v", err)
+	}
+	var seen *coretask.Run
+	for i := range runs {
+		if runs[i].ID == run2.ID {
+			seen = &runs[i]
+		}
+	}
+	if seen == nil {
+		t.Fatalf("run %s not in the list", run2.ID)
+	}
+	if seen.WorkspaceResultCheckpointID == nil || *seen.WorkspaceResultCheckpointID != result.ID {
+		t.Errorf("listed run result checkpoint = %v, want %q", seen.WorkspaceResultCheckpointID, result.ID)
+	}
+
+	// The committed result records the base it was built from — the provenance
+	// that stayed NULL while the base never reached the finalizer.
+	rc, err := s.GetWorkspaceCheckpoint(ctx, result.ID)
+	if err != nil || rc == nil {
+		t.Fatalf("GetWorkspaceCheckpoint: %v", err)
+	}
+	if rc.BaseCheckpointID == nil || *rc.BaseCheckpointID != seed.ID {
+		t.Errorf("result checkpoint base = %v, want the seed %q", rc.BaseCheckpointID, seed.ID)
+	}
+}
+
 // finishRun moves a run to a terminal status so Continue, which is refused
 // while a run is active, may create the next one.
 func finishRun(t *testing.T, s *Store, ctx context.Context, runPublicID string) {

@@ -26,7 +26,11 @@ FROM alpine:3.23
 # docs/design/sandbox-boundaries.md §7.2). The worker baseline sets
 # fail_if_unavailable: true, so a worker image missing either package refuses
 # every run rather than executing model-chosen shell commands unconfined.
-RUN apk add --no-cache ca-certificates bubblewrap socat
+# curl is the HTTPS client an Agent gets: busybox wget (Alpine's default) cannot
+# tunnel HTTPS through the sandbox's CONNECT proxy, so `wget https://…` fails 502
+# even for a host the network tier allows. curl does CONNECT, so a run under the
+# registries/open tier can actually fetch over HTTPS with the client it has.
+RUN apk add --no-cache ca-certificates bubblewrap socat curl
 
 # Tells agentapp/taskrun (config.WorkerSandboxSurface) that this image
 # actually installs the backend above, so it is safe to select the stricter

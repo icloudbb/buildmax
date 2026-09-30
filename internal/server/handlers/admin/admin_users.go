@@ -355,6 +355,9 @@ func (h *Handler) setAdminUserStateHandler(w http.ResponseWriter, r *http.Reques
 	} else if err := h.cfg.Lifecycle.Enable(r.Context(), user.ID); !h.handleLifecycleError(w, err, user.ID) {
 		return
 	}
+	// Re-disabling to finish a cleanup that failed is audited on purpose, so the
+	// operator sees the retry complete; the disable itself keeps the original
+	// disabled_at, which is the account's real deactivation time.
 	h.recordAdminUserAction(r, actorID, action, user.ID, detail)
 
 	updated, err := h.cfg.Users.GetUser(r.Context(), user.ID)

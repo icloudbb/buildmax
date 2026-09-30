@@ -135,6 +135,9 @@ func kindRestoreDrill() error {
 	} else if !ok {
 		return fmt.Errorf("kind cluster %q does not exist; run BUILDMAX_KIND_EPHEMERAL=1 %s kind up", cluster, mk())
 	}
+	if err := requireMockModel("restore drill"); err != nil {
+		return err
+	}
 	// The backup holds the KEK, so the directory is owner-only like .local/.
 	dir := filepath.Join(localDir, "drill", "restore-"+time.Now().UTC().Format("20060102T150405Z"))
 	if err := os.MkdirAll(dir, 0o700); err != nil {
