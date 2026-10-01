@@ -42,8 +42,8 @@ host-by-surface decomposition and why the control plane ships first).
 
 ## 2. Scope And Position
 
-Remote Control and the Environment plane of
-[client surface convergence](../proposals/client-surface-convergence.md) are two
+Remote Control and the
+[long-running Environment plane](../proposals/long-running-workspace-environments.md) are two
 points on one grid, not rival answers. One axis is the **runtime host** — the
 user's machine or a cloud-allocated one; the other is the **interaction
 surface** — *narrow* (the agent session: conversation, progress, approvals, a
@@ -53,7 +53,7 @@ applications):
 | | Narrow surface (agent session) | Broad surface (codespace) |
 | :--- | :--- | :--- |
 | **Local host (laptop)** | **Remote Control (this record)** | Local Desktop app; exposing it remotely is a non-goal |
-| **Cloud host** | Cloud agent session (Remote Control extended to the cloud) | **Environment plane** |
+| **Cloud host** | **Environment first slice** (Remote Control extended to the cloud) | Environment plus a codespace surface (deferred) |
 
 Two substrates fall out, one per axis. The **environment substrate**
 (allocation, lease, hibernation, quota, reclamation) is needed by both cloud
@@ -208,8 +208,10 @@ Because the broker is the user's own
 `buildmax-server`, the relayed transcript never leaves infrastructure the user
 controls — a stronger data story than a third-party relay. The local sandbox
 posture is unchanged: Remote Control does not alter where code runs, unlike the
-network-exposed Environment plane, which argues separately for a fail-closed
-default ([agent sandbox policy](agent-sandbox-policy.md)). Per-device trust is
+network-exposed Environment plane, whose proposal argues separately for a
+fail-closed default
+([long-running workspace Environments](../proposals/long-running-workspace-environments.md),
+[agent sandbox policy](agent-sandbox-policy.md)). Per-device trust is
 Phase 5 (§8).
 
 ## 8. Phasing

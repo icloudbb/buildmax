@@ -10,7 +10,8 @@ Related: [roadmap](../ROADMAP.md), [surface positioning](../design/surface-posit
 [client modes](../design/client-modes.md),
 [Desktop architecture](../contribute/architecture/desktop.md),
 [Server architecture](../contribute/architecture/server.md),
-[Remote Control](../design/remote-control.md), and
+[Remote Control](../design/remote-control.md),
+[long-running workspace Environments](long-running-workspace-environments.md), and
 [client sessions and API credentials](client-sessions-and-api-credentials.md).
 
 ## Contents
@@ -49,11 +50,9 @@ BuildMax already has in Portal and `buildmax-server`. The proposal is to make
 the client's *data layer* the seam: one shared UI over a data interface that can
 speak either local IPC or the remote HTTP/WebSocket API, so the same surface
 serves local-native, cloud-web, and thin-mobile modes without a second UI and
-without changing the desktop framework. The clearest instance of the cloud-web
-mode is the **Desktop-in-Cloud** shape (§10): a long-running, Space-scoped
-environment that serves the Desktop experience over the web, managed within
-Portal but running on a separate execution plane from its task-centric
-Task/TaskRun model.
+without changing the desktop framework. One possible cloud-web consumer is a
+hosted workspace (§10), but its compute and persistence lifecycle is an
+independent product decision rather than part of client convergence.
 
 ## 2. The Prompting Question
 
@@ -144,12 +143,9 @@ data layer's transport, not the UI and not the framework.
   filesystem access, the local terminal, OS integration.
 - Make "run in the cloud, reach from a browser" a natural extension of the
   existing Portal + `buildmax-server` path rather than new infrastructure.
-- Name and enable the **Desktop-in-Cloud** shape (§10) as a separate
-  **Environment plane**: a long-running, Space-scoped machine that serves the
-  Desktop experience over the web on its own workspace, managed within Portal —
-  reusing its authentication, Space authorization, and plugin distribution — but
-  distinct from the Task/TaskRun execution model, with its own provisioning,
-  lease, resource management, and reclamation.
+- Keep the remote data interface usable by a future hosted workspace without
+  making client convergence own or pre-commit that Environment's compute,
+  persistence, authorization, or lifecycle (§10).
 - Give mobile a clear, low-cost path (responsive Portal, then PWA, then an
   optional thin native wrapper) that reuses the same UI and data interface.
 
@@ -212,84 +208,26 @@ surfaces the shared UI needs.
 
 ## 10. The Environment Plane and the Desktop-in-Cloud Shape
 
-The convergence model makes one flagship shape concrete and worth naming as a
-target: a **personal cloud machine**. A user reaches a long-running remote
-environment from a browser and gets a Desktop-equivalent experience running on
-it: projects, chat sessions, the terminal, file and diff views, approvals, and
-live run streams. It is the Codespaces/Gitpod pattern applied to BuildMax — the
-agent runtime and the workspace live on the machine, and the browser is a thin
-client over the HTTP/WebSocket data adapter of §9.
+The convergence model makes a cloud-hosted workspace visible to the same shared
+UI, but client convergence does not own that workspace's execution lifecycle.
+The independent
+[long-running workspace Environments proposal](long-running-workspace-environments.md)
+now owns the decision: a Space-scoped Environment, separate from Task/TaskRun,
+with persistent state, leases, provisioning, reclamation, and a fail-closed
+trust boundary.
 
-What makes it a composition of existing parts rather than a new product:
+That proposal deliberately starts narrower than a Desktop-equivalent codespace:
+one cloud-hosted Agent session over one private workspace. It reuses
+[Remote Control](../design/remote-control.md) for live events and commands while
+keeping Environment authorization Space-scoped. Terminal, files, diffs, and
+arbitrary applications remain possible broad-surface consumers of the shared
+HTTP/WebSocket data layer, but they are not prerequisites for deciding whether
+the Environment plane is useful.
 
-- The runtime is already shared — `internal/agentapp` assembles the same models,
-  tools, MCP, hooks, sandbox, traces, and sessions for CLI, Desktop, evaluation,
-  and workers, so running it on a long-running environment reuses it unchanged.
-- The UI is already shared through `@buildmax/gui`; the Desktop React surface runs
-  in the browser over the HTTP/WebSocket adapter.
-- The transport already exists in Portal + `buildmax-server`; the terminal maps
-  naturally onto a WebSocket, and the shipped Desktop terminal PTY manager
-  (`internal/interface/desktop/terminal.go`) is its seed.
-
-**This is a second execution plane, not the Task plane.** Task plus TaskRun is a
-*bounded-turn* model: a run materializes the Space's files into a run-scoped
-`workspace/`, executes one turn or attempt, records an authoritative result, and
-is torn down, with state crossing runs through checkpoints. A long-running
-environment is the opposite in kind — a persistent, interactively used machine
-with a live terminal, in-flight files, and background processes that outlive any
-single turn. Forcing it into TaskRun would distort both. It is a distinct
-**Environment plane** with its own resource, lifecycle, and management surface,
-and it must not inherit the task-centric execution model.
-
-**Portal unifies management, not execution.** The Environment plane reuses
-Portal's existing control surfaces unchanged:
-
-- **Authentication and authorization** — the same JWT and single-use login codes,
-  and **Space as the authorization boundary**: an environment is a Space-scoped
-  resource, so who may provision, reach, or destroy it follows Space membership
-  and roles, exactly like Tasks, Artifacts, and Workflows.
-- **Plugin distribution** — the same server-resolved, Space-explicit activation
-  workers already receive, into a run-scoped `BUILDMAX_HOME`.
-
-It then adds what the task-centric model has no concept of, and this is where the
-new design work lives:
-
-- **Provisioning / request** — a member requests an environment; the server
-  allocates the container, its workspace, and a Space-scoped `BUILDMAX_HOME`.
-- **Lease** — the environment is held under a lease with an idle timeout, renewed
-  by use, so "long-running" does not mean "forever-running."
-- **Resource management** — CPU, memory, and storage bounds plus per-Space quotas,
-  because an idle environment still costs, unlike an ephemeral Job.
-- **Reclamation** — hibernate on idle, stop on lease expiry, and a defined answer
-  for what persists across hibernate and restart versus what is lost on
-  reclamation.
-
-Two properties define the shape and must be decided deliberately:
-
-- **The workspace is the machine's, not the user's laptop.** Projects live on that
-  machine, cloned or mounted there; this is Codespaces semantics, and local-only
-  OS integration does not carry over. It is a defining feature of the shape, not a
-  gap, but it must be stated so "same as Desktop" is not read as "your local
-  files."
-- **Network exposure changes the trust posture.** A network-reachable agent has
-  shell and filesystem access, so the Bash sandbox should default on with
-  fail-closed enforcement, matching the worker posture rather than the local-CLI
-  default. See [agent sandbox policy](../design/agent-sandbox-policy.md).
-
-**It is distinct from Portal's task-centric model, not from Portal.** The
-Environment plane and the Task plane share authentication, Space authorization,
-plugin distribution, the runtime, the UI, and the transport; they do not share the
-execution model or its resource, and neither subsumes the other. A standalone
-single-tenant server built on the same `agentapp` runtime remains a possible
-packaging of the same shape, but hosting the Environment plane inside Portal is
-preferred: it reuses the multi-tenant control surfaces above instead of
-reinventing them.
-
-Since this proposal opened, [Remote Control](../design/remote-control.md) has
-been accepted and its first phases shipped. It places itself and this
-Environment plane on one grid of runtime host by interaction surface, and builds
-the narrow-surface, local-host quadrant -- steering a session on the user's
-machine through the server -- without any of the environment substrate above.
+The ownership split is therefore explicit: this paper owns the shared UI and
+switchable client data layer; the Environment paper owns compute, storage,
+session continuity, authorization, failure, quota, and operation. Either
+direction can be accepted or rejected without coupling the other to it.
 
 ## 11. Mobile as a Thin Client
 
@@ -336,12 +274,10 @@ over a Go server. The mobile advantage lands outside this codebase's shape.
 - Which mobile step (responsive Portal, PWA, native wrapper) does the earliest
   real user need justify, and what evidence would move the decision past
   responsive Portal?
-- §10 establishes the Environment plane as separate from the Task plane and
-  managed within Portal; what stays open is the concrete policy — default lease
-  and idle-hibernation windows, per-Space quotas, exactly what persists across
-  hibernate and reclamation, how the workspace is provisioned (clone on start,
-  mount, or attach an existing repository), and the sandbox defaults for an
-  interactively reachable environment.
+- Does the separate
+  [Environment proposal](long-running-workspace-environments.md) produce a
+  broad-surface requirement for this data layer, or is its narrow Remote
+  Control interaction sufficient for the first useful slice?
 - What is the smallest slice that proves the switchable data layer — for
   instance, one surface rendered from `@buildmax/gui` running unchanged over both
   the IPC adapter and the HTTP adapter?
@@ -356,3 +292,7 @@ mobile path enter [ROADMAP.md](../ROADMAP.md) as decomposed
 [backlog](../backlog/README.md) items. The decision that a desktop-framework
 migration is not the lever is recorded there so it is not relitigated without new
 evidence. This proposal is then deleted.
+
+The Environment lifecycle decision proceeds independently through the
+[long-running workspace Environments proposal](long-running-workspace-environments.md);
+accepting this client seam does not commit BuildMax to hosted Environments.

@@ -10,7 +10,8 @@
 [客户端模式](../design/客户端模式.md)、
 [Desktop 架构](../contribute/architecture/desktop.md)、
 [Server 架构](../contribute/architecture/server.md)、
-[远程控制](../design/远程控制.md)，以及
+[远程控制](../design/远程控制.md)、
+[长时间运行的工作区 Environment](long-running-workspace-environments.md)，以及
 [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md)。
 
 ## 目录
@@ -45,9 +46,8 @@ IPC 桥——两者都不会把后端暴露给远程浏览器。真正能触达�
 已经具备。本提案建议把客户端的**数据层**作为接缝：一套共享 UI，构建在一个既能说
 本地 IPC、也能说远程 HTTP/WebSocket 的数据接口之上，从而让同一界面服务于
 本地原生、云端 Web 与薄移动端三种模式，无需第二套 UI，也无需更换桌面框架。
-云端 Web 模式最清晰的实例就是 **Desktop-in-Cloud** 形态（§10）：一个长运行的、
-Space 级的环境，通过 Web 提供 Desktop 体验，在 Portal 上统一管理，但运行在一个
-独立于其任务式 Task/TaskRun 模型的执行平面上。
+托管工作区（§10）可能成为云端 Web 的一个使用者，但其计算与持久化生命周期属于
+独立产品决策，不属于客户端收敛本身。
 
 ## 2. 引出这份提案的问题
 
@@ -122,10 +122,8 @@ Server 保持在一套 Go 栈里。Tauri 的核心是 Rust；采用它会分叉�
 - 为只有本地外壳能做的事保留 Wails：本地项目与文件系统访问、本地终端、OS 集成。
 - 让"在云端运行、用浏览器访问"成为既有 Portal + `buildmax-server` 路径的自然
   延伸，而非新建基础设施。
-- 命名并落地 **Desktop-in-Cloud** 形态（§10），作为一个独立的 **Environment
-  平面**：一台长运行的、Space 级的机器，在其自有 workspace 上通过 Web 提供
-  Desktop 体验，在 Portal 上统一管理——复用其认证、Space 授权与插件分发——但
-  区别于 Task/TaskRun 执行模型，拥有自己的申请、租约、资源管理与回收。
+- 让远程数据接口可供未来的托管工作区使用，同时不让客户端收敛拥有或预先承诺
+  该 Environment 的计算、持久化、授权或生命周期（§10）。
 - 给移动端一条清晰、低成本的路径（响应式 Portal，然后 PWA，然后可选的薄原生
   壳），复用同一套 UI 与数据接口。
 
@@ -177,70 +175,21 @@ Server 保持在一套 Go 栈里。Tauri 的核心是 Rust；采用它会分叉�
 
 ## 10. Environment 平面与 Desktop-in-Cloud 形态
 
-收敛模型让一个旗舰形态变得具体、值得作为目标命名：一台**个人云端机器**。用户
-用浏览器访问一个**长运行的远端环境**，就得到一个在其上运行的、与 Desktop 等价
-的体验：项目、聊天会话、终端、文件与 diff 视图、审批以及实时运行流。它是把
-Codespaces/Gitpod 模式套用到 BuildMax——Agent runtime 与 workspace 住在这台
-机器上，浏览器是走 §9 那个 HTTP/WebSocket 数据适配器的薄客户端。
+收敛模型让同一套共享 UI 可以呈现云端 workspace，但客户端收敛不拥有该 workspace
+的执行生命周期。独立的
+[长时间运行的工作区 Environment 提案](long-running-workspace-environments.md)
+现在拥有这项决策：一个归属 Space、与 Task/TaskRun 分离的 Environment，包含持久
+状态、lease、provisioning、reclamation 与 fail-closed 信任边界。
 
-为什么它是既有部件的组合，而非一个新产品：
+该提案有意从比 Desktop 等价 codespace 更窄的形态开始：一个云端 Agent Session，
+操作一个私有 workspace。它复用 [Remote Control](../design/远程控制.md)承载实时
+事件与命令，同时保持 Environment 的 Space-scoped 授权。终端、文件、diff 与任意
+应用仍可能成为共享 HTTP/WebSocket 数据层的宽界面使用者，但它们不是判断
+Environment 平面是否有价值的前置条件。
 
-- runtime 已经共享——`internal/agentapp` 为 CLI、Desktop、评测与 worker 组装
-  同一套模型、工具、MCP、hooks、sandbox、trace 与 sessions，因此让它在一个
-  长运行环境上运行是原样复用。
-- UI 已经通过 `@buildmax/gui` 共享；Desktop 的 React 界面在浏览器里走
-  HTTP/WebSocket 适配器运行。
-- 传输已经存在于 Portal + `buildmax-server`；终端天然映射到 WebSocket，
-  已交付的 Desktop 终端 PTY 管理器（`internal/interface/desktop/terminal.go`）就是它的种子。
-
-**这是第二个执行平面，不是 Task 平面。** Task 加 TaskRun 是一个**有界 turn**
-模型：一次 run 把 Space 文件 materialize 进 run-scoped 的 `workspace/`，执行一个
-turn 或一次尝试，记录权威结果，然后拆除，跨 run 的状态靠 checkpoint 续接。而
-一个长运行环境在种类上正相反——一台持续存在、被交互使用的机器，带活的终端、
-处理中的文件与超出任何单个 turn 的后台进程。把它硬塞进 TaskRun 会同时扭曲两者。
-它是一个独立的 **Environment 平面**，有自己的资源、生命周期与管理面，绝不应
-继承任务式的执行模型。
-
-**Portal 统一管理，而非统一执行。** Environment 平面原样复用 Portal 既有的
-控制面：
-
-- **认证与授权** —— 同一套 JWT 与单次登录码，以及 **Space 作为授权边界**：
-  一个环境是 Space 级资源，因此谁能申请、访问或销毁它，遵循 Space 成员与角色，
-  与 Task、Artifact、Workflow 完全一致。
-- **插件分发** —— 与 worker 已获得的同一份服务端解析、Space 显式的激活，注入
-  run-scoped 的 `BUILDMAX_HOME`。
-
-随后它加入任务式模型完全没有的概念，而新的设计工作正在这里：
-
-- **申请 / 请求** —— 成员请求一个环境；服务端分配容器、其 workspace 以及一个
-  Space 级的 `BUILDMAX_HOME`。
-- **租约** —— 环境在一个带 idle 超时的租约下持有，因使用而续期，因此"长运行"
-  不等于"永远运行"。
-- **资源管理** —— CPU、内存与存储上限，以及按 Space 的配额，因为一个闲置环境
-  仍然烧钱，这与 ephemeral Job 不同。
-- **回收** —— idle 时休眠，租约到期时停止，并对"跨休眠与重启什么留下、回收时
-  什么丢失"给出明确答案。
-
-有两条性质定义了这个形态，必须刻意决定：
-
-- **workspace 是这台机器的，不是用户的笔记本。** 项目住在那台机器上（在其上
-  clone 或挂载）；这是 Codespaces 语义，纯本地的 OS 集成不会照搬。它是这个形态
-  的定义性特征，而非缺口，但必须明说，以免"和 Desktop 一样"被读成"你的本地
-  文件"。
-- **网络暴露改变了信任姿态。** 一个网络可达的 Agent 拥有 shell 与文件系统访问
-  权限，因此 Bash sandbox 应默认开启并 fail-closed 强制执行，采用 worker 的姿态
-  而非本地 CLI 的默认。见 [Agent 沙箱策略](../design/Agent沙箱策略.md)。
-
-**它区别于 Portal 的任务式模型，而非区别于 Portal。** Environment 平面与 Task
-平面共享认证、Space 授权、插件分发、runtime、UI 与传输；它们不共享执行模型及其
-资源，谁也不吞并谁。一个构建在同一 `agentapp` runtime 之上的独立单租户 server
-仍是同一形态的一种可能封装，但把 Environment 平面托管在 Portal 内更可取：它复用
-上述多租户控制面，而不是重新发明它们。
-
-本提案提出之后，[远程控制](../design/远程控制.md)已被接受并交付了前几个阶段。它把
-自身与这里的 Environment 平面放在“运行宿主 × 交互界面”的同一网格上，并构建了
-窄界面、本地宿主这一象限——通过服务器操控用户本机上的会话——完全不需要上述
-环境底座。
+所有权边界因此是明确的：本文拥有共享 UI 与可切换客户端数据层；Environment
+提案拥有计算、存储、Session 连续性、授权、失败、quota 与运维。任一方向都可以
+独立获采纳或被否决，不需要把另一方向绑定在一起。
 
 ## 11. 移动端作为薄客户端
 
@@ -280,10 +229,8 @@ BuildMax 的手机界面是一个连 Go 服务端的薄客户端。这份移动�
   WebSocket 两者，而不泄露任一方？
 - 移动端的哪一步（响应式 Portal、PWA、原生壳）由最早的真实用户需求所证明其
   正当性，以及什么证据能把决定推过"响应式 Portal"这一步？
-- §10 已确立 Environment 平面独立于 Task 平面、并在 Portal 内统一管理；仍待
-  决定的是具体策略——默认租约与 idle 休眠时长、按 Space 的配额、跨休眠与回收
-  究竟什么留下、workspace 如何准备（启动时 clone、挂载，或挂接一个已有仓库），
-  以及一个可交互访问的环境的沙箱默认值。
+- 独立的 [Environment 提案](long-running-workspace-environments.md)是否会为该数据层
+  产生宽界面需求，还是其收窄的 Remote Control 交互已经足以构成第一个有用切片？
 - 证明可切换数据层的最小切片是什么——例如，一个来自 `@buildmax/gui`、在 IPC
   适配器与 HTTP 适配器之上均原样运行的界面？
 
@@ -294,3 +241,7 @@ BuildMax 的手机界面是一个连 Go 服务端的薄客户端。这份移动�
 的延伸——而渐进重构与移动端路径进入 [ROADMAP.md](../ROADMAP.md)，成为拆解后的
 [backlog](../../backlog/README.md) 条目。"桌面框架迁移不是杠杆"这一判断记录在那里，
 以便在没有新证据时不被重新翻案。随后删除本提案。
+
+Environment 生命周期决策通过独立的
+[长时间运行的工作区 Environment 提案](long-running-workspace-environments.md)
+推进；采纳本文的客户端接缝，不代表 BuildMax 承诺托管 Environment。
