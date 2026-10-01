@@ -376,7 +376,10 @@ func confirmOcean(project string) error {
 }
 
 func protectOceanFiles(cfg oceanConfig) error {
+	workerCert, workerKey := oceanWorkerAPICertPaths(cfg)
 	for _, path := range []string{
+		workerCert,
+		workerKey,
 		oceanStatePath(cfg),
 		oceanStatePath(cfg) + ".backup",
 		oceanKubeconfigPath(cfg),

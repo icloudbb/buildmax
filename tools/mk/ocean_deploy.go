@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -13,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/icloudbb/buildmax/internal/infra/secret"
 )
@@ -27,11 +30,19 @@ const (
 	oceanKEKPath   = "/etc/buildmax/kek/kek.json"
 	oceanKEKKeyID  = "file:root:1"
 
+	// The worker listener's TLS pair and the CA ConfigMap worker pods mount, and
+	// the ConfigMap the seccomp DaemonSet copies onto each node. Names match the
+	// manifest and the server.yaml oceanServerConfig renders.
+	oceanWorkerAPITLSSecret   = "buildmax-worker-api-tls"
+	oceanWorkerAPICAConfigMap = "buildmax-worker-api-ca"
+	oceanSeccompConfigMap     = "buildmax-worker-seccomp"
+	oceanSeccompProfile       = "deployment/seccomp/worker-bwrap.json"
+
 	// These are the immutable multi-platform release manifests, not mutable
 	// tags. A later candidate is selected explicitly through the matching env
 	// variables and recorded in the qualification evidence.
-	defaultOceanBuildMaxImage = "ghcr.io/icloudbb/buildmax@sha256:64e6775796b4bf0cb1145e3aaa79084e170f1ec340bd5af1cddc1a28cc0336dd"
-	defaultOceanPortalImage   = "ghcr.io/icloudbb/buildmax-portal@sha256:82165de877e4cae3c5a1c598b6f39b37a94db114ab6ce315b237d5913f7e2e2b"
+	defaultOceanBuildMaxImage = "ghcr.io/icloudbb/buildmax@sha256:4e0a65874c8b5135e4a34a018acf0ca33a7af80711dd09814d0cac4e349ea573"
+	defaultOceanPortalImage   = "ghcr.io/icloudbb/buildmax-portal@sha256:1087a8c33c37a561e908db22e7925f1d9438a3fece0539ed1dded62afb66e135"
 	defaultOceanEdgeImage     = "caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d"
 )
 
@@ -134,6 +145,18 @@ func oceanDeploy(cfg oceanConfig) error {
 	if err != nil {
 		return err
 	}
+	workerCert, workerKey, err := oceanWorkerAPICert(cfg)
+	if err != nil {
+		return err
+	}
+	root, err := moduleRoot()
+	if err != nil {
+		return err
+	}
+	seccompProfile, err := os.ReadFile(filepath.Join(root, oceanSeccompProfile))
+	if err != nil {
+		return fmt.Errorf("read worker seccomp profile: %w", err)
+	}
 	caddyConfig := oceanCaddyfile(app)
 
 	if err := oceanApplyObject(cfg, map[string]any{
@@ -178,6 +201,25 @@ func oceanDeploy(cfg oceanConfig) error {
 			"type":       "Opaque",
 			"stringData": map[string]string{"kek.json": string(kek)},
 		},
+		{
+			"apiVersion": "v1",
+			"kind":       "Secret",
+			"metadata":   map[string]any{"name": oceanWorkerAPITLSSecret, "namespace": "buildmax"},
+			"type":       "kubernetes.io/tls",
+			"stringData": map[string]string{"tls.crt": string(workerCert), "tls.key": string(workerKey)},
+		},
+		{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata":   map[string]any{"name": oceanWorkerAPICAConfigMap, "namespace": "buildmax"},
+			"data":       map[string]string{"worker-api-ca.crt": string(workerCert)},
+		},
+		{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata":   map[string]any{"name": oceanSeccompConfigMap, "namespace": "buildmax"},
+			"data":       map[string]string{"worker-bwrap.json": string(seccompProfile)},
+		},
 	} {
 		if err := oceanApplyObject(cfg, object); err != nil {
 			return err
@@ -191,14 +233,17 @@ func oceanDeploy(cfg oceanConfig) error {
 	if err := oceanKubectlInput(cfg, manifest, "apply", "-f", "-"); err != nil {
 		return err
 	}
-	for _, deployment := range []string{"buildmax-server", "buildmax-portal", "buildmax-edge"} {
-		if err := oceanKubectl(cfg, "rollout", "restart", "deployment/"+deployment, "-n", "buildmax"); err != nil {
+	// The DaemonSet copies the seccomp profile only when its pod starts, so it
+	// restarts with the rest to pick up a changed profile.
+	workloads := []string{"daemonset/buildmax-worker-seccomp", "deployment/buildmax-server", "deployment/buildmax-portal", "deployment/buildmax-edge"}
+	for _, workload := range workloads {
+		if err := oceanKubectl(cfg, "rollout", "restart", workload, "-n", "buildmax"); err != nil {
 			return err
 		}
 	}
-	for _, deployment := range []string{"buildmax-server", "buildmax-portal", "buildmax-edge"} {
-		if err := oceanKubectl(cfg, "rollout", "status", "deployment/"+deployment, "-n", "buildmax", "--timeout=300s"); err != nil {
-			return fmt.Errorf("%s rollout: %w; inspect it with `%s ocean app-status`", deployment, err, mk())
+	for _, workload := range workloads {
+		if err := oceanKubectl(cfg, "rollout", "status", workload, "-n", "buildmax", "--timeout=300s"); err != nil {
+			return fmt.Errorf("%s rollout: %w; inspect it with `%s ocean app-status`", workload, err, mk())
 		}
 	}
 
@@ -276,24 +321,32 @@ storage:
 
 worker:
   run_mode: k8s_job
-  # STOPGAP: public HTTP port; M3 switches to the https buildmax-worker-api
-  # Service and drops allow_insecure_http.
-  server_url: http://buildmax.buildmax.svc.cluster.local:5678
-  allow_insecure_http: true
+  server_url: https://%s:5679
+  server_ca_file: /buildmax/tls/worker-api-ca.crt
   k8s:
     namespace: buildmax
     image: %s
     config_map: buildmax-config
+    ca_config_map: %s
     home_dir: /buildmax
+    finished_job_ttl: 1h
     resources:
       cpu_request: 500m
       cpu_limit: "2"
       memory_request: 1Gi
       memory_limit: 2Gi
+      ephemeral_storage_request: 1Gi
+      ephemeral_storage_limit: 10Gi
+
+worker_api:
+  listen: 0.0.0.0:5679
+  tls:
+    cert_file: /buildmax/tls/worker-api/tls.crt
+    key_file: /buildmax/tls/worker-api/tls.key
 
 secret:
   kek_file: %s
-`, yamlString("https://"+app.hostname), yamlString(outputs["database_private_host"]), outputs["database_port"], yamlString(outputs["database_user"]), yamlString(outputs["database_name"]), yamlString(outputs["spaces_endpoint"]), yamlString(cfg.region), yamlString(outputs["spaces_bucket_name"]), yamlString(app.buildmaxImage), yamlString(oceanKEKPath))
+`, yamlString("https://"+app.hostname), yamlString(outputs["database_private_host"]), outputs["database_port"], yamlString(outputs["database_user"]), yamlString(outputs["database_name"]), yamlString(outputs["spaces_endpoint"]), yamlString(cfg.region), yamlString(outputs["spaces_bucket_name"]), workerAPIServiceDNS, yamlString(app.buildmaxImage), oceanWorkerAPICAConfigMap, yamlString(oceanKEKPath))
 }
 
 func yamlString(value string) string {
@@ -379,6 +432,48 @@ func oceanKEK(cfg oceanConfig, clusterHasKEK func() (bool, error)) ([]byte, erro
 	}
 	fmt.Printf("Generated the deployment KEK at %s. Back it up apart from the database: without it, sealed credentials cannot be read.\n", path)
 	return data, nil
+}
+
+// oceanWorkerAPICert returns the worker listener's self-signed certificate and
+// key from the state directory, generating a new pair when none is there or the
+// stored one expires within 30 days. Reusing it across deploys keeps a worker
+// that started under the previous server able to verify the next one.
+func oceanWorkerAPICert(cfg oceanConfig) ([]byte, []byte, error) {
+	certPath, keyPath := oceanWorkerAPICertPaths(cfg)
+	certPEM, certErr := os.ReadFile(certPath)
+	keyPEM, keyErr := os.ReadFile(keyPath)
+	if certErr == nil && keyErr == nil && oceanWorkerAPICertUsable(certPEM, time.Now()) {
+		return certPEM, keyPEM, nil
+	}
+	certPEM, keyPEM, err := generateWorkerAPICert()
+	if err != nil {
+		return nil, nil, err
+	}
+	for path, data := range map[string][]byte{certPath: certPEM, keyPath: keyPEM} {
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			return nil, nil, fmt.Errorf("write ocean worker-api TLS: %w", err)
+		}
+		if err := os.Chmod(path, 0o600); err != nil {
+			return nil, nil, fmt.Errorf("protect ocean worker-api TLS: %w", err)
+		}
+	}
+	return certPEM, keyPEM, nil
+}
+
+func oceanWorkerAPICertUsable(certPEM []byte, now time.Time) bool {
+	block, _ := pem.Decode(certPEM)
+	if block == nil {
+		return false
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false
+	}
+	return cert.VerifyHostname(workerAPIServiceDNS) == nil && now.Add(30*24*time.Hour).Before(cert.NotAfter)
+}
+
+func oceanWorkerAPICertPaths(cfg oceanConfig) (string, string) {
+	return filepath.Join(cfg.stateDir, "worker-api.crt"), filepath.Join(cfg.stateDir, "worker-api.key")
 }
 
 func oceanKEKStatePath(cfg oceanConfig) string {
