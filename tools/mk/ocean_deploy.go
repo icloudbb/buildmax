@@ -278,7 +278,11 @@ func oceanDeploymentInputs(cfg oceanConfig, app oceanApplicationConfig) (string,
 		return "", "", nil, err
 	}
 
-	serverConfig := oceanServerConfig(cfg, app, outputs)
+	contextWindow, err := oceanModelContextWindow()
+	if err != nil {
+		return "", "", nil, err
+	}
+	serverConfig := oceanServerConfig(cfg, app, outputs, contextWindow)
 	if target, err := os.ReadFile(oceanModelTargetPath(cfg)); err == nil {
 		serverConfig += fmt.Sprintf("\nconversation:\n  model_target: %s\n", yamlString(strings.TrimSpace(string(target))))
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -294,7 +298,7 @@ func oceanDeploymentInputs(cfg oceanConfig, app oceanApplicationConfig) (string,
 }
 
 // oceanServerConfig renders server.yaml from the OpenTofu outputs.
-func oceanServerConfig(cfg oceanConfig, app oceanApplicationConfig, outputs map[string]string) string {
+func oceanServerConfig(cfg oceanConfig, app oceanApplicationConfig, outputs map[string]string, contextWindow int) string {
 	return fmt.Sprintf(`port: 5678
 log_level: info
 workspaces_dir: /buildmax/workspaces
@@ -323,6 +327,12 @@ worker:
   run_mode: k8s_job
   server_url: https://%s:5679
   server_ca_file: /buildmax/tls/worker-api-ca.crt
+  # Runs call the catalog model through the server's gateway, so the provider
+  # key never reaches a worker. With no model named, a run uses the catalog's
+  # first model, which is the one ocean model init adds.
+  llm:
+    transport: buildmax
+    context_window: %d
   k8s:
     namespace: buildmax
     image: %s
@@ -346,7 +356,7 @@ worker_api:
 
 secret:
   kek_file: %s
-`, yamlString("https://"+app.hostname), yamlString(outputs["database_private_host"]), outputs["database_port"], yamlString(outputs["database_user"]), yamlString(outputs["database_name"]), yamlString(outputs["spaces_endpoint"]), yamlString(cfg.region), yamlString(outputs["spaces_bucket_name"]), workerAPIServiceDNS, yamlString(app.buildmaxImage), oceanWorkerAPICAConfigMap, yamlString(oceanKEKPath))
+`, yamlString("https://"+app.hostname), yamlString(outputs["database_private_host"]), outputs["database_port"], yamlString(outputs["database_user"]), yamlString(outputs["database_name"]), yamlString(outputs["spaces_endpoint"]), yamlString(cfg.region), yamlString(outputs["spaces_bucket_name"]), workerAPIServiceDNS, contextWindow, yamlString(app.buildmaxImage), oceanWorkerAPICAConfigMap, yamlString(oceanKEKPath))
 }
 
 func yamlString(value string) string {

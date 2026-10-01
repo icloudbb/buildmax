@@ -302,7 +302,7 @@ func loadOceanServerConfig(t *testing.T) config.ServerConfig {
 		"database_name":         "buildmax",
 		"spaces_endpoint":       "https://sgp1.digitaloceanspaces.com",
 		"spaces_bucket_name":    "buildmax-beta",
-	})
+	}, 1050000)
 	home := t.TempDir()
 	if err := os.WriteFile(filepath.Join(home, "server.yaml"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
@@ -313,6 +313,18 @@ func loadOceanServerConfig(t *testing.T) config.ServerConfig {
 		t.Fatalf("ocean server.yaml does not load: %v", err)
 	}
 	return cfg
+}
+
+// A direct-transport worker has no model of its own, so every run would fail
+// with "model not found"; the managed gateway also keeps the key server-side.
+func TestOceanWorkersUseTheManagedGateway(t *testing.T) {
+	cfg := loadOceanServerConfig(t)
+	if cfg.Worker.LLM.Transport != config.TransportBuildMax {
+		t.Errorf("worker.llm.transport = %q, want %q", cfg.Worker.LLM.Transport, config.TransportBuildMax)
+	}
+	if cfg.Worker.LLM.ContextWindow != 1050000 {
+		t.Errorf("worker.llm.context_window = %d, want the catalog model's 1050000", cfg.Worker.LLM.ContextWindow)
+	}
 }
 
 func TestOceanServerConfigEnablesTheKEK(t *testing.T) {
