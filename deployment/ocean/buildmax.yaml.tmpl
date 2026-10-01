@@ -31,6 +31,62 @@ subjects:
     name: buildmax-server
     namespace: buildmax
 ---
+# Puts the worker's custom seccomp profile on every node's kubelet seccomp
+# directory, from the buildmax-worker-seccomp ConfigMap `ocean deploy` creates
+# from deployment/seccomp/worker-bwrap.json. A worker Job names this path as
+# its Localhost seccomp profile and cannot start on a node without it. See
+# deployment/seccomp/README.md.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: buildmax-worker-seccomp
+  namespace: buildmax
+spec:
+  selector:
+    matchLabels:
+      app: buildmax-worker-seccomp
+  template:
+    metadata:
+      labels:
+        app: buildmax-worker-seccomp
+    spec:
+      automountServiceAccountToken: false
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: install
+          image: {{ .BuildMaxImage }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              mkdir -p /host-seccomp/buildmax
+              cp /profile/worker-bwrap.json /host-seccomp/buildmax/worker-bwrap.json
+              echo "installed worker-bwrap.json; watching for updates"
+              while true; do sleep 3600; done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          volumeMounts:
+            - name: profile
+              mountPath: /profile
+            - name: host-seccomp
+              mountPath: /host-seccomp
+      volumes:
+        - name: profile
+          configMap:
+            name: buildmax-worker-seccomp
+        - name: host-seccomp
+          hostPath:
+            path: /var/lib/kubelet/seccomp
+            type: DirectoryOrCreate
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -99,6 +155,9 @@ spec:
           ports:
             - containerPort: 5678
               name: http
+            # The worker control API, reached only through buildmax-worker-api.
+            - containerPort: 5679
+              name: worker-api
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -161,6 +220,11 @@ spec:
             - name: trust
               mountPath: /trust
               readOnly: true
+            # The worker listener's certificate and key; worker pods get only
+            # the CA, from buildmax-worker-api-ca.
+            - name: worker-api-tls
+              mountPath: /buildmax/tls/worker-api
+              readOnly: true
             # Deployment key-encryption key, generated once by `ocean deploy`
             # into the state directory. It seals managed-model credentials and
             # Space Secrets; secret.kek_file in server.yaml points here. Kept
@@ -188,6 +252,9 @@ spec:
             name: buildmax-database-ca
         - name: trust
           emptyDir: {}
+        - name: worker-api-tls
+          secret:
+            secretName: buildmax-worker-api-tls
         # Owner-only 0400; fsGroup makes it 0440 root:65532, readable by the
         # server only.
         - name: buildmax-kek
@@ -209,6 +276,48 @@ spec:
     - name: http
       port: 5678
       targetPort: 5678
+---
+# The internal worker control API. The NetworkPolicy below, not the ClusterIP,
+# is what limits who may connect.
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax-worker-api
+  namespace: buildmax
+spec:
+  type: ClusterIP
+  selector:
+    app: buildmax-server
+  ports:
+    - name: worker-api
+      port: 5679
+      targetPort: 5679
+---
+# The public port stays open to the cluster for the edge; the worker port
+# admits only the pods the Kubernetes runner labels as workers.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+spec:
+  podSelector:
+    matchLabels:
+      app: buildmax-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 5678
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: buildmax-worker
+              app.kubernetes.io/component: worker
+      ports:
+        - protocol: TCP
+          port: 5679
 ---
 apiVersion: apps/v1
 kind: Deployment

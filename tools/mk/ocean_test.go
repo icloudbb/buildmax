@@ -3,16 +3,20 @@ package main
 import (
 	"bytes"
 	"errors"
+	"net"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/infra/k8s"
 	"github.com/icloudbb/buildmax/internal/infra/secret"
 )
 
@@ -284,7 +288,10 @@ func TestOceanManifestMountsTheKEKWhereServerConfigPointsIt(t *testing.T) {
 	t.Fatal("no buildmax-server Deployment in the ocean manifest")
 }
 
-func TestOceanServerConfigEnablesTheKEK(t *testing.T) {
+// loadOceanServerConfig renders server.yaml as `ocean deploy` would and loads
+// it the way the server does.
+func loadOceanServerConfig(t *testing.T) config.ServerConfig {
+	t.Helper()
 	body := oceanServerConfig(oceanConfig{region: "sgp1"}, oceanApplicationConfig{
 		hostname:      "buildmax.beta.cloudbb.io",
 		buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64),
@@ -305,9 +312,179 @@ func TestOceanServerConfigEnablesTheKEK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ocean server.yaml does not load: %v", err)
 	}
+	return cfg
+}
+
+func TestOceanServerConfigEnablesTheKEK(t *testing.T) {
+	cfg := loadOceanServerConfig(t)
 	if cfg.Secret.KEKFile != oceanKEKPath {
 		t.Errorf("secret.kek_file = %q, want %q; without it `model add --api-key` is refused", cfg.Secret.KEKFile, oceanKEKPath)
 	}
+}
+
+// The server refuses to start on a listener or worker-bound mistake, so a
+// deploy that renders one crash-loops instead of serving.
+func TestOceanServerConfigPassesStartupChecks(t *testing.T) {
+	cfg := loadOceanServerConfig(t)
+	if err := cfg.ValidateListeners(":5678"); err != nil {
+		t.Errorf("listeners: %v", err)
+	}
+	r := cfg.Worker.K8s.Resources
+	if _, err := (k8s.PodResources{
+		CPURequest:              r.CPURequest,
+		CPULimit:                r.CPULimit,
+		MemoryRequest:           r.MemoryRequest,
+		MemoryLimit:             r.MemoryLimit,
+		EphemeralStorageRequest: r.EphemeralStorageRequest,
+		EphemeralStorageLimit:   r.EphemeralStorageLimit,
+	}).Requirements(); err != nil {
+		t.Errorf("worker resources: %v", err)
+	}
+}
+
+// The worker control API is served only on the worker listener, over TLS, so
+// a worker pointed anywhere else gets a 404 or an unverifiable certificate and
+// every run fails.
+func TestOceanWorkersReachTheWorkerListener(t *testing.T) {
+	cfg := loadOceanServerConfig(t)
+	if cfg.Worker.AllowInsecureHTTP {
+		t.Error("worker.allow_insecure_http is set; the control channel must be TLS")
+	}
+	u, err := url.Parse(cfg.Worker.ServerURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, listenPort, err := net.SplitHostPort(cfg.WorkerAPI.Listen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Scheme != "https" || u.Hostname() != workerAPIServiceDNS || u.Port() != listenPort {
+		t.Errorf("worker.server_url = %q, want https://%s:%s", cfg.Worker.ServerURL, workerAPIServiceDNS, listenPort)
+	}
+	if cfg.WorkerAPI.TLS.CertFile == "" {
+		t.Error("worker_api.tls is unset")
+	}
+	if cfg.Worker.K8s.CAConfigMap != oceanWorkerAPICAConfigMap || path.Base(cfg.Worker.ServerCAFile) != "worker-api-ca.crt" {
+		t.Errorf("worker CA = ConfigMap %q at %q; want %q mounted as worker-api-ca.crt", cfg.Worker.K8s.CAConfigMap, cfg.Worker.ServerCAFile, oceanWorkerAPICAConfigMap)
+	}
+
+	objects := renderedOceanObjects(t)
+	server := objects["Deployment/buildmax-server"]
+	if server == nil {
+		t.Fatal("no buildmax-server Deployment")
+	}
+	pod := server["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
+	tlsVolume := ""
+	for _, v := range pod["volumes"].([]any) {
+		volume := v.(map[string]any)
+		if s, ok := volume["secret"].(map[string]any); ok && s["secretName"] == oceanWorkerAPITLSSecret {
+			tlsVolume = volume["name"].(string)
+		}
+	}
+	mounted := false
+	for _, c := range pod["containers"].([]any) {
+		for _, m := range c.(map[string]any)["volumeMounts"].([]any) {
+			mount := m.(map[string]any)
+			if mount["name"] == tlsVolume && mount["mountPath"] == path.Dir(cfg.WorkerAPI.TLS.CertFile) {
+				mounted = true
+			}
+		}
+	}
+	if tlsVolume == "" || !mounted {
+		t.Errorf("server does not mount Secret %s at %s", oceanWorkerAPITLSSecret, path.Dir(cfg.WorkerAPI.TLS.CertFile))
+	}
+
+	service := objects["Service/buildmax-worker-api"]
+	if service == nil || !strings.Contains(mustYAML(t, service), "targetPort: "+listenPort) {
+		t.Errorf("no buildmax-worker-api Service targeting port %s", listenPort)
+	}
+	policy := mustYAML(t, objects["NetworkPolicy/buildmax-server"])
+	for _, want := range []string{"app.kubernetes.io/name: buildmax-worker", "app.kubernetes.io/component: worker", "port: " + listenPort} {
+		if !strings.Contains(policy, want) {
+			t.Errorf("worker-port NetworkPolicy missing %q", want)
+		}
+	}
+}
+
+// Worker Jobs name a Localhost seccomp profile; without the installer every
+// worker pod fails to start.
+func TestOceanManifestInstallsTheWorkerSeccompProfile(t *testing.T) {
+	installer := mustYAML(t, renderedOceanObjects(t)["DaemonSet/buildmax-worker-seccomp"])
+	for _, want := range []string{"name: " + oceanSeccompConfigMap, "path: /var/lib/kubelet/seccomp", "/host-seccomp/buildmax/worker-bwrap.json"} {
+		if !strings.Contains(installer, want) {
+			t.Errorf("seccomp DaemonSet missing %q", want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join("..", "..", oceanSeccompProfile)); err != nil {
+		t.Errorf("seccomp profile source: %v", err)
+	}
+}
+
+func TestOceanWorkerAPICertIsReusedUntilNearExpiry(t *testing.T) {
+	cfg := oceanConfig{stateDir: t.TempDir()}
+	cert, key, err := oceanWorkerAPICert(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, _, err := oceanWorkerAPICert(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(cert, again) {
+		t.Error("a second deploy replaced a usable worker-api certificate")
+	}
+	certPath, keyPath := oceanWorkerAPICertPaths(cfg)
+	for _, p := range []string{certPath, keyPath} {
+		if runtime.GOOS == "windows" {
+			break
+		}
+		if info, err := os.Stat(p); err != nil || info.Mode().Perm() != 0o600 {
+			t.Errorf("%s is not owner-only: %v", p, err)
+		}
+	}
+	if len(key) == 0 {
+		t.Error("no key returned")
+	}
+	if !oceanWorkerAPICertUsable(cert, time.Now()) {
+		t.Error("a fresh certificate is not usable")
+	}
+	if oceanWorkerAPICertUsable(cert, time.Now().Add(340*24*time.Hour)) {
+		t.Error("a certificate inside its last 30 days is still reused")
+	}
+}
+
+func renderedOceanObjects(t *testing.T) map[string]map[string]any {
+	t.Helper()
+	manifest, err := renderOceanManifest(oceanApplicationConfig{buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	objects := make(map[string]map[string]any)
+	dec := yaml.NewDecoder(bytes.NewReader(manifest))
+	for {
+		var doc map[string]any
+		if err := dec.Decode(&doc); err != nil {
+			break
+		}
+		if doc == nil {
+			continue
+		}
+		name := doc["metadata"].(map[string]any)["name"].(string)
+		objects[doc["kind"].(string)+"/"+name] = doc
+	}
+	return objects
+}
+
+func mustYAML(t *testing.T, value any) string {
+	t.Helper()
+	if value == nil {
+		return ""
+	}
+	data, err := yaml.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }
 
 func TestOceanKEKIsGeneratedOnceAndNeverReplaced(t *testing.T) {

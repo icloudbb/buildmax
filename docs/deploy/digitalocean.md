@@ -138,13 +138,13 @@ accurate. Inspect the redacted catalog at any time:
 ```
 
 The defaults are the immutable multi-platform digests published for
-`v0.2.0-alpha.4`, plus a pinned Caddy 2.10.2 image. Override them only with
+`v0.2.0-alpha.17`, plus a pinned Caddy 2.10.2 image. Override them only with
 another digest, never a mutable tag:
 
 | Variable | Default artifact |
 |---|---|
-| `BUILDMAX_OCEAN_IMAGE` | `ghcr.io/icloudbb/buildmax@sha256:64e6775796b4bf0cb1145e3aaa79084e170f1ec340bd5af1cddc1a28cc0336dd` |
-| `BUILDMAX_OCEAN_PORTAL_IMAGE` | `ghcr.io/icloudbb/buildmax-portal@sha256:82165de877e4cae3c5a1c598b6f39b37a94db114ab6ce315b237d5913f7e2e2b` |
+| `BUILDMAX_OCEAN_IMAGE` | `ghcr.io/icloudbb/buildmax@sha256:4e0a65874c8b5135e4a34a018acf0ca33a7af80711dd09814d0cac4e349ea573` |
+| `BUILDMAX_OCEAN_PORTAL_IMAGE` | `ghcr.io/icloudbb/buildmax-portal@sha256:1087a8c33c37a561e908db22e7925f1d9438a3fece0539ed1dded62afb66e135` |
 | `BUILDMAX_OCEAN_EDGE_IMAGE` | `caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d` |
 
 `deploy` refreshes OpenTofu's read-only database CA output, combines that CA
@@ -166,6 +166,18 @@ is never regenerated. If `kek.json` is missing while the cluster still holds the
 the file from your backup. See
 [the KEK reference](../reference/configuration.md#the-deployment-key-encryption-key)
 for the file format.
+
+Worker Jobs reach the server only through the internal worker listener on port
+5679, over TLS, fronted by the `buildmax-worker-api` Service and a NetworkPolicy
+that admits only worker pods. The first `deploy` generates that listener's
+self-signed certificate and key as `worker-api.crt` and `worker-api.key` in the
+state directory; later deploys reuse them until 30 days before expiry, so a
+worker started under the previous server still verifies the next one. Worker
+pods trust it through the `buildmax-worker-api-ca` ConfigMap. `deploy` also
+runs the `buildmax-worker-seccomp` DaemonSet, which installs the worker's
+seccomp profile from
+[`deployment/seccomp/worker-bwrap.json`](../../deployment/seccomp/worker-bwrap.json)
+on every node; a worker pod cannot start without it.
 
 The command ends by printing the DigitalOcean Load Balancer IP. Add the record
 manually in Route 53:
@@ -227,7 +239,10 @@ Treat that directory as a credential:
 - do not delete it before `./make ocean down`
 - rotate database credentials and Kubernetes access if it is disclosed
 
-The directory also holds `kek.json`, the key that seals the model credentials
+The directory also holds `worker-api.key`, the private key of the worker
+listener. Losing it costs only a regenerated pair on the next deploy.
+
+It also holds `kek.json`, the key that seals the model credentials
 and Space Secrets in the managed database. Back it up apart from any database
 backup: a backup holding both protects nothing, and a database restored without
 its KEK has unreadable credentials that no BuildMax command can recover. `ocean
