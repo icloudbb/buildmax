@@ -126,6 +126,8 @@ Control 的那些场景。云端机器把笔记本从这个图景中移除。
 
 - 以显式、可检查的状态和有界的资源使用，分配、启动、停止、续租、回收与删除云端
   机器。
+- Environment 保持持久，而闲置时计算资源缩到零；已停止的 Environment 只占存储，
+  不占逐 Environment 的 CPU 或内存。
 - 让一个私有工作区及其 Agent Session 在浏览器断开和机器重启后仍可使用。
 - 机器运行期间，Agent 启动的进程持续运行，与是否有人观看无关。
 - 只通过 Remote Control Session 交互，让云端机器和笔记本在 Portal 中的外观与行为
@@ -209,6 +211,11 @@ Session 只新增一个指向其 Environment 的可选引用。
 
 ## 8. 机器生命周期与持久化
 
+第一条生命周期规则是：长时间运行的 Environment **并不等于**长时间运行的 Pod。
+Environment 记录及其持久存储比计算资源活得更久；Pod 是可替换的附件，只在机器就绪
+或正在转换状态时存在。为每个已停止 Environment 保留一个小型 sleeper 或 supervisor
+Pod，会保留这套生命周期原本要消除的成本。
+
 Environment 具有异步的期望状态与观测状态。具体存储表示留给后续设计；用户可见的
 生命周期至少需要区分：
 
@@ -223,17 +230,61 @@ stopped / failed -> deleting -> gone
 - **Create** 先供应存储并初始化工作区，再报告就绪。请求成功并不表示机器已就绪。
 - **Ready** 表示机器已运行，所需的沙箱、存储与 Server 通道通过了启动检查，并且其
   Remote Control Session 已注册。浏览器是否在线无关紧要。
-- **Stop** 在宽限期后终止计算资源并保留卷。它不承诺挂起进程。
+- **Stop** 在宽限期后终止计算资源，确认已无 Pod 存在，并保留卷。它不承诺挂起进程。
 - **Start** 重新挂载同一个卷，并在接受提示前恢复 Agent Session。恢复失败会显式
   呈现并 fail-closed；绝不会在旧身份下悄悄启动一个新 Session。
 - **Delete** 先让机器不可达，再按显式的保留策略销毁其存储；在 Portal 中需要破坏性
   操作确认。
 
-长时间运行不等于永不终止。每个运行中的 Environment 都有一个以操作者行为——接入、
-发送提示、回答问题或显式续租——计量的闲置超时，外加一个硬性上限，两者都受 Space
-与部署限制约束。机器心跳或 CPU 活动从不续租；否则每台被遗忘的机器都会变成永久
-占用。操作者希望保持运行的长进程需要操作者续租。通用机器容易引出无人续租的无人值守
-服务——监控、机器人；那属于托管服务而非交互式工作，不在第一版范围内（§15）。
+### 8.1 运行与存储层级
+
+同一个 Environment 可以在不同资源层级之间移动，而不改变身份：
+
+| 层级 | 计算资源 | 持久状态 | 适用场景 |
+|---|---|---|---|
+| **Ready** | 一个 Pod | 已挂载持久卷 | 交互式 turn 与获准的后台工作 |
+| **Stopped** | 零个 Pod | 保留的持久卷 | 普通闲置后的快速恢复 |
+| **Archived**（后续仅在实测存储成本证明合理时加入） | 零个 Pod | CSI snapshot，或对象存储中加密的 workspace 与 runtime-home archive；在线卷已释放 | 很少使用、可接受较慢恢复的 Environment |
+| **Gone** | 零个 Pod | 策略期限后不保留任何内容 | 显式删除 |
+
+Archive 是同一 Environment 上的存储策略，不是第二种 workspace 实体。恢复时重新进入
+`provisioning`，创建或恢复卷，并由 Agent Session 恢复决定是否就绪。第一切片只需要
+Ready 和 Stopped；在加入 Archive 前，必须先测量保留卷的实际成本。
+
+这遵循 Kubernetes 自身的分离：Pod 是临时资源，持久卷则可以重新挂载到替换计算资源。
+Kubernetes 也支持 StatefulSet 缩容时保留 claim，CSI driver 可以提供标准
+VolumeSnapshot。这些是底层能力，并不要求把每个 Environment 建模成 StatefulSet。
+参见 Kubernetes 的 [Pod 生命周期](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)、
+[StatefulSet claim 保留](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention)
+与 [VolumeSnapshot](https://kubernetes.io/docs/concepts/storage/volume-snapshots/)。
+
+### 8.2 闲置、保持唤醒与唤醒
+
+长时间运行不等于永不终止。有效的唤醒截止时间取以下三个有界信号中的最晚者：
+
+```text
+max(
+  最近一次操作者行为 + idle grace,
+  当前 Agent turn 截止时间,
+  具名后台工作的已批准 keep-awake 截止时间
+) <= 部署硬性上限
+```
+
+接入、发送提示、回答问题或显式续租都算操作者行为。Agent 启动长分析、下载、构建或
+服务时，可以带可见理由请求一个有界 keep-awake 截止时间；策略或操作者授予它，部署
+上限仍然优先。Agent 不能让自己永久续租。浏览器在线、机器心跳、CPU 使用、网络使用，
+以及未分类的子进程都不能续租：这些信号要么很容易被遗留，要么无法区分用户需要的工作
+与泄漏。
+
+所有信号都消失后，controller 请求 Stop，给 runtime 一个有界 quiescence 窗口，然后
+删除计算资源。通用机器也容易引出无人续租的无人值守服务——监控或机器人；那属于托管
+而不是交互式工作，不在第一版范围内（§15）。
+
+发送给 Stopped Environment 的提示是一条持久化唤醒请求，而不是发给一个不存在 Pod
+的请求。Server 先提交带幂等 key 的提示并请求 `ready`；controller 创建计算资源；
+runtime 恢复并重新注册同一个关联 Environment 的 Remote Control Session；此后
+Server 才把提示恰好投递一次。常驻 Server 是 activation buffer，因此不需要逐
+Environment sleeper Pod。
 
 | 事件 | 工作区与 Agent Session | 进程 |
 |---|---|---|
@@ -242,6 +293,48 @@ stopped / failed -> deleting -> gone
 | 停止后再启动，或重新挂载卷替换工作负载 | 保留 | 丢失 |
 | 卷丢失 | 不可用，除非后续有备份策略 | 丢失 |
 | 超过保留期后删除 | 销毁 | 丢失 |
+
+### 8.3 技术选择与冷启动预算
+
+第一版实现应使用满足契约的最少机制：
+
+| 技术 | 作用 | 本提案中的定位 |
+|---|---|---|
+| Environment reconciler 管理一个 Pod 与一个独立管理的持久卷 | 显式的零或一个计算实例、持久唤醒请求、生命周期与故障所有权 | **第一切片** |
+| HPA scale-to-zero 或 KEDA | 由外部指标或事件源唤醒多副本 workload | 仅在出现非用户唤醒来源后可选；Portal 或 Remote Control 显式激活不需要它们 |
+| Vertical Pod Autoscaler 推荐 | 用 CPU、内存、峰值与 OOM 历史数据，为下次启动选择 small/medium/large 规格 | 在原型中测量；不要让它产生任意的逐用户规格 |
+| 节点自动扩缩与 consolidation | Environment Pod 归零后释放节点，并高效装箱活跃机器 | 运维关注点；规模化时集群级节省所必需 |
+| lazy image pulling 或节点 image prefetch | 降低冷启动时间 | 仅在 image pull 测量表明它重要后采用 |
+| CRIU/container 或 microVM 内存快照 | 恢复进程，而不只是文件与 Agent 历史 | 研究方向，不是第一切片的可移植性或持久性承诺 |
+
+Kubernetes 1.37 可以让 HPA 从 object 或 external metric 缩到零，不能依赖 CPU 或
+内存指标；KEDA 可在更旧或更丰富的环境中提供类似的事件驱动 0 到 1 激活与 cooldown。
+BuildMax 已经拥有更强的信号——经过认证的用户命令，因此在出现另一种唤醒来源之前
+加入任一组件，都会与 Environment reconciler 重复。参见
+[Kubernetes HPA scale-to-zero](https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/#scaling-to-zero)
+与 [KEDA scaling](https://keda.sh/docs/latest/concepts/scaling-deployments/)。
+
+right-sizing 与节点回收是两个独立层次。Kubernetes VPA recommender 分析历史资源使用
+与 OOM 事件；运维人员可以用这些建议调整 small/medium/large 规格。节点 autoscaler
+或云厂商特定的 consolidator 随后可以在 Pod 消失后移除空节点或低利用率节点。参见
+[Vertical Pod Autoscaling](https://kubernetes.io/docs/concepts/workloads/autoscaling/vertical-pod-autoscale/)，
+以及作为云厂商特定示例的
+[Karpenter consolidation](https://karpenter.sh/docs/concepts/disruption/)。
+
+冷启动优化应按实测瓶颈依次进行：保持 image 精简并把工具放进不可变 layer；在活跃
+节点预拉取通用 image；保留足够的共享节点容量以满足已接受的 wake SLO；然后再评估
+[containerd stargz snapshotter](https://github.com/containerd/stargz-snapshotter)
+一类 lazy pulling。若证据确实要求 warm pool，它只能包含空白 sandbox 或节点容量，
+不能包含用户 volume、credential 或 Session；并且使用部署级总上限，而不是为每个
+Environment 保留一个 warm Pod。
+
+Container checkpoint 不是默认 suspend 机制。Kubernetes checkpoint API 已是 Beta，
+但会暴露内存页（其中可能包含 secret），普通且可移植的 Pod restore 仍依赖 runtime。
+Firecracker 可以恢复 microVM snapshot，但 snapshot 文件、磁盘、网络重连、CPU 兼容性
+与生命周期都会变成 BuildMax 的职责。只有在“丢失在线进程”被证明是主要问题后，二者
+才作为后续实验。参见
+[Kubelet Checkpoint API](https://kubernetes.io/docs/reference/node/kubelet-checkpoint-api/)
+与 [Firecracker snapshot support](https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md)。
 
 ## 9. 通过 Remote Control 交互
 
@@ -312,9 +405,12 @@ Environment 执行模型选择的命令的时间远长于 worker Job。时间增
 计算与存储；机器报告健康。Server 重启不能终止健康的机器，丢失的回调也不能让机器
 永远卡在 `provisioning` 或 `stopping`。
 
-首个受支持部署是每个 Environment 一个隔离的 Kubernetes 工作负载和一个持久卷。它
-不复用 worker Job 及其 run token。本地进程原型可以验证交互，但不构成多租户边界的
-证据。
+首个受支持部署由 Environment reconciler 为每个 Environment 管理一个隔离 Pod 和一个
+独立管理的持久卷。期望状态 `ready` 表示 Pod 存在；期望状态 `stopped` 表示没有 Pod、
+卷仍保留。reconciler 本身就是 workload controller，因此第一切片不需要为每个
+Environment 创建 Deployment、StatefulSet、HPA、KEDA 对象或常驻 sidecar，除非后续
+证据表明其中某项能提供独立且必要的行为。它不复用 worker Job 及其 run token。本地
+进程原型可以验证交互，但不构成多租户边界的证据。
 
 | 失败 | 要求的结果 |
 |---|---|
@@ -324,7 +420,9 @@ Environment 执行模型选择的命令的时间远长于 worker Job。时间增
 | Server 重启或副本切换 | 机器继续运行；Remote Control 重连；期望状态驱动协调 |
 | Stop 与 Start 或 Delete 竞争 | 一个串行化的期望状态胜出；过期回调不能复活计算 |
 | 达到闲置超时或硬性上限 | 在没有浏览器连接时也会请求并强制停止 |
+| 提示到达已停止的 Environment | 唤醒前先提交提示与幂等 key；恢复后的 Session 在就绪后恰好接收一次 |
 | 卷无法挂载或 Session 无法恢复 | 不就绪；错误指明失败的边界 |
+| Archive 或 archive restore 失败 | 不提前删除现有保留状态；若没有可用卷，Environment 保持可诊断且不就绪 |
 | Delete 部分成功 | 协调持续进行，直到记录下终态结果 |
 
 孤儿检测双向进行：没有工作负载的记录会被协调，没有有效记录的带标签工作负载或卷会
@@ -350,16 +448,17 @@ DELETE /api/spaces/{space_id}/environments/{environment_id}
 
 Portal 需要三个界面：
 
-1. Environment 列表，显示操作者、状态、租约到期时间、资源规格、最近一次机器信号，
-   以及醒目的运行成本指示；
+1. Environment 列表，显示操作者、状态、计算与存储层级、租约到期时间、资源规格、
+   最近一次机器信号，以及醒目的运行成本与保留存储成本指示；
 2. Environment 详情页，提供 Start、Stop、Renew、Delete 与诊断，并为操作者打开
    现有的 Remote Control Session 视图；
 3. 管理视图，显示活跃数量、资源总量、失败，以及强制停止或删除，不提供 Session
    访问。
 
 运维配置需要启用开关、机器镜像与资源规格、最大活跃 Environment 数、每个 Space 的
-限制、闲置与最长租约边界、存储类别与容量、启动超时，以及所需的运行时与沙箱策略。
-默认关闭；不会悄悄分配计算资源。
+限制、闲置与最长租约边界、保留卷与可选 archive 的阈值、存储类别与容量、archive
+backend、启动超时与 wake SLO，以及所需的运行时与沙箱策略。默认关闭；不会悄悄
+分配计算资源。
 
 ## 13. 方案与权衡
 
@@ -371,6 +470,7 @@ Portal 需要三个界面：
 | **D. 带编辑器与终端的经典云 IDE** | 熟悉；能覆盖 Agent 做不到的任何事 | 重建了 Agent 所取代的东西；为直接 shell 访问成倍扩大界面与信任边界 |
 | **E. 集成外部 codespace 供应商** | 外包供应工作 | 在窄界面被证明之前就引入供应商凭证、成本、可用性与可移植性约束 |
 | **F. 在 Server 或共享 worker 内运行长期 Session** | 不需要每个 Environment 一个工作负载 | 把不可信执行与控制面或其他租户混在一起 |
+| **G. 为每个已停止 Environment 保留小型 sleeper Pod** | 避免唤醒时重建进程 | 仍然预留内存并增加逐 Environment 控制面负载；保留了 scale-to-zero 原本要消除的浪费 |
 
 方案 C 已经服务于只需要跨 turn 连续性的工作。只有当保留进程、热状态或即时重新进入
 会实质性改变结果时，新实体才有必要。这是核心的证据检验。
@@ -393,15 +493,18 @@ Portal 需要三个界面：
 3. 让 Agent 运行每个旅程中的长进程，在 Environment 的网络策略下使用浏览器能力；
 4. 断开 Portal，让该进程继续运行，在中继缓冲过期后重新连接，并恢复对话、工作区与
    已产出的 Artifact；
-5. 停止并启动 Environment，证明文件与历史得以保留，而进程被报告为丢失；
+5. 让闲置租约到期，证明 Environment 达到零 Pod，而卷、文件与历史仍然保留；向已停止
+   的 Environment 发送提示，唤醒机器，恰好投递一次，并报告旧进程已丢失；
 6. 分别重启 Server 和杀掉工作负载，证明文档化的协调结果；
 7. 证明非操作者与跨 Space 访问被拒绝、凭证撤销、配额拒绝、闲置到期、失去成员身份
    后停止，以及沙箱启动 fail-closed；
 8. 删除 Environment，验证计算与存储被回收，且没有遗留可访问的 Session。
 
-原型记录就绪耗时、重连耗时、活跃时长、存储增长、恢复失败、计算成本，以及每一次
-用户想要编辑器或终端的时刻。它还用 Task Continue 运行这两个旅程。如果保留进程
-与热状态没有改变结果，Task 平面就是更简单的答案。
+原型记录冷启动与热启动的就绪耗时、重连耗时、活跃 Pod 小时、Environment 生命周期
+中处于零 Pod 的比例、保留卷成本、存储增长、image pull 耗时、请求的规格与观测到的
+CPU 和内存、恢复失败，以及每一次用户想要编辑器或终端的时刻。它把这些数字与常驻
+Pod 对比，并用 Task Continue 运行这两个旅程。如果保留进程与热状态没有改变结果，
+Task 平面就是更简单的答案。
 
 由此不产生任何用户文档、兼容性承诺或可用性声明。该切片用于决定机器管理是否值得
 承担产品与运维所有权。
@@ -418,7 +521,14 @@ Portal 需要三个界面：
 
 仍然开放：
 
-- 什么样的闲置超时与硬性上限符合实际工作？停止前需要提前多久提醒用户？
+- 什么样的闲置超时与硬性上限符合实际工作？停止前需要提前多久提醒用户？哪些长操作
+  值得获准一个 keep-awake 截止时间？
+- 已停止的 Environment 应保留在线卷多久再进入可选 archive？实测存储价格是否值得
+  构建这一层级？
+- 怎样的唤醒耗时 SLO 可以接受？在接受 warm pool 或 lazy pull 依赖前，image 大小、
+  预拉取与共享节点容量能否达到它？
+- 在出现第二种唤醒来源前，是否应继续由 reconciler 驱动唤醒（建议）？还是观察到的
+  webhook、schedule 或 queue 旅程足以证明 KEDA 或 HPA external metric 的必要性？
 - 有界历史快照是否足以支撑数天后的重新连接，还是这一需求指向
   [持久 Agent Session 提案](durable-agent-sessions.md)？
 - 什么样的只读审阅集合——Artifact、截图、diff——足够？是否仍有观察到的用户旅程
@@ -432,6 +542,8 @@ Portal 需要三个界面：
 - 浏览器能力能否在 Environment 的沙箱与网络策略下运行，且不削弱二者？
 - 哪些 Plugin 或工作区变更需要重启 Session，哪些需要重启机器？
 - 首个部署能如实承诺怎样的存储持久性、备份与保留？
+- 是否有任何旅程足够重视在线进程恢复，值得承担 container 或 microVM checkpoint 的
+  secret 处理、兼容性与运维成本，而不是采用普通的零 Pod 重启？
 - 该边界是否需要 gVisor 或其他外层运行时？带嵌套命令沙箱的机器镜像能否无例外地
   通过 trust harness？
 

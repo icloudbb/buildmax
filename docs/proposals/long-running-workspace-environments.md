@@ -147,6 +147,8 @@ whether read-only review is enough without a terminal.
 
 - Allocate, start, stop, renew, reclaim, and delete cloud machines with
   explicit, inspectable states and bounded resource use.
+- Keep the Environment durable while scaling its compute to zero when idle;
+  stopped Environments consume storage but no per-Environment CPU or memory.
 - Keep one private workspace and its Agent session usable across browser
   disconnects and machine restarts.
 - Let processes the Agent started keep running while the machine is up,
@@ -248,6 +250,12 @@ The resulting rules:
 
 ## 8. Machine Lifecycle and Persistence
 
+The first lifecycle rule is that a long-running Environment is **not** a
+long-running Pod. The Environment row and its durable storage outlive compute;
+the Pod is a replaceable attachment which exists only while the machine is
+ready or changing state. Keeping a small sleeper or supervisor Pod for every
+stopped Environment would preserve the cost this lifecycle is meant to remove.
+
 An Environment has asynchronous desired state and observed status. The stored
 representation belongs in a later design; the user-visible lifecycle must
 distinguish at least:
@@ -265,8 +273,8 @@ stopped / failed -> deleting -> gone
 - **Ready** means the machine is up, its required sandbox, storage, and server
   channels passed startup checks, and its Remote Control session is registered.
   Browser presence is irrelevant.
-- **Stop** terminates compute after a grace period and keeps the volume. It does
-  not promise process suspension.
+- **Stop** terminates compute after a grace period, observes that no Pod remains,
+  and keeps the volume. It does not promise process suspension.
 - **Start** reattaches the same volume and restores the Agent session before
   accepting a prompt. Restore failure is visible and fails closed; it never
   silently starts a fresh session under the old identity.
@@ -274,15 +282,63 @@ stopped / failed -> deleting -> gone
   according to an explicit retention policy, behind a destructive-action
   confirmation in Portal.
 
-Long-running does not mean immortal. Each running Environment has an idle
-timeout measured on the operator's actions—attaching, prompting, answering, or
-an explicit renewal—plus a hard maximum, both within Space and deployment
-limits. A machine heartbeat or CPU activity never renews it; otherwise every
-abandoned machine becomes a permanent reservation. A long-running process the
-operator wants kept alive needs the operator to renew. A general-purpose
-machine invites unattended services—a monitor, a bot—that no person renews;
-those are hosting, not interactive work, and stay outside the first slice
-(§15).
+### 8.1 Runtime and storage tiers
+
+One Environment moves through resource tiers without changing identity:
+
+| Tier | Compute | Durable state | Intended use |
+|---|---|---|---|
+| **Ready** | One Pod | Attached persistent volume | Interactive turns and approved background work |
+| **Stopped** | Zero Pods | Retained persistent volume | Fast resume after ordinary idle periods |
+| **Archived** (later, if measured storage cost justifies it) | Zero Pods | CSI snapshot or encrypted workspace and runtime-home archive in object storage; online volume released | Infrequently used Environments with slower restore |
+| **Gone** | Zero Pods | Nothing retained past policy | Explicit deletion |
+
+Archive is a storage policy on the same Environment, not a second workspace
+entity. Restoring one returns through `provisioning`, creates or restores a
+volume, and gates readiness on Agent-session restore. The first slice needs only
+Ready and Stopped; it must measure retained-volume cost before adding Archive.
+
+This follows Kubernetes' own separation: Pods are ephemeral, while a persistent
+volume can be reattached to replacement compute. Kubernetes also supports
+retaining StatefulSet claims when scaling down, and CSI drivers may expose
+standard VolumeSnapshots. These are substrate capabilities, not a requirement
+to model each Environment as a StatefulSet. See the Kubernetes documentation on
+[Pod lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/),
+[StatefulSet claim retention](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention),
+and [VolumeSnapshots](https://kubernetes.io/docs/concepts/storage/volume-snapshots/).
+
+### 8.2 Idle, keep-awake, and wake-up
+
+Long-running does not mean immortal. The effective awake deadline is the latest
+of three bounded signals:
+
+```text
+max(
+  last operator action + idle grace,
+  active Agent turn deadline,
+  approved keep-awake deadline for named background work
+) <= deployment hard maximum
+```
+
+Attaching, prompting, answering, or explicit renewal counts as operator action.
+An Agent that starts a long analysis, download, build, or service may request a
+bounded keep-awake deadline with a visible reason; policy or the operator grants
+it, and the deployment maximum still wins. The Agent cannot renew itself
+forever. Browser presence, machine heartbeat, CPU usage, network usage, and an
+unclassified child process do not renew the lease: each is either easy to leave
+behind or unable to distinguish intended work from a leak.
+
+When no signal remains, the controller requests Stop, gives the runtime a
+bounded quiescence window, and removes compute. A general-purpose machine also
+invites unattended services—a monitor or bot that no person renews. Those are
+hosting rather than interactive work and stay outside the first slice (§15).
+
+A prompt sent to a Stopped Environment is a durable wake request, not a request
+sent to a missing Pod. The Server first commits the prompt with an idempotency
+key and requests `ready`; the controller creates compute; the runtime restores
+and re-registers the same Environment-linked Remote Control session; only then
+does the Server deliver the prompt exactly once. The always-on Server is the
+activation buffer, so no per-Environment sleeper Pod is needed.
 
 | Event | Workspace and Agent session | Processes |
 |---|---|---|
@@ -291,6 +347,56 @@ those are hosting, not interactive work, and stay outside the first slice
 | Stop then Start, or workload replacement with the volume reattached | Preserved | Lost |
 | Volume loss | Unavailable unless a later backup policy exists | Lost |
 | Delete after retention | Destroyed | Lost |
+
+### 8.3 Technology choices and cold-start budget
+
+The first implementation should use the fewest mechanisms that meet the
+contract:
+
+| Technology | Role | Position in this proposal |
+|---|---|---|
+| Environment reconciler owning one Pod and one separately managed persistent volume | Explicit 0-or-1 compute, durable wake requests, lifecycle and failure ownership | **First slice** |
+| HPA scale-to-zero or KEDA | Wake replicated workloads from an external metric or event source | Optional only after non-user wake sources exist; not needed for explicit Portal or Remote Control activation |
+| Vertical Pod Autoscaler recommendations | Use historical CPU, memory, peak, and OOM data to select a small/medium/large profile on the next start | Measure in the prototype; do not let it create arbitrary per-user profiles |
+| Node autoscaling and consolidation | Release nodes after Environment Pods reach zero; pack active machines efficiently | Operator concern, required for cluster-level savings at scale |
+| Lazy image pulling or node image prefetch | Reduce cold-start time | Adopt only after image-pull measurements show it is material |
+| CRIU/container or microVM memory snapshots | Resume processes rather than only files and Agent history | Research path, not a first-slice portability or durability promise |
+
+Kubernetes 1.37 can scale an HPA to zero from object or external metrics, not
+CPU or memory metrics; KEDA supplies similar event-driven 0-to-1 activation and
+cooldown for older or richer environments. BuildMax already owns the stronger
+signal—the authenticated user command—so adding either before another wake
+source appears would duplicate the Environment reconciler. See
+[Kubernetes HPA scale-to-zero](https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/#scaling-to-zero)
+and [KEDA scaling](https://keda.sh/docs/latest/concepts/scaling-deployments/).
+
+Right-sizing and node reclamation are separate layers. The Kubernetes VPA
+recommender analyzes historical resource use and OOM events; an operator may use
+those recommendations to tune the small/medium/large profiles. A node
+autoscaler or provider-specific consolidator can then remove empty or
+underutilized nodes after Pods disappear. See
+[Vertical Pod Autoscaling](https://kubernetes.io/docs/concepts/workloads/autoscaling/vertical-pod-autoscale/)
+and, as one provider-specific example,
+[Karpenter consolidation](https://karpenter.sh/docs/concepts/disruption/).
+
+Cold-start optimization follows measured bottlenecks in this order: keep the
+image small and tools in immutable layers; pre-pull the common image on active
+nodes; retain enough shared node capacity to meet the accepted wake SLO; then
+evaluate lazy pulling such as
+[containerd's stargz snapshotter](https://github.com/containerd/stargz-snapshotter).
+A warm pool, if evidence requires one, contains only blank sandboxes or node
+capacity—never a user's volume, credential, or session—and has a deployment-wide
+bound rather than one warm Pod per Environment.
+
+Container checkpointing is not the default suspension mechanism. The Kubernetes
+checkpoint API is Beta but exposes memory pages, including possible secrets,
+and ordinary portable Pod restore remains runtime-dependent. Firecracker can
+restore a microVM snapshot, but snapshot files, disks, network reconnection,
+CPU compatibility, and lifecycle become BuildMax responsibilities. Both are
+later experiments only if losing live processes proves to be the dominant
+problem. See the
+[Kubelet Checkpoint API](https://kubernetes.io/docs/reference/node/kubelet-checkpoint-api/)
+and [Firecracker snapshot support](https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md).
 
 ## 9. Interaction Through Remote Control
 
@@ -383,10 +489,14 @@ records desired state; a controller converges compute and storage; the machine
 reports health. A Server restart must not terminate a healthy machine, and a
 lost callback must not strand one in `provisioning` or `stopping`.
 
-The first supported deployment is one isolated Kubernetes workload and one
-persistent volume per Environment. It does not reuse the worker Job or its run
-token. A local-process prototype may exercise interaction, but it is not
-evidence for the multi-tenant boundary.
+The first supported deployment is an Environment reconciler owning one isolated
+Pod and one separately managed persistent volume per Environment. Desired
+`ready` means the Pod exists; desired `stopped` means no Pod exists and the
+volume remains. The reconciler is the workload controller, so the first slice
+does not need a Deployment, StatefulSet, HPA, KEDA object, or always-on sidecar
+per Environment unless one later earns a distinct behavior. It does not reuse
+the worker Job or its run token. A local-process prototype may exercise
+interaction, but it is not evidence for the multi-tenant boundary.
 
 | Failure | Required outcome |
 |---|---|
@@ -396,7 +506,9 @@ evidence for the multi-tenant boundary.
 | Server restarts or changes replica | Machine continues; Remote Control reconnects; desired state drives reconciliation |
 | Stop races with Start or Delete | One serialized desired state wins; stale callbacks cannot resurrect compute |
 | Idle timeout or hard maximum reached | Stop is requested and enforced with no browser connected |
+| A prompt arrives while Stopped | Prompt and idempotency key commit before wake; the restored session receives it exactly once after readiness |
 | Volume cannot attach or session cannot restore | Not ready; the error names the failed boundary |
+| Archive or archive restore fails | Existing retained state is not deleted early; the Environment stays diagnosable and not ready if no usable volume exists |
 | Delete partly succeeds | Reconciliation continues to a recorded terminal outcome |
 
 Orphan detection runs in both directions: a row with no workload is
@@ -425,8 +537,9 @@ Control session.
 
 Portal needs three surfaces:
 
-1. an Environment list with operator, state, lease expiry, resource profile,
-   last machine signal, and a visible running-cost indicator;
+1. an Environment list with operator, state, compute and storage tier, lease
+   expiry, resource profile, last machine signal, and visible running and
+   retained-storage cost indicators;
 2. an Environment detail page with Start, Stop, Renew, Delete, and diagnostics,
    which opens the existing Remote Control session view for the operator; and
 3. administration visibility for active counts, resource totals, failures, and
@@ -434,9 +547,9 @@ Portal needs three surfaces:
 
 Operator configuration needs an enablement flag, machine image and resource
 profiles, maximum active Environments, per-Space limits, idle and maximum
-lease bounds, storage class and size, startup timeout, and the required
-runtime and sandbox policy. The default is disabled; nothing allocates compute
-silently.
+lease bounds, retained-volume and optional archive thresholds, storage class and
+size, archive backend, startup timeout and wake SLO, and the required runtime
+and sandbox policy. The default is disabled; nothing allocates compute silently.
 
 ## 13. Options and Trade-Offs
 
@@ -448,6 +561,7 @@ silently.
 | **D. Classic cloud IDE with editor and terminal** | Familiar; covers anything the Agent cannot do | Rebuilds what the Agent replaces; multiplies the surface and the trust boundary for direct shell access |
 | **E. Integrate an external codespace provider** | Outsources provisioning | Provider credentials, cost, availability, and portability before the narrow surface is proven |
 | **F. Long-lived sessions inside the Server or a shared worker** | No per-Environment workload | Mixes untrusted execution with the control plane or tenants |
+| **G. Keep a small sleeper Pod per stopped Environment** | Avoids recreating a process on wake | Still reserves memory and creates per-Environment control-plane load; preserves the waste scale-to-zero is meant to remove |
 
 Option C already serves work that only needs continuity between turns. A new
 entity is justified only when retained processes, warm state, or immediate
@@ -477,8 +591,9 @@ isolated Kubernetes test deployment it should:
 4. disconnect Portal, leave the process running, reconnect after the relay
    buffer is gone, and recover the conversation, workspace, and produced
    Artifacts;
-5. stop and start the Environment, proving files and history persist and the
-   process is reported lost;
+5. let its idle lease expire and prove the Environment reaches zero Pods while
+   the volume, files, and history remain; send a prompt while stopped, wake the
+   machine, deliver the prompt exactly once, and report the old process lost;
 6. restart the Server and kill the workload separately, proving the documented
    reconciliation outcomes;
 7. prove non-operator and cross-Space refusal, credential revocation, quota
@@ -487,10 +602,13 @@ isolated Kubernetes test deployment it should:
 8. delete the Environment and verify compute and storage reclamation with no
    orphaned reachable session.
 
-The prototype records time to ready, time to reconnect, active duration,
-storage growth, restore failures, compute cost, and every moment a user wanted
-an editor or terminal. It also runs both journeys through Task Continue. If retained processes and warm state do not change the outcome, the
-Task plane is the simpler answer.
+The prototype records cold and warm time to ready, time to reconnect, active
+Pod-hours, percentage of Environment lifetime at zero Pods, retained-volume
+cost, storage growth, image-pull time, profile requests versus observed CPU and
+memory, restore failures, and every moment a user wanted an editor or terminal.
+It compares those figures with an always-on Pod and also runs both journeys
+through Task Continue. If retained processes and warm state do not change the
+outcome, the Task plane is the simpler answer.
 
 No user documentation, compatibility promise, or availability claim follows.
 The slice decides whether machine management deserves product and operational
@@ -511,8 +629,16 @@ Decided by the positioning in §2 and §7, subject to review:
 
 Still open:
 
-- What idle timeout and hard maximum match observed work, and how far in
-  advance does a person need warning before a stop?
+- What idle timeout and hard maximum match observed work, how far in advance
+  does a person need warning, and which long operations justify an approved
+  keep-awake deadline?
+- How long should a stopped Environment retain an online volume before optional
+  archive, and does the measured storage price justify building that tier?
+- What wake-time SLO is acceptable? Can image sizing, pre-pull, and shared node
+  capacity meet it before BuildMax accepts a warm-pool or lazy-pull dependency?
+- Should wake remain reconciler-driven until a second source appears
+  (recommended), or does an observed webhook, schedule, or queue journey justify
+  KEDA or HPA external metrics?
 - Is a bounded history snapshot enough for reconnect after days, or does the
   need point to the [durable Agent sessions proposal](durable-agent-sessions.md)?
 - What read-only review set—Artifacts, screenshots, diffs—is sufficient, and
@@ -531,6 +657,9 @@ Still open:
   restart?
 - What storage durability, backup, and retention can the first deployment
   honestly promise?
+- Does any journey value live-process restoration enough to justify the secret
+  handling, compatibility, and operational cost of container or microVM
+  checkpoints rather than ordinary zero-Pod restart?
 - Does the boundary require gVisor or another outer runtime, and can the
   machine image with the nested command sandbox pass the trust harness without
   exceptions?
