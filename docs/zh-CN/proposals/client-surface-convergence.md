@@ -178,14 +178,15 @@ Server 保持在一套 Go 栈里。Tauri 的核心是 Rust；采用它会分叉�
 收敛模型让同一套共享 UI 可以呈现云端 workspace，但客户端收敛不拥有该 workspace
 的执行生命周期。独立的
 [长时间运行的工作区 Environment 提案](long-running-workspace-environments.md)
-现在拥有这项决策：一个归属 Space、与 Task/TaskRun 分离的 Environment，包含持久
-状态、lease、provisioning、reclamation 与 fail-closed 信任边界。
+现在拥有这项决策：由系统管理、与 Task/TaskRun 分离的云端机器，包含持久状态、
+lease、provisioning、reclamation 与 fail-closed 信任边界。
 
-该提案有意从比 Desktop 等价 codespace 更窄的形态开始：一个云端 Agent Session，
-操作一个私有 workspace。它复用 [Remote Control](../design/远程控制.md)承载实时
-事件与命令，同时保持 Environment 的 Space-scoped 授权。终端、文件、diff 与任意
-应用仍可能成为共享 HTTP/WebSocket 数据层的宽界面使用者，但它们不是判断
-Environment 平面是否有价值的前置条件。
+该提案把 Environment 定位为属于 Agent 的通用云端机器：机器管理沿用云 IDE 实践，
+交互则收缩为 Agent Session，而不是 Desktop 等价的 codespace。机器承载一个归属其
+操作者的普通 [Remote Control](../design/远程控制.md) Session；Environment 所属的
+Space 承载配额与治理，而不是交互访问。编辑器与终端在该提案中是有意的非目标，因此
+共享 HTTP/WebSocket 数据层的宽界面使用者不是判断 Environment 是否有价值的前置
+条件。
 
 所有权边界因此是明确的：本文拥有共享 UI 与可切换客户端数据层；Environment
 提案拥有计算、存储、Session 连续性、授权、失败、quota 与运维。任一方向都可以
