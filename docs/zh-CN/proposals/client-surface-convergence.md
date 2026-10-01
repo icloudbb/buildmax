@@ -181,7 +181,7 @@ Server 保持在一套 Go 栈里。Tauri 的核心是 Rust；采用它会分叉�
 现在拥有这项决策：由系统管理、与 Task/TaskRun 分离的云端机器，包含持久状态、
 lease、provisioning、reclamation 与 fail-closed 信任边界。
 
-该提案把 Environment 定位为围绕 Agent 重建的云 IDE：机器管理沿用云 IDE 实践，
+该提案把 Environment 定位为属于 Agent 的通用云端机器：机器管理沿用云 IDE 实践，
 交互则收缩为 Agent Session，而不是 Desktop 等价的 codespace。机器承载一个归属其
 操作者的普通 [Remote Control](../design/远程控制.md) Session；Environment 所属的
 Space 承载配额与治理，而不是交互访问。编辑器与终端在该提案中是有意的非目标，因此

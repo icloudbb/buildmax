@@ -216,9 +216,10 @@ now owns the decision: system-managed cloud machines, separate from
 Task/TaskRun, with persistent state, leases, provisioning, reclamation, and a
 fail-closed trust boundary.
 
-That proposal positions the Environment as a cloud IDE rebuilt around the
-Agent: machine management follows cloud-IDE practice, while the interaction
-contracts to the Agent session instead of a Desktop-equivalent codespace. The
+That proposal positions the Environment as the Agent's own general-purpose
+cloud machine: machine management follows cloud-IDE practice, while the
+interaction contracts to the Agent session instead of a Desktop-equivalent
+codespace. The
 machine hosts an ordinary [Remote Control](../design/remote-control.md)
 session owned by its operator; the Environment's Space carries quota and
 governance, not interactive access. An editor and terminal are a deliberate

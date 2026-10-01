@@ -22,7 +22,7 @@ Related: [roadmap](../ROADMAP.md), [current state](../current-state.md),
 ## Contents
 
 - [1. Decision Question](#1-decision-question)
-- [2. Positioning: The Cloud IDE, Rebuilt Around the Agent](#2-positioning-the-cloud-ide-rebuilt-around-the-agent)
+- [2. Positioning: The Agent's Own Cloud Machine](#2-positioning-the-agents-own-cloud-machine)
 - [3. User Outcome and Evidence](#3-user-outcome-and-evidence)
 - [4. Current Constraints](#4-current-constraints)
 - [5. Goals and Non-Goals](#5-goals-and-non-goals)
@@ -40,9 +40,9 @@ Related: [roadmap](../ROADMAP.md), [current state](../current-state.md),
 
 ## 1. Decision Question
 
-Should BuildMax allocate and manage long-running cloud machines—**Environments**—
-on which a person works only through an Agent conversation, reached through the
-existing Remote Control path?
+Should BuildMax allocate and manage long-running, general-purpose cloud
+machines—**Environments**—that a person puts to work only through an Agent
+conversation, reached through the existing Remote Control path?
 
 This paper recommends validating that direction. The system's new
 responsibility is machine management: allocate, start, stop, renew, reclaim, and
@@ -52,7 +52,7 @@ used exactly like the person's own laptop under Remote Control: the standard
 steers that session. No new Agent loop, chat protocol, or execution plane is
 introduced, and Task/TaskRun is unchanged.
 
-## 2. Positioning: The Cloud IDE, Rebuilt Around the Agent
+## 2. Positioning: The Agent's Own Cloud Machine
 
 BuildMax today has two working modes:
 
@@ -62,12 +62,20 @@ BuildMax today has two working modes:
 | Remote Control | The person's own long-running machine | The person's laptop; BuildMax does not manage it | A live Agent session relayed through the server |
 | **Environment (this proposal)** | A long-running machine the system allocates | A cloud machine—initially one Kubernetes Pod with a persistent volume | The same Remote Control session as a laptop |
 
-An Environment is the cloud IDE—Cloud9, Codespaces, Gitpod—redone for the Agent
-era. The machine-management half is unchanged from that model: a workspace
-created from a repository, a machine that can stop while its disk persists, idle
-reclamation, quotas, and deletion. What changes is the interaction. A cloud IDE
-gave the person an editor and a terminal so they could type commands and edit
-files themselves. An Agent can now do that work on the person's behalf, so the
+An Environment is a general-purpose computer in the cloud that belongs to the
+Agent: the person describes the work, and the Agent operates the machine to do
+it. BuildMax is a general-purpose Agent runtime, so the work is not limited to
+software. It includes collecting and analyzing data and producing reports,
+research and other work on the web through the browser, processing large
+batches of documents or media, long downloads, conversions, and computations,
+and building or running software.
+
+The cloud IDE—Cloud9, Codespaces, Gitpod—is the precedent for the
+machine-management half, not the product's scope. Its lifecycle carries over
+unchanged: a workspace created from a source, a machine that can stop while its
+disk persists, idle reclamation, quotas, and deletion. What changes is the
+interaction. A cloud IDE gave a developer an editor and a terminal to operate
+the machine by hand. An Agent can now do that operating for anyone, so the
 interaction surface contracts to the Agent conversation: prompts, streamed
 progress, approvals, questions, cancellation, and read-only review of what the
 Agent produced.
@@ -82,16 +90,16 @@ Two consequences follow and shape the rest of this paper:
 
 ## 3. User Outcome and Evidence
 
-A person should be able to create an Environment from a repository, ask its
-Agent to do work, close the browser, and return hours or days later to the same
-workspace and conversation. While the Environment is running, a dev server,
-watcher, build, or download the Agent started keeps running whether or not
-anyone is watching. When the machine stops or is replaced, the files and Agent
+A person should be able to create an Environment, ask its Agent to do work,
+close the browser, and return hours or days later to the same workspace and
+conversation. While the Environment is running, a crawl, analysis, download,
+build, or service the Agent started keeps running whether or not anyone is
+watching. When the machine stops or is replaced, the files and Agent
 session survive even though processes do not.
 
-The motivating cases are work that crosses many interactive turns, needs a warm
-toolchain or repository, or depends on a process whose useful life is longer
-than one bounded Agent turn—exactly the cases where a person would otherwise
+The motivating cases are work that crosses many interactive turns, needs warm
+state—installed tools, downloaded data, a prepared repository—or depends on a
+process whose useful life is longer than one bounded Agent turn—exactly the cases where a person would otherwise
 keep their laptop open under Remote Control. The cloud machine removes the
 laptop from that picture.
 
@@ -124,6 +132,8 @@ whether read-only review is enough without a terminal.
   every surface. Managed mode already routes inference through the server.
 - **The browser capability is local-only.** CLI and Desktop drive a Go-owned
   Chromium; workers and other unattended runs do not get it.
+- **External credentials reach runs only by explicit grant.** Workers receive
+  Space Secrets through run-scoped grants; nothing ambient is inherited.
 - **Network-reachable execution has the worker trust posture.** Sandbox
   enforcement fails closed, and runtime state and credentials stay outside the
   tool-writable workspace.
@@ -157,9 +167,11 @@ whether read-only review is enough without a terminal.
 - Guaranteeing that processes survive stop, node loss, image replacement, or
   control-plane recovery.
 - Synchronizing a laptop filesystem, or writing Environment changes back into
-  mutable Space files. Results leave through Git or Artifacts.
+  mutable Space files. Results leave as Artifacts, or through Git when the work
+  is a repository.
 - Public ingress or port forwarding to processes inside the machine. The Agent
-  previews its own servers with the browser capability instead (§9.3).
+  inspects web content, including servers it started, with the browser
+  capability instead (§9.3).
 - Shared interactive access, or Space membership implying access to another
   member's Environment.
 - Durable server storage of the interactive transcript.
@@ -199,9 +211,10 @@ and it stays outside the tool root, matching the worker invariant. The machine
 hosts one session; concurrent sessions would add scheduling and presentation
 semantics nothing has demonstrated a need for.
 
-The workspace is created from a source, following cloud-IDE practice: by
-default a Git repository clone, optionally a snapshot of Space files. Nothing is
-written back automatically; the Agent pushes to Git or publishes Artifacts.
+The workspace starts empty by default; the Agent can fetch what the work needs.
+Creation may optionally seed it from a Git repository, a snapshot of Space
+files, or an upload. Nothing is written back automatically; the Agent publishes
+Artifacts, or pushes to Git when the work is a repository.
 
 ## 7. Ownership and Authorization
 
@@ -266,7 +279,10 @@ timeout measured on the operator's actions—attaching, prompting, answering, or
 an explicit renewal—plus a hard maximum, both within Space and deployment
 limits. A machine heartbeat or CPU activity never renews it; otherwise every
 abandoned machine becomes a permanent reservation. A long-running process the
-operator wants kept alive needs the operator to renew.
+operator wants kept alive needs the operator to renew. A general-purpose
+machine invites unattended services—a monitor, a bot—that no person renews;
+those are hosting, not interactive work, and stay outside the first slice
+(§15).
 
 | Event | Workspace and Agent session | Processes |
 |---|---|---|
@@ -311,15 +327,17 @@ belong to Remote Control and benefit laptops equally:
   runtime sends when a viewer attaches; the Server remains a relay and stores no
   transcript.
 - **Read-only review.** With no editor or terminal, the person still has to
-  judge the Agent's work. The conversation must carry read-only results: a
-  workspace diff, screenshots, and file download through Artifacts. The Remote
-  Control design already names a workspace diff as part of the narrow surface;
-  the prototype must confirm what Portal renders today and fill the gap.
+  judge the Agent's work. The conversation must carry read-only results in
+  general form: produced files and reports through Artifacts, screenshots, and,
+  when the work is code, a workspace diff. The Remote Control design already
+  names a workspace diff as part of the narrow surface; the prototype must
+  confirm what Portal renders today and fill the gap.
 
-Previewing a web application the Agent started is the Agent's job, through the
-existing browser capability, not port forwarding. That capability is local-only
-today; the Environment image must carry it under the Environment's sandbox and
-navigation limits, which is a validation item.
+The browser capability is central rather than incidental: much general work
+happens on the web, and inspecting a web application the Agent started is the
+same act. It replaces port forwarding. That capability is local-only today; the
+Environment image must carry it under the Environment's sandbox, navigation,
+and network limits, which is a validation item.
 
 ## 10. Trust Boundary
 
@@ -338,6 +356,14 @@ Time increases exposure; it does not justify a weaker boundary.
   The workload has a qualified Pod or container boundary, resource limits, a
   read-only image root, and network policy. The model cannot select or weaken
   them.
+- **Network egress:** general work needs wider internet access than a coding
+  worker's package registries, and a long-lived machine with broad egress is an
+  exfiltration and abuse surface. The egress default and its per-Space or
+  per-Environment policy are an explicit operator decision, never a model's.
+- **External credentials:** work that sends mail or calls third-party APIs
+  receives credentials only through server-mediated grants—Space Secret grants
+  or an application broker—never by materializing them in the workspace to keep
+  the machine warm.
 - **Plugins, hooks, and MCP:** only the Space's explicit, server-resolved Plugin
   activation enters the machine, resolved at Environment start or session start;
   nothing hot-loads. Stdio MCP stays disabled fail-closed until it has a
@@ -437,16 +463,20 @@ because they serve laptops too:
    view (§9.3).
 
 The Environment prototype then omits everything a cloud IDE would add for
-direct operation. In one isolated Kubernetes test deployment it should:
+direct operation. It runs two journeys: a non-coding one—the Agent collects and
+analyzes web data over hours and delivers a report—and a coding one—the Agent
+builds a project and verifies a running server with the browser. In one
+isolated Kubernetes test deployment it should:
 
-1. create one Environment from a repository and reach `ready` through persisted
-   reconciliation, with the session appearing in the operator's Remote Control
-   list;
+1. create one Environment and reach `ready` through persisted reconciliation,
+   with the session appearing in the operator's Remote Control list;
 2. prompt the Agent, observe output, answer one approval or question, and
    cancel a turn;
-3. have the Agent start a dev server and verify it with the browser capability;
-4. disconnect Portal, leave that process running, reconnect after the relay
-   buffer is gone, and recover the conversation and workspace;
+3. have the Agent run each journey's long process, using the browser capability
+   under the Environment's network policy;
+4. disconnect Portal, leave the process running, reconnect after the relay
+   buffer is gone, and recover the conversation, workspace, and produced
+   Artifacts;
 5. stop and start the Environment, proving files and history persist and the
    process is reported lost;
 6. restart the Server and kill the workload separately, proving the documented
@@ -459,8 +489,7 @@ direct operation. In one isolated Kubernetes test deployment it should:
 
 The prototype records time to ready, time to reconnect, active duration,
 storage growth, restore failures, compute cost, and every moment a user wanted
-an editor or terminal. It also runs the same multi-turn task through Task
-Continue. If retained processes and warm state do not change the outcome, the
+an editor or terminal. It also runs both journeys through Task Continue. If retained processes and warm state do not change the outcome, the
 Task plane is the simpler answer.
 
 No user documentation, compatibility promise, or availability claim follows.
@@ -477,8 +506,8 @@ Decided by the positioning in §2 and §7, subject to review:
 - The Environment belongs to a Space; interaction belongs to the operator's
   account through Remote Control.
 - Losing membership stops the machine immediately; files are retained.
-- The workspace is seeded from a Git repository by default, with no automatic
-  write-back.
+- The workspace starts empty by default, with optional seeding from Git, Space
+  files, or an upload, and no automatic write-back.
 
 Still open:
 
@@ -486,8 +515,16 @@ Still open:
   advance does a person need warning before a stop?
 - Is a bounded history snapshot enough for reconnect after days, or does the
   need point to the [durable Agent sessions proposal](durable-agent-sessions.md)?
-- What read-only review set—diff, screenshots, downloads—is sufficient, and does
-  any observed journey still require the person to act directly?
+- What read-only review set—Artifacts, screenshots, diffs—is sufficient, and
+  does any observed journey still require the person to act directly?
+- What egress default fits general work without turning a long-lived machine
+  into an open proxy, and who sets per-Space exceptions?
+- Which external credentials do observed journeys need, and are Space Secret
+  grants enough or does the work require an application broker?
+- Is there demonstrated need for unattended services on an Environment? If so,
+  how would they relate to the existing Agent Schedules, which already run
+  recurring work on the Task plane, and what lease model replaces operator
+  renewal?
 - Can the browser capability run inside the Environment's sandbox and network
   policy without weakening either?
 - Which Plugin or workspace changes require a session restart versus a machine
