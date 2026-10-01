@@ -170,6 +170,7 @@ DigitalOcean 验证命令读取以下这些任务运行器变量。其完整生�
 | `BUILDMAX_OCEAN_IMAGE` | 固定摘要 `v0.2.0-alpha.4` | 不可变的 server 与 worker 镜像覆盖。可变标签会被拒绝。 |
 | `BUILDMAX_OCEAN_PORTAL_IMAGE` | 固定摘要 `v0.2.0-alpha.4` | 不可变的 Portal 镜像覆盖。可变标签会被拒绝。 |
 | `BUILDMAX_OCEAN_EDGE_IMAGE` | 固定的 Caddy 2.10.2 摘要 | 不可变的 HTTPS 边缘镜像覆盖。可变标签会被拒绝。 |
+| `BUILDMAX_OCEAN_REDIS_IMAGE` | 固定的 Redis 7.4.11 摘要 | 不可变的协调 Redis 镜像覆盖。可变标签会被拒绝。 |
 | `BUILDMAX_OCEAN_MODEL_NAME` | `GPT-5.6 Luna` | 验证流程所配置模型的显示名称。 |
 | `BUILDMAX_OCEAN_MODEL_PROVIDER` | `openai` | 保存在模型条目上的 provider 标签。 |
 | `BUILDMAX_OCEAN_MODEL_API_URL` | `https://openrouter.ai/api/v1` | 该模型调用的 OpenAI 兼容 base URL。 |

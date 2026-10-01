@@ -28,16 +28,22 @@ variable "kubernetes_cluster_name" {
   default     = "buildmax-beta-doks"
 }
 
-variable "kubernetes_version" {
-  description = "DOKS Kubernetes version or slug."
+variable "kubernetes_version_prefix" {
+  description = "DOKS minor version to run; the newest patch slug under it is selected. A concrete slug, not \"latest\", which DOKS rejects on any later in-place update."
   type        = string
-  default     = "latest"
+  default     = "1.36."
 }
 
 variable "kubernetes_node_size" {
   description = "Size slug for the single DOKS worker node."
   type        = string
   default     = "s-2vcpu-4gb"
+}
+
+variable "kubernetes_node_count" {
+  description = "Worker nodes in the DOKS pool. Two let the two Server replicas sit on different nodes and leave room for concurrent worker Jobs."
+  type        = number
+  default     = 2
 }
 
 variable "database_cluster_name" {

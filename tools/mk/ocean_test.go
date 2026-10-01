@@ -179,13 +179,14 @@ func TestOceanManifestUsesOnlyPinnedImages(t *testing.T) {
 		buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64),
 		portalImage:   "example/portal@sha256:" + strings.Repeat("b", 64),
 		edgeImage:     "example/edge@sha256:" + strings.Repeat("c", 64),
+		redisImage:    "example/redis@sha256:" + strings.Repeat("d", 64),
 	}
 	manifest, err := renderOceanManifest(app)
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(manifest)
-	for _, want := range []string{app.buildmaxImage, app.portalImage, app.edgeImage, "externalTrafficPolicy: Local"} {
+	for _, want := range []string{app.buildmaxImage, app.portalImage, app.edgeImage, app.redisImage, "externalTrafficPolicy: Local"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("manifest missing %q", want)
 		}
@@ -415,6 +416,36 @@ func TestOceanWorkersReachTheWorkerListener(t *testing.T) {
 		if !strings.Contains(policy, want) {
 			t.Errorf("worker-port NetworkPolicy missing %q", want)
 		}
+	}
+}
+
+// The Beta profile is two coordinated Server replicas. More than one replica
+// without Redis would split streams and race Conversation turns.
+func TestOceanRunsTwoServersCoordinatedThroughRedis(t *testing.T) {
+	cfg := loadOceanServerConfig(t)
+	if cfg.Coordination.Mode != "redis" {
+		t.Fatalf("coordination.mode = %q, want redis", cfg.Coordination.Mode)
+	}
+	objects := renderedOceanObjects(t)
+	if replicas := objects["Deployment/buildmax-server"]["spec"].(map[string]any)["replicas"]; replicas != 2 {
+		t.Errorf("buildmax-server replicas = %v, want 2", replicas)
+	}
+	service := mustYAML(t, objects["Service/buildmax-redis"])
+	if service == "" || !strings.HasPrefix(cfg.Coordination.Redis.Address, "buildmax-redis.") {
+		t.Errorf("coordination.redis.address %q does not name the buildmax-redis Service", cfg.Coordination.Redis.Address)
+	}
+	if spread := mustYAML(t, objects["Deployment/buildmax-server"]["spec"].(map[string]any)["template"]); !strings.Contains(spread, "topologyKey: kubernetes.io/hostname") || !strings.Contains(spread, "whenUnsatisfiable: DoNotSchedule") {
+		t.Error("the two Server replicas are not required to run on different nodes")
+	}
+	if objects["PodDisruptionBudget/buildmax-server"] == nil {
+		t.Error("no PodDisruptionBudget keeps one Server up through a drain")
+	}
+	if strategy := mustYAML(t, objects["Deployment/buildmax-edge"]["spec"].(map[string]any)["strategy"]); !strings.Contains(strategy, "Recreate") {
+		t.Error("the edge's ReadWriteOnce volume needs a Recreate strategy once there is more than one node")
+	}
+	policy := mustYAML(t, objects["NetworkPolicy/buildmax-redis"])
+	if !strings.Contains(policy, "app: buildmax-server") || strings.Contains(policy, "buildmax-worker") {
+		t.Error("Redis must admit only Server pods")
 	}
 }
 

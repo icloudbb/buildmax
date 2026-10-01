@@ -11,10 +11,14 @@ data "digitalocean_spaces_bucket" "persistent" {
   region = var.region
 }
 
+data "digitalocean_kubernetes_versions" "beta" {
+  version_prefix = var.kubernetes_version_prefix
+}
+
 resource "digitalocean_kubernetes_cluster" "beta" {
   name    = var.kubernetes_cluster_name
   region  = var.region
-  version = var.kubernetes_version
+  version = data.digitalocean_kubernetes_versions.beta.latest_version
 
   vpc_uuid                         = data.digitalocean_vpc.persistent.id
   ha                               = false
@@ -25,7 +29,7 @@ resource "digitalocean_kubernetes_cluster" "beta" {
   node_pool {
     name       = "system"
     size       = var.kubernetes_node_size
-    node_count = 1
+    node_count = var.kubernetes_node_count
   }
 
   lifecycle {

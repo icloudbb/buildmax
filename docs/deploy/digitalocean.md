@@ -16,11 +16,15 @@ keeps outside OpenTofu:
 | DigitalOcean Project | `buildmax-beta` | Persistent, operator-managed |
 | VPC | `buildmax-beta` in `sgp1` | Persistent, operator-managed |
 | Spaces bucket | `buildmax-beta` in `sgp1` | Persistent, operator-managed |
-| DOKS cluster | `buildmax-beta-doks`, one `s-2vcpu-4gb` node | Disposable, OpenTofu-managed |
+| DOKS cluster | `buildmax-beta-doks`, two `s-2vcpu-4gb` nodes on the newest `1.36.` patch | Disposable, OpenTofu-managed |
 | Managed MySQL | `buildmax-beta-mysql`, one `db-s-1vcpu-1gb` node | Disposable, OpenTofu-managed |
 | MySQL firewall and `buildmax` database | Attached to managed MySQL | Disposable, OpenTofu-managed |
 
-DOKS high availability, auto-upgrade, and surge upgrade are explicitly off.
+DOKS high availability, auto-upgrade, and surge upgrade are explicitly off. The
+cluster pins a concrete version slug, resolved from the `1.36.` prefix when it
+is created; DOKS refuses `latest` on any later in-place change, such as resizing
+the node pool. A newer patch under the prefix shows up as an upgrade in the next
+`plan`, so review it before applying.
 The DOKS and MySQL resources accrue charges until `./make ocean down` succeeds;
 the Project and VPC are free, and the persistent Spaces subscription continues
 independently. Confirm current provider prices before creating the resources.
@@ -123,7 +127,10 @@ on the contributor's current Kubernetes context.
 
 `model init` reads `OPENROUTER_API_KEY` from `.local/env`, adds the configured
 model when its name is not already present, selects its generated catalog ID for
-Tier 1 conversations, and restarts only the BuildMax Server deployment. The key is
+Tier 1 conversations, and restarts only the BuildMax Server deployment. Worker
+runs reach that model through the Server's managed gateway
+(`worker.llm.transport: buildmax`), so the provider key never enters a worker
+pod. The key is
 sent to the operator command over stdin and is never printed or rendered into a
 Kubernetes manifest. Repeating the command reuses the existing catalog row.
 
@@ -146,6 +153,7 @@ another digest, never a mutable tag:
 | `BUILDMAX_OCEAN_IMAGE` | `ghcr.io/icloudbb/buildmax@sha256:4e0a65874c8b5135e4a34a018acf0ca33a7af80711dd09814d0cac4e349ea573` |
 | `BUILDMAX_OCEAN_PORTAL_IMAGE` | `ghcr.io/icloudbb/buildmax-portal@sha256:1087a8c33c37a561e908db22e7925f1d9438a3fece0539ed1dded62afb66e135` |
 | `BUILDMAX_OCEAN_EDGE_IMAGE` | `caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d` |
+| `BUILDMAX_OCEAN_REDIS_IMAGE` | `redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499` |
 
 `deploy` refreshes OpenTofu's read-only database CA output, combines that CA
 with the image's public trust bundle, and starts BuildMax with `database.tls:
@@ -192,6 +200,11 @@ while the Load Balancer is pending, then verify from an allowed network:
 ```bash
 curl -I https://buildmax.beta.example.com/
 ```
+
+The deployment matches the Beta profile's shape: two Server replicas, kept on
+different nodes and behind a PodDisruptionBudget, coordinated through an
+in-cluster Redis that only Server pods may reach. Redis holds live coordination
+state only, so it has no volume.
 
 The application phase also creates one DigitalOcean Load Balancer and a 1 GiB
 block-volume claim for Caddy's certificate state. Both are billable and are

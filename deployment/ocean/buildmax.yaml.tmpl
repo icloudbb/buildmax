@@ -107,7 +107,8 @@ metadata:
   labels:
     app: buildmax-server
 spec:
-  replicas: 1
+  # Two replicas coordinated through buildmax-redis, the Beta profile's shape.
+  replicas: 2
   selector:
     matchLabels:
       app: buildmax-server
@@ -121,6 +122,18 @@ spec:
     spec:
       serviceAccountName: buildmax-server
       terminationGracePeriodSeconds: 45
+      # Different nodes, so a node drain or loss leaves one replica serving.
+      # Counted per revision (pod-template-hash), so a rollout's surge pod is
+      # not blocked by the replicas it replaces.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: buildmax-server
+          matchLabelKeys:
+            - pod-template-hash
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -264,6 +277,102 @@ spec:
         - name: tmp
           emptyDir: {}
 ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: buildmax-server
+---
+# Live coordination state only -- stream deltas, connection events, and turn
+# leases -- so no persistence: a restart costs in-flight deltas and a brief
+# lease re-acquire, never durable data.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildmax-redis
+  namespace: buildmax
+  labels:
+    app: buildmax-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: buildmax-redis
+  template:
+    metadata:
+      labels:
+        app: buildmax-redis
+    spec:
+      automountServiceAccountToken: false
+      # The image's redis user. Started as it, the entrypoint skips the setpriv
+      # step-down that a root start needs SETUID/SETGID for.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+      containers:
+        - name: redis
+          image: {{ .RedisImage }}
+          imagePullPolicy: IfNotPresent
+          args: ["--save", "", "--appendonly", "no"]
+          ports:
+            - containerPort: 6379
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax-redis
+  namespace: buildmax
+spec:
+  selector:
+    app: buildmax-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+# Only the Server talks to Redis. Worker pods run model-chosen commands and
+# must not reach coordination state.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: buildmax-redis
+  namespace: buildmax
+spec:
+  podSelector:
+    matchLabels:
+      app: buildmax-redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: buildmax-server
+      ports:
+        - protocol: TCP
+          port: 6379
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -382,6 +491,10 @@ metadata:
     app: buildmax-edge
 spec:
   replicas: 1
+  # The certificate volume is ReadWriteOnce: a rolling update that schedules the
+  # new pod on another node waits forever for the old pod's attachment.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: buildmax-edge

@@ -12,11 +12,11 @@
 | DigitalOcean Project | `buildmax-beta` | 持久保留，运维人员管理 |
 | VPC | `sgp1` 中的 `buildmax-beta` | 持久保留，运维人员管理 |
 | Spaces 存储桶 | `sgp1` 中的 `buildmax-beta` | 持久保留，运维人员管理 |
-| DOKS 集群 | `buildmax-beta-doks`，一个 `s-2vcpu-4gb` 节点 | 可销毁，OpenTofu 管理 |
+| DOKS 集群 | `buildmax-beta-doks`，两个 `s-2vcpu-4gb` 节点，运行 `1.36.` 下最新的补丁版本 | 可销毁，OpenTofu 管理 |
 | 托管 MySQL | `buildmax-beta-mysql`，一个 `db-s-1vcpu-1gb` 节点 | 可销毁，OpenTofu 管理 |
 | MySQL 防火墙和 `buildmax` 数据库 | 附属于托管 MySQL | 可销毁，OpenTofu 管理 |
 
-DOKS 高可用、自动升级和 surge upgrade 均明确关闭。在 `./make ocean down` 成功前，DOKS 和 MySQL 资源持续计费；Project 和 VPC 免费，持久化 Spaces 订阅独立持续。创建资源前请确认提供商当前价格。
+DOKS 高可用、自动升级和 surge upgrade 均明确关闭。集群在创建时按 `1.36.` 前缀解析出具体的版本 slug 并固定使用；DOKS 会在之后任何原地修改（例如调整节点池大小）时拒绝 `latest`。前缀下出现更新的补丁版本时，下一次 `plan` 会显示为升级，请先检查再应用。在 `./make ocean down` 成功前，DOKS 和 MySQL 资源持续计费；Project 和 VPC 免费，持久化 Spaces 订阅独立持续。创建资源前请确认提供商当前价格。
 
 ## 前置条件
 
@@ -99,7 +99,7 @@ BUILDMAX_OCEAN_ALLOWED_CIDRS=203.0.113.7/32
 
 `show all` 使用 `ocean up` 写入、仅所有者可访问的 kubeconfig，运行 `kubectl get all --namespace buildmax --output wide`。它是只读操作，不依赖贡献者当前的 Kubernetes Context。
 
-`model init` 从 `.local/env` 读取 `OPENROUTER_API_KEY`，在模型名称尚不存在时添加配置的模型，选择其生成的目录 ID 用于 Tier 1 Conversation，然后只重启 BuildMax Server Deployment。密钥通过 stdin 传给运维命令，绝不打印或渲染到 Kubernetes 清单中。重复执行会复用已有目录行。
+`model init` 从 `.local/env` 读取 `OPENROUTER_API_KEY`，在模型名称尚不存在时添加配置的模型，选择其生成的目录 ID 用于 Tier 1 Conversation，然后只重启 BuildMax Server Deployment。Worker 运行通过 Server 的托管网关（`worker.llm.transport: buildmax`）调用该模型，因此提供商密钥不会进入 worker pod。密钥通过 stdin 传给运维命令，绝不打印或渲染到 Kubernetes 清单中。重复执行会复用已有目录行。
 
 默认使用仓库的低成本 OpenRouter 基线模型 `GPT-5.6 Luna`（`openai/gpt-5.6-luna`）。可用 `.env.example` 中记录的 `BUILDMAX_OCEAN_MODEL_*` 变量覆盖元数据；价格变化时应在初始化目录前更新，以保证调用成本记录准确。随时查看脱敏后的目录：
 
@@ -114,6 +114,7 @@ BUILDMAX_OCEAN_ALLOWED_CIDRS=203.0.113.7/32
 | `BUILDMAX_OCEAN_IMAGE` | `ghcr.io/icloudbb/buildmax@sha256:4e0a65874c8b5135e4a34a018acf0ca33a7af80711dd09814d0cac4e349ea573` |
 | `BUILDMAX_OCEAN_PORTAL_IMAGE` | `ghcr.io/icloudbb/buildmax-portal@sha256:1087a8c33c37a561e908db22e7925f1d9438a3fece0539ed1dded62afb66e135` |
 | `BUILDMAX_OCEAN_EDGE_IMAGE` | `caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d` |
+| `BUILDMAX_OCEAN_REDIS_IMAGE` | `redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499` |
 
 `deploy` 刷新 OpenTofu 的只读数据库 CA 输出，将该 CA 与镜像的公共信任证书包合并，再以 `database.tls: "true"` 启动 BuildMax。因此服务器会验证 DigitalOcean MySQL 和公共 HTTPS 依赖，绝不使用 `skip-verify`。数据库、Spaces 和生成的 JWT 凭证通过内存组装的 Secret 传入 Kubernetes。渲染后的 Secret 不会写入检出目录。
 
@@ -132,6 +133,8 @@ buildmax.beta.example.com  A  <Load Balancer IP>
 ```bash
 curl -I https://buildmax.beta.example.com/
 ```
+
+该部署与 Beta profile 的形态一致：两个 Server 副本分布在不同节点上并受 PodDisruptionBudget 保护，通过只允许 Server pod 访问的集群内 Redis 协调。Redis 只保存实时协调状态，因此没有存储卷。
 
 应用阶段还会创建一个 DigitalOcean Load Balancer，以及保存 Caddy 证书状态的 1 GiB 块存储卷声明。两者都收费，并关联到可销毁的 DOKS 集群，因此 `./make ocean down` 会随集群一起删除它们。
 

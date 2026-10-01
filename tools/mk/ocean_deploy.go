@@ -44,6 +44,7 @@ const (
 	defaultOceanBuildMaxImage = "ghcr.io/icloudbb/buildmax@sha256:4e0a65874c8b5135e4a34a018acf0ca33a7af80711dd09814d0cac4e349ea573"
 	defaultOceanPortalImage   = "ghcr.io/icloudbb/buildmax-portal@sha256:1087a8c33c37a561e908db22e7925f1d9438a3fece0539ed1dded62afb66e135"
 	defaultOceanEdgeImage     = "caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d"
+	defaultOceanRedisImage    = "redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499"
 )
 
 var (
@@ -57,12 +58,14 @@ type oceanApplicationConfig struct {
 	buildmaxImage string
 	portalImage   string
 	edgeImage     string
+	redisImage    string
 }
 
 type oceanManifestData struct {
 	BuildMaxImage string
 	PortalImage   string
 	EdgeImage     string
+	RedisImage    string
 }
 
 func loadOceanApplicationConfig() (oceanApplicationConfig, error) {
@@ -84,11 +87,13 @@ func loadOceanApplicationConfig() (oceanApplicationConfig, error) {
 		buildmaxImage: envOr("BUILDMAX_OCEAN_IMAGE", defaultOceanBuildMaxImage),
 		portalImage:   envOr("BUILDMAX_OCEAN_PORTAL_IMAGE", defaultOceanPortalImage),
 		edgeImage:     envOr("BUILDMAX_OCEAN_EDGE_IMAGE", defaultOceanEdgeImage),
+		redisImage:    envOr("BUILDMAX_OCEAN_REDIS_IMAGE", defaultOceanRedisImage),
 	}
 	for name, image := range map[string]string{
 		"BUILDMAX_OCEAN_IMAGE":        cfg.buildmaxImage,
 		"BUILDMAX_OCEAN_PORTAL_IMAGE": cfg.portalImage,
 		"BUILDMAX_OCEAN_EDGE_IMAGE":   cfg.edgeImage,
+		"BUILDMAX_OCEAN_REDIS_IMAGE":  cfg.redisImage,
 	} {
 		if !oceanDigestPattern.MatchString(image) {
 			return oceanApplicationConfig{}, fmt.Errorf("%s must pin an image digest, got %q", name, image)
@@ -235,7 +240,7 @@ func oceanDeploy(cfg oceanConfig) error {
 	}
 	// The DaemonSet copies the seccomp profile only when its pod starts, so it
 	// restarts with the rest to pick up a changed profile.
-	workloads := []string{"daemonset/buildmax-worker-seccomp", "deployment/buildmax-server", "deployment/buildmax-portal", "deployment/buildmax-edge"}
+	workloads := []string{"daemonset/buildmax-worker-seccomp", "deployment/buildmax-redis", "deployment/buildmax-server", "deployment/buildmax-portal", "deployment/buildmax-edge"}
 	for _, workload := range workloads {
 		if err := oceanKubectl(cfg, "rollout", "restart", workload, "-n", "buildmax"); err != nil {
 			return err
@@ -353,6 +358,13 @@ worker_api:
   tls:
     cert_file: /buildmax/tls/worker-api/tls.crt
     key_file: /buildmax/tls/worker-api/tls.key
+
+# Two Server replicas share live streams, connection events, and Conversation
+# turn leases through Redis; see docs/design/server-coordination.md.
+coordination:
+  mode: redis
+  redis:
+    address: buildmax-redis.buildmax.svc.cluster.local:6379
 
 secret:
   kek_file: %s
@@ -508,6 +520,7 @@ func renderOceanManifest(app oceanApplicationConfig) ([]byte, error) {
 		BuildMaxImage: app.buildmaxImage,
 		PortalImage:   app.portalImage,
 		EdgeImage:     app.edgeImage,
+		RedisImage:    app.redisImage,
 	}); err != nil {
 		return nil, fmt.Errorf("render ocean application manifest: %w", err)
 	}
