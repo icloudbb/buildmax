@@ -12,6 +12,8 @@
 [Agent 执行与 Task 线程](../design/Agent执行与Task线程.md)、
 [Task 工作区检查点](../design/Task工作区检查点.md)、
 [Remote Control](../design/远程控制.md)、
+[客户端模式](../design/客户端模式.md)、
+[Agent 浏览器能力](../design/Agent 浏览器能力.md)、
 [Agent 沙箱策略](../design/Agent沙箱策略.md)、
 [插件分发](../design/Space插件分发.md)、
 [客户端界面收敛](client-surface-convergence.md)以及
@@ -20,135 +22,186 @@
 ## 目录
 
 - [1. 决策问题](#1-决策问题)
-- [2. 用户结果与证据](#2-用户结果与证据)
-- [3. 当前约束](#3-当前约束)
-- [4. 目标与非目标](#4-目标与非目标)
-- [5. 建议模型](#5-建议模型)
-- [6. 生命周期与持久化](#6-生命周期与持久化)
-- [7. 通过 Remote Control 交互](#7-通过-remote-control-交互)
-- [8. 授权与信任边界](#8-授权与信任边界)
-- [9. 供应、协调与失败](#9-供应协调与失败)
-- [10. API、Portal 与运维界面](#10-apiportal-与运维界面)
-- [11. 方案与权衡](#11-方案与权衡)
-- [12. 最小验证切片](#12-最小验证切片)
-- [13. 开放问题与决策证据](#13-开放问题与决策证据)
-- [14. 获采纳后的可能归宿](#14-获采纳后的可能归宿)
+- [2. 定位：围绕 Agent 重建的云 IDE](#2-定位围绕-agent-重建的云-ide)
+- [3. 用户结果与证据](#3-用户结果与证据)
+- [4. 当前约束](#4-当前约束)
+- [5. 目标与非目标](#5-目标与非目标)
+- [6. 建议模型](#6-建议模型)
+- [7. 归属与授权](#7-归属与授权)
+- [8. 机器生命周期与持久化](#8-机器生命周期与持久化)
+- [9. 通过 Remote Control 交互](#9-通过-remote-control-交互)
+- [10. 信任边界](#10-信任边界)
+- [11. 供应、协调与失败](#11-供应协调与失败)
+- [12. API、Portal 与运维界面](#12-apiportal-与运维界面)
+- [13. 方案与权衡](#13-方案与权衡)
+- [14. 最小验证切片](#14-最小验证切片)
+- [15. 开放问题与决策证据](#15-开放问题与决策证据)
+- [16. 获采纳后的可能归宿](#16-获采纳后的可能归宿)
 
 ## 1. 决策问题
 
-BuildMax 是否应该增加一个独立、归属 Space 的 **Environment 执行平面**，用于
-长时间运行的 Agent 工作区，同时复用 Remote Control 完成实时交互？
+BuildMax 是否应该分配并管理长时间运行的云端机器——**Environment**——让用户只通过
+Agent 对话在上面工作，并经由现有的 Remote Control 通道接入？
 
-本文建议验证这个方向。Environment 不是一个永久不结束的 TaskRun，也不替代
-Task/TaskRun。它拥有已供应的计算资源、持久的私有工作区，以及恢复交互式 Agent
-Session 所需的运行时状态。Task/TaskRun 继续作为定时任务、Workflow、Issue 和
-后台工作所使用的持久化、有界执行平面。
+本文建议验证这个方向。系统新增的职责是机器管理：分配、启动、停止、续租、回收和
+删除一台带持久工作区的机器。机器运行起来以后，用法与用户自己那台开启 Remote
+Control 的笔记本完全相同：机器上运行标准的 `buildmax` 运行时，注册一个实时
+Session，Portal 观察并引导这个 Session。不引入新的 Agent 循环、聊天协议或执行
+平面，Task/TaskRun 保持不变。
 
-第一版产品应当收窄为托管在远端的 Agent Session，而不是完整的浏览器 IDE。
-一个 Environment 在一个私有工作区上运行一个受监督的交互式 Agent Session；
-Portal 通过 Remote Control 的交互通道观察并引导它。终端、任意应用、协同编辑
-与服务公开访问都需要各自的证据。
+## 2. 定位：围绕 Agent 重建的云 IDE
 
-## 2. 用户结果与证据
+BuildMax 当前有两种工作模式：
 
-用户应能创建 Environment，关闭浏览器，并在数小时或数天后回到同一个工作区和
-Agent 历史，而不需要假装一个 TaskRun 一直在执行。Environment 运行期间，测试
-服务器、watcher、下载或其他后台进程可以在浏览器断开后继续运行。计算资源停止
-或被替换后，文件系统与 Agent Session 仍可恢复，但进程不可恢复。
+| 模式 | 由谁执行工作 | 机器 | 交互方式 |
+|---|---|---|---|
+| Task 与 Workflow | Server 把有界的 TaskRun 派发到临时 worker | 按次分配，运行结束后回收 | 提交、观察、继续；Run 的结果是权威结果 |
+| Remote Control | 用户自己的长时间运行机器 | 用户的笔记本，BuildMax 不管理它 | 经 Server 中继的实时 Agent Session |
+| **Environment（本提案）** | 系统分配的长时间运行机器 | 云端机器——初期为一个带持久卷的 Kubernetes Pod | 与笔记本相同的 Remote Control Session |
 
-动机场景包括：工作跨越多轮交互、需要保持热状态的工具链或代码仓库，或者依赖
-生命周期长于一次有界 Agent turn 的进程。现有
-[客户端界面收敛提案](client-surface-convergence.md)已识别出同一种云端形态；已经
-交付的 Remote Control 证明 BuildMax 能通过 Portal 中继一个在线 Agent Session。
-但两者都不能证明需求频率足以承担存储、隔离与运维成本。促成本文的需求属于产品
-证据，而不是经过测量的使用证据。
+Environment 是云 IDE——Cloud9、Codespaces、Gitpod——在 Agent 时代的改版。机器管理
+这一半与原模式相同：从代码仓库创建工作区、机器可以停止而磁盘保留、闲置回收、配额
+与删除。变化的是交互方式。云 IDE 给用户一个编辑器和一个终端，让用户亲自输入命令、
+修改文件。现在 Agent 能代替用户完成这些操作，因此交互界面收缩为 Agent 对话：提示、
+流式进度、审批、提问、取消，以及对 Agent 产出的只读审阅。
 
-因此，第一次决策需要一个有界原型和实际旅程观察，而不是通用远程开发平台。
-有价值的证据包括：用户是否会回到同一 Environment、真正重要的是保留进程还是
-仅保留文件、资源实际会保持多久，以及没有完整终端时，收窄的 Agent 界面是否足够。
+由此得出两个结论，决定了本文其余部分的形态：
 
-## 3. 当前约束
+- **机器管理是已知问题。** 生命周期、持久化、配额与回收沿用成熟的云 IDE 实践，
+  而不是重新设计。
+- **交互已经存在。** Remote Control 本来就是为引导一台 BuildMax 无法直接触达的
+  长时间运行机器而建。云端机器同样是长时间运行的机器，复用这条通道正是要点，而非
+  优化。
 
-- **Task/TaskRun 有意保持有界。** TaskRun 物化工作区，完成一次 turn 或 attempt，
-  提交结果与检查点后终止。Task 的连续性来自持久状态，而不是常驻进程。保持一个
-  TaskRun 永不结束，会削弱其取消、结果、配额、恢复与 worker 回收语义。
-- **Worker 计算资源是临时的。** 受支持的 Kubernetes 路径为一次运行启动一个 Job。
-  可写根目录属于该次运行；持久边界是对象存储中的 Task 工作区检查点，而不是 Pod
-  卷。
-- **Remote Control 提供实时交互，而不是托管。** 它注册归属账户的本地 Session，
-  中继有界事件、prompt、approval、question 与 cancel，不保存权威 transcript。
-  它使用用户 JWT 和账户归属，这适合个人笔记本，不适合归属 Space 的远端
-  Environment。
-- **Space 是 Portal 的所有权与授权边界。** 服务端 Environment 必须且只能归属一个
-  Space。个人使用仍落在 personal Space 中，无需另一套产品模型。
-- **运行时已经共享。** `internal/agentapp` 为现有各个界面组装 model、tool、MCP、
-  hook、sandbox、trace、Skill、Session 和工作区解析。本文增加的是 host 生命周期，
-  而不是另一套 Agent loop。
-- **网络可达执行采用 worker 的信任姿态，而不是本地 CLI 的姿态。** 沙箱必须
-  fail-closed；运行时状态与凭证必须位于工具可写工作区之外；缺少必要边界时应让
-  Environment 不可用，不能静默扩大访问权限。
-- **这些能力目前均未交付。** 当前没有 Environment 实体、provisioner、持久化
-  Environment 卷、lease、Environment 凭证或 Portal 管理界面。
+## 3. 用户结果与证据
 
-## 4. 目标与非目标
+用户应能从一个代码仓库创建 Environment，让其中的 Agent 开展工作，关闭浏览器，
+并在数小时或数天后回到同一个工作区和同一段对话。Environment 运行期间，Agent
+启动的开发服务器、watcher、构建或下载无论是否有人在看都会继续运行。机器停止或被
+替换后，文件与 Agent Session 得以保留，进程则不会。
 
-### 4.1 目标
+动机场景包括：工作跨越多轮交互、需要保持热状态的工具链或代码仓库，或者依赖生命
+周期长于一次有界 Agent turn 的进程——恰好是用户原本需要让笔记本开着 Remote
+Control 的那些场景。云端机器把笔记本从这个图景中移除。
 
-- 在浏览器断开和计算资源重启后，继续使用同一个私有工作区及其 Agent Session。
-- Environment 处于 ready 时，即使没有浏览器连接，后台进程也能继续运行。
-- 为创建、启动、停止、续租、失败和删除提供明确、可查看的状态，并约束资源使用。
-- 复用 Remote Control 的类型化事件与命令通道，承载对话、流式输出、approval、
-  question、cancel、presence 与 reconnect。
-- 保持 Space 授权、显式 Plugin 激活、托管推理、trace 脱敏和 fail-closed 沙箱。
-- 向用户和运维人员明确区分哪些状态持久、哪些状态不持久。
+现有证据是一项产品需求加上已上线的 Remote Control，而不是实测使用数据。因此决策
+需要一个有界原型和可观察的用户旅程：用户是否会重新连接到同一个 Environment，保留
+进程还是只保留文件更重要，Environment 实际保持活跃多久，以及没有终端时只读审阅是否
+足够。
 
-### 4.2 非目标
+## 4. 当前约束
 
-- 让 TaskRun 永久运行、把普通 Task 调度到 Environment，或改变 Task 结果的权威性。
-- 保证进程跨越停止、挂起、节点丢失、镜像替换或控制平面恢复而继续存活。
-- 同步用户笔记本文件系统，或静默把 Environment 变更写回可变的 Space 文件。
-- 交付完整远程桌面、VS Code 替代品、任意浏览器应用，或向公网暴露 Environment
-  内部进程。
-- 提供协同 shell，或让所有 Space 成员天然成为另一位成员 Environment 的操作者。
-- 仅仅因为 Remote Control 中继了交互，就在 Server 上持久保存 transcript。
-- 第一阶段支持所有部署拓扑。无法强制执行必要隔离与持久化的拓扑，应报告能力
-  不可用。
+- **Task/TaskRun 被刻意设计为有界。** 一个 TaskRun 物化工作区，执行一个 turn 或
+  一次尝试，提交结果与检查点状态，然后终止。让它常驻会破坏其取消、结果、配额、
+  恢复与回收语义。
+- **Worker 计算资源是临时的。** 受支持的 Kubernetes 路径每次 Run 启动一个 Job；
+  持久化边界是对象存储中的 Task 工作区检查点，而不是 Pod 卷。Server 目前只管理
+  Job，不管理长期工作负载或持久卷。
+- **Remote Control 归属账号，并且由 TUI 显式开启。** 一个实时 Session 属于一个
+  用户，只有该用户能访问；它通过交互式 TUI 的 `--remote-control` 参数、在登录托管
+  Server 的情况下开启。Server 只保留一个短的回放缓冲，从不保存持久的对话记录。
+  目前没有无界面（headless）承载 Remote Control Session 的方式。
+- **Space 是 Portal 中资源、配额与治理的归属边界。** Remote Control 是一个经过
+  记录的有意例外，因为笔记本没有 Space。
+- **运行时已经共享。** `internal/agentapp` 为所有界面组装模型、工具、MCP、hooks、
+  沙箱、trace、Skills、Session 与工作区解析。托管模式已经经由 Server 路由推理。
+- **浏览器能力仅限本地。** CLI 与 Desktop 驱动一个由 Go 管理的 Chromium；worker
+  与其他无人值守的 Run 没有这项能力。
+- **可经网络访问的执行采用 worker 的信任姿态。** 沙箱强制 fail-closed，运行时状态
+  与凭证保留在工具可写工作区之外。
+- **目前没有任何类似能力上线。** 不存在 Environment 实体、供应器、持久卷、租约、
+  机器凭证或管理界面。
 
-## 5. 建议模型
+## 5. 目标与非目标
 
-本文只增加一个持久化产品实体：**Environment**。它是一个归属 Space 的资源预约，
-拥有私有工作区以及可能挂载到工作区的计算资源。它不是 Agent、Task、TaskRun、
-本地 Project 或通用的版本化文件系统。
+### 5.1 目标
 
-| 概念 | 拥有什么 | 不拥有什么 |
+- 以显式、可检查的状态和有界的资源使用，分配、启动、停止、续租、回收与删除云端
+  机器。
+- 让一个私有工作区及其 Agent Session 在浏览器断开和机器重启后仍可使用。
+- 机器运行期间，Agent 启动的进程持续运行，与是否有人观看无关。
+- 只通过 Remote Control Session 交互，让云端机器和笔记本在 Portal 中的外观与行为
+  一致。
+- 保持显式 Plugin 激活、托管推理、trace 脱敏与 fail-closed 的沙箱强制。
+- 让持久与非持久状态对用户和运维人员一目了然。
+
+### 5.2 非目标
+
+- **为用户提供直接操作机器的编辑器、终端或文件浏览器。** 这是产品原则而非推迟：
+  Agent 就是用户的手。用户仍以只读方式审阅结果（§9.3）。
+- 让 TaskRun 永久运行，或让 Task 以 Environment 为执行目标。这会产生两个执行权威，
+  并使 TaskRun 恢复语义含混。
+- 保证进程在停止、节点丢失、镜像替换或控制面恢复后存活。
+- 同步笔记本文件系统，或把 Environment 的修改写回可变的 Space 文件。结果通过 Git
+  或 Artifact 离开机器。
+- 对机器内进程提供公网入口或端口转发。Agent 改用浏览器能力自行预览它启动的服务
+  （§9.3）。
+- 共享交互访问，或让 Space 成员身份隐含对其他成员 Environment 的访问。
+- 在 Server 上持久保存交互对话记录。
+- 支持所有部署拓扑。无法强制下文所述隔离与持久化的拓扑应报告该能力不可用。
+
+## 6. 建议模型
+
+本提案只新增一个持久实体 **Environment**：一台已分配云端机器的记录。它拥有机器的
+生命周期，从不拥有 Agent 的行为。
+
+| 概念 | 拥有 | 不拥有 |
 |---|---|---|
-| Environment | Space、交互操作者、期望与观测到的生命周期、资源规格、lease、持久工作区引用、host 健康状态 | Task 结果、无限期运行的模型调用或公开服务端点 |
-| Environment host | allocation 内的协调心跳与一个受监督的交互式 Agent runtime | 持久化产品身份或授权策略 |
-| Agent Session | 存于 Environment runtime home 的模型可见历史与 compaction 状态 | Environment 生命周期或 Space membership |
-| Remote Control 注册 | 在线 Agent Session 的临时 presence、stream key 与命令路由 | 工作区或 transcript 持久性 |
+| Environment | Space、操作者、期望与观测到的生命周期、资源规格、租约、工作区来源、持久卷引用、机器健康 | Agent Session、Task 结果或公网端点 |
+| 机器 | 标准的 `buildmax` 运行时，以无界面方式承载一个 Remote Control Session | 产品身份或授权策略 |
+| Agent Session | 模型可见的历史与压缩状态，保存在机器的运行时 home 中 | 机器生命周期 |
+| Remote Control Session | 实时 Session 的在线状态、流与命令路由 | 工作区或对话记录的持久性 |
 
-Environment 归属一个 Space，第一阶段只有一个交互操作者。操作者必须持续拥有该
-Space 的 membership。Space owner 与 admin 可以出于治理目的停止或删除
-Environment，但不会因此静默取得 shell 或 Agent Session 访问权。若证据证明需要
-共享，应在将来增加显式 grant；Space membership 本身不代表共享。
+机器内运行的是用户在笔记本上运行的同一个运行时，处于托管模式并开启 Remote
+Control。没有单独的"Environment host"组件：笔记本需要用户手动启动的东西，机器在
+开机时自行启动。唯一新增的运行时能力是一种无需 TUI 即可承载一个 Remote Control
+Session 的无界面模式——Remote Control 设计已经把 Desktop 与 print 界面的开启方式
+列为可追加项。
 
-allocation 包含三个具有强制边界的文件系统区域：
+机器有三个边界受强制的文件系统区域：
 
 ```text
-持久 workspace/         Agent 可见，也是工具唯一可写根目录
-持久 buildmax-home/     Session、trace、setting、解析后的 Plugin；对工具隐藏
-临时 scratch/           socket、cache 与进程本地临时状态
+persistent workspace/       Agent-visible, the only writable tool root
+persistent buildmax-home/   sessions, traces, settings, resolved Plugins; hidden from tools
+ephemeral scratch/          sockets, caches, process-local temporary state
 ```
 
-`buildmax-home/` 需要持久化，因为用户结果包含 Agent Session 连续性，但它不能位于
-可写工作区之下。Environment host 是 allocation 内的进程，不是第二个 Server，也
-不是新的 domain 实体。第一阶段只监督一个 Agent Session；多 Session 并发会引入
-尚未被需求证明的调度、资源和展示语义。
+`buildmax-home/` 需要持久化，因为目标结果包含 Session 连续性；它保留在工具根目录
+之外，与 worker 不变量一致。机器只承载一个 Session；并发 Session 会引入调度与展示
+语义，而目前没有证据表明需要它们。
 
-## 6. 生命周期与持久化
+工作区按云 IDE 惯例从一个来源创建：默认克隆一个 Git 仓库，可选地使用 Space 文件
+快照。不做任何自动写回；Agent 推送到 Git 或发布 Artifact。
 
-Environment 具有异步的期望状态和观测状态。具体存储表示属于后续设计，但用户
-可见生命周期至少要区分：
+## 7. 归属与授权
+
+这是该模型引出的主要决策。开启 Remote Control 的笔记本归属账号，没有 Space。云端
+机器消耗运营方的资源，需要配额、成本归属与治理，而 Portal 把这些放在 Space 上。
+有两种形态：
+
+| 方案 | 特性 | 代价 |
+|---|---|---|
+| **归属账号**，与笔记本相同 | 最接近"我的另一台机器"；Remote Control 的归属规则原样适用 | 配额、成本与管理员治理没有 Space 可挂靠；Portal 中出现第二套账号级资源模型 |
+| **归属 Space 且按 Space 交互** | 与其他 Portal 资源一致 | Space 成员身份成为进入实时 Session 的途径，而这正是 Remote Control 刻意拒绝的；实时 Session 注册表必须泛化为 Space 授权 |
+
+**建议：把资源归属与交互分开。** Environment 记录属于一个 Space，由 Space 承载其
+配额、成本、生命周期治理与审计。交互属于一个人——操作者：机器的实时 Session 注册为
+此人的 Remote Control Session，作为其机器之一出现在其 Session 列表中。Remote
+Control 的规则完全不变：实时 Session 只能由其所属账号访问。Remote Control
+Session 只新增一个指向其 Environment 的可选引用。
+
+由此得出的规则：
+
+- 操作者在仍是 Space 成员期间可以接入。失去成员身份或被停用会停止机器；默认立即
+  停止，文件保留到 owner 删除该 Environment。
+- Space owner 与 admin 可以查看、停止和删除 Space 内的任何 Environment，并调整
+  配额，但不获得对话记录或 Session 访问权。
+- 共享交互访问如有用户旅程需要，将作为未来的显式授权，绝不由成员身份隐含。
+
+## 8. 机器生命周期与持久化
+
+Environment 具有异步的期望状态与观测状态。具体存储表示留给后续设计；用户可见的
+生命周期至少需要区分：
 
 ```text
 create -> provisioning -> ready <-> stopping -> stopped
@@ -158,128 +211,114 @@ create -> provisioning -> ready <-> stopping -> stopped
 stopped / failed -> deleting -> gone
 ```
 
-- **Create** 先预约资源并供应存储，然后才能报告 ready。请求成功返回不代表计算
-  资源已经就绪。
-- **Ready** 表示 host 已连接，且所需 sandbox、storage 与 Server 通道通过启动检查；
-  浏览器是否在线与此无关。
-- **Stop** 在宽限期后终止计算资源，保留持久 workspace 与 runtime home；它不承诺
-  挂起进程。
-- **Start** 把计算资源挂载到同一份持久状态，并在接受 prompt 前恢复 Agent Session。
-  恢复失败必须可见且 fail-closed，不能以旧身份静默新建 Session。
-- **Delete** 先使计算资源不可达，再依据明确的 retention policy 销毁 Environment
-  持久存储。Delete 与 Stop 不同，Portal 必须要求破坏性操作确认。
+- **Create** 先供应存储并初始化工作区，再报告就绪。请求成功并不表示机器已就绪。
+- **Ready** 表示机器已运行，所需的沙箱、存储与 Server 通道通过了启动检查，并且其
+  Remote Control Session 已注册。浏览器是否在线无关紧要。
+- **Stop** 在宽限期后终止计算资源并保留卷。它不承诺挂起进程。
+- **Start** 重新挂载同一个卷，并在接受提示前恢复 Agent Session。恢复失败会显式
+  呈现并 fail-closed；绝不会在旧身份下悄悄启动一个新 Session。
+- **Delete** 先让机器不可达，再按显式的保留策略销毁其存储；在 Portal 中需要破坏性
+  操作确认。
 
-“长时间运行”表示计算资源可以跨越多轮交互与浏览器断开保持 ready，并不表示无限
-或永生。每个活动 Environment 都有可续期的 wall-clock lease。经过认证的使用或
-显式续租，可以在 Space 与部署限制内延长 lease。host heartbeat 本身不能续租，
-否则每个被遗忘的 Environment 都会变成永久预约。第一阶段应使用明确的到期时间，
-而不是根据 CPU 或终端活动猜测 idle。
+长时间运行不等于永不终止。每个运行中的 Environment 都有一个以操作者行为——接入、
+发送提示、回答问题或显式续租——计量的闲置超时，外加一个硬性上限，两者都受 Space
+与部署限制约束。机器心跳或 CPU 活动从不续租；否则每台被遗忘的机器都会变成永久
+占用。操作者希望保持运行的长进程需要操作者续租。
 
-持久化承诺有意保持收窄：
-
-| 事件 | Workspace 与 Agent Session | 后台进程 |
+| 事件 | 工作区与 Agent Session | 进程 |
 |---|---|---|
-| 浏览器断开或 Server replica 变化 | 保留 | 继续运行 |
-| 同一 allocation 内 host 进程干净重启 | 保留 | 可能丢失 |
-| Stop 后 Start，或重新挂载存储的 workload 替换 | 保留 | 丢失 |
-| 存储丢失 | 除非将来提供备份策略，否则不可用 | 丢失 |
-| 超过 retention 边界后的 Delete | 销毁 | 丢失 |
+| 浏览器断开或 Server 副本切换 | 保留 | 继续 |
+| 同一机器上运行时进程重启 | 保留 | 可能丢失 |
+| 停止后再启动，或重新挂载卷替换工作负载 | 保留 | 丢失 |
+| 卷丢失 | 不可用，除非后续有备份策略 | 丢失 |
+| 超过保留期后删除 | 销毁 | 丢失 |
 
-## 7. 通过 Remote Control 交互
+## 9. 通过 Remote Control 交互
 
-Remote Control 是交互底座，但有一条重要规则：**复用协议与 relay，不复用其账户
-归属模型**。
+### 9.1 复用的部分
 
-Environment host 向 Server 建立出站 WebSocket，并复用现有类型化 envelope、
-有界且脱敏的 run event、heartbeat、buffered stream、跨 replica 命令路由，以及
-入站 prompt、approval、question 与 cancel 消息。同一套 Portal 组件可以展示
-stream 与待处理决策。出站连接也避免把每个 Environment 变成网络可直接访问的
-Server。
+机器通过现有的 Agent WebSocket 向 Server 外连，使用其类型化信封、有界且脱敏的
+事件、心跳、带缓冲的流、跨副本命令路由，以及入站的提示、审批、提问与取消。Portal
+用现有的 Remote Control 视图渲染它。外连意味着没有任何 Environment 是可被直接访问
+的网络服务器。
 
-它与笔记本 Session 的 admission 路径不同：
+### 9.2 与笔记本的不同
 
-- host 使用绑定到单个 Environment 与 Space 的短期、可撤销 Environment 凭证，
-  不能使用创建者的 refresh token 或通用 worker token；
-- 注册将在线 Session 关联到 Environment；浏览器操作先通过 Environment 与 Space
-  membership 授权，再进入共享 relay；
-- 现有 account-scoped RemoteSession 规则继续适用于本地设备。实现可以泛化在线
-  Session registry，但不能让 Space membership 变成进入成员笔记本的路径；
-- Environment readiness 与在线 Agent Session presence 是两项独立事实。
-  Environment 可以在 Agent runtime 重启时仍然健康；Session offline 本身不能授权
-  资源回收。
+- **凭证。** 笔记本用其用户的登录凭证认证。机器获得一个短期、可撤销、绑定到一个
+  Environment 及其操作者的凭证，由控制面签发并续期。它从不是操作者的 refresh
+  token 或 worker token，也无法访问任何其他账号资源。
+- **开启方式。** 机器始终承载 Remote Control，这是它唯一的用途。保护笔记本的逐
+  Session 开启被"创建 Environment"这一显式动作取代。
+- **就绪与在线。** 机器可以在其运行时重启期间保持健康。Session 离线本身从不授权
+  回收；租约才授权回收。
 
-现有 Remote Control 只回放一段很短的在线 buffer，并且有意不保存持久 transcript。
-因此，Environment 必须从自身持久化 Agent Session 恢复历史。最小扩展是在 viewer
-attach 时由 Environment host 生成一个有界 history snapshot 或 replay；Server 仍是
-relay，而不是第二个 transcript store。原型必须证明：普通 relay buffer 过期后，
-页面 reload 仍能重建可理解的 Session。
+### 9.3 两类宿主共享的 Remote Control 改进
 
-这种复用形成了 [Remote Control 设计](../design/远程控制.md)已识别的窄云端象限：
-cloud host 加 Agent Session 界面。更宽的 codespace 界面——终端、文件、任意应用——
-只有在收窄 Environment 被证明有价值后才应增加。
+有两个缺口对云端机器更重要，但并非其特有，因此属于 Remote Control 本身，同样惠及
+笔记本：
 
-## 8. 授权与信任边界
+- **重新接入时的历史。** Remote Control 只回放一个短缓冲。数天后回来的用户需要
+  完整对话，而运行时已在其持久化 Session 中保存了它。最小的修复是由运行时在观察者
+  接入时发送一个有界的历史快照；Server 仍只做中继，不存储对话记录。
+- **只读审阅。** 没有编辑器和终端，用户仍需判断 Agent 的工作。对话必须承载只读
+  结果：工作区 diff、截图，以及通过 Artifact 下载文件。Remote Control 设计已把
+  工作区 diff 列为窄界面的一部分；原型必须确认 Portal 当前实际渲染了什么，并补齐
+  缺口。
 
-Environment 执行模型选定命令的时间远长于 worker Job。时间会扩大暴露面，并不构成
-放松边界的理由。
+预览 Agent 启动的 Web 应用是 Agent 的工作，通过现有的浏览器能力完成，而不是端口
+转发。该能力目前仅限本地；Environment 镜像必须在 Environment 的沙箱与导航限制下
+携带它，这是一个验证项。
 
-- **授权：** 每个控制操作都解析 Environment 的 Space。交互操作者仍为成员时才能
-  attach。owner/admin 可以治理生命周期和配额，但不会得到 transcript 或 shell
-  访问权。操作者退出 Space 或被停用后，应撤销新的交互并请求停止；具体宽限策略
-  仍是开放问题。
-- **凭证：** host 只获得一个窄 scope 的 Environment 凭证，并通过控制平面交换或
-  续期。它不获得数据库、对象存储、模型服务商、用户 refresh token 或集群凭证。
-- **推理与应用：** 托管推理和未来的应用 broker 继续由 Server 中介。不能为了保持
-  Environment 温热，就把 secret 物化到 Agent 可见工作区。
-- **文件系统：** tool 只看到 `workspace/`。持久 runtime home 与临时控制文件位于
-  tool root 之外，与 worker invariant 一致。
-- **sandbox 与外层 runtime：** 必需的命令 confinement 默认开启并 fail-closed。
-  workload 还需要经过验证的 Pod/container 边界、资源限制、只读镜像根与网络策略。
-  模型不能选择或削弱这些控制。
-- **Plugin、hook 与 MCP：** 只有 Space 显式、由 Server 解析的 Plugin activation
-  可以进入 Environment。解析发生在明确边界，例如 Environment start 或新 Agent
-  Session start；运行中的进程不 hot-load。缺少 confinement 方案时，不受支持的
-  stdio MCP 继续 fail-closed 禁用。
-- **audit 与 trace：** create/start/stop/renew/delete 与 Remote Control 操作记录 actor
-  和 Environment。Agent 执行在 Environment runtime home 中保存有界、脱敏 trace。
-  relay 故障对 Agent run 仍 fail-open；凭证或沙箱故障对 Environment readiness
-  fail-closed。
+## 10. 信任边界
 
-向公网暴露 workspace 内进程并不是 Remote Control 的小扩展。它引入 routing、TLS、
-认证、滥用防护、hostname 与数据泄漏策略，继续保持非目标。
+Environment 执行模型选择的命令的时间远长于 worker Job。时间增加了暴露面，并不能
+成为放宽边界的理由。
 
-## 9. 供应、协调与失败
+- **凭证：** 机器凭证（§9.2）是它唯一的 Server 凭证。机器不获得数据库、对象存储、
+  模型供应商、refresh token 或集群凭证。托管推理仍由 Server 中介，计入 Space 与
+  操作者。
+- **文件系统：** 工具只能看到 `workspace/`。持久的运行时 home 与长期存在的工具
+  进程同处一机，是相对 worker 的新风险；trust harness 必须证明工具在长 Session
+  中无法读取它，而不仅仅是证明该路径被排除。
+- **沙箱与外层运行时：** 命令约束启用并 fail-closed。工作负载具备合格的 Pod 或
+  容器边界、资源限制、只读镜像根与网络策略。模型不能选择或削弱它们。
+- **Plugin、hooks 与 MCP：** 只有 Space 显式、由 Server 解析的 Plugin 激活会进入
+  机器，在 Environment 启动或 Session 启动时解析；不热加载任何东西。stdio MCP
+  在有约束方案之前保持 fail-closed 禁用。
+- **控制面权限：** 管理长期工作负载与持久卷会把 Server 的集群权限扩展到创建 Job
+  之外。这项扩展属于安全评审的一部分，并限定在专用命名空间内。
+- **审计与 trace：** 生命周期操作与远程命令记录操作者与 Environment。运行时在其
+  home 中保留有界、脱敏的 trace。中继失败对 Agent 是 fail-open；凭证或沙箱失败对
+  就绪是 fail-closed。
 
-供应是持久化 reconciliation 问题，而不是一个长时间不返回的 HTTP 请求。Server
-记录期望状态，controller 收敛计算与存储，Environment host 上报健康。Server 重启
-不能终止健康 Environment；callback 丢失也不能让资源永久滞留在 `provisioning`
-或 `stopping`。
+## 11. 供应、协调与失败
 
-第一个受支持的部署应为每个 Environment 使用一个隔离 Kubernetes workload 和一个
-持久卷。这符合私有部署拓扑，也使 CPU、memory、storage、security context、network
-policy 与回收可检查。它不要求复用 Task worker Job 或其 run token。本地进程原型
-可以测试交互，但不能作为受支持多租户边界的证据。
+供应是持久化的协调过程，而不是一个长 HTTP 请求。Server 记录期望状态；控制器收敛
+计算与存储；机器报告健康。Server 重启不能终止健康的机器，丢失的回调也不能让机器
+永远卡在 `provisioning` 或 `stopping`。
 
-reconciliation 至少需要处理：
+首个受支持部署是每个 Environment 一个隔离的 Kubernetes 工作负载和一个持久卷。它
+不复用 worker Job 及其 run token。本地进程原型可以验证交互，但不构成多租户边界的
+证据。
 
-| 故障 | 必要结果 |
+| 失败 | 要求的结果 |
 |---|---|
-| host ready 前 provisioning 失败 | Environment 进入可诊断的 `failed`；retry 不会创建重复存储或 workload |
-| workload 仍在但 host heartbeat 超时 | Environment 变为 unavailable；controller 检查或重启 workload，不删除持久状态 |
-| workload 或节点消失 | replacement 重新挂载同一存储；明确报告进程丢失；Session restore 是 readiness gate |
-| Server 重启或更换 replica | workload 继续运行；registration 重连；持久化期望状态驱动 reconciliation |
-| Stop 与 Start 或 Delete 竞争 | 一个串行化的期望状态获胜；过期 callback 不能复活计算资源 |
-| lease 到期 | 即使没有浏览器连接，也请求并最终强制 Stop |
-| 存储无法挂载或恢复 | 不报告 ready；错误指出失败边界 |
-| Delete 只完成一部分 | reconciliation 持续进行，直到计算不可达，并且 retention/storage cleanup 到达有记录的终态 |
+| 机器就绪前供应失败 | 进入带诊断信息的 `failed`；重试不产生重复的存储或工作负载 |
+| 工作负载存在但心跳中断 | 标记为不可用；控制器检查或重启工作负载，不触碰卷 |
+| 工作负载或节点消失 | 替换实例挂载同一个卷；进程声明为丢失；Session 恢复决定是否就绪 |
+| Server 重启或副本切换 | 机器继续运行；Remote Control 重连；期望状态驱动协调 |
+| Stop 与 Start 或 Delete 竞争 | 一个串行化的期望状态胜出；过期回调不能复活计算 |
+| 达到闲置超时或硬性上限 | 在没有浏览器连接时也会请求并强制停止 |
+| 卷无法挂载或 Session 无法恢复 | 不就绪；错误指明失败的边界 |
+| Delete 部分成功 | 协调持续进行，直到记录下终态结果 |
 
-controller 还需要双向 orphan detection：有数据库 row 但无 workload 时需要协调；有
-labelled workload 或 volume 但无存活 Environment row 时，应根据文档化策略隔离并回收。
-恢复绝不自动重放 Agent Task；Environment 是交互状态，而不是幂等 Job。
+孤儿检测双向进行：没有工作负载的记录会被协调，没有有效记录的带标签工作负载或卷会
+被隔离，并按文档化策略回收。恢复从不重放 Agent 工作；Environment 是交互状态，
+不是幂等任务。
 
-## 10. API、Portal 与运维界面
+## 12. API、Portal 与运维界面
 
-后续设计可以调整命名，但能力至少需要等价的 Space-scoped 操作：
+后续设计可以改名，但该能力需要等价于以下的 Space 级生命周期操作：
 
 ```text
 POST   /api/spaces/{space_id}/environments
@@ -291,98 +330,99 @@ POST   /api/spaces/{space_id}/environments/{environment_id}/lease
 DELETE /api/spaces/{space_id}/environments/{environment_id}
 ```
 
-创建和生命周期命令应幂等并返回持久资源；客户端观察 readiness，而不是让请求一直
-保持。Session stream 与命令操作应在 Environment 授权后委托给泛化的 Remote
-Control 通道，不能新建并行的非类型化 chat 协议。
+生命周期命令是幂等的并返回资源；客户端观察就绪状态。交互不新增路由：它就是操作者
+现有的 Remote Control Session。
 
-Portal 第一阶段只需要三个界面：
+Portal 需要三个界面：
 
-1. Environment 列表，展示 operator、lifecycle、lease expiry、resource profile、
-   最新 host signal 与清晰的运行成本提示；
-2. Environment 详情页，包含 Start、Stop、Renew、Delete、diagnostics 与内嵌的 Remote
-   Control Agent Session 视图；
-3. 管理界面，展示 active count、资源总量、failure、expired lease，并允许在无法查看
-   transcript 的前提下强制 stop/delete。
+1. Environment 列表，显示操作者、状态、租约到期时间、资源规格、最近一次机器信号，
+   以及醒目的运行成本指示；
+2. Environment 详情页，提供 Start、Stop、Renew、Delete 与诊断，并为操作者打开
+   现有的 Remote Control Session 视图；
+3. 管理视图，显示活跃数量、资源总量、失败，以及强制停止或删除，不提供 Session
+   访问。
 
-运维配置需要显式 enablement flag、镜像与 resource profile、最大 active Environment
-数量、每 Space 限制、lease 边界、storage class 与大小、startup timeout，以及必要
-runtime/sandbox policy。默认值不得静默分配无界计算资源。不受支持的部署应报告功能
-不可用，而不是以无限运行的本地 worker 模拟。
+运维配置需要启用开关、机器镜像与资源规格、最大活跃 Environment 数、每个 Space 的
+限制、闲置与最长租约边界、存储类别与容量、启动超时，以及所需的运行时与沙箱策略。
+默认关闭；不会悄悄分配计算资源。
 
-## 11. 方案与权衡
+## 13. 方案与权衡
 
-| 方案 | 有价值的属性 | 成本或失败 |
+| 方案 | 有用的特性 | 代价或失败 |
 |---|---|---|
-| **A. 独立 Environment 平面加共享 Remote Control（建议验证）** | 符合持久工作区和交互生命周期；复用已交付控制通道而不改变 Task 语义 | 增加已供应计算、持久存储、reconciliation、quota 与更强的长时间信任边界 |
-| **B. 保持一个 TaskRun 永不结束** | 表面上的 schema 变更最少 | 没有权威终态结果；lease 与交互成为 worker 特例；worker 丢失语义含混；TaskRun 回收不再表达原意 |
-| **C. 在临时 worker 上通过 checkpoint Continue** | 复用持久 Task 模型，idle 时零计算成本 | 保留文件和 Agent 历史，但不保留后台进程或 warm state；每次仍是有界 turn |
-| **D. 集成外部 codespace 服务商** | 把 provisioning 和浏览器 IDE 外包 | 在证明窄 Agent 界面有价值前，先引入服务商凭证、可用性、成本和可移植性约束 |
-| **E. 在 Server 或共享 worker 内运行长时间 Session** | 避免逐 Environment workload | 把不可信执行与控制平面或租户混合，削弱资源隔离，让一次失败影响无关 Environment |
+| **A. 经 Remote Control 接入的托管云端机器（建议用于验证）** | 机器管理沿用云 IDE 实践；交互、Agent 运行时与 Portal 视图均被复用；Task 语义不受影响 | 增加供应、持久存储、协调、配额与长期信任边界 |
+| **B. 让一个 TaskRun 常驻** | 表面上 schema 改动最小 | 没有权威结果；租约与交互成为 worker 特例；worker 丢失时语义含混 |
+| **C. 在临时 worker 上使用 Task Continue** | 复用持久的 Task 模型，闲置时零成本 | 保留文件与历史，但从不保留进程或热状态；每次只有一个有界 turn |
+| **D. 带编辑器与终端的经典云 IDE** | 熟悉；能覆盖 Agent 做不到的任何事 | 重建了 Agent 所取代的东西；为直接 shell 访问成倍扩大界面与信任边界 |
+| **E. 集成外部 codespace 供应商** | 外包供应工作 | 在窄界面被证明之前就引入供应商凭证、成本、可用性与可移植性约束 |
+| **F. 在 Server 或共享 worker 内运行长期 Session** | 不需要每个 Environment 一个工作负载 | 把不可信执行与控制面或其他租户混在一起 |
 
-方案 C 已经服务于只需要 turn 间连续性的工作。只有在保留进程、warm state 或即时
-交互式回归具有实质价值时，新实体才成立。这是方案 A 的核心证据检验。
+方案 C 已经服务于只需要跨 turn 连续性的工作。只有当保留进程、热状态或即时重新进入
+会实质性改变结果时，新实体才有必要。这是核心的证据检验。
 
-## 12. 最小验证切片
+## 14. 最小验证切片
 
-第一个原型应有意省略终端和浏览器 IDE 功能。在一个隔离的 Kubernetes 测试部署中，
-它应当：
+有两部分可以在任何机器管理存在之前构建和评估，因为它们同样服务于笔记本：
 
-1. 从一个 Space 创建一个 Environment，通过持久 reconciliation 到达 `ready`；
-2. 在私有工作区中启动或恢复一个交互式 Agent Session；
-3. 用 Remote Control stream 发送 prompt、观察输出、回答一次 approval 或 question，
-   并取消一个 turn；
-4. 断开 Portal，让一个有界后台进程继续运行；在普通 relay buffer 已消失后重新连接，
-   恢复可理解的 Session 与同一工作区；
-5. Stop 再 Start，证明文件和 Agent 历史保留，同时明确报告后台进程丢失；
-6. 分别重启 Server 和杀死 Environment workload，证明文档规定的 reconciliation 与
-   持久化结果；
-7. 证明跨 Space 和非 operator 交互被拒、凭证撤销、quota 拒绝、lease 到期与
-   fail-closed 沙箱启动；
-8. 删除 Environment，并验证计算与存储已回收，且没有 orphaned 外部可达 Session。
+1. `buildmax` 二进制的无界面 Remote Control 承载模式；
+2. 重新接入时的历史快照，以及 Session 视图中的只读审阅产出（§9.3）。
 
-原型应记录 time-to-ready、reconnect 时间、active duration、storage growth、
-restart/restore failure、计算成本，以及哪些操作使用户真正需要终端。还应通过 Task
-Continue 完成同一个多轮任务作对比。如果保留进程或 warm state 不改变结果，现有
-Task 平面更简单，应继续作为答案。
+随后的 Environment 原型省略云 IDE 为直接操作所增加的一切。在一个隔离的 Kubernetes
+测试部署中，它应当：
 
-这个切片不会带来用户文档、兼容性承诺或 GA 声明。它的用途是决定 Environment
-平面是否值得获得产品与运维所有权。
+1. 从一个代码仓库创建一个 Environment，通过持久化协调达到 `ready`，并让其 Session
+   出现在操作者的 Remote Control 列表中；
+2. 向 Agent 发送提示、观察输出、回答一次审批或提问，并取消一个 turn；
+3. 让 Agent 启动一个开发服务器并用浏览器能力验证它；
+4. 断开 Portal，让该进程继续运行，在中继缓冲过期后重新连接，并恢复对话与工作区；
+5. 停止并启动 Environment，证明文件与历史得以保留，而进程被报告为丢失；
+6. 分别重启 Server 和杀掉工作负载，证明文档化的协调结果；
+7. 证明非操作者与跨 Space 访问被拒绝、凭证撤销、配额拒绝、闲置到期、失去成员身份
+   后停止，以及沙箱启动 fail-closed；
+8. 删除 Environment，验证计算与存储被回收，且没有遗留可访问的 Session。
 
-## 13. 开放问题与决策证据
+原型记录就绪耗时、重连耗时、活跃时长、存储增长、恢复失败、计算成本，以及每一次
+用户想要编辑器或终端的时刻。它还用 Task Continue 运行同一个多轮任务。如果保留进程
+与热状态没有改变结果，Task 平面就是更简单的答案。
 
-- 第一个 workspace 由什么初始化：Space 文件快照、repository clone，还是显式上传？
-  是否有路径确实需要写回，还是通过 Artifact 导出已经足够？
-- 每个 Environment 一个交互 operator 是否足够？哪个被证明的旅程需要显式共享？
-  admin 在不能取得 Session 访问权时，必须能检查什么？
-- 哪种 lease 最小值、最大值、预警与续期策略符合观察到的工作，同时不会使遗忘的
-  计算资源永久存在？
-- host 生成的有界 history snapshot 是否足以 reconnect，还是需求实际上指向独立的
-  [持久化 Agent Session 提案](durable-agent-sessions.md)？
-- 哪些 Plugin 与 workspace 变更需要重启 Agent Session，哪些需要重启整个 Environment？
-- 第一种受支持部署能诚实提供哪些 storage durability、backup、retention 与 deletion
-  guarantee？
-- 受支持边界是否要求 gVisor 或其他 outer runtime？准确的 Environment image 与嵌套
-  command sandbox 能否不靠例外通过 trust harness？
-- operator 失去 Space membership 或被停用时，运行中的计算应立即停止，还是提供短暂
-  恢复窗口？
-- 证据是否支持增加 terminal 和 file browser，还是收窄的 Remote Control 界面已经
-  覆盖真实用户结果？
-- 是否存在让 Task 定向到 Environment 的合理原因？这会不会重新引入两个执行权威，
-  并混淆 TaskRun recovery？
+由此不产生任何用户文档、兼容性承诺或可用性声明。该切片用于决定机器管理是否值得
+承担产品与运维所有权。
 
-决定继续前进，至少需要：一个已命名、且 Task Continue 无法满足的用户旅程；受支持
-部署拓扑上的生命周期和隔离证据；经过测量的资源 envelope；以及明确的回收与事件
-响应 owner。单纯展示一个持久 Pod 的技术 demo 并不足够。
+## 15. 开放问题与决策证据
 
-## 14. 获采纳后的可能归宿
+由 §2 与 §7 的定位决定、有待评审确认：
 
-若获采纳，稳定边界——Environment 作为 Space-scoped 执行平面、与 Task/TaskRun
-分离、复用 Remote Control、生命周期、持久化与信任模型——移入“产品与执行模型”
-设计记录。只有当实现细节足以支撑独立文档时，Kubernetes provisioning 与运维策略
-才另建“运维与部署”规范。
+- 不提供直接操作用的编辑器、终端或文件浏览器；审阅是只读的。
+- 不允许 Task 以 Environment 为执行目标。
+- Environment 归属 Space；交互经由 Remote Control 归属操作者的账号。
+- 失去成员身份立即停止机器；文件保留。
+- 工作区默认从 Git 仓库初始化，不自动写回。
 
-路线图随后先安排收窄的 cloud Agent Session，再考虑宽 codespace 界面；只有验证
-门槛与安全边界获采纳后，拆解后的实现工作才进入
-[backlog](../../backlog/README.md)。客户端界面提案继续拥有共享 UI 与传输收敛，不拥有
-Environment 生命周期。本提案的已采纳理由迁移后即删除；若证据支持 Task Continue
-或外部服务商，则无替代地删除。
+仍然开放：
+
+- 什么样的闲置超时与硬性上限符合实际工作？停止前需要提前多久提醒用户？
+- 有界历史快照是否足以支撑数天后的重新连接，还是这一需求指向
+  [持久 Agent Session 提案](durable-agent-sessions.md)？
+- 什么样的只读审阅集合——diff、截图、下载——足够？是否仍有观察到的用户旅程要求
+  用户直接动手？
+- 浏览器能力能否在 Environment 的沙箱与网络策略下运行，且不削弱二者？
+- 哪些 Plugin 或工作区变更需要重启 Session，哪些需要重启机器？
+- 首个部署能如实承诺怎样的存储持久性、备份与保留？
+- 该边界是否需要 gVisor 或其他外层运行时？带嵌套命令沙箱的机器镜像能否无例外地
+  通过 trust harness？
+
+决定推进至少需要：一个 Task Continue 无法满足的具名用户旅程、来自受支持拓扑的
+生命周期与隔离证据、一个实测的资源包络，以及回收与事故响应的明确负责人。仅有一个
+持久 Pod 的演示是不够的。
+
+## 16. 获采纳后的可能归宿
+
+如获采纳，稳定的边界——Environment 作为托管云端机器、Space 归属与账号交互的拆分、
+Remote Control 复用、生命周期、持久化与信任——将移入一份产品与执行模型设计记录。
+无界面承载模式与重新接入历史的工作直接扩展
+[Remote Control 设计](../design/远程控制.md)，因为笔记本同样会用到它们。
+Kubernetes 供应与运维策略仅在细节足够多时才获得独立的运维与部署规范。
+
+拆解后的工作在验证门槛与安全边界被接受后进入[待办](../../backlog/README.md)。客户端
+界面提案继续负责共享 UI 与传输收敛，不负责机器生命周期。本提案在其理由迁移完成后
+删除；如果证据更支持 Task Continue 或外部供应商，则直接删除而不留替代。

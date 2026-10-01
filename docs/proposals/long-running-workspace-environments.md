@@ -12,6 +12,8 @@ Related: [roadmap](../ROADMAP.md), [current state](../current-state.md),
 [Agent execution and Task threads](../design/agent-execution-and-task-threads.md),
 [Task workspace checkpoints](../design/task-workspace-checkpoints.md),
 [Remote Control](../design/remote-control.md),
+[client modes](../design/client-modes.md),
+[Agent browser capability](../design/agent-browser-capability.md),
 [Agent sandbox policy](../design/agent-sandbox-policy.md),
 [Plugin distribution](../design/plugin-space-distribution.md),
 [client surface convergence](client-surface-convergence.md), and
@@ -20,147 +22,171 @@ Related: [roadmap](../ROADMAP.md), [current state](../current-state.md),
 ## Contents
 
 - [1. Decision Question](#1-decision-question)
-- [2. User Outcome and Evidence](#2-user-outcome-and-evidence)
-- [3. Current Constraints](#3-current-constraints)
-- [4. Goals and Non-Goals](#4-goals-and-non-goals)
-- [5. Proposed Model](#5-proposed-model)
-- [6. Lifecycle and Persistence](#6-lifecycle-and-persistence)
-- [7. Interaction Through Remote Control](#7-interaction-through-remote-control)
-- [8. Authorization and Trust Boundary](#8-authorization-and-trust-boundary)
-- [9. Provisioning, Reconciliation, and Failure](#9-provisioning-reconciliation-and-failure)
-- [10. API, Portal, and Operator Surface](#10-api-portal-and-operator-surface)
-- [11. Options and Trade-Offs](#11-options-and-trade-offs)
-- [12. Smallest Validation Slice](#12-smallest-validation-slice)
-- [13. Open Questions and Decision Evidence](#13-open-questions-and-decision-evidence)
-- [14. Likely Destination if Accepted](#14-likely-destination-if-accepted)
+- [2. Positioning: The Cloud IDE, Rebuilt Around the Agent](#2-positioning-the-cloud-ide-rebuilt-around-the-agent)
+- [3. User Outcome and Evidence](#3-user-outcome-and-evidence)
+- [4. Current Constraints](#4-current-constraints)
+- [5. Goals and Non-Goals](#5-goals-and-non-goals)
+- [6. Proposed Model](#6-proposed-model)
+- [7. Ownership and Authorization](#7-ownership-and-authorization)
+- [8. Machine Lifecycle and Persistence](#8-machine-lifecycle-and-persistence)
+- [9. Interaction Through Remote Control](#9-interaction-through-remote-control)
+- [10. Trust Boundary](#10-trust-boundary)
+- [11. Provisioning, Reconciliation, and Failure](#11-provisioning-reconciliation-and-failure)
+- [12. API, Portal, and Operator Surface](#12-api-portal-and-operator-surface)
+- [13. Options and Trade-Offs](#13-options-and-trade-offs)
+- [14. Smallest Validation Slice](#14-smallest-validation-slice)
+- [15. Open Questions and Decision Evidence](#15-open-questions-and-decision-evidence)
+- [16. Likely Destination if Accepted](#16-likely-destination-if-accepted)
 
 ## 1. Decision Question
 
-Should BuildMax add a distinct, Space-scoped **Environment plane** for a
-long-running Agent workspace, while reusing Remote Control for live interaction?
+Should BuildMax allocate and manage long-running cloud machines—**Environments**—
+on which a person works only through an Agent conversation, reached through the
+existing Remote Control path?
 
-This paper recommends validating that direction. An Environment is not a
-permanently open TaskRun and does not replace Task/TaskRun. It owns provisioned
-compute, a persistent private workspace, and the runtime state needed to resume
-interactive Agent sessions. Task/TaskRun remains the durable bounded-execution
-plane for scheduled, workflow, issue, and background work.
+This paper recommends validating that direction. The system's new
+responsibility is machine management: allocate, start, stop, renew, reclaim, and
+delete a machine with a persistent workspace. Once the machine is running, it is
+used exactly like the person's own laptop under Remote Control: the standard
+`buildmax` runtime runs on it, registers a live session, and Portal observes and
+steers that session. No new Agent loop, chat protocol, or execution plane is
+introduced, and Task/TaskRun is unchanged.
 
-The narrow first product is a remotely hosted Agent session, not a complete
-browser IDE. One Environment runs one supervised interactive Agent session over
-one private workspace. Portal observes and steers it through the Remote Control
-interaction path. Terminal, arbitrary applications, shared editing, and public
-service exposure require separate evidence.
+## 2. Positioning: The Cloud IDE, Rebuilt Around the Agent
 
-## 2. User Outcome and Evidence
+BuildMax today has two working modes:
 
-A person should be able to create an Environment, leave the browser, and return
-hours or days later to the same workspace and Agent history without pretending
-that one TaskRun is still executing. While the Environment is running, a test
-server, watcher, download, or other background process may continue after the
-browser disconnects. When compute stops or is replaced, the filesystem and
-Agent session remain recoverable even though processes do not.
+| Mode | Who runs the work | Machine | Interaction |
+|---|---|---|---|
+| Task and Workflow | The server dispatches a bounded TaskRun to an ephemeral worker | Allocated per run, reclaimed after it | Submit, observe, continue; the run's result is authoritative |
+| Remote Control | The person's own long-running machine | The person's laptop; BuildMax does not manage it | A live Agent session relayed through the server |
+| **Environment (this proposal)** | A long-running machine the system allocates | A cloud machine—initially one Kubernetes Pod with a persistent volume | The same Remote Control session as a laptop |
+
+An Environment is the cloud IDE—Cloud9, Codespaces, Gitpod—redone for the Agent
+era. The machine-management half is unchanged from that model: a workspace
+created from a repository, a machine that can stop while its disk persists, idle
+reclamation, quotas, and deletion. What changes is the interaction. A cloud IDE
+gave the person an editor and a terminal so they could type commands and edit
+files themselves. An Agent can now do that work on the person's behalf, so the
+interaction surface contracts to the Agent conversation: prompts, streamed
+progress, approvals, questions, cancellation, and read-only review of what the
+Agent produced.
+
+Two consequences follow and shape the rest of this paper:
+
+- **Machine management is a known problem.** Lifecycle, persistence, quota, and
+  reclamation follow established cloud-IDE practice rather than a new design.
+- **The interaction already exists.** Remote Control was built to steer a
+  long-running machine BuildMax cannot reach. A cloud machine is a long-running
+  machine too; reusing that path is the point, not an optimization.
+
+## 3. User Outcome and Evidence
+
+A person should be able to create an Environment from a repository, ask its
+Agent to do work, close the browser, and return hours or days later to the same
+workspace and conversation. While the Environment is running, a dev server,
+watcher, build, or download the Agent started keeps running whether or not
+anyone is watching. When the machine stops or is replaced, the files and Agent
+session survive even though processes do not.
 
 The motivating cases are work that crosses many interactive turns, needs a warm
-toolchain or repository, or depends on a process whose useful lifetime is longer
-than one bounded Agent turn. The existing
-[client surface convergence proposal](client-surface-convergence.md) identified
-the same cloud-hosted shape, and shipped Remote Control proves that BuildMax can
-relay a live Agent session through Portal. Neither is evidence that people need
-this often enough to justify its storage, isolation, and operating cost. The
-request behind this paper is product evidence, not measured usage evidence.
+toolchain or repository, or depends on a process whose useful life is longer
+than one bounded Agent turn—exactly the cases where a person would otherwise
+keep their laptop open under Remote Control. The cloud machine removes the
+laptop from that picture.
 
-The first decision therefore needs a bounded prototype and observed journeys,
-not a general remote-development platform. Useful evidence is whether people
-reconnect to the same Environment, whether retained processes or only retained
-files matter, how long reservations actually remain active, and whether the
-narrow Agent surface is sufficient without a full terminal.
+The evidence is a product request plus the shipped Remote Control, not measured
+usage. The decision therefore needs a bounded prototype and observed journeys:
+whether people reconnect to the same Environment, whether retained processes
+or only retained files matter, how long Environments actually stay active, and
+whether read-only review is enough without a terminal.
 
-## 3. Current Constraints
+## 4. Current Constraints
 
 - **Task/TaskRun is deliberately bounded.** A TaskRun materializes a workspace,
   performs one turn or attempt, commits result and checkpoint state, and
-  terminates. Task continuity is durable state, not process residence. Keeping a
-  TaskRun alive would weaken its cancellation, result, quota, recovery, and
-  worker-reclamation semantics.
+  terminates. Keeping one alive would break its cancellation, result, quota,
+  recovery, and reclamation semantics.
 - **Worker compute is ephemeral.** The supported Kubernetes path launches a Job
-  for a run. Its writable root is run-scoped, and the Task workspace checkpoint
-  in object storage—not a Pod volume—is the durable boundary.
-- **Remote Control is live interaction, not hosting.** It registers an
-  account-scoped local session, relays bounded events, prompts, approvals,
-  questions, and cancellation, and keeps no authoritative transcript. Its user
-  JWT and account ownership are correct for a person's laptop, not for a
-  Space-owned remote Environment.
-- **Space is the Portal ownership and authorization boundary.** Any server-side
-  Environment must belong to exactly one Space. Solo use remains a personal
-  Space and does not require a second product model.
+  per run; the durable boundary is the Task workspace checkpoint in object
+  storage, not a Pod volume. The Server today manages Jobs, not long-lived
+  workloads or persistent volumes.
+- **Remote Control is account-scoped and opt-in from the TUI.** A live session
+  belongs to one user, is reachable only by that user, and is enabled by the
+  interactive TUI's `--remote-control` flag while logged in to a managed server.
+  The server keeps only a short replay buffer, never a durable transcript.
+  There is no headless way to host a Remote Control session.
+- **Space is the Portal ownership boundary** for resources, quota, and
+  governance. Remote Control is a deliberate, documented exception because a
+  laptop has no Space.
 - **The runtime is already shared.** `internal/agentapp` assembles models, tools,
   MCP, hooks, sandbox, traces, Skills, sessions, and workspace resolution for
-  the existing surfaces. The proposal adds a host lifecycle, not another Agent
-  loop.
-- **Network-reachable execution has the worker trust posture, not the local CLI
-  posture.** Sandbox enforcement must fail closed, runtime state and credentials
-  stay outside the tool-writable workspace, and an unavailable required
-  boundary must make the Environment unavailable rather than silently broadening
-  access.
+  every surface. Managed mode already routes inference through the server.
+- **The browser capability is local-only.** CLI and Desktop drive a Go-owned
+  Chromium; workers and other unattended runs do not get it.
+- **Network-reachable execution has the worker trust posture.** Sandbox
+  enforcement fails closed, and runtime state and credentials stay outside the
+  tool-writable workspace.
 - **Nothing like this ships today.** There is no Environment entity,
-  provisioner, persistent Environment volume, lease, Environment credential,
-  or Portal management surface.
+  provisioner, persistent volume, lease, machine credential, or management
+  surface.
 
-## 4. Goals and Non-Goals
+## 5. Goals and Non-Goals
 
-### 4.1 Goals
+### 5.1 Goals
 
+- Allocate, start, stop, renew, reclaim, and delete cloud machines with
+  explicit, inspectable states and bounded resource use.
 - Keep one private workspace and its Agent session usable across browser
-  disconnects and compute restarts.
-- Let background processes continue while the Environment is ready, independent
-  of whether a browser is connected.
-- Give creation, start, stop, lease renewal, failure, and deletion explicit,
-  inspectable states with bounded resource use.
-- Reuse Remote Control's typed event and command path for conversation,
-  streaming, approvals, questions, cancellation, presence, and reconnect.
-- Preserve Space authorization, explicit Plugin activation, managed inference,
-  trace redaction, and fail-closed sandbox enforcement.
-- Make the durable and non-durable boundaries obvious to users and operators.
+  disconnects and machine restarts.
+- Let processes the Agent started keep running while the machine is up,
+  independent of any viewer.
+- Interact only through the Remote Control session, so a cloud machine and a
+  laptop look and behave the same in Portal.
+- Preserve explicit Plugin activation, managed inference, trace redaction, and
+  fail-closed sandbox enforcement.
+- Make durable and non-durable state obvious to users and operators.
 
-### 4.2 Non-Goals
+### 5.2 Non-Goals
 
-- Making TaskRun permanent, dispatching ordinary Tasks into an Environment, or
-  changing Task result authority.
-- Guaranteeing that processes survive stop, suspension, node loss, image
-  replacement, or control-plane recovery.
-- Synchronizing a user's laptop filesystem or silently writing Environment
-  changes back into mutable Space files.
-- Shipping a full remote desktop, VS Code replacement, arbitrary browser
-  applications, or public ingress to processes inside the Environment.
-- Collaborative shell access or making every Space member an implicit operator
-  of another member's Environment.
-- Durable server storage of the interactive transcript merely because Remote
-  Control relays it.
-- Supporting every deployment topology in the first slice. A topology that
-  cannot enforce the required isolation and persistence should report the
-  capability unavailable.
+- **An editor, terminal, or file browser for the person to operate the machine
+  directly.** This is a product principle, not a deferral: the Agent is the
+  person's hands. The person still reviews results, read-only (§9.3).
+- Making TaskRun permanent, or letting a Task target an Environment. That would
+  create two execution authorities and make TaskRun recovery ambiguous.
+- Guaranteeing that processes survive stop, node loss, image replacement, or
+  control-plane recovery.
+- Synchronizing a laptop filesystem, or writing Environment changes back into
+  mutable Space files. Results leave through Git or Artifacts.
+- Public ingress or port forwarding to processes inside the machine. The Agent
+  previews its own servers with the browser capability instead (§9.3).
+- Shared interactive access, or Space membership implying access to another
+  member's Environment.
+- Durable server storage of the interactive transcript.
+- Every deployment topology. A topology that cannot enforce the isolation and
+  persistence below reports the capability unavailable.
 
-## 5. Proposed Model
+## 6. Proposed Model
 
-The proposal adds one durable product entity: **Environment**. It is the
-Space-owned reservation for a private workspace and the compute that may attach
-to it. It is not an Agent, Task, TaskRun, local Project, or generic versioned
-filesystem.
+The proposal adds one durable entity, **Environment**: the record of one
+allocated cloud machine. It owns the machine's lifecycle, never the Agent's
+behavior.
 
 | Concept | Owns | Does not own |
 |---|---|---|
-| Environment | Space, interactive operator, desired and observed lifecycle, resource profile, lease, persistent workspace reference, host health | A Task result, an indefinitely running model call, or a public service endpoint |
-| Environment host | Reconciliation heartbeat and one supervised interactive Agent runtime inside the allocation | Durable product identity or authorization policy |
-| Agent session | Model-visible history and compaction state stored inside the Environment's runtime home | Environment lifecycle or Space membership |
-| Remote Control registration | Transient presence, stream key, and command routing for the live Agent session | Workspace or transcript durability |
+| Environment | Space, operator, desired and observed lifecycle, resource profile, lease, workspace source, persistent volume reference, machine health | The Agent session, a Task result, or a public endpoint |
+| The machine | The standard `buildmax` runtime, hosting one Remote Control session headlessly | Product identity or authorization policy |
+| Agent session | Model-visible history and compaction state, stored in the machine's runtime home | Machine lifecycle |
+| Remote Control session | Presence, stream, and command routing for the live session | Workspace or transcript durability |
 
-The Environment belongs to one Space and initially has one interactive
-operator. The operator must remain a member of that Space. Space owners and
-admins may stop or delete the Environment for governance, but do not silently
-gain interactive access to its shell or Agent session. Sharing is an explicit
-future grant if evidence requires it; it is not implied by membership.
+Inside the machine runs the same runtime the person runs on a laptop, in
+managed mode, with Remote Control enabled. There is no separate "Environment
+host" component: what a laptop needs a person to start, the machine starts at
+boot. The only new runtime affordance is a headless way to host one Remote
+Control session without a TUI—a mode the Remote Control design already lists as
+additive for Desktop and print surfaces.
 
-The allocation has three filesystem areas with enforced boundaries:
+The machine has three filesystem areas with enforced boundaries:
 
 ```text
 persistent workspace/       Agent-visible, the only writable tool root
@@ -168,18 +194,50 @@ persistent buildmax-home/   sessions, traces, settings, resolved Plugins; hidden
 ephemeral scratch/          sockets, caches, process-local temporary state
 ```
 
-`buildmax-home/` is persistent because the outcome includes Agent-session
-continuity, but it is not placed below the writable workspace. The Environment
-host is a process inside the allocation, not a second server and not a new
-domain entity. The first slice supervises one Agent session; multiple concurrent
-sessions would add scheduling, resource, and presentation semantics that have
-not been demonstrated.
+`buildmax-home/` is persistent because the outcome includes session continuity,
+and it stays outside the tool root, matching the worker invariant. The machine
+hosts one session; concurrent sessions would add scheduling and presentation
+semantics nothing has demonstrated a need for.
 
-## 6. Lifecycle and Persistence
+The workspace is created from a source, following cloud-IDE practice: by
+default a Git repository clone, optionally a snapshot of Space files. Nothing is
+written back automatically; the Agent pushes to Git or publishes Artifacts.
 
-An Environment has asynchronous desired state and observed status. The exact
-stored representation belongs in a later design, but the user-visible lifecycle
-must distinguish at least:
+## 7. Ownership and Authorization
+
+This is the main decision the model raises. A laptop under Remote Control is
+account-owned and has no Space. A cloud machine consumes the operator's
+resources and needs quota, cost attribution, and governance, which Portal places
+on Space. Two shapes are possible:
+
+| Option | Property | Cost |
+|---|---|---|
+| **Account-owned**, like a laptop | Closest to "another of my machines"; the Remote Control ownership rule applies unchanged | Quota, cost, and admin governance have no Space to attach to; a second, account-level resource model appears in Portal |
+| **Space-owned and Space-interactive** | Uniform with other Portal resources | Space membership becomes a route into a live session, which Remote Control deliberately refuses; the live-session registry must be generalized to Space authorization |
+
+**Recommendation: split resource ownership from interaction.** The Environment
+row belongs to a Space, which carries its quota, cost, lifecycle governance, and
+audit. Interaction belongs to one person, the operator, and the machine's live
+session registers as that person's Remote Control session—it appears in their
+session list as one of their machines. The Remote Control rule stays exactly as
+it is: a live session is reachable only by its owning account. The Remote
+Control session gains only an optional reference to its Environment.
+
+The resulting rules:
+
+- The operator can attach while a member of the Space. Losing membership or
+  being disabled stops the machine; the default is immediate, with the files
+  retained until an owner deletes the Environment.
+- Space owners and admins can see, stop, and delete any Environment in the Space
+  and adjust quota. They gain no transcript or session access.
+- Sharing interactive access is a future explicit grant if a journey requires
+  it, never implied by membership.
+
+## 8. Machine Lifecycle and Persistence
+
+An Environment has asynchronous desired state and observed status. The stored
+representation belongs in a later design; the user-visible lifecycle must
+distinguish at least:
 
 ```text
 create -> provisioning -> ready <-> stopping -> stopped
@@ -189,153 +247,141 @@ create -> provisioning -> ready <-> stopping -> stopped
 stopped / failed -> deleting -> gone
 ```
 
-- **Create** reserves the resource and provisions storage before reporting it
-  ready. A request returning successfully does not claim that compute is ready.
-- **Ready** means the host is connected and the required sandbox, storage, and
-  server channels passed their startup checks. Browser presence is irrelevant.
-- **Stop** terminates compute after a grace period and keeps the persistent
-  workspace and runtime home. It does not promise process suspension.
-- **Start** attaches compute to the same durable state and restores the Agent
-  session before accepting a prompt. Restore failure is visible and fails
-  closed; it does not silently create a fresh session under the old identity.
-- **Delete** first makes compute unreachable, then destroys the Environment's
-  durable storage according to an explicit retention policy. It is distinct
-  from Stop and requires a destructive-action confirmation in Portal.
+- **Create** provisions storage and seeds the workspace before reporting
+  ready. A successful request does not claim the machine is ready.
+- **Ready** means the machine is up, its required sandbox, storage, and server
+  channels passed startup checks, and its Remote Control session is registered.
+  Browser presence is irrelevant.
+- **Stop** terminates compute after a grace period and keeps the volume. It does
+  not promise process suspension.
+- **Start** reattaches the same volume and restores the Agent session before
+  accepting a prompt. Restore failure is visible and fails closed; it never
+  silently starts a fresh session under the old identity.
+- **Delete** first makes the machine unreachable, then destroys its storage
+  according to an explicit retention policy, behind a destructive-action
+  confirmation in Portal.
 
-“Long-running” means compute may remain ready across many turns and browser
-disconnects; it does not mean unbounded or immortal. Each active Environment has
-a renewable wall-clock lease. Authenticated use or an explicit renewal may
-extend it within the Space and deployment limits. A host heartbeat alone does
-not renew it, because that would turn every abandoned Environment into a
-permanent reservation. The first slice should use a clear expiry rather than
-guessing idleness from CPU or terminal activity.
+Long-running does not mean immortal. Each running Environment has an idle
+timeout measured on the operator's actions—attaching, prompting, answering, or
+an explicit renewal—plus a hard maximum, both within Space and deployment
+limits. A machine heartbeat or CPU activity never renews it; otherwise every
+abandoned machine becomes a permanent reservation. A long-running process the
+operator wants kept alive needs the operator to renew.
 
-The persistence promise is intentionally narrow:
-
-| Event | Workspace and Agent session | Background processes |
+| Event | Workspace and Agent session | Processes |
 |---|---|---|
 | Browser disconnect or Server replica change | Preserved | Continue |
-| Clean host-process restart in the same allocation | Preserved | May be lost |
-| Stop then Start, or workload replacement with storage reattached | Preserved | Lost |
-| Storage loss | Unavailable unless a later backup policy exists | Lost |
-| Delete after the retention boundary | Destroyed | Lost |
+| Runtime process restart on the same machine | Preserved | May be lost |
+| Stop then Start, or workload replacement with the volume reattached | Preserved | Lost |
+| Volume loss | Unavailable unless a later backup policy exists | Lost |
+| Delete after retention | Destroyed | Lost |
 
-## 7. Interaction Through Remote Control
+## 9. Interaction Through Remote Control
 
-Remote Control is the interaction substrate, with one important rule: **reuse
-the protocol and relay, not its account-scoped ownership model**.
+### 9.1 What Is Reused
 
-The Environment host opens an outbound WebSocket to the Server and uses the
-existing typed envelope, bounded/redacted run events, heartbeats, buffered
+The machine dials out to the Server over the existing Agent WebSocket and uses
+the typed envelope, bounded and redacted events, heartbeats, the buffered
 stream, cross-replica command routing, and inbound prompt, approval, question,
-and cancel messages. The same Portal components can render the stream and
-pending decisions. Outbound dialing also avoids making each Environment a
-directly reachable network server.
+and cancel. Portal renders it with the existing Remote Control view. Outbound
+dialing means no Environment is a directly reachable network server.
 
-The admission path differs from a laptop session:
+### 9.2 What Differs From a Laptop
 
-- the host authenticates with a short-lived, revocable Environment credential
-  bound to one Environment and Space, never with the creating user's refresh
-  token or a general worker token;
-- registration attaches the live session to the Environment, and browser
-  operations authorize through Environment and Space membership before reaching
-  the shared relay;
-- the existing account-scoped RemoteSession rule remains correct for local
-  devices. Implementation may generalize the live-session registry, but it must
-  not make Space membership a route into a member's laptop;
-- environment readiness and live Agent-session presence are separate facts. An
-  Environment can be healthy while its Agent runtime is restarting, and an
-  offline session does not by itself authorize reclamation.
+- **Credential.** A laptop authenticates with its user's login. The machine
+  receives a short-lived, revocable credential bound to one Environment and its
+  operator, issued and renewed through the control plane. It is never the
+  operator's refresh token or a worker token, and it cannot reach any other
+  account resource.
+- **Opt-in.** The machine always hosts Remote Control; that is its only purpose.
+  The per-session opt-in that protects a laptop is replaced by the explicit act
+  of creating the Environment.
+- **Readiness versus presence.** A machine can be healthy while its runtime is
+  restarting. An offline session alone never authorizes reclamation; the lease
+  does.
 
-Existing Remote Control replays only a short live buffer and deliberately keeps
-no durable transcript. An Environment must therefore restore history from its
-own persisted Agent session. The smallest extension is a bounded history
-snapshot or replay generated by the Environment host when a viewer attaches;
-the Server remains a relay rather than a second transcript store. The prototype
-must prove that a reload after the relay buffer expires still reconstructs an
-understandable session.
+### 9.3 Remote Control Improvements Both Hosts Share
 
-This reuse yields the narrow cloud-host quadrant already identified by the
-[Remote Control design](../design/remote-control.md): cloud host plus Agent
-session surface. A broad codespace surface—terminal, files, arbitrary
-applications—can be added only after the narrow Environment proves useful.
+Two gaps matter more for a cloud machine but are not specific to it, so they
+belong to Remote Control and benefit laptops equally:
 
-## 8. Authorization and Trust Boundary
+- **History on reattach.** Remote Control replays only a short buffer. A person
+  returning after days needs the conversation, which the runtime already holds
+  in its persisted session. The smallest fix is a bounded history snapshot the
+  runtime sends when a viewer attaches; the Server remains a relay and stores no
+  transcript.
+- **Read-only review.** With no editor or terminal, the person still has to
+  judge the Agent's work. The conversation must carry read-only results: a
+  workspace diff, screenshots, and file download through Artifacts. The Remote
+  Control design already names a workspace diff as part of the narrow surface;
+  the prototype must confirm what Portal renders today and fill the gap.
 
-An Environment executes model-selected commands for much longer than a worker
-Job, so time increases exposure; it does not justify a weaker boundary.
+Previewing a web application the Agent started is the Agent's job, through the
+existing browser capability, not port forwarding. That capability is local-only
+today; the Environment image must carry it under the Environment's sandbox and
+navigation limits, which is a validation item.
 
-- **Authorization:** every control operation resolves the Environment's Space.
-  The interactive operator can attach while still a member. Owners/admins may
-  govern lifecycle and quota without receiving transcript or shell access.
-  Removing or disabling the operator revokes new interaction and requests a
-  stop; the exact grace policy is an open question.
-- **Credential:** the host receives one narrowly scoped Environment credential
-  and exchanges or renews it through the control plane. It receives no database,
-  object-store, model-provider, user refresh-token, or cluster credential.
-- **Inference and applications:** managed inference and any future application
-  broker remain server-mediated. Secrets are never materialized into the
-  Agent-visible workspace merely to keep the Environment warm.
-- **Filesystem:** tools see only `workspace/`. Persistent runtime home and
-  ephemeral control files stay outside the tool root, matching the worker
-  invariant.
-- **Sandbox and outer runtime:** required command confinement is enabled and
-  fail-closed. The workload also needs a qualified Pod/container boundary,
-  resource limits, a read-only image root, and network policy. The model cannot
-  select or weaken these controls.
-- **Plugins, hooks, and MCP:** only the Space's explicit server-resolved Plugin
-  activation enters the Environment. Resolution happens at a documented
-  boundary such as Environment start or new Agent-session start; nothing
-  hot-loads into a running process. Unsupported stdio MCP remains disabled
-  fail-closed until it has a confinement story.
-- **Audit and trace:** create/start/stop/renew/delete and remote control actions
-  record actor and Environment. Agent execution keeps a bounded redacted trace
-  in the Environment runtime home; relay failure remains fail-open for the Agent
-  run, but credential or sandbox failure is fail-closed for Environment
-  readiness.
+## 10. Trust Boundary
 
-Public ingress to a process inside the workspace is not a small extension of
-Remote Control. It adds routing, TLS, authentication, abuse, hostname, and data
-exfiltration policy and remains out of scope.
+An Environment runs model-selected commands for much longer than a worker Job.
+Time increases exposure; it does not justify a weaker boundary.
 
-## 9. Provisioning, Reconciliation, and Failure
+- **Credential:** the machine credential (§9.2) is its only server credential.
+  The machine receives no database, object-store, model-provider, refresh-token,
+  or cluster credential. Managed inference stays server-mediated, attributed to
+  the Space and operator.
+- **Filesystem:** tools see only `workspace/`. A persistent runtime home sitting
+  next to a long-lived tool process is the new risk relative to a worker; the
+  trust harness must prove tools cannot read it over a long session, not only
+  that the path is excluded.
+- **Sandbox and outer runtime:** command confinement is enabled and fail-closed.
+  The workload has a qualified Pod or container boundary, resource limits, a
+  read-only image root, and network policy. The model cannot select or weaken
+  them.
+- **Plugins, hooks, and MCP:** only the Space's explicit, server-resolved Plugin
+  activation enters the machine, resolved at Environment start or session start;
+  nothing hot-loads. Stdio MCP stays disabled fail-closed until it has a
+  confinement story.
+- **Control-plane privilege:** managing long-lived workloads and persistent
+  volumes extends the Server's cluster permissions beyond creating Jobs. That
+  expansion is part of the security review, scoped to a dedicated namespace.
+- **Audit and trace:** lifecycle actions and remote commands record actor and
+  Environment. The runtime keeps its bounded, redacted trace in its home. Relay
+  failure is fail-open for the Agent; credential or sandbox failure is
+  fail-closed for readiness.
 
-Provisioning is a persisted reconciliation problem, not one long HTTP request.
-The Server records desired state; a controller converges compute and storage;
-the Environment host reports health. A Server restart must not terminate a
-healthy Environment, and a lost callback must not strand one forever in
-`provisioning` or `stopping`.
+## 11. Provisioning, Reconciliation, and Failure
 
-The first supported deployment should use one isolated Kubernetes workload and
-one persistent volume per Environment. This matches the private-deployment
-topology and makes CPU, memory, storage, security context, network policy, and
-reclamation inspectable. It does not require reusing the Task worker Job or its
-run token. A local-process prototype may test interaction, but it is not
-evidence for the supported multi-tenant boundary.
+Provisioning is persisted reconciliation, not one long HTTP request. The Server
+records desired state; a controller converges compute and storage; the machine
+reports health. A Server restart must not terminate a healthy machine, and a
+lost callback must not strand one in `provisioning` or `stopping`.
 
-At minimum reconciliation handles these cases:
+The first supported deployment is one isolated Kubernetes workload and one
+persistent volume per Environment. It does not reuse the worker Job or its run
+token. A local-process prototype may exercise interaction, but it is not
+evidence for the multi-tenant boundary.
 
 | Failure | Required outcome |
 |---|---|
-| Provisioning fails before a host is ready | Environment becomes diagnosably `failed`; retry does not create duplicate storage or workloads |
-| Host heartbeat lapses while workload exists | Environment becomes unavailable; controller inspects or restarts the workload without deleting durable state |
-| Workload or node disappears | Replacement attaches the same storage; processes are declared lost; session restore gates readiness |
-| Server restarts or changes replica | Workload continues; registration reconnects; persisted desired state drives reconciliation |
+| Provisioning fails before the machine is ready | `failed` with a diagnosis; retry creates no duplicate storage or workload |
+| Heartbeat lapses while the workload exists | Unavailable; the controller inspects or restarts the workload without touching the volume |
+| Workload or node disappears | Replacement attaches the same volume; processes declared lost; session restore gates readiness |
+| Server restarts or changes replica | Machine continues; Remote Control reconnects; desired state drives reconciliation |
 | Stop races with Start or Delete | One serialized desired state wins; stale callbacks cannot resurrect compute |
-| Lease expires | Stop is requested and eventually enforced even if no browser is connected |
-| Storage cannot attach or restore | Environment is not reported ready; error names the failed boundary |
-| Delete partly succeeds | Reconciliation continues until compute is unreachable and retention/storage cleanup reaches a recorded terminal outcome |
+| Idle timeout or hard maximum reached | Stop is requested and enforced with no browser connected |
+| Volume cannot attach or session cannot restore | Not ready; the error names the failed boundary |
+| Delete partly succeeds | Reconciliation continues to a recorded terminal outcome |
 
-The controller also needs orphan detection in both directions: a database row
-with no workload is reconciled, and a labeled workload or volume with no live
-Environment row is quarantined and reclaimed by documented policy. Automatic
-Agent-task replay is never part of recovery; an Environment is interactive
-state, not an idempotent job.
+Orphan detection runs in both directions: a row with no workload is
+reconciled, and a labeled workload or volume with no live row is quarantined
+and reclaimed by documented policy. Recovery never replays Agent work; an
+Environment is interactive state, not an idempotent job.
 
-## 10. API, Portal, and Operator Surface
+## 12. API, Portal, and Operator Surface
 
-A later design may change names, but the capability requires Space-scoped
-operations equivalent to:
+A later design may rename these, but the capability needs Space-scoped
+lifecycle operations equivalent to:
 
 ```text
 POST   /api/spaces/{space_id}/environments
@@ -347,118 +393,128 @@ POST   /api/spaces/{space_id}/environments/{environment_id}/lease
 DELETE /api/spaces/{space_id}/environments/{environment_id}
 ```
 
-Creation and lifecycle commands are idempotent and return the durable resource;
-clients observe readiness rather than holding the request open. Session stream
-and command operations should delegate to the generalized Remote Control path
-after Environment authorization, not create a parallel untyped chat protocol.
+Lifecycle commands are idempotent and return the resource; clients observe
+readiness. Interaction adds no routes: it is the operator's existing Remote
+Control session.
 
-Portal needs only three initial surfaces:
+Portal needs three surfaces:
 
-1. an Environment list with operator, lifecycle, lease expiry, resource profile,
-   last host signal, and a clear running-cost indicator;
-2. an Environment detail page with Start, Stop, Renew, Delete, diagnostics, and
-   the embedded Remote Control Agent-session view; and
-3. administration visibility for active counts, resource totals, failures,
-   expired leases, and forced stop/delete without transcript access.
+1. an Environment list with operator, state, lease expiry, resource profile,
+   last machine signal, and a visible running-cost indicator;
+2. an Environment detail page with Start, Stop, Renew, Delete, and diagnostics,
+   which opens the existing Remote Control session view for the operator; and
+3. administration visibility for active counts, resource totals, failures, and
+   forced stop or delete, without session access.
 
-Operator configuration needs an explicit enablement flag, image and resource
-profile, maximum active Environments, per-Space limits, lease bounds, storage
-class and size, startup timeout, and required runtime/sandbox policy. Defaults
-must not silently allocate unbounded compute. Unsupported deployments report the
-feature unavailable rather than emulating it with an endless local worker.
+Operator configuration needs an enablement flag, machine image and resource
+profiles, maximum active Environments, per-Space limits, idle and maximum
+lease bounds, storage class and size, startup timeout, and the required
+runtime and sandbox policy. The default is disabled; nothing allocates compute
+silently.
 
-## 11. Options and Trade-Offs
+## 13. Options and Trade-Offs
 
 | Option | Useful property | Cost or failure |
 |---|---|---|
-| **A. Distinct Environment plane plus shared Remote Control (recommended for validation)** | Matches the persistent workspace and interactive lifecycle; reuses the shipped control path without changing Task semantics | Adds provisioned compute, persistent storage, reconciliation, quotas, and a stronger long-lived trust boundary |
-| **B. Keep one TaskRun alive** | Smallest apparent schema change | No authoritative terminal result, lease and interaction become worker exceptions, worker loss is ambiguous, and TaskRun reclamation no longer means what it says |
-| **C. Continue through checkpoints on ephemeral workers** | Reuses the durable Task model and costs nothing while idle | Preserves files and Agent history but never background processes or warm state; still one bounded turn at a time |
-| **D. Integrate an external codespace provider** | Outsources provisioning and browser IDE work | Adds provider credentials, availability, cost, and portability constraints before proving that the narrow Agent surface is useful |
-| **E. Run long-lived sessions inside the Server or a shared worker** | Avoids per-Environment workloads | Mixes untrusted execution with the control plane or tenants, weakens resource isolation, and makes one failure affect unrelated Environments |
+| **A. Managed cloud machines reached through Remote Control (recommended for validation)** | Machine management follows cloud-IDE practice; interaction, Agent runtime, and Portal view are reused; Task semantics untouched | Adds provisioning, persistent storage, reconciliation, quota, and a long-lived trust boundary |
+| **B. Keep one TaskRun alive** | Smallest apparent schema change | No authoritative result; leases and interaction become worker exceptions; worker loss is ambiguous |
+| **C. Task Continue on ephemeral workers** | Reuses the durable Task model and costs nothing idle | Keeps files and history, never processes or warm state; one bounded turn at a time |
+| **D. Classic cloud IDE with editor and terminal** | Familiar; covers anything the Agent cannot do | Rebuilds what the Agent replaces; multiplies the surface and the trust boundary for direct shell access |
+| **E. Integrate an external codespace provider** | Outsources provisioning | Provider credentials, cost, availability, and portability before the narrow surface is proven |
+| **F. Long-lived sessions inside the Server or a shared worker** | No per-Environment workload | Mixes untrusted execution with the control plane or tenants |
 
-Option C already serves work that only needs continuity between turns. The new
+Option C already serves work that only needs continuity between turns. A new
 entity is justified only when retained processes, warm state, or immediate
-interactive re-entry materially matter. That is the central evidence test for
-Option A.
+re-entry materially change the outcome. That is the central evidence test.
 
-## 12. Smallest Validation Slice
+## 14. Smallest Validation Slice
 
-The first prototype should deliberately omit terminal and browser-IDE features.
-In one isolated Kubernetes test deployment it should:
+Two pieces can be built and judged before any machine management exists,
+because they serve laptops too:
 
-1. create one Environment from one Space and reach `ready` through persisted
-   reconciliation;
-2. start or restore one interactive Agent session in its private workspace;
-3. use the Remote Control stream to prompt it, observe output, answer one
-   approval or question, and cancel a turn;
-4. disconnect Portal, leave a bounded background process running, reconnect
-   after the ordinary relay buffer is gone, and recover an understandable
-   session plus the same workspace;
-5. stop and start the Environment, proving files and Agent history persist while
-   the background process is reported lost;
-6. restart the Server and kill the Environment workload separately, proving the
-   documented reconciliation and persistence outcomes;
-7. prove cross-Space and non-operator interaction refusal, credential
-   revocation, quota refusal, lease expiry, and fail-closed sandbox startup; and
+1. a headless Remote Control host mode of the `buildmax` binary; and
+2. history snapshot on reattach, plus read-only review outputs in the session
+   view (§9.3).
+
+The Environment prototype then omits everything a cloud IDE would add for
+direct operation. In one isolated Kubernetes test deployment it should:
+
+1. create one Environment from a repository and reach `ready` through persisted
+   reconciliation, with the session appearing in the operator's Remote Control
+   list;
+2. prompt the Agent, observe output, answer one approval or question, and
+   cancel a turn;
+3. have the Agent start a dev server and verify it with the browser capability;
+4. disconnect Portal, leave that process running, reconnect after the relay
+   buffer is gone, and recover the conversation and workspace;
+5. stop and start the Environment, proving files and history persist and the
+   process is reported lost;
+6. restart the Server and kill the workload separately, proving the documented
+   reconciliation outcomes;
+7. prove non-operator and cross-Space refusal, credential revocation, quota
+   refusal, idle expiry, membership-loss stop, and fail-closed sandbox startup;
+   and
 8. delete the Environment and verify compute and storage reclamation with no
-   orphaned externally reachable session.
+   orphaned reachable session.
 
-The prototype should record time to ready, time to reconnect, active duration,
-storage growth, restart/restore failures, compute cost, and which actions made a
-user want a terminal. It should also compare the same multi-turn task through
-Task Continue. If retained processes or warm state do not change the outcome,
-the existing Task plane is simpler and should remain the answer.
+The prototype records time to ready, time to reconnect, active duration,
+storage growth, restore failures, compute cost, and every moment a user wanted
+an editor or terminal. It also runs the same multi-turn task through Task
+Continue. If retained processes and warm state do not change the outcome, the
+Task plane is the simpler answer.
 
-No user documentation, compatibility promise, or general availability claim
-follows from this slice. Its purpose is to decide whether the Environment plane
-deserves product and operational ownership.
+No user documentation, compatibility promise, or availability claim follows.
+The slice decides whether machine management deserves product and operational
+ownership.
 
-## 13. Open Questions and Decision Evidence
+## 15. Open Questions and Decision Evidence
 
-- What seeds the first workspace: a snapshot of Space files, a repository clone,
-  or an explicit upload? Does any path need write-back, or is export through
-  Artifacts sufficient?
-- Is one interactive operator per Environment enough? What demonstrated journey
-  requires explicit sharing, and what must an admin be able to inspect without
-  gaining session access?
-- What lease minimum, maximum, warning, and renewal policy matches observed work
-  without making abandoned compute permanent?
-- Is a bounded host-generated history snapshot sufficient for reconnect, or
-  does the need point to the separate
-  [durable Agent sessions proposal](durable-agent-sessions.md)?
-- Which Plugin and workspace changes require an Agent-session restart versus a
-  full Environment restart?
-- What storage durability, backup, retention, and deletion guarantees can the
-  first supported deployment honestly make?
-- Does the supported boundary require gVisor or another outer runtime, and can
-  the exact Environment image and nested command sandbox pass the trust harness
-  without exceptions?
-- When the operator loses Space membership or is disabled, should running
-  compute stop immediately or after a short recovery window?
-- Does evidence justify a terminal and file browser, or does the narrow Remote
-  Control surface cover the real outcome?
-- Is there ever a reason for a Task to target an Environment, or would that
-  recreate two execution authorities and confuse TaskRun recovery?
+Decided by the positioning in §2 and §7, subject to review:
 
-A decision to proceed needs at least one named user journey where Task Continue
-is insufficient, successful lifecycle and isolation evidence from the supported
-deployment topology, a measured resource envelope, and an explicit owner for
-reclamation and incident response. A technical demo of a persistent Pod alone
-is not enough.
+- No editor, terminal, or file browser for direct operation; review is
+  read-only.
+- No Task targets an Environment.
+- The Environment belongs to a Space; interaction belongs to the operator's
+  account through Remote Control.
+- Losing membership stops the machine immediately; files are retained.
+- The workspace is seeded from a Git repository by default, with no automatic
+  write-back.
 
-## 14. Likely Destination if Accepted
+Still open:
 
-If accepted, the stable boundary—Environment as a Space-scoped execution plane,
-Task/TaskRun separation, Remote Control reuse, lifecycle, persistence, and trust
-model—moves into a Product and Execution Model design record. Kubernetes
-provisioning and operating policy receive their own Operations and Deployment
-specification only if implementation detail is large enough to justify it.
+- What idle timeout and hard maximum match observed work, and how far in
+  advance does a person need warning before a stop?
+- Is a bounded history snapshot enough for reconnect after days, or does the
+  need point to the [durable Agent sessions proposal](durable-agent-sessions.md)?
+- What read-only review set—diff, screenshots, downloads—is sufficient, and does
+  any observed journey still require the person to act directly?
+- Can the browser capability run inside the Environment's sandbox and network
+  policy without weakening either?
+- Which Plugin or workspace changes require a session restart versus a machine
+  restart?
+- What storage durability, backup, and retention can the first deployment
+  honestly promise?
+- Does the boundary require gVisor or another outer runtime, and can the
+  machine image with the nested command sandbox pass the trust harness without
+  exceptions?
 
-The roadmap then sequences a narrow cloud Agent session before any broad
-codespace surface, and decomposed implementation work enters
-[the backlog](../backlog/README.md) only after the validation gate and security
-boundary are accepted. The client-surface proposal continues to own shared UI
-and transport convergence; it does not own Environment lifecycle. This proposal
-is deleted once its accepted rationale has moved, or deleted without replacement
-if the evidence favors Task Continue or an external provider.
+A decision to proceed needs at least one named journey where Task Continue is
+insufficient, lifecycle and isolation evidence from the supported topology, a
+measured resource envelope, and an explicit owner for reclamation and incident
+response. A persistent Pod demo alone is not enough.
+
+## 16. Likely Destination if Accepted
+
+If accepted, the stable boundary—Environment as managed cloud machines, the
+split between Space ownership and account interaction, Remote Control reuse,
+lifecycle, persistence, and trust—moves into a Product and Execution Model
+design record. The headless host mode and history-on-reattach work extend the
+[Remote Control design](../design/remote-control.md) directly, since laptops use
+them too. Kubernetes provisioning and operating policy get their own Operations
+and Deployment specification only if the detail justifies it.
+
+Decomposed work enters [the backlog](../backlog/README.md) after the validation
+gate and security boundary are accepted. The client-surface proposal keeps
+shared UI and transport convergence; it does not own machine lifecycle. This
+proposal is deleted once its rationale has moved, or deleted without
+replacement if the evidence favors Task Continue or an external provider.

@@ -212,17 +212,18 @@ The convergence model makes a cloud-hosted workspace visible to the same shared
 UI, but client convergence does not own that workspace's execution lifecycle.
 The independent
 [long-running workspace Environments proposal](long-running-workspace-environments.md)
-now owns the decision: a Space-scoped Environment, separate from Task/TaskRun,
-with persistent state, leases, provisioning, reclamation, and a fail-closed
-trust boundary.
+now owns the decision: system-managed cloud machines, separate from
+Task/TaskRun, with persistent state, leases, provisioning, reclamation, and a
+fail-closed trust boundary.
 
-That proposal deliberately starts narrower than a Desktop-equivalent codespace:
-one cloud-hosted Agent session over one private workspace. It reuses
-[Remote Control](../design/remote-control.md) for live events and commands while
-keeping Environment authorization Space-scoped. Terminal, files, diffs, and
-arbitrary applications remain possible broad-surface consumers of the shared
-HTTP/WebSocket data layer, but they are not prerequisites for deciding whether
-the Environment plane is useful.
+That proposal positions the Environment as a cloud IDE rebuilt around the
+Agent: machine management follows cloud-IDE practice, while the interaction
+contracts to the Agent session instead of a Desktop-equivalent codespace. The
+machine hosts an ordinary [Remote Control](../design/remote-control.md)
+session owned by its operator; the Environment's Space carries quota and
+governance, not interactive access. An editor and terminal are a deliberate
+non-goal there, so broad-surface consumers of the shared HTTP/WebSocket data
+layer are not prerequisites for deciding whether Environments are useful.
 
 The ownership split is therefore explicit: this paper owns the shared UI and
 switchable client data layer; the Environment paper owns compute, storage,
