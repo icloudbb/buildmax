@@ -14,6 +14,81 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.18] - 2026-10-01
+
+### Fixed
+
+- A Task or run whose input is only whitespace is now refused before it spends
+  a worker run, the same as empty input; with an Agent selected, blank input
+  still runs the Agent's own definition.
+
+- Creating a Space Secret whose name already exists now returns a 409 conflict
+  instead of a 500 internal error.
+
+- Over-long or whitespace-only names, titles, descriptions, and inputs now
+  return a 400 with a clear message instead of a 500: Space/Agent/Secret/
+  Schedule/Workflow/Issue/webhook-key names, Secret/Issue/Workflow descriptions,
+  and Task/Schedule inputs are bounded to their storage columns.
+
+- `./make kind drill restore` and `drill rotation` now fail fast with a clear
+  message when the cluster is on a real model, instead of failing deep in the
+  seed step; run `./make kind mock` first.
+
+- An ephemeral kind cluster now sets `public_base_url` to its actual portal
+  port, so artifact share links and OIDC callbacks no longer point at the
+  default 8080.
+
+- A managed model's context window, call timeout, and max tokens now reject
+  absurdly large values as well as negative ones, and its name is length-bounded.
+
+- `./make ocean deploy` brings up a server that starts and workers that run:
+  it now sets the required worker disk bounds, serves the worker API on its
+  TLS listener behind a worker-only NetworkPolicy, installs the worker seccomp
+  profile on every node, and defaults to the `v0.2.0-alpha.17` images.
+
+- Validating a Plugin now warns when its `hooks.yaml` wraps events in a
+  settings-style `hooks:` block, which silently contributes no hooks, instead of
+  accepting it with no sign anything is wrong.
+
+- When a run is reaped as lost, its managed model calls left ACCEPTED are now
+  settled as failed (`run_lost`) instead of staying open in the ledger forever.
+
+- Disabling an account that is already disabled keeps its original
+  `disabled_at` instead of moving the deactivation time forward each time
+  cleanup is re-run.
+
+- A task run read now includes its workspace checkpoint ids
+  (`workspace_base/result/partial_checkpoint_id`); as a result a committed
+  result checkpoint again records the base it was built from, which had gone
+  unrecorded because the base never reached the finalizer.
+
+- A Schedule whose runs are admitted and then always fail now counts those
+  failures and pauses after the fifth, the same as one whose firings cannot
+  start; the pause reason reads `consecutive_failures`.
+
+- The worker image now ships `curl`, so an Agent can fetch over HTTPS through
+  the sandbox proxy under the `registries`/`open` network tier; Alpine's busybox
+  `wget` cannot tunnel HTTPS through a proxy and returned 502.
+
+### Security
+
+- A task run's issue comment now bounds the number and length of the Artifact
+  references it records, so model-chosen worker code cannot write an unbounded
+  or oversized list into the comment body.
+
+- Destroying a Space Secret is now terminal: a destroyed Secret can no longer
+  be reactivated to active or disabled, which had left one that read usable but
+  could never materialize because its sealed material was already erased.
+
+- A Space Secret grant can no longer deliver an item under a reserved
+  `BUILDMAX_*` environment variable name, so a Space's configuration cannot
+  name a variable the worker runtime relies on.
+
+- Kubernetes worker Job pods now set `enableServiceLinks: false`, so the
+  addresses of the namespace's other Services — database, object storage, cache
+  — are no longer written into the environment that model-chosen commands can
+  read.
+
 ## [0.2.0-alpha.17] - 2026-09-30
 
 ### Added
@@ -3722,7 +3797,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.17...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.18...HEAD
+[0.2.0-alpha.18]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.17...v0.2.0-alpha.18
 [0.2.0-alpha.17]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.16...v0.2.0-alpha.17
 [0.2.0-alpha.16]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.15...v0.2.0-alpha.16
 [0.2.0-alpha.15]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.14...v0.2.0-alpha.15
