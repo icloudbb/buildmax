@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 )
 
 // A Bash command in the sandbox runs as the worker's uid and sees the
@@ -22,7 +23,9 @@ func TestHideFromSandboxClosesProcEnviron(t *testing.T) {
 			os.Exit(1)
 		}
 		fmt.Println("ready")
-		select {}
+		// Sleep, not select{}: with no timer the runtime would kill this
+		// process as deadlocked before the parent reads its environ.
+		time.Sleep(time.Hour)
 	}
 	if os.Geteuid() == 0 {
 		t.Skip("root holds CAP_SYS_PTRACE outside a container and reads any environ; the worker pod drops it")
