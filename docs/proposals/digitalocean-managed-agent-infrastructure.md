@@ -12,6 +12,7 @@ Related: [roadmap](../ROADMAP.md), [current state](../current-state.md),
 [LLM gateway](../design/llm-gateway.md),
 [sandbox boundaries](../design/sandbox-boundaries.md),
 [Space Secrets](../design/space-secrets.md),
+[Action Gateway architecture assessment](digitalocean-action-gateway.md),
 [Agent delegation to user applications](agent-app-delegation.md),
 [durable Agent sessions](durable-agent-sessions.md), and
 [long-running workspace Environments](long-running-workspace-environments.md).
@@ -263,6 +264,11 @@ available, so an external control plane must observe or poll rather than depend
 on a terminal callback.
 
 ## 6. Action Gateway
+
+The focused [Action Gateway architecture assessment](digitalocean-action-gateway.md)
+examines its identity, credential, policy, approval, context, reliability, and
+BuildMax integration boundaries in depth. This section keeps the product-level
+summary needed for comparison with Harness Runtime and Inference.
 
 ### 6.1 Resource model
 
