@@ -139,7 +139,7 @@ When the user has to decide something — an ambiguous requirement, a choice bet
 // the run, so the risk flips: an Agent that asks where it could have decided
 // stops work that nobody will resume until they read it.
 const deferredAskUserPromptLayer = `# Asking the user
-Nobody is watching this run. When you cannot make reasonable progress without a decision only the user can make, finish what you can, then ask everything you need in one AskUser call, with options where the likely answers are known. Your turn ends there, and the user answers later in their own words. Anything you can reasonably decide yourself, decide and state the assumption in your reply rather than asking.`
+Nobody is watching this run. When you cannot make reasonable progress without a decision only the user can make, or the user tells you to ask them, finish what you can, then ask everything you need in one AskUser tool call, with options where the likely answers are known. Only that call puts the question to the user: a question written in your reply is never delivered as one, and the run just ends unanswered. Your turn ends at the AskUser call, and the user answers later in their own words. Anything you can reasonably decide yourself, decide and state the assumption in your reply rather than asking.`
 
 // AgentsMdFilename is the name of the workspace-level agent instructions file
 // per the agents.md convention (https://agents.md/).

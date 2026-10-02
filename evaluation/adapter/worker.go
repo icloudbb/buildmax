@@ -23,7 +23,7 @@ import (
 // WorkerAdapterVersion changes when this adapter changes how it dispatches a
 // run. Like the CLI's, it lands on the subject manifest: a comparison spanning
 // an adapter change is not paired.
-const WorkerAdapterVersion = 1
+const WorkerAdapterVersion = 2
 
 // Worker runs trials through the built buildmax-worker binary.
 //
@@ -321,7 +321,11 @@ func (w *Worker) describeRun(tr Trial, layout workerLayout) workerclient.GetTask
 			Input:  tr.Task.Turns[0],
 			// The worker refuses a run that is not scheduled, which is the
 			// state a dispatcher leaves it in.
-			Status:    "SCHEDULED",
+			Status: "SCHEDULED",
+			// The server offers every Task run the deferred AskUser tool; a
+			// worker evaluated without it measured a run no deployment
+			// performs.
+			AskUser:   true,
 			CreatedAt: time.Now().UTC(),
 		},
 		Task: workerclient.TaskRunTask{
