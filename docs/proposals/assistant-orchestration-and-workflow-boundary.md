@@ -82,18 +82,19 @@ Portal's Space sidebar groups Chat, Issues, Agents, Workflows, and Schedules
 under **Work**, and Files and Artifacts under **Resources**. Chat starts a
 Conversation; an Agent can also be invoked directly through a durable Task and
 TaskRun. Workflow is a Space-scoped reusable plan: a static DAG of Agent Task
-nodes joined by `needs` edges.
+and `human_input` nodes joined by `needs` edges.
 
 The Workflow editor is a visual node-and-edge canvas with a raw JSON view (see
 [Portal Workflow visual editor](../design/portal-workflow-visual-editor.md)).
 It authors that static graph — nodes, dependencies, bindings, and result
-contracts — but the definition has no conditional branches, retries, or human
-waits for it to express.
+contracts, node retry and timeout policy, run-wide timeouts, and human input.
+An Agent node can also wait on AskUser questions and resume after an answer.
+Conditional routing remains unimplemented.
 
-The accepted Workflow design addresses runtime correctness by replacing the
-linear callback sequencer with a durable graph. It deliberately says that a
-semantic form should precede a general canvas and that a one-off open-ended
-objective should normally remain one Agent Task.
+The accepted Workflow design now has an implemented durable graph reconciler
+with restart recovery. Semantic authoring preceded the visual canvas, which has
+since shipped under its own design. A one-off open-ended objective should
+normally remain one Agent Task.
 
 ### 2.2 The New Assistant Hypothesis
 

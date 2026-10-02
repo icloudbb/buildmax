@@ -70,8 +70,9 @@ Wails 所没有的一等 iOS/Android 目标。本文的主张更窄，也更具�
   调用导出的 Go 方法，如 `SendMessageStream`、`ListProjects`
   （`internal/interface/desktop/app.go`），Go 侧用 `runtime.EventsEmit` 推回
   流。UI 资源经 `//go:embed` 编译，由 WebView 进程内 asset server 提供；Desktop
-  进程不监听任何本地可达的 HTTP 端口。其唯一的出站网络是作为 managed server 的
-  客户端（登录、managed-server URL）。
+  UI 没有面向远程浏览器的独立 HTTP API。运行时仍可向直连模型服务商、远程
+  MCP 服务端及网页工具发起出站请求，或使用本地 Agent 浏览器；managed-server
+  请求只是其中一条网络路径。
 - **Portal 是通过 HTTP/WebSocket 的浏览器客户端。** `buildmax-server`
   （`cmd/buildmax-server/main.go`）运行标准 `http.Server`
   （`internal/server/server.go`），路由在 `internal/server/handlers/routes.go`，

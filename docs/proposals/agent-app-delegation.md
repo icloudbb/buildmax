@@ -38,8 +38,10 @@ belongs in Desktop.
 ## Current constraints
 
 BuildMax already has local plugins, Skills, MCP tools, tool permissions, and
-native credential storage for BuildMax sign-in. It has no general application
-connection contract. Skills can describe CLI usage; a generic `curl` Skill can
+native credential storage for BuildMax sign-in. The narrow connector CLI and
+remote MCP CLI prototypes described below also ship; there is no unified
+application-first connection contract or per-run application grant. Skills can
+describe CLI usage; a generic `curl` Skill can
 reach APIs, but forces each Skill to manage HTTP, OAuth refresh, response shape,
 and secrets. MCP servers can expose typed tools, though each application still
 needs its own server and authorization setup. An application's API may be
