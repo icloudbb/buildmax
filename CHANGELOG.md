@@ -14,6 +14,67 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.19] - 2026-10-02
+
+### Changed
+
+- The HTTP API now refuses a JSON request body that carries a field the
+  endpoint does not take, with a 400 naming it (`unknown field "x"`), instead
+  of ignoring it: a misspelled field such as a Secret grant under the wrong name
+  no longer creates something without the setting it was meant to have.
+  Logout also refuses a misspelled `refresh_token` instead of leaving that
+  session alive.
+
+### Fixed
+
+- A browser click that submits a form or follows a link now returns the page
+  it navigated to. It used to read the location before the navigation began,
+  so the Agent was shown the page it had just left and kept its now-stale
+  element references.
+
+- With two Server replicas, a Conversation message sent while Redis is
+  unreachable is now refused (HTTP 503, a WebSocket conversation error, or a
+  retry hint in a chat channel) instead of answering 200 with an empty reply
+  while the message was neither answered nor kept.
+
+- `./make ocean deploy` now matches the Beta profile and runs Agents: worker
+  runs call the model through the managed gateway instead of failing with
+  "model not found", two Server replicas run on separate nodes coordinated
+  through a Server-only Redis, worker pods can no longer reach the managed
+  database, and the DOKS cluster pins a version slug so a later `ocean up`
+  change such as resizing the node pool no longer fails.
+
+- When object storage stops answering, an Artifact download and other storage
+  calls now fail within seconds with HTTP 503 "object storage is unavailable"
+  instead of hanging for minutes and then answering 500: the storage client
+  bounds its connect, TLS, and response-header waits.
+
+- A worker run that needs a choice only the user can make now asks through
+  AskUser far more reliably, so its Task shows it is waiting for an answer
+  instead of ending with the question in its reply: the deferred AskUser tool
+  and prompt state that a question written in the reply is never delivered
+  (GPT-5.6 Luna: 1 of 5 runs before, 16 of 18 after).
+
+- A Workflow Schedule whose fixed input its Workflow cannot accept, or whose
+  Workflow has a step that requires an Issue, is now refused when it is saved
+  (HTTP 400) instead of being accepted and then failing every firing until it
+  paused itself.
+
+### Security
+
+- The Portal image is now built from freshly upgraded Alpine packages on every
+  release instead of a cached layer, so it ships pcre2 10.49 (CVE-2026-103111)
+  and picks up later Alpine security fixes without a manual cache purge.
+
+- On Linux, a sandboxed Bash command now runs in its own network namespace
+  whose only way out is the sandbox proxy, unless the network policy allows
+  every host: a command that ignores `HTTP_PROXY` can no longer reach the
+  network, object storage, or the API directly. `bwrap` run as root now drops
+  every capability before the command (it previously kept `SYS_ADMIN`), and
+  the worker's own environment is no longer readable through
+  `/proc/<pid>/environ`. Worker pods add `NET_ADMIN`; Compose deployments
+  should add it to the server container as `compose.yaml` now does.
+
 ## [0.2.0-alpha.18] - 2026-10-01
 
 ### Fixed
@@ -3797,7 +3858,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.18...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.19...HEAD
+[0.2.0-alpha.19]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.18...v0.2.0-alpha.19
 [0.2.0-alpha.18]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.17...v0.2.0-alpha.18
 [0.2.0-alpha.17]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.16...v0.2.0-alpha.17
 [0.2.0-alpha.16]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.15...v0.2.0-alpha.16
