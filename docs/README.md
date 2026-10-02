@@ -38,6 +38,7 @@ ships inside the Portal image and is served in-app under **Help**;
 | | |
 |---|---|
 | [reference/configuration.md](reference/configuration.md) | Every config file field and environment variable |
+| [Agent sandbox research](reference/agent-sandbox-research.md) · [中文备忘录](zh-CN/reference/agent-sandbox-research.md) | Industry isolation mechanisms, provider evidence, selection trade-offs, and BuildMax boundary assessment |
 | [CLI reference](../manual/cli.md) | Commands, flags, slash commands (in the user manual) |
 | [reference/webhook.md](reference/webhook.md) | Triggering runs from external systems |
 
