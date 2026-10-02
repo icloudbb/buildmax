@@ -266,7 +266,9 @@ func TestJobPodIsConfined(t *testing.T) {
 	}
 	// SYS_ADMIN added back: bwrap needs it to build its sandbox, and running
 	// root (above) is what makes an added capability actually effective.
-	wantAdd := []corev1.Capability{"SYS_ADMIN"}
+	// NET_ADMIN lets bwrap bring up loopback in the network namespace that
+	// makes the sandbox proxy the only way out.
+	wantAdd := []corev1.Capability{"SYS_ADMIN", "NET_ADMIN"}
 	if !slices.Equal(csc.Capabilities.Add, wantAdd) {
 		t.Errorf("capabilities add = %v, want %v", csc.Capabilities.Add, wantAdd)
 	}

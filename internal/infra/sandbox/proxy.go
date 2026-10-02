@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -26,6 +28,12 @@ import (
 type Proxy struct {
 	listener net.Listener
 	server   *http.Server
+	// socketPath is a Unix-domain socket serving the same proxy, for a sandbox
+	// in its own network namespace: 127.0.0.1 there is not this process's, so
+	// the sandbox bridges its loopback port to this file instead. Empty when
+	// the socket could not be created, which leaves the sandbox on the shared
+	// network.
+	socketPath string
 
 	matcherMu sync.RWMutex
 	matcher   *HostMatcher
@@ -69,7 +77,29 @@ func NewProxy(matcher *HostMatcher, viol Violator) (*Proxy, error) {
 			proxyLog().Warn("serve exited", "err", err)
 		}
 	}()
+	if dir, err := os.MkdirTemp("", "buildmax-proxy-"); err != nil {
+		proxyLog().Warn("unix socket unavailable; sandbox network stays shared", "err", err)
+	} else if uln, err := net.Listen("unix", filepath.Join(dir, "proxy.sock")); err != nil {
+		_ = os.RemoveAll(dir)
+		proxyLog().Warn("unix socket unavailable; sandbox network stays shared", "err", err)
+	} else {
+		p.socketPath = filepath.Join(dir, "proxy.sock")
+		go func() {
+			if err := p.server.Serve(uln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				proxyLog().Warn("unix serve exited", "err", err)
+			}
+		}()
+	}
 	return p, nil
+}
+
+// SocketPath returns the Unix-domain socket serving this proxy, or "" when
+// there is none.
+func (p *Proxy) SocketPath() string {
+	if p == nil {
+		return ""
+	}
+	return p.socketPath
 }
 
 // Addr returns the proxy's bound address (e.g. "127.0.0.1:54321").
@@ -116,7 +146,11 @@ func (p *Proxy) Close() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	return p.server.Shutdown(ctx)
+	err := p.server.Shutdown(ctx)
+	if p.socketPath != "" {
+		_ = os.RemoveAll(filepath.Dir(p.socketPath))
+	}
+	return err
 }
 
 // ServeHTTP handles both CONNECT (HTTPS tunneling) and plain HTTP

@@ -114,26 +114,22 @@ Record that the operator and participants accepted all of these limits:
 - [ ] Official worker images select and probe the strict OS sandbox baseline;
   the candidate demonstrates confined Bash. Stdio MCP is disabled in the
   supported worker profile unless its child process is confined by that
-  declared boundary. The native worker pod uses root plus `SYS_ADMIN` with the
-  documented seccomp/AppArmor profile; an outer runtime such as gVisor is not
+  declared boundary. The native worker pod uses root plus `SYS_ADMIN` and
+  `NET_ADMIN` with the documented seccomp/AppArmor profile, and `bwrap` drops
+  every capability before Bash runs; an outer runtime such as gVisor is not
   required for this Beta.
 - [ ] The sandbox confines Bash writes to the run workspace, not its reads: Bash
   can read the pod's read-only filesystem, including the mounted server
   configuration, which must therefore hold no credentials. Bash does not inherit
-  the worker's own environment, but the sandbox re-binds the container's `/proc`
-  read-only (a fresh procfs cannot be mounted inside the pod's PID namespace; see
-  `deployment/seccomp/README.md`), so a command can read the worker process's
-  environment through `/proc/<pid>/environ` — the storage credentials and the
-  run token, and a provider key in the non-managed path. The run token is
-  single-use and run-scoped and the managed path keeps provider keys server-side,
-  but treat any credential the worker process holds as reachable by the model's
-  Bash. Reserved `BUILDMAX_*` environment names cannot be Secret-grant targets.
-- [ ] General worker egress has no enforced Pod-level destination allow-list, and
-  the per-Agent network tier is advisory, not a Pod boundary. The injected proxy
-  enforces the tier for cooperating tools, but a command that ignores the proxy
-  reaches the network, the object store, and the public API directly. The
-  worker-port `NetworkPolicy` restricts control-channel ingress; it does not
-  restrict outbound traffic.
+  the worker's own environment, and the worker marks itself non-dumpable, so the
+  re-bound container `/proc` does not expose it through `/proc/<pid>/environ`
+  either. Reserved `BUILDMAX_*` environment names cannot be Secret-grant targets.
+- [ ] General worker egress has no enforced Pod-level destination allow-list: the
+  worker process itself reaches object storage and the Server. Bash under any
+  network tier but `open` runs in a network namespace of its own whose only way
+  out is the sandbox proxy, which enforces the tier; under `open` it shares the
+  pod's network. The worker-port `NetworkPolicy` restricts control-channel
+  ingress; it does not restrict outbound traffic.
 - [ ] Storage credentials or projected storage identity are available to the
   worker because it reads and writes run state and Artifacts directly.
 - [ ] Hooks fail open as documented, and the worker profile disables
@@ -236,7 +232,8 @@ must not need source-code knowledge.
 ## Q3. Execution And Secret Boundaries
 
 - [ ] Inspect a live worker Job. Record its read-only root filesystem, dropped
-  capabilities (all but `SYS_ADMIN`), seccomp and AppArmor profiles, absent
+  capabilities (all but `SYS_ADMIN` and `NET_ADMIN`, none reaching Bash),
+  seccomp and AppArmor profiles, absent
   service-account token, effective CPU/memory/ephemeral-storage resources,
   minimized environment, and per-run credential.
 - [ ] Prove Bash cannot write outside the run workspace, does not inherit the

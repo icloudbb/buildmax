@@ -351,9 +351,13 @@ is selected. Resource controls prefix wrapped commands with shell limits;
 the memory limit is not enforced on macOS. Command hooks use the Bash wrapper
 and scrubbed environment; HTTP hooks consult the allowed-host policy.
 
-The Kubernetes worker security context is **root with `SYS_ADMIN` added**, with
-a read-only root filesystem and a supplied Localhost seccomp profile. The Linux
-Bash wrapper rebinds the container's `/proc` read-only. This is not a non-root
+The Kubernetes worker security context is **root with `SYS_ADMIN` and
+`NET_ADMIN` added**, with a read-only root filesystem and a supplied Localhost
+seccomp profile; `bwrap` drops every capability before Bash runs. The Linux
+Bash wrapper rebinds the container's `/proc` read-only, and the worker marks
+itself non-dumpable so its environment is not readable there. Unless the
+network policy allows every host, Bash runs in its own network namespace whose
+only way out is the sandbox proxy. This is not a non-root
 pod or whole-worker isolation equivalent to the command sandbox. Sources:
 [`internal/infra/k8s/job.go`](../internal/infra/k8s/job.go),
 [`internal/infra/sandbox/bwrap_linux.go`](../internal/infra/sandbox/bwrap_linux.go),

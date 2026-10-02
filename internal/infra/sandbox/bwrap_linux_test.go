@@ -125,3 +125,44 @@ func TestBwrapArgs_ProxyEnvNotInArgv(t *testing.T) {
 		t.Errorf("argv unexpectedly carries HTTP_PROXY; expected cmd.Env path\n%s", joined)
 	}
 }
+
+// With IsolateNetwork the command gets its own network namespace whose only
+// way out is the proxy socket, bridged to the loopback port HTTP_PROXY names.
+func TestBwrapArgs_IsolatedNetworkBridgesOnlyTheProxySocket(t *testing.T) {
+	p := WrapParams{Command: "curl https://example.com", Workspace: "/tmp/ws", ProxyAddr: "127.0.0.1:3128",
+		ProxySocket: "/tmp/buildmax-proxy-1/proxy.sock", IsolateNetwork: true}
+	args := buildBwrapArgs(p)
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--unshare-net") || !strings.Contains(joined, "--bind /tmp/buildmax-proxy-1/proxy.sock /tmp/buildmax-proxy-1/proxy.sock") {
+		t.Fatalf("isolated argv lacks the namespace or the socket bind: %s", joined)
+	}
+	cmd := args[len(args)-1]
+	if !strings.HasPrefix(cmd, "socat TCP-LISTEN:3128,bind=127.0.0.1,fork,reuseaddr UNIX-CONNECT:'/tmp/buildmax-proxy-1/proxy.sock'") ||
+		!strings.Contains(cmd, ":0C38 00000000:0000 0A") || !strings.HasSuffix(cmd, "curl https://example.com") {
+		t.Fatalf("command does not start the bridge, wait for it, then run: %q", cmd)
+	}
+	for _, unisolated := range []WrapParams{
+		{Command: "id", Workspace: "/tmp/ws", ProxyAddr: "127.0.0.1:3128", ProxySocket: "/tmp/s.sock"},
+		{Command: "id", Workspace: "/tmp/ws", ProxyAddr: "127.0.0.1:3128", IsolateNetwork: true},
+		{Command: "id", Workspace: "/tmp/ws", ProxySocket: "/tmp/s.sock", IsolateNetwork: true},
+	} {
+		if j := strings.Join(buildBwrapArgs(unisolated), " "); strings.Contains(j, "--unshare-net") || strings.Contains(j, "socat") {
+			t.Errorf("isolated without everything isolation needs: %s", j)
+		}
+	}
+}
+
+// bwrap run as root keeps its capabilities for the command unless told; the
+// command needs none, and in a worker pod they are SYS_ADMIN and NET_ADMIN.
+func TestBwrapArgs_DropsEveryCapabilityWhenRoot(t *testing.T) {
+	defer func(f func() int) { geteuid = f }(geteuid)
+	geteuid = func() int { return 0 }
+	args := buildBwrapArgs(WrapParams{Command: "id", Workspace: "/tmp/ws"})
+	if !strings.Contains(strings.Join(args, " "), "--cap-drop ALL --die-with-parent") {
+		t.Fatalf("root argv does not drop capabilities before the command: %v", args)
+	}
+	geteuid = func() int { return 1000 }
+	if strings.Contains(strings.Join(buildBwrapArgs(WrapParams{Command: "id", Workspace: "/tmp/ws"}), " "), "--cap-drop") {
+		t.Fatal("unprivileged bwrap rejects --cap-drop; it must not be passed")
+	}
+}

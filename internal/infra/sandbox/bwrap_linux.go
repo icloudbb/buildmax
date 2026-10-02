@@ -5,7 +5,12 @@ package sandbox
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 
 	"github.com/icloudbb/buildmax/internal/config"
 )
@@ -25,20 +30,31 @@ func newBackend(name string) (backend, error) {
 
 // bwrapBackend wraps bash via bubblewrap (https://github.com/containers/bubblewrap).
 // Phase B enforces filesystem isolation only:
+//
 //   - read-only-bind / (entire host) so commands see a normal-looking FS
+//
 //   - read-write bind the workspace + every entry in filesystem.allow_write
+//
 //   - read-only-bind every entry in filesystem.deny_write (overrides the
 //     earlier writable bind)
+//
 //   - mount /dev/null over every entry in filesystem.deny_read so reads
 //     return empty
+//
 //   - tmpfs /tmp inside the sandbox
+//
 //   - re-bind /proc from the parent rather than mount a fresh instance, so
 //     bwrap can run inside a container's own PID namespace (see
 //     buildBwrapArgs)
+//
 //   - --die-with-parent so a stuck bwrap can't outlive the agent
 //
-// Network and env scrubbing land in Phase C and Phase D. The sandbox
-// inherits the parent's network namespace today.
+//   - --cap-drop ALL when bwrap runs as root, so the command keeps none of the
+//     capabilities bwrap itself needs
+//
+//   - with IsolateNetwork, --unshare-net plus a socat bridge from the
+//     sandbox's loopback proxy port to the proxy's Unix socket, so the proxy
+//     is the only way out
 type bwrapBackend struct {
 	path string
 }
@@ -97,13 +113,24 @@ func buildBwrapArgs(p WrapParams) []string {
 	for _, r := range expandPaths(p.Cfg.Filesystem.DenyRead, p.Workspace) {
 		args = append(args, "--ro-bind", "/dev/null", r)
 	}
-	// HTTP_PROXY env is set on cmd.Env by the bash tool itself
-	// (sandbox.SandboxView.ChildEnv). Phase C does NOT yet add
-	// --unshare-net + a socat unix-socket bridge, so a malicious child
-	// can still reach the network directly. The env-based routing
-	// is sufficient for cooperating tools (curl, wget, git http) and
-	// matches the docs' "advisory" stance for Linux until the
-	// namespace hardening lands as a follow-up.
+	// HTTP_PROXY is set on cmd.Env by the bash tool itself
+	// (SandboxView.ChildEnv). Without a namespace of its own a command that
+	// ignores it reaches the network directly; with one, the loopback port
+	// HTTP_PROXY names is a bridge to the proxy socket and nothing else
+	// leaves.
+	bridge := ""
+	if p.IsolateNetwork && p.ProxySocket != "" {
+		if port, ok := proxyPort(p.ProxyAddr); ok {
+			args = append(args, "--unshare-net", "--bind", p.ProxySocket, p.ProxySocket)
+			bridge = proxyBridge(port, p.ProxySocket)
+		}
+	}
+	// Run as root (a worker pod), bwrap keeps its capabilities for the command
+	// unless told otherwise; the command needs none of them. Unprivileged
+	// bwrap drops them itself and rejects the flag.
+	if geteuid() == 0 {
+		args = append(args, "--cap-drop", "ALL")
+	}
 	args = append(args,
 		"--die-with-parent",
 		"--unshare-pid",
@@ -112,9 +139,35 @@ func buildBwrapArgs(p WrapParams) []string {
 		"--",
 		shellOrDefault(p.Shell),
 		"-c",
-		ulimitPrefix(p.Cfg)+p.Command,
+		bridge+ulimitPrefix(p.Cfg)+p.Command,
 	)
 	return args
+}
+
+// geteuid is os.Geteuid, a variable so a test can take the root path without
+// being root.
+var geteuid = os.Geteuid
+
+// proxyPort extracts the port of a "127.0.0.1:<port>" proxy address.
+func proxyPort(addr string) (int, bool) {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0, false
+	}
+	n, err := strconv.Atoi(port)
+	return n, err == nil && n > 0 && n < 65536
+}
+
+// proxyBridge starts socat listening on the sandbox's loopback at the port
+// HTTP_PROXY names, forwarding to the proxy socket, and waits until it
+// listens -- read from /proc/net/tcp, which inside the sandbox is the
+// sandbox's own namespace, so the wait never sends a request to the proxy.
+// socat dies with the sandbox's PID namespace when the command exits.
+func proxyBridge(port int, socket string) string {
+	quoted := "'" + strings.ReplaceAll(socket, "'", `'\''`) + "'"
+	return fmt.Sprintf("socat TCP-LISTEN:%d,bind=127.0.0.1,fork,reuseaddr UNIX-CONNECT:%s >/dev/null 2>&1 & "+
+		"i=0; while ! grep -q ':%04X 00000000:0000 0A' /proc/net/tcp 2>/dev/null; do i=$((i+1)); [ \"$i\" -gt 250 ] && break; sleep 0.02; done; ",
+		port, quoted, port)
 }
 
 // expandPaths trims empty entries from a settings array. Phase B leaves

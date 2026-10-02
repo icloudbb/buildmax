@@ -91,7 +91,7 @@ MCP 的 `bearer_token_env` 字段或插件声明指定的集成专用变量，�
 
 `BUILDMAX_RUN_TOKEN` 通过另一条路径传给 worker。它不是从 server 继承而来的——上面的过滤逻辑会把它剥离，因此不会带上一个过期的旧值——而是在分发时添加到进程或 pod 中，并指明它所授权的那一次运行。它是 worker 在每个 `/api/worker/*` 路由上出示的凭据，也是这些路由唯一接受的凭据，因此一次运行只能读写它自己的记录。分发时若没有该令牌，运行会在启动时失败；见 [design/worker-run-token.md](../design/Worker运行令牌.md)。
 
-Worker 在读取到 `BUILDMAX_RUN_TOKEN` 后会将其从自身环境中清除，只在内存中保留该值。沙箱本应从子进程中剥离形如密钥的变量，但沙箱默认关闭，因此模型选择执行的 `printenv` 原本会把它打印出来。这种清除不影响 `/proc/<pid>/environ`——它报告的是进程启动时的环境：沙箱内的命令以只读方式重新绑定容器的 `/proc`，可在那里读取 Worker 启动时的环境，因此无论进程内是否清除，run token 与 Worker 持有的存储凭证都可被模型选择执行的 Bash 触及。run token 一次性且限定单次运行，托管传输将 provider key 保留在 server 一侧；应把 Worker 必然持有的存储凭证视为在某次 task 的可触及范围内。见 Beta 就绪的 Accepted Limits 与 [`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md)。
+Worker 在读取到 `BUILDMAX_RUN_TOKEN` 后会将其从自身环境中清除，只在内存中保留该值。沙箱本应从子进程中剥离形如密钥的变量，但沙箱默认关闭，因此模型选择执行的 `printenv` 原本会把它打印出来。这种清除不影响 `/proc/<pid>/environ`——它报告的是进程启动时的环境——而沙箱会重新绑定容器的 `/proc`。因此 Worker 启动时还会把自身标记为不可转储（`PR_SET_DUMPABLE`），使其 `/proc` 文件只有持有 `CAP_SYS_PTRACE` 才能读取：pod 从不具备该 capability，沙箱也会丢弃所有 capability，所以模型选择执行的命令无法在那里读取 Worker 启动时的环境。见 [`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md)。
 
 `BUILDMAX_JWT_SECRET` 和 `BUILDMAX_DATABASE_PASSWORD` 被刻意扣留。Worker 从不读取它们——它通过 HTTP、凭借自己的 run token 访问 server，从不直接接触数据库——而且它会执行模型选择的 shell 命令，因此持有签名密钥就能让它为任意用户铸造 token，持有数据库密码就能让它获得每个 space 的数据。未被识别的 `BUILDMAX_` 变量同样会被扣留，这样一来，添加到 server 端却尚未就是否发给 worker 做出决定的变量，就会留在 server 一侧。
 
@@ -99,9 +99,11 @@ Worker 在读取到 `BUILDMAX_RUN_TOKEN` 后会将其从自身环境中清除，
 
 ### Worker Pod 是如何被限制的
 
-每个 worker Job pod 创建时都没有 service account token，没有 Service 环境变量（`enableServiceLinks: false`，因此命名空间内其他 Service 的地址不会被写入它的环境），使用 `Localhost` seccomp 配置文件（`deployment/seccomp/worker-bwrap.json`，由一个 `DaemonSet` 分发）、`Unconfined` 的 AppArmor 配置文件、只读根文件系统加一个可写的 `/tmp`，并且除 `SYS_ADMIN` 外的所有 Linux capability 都被移除。以上这些都不可配置：worker 执行的是模型选择的 shell 命令，因此即便提交该 task 的 space 是可信的——驱动这些命令的提示、仓库内容和工具输出却并不可信——它仍被当作运行不可信代码来对待。真正约束这些命令的是 `bwrap` 自身的沙箱，它正是凭借上述 seccomp、AppArmor 和 capability 授权在这个 pod 内部构建起来的；至于为什么需要每一项，见 [`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md)——每一项都是针对真实集群上一次 `Operation not permitted` 失败逐一排查出来的。
+每个 worker Job pod 创建时都没有 service account token，没有 Service 环境变量（`enableServiceLinks: false`，因此命名空间内其他 Service 的地址不会被写入它的环境），使用 `Localhost` seccomp 配置文件（`deployment/seccomp/worker-bwrap.json`，由一个 `DaemonSet` 分发）、`Unconfined` 的 AppArmor 配置文件、只读根文件系统加一个可写的 `/tmp`，并且除 `SYS_ADMIN` 和 `NET_ADMIN` 外的所有 Linux capability 都被移除。`bwrap` 需要前者来构建沙箱，需要后者在为每条命令创建的网络命名空间中启用 loopback，并会在命令运行前丢弃这两项。以上这些都不可配置：worker 执行的是模型选择的 shell 命令，因此即便提交该 task 的 space 是可信的——驱动这些命令的提示、仓库内容和工具输出却并不可信——它仍被当作运行不可信代码来对待。真正约束这些命令的是 `bwrap` 自身的沙箱，它正是凭借上述 seccomp、AppArmor 和 capability 授权在这个 pod 内部构建起来的；至于为什么需要每一项，见 [`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md)——每一项都是针对真实集群上一次 `Operation not permitted` 失败逐一排查出来的。
 
 该 pod 以 root（uid 0）身份运行，而非非 root：容器运行时赋予非 root pod 的某个 capability（此处是 `SYS_ADMIN`，在更早、后来被回退的一次尝试中是 `SETUID`/`SETGID`）只会落入该 pod capability 的 *bounding* 集合，而在 exec 时永远不会进入其 *effective* 集合——这一点已在真实集群上验证过——而 `bwrap` 需要该 capability 处于 effective 状态而不仅仅是 permitted，才能构建起自己的沙箱。Root 没有这个缺口。因此该 pod 的限制完全来自上述 capability/seccomp/AppArmor 的组合，加上 `bwrap` 自身对 worker Bash 调用的、限定在工作区范围内的沙箱化处理，而不是来自 pod 自身的 uid。
+
+除非 Agent 的网络档位是 `open`，每条 Bash 命令还会运行在独立的网络命名空间中，唯一的出口是经 Unix socket 桥接进来的沙箱代理：忽略 `HTTP_PROXY` 的命令什么也访问不到，因此网络档位是强制执行的，而不只是建议。`open` 档保留 pod 的网络，使不走 HTTP 的工具仍可使用。每次运行的 trace 中 `sandbox_boundary` 记录都会报告 `network_isolated`。
 
 `worker.k8s` 下以下设置仍由运维人员掌控：
 

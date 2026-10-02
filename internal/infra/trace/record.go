@@ -64,6 +64,9 @@ type Record struct {
 	Backend     string   `json:"backend,omitempty"`
 	Sources     []string `json:"sources,omitempty"`
 	Downgraded  bool     `json:"downgraded,omitempty"`
+	// NetworkIsolated is true when Bash had a network namespace of its own,
+	// reaching the network only through the sandbox proxy.
+	NetworkIsolated bool `json:"network_isolated,omitempty"`
 
 	// mcp_boundary
 	//
@@ -383,6 +386,7 @@ func boundaryRecord(info *agent.SandboxInfo) Record {
 		}
 		rec.Sources = append([]string(nil), info.Sources...)
 		rec.Downgraded = info.Downgraded
+		rec.NetworkIsolated = info.NetworkIsolated
 	}
 	rec.Sandboxed = &sandboxed
 	return rec

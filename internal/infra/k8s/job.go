@@ -235,8 +235,8 @@ func (p PodConfig) podSecurityContext() *corev1.PodSecurityContext {
 	}
 }
 
-// containerSecurityContext drops every Linux capability the worker does not
-// need except SYS_ADMIN, and runs root rather than non-root -- both against
+// containerSecurityContext drops every Linux capability except SYS_ADMIN and
+// NET_ADMIN, and runs root rather than non-root -- both against
 // this package's own prior design, and both forced by the same finding: on a
 // real Deployment smoke run, a non-root pod with SYS_ADMIN (or any other
 // capability) added via Capabilities.Add never had it in its effective set at
@@ -260,6 +260,12 @@ func (p PodConfig) podSecurityContext() *corev1.PodSecurityContext {
 // hardening denying the unprivileged unshare(CLONE_NEWUSER) bwrap needs on a
 // host carrying it.
 //
+// NET_ADMIN is what bwrap needs to bring up loopback in the network namespace
+// it gives a command, whose only way out is then the sandbox proxy; without
+// it a command that ignores HTTP_PROXY reaches the network directly. bwrap
+// drops every capability before the command runs (--cap-drop ALL), so neither
+// SYS_ADMIN nor NET_ADMIN reaches model-chosen code.
+//
 // tmpVolumeName restores the one writable path shell commands assume, since
 // the root filesystem stays read-only even as root.
 func containerSecurityContext() *corev1.SecurityContext {
@@ -268,7 +274,7 @@ func containerSecurityContext() *corev1.SecurityContext {
 		ReadOnlyRootFilesystem:   util.Ptr(true),
 		Capabilities: &corev1.Capabilities{
 			Drop: []corev1.Capability{"ALL"},
-			Add:  []corev1.Capability{"SYS_ADMIN"},
+			Add:  []corev1.Capability{"SYS_ADMIN", "NET_ADMIN"},
 		},
 		AppArmorProfile: &corev1.AppArmorProfile{Type: corev1.AppArmorProfileTypeUnconfined},
 	}

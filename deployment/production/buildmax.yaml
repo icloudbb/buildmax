@@ -106,7 +106,8 @@ data:
         # 0s when a log collector already ships worker pod logs.
         finished_job_ttl: 1h
         # Worker pods run root with every Linux capability dropped except
-        # SYS_ADMIN, a Localhost seccomp profile, and an Unconfined AppArmor
+        # SYS_ADMIN and NET_ADMIN (both dropped again before Bash runs), a
+        # Localhost seccomp profile, and an Unconfined AppArmor
         # profile -- see docs/reference/configuration.md's "How A Worker Pod
         # Is Confined" for why. None of that is configurable: a worker
         # executes model-chosen shell commands.

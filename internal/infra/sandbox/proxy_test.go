@@ -1,12 +1,14 @@
 package sandbox
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 )
@@ -205,5 +207,51 @@ func readLine(r net.Conn) (string, error) {
 			return strings.TrimSuffix(s, "\r"), nil
 		}
 		buf.WriteByte(one[0])
+	}
+}
+
+// A sandbox in its own network namespace reaches the proxy only through this
+// socket, so it must serve the same filtered proxy as the TCP listener.
+func TestProxy_UnixSocketServesTheSameFilter(t *testing.T) {
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("origin-ok"))
+	}))
+	defer origin.Close()
+	originURL, _ := url.Parse(origin.URL)
+	p, err := NewProxy(NewHostMatcher([]string{originURL.Hostname()}, nil), nil)
+	if err != nil {
+		t.Fatalf("NewProxy: %v", err)
+	}
+	sock := p.SocketPath()
+	if sock == "" {
+		t.Fatal("proxy has no Unix socket")
+	}
+	viaSocket := &http.Client{Transport: &http.Transport{
+		Proxy: http.ProxyURL(&url.URL{Scheme: "http", Host: "proxy.invalid"}),
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", sock)
+		},
+	}}
+	resp, err := viaSocket.Get(origin.URL)
+	if err != nil {
+		t.Fatalf("GET through the socket: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if string(body) != "origin-ok" {
+		t.Fatalf("body = %q, want the origin's reply", body)
+	}
+	denied, err := viaSocket.Get("http://not-allowed.invalid/")
+	if err == nil {
+		_ = denied.Body.Close()
+		if denied.StatusCode != http.StatusForbidden {
+			t.Fatalf("a host off the allow-list answered %d through the socket, want 403", denied.StatusCode)
+		}
+	}
+	if err := p.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if _, err := os.Stat(sock); !os.IsNotExist(err) {
+		t.Fatalf("socket %s left behind after Close: %v", sock, err)
 	}
 }

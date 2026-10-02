@@ -114,15 +114,14 @@ record. A run dispatched without one fails at startup; see
 A worker clears `BUILDMAX_RUN_TOKEN` from its own environment once it has read
 it, keeping the value in memory only. The sandbox would strip secret-shaped
 variables from a child process, but it is off by default, so a model-chosen
-`printenv` would otherwise print it. This clearing does not reach
-`/proc/<pid>/environ`, which reports the environment a process was started with:
-a sandboxed command re-binds the container's `/proc` read-only and can read the
-worker's start-time environment there, so the run token and the storage
-credentials the worker holds are reachable by model-chosen Bash regardless of
-the in-process clearing. The run token is single-use and run-scoped, and the
-managed transport keeps the provider key server-side; treat the storage
-credentials the worker necessarily holds as within a task's reach. See the Beta
-readiness Accepted Limits and [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md).
+`printenv` would otherwise print it. That clearing does not reach
+`/proc/<pid>/environ`, which reports the environment a process was started
+with, and the sandbox re-binds the container's `/proc`. The worker therefore
+also marks itself non-dumpable at start (`PR_SET_DUMPABLE`), which makes its
+`/proc` files readable only with `CAP_SYS_PTRACE`: the pod never has it and the
+sandbox drops every capability, so a model-chosen command cannot read the
+worker's start-time environment there. See
+[`deployment/seccomp/README.md`](../../deployment/seccomp/README.md).
 
 `BUILDMAX_JWT_SECRET` and `BUILDMAX_DATABASE_PASSWORD` are deliberately
 withheld. A worker never reads them — it reaches the server over HTTP with its
@@ -142,7 +141,10 @@ environment variables (`enableServiceLinks: false`, so the addresses of the
 namespace's other Services are not written into its environment), a `Localhost`
 seccomp profile (`deployment/seccomp/worker-bwrap.json`, distributed by a
 `DaemonSet`), an `Unconfined` AppArmor profile, a read-only root filesystem
-plus a writable `/tmp`, and every Linux capability dropped except `SYS_ADMIN`.
+plus a writable `/tmp`, and every Linux capability dropped except `SYS_ADMIN`
+and `NET_ADMIN`. `bwrap` needs the first to build its sandbox and the second to
+bring up loopback in the network namespace it gives each command, and drops
+both before the command runs.
 None of that is configurable: a worker executes model-chosen shell commands,
 so it is treated as running untrusted code even when the space that submitted
 the task is trusted — the prompt, the repository content, and the tool
@@ -162,6 +164,13 @@ build its own sandbox at all. Root does not have this gap. The pod's
 confinement is therefore entirely the capability/seccomp/AppArmor set above
 plus `bwrap`'s own workspace-scoped sandboxing of the worker's Bash calls,
 not the pod's own uid.
+
+Unless an Agent's network tier is `open`, each Bash command also runs in a
+network namespace of its own whose only way out is the sandbox proxy, bridged
+in over a Unix socket: a command that ignores `HTTP_PROXY` reaches nothing, so
+the tier is enforced rather than advisory. `open` keeps the pod's network so
+tools that do not speak HTTP still work. The trace's `sandbox_boundary` record
+reports `network_isolated` for every run.
 
 These settings under `worker.k8s` remain an operator's:
 

@@ -94,7 +94,8 @@ data:
         ca_config_map: buildmax-worker-api-ca
         home_dir: /buildmax
         # Worker pods run root with every Linux capability dropped except
-        # SYS_ADMIN, a Localhost seccomp profile, and an Unconfined AppArmor
+        # SYS_ADMIN and NET_ADMIN (both dropped again before Bash runs), a
+        # Localhost seccomp profile, and an Unconfined AppArmor
         # profile -- see docs/reference/configuration.md's "How A Worker Pod
         # Is Confined" for why, and deployment/seccomp/README.md for how it
         # was found. None of that is configurable, because a worker runs
