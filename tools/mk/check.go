@@ -309,8 +309,10 @@ func checkWorkflows() error {
 	return runCmd("go", "run", actionlintPkg)
 }
 
+// checkSecrets scans the history of the checked-out commit, as CI does; other
+// local or fetched branches are scanned when they are checked out themselves.
 func checkSecrets() error {
-	return runCmd("go", "run", gitleaksPkg, "git", "--redact", "--no-banner", "--exit-code", "1")
+	return runCmd("go", "run", gitleaksPkg, "git", "--redact", "--no-banner", "--exit-code", "1", "--log-opts=HEAD")
 }
 
 func checkGoLicenses() error {

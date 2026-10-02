@@ -109,8 +109,11 @@ jobs:
       - name: Check GitHub Actions workflows
         run: actionlint
 
+      # Only the history this commit carries: with fetch-depth 0 every branch is
+      # fetched, and scanning them all let any open branch fail every other PR.
+      # A branch's own commits are scanned by its own CI run.
       - name: Scan Git history for secrets
-        run: gitleaks git --redact --no-banner --exit-code 1
+        run: gitleaks git --redact --no-banner --exit-code 1 --log-opts=HEAD
 
       - name: Build
         run: go build ./...
