@@ -25,6 +25,7 @@ type stubSandbox struct {
 func (s *stubSandbox) Enabled() bool                      { return s.enabled }
 func (s *stubSandbox) Mode() string                       { return "auto_allow" }
 func (s *stubSandbox) Backend() string                    { return "stub" }
+func (s *stubSandbox) NetworkIsolated() bool              { return false }
 func (s *stubSandbox) ShouldSandboxCommand(_ string) bool { return s.enabled }
 func (s *stubSandbox) ProxyAddress() string               { return "" }
 func (s *stubSandbox) AllowUnsandboxed() bool             { return true }

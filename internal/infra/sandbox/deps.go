@@ -44,6 +44,16 @@ func (r DepsReport) AllRequiredOK() bool {
 	return true
 }
 
+// has reports whether the named dependency was found.
+func (r DepsReport) has(name string) bool {
+	for _, c := range r.Checks {
+		if c.Name == name {
+			return c.OK
+		}
+	}
+	return false
+}
+
 // FirstMissingRequired returns the first Required dep that failed, or
 // the zero value when AllRequiredOK is true.
 func (r DepsReport) FirstMissingRequired() DepCheck {

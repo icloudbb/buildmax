@@ -87,6 +87,37 @@ func probeBackend(ctx context.Context, b backend, cfg config.SandboxConfig) erro
 	return nil
 }
 
+// probeNetworkIsolation runs one command, with its proxy bridge, in an isolated
+// network namespace. bwrap brings up
+// loopback in the new namespace, which needs CAP_NET_ADMIN where it runs; a
+// container without it fails here instead of in every command.
+func probeNetworkIsolation(ctx context.Context, b backend, cfg config.SandboxConfig, p *Proxy) error {
+	workspace, err := os.MkdirTemp("", "buildmax-sandbox-netprobe-ws-")
+	if err != nil {
+		return fmt.Errorf("create probe workspace: %w", err)
+	}
+	defer os.RemoveAll(workspace)
+	name, args, err := b.Wrap(ctx, WrapParams{
+		Command:        "echo " + probeMarker,
+		Shell:          "/bin/sh",
+		Workspace:      workspace,
+		Cfg:            cfg,
+		ProxyAddr:      p.Addr(),
+		ProxySocket:    p.SocketPath(),
+		IsolateNetwork: true,
+	})
+	if err != nil {
+		return fmt.Errorf("build probe command: %w", err)
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	out, runErr := exec.CommandContext(probeCtx, name, args...).CombinedOutput()
+	if runErr != nil || !strings.Contains(string(out), probeMarker) {
+		return fmt.Errorf("isolated command did not run: %v (%s)", runErr, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // shellQuoteProbePath single-quotes a path for embedding in the probe's own
 // shell command. The probe only ever quotes paths this package created
 // under os.TempDir(), never external input.

@@ -83,7 +83,7 @@ sandbox:
     max_open_files: 0
 ```
 
-Network control works by routing egress through a Go-side HTTP/SOCKS proxy, so domain rules apply to ordinary tools inside the sandbox without per-tool support. Environment variables that look like secrets (`*_TOKEN`, `*_KEY`, `*_SECRET`, and BuildMax's own credentials) are scrubbed from the child environment unless you list them explicitly.
+Network control works by routing egress through a Go-side HTTP/SOCKS proxy, so domain rules apply to ordinary tools inside the sandbox without per-tool support. On Linux, unless `allowed_domains` is `["*"]`, each command also runs in its own network namespace whose only way out is that proxy (this needs `socat`, and `CAP_NET_ADMIN` when BuildMax runs as root), so a command that ignores `HTTP_PROXY` reaches nothing. Where the namespace cannot be built the proxy only steers cooperating tools; the run's trace records which (`network_isolated`). Environment variables that look like secrets (`*_TOKEN`, `*_KEY`, `*_SECRET`, and BuildMax's own credentials) are scrubbed from the child environment unless you list them explicitly.
 
 `sandbox.process` bounds a sandboxed command's own resource use — CPU time, memory, process count, and open file descriptors. `max_memory_mb` has no effect on macOS: Darwin does not support limiting a process's virtual memory the way Linux does, so the setting is silently a no-op there.
 

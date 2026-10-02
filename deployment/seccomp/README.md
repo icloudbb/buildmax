@@ -4,7 +4,7 @@
 profile for the worker Job pod (`internal/infra/k8s/job.go`). It exists
 because Kubernetes' `RuntimeDefault` seccomp profile blocks bubblewrap from
 creating the user/mount/pid namespace it needs. The current worker pod runs as
-root with every capability dropped except `SYS_ADMIN`, uses this profile and
+root with every capability dropped except `SYS_ADMIN` and `NET_ADMIN`, uses this profile and
 an unconfined AppArmor setting, and keeps a read-only root filesystem. Those
 settings are the result of testing `bwrap` against real pods; the initial
 non-root configuration could not make an added capability effective at exec.
@@ -112,6 +112,26 @@ pod's containment is the capability/seccomp/AppArmor set here plus `bwrap`'s
 own workspace-scoped sandboxing of the worker's Bash calls, not the pod's
 own uid. The Compose target's `local_process` worker needed the identical
 `cap_add: SYS_ADMIN` fix, for the same reason: it also runs root.
+
+## Capabilities, network, and `/proc`
+
+Run as root, `bwrap` keeps its capabilities for the command unless told
+otherwise: before `--cap-drop ALL` was added, Bash inside the sandbox ran with
+the pod's `CAP_SYS_ADMIN` effective (`CapEff` `0x200000`). It now runs with
+none. `NET_ADMIN` was added to the pod for `--unshare-net`: `bwrap` brings up
+loopback in the new network namespace, which fails with `loopback: Failed
+RTM_NEWADDR` without it, and a user namespace is not an alternative here
+(`setting up uid map: Operation not permitted`). With it, a Bash command whose
+network tier is not `open` has only loopback, where `socat` bridges the
+`HTTP_PROXY` port to the sandbox proxy's Unix socket. Verified on a DOKS worker
+pod: through the proxy `200`, a direct connection refused, `ip link set lo down`
+refused inside the sandbox.
+
+The sandbox still re-binds the container's `/proc`, because a fresh procfs
+cannot be mounted inside the pod's PID namespace. The worker process marks
+itself non-dumpable (`PR_SET_DUMPABLE`), so its `/proc/<pid>/environ` — which
+holds the storage key and run token — needs `CAP_SYS_PTRACE`, which neither the
+pod nor the capability-free sandbox has.
 
 ## Distribution
 

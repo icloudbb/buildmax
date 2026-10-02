@@ -29,6 +29,12 @@ type SandboxView interface {
 	// is enabled in settings but the OS backend is unavailable.
 	Backend() string
 
+	// NetworkIsolated reports whether wrapped commands run in a network
+	// namespace of their own whose only way out is the sandbox's proxy.
+	// False means a command that ignores the proxy reaches the network
+	// directly.
+	NetworkIsolated() bool
+
 	// WrapBashCommand returns the (binary, argv) the Bash tool should
 	// exec to run the given command isolated by the active backend.
 	// `shell` is the inner shell the backend should invoke
@@ -102,6 +108,9 @@ func (NoopSandbox) Mode() string { return "" }
 // Backend returns "none" because no OS backend is providing isolation.
 func (NoopSandbox) Backend() string { return "none" }
 
+// NetworkIsolated is false: nothing is wrapped.
+func (NoopSandbox) NetworkIsolated() bool { return false }
+
 // WrapBashCommand returns ("", nil, nil) — the caller falls back to its
 // own default invocation, leaving today's behavior unchanged.
 func (NoopSandbox) WrapBashCommand(_ context.Context, _, _ string) (string, []string, error) {
@@ -138,4 +147,7 @@ type SandboxInfo struct {
 	Backend    string   `json:"backend,omitempty"`
 	Sources    []string `json:"sources,omitempty"`
 	Downgraded bool     `json:"downgraded,omitempty"`
+	// NetworkIsolated is true when Bash ran in its own network namespace,
+	// reaching the network only through the sandbox proxy.
+	NetworkIsolated bool `json:"network_isolated,omitempty"`
 }

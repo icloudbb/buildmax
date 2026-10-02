@@ -621,6 +621,21 @@ scope, §14):
    [docs/reference/configuration.md](../reference/configuration.md). A dedicated
    `config-examples/sandbox.example.yaml` is intentionally not created: it would
    only duplicate those. AGENTS.md carries the sandbox runtime invariant.
+5. ✅ **Network namespace, capabilities, and `/proc` on Linux.** The §7.2
+   `--unshare-net` plus `socat` bridge has landed. The proxy also serves a
+   Unix socket; unless the allow-list is `*`, a wrapped command gets its own
+   network namespace, and `socat` inside it listens on the loopback port
+   `HTTP_PROXY` names and forwards to that socket, so a command that ignores
+   the proxy reaches nothing (`infra/sandbox/bwrap_linux.go`). The Manager
+   probes the namespace once and, where the host cannot build it, keeps the
+   shared network and records the run as not isolated (`network_isolated` on
+   the trace's `sandbox_boundary`). Building it as root needs `CAP_NET_ADMIN`
+   to bring up loopback, so the worker pod adds `NET_ADMIN`; `bwrap` run as
+   root also kept its capabilities for the command, so it now passes
+   `--cap-drop ALL`. The worker marks itself non-dumpable, which closes its
+   `/proc/<pid>/environ` to the capability-free command despite the re-bound
+   `/proc`. Found by the first cloud qualification run; see
+   [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md).
 
 Naming deviations from the plan, harmless: the unsupported-platform stub is
 `unsupported_other.go` (not `unsupported_windows.go`), the env denylist lives in

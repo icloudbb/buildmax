@@ -41,6 +41,11 @@ type WrapParams struct {
 	// `buildmax` command an Agent runs cannot reach the Server. Empty off the
 	// worker plane. See docs/design/agent-bridge-cli.md.
 	RunBridgeSocket string
+	// ProxySocket is the proxy's Unix-domain socket. With IsolateNetwork the
+	// backend gives the command its own network namespace, so the only way
+	// out is this socket, bridged to ProxyAddr's port inside the sandbox.
+	ProxySocket    string
+	IsolateNetwork bool
 }
 
 // Manager is the SandboxView implementation. Built by NewManager from a
@@ -70,6 +75,10 @@ type Manager struct {
 	// secret-shaped. BuildMax's own credentials are never admitted. Empty on
 	// every surface that consumes no Secret. See docs/design/space-secrets.md.
 	allowedEnvNames map[string]bool
+	// isolateNetwork is true when wrapped commands get their own network
+	// namespace whose only way out is the proxy. Decided once, after a probe
+	// proved the backend can do it here; see NetworkIsolated.
+	isolateNetwork bool
 }
 
 // NewManager builds a Manager for the given config and workspace. workspace
@@ -141,8 +150,38 @@ func NewManager(cfg config.SandboxConfig, workspace util.Workspace, logger *slog
 			"err", err)
 	} else {
 		m.proxy = prox
+		m.isolateNetwork = m.canIsolateNetwork(logger)
 	}
 	return m, nil
+}
+
+// canIsolateNetwork decides whether wrapped commands run in their own network
+// namespace. Without it the proxy is advisory: a command that ignores
+// HTTP_PROXY reaches the network directly. An allow-everything policy has
+// nothing to enforce and keeps the shared network, so tools that do not speak
+// HTTP still work. The rest needs socat to bridge the proxy socket and a
+// backend that can create the namespace here, which a probe checks: a
+// container without the capability bwrap needs to bring up loopback cannot,
+// and that run is recorded as not isolated rather than failing.
+func (m *Manager) canIsolateNetwork(logger *slog.Logger) bool {
+	if m.backend == nil || m.backend.Name() != "bwrap" || m.proxy.SocketPath() == "" || m.matcher.AllowAll() {
+		return false
+	}
+	if !m.deps.has("socat") {
+		logger.Warn("sandbox: socat missing; commands share the host network and the proxy is advisory")
+		return false
+	}
+	if err := probeNetworkIsolation(context.Background(), m.backend, m.cfg, m.proxy); err != nil {
+		logger.Warn("sandbox: network isolation unavailable; commands share the host network and the proxy is advisory", "err", err)
+		return false
+	}
+	return true
+}
+
+// NetworkIsolated reports whether wrapped commands run in their own network
+// namespace, reaching the network only through the proxy.
+func (m *Manager) NetworkIsolated() bool {
+	return m != nil && m.Enabled() && m.isolateNetwork
 }
 
 // Deps returns the dependency report.
@@ -348,11 +387,13 @@ func (m *Manager) WrapBashCommand(ctx context.Context, command, shell string) (s
 		return "", nil, fmt.Errorf("sandbox: resolve workspace: %w", err)
 	}
 	return m.backend.Wrap(ctx, WrapParams{
-		Command:   command,
-		Shell:     shell,
-		Workspace: workspace,
-		Cfg:       m.cfg,
-		ProxyAddr: m.ProxyAddress(),
+		Command:        command,
+		Shell:          shell,
+		Workspace:      workspace,
+		Cfg:            m.cfg,
+		ProxyAddr:      m.ProxyAddress(),
+		ProxySocket:    m.proxy.SocketPath(),
+		IsolateNetwork: m.isolateNetwork,
 		// Read per wrap, not at construction: the worker exports it after the
 		// Manager is built, and a run without a bridge leaves it empty.
 		RunBridgeSocket: os.Getenv(config.EnvKeyBuildmaxBridgeSock),

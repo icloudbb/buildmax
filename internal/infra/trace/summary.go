@@ -73,6 +73,10 @@ type BoundarySummary struct {
 	Sources []string `json:"sources,omitempty"`
 	// Downgraded reports the boundary resolved weaker than configured.
 	Downgraded bool `json:"downgraded,omitempty"`
+	// NetworkIsolated reports Bash ran in its own network namespace whose
+	// only way out was the sandbox proxy. False means the proxy was advisory
+	// for a command that ignored it.
+	NetworkIsolated bool `json:"network_isolated,omitempty"`
 }
 
 // ToolSummary is one tool call: what ran, how long it took, and whether it was
@@ -132,10 +136,11 @@ func (s *Summary) apply(rec Record, openPaths map[string]string) {
 		s.StartedAt = rec.TS
 	case "sandbox_boundary":
 		b := BoundarySummary{
-			Mode:       rec.SandboxMode,
-			Backend:    rec.Backend,
-			Sources:    rec.Sources,
-			Downgraded: rec.Downgraded,
+			Mode:            rec.SandboxMode,
+			Backend:         rec.Backend,
+			Sources:         rec.Sources,
+			Downgraded:      rec.Downgraded,
+			NetworkIsolated: rec.NetworkIsolated,
 		}
 		if rec.Sandboxed != nil {
 			b.Sandboxed = *rec.Sandboxed

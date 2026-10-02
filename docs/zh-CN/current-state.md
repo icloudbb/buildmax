@@ -183,9 +183,10 @@ worker handler 解析并固定实际 Agent/Space 层级以供审计。
 资源控制通过在封装命令前添加 shell 限制实现；macOS 不实施内存限制。
 command hook 使用 Bash 封装与净化后的环境，HTTP hook 查询允许的主机策略。
 
-Kubernetes worker 安全上下文为 **root，并添加 `SYS_ADMIN`**，
-同时使用只读根文件系统和提供的 Localhost seccomp 配置。
-Linux Bash 封装将容器的 `/proc` 重新绑定为只读。
+Kubernetes worker 安全上下文为 **root，并添加 `SYS_ADMIN` 和 `NET_ADMIN`**，
+同时使用只读根文件系统和提供的 Localhost seccomp 配置；`bwrap` 会在 Bash 运行前丢弃所有 capability。
+Linux Bash 封装将容器的 `/proc` 重新绑定为只读，worker 会把自身标记为不可转储，因此其环境在那里不可读。
+除非网络策略允许所有主机，Bash 都运行在独立的网络命名空间中，唯一出口是沙箱代理。
 这不是非 root Pod，也不是将整个 worker 隔离到与命令沙箱相同的边界。
 依据：[Job 构建](../../internal/infra/k8s/job.go)、
 [Linux Bash 沙箱](../../internal/infra/sandbox/bwrap_linux.go)和

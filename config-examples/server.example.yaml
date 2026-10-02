@@ -258,7 +258,8 @@ worker:
     # and trace do not depend on the pod. 0s deletes them on finish.
     finished_job_ttl: 5m
     # Worker pods run root with every Linux capability dropped except
-    # SYS_ADMIN, a Localhost seccomp profile, and an Unconfined AppArmor
+    # SYS_ADMIN and NET_ADMIN (both dropped again before Bash runs), a
+    # Localhost seccomp profile, and an Unconfined AppArmor
     # profile — not configurable, since a worker runs model-chosen shell
     # commands. See docs/reference/configuration.md's "How A Worker Pod Is
     # Confined" for why.

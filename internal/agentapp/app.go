@@ -1116,6 +1116,9 @@ func (a *AgentApp) sandboxInfo() *agent.SandboxInfo {
 		Backend:    view.Backend(),
 		Sources:    append([]string(nil), a.sandboxResolved.Sources...),
 		Downgraded: a.sandboxResolved.Downgraded || runtimeFallback,
+		// The runtime fact, like Enabled: a policy that asked for a confined
+		// network on a host that could not build the namespace reads false.
+		NetworkIsolated: view.NetworkIsolated(),
 	}
 }
 

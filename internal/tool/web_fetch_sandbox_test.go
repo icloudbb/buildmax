@@ -26,6 +26,7 @@ type denyAllSandbox struct{}
 func (denyAllSandbox) Enabled() bool                       { return true }
 func (denyAllSandbox) Mode() string                        { return "auto_allow" }
 func (denyAllSandbox) Backend() string                     { return "stub" }
+func (denyAllSandbox) NetworkIsolated() bool               { return false }
 func (denyAllSandbox) ShouldSandboxCommand(_ string) bool  { return false }
 func (denyAllSandbox) HostAllowed(_ string) (bool, string) { return false, "sandbox: blocked" }
 func (denyAllSandbox) ProxyAddress() string                { return "" }
@@ -43,6 +44,7 @@ type allowAllSandbox struct{}
 func (allowAllSandbox) Enabled() bool                       { return true }
 func (allowAllSandbox) Mode() string                        { return "auto_allow" }
 func (allowAllSandbox) Backend() string                     { return "stub" }
+func (allowAllSandbox) NetworkIsolated() bool               { return false }
 func (allowAllSandbox) ShouldSandboxCommand(_ string) bool  { return false }
 func (allowAllSandbox) HostAllowed(_ string) (bool, string) { return true, "" }
 func (allowAllSandbox) ProxyAddress() string                { return "" }

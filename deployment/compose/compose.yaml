@@ -73,8 +73,13 @@ services:
     #     cannot reach. A k8s/containerd pod is not confined by an AppArmor
     #     profile the way `docker run` is by default, which is a difference
     #     worth keeping in mind if bwrap ever needs debugging there too.
+    # cap_add NET_ADMIN lets bwrap bring up loopback in the network namespace
+    # it gives each Bash command, whose only way out is then the sandbox
+    # proxy. Without it Bash shares this container's network and the proxy is
+    # advisory. bwrap drops both capabilities before the command runs.
     cap_add:
       - SYS_ADMIN
+      - NET_ADMIN
     security_opt:
       - seccomp:../seccomp/worker-bwrap.json
       - apparmor:unconfined
