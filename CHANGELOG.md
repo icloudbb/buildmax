@@ -14,6 +14,15 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.20] - 2026-10-02
+
+### Fixed
+
+- When object storage becomes unreachable while the server holds idle
+  connections to it, requests that read or write storage now fail with 503 in
+  about half a minute instead of over a minute. Linux servers close a storage
+  connection whose sent data goes unacknowledged for 10 seconds.
+
 ## [0.2.0-alpha.19] - 2026-10-02
 
 ### Changed
@@ -3858,7 +3867,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.19...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.20...HEAD
+[0.2.0-alpha.20]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.19...v0.2.0-alpha.20
 [0.2.0-alpha.19]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.18...v0.2.0-alpha.19
 [0.2.0-alpha.18]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.17...v0.2.0-alpha.18
 [0.2.0-alpha.17]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.16...v0.2.0-alpha.17
