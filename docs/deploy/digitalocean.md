@@ -187,6 +187,13 @@ seccomp profile from
 [`deployment/seccomp/worker-bwrap.json`](../../deployment/seccomp/worker-bwrap.json)
 on every node; a worker pod cannot start without it.
 
+Worker pods run model-chosen commands and need no database, but the managed
+MySQL firewall admits the whole DOKS cluster. The `buildmax-worker-egress`
+NetworkPolicy therefore admits worker traffic to cluster pods and to any address
+except the database's private IPs, which `deploy` resolves from its private
+hostname each time it runs. Only those addresses are excluded: the VPC also
+carries the private Spaces endpoint workers read and write.
+
 The command ends by printing the DigitalOcean Load Balancer IP. Add the record
 manually in Route 53:
 
@@ -264,6 +271,27 @@ down` keeps the file, so the next deploy reuses it.
 `.local/env` also remains local and gitignored. OpenTofu reads its credentials
 through the environment populated by `./make`; no credential is written into the
 OpenTofu source.
+
+## Rotate Credentials
+
+Every `deploy` re-renders `buildmax-secret`, `buildmax-kek`, and the worker
+listener's TLS Secret and CA from the state directory and the OpenTofu
+outputs. Rotate a credential there and run `deploy`; a change made only to the
+cluster Secret is reverted by the next deploy. The
+[credential rotation runbook](credential-rotation.md) describes the overlap and
+drain for each credential; on this deployment the source of each is:
+
+| Credential | Change, then `./make ocean deploy` |
+|---|---|
+| JWT secret | Replace `jwt-secret` in the state directory. |
+| Database password | Reset the managed `doadmin` password with DigitalOcean; the deploy's refresh-only apply reads the new one. |
+| Worker listener certificate and CA | Delete `worker-api.crt` and `worker-api.key`; the deploy generates a new pair. |
+| KEK | Add the new key to `kek.json` and make it `current`, deploy, run `buildmax-server secret rewrap`, then remove the old key and deploy again. |
+| Spaces key | Replace `SPACES_ACCESS_KEY_ID` and `SPACES_SECRET_ACCESS_KEY` in `.local/env`. |
+| Model provider key | `buildmax-server model set-key`; it is sealed in the database, not rendered by the deploy. |
+
+Back up `kek.json` before a KEK rotation and keep the old key with the database
+backups taken before the rewrap.
 
 ## Destroy
 

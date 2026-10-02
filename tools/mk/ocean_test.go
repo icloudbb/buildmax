@@ -181,7 +181,7 @@ func TestOceanManifestUsesOnlyPinnedImages(t *testing.T) {
 		edgeImage:     "example/edge@sha256:" + strings.Repeat("c", 64),
 		redisImage:    "example/redis@sha256:" + strings.Repeat("d", 64),
 	}
-	manifest, err := renderOceanManifest(app)
+	manifest, err := renderOceanManifest(app, []string{"10.104.16.2/32"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestOceanManifestUsesOnlyPinnedImages(t *testing.T) {
 }
 
 func TestOceanManifestMountsTheKEKWhereServerConfigPointsIt(t *testing.T) {
-	manifest, err := renderOceanManifest(oceanApplicationConfig{})
+	manifest, err := renderOceanManifest(oceanApplicationConfig{}, []string{"10.104.16.2/32"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -449,6 +449,22 @@ func TestOceanRunsTwoServersCoordinatedThroughRedis(t *testing.T) {
 	}
 }
 
+// Workers run model-chosen commands and must not reach the managed database,
+// whose firewall admits the whole cluster; they still need the Server's
+// Services, DNS, and object storage on the internet.
+func TestOceanWorkerEgressExcludesTheDatabase(t *testing.T) {
+	policy := renderedOceanObjects(t)["NetworkPolicy/buildmax-worker-egress"]
+	if policy == nil {
+		t.Fatal("no worker egress NetworkPolicy")
+	}
+	text := mustYAML(t, policy)
+	for _, want := range []string{"app.kubernetes.io/name: buildmax-worker", "app.kubernetes.io/component: worker", "- Egress", "namespaceSelector: {}", "cidr: 0.0.0.0/0", "- 10.104.16.2/32"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("worker egress policy missing %q:\n%s", want, text)
+		}
+	}
+}
+
 // Worker Jobs name a Localhost seccomp profile; without the installer every
 // worker pod fails to start.
 func TestOceanManifestInstallsTheWorkerSeccompProfile(t *testing.T) {
@@ -498,7 +514,7 @@ func TestOceanWorkerAPICertIsReusedUntilNearExpiry(t *testing.T) {
 
 func renderedOceanObjects(t *testing.T) map[string]map[string]any {
 	t.Helper()
-	manifest, err := renderOceanManifest(oceanApplicationConfig{buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64)})
+	manifest, err := renderOceanManifest(oceanApplicationConfig{buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64)}, []string{"10.104.16.2/32"})
 	if err != nil {
 		t.Fatal(err)
 	}

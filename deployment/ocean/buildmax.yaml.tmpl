@@ -428,6 +428,33 @@ spec:
         - protocol: TCP
           port: 5679
 ---
+# Worker pods run model-chosen commands and need no database: they reach the
+# Server through its Services and object storage through the VPC's private
+# Spaces endpoint. The managed database admits the whole cluster at its own
+# firewall, so this policy is what keeps workers off its private addresses.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: buildmax-worker-egress
+  namespace: buildmax
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: buildmax-worker
+      app.kubernetes.io/component: worker
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+{{- range .DatabaseAddresses }}
+              - {{ . }}
+{{- end }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

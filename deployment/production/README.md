@@ -101,6 +101,12 @@ runner stamps on every worker Job. A `ClusterIP` alone is discoverability, not
 authorization; the policy is what makes it a boundary, and it protects direct
 pod-IP access as well as Service access.
 
+A worker Job's status describes the dispatch, not the run. A worker that
+reported its run's outcome exits zero however the run ended, and a container
+restarted after its worker died finds the run no longer scheduled and also exits
+zero, so a completed Job can belong to a run BuildMax settled `FAILED`
+(`worker_lost`). Read the TaskRun, not the Job, for the outcome.
+
 That listener serves TLS. Supply its certificate — valid for
 `buildmax-worker-api.buildmax.svc.cluster.local` — as the `buildmax-worker-api-tls`
 Secret (keys `tls.crt`, `tls.key`), mounted only into server pods. Publish the

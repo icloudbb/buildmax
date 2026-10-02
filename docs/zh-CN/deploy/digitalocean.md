@@ -122,6 +122,8 @@ BUILDMAX_OCEAN_ALLOWED_CIDRS=203.0.113.7/32
 
 Worker Job 只通过端口 5679 上的内部 worker 监听器以 TLS 访问 server；该监听器由 `buildmax-worker-api` Service 承载，并由只允许 worker pod 访问的 NetworkPolicy 保护。首次 `deploy` 会在状态目录中生成该监听器的自签名证书和私钥 `worker-api.crt`、`worker-api.key`；之后的部署会一直复用它们，直到距离过期不足 30 天，因此在上一个 server 下启动的 worker 仍能验证下一个 server。Worker pod 通过 `buildmax-worker-api-ca` ConfigMap 信任该证书。`deploy` 还会运行 `buildmax-worker-seccomp` DaemonSet，把 [`deployment/seccomp/worker-bwrap.json`](../../../deployment/seccomp/worker-bwrap.json) 中的 worker seccomp 配置安装到每个节点；缺少它，worker pod 无法启动。
 
+Worker pod 运行模型选择的命令，不需要访问数据库，但托管 MySQL 的防火墙放行了整个 DOKS 集群。因此 `buildmax-worker-egress` NetworkPolicy 只允许 worker 访问集群内的 pod，以及除数据库私有 IP 之外的任意地址；这些 IP 由每次 `deploy` 从数据库的私有主机名解析得到。只排除这些地址：VPC 中还有 worker 需要读写的私有 Spaces 端点。
+
 命令最后输出 DigitalOcean Load Balancer IP。请在 Route 53 中手动添加记录：
 
 ```text
@@ -169,6 +171,21 @@ OpenTofu 状态包含生成的 MySQL 密码和 DOKS kubeconfig，因此命令拒
 它还保存 `kek.json`，即封存托管数据库中模型凭证和 Space Secret 的密钥。请将它与任何数据库备份分开备份：同时包含两者的备份等于没有保护，而在没有对应 KEK 的情况下恢复的数据库，其凭证无法读取，任何 BuildMax 命令都无法找回。`ocean down` 会保留该文件，下次部署会复用它。
 
 `.local/env` 同样保留在本地并被 gitignore 忽略。OpenTofu 从 `./make` 填充的环境变量读取凭证，不会向 OpenTofu 源码写入凭证。
+
+## 轮换凭证
+
+每次 `deploy` 都会根据状态目录和 OpenTofu 输出重新生成 `buildmax-secret`、`buildmax-kek` 以及 worker 监听器的 TLS Secret 和 CA。请在那里轮换凭证后再运行 `deploy`；只改集群中的 Secret，会在下一次部署时被改回。[凭证轮换手册](credential-rotation.md)说明了每种凭证的重叠和排空要求；在本部署中，各凭证的来源如下：
+
+| 凭证 | 修改后运行 `./make ocean deploy` |
+|---|---|
+| JWT 密钥 | 替换状态目录中的 `jwt-secret`。 |
+| 数据库密码 | 在 DigitalOcean 重置托管的 `doadmin` 密码；部署中的 refresh-only apply 会读取新密码。 |
+| Worker 监听器证书和 CA | 删除 `worker-api.crt` 和 `worker-api.key`；部署会生成新的一对。 |
+| KEK | 把新密钥加入 `kek.json` 并设为 `current`，部署，运行 `buildmax-server secret rewrap`，再删除旧密钥并重新部署。 |
+| Spaces 密钥 | 替换 `.local/env` 中的 `SPACES_ACCESS_KEY_ID` 和 `SPACES_SECRET_ACCESS_KEY`。 |
+| 模型提供商密钥 | `buildmax-server model set-key`；它封存在数据库中，不由部署渲染。 |
+
+KEK 轮换前请备份 `kek.json`，并把旧密钥与 rewrap 之前的数据库备份一起保存。
 
 ## 销毁
 

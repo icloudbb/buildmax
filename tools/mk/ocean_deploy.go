@@ -66,6 +66,9 @@ type oceanManifestData struct {
 	PortalImage   string
 	EdgeImage     string
 	RedisImage    string
+	// DatabaseAddresses are the managed database's private IPs. Worker pods may
+	// reach anything but them.
+	DatabaseAddresses []string
 }
 
 func loadOceanApplicationConfig() (oceanApplicationConfig, error) {
@@ -231,7 +234,11 @@ func oceanDeploy(cfg oceanConfig) error {
 		}
 	}
 
-	manifest, err := renderOceanManifest(app)
+	databaseAddresses, err := oceanDatabaseAddresses(cfg)
+	if err != nil {
+		return err
+	}
+	manifest, err := renderOceanManifest(app, databaseAddresses)
 	if err != nil {
 		return err
 	}
@@ -502,7 +509,33 @@ func oceanKEKStatePath(cfg oceanConfig) string {
 	return filepath.Join(cfg.stateDir, "kek.json")
 }
 
-func renderOceanManifest(app oceanApplicationConfig) ([]byte, error) {
+// oceanDatabaseAddresses resolves the database's private hostname, which
+// DigitalOcean publishes in public DNS. Only these addresses are excluded from
+// worker egress: the VPC also carries the private Spaces endpoint workers need.
+// Resolved on every deploy, so a moved database is re-excluded; an empty
+// answer is refused rather than rendered as a policy that excludes nothing.
+func oceanDatabaseAddresses(cfg oceanConfig) ([]string, error) {
+	host, err := oceanOutput(cfg, "database_private_host")
+	if err != nil {
+		return nil, err
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve the database's private address %s: %w", host, err)
+	}
+	var out []string
+	for _, ip := range ips {
+		if v4 := ip.To4(); v4 != nil {
+			out = append(out, v4.String()+"/32")
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("the database's private address %s resolved to no IPv4 address", host)
+	}
+	return out, nil
+}
+
+func renderOceanManifest(app oceanApplicationConfig, databaseAddresses []string) ([]byte, error) {
 	root, err := moduleRoot()
 	if err != nil {
 		return nil, err
@@ -517,10 +550,11 @@ func renderOceanManifest(app oceanApplicationConfig) ([]byte, error) {
 	}
 	var rendered bytes.Buffer
 	if err := tmpl.Execute(&rendered, oceanManifestData{
-		BuildMaxImage: app.buildmaxImage,
-		PortalImage:   app.portalImage,
-		EdgeImage:     app.edgeImage,
-		RedisImage:    app.redisImage,
+		BuildMaxImage:     app.buildmaxImage,
+		PortalImage:       app.portalImage,
+		EdgeImage:         app.edgeImage,
+		RedisImage:        app.redisImage,
+		DatabaseAddresses: databaseAddresses,
 	}); err != nil {
 		return nil, fmt.Errorf("render ocean application manifest: %w", err)
 	}
