@@ -39,6 +39,86 @@ type chromedpPage struct {
 
 	frameMu sync.Mutex
 	onFrame func(jpeg string, w, h int) // set while a screencast is running
+
+	// nav tracks the main frame's loading so an interaction can wait for the
+	// navigation it triggers: a click that submits a form starts navigating
+	// asynchronously, and reading the location right after it returns the page
+	// being left.
+	nav navState
+}
+
+// navState is the main frame's loading state. started counts navigations, so
+// a caller can tell one began after it acted; idle is closed whenever the
+// frame is not loading.
+type navState struct {
+	mu      sync.Mutex
+	started uint64
+	loading bool
+	idle    chan struct{}
+}
+
+func (n *navState) begin() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.started++
+	if !n.loading {
+		n.loading = true
+		n.idle = make(chan struct{})
+	}
+}
+
+func (n *navState) end() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.loading {
+		n.loading = false
+		close(n.idle)
+	}
+}
+
+// snapshot reports how many navigations have started and a channel closed
+// once the frame is not loading.
+func (n *navState) snapshot() (uint64, <-chan struct{}) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if !n.loading {
+		done := make(chan struct{})
+		close(done)
+		return n.started, done
+	}
+	return n.started, n.idle
+}
+
+// navigationStartWindow is how long after an interaction a navigation it
+// caused is expected to begin. A submit or a link starts within milliseconds;
+// an interaction that navigates nothing pays this once.
+const navigationStartWindow = 250 * time.Millisecond
+
+// awaitNavigation waits, after an interaction, for a navigation that began
+// since before (if one begins within navigationStartWindow) to finish loading,
+// bounded by ctx.
+func (p *chromedpPage) awaitNavigation(ctx context.Context, before uint64) {
+	deadline := time.NewTimer(navigationStartWindow)
+	defer deadline.Stop()
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		started, idle := p.nav.snapshot()
+		if started != before {
+			select {
+			case <-idle:
+			case <-ctx.Done():
+			}
+			return
+		}
+		select {
+		case <-deadline.C:
+			return
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+	}
 }
 
 // consoleRing is a bounded, concurrency-safe buffer of recent console errors.
@@ -135,8 +215,22 @@ func (c *Controller) newChromedpPage(_ context.Context) (pageDriver, func(), err
 
 // listen records console errors and uncaught exceptions into the ring.
 func (p *chromedpPage) listen() {
+	// In Chrome a page target's main frame shares the target's id.
+	mainFrame := ""
+	if c := chromedp.FromContext(p.ctx); c != nil && c.Target != nil {
+		mainFrame = string(c.Target.TargetID)
+	}
+	isMain := func(id string) bool { return mainFrame == "" || id == mainFrame }
 	chromedp.ListenTarget(p.ctx, func(ev any) {
 		switch e := ev.(type) {
+		case *page.EventFrameStartedLoading:
+			if isMain(string(e.FrameID)) {
+				p.nav.begin()
+			}
+		case *page.EventFrameStoppedLoading:
+			if isMain(string(e.FrameID)) {
+				p.nav.end()
+			}
 		case *runtime.EventConsoleAPICalled:
 			if e.Type != "error" && e.Type != "assert" {
 				return
@@ -279,12 +373,16 @@ func (p *chromedpPage) interact(ctx context.Context, action, selector, text, ori
 	}
 	var res interactResult
 	var finalURL, title string
-	err := p.run(ctx,
-		chromedp.Evaluate(expr, &res),
-		chromedp.Location(&finalURL),
-		chromedp.Title(&title),
-	)
-	if err != nil {
+	before, _ := p.nav.snapshot()
+	if err := p.run(ctx, chromedp.Evaluate(expr, &res)); err != nil {
+		return false, "", "", err
+	}
+	if res.Found {
+		waitCtx, cancel := context.WithTimeout(ctx, opTimeout)
+		p.awaitNavigation(waitCtx, before)
+		cancel()
+	}
+	if err := p.run(ctx, chromedp.Location(&finalURL), chromedp.Title(&title)); err != nil {
 		return false, "", "", err
 	}
 	return res.Found, finalURL, title, nil
