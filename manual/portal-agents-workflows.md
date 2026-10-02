@@ -158,7 +158,10 @@ so you give the schedule a name, the run input its input form asks for (the same
 form the manual Run dialog uses; a workflow with no inputs needs none), a cron
 expression, and a timezone. Each firing starts a workflow run, listed under
 **Show triggered runs** with its status, and the run opens like any other. Only
-published workflows can be scheduled — publish a draft first. Pausing,
+published workflows can be scheduled — publish a draft first. The input is
+checked when you save the schedule, the same way a run checks it: input the
+workflow cannot accept, or a workflow with a step that needs an Issue, is
+refused then rather than failing every firing. Pausing,
 consecutive-failure handling, and missed-firing behaviour work exactly as they
 do for an agent schedule.
 

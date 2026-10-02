@@ -36,9 +36,17 @@ func scheduleTestHandler(t *testing.T) (*http.ServeMux, string, string) {
 	if err != nil {
 		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
-	// A published workflow (schedulable) and a draft one (not) in the same space.
+	// Published workflows (schedulable) -- one that takes typed input, one that
+	// takes none, one that needs an Issue a firing cannot supply -- and a draft
+	// (not schedulable) in the same space.
+	node := `{"id":"one","type":"agent_task","agent":{"id":"` + agent.ID + `"},"input":{"instruction":"go"}}`
 	workflowStore := &mock.MockWorkflowStore{Workflows: []coreworkflow.Workflow{
-		{ID: publishedWorkflowID, SpaceID: spaceID, Name: "Pub", Status: coreworkflow.StatusPublished, Revision: 1, CreatedBy: "u1"},
+		{ID: publishedWorkflowID, SpaceID: spaceID, Name: "Pub", Status: coreworkflow.StatusPublished, Revision: 1, CreatedBy: "u1",
+			Definition: `{"schema_version":1,"input_schema":{"type":"object","properties":{"k":{"type":"integer"}},"additionalProperties":false},"nodes":[` + node + `]}`},
+		{ID: noInputWorkflowID, SpaceID: spaceID, Name: "NoInput", Status: coreworkflow.StatusPublished, Revision: 1, CreatedBy: "u1",
+			Definition: `{"schema_version":1,"nodes":[` + node + `]}`},
+		{ID: issueWorkflowID, SpaceID: spaceID, Name: "NeedsIssue", Status: coreworkflow.StatusPublished, Revision: 1, CreatedBy: "u1",
+			Definition: `{"schema_version":1,"nodes":[{"id":"one","type":"agent_task","agent":{"id":"` + agent.ID + `"},"issue_access":"required","input":{"instruction":"go"}}]}`},
 		{ID: draftWorkflowID, SpaceID: spaceID, Name: "Draft", Status: coreworkflow.StatusDraft, Revision: 1, CreatedBy: "u1"},
 	}}
 	h := New(Config{JWTSecret: scheduleTestSecret, Spaces: spaceStore, Agents: agentStore, Workflows: workflowStore, Schedules: &mock.MockScheduleStore{}})
@@ -50,6 +58,8 @@ func scheduleTestHandler(t *testing.T) (*http.ServeMux, string, string) {
 
 const (
 	publishedWorkflowID = "w_pub"
+	noInputWorkflowID   = "w_noinput"
+	issueWorkflowID     = "w_issue"
 	draftWorkflowID     = "w_draft"
 )
 
@@ -169,9 +179,48 @@ func TestCreateWorkflowScheduleWithoutInput(t *testing.T) {
 	base := "/api/spaces/tm_1/schedules"
 
 	rec := doJSON(t, mux, http.MethodPost, base, token,
-		`{"executor_kind":"workflow","executor_id":"`+publishedWorkflowID+`","input":"","cron_expr":"0 9 * * *","timezone":"UTC"}`)
+		`{"executor_kind":"workflow","executor_id":"`+noInputWorkflowID+`","input":"","cron_expr":"0 9 * * *","timezone":"UTC"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create status = %d, want 201: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// A workflow schedule's fixed input is checked against the workflow's
+// admission when it is saved: input it could never accept, or a workflow that
+// needs an Issue a firing cannot supply, would fail every fire until the
+// schedule paused itself.
+func TestWorkflowScheduleRefusesInputItsWorkflowCannotAccept(t *testing.T) {
+	mux, token, _ := scheduleTestHandler(t)
+	base := "/api/spaces/tm_1/schedules"
+	body := func(workflowID, input string) string {
+		in, _ := json.Marshal(input)
+		return `{"executor_kind":"workflow","executor_id":"` + workflowID + `","input":` + string(in) + `,"cron_expr":"0 9 * * *","timezone":"UTC"}`
+	}
+	for name, b := range map[string]string{
+		"input to a workflow without input_schema": body(noInputWorkflowID, "Reply with exactly: TICK"),
+		"input that is not JSON":                   body(publishedWorkflowID, "not json"),
+		"input that violates the input_schema":     body(publishedWorkflowID, "[1,2]"),
+		"empty input where input_schema is set":    body(publishedWorkflowID, ""),
+		"workflow that requires an Issue":          body(issueWorkflowID, ""),
+	} {
+		if rec := doJSON(t, mux, http.MethodPost, base, token, b); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400: %s", name, rec.Code, rec.Body.String())
+		}
+	}
+
+	rec := doJSON(t, mux, http.MethodPost, base, token, body(publishedWorkflowID, `{"k":1}`))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201: %s", rec.Code, rec.Body.String())
+	}
+	var created ScheduleResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	if rec := doJSON(t, mux, http.MethodPatch, base+"/"+created.ID, token, `{"input":"[1]"}`); rec.Code != http.StatusBadRequest {
+		t.Errorf("update to invalid input: status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if rec := doJSON(t, mux, http.MethodPatch, base+"/"+created.ID, token, `{"input":"{\"k\":2}"}`); rec.Code != http.StatusOK {
+		t.Errorf("update to valid input: status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 }
 

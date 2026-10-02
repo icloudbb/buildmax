@@ -1273,6 +1273,24 @@ func outputSchemaSnapshot(schema json.RawMessage) *string {
 	return &s
 }
 
+// CheckUnattendedRunInput reports whether a run nobody starts by hand -- a
+// Schedule firing -- could ever be admitted with this fixed input: the input
+// must satisfy the definition's input_schema, and the definition must not
+// require an Issue, which a firing has none of. It is the admission
+// StartWorkflowRun applies, run when the input is saved, so a Schedule that
+// could never start is refused then rather than failing every firing.
+func CheckUnattendedRunInput(definition, input string) error {
+	def, err := parseDefinition(definition)
+	if err != nil {
+		return err
+	}
+	if definitionRequiresIssue(def) {
+		return ErrIssueRequired
+	}
+	_, err = resolveRunInput(def, input)
+	return err
+}
+
 // resolveRunInput validates a caller's run input against the definition's
 // input_schema and returns the JSON text to freeze onto the run. A workflow
 // with an input_schema requires input that satisfies it; a workflow without one

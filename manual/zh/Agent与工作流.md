@@ -139,7 +139,7 @@ IANA 时区（例如 `Asia/Shanghai`）。
 填写其输入表单要求的运行输入（与手动"运行"对话框相同的表单；没有输入的
 Workflow 则无需填写）、cron 表达式与时区。每次触发启动一次 workflow 运行，
 在 **Show triggered runs** 下列出并显示状态，运行可像其他运行一样打开。
-只有已发布的 Workflow 才能被定时——先发布草稿。暂停、连续失败处理与错过
+只有已发布的 Workflow 才能被定时——先发布草稿。保存定时任务时会像运行时一样检查输入：Workflow 无法接受的输入，或某个步骤需要 Issue 的 Workflow，会在保存时被拒绝，而不是每次触发都失败。暂停、连续失败处理与错过
 触发的行为，与 Agent schedule 完全一致。
 
 侧边栏中的 **Schedules** 入口展示该 Space 中所有 Agent 与 Workflow 的全部

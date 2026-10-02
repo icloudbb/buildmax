@@ -9,6 +9,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
+	workflowsvc "github.com/icloudbb/buildmax/internal/service/workflow"
 	"github.com/icloudbb/buildmax/internal/util"
 )
 
@@ -104,7 +105,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coreschedule.Sche
 	if err := Validate(cmd.CronExpr, cmd.Timezone); err != nil {
 		return nil, invalid(err)
 	}
-	if err := s.requireExecutorInSpace(ctx, cmd.ExecutorKind, cmd.ExecutorID, cmd.SpaceID); err != nil {
+	if err := s.requireExecutorInSpace(ctx, cmd.ExecutorKind, cmd.ExecutorID, cmd.SpaceID, cmd.Input); err != nil {
 		return nil, err
 	}
 	next, err := Next(cmd.CronExpr, cmd.Timezone, s.now())
@@ -177,6 +178,12 @@ func (s *Service) Update(ctx context.Context, cmd UpdateCmd) (*coreschedule.Sche
 	if cmd.Input != nil && util.ExceedsByteLimit(*cmd.Input, maxScheduleInputBytes) {
 		return nil, ErrInputTooLong
 	}
+	// A workflow schedule's new input must still be one its workflow accepts.
+	if cmd.Input != nil && existing.ExecutorKind == coreschedule.ExecutorWorkflow {
+		if err := s.requireExecutorInSpace(ctx, existing.ExecutorKind, existing.ExecutorID, existing.SpaceID, *cmd.Input); err != nil {
+			return nil, err
+		}
+	}
 	in := coreschedule.UpdateInput{
 		ScheduleID: cmd.ScheduleID,
 		Name:       cmd.Name,
@@ -224,7 +231,7 @@ func (s *Service) Delete(ctx context.Context, spaceID, scheduleID string) error 
 // requireExecutorInSpace confirms the schedule's executor is usable in the
 // Space: an Agent must exist and belong to it; a Workflow must exist, belong to
 // it, and be published, since a draft or archived workflow can never start a run.
-func (s *Service) requireExecutorInSpace(ctx context.Context, kind, id, spaceID string) error {
+func (s *Service) requireExecutorInSpace(ctx context.Context, kind, id, spaceID, input string) error {
 	switch kind {
 	case coreschedule.ExecutorAgent:
 		if s.Agents == nil {
@@ -252,7 +259,9 @@ func (s *Service) requireExecutorInSpace(ctx context.Context, kind, id, spaceID 
 		if wf.Status != coreworkflow.StatusPublished {
 			return ErrWorkflowNotPublished
 		}
-		return nil
+		// The firing's admission, checked now: input the workflow cannot accept
+		// would fail every fire until the Schedule paused itself.
+		return workflowsvc.CheckUnattendedRunInput(wf.Definition, input)
 	default:
 		return ErrInvalidExecutorKind
 	}
