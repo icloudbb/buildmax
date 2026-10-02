@@ -84,9 +84,13 @@ jobs:
           push: false
           # The npm install and build dominate the runtime; caching them keeps
           # a Portal-only change from paying for the whole tree every time, and
-          # lets the publishing build reuse what this one just built.
+          # lets the publishing build reuse what this one just built. The serve
+          # stage is rebuilt from a freshly pulled base every time: its cached
+          # `apk upgrade` layer would ship packages a scan has since flagged.
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          no-cache-filters: serve
+          pull: true
 
       - name: Scan it
         uses: aquasecurity/trivy-action@v0.36.0
@@ -115,6 +119,8 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          no-cache-filters: serve
+          pull: true
           provenance: true
           sbom: true
 
