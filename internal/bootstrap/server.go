@@ -15,7 +15,6 @@ import (
 
 	"github.com/icloudbb/buildmax/internal/config"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
-	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 	infracoord "github.com/icloudbb/buildmax/internal/infra/coordination"
@@ -818,13 +817,13 @@ func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st llmStore, quotaS
 	}
 	// Building the client now is the startup check: a target that cannot serve
 	// a turn, or whose credential is missing, stops the server here.
-	routed, err := routing.Router.ClientForTarget(context.Background(), targetID, llmgateway.BaselineCapabilities())
-	if err != nil {
+	if _, err := routing.Router.ClientForTarget(context.Background(), targetID, llmgateway.BaselineCapabilities()); err != nil {
 		return fmt.Errorf("conversation model %q: %w", targetID, err)
 	}
-	// Task titles still use the routed client directly; their tokens are
-	// recorded on the task row, which quota already counts.
-	cfg.Conv.TitleGenerator = cllm.NewTitleGenerator(routed.Client)
+	// Task titles skip the gateway ledger: their tokens are recorded on the task
+	// row, which quota already counts. They still resolve the target per call,
+	// so a key replaced with `model set-key` reaches them without a restart.
+	cfg.Conv.TitleGenerator = routedTitleGenerator{router: routing.Router, targetID: targetID}
 	cfg.Conv.ConversationModel = &llmgateway.ServerModel{Service: gateway, TargetID: targetID}
 	return nil
 }

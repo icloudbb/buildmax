@@ -781,3 +781,47 @@ func TestConversationModelCachePolicyReachesTheUpstream(t *testing.T) {
 		})
 	}
 }
+
+// A key replaced with `model set-key` bumps the row's revision; task titles must
+// use it from the next call like every other call, not keep the key the server
+// started with until a restart.
+func TestTaskTitlesUseARotatedKeyWithoutARestart(t *testing.T) {
+	var mu sync.Mutex
+	var auth []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		auth = append(auth, r.Header.Get("Authorization"))
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"c1","object":"chat.completion","model":"m","choices":[{"index":0,` +
+			`"message":{"role":"assistant","content":"A title"},"finish_reason":"stop"}],` +
+			`"usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}`))
+	}))
+	defer upstream.Close()
+
+	row := catalogRow("lm_chat")
+	row.APIURL = upstream.URL
+	row.UpdatedAt = time.Unix(1_000, 0)
+	store := newFakeLLMStore(row)
+	sc := config.ServerConfig{Conversation: config.ServerConvConfig{ModelTarget: "LM_CHAT"}}
+	var cfg httpserver.Config
+	if err := wireLLM(&cfg, sc, store, nil); err != nil {
+		t.Fatalf("wireLLM: %v", err)
+	}
+
+	if _, _, _, err := cfg.Conv.TitleGenerator.GenerateTitle(context.Background(), "fix the login page"); err != nil {
+		t.Fatalf("GenerateTitle: %v", err)
+	}
+	store.credentials["lm_chat"] = "rotated-key"
+	row.UpdatedAt = time.Unix(2_000, 0)
+	store.rows["lm_chat"] = row
+	if _, _, _, err := cfg.Conv.TitleGenerator.GenerateTitle(context.Background(), "fix the login page"); err != nil {
+		t.Fatalf("GenerateTitle after rotation: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(auth) != 2 || auth[0] != "Bearer key-for-lm_chat" || auth[1] != "Bearer rotated-key" {
+		t.Errorf("Authorization per title call = %q, want the original key and then the rotated one", auth)
+	}
+}

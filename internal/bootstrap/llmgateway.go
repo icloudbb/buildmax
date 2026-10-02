@@ -248,3 +248,20 @@ func resolveCredential(ctx context.Context, target llmgateway.Target, conversati
 	}
 	return key, nil
 }
+
+// routedTitleGenerator generates task titles through the Tier 1 target,
+// resolving it on every call. A client built once at startup kept the key it
+// started with, so after `model set-key` every task title still went to the
+// provider with the old key, and failed once that key was revoked.
+type routedTitleGenerator struct {
+	router   *llmgateway.Router
+	targetID string
+}
+
+func (g routedTitleGenerator) GenerateTitle(ctx context.Context, input string) (string, int, int, error) {
+	routed, err := g.router.ClientForTarget(ctx, g.targetID, llmgateway.BaselineCapabilities())
+	if err != nil {
+		return "", 0, 0, err
+	}
+	return cllm.NewTitleGenerator(routed.Client).GenerateTitle(ctx, input)
+}
