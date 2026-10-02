@@ -32,6 +32,7 @@
 
 | 提案 | Primary domain | 问题 | 目前已构建的内容 |
 |---|---|---|---|
+| [DigitalOcean 托管 Agent 基础设施评估](digitalocean-managed-agent-infrastructure.md) | 产品与执行模型 | BuildMax 是否应将 DigitalOcean Inference、Action Gateway 或 Harness Runtime 作为可选后端？哪些边界必须继续由 BuildMax 拥有？ | 仅研究备忘录；尚无 DigitalOcean provider、Gateway Connection 或托管 executor 集成。现有基础包括 managed LLM gateway、远端 MCP、TaskRun provenance、可移植 workspace checkpoint，以及 local/Kubernetes `WorkerRunner` seam |
 | [企业功能要求盘点](enterprise-capability-requirements.md) | 运维与部署 | 企业部署可能需要哪些候选要求，应以什么证据逐项验证？ | 仅盘点要求；尚无任何要求经具名部署验证。相关基础已交付（OIDC 登录、管理界面、带执行资格闸门的引导式账户停用、已停用 owner 的恢复）；配额、暂停与事件处置旅程尚未检视 |
 | [单一维护者的 Agent 开发工作流](single-maintainer-agent-development.md) | 验证 | 一位维护者如何借助编码 Agent 提升被接受的开发吞吐量，同时不成为工作流瓶颈？ | 仓库内 backlog（单一认领 frontmatter）、`./make board` 状态视图及其 frontmatter 检查已交付；变更范围验证、自动就绪性复核、pull request 交付检查、独立验收与工作区回收尚未建设 |
 | [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md) | 信任与安全 | 交互式、原生与无人值守客户端应获得哪些凭证？ | 持久 Session 状态、绝对过期、逐请求撤销、Portal cookie 认证与原生 OS Secret 存储已交付；scope、签名密钥轮换、自助管理、PAT 与服务账号仍待决定 |
