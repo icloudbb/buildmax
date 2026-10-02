@@ -1,0 +1,5 @@
+# Findings reviewed as false positives. Each line is a gitleaks fingerprint,
+# commit:file:rule:line, so an entry covers that one finding and nothing else.
+
+# generic-api-key on the Export row of the lifecycle table: prose, no credential.
+08efc8e62690643669e3367230016a22cabdb8ab:docs/reference/agent-sandbox-research.md:generic-api-key:170
