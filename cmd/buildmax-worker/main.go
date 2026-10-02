@@ -26,6 +26,11 @@ func main() {
 	}
 	log.Init(log.LogConfig{LogsDir: config.LogsDir(), Level: level, Filename: "buildmax-worker.log", AlsoStdout: true})
 
+	if err := hideFromSandbox(); err != nil {
+		// Not fatal: the run is still confined; only the worker's own
+		// environment stays readable through /proc, as it was before.
+		slog.Warn("worker: could not mark the process non-dumpable", "err", err)
+	}
 	taskRunID := flag.String("task-run-id", "", "task run ID to run (required)")
 	flag.Parse()
 	if *taskRunID == "" {
