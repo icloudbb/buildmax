@@ -14,6 +14,15 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.21] - 2026-10-02
+
+### Fixed
+
+- Task titles now use a catalog model key replaced with `model set-key` from the
+  next task, like every other model call. They used the key the server started
+  with until it restarted, so revoking the old key after a rotation silently
+  degraded every new task's title.
+
 ## [0.2.0-alpha.20] - 2026-10-02
 
 ### Fixed
@@ -3867,7 +3876,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.20...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.21...HEAD
+[0.2.0-alpha.21]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.20...v0.2.0-alpha.21
 [0.2.0-alpha.20]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.19...v0.2.0-alpha.20
 [0.2.0-alpha.19]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.18...v0.2.0-alpha.19
 [0.2.0-alpha.18]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.17...v0.2.0-alpha.18
