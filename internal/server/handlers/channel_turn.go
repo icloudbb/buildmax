@@ -35,6 +35,8 @@ func (h *Handler) RunChannelTurn(ctx context.Context, conversationID, userID, ch
 		return "", chansvc.ErrBusy
 	case errors.Is(err, turnqueue.ErrDraining):
 		return "", chansvc.ErrRestarting
+	case errors.Is(err, turnqueue.ErrCoordinationUnavailable):
+		return "", chansvc.ErrUnavailable
 	case err != nil:
 		return "", err
 	}

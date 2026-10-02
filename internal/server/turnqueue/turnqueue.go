@@ -49,6 +49,12 @@ var ErrQueueFull = errors.New("too many turns are already queued for this conver
 // will still be here.
 var ErrDraining = errors.New("this server is shutting down; retry the turn")
 
+// ErrCoordinationUnavailable is a turn refused because the conversation's
+// cross-replica lease could not be taken, typically because the coordination
+// backend is unreachable. Running without the lease could interleave with a
+// turn on another replica, so the turn does not run and the caller is told.
+var ErrCoordinationUnavailable = errors.New("the conversation could not be locked across server replicas; retry the turn shortly")
+
 // Job is one conversation turn waiting for its conversation to be free.
 type Job struct {
 	// run executes the turn. It is called on the registry's goroutine for the
@@ -61,9 +67,19 @@ type Job struct {
 	// A job that started immediately never sees it, which is what lets a surface
 	// announce "this queued message is starting now" without a race.
 	OnDequeue func()
+	// OnRefused, when set, is called instead of run when the turn cannot start,
+	// so a caller that did not wait on Done (a WebSocket) can tell its client.
+	OnRefused func(error)
 	Done      chan struct{}
 	Dropped   atomic.Bool
+	// err is why the turn did not run. Written before Done closes and read
+	// after, so the close orders it.
+	err error
 }
+
+// Err reports why the turn did not run, or nil when it ran. Only meaningful
+// once Done is closed.
+func (j *Job) Err() error { return j.err }
 
 func NewJob(run func(fence int64)) *Job {
 	return &Job{run: run, Done: make(chan struct{})}
@@ -197,7 +213,7 @@ func (r *Registry) RunSync(ctx context.Context, conversationID string, run func(
 	}
 	select {
 	case <-job.Done:
-		return nil
+		return job.Err()
 	case <-ctx.Done():
 		job.Dropped.Store(true)
 		return ctx.Err()
@@ -221,7 +237,12 @@ func (r *Registry) Waiting(conversationID string) int {
 func (r *Registry) drain(conversationID string, q *convQueue, job *Job) {
 	for job != nil {
 		if !job.Dropped.Load() {
-			r.runLocked(conversationID, job)
+			if err := r.runLocked(conversationID, job); err != nil {
+				job.err = err
+				if job.OnRefused != nil {
+					job.OnRefused(err)
+				}
+			}
 		}
 		close(job.Done)
 
@@ -245,20 +266,25 @@ func (r *Registry) drain(conversationID string, q *convQueue, job *Job) {
 // If the lease cannot be acquired (the server is draining, or the coordination
 // backend is unreachable), the turn is not run: starting it without the lease
 // could interleave with a turn on another replica, which is the corruption the
-// lease exists to prevent. The caller's Done still closes, so a waiter unblocks.
-func (r *Registry) runLocked(conversationID string, job *Job) {
+// lease exists to prevent. It returns why, so the caller hears a refusal rather
+// than a turn that silently never happened.
+func (r *Registry) runLocked(conversationID string, job *Job) error {
 	if r.locker == nil {
 		job.run(0)
-		return
+		return nil
 	}
 	lease, err := r.locker.Acquire(r.lockCtx, conversationID)
 	if err != nil {
-		slog.With("component", "turnqueue").Warn("skip turn: conversation lease not acquired",
+		slog.With("component", "turnqueue").Warn("refuse turn: conversation lease not acquired",
 			"conversation_id", conversationID, "err", err)
-		return
+		if r.lockCtx.Err() != nil {
+			return ErrDraining
+		}
+		return ErrCoordinationUnavailable
 	}
 	defer lease.Release()
 	job.run(lease.Fence())
+	return nil
 }
 
 // forget removes an idle queue so a long-lived server does not accumulate one

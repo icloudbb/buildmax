@@ -45,11 +45,13 @@ const (
 	seenWindow = 10 * time.Minute
 )
 
-// ErrBusy and ErrRestarting are what a TurnRunner returns when a turn cannot
-// start now; they become a retry hint in the chat rather than a failure.
+// ErrBusy, ErrRestarting, and ErrUnavailable are what a TurnRunner returns when
+// a turn cannot start now; they become a retry hint in the chat rather than a
+// failure.
 var (
-	ErrBusy       = errors.New("too many messages are waiting in this conversation")
-	ErrRestarting = errors.New("the server is restarting")
+	ErrBusy        = errors.New("too many messages are waiting in this conversation")
+	ErrRestarting  = errors.New("the server is restarting")
+	ErrUnavailable = errors.New("the server cannot take a turn right now")
 )
 
 // TurnRunner runs one Tier 1 Conversation turn and returns the reply. The

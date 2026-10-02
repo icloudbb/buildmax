@@ -99,6 +99,12 @@ replicas would reinstate the exact turn-serialization corruption this record
 exists to prevent — the same reasoning as the worker sandbox, which never runs
 unconfined merely because its backend is unavailable.
 
+The same holds at runtime. A turn that cannot take its conversation lease —
+Redis became unreachable after startup — does not run, and its caller is told:
+HTTP answers `503`, a chat channel replies with a retry hint, and a WebSocket
+client receives a conversation error. Reporting such a turn as finished would
+lose the user's message without a trace.
+
 ## 4. The Coordinator Seam
 
 A `coordination.Backend` lives in `internal/infra/coordination`. It owns the

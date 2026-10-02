@@ -333,6 +333,16 @@ func (wc *Conn) runConversationTurn(ctx context.Context, conversationID, message
 			Content:        message,
 		})
 	}
+	// A turn the registry could not start (no cross-replica lease, or the
+	// server draining) ran nothing; without this the client would wait on a
+	// reply that never comes.
+	job.OnRefused = func(err error) {
+		componentLog().Warn("turn refused", "user_id", wc.userID, "conversation_id", conversationID, "err", err)
+		wc.sendEvent(TypeConversationError, ConversationError{
+			ConversationID: conversationID,
+			Error:          err.Error(),
+		})
+	}
 	pos, err := wc.deps.Turns.Submit(conversationID, job)
 	if err != nil {
 		componentLog().Info("turn rejected: queue full", "user_id", wc.userID, "conversation_id", conversationID)
