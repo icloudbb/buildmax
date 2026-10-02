@@ -63,12 +63,16 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() {
 	signal.Ignore(syscall.SIGTERM)
 	_ = os.WriteFile(`+"`"+ready+"`"+`, []byte("ready"), 0o644)
-	select {}
+	// Sleep, not select{}: with no other goroutine or timer, select{} is a
+	// deadlock the runtime kills at once, so the "stubborn" worker would exit
+	// on its own instead of making the runner kill it.
+	time.Sleep(time.Hour)
 }
 `)
 }
