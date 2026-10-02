@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/icloudbb/buildmax/internal/core/apierr"
 	"io"
 	"time"
 
@@ -12,7 +11,31 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
+
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 )
+
+// ErrStorageUnavailable is a call object storage never answered: the
+// connection failed or timed out before any response. It is a 503 to the
+// caller rather than a 500, because the server is fine and a retry may work.
+var ErrStorageUnavailable = apierr.New(apierr.KindUnavailable, "object storage is unavailable; try again shortly")
+
+// unreachable marks an error that carries no S3 response as storage being
+// unavailable, keeping the original in the chain. An error with a response
+// (403, 500, a missing key) is the store answering, and passes through. The SDK
+// wraps a failed send in a ResponseError too, with status 0, so the status is
+// what tells them apart.
+func unreachable(ctx context.Context, err error) error {
+	if err == nil || ctx.Err() != nil {
+		return err
+	}
+	var resp *smithyhttp.ResponseError
+	if errors.As(err, &resp) && resp.HTTPStatusCode() != 0 {
+		return err
+	}
+	return fmt.Errorf("%w: %w", ErrStorageUnavailable, err)
+}
 
 // ObjectInfo is one listed object's key and last-modified time. The orphan sweep
 // needs the time to leave recently written blobs alone, so listing that dropped
@@ -74,7 +97,7 @@ func (a *s3ClientAdapter) PutObject(ctx context.Context, bucket, key string, bod
 		Key:    aws.String(key),
 		Body:   body,
 	})
-	return err
+	return unreachable(ctx, err)
 }
 
 func (a *s3ClientAdapter) GetObject(ctx context.Context, bucket, key string) ([]byte, error) {
@@ -87,7 +110,7 @@ func (a *s3ClientAdapter) GetObject(ctx context.Context, bucket, key string) ([]
 		if errors.As(err, &nsk) {
 			return nil, apierr.ErrNotFound
 		}
-		return nil, err
+		return nil, unreachable(ctx, err)
 	}
 	defer func() { _ = out.Body.Close() }()
 	return io.ReadAll(out.Body)
@@ -103,7 +126,7 @@ func (a *s3ClientAdapter) GetObjectStream(ctx context.Context, bucket, key strin
 		if errors.As(err, &nsk) {
 			return nil, 0, apierr.ErrNotFound
 		}
-		return nil, 0, err
+		return nil, 0, unreachable(ctx, err)
 	}
 	var size int64
 	if out.ContentLength != nil {
@@ -125,7 +148,7 @@ func (a *s3ClientAdapter) ObjectExists(ctx context.Context, bucket, key string) 
 	if errors.As(err, &nsk) || errors.As(err, &nf) {
 		return false, nil
 	}
-	return false, err
+	return false, unreachable(ctx, err)
 }
 
 // DeleteObject reports success for a key that is not there. S3 already behaves
@@ -140,7 +163,7 @@ func (a *s3ClientAdapter) DeleteObject(ctx context.Context, bucket, key string) 
 		if errors.As(err, &nsk) {
 			return nil
 		}
-		return err
+		return unreachable(ctx, err)
 	}
 	return nil
 }
@@ -154,7 +177,7 @@ func (a *s3ClientAdapter) ListObjectKeys(ctx context.Context, bucket, prefix str
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("list objects: %w", err)
+			return nil, fmt.Errorf("list objects: %w", unreachable(ctx, err))
 		}
 		for _, o := range page.Contents {
 			if o.Key != nil {
@@ -174,7 +197,7 @@ func (a *s3ClientAdapter) ListObjects(ctx context.Context, bucket, prefix string
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("list objects: %w", err)
+			return nil, fmt.Errorf("list objects: %w", unreachable(ctx, err))
 		}
 		for _, o := range page.Contents {
 			if o.Key == nil {

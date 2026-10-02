@@ -27,7 +27,7 @@ func WriteServiceError(w http.ResponseWriter, err error) bool {
 
 func statusForKind(kind apierr.Kind) int {
 	switch kind {
-	case apierr.KindNotConfigured:
+	case apierr.KindNotConfigured, apierr.KindUnavailable:
 		return http.StatusServiceUnavailable
 	case apierr.KindInvalid:
 		return http.StatusBadRequest

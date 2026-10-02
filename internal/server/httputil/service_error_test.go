@@ -42,6 +42,7 @@ func TestKindDecidesStatus(t *testing.T) {
 		{apierr.KindForbidden, http.StatusForbidden},
 		{apierr.KindConflict, http.StatusConflict},
 		{apierr.KindQuotaExceeded, http.StatusTooManyRequests},
+		{apierr.KindUnavailable, http.StatusServiceUnavailable},
 	} {
 		w, handled := write(t, apierr.New(tc.kind, "refused"))
 		if !handled {

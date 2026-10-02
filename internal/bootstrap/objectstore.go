@@ -4,6 +4,10 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
+	"time"
+
 	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
 	"github.com/icloudbb/buildmax/internal/service/plugin"
 	"path/filepath"
@@ -13,6 +17,7 @@ import (
 	blob "github.com/icloudbb/buildmax/internal/infra/objectstore"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -41,6 +46,7 @@ func BuildS3Client(ctx context.Context, cfg config.WorkspaceStorageConfig) (blob
 			"",
 		)))
 	}
+	opts = append(opts, awsconfig.WithHTTPClient(storageHTTPClient()))
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("load aws config: %w", err)
@@ -53,6 +59,27 @@ func BuildS3Client(ctx context.Context, cfg config.WorkspaceStorageConfig) (blob
 		o.UsePathStyle = usePathStyle(cfg)
 	})
 	return blob.NewS3ClientAdapter(client), nil
+}
+
+// Bounds on reaching object storage. The SDK's client has no connect timeout of
+// its own, so an endpoint that drops packets held each attempt for the kernel's
+// TCP timeout and a download for minutes. These bound the waits, not the
+// transfer: the response-header wait starts after the request body is sent, so
+// a large upload is not cut short. With the SDK's retries an unreachable store
+// fails a call in well under a minute, as ErrStorageUnavailable.
+const (
+	storageDialTimeout           = 5 * time.Second
+	storageTLSHandshakeTimeout   = 10 * time.Second
+	storageResponseHeaderTimeout = 30 * time.Second
+)
+
+func storageHTTPClient() *awshttp.BuildableClient {
+	return awshttp.NewBuildableClient().
+		WithDialerOptions(func(d *net.Dialer) { d.Timeout = storageDialTimeout }).
+		WithTransportOptions(func(t *http.Transport) {
+			t.TLSHandshakeTimeout = storageTLSHandshakeTimeout
+			t.ResponseHeaderTimeout = storageResponseHeaderTimeout
+		})
 }
 
 // usePathStyle decides bucket addressing.

@@ -37,6 +37,10 @@ const (
 	KindConflict Kind = "conflict"
 	// KindQuotaExceeded means the space is over an allowance.
 	KindQuotaExceeded Kind = "quota_exceeded"
+	// KindUnavailable means a dependency the server needs -- object storage,
+	// the coordination backend -- did not answer. Not the caller's fault, and
+	// unlike KindNotConfigured, retrying shortly may succeed.
+	KindUnavailable Kind = "unavailable"
 )
 
 // Error carries a Kind and the sentence the caller is told.
