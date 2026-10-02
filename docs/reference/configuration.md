@@ -292,6 +292,7 @@ full lifecycle and credential scope are in
 | `BUILDMAX_OCEAN_IMAGE` | pinned `v0.2.0-alpha.4` digest | Immutable server and worker image override. Mutable tags are rejected. |
 | `BUILDMAX_OCEAN_PORTAL_IMAGE` | pinned `v0.2.0-alpha.4` digest | Immutable Portal image override. Mutable tags are rejected. |
 | `BUILDMAX_OCEAN_EDGE_IMAGE` | pinned Caddy 2.10.2 digest | Immutable HTTPS edge image override. Mutable tags are rejected. |
+| `BUILDMAX_OCEAN_REDIS_IMAGE` | pinned Redis 7.4.11 digest | Immutable coordination Redis image override. Mutable tags are rejected. |
 | `BUILDMAX_OCEAN_MODEL_NAME` | `GPT-5.6 Luna` | Display name of the model the qualification configures. |
 | `BUILDMAX_OCEAN_MODEL_PROVIDER` | `openai` | Provider label stored on the model entry. |
 | `BUILDMAX_OCEAN_MODEL_API_URL` | `https://openrouter.ai/api/v1` | OpenAI-compatible base URL the model calls. |

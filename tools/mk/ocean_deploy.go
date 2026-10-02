@@ -44,6 +44,7 @@ const (
 	defaultOceanBuildMaxImage = "ghcr.io/icloudbb/buildmax@sha256:4e0a65874c8b5135e4a34a018acf0ca33a7af80711dd09814d0cac4e349ea573"
 	defaultOceanPortalImage   = "ghcr.io/icloudbb/buildmax-portal@sha256:1087a8c33c37a561e908db22e7925f1d9438a3fece0539ed1dded62afb66e135"
 	defaultOceanEdgeImage     = "caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d"
+	defaultOceanRedisImage    = "redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499"
 )
 
 var (
@@ -57,12 +58,17 @@ type oceanApplicationConfig struct {
 	buildmaxImage string
 	portalImage   string
 	edgeImage     string
+	redisImage    string
 }
 
 type oceanManifestData struct {
 	BuildMaxImage string
 	PortalImage   string
 	EdgeImage     string
+	RedisImage    string
+	// DatabaseAddresses are the managed database's private IPs. Worker pods may
+	// reach anything but them.
+	DatabaseAddresses []string
 }
 
 func loadOceanApplicationConfig() (oceanApplicationConfig, error) {
@@ -84,11 +90,13 @@ func loadOceanApplicationConfig() (oceanApplicationConfig, error) {
 		buildmaxImage: envOr("BUILDMAX_OCEAN_IMAGE", defaultOceanBuildMaxImage),
 		portalImage:   envOr("BUILDMAX_OCEAN_PORTAL_IMAGE", defaultOceanPortalImage),
 		edgeImage:     envOr("BUILDMAX_OCEAN_EDGE_IMAGE", defaultOceanEdgeImage),
+		redisImage:    envOr("BUILDMAX_OCEAN_REDIS_IMAGE", defaultOceanRedisImage),
 	}
 	for name, image := range map[string]string{
 		"BUILDMAX_OCEAN_IMAGE":        cfg.buildmaxImage,
 		"BUILDMAX_OCEAN_PORTAL_IMAGE": cfg.portalImage,
 		"BUILDMAX_OCEAN_EDGE_IMAGE":   cfg.edgeImage,
+		"BUILDMAX_OCEAN_REDIS_IMAGE":  cfg.redisImage,
 	} {
 		if !oceanDigestPattern.MatchString(image) {
 			return oceanApplicationConfig{}, fmt.Errorf("%s must pin an image digest, got %q", name, image)
@@ -226,7 +234,11 @@ func oceanDeploy(cfg oceanConfig) error {
 		}
 	}
 
-	manifest, err := renderOceanManifest(app)
+	databaseAddresses, err := oceanDatabaseAddresses(cfg)
+	if err != nil {
+		return err
+	}
+	manifest, err := renderOceanManifest(app, databaseAddresses)
 	if err != nil {
 		return err
 	}
@@ -235,7 +247,7 @@ func oceanDeploy(cfg oceanConfig) error {
 	}
 	// The DaemonSet copies the seccomp profile only when its pod starts, so it
 	// restarts with the rest to pick up a changed profile.
-	workloads := []string{"daemonset/buildmax-worker-seccomp", "deployment/buildmax-server", "deployment/buildmax-portal", "deployment/buildmax-edge"}
+	workloads := []string{"daemonset/buildmax-worker-seccomp", "deployment/buildmax-redis", "deployment/buildmax-server", "deployment/buildmax-portal", "deployment/buildmax-edge"}
 	for _, workload := range workloads {
 		if err := oceanKubectl(cfg, "rollout", "restart", workload, "-n", "buildmax"); err != nil {
 			return err
@@ -278,7 +290,11 @@ func oceanDeploymentInputs(cfg oceanConfig, app oceanApplicationConfig) (string,
 		return "", "", nil, err
 	}
 
-	serverConfig := oceanServerConfig(cfg, app, outputs)
+	contextWindow, err := oceanModelContextWindow()
+	if err != nil {
+		return "", "", nil, err
+	}
+	serverConfig := oceanServerConfig(cfg, app, outputs, contextWindow)
 	if target, err := os.ReadFile(oceanModelTargetPath(cfg)); err == nil {
 		serverConfig += fmt.Sprintf("\nconversation:\n  model_target: %s\n", yamlString(strings.TrimSpace(string(target))))
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -294,7 +310,7 @@ func oceanDeploymentInputs(cfg oceanConfig, app oceanApplicationConfig) (string,
 }
 
 // oceanServerConfig renders server.yaml from the OpenTofu outputs.
-func oceanServerConfig(cfg oceanConfig, app oceanApplicationConfig, outputs map[string]string) string {
+func oceanServerConfig(cfg oceanConfig, app oceanApplicationConfig, outputs map[string]string, contextWindow int) string {
 	return fmt.Sprintf(`port: 5678
 log_level: info
 workspaces_dir: /buildmax/workspaces
@@ -323,6 +339,12 @@ worker:
   run_mode: k8s_job
   server_url: https://%s:5679
   server_ca_file: /buildmax/tls/worker-api-ca.crt
+  # Runs call the catalog model through the server's gateway, so the provider
+  # key never reaches a worker. With no model named, a run uses the catalog's
+  # first model, which is the one ocean model init adds.
+  llm:
+    transport: buildmax
+    context_window: %d
   k8s:
     namespace: buildmax
     image: %s
@@ -344,9 +366,16 @@ worker_api:
     cert_file: /buildmax/tls/worker-api/tls.crt
     key_file: /buildmax/tls/worker-api/tls.key
 
+# Two Server replicas share live streams, connection events, and Conversation
+# turn leases through Redis; see docs/design/server-coordination.md.
+coordination:
+  mode: redis
+  redis:
+    address: buildmax-redis.buildmax.svc.cluster.local:6379
+
 secret:
   kek_file: %s
-`, yamlString("https://"+app.hostname), yamlString(outputs["database_private_host"]), outputs["database_port"], yamlString(outputs["database_user"]), yamlString(outputs["database_name"]), yamlString(outputs["spaces_endpoint"]), yamlString(cfg.region), yamlString(outputs["spaces_bucket_name"]), workerAPIServiceDNS, yamlString(app.buildmaxImage), oceanWorkerAPICAConfigMap, yamlString(oceanKEKPath))
+`, yamlString("https://"+app.hostname), yamlString(outputs["database_private_host"]), outputs["database_port"], yamlString(outputs["database_user"]), yamlString(outputs["database_name"]), yamlString(outputs["spaces_endpoint"]), yamlString(cfg.region), yamlString(outputs["spaces_bucket_name"]), workerAPIServiceDNS, contextWindow, yamlString(app.buildmaxImage), oceanWorkerAPICAConfigMap, yamlString(oceanKEKPath))
 }
 
 func yamlString(value string) string {
@@ -480,7 +509,33 @@ func oceanKEKStatePath(cfg oceanConfig) string {
 	return filepath.Join(cfg.stateDir, "kek.json")
 }
 
-func renderOceanManifest(app oceanApplicationConfig) ([]byte, error) {
+// oceanDatabaseAddresses resolves the database's private hostname, which
+// DigitalOcean publishes in public DNS. Only these addresses are excluded from
+// worker egress: the VPC also carries the private Spaces endpoint workers need.
+// Resolved on every deploy, so a moved database is re-excluded; an empty
+// answer is refused rather than rendered as a policy that excludes nothing.
+func oceanDatabaseAddresses(cfg oceanConfig) ([]string, error) {
+	host, err := oceanOutput(cfg, "database_private_host")
+	if err != nil {
+		return nil, err
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve the database's private address %s: %w", host, err)
+	}
+	var out []string
+	for _, ip := range ips {
+		if v4 := ip.To4(); v4 != nil {
+			out = append(out, v4.String()+"/32")
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("the database's private address %s resolved to no IPv4 address", host)
+	}
+	return out, nil
+}
+
+func renderOceanManifest(app oceanApplicationConfig, databaseAddresses []string) ([]byte, error) {
 	root, err := moduleRoot()
 	if err != nil {
 		return nil, err
@@ -495,9 +550,11 @@ func renderOceanManifest(app oceanApplicationConfig) ([]byte, error) {
 	}
 	var rendered bytes.Buffer
 	if err := tmpl.Execute(&rendered, oceanManifestData{
-		BuildMaxImage: app.buildmaxImage,
-		PortalImage:   app.portalImage,
-		EdgeImage:     app.edgeImage,
+		BuildMaxImage:     app.buildmaxImage,
+		PortalImage:       app.portalImage,
+		EdgeImage:         app.edgeImage,
+		RedisImage:        app.redisImage,
+		DatabaseAddresses: databaseAddresses,
 	}); err != nil {
 		return nil, fmt.Errorf("render ocean application manifest: %w", err)
 	}

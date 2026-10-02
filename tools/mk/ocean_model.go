@@ -50,9 +50,9 @@ func oceanModel(cfg oceanConfig, args []string) error {
 }
 
 func loadOceanModelConfig() (oceanModelConfig, error) {
-	contextWindow, err := strconv.Atoi(envOr("BUILDMAX_OCEAN_MODEL_CONTEXT_WINDOW", "1050000"))
-	if err != nil || contextWindow <= 0 {
-		return oceanModelConfig{}, errors.New("BUILDMAX_OCEAN_MODEL_CONTEXT_WINDOW must be a positive integer")
+	contextWindow, err := oceanModelContextWindow()
+	if err != nil {
+		return oceanModelConfig{}, err
 	}
 
 	cfg := oceanModelConfig{
@@ -80,6 +80,16 @@ func loadOceanModelConfig() (oceanModelConfig, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// oceanModelContextWindow is the catalog row's context window, also told to
+// managed worker runs, which cannot learn it from the gateway per call.
+func oceanModelContextWindow() (int, error) {
+	contextWindow, err := strconv.Atoi(envOr("BUILDMAX_OCEAN_MODEL_CONTEXT_WINDOW", "1050000"))
+	if err != nil || contextWindow <= 0 {
+		return 0, errors.New("BUILDMAX_OCEAN_MODEL_CONTEXT_WINDOW must be a positive integer")
+	}
+	return contextWindow, nil
 }
 
 func oceanModelInit(cfg oceanConfig) error {

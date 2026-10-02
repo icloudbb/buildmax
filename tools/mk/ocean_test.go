@@ -179,13 +179,14 @@ func TestOceanManifestUsesOnlyPinnedImages(t *testing.T) {
 		buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64),
 		portalImage:   "example/portal@sha256:" + strings.Repeat("b", 64),
 		edgeImage:     "example/edge@sha256:" + strings.Repeat("c", 64),
+		redisImage:    "example/redis@sha256:" + strings.Repeat("d", 64),
 	}
-	manifest, err := renderOceanManifest(app)
+	manifest, err := renderOceanManifest(app, []string{"10.104.16.2/32"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(manifest)
-	for _, want := range []string{app.buildmaxImage, app.portalImage, app.edgeImage, "externalTrafficPolicy: Local"} {
+	for _, want := range []string{app.buildmaxImage, app.portalImage, app.edgeImage, app.redisImage, "externalTrafficPolicy: Local"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("manifest missing %q", want)
 		}
@@ -196,7 +197,7 @@ func TestOceanManifestUsesOnlyPinnedImages(t *testing.T) {
 }
 
 func TestOceanManifestMountsTheKEKWhereServerConfigPointsIt(t *testing.T) {
-	manifest, err := renderOceanManifest(oceanApplicationConfig{})
+	manifest, err := renderOceanManifest(oceanApplicationConfig{}, []string{"10.104.16.2/32"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +303,7 @@ func loadOceanServerConfig(t *testing.T) config.ServerConfig {
 		"database_name":         "buildmax",
 		"spaces_endpoint":       "https://sgp1.digitaloceanspaces.com",
 		"spaces_bucket_name":    "buildmax-beta",
-	})
+	}, 1050000)
 	home := t.TempDir()
 	if err := os.WriteFile(filepath.Join(home, "server.yaml"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
@@ -313,6 +314,18 @@ func loadOceanServerConfig(t *testing.T) config.ServerConfig {
 		t.Fatalf("ocean server.yaml does not load: %v", err)
 	}
 	return cfg
+}
+
+// A direct-transport worker has no model of its own, so every run would fail
+// with "model not found"; the managed gateway also keeps the key server-side.
+func TestOceanWorkersUseTheManagedGateway(t *testing.T) {
+	cfg := loadOceanServerConfig(t)
+	if cfg.Worker.LLM.Transport != config.TransportBuildMax {
+		t.Errorf("worker.llm.transport = %q, want %q", cfg.Worker.LLM.Transport, config.TransportBuildMax)
+	}
+	if cfg.Worker.LLM.ContextWindow != 1050000 {
+		t.Errorf("worker.llm.context_window = %d, want the catalog model's 1050000", cfg.Worker.LLM.ContextWindow)
+	}
 }
 
 func TestOceanServerConfigEnablesTheKEK(t *testing.T) {
@@ -406,6 +419,52 @@ func TestOceanWorkersReachTheWorkerListener(t *testing.T) {
 	}
 }
 
+// The Beta profile is two coordinated Server replicas. More than one replica
+// without Redis would split streams and race Conversation turns.
+func TestOceanRunsTwoServersCoordinatedThroughRedis(t *testing.T) {
+	cfg := loadOceanServerConfig(t)
+	if cfg.Coordination.Mode != "redis" {
+		t.Fatalf("coordination.mode = %q, want redis", cfg.Coordination.Mode)
+	}
+	objects := renderedOceanObjects(t)
+	if replicas := objects["Deployment/buildmax-server"]["spec"].(map[string]any)["replicas"]; replicas != 2 {
+		t.Errorf("buildmax-server replicas = %v, want 2", replicas)
+	}
+	service := mustYAML(t, objects["Service/buildmax-redis"])
+	if service == "" || !strings.HasPrefix(cfg.Coordination.Redis.Address, "buildmax-redis.") {
+		t.Errorf("coordination.redis.address %q does not name the buildmax-redis Service", cfg.Coordination.Redis.Address)
+	}
+	if spread := mustYAML(t, objects["Deployment/buildmax-server"]["spec"].(map[string]any)["template"]); !strings.Contains(spread, "topologyKey: kubernetes.io/hostname") || !strings.Contains(spread, "whenUnsatisfiable: DoNotSchedule") {
+		t.Error("the two Server replicas are not required to run on different nodes")
+	}
+	if objects["PodDisruptionBudget/buildmax-server"] == nil {
+		t.Error("no PodDisruptionBudget keeps one Server up through a drain")
+	}
+	if strategy := mustYAML(t, objects["Deployment/buildmax-edge"]["spec"].(map[string]any)["strategy"]); !strings.Contains(strategy, "Recreate") {
+		t.Error("the edge's ReadWriteOnce volume needs a Recreate strategy once there is more than one node")
+	}
+	policy := mustYAML(t, objects["NetworkPolicy/buildmax-redis"])
+	if !strings.Contains(policy, "app: buildmax-server") || strings.Contains(policy, "buildmax-worker") {
+		t.Error("Redis must admit only Server pods")
+	}
+}
+
+// Workers run model-chosen commands and must not reach the managed database,
+// whose firewall admits the whole cluster; they still need the Server's
+// Services, DNS, and object storage on the internet.
+func TestOceanWorkerEgressExcludesTheDatabase(t *testing.T) {
+	policy := renderedOceanObjects(t)["NetworkPolicy/buildmax-worker-egress"]
+	if policy == nil {
+		t.Fatal("no worker egress NetworkPolicy")
+	}
+	text := mustYAML(t, policy)
+	for _, want := range []string{"app.kubernetes.io/name: buildmax-worker", "app.kubernetes.io/component: worker", "- Egress", "namespaceSelector: {}", "cidr: 0.0.0.0/0", "- 10.104.16.2/32"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("worker egress policy missing %q:\n%s", want, text)
+		}
+	}
+}
+
 // Worker Jobs name a Localhost seccomp profile; without the installer every
 // worker pod fails to start.
 func TestOceanManifestInstallsTheWorkerSeccompProfile(t *testing.T) {
@@ -455,7 +514,7 @@ func TestOceanWorkerAPICertIsReusedUntilNearExpiry(t *testing.T) {
 
 func renderedOceanObjects(t *testing.T) map[string]map[string]any {
 	t.Helper()
-	manifest, err := renderOceanManifest(oceanApplicationConfig{buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64)})
+	manifest, err := renderOceanManifest(oceanApplicationConfig{buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64)}, []string{"10.104.16.2/32"})
 	if err != nil {
 		t.Fatal(err)
 	}

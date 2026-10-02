@@ -11,7 +11,10 @@ The commands assume the [production reference](../../deployment/production/READM
 namespace `buildmax`, the `buildmax-server` Deployment, and the
 `buildmax-secret` and `buildmax-kek` Secrets. If a secret manager (External
 Secrets, Vault, sealed-secrets) owns those Secrets, change the value there and
-let it sync instead of patching the Secret directly.
+let it sync instead of patching the Secret directly. The DigitalOcean
+qualification deployment renders those Secrets from its state directory on every
+`./make ocean deploy`; rotate there instead, as
+[its guide](digitalocean.md#rotate-credentials) lists.
 
 ## Contents
 

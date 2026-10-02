@@ -4,7 +4,7 @@
 > **受众：** 运维人员 · **状态：** 当前——已在 kind 上演练，尚未在 Beta 候选版本上演练
 本手册逐一替换 BuildMax Kubernetes 部署持有的每个凭证，无需重新构建任何内容。对每个凭证，它说明新旧值如何重叠、旧值作废前需要排空什么、用户和运行会察觉到什么，以及如何确认旧值已失效。
 
-命令假定使用[生产参考部署](../../../deployment/production/README.md)：命名空间 `buildmax`、`buildmax-server` Deployment，以及 `buildmax-secret` 和 `buildmax-kek` 两个 Secret。如果由密钥管理器（External Secrets、Vault、sealed-secrets）管理这些 Secret，请在那里修改值并等待同步，而不是直接修改 Secret。
+命令假定使用[生产参考部署](../../../deployment/production/README.md)：命名空间 `buildmax`、`buildmax-server` Deployment，以及 `buildmax-secret` 和 `buildmax-kek` 两个 Secret。如果由密钥管理器（External Secrets、Vault、sealed-secrets）管理这些 Secret，请在那里修改值并等待同步，而不是直接修改 Secret。DigitalOcean 验证部署在每次 `./make ocean deploy` 时根据其状态目录渲染这些 Secret；请改为在状态目录中轮换，具体见[其指南](digitalocean.md#轮换凭证)。
 
 ## 目录
 
