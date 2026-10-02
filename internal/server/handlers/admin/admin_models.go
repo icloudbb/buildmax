@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -100,8 +99,7 @@ func (h *Handler) createAdminModelHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req AdminCreateModelRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	pricing, err := llmcatalog.ResolvePricing(req.Currency, req.InputPrice, req.CacheReadPrice, req.CacheWritePrice, req.OutputPrice)

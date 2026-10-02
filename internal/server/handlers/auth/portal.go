@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -38,8 +37,7 @@ func (h *Handler) portalLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	result, err := h.identityService().Login(r.Context(), identitysvc.LoginCmd{

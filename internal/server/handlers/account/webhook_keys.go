@@ -1,7 +1,6 @@
 package account
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -39,8 +38,7 @@ func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req createWebhookKeyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)

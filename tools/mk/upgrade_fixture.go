@@ -279,10 +279,10 @@ func normalizeUpgradeFixture(tag string, manifest upgradeFixtureManifest, dump s
 }
 
 // seedUpgradeFixture creates the fixed dataset through the source server's own
-// API, so every row has the shape that release writes. It sends what both the
-// source and later releases accept where the two differ — a schedule's agent_id
-// alongside executor_kind/executor_id — so the next refresh does not have to
-// start by rewriting it.
+// API, so every row has the shape that release writes. It sends only fields
+// every supported source (0.2.0-alpha.15 onward, which already takes a
+// schedule's executor_kind/executor_id) declares: a release that decodes
+// request bodies strictly refuses any other.
 func seedUpgradeFixture(ctx context.Context, client *http.Client, target smokeTarget) (upgradeFixtureManifest, error) {
 	m := upgradeFixtureManifest{OwnerEmail: upgradeFixtureOwner}
 	if output, err := target.admin("user", "create", upgradeFixtureOwner); err != nil {
@@ -464,7 +464,7 @@ func createFixtureSchedule(ctx context.Context, client *http.Client, base, token
 		ID string `json:"id"`
 	}
 	err := requestJSON(ctx, client, http.MethodPost, base+"/schedules", token, map[string]string{
-		"agent_id": agentID, "executor_kind": "agent", "executor_id": agentID,
+		"executor_kind": "agent", "executor_id": agentID,
 		"name": name, "input": "Summarize new issues.", "cron_expr": cron, "timezone": "UTC",
 	}, &s, http.StatusCreated)
 	return s.ID, err

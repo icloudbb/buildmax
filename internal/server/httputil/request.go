@@ -2,9 +2,13 @@ package httputil
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 // Page sizes. Three tiers rather than one number, because the routes differ in
@@ -63,13 +67,49 @@ func PathValueInt(w http.ResponseWriter, r *http.Request, key string) (int, bool
 }
 
 // DecodeJSONBody reads a JSON request body, answering the request on malformed
-// input.
+// input. A field the destination does not declare is malformed: silently
+// dropping it let a misspelled or misplaced field -- a Secret grant under the
+// wrong name -- produce a 201 for something that was never applied.
 func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
-	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
-		WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if err := DecodeStrict(r.Body, dst); err != nil {
+		WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return false
 	}
 	return true
+}
+
+// DecodeOptionalJSONBody is DecodeJSONBody for a route whose body may be
+// absent: an empty body leaves dst untouched, anything else is decoded as
+// strictly.
+func DecodeOptionalJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
+	if r.Body == nil {
+		return true
+	}
+	if err := DecodeStrict(r.Body, dst); err != nil && !errors.Is(err, errEmptyBody) {
+		WriteJSONError(w, http.StatusBadRequest, err.Error())
+		return false
+	}
+	return true
+}
+
+var errEmptyBody = errors.New("invalid request body: empty")
+
+// DecodeStrict decodes one JSON value, refusing fields dst does not declare and
+// naming the first one so the caller can fix it.
+func DecodeStrict(body io.Reader, dst any) error {
+	dec := json.NewDecoder(body)
+	dec.DisallowUnknownFields()
+	err := dec.Decode(dst)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, io.EOF):
+		return errEmptyBody
+	case strings.HasPrefix(err.Error(), "json: unknown field "):
+		return fmt.Errorf("invalid request body: unknown field %s", strings.TrimPrefix(err.Error(), "json: unknown field "))
+	default:
+		return errors.New("invalid request body")
+	}
 }
 
 // LimitOffset reads a page window, falling back to the default and clamping to

@@ -140,6 +140,14 @@ stays coherent without a per-route argument. They govern HTTP routes only;
   the Space from the record, not the path (Artifacts are the reference pattern).
 - **Auth grouping.** Session and credential routes for the acting subject share
   the `/api/auth/` prefix.
+- **Request bodies are strict on the public listener.** `httputil.DecodeJSONBody`
+  refuses a field the request type does not declare with a `400` naming it
+  (`unknown field "x"`), so a misspelled or misplaced field fails instead of
+  being dropped while the request reports success. A route whose body is
+  optional uses `DecodeOptionalJSONBody`. The worker listener's routes decode
+  leniently on purpose: during a rolling upgrade a worker created by a newer
+  replica may report to an older one, and a field the older one does not know
+  must not fail the run.
 - **No URL versioning.** There is no out-of-band consumer to bridge — every
   client ships from this repository and deploys with the server — so the surface
   changes in lockstep with its clients rather than carrying a `/v1/` that never
