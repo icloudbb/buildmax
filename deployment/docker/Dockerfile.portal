@@ -41,8 +41,10 @@ RUN npm run build
 # statically linked Go binaries.
 RUN node scripts/collect-notices.mjs --out dist/third-party-notices.txt /app/gui /app/portal
 
-# Stage 2: serve.
-FROM nginx:alpine-slim
+# Stage 2: serve. Named so CI can rebuild it without its layer cache: a cached
+# `apk upgrade` layer keeps whatever packages were current when it was first
+# built, which is how a fixed pcre2 CVE still failed the release scan.
+FROM nginx:alpine-slim AS serve
 # Keep the installed packages current between upstream image refreshes.
 RUN apk upgrade --no-cache
 COPY --from=build /app/portal/dist /usr/share/nginx/html
