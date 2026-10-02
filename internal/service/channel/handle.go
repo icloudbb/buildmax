@@ -150,6 +150,8 @@ func (g *Gateway) turnFailure(conv *coreconv.Conversation, err error) string {
 		return "I'm still working through your earlier messages. Send this again once I've answered them."
 	case errors.Is(err, ErrRestarting):
 		return "BuildMax is restarting. Please send that again in a moment."
+	case errors.Is(err, ErrUnavailable):
+		return "BuildMax cannot take messages right now. Please send that again in a moment."
 	}
 	// An apierr message is written for the caller; anything else may carry
 	// internals and stays in the log.

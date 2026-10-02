@@ -40,7 +40,9 @@ func (t *AskUser) DefaultAction() llm.ToolAction { return llm.ToolActionAllow }
 
 func (t *AskUser) Description() string {
 	if t.deferred {
-		return "Ask the user questions you are blocked on. Nobody is watching this run: calling it ends " +
+		return "Ask the user questions you are blocked on. It is the only way to put a question to the " +
+			"user in this run: a question written in your reply is not delivered as one, and the run just " +
+			"ends. Nobody is watching this run: calling it ends " +
 			"your turn, the questions go to the user, and they answer later in their own words as the next " +
 			"message. Use it only when you cannot make reasonable progress without a decision only the user " +
 			"can make or a fact you cannot find; otherwise decide, state your assumption, and keep working. " +

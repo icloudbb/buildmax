@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // helperReady is the line the helper prints once it holds the lock. It is a
@@ -106,5 +107,8 @@ func TestHelperHoldsLock(t *testing.T) {
 	}
 	defer func() { _ = l.Release() }()
 	os.Stdout.WriteString(helperReady + "\n")
-	select {} // killed by the parent
+	// Sleep, not select{}: run without -test.timeout this process has no
+	// timer, so select{} is a deadlock the runtime kills at once -- which
+	// released the lock before the parent's check and failed it at random.
+	time.Sleep(time.Hour) // killed by the parent
 }

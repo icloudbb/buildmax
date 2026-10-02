@@ -174,6 +174,12 @@ the message is refused with `conversation.error` carrying `code: "queue_full"`
 (HTTP: `429`), which does not end the turn in flight. Queues are in memory. See
 [Queued messages](../../design/queued-messages.md).
 
+With `coordination.mode: redis` a turn also holds a cross-replica conversation
+lease. A turn that cannot take it — Redis unreachable — or that is still
+waiting when the server starts draining does not run, and its caller is told:
+HTTP `503`, `conversation.error` without a code on WebSocket, or a retry hint in
+a chat channel. See [server coordination](../../design/server-coordination.md).
+
 Every turn, from any of those paths, answers through `conversation.Service`,
 which binds the conversation model to the turn before its first call
 (`llmgateway.ServerModel.ForConversation`). The bound client runs each call —

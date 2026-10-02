@@ -119,7 +119,7 @@ func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.R
 	}
 	// A turn refused because this instance is stopping is retryable somewhere
 	// else, which 503 is the way to say.
-	if errors.Is(err, turnqueue.ErrDraining) {
+	if errors.Is(err, turnqueue.ErrDraining) || errors.Is(err, turnqueue.ErrCoordinationUnavailable) {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, err.Error())
 		return true
 	}
