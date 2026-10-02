@@ -65,17 +65,29 @@ func BuildS3Client(ctx context.Context, cfg config.WorkspaceStorageConfig) (blob
 // its own, so an endpoint that drops packets held each attempt for the kernel's
 // TCP timeout and a download for minutes. These bound the waits, not the
 // transfer: the response-header wait starts after the request body is sent, so
-// a large upload is not cut short. With the SDK's retries an unreachable store
-// fails a call in well under a minute, as ErrStorageUnavailable.
+// a large upload is not cut short.
+//
+// A dial timeout alone does not cover an outage that starts while the pool
+// holds idle connections: a request on one is written into a link that drops
+// it and waited out the response-header timeout, attempt after attempt, which
+// measured 70s on DigitalOcean. storageUnackedTimeout closes such a connection
+// once data sent on it goes unacknowledged that long. A slow but live store
+// still acknowledges what it receives, so this is not a limit on how long it
+// may take to answer. With the SDK's three attempts an unreachable store fails
+// a call in about half a minute, as ErrStorageUnavailable.
 const (
 	storageDialTimeout           = 5 * time.Second
 	storageTLSHandshakeTimeout   = 10 * time.Second
 	storageResponseHeaderTimeout = 30 * time.Second
+	storageUnackedTimeout        = 10 * time.Second
 )
 
 func storageHTTPClient() *awshttp.BuildableClient {
 	return awshttp.NewBuildableClient().
-		WithDialerOptions(func(d *net.Dialer) { d.Timeout = storageDialTimeout }).
+		WithDialerOptions(func(d *net.Dialer) {
+			d.Timeout = storageDialTimeout
+			d.Control = boundUnackedData
+		}).
 		WithTransportOptions(func(t *http.Transport) {
 			t.TLSHandshakeTimeout = storageTLSHandshakeTimeout
 			t.ResponseHeaderTimeout = storageResponseHeaderTimeout
