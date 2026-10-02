@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -68,8 +67,7 @@ func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req AdminGrantRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	if req.UserID == "" {

@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -126,8 +125,7 @@ func (h *Handler) sessionAbsoluteTTL() time.Duration {
 
 func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	result, err := h.identityService().Login(r.Context(), identitysvc.LoginCmd{
@@ -219,8 +217,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req RefreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	if req.RefreshToken == "" {
@@ -324,9 +321,11 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 // has nothing to revoke, and clearing its own state is all that is left.
 func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	var req LogoutRequest
-	if r.Body != nil {
-		// An empty body is normal here — the access token alone is enough.
-		_ = json.NewDecoder(r.Body).Decode(&req)
+	// An empty body is normal here — the access token alone is enough. A
+	// body that is there is decoded strictly: a misspelled refresh_token
+	// would otherwise leave the refresh session alive behind a 204.
+	if !httputil.DecodeOptionalJSONBody(w, r, &req) {
+		return
 	}
 	svc := h.identityService()
 	var err error
@@ -362,8 +361,7 @@ const invalidPasswordMessage = "invalid email or password"
 
 func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 	var req OtpRequestRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	outcome, err := h.identityService().RequestAccount(
