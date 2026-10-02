@@ -82,7 +82,7 @@ OpenTofu 源码位于 [`deployment/ocean/`](../../../deployment/ocean/)。无需
 应用阶段需要完整主机名和至少一个可信客户端网络。Caddy 边缘代理执行 CIDR 限制，同时保持自动证书质询可访问：
 
 ```bash
-BUILDMAX_OCEAN_HOSTNAME=buildmax.beta.cloudbb.io
+BUILDMAX_OCEAN_HOSTNAME=buildmax.beta.example.com
 BUILDMAX_OCEAN_ALLOWED_CIDRS=203.0.113.7/32
 ```
 
@@ -124,13 +124,13 @@ Worker Job 只通过端口 5679 上的内部 worker 监听器以 TLS 访问 serv
 命令最后输出 DigitalOcean Load Balancer IP。请在 Route 53 中手动添加记录：
 
 ```text
-buildmax.beta.cloudbb.io  A  <Load Balancer IP>
+buildmax.beta.example.com  A  <Load Balancer IP>
 ```
 
 公共 DNS 生效后，Caddy 获取证书。Load Balancer 处于 pending 时可重复运行 `app-status`，然后从允许的网络验证：
 
 ```bash
-curl -I https://buildmax.beta.cloudbb.io/
+curl -I https://buildmax.beta.example.com/
 ```
 
 应用阶段还会创建一个 DigitalOcean Load Balancer，以及保存 Caddy 证书状态的 1 GiB 块存储卷声明。两者都收费，并关联到可销毁的 DOKS 集群，因此 `./make ocean down` 会随集群一起删除它们。

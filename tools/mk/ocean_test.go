@@ -119,7 +119,7 @@ func TestOceanDoctorDoesNotCreateStateDirectory(t *testing.T) {
 }
 
 func TestOceanApplicationConfigRequiresPrivateAccessBoundary(t *testing.T) {
-	t.Setenv("BUILDMAX_OCEAN_HOSTNAME", "buildmax.beta.cloudbb.io")
+	t.Setenv("BUILDMAX_OCEAN_HOSTNAME", "buildmax.beta.example.com")
 	t.Setenv("BUILDMAX_OCEAN_ALLOWED_CIDRS", "")
 	if _, err := loadOceanApplicationConfig(); err == nil {
 		t.Fatal("loadOceanApplicationConfig accepted a public deployment with no allow-list")
@@ -127,7 +127,7 @@ func TestOceanApplicationConfigRequiresPrivateAccessBoundary(t *testing.T) {
 }
 
 func TestOceanApplicationConfigPinsImagesAndNormalizesCIDRs(t *testing.T) {
-	t.Setenv("BUILDMAX_OCEAN_HOSTNAME", "BuildMax.Beta.CloudBB.io")
+	t.Setenv("BUILDMAX_OCEAN_HOSTNAME", "BuildMax.Beta.Example.com")
 	t.Setenv("BUILDMAX_OCEAN_ALLOWED_CIDRS", "203.0.113.7/32, 2001:db8::1/128")
 	t.Setenv("BUILDMAX_OCEAN_IMAGE", "example/buildmax@sha256:"+strings.Repeat("a", 64))
 	t.Setenv("BUILDMAX_OCEAN_PORTAL_IMAGE", "example/portal@sha256:"+strings.Repeat("b", 64))
@@ -137,7 +137,7 @@ func TestOceanApplicationConfigPinsImagesAndNormalizesCIDRs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadOceanApplicationConfig: %v", err)
 	}
-	if cfg.hostname != "buildmax.beta.cloudbb.io" {
+	if cfg.hostname != "buildmax.beta.example.com" {
 		t.Errorf("hostname = %q", cfg.hostname)
 	}
 	if got := strings.Join(cfg.allowedCIDRs, ","); got != "203.0.113.7/32,2001:db8::1/128" {
@@ -149,7 +149,7 @@ func TestOceanApplicationConfigPinsImagesAndNormalizesCIDRs(t *testing.T) {
 }
 
 func TestOceanApplicationConfigRejectsMutableImageTags(t *testing.T) {
-	t.Setenv("BUILDMAX_OCEAN_HOSTNAME", "buildmax.beta.cloudbb.io")
+	t.Setenv("BUILDMAX_OCEAN_HOSTNAME", "buildmax.beta.example.com")
 	t.Setenv("BUILDMAX_OCEAN_ALLOWED_CIDRS", "203.0.113.7/32")
 	t.Setenv("BUILDMAX_OCEAN_IMAGE", "ghcr.io/example/buildmax:latest")
 	if _, err := loadOceanApplicationConfig(); err == nil {
@@ -159,11 +159,11 @@ func TestOceanApplicationConfigRejectsMutableImageTags(t *testing.T) {
 
 func TestOceanCaddyfileRestrictsApplicationAndRoutesOneOrigin(t *testing.T) {
 	got := oceanCaddyfile(oceanApplicationConfig{
-		hostname:     "buildmax.beta.cloudbb.io",
+		hostname:     "buildmax.beta.example.com",
 		allowedCIDRs: []string{"203.0.113.7/32"},
 	})
 	for _, want := range []string{
-		"buildmax.beta.cloudbb.io",
+		"buildmax.beta.example.com",
 		"not remote_ip 203.0.113.7/32",
 		"reverse_proxy buildmax:5678",
 		"reverse_proxy buildmax-portal:80",
@@ -293,7 +293,7 @@ func TestOceanManifestMountsTheKEKWhereServerConfigPointsIt(t *testing.T) {
 func loadOceanServerConfig(t *testing.T) config.ServerConfig {
 	t.Helper()
 	body := oceanServerConfig(oceanConfig{region: "sgp1"}, oceanApplicationConfig{
-		hostname:      "buildmax.beta.cloudbb.io",
+		hostname:      "buildmax.beta.example.com",
 		buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64),
 	}, map[string]string{
 		"database_private_host": "private-db.example",

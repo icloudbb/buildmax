@@ -99,7 +99,7 @@ network. CIDRs are enforced by the Caddy edge while its automatic certificate
 challenge remains reachable:
 
 ```bash
-BUILDMAX_OCEAN_HOSTNAME=buildmax.beta.cloudbb.io
+BUILDMAX_OCEAN_HOSTNAME=buildmax.beta.example.com
 BUILDMAX_OCEAN_ALLOWED_CIDRS=203.0.113.7/32
 ```
 
@@ -183,14 +183,14 @@ The command ends by printing the DigitalOcean Load Balancer IP. Add the record
 manually in Route 53:
 
 ```text
-buildmax.beta.cloudbb.io  A  <Load Balancer IP>
+buildmax.beta.example.com  A  <Load Balancer IP>
 ```
 
 Caddy obtains the certificate after public DNS resolves. Rerun `app-status`
 while the Load Balancer is pending, then verify from an allowed network:
 
 ```bash
-curl -I https://buildmax.beta.cloudbb.io/
+curl -I https://buildmax.beta.example.com/
 ```
 
 The application phase also creates one DigitalOcean Load Balancer and a 1 GiB
