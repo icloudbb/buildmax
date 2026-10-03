@@ -35,6 +35,12 @@ application, allow two useful reads, understand and approve a draft write, and
 see what happened? This tests the delegation boundary before deciding how it
 belongs in Desktop.
 
+The joint discussion of enterprise SSO, Agent identity, connectors as executable
+business capabilities, and runtime control is recorded in the
+[execution identity and connector strategy memo](agent-execution-identity-and-delegation.md#enterprise-sso-connectors-and-executable-work).
+That memo owns the strategic relationship and enterprise authority questions;
+this proposal owns connection UX, transport options, and the local prototypes.
+
 ## Current constraints
 
 BuildMax already has local plugins, Skills, MCP tools, tool permissions, and

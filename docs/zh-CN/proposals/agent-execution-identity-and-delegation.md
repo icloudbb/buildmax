@@ -1,4 +1,4 @@
-# Agent 执行身份与委托策略
+# Agent 执行身份、连接器与委托策略
 
 > **翻译说明：** 本文是[英文原文](../../proposals/agent-execution-identity-and-delegation.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 >
@@ -15,9 +15,14 @@
 [Agent 代表用户使用应用](agent-app-delegation.md)，以及
 [企业功能要求盘点](enterprise-capability-requirements.md)。
 
-本备忘录盘点截至 2026-10-01 的行业与社区方向，将其放到 BuildMax
+本备忘录盘点截至 2026-10-03 的行业与社区方向，将其放到 BuildMax
 现有架构下检验，并列出可选方案。它不是路线图承诺，也不意味着仍处于实验期的
 厂商能力已经成为稳定标准。
+
+本文也集中记录企业 SSO、Agent 身份、应用连接器与受控执行之间的产品讨论。
+连接器的连接体验、传输声明和本地原型仍由
+[Agent 代表用户使用应用](agent-app-delegation.md)维护；本备忘负责它们与执行权限
+之间的战略关系，不另建一份连接器实现规范。
 
 ## 目录
 
@@ -25,7 +30,9 @@
 - [执行摘要与建议](#执行摘要与建议)
 - [核心用户结果与当前约束](#核心用户结果与当前约束)
 - [身份问题其实是一个元组](#身份问题其实是一个元组)
+- [用户委托与独立授权](#用户委托与独立授权)
 - [为什么现在必须回答](#为什么现在必须回答)
+- [企业 SSO、连接器与可执行工作](#企业-sso连接器与可执行工作)
 - [大厂与社区的当前方向](#大厂与社区的当前方向)
 - [已经收敛与尚未收敛的部分](#已经收敛与尚未收敛的部分)
 - [BuildMax 当前所处位置](#buildmax-当前所处位置)
@@ -45,6 +52,9 @@
 当 BuildMax Agent 读取企业数据或修改外部系统时，究竟由哪个主体提供权限、哪个
 工作负载执行动作、什么凭证可以进入该工作负载，以及运维者如何撤销并解释结果？
 
+哪些连接器操作使业务结果可以执行？企业 SSO、这些操作与 runtime 执行约束如何
+共同发挥作用？
+
 最直接的答案是“让每个 Agent 都成为一个用户”，但这只解决了命名。它没有回答：
 交互请求是否应受 Alice 个人权限限制；财务月度任务是否应在创建者离职时停止；
 子 Agent 能否继承权限；任意 Bash 是否可以读取提供方的 refresh token。因此，
@@ -61,7 +71,8 @@ Agent，也不应试图替代企业 IdP。长期差异化能力应是：在组�
 
 建议采用混合式长期模型：
 
-1. 稳定的人类主体或归属 Space 的自动化主体是策略上的权限主体。
+1. 已认证人类或获得明确组织授权的非人主体是策略上的权限主体。Agent 自身可以
+   成为该主体；单独的 Space-owned automation principal 需要独立的生命周期需求。
 2. 稳定的 Agent 身份用于标识受治理的执行者及其 revision 系谱；身份存在本身不
    自动带来广泛权限。
 3. 每个 TaskRun 获得临时工作负载身份，并继续作为权威执行单元。
@@ -74,7 +85,8 @@ Agent，也不应试图替代企业 IdP。长期差异化能力应是：在组�
    更弱的安全边界。
 
 不应一次性建设全部目标。合理顺序是：先拆开来源与权限语义；验证一个短期凭证
-交换；只有在确有共享自动化需求时才增加 Space-owned automation principal；随后
+交换；对真实共享自动化先验证直接向 Agent 授权，仅在业务授权需要独立于执行
+Agent 的生命周期时才增加单独的 automation principal；随后
 用 TaskRun workload federation 与 broker 消除已经量化的凭证风险。多跳委托应等到
 出现真实的跨信任域 Agent-to-Agent 用例后再做。
 
@@ -120,7 +132,7 @@ Agent，也不应试图替代企业 IdP。长期差异化能力应是：在组�
 |---|---|---|
 | Initiator | 是什么直接触发了本次运行？ | Alice、Schedule、Webhook 或另一个 TaskRun |
 | Accountable owner / sponsor | 哪个人持续承担业务决策责任？ | 财务自动化的 sponsor |
-| Authority principal | 以谁的 grant 作为权限上界？ | Alice 或 Space-owned automation principal |
+| Authority principal | 以谁的 grant 作为权限上界？ | Alice、明确获授权的 Agent，或独立 automation principal |
 | Agent identity | 哪个受治理的 Agent 定义正在执行？ | `invoice-reconciler` revision 17 |
 | Execution identity | 眼下具体哪个 workload 在运行？ | 某个 Worker Job 中的 TaskRun `tr_...` |
 | Credential lease | 可以向单一目标出示什么证明？ | 某仓库五分钟有效的 GitHub token |
@@ -143,6 +155,44 @@ initiator + authority principal + Agent revision + TaskRun
 这是证据 envelope，而不是要求把所有内容塞进一个 JWT、一张表或一套通用策略语言。
 只有当缺少某项持久状态会让具体授权、撤销或审计要求失败时，才应增加该状态。
 
+## 用户委托与独立授权
+
+核心结果是让 Agent 在明确的业务授权范围内行动，并保留谁授予权限、谁执行、谁
+承担责任的证据。个人邮件与团队财务对账体现了不同的业务授权；仅靠用户账户或
+Agent 目录条目都不能同时回答两者。这是可选的权限模式，不是互斥的 Agent 类型。
+
+| 问题 | 用户委托权限 | 独立组织权限 |
+|---|---|---|
+| 谁的 grant 允许动作？ | 已认证用户的 grant，同时受 consent、目标系统权限和执行策略限制 | 向非人主体明确授予的组织 grant，受目标和执行策略限制 |
+| 谁是执行者？ | Agent 与具体 TaskRun，与用户分别记录 | Agent 与具体 TaskRun，无论 Agent 是否也作为权限主体 |
+| 适用场景 | Alice 处理个人邮件或提交报销 | 财务对共享业务资源执行月度对账 |
+| 什么使执行资格终止？ | 用户停用、失去目标权限、撤销委托或到期 | 主体或 grant 停用、到期，或不满足 sponsor/review 策略 |
+| 人类 sponsor 表示什么？ | 对 Agent 负责，不自动委托 sponsor 的权限 | 对组织 grant 负责，不默认成为凭证 subject |
+
+同一个 Agent 可以在不同调用中使用任一种模式。用户失去访问权时，用户委托执行
+不能悄悄切换到组织权限。Provider 支持时，审计应同时保留 subject 与 actor；不
+支持时，BuildMax 仍须保留两者的区别以及 provider correlation。
+
+将 Agent 与员工同等治理，适用于清单、负责人、权限复核、审计和退役；不意味着
+使用人类认证方式、继承员工的全部角色，或为每个 Agent 配置邮箱/用户账户。注册
+Agent 不授予权限，明确的独立授权是另一个决定。
+
+### 什么时候值得增加独立自动化主体？
+
+如果身份与权限可以共用生命周期，先向受 Space 治理的 Agent 直接授予有界组织
+权限。创建者离职本身证明需要组织归属，并不证明需要新增主体实体：直接获授权
+的 Agent 也可以通过 sponsor 转移在创建者离开后继续运行。
+
+只有当具名业务授权必须在执行 Agent 被替换后保留，或必须授权多个分别标识的
+Agent 时，单独的 Space-owned automation principal 才有理由存在。增加前须证明
+直接向 Agent 授权及显式重新授权不能满足该场景。独立主体必须定义哪些 actor
+有资格使用它；替换 Agent 绝不能自动继承前一个 Agent 的权限。
+
+即使同一稳定身份同时承担 principal 与 actor，证据模型仍需区分 policy subject、
+Agent actor 与 TaskRun 三种角色。独立概念不要求独立数据库实体。第一个组织授权
+切片必须明确决定生命周期边界；本文后续使用独立 automation principal 的例子
+都是有条件的方案，不是自主执行的既定前提。
+
 ## 为什么现在必须回答
 
 个人 Agent 产品围绕“一个用户带着自己的上下文和连接跨应用工作”进行优化，因此
@@ -161,6 +211,97 @@ on-behalf-of 是自然默认值：Agent 是用户既有权限的新界面。
 workspace materialization、工具策略、凭证交换、批准和 trace 证据。劣势是大厂已经
 拥有更成熟的身份和应用生态。BuildMax 应集成这些系统并提供可移植的内部契约，
 而不是重造它们的目录、邮箱、consent screen 与 conditional access 引擎。
+
+## 企业 SSO、连接器与可执行工作
+
+### 用户结果与证据边界
+
+员工应能委托一个有界的跨应用业务结果，检查实际发生了什么，并保留组织对访问
+和操作效果的控制。例如，解决支持工单可能需要读取工单、查询相关日志、检查
+仓库并创建 PR。身份本身不会开放这些操作；连接器目录本身也不会授权使用它们，
+或证明工作已经完成。
+
+Agent 与连接器相辅相成：Agent 理解目标并选择行动路径，连接器提供可执行的
+业务操作和可靠反馈。任务覆盖同时依赖推理能力与可用操作。这是基于本文场景的
+产品假设，不是已经测量的连接器平台需求，也不意味着每项 Agent 任务都需要应用
+连接器。本地文件和代码工作可以使用普通运行时工具。
+
+### 同一任务中的职责
+
+| 关注点 | 职责 | 边界 |
+|---|---|---|
+| 企业身份与 SSO | 认证人类和非人主体，提供可信身份上下文，治理身份生命周期 | 可以登录不等于可以执行所有 API 操作 |
+| Agent 权限 | 标识 actor、用户或组织 grant、具体 run、target 和 approval | 注册 Agent 或指定 sponsor 不授予业务访问权限 |
+| 应用连接器 | 提供具名操作及输入、输出、效果、目标/账户选择和 provider 错误语义 | Connection 通过获授权路径提供凭证，不是向所有 Agent 授予 grant |
+| Agent 推理与编排 | 理解目标、选择操作、响应结果并提出提权动作 | 模型输出不能签发权限或批准自己的操作 |
+| Runtime 与调用执行约束 | 调用时检查 grant 和 approval，执行凭证托管策略，持久化进度并关联结果 | 强制边界要求限制绕过路径 |
+| 目标应用 | 执行自身业务规则和资源权限，报告权威操作状态 | Runtime 不能重造或绕过应用规则 |
+
+这些是职责，不是新增六个服务或实体的要求。SSO、provider token exchange 和
+连接器的业务操作语义应能组合，而不混成一个过载概念。
+
+### 企业 SSO 带来的变化
+
+XAA/ID-JAG 探索将已有企业 SSO 信任关系扩展到跨应用授权。在支持它的系统中，
+这可以减少重复用户 consent 和连接设置。但目标 API 与授权服务器仍须支持；
+应用支持 SSO，不会自动变得可由 Agent 调用。稳定资源标识、操作语义和目标业务
+权限仍属于应用集成工作。
+
+战略假设包括：
+
+- 企业从只检查应用成员资格，进一步复核哪个 Agent 能在何种权限和任务下执行
+  哪种操作。
+- 单个 Agent 可以将既有应用组合成工作流程，同时保留各目标的独立 grant，而
+  非获得一个通用 token。
+- 当自主 workflow 的业务归属需要在员工离职后延续时，非人主体清单和 sponsor
+  转移变得必要。
+- 单独获准的操作可能组合成未获授权的结果：CRM 读取加邮件发送，不等于允许
+  向外部导出客户数据。经验证的场景可能需要跨调用的数据用途和接收方约束，
+  超出单独 OAuth scope 的范围。
+- Runtime 限制直接凭证和网络访问后，broker/gateway 才能强制约束实际调用。
+  撤权停止后续工作，但不会撤回已完成效果或清除已经复制的数据。
+
+### 连接器是业务能力契约
+
+有用的连接器必须覆盖完成流程所需的操作，而不只是认证或搜索。发票对账可能
+需要读取发票、查询订单和收货、登记异常及验证结果；付款是具有独立权限和批准
+要求的另一项操作效果。
+
+对选定操作，应检查：
+
+- 业务含义、输入/输出结构、前置条件和读写效果；
+- 在实际 grant 下选择账户、租户、资源和凭证；
+- 分页、provider 限制、schema 漂移和可指导下一步的错误报告；
+- 超时及部分成功语义、provider 支持时的安全重试或幂等，以及判断效果是否已经
+  发生的方法；
+- provider operation ID、审计关联，以及业务支持时的恢复或补偿动作。
+
+适当的传输可以是 HTTP、MCP 或其他经审查的集成。通用工具协议不会消除 provider
+语义。Skill 可以描述如何组合操作，plugin 可以打包实现；安装和 workflow 指令
+都不会授予访问权。同一连接器可以服务不同 Agent，各自使用不同操作和 grant。
+连接器覆盖增加时，更多任务可以执行；真实 Agent 使用又会暴露缺失操作和薄弱的
+恢复语义。完成的业务流程比连接器数量更有意义。
+
+### 产品机会与第一个证据闸门
+
+以下机会是战略推论，不是路线图承诺：
+
+| 参与方 | 待验证的机会 |
+|---|---|
+| 已有企业 IdP | 复用目录与应用信任，治理 Agent 身份、委托和凭证交换 |
+| 应用提供方或连接器维护者 | 提供访问有界、效果明确、结果可验证的 Agent 业务操作 |
+| BuildMax 等 Agent runtime | 将企业权限连接到私有执行、具体批准、恢复和完整证据 |
+| 安全与治理提供方 | 发现无人负责的 Agent、过大的组合权限、异常数据流及撤权缺口 |
+
+对 BuildMax，先用组织已有 IdP 和少量操作，验证工单 → 日志 → 仓库 → PR 的
+完整流程。每次调用保留 subject、Agent revision、TaskRun 和 provider correlation；
+验证访问拒绝、具体动作批准、结果不确定的超时，以及下次调用或恢复执行前撤权。
+明确哪些控制分别由 IdP、连接器、runtime 和目标系统执行。
+
+测量设置及维护成本、完成与人工恢复的任务、授权准确性、重试后的重复效果、
+撤权延迟和审计覆盖率。由这些证据选择下一个连接器契约和权限切片，不从通用
+manifest、大型目录或通用策略语言开始。标准化访问可能降低连接胶水的价值；
+可靠且可治理地完成真实工作，是需要验证的战略假设。
 
 ## 大厂与社区的当前方向
 
@@ -216,6 +357,11 @@ Okta Agent token exchange 支持用户与机器权限、resource connection、Ag
 把 broker 放在 Agent 和下游 OAuth token 之间，使 refresh token 和原始用户凭证不必
 暴露给 Agent 代码。
 
+Okta 在 2026 年 9 月发布的 Agent SSO 将一等 Agent 身份扩展到支持 Cross-App
+Access（XAA）的集成。XAA 利用受 SSO 信任的 IdP 协调跨应用授权，其 ID-JAG
+机制见下文。产品支持某种集成，不代表所有下游 API 都兼容，也不代表草案已经
+成为正式标准。
+
 因此 BuildMax 的集成边界应是一套 provider-neutral credential exchange interface。
 企业可以选择 Vault、IdP STS、GitHub App、cloud STS 或 BuildMax 本地 provider；领域
 模型描述“需要什么权限”，而不是嵌入某一家厂商的 flow。
@@ -227,6 +373,23 @@ SPIFFE 提供受证明的 workload identity 与短期 SVID，并明确建议不�
 actor token，可按 resource、audience 和 scope 缩窄新 token；但交换本身不会自动让
 输入和输出 token 的撤销联动。IETF WIMSE 正在研究 workload identity、OAuth、JWT、
 SPIFFE 与多跳上下文之间的互操作性——这既证明问题真实，也说明组合模型尚未定型。
+
+RFC 8693 的 JWT `sub` 与 `act` claim 可以区分权限主体和当前执行者，嵌套的 `act`
+记录先前执行者。但历史记录本身不会强制权限收缩：issuer 必须执行交换策略；
+consumer 根据当前 actor 与顶层 claim 判断权限，不能把先前 actor 当成额外授权。
+
+**Cross-App Access 与 ID-JAG（工作草案）。** IETF OAuth 工作组的 Identity
+Assertion JWT Authorization Grant 建立在 token exchange 和 JWT authorization
+grant 之上。IdP 为已通过 SSO 信任它的下游授权服务器签发 assertion，client 按
+参与系统的策略交换目标 access token。这允许跨域用户委托，无需在每个目标授权
+服务器重复直接用户批准步骤；它不授予无边界访问，也不定义自主业务 workflow
+的归属。截至本次核查，ID-JAG 是活跃 Internet-Draft，尚未成为已发布的 RFC。
+
+**可验证 capability 委托（研究原型）。** AIP 论文为 MCP、A2A 与 HTTP 提出
+Invocation-Bound Capability Tokens，单跳使用 signed JWT，多跳使用 Biscuit
+policy chain。其参考实现探索可验证来源和持有者主动收缩权限。这是研究提案，
+不是协议要求或成熟互操作标准。BuildMax 应先用真实 child-Task 场景评估这些
+性质，再决定 token 格式；论文中的结论不能作为 BuildMax 的验收证据。
 
 MCP authorization 为远端 MCP server 标准化 OAuth discovery 与 audience binding，
 并明确禁止把 MCP client token 原样传给上游 API。A2A 通过 Agent Card 声明传输层认证，
@@ -316,9 +479,10 @@ revision 与具体 run；Worker 内没有可复用的 Alice refresh token。
 提出付款。如果使用创建者个人身份，创建者离职后要么流程中断，要么以过期个人权限
 悄悄继续。
 
-建议模型下，Finance 创建归属 Space 的 automation principal，设置 human sponsor、
-固定资源以及过期/复核规则。每次 schedule TaskRun 获得短期 identity 与 brokered
-credential。报告可自动生成；付款需要另一项 capability，并将批准绑定 payee、amount、
+Finance 明确向 Agent 授权，设置 human sponsor、固定资源以及过期/复核规则。
+如果业务授权必须独立于这个 Agent 延续，Finance 则使用单独的 Space-owned
+automation principal，并明确哪些 actor 有资格使用它。每次 schedule TaskRun 获得
+短期 identity 与 brokered credential。报告可自动生成；付款需要另一项 capability，并将批准绑定 payee、amount、
 currency 与源记录。
 
 价值：人员变化不再模糊业务连续性的归属，高风险权限不与普通对账权限捆绑。
@@ -335,7 +499,7 @@ On-call 工程师要求 Agent 排查生产故障。普通 grant 只允许读 met
 
 ### 4. 客服分流：一次运行混合多种权限
 
-Agent 先用 automation principal 读取 Space-owned support queue，然后需要用发起客服
+Agent 先用组织 grant 读取 Space-owned support queue，然后需要用发起客服
 主管的身份读取受限客户 case，最后再以 Space-owned bot 发布脱敏摘要。
 
 价值：权限按目标调用选择；系统不会假装一个 run 只有一个通用身份，也不会把最高
@@ -367,6 +531,7 @@ Agent 专用执行和证据平面。
 |---|---|---|---|
 | A. 保持 `created_by` 权限，只改进 Secret 交付 | Alpha 简化与个人自动化 | 概念少，复用现有资格检查 | 共享自动化仍绑定个人，来源与权限继续过载 |
 | B. 每个 Agent 都是持久 principal | 企业 autonomous Agent 清单 | 便于禁用、grant、审计 | 定义身份与运行实例混淆，容易累积宽泛 standing privilege |
+| B1. 直接向选定的受 Space 治理的 Agent 授权 | grant 与 Agent identity 共用生命周期的自主工作 | 复用 Agent 身份，不新增业务授权实体 | 替换 Agent 需显式重新授权；不适合业务授权必须独立于执行者延续的场景 |
 | C. 始终代表发起用户执行 | 交互式个人助手 | 自然 consent，复用既有 entitlement | Schedule、webhook、共享任务与离职无解；用户凭证价值过高 |
 | D. 增加 Space-owned automation principal | 共享 Schedule 与团队操作 | 非人生命周期、sponsor 与稳定权限清晰 | 新增生命周期和恢复 UX；不当默认会让每个 Agent 都变 service account |
 | E. 只使用临时 TaskRun workload identity | 联邦基础设施与 S2S | 爆炸半径小，每 run 审计强 | 下游必须支持 federation，仍缺稳定 policy subject |
@@ -374,6 +539,7 @@ Agent 专用执行和证据平面。
 | G. 稳定 principal + Agent actor + 临时 run + broker | 混合交互/自主企业任务 | 不混淆用户、组织、run 与 target | 组件更多，必须按证据切片交付 |
 
 方案 A 是合理近期状态，不是长期企业答案。B 或 C 单独采用都会过拟合一种产品形态。
+B1 是更简单的独立授权基线；只有确需独立生命周期时才选择 D。
 D 解决归属但不解决 runtime attestation 和 Secret 暴露。E 解决执行身份但不解决业务
 权限。F 是最强凭证边界，却无法诚实覆盖不受限本地工具。G 是建议目标；它的每个概念
 都对应一个已经明确的生命周期失败，通过延迟未被证据触发的切片来控制成本。
@@ -382,13 +548,14 @@ D 解决归属但不解决 runtime attestation 和 Secret 暴露。E 解决执�
 
 ### 1. 三层身份
 
-**Policy principal。** 已认证用户或 Space-owned automation principal，拥有 grant 并
-接受 active 状态检查。Automation principal 至少具有 human sponsor、purpose、expiry
-或 review date，以及 disable 路径。Agent definition 不会自动成为 principal。
+**Policy principal。** 已认证用户或明确获授权的非人身份：受 Space 治理的 Agent
+自身，或满足前述生命周期闸门后新增的 Space-owned automation principal。它拥有
+grant 并接受 active 状态检查。独立组织权限需要 human sponsor、purpose、expiry
+或 review date，以及 disable 路径。创建或发布 Agent definition 本身不会授予权限。
 
 **Agent actor。** 稳定 Agent identity 与 immutable revision 标识哪套软件配置执行，
-用于 inventory、allow/deny policy、incident search 与 rollout。它不替代个人或
-automation principal 的权限。
+用于 inventory、allow/deny policy、incident search 与 rollout。识别 actor 不等于
+证明权限；即使 Agent 同时是 principal，也需要明确的 grant。
 
 **TaskRun workload。** 短期身份标识精确执行，绑定 Space、Task、Agent revision、
 runtime profile 与 expiry。它可以请求 capability，不能扩大 capability。
@@ -400,7 +567,7 @@ runtime profile 与 expiry。它可以请求 capability，不能扩大 capabilit
 | 模式 | 权限来源 | 用途 |
 |---|---|---|
 | `user_delegated` | 已认证人类及 provider consent/grant | 个人或用户受限资源的交互任务 |
-| `organization_grant` | Space-owned automation principal | 共享 Schedule、Webhook、团队后台工作 |
+| `organization_grant` | 向受 Space 治理的 Agent 或确有必要的独立 automation principal 明确授予的 grant | 共享 Schedule、Webhook、团队后台工作 |
 | `approved_elevation` | 既有 principal 加 operation-bound approval | 正常 grant 之外的一次高风险效果 |
 | `system_internal` | 部署运维策略 | 只用于狭窄 BuildMax 维护，不能作为访问业务数据的捷径 |
 
@@ -409,7 +576,9 @@ principal。Child Agent 是 actor，不是新权限来源；它从 parent 获得
 
 ### 3. 可移植 authority envelope
 
-控制平面应能生成并持久化等价于下列结构的 envelope：
+控制平面应能生成并持久化等价于下列示例的 envelope。此例使用独立 automation
+principal；直接向 Agent 授权时，`authority.principal_id` 则指向 Agent，同时继续
+将 actor 与具体 run 作为独立证据记录：
 
 ```json
 {
@@ -487,8 +656,8 @@ BuildMax 知道原始用户、Agent revision 与 TaskRun；运维者需要同时
 
 1. **Register：** 发布或激活 Agent revision，可关联 Space、runtime profile、target 与
    sponsor。注册本身不授予外部权限。
-2. **Grant：** 用户委托选定 provider access，或管理员给 Space-owned automation
-   principal 有界 capability。记录 approver、原因、资源、review/expiry 和是否可继续
+2. **Grant：** 用户委托选定 provider access，或管理员给有资格的非人主体授予
+   有界 capability。记录 approver、原因、资源、review/expiry 和是否可继续
    委托。
 3. **Admit：** Trigger 创建 TaskRun。Service 认证 initiator，解析 authority principal
    与 mode，检查当前资格，并 snapshot decision input。
@@ -528,15 +697,18 @@ principal。
 成功证据：该 journey 中没有静态 provider credential 进入 Worker；被盗 token 在
 provider 能力允许时不能用于其他 audience/resource；disable grant 后无法续租。
 
-### Stage 2：Space-owned automation principal
+### Stage 2：组织权限与主体生命周期决定
 
-只有当具名 workflow 必须在 creator 离开后继续时才增加此实体。至少需要 sponsor、
-purpose、active/disabled、grant set、创建/更新 provenance，以及 review 或 expiry。
-个人 schedule 保持 `user_delegated`；团队 schedule 必须显式转换为
+先用直接向 Agent 授权验证具名的组织 workflow。至少需要 sponsor、purpose、
+active/disabled、grant set、创建/更新 provenance，以及 review 或 expiry。只有
+业务授权必须跨 Agent 替换延续或覆盖多个 actor，且显式重新授权不能满足场景时，
+才新增独立 automation principal。定义并检查合格 actor，不能自动向替代 Agent
+转移 grant。个人 schedule 保持 `user_delegated`；团队 schedule 必须显式转换为
 `organization_grant`。
 
 成功证据：creator offboarding 会停止个人自动化，但不会让明确组织拥有的 workflow
-变孤儿；sponsor transfer 与 disable 易于理解且有 audit。
+变孤儿；sponsor transfer 与 disable 易于理解且有 audit。替换 Agent 必须显式
+授予新权限，或审计独立主体的合格 actor 变更。
 
 ### Stage 3：TaskRun workload federation
 
@@ -579,7 +751,7 @@ runtime profile 中要么被阻止，要么明确报告；audit 可以连接内�
 | Prompt injection 要求输出 Secret | 优先 brokered invocation；reusable credential 不进入 model context 或 trace |
 | Confused deputy 把合法 token 交给错误服务 | 绑定并验证 audience/resource；禁止 token passthrough |
 | Webhook 或模型声称自己是 Alice | 只从已认证 server context 推导 user；payload identity 是不可信数据 |
-| Creator 离职但 Schedule 继续 | 个人权限失去资格；组织权限只有 active automation principal 与 sponsor policy 满足时继续 |
+| Creator 离职但 Schedule 继续 | 个人权限失去资格；组织权限只有获授权的非人主体 active 且 sponsor policy 满足时继续 |
 | Shared service account 掩盖权限来源 | 除外部 shared principal 外保留 initiator、Agent、TaskRun、target 与 provider correlation |
 | 被盗 run/provider token replay | 短 expiry、单一 audience、窄 resource、可用时采用 proof-of-possession，并关联 run/lease |
 | Approval 被用于另一动作 | 绑定 operation、规范化参数、resource、expiry 与 use count |
@@ -612,6 +784,8 @@ runtime profile 中要么被阻止，要么明确报告；audit 可以连接内�
    下次 exchange/call 停止。
 2. **组织 Schedule：** 月度对账只有在显式转换为组织归属且 sponsor 有效后，才能在
    creator 离开后继续。
+   Sponsor 转移不扩大 grant。替换 Agent 需要新的直接 grant，或由独立主体明确
+   授权新 actor；旧 actor 退役后失去资格。
 3. **生产提权：** Restart approval 不能用于 deploy、其他 cluster、其他 service 或
    变更后的参数。
 4. **Audience theft：** 复制到其他 service/run 的 TaskRun 或 target token 被拒绝。
@@ -631,7 +805,8 @@ runtime profile 中要么被阻止，要么明确报告；audit 可以连接内�
 
 ### 决策闸门
 
-- 没有具名共享 workflow 需要独立于 creator 的权限前，不增加 automation principal。
+- 不能仅为独立于 creator 而增加单独的 automation principal。须证明业务授权需要
+  独立于执行 Agent 的生命周期，以及直接授权和显式重新授权为何不能满足需求。
 - 没有真实 relying party 消费 workload identity，且不能因此移除静态 credential 或
   获得可量化 enforcement 前，不增加 workload issuer。
 - 不先建设 generic broker；先验证一个 provider 和一个 journey。
@@ -642,8 +817,9 @@ runtime profile 中要么被阻止，要么明确报告；audit 可以连接内�
 
 ## 待回答的产品问题
 
-1. Space-owned automation principal 是否成为可见产品对象，还是先作为 Workflow/Schedule
-   背后的窄安全资源？
+1. 第一个组织授权场景能否直接向 Agent 授权？如果需要独立 Space-owned automation
+   principal，哪种业务授权必须独立于 actor 延续？主体成为可见产品对象，还是限制在
+   Workflow/Schedule 背后？
 2. 每个 published Agent 都需要稳定 identity，还是只有获 autonomous access 的 Agent
    才需要？什么生命周期事件创建和 retire 它？
 3. 混合用户与组织权限的 TaskRun 应展示一个 primary mode，还是按 call 展示 authority
@@ -660,6 +836,10 @@ runtime profile 中要么被阻止，要么明确报告；audit 可以连接内�
 9. 没有 manager hierarchy 或自动 identity provisioning 的部署中，sponsor 离职如何处理？
 10. Authority envelope 的哪些部分进入有界 trace、持久 audit log、provider token 与
     运维 UI？
+11. 哪条跨应用流程能同时证明连接器覆盖有用、企业统一授权有效？哪个缺失操作
+    实际阻止了工作完成？
+12. 哪些连接器语义必须跨传输共享？哪些 provider 特有的重试、业务规则和恢复
+    行为应保留在集成里，而不抽象成通用 runtime 能力？
 
 ## 获采纳后的可能归宿
 
@@ -693,6 +873,7 @@ runtime profile 中要么被阻止，要么明确报告；audit 可以连接内�
   [ChatGPT Work cloud security](https://learn.chatgpt.com/docs/enterprise/chatgpt-work-cloud-security)。
 - Okta：[AI Agent token exchange](https://developer.okta.com/docs/guides/ai-agent-token-exchange/secret/main/)
   与 [AI Agent lifecycle](https://developer.okta.com/docs/api/secures-ai/ai-agents)。
+- Okta：[Agent SSO 公告](https://www.okta.com/newsroom/press-releases/okta-brings-first-class-identity-to-ai-agents-with-agent-sso/)。
 - Auth0：[Token Vault](https://auth0.com/features/token-vault)。
 
 ### 社区协议与标准
@@ -701,8 +882,15 @@ runtime profile 中要么被阻止，要么明确报告；audit 可以连接内�
   [SPIFFE ID/SVID](https://spiffe.io/docs/latest/spiffe-specs/spiffe-id/)。
 - IETF：[WIMSE](https://datatracker.ietf.org/group/wimse/about/)。
 - IETF：[OAuth 2.0 Token Exchange, RFC 8693](https://www.rfc-editor.org/rfc/rfc8693.html)。
+- IETF OAuth 工作组：[ID-JAG / Cross-App Access](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/)
+  （截至 2026-10-03 为活跃 Internet-Draft，尚未成为已发布的 RFC）。
 - Model Context Protocol：
   [2026-07-28 specification release](https://blog.modelcontextprotocol.io/posts/2026-07-28/)
   与 [Authorization specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-06-18/basic/authorization.mdx)。
 - A2A Project：[协议规范](https://github.com/a2aproject/A2A/blob/main/docs/specification.md)与
   [Enterprise-ready security guidance](https://github.com/a2aproject/A2A/blob/main/docs/topics/enterprise-ready.md)。
+
+### 研究原型
+
+- Sunil Prakash：[AIP: Agent Identity Protocol for Verifiable Delegation Across MCP and A2A](https://arxiv.org/abs/2603.24775)
+  （2026-03-25；附参考实现的研究论文，不是已接受的标准）。

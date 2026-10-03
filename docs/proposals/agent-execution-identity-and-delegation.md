@@ -1,4 +1,4 @@
-# Agent Execution Identity And Delegation Strategy
+# Agent Execution Identity, Connectors And Delegation Strategy
 
 > **简体中文：** [阅读中文镜像](../zh-CN/proposals/agent-execution-identity-and-delegation.md)
 >
@@ -16,9 +16,16 @@ Related: [roadmap](../ROADMAP.md) R5,
 [enterprise capability inventory](enterprise-capability-requirements.md).
 
 This memorandum surveys current industry and community directions as of
-2026-10-01, tests them against BuildMax's present architecture, and frames
+2026-10-03, tests them against BuildMax's present architecture, and frames
 choices. It is not a roadmap commitment or a claim that experimental vendor
 features are settled standards.
+
+It also records the joint product discussion of enterprise SSO, Agent identity,
+application connectors, and controlled execution. Connector connection UX,
+transport declarations, and local prototypes remain in
+[Agent delegation to user applications](agent-app-delegation.md); this memo owns
+their strategic relationship to execution authority, not a second connector
+implementation specification.
 
 ## Contents
 
@@ -26,7 +33,9 @@ features are settled standards.
 - [Executive Recommendation](#executive-recommendation)
 - [Essential Outcome And Current Constraints](#essential-outcome-and-current-constraints)
 - [The Identity Problem Is A Tuple](#the-identity-problem-is-a-tuple)
+- [Delegated And Independent Authority](#delegated-and-independent-authority)
 - [Why The Question Matters Now](#why-the-question-matters-now)
+- [Enterprise SSO, Connectors And Executable Work](#enterprise-sso-connectors-and-executable-work)
 - [Industry And Community Direction](#industry-and-community-direction)
 - [What Is Converging And What Is Not](#what-is-converging-and-what-is-not)
 - [BuildMax's Current Position](#buildmaxs-current-position)
@@ -48,6 +57,9 @@ which principal supplies the authority, which workload performs the action,
 what credential reaches that workload, and how can an operator revoke and
 explain the result?
 
+Which connector operations make the business outcome executable, and how do
+enterprise SSO, those operations, and runtime enforcement work together?
+
 The tempting answer is to make every Agent a user. That solves only naming.
 It does not decide whether an interactive request should be limited by Alice's
 permissions, whether a monthly finance process should stop when its creator
@@ -68,7 +80,9 @@ inside an organization's boundary while producing a defensible answer to:
 
 The recommended long-term shape is hybrid:
 
-1. A stable human or Space-owned automation principal is the policy subject.
+1. An authenticated human or an explicitly organization-authorized non-human
+   principal is the policy subject. An Agent may itself be that principal;
+   a separate Space-owned automation principal requires a distinct lifecycle need.
 2. A stable Agent identity names the governed actor and revision lineage, but
    does not receive broad authority merely because it exists.
 3. Every TaskRun receives an ephemeral workload identity and remains the
@@ -84,7 +98,8 @@ The recommended long-term shape is hybrid:
 
 BuildMax should not build the whole target at once. The order should be:
 separate provenance from authority, validate one short-lived provider exchange,
-add Space-owned automation principals only for demonstrated shared automation,
+validate direct Agent grants for demonstrated shared automation and add a
+separate automation principal only when the mandate needs a separate lifecycle,
 then add TaskRun workload federation and a broker where they remove a measured
 credential risk. Multi-hop delegation should wait for a real cross-trust-domain
 Agent-to-Agent use case.
@@ -139,7 +154,7 @@ The following concepts answer different questions and must not be collapsed:
 |---|---|---|
 | Initiator | What immediately requested the run? | Alice, a schedule, a webhook, or another TaskRun |
 | Accountable owner or sponsor | Which human owns the continuing business decision? | Finance automation sponsor |
-| Authority principal | Whose grants bound access? | Alice or a Space-owned automation principal |
+| Authority principal | Whose grants bound access? | Alice, an explicitly authorized Agent, or a separate automation principal |
 | Agent identity | Which governed Agent definition is acting? | `invoice-reconciler` revision 17 |
 | Execution identity | Which concrete workload is running now? | TaskRun `tr_...` in one worker Job |
 | Credential lease | What proof can be presented to one target? | Five-minute GitHub token for one repository |
@@ -165,6 +180,53 @@ This is an evidence envelope, not a requirement for one JWT, database row, or
 universal policy language. Each field should become durable state only when a
 concrete authorization, revocation, or audit requirement fails without it.
 
+## Delegated And Independent Authority
+
+The essential outcome is to let an Agent act within a clear business mandate,
+while preserving who granted authority, who executed, and who is accountable.
+Personal mail and team-owned reconciliation demonstrate different mandates;
+neither a user account nor an Agent directory entry alone answers both. These
+are alternative authority modes, not mutually exclusive kinds of Agent.
+
+| Question | User-delegated authority | Independent organization authority |
+|---|---|---|
+| Whose grants permit the action? | An authenticated user's grant, limited by consent, target entitlements, and execution policy | An explicit organization grant to a non-human principal, limited by target and execution policy |
+| Who is the actor? | The Agent and exact TaskRun, recorded separately from the user | The Agent and exact TaskRun, whether or not the Agent is also the principal |
+| Appropriate journey | Alice processes her mail or submits her expenses | Finance runs monthly reconciliation against shared business resources |
+| What ends eligibility? | User disablement, lost entitlement, revoked delegation, or expiry | Principal or grant disablement, expiry, or failed sponsor/review policy |
+| What does a human sponsor mean? | Accountability for the Agent; not automatic delegation of the sponsor's rights | Accountability for the organization grant; not the credential subject by default |
+
+One Agent may use either mode on different calls. User-delegated execution must
+not silently switch to organization authority when the user's access is lost.
+Audit should preserve both subject and actor where the provider supports it;
+where it does not, BuildMax must retain the distinction and provider correlation.
+
+Treating Agents like employees is useful for inventory, ownership, access
+review, audit, and retirement. It does not imply human authentication methods,
+an employee's entire role, or a mailbox/user account for every Agent. Registering
+an Agent grants no authority. Explicit independent grants are a separate decision.
+
+### When does a separate automation principal earn its cost?
+
+Start with direct, bounded organization grants to a Space-governed Agent if its
+identity and authority can share a lifecycle. Creator departure alone proves
+the need for organization ownership, not an additional principal entity: a
+directly authorized Agent can also survive its creator with sponsor transfer.
+
+A separate Space-owned automation principal is justified only when a named
+business mandate must retain its grants while the executing Agent is replaced,
+or must authorize several separately identified Agents. Before adding it,
+demonstrate that direct Agent grants and deliberate reauthorization do not
+satisfy that journey. The separate principal must define eligible actors;
+replacing an Agent must never automatically confer its predecessor's authority.
+
+The policy subject, Agent actor, and TaskRun remain distinct roles in the
+evidence model even when one stable identity fills both principal and actor.
+Independent concepts do not require independent database entities. The first
+organization-authority slice must decide this lifecycle boundary explicitly;
+the remainder of this proposal uses a separate automation principal as a
+conditional example, not a settled prerequisite for autonomous execution.
+
 ## Why The Question Matters Now
 
 Personal Agent products optimize for one user carrying their own context and
@@ -189,6 +251,117 @@ is that consumers already get polished identity and application ecosystems
 from large vendors. BuildMax should integrate with those systems and provide a
 portable internal contract, not attempt to recreate their directories,
 mailboxes, consent screens, and conditional-access engines.
+
+## Enterprise SSO, Connectors And Executable Work
+
+### User outcome and evidence boundary
+
+An employee should be able to delegate a bounded business outcome across
+applications, inspect what happened, and retain organizational control over
+access and effects. For example, resolving a support issue may require reading
+the issue, querying relevant logs, inspecting a repository, and creating a pull
+request. Identity alone does not expose those operations; a connector catalog
+alone does not authorize their use or prove that the work completed.
+
+Agents and connectors are complementary: the Agent interprets the goal and
+selects a course of action; connectors expose executable business operations
+and reliable feedback. Useful task coverage depends on both reasoning and
+available operations. This is a product hypothesis grounded in the journeys
+in this memo, not measured demand for a connector platform or a claim that every
+Agent task requires an application connector. Local file and code work may use
+ordinary runtime tools.
+
+### Responsibilities in one task
+
+| Concern | Responsibility | Boundary |
+|---|---|---|
+| Enterprise identity and SSO | Authenticate people and non-human principals, supply trusted identity context, and govern identity lifecycle | Login eligibility is not permission for every API operation |
+| Agent authority | Identify the actor, user or organization grant, exact run, target, and approval | Agent registration and sponsor assignment do not confer business access |
+| Application connector | Expose named operations with inputs, outputs, effects, target/account selection, and provider error semantics | A connection makes credentials available through an authorized path; it is not a grant to every Agent |
+| Agent reasoning and orchestration | Interpret the goal, select operations, react to results, and propose elevated actions | Model output cannot mint authority or approve its own effects |
+| Runtime and call enforcement | Check grants and approvals at invocation, apply credential custody policy, persist progress, and correlate outcomes | Hard enforcement requires confinement of bypass paths |
+| Target application | Enforce its business rules and resource permissions and report authoritative operation state | The runtime must not recreate or bypass the application's rules |
+
+These are responsibilities, not a requirement for six new services or entities.
+SSO, provider token exchange, and a connector's business operation semantics
+must compose without becoming one overloaded concept.
+
+### What enterprise SSO changes
+
+XAA/ID-JAG explores extending existing enterprise SSO trust relationships to
+cross-application authorization. In participating systems, this can reduce
+repeated user consent and connection setup. It still requires target API and
+authorization-server support; an application that supports SSO is not thereby
+Agent-callable. Stable resource identifiers, operation semantics, and target
+business permissions remain application integration work.
+
+The strategic hypotheses are:
+
+- Enterprises can move from inspecting only application membership to reviewing
+  which Agent may perform which operation under which authority and task.
+- A single Agent can compose existing applications into a work journey while
+  preserving distinct target grants rather than receiving a universal token.
+- Non-human inventory and sponsor transfer become necessary for autonomous
+  workflows whose business ownership outlives an employee.
+- Individually permitted operations may compose into an unauthorized outcome:
+  CRM read plus email send does not authorize external customer-data export.
+  A validated journey may therefore need data-use and destination constraints
+  across calls, beyond individual OAuth scopes.
+- Credential brokers and gateways can enforce actual invocations where the
+  runtime confines direct credential and network access. Authorization loss
+  stops future work but does not undo completed effects or erase copied data.
+
+### A connector is a business capability contract
+
+A useful connector must cover the operations required to complete a journey,
+not just authenticate or search. Invoice reconciliation may need invoice reads,
+order and receipt lookup, exception registration, and result verification;
+payment is a distinct effect with its own authority and approval.
+
+For the chosen operations, review:
+
+- business meaning, input/output shapes, preconditions, and read/write effects;
+- account, tenant, resource, and credential selection under the effective grant;
+- pagination, provider limits, schema drift, and actionable error reporting;
+- timeout and partial-success semantics, safe retry or idempotency where
+  supported, and a way to establish whether the effect already occurred;
+- provider operation IDs, audit correlation, and recovery or compensating
+  actions where the business supports them.
+
+The appropriate transport may be HTTP, MCP, or another reviewed integration.
+A common tool protocol does not remove provider semantics. Skills can describe
+how to combine operations; plugins can package their implementation; neither
+installation nor workflow instructions grant access. The same connector can
+serve different Agents with different operations and grants. Increasing
+connector coverage makes more tasks executable; real Agent use reveals missing
+operations and weak recovery semantics. Completed journeys matter more than
+connector count.
+
+### Product opportunities and the first evidence gate
+
+These opportunities are strategic inferences, not roadmap commitments:
+
+| Participant | Opportunity to validate |
+|---|---|
+| Existing enterprise IdP | Reuse directory and application trust to govern Agent identities, delegation, and credential exchange |
+| Application provider or connector maintainer | Offer Agent-usable business actions with bounded access, explicit effects, and verifiable outcomes |
+| Agent runtime such as BuildMax | Join enterprise authority to private execution, concrete approvals, recovery, and end-to-end evidence |
+| Security and governance provider | Detect unowned Agents, excessive combined access, abnormal data movement, and revocation gaps |
+
+For BuildMax, validate one issue-to-logs-to-repository-to-PR journey using the
+organization's existing identity provider and a small operation set. Preserve
+subject, Agent revision, TaskRun, and provider correlation for every call;
+prove denied access, exact-action approval, a timeout with uncertain outcome,
+and revocation before the next call or resumed execution. Identify which
+controls the IdP, connector, runtime, and target each enforce.
+
+Measure setup and maintenance effort, completed versus manually recovered
+tasks, authorization accuracy, duplicate effects after retry, revocation
+latency, and audit coverage. This evidence should select the next connector
+contract and authority slice. Do not start with a universal manifest, a large
+catalog, or a general policy language. Standardized access could lower the value
+of connection plumbing; reliable, governed completion of real work is the
+strategic hypothesis to test.
 
 ## Industry And Community Direction
 
@@ -259,6 +432,12 @@ preservation of the original service identity across hops. Auth0 Token Vault
 positions a broker between Agents and downstream OAuth tokens so refresh and
 raw user credentials need not be exposed to Agent code.
 
+Okta's September 2026 Agent SSO announcement extends first-class Agent identity
+to Cross-App Access (XAA)-enabled integrations. XAA uses an IdP trusted for SSO
+to mediate cross-application authorization; its ID-JAG mechanism is discussed
+below. A supported product integration does not make every downstream API
+compatible, nor establish the draft as a finalized standard.
+
 This suggests that BuildMax's integration boundary should be a provider-neutral
 credential exchange interface. An enterprise may use Vault, an IdP STS, a
 GitHub App, a cloud STS, or a BuildMax-local provider. The domain model should
@@ -274,6 +453,31 @@ automatically link revocation of input and output tokens. The IETF WIMSE group
 is working on interoperability between workload identity, OAuth, JWT, SPIFFE,
 and multi-hop context; that work confirms the problem and also confirms that
 the combined model is not settled.
+
+RFC 8693's JWT `sub` and `act` claims can distinguish the authority subject from
+the current actor, with nested `act` claims recording prior actors. That history
+does not itself enforce permission attenuation: the issuer must apply exchange
+policy, and consumers evaluate the current actor and top-level claims rather
+than treating prior actors as additional authorization grants.
+
+**Cross-App Access and ID-JAG (working draft).** The IETF OAuth working group's
+Identity Assertion JWT Authorization Grant builds on token exchange and JWT
+authorization grants. An IdP issues an assertion for a downstream authorization
+server that already trusts it for SSO; the client exchanges the assertion for a
+target access token under the participating systems' policies. This supports
+cross-domain user delegation without repeating a direct user-approval step at
+every target authorization server. It does not grant unrestricted access or
+define ownership of autonomous business workflows. As of this review, ID-JAG
+is an active Internet-Draft, not a published RFC.
+
+**Verifiable capability delegation (research prototype).** The AIP paper
+proposes Invocation-Bound Capability Tokens for MCP, A2A, and HTTP, with signed
+JWTs for a single hop and Biscuit policy chains for multi-hop delegation. Its
+reference implementations explore verifiable provenance and holder-side
+permission attenuation. This is a research proposal, not a protocol requirement
+or an established interoperability standard. BuildMax should evaluate the
+properties against a real child-Task journey before adopting a token format;
+the paper's claims are not qualification evidence for BuildMax.
 
 MCP authorization standardizes OAuth discovery and audience binding for remote
 MCP servers and explicitly forbids passing an MCP client's token through to an
@@ -388,8 +592,10 @@ compares invoices with ERP records, writes an exception report, and proposes
 payments. If it uses the creator's identity, the process either breaks when the
 creator leaves or silently continues under stale personal authority.
 
-Under the recommended model, Finance creates a Space-owned automation principal
-with a human sponsor, fixed resources, and expiry/review policy. Each scheduled
+Finance explicitly authorizes its Agent with a human sponsor, fixed resources,
+and expiry/review policy. If the business mandate must persist independently of
+that Agent, Finance instead uses a separate Space-owned automation principal
+with an explicit eligible-actor policy. Each scheduled
 TaskRun receives a short-lived identity and brokered credentials. Drafting the
 report is autonomous; releasing a payment requires a different capability and
 an approval bound to payee, amount, currency, and source record.
@@ -412,7 +618,7 @@ approval, action, and observed result together.
 
 ### 4. Customer-support triage: mixed authority in one run
 
-An Agent reads a Space-owned support queue under an automation principal, then
+An Agent reads a Space-owned support queue under an organization grant, then
 needs the requesting support lead's identity to view a restricted customer
 case. It finally posts a sanitized internal summary using the Space-owned bot.
 
@@ -451,6 +657,7 @@ evidence plane.
 |---|---|---|---|
 | A. Keep `created_by` authority and improve secret delivery | Alpha simplicity and personal automation | Few concepts; reuses current eligibility checks | Shared automation remains tied to a person; provenance and authority stay overloaded |
 | B. Make every Agent a durable principal | Autonomous catalog of enterprise Agents | Clear inventory, disable, grants, and audit | Definition identity becomes confused with each running instance; easy to accumulate broad standing privilege |
+| B1. Grant authority directly to selected Space-governed Agents | Autonomous work whose grants and Agent identity share a lifecycle | Reuses the Agent identity; no separate mandate entity | Agent replacement needs deliberate reauthorization; unsuitable when the mandate must outlive the actor |
 | C. Always run on behalf of the initiating user | Interactive personal assistants | Natural consent and existing entitlement reuse | Schedules, webhooks, shared work, and creator departure remain unsolved; user credentials become high-value targets |
 | D. Add Space-owned automation principals | Shared schedules and team-owned operations | Explicit non-human lifecycle, sponsor, and stable authority | New lifecycle and recovery UX; wrong default could turn every Agent into a service account |
 | E. Use only ephemeral TaskRun workload identity | Federated infrastructure and service-to-service calls | Small blast radius; strong per-run audit and revocation-by-expiry | Downstream systems need federation; a stable policy subject is still needed |
@@ -460,7 +667,9 @@ evidence plane.
 ### Assessment
 
 Option A is a defensible near-term state, not a durable enterprise answer.
-Options B or C alone overfit one product category. Option D solves ownership but
+Options B or C alone overfit one product category. B1 is the simpler independent
+authority baseline; choose D only when its separate lifecycle is necessary.
+Option D solves ownership but
 not runtime attestation or secret exposure. Option E solves execution identity
 but not business authority. Option F is the strongest credential boundary but
 cannot honestly cover unrestricted local tools. Option G is the recommended
@@ -471,15 +680,17 @@ its cost is controlled by delaying each slice until evidence triggers it.
 
 ### 1. Three identity layers
 
-**Policy principal.** Either an authenticated human or a Space-owned automation
-principal. It owns grants and is evaluated for active status. An automation
-principal has at least one human sponsor, purpose, expiry or review date, and a
-disable path. Agent definitions do not automatically become principals.
+**Policy principal.** Either an authenticated human or an explicitly authorized
+non-human identity: the Space-governed Agent itself, or a separate Space-owned
+automation principal when the lifecycle gate above is met. It owns grants and
+is evaluated for active status. Independent organization authority requires a
+human sponsor, purpose, expiry or review date, and a disable path. Agent
+definitions do not acquire authority merely by being created or published.
 
 **Agent actor.** A stable Agent identity and immutable revision identify what
 software configuration acted. It supports inventory, allow/deny policy,
-incident search, and revision rollout. It is not a substitute for a person or
-automation principal's authority.
+incident search, and revision rollout. Actor identification is not proof of
+authority; an explicit grant is required even when the Agent is the principal.
 
 **TaskRun workload.** A short-lived identity names the exact execution. It is
 bound to Space, Task, Agent revision, runtime profile, and expiry. It requests
@@ -492,7 +703,7 @@ Start with a closed set rather than a general policy language:
 | Mode | Authority source | Intended use |
 |---|---|---|
 | `user_delegated` | Authenticated human plus provider consent/grant | Interactive work on personal or user-restricted resources |
-| `organization_grant` | Space-owned automation principal | Shared schedules, webhooks, and team-owned background work |
+| `organization_grant` | Explicit grant to a Space-governed Agent or a justified separate automation principal | Shared schedules, webhooks, and team-owned background work |
 | `approved_elevation` | Existing principal plus operation-bound approval | One high-risk effect outside the normal grant |
 | `system_internal` | Deployment operator policy | Narrow BuildMax maintenance only; never a shortcut to business data |
 
@@ -503,7 +714,9 @@ source; it receives an attenuated grant derived from the parent.
 ### 3. Portable authority envelope
 
 The control plane should be able to produce and persist an envelope equivalent
-to:
+to the following example, which uses a separate automation principal. A direct
+Agent grant instead names the Agent as `authority.principal_id` while retaining
+the actor and exact run as separate evidence:
 
 ```json
 {
@@ -589,7 +802,7 @@ Agent revision, and TaskRun.
    with allowed Space(s), runtime profile, targets, and a sponsor. Registration
    grants no external authority.
 2. **Grant:** a user delegates selected provider access or an administrator
-   grants a Space-owned automation principal bounded capabilities. Record who
+   grants the eligible non-human principal bounded capabilities. Record who
    approved it, why, resources, review/expiry, and whether delegation is
    allowed.
 3. **Admit:** a trigger creates a TaskRun. The service authenticates the
@@ -641,16 +854,21 @@ Success evidence: no static provider credential enters the worker for the
 selected journey, a stolen token fails at another audience/resource where the
 provider permits, and disabling the grant stops renewal.
 
-### Stage 2: Space-owned automation principal
+### Stage 2: organization authority and the principal lifecycle decision
 
-Add this entity only when a named workflow must survive its creator. Require a
-sponsor, purpose, active/disabled state, grant set, created/updated provenance,
-and review or expiry. Personal schedules continue using `user_delegated`; team
-schedules must deliberately convert to `organization_grant`.
+Validate a named organization-owned workflow using direct Agent grants first.
+Require a sponsor, purpose, active/disabled state, grant set, created/updated
+provenance, and review or expiry. Add a separate automation principal only when
+the mandate must survive Agent replacement or span multiple actors and deliberate
+reauthorization cannot satisfy the journey. Define and check eligible actors;
+never automatically transfer grants to a replacement Agent. Personal schedules
+continue using `user_delegated`; team schedules must deliberately convert to
+`organization_grant`.
 
 Success evidence: creator offboarding stops personal automation but does not
 orphan an explicitly organization-owned workflow; sponsor transfer and disable
-are understandable and audited.
+are understandable and audited. Replacing an Agent either requires explicit new
+grants or an audited change to the separate principal's eligible actors.
 
 ### Stage 3: TaskRun workload federation
 
@@ -698,7 +916,7 @@ downstream leases.
 | Prompt injection asks for a secret | Prefer brokered invocation; never place reusable credentials in model context or trace |
 | Confused deputy presents a valid token to the wrong service | Bind and validate audience/resource; forbid token passthrough |
 | Webhook or model claims to be Alice | Derive user identity only from authenticated server context; treat payload identity as untrusted data |
-| Creator leaves but schedule continues | Personal authority becomes ineligible; organizational authority continues only through an active automation principal and sponsor policy |
+| Creator leaves but schedule continues | Personal authority becomes ineligible; organizational authority continues only with an active authorized non-human principal and valid sponsor policy |
 | Shared service account launders privilege | Preserve initiator, Agent, TaskRun, target, and provider correlation in addition to the shared external principal |
 | Stolen run or provider token is replayed | Short expiry, single audience, narrow resource, proof-of-possession where available, and run/lease correlation |
 | Approval is reused for a different action | Bind operation, normalized parameters, resource, expiry, and use count |
@@ -737,6 +955,9 @@ successful Agent result.
 2. **Organizational schedule:** monthly reconciliation survives creator
    departure only after explicit conversion to organization ownership and an
    active sponsor.
+   Sponsor transfer does not expand grants. Agent replacement requires new
+   direct grants or explicit authorization of the new actor by the separate
+   principal; the old actor loses eligibility when retired.
 3. **Production elevation:** a restart approval cannot authorize a deploy,
    another cluster, another service, or changed parameters.
 4. **Audience theft:** a TaskRun or target token copied to another service/run
@@ -759,8 +980,9 @@ successful Agent result.
 
 ### Decision gates
 
-- Do not add automation principals until a named shared workflow needs authority
-  independent of its creator.
+- Do not add a separate automation principal merely for creator independence.
+  Prove a mandate lifecycle independent of the executing Agent, and why direct
+  Agent grants and deliberate reauthorization cannot satisfy it.
 - Do not add a workload issuer until one real relying party can consume it and
   the work removes a static credential or enables measurable enforcement.
 - Do not build a generic broker first; qualify one provider and one journey.
@@ -773,9 +995,9 @@ successful Agent result.
 
 ## Open Product Questions
 
-1. Is a Space-owned automation principal visible as a product object, or can it
-   initially remain a narrowly scoped security resource behind a Workflow or
-   Schedule?
+1. Can the first organization-authority journey use direct Agent grants? If it
+   needs a separate Space-owned automation principal, what mandate must outlive
+   the actor, and is that principal visible or scoped behind a Workflow/Schedule?
 2. Does every published Agent need a stable identity, or only Agents granted
    autonomous access? What lifecycle event creates and retires it?
 3. Should a TaskRun with mixed user and organization authority display one
@@ -795,6 +1017,12 @@ successful Agent result.
    or automated identity provisioning?
 10. Which parts of the authority envelope belong in the bounded trace, the
     durable audit log, provider tokens, and operator-visible UI?
+11. Which cross-application journey demonstrates useful connector coverage and
+    enterprise-managed authorization together, and which missing operation
+    actually prevents completion?
+12. Which connector semantics must be shared across transports, and which
+    provider-specific retry, business rule, and recovery behavior should remain
+    in the integration rather than a generic runtime abstraction?
 
 ## Likely Destination If Accepted
 
@@ -832,6 +1060,7 @@ that BuildMax will reproduce a vendor feature.
   [ChatGPT Work cloud security](https://learn.chatgpt.com/docs/enterprise/chatgpt-work-cloud-security).
 - Okta, [AI Agent token exchange](https://developer.okta.com/docs/guides/ai-agent-token-exchange/secret/main/)
   and [AI Agent lifecycle](https://developer.okta.com/docs/api/secures-ai/ai-agents).
+- Okta, [Agent SSO announcement](https://www.okta.com/newsroom/press-releases/okta-brings-first-class-identity-to-ai-agents-with-agent-sso/).
 - Auth0, [Token Vault](https://auth0.com/features/token-vault).
 
 ### Community protocols and standards
@@ -840,8 +1069,15 @@ that BuildMax will reproduce a vendor feature.
   [SPIFFE ID and SVID](https://spiffe.io/docs/latest/spiffe-specs/spiffe-id/).
 - IETF, [Workload Identity in Multi-System Environments](https://datatracker.ietf.org/group/wimse/about/).
 - IETF, [OAuth 2.0 Token Exchange, RFC 8693](https://www.rfc-editor.org/rfc/rfc8693.html).
+- IETF OAuth working group, [ID-JAG / Cross-App Access](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/)
+  (active Internet-Draft as of 2026-10-03; not a published RFC).
 - Model Context Protocol,
   [2026-07-28 specification release](https://blog.modelcontextprotocol.io/posts/2026-07-28/)
   and [authorization specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-06-18/basic/authorization.mdx).
 - A2A Project, [protocol specification](https://github.com/a2aproject/A2A/blob/main/docs/specification.md)
   and [enterprise-ready security guidance](https://github.com/a2aproject/A2A/blob/main/docs/topics/enterprise-ready.md).
+
+### Research prototypes
+
+- Sunil Prakash, [AIP: Agent Identity Protocol for Verifiable Delegation Across MCP and A2A](https://arxiv.org/abs/2603.24775)
+  (2026-03-25; research paper with reference implementations, not an accepted standard).

@@ -28,6 +28,10 @@
 第一项实验比 Desktop 改版更窄：用户能否连接一个应用、允许两项有用的读取、
 理解并批准一次草稿写入、看到结果？先验证委托边界，再决定 Desktop 形态。
 
+企业 SSO、Agent 身份、连接器作为可执行业务能力，以及 runtime 控制之间的综合
+讨论记录在[执行身份与连接器策略备忘](agent-execution-identity-and-delegation.md#企业-sso连接器与可执行工作)。
+该备忘负责战略关系与企业权限问题；本提案负责连接体验、传输选项和本地原型。
+
 ## 当前约束
 
 BuildMax 已有本地插件、Skill、MCP 工具、工具权限和供 BuildMax 登录使用的
