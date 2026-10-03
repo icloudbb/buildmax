@@ -81,24 +81,23 @@ stored-shape compatibility, or signed/notarized Desktop installers.
 
 Fill this table before starting. Tags alone are not immutable evidence.
 
-The first exercise ran on DigitalOcean on 2026-10-02 and 2026-10-03. It began on
-v0.2.0-alpha.18; every defect it found was fixed and released as alpha.19,
-alpha.20, and alpha.21 in turn, and each fix was rerun on the deployment that
-carried it. The table records alpha.21, the last of those releases. Most gates
-ran only on alpha.18, so this evidence does not yet meet the same-artifact rule
-above for alpha.21.
+The record below is the second, full exercise, run on DigitalOcean on
+2026-10-03 and 2026-10-04 on v0.2.0-alpha.22. A first exercise on 2026-10-02
+began on v0.2.0-alpha.18 and fixed every defect it found through alpha.21; this
+one reran every gate on a single release, so all of its evidence comes from the
+artifacts recorded here.
 
 | Field | Recorded value |
 |---|---|
-| Version and commit | v0.2.0-alpha.21 @ `d7c161b8`; exercise began on v0.2.0-alpha.18 @ `ee8fbf2f` |
-| Server image digest | `ghcr.io/icloudbb/buildmax@sha256:04e81f59e8e27cf5a63bb79abdbcc65a54c001073f03ae494aafffa099383853` (alpha.18: `sha256:2014c71b…`) |
+| Version and commit | v0.2.0-alpha.22 @ `fe0f2b63` |
+| Server image digest | `ghcr.io/icloudbb/buildmax@sha256:3cb0fca80e2123bbe8b316b5c37b2fad4661b4b8be32f5a7a9762db6c21d32fd` |
 | Worker image digest | Same image as the Server |
-| Portal image digest | `ghcr.io/icloudbb/buildmax-portal@sha256:fabed2b4d46aa0d74d8382028cdf538d960361b31f4e01dad007d90855134e91` (alpha.18: `sha256:0219f60f…`) |
+| Portal image digest | `ghcr.io/icloudbb/buildmax-portal@sha256:348782e25227a2a973e63140c5b1a686cfec254aaa21c2fc66f48eacd3b40029` |
 | Enabled/disabled feature manifest | Signup off; Remote Control, Telegram, OIDC, remote MCP, and browser tools not configured; worker profile refuses stdio MCP and hook- or MCP-bearing Plugin releases |
 | Operator | Project owner (@gougoujiang); journeys driven by the implementing agent with probe scripts, not by an independent operator |
-| Exercise date and environment | 2026-10-02 to 2026-10-03, DigitalOcean `sgp1`, deployed with `./make ocean` ([DigitalOcean](digitalocean.md)) |
+| Exercise date and environment | 2026-10-03 to 2026-10-04, DigitalOcean `sgp1`, deployed with `./make ocean` ([DigitalOcean](digitalocean.md)) |
 | Kubernetes version and distribution | DOKS 1.36.3-do.5, two `s-2vcpu-4gb` nodes |
-| CNI and enforced NetworkPolicy behavior | Cilium v1.19.3 (DigitalOcean-managed); Server-ingress, Redis, and worker-egress policies enforced and probed |
+| CNI and enforced NetworkPolicy behavior | Cilium v1.19.3 (DigitalOcean-managed); Server-ingress, Redis, and worker-egress policies enforced and probed with real TCP |
 | Server replica count and coordination mode | Two replicas on separate nodes with a PodDisruptionBudget; Redis coordination |
 | Redis product and version | `redis:7.4.11-alpine`, one in-cluster replica |
 | MySQL product and version | DigitalOcean Managed MySQL 8.4.8 over TLS with the CA verified |
@@ -106,12 +105,12 @@ above for alpha.21.
 | TLS termination and ingress | Caddy 2.10.2 with Let's Encrypt behind a DigitalOcean TCP load balancer with a CIDR allow-list |
 | Managed provider, protocol, and model alias | OpenRouter, OpenAI chat completions, `openai/gpt-5.6-luna` as catalog model GPT-5.6 Luna; workers call it through the managed gateway |
 | Worker sandbox, seccomp, and AppArmor profile | bubblewrap 0.12.0 with its own network namespace; Localhost seccomp `buildmax/worker-bwrap.json`; AppArmor `Unconfined`; root plus `SYS_ADMIN` and `NET_ADMIN`, all dropped before Bash |
-| Current KEK id | `file:root:2`, rotated from `file:root:1` during Q6 |
+| Current KEK id | `file:root:4`, rotated during Q6; the rewrap left no row on an older key |
 | Trace, audit, Artifact, and checkpoint retention | Audit and traces kept indefinitely; deleted Artifact bytes reclaimed on the hourly sweep; checkpoint orphan sweep hourly; finished worker Jobs removed after 1h |
-| Expected users, Spaces, and concurrent runs | About 10 accounts, 6 shared Spaces plus personal Spaces, up to 3 concurrent worker Jobs |
-| Target RPO and RTO | RPO: the last `mysqldump --single-transaction` snapshot; RTO: 10 minutes to the first Artifact with a matching checksum (measured 237s) |
+| Expected users, Spaces, and concurrent runs | 21 accounts, 14 shared Spaces plus personal Spaces, up to 6 worker Jobs started in one minute |
+| Target RPO and RTO | RPO: the last `mysqldump --single-transaction` snapshot; RTO: 10 minutes to the first Artifact with a matching checksum (measured 632s, over the target) |
 | Configuration snapshot, with secrets redacted | Rendered `server.yaml` archived with the local evidence bundle; template `deployment/ocean/buildmax.yaml.tmpl` |
-| Starting schema/commit and supported upgrade or clean-install path | Clean install on alpha.18, then in-place upgrades to alpha.21; upgrade drill from alpha.16 through a real schema change |
+| Starting schema/commit and supported upgrade or clean-install path | In-place upgrade from alpha.21 (no schema change) on the deployment clean-installed on alpha.18; clean install covered by the paired restore into an empty database and an upgrade drill from alpha.16 through a real schema change |
 
 ## Accepted Limits
 
@@ -367,40 +366,42 @@ screens, TaskRun JSON, trace, audit rows, and Artifact listings for each case.
 Add one row per journey or drill. A CI summary page is not enough when pod logs,
 restored identifiers, checksums, or screenshots are the actual proof.
 
-The rows below record the 2026-10-02 DigitalOcean exercise. Its evidence
-(per-item results, probe scripts, logs, and rendered configuration) is a local
-bundle that names the deployment's hosts, allow-listed address, and test
-accounts; it is not yet published where the release space can read it, which
-this record requires before qualification.
+The rows below record the v0.2.0-alpha.22 exercise. Its evidence (per-item
+results, probe scripts, logs, and rendered configuration) is a local bundle that
+names the deployment's hosts, allow-listed address, and test accounts; it is not
+yet published where the release space can read it, which this record requires
+before qualification. Several probes needed fixing during the run; the bundle
+lists each one, and none of them hid a product defect.
 
 | Gate or exercise | Result | Evidence URL or artifact | Notes and follow-up |
 |---|---|---|---|
-| Q0 candidate scope, configuration, and supply chain | Passed on alpha.18 | Local evidence bundle | Pinned digests, provenance verified with `gh attestation verify`, Trivy scans and SBOMs from the release runs. The alpha.19 Portal image scan caught a fixed pcre2 CVE kept by a cached layer, fixed by #812. |
-| Q1 identity, authorization, and governance | Passed on alpha.18 | Local evidence bundle | Signup, sessions, roles, cross-Space refusal, disable, removal, owner recovery, quota refusal. Strict request decoding (#808) rerun on alpha.19 found no client sending unknown fields. |
-| Q2 core product journeys | Passed on alpha.18 | Local evidence bundle | Real-model journeys. A Workflow Schedule accepted input its Workflow could not accept, and the model asked in prose instead of AskUser; both fixed by #806 and passed on alpha.19 (AskUser 5 of 5). |
-| Q3 execution and Secret boundaries | Passed, one partial | Local evidence bundle | On alpha.18 Bash held `CAP_SYS_ADMIN`, could read `/proc/1/environ`, and bypassed the network tier; fixed by #807 and passed on alpha.19. Partial: a run token before claim could not be isolated, since the scheduler claims within seconds. |
-| Q4 durable and distributed correctness | Passed on alpha.18 | Local evidence bundle | Cross-replica streaming and turn serialization, Redis restart, concurrent Continue/Retry/cancel, rolling both replicas under a run. |
-| Running cancellation and graceful worker loss | Passed on alpha.18 | Local evidence bundle | Canceled within grace with output kept; a SIGTERMed worker reports `interrupted` without a hidden retry. |
-| Hard worker loss and explicit retry | Passed on alpha.18 | Local evidence bundle | A SIGKILL from the node settled `worker_lost` after about 179s; explicit retry ran a new Job. The killed Job reports success because the worker's exit code reports dispatch, not the run. |
-| MySQL, Redis, and object-storage outages | Failed on alpha.18; passed on rerun | Local evidence bundle | A Redis outage silently dropped a Conversation turn (fixed by #806: 503 on alpha.19). An Artifact download during a storage outage hung (#806 bounded it, #814 closed dead pooled connections: 503 in 17s on alpha.20). |
-| Provider failures | Passed on alpha.18 | Local evidence bundle | 401, 429, 503, slow answer, and unroutable provider: run and managed-call classes and logs agree; no credential leaked. |
-| Paired database and bucket restore | Passed on alpha.18 | Local evidence bundle | All 1860 identified rows from before the recovery point present, `storage verify --checksums` clean, RTO 237s. |
-| Declared schema path and paired-restore rollback | Passed | Local evidence bundle | alpha.16 to alpha.18 through a real schema change; alpha.16 refuses the newer schema; rollback by paired restore. |
-| Credential and worker-TLS rotation | Passed; one item waived | Local evidence bundle | JWT, worker certificate and CA, and KEK on alpha.18; Spaces key on alpha.20. The model key failed on alpha.20 (task titles kept the startup key), fixed by #817 and passed on alpha.21. Database password rotation waived below. |
-| Retention and capacity | Partial | Local evidence bundle | Artifact purge and audit pruning exercised. Audit and traces are kept indefinitely with no sizing or monitoring; over 24h the database grew 3.85 to 9.50 MB and the bucket prefix 1.24 to 5.83 MB, including all qualification probing. |
-| 24-hour operating window | Passed | Local evidence bundle | 2026-10-02T01:54Z to 2026-10-03T01:54Z: 216 of 216 scheduled fires on time and succeeded, nothing stranded, across upgrades from alpha.18 to alpha.21, Server rolls, and Redis and storage outages. |
+| Q0 candidate scope, configuration, and supply chain | Passed | Local evidence bundle | Pinned digests ran in every pod; provenance verified with `gh attestation verify`; Trivy scans, SBOMs, and CI, Windows, CodeQL, smoke, and release runs on `fe0f2b63` all succeeded. |
+| Q1 identity, authorization, and governance | Passed | Local evidence bundle | Signup, sessions, roles, cross-Space refusal, disable, member removal, owner recovery, quota refusal. |
+| Q2 core product journeys | Passed | Local evidence bundle | Real-model Conversation, Tasks, Continue, Retry, cancel, AskUser, Issues, graph Workflows with human requests and policy end states, Schedules across a Server roll and a database outage, Secrets, Plugins, webhooks. Three kind-only probes are not applicable; their real-model equivalents passed. |
+| Q3 execution and Secret boundaries | Passed, one partial | Local evidence bundle | Bash holds no capability, cannot read worker credentials, and the network tier holds without the proxy variables; a worker cannot reach MySQL. Partial: a run token before claim could not be isolated, since the scheduler claims within seconds. |
+| Q4 durable and distributed correctness | Passed | Local evidence bundle | Cross-replica streaming and turn serialization, Redis restart, a lease holder partitioned from Redis refused with 409, concurrent Continue/Retry/cancel, rolling both replicas under a run. |
+| Running cancellation and graceful worker loss | Passed | Local evidence bundle | Canceled within grace with output and Artifact kept; a SIGTERMed worker reports `interrupted` without a hidden retry. |
+| Hard worker loss and explicit retry | Passed | Local evidence bundle | A SIGKILL from the node settled `worker_lost` after 136s; explicit retry ran a new Job. The killed Job reports success because the worker's exit code reports dispatch, not the run. |
+| MySQL, Redis, and object-storage outages | Passed | Local evidence bundle | Schedules coalesce one catch-up after a database outage; a Conversation turn during a Redis outage answers 503; a worker that cannot reach storage fails the run as `infrastructure`; an Artifact download during a storage outage answers 503 in 20s and the Artifact reads back unchanged. |
+| Provider failures | Passed | Local evidence bundle | 401, 429, 503, slow answer, and unroutable provider: run and managed-call classes and logs agree; no credential leaked. |
+| Paired database and bucket restore | Passed; RTO over target | Local evidence bundle | All 7649 rows from before the recovery point present, `storage verify --checksums` clean, restored credential and checkpoint work. RTO 632s against the 10-minute target: the drill copies 8416 objects from the operator's machine through a port-forward. |
+| Declared schema path and paired-restore rollback | Passed | Local evidence bundle | alpha.21 to alpha.22 in place; alpha.16 to alpha.22 through a real schema change; alpha.16 refuses the newer schema; rollback by paired restore. |
+| Credential and worker-TLS rotation | Passed; one item waived | Local evidence bundle | JWT, worker certificate and CA, KEK with rewrap, Spaces key, and model key in both directions with no call on the retired key. Database password rotation waived below. |
+| Retention and capacity | Pending the window close | Local evidence bundle | Artifact purge and audit pruning exercised. Audit and traces are kept indefinitely; growth is measured against the window's start baseline. |
+| 24-hour operating window | In progress | Local evidence bundle | Started 2026-10-03T02:46Z in Space `BQ Window a22`. |
 | Non-author operator journey | Waived | Local evidence bundle | See the waivers below. |
-| Real-model product evaluation | Passed | Local evidence bundle | `./make eval` with GPT-5.6 Luna: 9 of 9 scored trials, 95% CI 70–100%, 0 unscored, 0.0077 USD. A small suite, not a benchmark. |
+| Real-model product evaluation | Passed | Local evidence bundle | `./make eval` at the candidate commit with GPT-5.6 Luna: 12 of 12 scored trials, 95% CI 76–100%, 0 unscored. A small suite, not a benchmark. |
 | Local and Desktop release regressions | Partial | Local evidence bundle | Candidate CI covers CLI/TUI, provider contract tests, and the Desktop UI build; packaged Desktop launch and the Desktop UI suite need a native window and were not run. |
 
 ## Decision
 
 Current decision: **NOT READY FOR BETA**.
 
-After the 2026-10-02 exercise no product defect is open. Before signing, the
-gates that ran only on alpha.18 have to pass on the candidate proposed for
-release, the evidence has to be published where the release space can read it,
-and the partial rows above have to pass or be accepted as limits.
+The v0.2.0-alpha.22 exercise found no product defect and no failed item. Before
+signing, the 24-hour window has to complete, the restore time has to meet its
+target or the target has to change, the evidence has to be published where the
+release space can read it, and the partial rows above have to pass or be
+accepted as limits.
 
 Qualification requires every core gate to pass, with no authorization escape,
 unexplained data loss, stranded durable work, database pointer to a missing
@@ -408,7 +409,7 @@ object, or unresolved critical/high security finding. A waiver must name the
 unmet behavior, user impact, compensating operator control, owner, and expiry;
 it is an explicit release decision rather than an implied pass.
 
-Waivers recorded by the project owner on 2026-10-02:
+Waivers recorded by the project owner on 2026-10-02 and kept for the alpha.22 exercise:
 
 | Unmet behavior | User impact | Compensating control | Owner | Expiry |
 |---|---|---|---|---|

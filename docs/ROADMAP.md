@@ -187,14 +187,16 @@ and Portal artifacts proposed for release with external dependencies. The
 expanded readiness contract is allowed to reveal small product gaps; such a gap
 is R3 work when it prevents a documented core journey or operator diagnosis.
 
-A 2026-10-02 exercise on DigitalOcean began on v0.2.0-alpha.18 and ran every
-gate, including the 24-hour window; the defects it found were fixed and rerun
-through v0.2.0-alpha.21, and none is open. The project owner waived the
-non-author operator journey and database password rotation for that candidate.
+A 2026-10-02 exercise on DigitalOcean began on v0.2.0-alpha.18; the defects it
+found were fixed through v0.2.0-alpha.21. A full rerun on v0.2.0-alpha.22 on
+2026-10-03 exercised every gate on that one release and found no product defect
+and no failed item. The project owner waived the non-author operator journey and
+database password rotation.
 
-**Next:** rerun the gates that passed only on alpha.18 on the candidate proposed
-for release, publish the evidence where the release space can read it, and
-resolve the partial rows in the [Beta readiness record](deploy/beta-readiness.md).
+**Next:** complete the 24-hour window, bring the paired-restore time within its
+target or change the target, publish the evidence where the release space can
+read it, and resolve the partial rows in the
+[Beta readiness record](deploy/beta-readiness.md).
 Fix only gaps that the journey demonstrates. A 2026-09-28 operator drill showed the diagnosis
 journey could not detect stalled or failing work from Administration; runtime
 operations metadata
