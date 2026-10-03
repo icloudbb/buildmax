@@ -81,30 +81,37 @@ stored-shape compatibility, or signed/notarized Desktop installers.
 
 Fill this table before starting. Tags alone are not immutable evidence.
 
+The first exercise ran on DigitalOcean on 2026-10-02 and 2026-10-03. It began on
+v0.2.0-alpha.18; every defect it found was fixed and released as alpha.19,
+alpha.20, and alpha.21 in turn, and each fix was rerun on the deployment that
+carried it. The table records alpha.21, the last of those releases. Most gates
+ran only on alpha.18, so this evidence does not yet meet the same-artifact rule
+above for alpha.21.
+
 | Field | Recorded value |
 |---|---|
-| Version and commit | Not recorded |
-| Server image digest | Not recorded |
-| Worker image digest | Not recorded |
-| Portal image digest | Not recorded |
-| Enabled/disabled feature manifest | Not recorded |
-| Operator | Not recorded |
-| Exercise date and environment | Not recorded |
-| Kubernetes version and distribution | Not recorded |
-| CNI and enforced NetworkPolicy behavior | Not recorded |
-| Server replica count and coordination mode | Not recorded |
-| Redis product and version | Not recorded |
-| MySQL product and version | Not recorded |
-| S3 product, version or service, and region | Not recorded |
-| TLS termination and ingress | Not recorded |
-| Managed provider, protocol, and model alias | Not recorded |
-| Worker sandbox, seccomp, and AppArmor profile | Not recorded |
-| Current KEK id | Not recorded |
-| Trace, audit, Artifact, and checkpoint retention | Not recorded |
-| Expected users, Spaces, and concurrent runs | Not recorded |
-| Target RPO and RTO | Not recorded |
-| Configuration snapshot, with secrets redacted | Not recorded |
-| Starting schema/commit and supported upgrade or clean-install path | Not recorded |
+| Version and commit | v0.2.0-alpha.21 @ `d7c161b8`; exercise began on v0.2.0-alpha.18 @ `ee8fbf2f` |
+| Server image digest | `ghcr.io/icloudbb/buildmax@sha256:04e81f59e8e27cf5a63bb79abdbcc65a54c001073f03ae494aafffa099383853` (alpha.18: `sha256:2014c71b…`) |
+| Worker image digest | Same image as the Server |
+| Portal image digest | `ghcr.io/icloudbb/buildmax-portal@sha256:fabed2b4d46aa0d74d8382028cdf538d960361b31f4e01dad007d90855134e91` (alpha.18: `sha256:0219f60f…`) |
+| Enabled/disabled feature manifest | Signup off; Remote Control, Telegram, OIDC, remote MCP, and browser tools not configured; worker profile refuses stdio MCP and hook- or MCP-bearing Plugin releases |
+| Operator | Project owner (@gougoujiang); journeys driven by the implementing agent with probe scripts, not by an independent operator |
+| Exercise date and environment | 2026-10-02 to 2026-10-03, DigitalOcean `sgp1`, deployed with `./make ocean` ([DigitalOcean](digitalocean.md)) |
+| Kubernetes version and distribution | DOKS 1.36.3-do.5, two `s-2vcpu-4gb` nodes |
+| CNI and enforced NetworkPolicy behavior | Cilium v1.19.3 (DigitalOcean-managed); Server-ingress, Redis, and worker-egress policies enforced and probed |
+| Server replica count and coordination mode | Two replicas on separate nodes with a PodDisruptionBudget; Redis coordination |
+| Redis product and version | `redis:7.4.11-alpine`, one in-cluster replica |
+| MySQL product and version | DigitalOcean Managed MySQL 8.4.8 over TLS with the CA verified |
+| S3 product, version or service, and region | DigitalOcean Spaces, `sgp1`, reached through the VPC endpoint |
+| TLS termination and ingress | Caddy 2.10.2 with Let's Encrypt behind a DigitalOcean TCP load balancer with a CIDR allow-list |
+| Managed provider, protocol, and model alias | OpenRouter, OpenAI chat completions, `openai/gpt-5.6-luna` as catalog model GPT-5.6 Luna; workers call it through the managed gateway |
+| Worker sandbox, seccomp, and AppArmor profile | bubblewrap 0.12.0 with its own network namespace; Localhost seccomp `buildmax/worker-bwrap.json`; AppArmor `Unconfined`; root plus `SYS_ADMIN` and `NET_ADMIN`, all dropped before Bash |
+| Current KEK id | `file:root:2`, rotated from `file:root:1` during Q6 |
+| Trace, audit, Artifact, and checkpoint retention | Audit and traces kept indefinitely; deleted Artifact bytes reclaimed on the hourly sweep; checkpoint orphan sweep hourly; finished worker Jobs removed after 1h |
+| Expected users, Spaces, and concurrent runs | About 10 accounts, 6 shared Spaces plus personal Spaces, up to 3 concurrent worker Jobs |
+| Target RPO and RTO | RPO: the last `mysqldump --single-transaction` snapshot; RTO: 10 minutes to the first Artifact with a matching checksum (measured 237s) |
+| Configuration snapshot, with secrets redacted | Rendered `server.yaml` archived with the local evidence bundle; template `deployment/ocean/buildmax.yaml.tmpl` |
+| Starting schema/commit and supported upgrade or clean-install path | Clean install on alpha.18, then in-place upgrades to alpha.21; upgrade drill from alpha.16 through a real schema change |
 
 ## Accepted Limits
 
@@ -360,35 +367,53 @@ screens, TaskRun JSON, trace, audit rows, and Artifact listings for each case.
 Add one row per journey or drill. A CI summary page is not enough when pod logs,
 restored identifiers, checksums, or screenshots are the actual proof.
 
+The rows below record the 2026-10-02 DigitalOcean exercise. Its evidence
+(per-item results, probe scripts, logs, and rendered configuration) is a local
+bundle that names the deployment's hosts, allow-listed address, and test
+accounts; it is not yet published where the release space can read it, which
+this record requires before qualification.
+
 | Gate or exercise | Result | Evidence URL or artifact | Notes and follow-up |
 |---|---|---|---|
-| Q0 candidate scope, configuration, and supply chain | Not run | — | — |
-| Q1 identity, authorization, and governance | Not run | — | — |
-| Q2 core product journeys | Not run | — | — |
-| Q3 execution and Secret boundaries | Not run | — | — |
-| Q4 durable and distributed correctness | Not run | — | — |
-| Running cancellation and graceful worker loss | Not run | — | — |
-| Hard worker loss and explicit retry | Not run | — | — |
-| MySQL, Redis, and object-storage outages | Not run | — | — |
-| Provider failures | Not run | — | — |
-| Paired database and bucket restore | Not run | — | — |
-| Declared schema path and paired-restore rollback | Not run | — | — |
-| Credential and worker-TLS rotation | Not run | — | — |
-| Retention and capacity | Not run | — | — |
-| 24-hour operating window | Not run | — | — |
-| Non-author operator journey | Not run | — | — |
-| Real-model product evaluation | Not run | — | — |
-| Local and Desktop release regressions | Not run | — | — |
+| Q0 candidate scope, configuration, and supply chain | Passed on alpha.18 | Local evidence bundle | Pinned digests, provenance verified with `gh attestation verify`, Trivy scans and SBOMs from the release runs. The alpha.19 Portal image scan caught a fixed pcre2 CVE kept by a cached layer, fixed by #812. |
+| Q1 identity, authorization, and governance | Passed on alpha.18 | Local evidence bundle | Signup, sessions, roles, cross-Space refusal, disable, removal, owner recovery, quota refusal. Strict request decoding (#808) rerun on alpha.19 found no client sending unknown fields. |
+| Q2 core product journeys | Passed on alpha.18 | Local evidence bundle | Real-model journeys. A Workflow Schedule accepted input its Workflow could not accept, and the model asked in prose instead of AskUser; both fixed by #806 and passed on alpha.19 (AskUser 5 of 5). |
+| Q3 execution and Secret boundaries | Passed, one partial | Local evidence bundle | On alpha.18 Bash held `CAP_SYS_ADMIN`, could read `/proc/1/environ`, and bypassed the network tier; fixed by #807 and passed on alpha.19. Partial: a run token before claim could not be isolated, since the scheduler claims within seconds. |
+| Q4 durable and distributed correctness | Passed on alpha.18 | Local evidence bundle | Cross-replica streaming and turn serialization, Redis restart, concurrent Continue/Retry/cancel, rolling both replicas under a run. |
+| Running cancellation and graceful worker loss | Passed on alpha.18 | Local evidence bundle | Canceled within grace with output kept; a SIGTERMed worker reports `interrupted` without a hidden retry. |
+| Hard worker loss and explicit retry | Passed on alpha.18 | Local evidence bundle | A SIGKILL from the node settled `worker_lost` after about 179s; explicit retry ran a new Job. The killed Job reports success because the worker's exit code reports dispatch, not the run. |
+| MySQL, Redis, and object-storage outages | Failed on alpha.18; passed on rerun | Local evidence bundle | A Redis outage silently dropped a Conversation turn (fixed by #806: 503 on alpha.19). An Artifact download during a storage outage hung (#806 bounded it, #814 closed dead pooled connections: 503 in 17s on alpha.20). |
+| Provider failures | Passed on alpha.18 | Local evidence bundle | 401, 429, 503, slow answer, and unroutable provider: run and managed-call classes and logs agree; no credential leaked. |
+| Paired database and bucket restore | Passed on alpha.18 | Local evidence bundle | All 1860 identified rows from before the recovery point present, `storage verify --checksums` clean, RTO 237s. |
+| Declared schema path and paired-restore rollback | Passed | Local evidence bundle | alpha.16 to alpha.18 through a real schema change; alpha.16 refuses the newer schema; rollback by paired restore. |
+| Credential and worker-TLS rotation | Passed; one item waived | Local evidence bundle | JWT, worker certificate and CA, and KEK on alpha.18; Spaces key on alpha.20. The model key failed on alpha.20 (task titles kept the startup key), fixed by #817 and passed on alpha.21. Database password rotation waived below. |
+| Retention and capacity | Partial | Local evidence bundle | Artifact purge and audit pruning exercised. Audit and traces are kept indefinitely with no sizing or monitoring; over 24h the database grew 3.85 to 9.50 MB and the bucket prefix 1.24 to 5.83 MB, including all qualification probing. |
+| 24-hour operating window | Passed | Local evidence bundle | 2026-10-02T01:54Z to 2026-10-03T01:54Z: 216 of 216 scheduled fires on time and succeeded, nothing stranded, across upgrades from alpha.18 to alpha.21, Server rolls, and Redis and storage outages. |
+| Non-author operator journey | Waived | Local evidence bundle | See the waivers below. |
+| Real-model product evaluation | Passed | Local evidence bundle | `./make eval` with GPT-5.6 Luna: 9 of 9 scored trials, 95% CI 70–100%, 0 unscored, 0.0077 USD. A small suite, not a benchmark. |
+| Local and Desktop release regressions | Partial | Local evidence bundle | Candidate CI covers CLI/TUI, provider contract tests, and the Desktop UI build; packaged Desktop launch and the Desktop UI suite need a native window and were not run. |
 
 ## Decision
 
 Current decision: **NOT READY FOR BETA**.
+
+After the 2026-10-02 exercise no product defect is open. Before signing, the
+gates that ran only on alpha.18 have to pass on the candidate proposed for
+release, the evidence has to be published where the release space can read it,
+and the partial rows above have to pass or be accepted as limits.
 
 Qualification requires every core gate to pass, with no authorization escape,
 unexplained data loss, stranded durable work, database pointer to a missing
 object, or unresolved critical/high security finding. A waiver must name the
 unmet behavior, user impact, compensating operator control, owner, and expiry;
 it is an explicit release decision rather than an implied pass.
+
+Waivers recorded by the project owner on 2026-10-02:
+
+| Unmet behavior | User impact | Compensating control | Owner | Expiry |
+|---|---|---|---|---|
+| Database password rotation not exercised | A wrong rotation procedure would surface during a real rotation | Documented procedure in [DigitalOcean](digitalocean.md); the managed database is reachable only from the cluster | @gougoujiang | This candidate |
+| No independent operator completed the journeys | Documentation gaps a new operator would hit are not measured | Every journey ran against the documented surfaces with probe scripts | @gougoujiang | This candidate |
 
 | Role | Name | Date | Decision or waiver link |
 |---|---|---|---|
