@@ -30,6 +30,22 @@ default_quota_tier: pro
 # refresh-token rotation. Test-only: the committed default stays 30s.
 refresh_rotation_grace: 1h
 
+# SSO against the in-cluster mock OIDC provider, next to password and
+# login-code sign-in (local_login defaults to all), so every kind stack carries
+# both. The issuer is the mock's Service name on kind's TLS port; see
+# deployment/smoke/mock-oidc.kind.yaml for how one URL reaches it from the
+# browser and from these pods. The client secret comes from buildmax-secret.
+# The BUILDMAX_KIND_OIDC_* variables point it at a real IdP instead; see
+# docs/deploy/local-kind.md.
+oidc:
+  enabled: true
+  display_name: Mock IdP
+  issuer: https://buildmax-smoke-oidc.buildmax.svc.cluster.local:8443
+  client_id: buildmax-kind
+  provisioning: jit
+  allowed_email_domains:
+    - buildmax.local
+
 # Two server replicas share live state through the in-cluster Redis. See
 # docs/design/server-coordination.md.
 coordination:

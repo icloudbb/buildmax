@@ -365,9 +365,13 @@ Desktop 继续使用 JSON 凭证流程。
 关联到账号——复用已有链接、以已验证邮箱关联运维创建的账号，或在 `allowed_email_domains`
 范围内即时创建账号。原生密码与登录码登录由 `local_login`（`all`、`system_admins`、`off`）
 独立管控。Portal 会发现已启用的登录方式，并通过 Server 自有 state、nonce、PKCE、callback
-校验及服务端 token 交换完成授权码流程；提供方 token 不会被保留。身份关联和协议分支已有
-service、handler、provider fake 与真实 MySQL 覆盖。固定的真实 Okta 端到端与密钥轮换
-演练尚未完成。
+校验及服务端 token 交换完成授权码流程；提供方 token 不会被保留。`email_verified` 取自
+ID Token；token 未携带时（Okta 的 org 授权服务器即如此）改从 UserInfo 读取。身份关联和协议
+分支已有 service、handler 与真实 MySQL 覆盖；真实 relying party 在进程内针对模拟 OIDC
+提供方测试，每个 kind 栈也在密码与登录码登录之外通过模拟提供方登录，冒烟测试走 HTTP，
+Portal 浏览器套件走浏览器。2026-10-03 针对 Okta 开发者租户的一次手动登录完成了账号开户与
+关联。固定且可复现的 Okta 租户与密钥轮换演练尚未完成，Okta Universal Logout（全局 token
+撤销）与 RP 发起的登出尚未实现。
 参见[身份服务](../../internal/service/identity/account.go)、
 [OIDC provider](../../internal/infra/oidc/provider.go)与
 [Space 服务](../../internal/service/space/service.go)。

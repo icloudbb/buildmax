@@ -591,9 +591,16 @@ one just in time within `allowed_email_domains`. Native password and login-code
 sign-in are gated independently by `local_login` (`all`, `system_admins`, `off`).
 Portal discovers the enabled methods and completes the authorization-code flow
 through Server-owned state, nonce, PKCE, callback validation, and a server-side
-token exchange; provider tokens are not retained. The association and protocol
-branches have service, handler, provider-fake, and real-MySQL coverage. The
-pinned real-Okta end-to-end and key/secret-rotation drills are not yet done.
+token exchange; provider tokens are not retained. `email_verified` is read from
+the ID Token, or from UserInfo when the token omits it, as Okta's org
+authorization server does. The association and protocol branches have service,
+handler, and real-MySQL coverage; the real relying party is tested in process
+against a mock OIDC provider, and every kind stack signs in through one beside
+password and login-code sign-in, over HTTP in the smoke and in the Portal browser
+suite. A manual sign-in against an Okta developer tenant on 2026-10-03
+provisioned and linked accounts. A pinned, reproducible Okta tenant and the
+key/secret-rotation drills are not yet done, and Okta Universal Logout (global
+token revocation) and RP-initiated logout are not implemented.
 See the [identity service](../internal/service/identity/account.go), the
 [OIDC provider](../internal/infra/oidc/provider.go), and the
 [Space service](../internal/service/space/service.go).

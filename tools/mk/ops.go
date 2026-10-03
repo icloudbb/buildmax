@@ -98,6 +98,8 @@ var (
 	kindImageServer = kindImage{"buildmax:local", filepath.Join("deployment", "docker", "Dockerfile.buildmax")}
 	kindImagePortal = kindImage{"buildmax-portal:local", filepath.Join("deployment", "docker", "Dockerfile.portal")}
 	kindImageSmoke  = kindImage{"buildmax-smoke-llm:local", "deployment/smoke/mock-llm/Dockerfile"}
+
+	kindImageSmokeOIDC = kindImage{"buildmax-smoke-oidc:local", "deployment/smoke/mock-oidc/Dockerfile"}
 )
 
 // kindReloadService maps a `kind reload <service>` name to the deployment it

@@ -373,6 +373,19 @@ spec:
                 secretKeyRef:
                   name: buildmax-secret
                   key: BUILDMAX_CONVERSATION_MODEL_API_KEY
+            # The OIDC client secret, for a deployment that turns on oidc in
+            # server.yaml. Optional so one without SSO needs no such key.
+            - name: BUILDMAX_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_OIDC_CLIENT_SECRET
+                  optional: true
+            # Outbound TLS trusts the image's roots plus any CA in buildmax-trust
+            # (mounted below). Go reads every certificate file in these
+            # directories.
+            - name: SSL_CERT_DIR
+              value: "/etc/ssl/certs:/etc/buildmax/trust"
           volumeMounts:
             - name: buildmax-home
               mountPath: /buildmax
@@ -396,6 +409,9 @@ spec:
             # docs/design/space-secrets.md §9.1 requires.
             - name: buildmax-kek
               mountPath: /etc/buildmax/kek
+              readOnly: true
+            - name: buildmax-trust
+              mountPath: /etc/buildmax/trust
               readOnly: true
             # The root filesystem is read-only; this is the writable path
             # ordinary tooling assumes.
@@ -430,6 +446,13 @@ spec:
             secretName: buildmax-kek
             optional: true
             defaultMode: 0400
+        # Extra CA certificates for the server's outbound TLS, for an IdP or
+        # other dependency whose certificate a private CA issued. Optional; kind
+        # puts its mock OIDC provider's CA here (tools/mk/kind_tls.go).
+        - name: buildmax-trust
+          configMap:
+            name: buildmax-trust
+            optional: true
 ---
 # The public API Service. The Ingress points here; it carries no worker route.
 apiVersion: v1

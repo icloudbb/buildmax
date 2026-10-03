@@ -23,10 +23,11 @@
 1. 安装 ingress-nginx、MySQL 和 MinIO——由于 MinIO 已停止发布镜像，服务端和 `mc`
    镜像来自社区 MinIO 分支 [SILO](https://silo.pgsty.com)
 2. 分别通过集群内 Job 创建 `bmstore` 存储桶并扩展 MySQL 开发权限
-3. 构建并加载服务器、Portal 和确定性模拟模型镜像
+3. 构建并加载服务器、Portal、确定性模拟模型和模拟 OIDC 提供方镜像
 4. 生成临时本地 Secret，应用 BuildMax 清单
 5. 等待每个 Deployment 就绪
 6. 创建真实 TaskRun，在 Kubernetes Worker Job 中执行，并通过 API 验证 Artifact
+7. 在已用登录验证码登录的同一部署上通过单点登录（SSO）登录，并检查允许列表外的域名被拒绝（见[单点登录](#单点登录)）
 
 Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的用户态策略引擎在长期运行的集群上会退化：新 pod 得不到保护，其他 pod 的 DNS 和 API 请求会超时，直到重启它才恢复。清单以 vendored 形式放在 `deployment/kind/cilium.yaml`，文件中附有生成它的命令。在此改动之前创建的集群仍运行 kindnet；`kind up` 会提示这一点，执行 `./make kind down` 再执行 `./make kind up` 即可用 Cilium 重建。`./make kind fixtures` 可恢复 QA 数据。
 
@@ -211,6 +212,30 @@ kubectl --context kind-buildmaxdev -n buildmax exec deployment/buildmax-server -
 ```
 
 `deployment/buildmax-deploy.yaml` 为 `conversation.model` 提供了相同的注释配置块。Linux 宿主机上应使用 Docker bridge 网关地址（`docker network inspect kind`），守护进程需要设置 `OLLAMA_HOST=0.0.0.0`。
+
+### 单点登录
+
+每个 kind 栈都在密码和登录验证码之外提供 SSO，对接与服务器一同部署的模拟 OIDC 提供方（`deployment/smoke/mock-oidc.kind.yaml`）。`kind up` 和 `kind smoke` 通过 HTTP 用它登录，`./make e2e kind` 则在浏览器中完成同样的登录。
+
+issuer 是该模拟提供方的 Service 名加集群的 TLS 端口，即 `https://buildmax-smoke-oidc.buildmax.svc.cluster.local:8443`，因此服务器 pod 和浏览器用同一个 URL 访问它——pod 直连，浏览器经由入口。要手动登录，让该名称解析到本机，并在浏览器询问时接受 kind 的自签名证书：
+
+```bash
+echo "127.0.0.1 buildmax-smoke-oidc.buildmax.svc.cluster.local" | sudo tee -a /etc/hosts
+```
+
+模拟提供方的表单询问你是谁，但不做任何校验。`buildmax.local` 下尚无账号的地址会在首次登录时开户；已有账号的地址（例如 `kind fixtures` 之后的 `alice@buildmax.local`）会关联到该账号。
+
+要改为验证真实 IdP，把 `<portal 源>/api/auth/oidc/callback` 注册为它的登录重定向 URI（`buildmaxdev` 上为 `http://localhost:8080/api/auth/oidc/callback`），把 IdP 写入 `.local/env`，然后运行 `./make kind up`：
+
+```bash
+BUILDMAX_KIND_OIDC_ISSUER=https://example.okta.com
+BUILDMAX_KIND_OIDC_CLIENT_ID=0oaExampleClientId
+BUILDMAX_KIND_OIDC_DISPLAY_NAME=Okta
+BUILDMAX_KIND_OIDC_ALLOWED_DOMAINS=example.com
+BUILDMAX_OIDC_CLIENT_SECRET=…
+```
+
+此时冒烟测试只检查登录是否从该 IdP 开始，浏览器套件会跳过 SSO 测试，登录需要手动完成。删除这些变量后再次运行 `kind up` 即可回到模拟提供方。
 
 ## 为什么仍保留 Compose
 
