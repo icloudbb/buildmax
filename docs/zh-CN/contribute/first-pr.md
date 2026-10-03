@@ -75,7 +75,7 @@ git commit -m "Fix the workspace path in the sandbox guide"
 git push -u origin short-topic-name
 ```
 
-`./make check ci` 包括必需的拉取请求套件，以及按路径划分的发布和 Windows 检查：上述 Go 检查、两个前端测试套件、文档检查和全仓库扫描。它需要固定版本的 Node；没有 Node 时，运行 `./make check go`，其余交给 CI。
+`./make check ci` 包括必需的拉取请求套件，以及按路径划分的发布检查：上述 Go 检查、两个前端测试套件、文档检查和全仓库扫描。它需要固定版本的 Node；没有 Node 时，运行 `./make check go`，其余交给 CI。
 
 提交标题是一行祈使句。`Co-authored-by` 可以用于标明实质性的人类协作；不要加入 assistant、模型或工具 trailer，也不要添加“Generated with …”页脚。如果用户或运维人员能感知变更，请在 [`docs/changelog/`](../changelog/README.md) 下新增 changelog 文件。
 
@@ -87,7 +87,7 @@ git push -u origin short-topic-name
 
 每个拉取请求运行 [CONTRIBUTING.md § Pull Requests](../../../CONTRIBUTING.md#pull-requests) 所述的三个必需作业：格式、`go mod tidy` 清洁度、构建、vet、golangci-lint、govulncheck、带 `-race` 的测试套件、三个前端构建和两个前端测试套件、git 历史机密扫描、依赖许可证检查，以及 Markdown lint。所有检查均不需要凭据，因此在 fork 上运行方式相同。
 
-相关变更会增加原生 Windows 运行、GoReleaser 配置验证或 Portal 镜像构建。`./make check ci` 始终运行前两者的本地对应检查；Windows 使用交叉编译，因为原生测试需要 Windows 机器。
+相关变更会增加 GoReleaser 配置验证或 Portal 镜像构建；`./make check ci` 始终运行前者。Go 作业会为 Windows 交叉编译；原生 Windows 套件在合并后运行，因为它需要 Windows 机器。
 
 ## 遇到困难时
 

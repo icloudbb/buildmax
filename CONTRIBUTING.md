@@ -357,18 +357,19 @@ The rest:
 
 Every pull request must pass three stable jobs: `Go (build, vet, test)`,
 `Frontend (gui, portal, desktop)`, and `Open source policy`. Together they run
-`gofmt`, a `go mod tidy` cleanliness check, build, vet, golangci-lint,
-govulncheck, the Go test suite with `-race`, all three frontend builds, frontend
-lint and tests, a Git-history secret scan, dependency-license checks, and
-Markdown lint.
+`gofmt`, a `go mod tidy` cleanliness check, build, vet, a Windows
+cross-compile, golangci-lint, govulncheck, the Go test suite with `-race`, all
+three frontend builds, frontend lint and tests, a Git-history secret scan,
+dependency-license checks, and Markdown lint.
 
-Additional pull-request checks are path-scoped rather than universal. Go,
-task-runner, and Windows changes run the native Windows suite; release
-configuration changes run `goreleaser check`; and Portal image changes build
-the image. CodeQL runs after pushes to `main`, weekly, and on demand. Pushes to
-`main` and manual runs also build and smoke-test a non-publishing release
-snapshot on Linux, macOS, and Windows. Deployment-related changes run the
-Compose and kind end-to-end smoke paths after merge.
+Additional pull-request checks are path-scoped rather than universal. Release
+configuration changes run `goreleaser check`, and Portal image changes build
+the image. The native Windows suite runs after Go, task-runner, and Windows
+changes merge to `main`, daily, and on demand; a failure there is fixed forward.
+CodeQL runs after pushes to `main`, weekly, and on demand. Pushes to `main` and
+manual runs also build and smoke-test a non-publishing release snapshot on
+Linux, macOS, and Windows. Deployment-related changes run the Compose and kind
+end-to-end smoke paths after merge.
 
 Locally:
 
@@ -379,7 +380,7 @@ Locally:
 ./make lint              # golangci-lint and govulncheck, CI's pinned versions
 ./make build             # every binary, including the frontends
 ./make check all         # all local Go, frontend, and documentation gates
-./make check ci          # required PR suite plus conditional release/Windows checks
+./make check ci          # required PR suite plus the conditional release check
 ```
 
 `check ci` is for when CI minutes are scarce or the feedback loop matters more
@@ -390,7 +391,8 @@ the path-scoped checks even when the current diff would not trigger them on a
 pull request. It uses the tool versions the workflows pin; a test fails if the
 local and hosted versions drift. Three gaps remain:
 
-- The Windows job runs the suite on Windows. The local step only cross-compiles.
+- The post-merge Windows job runs the suite on Windows. CI and the local step
+  only cross-compile.
 - `npm ci` runs only when `node_modules` is missing, so lockfile drift needs an
   explicit `npm ci` in the frontend you touched.
 - CI checks out clean and ends with `git diff --exit-code`. Locally that would

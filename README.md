@@ -156,7 +156,7 @@ model API key: [Your First Pull Request](docs/contribute/first-pr.md).
 ./make build cli  # just the CLI — Go is the only tool this needs
 ./make test       # go test ./... against ./testing-sandbox
 ./make check go   # the Go half of what a pull request runs
-./make check ci   # everything a pull request runs, except the Windows job
+./make check ci   # everything a pull request runs
 ./make build      # everything, including the three frontends: also needs Node
 ./make run server # run the already-built buildmax-server
 ./make run portal # Portal dev server

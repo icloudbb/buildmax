@@ -112,7 +112,7 @@ git push -u origin short-topic-name
 ```
 
 `./make check ci` is the required pull-request suite plus the path-scoped
-release and Windows checks — the Go gate above, both frontend suites, the
+release check — the Go gate above, both frontend suites, the
 documentation checks, and the repository-wide scans. It needs the pinned Node;
 without it, run `./make check go` and let CI cover the other half.
 
@@ -141,10 +141,10 @@ the test suite with `-race`, the three frontend builds and both frontend test
 suites, a secret scan over git history, dependency license checks, and Markdown
 lint. None of it needs credentials, so it runs the same way on a fork.
 
-Relevant changes add a native Windows run, GoReleaser configuration validation,
-or a Portal image build. `./make check ci` always runs the local equivalents of
-the first two; it cross-compiles for Windows because the native test needs a
-Windows machine.
+Relevant changes add GoReleaser configuration validation or a Portal image
+build; `./make check ci` always runs the first. The Go job cross-compiles for
+Windows; the native Windows suite runs after merge, because it needs a Windows
+machine.
 
 ## If You Get Stuck
 

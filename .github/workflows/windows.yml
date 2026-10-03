@@ -1,9 +1,19 @@
+# The native Windows suite runs after merge, daily, and on demand -- not on pull
+# requests. Go cross-compiles, so whether the code still builds for Windows is
+# checked on every pull request by the Linux Go job in ci.yml, in seconds. What
+# needs a Windows machine is runtime behavior the Linux suite never executes:
+# file modes and the executable bit, drive letters and path separators, file
+# locking, process creation and termination, and timer resolution. Those
+# failures are real but rare, and a several-minute Windows job on every Go pull
+# request was too high a price for them; a post-merge failure is triaged and
+# fixed forward like a deployment-smoke failure.
 name: Windows
 
+# The two path lists are duplicated rather than shared through a YAML anchor:
+# the Actions workflow parser does not resolve anchors.
 on:
   push:
     branches: [main]
-  pull_request:
     paths:
       - '**/*.go'
       - 'go.mod'
@@ -11,6 +21,8 @@ on:
       - 'make'
       - 'make.bat'
       - '.github/workflows/windows.yml'
+  schedule:
+    - cron: '53 4 * * *'
   workflow_dispatch:
 
 permissions:
@@ -27,30 +39,50 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Defender's real-time scan of every file written is what makes this job
+      # slow, so the exclusions come before anything writes in bulk: the Go
+      # download, the build cache restore (tens of thousands of small files),
+      # and the build itself. The Go caches move under RUNNER_TEMP on the D:
+      # drive, which is faster than C: and is covered by the same exclusion.
+      # The exclusions are best-effort -- they only speed the run up -- but the
+      # cache locations are not, so this step is not continue-on-error.
+      - name: Prepare Go paths
+        shell: pwsh
+        run: |
+          $gocache = Join-Path $env:RUNNER_TEMP 'go-build'
+          $gomodcache = Join-Path $env:RUNNER_TEMP 'go-mod'
+          "GOCACHE=$gocache" >> $env:GITHUB_ENV
+          "GOMODCACHE=$gomodcache" >> $env:GITHUB_ENV
+          # ISO week, so the build cache below is refreshed weekly.
+          "CACHE_WEEK=$(Get-Date -UFormat '%G-W%V')" >> $env:GITHUB_ENV
+          foreach ($p in @($env:GITHUB_WORKSPACE, $env:RUNNER_TEMP, $env:RUNNER_TOOL_CACHE)) {
+            Add-MpPreference -ExclusionPath $p -ErrorAction SilentlyContinue
+          }
+
+      # setup-go's own cache is keyed on go.sum alone and shared with the
+      # Windows leg of desktop-package.yml, so this job restored whatever that
+      # one saved and, on a primary-key hit, never saved its own. It keeps its
+      # own entry instead.
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
 
-      # Defender's real-time scan of every object file the Go toolchain writes
-      # is what makes Build and Test slow on the Windows runner, not a cold
-      # cache -- setup-go already restores the module and build caches above.
-      # Excluding the workspace and the Go caches from the scan is the standard
-      # fix. It is best-effort: the exclusions only speed the run up, so a
-      # runner that will not set them must not fail the job over it.
-      - name: Exclude Go paths from Defender
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $paths = @(
-            $env:GITHUB_WORKSPACE,
-            (go env GOCACHE),
-            (go env GOMODCACHE),
-            $env:TEMP
-          ) | Where-Object { $_ }
-          foreach ($p in $paths) {
-            Add-MpPreference -ExclusionPath $p -ErrorAction SilentlyContinue
-          }
+      # One entry per ISO week, written by the first run of that week: about
+      # 550 MB, so one per commit would churn the repository's shared 10 GB
+      # budget. A week-old cache still holds every compiled dependency and the
+      # standard library; what it lacks is this module's recent changes.
+      - name: Restore Go build cache
+        id: go-build-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ${{ env.GOCACHE }}
+            ${{ env.GOMODCACHE }}
+          key: go-windows-${{ hashFiles('go.mod', 'go.sum') }}-${{ env.CACHE_WEEK }}
+          restore-keys: |
+            go-windows-${{ hashFiles('go.mod', 'go.sum') }}-
+            go-windows-
 
       - name: Build
         run: go build ./...
@@ -62,3 +94,12 @@ jobs:
       # alongside the suite.
       - name: Test
         run: .\make.bat test
+
+      - name: Save Go build cache
+        if: steps.go-build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ${{ env.GOCACHE }}
+            ${{ env.GOMODCACHE }}
+          key: ${{ steps.go-build-cache.outputs.cache-primary-key }}
