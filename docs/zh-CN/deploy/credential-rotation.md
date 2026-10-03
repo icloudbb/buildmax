@@ -182,7 +182,7 @@ kind 演练不覆盖这些凭证；它们都遵循相同的“修改 Secret 并�
 
 ## 实测影响
 
-`./make kind drill rotation` 在一次性 kind 集群上演练上文的 JWT、数据库、对象存储、托管模型和 KEK 流程，并断言每一步的结果。它是流程演练，而非资格验证：[Beta 就绪记录](beta-readiness.md)需要在固定候选版本自己的 MySQL、S3 和 Ingress 上完成同样的演练。2026-09-26 的演练实测结果如下：
+`./make kind drill rotation` 在一次性 kind 集群上演练上文的 JWT、数据库、对象存储、托管模型和 KEK 流程，并断言每一步的结果。它是流程演练，而非资格验证：[Beta 就绪记录](beta-readiness.md)记录了在固定候选版本 v0.2.0-alpha.22 自己的 MySQL、S3 和 Ingress 上完成的同样演练，除数据库密码（已豁免）外每种凭证都已轮换。2026-09-26 的演练实测结果如下：
 
 | 凭证 | Server 滚动 | 旧凭证 | 中断 |
 |---|---|---|---|

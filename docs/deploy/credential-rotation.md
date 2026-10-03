@@ -273,8 +273,9 @@ patch-and-roll shape.
 `./make kind drill rotation` rehearses the JWT, database, object-storage,
 managed-model, and KEK procedures above on a disposable kind cluster and asserts
 each result. It is a rehearsal of the procedure, not qualification: the
-[Beta readiness record](beta-readiness.md) needs the same exercise against the
-pinned candidate's own MySQL, S3, and ingress. The rehearsal on 2026-09-26
+[Beta readiness record](beta-readiness.md) holds the same exercise against the
+pinned v0.2.0-alpha.22 candidate's own MySQL, S3, and ingress, where every
+credential except the database password (waived) was rotated. The rehearsal on 2026-09-26
 measured:
 
 | Credential | Server roll | Old credential | Disruption |
