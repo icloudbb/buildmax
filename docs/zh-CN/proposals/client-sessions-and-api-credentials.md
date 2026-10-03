@@ -101,7 +101,7 @@ access token。
 
 | 设置项 | 当前默认值 | 当前含义 |
 |---|---:|---|
-| `access_token_ttl` | 7 天 | 一个未被存储的 access JWT 保持可用的时长 |
+| `access_token_ttl` | 15 分钟 | 一个未被存储的 access JWT 保持可用的时长 |
 | `refresh_token_ttl` | 30 天 | 当前 refresh-token 行可被兑换的时长 |
 | `refresh_rotation_grace` | 30 秒 | 一个已被消耗的 token 允许被并发的客户端进程再次兑换的时长 |
 | `session_absolute_ttl` | 90 天 | 原生/密码/登录码 Session 不受刷新活动影响的硬上限 |
@@ -266,9 +266,9 @@ refresh-token 族。该 session 会记录是哪个客户端与设备创建了它
 | 人类 session 的绝对生命周期 | 90 天 | 防止活跃状态让一次授权被无限续期 |
 | PAT | 30 天,并由运维人员设定上限 | 让无人值守的权限变得显式,并迫使形成轮换策略 |
 
-这些数值是产品与运维策略层面的决策,而非承诺。一个受信任的私有部署可能会
-在过渡期内选择更长的 access-token 生命周期,但当前 7 天的默认值不应成为
-生产环境的目标值,只要一次 session 登出还无法使其失效。
+access-token 与 Session 绝对生命周期的默认值已经实现，分别为 15 分钟和
+90 天。其他拟议凭据策略仍待讨论。部署可以配置更长的 access-token 生命周期；
+持久 Session 检查仍会让登出与撤销在下一次请求时生效。
 
 ### Audience 与 Scope 在路由层被强制执行
 
@@ -368,6 +368,11 @@ Access token 与 refresh token 绝不能被复制进:
 
 ### 当前的密码与登录码流程
 
+当前原生客户端把两个 token 都放入系统凭据存储，不可用时回退到文件，并用
+通用的用户 access token 发现模型和请求补全。下面是 audience/scope 加固后
+的推荐流程；仅在内存中保留 access token 的偏好与命名 scope 尚未成为原生
+客户端的实际行为。
+
 1. CLI 或 Desktop 通过 TLS 把密码或运维人员签发的登录码发送到
    `POST /api/auth/login`。
 2. 服务器创建一个显式的客户端 session,并返回一个 access token 与一个可
@@ -382,8 +387,8 @@ Access token 与 refresh token 绝不能被复制进:
 
 一个无法存储 refresh session 的部署可以为了开发兼容性而保留一种仅有
 access token 的登录方式,但一个托管客户端应当报告该登录无法续期。一个把
-托管推理作为运维服务提供的部署应当要求配置 session 存储,而不是把一个 7 天
-有效期的 access token 当作其可用性机制。
+托管推理作为运维服务提供的部署应当要求配置 session 存储,而不是把一个长期
+有效的 access token 当作其可用性机制。
 
 ### 未来的原生客户端 OIDC 流程
 
@@ -622,7 +627,7 @@ OIDC 将打开系统浏览器,而不是嵌入身份提供方页面。
   用户的最后登录元数据。已修正为:登录处理程序会调用 `UpdateLoginMeta`。
 - `docs/design/llm-gateway.md` 曾把"刷新 versus 一个受限的客户端 token"列为
   一个未决问题,并把 access token 称为一个 24 小时的 JWT。已修正为:刷新
-  机制已经实现,配置默认值为 7 天。安全原生存储与 Session 绝对生命周期此后已经
+  机制已经实现,配置默认值现在为 15 分钟。安全原生存储与 Session 绝对生命周期此后已经
   交付；audience/scope 与机器身份仍未解决。
 - P3 路线图中的一句话可能被误读为 CLI、TUI、Desktop 与 task run 都使用一种
   按 run 划分的凭据。已修正为:只有 task run 使用 run token,交互式客户端
@@ -632,9 +637,10 @@ OIDC 将打开系统浏览器,而不是嵌入身份提供方页面。
 
 ### 第一阶段:加固现有的双 token session
 
-已交付：显式 Session 状态与绝对过期、逐请求 Session 强制检查、独立创建的客户端
+已交付：显式 Session 状态与绝对过期、逐请求 Session 强制检查、15 分钟的
+access-token 默认值、独立创建的客户端
 Session、原生凭据存储接口、Portal cookie 流程、管理员列表/撤销，以及当前文档与
-OpenAPI。仍待完成：缩短配置层默认 access-token 生命周期、issuer/audience/client/
+OpenAPI。仍待完成：issuer/audience/client/
 scope 强制检查、自助 Session 管理与签名密钥轮换。
 
 这一阶段不会改变任何托管模式的产品语义:登录仍然选择部署的模型,网关调用

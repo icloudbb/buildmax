@@ -50,11 +50,11 @@ BuildMax 已经接受了一个以锁定修订版本的执行图为核心的、�
 
 ### 2.1 产品当前暴露的内容
 
-Portal 的 Space 侧边栏把 Chat、Issues、Agents、Workflows 和 Schedules 归入 **Work** 分组，把 Files 和 Artifacts 归入 **Resources** 分组。Chat 用于发起一个 Conversation；也可以通过一个持久化的 Task 和 TaskRun 直接调用一个 Agent。Workflow 是一个 Space 范围内的可复用方案：一个由 Agent Task 节点通过 `needs` 边连接而成的静态 DAG。
+Portal 的 Space 侧边栏把 Chat、Issues、Agents、Workflows 和 Schedules 归入 **Work** 分组，把 Files 和 Artifacts 归入 **Resources** 分组。Chat 用于发起一个 Conversation；也可以通过一个持久化的 Task 和 TaskRun 直接调用一个 Agent。Workflow 是一个 Space 范围内的可复用方案：一个由 Agent Task 与 `human_input` 节点通过 `needs` 边连接而成的静态 DAG。
 
-Workflow 编辑器是一个带原始 JSON 视图的可视化节点与连线画布（见 [Portal Workflow 可视化编辑器](../design/portal-workflow-visual-editor.md)）。它创作的是这个静态图——节点、依赖、绑定和结果契约——但该定义中并没有条件分支、重试或人工等待可供它表达。
+Workflow 编辑器是一个带原始 JSON 视图的可视化节点与连线画布（见 [Portal Workflow 可视化编辑器](../design/portal-workflow-visual-editor.md)）。它创作这个静态图的节点、依赖、绑定、结果契约、节点重试与超时策略、整次运行超时，以及人工输入。Agent 节点还可以等待 AskUser 问题，并在收到回答后继续。条件路由尚未实现。
 
-已接受的 Workflow 设计通过用一个持久化的图取代线性的回调式排序器，解决了运行时的正确性问题。它有意指出：语义化表单应当先于通用画布出现，而一个一次性的、开放式的目标通常应当保持为一个 Agent Task。
+已接受的 Workflow 设计已实现持久化图协调器与重启恢复。语义化创作先于可视化画布，后者此后依据自己的设计交付。一次性的、开放式的目标通常应当保持为一个 Agent Task。
 
 ### 2.2 新的助理假设
 

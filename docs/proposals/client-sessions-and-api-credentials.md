@@ -110,7 +110,7 @@ The defaults are:
 
 | Setting | Current default | Current meaning |
 |---|---:|---|
-| `access_token_ttl` | 7 days | How long an unstored access JWT remains usable |
+| `access_token_ttl` | 15 minutes | How long an unstored access JWT remains usable |
 | `refresh_token_ttl` | 30 days | How long the current refresh-token row may be exchanged |
 | `refresh_rotation_grace` | 30 seconds | How long a spent token may be exchanged again by a racing client process |
 | `session_absolute_ttl` | 90 days | Hard ceiling for a native/password/login-code session regardless of refresh activity |
@@ -290,10 +290,10 @@ Proposed policy defaults for discussion are:
 | Human session absolute lifetime | 90 days | Prevents activity from renewing one grant forever |
 | PAT | 30 days, with an operator-defined maximum | Makes unattended authority explicit and forces a rotation policy |
 
-These values are product and operator-policy decisions, not commitments. A
-trusted private deployment may choose a longer access-token lifetime during a
-transition, but the current seven-day default should not be the production
-target while a session logout cannot invalidate it.
+The access-token and absolute-session defaults are already implemented at
+15 minutes and 90 days respectively. The other proposed credential policies
+remain open. A deployment may configure a longer access-token lifetime; durable
+session checks still make logout and revocation effective on the next request.
 
 ### Audience And Scope Are Enforced At The Route
 
@@ -398,6 +398,12 @@ longer needs a broad grace window solely because every process reads one file.
 
 ### Current Password And Login-Code Flow
 
+The current native flow stores both tokens in the OS credential store, with a
+file fallback, and uses a general-purpose user access token for model discovery
+and completions. The following is the recommended flow after audience/scope
+hardening; its memory-only access-token preference and named scopes are not
+implemented native-client behavior.
+
 1. CLI or Desktop sends the password or operator-issued login code to
    `POST /api/auth/login` over TLS.
 2. The server creates an explicit client session and returns an access token
@@ -415,7 +421,7 @@ longer needs a broad grace window solely because every process reads one file.
 A deployment that cannot store refresh sessions may retain an access-only login
 for development compatibility, but a managed client should report that the
 login cannot renew. A deployment presenting managed inference as an operator
-service should require the session store rather than turn a seven-day access
+service should require the session store rather than turn a long-lived access
 token into its availability mechanism.
 
 ### Future Native-Client OIDC Flow
@@ -682,7 +688,7 @@ made:
   `UpdateLoginMeta`.
 - `docs/design/llm-gateway.md` listed refresh versus a scoped client token as an
   open question, and called the access token a 24-hour JWT. Corrected: refresh
-  is implemented and the configured default is seven days. Secure native
+  is implemented and the configured default is now 15 minutes. Secure native
   storage and absolute session lifetime have since shipped; audience/scope and
   machine identity remain unresolved.
 - The P3 roadmap sentence could be read as saying CLI, TUI, Desktop, and task
@@ -694,9 +700,9 @@ made:
 ### Stage 1: Harden The Existing Two-Token Session
 
 Shipped: explicit session state and absolute expiry, per-request session
-enforcement, independently created client sessions, the native credential-store
-interface, the Portal cookie flow, administrator listing/revocation, and current
-documentation/OpenAPI. Open: shorter configured access-token defaults,
+enforcement, the 15-minute access-token default, independently created client
+sessions, the native credential-store interface, the Portal cookie flow,
+administrator listing/revocation, and current documentation/OpenAPI. Open:
 issuer/audience/client/scope enforcement, self-service session management, and
 signing-key rotation.
 

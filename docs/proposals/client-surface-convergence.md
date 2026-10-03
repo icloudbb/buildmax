@@ -79,8 +79,10 @@ The two clients are structurally different below the shared UI:
   (`internal/interface/desktop/app.go`) through the injected `window.go` object,
   and Go pushes streams back with `runtime.EventsEmit`. The UI assets are
   `//go:embed`-compiled and served by the WebView's in-process asset server; the
-  Desktop process opens no locally reachable HTTP port. Its only outbound
-  networking is as a client of a managed server (login, managed-server URL).
+  Desktop UI has no standalone HTTP API for remote browsers. The runtime
+  can still make outbound requests to direct model providers, remote MCP
+  servers, and web tools, or use the local Agent browser; managed-server
+  requests are only one of its network paths.
 - **Portal is a browser client over HTTP and WebSocket.** `buildmax-server`
   (`cmd/buildmax-server/main.go`) runs a standard `http.Server`
   (`internal/server/server.go`) with routes in
