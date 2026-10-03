@@ -8,7 +8,7 @@
 
 Related: [roadmap](../ROADMAP.md), [current state](../current-state.md),
 [Agent-native collaboration substrate](agent-native-collaboration-substrate.md),
-[Session trees and Agent mailboxes](session-tree-and-agent-mailbox.md),
+[assistant orchestration and the Workflow boundary](assistant-orchestration-and-workflow-boundary.md),
 [Issue Agent access](../design/issue-agent-access.md),
 [Agent bridge CLI](../design/agent-bridge-cli.md),
 [Agent execution and Task threads](../design/agent-execution-and-task-threads.md),
@@ -163,10 +163,9 @@ entity.
 
 ### 3.2 Participant
 
-A Participant is a person, Task, local linked Session, or future supervised
-Session entitled to read or contribute within the Topic. An Agent definition is
-not itself a participant: one Agent configuration may execute many unrelated
-Tasks concurrently.
+A Participant is a person, Task, or local linked Session entitled to read or
+contribute within the Topic. An Agent definition is not itself a participant:
+one Agent configuration may execute many unrelated Tasks concurrently.
 
 ### 3.3 Blackboard
 
@@ -190,8 +189,9 @@ under explicit policy.
 
 A Join condition is deterministic state describing when dependent execution may
 continue: for example all children terminal, any success, a deadline, or a
-manual decision. Workflow or a Session supervisor owns it; the Blackboard may
-display it but does not implement it.
+manual decision. Workflow, or a parent Task's durable wait
+([assistant orchestration](assistant-orchestration-and-workflow-boundary.md)
+§8.2), owns it; the Blackboard may display it but does not implement it.
 
 ### 3.6 Topic snapshot
 
@@ -252,8 +252,8 @@ into their workspaces. The authorized integration path remains separate.
 - Keep information exchange separate from durable synchronization and
   readiness decisions.
 - Deliver Agent-visible updates only at reproducible, safe context boundaries.
-- Reuse Issue, Task/TaskRun, Artifact, Workflow, and mailbox responsibilities
-  instead of introducing an overlapping execution model.
+- Reuse Issue, Task/TaskRun, Artifact, and Workflow responsibilities instead
+  of introducing an overlapping execution model.
 - Bound context, notifications, writes, automatic execution, and storage.
 - Validate the need with the smallest useful extension before creating a new
   server entity.
@@ -288,8 +288,8 @@ The candidate model keeps three responsibilities explicit:
 | User need | Authoritative concept | Required semantics |
 |---|---|---|
 | Share information relevant to the whole Topic | Blackboard / coordination feed | Durable append, provenance, bounded reads |
-| Ask a particular participant to act | Mailbox Signal | Addressing, durable delivery, acknowledgement, optional bounded wake-up |
-| Wait until work reaches a condition | Workflow or Session supervisor | Readiness, deadline, retry, failure, recovery |
+| Ask a particular participant to act | Addressed Signal | Addressing, durable delivery, acknowledgement, optional bounded wake-up |
+| Wait until work reaches a condition | Workflow or parent Task wait | Readiness, deadline, retry, failure, recovery |
 
 The concepts may reference each other. A Signal can name the Blackboard entry
 that motivated it, and a Topic view can show a Workflow join. Reference is not
@@ -410,7 +410,7 @@ from that snapshot.
 ### 10.2 No mid-batch injection
 
 A Blackboard update never breaks an `assistant(tool_calls) -> tool results`
-sequence. If later delivery to an active run is valuable, the supervisor may
+sequence. If later delivery to an active run is valuable, the runtime may
 offer the update only at a complete Agent-loop iteration boundary and must
 record that boundary in the trace.
 
@@ -446,9 +446,25 @@ that any particular participant read or processed it. That is the correct
 meaning for shared findings and status context.
 
 When the sender needs action from one recipient, the system uses a Signal. The
-Signal may reference one Blackboard entry instead of copying its body. The
-mailbox proposal owns the eventual delivery states, idempotency, wake policies,
-and parent/supervisor restrictions.
+Signal may reference one Blackboard entry instead of copying its body. Its
+persistence, idempotency, and ordering follow §14. Waking a parent Task when
+child work finishes belongs to the durable delegation path in
+[assistant orchestration](assistant-orchestration-and-workflow-boundary.md)
+§8.2, not to a separate mailbox.
+
+**Addressed Signal constraints.** Whatever routes are added keep three rules:
+
+- A late Signal does not undo cancellation. If a user paused or cancelled the
+  recipient, a late report may still be recorded but must not restart it; only
+  an explicit user action resumes it.
+- Wake policy is chosen when the work is created or dispatched. Only the user
+  or an authorized parent may change it later; a child cannot upgrade its own
+  notify-only policy to automatic resume.
+- The runtime injects the recipient from the sender's own scope, so tool
+  arguments carry no model-supplied target ID. A user-facing "send to parent"
+  action and the Agent capability call the same application service rather than
+  keeping separate persistence and authorization paths, and a durable-write
+  failure fails the call instead of claiming delivery.
 
 The first Blackboard slice should not add arbitrary Signal addressing. A safe
 sequence is:
@@ -469,8 +485,8 @@ unattended feedback loop.
 ### 12.1 A Blackboard is not a barrier
 
 Statements such as “finished,” “waiting,” or “approved” are evidence from a
-participant. They are not authoritative execution state. Workflow or the
-Session supervisor evaluates joins from durable TaskRun, request, timeout, and
+participant. They are not authoritative execution state. Workflow or a parent
+Task's durable wait evaluates joins from durable TaskRun, request, timeout, and
 cancellation facts.
 
 ### 12.2 Use Issues for declared division of work
@@ -629,7 +645,7 @@ one real Topic workflow has been validated.
 
 This is not recommended as the first direction.
 
-### 17.3 Option C: Derive an Issue Topic feed and keep mailbox and joins separate
+### 17.3 Option C: Derive an Issue Topic feed and keep Signals and joins separate
 
 This reuses the existing work hub, child decomposition, comment provenance,
 the `buildmax issue` command surface, and Space authorization. It adds only the missing ability for a
@@ -696,14 +712,14 @@ of the problem.
 ### Phase 4: Addressed Signals and bounded subscriptions
 
 - Add a Signal that references an entry when one recipient must act.
-- Start with the mailbox proposal's restricted parent/supervisor routes.
+- Start with restricted child-to-parent routes under the §11 constraints.
 - Add per-participant cursors or digests only where pull demonstrably arrives
   too late.
 - Keep automatic model wake-up opt-in, budgeted, and lifecycle-aware.
 
 ### Phase 5: Join integration
 
-- Let Workflow or a Session supervisor display and reference Topic findings
+- Let Workflow or a waiting parent Task display and reference Topic findings
   while retaining sole authority over joins.
 - Resume synthesis once per satisfied join rather than once per Blackboard
   post.
@@ -758,7 +774,7 @@ A Phase 1 or Phase 2 prototype is successful only if:
 - How stale can pull-based coordination be before a durable subscription is
   justified?
 - Which participants, if any, need per-Topic cursors?
-- Is an addressed Signal permitted only through parent/supervisor relations, or
+- Is an addressed Signal permitted only through parent relations, or
   do Issue executors justify another fixed route?
 - Which updates may trigger a synthesis run, and who authorizes its budget?
 
@@ -827,8 +843,8 @@ If evidence supports implementation, candidate ownership is:
 | Local authenticated scope | `internal/interface/client` and `internal/agentapp` |
 | Optional typed entry domain | `internal/core/issue` unless evidence shows an independent reason to change |
 | Typed entry persistence | `internal/infra/db` |
-| Addressed delivery | the mailbox/supervisor service decided by its own proposal |
-| Join and readiness | `internal/core/workflow` and `internal/service/workflow`, or the Session supervisor |
+| Addressed delivery | `internal/service/issue` for Topic Signals; parent wake-up through the Task delegation path of [assistant orchestration](assistant-orchestration-and-workflow-boundary.md) §8.2 |
+| Join and readiness | `internal/core/workflow` and `internal/service/workflow`, or a parent Task's durable wait |
 | Topic projection in Portal | Portal over Issue and coordination service responses |
 | Workspace isolation and apply | the workspace capability, never the feed store |
 
@@ -842,10 +858,11 @@ If the evidence supports the direction:
 1. Place the accepted slices and their prerequisites in `ROADMAP.md`.
 2. Move durable Topic, authority, delivery, and synchronization decisions into
    the relevant design records rather than leaving one broad design behind.
-3. Reconcile the accepted boundary with the Session mailbox and Agent-native
-   collaboration proposals, retiring or narrowing superseded proposal text.
+3. Reconcile the accepted boundary with the assistant orchestration and
+   Agent-native collaboration proposals, retiring or narrowing superseded
+   proposal text.
 4. Create separate backlog items for the comment-backed prototype, typed feed
-   if earned, mailbox integration, UI projection, and recovery evidence.
+   if earned, addressed Signals, UI projection, and recovery evidence.
 5. Update Issue, Task, Workflow, tool, Server, data-model, Portal, CLI, and
    Desktop documentation only as their behavior actually changes.
 6. Add user documentation after a supported surface ships.
@@ -854,9 +871,9 @@ If the evidence supports the direction:
 
 If evidence shows that users only need terminal synthesis, improve existing
 Task results and Workflow fan-in instead. If they need addressed questions but
-not broad awareness, implement the restricted mailbox without a Blackboard. If
-they only need cleaner human discussion, improve Issue Discussion and do not
-introduce an Agent coordination subsystem.
+not broad awareness, implement restricted addressed Signals without a
+Blackboard. If they only need cleaner human discussion, improve Issue
+Discussion and do not introduce an Agent coordination subsystem.
 
 ## 24. Candidate Direction
 
@@ -866,8 +883,8 @@ The candidate direction is:
 > child work. Its Blackboard is a bounded, source-attributed, append-oriented
 > feed, initially projected from existing Issue comments rather than introduced
 > as a new entity. The feed shares information but does not guarantee delivery
-> or decide readiness. Addressed action uses durable mailbox Signals;
-> synchronization uses Workflow or supervisor-owned join conditions; workspace
+> or decide readiness. Addressed action uses durable, restricted Signals;
+> synchronization uses Workflow or parent-Task-owned join conditions; workspace
 > changes remain isolated and reviewable. Agent capabilities are scoped by
 > construction, reports remain untrusted evidence, and automatic processing is
 > explicit and budgeted.

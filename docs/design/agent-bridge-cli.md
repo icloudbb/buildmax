@@ -42,7 +42,7 @@
 - relates: [tool-permissions.md](./tool-permissions.md),
   [sandbox-boundaries.md](./sandbox-boundaries.md),
   [unified-artifacts.md](./unified-artifacts.md),
-  [../proposals/client-sessions-and-api-credentials.md](../proposals/client-sessions-and-api-credentials.md)
+  [enterprise-identity-and-access.md](./enterprise-identity-and-access.md)
 - folds: the client-command half of the retired Local Issue work bridge
   proposal; the rest of its scope was decided in
   [surface-positioning.md §5.5](./surface-positioning.md#55-local-issue-work)
@@ -196,9 +196,10 @@ credential.
 
 ## 6. Credential Handling
 
-The controlling rule from
-[client-sessions-and-api-credentials.md](../proposals/client-sessions-and-api-credentials.md)
-is that a credential must not be reachable by anything the model can see.
+The controlling rule is that a credential must not be reachable by anything
+the model can see. It is also why login mints no machine credential
+([enterprise-identity-and-access.md §7.4](./enterprise-identity-and-access.md#74-no-machine-credential-as-a-login-side-effect))
+and why CLI and Desktop keep login tokens in the OS credential store.
 
 - **Worker context honours it fully.** The run token stays in the worker
   process; the subprocess receives only a socket path. Nothing the model reads
@@ -211,9 +212,9 @@ is that a credential must not be reachable by anything the model can see.
   the user can, and, if the user is an administrator, reaching admin routes.
   This is accepted as within the user's own trust domain on their own machine.
   It is recorded here as a conscious trade, not an oversight; a narrowed local
-  credential (route-level `scope`/`aud`/`client_id`, still unbuilt per the
-  credentials proposal) is the upgrade path if that authority ever needs
-  bounding, and §12 tracks it.
+  credential (route-level `scope`/`aud`/`client_id`, still unbuilt per
+  [enterprise-identity-and-access.md §7.1](./enterprise-identity-and-access.md#71-one-session-model))
+  is the upgrade path if that authority ever needs bounding, and §12 tracks it.
 
 The `buildmax` binary never receives a token through an argument, an environment
 variable it must be handed, prompt text, or tool input. Locally it reads the
@@ -321,10 +322,11 @@ The command surface changes the *mechanism* of Agent Server access, not the
 ## 10. Out Of Scope
 
 - Route-level `scope` / `aud` / `client_id` and a narrowed local credential.
-  Tracked by the credentials proposal; §6 accepts full user authority locally
-  for now.
+  Unbuilt (enterprise-identity-and-access.md §7.1); §6 accepts full user
+  authority locally for now.
 - Personal access tokens and service accounts for headless non-interactive use
-  outside a run. A named use case would revive credentials-proposal Stage 3.
+  outside a run. A named use case is the entry condition in
+  enterprise-identity-and-access.md §18.
 - A durable Issue↔Session link and an offline outbox, decided against in
   [surface-positioning.md §5.5](./surface-positioning.md#55-local-issue-work).
 - Any new worker route. This record adds none; it only carries the existing run

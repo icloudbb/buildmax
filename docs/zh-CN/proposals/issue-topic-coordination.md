@@ -8,7 +8,7 @@
 
 相关文档：[路线图](../ROADMAP.md)、[当前状态](../current-state.md)、
 [Agent 原生协作底座](agent-native-collaboration-substrate.md)、
-[Session 树与 Agent 邮箱](session-tree-and-agent-mailbox.md)、
+[助理编排与 Workflow 边界](assistant-orchestration-and-workflow-boundary.md)、
 [Issue Agent 访问](../design/Issue Agent访问.md)、
 [Agent 桥接 CLI](../design/Agent 桥接 CLI.md)、
 [Agent 执行与 Task thread](../design/Agent执行与Task线程.md)、
@@ -141,9 +141,8 @@ Topic 最初是一种关系和用户心智模型，不是新的数据库实体�
 
 ### 3.2 Participant
 
-Participant 是有权在 Topic 中读取或贡献的人、Task、本地关联 Session，或未来受
-监督的 Session。Agent definition 本身不是参与者：同一份 Agent 配置可以同时执行
-许多互不相关的 Task。
+Participant 是有权在 Topic 中读取或贡献的人、Task 或本地关联 Session。Agent
+definition 本身不是参与者：同一份 Agent 配置可以同时执行许多互不相关的 Task。
 
 ### 3.3 Blackboard
 
@@ -162,8 +161,8 @@ Blackboard entry 不同：它有投递与处理生命周期，并可在明确策
 ### 3.5 Join condition
 
 Join condition 是确定性状态，用来说明依赖执行何时可以继续，例如所有子项进入终态、
-任一成功、达到截止时间或等待人工决定。Workflow 或 Session supervisor 拥有它；
-Blackboard 可以展示它，但不实现它。
+任一成功、达到截止时间或等待人工决定。Workflow 或父 Task 的持久等待（[助理编排](assistant-orchestration-and-workflow-boundary.md)
+§8.2）拥有它；Blackboard 可以展示它，但不实现它。
 
 ### 3.6 Topic snapshot
 
@@ -213,8 +212,8 @@ Blackboard entry，并请求该参与者回答。
 - 将广泛发布信息与要求特定对象行动分开。
 - 将信息交换与持久同步、就绪决定分开。
 - 只在可复现、安全的上下文边界向 Agent 提供更新。
-- 复用 Issue、Task/TaskRun、Artifact、Workflow 和 mailbox 的现有职责，不引入
-  重叠的执行模型。
+- 复用 Issue、Task/TaskRun、Artifact 和 Workflow 的现有职责，不引入重叠的执行
+  模型。
 - 限制上下文、通知、写入、自动执行与存储成本。
 - 在创建新 Server 实体之前，用最小有用扩展验证需求。
 
@@ -246,8 +245,8 @@ Blackboard entry，并请求该参与者回答。
 | 用户需要 | 权威概念 | 必须具备的语义 |
 |---|---|---|
 | 分享与整个 Topic 有关的信息 | Blackboard / coordination feed | 持久追加、来源、受限读取 |
-| 请求特定参与者行动 | Mailbox Signal | 地址、持久投递、确认、可选且受限的唤醒 |
-| 等待工作达到某个条件 | Workflow 或 Session supervisor | 就绪、截止时间、重试、失败、恢复 |
+| 请求特定参与者行动 | Addressed Signal | 地址、持久投递、确认、可选且受限的唤醒 |
+| 等待工作达到某个条件 | Workflow 或父 Task 等待 | 就绪、截止时间、重试、失败、恢复 |
 
 这些概念可以相互引用。Signal 可以指向促成它的 Blackboard entry，Topic 视图可以
 显示 Workflow join。引用不等于所有权。
@@ -351,7 +350,7 @@ Agent 在 TaskRun 开始时，或显式调用读取工具时获得 Topic snapsho
 ### 10.2 不在 batch 中途注入
 
 Blackboard 更新不得打断 `assistant(tool_calls) -> tool results` 序列。如果以后证明
-向运行中 run 投递有价值，supervisor 只能在完整 Agent-loop iteration 边界提供更新，
+向运行中 run 投递有价值，runtime 只能在完整 Agent-loop iteration 边界提供更新，
 并把该边界写入 trace。
 
 ### 10.3 先 pull，后 push
@@ -383,8 +382,18 @@ Blackboard post 对有权参与 Topic 的对象可见，但不证明任何特定
 对于共享 finding 与状态上下文，这是正确语义。
 
 如果发送者需要某个收件人行动，系统应使用 Signal。Signal 可以引用 Blackboard
-entry，而不是复制正文。mailbox 提案拥有最终投递状态、幂等性、唤醒策略与 parent /
-supervisor 限制。
+entry，而不是复制正文。它的持久化、幂等性与排序遵循 §14。子工作完成时唤醒父 Task，
+属于[助理编排](assistant-orchestration-and-workflow-boundary.md) §8.2 中的持久委托路径，而不是另设一个 mailbox。
+
+**Addressed Signal 约束。** 无论增加哪些路径，都保持三条规则：
+
+- 迟到的 Signal 不会撤销取消。如果用户已暂停或取消收件人，迟到的 report 仍可被记录，
+  但不得重新启动它；只有用户的显式操作才能恢复它。
+- 唤醒策略在创建或派发工作时选定。之后只有用户或获授权的 parent 可以更改；子项不能
+  把自己仅通知的策略升级为自动恢复。
+- runtime 从发送者自身的范围注入收件人，因此 tool 参数中没有模型提供的目标 ID。面向
+  用户的“发送给 parent”操作与 Agent capability 调用同一个应用服务，而不是各自维护
+  持久化与授权路径；持久写入失败时调用失败，而不是声称已投递。
 
 第一版 Blackboard 不应增加任意 Signal 地址。安全顺序是：
 
@@ -401,9 +410,8 @@ supervisor 限制。
 
 ### 12.1 Blackboard 不是 barrier
 
-“完成”“等待”或“批准”等陈述只是参与者证据，不是权威执行状态。Workflow 或
-Session supervisor 根据持久 TaskRun、request、timeout 和 cancellation 事实评估
-join。
+“完成”“等待”或“批准”等陈述只是参与者证据，不是权威执行状态。Workflow 或父
+Task 的持久等待根据持久 TaskRun、request、timeout 和 cancellation 事实评估 join。
 
 ### 12.2 使用 Issue 表达已声明分工
 
@@ -542,7 +550,7 @@ Blackboard 协调理解，不拥有文件系统。
 
 不建议把它作为第一方向。
 
-### 17.3 方案 C：推导 Issue Topic feed，并保持 mailbox 与 join 独立
+### 17.3 方案 C：推导 Issue Topic feed，并保持 Signal 与 join 独立
 
 该方案复用现有工作中心、子项分解、评论来源、`buildmax issue` 命令面与 Space 授权，只增加子项
 参与父级协调所缺少的能力。如果评论确实不够，后续可在相同 Topic 体验背后引入类型化
@@ -600,13 +608,13 @@ Workflow 可以可靠拥有声明的依赖和 fan-in，但不应把每个发现�
 ### Phase 4：Addressed Signal 与受限订阅
 
 - 当一个收件人必须行动时，增加引用 entry 的 Signal。
-- 从 mailbox 提案中受限的 parent/supervisor route 开始。
+- 从遵循 §11 约束的受限 child-to-parent route 开始。
 - 只有 pull 被证明太迟时，才增加 per-participant cursor 或 digest。
 - 自动模型唤醒保持 opt-in、受预算和生命周期约束。
 
 ### Phase 5：Join 集成
 
-- Workflow 或 Session supervisor 可以展示和引用 Topic finding，但仍独占 join 权威。
+- Workflow 或等待中的父 Task 可以展示和引用 Topic finding，但仍独占 join 权威。
 - 每个已满足 join 只恢复一次综合，而不是每条 Blackboard post 恢复一次。
 - 验证 Server 重启和重复 notification 后的恢复。
 
@@ -649,7 +657,7 @@ Phase 1 或 Phase 2 原型只有满足以下条件才算成功：
 
 - pull-based coordination 可以容忍多旧，才值得增加持久订阅？
 - 哪些参与者确实需要 per-Topic cursor？
-- Addressed Signal 是否只能沿 parent/supervisor 关系发送，还是 Issue executor 足以
+- Addressed Signal 是否只能沿 parent 关系发送，还是 Issue executor 足以
   支持另一种固定 route？
 - 哪些更新可以触发 synthesis run，谁授权其预算？
 
@@ -708,8 +716,8 @@ Phase 1 或 Phase 2 原型只有满足以下条件才算成功：
 | 本地认证范围 | `internal/interface/client` 与 `internal/agentapp` |
 | 可选 typed entry domain | `internal/core/issue`，除非证据证明它有独立变化原因 |
 | Typed entry persistence | `internal/infra/db` |
-| Addressed delivery | 由 mailbox/supervisor 提案决定的 service |
-| Join 与 readiness | `internal/core/workflow`、`internal/service/workflow`，或 Session supervisor |
+| Addressed delivery | Topic Signal 由 `internal/service/issue` 负责；父级唤醒走[助理编排](assistant-orchestration-and-workflow-boundary.md) §8.2 的 Task 委托路径 |
+| Join 与 readiness | `internal/core/workflow`、`internal/service/workflow`，或父 Task 的持久等待 |
 | Portal 的 Topic projection | Portal，基于 Issue 与 coordination service response |
 | Workspace isolation 与 apply | workspace capability，绝不属于 feed store |
 
@@ -723,9 +731,9 @@ subscription 或 join state。
 1. 在 `ROADMAP.md` 中安排获采纳的切片及其前置条件。
 2. 将持久的 Topic、authority、delivery 与 synchronization 决策移入各自相关设计记录，
    不留下一个包揽全部问题的宽泛设计。
-3. 与 Session mailbox 和 Agent-native collaboration 提案对齐边界，退役或收窄被取代
+3. 与助理编排和 Agent-native collaboration 提案对齐边界，退役或收窄被取代
    的提案内容。
-4. 分别为 comment-backed prototype、确有必要时的 typed feed、mailbox integration、
+4. 分别为 comment-backed prototype、确有必要时的 typed feed、addressed Signal、
    UI projection 与 recovery evidence 创建 backlog item。
 5. 只有相关行为实际变化时，才更新 Issue、Task、Workflow、tool、Server、data model、
    Portal、CLI 与 Desktop 文档。
@@ -733,7 +741,7 @@ subscription 或 join state。
 7. 一旦被接受、拒绝或取代，就删除本提案；Git 历史保留讨论。
 
 如果证据表明用户只需要终态综合，应改进现有 Task result 与 Workflow fan-in。如果只
-需要 addressed question 而不需要广泛感知，应实现受限 mailbox，不创建 Blackboard。
+需要 addressed question 而不需要广泛感知，应实现受限的 addressed Signal，不创建 Blackboard。
 如果只需要更清晰的人类讨论，则改进 Issue Discussion，不引入 Agent 协调子系统。
 
 ## 24. 候选方向
@@ -742,8 +750,8 @@ subscription 或 join state。
 
 > BuildMax 应把顶层 Issue 视为其子工作项的协调 Topic。其 Blackboard 是受限、带
 > 来源、以追加为主的信息流；最初应从现有 Issue comment 投影，而不是引入新实体。
-> feed 用于共享信息，但不保证投递，也不决定 readiness。定向行动使用持久 mailbox
-> Signal；同步使用由 Workflow 或 supervisor 拥有的 join condition；workspace 变更
+> feed 用于共享信息，但不保证投递，也不决定 readiness。定向行动使用持久、受限的
+> Signal；同步使用由 Workflow 或父 Task 拥有的 join condition；workspace 变更
 > 保持隔离和可审查。Agent capability 在构造时限定范围，report 始终是不可信证据，
 > 自动处理必须明确授权并受预算约束。
 

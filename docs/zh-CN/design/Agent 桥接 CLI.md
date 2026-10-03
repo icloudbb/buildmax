@@ -38,7 +38,7 @@
 - relates：[tool-permissions.md](./工具权限.md)、
   [sandbox-boundaries.md](./沙箱边界.md)、
   [unified-artifacts.md](./统一工件.md)、
-  [客户端会话与 API 凭据（提案）](../proposals/client-sessions-and-api-credentials.md)
+  [enterprise-identity-and-access.md](./企业身份与访问.md)
 - folds：已退役的“本地 Issue 工作桥接”提案中的客户端命令部分；其余范围已在
   [surface-positioning.md §5.5](./界面定位.md#55-本地-issue-工作) 中决定
 - touches：`internal/interface/cli`、`internal/interface/client`、
@@ -158,8 +158,9 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
 
 ## 6. 凭据处理
 
-[客户端会话与 API 凭据（提案）](../proposals/client-sessions-and-api-credentials.md)
-中的支配性规则是：凭据绝不能被模型所能看到的任何东西触及。
+支配性规则是：凭据绝不能被模型所能看到的任何东西触及。这也是登录不签发机器凭据
+（[enterprise-identity-and-access.md §7.4](./企业身份与访问.md#74-登录不附带签发机器凭据)）、
+以及 CLI 与 Desktop 把登录令牌保存在操作系统凭据存储中的原因。
 
 - **Worker 上下文完全遵守它。** 运行令牌留在 Worker 进程内；子进程只收到一个套接字
   路径。模型读写的任何东西都不携带令牌。
@@ -168,8 +169,9 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
   关闭，能运行 `buildmax` 的 Agent 本就能以用户的全部权限行事 —— 读取用户能读的任何
   Issue、触发用户能触发的任何 Agent，并且如果用户是管理员，还能触达 admin 路由。这被
   接受为在用户自己机器上、其自身信任域之内。此处将其记录为一项有意识的权衡，而非疏漏；
-  一个收窄的本地凭据（路由级 `scope`/`aud`/`client_id`，按凭据提案仍未构建）是在这份
-  权限日后需要被限定时的升级路径，§12 对此进行追踪。
+  一个收窄的本地凭据（路由级 `scope`/`aud`/`client_id`，按
+  [enterprise-identity-and-access.md §7.1](./企业身份与访问.md#71-单一会话模型) 仍未构建）
+  是在这份权限日后需要被限定时的升级路径，§12 对此进行追踪。
 
 `buildmax` 二进制绝不通过参数、需要被交给它的环境变量、提示词文本或工具输入来接收
 令牌。在本地它读取 broker；在 Worker 中它使用套接字。除上述本地全权限权衡之外，两者
@@ -256,10 +258,10 @@ Artifact、它的密钥、它的托管推理 —— 仅此而已。
 
 ## 10. 范围之外
 
-- 路由级 `scope` / `aud` / `client_id` 以及收窄的本地凭据。由凭据提案追踪；§6 暂时
-  接受本地的完整用户权限。
-- 用于运行之外无头非交互使用的个人访问令牌和服务账号。一个具名用例会重启凭据提案的
-  Stage 3。
+- 路由级 `scope` / `aud` / `client_id` 以及收窄的本地凭据。尚未构建
+  （enterprise-identity-and-access.md §7.1）；§6 暂时接受本地的完整用户权限。
+- 用于运行之外无头非交互使用的个人访问令牌和服务账号。一个具名用例是
+  enterprise-identity-and-access.md §18 中的进入条件。
 - 持久的 Issue↔Session 关联和离线发件箱，已在 [surface-positioning.md §5.5](./界面定位.md#55-本地-issue-工作) 中决定不做。
 - 任何新的 worker 路由。本记录不新增任何路由；它只是把既有的运行令牌带给一个子进程。
 

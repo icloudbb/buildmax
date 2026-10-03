@@ -155,14 +155,7 @@ relationships live in the [data model](../contribute/architecture/data-model.md)
 ## Direction For New Product Bets
 
 Open proposals are options, not extensions already promised by this vision.
-The current candidates cover:
-
-- receiving and returning Issue work from local clients;
-- synchronizing selected local Session checkpoints;
-- Session trees and structured child reports;
-- enterprise identity integration;
-- client-session and machine-credential boundaries; and
-- run-scoped Secret delivery and workload identity.
+The current candidates are listed in the [proposals index](../proposals/README.md).
 
 Acceptance means updating the roadmap, moving durable rationale into a design
 record, and deleting the proposal. Until then, user and operator documentation

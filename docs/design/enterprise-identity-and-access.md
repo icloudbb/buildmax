@@ -34,7 +34,7 @@ Related: [roadmap](../ROADMAP.md) R5,
 [deployment authentication](../deploy/authentication.md),
 [Space membership lifecycle](space-membership-lifecycle.md),
 [system administration](system-administration.md),
-[client sessions and API credentials](../proposals/client-sessions-and-api-credentials.md), and
+[Agent execution identity and delegation](../proposals/agent-execution-identity-and-delegation.md), and
 [enterprise requirements inventory](../proposals/enterprise-capability-requirements.md).
 
 ## Contents
@@ -115,7 +115,7 @@ The following is current code, not inferred future behavior:
 | Account identity | `external_identity` binds unique `(issuer, subject)` to a user; an administrator can inspect or unlink it after disabling the account | The stable identity is the provider pair; verified email is used only for first association or JIT provisioning |
 | Account creation | Native `CreateUser` and OIDC JIT provisioning atomically create the account, personal Space, owner membership, and—when applicable—the identity link | Both creation paths preserve the same account invariant |
 | Login | `/api/auth/login` accepts a password or operator-issued single-use code; `/api/auth/oidc/*` implements the browser OIDC flow | Every proof opens the same BuildMax session and authorization plane |
-| Access token | HMAC JWT carries `sub`, `typ`, `sid`, `jti`, `iat`, and `exp`; the configured default lifetime remains seven days, and the guard checks the `sid` session on every request | Durable session state already bounds logout and revocation; a shorter bearer default remains an open hardening choice |
+| Access token | HMAC JWT carries `sub`, `typ`, `sid`, `jti`, `iat`, and `exp`; the configured default lifetime is 15 minutes, and the guard checks the `sid` session on every request | Durable session state bounds logout and revocation; the short default bounds replay where that check is unavailable |
 | Refresh token | Opaque, hashed, rotating rows belong to an `auth_session`; inactivity expiry is subordinate to the session's absolute expiry | Retain rotation and the absolute session ceiling |
 | Revocation | Logout and administrator revocation retire the `auth_session` and its refresh rows; the guard rejects an access JWT tied to that session on the next request | The durable session is the revocation authority |
 | Account disablement | Every authenticated route re-reads `user.disabled_at` | Offboarding through BuildMax disablement is immediate at the user API boundary |
@@ -292,7 +292,9 @@ Every password, login-code, and OIDC authentication creates one
 Refresh-token rows belong to this session instead of being the session. Access
 JWT verification requires `typ=access` and a non-empty `sid`, then the central
 guard checks both the active user and active session. Space roles and grants
-remain later database reads and do not enter the JWT.
+remain later database reads and do not enter the JWT. The access JWT carries no
+issuer, audience, scope, or client identifier, so every access token holds the
+user's full authority; a narrower, audience-restricted credential is not built.
 
 ### 7.2 Lifetimes and reauthentication
 
@@ -336,11 +338,23 @@ Session-establishing cookie endpoints require exact same-origin `Origin`
 validation, JSON POST where applicable, and no permissive CORS. This is in
 addition to SameSite cookies, not a substitute for them.
 
-### 7.4 Logout and revocation
+### 7.4 No machine credential as a login side effect
+
+A successful login returns a session credential pair only. A longer-lived
+machine credential — a personal access token or service-account credential —
+requires a separate, explicit operation that names it, chooses or accepts its
+scopes, and chooses an expiry.
+
+This gives logout an unambiguous meaning: it ends the selected human session.
+It neither leaves behind a hidden token created at login nor unexpectedly
+deletes an automation credential created for a different purpose.
+
+### 7.5 Logout and revocation
 
 BuildMax logout always revokes `auth_session`, refresh tokens, and the Portal
 cookie before reporting success. The central guard then refuses an already
-issued access token for that `sid`.
+issued access token for that `sid`. An administrator can list and revoke a
+user's sessions; self-service session list and revoke routes are not built.
 
 The first slice means “sign out of BuildMax,” not “sign out of every application
 at the provider.” If Discovery advertises `end_session_endpoint`, RP-Initiated
@@ -705,8 +719,8 @@ justify a BuildMax-mediated device flow following
 codes, explicit approval, polling bounds, and rate limiting. Do not implement
 both speculatively; choose from the target environment.
 
-Neither path is a PAT or service-account design. Unattended clients remain the
-separate decision in the client-credentials proposal.
+Neither path is a PAT or service-account design; unattended clients are outside
+this record (§18).
 
 ## 15. Threat Model
 
@@ -768,9 +782,8 @@ deployment inputs and acceptance criteria in §19 are settled:
 
 - Add `auth_session`, require active `sid`, add absolute expiry, and migrate
   current session listing/revocation onto it.
-- Open hardening choice: shorten the configured default access-token lifetime;
-  it remains seven days while the durable session guard provides prompt
-  revocation.
+- Shorten the configured default access-token lifetime to 15 minutes; the
+  durable session guard provides prompt revocation within it.
 - Move Portal refresh delivery to the HttpOnly cookie adapter for existing
   password and login-code flows; remove auth tokens from `localStorage`.
 - Force existing sessions to reauthenticate during the schema transition
@@ -823,7 +836,13 @@ forms of evidence are required before claiming support for that provider.
   separate interoperability evidence.
 - Self-service identity linking, email change, account merge, or account
   deletion.
-- PATs, service accounts, or unattended-client credentials.
+- PATs, service accounts, or unattended-client credentials. PATs are
+  reconsidered only for a named personal scripting or API use case;
+  service-account and automation-principal lifecycle belongs to
+  [Agent execution identity and delegation](../proposals/agent-execution-identity-and-delegation.md).
+  The existing webhook key is not a PAT to widen: it has a name, owner, hash,
+  and creation time but no scopes, audience, expiry, last-used time, or revoked
+  state, and stays an inbound-webhook credential.
 - Native connected-client SSO without a target journey; local CLI/TUI and
   Desktop remain supported independently.
 - A new identity-provider database entity, dynamic client registration, or an
@@ -865,6 +884,10 @@ slices:
 7. **Rate limiting.** Which shared limiter protects the remaining local login
    and OIDC transaction endpoints in the supported topology? Until answered,
    current external rate-limiting guidance remains mandatory.
+8. **Password-change session policy.** Should changing a password revoke all of
+   the account's sessions, only password-authenticated sessions, or none? Today
+   existing sessions survive a password change (see
+   [deployment authentication](../deploy/authentication.md#passwords)).
 
 Decision evidence is a written operator journey, IdP configuration export or
 equivalent reproducible facts, an agreed joiner/leaver bound, a threat-model
@@ -874,8 +897,8 @@ tools usually have SSO” are not enough.
 ## 20. Documentation And Delivery Status
 
 This record is the accepted direction; the originating proposal is retired to Git
-history. Phase 1's durable-session and Portal-cookie foundation (with the
-configured access-token default still seven days) and Phase 2
+history. Phase 1's durable-session and Portal-cookie foundation (with a 15-minute
+access-token default) and Phase 2
 (OIDC login and association, with **Okta** the named target provider) are
 implemented: the `oidc` configuration and the orthogonal `local_login` knob; a
 Discovery/JWKS provider with asymmetric-only ID-token verification; the

@@ -4,9 +4,8 @@
 
 > **Audience:** contributors · **Status:** implemented, phases 1-5
 
-Related: [roadmap](../ROADMAP.md) step 5,
-[session trees, agent mailboxes, and branched workspaces](../proposals/session-tree-and-agent-mailbox.md)
-§9.1, [hook system](hook-system.md), [sandbox boundaries](sandbox-boundaries.md),
+Related: [roadmap](../ROADMAP.md) step 5, [hook system](hook-system.md),
+[sandbox boundaries](sandbox-boundaries.md),
 [tool permissions](tool-permissions.md),
 [local background jobs](local-background-jobs.md),
 [context durability](context-durability.md),
@@ -84,13 +83,14 @@ or the agent's own initiative: create, enter, work, leave, remove. Every tool
 follows the current root with no new syntax. The user can always see which root
 the session is in.
 
-**Out of scope.** Forking the session or branching its context — that is the
-[session-tree proposal](../proposals/session-tree-and-agent-mailbox.md), which
-treats worktrees as a prerequisite and can build on this record. Also out:
-several concurrent sessions under one supervisor, automatic merge or rebase of
-a worktree's changes, worktree paths in Portal or worker runs (§9.2 of that
-proposal rules that out), and versioned snapshots for non-Git workspaces, whose
-design record was withdrawn and is not pending.
+**Out of scope.** Forking the session or branching its context. Fork shipped
+separately as a history copy that shares the parent's workspace
+([local session storage](local-session-storage.md) §8.3); a fork that needs its
+own tree enters one with this record's tool. Also out: several concurrent
+sessions under one supervisor, automatic merge or rebase of a worktree's
+changes, worktree paths in Portal or worker runs (neither exposes a local
+path), and versioned snapshots for non-Git workspaces, whose design record was
+withdrawn and is not pending.
 
 Giving a subagent or a background job its own worktree is in scope and never
 mandatory — see D7. It answers a different request than the rest of this
@@ -215,8 +215,8 @@ repository share a single stash stack, so an automatic stash is a hazard to
 every other session working in that repository. Refusing to create the worktree
 was also rejected: the common case is a clean or irrelevantly dirty tree, and
 refusing would force the user into exactly the manual Git detour this feature
-removes. §9.1 of the session-tree proposal poses the same question; this is the
-answer both should carry.
+removes. A future fork-time worktree faces the same question and should carry
+the same answer unless it finds a reason that applies only to forks.
 
 ### D7. Delegates inherit the current root unless the model gives them their own
 

@@ -12,7 +12,7 @@
 [Server 架构](../contribute/architecture/server.md)、
 [远程控制](../design/远程控制.md)、
 [长时间运行的工作区 Environment](long-running-workspace-environments.md)，以及
-[客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md)。
+[企业身份与访问](../design/企业身份与访问.md)。
 
 ## 目录
 
@@ -136,8 +136,8 @@ Server 保持在一套 Go 栈里。Tauri 的核心是 Rust；采用它会分叉�
 - 把 Desktop 进程本身暴露给远程浏览器，或把 Wails 变成网络服务器。
 - 将 Portal 与 Desktop 合并为一个可部署物；它们仍是各自独立的客户端，收敛于共享
   UI 与共享数据契约，遵循[界面定位](../design/界面定位.md)。
-- 改变认证或授权模型；本文假定沿用既有的 Session 与凭证工作（见
-  [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md)）。
+- 改变认证或授权模型；本文假定沿用既有的 Session 与凭证模型（见
+  [企业身份与访问](../design/企业身份与访问.md)）。
 
 ## 8. 收敛模型
 

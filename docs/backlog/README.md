@@ -50,10 +50,6 @@ that discovers an unresolved decision leaves execution and returns to proposal
 or design instead of letting the implementing Agent choose product direction
 silently.
 
-The concept originates in
-[`docs/proposals/single-maintainer-agent-development.md`](../proposals/single-maintainer-agent-development.md)
-as the "Ready For Agent" queue.
-
 ## Ownership
 
 | Role | Owns |
@@ -101,7 +97,11 @@ Replenish the queue from the highest active Roadmap priority:
 2. Search the backlog, open pull requests, and GitHub Issues before drafting. A
    unit already tracked elsewhere is not copied here.
 3. Return unresolved choices to proposal or design. Do not encode one
-   implementation option as a ready task before its rationale is approved.
+   implementation option as a ready task before its rationale is approved. A
+   decision request to the maintainer states the user outcome, current
+   evidence, constraints, a recommended option, one meaningful alternative, and
+   the exact decision requested — short enough to decide before reviewing a
+   design that already assumes a direction.
 4. Split the accepted work at independently verifiable outcomes. Each task must
    be small enough for one implementation session and name dependencies on
    other task files when it cannot start alone.
@@ -117,6 +117,12 @@ Replenish the queue from the highest active Roadmap priority:
   so two sessions do not pick the same one. Write it as `<handle> <YYYY-MM-DD>`
   (e.g. `gougoujiang 2026-09-13`). Clear it if the work is abandoned. At most one
   live claim per task.
+- **Limit concurrency** so parallel work does not turn the maintainer into the
+  merge queue: at most two or three active writing tasks, and at most one in the
+  same capability at a time. Stateful deployment suites run one at a time unless
+  their commands own isolated environments (see the ephemeral kind cluster in
+  [`docs/contribute/testing.md`](../contribute/testing.md)). A red shared
+  boundary pauses new changes to that boundary until the failure is classified.
 - **Open a pull request** and record its number in the `pr` frontmatter field, so
   a claimed task that is being written is distinguishable from one already in
   review. Clear `pr` only if the pull request closes without merging.
