@@ -314,9 +314,10 @@ separately after preserving the beta-gate evidence.
 ## Next Qualification Step
 
 Infrastructure and application deployment establish the real external
-dependency boundary, but the beta gate still requires the pinned candidate to
-be exercised. Record an approved managed model, then perform the operator
-journey, failure drills, backup restore, and rollback below.
+dependency boundary; the beta gate also requires the pinned candidate to be
+exercised on it. Record an approved managed model, then perform the operator
+journey, failure drills, backup restore, and rollback.
 
-Record the eventual deployment, smoke results, failure drills, restore, and
-rollback in the [Beta readiness record](beta-readiness.md).
+Record the deployment, smoke results, failure drills, restore, and rollback in
+the [Beta readiness record](beta-readiness.md). It holds the v0.2.0-alpha.22
+exercise run on this infrastructure on 2026-10-03.

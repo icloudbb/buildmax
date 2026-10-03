@@ -11,9 +11,10 @@ BuildMax has no export or import command. The database and the object-storage
 bucket are yours to back up with your own tools; this page states what they must
 contain, in what order to copy them, and how to check the result. The procedure
 is rehearsed end to end by `./make kind drill restore` (see
-[Rehearse it on kind](#rehearse-it-on-kind)); the first Beta candidate still has
-to run it against its own dependencies
-([beta-readiness.md](beta-readiness.md#recovery-and-maintenance)).
+[Rehearse it on kind](#rehearse-it-on-kind)). The v0.2.0-alpha.22 candidate ran
+it against its own DigitalOcean MySQL and Spaces on 2026-10-03; the result and
+its measured recovery time are in
+[beta-readiness.md](beta-readiness.md#evidence).
 
 ## What To Back Up
 

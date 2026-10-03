@@ -5,7 +5,7 @@
 >
 > 如何为 BuildMax 服务器部署做出可恢复的备份，如何将其恢复到恢复环境，并证明恢复完整。
 
-BuildMax 没有导出或导入命令。数据库和对象存储桶由你用自己的工具备份；本页说明备份必须包含什么、按什么顺序复制，以及如何检查结果。`./make kind drill restore` 会端到端演练这一流程（见[在 kind 上演练](#在-kind-上演练)）；首个 Beta 候选版本仍需针对自己的依赖执行一遍（见 [beta-readiness.md](beta-readiness.md#恢复与维护)）。
+BuildMax 没有导出或导入命令。数据库和对象存储桶由你用自己的工具备份；本页说明备份必须包含什么、按什么顺序复制，以及如何检查结果。`./make kind drill restore` 会端到端演练这一流程（见[在 kind 上演练](#在-kind-上演练)）。v0.2.0-alpha.22 候选版本已于 2026-10-03 针对自己的 DigitalOcean MySQL 和 Spaces 执行了一遍，结果和实测恢复时间见 [beta-readiness.md](beta-readiness.md#证据)。
 
 ## 需要备份什么
 
