@@ -1,0 +1,107 @@
+# A test OpenID Connect provider, so kind can sign in through the server's SSO
+# path end to end next to password and login-code sign-in. Smoke-only: nothing
+# in deployment/production/ exposes a test double.
+#
+# The issuer has to be one https URL that both the browser and the server pods
+# reach. It is this Service's cluster DNS name on kind's TLS host port (8443 by
+# default; `./make kind up` rewrites every 8443 here and in server.kind.yaml for
+# an ephemeral cluster's port):
+#
+#   - server pods resolve the name natively and reach the Service on that port;
+#   - a browser maps the name to 127.0.0.1 and reaches the same port through
+#     kind's 443 mapping and the ingress below.
+#
+# tools/mk/kind_tls.go generates the certificate both paths present, puts it in
+# buildmax-smoke-oidc-tls, and its CA in buildmax-trust, which the server
+# mounts. The client secret is generated into buildmax-secret, shared by both
+# sides.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildmax-smoke-oidc
+  namespace: buildmax
+spec:
+  # One replica: authorization codes live in the process.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: buildmax-smoke-oidc
+  template:
+    metadata:
+      labels:
+        app: buildmax-smoke-oidc
+    spec:
+      containers:
+        - name: mock-oidc
+          image: buildmax-smoke-oidc:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MOCK_OIDC_ISSUER
+              value: https://buildmax-smoke-oidc.buildmax.svc.cluster.local:8443
+            - name: MOCK_OIDC_CLIENT_ID
+              value: buildmax-kind
+            - name: MOCK_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_OIDC_CLIENT_SECRET
+            - name: MOCK_OIDC_TLS_CERT
+              value: /tls/tls.crt
+            - name: MOCK_OIDC_TLS_KEY
+              value: /tls/tls.key
+          ports:
+            - name: https
+              containerPort: 9443
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            periodSeconds: 2
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: buildmax-smoke-oidc-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax-smoke-oidc
+  namespace: buildmax
+spec:
+  selector:
+    app: buildmax-smoke-oidc
+  ports:
+    - name: https
+      port: 8443
+      targetPort: https
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: buildmax-smoke-oidc
+  namespace: buildmax
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - buildmax-smoke-oidc.buildmax.svc.cluster.local
+      secretName: buildmax-smoke-oidc-tls
+  rules:
+    - host: buildmax-smoke-oidc.buildmax.svc.cluster.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: buildmax-smoke-oidc
+                port:
+                  name: https

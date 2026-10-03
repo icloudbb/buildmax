@@ -147,11 +147,27 @@ oidc:
 BUILDMAX_OIDC_CLIENT_SECRET=…   # 从不被返回、记录日志或交给 worker
 ```
 
+在 Kubernetes 参考部署（`deployment/buildmax-deploy.yaml`）中，它是 `buildmax-secret`
+的可选键 `BUILDMAX_OIDC_CLIENT_SECRET`。如果你的 IdP 证书由私有 CA 签发，把该 CA 放进名为
+`buildmax-trust` 的 ConfigMap；服务器在镜像自带根证书之外，还会信任其中的每一张证书：
+
+```bash
+kubectl create configmap buildmax-trust -n buildmax --from-file=idp-ca.crt=./idp-ca.crt
+```
+
 **一次登录如何变成账号。** 首次已验证登录时，BuildMax 按精确的 `(issuer, subject)` 对把 IdP
 身份关联到账号——即使邮箱变化该值也不变。若尚无链接，则关联一个邮箱与已验证地址匹配的运维创建账号；
 否则在 `provisioning: jit` 下，当已验证邮箱的域名在 `allowed_email_domains` 中时创建账号（及其个人
 Space）。空的域名列表意味着*不为任何人*预配，而非所有人。`provisioning: existing_only` 从不创建账号
 ——由运维预配，SSO 仅做认证。已关联到另一身份的邮箱会被拒绝以待运维核对，绝不静默迁移。
+
+首次关联要求 `email_verified: true`。BuildMax 从 ID Token 读取该标志；token 未携带时改从
+UserInfo 端点读取——Okta 的 org 授权服务器只给邮箱、不带该标志。IdP 未验证其邮箱的人会被拒绝；
+在 Okta 中，这指尚未完成激活邮件的用户。
+
+被拒绝的登录只向当事人显示笼统原因，不泄露哪些地址已有账号。具体原因写入服务器日志，即
+`oidc sign-in refused` 警告：邮箱未验证、域名不在 `allowed_email_domains` 中、`existing_only`
+下没有账号，或需要运维处理的身份冲突。
 
 **与 SSO 并存的原生登录。** `local_login` 独立于 SSO 管控密码与登录码登录：
 
@@ -162,13 +178,17 @@ Space）。空的域名列表意味着*不为任何人*预配，而非所有人�
 **配置 Okta 应用。** 创建一个 OIDC **Web** 应用（机密客户端，`client_secret_basic`）。将其登录
 回调 URI 设为 `<public_base_url>/api/auth/oidc/callback`。授予 `openid`、`email`、`profile`
 scope，并分配应当访问此部署的人员或分组。把 issuer、client ID 与 client secret 填入上面的配置。
+org 授权服务器的 issuer 就是租户 URL 本身，即 `https://<tenant>.okta.com`。不要设置 Universal
+Logout 的全局 token 撤销端点：BuildMax 未实现它，因此在 Okta 中被停用的人会保留已有的 BuildMax
+会话直到 `session_max_age`，除非运维在这里禁用该账号。
 
 系统管理员可在 `GET /api/admin/users/{user_id}/identities` 查看某人的已关联身份，并且**在账号被禁用时**
 用对应的 `DELETE` 移除其一。解绑仅移除绑定关系——绝不移除账号、其成员身份或历史——因此运维可以更正不匹配
 并重新启用账号以进行一次全新的首次关联。
 
-对 IdP 自身的端到端资格验证（固定的 Okta 租户、密钥与密钥轮换演练、RP 发起的登出）仍在完成中；上述登录、
-关联与管理界面均已就绪。
+针对 Okta 开发者租户的登录已端到端完成账号开户与关联。IdP 资格验证的其余部分——固定且可复现的租户、
+密钥与密钥轮换演练、RP 发起的登出——仍在完成中。要在本地集群上试用某个提供方，参见
+[kind 指南中的单点登录](local-kind.md#单点登录)。
 
 ## 尚未具备的能力
 

@@ -112,6 +112,8 @@ func (h *Handler) oidcCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	verifiedEmail := ""
 	if claims.EmailVerified {
 		verifiedEmail = claims.Email
+	} else if claims.Email != "" {
+		slog.Info("oidc email is not verified; it cannot link or provision an account", "handler", "oidc_callback")
 	}
 	svc := h.identityService()
 	assoc, err := svc.Associate(r.Context(), identitysvc.AssociationInput{
@@ -153,8 +155,15 @@ func (h *Handler) oidcCallbackHandler(w http.ResponseWriter, r *http.Request) {
 // classifyAssociationError maps an association refusal to a coarse SSO error
 // class. A disabled account is its own class; every "we will not admit this
 // account" reason collapses to not_authorized, which is also the one generic
-// answer the association service gives so the callback reveals no more.
+// answer the association service gives so the callback reveals no more. The
+// specific reason goes to the server log, where an operator needs it.
 func classifyAssociationError(err error) string {
+	switch {
+	case errors.Is(err, identitysvc.ErrNotAuthorizedForDeployment),
+		errors.Is(err, identitysvc.ErrIdentityNeedsOperator),
+		errors.Is(err, identitysvc.ErrEmailRequired):
+		slog.Warn("oidc sign-in refused", "reason", err.Error(), "handler", "oidc_callback")
+	}
 	switch {
 	case errors.Is(err, identitysvc.ErrDisabled):
 		return ssoErrDisabled

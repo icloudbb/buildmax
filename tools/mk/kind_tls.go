@@ -24,14 +24,20 @@ const workerAPIServiceDNS = "buildmax-worker-api.buildmax.svc.cluster.local"
 // exercise a real TLS handshake and a real hostname/CA check, not to model a
 // production PKI.
 func generateWorkerAPICert() (certPEM, keyPEM []byte, err error) {
+	return generateSelfSignedCert(workerAPIServiceDNS)
+}
+
+// generateSelfSignedCert makes a certificate for one DNS name that is also its
+// own CA, the shape every in-cluster TLS endpoint kind stands up uses.
+func generateSelfSignedCert(dnsName string) (certPEM, keyPEM []byte, err error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, fmt.Errorf("worker-api key: %w", err)
+		return nil, nil, fmt.Errorf("%s key: %w", dnsName, err)
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(time.Now().UnixNano()),
-		Subject:               pkix.Name{CommonName: workerAPIServiceDNS},
-		DNSNames:              []string{workerAPIServiceDNS},
+		Subject:               pkix.Name{CommonName: dnsName},
+		DNSNames:              []string{dnsName},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
@@ -41,11 +47,11 @@ func generateWorkerAPICert() (certPEM, keyPEM []byte, err error) {
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("worker-api certificate: %w", err)
+		return nil, nil, fmt.Errorf("%s certificate: %w", dnsName, err)
 	}
 	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("worker-api key marshal: %w", err)
+		return nil, nil, fmt.Errorf("%s key marshal: %w", dnsName, err)
 	}
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})

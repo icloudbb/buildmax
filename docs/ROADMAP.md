@@ -272,8 +272,10 @@ Corporate SSO now has both an accepted direction and its first two implemented
 phases in the [enterprise identity and access](design/enterprise-identity-and-access.md)
 record: durable revocable sessions, the Portal's HttpOnly refresh cookie,
 OIDC authorization-code login, external-identity linking, bounded JIT
-provisioning, and the independent native-login posture. Phase 3 remains an R5
-qualification slice and waits on a reproducible real-Okta tenant plus the
+provisioning, and the independent native-login posture. A manual sign-in
+against an Okta developer tenant has succeeded, and kind exercises the flow
+against a mock provider on every run. Phase 3 remains an R5 qualification slice
+and waits on a pinned, reproducible real-Okta tenant plus the
 per-deployment offboarding, rotation, outage, and break-glass inputs named by
 that record. Native CLI/Desktop OIDC and device authorization are still outside
 the shipped browser flow.

@@ -54,7 +54,7 @@ buildmax/
 | `deployment/kind/` | 搭建**本地开发用** kind 集群的清单——kind 配置、ingress-nginx、MySQL、MinIO。从不属于真实部署，由 `tools/mk/kind.go` 在 `./make kind up` 背后应用。 |
 | `deployment/ocean/` | 用于一次性 DigitalOcean beta 资质验证基础设施的 OpenTofu 配置。它读取持久化的 Project、VPC 和 Spaces bucket，只拥有 `./make ocean` 背后临时的 DOKS 和 MySQL 资源。 |
 | `deployment/production/` | 私有部署参考：一份写来供人阅读和改造的纯 YAML 清单，外加它所假定的依赖契约。刻意不做成 chart 或 kustomize base，这样它能转换成集群已经在用的任何管理方式。没有任何东西会应用它；`internal/architecture` 会解析它，以防它腐坏 |
-| `deployment/smoke/` | 让 Compose 和 kind 冒烟测试保持确定性的覆盖配置与 mock 模型 |
+| `deployment/smoke/` | 让 Compose 和 kind 冒烟测试保持确定性的覆盖配置、mock 模型与 kind 的 mock OIDC 提供方 |
 | `deployment/buildmax-deploy.yaml` | `./make kind up` 所使用的可工作 Kubernetes 清单 |
 
 `kind/` 仍然是本地测试基础设施，不是受支持的部署路径：这个简称对应
@@ -310,7 +310,8 @@ internal/
 │   └── cli/            CLI 黄金路径：真实二进制文件、临时 home、脚本化模型
 ├── mock/               仅供测试的内存态 store
 ├── testsupport/        仅供测试、绝不随产品发布的辅助工具（JWT 签发）
-│   └── mockllm/        在三种 LLM 线上协议上给出脚本化的模型回复
+│   ├── mockllm/        在三种 LLM 线上协议上给出脚本化的模型回复
+│   └── mockoidc/       用于端到端登录测试的 OpenID Connect 提供方
 └── util/               公共 ID 编解码、带前缀的 ID、工作区路径解析、
     │                   小型字符串与时间辅助函数
     └── secretscan/     识别常见的密钥形态；run trace 据此脱敏发现的

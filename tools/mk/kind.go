@@ -349,7 +349,7 @@ func kindUp() error {
 		return err
 	}
 
-	if err := buildAndLoadKindImages(cluster, []kindImage{kindImageServer, kindImagePortal, kindImageSmoke}); err != nil {
+	if err := buildAndLoadKindImages(cluster, []kindImage{kindImageServer, kindImagePortal, kindImageSmoke, kindImageSmokeOIDC}); err != nil {
 		return err
 	}
 	if err := ensureKindNamespace("buildmax"); err != nil {
@@ -372,6 +372,11 @@ func kindUp() error {
 	if err := applyKindWorkerSeccompProfile(); err != nil {
 		return err
 	}
+	// The mock OIDC provider and the CA the server trusts it by, before the
+	// server that mounts that CA starts.
+	if err := applyKindOIDC(); err != nil {
+		return err
+	}
 	if err := kindKubectl("apply", "-f", "deployment/buildmax-deploy.yaml"); err != nil {
 		return err
 	}
@@ -388,12 +393,12 @@ func kindUp() error {
 	if err := applyKindSmokeConfig(); err != nil {
 		return err
 	}
-	for _, deployment := range []string{"buildmax-smoke-llm", "buildmax-server", "buildmax-portal"} {
+	for _, deployment := range []string{"buildmax-smoke-llm", "buildmax-smoke-oidc", "buildmax-server", "buildmax-portal"} {
 		if err := kindKubectl("rollout", "restart", "deployment/"+deployment, "-n", "buildmax"); err != nil {
 			return err
 		}
 	}
-	for _, deployment := range []string{"buildmax-smoke-llm", "buildmax-server", "buildmax-portal"} {
+	for _, deployment := range []string{"buildmax-smoke-llm", "buildmax-smoke-oidc", "buildmax-server", "buildmax-portal"} {
 		if err := kindKubectl("rollout", "status", "deployment/"+deployment, "-n", "buildmax", "--timeout=180s"); err != nil {
 			return err
 		}
@@ -431,6 +436,9 @@ func kindSmoke() error {
 	}
 	target := kindSmokeTarget()
 	if err := runDeploymentSmoke(context.Background(), target); err != nil {
+		return err
+	}
+	if err := kindOIDCProbe(); err != nil {
 		return err
 	}
 	if err := kindWorkerBoundaryProbe(); err != nil {
@@ -1205,6 +1213,10 @@ func applyKindSecret() error {
 	if err != nil {
 		return err
 	}
+	oidcSecret, err := kindOIDCClientSecret()
+	if err != nil {
+		return err
+	}
 	manifest, err := captureKindKubectl(
 		"create", "secret", "generic", "buildmax-secret", "-n", "buildmax",
 		"--from-literal=BUILDMAX_JWT_SECRET="+jwt,
@@ -1212,6 +1224,7 @@ func applyKindSecret() error {
 		"--from-literal=BUILDMAX_STORAGE_MINIO_ACCESS_KEY="+kindStorageUser,
 		"--from-literal=BUILDMAX_STORAGE_MINIO_SECRET_KEY="+kindStorageSecret,
 		"--from-literal=BUILDMAX_CONVERSATION_MODEL_API_KEY=smoke-key",
+		"--from-literal=BUILDMAX_OIDC_CLIENT_SECRET="+oidcSecret,
 		"--dry-run=client", "-o", "yaml",
 	)
 	if err != nil {
@@ -1338,6 +1351,10 @@ func renderKindSmokeConfig(path string) (string, func(), error) {
 	const defaultPublicBase = "public_base_url: http://localhost:" + defaultKindPortalPort
 	if kindPortalPort() != defaultKindPortalPort {
 		rendered = strings.Replace(rendered, defaultPublicBase, "public_base_url: "+kindPortalURL(), 1)
+	}
+	rendered, err = renderKindOIDCConfig(rendered)
+	if err != nil {
+		return "", nil, fmt.Errorf("%s: %w", path, err)
 	}
 	file, err := os.CreateTemp("", "buildmax-kind-server-*.yaml")
 	if err != nil {

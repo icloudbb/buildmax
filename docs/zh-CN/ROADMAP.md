@@ -205,7 +205,8 @@ tab 中只读实时查看页面；worker 在出口沙箱问题解决前保持关
 企业 SSO 不仅已在[企业身份与访问](design/企业身份与访问.md)设计记录中确定方向，
 前两个阶段也已经实现：持久可撤销 Session、Portal HttpOnly refresh cookie、OIDC 授权码登录、
 外部身份关联、受限 JIT 创建账号，以及独立配置的原生登录姿态。Phase 3 仍是 R5 资格验证切片，
-需要可复现的真实 Okta 租户，以及该记录列出的 offboarding、轮换、故障与 break-glass 输入。
+需要固定且可复现的真实 Okta 租户，以及该记录列出的 offboarding、轮换、故障与 break-glass 输入。
+针对 Okta 开发者租户的手动登录已经成功，kind 每次运行也会针对模拟提供方走通该流程。
 原生 CLI/Desktop OIDC 和设备授权仍不在已交付的浏览器流程中。
 
 本地 Issue 工作桥接已按其有限范围决定并交付：CLI 的 `buildmax issue` 命令，以及登录时

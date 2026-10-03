@@ -55,7 +55,7 @@ one binary:
 | `deployment/kind/` | Manifests that stand up the **local development** kind cluster — kind config, ingress-nginx, MySQL, MinIO. Never part of a real deployment; applied by `tools/mk/kind.go` behind `./make kind up`. |
 | `deployment/ocean/` | OpenTofu for the disposable DigitalOcean beta-qualification infrastructure. It reads the persistent Project, VPC, and Spaces bucket and owns only the temporary DOKS and MySQL resources behind `./make ocean`. |
 | `deployment/production/` | The private deployment reference: one plain-YAML manifest written to be read and adapted, plus the dependency contract it assumes. Deliberately not a chart or a kustomize base, so it converts to whatever a cluster is already managed with. Nothing applies it; `internal/architecture` parses it so it cannot rot |
-| `deployment/smoke/` | Overlays and the mock model that make the Compose and kind smokes deterministic |
+| `deployment/smoke/` | Overlays, the mock model, and kind's mock OIDC provider that make the Compose and kind smokes deterministic |
 | `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make kind up` |
 
 `kind/` is still local test infrastructure, not a supported deployment path:
@@ -334,7 +334,8 @@ internal/
 │   └── cli/            CLI golden paths: real binary, temporary home, scripted model
 ├── mock/               Test-only in-memory stores
 ├── testsupport/        Test-only helpers that must not ship (JWT signing)
-│   └── mockllm/        Scripted model replies over the three LLM wire protocols
+│   ├── mockllm/        Scripted model replies over the three LLM wire protocols
+│   └── mockoidc/       An OpenID Connect provider for end-to-end sign-in tests
 └── util/               Public ID codec, prefixed IDs, workspace path resolution,
     │                   small string and time helpers
     └── secretscan/     Recognizes common secret shapes; the run trace redacts

@@ -34,11 +34,14 @@ network plugin instead of kind's default kindnet, then:
    stopped publishing images
 2. creates the `bmstore` bucket and widens the MySQL dev grant, each from an
    in-cluster Job
-3. builds and loads the server, Portal, and deterministic mock-model images
+3. builds and loads the server, Portal, deterministic mock-model, and mock
+   OIDC provider images
 4. generates an ephemeral local Secret and applies the BuildMax manifests
 5. waits for every Deployment to become ready
 6. creates a real TaskRun, executes it in a Kubernetes worker Job, and verifies
    its artifact through the API
+7. signs in through single sign-on next to the login code it used, and checks a
+   domain outside the allow list is refused (see [Single Sign-On](#single-sign-on))
 
 Cilium enforces NetworkPolicy, including the worker API boundary, in the
 kernel. kindnet's userspace policy engine degraded on a long-lived cluster: new
@@ -354,6 +357,44 @@ kubectl --context kind-buildmaxdev -n buildmax exec deployment/buildmax-server -
 `deployment/buildmax-deploy.yaml` carries the same thing for `conversation.model`
 as a commented block. On a Linux host the address is the Docker bridge gateway
 (`docker network inspect kind`) and the daemon needs `OLLAMA_HOST=0.0.0.0`.
+
+### Single Sign-On
+
+Every kind stack offers SSO next to password and login-code sign-in, against a
+mock OIDC provider deployed beside the server
+(`deployment/smoke/mock-oidc.kind.yaml`). `kind up` and `kind smoke` sign in
+through it over HTTP, and `./make e2e kind` does it in a browser.
+
+The issuer is the mock's Service name on the cluster's TLS port,
+`https://buildmax-smoke-oidc.buildmax.svc.cluster.local:8443`, so the server
+pods and a browser reach it by one URL — the pods directly, the browser through
+the ingress. To sign in by hand, make that name resolve to this machine and
+accept kind's self-signed certificate when the browser asks:
+
+```bash
+echo "127.0.0.1 buildmax-smoke-oidc.buildmax.svc.cluster.local" | sudo tee -a /etc/hosts
+```
+
+The mock's form asks who you are and checks nothing. An address in
+`buildmax.local` that has no account is provisioned on first sign-in; one that
+already has an account, such as `alice@buildmax.local` after `kind fixtures`, is
+linked to it.
+
+To qualify a real IdP instead, register `<portal origin>/api/auth/oidc/callback`
+as its sign-in redirect URI (`http://localhost:8080/api/auth/oidc/callback` on
+`buildmaxdev`), add the IdP to `.local/env`, and run `./make kind up`:
+
+```bash
+BUILDMAX_KIND_OIDC_ISSUER=https://example.okta.com
+BUILDMAX_KIND_OIDC_CLIENT_ID=0oaExampleClientId
+BUILDMAX_KIND_OIDC_DISPLAY_NAME=Okta
+BUILDMAX_KIND_OIDC_ALLOWED_DOMAINS=example.com
+BUILDMAX_OIDC_CLIENT_SECRET=…
+```
+
+The smoke then checks only that sign-in starts at that IdP, and the browser
+suite skips its SSO tests; signing in is done by hand. Remove the variables and
+run `kind up` again to return to the mock.
 
 ## Why Compose Still Exists
 

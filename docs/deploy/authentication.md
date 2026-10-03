@@ -264,6 +264,16 @@ Inject the client secret at deploy time rather than writing it to the file:
 BUILDMAX_OIDC_CLIENT_SECRET=…   # never served, logged, or handed to a worker
 ```
 
+In the Kubernetes reference (`deployment/buildmax-deploy.yaml`) that is the
+optional `BUILDMAX_OIDC_CLIENT_SECRET` key of `buildmax-secret`. If a private CA
+issued your IdP's certificate, put that CA in a ConfigMap named
+`buildmax-trust`; the server trusts every certificate in it in addition to the
+image's own roots:
+
+```bash
+kubectl create configmap buildmax-trust -n buildmax --from-file=idp-ca.crt=./idp-ca.crt
+```
+
 **How a sign-in becomes an account.** On the first verified sign-in, BuildMax
 links the IdP identity to an account by the exact `(issuer, subject)` pair — a
 value that never changes even if the person's email does. If no link exists yet,
@@ -274,6 +284,18 @@ domain list means *nobody* is provisioned, not everybody. `provisioning:
 existing_only` never creates accounts — an operator provisions them and SSO only
 authenticates. An email already linked to a different identity is refused for an
 operator to reconcile, never silently moved.
+
+A first association needs `email_verified: true`. BuildMax reads it from the ID
+Token, or from the UserInfo endpoint when the token omits it — Okta's org
+authorization server sends the email without the flag. A person whose email the
+IdP has not verified is refused; in Okta that is someone who has not completed
+the activation email.
+
+A refused sign-in shows the person only a coarse reason, so it reveals nothing
+about which addresses have accounts. The server log carries the specific one, as
+an `oidc sign-in refused` warning: an unverified email, a domain outside
+`allowed_email_domains`, no account under `existing_only`, or an identity
+conflict for an operator.
 
 **Native login alongside SSO.** `local_login` gates password and login-code
 sign-in independently of SSO:
@@ -289,7 +311,11 @@ sign-in independently of SSO:
 `<public_base_url>/api/auth/oidc/callback`. Grant the `openid`, `email`, and
 `profile` scopes, and assign the people or groups who should reach this
 deployment. Copy the issuer, client ID, and client secret into the configuration
-above.
+above. The issuer of the org authorization server is the tenant URL itself,
+`https://<tenant>.okta.com`. Leave Universal Logout's global token revocation
+endpoint unset: BuildMax does not implement it, so a person deactivated in Okta
+keeps an existing BuildMax session until `session_max_age` unless an operator
+disables the account here.
 
 A System Administrator can see a person's linked identities at
 `GET /api/admin/users/{user_id}/identities` and, **while the account is
@@ -297,9 +323,11 @@ disabled**, remove one with the matching `DELETE`. Unlinking removes the binding
 only — never the account, its memberships, or its history — so an operator can
 correct a mismatch and re-enable the account for a fresh first association.
 
-The IdP's own end-to-end qualification (a pinned Okta tenant, key and secret
-rotation drills, RP-initiated logout) is still being completed; the login,
-association, and admin surfaces above are in place.
+A sign-in against an Okta developer tenant has provisioned and linked accounts
+end to end. The rest of the IdP's qualification — a pinned, reproducible tenant,
+key and secret rotation drills, and RP-initiated logout — is still being
+completed. To try a provider against a local cluster, see
+[Single Sign-On in the kind guide](local-kind.md#single-sign-on).
 
 ## What Is Still Missing
 
