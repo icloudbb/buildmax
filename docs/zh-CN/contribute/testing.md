@@ -263,9 +263,9 @@ status`/`logs`/`down`、`kind status`/`logs`/`down`、
 | 触发条件 | 运行什么 |
 |---|---|
 | 每个拉取请求 | 必需的 `ci.yml` 作业:Go、前端、开源合规,以及部署冒烟健康检查 |
-| 相关的拉取请求 | 针对 Go/任务运行器改动的 Windows 检查、发布配置校验,或一次 Portal 镜像构建 |
-| 合并到 `main` | 必需 CI、Windows、CodeQL、发布快照,以及按路径划分的部署冒烟测试 |
-| 定时 | 每日部署冒烟测试与每周 CodeQL 分析 |
+| 相关的拉取请求 | 发布配置校验,或一次 Portal 镜像构建 |
+| 合并到 `main` | 必需 CI、针对 Go/任务运行器改动的原生 Windows 检查、CodeQL、发布快照,以及按路径划分的部署冒烟测试 |
+| 定时 | 每日部署冒烟测试与原生 Windows 套件,每周 CodeQL 分析 |
 | 手动触发 | 所选定的工作流,用于发布准备或怀疑出现的环境回归 |
 
 端到端验证被刻意排除在拉取请求门禁之外。一次合并后的失败,由破坏它的
@@ -285,7 +285,7 @@ status`/`logs`/`down`、`kind status`/`logs`/`down`、
 ## 发布之前
 
 ```bash
-./make check ci   # required PR suite plus conditional release/Windows checks
+./make check ci   # required PR suite plus the conditional release check
 ./make e2e all    # cli, desktop, then a browser run against a stack it owns
 ```
 

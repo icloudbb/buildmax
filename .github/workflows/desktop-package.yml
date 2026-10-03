@@ -7,11 +7,11 @@
 # against WebKit and WebView2 had no coverage at all: a break in any of them
 # surfaced when a contributor next ran `./make build`, which could be weeks.
 #
-# Path-filtered on pull requests, the way windows.yml is. Moving end-to-end
-# suites off the pull-request gate was about suites that need containers, a
-# cluster, or a browser; this is a compile, it runs only when the app's own
-# inputs change, and catching a broken build before the merge beats catching it
-# after. It also runs after merge, weekly, and on demand.
+# Path-filtered on pull requests. Moving end-to-end suites off the pull-request
+# gate was about suites that need containers, a cluster, or a browser; this is a
+# compile, it runs only when the app's own inputs change, and catching a broken
+# build before the merge beats catching it after. It also runs after merge,
+# weekly, and on demand.
 #
 # After building, it launches the packaged app and requires it to stay up
 # briefly (`./make e2e desktop-launch`) — a build proves it compiles, this proves

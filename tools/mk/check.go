@@ -239,10 +239,10 @@ const (
 	goreleaserPkg = "github.com/goreleaser/goreleaser/v2@v2.17.1"
 )
 
-// checkCI runs the required pull-request suite plus the conditional release and
-// Windows checks, for contributors who would rather spend a laptop's time than
-// the repository's Actions minutes. The native Windows test has no local
-// equivalent; everything else does.
+// checkCI runs the required pull-request suite plus the conditional release
+// check, for contributors who would rather spend a laptop's time than the
+// repository's Actions minutes. The native Windows test, which runs after
+// merge, has no local equivalent; everything else does.
 func checkCI(checks map[string]func() error) error {
 	before, err := worktreeState()
 	if err != nil {
@@ -332,7 +332,7 @@ func checkReleaseConfig() error {
 	return runCmd("go", "run", goreleaserPkg, "check")
 }
 
-// checkWindowsCrossBuild is the closest local signal for the Windows job. It
+// checkWindowsCrossBuild mirrors the Go job's Windows cross-compile step. It
 // proves the code still compiles for Windows; it cannot run the tests, which is
 // why checkCI says so on the way out.
 func checkWindowsCrossBuild() error {

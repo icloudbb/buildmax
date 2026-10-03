@@ -213,9 +213,8 @@ func helpTopics() []helpTopic {
 			usage:   "check [go|gui|portal|desktop|docs|all|ci]",
 			summary: "Run the pre-pull-request checks for one scope, or all of them.",
 			details: []string{
-				"`check ci` is what a pull request runs, minus the Windows job, and is the\n" +
-					"command every pre-PR instruction in this repository points at. No scope\n" +
-					"needs a model API key.",
+				"`check ci` is what a pull request runs, and is the command every pre-PR\n" +
+					"instruction in this repository points at. No scope needs a model API key.",
 				"Prefer a narrow scope while iterating and the wide one before handing work\n" +
 					"over. `check ci` also reports any file the checks themselves dirtied, which\n" +
 					"is what CI sees as a failing tree.",

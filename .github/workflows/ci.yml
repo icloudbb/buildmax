@@ -121,6 +121,17 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # The native Windows suite runs after merge (windows.yml), so this is the
+      # pull-request gate for code that does not compile for Windows: the
+      # _windows.go files and runtime.GOOS branches Linux never builds.
+      - name: Cross-compile for Windows
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          go build ./...
+          go vet ./...
+
       # Configuration and rationale: .golangci.yml.
       - name: Lint
         run: golangci-lint run ./...

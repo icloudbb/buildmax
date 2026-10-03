@@ -332,9 +332,9 @@ becomes a weakened assertion.
 | Trigger | What runs |
 |---|---|
 | Every pull request | The required `ci.yml` jobs: Go, frontend, open-source policy, and deployment smoke health |
-| Relevant pull request | Windows for Go/task-runner changes, release configuration validation, or a Portal image build |
-| Merge to `main` | Required CI, Windows, CodeQL, release snapshot, and path-scoped deployment smoke |
-| Schedule | Daily deployment smoke and weekly CodeQL analysis |
+| Relevant pull request | Release configuration validation or a Portal image build |
+| Merge to `main` | Required CI, native Windows for Go/task-runner changes, CodeQL, release snapshot, and path-scoped deployment smoke |
+| Schedule | Daily deployment smoke and native Windows suite, weekly CodeQL analysis |
 | Manual dispatch | The selected workflow, for release preparation or a suspected environment regression |
 
 End-to-end verification is deliberately not a pull-request gate. A post-merge
@@ -355,7 +355,7 @@ passed.
 ## Before A Release
 
 ```bash
-./make check ci   # required PR suite plus conditional release/Windows checks
+./make check ci   # required PR suite plus the conditional release check
 ./make e2e all    # cli, desktop, then a browser run against a stack it owns
 ```
 
