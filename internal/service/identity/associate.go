@@ -92,7 +92,7 @@ func (s *Service) Associate(ctx context.Context, in AssociationInput) (*Associat
 
 	// No link yet: a first association needs a verified email.
 	if in.VerifiedEmail == "" {
-		return nil, fmt.Errorf("associate: %w", ErrEmailRequired)
+		return nil, fmt.Errorf("associate: the IdP asserted no verified email for a first sign-in: %w", ErrEmailRequired)
 	}
 
 	existing, err := s.Users.UserByEmail(ctx, in.VerifiedEmail)
@@ -129,10 +129,10 @@ func (s *Service) Associate(ctx context.Context, in AssociationInput) (*Associat
 	// Rule 5: no account exists.
 	switch s.provisioning() {
 	case ProvisioningExistingOnly:
-		return nil, ErrNotAuthorizedForDeployment
+		return nil, fmt.Errorf("no account has this email and provisioning is %s: %w", ProvisioningExistingOnly, ErrNotAuthorizedForDeployment)
 	case ProvisioningJIT:
 		if !s.emailDomainAllowed(in.VerifiedEmail) {
-			return nil, ErrNotAuthorizedForDeployment
+			return nil, fmt.Errorf("email domain %q is not in allowed_email_domains: %w", emailDomain(in.VerifiedEmail), ErrNotAuthorizedForDeployment)
 		}
 		user, _, err := s.ExternalIdentities.CreateUserWithIdentity(ctx, coreidentity.ProvisionUser{
 			Email: in.VerifiedEmail, Name: in.Name, QuotaTier: s.DefaultQuotaTier,

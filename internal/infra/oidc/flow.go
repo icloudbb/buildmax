@@ -65,14 +65,18 @@ func (p *Provider) BeginAuth(ctx context.Context, redirectURL string, scopes []s
 // returning the verified claims. It performs the server-side confidential-client
 // exchange (client_secret_basic), validates the ID Token signature against the
 // IdP's JWKS and its issuer/audience/expiry via the provider, then checks the
-// nonce and, when present, the authorized-party claim. If the ID Token carries
-// no email it falls back to UserInfo, requiring the subject to match.
+// nonce and, when present, the authorized-party claim. If the ID Token lacks the
+// email or its verification flag it falls back to UserInfo, requiring the
+// subject to match.
 func (p *Provider) Complete(ctx context.Context, code string, txn Transaction, redirectURL string, scopes []string) (*Claims, error) {
 	conf, err := p.oauth2Config(ctx, redirectURL, scopes)
 	if err != nil {
 		return nil, err
 	}
-	token, err := conf.Exchange(ctx, code, oauth2.VerifierOption(txn.Verifier))
+	// The exchange takes its HTTP client from the context, so it is given the
+	// provider's; the request context alone would reach the token endpoint with
+	// the default client and bypass a configured trust store.
+	token, err := conf.Exchange(context.WithValue(ctx, oauth2.HTTPClient, p.client), code, oauth2.VerifierOption(txn.Verifier))
 	if err != nil {
 		return nil, fmt.Errorf("token exchange: %w", err)
 	}
@@ -89,7 +93,7 @@ func (p *Provider) Complete(ctx context.Context, code string, txn Transaction, r
 	}
 	var c struct {
 		Email         string `json:"email"`
-		EmailVerified bool   `json:"email_verified"`
+		EmailVerified *bool  `json:"email_verified"`
 		Name          string `json:"name"`
 		AuthorizedTo  string `json:"azp"`
 	}
@@ -104,9 +108,12 @@ func (p *Provider) Complete(ctx context.Context, code string, txn Transaction, r
 	}
 	claims := &Claims{
 		Issuer: idToken.Issuer, Subject: idToken.Subject,
-		Email: c.Email, EmailVerified: c.EmailVerified, Name: c.Name,
+		Email: c.Email, EmailVerified: c.EmailVerified != nil && *c.EmailVerified, Name: c.Name,
 	}
-	if claims.Email == "" {
+	// An ID Token may carry only some claims (OIDC Core §5.4); Okta's org
+	// authorization server sends email without email_verified. An absent claim
+	// is unknown, not false, so both come from UserInfo then.
+	if claims.Email == "" || c.EmailVerified == nil {
 		if err := p.fillFromUserInfo(ctx, token, idToken.Subject, claims); err != nil {
 			return nil, err
 		}
@@ -114,8 +121,8 @@ func (p *Provider) Complete(ctx context.Context, code string, txn Transaction, r
 	return claims, nil
 }
 
-// fillFromUserInfo fetches the UserInfo endpoint when the ID Token lacked an
-// email, and refuses a response whose subject does not match the ID Token's — a
+// fillFromUserInfo fetches the UserInfo endpoint when the ID Token lacked the
+// email or its verification flag, and refuses a response whose subject does not match the ID Token's — a
 // mismatched sub is a different account, never a source of this login's email.
 func (p *Provider) fillFromUserInfo(ctx context.Context, token *oauth2.Token, subject string, claims *Claims) error {
 	if _, err := p.ensure(ctx); err != nil {

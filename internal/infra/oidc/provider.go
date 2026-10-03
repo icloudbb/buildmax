@@ -60,7 +60,8 @@ type Status struct {
 // discovery result; JWKS caching and refresh-on-unknown-kid are handled by the
 // underlying remote key set. It is safe for concurrent use.
 type Provider struct {
-	cfg Config
+	cfg    Config
+	client *http.Client
 	// ctx carries the HTTP client for every later IdP fetch. The remote key set
 	// keeps it for background JWKS refreshes and ignores its cancellation, so it
 	// is deliberately not request-scoped.
@@ -82,8 +83,9 @@ func New(cfg Config) *Provider {
 		client = http.DefaultClient
 	}
 	return &Provider{
-		cfg: cfg,
-		ctx: coreoidc.ClientContext(context.Background(), client),
+		cfg:    cfg,
+		client: client,
+		ctx:    coreoidc.ClientContext(context.Background(), client),
 	}
 }
 
