@@ -177,7 +177,7 @@ Design: [verification program](design/verification-program.md) and
 
 **Status:** candidate-proof-remains
 
-**Candidate profile defined; the evidence record is empty.** Account bootstrap,
+**Candidate profile defined; a first exercise is recorded, not signed.** Account bootstrap,
 login-code recovery, Space membership, managed models, direct and Issue-linked
 Tasks, graph Workflows with human requests and retry/timeout policy, Schedules,
 Secrets, the supported Plugin profile,
@@ -187,11 +187,15 @@ and Portal artifacts proposed for release with external dependencies. The
 expanded readiness contract is allowed to reveal small product gaps; such a gap
 is R3 work when it prevents a documented core journey or operator diagnosis.
 
-**Next:** pin the candidate image digests and have an operator who did not build
-the features perform the documented multi-Space identity, core-product,
-execution-boundary, distributed-operation, failure, restore, upgrade, rotation,
-and 24-hour operating-window journeys. Fix only gaps that the journey
-demonstrates. A 2026-09-28 operator drill showed the diagnosis
+A 2026-10-02 exercise on DigitalOcean began on v0.2.0-alpha.18 and ran every
+gate, including the 24-hour window; the defects it found were fixed and rerun
+through v0.2.0-alpha.21, and none is open. The project owner waived the
+non-author operator journey and database password rotation for that candidate.
+
+**Next:** rerun the gates that passed only on alpha.18 on the candidate proposed
+for release, publish the evidence where the release space can read it, and
+resolve the partial rows in the [Beta readiness record](deploy/beta-readiness.md).
+Fix only gaps that the journey demonstrates. A 2026-09-28 operator drill showed the diagnosis
 journey could not detect stalled or failing work from Administration; runtime
 operations metadata
 ([system administration](design/system-administration.md) §13 M7) now closes
