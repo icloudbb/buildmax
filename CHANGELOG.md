@@ -14,6 +14,22 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.22] - 2026-10-03
+
+### Added
+
+- The Kubernetes reference deployment reads the OIDC client secret from
+  `buildmax-secret` and trusts extra CA certificates from an optional
+  `buildmax-trust` ConfigMap, for an IdP behind a private CA
+  ([authentication](https://github.com/icloudbb/buildmax/blob/main/docs/deploy/authentication.md#single-sign-on-oidc)).
+
+### Fixed
+
+- Okta single sign-on no longer refuses every first sign-in: when the ID Token
+  carries an email without `email_verified`, as Okta's org authorization server
+  sends it, BuildMax now reads the flag from UserInfo. A refused SSO sign-in's
+  specific reason is now in the server log.
+
 ## [0.2.0-alpha.21] - 2026-10-02
 
 ### Fixed
@@ -3876,7 +3892,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.21...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.22...HEAD
+[0.2.0-alpha.22]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.21...v0.2.0-alpha.22
 [0.2.0-alpha.21]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.20...v0.2.0-alpha.21
 [0.2.0-alpha.20]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.19...v0.2.0-alpha.20
 [0.2.0-alpha.19]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.18...v0.2.0-alpha.19
