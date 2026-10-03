@@ -11,6 +11,7 @@
 [Task 工作区检查点](../design/Task工作区检查点.md)、
 [LLM 网关](../design/LLM网关.md)、[沙箱边界](../design/沙箱边界.md)、
 [Space 密钥](../design/Space密钥.md)、
+[Action Gateway 架构评估](digitalocean-action-gateway.md)、
 [Agent 代表用户使用应用](agent-app-delegation.md)、
 [持久化 Agent Session](durable-agent-sessions.md)与
 [长时间运行的工作区 Environment](long-running-workspace-environments.md)。
@@ -224,6 +225,10 @@ Session 仍占 active capacity。当前没有 Run lifecycle webhook，因此外�
 observe 或 polling，不能依赖终态 callback。
 
 ## 6. Action Gateway
+
+聚焦的 [Action Gateway 架构评估](digitalocean-action-gateway.md)深入分析其身份、凭证、
+策略、审批、上下文、可靠性以及与 BuildMax 的集成边界。本节只保留与 Harness Runtime
+和 Inference 对比所需的产品级摘要。
 
 ### 6.1 资源模型
 
