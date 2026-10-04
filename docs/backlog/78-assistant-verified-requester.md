@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/space-assistants.md#16-deferred
 depends_on: []
 verification: ["./make test", "kind", "exploratory"]
-claim:
+claim: gougoujiang 2026-10-04
 pr:
 ---
 
