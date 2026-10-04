@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/space-assistants.md#4-concepts
 depends_on: [60-channel-gateway-many-bots.md, 62-service-accounts.md]
 verification: ["./make test", "./make test mysql", "./make check portal", "./make e2e kind", "./make check docs"]
-claim:
+claim: gougoujiang 2026-10-04
 pr:
 ---
 
