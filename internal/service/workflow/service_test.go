@@ -442,6 +442,38 @@ func TestStartWorkflowRun_IssueAccess(t *testing.T) {
 	})
 }
 
+// A run a Space Assistant started records whom it runs for, and every step's
+// Task inherits it, so each step's Agent is told the verified requester.
+func TestStartWorkflowRun_StepsRunForTheAssistantRequester(t *testing.T) {
+	workflowStore := &mock.MockWorkflowStore{Workflows: []coreworkflow.Workflow{{
+		ID: "w_1", SpaceID: "tm_1", Name: "WF", Status: coreworkflow.StatusPublished,
+		Definition: `{"schema_version":1,"nodes":[{"id":"a","type":"agent_task","agent":{"id":"a_1"},"input":{"instruction":"do"}}]}`,
+	}}}
+	taskStore := &mock.MockTaskStore{}
+	taskRuns := &mock.MockTaskRunStore{}
+	agentStore := &mock.MockAgentStore{Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "Agent", Instructions: "work"}}}
+	svc := &Service{
+		Workflows: workflowStore, Agents: agentStore, TaskRuns: taskRuns,
+		TaskService: &task.Service{Agents: agentStore, Tasks: taskStore, TaskRuns: taskRuns},
+	}
+	run, _, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
+		SpaceID: "tm_1", UserID: "u_service", WorkflowID: "w_1",
+		RequestedBy: "u_requester", AssistantID: "asst_1", AssistantRevision: 4,
+	})
+	if err != nil {
+		t.Fatalf("StartWorkflowRun: %v", err)
+	}
+	if run.RequestedBy != "u_requester" || run.AssistantID != "asst_1" || run.AssistantRevision != 4 {
+		t.Errorf("run provenance = %q %q %d", run.RequestedBy, run.AssistantID, run.AssistantRevision)
+	}
+	if len(taskStore.Created) != 1 {
+		t.Fatalf("step tasks = %d, want 1", len(taskStore.Created))
+	}
+	if c := taskStore.Created[0]; c.CreatedBy != "u_service" || c.RequestedBy != "u_requester" || c.AssistantID != "asst_1" || c.AssistantRevision != 4 {
+		t.Errorf("step task = %+v, want the service account working for u_requester", c)
+	}
+}
+
 func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{{

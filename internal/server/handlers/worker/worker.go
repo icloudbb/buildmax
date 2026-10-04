@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -22,6 +23,11 @@ import (
 // cannot be determined. The worker retries a 503 fetch, so it must read as
 // transient.
 const errEligibilityUnavailable = "could not verify that this run's initiator may still run work; retry shortly"
+
+// errRequesterUnavailable is the 503 body when the person a Space Assistant
+// started the run for cannot be resolved. The run waits rather than start
+// without them: its Agent may be written to act only for that person.
+const errRequesterUnavailable = "could not resolve whom this run works for; retry shortly"
 
 func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	taskRunID := r.PathValue("task_run_id")
@@ -84,6 +90,12 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			h.recordSpaceAgentInstructionsRevision(r, run, spaceInstructionsRevision)
 		}
 	}
+	requester, err := h.requesterOf(r.Context(), task)
+	if err != nil {
+		componentLog().Warn("worker handler: run requester unavailable", "task_run_id", taskRunID, "err", err)
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, errRequesterUnavailable)
+		return
+	}
 	// The agent's instructions are appended to the run's system prompt. Resolving them here
 	// rather than at task creation means an edited definition takes effect on the next run,
 	// which is what someone editing the field expects. A deleted agent still answers, because
@@ -139,6 +151,7 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			SpaceAgentInstructions:         spaceInstructions,
 			SpaceAgentInstructionsRevision: spaceInstructionsRevision,
 			OutputSchema:                   task.OutputSchema,
+			Requester:                      requester,
 		},
 		Plugins:     toWirePlugins(pins),
 		PluginError: pluginRefusal,
@@ -513,4 +526,25 @@ func (h *Handler) recordSpaceAgentInstructionsRevision(r *http.Request, run *cor
 	if err := h.cfg.TaskRuns.RecordTaskRunSpaceAgentInstructionsRevision(r.Context(), run.ID, revision); err != nil {
 		componentLog().Warn("worker handler: space agent instructions revision not recorded", "task_run_id", run.ID, "err", err)
 	}
+}
+
+// requesterOf is the person a Space Assistant started the Task for, read from
+// the account the Server verified when they messaged it rather than from
+// anything the Assistant's model wrote. Nil for any other Task. See
+// docs/design/space-assistants.md §5.
+func (h *Handler) requesterOf(ctx context.Context, task *coretask.Task) (*workerclient.TaskRunRequester, error) {
+	if task.RequestedBy == "" {
+		return nil, nil
+	}
+	if h.cfg.Users == nil {
+		return nil, errors.New("no user store configured")
+	}
+	u, err := h.cfg.Users.GetUser(ctx, task.RequestedBy)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, fmt.Errorf("requester %s not found", task.RequestedBy)
+	}
+	return &workerclient.TaskRunRequester{Name: u.Name, Email: u.Email}, nil
 }

@@ -345,6 +345,13 @@ type Run struct {
 	// ConversationID is the conversation whose turn started this run, or nil.
 	// A Space Assistant's turn reads only the runs its own conversation started.
 	ConversationID *string `json:"conversation_id,omitempty"`
+	// RequestedBy, AssistantID, and AssistantRevision record a Space
+	// Assistant's dispatch, as on a Task. CreatedBy is then the Assistant's
+	// service account, and each step's Task inherits them so its Agent is told
+	// whom it works for. Empty otherwise. See docs/design/space-assistants.md §5.
+	RequestedBy       string `json:"requested_by,omitempty"`
+	AssistantID       string `json:"assistant_id,omitempty"`
+	AssistantRevision int    `json:"assistant_revision,omitempty"`
 	// Input is the run's immutable input JSON, validated against the definition's
 	// input_schema at admission. Nil when the definition declares no input_schema.
 	Input     *string `json:"input,omitempty"`
@@ -678,6 +685,11 @@ type CreateRunInput struct {
 	ScheduleID *string
 	// ConversationID is the conversation whose turn started the run, or nil.
 	ConversationID *string
+	// RequestedBy, AssistantID, and AssistantRevision record a Space
+	// Assistant's dispatch; empty otherwise.
+	RequestedBy       string
+	AssistantID       string
+	AssistantRevision int
 	// Input is the run's immutable input JSON, already validated against the
 	// definition's input_schema. Nil when the definition declares no input_schema.
 	Input      *string

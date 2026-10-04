@@ -194,7 +194,9 @@ func TestStatementNamesWhatTheAudienceCanReach(t *testing.T) {
 	// The Space's Files are named too: the roster's work reads them, and the
 	// readable-files list alone does not show it (design §18).
 	for _, want := range []string{"Any member of this Space", `"leave-policy.md"`, `Agent "HR Agent", which holds the Secrets "HRIS"`, `Workflow "Leave lookup", whose steps run as "HR Agent"`,
-		`can read every file in this Space's Files, now "leave-balances.csv" and "salary-bands.md"`} {
+		`can read every file in this Space's Files, now "leave-balances.csv" and "salary-bands.md"`,
+		// Whom the work runs for reaches it too (backlog 78).
+		"Each of them is told the name and email of the person who asked."} {
 		if !strings.Contains(st.Text, want) {
 			t.Errorf("statement lacks %q: %s", want, st.Text)
 		}
@@ -225,7 +227,7 @@ func TestStatementNamesWhatTheAudienceCanReach(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(bare.SpaceFiles) != 0 || strings.Contains(bare.Text, "Space's Files") {
+	if len(bare.SpaceFiles) != 0 || strings.Contains(bare.Text, "Space's Files") || strings.Contains(bare.Text, "person who asked") {
 		t.Errorf("statement without a roster = %q", bare.Text)
 	}
 }

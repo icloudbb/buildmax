@@ -132,17 +132,20 @@ func (m *MockWorkflowStore) GetWorkflowRevision(_ context.Context, workflowID st
 
 func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in coreworkflow.CreateRunInput) (*coreworkflow.Run, error) {
 	run := coreworkflow.Run{
-		ID:               fmt.Sprintf("wr_mock_%d", len(m.Runs)+1),
-		WorkflowID:       in.WorkflowID,
-		WorkflowRevision: in.WorkflowRevision,
-		IssueID:          in.IssueID,
-		ScheduleID:       in.ScheduleID,
-		ConversationID:   in.ConversationID,
-		Status:           in.Status,
-		CreatedBy:        in.CreatedBy,
-		CreatedAt:        time.Now().UTC(),
-		StartedAt:        in.StartedAt,
-		DeadlineAt:       in.DeadlineAt,
+		ID:                fmt.Sprintf("wr_mock_%d", len(m.Runs)+1),
+		WorkflowID:        in.WorkflowID,
+		WorkflowRevision:  in.WorkflowRevision,
+		IssueID:           in.IssueID,
+		ScheduleID:        in.ScheduleID,
+		ConversationID:    in.ConversationID,
+		RequestedBy:       in.RequestedBy,
+		AssistantID:       in.AssistantID,
+		AssistantRevision: in.AssistantRevision,
+		Status:            in.Status,
+		CreatedBy:         in.CreatedBy,
+		CreatedAt:         time.Now().UTC(),
+		StartedAt:         in.StartedAt,
+		DeadlineAt:        in.DeadlineAt,
 	}
 	m.Runs = append(m.Runs, run)
 	return &m.Runs[len(m.Runs)-1], nil

@@ -101,6 +101,8 @@ type WorkerTaskRun struct {
 	// AskUser says the run may end its turn on AskUser questions for the user
 	// to answer by continuing the Task.
 	AskUser bool
+	// Requester is whom a Space Assistant started the run for; nil otherwise.
+	Requester *TaskRunRequester
 }
 
 // GetWorkerTaskRun fetches the run from the server (GET /api/worker/task-runs/{task_run_id}). Returns nil, nil if not found.
@@ -148,6 +150,7 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 		SandboxNetworkTier:     sandboxNetworkTierOf(got.Sandbox),
 		SandboxFilesystemTier:  sandboxFilesystemTierOf(got.Sandbox),
 		AskUser:                got.Run.AskUser,
+		Requester:              got.Task.Requester,
 	}, nil
 }
 

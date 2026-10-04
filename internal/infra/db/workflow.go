@@ -91,6 +91,11 @@ type workflowRunRow struct {
 	ScheduleID *uint64 `gorm:"column:schedule_id;index"`
 	// ConversationID is the conversation whose turn started this run, or NULL.
 	ConversationID *uint64 `gorm:"column:conversation_id;index"`
+	// RequestedBy, AssistantID, and AssistantRevision record a Space
+	// Assistant's dispatch; NULL and zero otherwise.
+	RequestedBy       *uint64 `gorm:"column:requested_by;index"`
+	AssistantID       *uint64 `gorm:"column:assistant_id;index"`
+	AssistantRevision int     `gorm:"column:assistant_revision;not null;default:0"`
 	// Input is the run's immutable input JSON, validated against the definition's
 	// input_schema at admission. NULL when the definition declares no input_schema.
 	Input  *string `gorm:"column:input;type:longtext"`
@@ -128,6 +133,8 @@ type workflowRunReadRow struct {
 	IssuePublicID        *string        `gorm:"column:issue_public_id"`
 	SchedulePublicID     *string        `gorm:"column:schedule_public_id"`
 	ConversationPublicID *string        `gorm:"column:conversation_public_id"`
+	RequestedByPublicID  *string        `gorm:"column:requested_by_public_id"`
+	AssistantPublicID    *string        `gorm:"column:assistant_public_id"`
 	CreatedByPublicID    string         `gorm:"column:created_by_public_id"`
 }
 
@@ -135,11 +142,14 @@ func (s *Store) workflowRunSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&workflowRunRow{}).
 		Select("workflow_run.*, w.public_id AS workflow_public_id, i.public_id AS issue_public_id, " +
 			"sc.public_id AS schedule_public_id, cv.public_id AS conversation_public_id, " +
+			"rb.public_id AS requested_by_public_id, asst.public_id AS assistant_public_id, " +
 			"cb.public_id AS created_by_public_id").
 		Joins("INNER JOIN workflow w ON w.id = workflow_run.workflow_id").
 		Joins("LEFT JOIN issue i ON i.id = workflow_run.issue_id").
 		Joins("LEFT JOIN schedule sc ON sc.id = workflow_run.schedule_id").
 		Joins("LEFT JOIN conversation cv ON cv.id = workflow_run.conversation_id").
+		Joins("LEFT JOIN `user` rb ON rb.id = workflow_run.requested_by").
+		Joins("LEFT JOIN assistant asst ON asst.id = workflow_run.assistant_id").
 		Joins("INNER JOIN `user` cb ON cb.id = workflow_run.created_by")
 }
 
@@ -305,6 +315,9 @@ func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 		conversation := derefPublicID(row.ConversationPublicID)
 		out.ConversationID = &conversation
 	}
+	out.RequestedBy = derefPublicID(row.RequestedByPublicID)
+	out.AssistantID = derefPublicID(row.AssistantPublicID)
+	out.AssistantRevision = row.Row.AssistantRevision
 	return out
 }
 
@@ -630,17 +643,20 @@ func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revi
 func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRunInput) (*coreworkflow.Run, error) {
 	now := time.Now().UTC()
 	run := &coreworkflow.Run{
-		WorkflowID:       in.WorkflowID,
-		WorkflowRevision: in.WorkflowRevision,
-		IssueID:          in.IssueID,
-		ScheduleID:       in.ScheduleID,
-		ConversationID:   in.ConversationID,
-		Input:            in.Input,
-		Status:           in.Status,
-		CreatedBy:        in.CreatedBy,
-		CreatedAt:        now,
-		StartedAt:        in.StartedAt,
-		DeadlineAt:       in.DeadlineAt,
+		WorkflowID:        in.WorkflowID,
+		WorkflowRevision:  in.WorkflowRevision,
+		IssueID:           in.IssueID,
+		ScheduleID:        in.ScheduleID,
+		ConversationID:    in.ConversationID,
+		RequestedBy:       in.RequestedBy,
+		AssistantID:       in.AssistantID,
+		AssistantRevision: in.AssistantRevision,
+		Input:             in.Input,
+		Status:            in.Status,
+		CreatedBy:         in.CreatedBy,
+		CreatedAt:         now,
+		StartedAt:         in.StartedAt,
+		DeadlineAt:        in.DeadlineAt,
 	}
 	row := &workflowRunRow{
 		WorkflowRevision: in.WorkflowRevision,
@@ -681,6 +697,18 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 				return err
 			}
 			row.ConversationID = &conversationKey
+		}
+		if in.AssistantID != "" {
+			requester, err := lookupKey(ctx, tx, "user", in.RequestedBy)
+			if err != nil {
+				return err
+			}
+			assistant, err := lookupKey(ctx, tx, "assistant", in.AssistantID)
+			if err != nil {
+				return err
+			}
+			row.RequestedBy, row.AssistantID = &requester, &assistant
+			row.AssistantRevision = in.AssistantRevision
 		}
 		return createWithPublicID(ctx, tx, "uq_workflow_run_public_id",
 			func(id string) { row.PublicID = id }, row)

@@ -132,6 +132,7 @@ func (h *Handler) buildWorkerHandler() *worker.Handler {
 		// race between dispatch and worker start. Nil-safe: a config missing
 		// either store yields a nil checker the handler skips.
 		Eligible:      eligibilityChecker(h.cfg.UserStore, h.cfg.SpaceStore),
+		Users:         h.cfg.UserStore,
 		Gateway:       h.cfg.LLMGateway,
 		Artifacts:     h.artifacts,
 		Issues:        h.workerIssueAccess(),

@@ -194,7 +194,7 @@ func TestRunKeepsSecretValuesOutOfStreamOutputAndStoredSession(t *testing.T) {
 	firstDirs := testRunDirs(t)
 	sender := &recordingStreamSender{}
 	out, err := runAgentTask(ctx, firstRun, firstDirs.runDir, firstDirs.runGlobal, firstDirs.runOSHome,
-		sessionID, sender, model, "", ManagedInference{}, nil, "", "", nil, nil, "", "", grants, nil, false)
+		sessionID, sender, model, "", ManagedInference{}, nil, "", "", nil, nil, nil, "", "", grants, nil, false)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestRunKeepsSecretValuesOutOfStreamOutputAndStoredSession(t *testing.T) {
 	secondDirs := testRunDirs(t)
 	restoreSessionFromPreviousRun(ctx, task, secondRun, secondDirs.runGlobal, persist)
 	second, err := runAgentTask(ctx, secondRun, secondDirs.runDir, secondDirs.runGlobal, secondDirs.runOSHome,
-		sessionID, nil, model, "", ManagedInference{}, nil, "", "", nil, nil, "", "", grants, nil, false)
+		sessionID, nil, model, "", ManagedInference{}, nil, "", "", nil, nil, nil, "", "", grants, nil, false)
 	if err != nil {
 		t.Fatalf("continued run: %v", err)
 	}
