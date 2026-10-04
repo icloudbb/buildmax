@@ -28,6 +28,11 @@ describe("hash router", () => {
     [`#/spaces/${SPACE}/settings/audit`, { name: "space", spaceId: SPACE, section: "audit" }],
     [`#/spaces/${SPACE}/settings/security`, { name: "space", spaceId: SPACE, section: "security" }],
     [`#/spaces/${SPACE}/settings/service-accounts`, { name: "space", spaceId: SPACE, section: "serviceAccounts" }],
+    [`#/spaces/${SPACE}/settings/assistants`, { name: "space", spaceId: SPACE, section: "assistants" }],
+    [
+      `#/spaces/${SPACE}/settings/assistants/as_123`,
+      { name: "space", spaceId: SPACE, section: "assistants", assistantId: "as_123" },
+    ],
     // Deployment administration is a separate area from space settings, and
     // its sections are linkable for the same reason the space ones are.
     ["#/admin", { name: "admin", section: "overview" }],
@@ -87,6 +92,11 @@ describe("hash router", () => {
     [{ name: "space", spaceId: SPACE, section: "security" }, `#/spaces/${SPACE}/settings/security`],
     [{ name: "space", spaceId: SPACE, section: "members" }, `#/spaces/${SPACE}/settings/members`],
     [{ name: "space", spaceId: SPACE, section: "memberNew" }, `#/spaces/${SPACE}/settings/members/new`],
+    [{ name: "space", spaceId: SPACE, section: "assistants" }, `#/spaces/${SPACE}/settings/assistants`],
+    [
+      { name: "space", spaceId: SPACE, section: "assistants", assistantId: "as_123" },
+      `#/spaces/${SPACE}/settings/assistants/as_123`,
+    ],
     [{ name: "workflows", spaceId: SPACE }, `#/spaces/${SPACE}/workflows`],
     [{ name: "workflow", spaceId: SPACE, workflowId: "w_123" }, `#/spaces/${SPACE}/workflows/w_123`],
     [

@@ -59,6 +59,26 @@ Space 有三种角色：
 - **Sandbox defaults** —— 此 space 运行中 `Bash` 的默认约束。
   见 [沙箱](沙箱.md)。
 - **Secrets** —— 运行可以使用的值，由 owner 管理。
+- **Service accounts** —— 由此 space 拥有、供其自动化工作以其身份运行的身份，
+  这样工作就不依赖某一个人的账号。owner 和 admin 可以创建、重命名、停用和重新
+  启用它们。每个 service account 都有一位 **sponsor**（担保人），即对其负责的
+  owner 或 admin；当担保人不再担任该角色或被停用时，该账号会显示
+  **Needs a sponsor**，直到某位 owner 或 admin 选择 **Take sponsorship**。
+  service account 只是此 space 的成员，不能登录，也不会出现在选择人员的地方，
+  例如 Issue 的负责人。个人 space 不能拥有它们。
+- **Assistants** —— 此 space 通过自己的 Telegram bot 发布的服务入口，例如 HR
+  助手或审计助手，面向 space 本身工作以外的人。owner 和 admin 为每个 Assistant
+  设定指令、它可以运行的 Agent 和已发布的 Workflow（以及哪些结果字段可以展示
+  给提问者）、它可以读取的文件，以及谁可以提问：此 space 的成员，或所有活跃
+  用户。它的工作以一个 service account 的身份运行，除非你另行选择，否则会按它
+  的名称自动创建。Assistant 创建后处于暂停状态。**Publish** 会准确列出谁可以
+  提问、它能读取和运行什么（包括这些 Agent 持有的 Secret），并请你确认，因为它
+  能触及的一切都等同于披露给所有可以提问的人；对已发布的 Assistant 修改这些内容
+  时会再次请你确认。**Bind bot** 接受来自 [@BotFather](https://t.me/BotFather)
+  的 token；它会被加密存储，因此部署需要配置 `secret.kek_file`，已经接入
+  BuildMax 的 bot 会被拒绝。人们需要先关联自己的 Telegram 账号才能联系这个 bot
+  （见[聊天应用](聊天应用.md)）。Assistant 目前还不会回答问题：已发布的会告诉
+  对方它暂时还不回答问题，已暂停的会说明它处于暂停状态。个人 space 不能拥有它们。
 - **Audit** —— 此 space 中所发生事件的记录。
 
 ## 模型如何被选择

@@ -1346,8 +1346,8 @@ Two things to know before enabling it:
 
 ### Rotating the key-encryption key — `buildmax-server secret rewrap`
 
-Space Secret values and managed-model credentials are encrypted under the
-key-encryption key (KEK) in the file `secret.kek_file` names. The file holds a
+Space Secret values, managed-model credentials, and Space Assistant bot tokens
+are encrypted under the key-encryption key (KEK) in the file `secret.kek_file` names. The file holds a
 set of keys and names the one new writes use:
 
 ```json

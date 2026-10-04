@@ -3,8 +3,9 @@
 > **简体中文：** [阅读中文镜像](../zh-CN/design/空间助手.md)
 
 > **Audience:** contributors, product designers, and operators · **Status:**
-> accepted — in progress: the many-bot Gateway (§9) and service accounts (§6)
-> are built
+> accepted — in progress: the many-bot Gateway (§9), service accounts (§6),
+> and the Assistant entity, its bot binding, and the publish statement (§4, §8)
+> are built; Assistants do not answer yet
 >
 > This record decides how a Space publishes **Assistants**: conversational
 > service front doors that answer people outside the Space's own work, dispatch
@@ -128,8 +129,10 @@ disclosure decision.
 of exactly one Space, with no way to sign in.
 
 **Channel binding** (new, child of Assistant). One Telegram bot token, sealed
-with the Secret key-encryption key, together with the bot's Telegram id and an
-enabled state. The token is not a Space Secret: a Space Secret exists to be
+with the Secret key-encryption key, together with the bot's Telegram id and
+handle. Removing the binding is how a bot stops being served. A paused
+Assistant keeps its bot connected and answers that it is paused, so messages
+sent meanwhile are not answered later in a burst. The token is not a Space Secret: a Space Secret exists to be
 granted to Agents and materialized into worker runs, and a bot token must never
 reach a worker. One Assistant has at most one binding in this record; a later
 adapter may allow one per platform.
@@ -299,8 +302,10 @@ what the Assistant can read.
 | 5. Human review | Through escalation (§11) | An unanswerable request becomes an Issue a person answers |
 | 6. Audit | Yes | Conversation, revision, requester, and dispatched Tasks are recorded; Space owners and admins can review (§12) |
 
-**Release contract.** A Workflow roster entry uses the Workflow's own
-`output_schema`. An Agent roster entry declares one on the entry, and StartTask
+**Release contract.** A Workflow has no output schema of its own; its result
+is selected from one node's output. A Workflow roster entry therefore uses the
+`output_schema` of that node, and the result must select the node's whole
+output. An Agent roster entry declares one on the entry, and StartTask
 passes it as the Task's `output_schema`, so the run must satisfy it. The entry
 lists which top-level properties are releasable. GetTask and GetWorkflowRun, when
 called from an Assistant turn, return status and the releasable fields only:
@@ -453,7 +458,8 @@ Each slice is a backlog task, in order:
    [instant-messaging channels §4](instant-messaging-channels.md#4-concepts).
 2. Service accounts (§6) — built; see
    [current state](../current-state.md#account-space-and-extension-surfaces).
-3. [Assistant entity, binding, and management](../backlog/64-space-assistant-entity.md) (§4, §8 publish statement).
+3. Assistant entity, binding, and management (§4, §8 publish statement) —
+   built; see [current state](../current-state.md#account-space-and-extension-surfaces).
 4. [Assistant front-door turn](../backlog/66-assistant-front-door-turn.md) (§7.2, §7.3, §10).
 5. [Release contracts and Assistant outcome reports](../backlog/68-assistant-release-contracts.md) (§8, §11).
 6. [Readable files tool](../backlog/70-assistant-readable-files.md) (§8, §10).

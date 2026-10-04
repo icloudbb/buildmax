@@ -35,6 +35,13 @@ Workflows in the Space as the service account, with the requester recorded.
 - Task provenance: `task.requested_by`, `task.assistant_id`,
   `task.assistant_revision`; `created_by` is the service account.
 
+- Starting point: the Gateway already routes a linked person's message on an
+  Assistant's bot to `FrontDoor.Answer` in `internal/service/assistant`
+  (pairing and the sign-in window already checked), which today only reports
+  whether the Assistant is paused. Replace its "not answering yet" branch;
+  `Service.Availability` already covers the Assistant, service account, and
+  sponsor checks.
+
 ## Out Of Scope
 
 - Release filtering of GetTask/GetWorkflowRun output and outcome reports

@@ -15,21 +15,43 @@ import (
 
 const assistantKey = "asst1"
 
-// withAssistantBot registers a second Telegram bot beside the system one.
-func withAssistantBot(t *testing.T, h *harness) (*fakeConnector, bot) {
+// fakeFrontDoor answers for bots other than the system bot.
+type fakeFrontDoor struct {
+	mu    sync.Mutex
+	calls []string
+}
+
+func (f *fakeFrontDoor) Answer(_ context.Context, key string, in corechannel.Inbound, userID string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, key+"|"+userID+"|"+in.Text)
+	return "front: " + in.Text
+}
+
+func (f *fakeFrontDoor) seen() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.calls...)
+}
+
+// withAssistantBot registers a second Telegram bot beside the system one, with
+// a front door answering it.
+func withAssistantBot(t *testing.T, h *harness) (*fakeConnector, bot, *fakeFrontDoor) {
 	t.Helper()
 	c := newFakeConnector("200")
 	if err := h.g.Register(context.Background(), assistantKey, c); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-	return c, bot{key: assistantKey, Connector: c}
+	fd := &fakeFrontDoor{}
+	h.g.SetFrontDoor(fd)
+	return c, bot{key: assistantKey, Connector: c}, fd
 }
 
 // A person can link from whichever bot they message first, and that bot is the
 // one that confirms it. The link is theirs, so every bot then recognizes them.
 func TestAnyBotCanStartAPairingAndConfirmsIt(t *testing.T) {
 	h := newHarness(t)
-	asst, b := withAssistantBot(t, h)
+	asst, b, _ := withAssistantBot(t, h)
 
 	h.g.handle(context.Background(), b, dm("hello"))
 	code := h.ids.onlyCode()
@@ -55,37 +77,50 @@ func TestAnyBotCanStartAPairingAndConfirmsIt(t *testing.T) {
 	}
 }
 
-// A person's chat id is the same with every bot, so each bot keeps its own
-// conversation and reports through itself.
-func TestEachBotKeepsItsOwnConversationAndReports(t *testing.T) {
+// A linked person messaging another bot reaches its front door, never the
+// personal assistant, and a run from that bot's conversation reports through it.
+func TestOtherBotsGoToTheFrontDoorAndReportThroughThemselves(t *testing.T) {
 	h := newHarness(t)
 	h.ids.link(adaID, adaChat)
-	asst, b := withAssistantBot(t, h)
+	asst, b, fd := withAssistantBot(t, h)
 
 	h.send(dm("to the system bot"))
 	h.g.handle(context.Background(), b, dm("to the assistant bot"))
-	h.g.handle(context.Background(), b, dm("again to the assistant bot"))
+	h.g.handle(context.Background(), b, dm("/space"))
 
-	convs := h.convs.all()
-	if len(convs) != 2 {
-		t.Fatalf("conversations = %+v, want one per bot", convs)
+	if got := fd.seen(); !slices.Equal(got, []string{assistantKey + "|" + adaID + "|to the assistant bot", assistantKey + "|" + adaID + "|/space"}) {
+		t.Errorf("front door calls = %v", got)
 	}
-	byKey := map[string]string{}
-	for _, c := range convs {
-		byKey[c.ChannelConnector] = c.ID
+	if n := len(h.turns.seen()); n != 1 {
+		t.Errorf("personal turns = %d, want only the system bot's", n)
 	}
-	if byKey[corechannel.ConnectorSystem] == "" || byKey[assistantKey] == "" {
-		t.Fatalf("conversations by bot = %v", byKey)
-	}
-	if asst.last() != "echo: again to the assistant bot" || h.conn.last() != "echo: to the system bot" {
+	if asst.last() != "front: /space" || h.conn.last() != "echo: to the system bot" {
 		t.Errorf("replies went to the wrong bot: system %q, assistant %q", h.conn.last(), asst.last())
 	}
 
+	// A person's chat id is the same with every bot, so the assistant's
+	// conversation is told apart by its connector key.
+	conv, _ := h.convs.CreateChatConversation(context.Background(), teamID, adaID, corechannel.PlatformTelegram, assistantKey, adaChat)
+	h.elig.refuse(adaID, teamID, nil)
 	before := len(h.conn.messages())
-	info := coretask.RunTerminalInfo{TaskID: "task1", ConversationID: byKey[assistantKey], SpaceID: personalID, Status: string(coretask.RunStatusCanceled)}
+	info := coretask.RunTerminalInfo{TaskID: "task1", ConversationID: conv.ID, SpaceID: teamID, Status: string(coretask.RunStatusCanceled)}
 	h.g.ReportRunTerminal(context.Background(), info)
 	if !strings.Contains(asst.last(), "was canceled") || len(h.conn.messages()) != before {
 		t.Errorf("the report did not go through the conversation's bot: assistant %q", asst.last())
+	}
+}
+
+// Without a front door, another bot tells a linked person it is not available.
+func TestOtherBotWithoutAFrontDoorIsNotAvailable(t *testing.T) {
+	h := newHarness(t)
+	h.ids.link(adaID, adaChat)
+	c := newFakeConnector("200")
+	if err := h.g.Register(context.Background(), assistantKey, c); err != nil {
+		t.Fatal(err)
+	}
+	h.g.handle(context.Background(), bot{key: assistantKey, Connector: c}, dm("hi"))
+	if c.last() != "This assistant is not available." || len(h.turns.seen()) != 0 {
+		t.Errorf("reply = %q, turns = %v", c.last(), h.turns.seen())
 	}
 }
 
@@ -108,6 +143,12 @@ func TestRegisterRefusesABotAlreadyServed(t *testing.T) {
 		t.Errorf("registering the system bot's token again: %v, want ErrBotInUse", err)
 	}
 	withAssistantBot(t, h)
+	if inUse, err := h.g.BotInUse(ctx, corechannel.PlatformTelegram, "200", ""); err != nil || !inUse {
+		t.Errorf("BotInUse(200) = %v, %v; want the registered assistant bot", inUse, err)
+	}
+	if inUse, _ := h.g.BotInUse(ctx, corechannel.PlatformTelegram, "200", assistantKey); inUse {
+		t.Error("BotInUse counted the bot it was told to except")
+	}
 	if err := h.g.Register(ctx, assistantKey, newFakeConnector("300")); err == nil {
 		t.Error("a key in use was registered again")
 	}
@@ -125,7 +166,7 @@ func TestRegisterRefusesABotAlreadyServed(t *testing.T) {
 func TestDeduplicationIsPerBot(t *testing.T) {
 	h := newHarness(t)
 	h.ids.link(adaID, adaChat)
-	_, b := withAssistantBot(t, h)
+	_, b, fd := withAssistantBot(t, h)
 	in := dm("same id")
 	in.EventID = "7"
 	h.g.accept(h.system(), in)
@@ -133,8 +174,8 @@ func TestDeduplicationIsPerBot(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	h.g.Wait(ctx)
-	if n := len(h.turns.seen()); n != 2 {
-		t.Errorf("turns = %d, want one per bot", n)
+	if len(h.turns.seen()) != 1 || len(fd.seen()) != 1 {
+		t.Errorf("turns = %v, front door = %v; want one message per bot", h.turns.seen(), fd.seen())
 	}
 }
 
@@ -176,7 +217,7 @@ func TestRegisteredBotReceivesUntilUnregistered(t *testing.T) {
 	defer h.g.Stop()
 	waitReceiving(t, h.conn)
 
-	asst, _ := withAssistantBot(t, h)
+	asst, _, _ := withAssistantBot(t, h)
 	waitReceiving(t, asst)
 	want := []string{"channel-connector:telegram:" + assistantKey, "channel-connector:telegram:system"}
 	if got := locker.keys(); !slices.Equal(got, want) {
@@ -184,7 +225,7 @@ func TestRegisteredBotReceivesUntilUnregistered(t *testing.T) {
 	}
 
 	asst.inbox <- dm("through the running assistant bot")
-	waitFor(t, func() bool { return asst.last() == "echo: through the running assistant bot" })
+	waitFor(t, func() bool { return asst.last() == "front: through the running assistant bot" })
 
 	done := make(chan struct{})
 	go func() { h.g.Unregister(assistantKey); close(done) }()

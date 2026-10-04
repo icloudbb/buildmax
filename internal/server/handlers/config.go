@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	assistantsvc "github.com/icloudbb/buildmax/internal/service/assistant"
 	"time"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
@@ -200,6 +201,9 @@ type Config struct {
 	// ChannelLinks serves the account's chat-platform links. Nil means no chat
 	// platform is configured.
 	ChannelLinks accountroutes.ChannelLinks
+	// Assistants serves the Space Assistant routes. Nil reports the feature
+	// off.
+	Assistants *assistantsvc.Service
 
 	// Hub is optional; if nil NewHandler creates an in-memory one. A Redis-backed
 	// hub is injected here when coordination.mode is redis, so the stream a worker

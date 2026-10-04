@@ -626,6 +626,27 @@ disabled one, as tests show, and the Space Assistant front door is the first
 planned user ([Space Assistants](design/space-assistants.md) §6). See the
 [service-account service](../internal/service/space/service_accounts.go).
 
+Space Assistants can be defined and published but do not yet answer questions.
+Owners and admins of a team Space define one under Space settings
+(`/api/spaces/{space_id}/assistants`): instructions, an optional model, a roster
+of Space Agents and published Workflows, each with a release contract (an
+output schema and the top-level fields a requester may see), readable Space
+files, an audience of Space members or all active users, and the service account
+its work runs as, created with the Assistant's name by default. Definitions keep
+append-only revisions. An Assistant starts paused; publishing it, or changing
+what an active one discloses, needs the generated statement of who can ask and
+what it can read and run (including the Secrets those Agents hold) confirmed by
+its digest. An active Assistant also pauses itself while its service account is
+disabled or it lacks a valid sponsor. An Assistant can be bound to its own
+Telegram bot: the token is checked with Telegram, sealed under the deployment
+KEK (rewrapped with the rest), never returned, and refused when the bot is
+already connected, including as the system bot. Every replica keeps the chat
+Gateway's bots in step with the stored bindings. A linked user who messages an
+Assistant's bot is told whether it is paused; answering, release enforcement,
+readable-file reads, escalation, and delivery are not built
+([service](../internal/service/assistant/service.go),
+[design](design/space-assistants.md)).
+
 `buildmax admin` provides authenticated administrator, account, and model-catalog
 operations. `buildmax-server` retains database-direct bootstrap and recovery
 commands. Model credentials are encrypted under the deployment key-encryption

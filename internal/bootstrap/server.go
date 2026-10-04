@@ -164,6 +164,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// server.yaml connects none. The server starts its receivers with the rest
 	// of its background work and stops them first on shutdown.
 	serverConfig.Services.Channels = buildChannelGateway(sc, store, elig, coordBackend)
+	serverConfig.Services.Assistants = buildAssistants(sc, store, serverConfig.Services.Channels, serverConfig.Conv.LLMGateway)
 
 	sched, err := scheduler.NewScheduler(store, runner, runTokenMinter(sc, jwtSecret))
 	if err != nil {

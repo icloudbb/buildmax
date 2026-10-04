@@ -38,6 +38,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	"github.com/icloudbb/buildmax/internal/server/turnqueue"
 	wsconn "github.com/icloudbb/buildmax/internal/server/websocket"
+	assistantsvc "github.com/icloudbb/buildmax/internal/service/assistant"
 	"github.com/icloudbb/buildmax/internal/service/audit"
 	chansvc "github.com/icloudbb/buildmax/internal/service/channel"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
@@ -151,6 +152,9 @@ type ServicesConfig struct {
 	// tests. The server wires its turn runner, reports run outcomes through
 	// it, and starts and stops its receivers.
 	Channels *chansvc.Gateway
+	// Assistants manages Space Assistants and keeps their bots connected to
+	// Channels. Nil leaves the Assistant routes reporting the feature off.
+	Assistants *assistantsvc.Service
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -285,6 +289,9 @@ func New(cfg Config) *Server {
 	s.handlers = handlers.NewHandler(buildHandlersConfig(cfg, s.drain))
 	if gw := cfg.Services.Channels; gw != nil {
 		gw.SetTurns(s.handlers)
+		if a := cfg.Services.Assistants; a != nil {
+			gw.SetFrontDoor(assistantsvc.FrontDoor{Service: a})
+		}
 	}
 
 	publicMux := http.NewServeMux()
@@ -423,6 +430,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		WebhookEngine:            webhookEngine,
 		WebhookMessagePath:       msgPath,
 		ChannelLinks:             channelLinks(cfg.Services.Channels),
+		Assistants:               cfg.Services.Assistants,
 		OnTaskRunTerminal:        buildOnTaskRunTerminal(cfg),
 		Drain:                    drain,
 		Hub:                      cfg.Hub,
@@ -556,6 +564,9 @@ func (s *Server) ListenAndServe() error {
 func (s *Server) StartBackground() {
 	s.handlers.StartBackground()
 	s.cfg.Services.Channels.Start()
+	if a := s.cfg.Services.Assistants; a != nil {
+		a.Bots.Start()
+	}
 }
 
 // StopBackground stops that work and waits for it, bounded by ctx.
@@ -594,6 +605,11 @@ func (s *Server) Draining() bool {
 // without waiting for.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.Drain()
+	// Assistant bots stop being added before the chat receivers stop, so none
+	// is registered behind them.
+	if a := s.cfg.Services.Assistants; a != nil {
+		a.Bots.Stop()
+	}
 	// Chat receivers stop taking messages before turns are waited for; the
 	// replies to turns already running are then waited for like the turns.
 	s.cfg.Services.Channels.Stop()

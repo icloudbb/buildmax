@@ -1324,6 +1324,96 @@ export interface ApiServiceAccount {
   created_at: string
 }
 
+/** Who may ask a Space Assistant: this Space's members, or every active user. */
+export type ApiAssistantAudience = "space_members" | "all_users"
+
+/**
+ * Whether an Assistant answers now, and why not. `paused` is the owner's
+ * pause; the other two pause it automatically because its service account
+ * cannot act or nobody is accountable for it.
+ */
+export type ApiAssistantAvailability = "available" | "paused" | "service_account_disabled" | "needs_sponsor"
+
+/**
+ * One Agent or published Workflow an Assistant may dispatch, with its release
+ * contract: the result shape and which top-level fields may reach a requester.
+ * A Workflow entry takes its schema from its result node, so it carries none.
+ */
+export interface ApiAssistantRosterEntry {
+  kind: "agent" | "workflow"
+  id: string
+  output_schema?: unknown
+  releasable: string[]
+}
+
+/** The whole definition a create or edit proposes; each change is a revision. */
+export interface ApiAssistantDefinition {
+  name: string
+  description: string
+  instructions: string
+  /** Catalog model name, or empty for the deployment default. */
+  model: string
+  roster: ApiAssistantRosterEntry[]
+  /** Space Artifact ids the Assistant may read. */
+  readable_files: string[]
+  audience: ApiAssistantAudience
+  /** Omitted on create to make a same-named service account. */
+  service_account_id?: string
+}
+
+export interface ApiAssistantNamedRef {
+  id: string
+  name: string
+}
+
+export interface ApiAssistantStatementAgent extends ApiAssistantNamedRef {
+  secrets: string[]
+}
+
+/**
+ * What publishing an Assistant discloses: who can ask, what it can read, what
+ * it can run, and the Secrets that work holds. Confirming its digest is how an
+ * owner says they saw exactly this. See docs/design/space-assistants.md §8.
+ */
+export interface ApiAssistantStatement {
+  audience: ApiAssistantAudience
+  readable_files: ApiAssistantNamedRef[]
+  agents: ApiAssistantStatementAgent[]
+  workflows: (ApiAssistantNamedRef & { agents: ApiAssistantStatementAgent[] })[]
+  text: string
+  digest: string
+}
+
+/** An Assistant's bot. The token is never returned. */
+export interface ApiAssistantBinding {
+  platform: string
+  bot_handle: string
+  created_at: string
+}
+
+/** A Space Assistant at its current revision. See docs/design/space-assistants.md §4. */
+export interface ApiAssistant {
+  id: string
+  space_id: string
+  name: string
+  description: string
+  instructions: string
+  model?: string
+  roster: ApiAssistantRosterEntry[]
+  readable_files: string[]
+  audience: ApiAssistantAudience
+  service_account_id: string
+  sponsor_user_id: string
+  state: "active" | "paused"
+  availability: ApiAssistantAvailability
+  revision: number
+  binding?: ApiAssistantBinding
+  statement: ApiAssistantStatement
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
 /**
  * A pending offer of space membership against an account that already
  * exists. Never carries a code -- see docs/design/space-membership-lifecycle.md.

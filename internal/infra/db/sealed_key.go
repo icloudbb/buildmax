@@ -6,11 +6,12 @@ import (
 )
 
 // The rows sealed under the deployment KEK, seen as a whole: which keys they
-// depend on, and moving them to the current key. Two tables hold sealed data.
+// depend on, and moving them to the current key. Three tables hold sealed data.
 // A Space Secret row names its KEK in the plaintext key_id column. A managed
-// model credential keeps its key id inside the sealed blob, the one place it is
-// written; the catalog is operator-curated and small, so reading its blobs costs
-// less than a second copy of the key id that could disagree with the first.
+// model credential and a Space Assistant's bot token keep their key id inside
+// the sealed blob, the one place it is written; both tables are small, so
+// reading their blobs costs less than a second copy of the key id that could
+// disagree with the first.
 // See docs/design/space-secrets.md §9.1.
 
 // rewrapBatch bounds one read of the walk, so a large table is moved without
@@ -60,6 +61,17 @@ func (s *Store) SealedKeyReferences(ctx context.Context, valueKeyID func(blob []
 		keyID, err := valueKeyID(row.APIKeySealed)
 		if err != nil {
 			return fmt.Errorf("llm_model %s: %w", row.PublicID, err)
+		}
+		refs[keyID]++
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = s.eachSealedBotToken(ctx, func(row *assistantBindingRow) error {
+		keyID, err := valueKeyID(row.TokenSealed)
+		if err != nil {
+			return fmt.Errorf("assistant_binding %s: %w", row.PublicID, err)
 		}
 		refs[keyID]++
 		return nil
@@ -125,6 +137,26 @@ func (s *Store) RewrapSealedKeys(ctx context.Context, r KeyRewrapper) (RewrapRes
 			UpdateColumn("api_key_sealed", blob)
 		if upd.Error != nil {
 			return fmt.Errorf("llm_model %s: %w", row.PublicID, upd.Error)
+		}
+		res.tally(from, upd.RowsAffected)
+		return nil
+	})
+	if err != nil {
+		return res, err
+	}
+	err = s.eachSealedBotToken(ctx, func(row *assistantBindingRow) error {
+		blob, from, err := r.RewrapValue(row.TokenSealed)
+		if err != nil {
+			return fmt.Errorf("assistant_binding %s: %w", row.PublicID, err)
+		}
+		if blob == nil {
+			return nil
+		}
+		upd := s.db.WithContext(ctx).Model(&assistantBindingRow{}).
+			Where("id = ? AND token_sealed = ?", row.ID, row.TokenSealed).
+			UpdateColumn("token_sealed", blob)
+		if upd.Error != nil {
+			return fmt.Errorf("assistant_binding %s: %w", row.PublicID, upd.Error)
 		}
 		res.tally(from, upd.RowsAffected)
 		return nil

@@ -779,7 +779,7 @@ Server 决定传输方式和模型；worker 从不自行选择模型，除此之
 
 ### 轮换密钥加密密钥 —— `buildmax-server secret rewrap`
 
-Space Secret 的值和受管模型凭证都由 `secret.kek_file` 所指文件中的密钥加密密钥（KEK）加密。该文件保存一组密钥，并指明新写入使用哪一个：
+Space Secret 的值、受管模型凭证和 Space Assistant 的 bot token 都由 `secret.kek_file` 所指文件中的密钥加密密钥（KEK）加密。该文件保存一组密钥，并指明新写入使用哪一个：
 
 ```json
 {

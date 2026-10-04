@@ -152,6 +152,8 @@ internal/
 │   │                   存储的内容，有别于本地 session
 │   ├── channel/        聊天平台：聊天账号与用户的链接、待确认的配对，
 │   │                   以及平台要实现的 Connector
+│   ├── assistant/      Space Assistant：其定义与修订版本、名册与放行契约、
+│   │                   受众，以及它的 bot 绑定
 │   ├── workflow/       一个 space 可复用的图计划、其修订版本，以及其
 │   │                   执行流经的 run 与 node-run 状态
 │   ├── agentdef/       一个 space 定义的 Agent 及其修订版本——即一个
@@ -190,6 +192,8 @@ internal/
 │   │   └── channel/    规范化的 turn 类型与 channel 适配器（webhook）
 │   ├── channel/        把聊天平台的消息送入 Conversation：配对、授权、
 │   │                   单个聊天内的顺序、接收租约，以及回报给聊天的结果
+│   ├── assistant/      Space Assistant：定义、发布声明、可用性、bot，以及
+│   │                   让它们保持连接
 │   ├── agent/          Agent 定义、其修订版本，以及删除防护
 │   ├── artifact/       一个 space 保留的持久化文件；不知道生产者是谁
 │   ├── llmcatalog/     模型目录接受什么、更改它会记录什么；shell 与

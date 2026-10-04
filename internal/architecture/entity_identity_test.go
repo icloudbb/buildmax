@@ -52,6 +52,7 @@ var opaqueColumns = map[string]string{
 	"channel_identity.external_user_id": "a chat platform's own id for an account",
 	"channel_pairing.external_user_id":  "a chat platform's own id for an account",
 	"channel_pairing.chat_id":           "a chat platform's own id for a conversation",
+	"assistant_binding.bot_id":          "a chat platform's own id for a bot account",
 	"secret.key_id":                     "names the KEK that wrapped this row's DEK, a <backend>:<name>:<version> string, not a reference to a row",
 }
 
