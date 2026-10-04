@@ -8,6 +8,7 @@ import (
 	coreassistant "github.com/icloudbb/buildmax/internal/core/assistant"
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
@@ -229,5 +230,45 @@ func TestAssistantConversationAndProvenance(t *testing.T) {
 	}
 	if got, err := s.GetWorkflowRun(ctx, run.ID); err != nil || got.ConversationID == nil || *got.ConversationID != first.ID {
 		t.Errorf("workflow run = %+v, %v", got, err)
+	}
+}
+
+// An escalated Issue records its conversation and reads back the requester and
+// the Assistant from it; a conversation in another Space is refused.
+func TestEscalatedIssueReadsItsRequester(t *testing.T) {
+	s, ctx := newTestStore(t)
+	owner := newTestUser(t, s, "escowner")
+	requester := newTestUser(t, s, "escrequester")
+	space := newTestSpace(t, s, owner)
+	other := newTestSpace(t, s, owner)
+	a, err := s.CreateAssistant(ctx, space, owner, owner, testAssistantDef("Escalator"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conv, err := s.CreateAssistantConversation(ctx, a.ID, space, requester, "telegram", "bind", "chat-9")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := s.CreateIssueInSpace(ctx, space, owner, coreissue.CreateInput{Title: "Request via Escalator: payslip", ConversationID: conv.ID})
+	if err != nil {
+		t.Fatalf("CreateIssueInSpace: %v", err)
+	}
+	if created.ConversationID != conv.ID {
+		t.Errorf("created = %+v", created)
+	}
+	got, err := s.GetIssue(ctx, created.ID)
+	if err != nil || got.ConversationID != conv.ID || got.RequestedBy != requester || got.AssistantID != a.ID {
+		t.Fatalf("issue = %+v, %v", got, err)
+	}
+	if list, _, err := s.ListIssuesBySpace(ctx, space, coreissue.ListFilter{}, 10, 0); err != nil || len(list) != 1 || list[0].RequestedBy != requester {
+		t.Errorf("listed = %+v, %v", list, err)
+	}
+	plain, _ := s.CreateIssueInSpace(ctx, space, owner, coreissue.CreateInput{Title: "Plain"})
+	if got, _ := s.GetIssue(ctx, plain.ID); got.ConversationID != "" || got.RequestedBy != "" {
+		t.Errorf("plain issue = %+v", got)
+	}
+	if _, err := s.CreateIssueInSpace(ctx, other, owner, coreissue.CreateInput{Title: "Elsewhere", ConversationID: conv.ID}); err == nil {
+		t.Error("an issue linked a conversation from another Space")
 	}
 }

@@ -19,16 +19,17 @@ func (m *MockIssueStore) CreateIssue(_ context.Context, userID string, in coreis
 
 func (m *MockIssueStore) CreateIssueInSpace(_ context.Context, spaceID, createdBy string, in coreissue.CreateInput) (*coreissue.Issue, error) {
 	issue := coreissue.Issue{
-		ID:            fmt.Sprintf("i_mock_%d", len(m.Issues)+1),
-		UserID:        createdBy,
-		SpaceID:       spaceID,
-		ParentIssueID: in.ParentIssueID,
-		Title:         in.Title,
-		Description:   in.Description,
-		Status:        coreissue.StatusTodo,
-		CreatedBy:     createdBy,
-		CreatedAt:     time.Now().UTC(),
-		UpdatedAt:     time.Now().UTC(),
+		ID:             fmt.Sprintf("i_mock_%d", len(m.Issues)+1),
+		UserID:         createdBy,
+		SpaceID:        spaceID,
+		ParentIssueID:  in.ParentIssueID,
+		Title:          in.Title,
+		Description:    in.Description,
+		Status:         coreissue.StatusTodo,
+		ConversationID: in.ConversationID,
+		CreatedBy:      createdBy,
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	}
 	if in.Status != "" {
 		issue.Status = in.Status

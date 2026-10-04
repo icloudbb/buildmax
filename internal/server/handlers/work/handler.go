@@ -47,10 +47,13 @@ type Config struct {
 	Sessions      coreidentity.AuthSessionStore
 	Issues        coreissue.Store
 	IssueComments coreissue.CommentStore
-	Workflows     coreworkflow.Store
-	Tasks         coretask.Store
-	TaskRuns      coretask.RunStore
-	Agents        agentdef.Store
+	// RequesterReplies answers an escalated Issue's requester through its
+	// Space Assistant's bot. Nil reports the route not configured.
+	RequesterReplies RequesterReplier
+	Workflows        coreworkflow.Store
+	Tasks            coretask.Store
+	TaskRuns         coretask.RunStore
+	Agents           agentdef.Store
 	// Schedules confirms a schedule belongs to the space before its tasks are
 	// listed. Nil leaves the schedule-tasks route reporting the feature is off.
 	Schedules     coreschedule.Store
@@ -143,6 +146,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/spaces/{space_id}/issues/{issue_id}", h.patchIssueHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/issues/{issue_id}/comments", h.listIssueCommentsHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/issues/{issue_id}/comments", h.createIssueCommentHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/issues/{issue_id}/requester-replies", h.replyToRequesterHandler)
 	mux.HandleFunc("PATCH /api/spaces/{space_id}/issues/{issue_id}/comments/{comment_id}", h.patchIssueCommentHandler)
 	mux.HandleFunc("DELETE /api/spaces/{space_id}/issues/{issue_id}/comments/{comment_id}", h.deleteIssueCommentHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/issues/{issue_id}/agent-runs", h.createIssueAgentRunHandler)

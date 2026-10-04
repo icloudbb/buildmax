@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -14,9 +15,11 @@ import (
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
+	issuesvc "github.com/icloudbb/buildmax/internal/service/issue"
 )
 
 const outsider = "user_outsider"
@@ -25,6 +28,16 @@ const outsider = "user_outsider"
 // Assistant, requester, platform, and chat, newest first.
 type fakeConversations struct {
 	list []coreconv.Conversation
+}
+
+func (c *fakeConversations) GetConversation(_ context.Context, id string) (*coreconv.Conversation, error) {
+	for i := range c.list {
+		if c.list[i].ID == id {
+			v := c.list[i]
+			return &v, nil
+		}
+	}
+	return nil, nil
 }
 
 func (c *fakeConversations) LatestAssistantConversation(_ context.Context, assistantID, userID, channel, chatID string) (*coreconv.Conversation, error) {
@@ -264,5 +277,90 @@ func TestFrontDoorOutcomeReleasesOnlyContractedFields(t *testing.T) {
 	f.spaces.Members = slices.DeleteFunc(f.spaces.Members, func(m corespace.Member) bool { return m.UserID == member })
 	if _, _, ok := f.door.Outcome(ctx, conv, info); ok {
 		t.Error("reported to a requester outside the audience")
+	}
+}
+
+// fakeIssues serves escalated Issues and keeps the comments recorded on them.
+type fakeIssues struct {
+	issues   map[string]*coreissue.Issue
+	comments []issuesvc.CreateCommentCmd
+}
+
+func (f *fakeIssues) GetIssue(_ context.Context, spaceID, id string) (*coreissue.Issue, error) {
+	if i := f.issues[id]; i != nil && i.SpaceID == spaceID {
+		return i, nil
+	}
+	return nil, issuesvc.ErrIssueNotFound
+}
+
+func (f *fakeIssues) CreateComment(_ context.Context, cmd issuesvc.CreateCommentCmd) (*coreissue.Comment, error) {
+	f.comments = append(f.comments, cmd)
+	return &coreissue.Comment{ID: fmt.Sprintf("c%d", len(f.comments)), IssueID: cmd.IssueID, AuthorKind: cmd.AuthorKind, AuthorID: cmd.AuthorID, Body: cmd.Body}, nil
+}
+
+// A member's reply leaves through the Assistant's bot into the requester's
+// chat and is recorded on the Issue as their comment; nothing is sent or
+// recorded while the Assistant would not answer that requester itself.
+func TestReplyToRequesterSendsThroughTheBotAndRecordsIt(t *testing.T) {
+	f := newFrontDoorFixture(t, coreassistant.AudienceSpaceMembers)
+	ctx := context.Background()
+	f.ask(t, member, "chat-77", "can someone check my payslip?")
+	conv := f.convs.list[0]
+	issues := &fakeIssues{issues: map[string]*coreissue.Issue{
+		"iss_esc":   {ID: "iss_esc", SpaceID: team, ConversationID: conv.ID},
+		"iss_plain": {ID: "iss_plain", SpaceID: team},
+	}}
+	f.door.Issues = issues
+	reply := func(issue, text string) (*coreissue.Comment, error) {
+		return f.door.ReplyToRequester(ctx, ReplyCmd{SpaceID: team, ActorID: admin, IssueID: issue, Text: text})
+	}
+
+	c, err := reply("iss_esc", "  Your payslip is fixed.  ")
+	if err != nil {
+		t.Fatalf("ReplyToRequester: %v", err)
+	}
+	want := "telegram|" + f.view.Binding.ID + "|chat-77|Your payslip is fixed."
+	if len(f.gateway.sent) != 1 || f.gateway.sent[0] != want {
+		t.Errorf("sent = %v, want %q", f.gateway.sent, want)
+	}
+	if c.AuthorID != admin || !strings.Contains(c.Body, "HR Assistant") || !strings.HasSuffix(c.Body, "Your payslip is fixed.") {
+		t.Errorf("comment = %+v", c)
+	}
+
+	// In order: each case's setup stays in place for the ones after it.
+	for _, tc := range []struct {
+		name, issue, text string
+		setup             func()
+		want              error
+	}{
+		{name: "not escalated", issue: "iss_plain", text: "hi", want: ErrNotEscalated},
+		{name: "empty", issue: "iss_esc", text: "  ", want: ErrReplyRequired},
+		{name: "too long", issue: "iss_esc", text: strings.Repeat("x", maxReplyRunes+1), want: ErrReplyTooLong},
+		{name: "other space", issue: "iss_missing", text: "hi", want: issuesvc.ErrIssueNotFound},
+		{name: "send fails", issue: "iss_esc", text: "hi", setup: func() { f.gateway.sendErr = fmt.Errorf("telegram down") }},
+		{name: "requester left", issue: "iss_esc", text: "hi", want: ErrRequesterGone, setup: func() {
+			f.gateway.sendErr = nil
+			f.spaces.Members = slices.DeleteFunc(f.spaces.Members, func(m corespace.Member) bool { return m.UserID == member })
+		}},
+		{name: "paused", issue: "iss_esc", text: "hi", want: ErrAssistantNotAnswer, setup: func() {
+			if _, err := f.svc.SetState(ctx, SetStateCmd{SpaceID: team, ActorID: owner, AssistantID: f.view.Assistant.ID, State: coreassistant.StatePaused}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		if tc.setup != nil {
+			tc.setup()
+		}
+		before := len(issues.comments)
+		_, err := reply(tc.issue, tc.text)
+		if err == nil || (tc.want != nil && !errors.Is(err, tc.want)) {
+			t.Errorf("%s: err = %v, want %v", tc.name, err, tc.want)
+		}
+		if len(issues.comments) != before {
+			t.Errorf("%s: recorded a comment for a reply that was not sent", tc.name)
+		}
+	}
+	if len(f.gateway.sent) != 1 {
+		t.Errorf("sent %d messages, want only the first", len(f.gateway.sent))
 	}
 }

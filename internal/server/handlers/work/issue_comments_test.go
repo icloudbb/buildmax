@@ -24,15 +24,32 @@ const (
 // every test can ask both "does this work" and "does it leak".
 func commentMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore, *mock.MockIssueCommentStore) {
 	t.Helper()
-	issues := &mock.MockIssueStore{
+	issues := commentIssues()
+	comments := &mock.MockIssueCommentStore{}
+	spaces := commentSpaces()
+	h := New(Config{
+		JWTSecret:     commentTestSecret,
+		Spaces:        spaces,
+		Issues:        issues,
+		IssueComments: comments,
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	return mux, issues, comments
+}
+
+func commentIssues() *mock.MockIssueStore {
+	return &mock.MockIssueStore{
 		Issues: []coreissue.Issue{
 			{ID: "i_1", UserID: "u_owner", SpaceID: commentSpace, Title: "Parent", Status: coreissue.StatusTodo},
 			{ID: "i_2", UserID: "u_owner", SpaceID: commentSpace, Title: "Other issue", Status: coreissue.StatusTodo},
 			{ID: "i_far", UserID: "u_stranger", SpaceID: commentOtherSpace, Title: "Theirs", Status: coreissue.StatusTodo},
 		},
 	}
-	comments := &mock.MockIssueCommentStore{}
-	spaces := &mock.MockSpaceStore{
+}
+
+func commentSpaces() *mock.MockSpaceStore {
+	return &mock.MockSpaceStore{
 		Spaces: []corespace.Space{
 			{ID: commentSpace, Name: "Comments", CreatedBy: "u_owner"},
 			{ID: commentOtherSpace, Name: "Other", CreatedBy: "u_stranger"},
@@ -43,15 +60,6 @@ func commentMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore, *mock.MockI
 			{SpaceID: commentOtherSpace, UserID: "u_stranger", Role: corespace.RoleOwner},
 		},
 	}
-	h := New(Config{
-		JWTSecret:     commentTestSecret,
-		Spaces:        spaces,
-		Issues:        issues,
-		IssueComments: comments,
-	})
-	mux := http.NewServeMux()
-	h.Register(mux)
-	return mux, issues, comments
 }
 
 func commentRequest(t *testing.T, mux *http.ServeMux, method, path, userID, body string) *httptest.ResponseRecorder {

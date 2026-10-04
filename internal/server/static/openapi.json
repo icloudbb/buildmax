@@ -462,6 +462,9 @@
           "owner_id": {"type": "string"},
           "executor_kind": {"type": "string"},
           "executor_id": {"type": "string"},
+          "conversation_id": {"type": "string", "description": "Set on an issue a Space Assistant escalated: the chat conversation it came from."},
+          "assistant_id": {"type": "string", "description": "The Space Assistant that escalated this issue."},
+          "requested_by": {"type": "string", "description": "The person who asked the Space Assistant; answer them with requester-replies."},
           "created_by": {"type": "string"},
           "created_at": {"type": "string", "format": "date-time"},
           "updated_at": {"type": "string", "format": "date-time"},
@@ -4621,6 +4624,26 @@
             "description": "Issue not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/issues/{issue_id}/requester-replies": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Reply to an escalated issue's requester",
+        "description": "Sends the text through the Space Assistant's bot to the chat the escalated request came from, and records it as the caller's comment on the issue. Refused (409) while the assistant is paused or cannot answer that requester, or has no bot; 400 when the issue was not escalated by an assistant.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "properties": {"text": {"type": "string", "maxLength": 4000}}, "required": ["text"]}}}
+        },
+        "responses": {
+          "201": {"description": "Sent and recorded", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueComment"}}}},
+          "400": {"description": "Empty or too long, or the issue was not escalated", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "Issue not found in this space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "The assistant cannot answer the requester now", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "503": {"description": "Not delivered, or assistants not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
         }
       }
     },

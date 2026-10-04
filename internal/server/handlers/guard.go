@@ -326,6 +326,14 @@ func (h *Handler) buildArtifactService() *artifactsvc.Service {
 	return svc
 }
 
+// requesterReplies is nil, not a typed nil, without the Assistant front door.
+func (h *Handler) requesterReplies() work.RequesterReplier {
+	if h.cfg.AssistantFrontDoor == nil {
+		return nil
+	}
+	return h.cfg.AssistantFrontDoor
+}
+
 // workHandler builds the work surface from the stores those routes read.
 func (h *Handler) buildWorkHandler() *work.Handler {
 	return work.New(work.Config{
@@ -334,6 +342,7 @@ func (h *Handler) buildWorkHandler() *work.Handler {
 		Sessions:          h.cfg.AuthSessionStore,
 		Issues:            h.cfg.IssueStore,
 		IssueComments:     h.cfg.IssueCommentStore,
+		RequesterReplies:  h.requesterReplies(),
 		Workflows:         h.cfg.WorkflowStore,
 		Tasks:             h.cfg.TaskStore,
 		TaskRuns:          h.cfg.TaskRunStore,
@@ -405,6 +414,9 @@ func (h *Handler) buildConversationService() *conversation.Service {
 	// interface nil rather than holding a typed nil.
 	if files := h.buildArtifactService(); files != nil {
 		svc.Files = files
+	}
+	if h.cfg.IssueStore != nil {
+		svc.Issues = &issuesvc.Service{Issues: h.cfg.IssueStore}
 	}
 	return svc
 }

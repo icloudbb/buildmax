@@ -97,6 +97,8 @@ type turnRunInput struct {
 	Assistant *AssistantTurn
 	// Files backs an Assistant's ListFiles and ReadFile.
 	Files Files
+	// Issues backs an Assistant's Escalate.
+	Issues Issues
 }
 
 // buildConversationTools builds this turn's task tools.

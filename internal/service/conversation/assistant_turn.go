@@ -82,6 +82,7 @@ const assistantToolGuidance = `# Tools
 - RunWorkflow: start a run of one of those workflows, passing input that matches its input_schema.
 - GetWorkflowRun: get the status, and the result once it has finished, of a workflow run started in this conversation.
 - ListFiles / ReadFile: list and read the Space files you may answer from. Prefer them for questions those files answer, before starting work.
+- Escalate: hand a request you cannot answer to a person in the Space, who will reply in this chat.
 
 A result shows only the fields the Space allows you to share; report those and nothing more. The person is told when work you start finishes. Do not expose internal IDs.`
 
@@ -142,6 +143,7 @@ func buildAssistantTools(in turnRunInput, sourceMessageID *string) []llm.Tool {
 		}
 	}
 	tools = append(tools, newAssistantFileTools(in.Files, in.SpaceID, a.ReadableFiles)...)
+	tools = append(tools, newEscalateTool(in.Issues, in)...)
 	if wf := in.WorkflowService; wf != nil && in.SpaceID != "" && len(a.ids(coreassistant.KindWorkflow)) > 0 {
 		tools = append(tools,
 			newListWorkflowsTool(&assistantListWorkflowsRunner{svc: wf, spaceID: in.SpaceID, roster: a.ids(coreassistant.KindWorkflow)}),

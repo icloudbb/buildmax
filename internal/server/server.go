@@ -435,6 +435,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		WebhookMessagePath:       msgPath,
 		ChannelLinks:             channelLinks(cfg.Services.Channels),
 		Assistants:               cfg.Services.Assistants,
+		AssistantFrontDoor:       cfg.Services.AssistantFrontDoor,
 		OnTaskRunTerminal:        buildOnTaskRunTerminal(cfg),
 		Drain:                    drain,
 		Hub:                      cfg.Hub,

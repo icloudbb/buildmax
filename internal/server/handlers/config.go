@@ -204,6 +204,9 @@ type Config struct {
 	// Assistants serves the Space Assistant routes. Nil reports the feature
 	// off.
 	Assistants *assistantsvc.Service
+	// AssistantFrontDoor answers escalated Issues' requesters. Nil reports
+	// that route not configured.
+	AssistantFrontDoor *assistantsvc.FrontDoor
 
 	// Hub is optional; if nil NewHandler creates an in-memory one. A Redis-backed
 	// hub is injected here when coordination.mode is redis, so the stream a worker

@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/icloudbb/buildmax/internal/core/apierr"
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
@@ -572,6 +573,21 @@ func (g *Gateway) duplicateLocked(c bot, eventID string) bool {
 
 // reply sends text to the message's chat, logging rather than returning a
 // failure: there is nobody else to tell.
+// ErrBotNotConnected means no bot is registered under the key on this
+// replica, so nothing can be sent as it.
+var ErrBotNotConnected = apierr.New(apierr.KindConflict, "the bot is not connected")
+
+// Send sends text to a chat as the bot registered under key, for a sender
+// that has to know whether it went: a person answering a requester. Any
+// replica can send as any registered bot.
+func (g *Gateway) Send(ctx context.Context, platform, key, chatID, text string) error {
+	c := g.connector(platform, key)
+	if c == nil {
+		return ErrBotNotConnected
+	}
+	return c.Send(ctx, corechannel.Outbound{ChatID: chatID, Text: text})
+}
+
 func (g *Gateway) reply(ctx context.Context, c corechannel.Connector, chatID, text string) {
 	if text == "" {
 		return
