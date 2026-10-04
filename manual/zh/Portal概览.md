@@ -86,7 +86,8 @@ Space 有三种角色：
   和提问者只能看到名册条目标为可放行的字段，看不到原始输出、错误文本或链接；Agent
   的 task 结束时，对方会在聊天中收到这些字段，失败时则收到一句简短说明。它无法回答
   时会升级：在 space 中创建一个 issue，并告诉对方会有人跟进；成员在该 issue 上用
-  **Reply to requester** 跟进（见[对话与 Issue](对话与Issue.md#issue-详情)）。已暂停的会
+  **Reply to requester** 跟进（见[对话与 Issue](对话与Issue.md#issue-详情)）。schedule
+  也可以通过它把结果发给某人（见[Agent 与 Workflow](Agent与工作流.md#通过-assistant-把结果发给某人)）。已暂停的会
   说明它处于暂停状态。个人 space 不能拥有它们。
 - **Audit** —— 此 space 中所发生事件的记录。
 

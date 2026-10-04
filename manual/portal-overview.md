@@ -100,7 +100,9 @@ Open **Space** from the user menu (owners and admins can change these):
   cannot answer, it escalates: it opens an issue in the space and tells the
   person someone will follow up, which a member does with **Reply to requester**
   on the issue (see [Conversations & issues](portal-issues.md#issue-detail)). A
-  paused one says it is paused. Personal spaces cannot have them.
+  schedule can also send its results to someone through it (see
+  [Agents & workflows](portal-agents-workflows.md#send-results-to-a-person-through-an-assistant)).
+  A paused one says it is paused. Personal spaces cannot have them.
 - **Audit** — a record of what happened in the space.
 
 ## How models are chosen
