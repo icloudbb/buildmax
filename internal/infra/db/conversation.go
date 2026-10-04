@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreassistant "github.com/icloudbb/buildmax/internal/core/assistant"
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 
 	"github.com/icloudbb/buildmax/internal/util"
@@ -129,7 +130,8 @@ func (s *Store) CreateAssistantConversation(ctx context.Context, assistantID, sp
 }
 
 // LatestAssistantConversation returns the requester's newest conversation with
-// an Assistant in one chat, or (nil, nil).
+// an Assistant in one chat, or (nil, nil). An empty channel or channelRef
+// matches any.
 func (s *Store) LatestAssistantConversation(ctx context.Context, assistantID, userID, channel, channelRef string) (*coreconv.Conversation, error) {
 	assistantKey, err := lookupKey(ctx, s.db, "assistant", assistantID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -145,9 +147,16 @@ func (s *Store) LatestAssistantConversation(ctx context.Context, assistantID, us
 	if err != nil {
 		return nil, err
 	}
+	q := s.conversationSelect(ctx).
+		Where("conversation.assistant_id = ? AND conversation.user_id = ?", assistantKey, userKey)
+	if channel != "" {
+		q = q.Where("conversation.channel = ?", channel)
+	}
+	if channelRef != "" {
+		q = q.Where("conversation.channel_ref = ?", channelRef)
+	}
 	var c conversationReadRow
-	err = s.conversationSelect(ctx).
-		Where("conversation.assistant_id = ? AND conversation.user_id = ? AND conversation.channel = ? AND conversation.channel_ref = ?", assistantKey, userKey, channel, channelRef).
+	err = q.
 		Order("conversation.created_at DESC").Order("conversation.id DESC").
 		Take(&c).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -307,4 +316,36 @@ func (s *Store) UpdateConversationTitle(ctx context.Context, conversationID, tit
 	return s.db.WithContext(ctx).Model(&conversationRow{}).
 		Where("public_id = ?", id).
 		Update("title", title).Error
+}
+
+// ListAssistantRequesters returns the people who have a conversation with an
+// Assistant, the one most recently started first, capped at limit.
+func (s *Store) ListAssistantRequesters(ctx context.Context, assistantID string, limit int) ([]coreassistant.Requester, error) {
+	limit, _ = capPage(limit, 0)
+	assistantKey, err := lookupKey(ctx, s.db, "assistant", assistantID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		UserID string
+		Name   string
+		LastAt time.Time
+	}
+	err = s.db.WithContext(ctx).Table("conversation").
+		Select("u.public_id AS user_id, u.name AS name, MAX(conversation.created_at) AS last_at").
+		Joins("INNER JOIN `user` u ON u.id = conversation.user_id").
+		Where("conversation.assistant_id = ?", assistantKey).
+		Group("u.public_id, u.name").Order("last_at DESC").Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]coreassistant.Requester, len(rows))
+	for i, r := range rows {
+		out[i] = coreassistant.Requester{UserID: r.UserID, Name: r.Name, LastConversationAt: r.LastAt}
+	}
+	return out, nil
 }

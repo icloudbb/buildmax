@@ -11,7 +11,8 @@ import (
 
 // MockScheduleStore is an in-memory coreschedule.Store for tests.
 type MockScheduleStore struct {
-	Schedules []coreschedule.Schedule
+	Schedules  []coreschedule.Schedule
+	Deliveries []coreschedule.FireDelivery
 }
 
 func (m *MockScheduleStore) CreateSchedule(_ context.Context, in *coreschedule.CreateInput) (*coreschedule.Schedule, error) {
@@ -28,6 +29,7 @@ func (m *MockScheduleStore) CreateSchedule(_ context.Context, in *coreschedule.C
 		Timezone:     in.Timezone,
 		Enabled:      in.Enabled,
 		NextFireAt:   in.NextFireAt,
+		Delivery:     in.Delivery,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -90,6 +92,12 @@ func (m *MockScheduleStore) UpdateSchedule(_ context.Context, in coreschedule.Up
 		}
 		if in.NextFireAt != nil {
 			m.Schedules[i].NextFireAt = *in.NextFireAt
+		}
+		if in.Delivery != nil {
+			m.Schedules[i].Delivery = in.Delivery
+			if in.Delivery.AssistantID == "" {
+				m.Schedules[i].Delivery = nil
+			}
 		}
 		m.Schedules[i].UpdatedAt = time.Now().UTC()
 		return &m.Schedules[i], nil
@@ -157,7 +165,63 @@ func (m *MockScheduleStore) RecordFire(_ context.Context, in coreschedule.Record
 		if in.Failed {
 			m.Schedules[i].ConsecutiveFailures++
 		}
+		if !in.Failed && in.FireRef != nil && m.Schedules[i].Delivery != nil {
+			m.Deliveries = append(m.Deliveries, coreschedule.FireDelivery{
+				ID: fmt.Sprintf("sdl_%d", len(m.Deliveries)+1), ScheduleID: in.ScheduleID,
+				FireRef: *in.FireRef, Status: coreschedule.DeliveryPending, CreatedAt: firedAt,
+			})
+		}
 		return nil
 	}
 	return apierr.ErrNotFound
+}
+
+func (m *MockScheduleStore) ListPendingDeliveries(_ context.Context, limit int) ([]coreschedule.FireDelivery, error) {
+	var out []coreschedule.FireDelivery
+	for _, d := range m.Deliveries {
+		if d.Status == coreschedule.DeliveryPending {
+			out = append(out, d)
+			if limit > 0 && len(out) >= limit {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func (m *MockScheduleStore) SettleDelivery(_ context.Context, in coreschedule.SettleDeliveryInput) (bool, error) {
+	for i := range m.Deliveries {
+		if m.Deliveries[i].ID != in.DeliveryID {
+			continue
+		}
+		from := in.From
+		if from == "" {
+			from = coreschedule.DeliveryPending
+		}
+		if m.Deliveries[i].Status != from {
+			return false, nil
+		}
+		settled := in.SettledAt
+		m.Deliveries[i].Status, m.Deliveries[i].Reason, m.Deliveries[i].SettledAt = in.Status, in.Reason, &settled
+		return true, nil
+	}
+	return false, nil
+}
+
+func (m *MockScheduleStore) ListDeliveriesBySchedule(_ context.Context, scheduleID string, limit, offset int) ([]coreschedule.FireDelivery, int, error) {
+	var all []coreschedule.FireDelivery
+	for i := len(m.Deliveries) - 1; i >= 0; i-- {
+		if m.Deliveries[i].ScheduleID == scheduleID {
+			all = append(all, m.Deliveries[i])
+		}
+	}
+	total := len(all)
+	if offset >= total {
+		return nil, total, nil
+	}
+	end := total
+	if limit > 0 && offset+limit < end {
+		end = offset + limit
+	}
+	return all[offset:end], total, nil
 }

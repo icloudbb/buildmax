@@ -39,13 +39,55 @@ type scheduleRow struct {
 	// LastFireRef is the opaque public id the last firing produced (a task id for
 	// an agent schedule, a workflow-run id for a workflow schedule), stored
 	// directly like executor_id rather than joined.
-	LastFireRef         *string   `gorm:"column:last_fire_ref;type:varchar(64)"`
-	ConsecutiveFailures int       `gorm:"column:consecutive_failures;not null"`
+	LastFireRef         *string `gorm:"column:last_fire_ref;type:varchar(64)"`
+	ConsecutiveFailures int     `gorm:"column:consecutive_failures;not null"`
+	// The delivery target: the Assistant and the person its result is sent
+	// to. NULL assistant means no delivery.
+	DeliveryAssistantID *uint64   `gorm:"column:delivery_assistant_id"`
+	DeliveryRequesterID *uint64   `gorm:"column:delivery_requester_id"`
 	CreatedAt           time.Time `gorm:"autoCreateTime;index:idx_schedule_space_created,priority:2"`
 	UpdatedAt           time.Time `gorm:"autoUpdateTime"`
 }
 
 func (scheduleRow) TableName() string { return "schedule" }
+
+// scheduleDeliveryRow is one firing's delivery through an Assistant. The
+// pending index serves the sweeper's one query; the schedule index serves the
+// run history.
+type scheduleDeliveryRow struct {
+	ID         uint64     `gorm:"primaryKey;autoIncrement;index:idx_schedule_delivery_pending,priority:2;index:idx_schedule_delivery_schedule,priority:2"`
+	PublicID   string     `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_schedule_delivery_public_id;not null"`
+	ScheduleID uint64     `gorm:"column:schedule_id;not null;index:idx_schedule_delivery_schedule,priority:1"`
+	FireRef    string     `gorm:"column:fire_ref;type:varchar(64);not null"`
+	Status     string     `gorm:"type:varchar(16);not null;index:idx_schedule_delivery_pending,priority:1"`
+	Reason     string     `gorm:"type:varchar(32);not null;default:''"`
+	CreatedAt  time.Time  `gorm:"autoCreateTime"`
+	SettledAt  *time.Time `gorm:"column:settled_at"`
+}
+
+func (scheduleDeliveryRow) TableName() string { return "schedule_delivery" }
+
+type scheduleDeliveryReadRow struct {
+	Row              scheduleDeliveryRow `gorm:"embedded"`
+	SchedulePublicID string              `gorm:"column:schedule_public_id"`
+}
+
+func (s *Store) scheduleDeliverySelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&scheduleDeliveryRow{}).
+		Select("schedule_delivery.*, sc.public_id AS schedule_public_id").
+		Joins("INNER JOIN schedule sc ON sc.id = schedule_delivery.schedule_id")
+}
+
+func toFireDeliveries(rows []scheduleDeliveryReadRow) []coreschedule.FireDelivery {
+	out := make([]coreschedule.FireDelivery, len(rows))
+	for i, r := range rows {
+		out[i] = coreschedule.FireDelivery{
+			ID: r.Row.PublicID, ScheduleID: r.SchedulePublicID, FireRef: r.Row.FireRef,
+			Status: r.Row.Status, Reason: r.Row.Reason, CreatedAt: r.Row.CreatedAt, SettledAt: r.Row.SettledAt,
+		}
+	}
+	return out
+}
 
 // scheduleReadRow is the row plus the handles its converted references resolve
 // to. The executor and the last-fire reference are opaque public-id columns
@@ -54,6 +96,10 @@ type scheduleReadRow struct {
 	Row               scheduleRow `gorm:"embedded"`
 	SpacePublicID     string      `gorm:"column:space_public_id"`
 	CreatedByPublicID string      `gorm:"column:created_by_public_id"`
+	// NULL when the schedule has no delivery target, or its Assistant was
+	// deleted since.
+	DeliveryAssistantPublicID *string `gorm:"column:delivery_assistant_public_id"`
+	DeliveryRequesterPublicID *string `gorm:"column:delivery_requester_public_id"`
 }
 
 // scheduleSelect is the one place a schedule read's join set is written down, so
@@ -61,16 +107,32 @@ type scheduleReadRow struct {
 // is a primary-key lookup, which keeps a listing one query.
 func (s *Store) scheduleSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&scheduleRow{}).
-		Select("schedule.*, sp.public_id AS space_public_id, cb.public_id AS created_by_public_id").
+		Select("schedule.*, sp.public_id AS space_public_id, cb.public_id AS created_by_public_id, " +
+			"da.public_id AS delivery_assistant_public_id, dr.public_id AS delivery_requester_public_id").
 		Joins("INNER JOIN space sp ON sp.id = schedule.space_id").
-		Joins("INNER JOIN `user` cb ON cb.id = schedule.created_by")
+		Joins("INNER JOIN `user` cb ON cb.id = schedule.created_by").
+		Joins("LEFT JOIN assistant da ON da.id = schedule.delivery_assistant_id").
+		Joins("LEFT JOIN `user` dr ON dr.id = schedule.delivery_requester_id")
 }
 
 func toSchedule(row *scheduleReadRow) *coreschedule.Schedule {
 	if row == nil {
 		return nil
 	}
+	// A target whose Assistant is gone keeps an empty id, so its deliveries
+	// are skipped for that reason rather than for having no target.
+	var delivery *coreschedule.Delivery
+	if row.Row.DeliveryAssistantID != nil {
+		delivery = &coreschedule.Delivery{}
+		if row.DeliveryAssistantPublicID != nil {
+			delivery.AssistantID = *row.DeliveryAssistantPublicID
+		}
+		if row.DeliveryRequesterPublicID != nil {
+			delivery.RequesterID = *row.DeliveryRequesterPublicID
+		}
+	}
 	return &coreschedule.Schedule{
+		Delivery:            delivery,
 		ID:                  row.Row.PublicID,
 		SpaceID:             row.SpacePublicID,
 		ExecutorKind:        row.Row.ExecutorKind,
@@ -116,6 +178,13 @@ func (s *Store) CreateSchedule(ctx context.Context, in *coreschedule.CreateInput
 		NextFireAt:   in.NextFireAt.UTC(),
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if in.Delivery != nil {
+			assistantKey, requesterKey, err := deliveryKeys(ctx, tx, *in.Delivery)
+			if err != nil {
+				return err
+			}
+			row.DeliveryAssistantID, row.DeliveryRequesterID = assistantKey, requesterKey
+		}
 		spaceKey, err := lookupKey(ctx, tx, "space", in.SpaceID)
 		if err != nil {
 			return err
@@ -209,6 +278,14 @@ func (s *Store) UpdateSchedule(ctx context.Context, in coreschedule.UpdateInput)
 	if in.NextFireAt != nil {
 		updates["next_fire_at"] = in.NextFireAt.UTC()
 	}
+	if in.Delivery != nil {
+		assistantKey, requesterKey, err := deliveryKeys(ctx, s.db, *in.Delivery)
+		if err != nil {
+			return nil, err
+		}
+		updates["delivery_assistant_id"] = assistantKey
+		updates["delivery_requester_id"] = requesterKey
+	}
 	if len(updates) > 0 {
 		res := s.db.WithContext(ctx).Model(&scheduleRow{}).Where("public_id = ?", id).Updates(updates)
 		if res.Error != nil {
@@ -225,21 +302,27 @@ func (s *Store) UpdateSchedule(ctx context.Context, in coreschedule.UpdateInput)
 	return schedule, nil
 }
 
-// DeleteSchedule removes a schedule. Tasks it already created are independent
-// history and are not touched. It reports ErrNotFound when the id names no row.
+// DeleteSchedule removes a schedule and its deliveries. Tasks it already
+// created are independent history and are not touched. It reports ErrNotFound
+// when the id names no row.
 func (s *Store) DeleteSchedule(ctx context.Context, scheduleID string) error {
 	id, ok := util.CanonicalPublicID(scheduleID)
 	if !ok {
 		return apierr.ErrNotFound
 	}
-	res := s.db.WithContext(ctx).Where("public_id = ?", id).Delete(&scheduleRow{})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return apierr.ErrNotFound
-	}
-	return nil
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row scheduleRow
+		if err := tx.Select("id").Where("public_id = ?", id).Take(&row).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return apierr.ErrNotFound
+			}
+			return err
+		}
+		if err := tx.Where("schedule_id = ?", row.ID).Delete(&scheduleDeliveryRow{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&scheduleRow{}, row.ID).Error
+	})
 }
 
 // DueSchedules returns enabled schedules whose next_fire_at is at or before now,
@@ -301,14 +384,94 @@ func (s *Store) RecordFire(ctx context.Context, in coreschedule.RecordFireInput)
 	if in.FireRef != nil {
 		updates["last_fire_ref"] = *in.FireRef
 	}
-	res := s.db.WithContext(ctx).Model(&scheduleRow{}).Where("public_id = ?", id).Updates(updates)
+	// The pending delivery commits with the fire, so a firing that started its
+	// executor on a delivering schedule cannot go unreported by a crash between.
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&scheduleRow{}).Where("public_id = ?", id).Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return apierr.ErrNotFound
+		}
+		if in.Failed || in.FireRef == nil {
+			return nil
+		}
+		var row scheduleRow
+		if err := tx.Select("id", "delivery_assistant_id").Where("public_id = ?", id).Take(&row).Error; err != nil {
+			return err
+		}
+		if row.DeliveryAssistantID == nil {
+			return nil
+		}
+		delivery := &scheduleDeliveryRow{ScheduleID: row.ID, FireRef: *in.FireRef, Status: coreschedule.DeliveryPending}
+		return createWithPublicID(ctx, tx, "uq_schedule_delivery_public_id",
+			func(id string) { delivery.PublicID = id }, delivery)
+	})
+}
+
+// deliveryKeys resolves a delivery target to its row keys; an empty Assistant
+// is no target, both nil.
+func deliveryKeys(ctx context.Context, tx *gorm.DB, d coreschedule.Delivery) (assistantKey, requesterKey *uint64, err error) {
+	if d.AssistantID == "" {
+		return nil, nil, nil
+	}
+	a, err := lookupKey(ctx, tx, "assistant", d.AssistantID)
+	if err != nil {
+		return nil, nil, err
+	}
+	r, err := lookupKey(ctx, tx, "user", d.RequesterID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &a, &r, nil
+}
+
+// ListPendingDeliveries returns pending deliveries across Spaces, oldest first.
+func (s *Store) ListPendingDeliveries(ctx context.Context, limit int) ([]coreschedule.FireDelivery, error) {
+	limit, _ = capPage(limit, 0)
+	var rows []scheduleDeliveryReadRow
+	err := s.scheduleDeliverySelect(ctx).
+		Where("schedule_delivery.status = ?", coreschedule.DeliveryPending).
+		Order("schedule_delivery.id ASC").Limit(limit).Find(&rows).Error
+	return toFireDeliveries(rows), err
+}
+
+// SettleDelivery settles a delivery only while it is still in in.From, so of
+// two replicas reaching one, exactly one sends.
+func (s *Store) SettleDelivery(ctx context.Context, in coreschedule.SettleDeliveryInput) (bool, error) {
+	id, ok := util.CanonicalPublicID(in.DeliveryID)
+	if !ok {
+		return false, nil
+	}
+	from := in.From
+	if from == "" {
+		from = coreschedule.DeliveryPending
+	}
+	res := s.db.WithContext(ctx).Model(&scheduleDeliveryRow{}).
+		Where("public_id = ? AND status = ?", id, from).
+		Updates(map[string]any{"status": in.Status, "reason": in.Reason, "settled_at": in.SettledAt.UTC()})
 	if res.Error != nil {
-		return res.Error
+		return false, res.Error
 	}
-	if res.RowsAffected == 0 {
-		return apierr.ErrNotFound
+	return res.RowsAffected == 1, nil
+}
+
+// ListDeliveriesBySchedule returns a schedule's deliveries newest first.
+func (s *Store) ListDeliveriesBySchedule(ctx context.Context, scheduleID string, limit, offset int) ([]coreschedule.FireDelivery, int, error) {
+	limit, offset = clampPage(limit, offset)
+	id, ok := util.CanonicalPublicID(scheduleID)
+	if !ok {
+		return nil, 0, nil
 	}
-	return nil
+	var total int64
+	if err := s.scheduleDeliverySelect(ctx).Where("sc.public_id = ?", id).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []scheduleDeliveryReadRow
+	err := s.scheduleDeliverySelect(ctx).Where("sc.public_id = ?", id).
+		Order("schedule_delivery.id DESC").Limit(limit).Offset(offset).Find(&rows).Error
+	return toFireDeliveries(rows), int(total), err
 }
 
 // foldScheduleOutcome folds the terminal outcome of what a firing started into

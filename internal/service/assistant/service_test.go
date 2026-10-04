@@ -296,6 +296,14 @@ type fakeGateway struct {
 	system     string
 	sent       []string
 	sendErr    error
+	// unreachable lists users whose chat link is gone or inactive.
+	unreachable map[string]bool
+}
+
+func (g *fakeGateway) Reachable(_ context.Context, userID, _ string) (bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return !g.unreachable[userID], nil
 }
 
 func (g *fakeGateway) Send(_ context.Context, platform, key, chatID, text string) error {

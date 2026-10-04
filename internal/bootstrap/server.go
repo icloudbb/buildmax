@@ -170,7 +170,8 @@ func RunServer(ctx context.Context, portOverride int) error {
 	if a := serverConfig.Services.Assistants; a != nil {
 		serverConfig.Services.AssistantFrontDoor = &assistantsvc.FrontDoor{
 			Service: a, Conversations: store, Tasks: store, Eligibility: elig,
-			Issues: &issuesvc.Service{Issues: store, Comments: store},
+			Issues:    &issuesvc.Service{Issues: store, Comments: store},
+			Schedules: store, Runs: store,
 		}
 	}
 
@@ -253,7 +254,18 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// owner removed from the Space, pauses rather than starting work that would only
 	// fail. WithWorkflows so a workflow schedule fires a run through the same service
 	// the API and recovery loop use.
-	dispatcher.WithEligibility(elig).WithWorkflows(workflowSvc).Start()
+	dispatcher.WithEligibility(elig).WithWorkflows(workflowSvc)
+	// A schedule that delivers through an Assistant fires its Agent under the
+	// roster entry's output schema, so the result has fields to release.
+	var deliveries *scheduler.DeliverySweeper
+	if f := serverConfig.Services.AssistantFrontDoor; f != nil {
+		dispatcher.WithDeliveryContracts(f)
+		// Sends each delivering firing's result once its run ends, from
+		// durable state, so it survives a restart between the two.
+		deliveries = scheduler.NewDeliverySweeper(f, 0)
+	}
+	dispatcher.Start()
+	deliveries.Start()
 
 	// Recovers Workflow runs stranded by a lost terminal callback or a Server
 	// restart: each sweep reconciles due runs from durable state. Every replica
@@ -284,7 +296,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	case err := <-serveErr:
 		// The listener failed before any signal — a taken port, a bad address.
 		// Nothing has started serving, so there is nothing to drain.
-		shutdownServer(context.Background(), targetsFor(s, sched, dispatcher, cleaner, reaper, remoteReaper, eligibilityReconciler, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
+		shutdownServer(context.Background(), targetsFor(s, sched, dispatcher, cleaner, reaper, remoteReaper, eligibilityReconciler, retainer, traceRetainer, artifacts, checkpoints, recovery, deliveries), budget)
 		return err
 	case <-signalCtx.Done():
 	}
@@ -294,7 +306,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// handler that is already running one.
 	stopSignals()
 	slog.Info("shutdown requested", "grace", sc.ShutdownGrace)
-	shutdownServer(ctx, targetsFor(s, sched, dispatcher, cleaner, reaper, remoteReaper, eligibilityReconciler, retainer, traceRetainer, artifacts, checkpoints, recovery), budget)
+	shutdownServer(ctx, targetsFor(s, sched, dispatcher, cleaner, reaper, remoteReaper, eligibilityReconciler, retainer, traceRetainer, artifacts, checkpoints, recovery, deliveries), budget)
 
 	slog.Info("server stopped")
 	return <-serveErr
@@ -329,7 +341,7 @@ type shutdownTargets struct {
 }
 
 // targetsFor names what RunServer started in the order the ladder stops it.
-func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *scheduler.ScheduleDispatcher, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, remoteReaper *scheduler.RemoteSessionReaper, eligibilityReconciler *scheduler.EligibilityReconciler, retainer *scheduler.AuditRetainer, traceRetainer *scheduler.TraceRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper, recovery *scheduler.WorkflowRecoveryLoop) shutdownTargets {
+func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *scheduler.ScheduleDispatcher, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, remoteReaper *scheduler.RemoteSessionReaper, eligibilityReconciler *scheduler.EligibilityReconciler, retainer *scheduler.AuditRetainer, traceRetainer *scheduler.TraceRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper, recovery *scheduler.WorkflowRecoveryLoop, deliveries *scheduler.DeliverySweeper) shutdownTargets {
 	return shutdownTargets{
 		server:    s,
 		scheduler: namedStop{name: "scheduler", stop: func(ctx context.Context) { sched.Stop(ctx) }},
@@ -342,6 +354,7 @@ func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, dispatcher *sc
 			// so it is quieted before the sweeps rather than left advancing runs
 			// into a draining server.
 			{name: "workflow recovery", stop: ignoringContext(recovery.Stop)},
+			{name: "schedule delivery", stop: ignoringContext(deliveries.Stop)},
 			{name: "checkpoint orphan sweeper", stop: ignoringContext(checkpoints.Stop)},
 			{name: "audit retainer", stop: ignoringContext(retainer.Stop)},
 			{name: "trace retainer", stop: ignoringContext(traceRetainer.Stop)},

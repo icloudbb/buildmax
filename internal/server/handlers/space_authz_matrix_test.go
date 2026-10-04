@@ -79,6 +79,7 @@ var spaceRoutes = []authzCase{
 	{"GET", "/api/spaces/{space_id}/schedules/{schedule_id}", corespace.RoleMember, false},
 	{"PATCH", "/api/spaces/{space_id}/schedules/{schedule_id}", corespace.RoleMember, false},
 	{"DELETE", "/api/spaces/{space_id}/schedules/{schedule_id}", corespace.RoleMember, false},
+	{"GET", "/api/spaces/{space_id}/schedules/{schedule_id}/deliveries", corespace.RoleMember, false},
 
 	// Reading what a space activated answers "why did this run have this
 	// plugin", which is any member's question. Changing an activation is the
@@ -128,6 +129,7 @@ var spaceRoutes = []authzCase{
 	{"PUT", "/api/spaces/{space_id}/assistants/{assistant_id}/state", corespace.RoleAdmin, false},
 	{"PUT", "/api/spaces/{space_id}/assistants/{assistant_id}/binding", corespace.RoleAdmin, false},
 	{"DELETE", "/api/spaces/{space_id}/assistants/{assistant_id}/binding", corespace.RoleAdmin, false},
+	{"GET", "/api/spaces/{space_id}/assistants/{assistant_id}/requesters", corespace.RoleAdmin, false},
 
 	// Invitation is the one membership action admin holds, at member role
 	// only -- see docs/design/space-membership-lifecycle.md §5.1 and §7. That

@@ -43,7 +43,7 @@ func (c *fakeConversations) GetConversation(_ context.Context, id string) (*core
 func (c *fakeConversations) LatestAssistantConversation(_ context.Context, assistantID, userID, channel, chatID string) (*coreconv.Conversation, error) {
 	for i := len(c.list) - 1; i >= 0; i-- {
 		v := c.list[i]
-		if v.AssistantID == assistantID && v.UserID == userID && v.Channel == channel && v.ChannelRef == chatID {
+		if v.AssistantID == assistantID && v.UserID == userID && (channel == "" || v.Channel == channel) && (chatID == "" || v.ChannelRef == chatID) {
 			return &v, nil
 		}
 	}
@@ -57,6 +57,18 @@ func (c *fakeConversations) CreateAssistantConversation(_ context.Context, assis
 	}
 	c.list = append(c.list, v)
 	return &v, nil
+}
+
+func (c *fakeConversations) ListAssistantRequesters(_ context.Context, assistantID string, _ int) ([]coreassistant.Requester, error) {
+	var out []coreassistant.Requester
+	seen := map[string]bool{}
+	for i := len(c.list) - 1; i >= 0; i-- {
+		if v := c.list[i]; v.AssistantID == assistantID && !seen[v.UserID] {
+			seen[v.UserID] = true
+			out = append(out, coreassistant.Requester{UserID: v.UserID})
+		}
+	}
+	return out, nil
 }
 
 type turnCall struct {
