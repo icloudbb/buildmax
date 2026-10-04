@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/space-assistants.md#8-disclosure-boundary
 depends_on: [66-assistant-front-door-turn.md]
 verification: ["./make test", "./make check docs"]
-claim:
+claim: gougoujiang 2026-10-04
 pr:
 ---
 
