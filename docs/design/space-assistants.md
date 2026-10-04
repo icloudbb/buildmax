@@ -5,8 +5,9 @@
 > **Audience:** contributors, product designers, and operators · **Status:**
 > accepted — in progress: the many-bot Gateway (§9), service accounts (§6),
 > the Assistant entity, its bot binding, and the publish statement (§4, §8),
-> the front-door turn (§10), and release contracts with outcome reports (§8,
-> §11) are built; readable files, escalation, and delivery are not
+> the front-door turn with its readable-file tools (§10), and release
+> contracts with outcome reports (§8, §11) are built; escalation and delivery
+> are not
 >
 > This record decides how a Space publishes **Assistants**: conversational
 > service front doors that answer people outside the Space's own work, dispatch
@@ -382,8 +383,9 @@ The turn reuses the Tier 1 runtime with an Assistant profile:
   `UserID` serves both purposes; the turn input gains a separate acting user.
 - **Tools.** StartTask and the Workflow tools limited to the roster; ListTasks,
   GetTask, GetWorkflowRun limited to this conversation and returning releasable
-  fields only; a read tool over the readable files (list and read, text media
-  types, bounded size); Escalate (§11). No ListSpaces, and no `/space` command.
+  fields only; ListFiles and ReadFile over the readable files (text media types
+  only, 128 KiB per file and 384 KiB per turn, and one refusal for every id off
+  the allowlist, so nothing is learned of files elsewhere); Escalate (§11). No ListSpaces, and no `/space` command.
 - **Commands.** `/new` starts a new conversation with the same Assistant;
   `/help` shows the Assistant's description and operating Space.
 - **Revision.** Each stored message records the Assistant revision that produced
@@ -467,7 +469,7 @@ Each slice is a backlog task, in order:
 4. Assistant front-door turn (§7.2, §7.3, §10) — built.
 5. Release contracts and Assistant outcome reports (§8, §11) — built; Workflow
    runs an Assistant starts are read through GetWorkflowRun but not reported.
-6. [Readable files tool](../backlog/70-assistant-readable-files.md) (§8, §10).
+6. Readable files tool (§8, §10) — built.
 7. [Escalation to an Issue](../backlog/72-assistant-escalation.md) (§11).
 8. [Schedule delivery through an Assistant](../backlog/74-assistant-schedule-delivery.md) (§11).
 9. [Validation run](../backlog/76-space-assistant-validation.md): measure answer
