@@ -194,10 +194,9 @@ operating window that closed on 2026-10-04, and found no product defect and no
 failed item. The project owner waived the non-author operator journey and
 database password rotation.
 
-**Next:** bring the paired-restore time within its target or change the
-target, add disk and bucket monitoring for keep-forever retention, publish the
-evidence where the release space can read it, and resolve the partial rows in
-the [Beta readiness record](deploy/beta-readiness.md).
+**Next:** add disk and bucket monitoring for keep-forever retention, publish
+the evidence where the release space can read it, and resolve the partial rows
+in the [Beta readiness record](deploy/beta-readiness.md).
 Fix only gaps that the journey demonstrates. A 2026-09-28 operator drill showed the diagnosis
 journey could not detect stalled or failing work from Administration; runtime
 operations metadata

@@ -559,12 +559,11 @@ next is evidence that the topology can be operated. The required exercises and
 their evidence live in the [Beta readiness record](../deploy/beta-readiness.md),
 which holds the 2026-10-03 exercise of v0.2.0-alpha.22 on DigitalOcean:
 
-6. What availability and recovery targets are realistic for the first Beta? The
-   deployment reference states a recovery *procedure* — restore from backup,
-   redeploy the previous image tag — without stating an objective it meets.
-   The readiness record now sets RPO to the last database snapshot and RTO to
-   10 minutes to the first Artifact with a matching checksum; the alpha.22
-   exercise measured 632s, over that target, so the target stays open.
+6. ~~What availability and recovery targets are realistic for the first
+   Beta?~~ **Decided:** RPO is the last database snapshot and RTO is 15
+   minutes to the first Artifact with a matching checksum, recorded in the
+   readiness record. The alpha.22 restore measured 632s; the target was raised
+   from 10 minutes because restore time grows with the bucket.
 7. ~~Has a restore actually been exercised?~~ **Exercised on v0.2.0-alpha.22:**
    the database and bucket were restored together into an empty environment;
    every row from before the recovery point came back, `storage verify

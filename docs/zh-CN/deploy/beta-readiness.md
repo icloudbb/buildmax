@@ -67,7 +67,7 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 | 当前 KEK id | `file:root:4`，在 Q6 中轮换；rewrap 之后没有任何行仍使用旧 key |
 | Trace、audit、Artifact 和 checkpoint 保留策略 | 审计和 trace 永久保留；已删除 Artifact 的字节由每小时清理回收；checkpoint 孤儿每小时清理；已完成的 Worker Job 1 小时后删除 |
 | 预期用户数、Space 数和并发 Run 数 | 21 个账号，14 个共享 Space 加个人 Space，一分钟内最多启动 6 个 Worker Job |
-| 目标 RPO 和 RTO | RPO：最近一次 `mysqldump --single-transaction` 快照；RTO：10 分钟内得到校验和一致的第一个 Artifact（实测 632 秒，超出目标） |
+| 目标 RPO 和 RTO | RPO：最近一次 `mysqldump --single-transaction` 快照；RTO：15 分钟内得到校验和一致的第一个 Artifact（实测 632 秒）。项目负责人于 2026-10-04 将目标从 10 分钟放宽：恢复时间随 bucket 规模增长（alpha.18 上 1522 个对象用 237 秒，alpha.22 上 8416 个对象用 632 秒），且演练是从操作人员的机器复制对象，而不是在云厂商内部复制 |
 | 已脱敏的配置快照 | 渲染后的 `server.yaml` 随本地证据包归档；模板为 `deployment/ocean/buildmax.yaml.tmpl` |
 | 起始 schema/commit 及受支持的升级或全新安装路径 | 在 alpha.18 全新安装的部署上，从 alpha.21 原地升级（无 schema 变更）；全新安装由空库配对恢复和从 alpha.16 经真实 schema 变更的升级演练覆盖 |
 
@@ -191,7 +191,7 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 | Worker 硬丢失和显式 Retry | 通过 | 本地证据包 | 从节点发出的 SIGKILL 136 秒后结算为 `worker_lost`；显式重试在新 Job 中运行。被杀的 Job 显示成功，因为 Worker 的退出码表示派发结果，而不是运行结果。 |
 | MySQL、Redis 和对象存储故障 | 通过 | 本地证据包 | 数据库中断后 Schedule 只合并补跑一次；Redis 中断时会话回合返回 503；无法访问存储的 Worker 以 `infrastructure` 失败该运行；存储中断时 Artifact 下载 20 秒返回 503，恢复后内容不变。 |
 | Provider 故障 | 通过 | 本地证据包 | 401、429、503、慢响应和不可达 provider：运行与托管调用的分类和日志一致；没有泄漏凭证。 |
-| 数据库与 bucket 配对恢复 | 通过；RTO 超出目标 | 本地证据包 | 恢复点之前全部 7649 条行都在，`storage verify --checksums` 干净，恢复后的凭证和 checkpoint 可用。RTO 632 秒，超出 10 分钟目标：演练从操作人员的机器经 port-forward 复制 8416 个对象。 |
+| 数据库与 bucket 配对恢复 | 通过 | 本地证据包 | 恢复点之前全部 7649 条行都在，`storage verify --checksums` 干净，恢复后的凭证和 checkpoint 可用。RTO 632 秒，在 15 分钟目标之内；演练从操作人员的机器经 port-forward 复制 8416 个对象。 |
 | 声明的 schema 路径与配对恢复回退 | 通过 | 本地证据包 | alpha.21 原地升级到 alpha.22；alpha.16 经真实 schema 变更升级到 alpha.22；alpha.16 拒绝更新后的 schema；通过配对恢复回退。 |
 | Credential 和 Worker TLS 轮换 | 通过；一项豁免 | 本地证据包 | JWT、Worker 证书与 CA、KEK 及 rewrap、Spaces 密钥、模型密钥双向轮换，退役的密钥上没有任何调用。数据库密码轮换见下方豁免。 |
 | Retention 和 capacity | 部分通过 | 本地证据包 | 已演练 Artifact 清除和审计裁剪；审计和 trace 永久保留。24 小时窗口内（包含全部资格验证探针），数据库从 9.50 MB 增至 11.16 MB，bucket 前缀从 5.87 MB 增至 8.18 MB，trace 增加 372 个对象（0.79 MB）；10 GiB 的数据库磁盘足以支撑数年。部分通过是因为没有配置磁盘和 bucket 监控，而永久保留要求有监控。 |
@@ -204,7 +204,7 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 
 当前决策：**尚未达到 BETA 就绪条件**。
 
-v0.2.0-alpha.22 的演练没有发现产品缺陷，也没有失败的条目。签署之前，恢复时间必须达到目标或调整目标，保留策略需要配置磁盘和 bucket 监控，证据必须发布到发布 Space 可读的位置，上表中其余部分通过的条目必须通过或作为限制被接受。
+v0.2.0-alpha.22 的演练没有发现产品缺陷，也没有失败的条目。签署之前，保留策略需要配置磁盘和 bucket 监控，证据必须发布到发布 Space 可读的位置，上表中其余部分通过的条目必须通过或作为限制被接受。
 
 资格验证要求所有核心 Gate 通过，不得存在 authorization escape、无法解释的数据损失、stranded durable work、数据库 pointer 指向缺失对象，或未解决的 critical/high security finding。任何 waiver 都必须指出未满足行为、用户影响、补偿性 operator control、owner 和到期时间；它是明确的发布决策，而不是暗示通过。
 

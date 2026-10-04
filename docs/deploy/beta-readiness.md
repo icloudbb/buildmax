@@ -108,7 +108,7 @@ artifacts recorded here.
 | Current KEK id | `file:root:4`, rotated during Q6; the rewrap left no row on an older key |
 | Trace, audit, Artifact, and checkpoint retention | Audit and traces kept indefinitely; deleted Artifact bytes reclaimed on the hourly sweep; checkpoint orphan sweep hourly; finished worker Jobs removed after 1h |
 | Expected users, Spaces, and concurrent runs | 21 accounts, 14 shared Spaces plus personal Spaces, up to 6 worker Jobs started in one minute |
-| Target RPO and RTO | RPO: the last `mysqldump --single-transaction` snapshot; RTO: 10 minutes to the first Artifact with a matching checksum (measured 632s, over the target) |
+| Target RPO and RTO | RPO: the last `mysqldump --single-transaction` snapshot; RTO: 15 minutes to the first Artifact with a matching checksum (measured 632s). The project owner raised the target from 10 minutes on 2026-10-04: the time grows with the bucket (237s for 1522 objects on alpha.18, 632s for 8416 on alpha.22), and the drill copies objects from the operator's machine rather than within the provider |
 | Configuration snapshot, with secrets redacted | Rendered `server.yaml` archived with the local evidence bundle; template `deployment/ocean/buildmax.yaml.tmpl` |
 | Starting schema/commit and supported upgrade or clean-install path | In-place upgrade from alpha.21 (no schema change) on the deployment clean-installed on alpha.18; clean install covered by the paired restore into an empty database and an upgrade drill from alpha.16 through a real schema change |
 
@@ -384,7 +384,7 @@ lists each one, and none of them hid a product defect.
 | Hard worker loss and explicit retry | Passed | Local evidence bundle | A SIGKILL from the node settled `worker_lost` after 136s; explicit retry ran a new Job. The killed Job reports success because the worker's exit code reports dispatch, not the run. |
 | MySQL, Redis, and object-storage outages | Passed | Local evidence bundle | Schedules coalesce one catch-up after a database outage; a Conversation turn during a Redis outage answers 503; a worker that cannot reach storage fails the run as `infrastructure`; an Artifact download during a storage outage answers 503 in 20s and the Artifact reads back unchanged. |
 | Provider failures | Passed | Local evidence bundle | 401, 429, 503, slow answer, and unroutable provider: run and managed-call classes and logs agree; no credential leaked. |
-| Paired database and bucket restore | Passed; RTO over target | Local evidence bundle | All 7649 rows from before the recovery point present, `storage verify --checksums` clean, restored credential and checkpoint work. RTO 632s against the 10-minute target: the drill copies 8416 objects from the operator's machine through a port-forward. |
+| Paired database and bucket restore | Passed | Local evidence bundle | All 7649 rows from before the recovery point present, `storage verify --checksums` clean, restored credential and checkpoint work. RTO 632s, within the 15-minute target; the drill copies 8416 objects from the operator's machine through a port-forward. |
 | Declared schema path and paired-restore rollback | Passed | Local evidence bundle | alpha.21 to alpha.22 in place; alpha.16 to alpha.22 through a real schema change; alpha.16 refuses the newer schema; rollback by paired restore. |
 | Credential and worker-TLS rotation | Passed; one item waived | Local evidence bundle | JWT, worker certificate and CA, KEK with rewrap, Spaces key, and model key in both directions with no call on the retired key. Database password rotation waived below. |
 | Retention and capacity | Partial | Local evidence bundle | Artifact purge and audit pruning exercised; audit and traces are kept indefinitely. Over the 24-hour window, including all qualification probing, the database grew 9.50 to 11.16 MB, the bucket prefix 5.87 to 8.18 MB, and traces by 372 objects (0.79 MB); the 10 GiB database disk covers that for years. Partial because no disk or bucket monitoring is configured, which keep-forever retention requires. |
@@ -398,8 +398,7 @@ lists each one, and none of them hid a product defect.
 Current decision: **NOT READY FOR BETA**.
 
 The v0.2.0-alpha.22 exercise found no product defect and no failed item. Before
-signing, the restore time has to meet its target or the target has to change,
-retention needs disk and bucket monitoring, the evidence has to be published
+signing, retention needs disk and bucket monitoring, the evidence has to be published
 where the release space can read it, and the remaining partial rows above have
 to pass or be accepted as limits.
 
