@@ -11,6 +11,7 @@ import {
   type ChannelPairing,
   type ListChannelLinksResponse,
 } from "../features/channelLinks/api"
+import { chatLinkActivity, type ChatLinkActivity } from "../features/channelLinks/activity"
 
 interface ChatAccountsSectionProps {
   token: string | null
@@ -31,6 +32,8 @@ function platformName(platform: string, platforms: ListChannelLinksResponse["pla
  */
 export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
   const [data, setData] = useState<ListChannelLinksResponse | null>(null)
+  // Judged when the list arrives, not on every render, so a render stays pure.
+  const [activity, setActivity] = useState<ChatLinkActivity | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [codeInput, setCodeInput] = useState(code ?? "")
@@ -44,7 +47,10 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
     if (!token) return
     setLoading(true)
     listChannelLinks(token)
-      .then(setData)
+      .then((res) => {
+        setData(res)
+        setActivity(chatLinkActivity(res.active_until, Date.now()))
+      })
       .catch((err) => setError(getErrorMessage(err, "Failed to load chat accounts")))
       .finally(() => setLoading(false))
   }, [token])
@@ -195,6 +201,14 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
         <div className="settings-webhook__error" role="alert">
           {error}
         </div>
+      ) : null}
+
+      {links.length > 0 && activity ? (
+        <p className="settings-section__muted" role="status">
+          {activity.state === "lapsed"
+            ? "These chat accounts stopped acting because your last sign-in is too old. Sign out and sign in again to resume them."
+            : `These chat accounts act for you until ${activity.until.toLocaleString()}. Signing in again extends this.`}
+        </p>
       ) : null}
 
       {links.length > 0 ? (

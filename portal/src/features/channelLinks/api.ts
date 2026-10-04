@@ -20,6 +20,8 @@ export interface ChannelLink {
 export interface ListChannelLinksResponse {
   platforms: ChannelPlatform[]
   links: ChannelLink[]
+  /** When the links stop acting unless the account signs in again. */
+  active_until?: string
 }
 
 /** The chat account a link code would link, shown before confirming. */

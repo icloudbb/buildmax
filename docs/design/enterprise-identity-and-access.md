@@ -736,7 +736,7 @@ this record (§18).
 | Stolen refresh cookie | Secure/HttpOnly/SameSite, rotation, reuse detection, exact-origin session endpoints | A fully compromised browser origin can act as the user |
 | OIDC token leakage | Server-only exchange; discard provider tokens; redact logs/errors/traces | Provider observes its own login transaction |
 | IdP outage | Existing sessions continue, OIDC login degrades, local admin break glass | Expired ordinary users cannot sign in until recovery |
-| IdP disables user | Fixed OIDC session age; manual BuildMax disable for immediate effect | OIDC alone cannot meet a shorter offboarding SLO |
+| IdP disables user | Fixed OIDC session age; chat links stop after `channels.sign_in_window` without a new sign-in ([instant-messaging channels §6](instant-messaging-channels.md#6-pairing)); manual BuildMax disable for immediate effect | OIDC alone cannot meet a shorter offboarding SLO; chat access lasts up to the sign-in window, not the OIDC session age |
 | JWKS rotation | Cache plus one unknown-key refresh, exact issuer and algorithm restrictions | Bad provider rollout can interrupt login |
 | Client-secret compromise | Deployment-secret injection, redaction, overlap rotation runbook | Symmetric client authentication remains weaker than `private_key_jwt` |
 | XSS in Portal | No renewable credential in JavaScript-readable storage; short access token in memory | XSS can act during the current page/session |

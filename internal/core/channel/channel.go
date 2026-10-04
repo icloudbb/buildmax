@@ -31,6 +31,24 @@ var ErrAlreadyLinked = apierr.New(apierr.KindConflict, "this chat account is alr
 // are indistinguishable to someone guessing, which is the point.
 var ErrPairingNotFound = apierr.New(apierr.KindNotFound, "link code not found or expired; send the bot a new message for a fresh one")
 
+// ErrSignInRequired refuses confirming a link for a user whose last sign-in is
+// already outside the window: the link would be inactive the moment it exists.
+var ErrSignInRequired = apierr.New(apierr.KindForbidden, "sign in to BuildMax again before linking a chat account")
+
+// ActiveUntil is when a user's chat links stop acting for them. A link carries
+// the user's authority without the session a sign-in opens, so it is bounded
+// like one: it acts only while the user's last BuildMax sign-in is within
+// window. Signing in again extends it; no new link code is needed. Without it
+// a link would outlive every session ceiling, and a person offboarded only at
+// the identity provider would keep working through chat. ok is false for a user
+// who has never signed in.
+func ActiveUntil(lastSignIn *time.Time, window time.Duration) (until time.Time, ok bool) {
+	if lastSignIn == nil {
+		return time.Time{}, false
+	}
+	return lastSignIn.Add(window), true
+}
+
 // Identity links one account on a chat platform to one BuildMax user. It is not
 // a sign-in credential: nothing authenticates to the Portal with it. It only
 // says whose authority a message from that chat account carries.

@@ -130,8 +130,16 @@ func (g *Gateway) PreviewPairing(ctx context.Context, code string) (*corechannel
 }
 
 // ConfirmPairing links the chat account a code names to userID and tells the
-// chat it worked.
+// chat it worked. A user whose last sign-in is already outside the window is
+// refused, since the link could not act for them.
 func (g *Gateway) ConfirmPairing(ctx context.Context, userID, code string) (*corechannel.Identity, error) {
+	active, err := g.linkActive(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !active {
+		return nil, corechannel.ErrSignInRequired
+	}
 	ident, pairing, err := g.identities.ConsumePairing(ctx, NormalizePairingCode(code), userID, g.now())
 	if err != nil {
 		return nil, err
@@ -142,6 +150,36 @@ func (g *Gateway) ConfirmPairing(ctx context.Context, userID, code string) (*cor
 		g.reply(sendCtx, c, pairing.ChatID, "Linked to your BuildMax account. Send me a message to start, or /help to see what I can do.")
 	}
 	return ident, nil
+}
+
+// ActiveUntil is when userID's chat links stop acting unless they sign in
+// again, or nil if they never signed in.
+func (g *Gateway) ActiveUntil(ctx context.Context, userID string) (*time.Time, error) {
+	if g.users == nil {
+		return nil, nil
+	}
+	user, err := g.users.GetUser(ctx, userID)
+	if err != nil || user == nil {
+		return nil, err
+	}
+	until, ok := corechannel.ActiveUntil(user.LastLoginAt, g.signInWindow)
+	if !ok {
+		return nil, nil
+	}
+	return &until, nil
+}
+
+// linkActive reports whether userID's links may act now. A deployment wired
+// without a user store, as in some tests, has no sign-in to bound by.
+func (g *Gateway) linkActive(ctx context.Context, userID string) (bool, error) {
+	if g.users == nil {
+		return true, nil
+	}
+	until, err := g.ActiveUntil(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return until != nil && g.now().Before(*until), nil
 }
 
 // ListLinks returns userID's chat-account links.

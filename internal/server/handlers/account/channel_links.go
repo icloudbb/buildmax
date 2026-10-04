@@ -19,6 +19,7 @@ type ChannelLinks interface {
 	PreviewPairing(ctx context.Context, code string) (*corechannel.Pairing, error)
 	ConfirmPairing(ctx context.Context, userID, code string) (*corechannel.Identity, error)
 	ListLinks(ctx context.Context, userID string) ([]corechannel.Identity, error)
+	ActiveUntil(ctx context.Context, userID string) (*time.Time, error)
 	Unlink(ctx context.Context, userID, identityID string) error
 }
 
@@ -34,6 +35,9 @@ type listChannelLinksResponse struct {
 	// means none, and the Portal says so rather than offering a dead end.
 	Platforms []corechannel.Info    `json:"platforms"`
 	Links     []channelLinkResponse `json:"links"`
+	// ActiveUntil is when the links stop acting unless the user signs in
+	// again. Absent with no platform configured.
+	ActiveUntil *time.Time `json:"active_until,omitempty"`
 }
 
 type channelPairingResponse struct {
@@ -66,6 +70,10 @@ func (h *Handler) listChannelLinksHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	out.Platforms = h.cfg.ChannelLinks.Platforms(r.Context())
+	if out.ActiveUntil, err = h.cfg.ChannelLinks.ActiveUntil(r.Context(), userID); err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_channel_links", "user_id", userID)
+		return
+	}
 	for _, l := range links {
 		out.Links = append(out.Links, toChannelLinkResponse(l))
 	}

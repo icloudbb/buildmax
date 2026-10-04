@@ -821,6 +821,7 @@ jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in product
 #   telegram:
 #     bot_token: ""                   # from @BotFather; inject via BUILDMAX_TELEGRAM_BOT_TOKEN; empty = off
 #     api_base_url: ""                # self-hosted Bot API server; empty = https://api.telegram.org
+#   sign_in_window: 2160h             # chat links act only this long after the user's last sign-in; default session_absolute_ttl
 access_token_ttl: 15m                # signed; the server checks the session it names each request, so this is the max replay window
 refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
 refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
@@ -969,7 +970,11 @@ A deployment can connect a Telegram bot with `channels.telegram.bot_token`
 so the server needs outbound HTTPS to `api.telegram.org` and no public URL; set
 `public_base_url` so the bot can send confirmation links. With several replicas
 under `coordination.mode: redis`, one replica at a time receives for the bot.
-Setup and the commands people use are in
+A linked chat account acts only while its user's last sign-in is within
+`channels.sign_in_window` (default `session_absolute_ttl`); past it the bot asks
+them to sign in again. Set it shorter when offboarding happens only at the
+identity provider, since a chat link has no session for `oidc.session_max_age`
+to end. Setup and the commands people use are in
 [manual/chat-apps.md](../../manual/chat-apps.md).
 
 The worker reads the same `server.yaml` and needs at minimum `worker.server_url`

@@ -202,6 +202,25 @@ phishing: someone sending a victim their own link code.
   strangers messaging the bot cannot turn it into a database writer.
 - A chat account already linked to someone else refuses a new link
   (`ErrAlreadyLinked`, 409) until that link is removed.
+
+**A link lives no longer than a sign-in.** A link carries the user's authority
+without the session a sign-in opens, so on its own it would outlive every
+session ceiling, and a person disabled only at the identity provider would keep
+working through chat. It therefore acts only while the user's last BuildMax
+sign-in (`user.last_login_at`) is within `channels.sign_in_window`, which
+defaults to `session_absolute_ttl`.
+
+- Past the window, every message and command gets a fixed request to sign in
+  again, with the Portal link, and outcome reports stop. No model runs.
+- Signing in again resumes the link. It is not deleted, and no new code is
+  needed, because the sign-in is what re-proves the person.
+- Confirming a code is refused (`ErrSignInRequired`, 403) when the confirming
+  user's last sign-in is already outside the window.
+- The rule is `corechannel.ActiveUntil`. The Gateway applies it, and Portal
+  shows the resulting deadline under **Account → Chat accounts**.
+- Refreshing a session does not count as a sign-in. With the default window
+  this changes nothing, because a session cannot outlive it. A shorter window
+  asks even an active Portal user to sign in again, which is its purpose.
 - Linking and unlinking are audited as `channel_link.created` and
   `channel_link.removed`. The platform's account ids are never in the trail.
 
@@ -209,7 +228,8 @@ phishing: someone sending a victim their own link code.
 
 - **Deny by default.** An unlinked sender, a group chat, a disabled account, or
   a non-member produces no model call and no Space data.
-- **The sender is the actor.** Every turn and Task records the linked user.
+- **The sender is the actor.** Every turn and Task records the linked user,
+  and only while that user's last sign-in is within the window (§6).
   There is no bot principal and no fallback account, unlike the webhook path's
   configured `user_id`.
 - **No groups yet.** Every reply in a group reaches people who may not belong to

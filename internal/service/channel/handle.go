@@ -36,6 +36,10 @@ func (g *Gateway) handle(ctx context.Context, c corechannel.Connector, in corech
 		g.offerPairing(ctx, c, in)
 		return
 	}
+	if refusal := g.checkSignIn(ctx, ident.UserID); refusal != "" {
+		g.reply(ctx, c, in.ChatID, refusal)
+		return
+	}
 	if in.Unsupported {
 		g.reply(ctx, c, in.ChatID, "I can only read text messages for now.")
 		return
@@ -118,6 +122,23 @@ func (g *Gateway) startConversation(ctx context.Context, platform, chatID, userI
 		return nil, genericFailure
 	}
 	return conv, ""
+}
+
+// checkSignIn refuses a link whose user has not signed in within the window.
+// The link stays in place: signing in again is all it takes to resume.
+func (g *Gateway) checkSignIn(ctx context.Context, userID string) string {
+	active, err := g.linkActive(ctx, userID)
+	if err != nil {
+		g.log.Error("sign-in lookup failed", "err", err)
+		return genericFailure
+	}
+	if active {
+		return ""
+	}
+	if link := g.link("/#/account/chat"); link != "" {
+		return "It has been too long since you signed in to BuildMax. Sign in again to keep using this chat: " + link
+	}
+	return "It has been too long since you signed in to BuildMax. Sign in to BuildMax again to keep using this chat."
 }
 
 // checkEligible asks the one authority on whether a user may work in a Space

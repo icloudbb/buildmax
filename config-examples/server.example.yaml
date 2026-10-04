@@ -71,6 +71,11 @@ jwt_secret: your-jwt-secret-here
 #     bot_token: ""
 #     # A self-hosted Bot API server. Empty uses https://api.telegram.org.
 #     api_base_url: ""
+#   # A linked chat account acts only this long after its user's last sign-in;
+#   # past it the bot asks them to sign in again. Empty uses
+#   # session_absolute_ttl. Set it shorter when people are offboarded only at
+#   # the identity provider: a chat link has no session for it to end.
+#   sign_in_window: 2160h
 
 # Token lifetimes. Signing in returns an access token (sent with every request;
 # not stored, but the server checks the session it names on every request, so
