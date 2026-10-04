@@ -324,8 +324,9 @@ what the Assistant can read.
 
 **Release contract.** A Workflow has no output schema of its own; its result
 is selected from one node's output. A Workflow roster entry therefore uses the
-`output_schema` of that node, and the result must select the node's whole
-output. An Agent roster entry declares one on the entry, and StartTask
+`output_schema` of that node, and the result must select that node's
+structured output (`"pointer": "/structured"`): its whole output is an
+envelope whose top level holds none of the schema's fields. An Agent roster entry declares one on the entry, and StartTask
 passes it as the Task's `output_schema`, so the run must satisfy it. The entry
 lists which top-level properties are releasable. GetTask and GetWorkflowRun, when
 called from an Assistant turn, return status and the releasable fields only:
@@ -419,6 +420,12 @@ An Assistant whose Space has spent its quota refuses with a fixed reply.
   chat receives a report through the Assistant's bot: the releasable fields on
   success, and a fixed message on failure or cancellation. Raw output, error
   text, and Portal links are not sent. The personal path's report is unchanged.
+  A Workflow run an Assistant started reports the same way, under its
+  Workflow's roster entry. Its end is observed by whichever replica reconciles
+  it, so the run records a pending report when it starts, and the delivery
+  sweep (below) claims and sends it once the run has ended, at most once and
+  after a restart; the same checks as a Task's report decide whether it is
+  sent at all.
 - **Escalation.** The Escalate tool opens an Issue in the Assistant's Space,
   created by the service account, with the requester and conversation recorded,
   and tells the requester a person will follow up. A Space member answers from

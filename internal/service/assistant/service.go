@@ -470,7 +470,10 @@ func (s *Service) checkReferences(ctx context.Context, spaceID string, def *core
 
 // workflowResultSchema returns the output_schema of the node a published
 // Workflow's result is selected from. A Workflow without one has no result to
-// release, so it cannot be on a roster.
+// release, so it cannot be on a roster. The result must be that node's
+// structured output, the value the schema describes: the node's whole output
+// is an envelope around it, whose top level holds none of the fields an
+// entry releases.
 func (s *Service) workflowResultSchema(ctx context.Context, spaceID, workflowID string) (json.RawMessage, error) {
 	if s.Workflows == nil {
 		return nil, ErrNotConfigured
@@ -489,8 +492,8 @@ func (s *Service) workflowResultSchema(ctx context.Context, spaceID, workflowID 
 	if err != nil {
 		return nil, err
 	}
-	if def.Result == nil || def.Result.Pointer != "" {
-		return nil, apierr.Detail(ErrWorkflowInvalid, "%s must select its result as one node's whole output", workflowID)
+	if def.Result == nil || def.Result.Pointer != coreworkflow.StructuredOutputPointer {
+		return nil, apierr.Detail(ErrWorkflowInvalid, "%s must select its result as one node's structured output (pointer %q)", workflowID, coreworkflow.StructuredOutputPointer)
 	}
 	node, ok := coreworkflow.ParseNodeOutputSource(def.Result.Source)
 	if ok {

@@ -673,6 +673,10 @@ func ParseNodeOutputSource(source string) (string, bool) {
 	return source[len(prefix) : len(source)-len(suffix)], true
 }
 
+// StructuredOutputPointer selects a node's validated structured value from its
+// output envelope.
+const StructuredOutputPointer = "/structured"
+
 // NodeOutputEnvelope is the addressable value of a node's output that a
 // downstream binding selects into with an RFC 6901 pointer. It is built from an
 // accepted node run: the full output text, the validated structured value (or
