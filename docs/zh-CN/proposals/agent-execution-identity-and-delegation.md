@@ -700,8 +700,9 @@ provider 能力允许时不能用于其他 audience/resource；disable grant 后
 ### Stage 2：组织权限与主体生命周期决定
 
 先用直接向 Agent 授权验证具名的组织 workflow。部门级
-[Space Assistant](space-assistants.md#8-授权)的请求者在该 Space 中没有任何权限，
-它是一个具体的交互式候选场景。至少需要 sponsor、purpose、
+[Space Assistant](../design/空间助手.md#6-service-account)的请求者在该 Space 中
+没有任何权限，它是第一个被接受的场景：它以 Space 所属的 service account 身份运行，
+即本文的选项 D，因为一个部门的权限由其 Assistant 与该部门的其他自动化共享。至少需要 sponsor、purpose、
 active/disabled、grant set、创建/更新 provenance，以及 review 或 expiry。只有
 业务授权必须跨 Agent 替换延续或覆盖多个 actor，且显式重新授权不能满足场景时，
 才新增独立 automation principal。定义并检查合格 actor，不能自动向替代 Agent

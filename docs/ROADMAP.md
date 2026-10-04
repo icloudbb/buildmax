@@ -251,7 +251,12 @@ in-app scheduled tasks, and throughput. The first real channel adapter ships: Te
 Space Conversations under the
 [instant-messaging channels](design/instant-messaging-channels.md) design, whose
 later phases (Feishu and group chats, streaming, Remote Control push, more
-platforms) stay demand-driven. Local
+platforms) stay demand-driven. [Space Assistants](design/space-assistants.md)
+are accepted: a Space publishes a service front door on its own bot that
+dispatches a roster of its Agents and Workflows as a Space-owned service
+account, releasing only contracted result fields to requesters outside the
+Space. The maintainer chose to build its validation slice without a named
+adopting team; its tasks are in the [backlog](backlog/README.md). Local
 CLI/TUI and Desktop improvements remain welcome when they address concrete
 problems; the Beta focus does not make Portal the only product.
 
