@@ -14,7 +14,6 @@ import (
 	artifactsvc "github.com/icloudbb/buildmax/internal/service/artifact"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
 	issuesvc "github.com/icloudbb/buildmax/internal/service/issue"
-	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 	"github.com/icloudbb/buildmax/internal/service/spacerecovery"
 	"github.com/icloudbb/buildmax/internal/service/task"
 	"github.com/icloudbb/buildmax/internal/service/workflow"
@@ -269,6 +268,7 @@ func (h *Handler) buildSpaceHandler() *spaceroutes.Handler {
 		Plugins:          h.cfg.PluginService,
 		LoginCodes:       h.cfg.LoginCodeStore,
 		ServiceAccounts:  h.cfg.ServiceAccountStore,
+		Assistants:       h.cfg.Assistants,
 		Lifecycle:        h.accountLifecycle(),
 		Secrets:          h.cfg.SecretStore,
 		SecretService:    h.cfg.SecretService,
@@ -284,21 +284,7 @@ func (h *Handler) modelCatalog() agentsvc.ModelCatalog {
 	if h.cfg.LLMGateway == nil {
 		return nil
 	}
-	return gatewayModelCatalog{gw: h.cfg.LLMGateway}
-}
-
-type gatewayModelCatalog struct{ gw *llmgateway.Service }
-
-func (g gatewayModelCatalog) ModelNames(ctx context.Context) ([]string, error) {
-	models, err := g.gw.Models(ctx)
-	if err != nil {
-		return nil, err
-	}
-	names := make([]string, 0, len(models))
-	for _, m := range models {
-		names = append(names, m.Name)
-	}
-	return names, nil
+	return h.cfg.LLMGateway
 }
 
 // artifactHandler builds the artifact surface.

@@ -252,6 +252,21 @@ func (s *Service) reloadServiceAccount(ctx context.Context, spaceID string, memb
 	return &ServiceAccount{User: *user, SpaceID: spaceID, NeedsSponsor: needs}, nil
 }
 
+// ValidSponsor reports whether sponsorID may be accountable for something the
+// Space publishes: an enabled person who is an owner or admin of it. An
+// Assistant's own sponsor is held to the same rule as a service account's.
+func (s *Service) ValidSponsor(ctx context.Context, spaceID, sponsorID string) (bool, error) {
+	if s.Spaces == nil || s.Users == nil {
+		return false, ErrServiceAccountsNotConfigured
+	}
+	members, err := s.Spaces.ListSpaceMembers(ctx, spaceID)
+	if err != nil {
+		return false, err
+	}
+	needs, err := s.needsSponsor(ctx, members, &sponsorID, map[string]*coreidentity.User{})
+	return !needs, err
+}
+
 // checkSponsor accepts an enabled person who is an owner or admin of the
 // Space.
 func (s *Service) checkSponsor(ctx context.Context, members []corespace.Member, sponsorID string) error {

@@ -63,6 +63,14 @@ type TurnRunner interface {
 	RunChannelTurn(ctx context.Context, conversationID, userID, channel, message string) (string, error)
 }
 
+// FrontDoor answers linked people who message a bot other than the system
+// bot, such as a Space Assistant's. The Gateway has already identified the
+// sender and checked their sign-in; who may ask, and what is answered, is the
+// front door's. It returns the reply to send, or "" for none.
+type FrontDoor interface {
+	Answer(ctx context.Context, connectorKey string, in corechannel.Inbound, userID string) string
+}
+
 // Conversations is the slice of Conversation storage the gateway needs.
 type Conversations interface {
 	GetConversation(ctx context.Context, conversationID string) (*coreconv.Conversation, error)
@@ -133,8 +141,9 @@ type Gateway struct {
 	log           *slog.Logger
 	now           func() time.Time
 
-	turnsMu sync.RWMutex
-	turns   TurnRunner
+	turnsMu   sync.RWMutex
+	turns     TurnRunner
+	frontDoor FrontDoor
 
 	mu       sync.Mutex
 	bots     map[string]*registration
@@ -282,6 +291,42 @@ func (g *Gateway) Register(ctx context.Context, key string, c corechannel.Connec
 	return nil
 }
 
+// BotInUse reports whether a bot with this platform id is registered under a
+// key other than except, so a new binding can be refused before it is stored.
+func (g *Gateway) BotInUse(ctx context.Context, platform, botID, except string) (bool, error) {
+	g.mu.Lock()
+	var others []bot
+	for key, r := range g.bots {
+		if key != except && r.Platform() == platform {
+			others = append(others, r.bot)
+		}
+	}
+	g.mu.Unlock()
+	for _, o := range others {
+		id, err := o.BotID(ctx)
+		if err != nil {
+			return false, fmt.Errorf("identify bot %q: %w", o.key, err)
+		}
+		if id == botID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// Registered reports the keys of the bots registered besides the system bots.
+func (g *Gateway) Registered() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	var out []string
+	for key, r := range g.bots {
+		if r.key != corechannel.ConnectorSystem {
+			out = append(out, key)
+		}
+	}
+	return out
+}
+
 // Unregister stops receiving for the bot under key and removes it, waiting for
 // its receive loop to return. Messages it already accepted are still answered.
 // Unknown keys are ignored.
@@ -313,6 +358,20 @@ func (g *Gateway) SetTurns(t TurnRunner) {
 	g.turnsMu.Lock()
 	defer g.turnsMu.Unlock()
 	g.turns = t
+}
+
+// SetFrontDoor wires what answers bots other than the system bot. Without one,
+// such a bot answers linked people that it is not available.
+func (g *Gateway) SetFrontDoor(f FrontDoor) {
+	g.turnsMu.Lock()
+	defer g.turnsMu.Unlock()
+	g.frontDoor = f
+}
+
+func (g *Gateway) currentFrontDoor() FrontDoor {
+	g.turnsMu.RLock()
+	defer g.turnsMu.RUnlock()
+	return g.frontDoor
 }
 
 func (g *Gateway) turnRunner() TurnRunner {

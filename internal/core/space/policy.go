@@ -67,6 +67,10 @@ const (
 	// admin, the same authority as the shared automation they run. See
 	// docs/design/space-assistants.md §6.3.
 	ActionManageServiceAccounts Action = "manage_service_accounts"
+	// ActionManageAssistants covers defining, publishing, pausing, binding, and
+	// deleting the Space's Assistants. Owner or admin: publishing one is a
+	// disclosure decision for the Space. See docs/design/space-assistants.md.
+	ActionManageAssistants Action = "manage_assistants"
 )
 
 // Actions returns every action, so a test can prove the matrix covers each one
@@ -87,6 +91,7 @@ func Actions() []Action {
 		ActionReadSecrets,
 		ActionManageSchedules,
 		ActionManageServiceAccounts,
+		ActionManageAssistants,
 	}
 }
 
@@ -131,7 +136,7 @@ func Allows(role string, action Action) bool {
 	case ActionManageSpaceMembers, ActionChangeMemberRole, ActionReadAuditTrail, ActionModerateIssueComments, ActionManageSecrets:
 		return role == RoleOwner
 	case ActionManageAgents, ActionManageWorkflows, ActionAssignIssueWorkflow, ActionInviteSpaceMember, ActionReadSecrets,
-		ActionManageServiceAccounts:
+		ActionManageServiceAccounts, ActionManageAssistants:
 		return role == RoleOwner || role == RoleAdmin
 	case ActionRunWorkflow, ActionCommentIssue, ActionManageSchedules:
 		return role == RoleOwner || role == RoleAdmin || role == RoleMember

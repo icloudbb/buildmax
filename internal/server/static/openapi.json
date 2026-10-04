@@ -346,6 +346,77 @@
         },
         "required": ["space_id", "user_id", "role", "created_at"]
       },
+      "AssistantRosterEntry": {
+        "type": "object",
+        "description": "An Agent or published Workflow an Assistant may dispatch, with its release contract: the result shape and which top-level fields may reach a requester. An Agent entry declares output_schema; a Workflow entry uses its result node's.",
+        "properties": {
+          "kind": {"type": "string", "enum": ["agent", "workflow"]},
+          "id": {"type": "string"},
+          "output_schema": {"type": "object"},
+          "releasable": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["kind", "id", "releasable"]
+      },
+      "AssistantStatement": {
+        "type": "object",
+        "description": "What publishing an Assistant discloses: who can ask, what it can read and run, and the Secrets that work can use. Confirming its digest is how an owner publishes it.",
+        "properties": {
+          "audience": {"type": "string"},
+          "readable_files": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}}}},
+          "agents": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "secrets": {"type": "array", "items": {"type": "string"}}}}},
+          "workflows": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "agents": {"type": "array", "items": {"type": "object"}}}}},
+          "text": {"type": "string"},
+          "digest": {"type": "string"}
+        },
+        "required": ["audience", "readable_files", "agents", "workflows", "text", "digest"]
+      },
+      "AssistantDefinition": {
+        "type": "object",
+        "description": "The whole definition a create or edit proposes. An omitted service_account_id on create makes a service account with the Assistant's name.",
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "instructions": {"type": "string"},
+          "model": {"type": "string"},
+          "roster": {"type": "array", "items": {"$ref": "#/components/schemas/AssistantRosterEntry"}},
+          "readable_files": {"type": "array", "items": {"type": "string"}},
+          "audience": {"type": "string", "enum": ["space_members", "all_users"]},
+          "service_account_id": {"type": "string"}
+        },
+        "required": ["name", "audience"]
+      },
+      "Assistant": {
+        "type": "object",
+        "description": "A Space Assistant: a service front door the Space publishes on its own chat bot. See docs/design/space-assistants.md.",
+        "properties": {
+          "id": {"type": "string"},
+          "space_id": {"type": "string"},
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "instructions": {"type": "string"},
+          "model": {"type": "string"},
+          "roster": {"type": "array", "items": {"$ref": "#/components/schemas/AssistantRosterEntry"}},
+          "readable_files": {"type": "array", "items": {"type": "string"}},
+          "audience": {"type": "string", "enum": ["space_members", "all_users"]},
+          "service_account_id": {"type": "string"},
+          "sponsor_user_id": {"type": "string"},
+          "state": {"type": "string", "enum": ["active", "paused"]},
+          "availability": {"type": "string", "enum": ["available", "paused", "service_account_disabled", "needs_sponsor"], "description": "Whether it answers now. An active Assistant pauses on its own while its service account is disabled or it lacks a valid sponsor."},
+          "revision": {"type": "integer"},
+          "binding": {"type": "object", "description": "Its bot, never with the token.", "properties": {"platform": {"type": "string"}, "bot_handle": {"type": "string"}, "created_at": {"type": "string", "format": "date-time"}}},
+          "statement": {"$ref": "#/components/schemas/AssistantStatement"},
+          "created_by": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "space_id", "name", "roster", "readable_files", "audience", "service_account_id", "sponsor_user_id", "state", "availability", "revision", "statement", "created_at"]
+      },
+      "AssistantStatementRequired": {
+        "type": "object",
+        "description": "The 409 for publishing, or widening an active Assistant, without confirming the current statement. Send its digest back as confirm_statement.",
+        "properties": {"error": {"type": "string"}, "statement": {"$ref": "#/components/schemas/AssistantStatement"}},
+        "required": ["error", "statement"]
+      },
       "ServiceAccount": {
         "type": "object",
         "description": "A Space-owned service account: a non-human principal work runs as, accountable through a human sponsor. It has no email and no credential. See docs/design/space-assistants.md §6.",
@@ -3684,6 +3755,107 @@
             "description": "The account is disabled",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/assistants": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List the space's Assistants",
+        "description": "Any member may read them, with each one's availability, bot, and publish statement.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Assistant"}}}}},
+          "403": {"description": "Not a member of this space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      },
+      "post": {
+        "summary": "Define an Assistant",
+        "description": "Owner or admin of a team space. It starts paused with the caller as sponsor. Without service_account_id a service account with its name is created. Audited as assistant.created.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AssistantDefinition"}}}},
+        "responses": {
+          "201": {"description": "Created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Assistant"}}}},
+          "400": {"description": "Invalid definition: a missing name, an unknown audience, a roster entry outside the space or without a valid release contract, a file outside the space, or a personal space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "403": {"description": "Only an owner or admin may manage assistants", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
+    "/api/spaces/{space_id}/assistants/{assistant_id}": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "assistant_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Get an Assistant",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Assistant"}}}},
+          "403": {"description": "Not a member of this space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "No such assistant in this space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      },
+      "patch": {
+        "summary": "Change an Assistant's definition or sponsor",
+        "description": "Owner or admin. A changed definition appends a revision (assistant.updated). Changing what an active Assistant discloses needs confirm_statement set to the new statement's digest, returned in the 409. The sponsor must be an enabled owner or admin (assistant.sponsor_changed).",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"definition": {"$ref": "#/components/schemas/AssistantDefinition"}, "sponsor_user_id": {"type": "string"}, "confirm_statement": {"type": "string"}}}}}},
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Assistant"}}}},
+          "400": {"description": "Invalid definition or sponsor", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "403": {"description": "Only an owner or admin may manage assistants", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "No such assistant in this space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "The change alters what an active assistant discloses and needs the statement confirmed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AssistantStatementRequired"}}}}
+        }
+      },
+      "delete": {
+        "summary": "Delete an Assistant",
+        "description": "Owner or admin. Its bot is released at once; its service account stays. Audited as assistant.deleted.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "204": {"description": "Deleted"},
+          "403": {"description": "Only an owner or admin may manage assistants", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "No such assistant in this space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
+    "/api/spaces/{space_id}/assistants/{assistant_id}/state": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "assistant_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "put": {
+        "summary": "Publish or pause an Assistant",
+        "description": "Owner or admin. Publishing (state active) needs confirm_statement set to the current statement's digest. Audited as assistant.activated or assistant.paused.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"state": {"type": "string", "enum": ["active", "paused"]}, "confirm_statement": {"type": "string"}}, "required": ["state"]}}}},
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Assistant"}}}},
+          "400": {"description": "Unknown state", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "403": {"description": "Only an owner or admin may manage assistants", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "No such assistant in this space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "Publishing needs the current statement confirmed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AssistantStatementRequired"}}}}
+        }
+      }
+    },
+    "/api/spaces/{space_id}/assistants/{assistant_id}/binding": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "assistant_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "put": {
+        "summary": "Give an Assistant its bot",
+        "description": "Owner or admin. The token is checked with the platform, sealed under the deployment key, and never returned. A bot already connected to BuildMax, including the system bot, is refused. Audited as assistant.bound.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"platform": {"type": "string", "enum": ["telegram"]}, "token": {"type": "string"}}, "required": ["platform", "token"]}}}},
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Assistant"}}}},
+          "400": {"description": "Unsupported platform or a token the platform rejected", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "403": {"description": "Only an owner or admin may manage assistants", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "No such assistant in this space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "The assistant already has a bot, or the bot is already connected to BuildMax", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "503": {"description": "No deployment encryption key is configured to seal the token", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      },
+      "delete": {
+        "summary": "Remove an Assistant's bot",
+        "description": "Owner or admin. The bot stops being served at once. Audited as assistant.unbound.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Assistant"}}}},
+          "403": {"description": "Only an owner or admin may manage assistants", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "No such assistant, or it has no bot", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
         }
       }
     },

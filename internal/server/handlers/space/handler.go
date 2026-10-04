@@ -8,6 +8,7 @@
 package space
 
 import (
+	assistantsvc "github.com/icloudbb/buildmax/internal/service/assistant"
 	"net/http"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
@@ -47,7 +48,10 @@ type Config struct {
 	// ServiceAccounts and Lifecycle back the Space's service accounts. Nil
 	// ServiceAccounts leaves those routes reporting the feature is off.
 	ServiceAccounts coreidentity.ServiceAccountStore
-	Lifecycle       *accountlifecycle.Service
+	// Assistants serves the Space Assistant routes. Nil reports the feature
+	// off.
+	Assistants *assistantsvc.Service
+	Lifecycle  *accountlifecycle.Service
 	// Workflows answers one question here -- which published workflows still
 	// name an agent -- so that deleting one cannot silently break them. Nil
 	// leaves that check unmade, which is what a deployment without workflows
@@ -132,6 +136,14 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/spaces/{space_id}/service-accounts", h.createServiceAccountHandler)
 	mux.HandleFunc("PATCH /api/spaces/{space_id}/service-accounts/{user_id}", h.updateServiceAccountHandler)
 	mux.HandleFunc("PUT /api/spaces/{space_id}/service-accounts/{user_id}/state", h.setServiceAccountStateHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/assistants", h.listAssistantsHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/assistants", h.createAssistantHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/assistants/{assistant_id}", h.getAssistantHandler)
+	mux.HandleFunc("PATCH /api/spaces/{space_id}/assistants/{assistant_id}", h.updateAssistantHandler)
+	mux.HandleFunc("DELETE /api/spaces/{space_id}/assistants/{assistant_id}", h.deleteAssistantHandler)
+	mux.HandleFunc("PUT /api/spaces/{space_id}/assistants/{assistant_id}/state", h.setAssistantStateHandler)
+	mux.HandleFunc("PUT /api/spaces/{space_id}/assistants/{assistant_id}/binding", h.bindAssistantHandler)
+	mux.HandleFunc("DELETE /api/spaces/{space_id}/assistants/{assistant_id}/binding", h.unbindAssistantHandler)
 
 	// Invitations. See docs/design/space-membership-lifecycle.md.
 	mux.HandleFunc("POST /api/spaces/{space_id}/invitations", h.inviteMemberHandler)

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	assistantsvc "github.com/icloudbb/buildmax/internal/service/assistant"
+	spacesvc "github.com/icloudbb/buildmax/internal/service/space"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -118,6 +120,14 @@ var spaceRoutes = []authzCase{
 	{"POST", "/api/spaces/{space_id}/service-accounts", corespace.RoleAdmin, false},
 	{"PATCH", "/api/spaces/{space_id}/service-accounts/{user_id}", corespace.RoleAdmin, false},
 	{"PUT", "/api/spaces/{space_id}/service-accounts/{user_id}/state", corespace.RoleAdmin, false},
+	{"GET", "/api/spaces/{space_id}/assistants", corespace.RoleMember, false},
+	{"POST", "/api/spaces/{space_id}/assistants", corespace.RoleAdmin, false},
+	{"GET", "/api/spaces/{space_id}/assistants/{assistant_id}", corespace.RoleMember, false},
+	{"PATCH", "/api/spaces/{space_id}/assistants/{assistant_id}", corespace.RoleAdmin, false},
+	{"DELETE", "/api/spaces/{space_id}/assistants/{assistant_id}", corespace.RoleAdmin, false},
+	{"PUT", "/api/spaces/{space_id}/assistants/{assistant_id}/state", corespace.RoleAdmin, false},
+	{"PUT", "/api/spaces/{space_id}/assistants/{assistant_id}/binding", corespace.RoleAdmin, false},
+	{"DELETE", "/api/spaces/{space_id}/assistants/{assistant_id}/binding", corespace.RoleAdmin, false},
 
 	// Invitation is the one membership action admin holds, at member role
 	// only -- see docs/design/space-membership-lifecycle.md §5.1 and §7. That
@@ -247,12 +257,17 @@ func matrixMuxWithGrants(t *testing.T, grants coreidentity.SystemGrantStore) *ht
 	}
 	conversations := &mock.MockConversationStore{}
 	users := &mock.MockUserStore{}
+	serviceAccounts := &mock.MockServiceAccountStore{Users: users, Spaces: spaces}
 	h := NewHandler(Config{
+		Assistants: &assistantsvc.Service{
+			Store: &mock.MockAssistantStore{}, Spaces: spaces, Users: users,
+			ServiceAccounts: &spacesvc.Service{Spaces: spaces, Users: users, ServiceAccounts: serviceAccounts},
+		},
 		JWTSecret:                matrixSecret,
 		LLMGateway:               llmTestService(t, &llmStubClient{content: "ok"}, nil),
 		SpaceStore:               spaces,
 		UserStore:                users,
-		ServiceAccountStore:      &mock.MockServiceAccountStore{Users: users, Spaces: spaces},
+		ServiceAccountStore:      serviceAccounts,
 		AgentStore:               &mock.MockAgentStore{},
 		IssueStore:               &mock.MockIssueStore{},
 		IssueCommentStore:        &mock.MockIssueCommentStore{},

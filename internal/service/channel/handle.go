@@ -48,6 +48,21 @@ func (g *Gateway) handle(ctx context.Context, c bot, in corechannel.Inbound) {
 	if text == "" {
 		return
 	}
+	// Any other bot belongs to something else, such as a Space Assistant, which
+	// decides who may ask and what is said. It never falls through to the
+	// personal assistant: that would serve the sender's own Spaces through a
+	// bot the sender did not choose for them.
+	if c.key != corechannel.ConnectorSystem {
+		reply := "This assistant is not available."
+		if f := g.currentFrontDoor(); f != nil {
+			in.Text = text
+			stop := g.typing(ctx, c, in.ChatID)
+			reply = f.Answer(ctx, c.key, in, ident.UserID)
+			stop()
+		}
+		g.reply(ctx, c, in.ChatID, reply)
+		return
+	}
 	if cmd, arg, ok := parseCommand(text); ok {
 		g.command(ctx, c, in, ident, cmd, arg)
 		return

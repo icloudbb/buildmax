@@ -267,6 +267,20 @@ const (
 	ServiceAccountDisabled       = "service_account.disabled"
 	ServiceAccountEnabled        = "service_account.enabled"
 	ServiceAccountSponsorChanged = "service_account.sponsor_changed"
+	// AssistantCreated, AssistantUpdated, AssistantDeleted, AssistantActivated,
+	// AssistantPaused, AssistantSponsorChanged, AssistantBound, and
+	// AssistantUnbound record a Space Assistant's lifecycle. The target is the
+	// Assistant's id; the detail is its name, its revision for updated, the new
+	// sponsor's id for sponsor_changed, and the bot's handle for bound. A bot
+	// token is never in the trail. See docs/design/space-assistants.md.
+	AssistantCreated        = "assistant.created"
+	AssistantUpdated        = "assistant.updated"
+	AssistantDeleted        = "assistant.deleted"
+	AssistantActivated      = "assistant.activated"
+	AssistantPaused         = "assistant.paused"
+	AssistantSponsorChanged = "assistant.sponsor_changed"
+	AssistantBound          = "assistant.bound"
+	AssistantUnbound        = "assistant.unbound"
 )
 
 // ActorOperator is the ActorID for an action taken by an operator command

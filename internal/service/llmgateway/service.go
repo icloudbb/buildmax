@@ -148,6 +148,20 @@ func (s *Service) Models(ctx context.Context) ([]AvailableModel, error) {
 	return s.Router.Available(ctx)
 }
 
+// ModelNames lists the names of the models a definition may choose, the
+// catalog an Agent's or Assistant's model is checked against.
+func (s *Service) ModelNames(ctx context.Context) ([]string, error) {
+	models, err := s.Models(ctx)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(models))
+	for _, m := range models {
+		names = append(names, m.Name)
+	}
+	return names, nil
+}
+
 // Complete runs one blocking managed call.
 //
 // The ledger record opens before the upstream request and closes after it, so a

@@ -160,6 +160,8 @@ internal/
 │   │                   orchestrates and stores, distinct from a local session
 │   ├── channel/        Chat platforms: a chat account's link to a user, the
 │   │                   pending pairing, and the Connector a platform implements
+│   ├── assistant/      The Space Assistant: its definition and revisions, roster
+│   │                   and release contracts, audience, and its bot binding
 │   ├── workflow/       A space's reusable graph plan, its revisions, and the
 │   │                   run and node-run state its execution moves through
 │   ├── agentdef/       The Agent a space defined and its revisions -- what an
@@ -203,6 +205,8 @@ internal/
 │   ├── channel/        Carries chat-platform messages into Conversations:
 │   │                   pairing, authorization, per-chat order, the receive
 │   │                   lease, and outcome reports back to the chat
+│   ├── assistant/      Space Assistants: definitions, the publish statement,
+│   │                   availability, bots, and keeping them connected
 │   ├── agent/          Agent definitions, their revisions, and the delete guard
 │   ├── artifact/       Durable files a space keeps; knows no producer
 │   ├── llmcatalog/     What the model catalog accepts and what changing it
