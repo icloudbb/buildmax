@@ -180,6 +180,16 @@ export interface Issue {
   childCount: number
   doneChildCount: number
   commentCount: number
+  /** Set when a Space Assistant escalated this Issue from a chat. */
+  escalation?: IssueEscalation
+}
+
+/** Where an escalated Issue came from; members answer the requester from it. */
+export interface IssueEscalation {
+  conversationId: string
+  assistantId: string
+  /** The person who asked, a BuildMax user id. */
+  requestedBy: string
 }
 
 export interface Workflow {

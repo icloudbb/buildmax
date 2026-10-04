@@ -60,3 +60,21 @@ export async function deleteIssueComment(
   })
   await throwIfNotOk(res)
 }
+
+/** Sends text to an escalated Issue's requester through the Assistant's bot.
+ *  The server records it on the Issue and returns that comment. */
+export async function replyToRequester(
+  spaceId: string,
+  issueId: string,
+  text: string,
+  token: string,
+): Promise<ApiIssueComment> {
+  return requestJson<ApiIssueComment>(
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues/${encodeURIComponent(issueId)}/requester-replies`,
+    {
+      method: "POST",
+      headers: { ...jsonHeaders, ...authHeaders(token) },
+      body: JSON.stringify({ text }),
+    },
+  )
+}

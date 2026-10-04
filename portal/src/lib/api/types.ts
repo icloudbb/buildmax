@@ -118,6 +118,11 @@ export interface ApiIssue {
   child_count?: number
   done_child_count?: number
   comment_count?: number
+  /** Set when a Space Assistant escalated this Issue from a chat; the
+   *  Assistant and the person who asked are read from that conversation. */
+  conversation_id?: string
+  assistant_id?: string
+  requested_by?: string
 }
 
 export interface ApiIssueComment {

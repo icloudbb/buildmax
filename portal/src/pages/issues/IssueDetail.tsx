@@ -18,6 +18,7 @@ import {
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
 import { getAgents } from "../../features/agents"
+import { getAssistant } from "../../features/assistants"
 import { cancelTask, retryTask } from "../../features/tasks"
 import {
   createIssue,
@@ -119,6 +120,8 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   // Owned by the Discussion panel's fetch and mirrored here for the tab's
   // comment count badge.
   const [comments, setComments] = useState<ApiIssueComment[]>([])
+  // The escalating Assistant's name; null until loaded or when it is gone.
+  const [assistantName, setAssistantName] = useState<string | null>(null)
   const canAssignWorkflow = currentUserRole === "owner" || currentUserRole === "admin"
 
   const load = useCallback(async () => {
@@ -179,6 +182,23 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     if (flow) setEntityLabel(flow.issue.id, flow.issue.title)
   }, [flow, setEntityLabel])
 
+  const escalatingAssistantId = flow?.issue.escalation?.assistantId ?? null
+  useEffect(() => {
+    setAssistantName(null)
+    if (!token || !escalatingAssistantId) return
+    let cancelled = false
+    // A deleted Assistant leaves the Issue readable; the line falls back to a
+    // generic name and the server refuses a reply.
+    getAssistant(spaceId, escalatingAssistantId, token)
+      .then((assistant) => {
+        if (!cancelled) setAssistantName(assistant.name)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [token, spaceId, escalatingAssistantId])
+
   const currentRun = latestRun(flow)
   const currentRunLatestTaskId =
     [...(currentRun?.steps ?? [])].reverse().find((step) => step.taskId)?.taskId ?? null
@@ -209,6 +229,14 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     if (member?.user_name) return member.user_name
     if (member?.user_email) return member.user_email
     return member ? `Member ${member.user_id.slice(0, 8)}` : "Member"
+  }
+
+  // The requester may be someone outside the Space, whom members cannot name.
+  function requesterLabel(requestedBy: string): string {
+    if (requestedBy === userId) return "you"
+    const member = members.find((item) => item.user_id === requestedBy)
+    if (!member) return "someone outside this Space"
+    return member.user_name || member.user_email || `Member ${member.user_id.slice(0, 8)}`
   }
 
   function executorLabel(issue: Issue): string | null {
@@ -431,6 +459,16 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
           <span className="issues-page__status">{statusLabel(flow.issue.status)}</span>
         </div>
         <p className="issue-detail-page__description">{flow.issue.description || "No description yet."}</p>
+        {flow.issue.escalation ? (
+          <p className="page-activity__meta" data-testid="issue-escalation">
+            Escalated by{" "}
+            <a href={buildHash({ name: "space", spaceId, section: "assistants", assistantId: flow.issue.escalation.assistantId })}>
+              {assistantName ?? "an assistant"}
+            </a>{" "}
+            for {requesterLabel(flow.issue.escalation.requestedBy)}. Reply to requester in Discussion sends your text
+            to their chat.
+          </p>
+        ) : null}
         <div className="issues-page__meta-row">
           <span className="page-activity__meta">Owner: {ownerLabel(flow.issue) ?? "Unassigned"}</span>
           <span className="page-activity__meta">Executor: {executorLabel(flow.issue) ?? "None"}</span>
@@ -747,6 +785,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                   agentNames={agentNames}
                   onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
                   onCommentsChanged={setComments}
+                  requesterReply={flow.issue.escalation ? { assistantName: assistantName ?? "the assistant" } : undefined}
                 />
               </section>
             </div>

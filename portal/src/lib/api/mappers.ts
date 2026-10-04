@@ -115,6 +115,10 @@ export function apiIssueToIssue(api: ApiIssue): Issue {
     updatedAt: api.updated_at,
     updatedLabel: formatRelativeTime(api.updated_at),
     version: api.version,
+    escalation:
+      api.conversation_id && api.assistant_id
+        ? { conversationId: api.conversation_id, assistantId: api.assistant_id, requestedBy: api.requested_by ?? "" }
+        : undefined,
   }
 }
 
