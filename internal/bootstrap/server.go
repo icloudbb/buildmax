@@ -923,12 +923,16 @@ func buildWorkerRunner(wc config.ServerWorkerConfig, stopGrace time.Duration) (s
 			return nil, fmt.Errorf("k8s job client: %w", err)
 		}
 		// Worker pods read the same server.yaml the server does: the ConfigMap
-		// supplies the file, the inherited BUILDMAX_* environment supplies the
+		// supplies the file, and references to the credential Secret supply the
 		// credentials that must not be written into it.
+		workerEnv, err := k8s.WorkerEnvFromEnviron(wc.LLM.Managed(), wc.K8s.CredentialSecret)
+		if err != nil {
+			return nil, fmt.Errorf("server.yaml: %w", err)
+		}
 		runner, err := k8s.NewK8sJobRunner(
 			wc.K8s.Namespace,
 			wc.K8s.Image,
-			k8s.WorkerEnvFromEnviron(wc.LLM.Managed()),
+			workerEnv,
 			k8s.PodConfig{
 				ConfigMapName:   wc.K8s.ConfigMap,
 				CAConfigMapName: wc.K8s.CAConfigMap,

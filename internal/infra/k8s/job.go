@@ -510,9 +510,15 @@ func (c *jobClientImpl) DeleteJob(ctx context.Context, namespace, name string) e
 // whole database. config.WorkerNeedsEnv decides; see its comment for how to
 // extend the set.
 //
+// A credential the worker does read is not copied as a value: the pod gets a
+// reference to credentialSecret, the Secret the server's own copy came from,
+// under a key named like the variable. A value in the Job spec would be
+// readable by anyone who can read Jobs or Pods in the namespace. An empty
+// credentialSecret is refused when there is a credential to pass.
+//
 // managedLLM says whether task runs reach models through the server, which
 // withholds the provider credential as well.
-func WorkerEnvFromEnviron(managedLLM bool) []corev1.EnvVar {
+func WorkerEnvFromEnviron(managedLLM bool, credentialSecret string) ([]corev1.EnvVar, error) {
 	env := os.Environ()
 	var out []corev1.EnvVar
 	for _, e := range env {
@@ -523,12 +529,25 @@ func WorkerEnvFromEnviron(managedLLM bool) []corev1.EnvVar {
 		if idx <= 0 {
 			continue
 		}
-		if !config.WorkerNeedsEnv(e[:idx], managedLLM) {
+		name := e[:idx]
+		if !config.WorkerNeedsEnv(name, managedLLM) {
 			continue
 		}
-		out = append(out, corev1.EnvVar{Name: e[:idx], Value: e[idx+1:]})
+		if !config.IsCredentialEnv(name) {
+			out = append(out, corev1.EnvVar{Name: name, Value: e[idx+1:]})
+			continue
+		}
+		if credentialSecret == "" {
+			return nil, fmt.Errorf("worker.k8s.credential_secret is empty, but the server holds %s for its workers: name the Secret worker pods read it from", name)
+		}
+		out = append(out, corev1.EnvVar{Name: name, ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: credentialSecret},
+				Key:                  name,
+			},
+		}})
 	}
-	return out
+	return out, nil
 }
 
 // BuildK8sJobClient builds rest config (in-cluster or kubeconfig), creates a clientset, and returns a JobClient.

@@ -104,7 +104,8 @@ func TestConfigWarnings(t *testing.T) {
 
 // TestRedactedConfigCoversTheSecretFieldsWeKnowAbout guards the list above:
 // if ServerConfig grows a field whose name marks it as a credential, this
-// fails until someone decides what the redacted view does with it.
+// fails until someone decides what the redacted view does with it. True rows
+// are redacted; false rows only look like credentials and are shown as is.
 func TestRedactedConfigCoversTheSecretFieldsWeKnowAbout(t *testing.T) {
 	known := map[string]bool{
 		"ServerConfig.JWTSecret":           true,
@@ -115,6 +116,9 @@ func TestRedactedConfigCoversTheSecretFieldsWeKnowAbout(t *testing.T) {
 		"ServerCoordinationRedis.Password": true,
 		"ServerOIDCConfig.ClientSecret":    true,
 		"ServerTelegramConfig.BotToken":    true,
+		// The name of the Secret worker pods read their credentials from, not
+		// a credential.
+		"ServerK8sConfig.CredentialSecret": false,
 	}
 	found := map[string]bool{}
 	var walk func(t reflect.Type, seen map[reflect.Type]bool)
@@ -138,7 +142,7 @@ func TestRedactedConfigCoversTheSecretFieldsWeKnowAbout(t *testing.T) {
 	walk(reflect.TypeOf(ServerConfig{}), map[reflect.Type]bool{})
 
 	for field := range found {
-		if !known[field] {
+		if _, ok := known[field]; !ok {
 			t.Errorf("%s looks like a credential and is not accounted for; decide what RedactedServerConfig does with it, then add it here", field)
 		}
 	}

@@ -643,6 +643,12 @@ type ServerK8sConfig struct {
 	CAConfigMap string `mapstructure:"ca_config_map"`
 	// HomeDir is BUILDMAX_HOME inside a worker pod; server.yaml is mounted there.
 	HomeDir string `mapstructure:"home_dir"`
+	// CredentialSecret names the Secret, in the worker namespace, that holds
+	// the credentials a worker reads (object storage, and the provider key on
+	// direct transport) under keys named like their environment variables. A
+	// worker Job references it instead of carrying the values, so anyone who
+	// can read Job or Pod objects cannot read the credentials from them.
+	CredentialSecret string `mapstructure:"credential_secret"`
 	// FinishedJobTTL is how long a finished worker Job and its pod stay before
 	// Kubernetes deletes them; zero deletes them as soon as they finish. Nothing
 	// reads a Job after it finishes, so this is only a window for pod logs.
@@ -821,6 +827,7 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("worker.k8s.image", "buildmax:local")
 	v.SetDefault("worker.k8s.config_map", "buildmax-config")
 	v.SetDefault("worker.k8s.home_dir", "/buildmax")
+	v.SetDefault("worker.k8s.credential_secret", "buildmax-secret")
 	v.SetDefault("worker.k8s.finished_job_ttl", "5m")
 	v.SetDefault("storage.persist_backend", ProviderLocalFS)
 	v.SetDefault("storage.artifact_backend", ProviderLocalFS)

@@ -112,6 +112,7 @@ Worker 在读取到 `BUILDMAX_RUN_TOKEN` 后会将其从自身环境中清除，
 | `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | 无——必填 | Kubernetes 数量字符串，例如 `500m`、`2`、`512Mi` 或 `4Gi`。在 `k8s_job` 下全部为必填项；BuildMax 不会替你选定数字，因为合适的值取决于该部署所运行的工作内容。 |
 | `resources.ephemeral_storage_request` / `ephemeral_storage_limit` | 无——必填 | 限定 worker pod 的本地临时磁盘——包括可写层以及每一个 emptyDir，物化后的工作区、暂存的检查点内容和工具输出都落在这里。该上限同时会作为该 pod 每个 emptyDir 卷的 `sizeLimit`，因此失控的工作区会被干净地驱逐，而不是把节点填满。 |
 | `finished_job_ttl` | `5m` | 已结束的 Worker Job 及其 Pod 保留多久后由 Kubernetes 删除；`0s` 表示结束即删除，负值会使服务器拒绝启动。Job 结束后不再被读取——运行结果和 Trace 不依赖它——所以这只是留给 `kubectl logs` 的窗口。生产环境若没有日志采集器收集 Worker Pod 日志，可调大该值；已结束的 Pod 仍占用节点上的临时磁盘。若运行是由服务器在没有 worker 上报的情况下结束的——worker 丢失、运行被放弃、取消未被确认——其 Job 会被立即删除。 |
+| `credential_secret` | `buildmax-secret` | Worker Pod 读取凭证所用的 Secret，位于 worker 命名空间中：对象存储密钥，以及 `direct` 传输下的 provider 密钥。每项凭证都按与其环境变量同名的 key 引用，例如 `BUILDMAX_STORAGE_MINIO_SECRET_KEY`，因此凭证值不会写进 Job——否则任何能读取 Job 或 Pod 的身份都能读到它。服务器只传递自己持有的凭证；在需要传递凭证时把该值设为空，会使服务器拒绝启动。Secret 或 key 不存在时 worker Pod 无法启动，该运行会按 worker 丢失结算。 |
 
 若某个上限缺失、不是合法的 Kubernetes 数量、为零或负数，或者某个 limit 低于对应的 request，server 会拒绝启动。错误信息会指出需要修改哪个键。这是刻意为之：不受限的 worker pod 会执行模型选择的 shell 命令，一次失控的构建就会拖垮节点上的其他一切；而一个因拼写错误被悄悄丢弃的限制，看起来与真正生效的限制一模一样。
 
@@ -565,6 +566,7 @@ worker:
     config_map: buildmax-config      # ConfigMap holding server.yaml for worker pods
     home_dir: /buildmax              # BUILDMAX_HOME inside a worker pod
     finished_job_ttl: 5m             # delete a finished worker Job after this
+    credential_secret: buildmax-secret # Secret worker pods read credentials from
 
 worker_api:                          # the internal listener serving /api/worker/*
   listen: 127.0.0.1:5679             # loopback by default; :5679 on Kubernetes
