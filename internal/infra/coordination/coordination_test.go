@@ -229,3 +229,51 @@ func TestLeaseReportsLossWhenItsKeyIsGone(t *testing.T) {
 		t.Fatal("lease never reported the lost lock")
 	}
 }
+
+// Redis losing its data, as a restart without persistence does, resets the
+// fence counter, so the next holder can be granted the same fence the old one
+// still renews with. The old holder must still learn it lost the lock, or two
+// replicas consume beside each other for good.
+func TestLeaseReportsLossAfterRedisLosesItsData(t *testing.T) {
+	mr := miniredis.RunT(t)
+	first, err := New(context.Background(), Options{Address: mr.Addr()})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer func() { _ = first.Close() }()
+	second, err := New(context.Background(), Options{Address: mr.Addr()})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer func() { _ = second.Close() }()
+
+	old, ok, err := first.TryAcquireLock(context.Background(), "connector", 300*time.Millisecond)
+	if err != nil || !ok {
+		t.Fatalf("first TryAcquireLock = %v, %v", ok, err)
+	}
+	defer old.Release()
+	mr.FlushAll()
+	// A restart takes far longer than this; the clock only has to move.
+	time.Sleep(time.Millisecond)
+	next, ok, err := second.TryAcquireLock(context.Background(), "connector", 300*time.Millisecond)
+	if err != nil || !ok {
+		t.Fatalf("second TryAcquireLock = %v, %v", ok, err)
+	}
+	defer next.Release()
+	// Writes are fenced with these tokens and refuse a lower one, so a grant
+	// after the loss must still be above every grant before it.
+	if next.Fence() <= old.Fence() {
+		t.Errorf("fence after the loss = %d, want above %d", next.Fence(), old.Fence())
+	}
+
+	select {
+	case <-old.Lost():
+	case <-time.After(2 * time.Second):
+		t.Fatal("the old holder never learned another replica holds the lock")
+	}
+	select {
+	case <-next.Lost():
+		t.Fatal("the new holder was told it lost a lock it holds")
+	case <-time.After(250 * time.Millisecond):
+	}
+}

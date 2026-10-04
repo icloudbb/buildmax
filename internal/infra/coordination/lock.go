@@ -2,6 +2,8 @@ package coordination
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"strconv"
 	"sync"
 	"time"
@@ -16,10 +18,18 @@ const lockRetry = 50 * time.Millisecond
 // acquireScript grants the lock only when it is free, issuing a monotonic fence
 // token from a per-key counter. It returns the fence on success or -1 when held,
 // so a caller never overwrites a live holder's lock.
+//
+// Redis losing its data, as a restart without persistence does, loses the
+// counter too. A missing counter therefore starts from the clock in
+// microseconds rather than from zero, so a fence issued after the loss still
+// exceeds the ones writes were fenced with before it. And the key holds the
+// fence with a nonce unique to this grant, so even an equal fence never lets an
+// old holder renew a lock granted since.
 var acquireScript = redis.NewScript(`
 if redis.call('EXISTS', KEYS[1]) == 1 then return -1 end
+if redis.call('EXISTS', KEYS[2]) == 0 then redis.call('SET', KEYS[2], ARGV[3]) end
 local fence = redis.call('INCR', KEYS[2])
-redis.call('SET', KEYS[1], fence, 'PX', ARGV[1])
+redis.call('SET', KEYS[1], fence .. ':' .. ARGV[2], 'PX', ARGV[1])
 return fence
 `)
 
@@ -43,9 +53,12 @@ return 0
 // Lease is a held distributed lock. Release stops the renewer and drops the lock
 // if this holder still owns it.
 type Lease struct {
-	backend  *Backend
-	lockKey  string
-	fence    int64
+	backend *Backend
+	lockKey string
+	fence   int64
+	// holder is the value this grant stored under lockKey; renew and release
+	// act only while the key still holds it.
+	holder   string
 	cancel   context.CancelFunc
 	stopOnce sync.Once
 	done     chan struct{}
@@ -74,7 +87,7 @@ func (l *Lease) Release() {
 		<-l.done // wait for the renewer to stop before deleting the key
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		_ = releaseScript.Run(ctx, l.backend.rdb, []string{l.lockKey}, strconv.FormatInt(l.fence, 10)).Err()
+		_ = releaseScript.Run(ctx, l.backend.rdb, []string{l.lockKey}, l.holder).Err()
 	})
 }
 
@@ -91,12 +104,16 @@ func (b *Backend) AcquireLock(ctx context.Context, key string, ttl time.Duration
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		res, err := acquireScript.Run(ctx, b.rdb, []string{lockKey, fenceKey}, ttlMillis).Int64()
+		nonce, err := newNonce()
+		if err != nil {
+			return nil, err
+		}
+		res, err := acquireScript.Run(ctx, b.rdb, []string{lockKey, fenceKey}, ttlMillis, nonce, fenceFloor()).Int64()
 		if err != nil {
 			return nil, err
 		}
 		if res > 0 {
-			return b.startLease(lockKey, res, ttl), nil
+			return b.startLease(lockKey, res, nonce, ttl), nil
 		}
 		select {
 		case <-ctx.Done():
@@ -113,23 +130,41 @@ func (b *Backend) AcquireLock(ctx context.Context, key string, ttl time.Duration
 func (b *Backend) TryAcquireLock(ctx context.Context, key string, ttl time.Duration) (*Lease, bool, error) {
 	lockKey := "lock:" + key
 	fenceKey := "fence:" + key
-	res, err := acquireScript.Run(ctx, b.rdb, []string{lockKey, fenceKey}, strconv.FormatInt(ttl.Milliseconds(), 10)).Int64()
+	nonce, err := newNonce()
+	if err != nil {
+		return nil, false, err
+	}
+	res, err := acquireScript.Run(ctx, b.rdb, []string{lockKey, fenceKey}, strconv.FormatInt(ttl.Milliseconds(), 10), nonce, fenceFloor()).Int64()
 	if err != nil {
 		return nil, false, err
 	}
 	if res <= 0 {
 		return nil, false, nil
 	}
-	return b.startLease(lockKey, res, ttl), true, nil
+	return b.startLease(lockKey, res, nonce, ttl), true, nil
+}
+
+// fenceFloor is where a missing fence counter starts: the clock, which has
+// moved past every fence issued before Redis lost the counter unless one key
+// was granted more than once a microsecond.
+func fenceFloor() string { return strconv.FormatInt(time.Now().UnixMicro(), 10) }
+
+func newNonce() (string, error) {
+	var buf [12]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf[:]), nil
 }
 
 // startLease begins renewing a granted lock on its own goroutine.
-func (b *Backend) startLease(lockKey string, fence int64, ttl time.Duration) *Lease {
+func (b *Backend) startLease(lockKey string, fence int64, nonce string, ttl time.Duration) *Lease {
 	renewCtx, cancel := context.WithCancel(context.Background())
 	lease := &Lease{
 		backend: b,
 		lockKey: lockKey,
 		fence:   fence,
+		holder:  strconv.FormatInt(fence, 10) + ":" + nonce,
 		cancel:  cancel,
 		done:    make(chan struct{}),
 		lost:    make(chan struct{}),
@@ -149,7 +184,7 @@ func (b *Backend) startLease(lockKey string, fence int64, ttl time.Duration) *Le
 				return
 			case <-ticker.C:
 				ctx, c := context.WithTimeout(renewCtx, ttl)
-				renewed, err := renewScript.Run(ctx, b.rdb, []string{lockKey}, strconv.FormatInt(fence, 10), strconv.FormatInt(ttl.Milliseconds(), 10)).Int64()
+				renewed, err := renewScript.Run(ctx, b.rdb, []string{lockKey}, lease.holder, strconv.FormatInt(ttl.Milliseconds(), 10)).Int64()
 				c()
 				switch {
 				case err == nil && renewed == 1:
