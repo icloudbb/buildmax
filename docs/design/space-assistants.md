@@ -6,9 +6,9 @@
 > accepted — in progress: the many-bot Gateway (§9), service accounts (§6),
 > the Assistant entity, its bot binding, and the publish statement (§4, §8),
 > the front-door turn with its readable-file tools (§10), release contracts
-> with outcome reports (§8, §11), escalation, Schedule delivery (§11), and
-> telling roster work the verified requester (§7.3) are built; the validation
-> run (§18) found two gaps, one now fixed and one filed as a backlog task
+> with outcome reports for Tasks and Workflow runs (§8, §11), escalation,
+> Schedule delivery (§11), and telling roster work the verified requester
+> (§7.3) are built, closing the two gaps the validation run (§18) found
 >
 > This record decides how a Space publishes **Assistants**: conversational
 > service front doors that answer people outside the Space's own work, dispatch
@@ -598,8 +598,14 @@ ran in a fresh conversation (`/new`).
   own balance and none Alice's.
 - *A Workflow's outcome never reaches the requester.* The leave request ran to a
   releasable decision in 20 s, but the requester heard only "submitted for
-  review". Filed as
-  [backlog 80](../backlog/80-assistant-workflow-outcome-report.md).
+  review". Fixed: a Workflow run an Assistant started now reports how it ended
+  (§11). Building it found a second defect behind the silence: a Workflow
+  roster entry required its result to select the node's whole output, an
+  envelope with none of the releasable fields at its top level, so
+  GetWorkflowRun and Schedule delivery released nothing either. The result now
+  selects the node's structured output (§8). Rerun on kind: the requester got
+  the decision and note, without the withheld policy references, once, about
+  40 s after asking.
 - *Two file stores.* Readable files are uploaded Artifacts, while roster Agents
   and Workflow steps read the Space's Files; the first run's Agent answered
   "I couldn't locate `leave-balances.csv`" until the data was put in Files. The
