@@ -187,6 +187,10 @@ canary 只能证明评估链路成立，不能证明平台整体可靠，也不�
 Portal 性能、Desktop 应用内定时任务之外的自动化和吞吐量。第一个真实渠道适配器已交付：按照
 [即时通讯渠道](design/即时通讯渠道.md)设计，Telegram 私聊可以进入 Space Conversation；
 该设计的后续阶段（飞书与群聊、流式回复、Remote Control 推送、更多平台）仍由需求驱动。
+[Space Assistant](design/空间助手.md)已被接受：Space 在自己的 bot 上发布一个服务前门，
+以 Space 所属的 service account（服务账号）身份派发由其 Agent 与 Workflow 组成的名册，
+并只向 Space 之外的请求者释放契约约定的结果字段。维护者选择在没有具名采纳团队的情况下
+构建其验证切片；相关任务见 [backlog](../backlog/README.md)。
 解决具体问题的 CLI/TUI 与 Desktop 改进仍然受欢迎；Beta 的重点不意味着 Portal 是唯一产品。
 
 [Agent 浏览器能力](design/Agent 浏览器能力.md)作为一项本地能力已被接受并正在

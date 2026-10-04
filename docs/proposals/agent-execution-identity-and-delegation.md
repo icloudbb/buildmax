@@ -857,8 +857,10 @@ provider permits, and disabling the grant stops renewal.
 ### Stage 2: organization authority and the principal lifecycle decision
 
 Validate a named organization-owned workflow using direct Agent grants first.
-A departmental [Space Assistant](space-assistants.md#8-authorization), whose
-requesters hold no rights in the Space, is a concrete interactive candidate.
+A departmental [Space Assistant](../design/space-assistants.md#6-service-accounts),
+whose requesters hold no rights in the Space, is the first accepted case: it runs
+as a Space-owned service account, this paper's option D, because one
+department's authority is shared by its Assistant and its other automation.
 Require a sponsor, purpose, active/disabled state, grant set, created/updated
 provenance, and review or expiry. Add a separate automation principal only when
 the mandate must survive Agent replacement or span multiple actors and deliberate
