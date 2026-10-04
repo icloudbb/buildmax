@@ -36,8 +36,12 @@ type adminGrantsResponse struct {
 // the CLI needs — to resolve an email to an id and show whether the account is
 // disabled — are kept.
 type AdminAccount struct {
-	ID          string     `json:"id"`
-	Email       string     `json:"email"`
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name,omitempty"`
+	// Kind is "human" or "service". A service account has no email and never
+	// signs in.
+	Kind        string     `json:"kind,omitempty"`
 	DisabledAt  *time.Time `json:"disabled_at,omitempty"`
 	HasPassword bool       `json:"has_password"`
 }
