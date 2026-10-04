@@ -500,6 +500,6 @@ func (s *Store) DeleteAgentInSpace(ctx context.Context, agentID, spaceID string)
 func (s *Store) markAgentDeleted(ctx context.Context, agentID string) error {
 	return s.db.WithContext(ctx).
 		Model(&agentRow{}).
-		Where("agent_id = ? AND deleted_at IS NULL", agentID).
+		Where("public_id = ? AND deleted_at IS NULL", canonicalPublicID(agentID)).
 		Update("deleted_at", time.Now().UTC()).Error
 }
