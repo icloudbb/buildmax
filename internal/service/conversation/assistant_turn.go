@@ -47,6 +47,8 @@ type AssistantTurn struct {
 	// Roster is the only work its tools may start, each entry with its release
 	// contract: the only fields of a result the requester may learn.
 	Roster []coreassistant.RosterEntry
+	// ReadableFiles are the Space files its ListFiles and ReadFile reach.
+	ReadableFiles []string
 }
 
 func (a *AssistantTurn) ids(kind string) []string {
@@ -79,6 +81,7 @@ const assistantToolGuidance = `# Tools
 - ListWorkflows: list the workflows you may run and the input each needs.
 - RunWorkflow: start a run of one of those workflows, passing input that matches its input_schema.
 - GetWorkflowRun: get the status, and the result once it has finished, of a workflow run started in this conversation.
+- ListFiles / ReadFile: list and read the Space files you may answer from. Prefer them for questions those files answer, before starting work.
 
 A result shows only the fields the Space allows you to share; report those and nothing more. The person is told when work you start finishes. Do not expose internal IDs.`
 
@@ -138,6 +141,7 @@ func buildAssistantTools(in turnRunInput, sourceMessageID *string) []llm.Tool {
 				newGetTaskTool(in.ConversationID, &assistantGetTaskRunner{tasks: svc, assistant: a}))
 		}
 	}
+	tools = append(tools, newAssistantFileTools(in.Files, in.SpaceID, a.ReadableFiles)...)
 	if wf := in.WorkflowService; wf != nil && in.SpaceID != "" && len(a.ids(coreassistant.KindWorkflow)) > 0 {
 		tools = append(tools,
 			newListWorkflowsTool(&assistantListWorkflowsRunner{svc: wf, spaceID: in.SpaceID, roster: a.ids(coreassistant.KindWorkflow)}),

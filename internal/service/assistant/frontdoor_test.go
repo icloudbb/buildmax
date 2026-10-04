@@ -178,7 +178,8 @@ func TestFrontDoorRunsTheTurnAsTheAssistant(t *testing.T) {
 	}
 	p := call.profile
 	if call.requesterID != outsider || p.ActingUserID != a.Def.ServiceAccountID || p.ID != a.ID || p.Revision != a.Revision ||
-		p.Instructions != "Answer HR questions." || len(p.Roster) != 2 || p.Roster[0].ID != "agent_hr" || p.Roster[1].ID != "wf_leave" || p.Roster[0].Releasable[0] != "answer" {
+		p.Instructions != "Answer HR questions." || len(p.Roster) != 2 || p.Roster[0].ID != "agent_hr" || p.Roster[1].ID != "wf_leave" || p.Roster[0].Releasable[0] != "answer" ||
+		len(p.ReadableFiles) != 1 || p.ReadableFiles[0] != "file_policy" {
 		t.Errorf("turn = %+v", call)
 	}
 

@@ -95,6 +95,8 @@ type turnRunInput struct {
 	Fence int64
 	// Assistant, when set, runs the turn as a Space Assistant's front door.
 	Assistant *AssistantTurn
+	// Files backs an Assistant's ListFiles and ReadFile.
+	Files Files
 }
 
 // buildConversationTools builds this turn's task tools.

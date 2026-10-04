@@ -260,6 +260,7 @@ func turnProfile(a *coreassistant.Assistant) conversation.AssistantTurn {
 	return conversation.AssistantTurn{
 		ID: a.ID, Revision: a.Revision, Name: a.Def.Name, Instructions: a.Def.Instructions,
 		Model: a.Def.Model, ActingUserID: a.Def.ServiceAccountID, Roster: a.Def.Roster,
+		ReadableFiles: a.Def.ReadableFiles,
 	}
 }
 

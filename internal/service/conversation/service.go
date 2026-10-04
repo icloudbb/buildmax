@@ -48,6 +48,9 @@ type Service struct {
 	// Spaces names the conversation's Space in the prompt and backs ListSpaces.
 	// Nil leaves both out.
 	Spaces corespace.Store
+	// Files lets a Space Assistant read its readable files. Nil leaves its
+	// file tools out.
+	Files Files
 }
 
 // HandleTurnCmd describes one normalized portal conversation turn.
@@ -161,6 +164,7 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		StreamSink:     cmd.StreamSink,
 		Fence:          cmd.Fence,
 		Assistant:      cmd.Assistant,
+		Files:          s.Files,
 	}
 	reply, err := runConversationTurn(ctx, s.ConversationStore, s.MessageStore, client, runInput)
 	return ConversationResult{Reply: reply}, err

@@ -392,7 +392,7 @@ func (h *Handler) buildConversationService() *conversation.Service {
 			Audit:       h.cfg.Audit,
 		}
 	}
-	return &conversation.Service{
+	svc := &conversation.Service{
 		TaskService:       taskSvc,
 		WorkflowService:   workflowSvc,
 		ConversationStore: h.cfg.ConversationStore,
@@ -401,4 +401,10 @@ func (h *Handler) buildConversationService() *conversation.Service {
 		AgentStore:        h.cfg.AgentStore,
 		Spaces:            h.cfg.SpaceStore,
 	}
+	// Through the nil check, so a deployment without file storage leaves the
+	// interface nil rather than holding a typed nil.
+	if files := h.buildArtifactService(); files != nil {
+		svc.Files = files
+	}
+	return svc
 }
