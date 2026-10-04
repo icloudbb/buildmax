@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/space-assistants.md#15-phasing
 depends_on: [68-assistant-release-contracts.md, 70-assistant-readable-files.md, 72-assistant-escalation.md, 74-assistant-schedule-delivery.md]
 verification: ["kind", "exploratory"]
-claim:
+claim: gougoujiang 2026-10-04
 pr:
 ---
 
