@@ -647,10 +647,13 @@ the requester in the Assistant's Space, and can start only roster Agents and
 Workflows, as the service account; each Task records the requester, the
 Assistant, and its revision, and each stored message the revision. The
 conversation belongs to the Assistant's Space, where its members can read it,
-and continues only in the chat; the first reply says so. Task and Workflow
-reads return status only, no outcome report is sent, and readable-file reads,
-escalation, and delivery are not built
-([front door](../internal/service/assistant/frontdoor.go),
+and continues only in the chat; the first reply says so. A roster Agent's Task
+must answer in its entry's output schema, and the turn's Task and Workflow
+reads and the outcome report sent when such a Task ends carry only the
+releasable fields of the result under the current roster: no raw output, error
+text, or link. Readable-file reads, escalation, and delivery are not built
+([release](../internal/core/assistant/release.go),
+[front door](../internal/service/assistant/frontdoor.go),
 [turn](../internal/service/conversation/assistant_turn.go),
 [design](design/space-assistants.md)).
 
