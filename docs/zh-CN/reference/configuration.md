@@ -576,6 +576,9 @@ worker_api:                          # the internal listener serving /api/worker
 # audit:                             # governance trail retention
 #   retention_days: 365              # default 0 — keep every event forever
 
+# trace:                             # durable run-trace retention
+#   retention_days: 90               # default 0 — keep every trace forever
+
 storage:
   persist_backend: local_fs          # or minio — space uploads
   artifact_backend: local_fs         # or minio — artifact content
@@ -632,6 +635,8 @@ Server 对外暴露两个 HTTP 监听端口。`port` 上的公开端口服务于
 同一个清扫任务也是唯一读取 artifact 过期时间的地方。带有过期时间的 artifact 到期后会被打上删除标记（tombstone），记为一条 `artifact.expired` 事件并指明该 artifact，其字节随后会像任何其他删除一样进入宽限期等待。每一次实际回收了内容的清扫，都会写入一条 `artifact.purged` 事件，记录数量和字节数。除了对失败上传的回滚之外，BuildMax 中没有其他任何地方会移除 artifact 内容。
 
 `audit.retention_days` 使审计轨迹中的事件过期。默认值为 **0**，即保留全部记录：尚未选定保留策略的部署，就等于尚未决定要丢弃证据。设置该值后会启动一次每小时的清扫，移除超出窗口期的旧事件，每一次实际移除了内容的清扫都会写入一条 `audit.pruned` 事件，记录被移除的范围和数量——这样一来，一份从中途开始的记录就能说明是策略缩短了它，而不是让读者去猜测。除此之外，BuildMax 中没有其他任何地方会删除 audit 事件，也没有办法单独删除某一条。
+
+`trace.retention_days` 对持久化运行轨迹（trace）起同样的作用。它的默认值同样是 **0**，即保留全部 trace。设置该值后会启动一次每小时的清扫：对每个在窗口期之前结束的运行，先删除其 trace 对象，再清除该运行指向它的引用，这样这个运行会显示为没有 trace，而不是 trace 丢失；每一次实际移除了内容的清扫都会写入一条 `traces.pruned` 事件。积压较多时会分摊到多次清扫中（每次最多 10,000 个运行）。保持默认值时，trace 存储会随每次运行增长，为其规划 bucket 容量是运维人员的责任。
 
 Space 所有者可以从 space 设置中下载该 space 自己的审计轨迹，而 System Administrator 可以从 `#/admin` 下载整个部署范围内的审计轨迹并加以筛选。两者都可以导出为 CSV 或 JSONL，且这两种操作本身都会被记录在审计轨迹中，记为 `audit.exported`——阅读整份记录本身也是对它的一次操作。
 
