@@ -5,5 +5,6 @@
   discloses, and each can be bound to its own Telegram bot, whose token is stored
   encrypted. Linked people in its audience can then ask it in a private chat; it
   starts only roster Agents and Workflows as its service account, records who
-  asked on each Task, and reports work's status but not yet its result
+  asked on each Task, and passes on only the result fields the Space marked
+  releasable, including in the message sent when the work finishes
   ([Portal overview](https://github.com/icloudbb/buildmax/blob/main/manual/portal-overview.md#space-settings)).

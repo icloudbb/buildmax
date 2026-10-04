@@ -91,10 +91,11 @@ Open **Space** from the user menu (owners and admins can change these):
   Agents and Workflows, and tells each person on its first reply which space
   runs it and that the space can review the conversation, which appears in the
   space's conversations but continues only in the chat. `/new` starts a new
-  conversation and `/help` describes the assistant. For now it reports only
-  whether work it started is running or finished, not the result, and sends no
-  message when work finishes. A paused one says it is paused. Personal spaces
-  cannot have them.
+  conversation and `/help` describes the assistant. Of a result, the assistant
+  and the person asking see only the fields its roster entry marks releasable,
+  never raw output, error text, or a link; when an Agent's task finishes, the
+  person gets those fields in the chat, or a short note if it failed. A paused
+  one says it is paused. Personal spaces cannot have them.
 - **Audit** — a record of what happened in the space.
 
 ## How models are chosen

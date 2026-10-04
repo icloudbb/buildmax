@@ -416,10 +416,12 @@ type RunTerminalInfo struct {
 	TaskID         string
 	ConversationID string
 	// SpaceID is the space that owns the task.
-	SpaceID      string
-	UserID       string
-	Status       string
-	Output       *string
+	SpaceID string
+	UserID  string
+	Status  string
+	Output  *string
+	// Structured is the run's validated structured answer, when it has one.
+	Structured   *string
 	ErrorMessage *string
 	// AwaitingAnswer marks a run that ended on AskUser questions: it finished,
 	// but its Task waits for the user's answer. The questions close its output.

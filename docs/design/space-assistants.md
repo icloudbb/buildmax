@@ -5,8 +5,8 @@
 > **Audience:** contributors, product designers, and operators · **Status:**
 > accepted — in progress: the many-bot Gateway (§9), service accounts (§6),
 > the Assistant entity, its bot binding, and the publish statement (§4, §8),
-> and the front-door turn (§10) are built; release contracts, readable files,
-> escalation, and delivery are not
+> the front-door turn (§10), and release contracts with outcome reports (§8,
+> §11) are built; readable files, escalation, and delivery are not
 >
 > This record decides how a Space publishes **Assistants**: conversational
 > service front doors that answer people outside the Space's own work, dispatch
@@ -311,7 +311,10 @@ passes it as the Task's `output_schema`, so the run must satisfy it. The entry
 lists which top-level properties are releasable. GetTask and GetWorkflowRun, when
 called from an Assistant turn, return status and the releasable fields only:
 no raw output, error text, transcript, or Portal link. A roster entry without a
-release contract cannot be added.
+release contract cannot be added. A result is released under the Assistant's
+current roster entry for the Agent or Workflow that produced it: the owner
+confirmed that statement, and work whose entry has since left the roster
+releases nothing.
 
 **Publishing is a disclosure decision.** Activating an Assistant, and saving a
 change to its audience, roster, or readable files while it is active, shows the
@@ -461,9 +464,9 @@ Each slice is a backlog task, in order:
    [current state](../current-state.md#account-space-and-extension-surfaces).
 3. Assistant entity, binding, and management (§4, §8 publish statement) —
    built; see [current state](../current-state.md#account-space-and-extension-surfaces).
-4. Assistant front-door turn (§7.2, §7.3, §10) — built; until slice 5,
-   Task and Workflow reads return status only and no outcome report is sent.
-5. [Release contracts and Assistant outcome reports](../backlog/68-assistant-release-contracts.md) (§8, §11).
+4. Assistant front-door turn (§7.2, §7.3, §10) — built.
+5. Release contracts and Assistant outcome reports (§8, §11) — built; Workflow
+   runs an Assistant starts are read through GetWorkflowRun but not reported.
 6. [Readable files tool](../backlog/70-assistant-readable-files.md) (§8, §10).
 7. [Escalation to an Issue](../backlog/72-assistant-escalation.md) (§11).
 8. [Schedule delivery through an Assistant](../backlog/74-assistant-schedule-delivery.md) (§11).

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
@@ -19,6 +20,8 @@ const assistantKey = "asst1"
 type fakeFrontDoor struct {
 	mu    sync.Mutex
 	calls []string
+	// outcomeKey is the bot Outcome reports through.
+	outcomeKey string
 }
 
 func (f *fakeFrontDoor) Answer(_ context.Context, key string, in corechannel.Inbound, userID string) string {
@@ -26,6 +29,10 @@ func (f *fakeFrontDoor) Answer(_ context.Context, key string, in corechannel.Inb
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, key+"|"+userID+"|"+in.Text)
 	return "front: " + in.Text
+}
+
+func (f *fakeFrontDoor) Outcome(_ context.Context, conv *coreconv.Conversation, info coretask.RunTerminalInfo) (string, string, bool) {
+	return f.outcomeKey, "outcome of " + info.TaskID, true
 }
 
 func (f *fakeFrontDoor) seen() []string {
@@ -107,6 +114,21 @@ func TestOtherBotsGoToTheFrontDoorAndReportThroughThemselves(t *testing.T) {
 	h.g.ReportRunTerminal(context.Background(), info)
 	if !strings.Contains(asst.last(), "was canceled") || len(h.conn.messages()) != before {
 		t.Errorf("the report did not go through the conversation's bot: assistant %q", asst.last())
+	}
+
+	// An Assistant's conversation is reported by its front door: its text,
+	// through the bot it names, and never the personal report.
+	h.convs.mu.Lock()
+	h.convs.convs = append(h.convs.convs, coreconv.Conversation{
+		ID: "asst-conv", SpaceID: teamID, UserID: adaID, Channel: corechannel.PlatformTelegram,
+		ChannelConnector: "an-old-binding", ChannelRef: adaChat, AssistantID: "asst_hr",
+	})
+	h.convs.mu.Unlock()
+	fd.outcomeKey = assistantKey
+	info = coretask.RunTerminalInfo{TaskID: "task2", ConversationID: "asst-conv", SpaceID: teamID, Status: string(coretask.RunStatusSucceeded)}
+	h.g.ReportRunTerminal(context.Background(), info)
+	if asst.last() != "outcome of task2" || len(h.conn.messages()) != before {
+		t.Errorf("assistant report = %q", asst.last())
 	}
 }
 

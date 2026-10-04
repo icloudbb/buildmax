@@ -316,8 +316,11 @@ A Connector's `Receive` runs only on the replica holding the connector's lease.
 `OnTaskRunTerminal` also calls `Gateway.ReportRunTerminal`.
 
 - **Which runs.** Only a run whose Task carries a Conversation with a
-  `channel_ref` is reported, and not one from a Space Assistant's
-  conversation, whose requester may see only a result's releasable fields.
+  `channel_ref` is reported. A Space Assistant's conversation is reported by
+  its front door (`FrontDoor.Outcome`): only the result's releasable fields,
+  fixed text on failure, no link, through the Assistant's current bot, and only
+  while it would still answer the requester
+  ([Space Assistants §11](space-assistants.md#11-results-escalation-and-delivery)).
 - **Who can still see it.** The report is sent only while the conversation's
   owner still passes eligibility for its Space, and still has a link on that
   platform.

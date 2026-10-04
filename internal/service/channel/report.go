@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
@@ -23,6 +24,8 @@ const (
 // It reports only while the conversation's owner can still see the result:
 // their account may still work in the Space, they still have a chat account
 // linked on that platform, and they signed in recently enough for it to act.
+// A Space Assistant's conversation is reported by its front door, which
+// decides who may still hear and what of the result they may learn.
 func (g *Gateway) ReportRunTerminal(ctx context.Context, info coretask.RunTerminalInfo) {
 	if g == nil || info.ConversationID == "" {
 		return
@@ -31,9 +34,20 @@ func (g *Gateway) ReportRunTerminal(ctx context.Context, info coretask.RunTermin
 	if err != nil || conv == nil || conv.ChannelRef == "" {
 		return
 	}
-	// A Space Assistant's requester may see only a result's releasable fields,
-	// which this report does not know about.
+	if !g.mayReport(ctx, conv) {
+		return
+	}
+	sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
 	if conv.AssistantID != "" {
+		f := g.currentFrontDoor()
+		if f == nil {
+			return
+		}
+		key, text, ok := f.Outcome(ctx, conv, info)
+		if c := g.connector(conv.Channel, key); ok && c != nil {
+			g.reply(sendCtx, *c, conv.ChannelRef, text)
+		}
 		return
 	}
 	c := g.connector(conv.Channel, conv.ChannelConnector)
@@ -43,30 +57,32 @@ func (g *Gateway) ReportRunTerminal(ctx context.Context, info coretask.RunTermin
 	if g.eligible != nil && g.eligible.Check(ctx, conv.UserID, conv.SpaceID) != nil {
 		return
 	}
-	links, err := g.identities.ListIdentitiesByUser(ctx, conv.UserID)
-	if err != nil {
-		g.log.Warn("outcome report skipped: link lookup failed", "err", err)
-		return
-	}
-	linked := false
-	for _, l := range links {
-		linked = linked || l.Platform == conv.Channel
-	}
-	if !linked {
-		return
-	}
-	if active, err := g.linkActive(ctx, conv.UserID); err != nil || !active {
-		return
-	}
 	title := ""
 	if g.tasks != nil {
 		if t, err := g.tasks.GetTask(ctx, info.TaskID); err == nil && t != nil {
 			title = t.Title
 		}
 	}
-	sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-	defer cancel()
 	g.reply(sendCtx, *c, conv.ChannelRef, g.formatReport(info, title))
+}
+
+// mayReport is whether the conversation's owner still has a chat account
+// linked on its platform and signed in recently enough for it to act.
+func (g *Gateway) mayReport(ctx context.Context, conv *coreconv.Conversation) bool {
+	links, err := g.identities.ListIdentitiesByUser(ctx, conv.UserID)
+	if err != nil {
+		g.log.Warn("outcome report skipped: link lookup failed", "err", err)
+		return false
+	}
+	linked := false
+	for _, l := range links {
+		linked = linked || l.Platform == conv.Channel
+	}
+	if !linked {
+		return false
+	}
+	active, err := g.linkActive(ctx, conv.UserID)
+	return err == nil && active
 }
 
 func (g *Gateway) formatReport(info coretask.RunTerminalInfo, title string) string {
