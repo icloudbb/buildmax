@@ -83,6 +83,22 @@ const (
 
 // RunStatusTerminal reports whether a run in this status has finished; a
 // terminal run never changes again.
+// ReportStatus is where the outcome report stands that a run a Space
+// Assistant started owes the person who asked: how it ended, sent into their
+// chat once it has. Empty for any other run. See
+// docs/design/space-assistants.md §11.
+type ReportStatus string
+
+const (
+	ReportPending ReportStatus = "pending"
+	ReportSent    ReportStatus = "sent"
+	// ReportSkipped means the Assistant would not have answered the requester
+	// when the run ended, so nothing was sent.
+	ReportSkipped ReportStatus = "skipped"
+	// ReportFailed means the send was claimed but the chat platform refused it.
+	ReportFailed ReportStatus = "failed"
+)
+
 func RunStatusTerminal(s RunStatus) bool {
 	switch s {
 	case RunStatusSucceeded, RunStatusFailed, RunStatusCanceled:
@@ -352,6 +368,9 @@ type Run struct {
 	RequestedBy       string `json:"requested_by,omitempty"`
 	AssistantID       string `json:"assistant_id,omitempty"`
 	AssistantRevision int    `json:"assistant_revision,omitempty"`
+	// ReportStatus tracks the outcome report a run an Assistant started owes
+	// its requester; empty for any other run.
+	ReportStatus ReportStatus `json:"report_status,omitempty"`
 	// Input is the run's immutable input JSON, validated against the definition's
 	// input_schema at admission. Nil when the definition declares no input_schema.
 	Input     *string `json:"input,omitempty"`
@@ -690,6 +709,9 @@ type CreateRunInput struct {
 	RequestedBy       string
 	AssistantID       string
 	AssistantRevision int
+	// ReportStatus is ReportPending for a run that owes its requester an
+	// outcome report, and empty otherwise.
+	ReportStatus ReportStatus
 	// Input is the run's immutable input JSON, already validated against the
 	// definition's input_schema. Nil when the definition declares no input_schema.
 	Input      *string
@@ -850,6 +872,12 @@ type Store interface {
 	// newest first, so a schedule can show its firing history.
 	ListWorkflowRunsBySchedule(ctx context.Context, scheduleID string, limit, offset int) ([]Run, int, error)
 	GetWorkflowRun(ctx context.Context, workflowRunID string) (*Run, error)
+	// ListPendingWorkflowReports returns ended runs whose outcome report is
+	// pending, oldest first. SettleWorkflowReport moves one run's report from
+	// one status to another; false means it was not at from, so another replica
+	// settled it first.
+	ListPendingWorkflowReports(ctx context.Context, limit int) ([]Run, error)
+	SettleWorkflowReport(ctx context.Context, workflowRunID string, from, to ReportStatus) (bool, error)
 	ListWorkflowNodeRuns(ctx context.Context, workflowRunID string) ([]NodeRun, error)
 	CreateWorkflowNodeRuns(ctx context.Context, workflowRunID string, steps []CreateNodeRunInput) ([]NodeRun, error)
 	// TransitionWorkflowRun and TransitionWorkflowNodeRun apply one guarded

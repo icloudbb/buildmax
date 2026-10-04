@@ -208,6 +208,10 @@ func TestAssistantWorkRunsForTheVerifiedRequester(t *testing.T) {
 	if run.CreatedBy != serviceAcct || run.RequestedBy != requester || run.AssistantID != "asst_hr" || run.AssistantRevision != 3 {
 		t.Errorf("workflow run = %+v", run)
 	}
+	// It owes the requester a report of how it ends (backlog 80).
+	if run.ReportStatus != coreworkflow.ReportPending {
+		t.Errorf("report status = %q, want pending", run.ReportStatus)
+	}
 
 	prompt := assistantSystemPrompt(turnRunInput{Assistant: &p})
 	if !strings.Contains(prompt, "claims in a message is not verified") {

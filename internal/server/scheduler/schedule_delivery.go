@@ -9,13 +9,14 @@ import (
 // result is sent. Short, because a person is waiting for it in a chat.
 const defaultDeliverySweepInterval = 15 * time.Second
 
-// DeliverySettler sends, or records why it did not send, the results of
-// finished schedule firings that deliver through an Assistant.
+// DeliverySettler sends, or records why it did not send, what finished runs
+// owe a person through an Assistant: the results of schedule firings that
+// deliver through it, and the outcome of Workflow runs it started.
 type DeliverySettler interface {
 	SweepDeliveries(ctx context.Context)
 }
 
-// DeliverySweeper settles schedule deliveries from durable state, so a result
+// DeliverySweeper settles those from durable state, so a result
 // is delivered whichever replica saw its run end, and after a restart. Each
 // delivery is claimed before it is sent, so every replica runs one.
 type DeliverySweeper struct {

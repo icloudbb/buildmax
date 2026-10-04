@@ -141,6 +141,7 @@ func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in coreworkflow
 		RequestedBy:       in.RequestedBy,
 		AssistantID:       in.AssistantID,
 		AssistantRevision: in.AssistantRevision,
+		ReportStatus:      in.ReportStatus,
 		Status:            in.Status,
 		CreatedBy:         in.CreatedBy,
 		CreatedAt:         time.Now().UTC(),
@@ -721,4 +722,30 @@ func (m *MockWorkflowStore) GetWorkflowNodeRunByTaskRunID(_ context.Context, tas
 		}
 	}
 	return nil, nil
+}
+
+func (m *MockWorkflowStore) ListPendingWorkflowReports(_ context.Context, limit int) ([]coreworkflow.Run, error) {
+	var out []coreworkflow.Run
+	for _, run := range m.Runs {
+		if run.ReportStatus == coreworkflow.ReportPending && coreworkflow.RunStatusTerminal(coreworkflow.RunStatus(run.Status)) {
+			out = append(out, run)
+		}
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (m *MockWorkflowStore) SettleWorkflowReport(_ context.Context, workflowRunID string, from, to coreworkflow.ReportStatus) (bool, error) {
+	for i := range m.Runs {
+		if m.Runs[i].ID == workflowRunID {
+			if m.Runs[i].ReportStatus != from {
+				return false, nil
+			}
+			m.Runs[i].ReportStatus = to
+			return true, nil
+		}
+	}
+	return false, nil
 }
