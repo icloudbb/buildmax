@@ -58,7 +58,10 @@ type FrontDoor struct {
 	// Assistant; without them nothing is delivered.
 	Schedules DeliverySchedules
 	Runs      DeliveryRuns
-	Log       *slog.Logger
+	// Reports backs telling a requester how a Workflow run they asked for
+	// ended; without it nothing is reported.
+	Reports WorkflowReports
+	Log     *slog.Logger
 }
 
 func (f *FrontDoor) log() *slog.Logger {

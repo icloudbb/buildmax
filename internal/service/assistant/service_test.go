@@ -81,11 +81,14 @@ func newFixture(t *testing.T) *fixture {
 		}},
 		{ID: "agent_elsewhere", SpaceID: other, Name: "Elsewhere"},
 	}}
-	wfDef := `{"schema_version":2,"nodes":[{"id":"lookup","type":"agent_task","agent":{"id":"agent_hr"},"input":{"instruction":"x"},"output_schema":` + string(resultSchema) + `}],"result":{"source":"node.lookup.output","pointer":""}}`
+	wfDef := `{"schema_version":2,"nodes":[{"id":"lookup","type":"agent_task","agent":{"id":"agent_hr"},"input":{"instruction":"x"},"output_schema":` + string(resultSchema) + `}],"result":{"source":"node.lookup.output","pointer":"/structured"}}`
 	workflows := &mock.MockWorkflowStore{Workflows: []coreworkflow.Workflow{
 		{ID: "wf_leave", SpaceID: team, Name: "Leave lookup", Status: coreworkflow.StatusPublished, Definition: wfDef},
 		{ID: "wf_draft", SpaceID: team, Name: "Draft", Status: "draft", Definition: wfDef},
 		{ID: "wf_noresult", SpaceID: team, Name: "No result", Status: coreworkflow.StatusPublished, Definition: `{"schema_version":2,"nodes":[]}`},
+		// The whole output is the node's envelope, whose top level holds none
+		// of the schema's fields.
+		{ID: "wf_envelope", SpaceID: team, Name: "Envelope", Status: coreworkflow.StatusPublished, Definition: strings.Replace(wfDef, `"pointer":"/structured"`, `"pointer":""`, 1)},
 	}}
 	artifacts := &mock.MockArtifactStore{}
 	if _, err := artifacts.CreateArtifact(ctx, coreartifact.CreateInput{ArtifactID: "file_policy", SpaceID: team, Filename: "leave-policy.md"}); err != nil {
@@ -150,11 +153,12 @@ func TestCreateRefusesWhatTheSpaceDoesNotOwn(t *testing.T) {
 		"workflow without a result schema": func(d *coreassistant.Definition) {
 			d.Roster[1].ID = "wf_noresult"
 		},
-		"releasable outside the schema": func(d *coreassistant.Definition) { d.Roster[0].Releasable = []string{"salary"} },
-		"agent without output_schema":   func(d *coreassistant.Definition) { d.Roster[0].OutputSchema = nil },
-		"file of another space":         func(d *coreassistant.Definition) { d.ReadableFiles = []string{"file_other"} },
-		"unknown audience":              func(d *coreassistant.Definition) { d.Audience = "everyone" },
-		"someone else as the account":   func(d *coreassistant.Definition) { d.ServiceAccountID = member },
+		"workflow result that is not the structured output": func(d *coreassistant.Definition) { d.Roster[1].ID = "wf_envelope" },
+		"releasable outside the schema":                     func(d *coreassistant.Definition) { d.Roster[0].Releasable = []string{"salary"} },
+		"agent without output_schema":                       func(d *coreassistant.Definition) { d.Roster[0].OutputSchema = nil },
+		"file of another space":                             func(d *coreassistant.Definition) { d.ReadableFiles = []string{"file_other"} },
+		"unknown audience":                                  func(d *coreassistant.Definition) { d.Audience = "everyone" },
+		"someone else as the account":                       func(d *coreassistant.Definition) { d.ServiceAccountID = member },
 	}
 	for name, edit := range cases {
 		t.Run(name, func(t *testing.T) {

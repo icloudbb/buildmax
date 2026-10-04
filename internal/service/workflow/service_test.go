@@ -466,6 +466,10 @@ func TestStartWorkflowRun_StepsRunForTheAssistantRequester(t *testing.T) {
 	if run.RequestedBy != "u_requester" || run.AssistantID != "asst_1" || run.AssistantRevision != 4 {
 		t.Errorf("run provenance = %q %q %d", run.RequestedBy, run.AssistantID, run.AssistantRevision)
 	}
+	// Started outside a conversation, there is no chat to report into.
+	if run.ReportStatus != "" {
+		t.Errorf("report status = %q, want none without a conversation", run.ReportStatus)
+	}
 	if len(taskStore.Created) != 1 {
 		t.Fatalf("step tasks = %d, want 1", len(taskStore.Created))
 	}

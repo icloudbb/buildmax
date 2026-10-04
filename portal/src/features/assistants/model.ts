@@ -38,7 +38,8 @@ export function parseOutputSchema(text: string): { schema: unknown; properties: 
 
 /**
  * The releasable fields a published Workflow offers: the top-level properties
- * of the output_schema on the node its result selects whole. Null when that
+ * of the output_schema on the node whose structured output its result selects
+ * (pointer "/structured"). Null when that
  * cannot be read from the definition, in which case the server is the judge
  * and the editor falls back to free text.
  */
@@ -51,7 +52,7 @@ export function workflowResultProperties(definition: string): string[] | null {
   } catch {
     return null
   }
-  if (typeof result.source !== "string" || (result.pointer !== undefined && result.pointer !== "")) return null
+  if (typeof result.source !== "string" || result.pointer !== "/structured") return null
   const nodeId = parseNodeOutputSource(result.source)
   const node = parsed.steps.find((step) => step.id === nodeId)
   if (!node?.outputSchema) return null

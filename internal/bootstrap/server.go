@@ -171,7 +171,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 		serverConfig.Services.AssistantFrontDoor = &assistantsvc.FrontDoor{
 			Service: a, Conversations: store, Tasks: store, Eligibility: elig,
 			Issues:    &issuesvc.Service{Issues: store, Comments: store},
-			Schedules: store, Runs: store,
+			Schedules: store, Runs: store, Reports: store,
 		}
 	}
 
@@ -260,8 +260,9 @@ func RunServer(ctx context.Context, portOverride int) error {
 	var deliveries *scheduler.DeliverySweeper
 	if f := serverConfig.Services.AssistantFrontDoor; f != nil {
 		dispatcher.WithDeliveryContracts(f)
-		// Sends each delivering firing's result once its run ends, from
-		// durable state, so it survives a restart between the two.
+		// Sends each delivering firing's result, and how each Workflow run an
+		// Assistant started ended, once the run ends, from durable state, so it
+		// survives a restart between the two.
 		deliveries = scheduler.NewDeliverySweeper(f, 0)
 	}
 	dispatcher.Start()

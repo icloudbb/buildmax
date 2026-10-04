@@ -98,12 +98,20 @@ func (f *FrontDoor) Requesters(ctx context.Context, spaceID, assistantID string)
 	return f.Conversations.ListAssistantRequesters(ctx, assistantID, 200)
 }
 
-// SweepDeliveries settles every pending delivery whose run has ended: it sends
-// the releasable result to the requester through the Assistant's bot, or
-// records why it did not. It is safe on every replica at once; a delivery is
-// claimed before it is sent, so it is sent at most once.
+// SweepDeliveries settles every pending Schedule delivery and Workflow outcome
+// report whose run has ended: it sends what the requester may learn through
+// the Assistant's bot, or records why it did not. It is safe on every replica
+// at once; each is claimed before it is sent, so it is sent at most once.
 func (f *FrontDoor) SweepDeliveries(ctx context.Context) {
-	if f == nil || f.Schedules == nil || f.Runs == nil || f.Service.ready() != nil {
+	if f == nil || f.Service.ready() != nil {
+		return
+	}
+	f.sweepScheduleDeliveries(ctx)
+	f.sweepWorkflowReports(ctx)
+}
+
+func (f *FrontDoor) sweepScheduleDeliveries(ctx context.Context) {
+	if f.Schedules == nil || f.Runs == nil {
 		return
 	}
 	pending, err := f.Schedules.ListPendingDeliveries(ctx, deliveryBatch)

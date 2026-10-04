@@ -60,15 +60,17 @@ describe("workflowResultProperties", () => {
       result,
     })
 
-  it("reads the properties of the node the result selects whole", () => {
-    expect(workflowResultProperties(definition({ source: "node.answer.output" }))).toEqual(["reply", "ticket"])
+  it("reads the properties of the node whose structured output the result selects", () => {
+    expect(workflowResultProperties(definition({ source: "node.answer.output", pointer: "/structured" }))).toEqual(["reply", "ticket"])
   })
 
   it("leaves the decision to the server when it cannot read the shape", () => {
-    // A pointer into the output, a node without a schema, no result at all,
-    // and malformed JSON are all refusals or unknowns the server explains.
-    expect(workflowResultProperties(definition({ source: "node.answer.output", pointer: "/reply" }))).toBeNull()
-    expect(workflowResultProperties(definition({ source: "node.lookup.output" }))).toBeNull()
+    // The whole envelope, a pointer elsewhere, a node without a schema, no
+    // result at all, and malformed JSON are all refusals or unknowns the
+    // server explains.
+    expect(workflowResultProperties(definition({ source: "node.answer.output" }))).toBeNull()
+    expect(workflowResultProperties(definition({ source: "node.answer.output", pointer: "/structured/reply" }))).toBeNull()
+    expect(workflowResultProperties(definition({ source: "node.lookup.output", pointer: "/structured" }))).toBeNull()
     expect(workflowResultProperties(definition(undefined))).toBeNull()
     expect(workflowResultProperties("{")).toBeNull()
   })

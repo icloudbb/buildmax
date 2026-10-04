@@ -494,6 +494,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 		RequestedBy:       cmd.RequestedBy,
 		AssistantID:       cmd.AssistantID,
 		AssistantRevision: cmd.AssistantRevision,
+		ReportStatus:      reportStatusFor(cmd),
 		Input:             runInput,
 		Status:            string(coreworkflow.RunStatusRunning),
 		CreatedBy:         cmd.UserID,
@@ -1818,4 +1819,13 @@ func buildWorkflowTaskInput(agent *agentdef.Agent, prompt string, bound []boundV
 		}
 	}
 	return b.String()
+}
+
+// reportStatusFor is pending for a run a Space Assistant started from a
+// conversation: the person who asked is told how it ended.
+func reportStatusFor(cmd StartWorkflowRunCmd) coreworkflow.ReportStatus {
+	if cmd.AssistantID == "" || cmd.ConversationID == nil || *cmd.ConversationID == "" {
+		return ""
+	}
+	return coreworkflow.ReportPending
 }

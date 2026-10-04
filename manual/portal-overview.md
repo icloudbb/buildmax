@@ -101,8 +101,9 @@ Open **Space** from the user menu (owners and admins can change these):
   records can be told in its instructions to answer only for that person. Of a
   result, the assistant
   and the person asking see only the fields its roster entry marks releasable,
-  never raw output, error text, or a link; when an Agent's task finishes, the
-  person gets those fields in the chat, or a short note if it failed. When it
+  never raw output, error text, or a link; when an Agent's task or a Workflow
+  run it started finishes, the person gets those fields in the chat, or a short
+  note if it failed or was stopped. When it
   cannot answer, it escalates: it opens an issue in the space and tells the
   person someone will follow up, which a member does with **Reply to requester**
   on the issue (see [Conversations & issues](portal-issues.md#issue-detail)). A

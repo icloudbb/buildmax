@@ -96,6 +96,9 @@ type workflowRunRow struct {
 	RequestedBy       *uint64 `gorm:"column:requested_by;index"`
 	AssistantID       *uint64 `gorm:"column:assistant_id;index"`
 	AssistantRevision int     `gorm:"column:assistant_revision;not null;default:0"`
+	// ReportStatus is the outcome report the run owes its requester; empty for
+	// a run that owes none. Indexed for the report sweep.
+	ReportStatus string `gorm:"column:report_status;type:varchar(16);not null;default:'';index"`
 	// Input is the run's immutable input JSON, validated against the definition's
 	// input_schema at admission. NULL when the definition declares no input_schema.
 	Input  *string `gorm:"column:input;type:longtext"`
@@ -318,6 +321,7 @@ func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 	out.RequestedBy = derefPublicID(row.RequestedByPublicID)
 	out.AssistantID = derefPublicID(row.AssistantPublicID)
 	out.AssistantRevision = row.Row.AssistantRevision
+	out.ReportStatus = coreworkflow.ReportStatus(row.Row.ReportStatus)
 	return out
 }
 
@@ -651,6 +655,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 		RequestedBy:       in.RequestedBy,
 		AssistantID:       in.AssistantID,
 		AssistantRevision: in.AssistantRevision,
+		ReportStatus:      in.ReportStatus,
 		Input:             in.Input,
 		Status:            in.Status,
 		CreatedBy:         in.CreatedBy,
@@ -659,6 +664,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 		DeadlineAt:        in.DeadlineAt,
 	}
 	row := &workflowRunRow{
+		ReportStatus:     string(in.ReportStatus),
 		WorkflowRevision: in.WorkflowRevision,
 		Input:            in.Input,
 		Status:           in.Status,
@@ -717,6 +723,33 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 	}
 	run.ID = row.PublicID
 	return run, nil
+}
+
+// ListPendingWorkflowReports returns ended runs that still owe their requester
+// an outcome report, oldest first.
+func (s *Store) ListPendingWorkflowReports(ctx context.Context, limit int) ([]coreworkflow.Run, error) {
+	limit, _ = capPage(limit, 0)
+	var rows []workflowRunReadRow
+	err := s.workflowRunSelect(ctx).
+		Where("workflow_run.report_status = ? AND workflow_run.status IN ?", coreworkflow.ReportPending, coreworkflow.TerminalRunStatuses()).
+		Order("workflow_run.id ASC").Limit(limit).Find(&rows).Error
+	return toWorkflowRuns(rows), err
+}
+
+// SettleWorkflowReport moves a run's report only while it is still at from, so
+// of two replicas reaching one, exactly one sends.
+func (s *Store) SettleWorkflowReport(ctx context.Context, workflowRunID string, from, to coreworkflow.ReportStatus) (bool, error) {
+	id, ok := util.CanonicalPublicID(workflowRunID)
+	if !ok {
+		return false, nil
+	}
+	res := s.db.WithContext(ctx).Model(&workflowRunRow{}).
+		Where("public_id = ? AND report_status = ?", id, from).
+		Update("report_status", to)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
 }
 
 func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]coreworkflow.Run, int, error) {

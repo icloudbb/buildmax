@@ -233,13 +233,36 @@ func TestAssistantConversationAndProvenance(t *testing.T) {
 	}
 	run, err := s.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
 		WorkflowID: wf.ID, ConversationID: &first.ID, Status: string(coreworkflow.RunStatusRunning), CreatedBy: owner,
-		RequestedBy: requester, AssistantID: a.ID, AssistantRevision: 4,
+		RequestedBy: requester, AssistantID: a.ID, AssistantRevision: 4, ReportStatus: coreworkflow.ReportPending,
 	})
 	if err != nil {
 		t.Fatalf("CreateWorkflowRun: %v", err)
 	}
-	if got, err := s.GetWorkflowRun(ctx, run.ID); err != nil || got.RequestedBy != requester || got.AssistantID != a.ID || got.AssistantRevision != 4 {
+	if got, err := s.GetWorkflowRun(ctx, run.ID); err != nil || got.RequestedBy != requester || got.AssistantID != a.ID || got.AssistantRevision != 4 || got.ReportStatus != coreworkflow.ReportPending {
 		t.Errorf("workflow run provenance = %+v, %v", got, err)
+	}
+	// The report sweep sees the run only once it has ended, and of two
+	// replicas settling it exactly one wins.
+	if pending, err := s.ListPendingWorkflowReports(ctx, 10); err != nil || len(pending) != 0 {
+		t.Errorf("pending reports while running = %+v, %v", pending, err)
+	}
+	if ok, err := s.TransitionWorkflowRun(ctx, coreworkflow.TransitionRunInput{
+		WorkflowRunID: run.ID, ExpectedStatus: coreworkflow.RunStatusRunning, NewStatus: coreworkflow.RunStatusSucceeded,
+	}); err != nil || !ok {
+		t.Fatalf("finish run: %v, %v", ok, err)
+	}
+	pending, err := s.ListPendingWorkflowReports(ctx, 10)
+	if err != nil || len(pending) != 1 || pending[0].ID != run.ID {
+		t.Fatalf("pending reports = %+v, %v", pending, err)
+	}
+	if won, err := s.SettleWorkflowReport(ctx, run.ID, coreworkflow.ReportPending, coreworkflow.ReportSent); err != nil || !won {
+		t.Errorf("first settle = %v, %v", won, err)
+	}
+	if won, err := s.SettleWorkflowReport(ctx, run.ID, coreworkflow.ReportPending, coreworkflow.ReportSkipped); err != nil || won {
+		t.Errorf("second settle = %v, %v", won, err)
+	}
+	if pending, _ := s.ListPendingWorkflowReports(ctx, 10); len(pending) != 0 {
+		t.Errorf("a settled report is still pending: %+v", pending)
 	}
 	if got, err := s.GetWorkflowRun(ctx, run.ID); err != nil || got.ConversationID == nil || *got.ConversationID != first.ID {
 		t.Errorf("workflow run = %+v, %v", got, err)
