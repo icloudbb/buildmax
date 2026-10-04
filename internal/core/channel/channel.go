@@ -17,6 +17,11 @@ import (
 // the Conversation channel of every conversation that platform carries.
 const PlatformTelegram = "telegram"
 
+// ConnectorSystem keys the bot the operator configures in server.yaml, which
+// serves every linked user as their personal assistant. Other bots, such as a
+// Space Assistant's, are registered under their own key.
+const ConnectorSystem = "system"
+
 // PairingTTL bounds how long a link code the bot hands out stays redeemable.
 // Short, because the code travels through a chat client the server does not
 // control, and a person linking is at the keyboard anyway.
@@ -30,6 +35,11 @@ var ErrAlreadyLinked = apierr.New(apierr.KindConflict, "this chat account is alr
 // ErrPairingNotFound covers a wrong, spent, and expired code alike: the three
 // are indistinguishable to someone guessing, which is the point.
 var ErrPairingNotFound = apierr.New(apierr.KindNotFound, "link code not found or expired; send the bot a new message for a fresh one")
+
+// ErrBotInUse refuses connecting a bot BuildMax already receives for. A
+// platform such as Telegram delivers each message to one receiver, so a second
+// connector on the same bot would take messages from the first.
+var ErrBotInUse = apierr.New(apierr.KindConflict, "this bot is already connected to BuildMax")
 
 // ErrSignInRequired refuses confirming a link for a user whose last sign-in is
 // already outside the window: the link would be inactive the moment it exists.
@@ -71,7 +81,10 @@ type Identity struct {
 // Pairing is a link request a chat account started and a signed-in BuildMax
 // user has not confirmed yet.
 type Pairing struct {
-	Platform       string
+	Platform string
+	// Connector is the key of the bot that issued the code, which is the bot
+	// that tells the person the link succeeded. Empty means ConnectorSystem.
+	Connector      string
 	Tenant         string
 	ExternalUserID string
 	// ChatID is where the bot tells the person the link succeeded.
@@ -158,4 +171,8 @@ type Connector interface {
 	// Typing shows a chat that a reply is being written. Best effort.
 	Typing(ctx context.Context, chatID string) error
 	Info(ctx context.Context) Info
+	// BotID is the platform's immutable id for the bot account this connector
+	// speaks as. Two connectors with the same BotID would compete for its
+	// messages, so the Gateway refuses the second.
+	BotID(ctx context.Context) (string, error)
 }

@@ -62,6 +62,7 @@ type Connector struct {
 	log     *slog.Logger
 	infoMu  sync.Mutex
 	botName string
+	botID   string
 }
 
 var _ corechannel.Connector = (*Connector)(nil)
@@ -92,23 +93,38 @@ func (c *Connector) Platform() string { return corechannel.PlatformTelegram }
 // Info names the bot, asking Telegram once and remembering the answer.
 func (c *Connector) Info(ctx context.Context) corechannel.Info {
 	info := corechannel.Info{Platform: corechannel.PlatformTelegram, Name: "Telegram"}
-	c.infoMu.Lock()
-	defer c.infoMu.Unlock()
-	if c.botName == "" {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		var me struct {
-			Username string `json:"username"`
-		}
-		if err := c.call(ctx, "getMe", nil, &me); err == nil {
-			c.botName = me.Username
-		}
-	}
-	if c.botName != "" {
-		info.BotHandle = "@" + c.botName
-		info.BotURL = "https://t.me/" + c.botName
+	if name, _, err := c.me(ctx); err == nil {
+		info.BotHandle = "@" + name
+		info.BotURL = "https://t.me/" + name
 	}
 	return info
+}
+
+// BotID is the bot's Telegram user id, which a token's holder cannot change.
+func (c *Connector) BotID(ctx context.Context) (string, error) {
+	_, id, err := c.me(ctx)
+	return id, err
+}
+
+// me asks Telegram who the bot is once and remembers the answer; a failure is
+// not remembered, so the next caller asks again.
+func (c *Connector) me(ctx context.Context) (name, id string, err error) {
+	c.infoMu.Lock()
+	defer c.infoMu.Unlock()
+	if c.botID != "" {
+		return c.botName, c.botID, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	var me struct {
+		ID       int64  `json:"id"`
+		Username string `json:"username"`
+	}
+	if err := c.call(ctx, "getMe", nil, &me); err != nil {
+		return "", "", err
+	}
+	c.botName, c.botID = me.Username, strconv.FormatInt(me.ID, 10)
+	return c.botName, c.botID, nil
 }
 
 type update struct {

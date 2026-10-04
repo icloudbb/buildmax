@@ -49,8 +49,11 @@ func displayCode(code string) string {
 // offerPairing answers an unlinked sender with a link code. The link is
 // confirmed in the Portal by a signed-in person who sees which chat account
 // they are linking, so the chat itself never carries a BuildMax secret.
-func (g *Gateway) offerPairing(ctx context.Context, c corechannel.Connector, in corechannel.Inbound) {
-	if !g.mayOffer(c.Platform(), in.Tenant, in.SenderID) {
+//
+// Any bot can offer one: the link it confirms is the person's, not the bot's,
+// and the bot that offered the code is the one that confirms it.
+func (g *Gateway) offerPairing(ctx context.Context, c bot, in corechannel.Inbound) {
+	if !g.mayOffer(c, in.Tenant, in.SenderID) {
 		return
 	}
 	code, err := newPairingCode()
@@ -60,6 +63,7 @@ func (g *Gateway) offerPairing(ctx context.Context, c corechannel.Connector, in 
 	}
 	err = g.identities.CreatePairing(ctx, corechannel.Pairing{
 		Platform:       c.Platform(),
+		Connector:      c.key,
 		Tenant:         in.Tenant,
 		ExternalUserID: in.SenderID,
 		ChatID:         in.ChatID,
@@ -84,8 +88,8 @@ func (g *Gateway) offerPairing(ctx context.Context, c corechannel.Connector, in 
 	g.reply(ctx, c, in.ChatID, b.String())
 }
 
-func (g *Gateway) mayOffer(platform, tenant, sender string) bool {
-	key := platform + "\x00" + tenant + "\x00" + sender
+func (g *Gateway) mayOffer(c bot, tenant, sender string) bool {
+	key := c.Platform() + "\x00" + c.key + "\x00" + tenant + "\x00" + sender
 	now := g.now()
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -103,15 +107,24 @@ func (g *Gateway) mayOffer(platform, tenant, sender string) bool {
 	return true
 }
 
-// Platforms describes the configured connectors, for the Portal to say where
-// the bot is.
+// Platforms describes the system bots, for the Portal to say where to link a
+// chat account. Other bots, such as a Space Assistant's, are found where they
+// are published.
 func (g *Gateway) Platforms(ctx context.Context) []corechannel.Info {
 	if g == nil {
 		return nil
 	}
-	out := make([]corechannel.Info, 0, len(g.order))
-	for _, p := range g.order {
-		out = append(out, g.connectors[p].Info(ctx))
+	g.mu.Lock()
+	var system []bot
+	for _, key := range g.order {
+		if r := g.bots[key]; r.key == corechannel.ConnectorSystem {
+			system = append(system, r.bot)
+		}
+	}
+	g.mu.Unlock()
+	out := make([]corechannel.Info, 0, len(system))
+	for _, c := range system {
+		out = append(out, c.Info(ctx))
 	}
 	return out
 }
@@ -144,7 +157,7 @@ func (g *Gateway) ConfirmPairing(ctx context.Context, userID, code string) (*cor
 	if err != nil {
 		return nil, err
 	}
-	if c := g.connectors[pairing.Platform]; c != nil && pairing.ChatID != "" {
+	if c := g.connector(pairing.Platform, pairing.Connector); c != nil && pairing.ChatID != "" {
 		sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
 		g.reply(sendCtx, c, pairing.ChatID, "Linked to your BuildMax account. Send me a message to start, or /help to see what I can do.")

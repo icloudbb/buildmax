@@ -19,14 +19,18 @@ import (
 // fakeConnector records what the gateway sends and lets a test push messages.
 type fakeConnector struct {
 	mu       sync.Mutex
+	botID    string
+	botErr   error
 	sent     []corechannel.Outbound
 	inbox    chan corechannel.Inbound
 	received chan struct{}
 }
 
-func newFakeConnector() *fakeConnector {
-	return &fakeConnector{inbox: make(chan corechannel.Inbound, 16), received: make(chan struct{}, 16)}
+func newFakeConnector(botID string) *fakeConnector {
+	return &fakeConnector{botID: botID, inbox: make(chan corechannel.Inbound, 16), received: make(chan struct{}, 16)}
 }
+
+func (f *fakeConnector) BotID(context.Context) (string, error) { return f.botID, f.botErr }
 
 func (f *fakeConnector) Platform() string { return corechannel.PlatformTelegram }
 
@@ -191,22 +195,22 @@ func (f *fakeConversations) GetConversation(_ context.Context, id string) (*core
 	return nil, nil
 }
 
-func (f *fakeConversations) LatestChatConversation(_ context.Context, userID, channel, ref string) (*coreconv.Conversation, error) {
+func (f *fakeConversations) LatestChatConversation(_ context.Context, userID, channel, connector, ref string) (*coreconv.Conversation, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for i := len(f.convs) - 1; i >= 0; i-- {
 		c := f.convs[i]
-		if c.UserID == userID && c.Channel == channel && c.ChannelRef == ref {
+		if c.UserID == userID && c.Channel == channel && c.ChannelConnector == connector && c.ChannelRef == ref {
 			return &c, nil
 		}
 	}
 	return nil, nil
 }
 
-func (f *fakeConversations) CreateChatConversation(_ context.Context, spaceID, userID, channel, ref string) (*coreconv.Conversation, error) {
+func (f *fakeConversations) CreateChatConversation(_ context.Context, spaceID, userID, channel, connector, ref string) (*coreconv.Conversation, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	c := coreconv.Conversation{ID: fmt.Sprintf("conv%d", len(f.convs)+1), SpaceID: spaceID, UserID: userID, Channel: channel, ChannelRef: ref, CreatedBy: userID}
+	c := coreconv.Conversation{ID: fmt.Sprintf("conv%d", len(f.convs)+1), SpaceID: spaceID, UserID: userID, Channel: channel, ChannelConnector: connector, ChannelRef: ref, CreatedBy: userID}
 	f.convs = append(f.convs, c)
 	return &c, nil
 }
@@ -282,11 +286,13 @@ func (f *fakeTurns) seen() []string {
 	return append([]string(nil), f.calls...)
 }
 
-// fakeLocker grants or withholds the connector lease.
+// fakeLocker grants or withholds the connector lease, and records the keys
+// asked for.
 type fakeLocker struct {
 	mu    sync.Mutex
 	grant bool
 	lease *fakeLease
+	keys  []string
 }
 
 type fakeLease struct {
@@ -298,9 +304,10 @@ type fakeLease struct {
 func (l *fakeLease) Lost() <-chan struct{} { return l.lost }
 func (l *fakeLease) Release()              { l.once.Do(func() { close(l.released) }) }
 
-func (f *fakeLocker) TryAcquire(context.Context, string) (Lease, bool, error) {
+func (f *fakeLocker) TryAcquire(_ context.Context, key string) (Lease, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.keys = append(f.keys, key)
 	if !f.grant {
 		return nil, false, nil
 	}

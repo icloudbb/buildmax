@@ -24,7 +24,7 @@ func newChatAccount(t *testing.T, s *Store) string {
 
 func pairingFor(externalID string, expires time.Time) corechannel.Pairing {
 	return corechannel.Pairing{
-		Platform: corechannel.PlatformTelegram, ExternalUserID: externalID,
+		Platform: corechannel.PlatformTelegram, Connector: "asst1", ExternalUserID: externalID,
 		ChatID: externalID, Handle: "@ada", ExpiresAt: expires,
 	}
 }
@@ -50,7 +50,7 @@ func TestChannelPairingLinksOnce(t *testing.T) {
 		t.Fatalf("pairing row = %+v, %v; want only the hash stored", row, err)
 	}
 	p, err := s.PairingByCode(ctx, code, now)
-	if err != nil || p == nil || p.Handle != "@ada" || p.ChatID != ext {
+	if err != nil || p == nil || p.Handle != "@ada" || p.ChatID != ext || p.Connector != "asst1" {
 		t.Fatalf("PairingByCode = %+v, %v", p, err)
 	}
 
@@ -58,7 +58,7 @@ func TestChannelPairingLinksOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConsumePairing: %v", err)
 	}
-	if link.ID == "" || link.UserID != userID || link.ExternalUserID != ext || pairing.ChatID != ext {
+	if link.ID == "" || link.UserID != userID || link.ExternalUserID != ext || pairing.ChatID != ext || pairing.Connector != "asst1" {
 		t.Errorf("link = %+v, pairing = %+v", link, pairing)
 	}
 	if _, _, err := s.ConsumePairing(ctx, code, userID, now); !errors.Is(err, corechannel.ErrPairingNotFound) {
@@ -175,8 +175,10 @@ func TestChannelPairingConsumeIsAtomic(t *testing.T) {
 	}
 }
 
-// A chat's newest conversation is its current one, and a chat account relinked
-// to another user never continues the previous user's conversation.
+// A chat's newest conversation with one bot is its current one, a chat with
+// another bot is a different conversation even with the same chat id, and a
+// chat account relinked to another user never continues the previous user's
+// conversation.
 func TestLatestChatConversation(t *testing.T) {
 	s, ctx := newTestStore(t)
 	userID := newTestUser(t, s, "chatconv")
@@ -184,25 +186,38 @@ func TestLatestChatConversation(t *testing.T) {
 	space := newTestSpace(t, s, userID)
 	chat := "chat-" + testPublicID(t)
 
-	if got, err := s.LatestChatConversation(ctx, userID, corechannel.PlatformTelegram, chat); err != nil || got != nil {
+	if got, err := s.LatestChatConversation(ctx, userID, corechannel.PlatformTelegram, corechannel.ConnectorSystem, chat); err != nil || got != nil {
 		t.Fatalf("before any conversation = %+v, %v", got, err)
 	}
-	first, err := s.CreateChatConversation(ctx, space, userID, corechannel.PlatformTelegram, chat)
+	first, err := s.CreateChatConversation(ctx, space, userID, corechannel.PlatformTelegram, corechannel.ConnectorSystem, chat)
 	if err != nil {
 		t.Fatalf("CreateChatConversation: %v", err)
 	}
-	second, err := s.CreateChatConversation(ctx, space, userID, corechannel.PlatformTelegram, chat)
+	second, err := s.CreateChatConversation(ctx, space, userID, corechannel.PlatformTelegram, corechannel.ConnectorSystem, chat)
 	if err != nil {
 		t.Fatalf("CreateChatConversation: %v", err)
 	}
-	got, err := s.LatestChatConversation(ctx, userID, corechannel.PlatformTelegram, chat)
+	got, err := s.LatestChatConversation(ctx, userID, corechannel.PlatformTelegram, corechannel.ConnectorSystem, chat)
 	if err != nil || got == nil || got.ID != second.ID || got.ChannelRef != chat || got.SpaceID != space {
 		t.Fatalf("LatestChatConversation = %+v, %v; want the second (%s), not %s", got, err, second.ID, first.ID)
 	}
-	if read, _ := s.GetConversation(ctx, first.ID); read == nil || read.ChannelRef != chat || read.Channel != corechannel.PlatformTelegram {
+	if read, _ := s.GetConversation(ctx, first.ID); read == nil || read.ChannelRef != chat || read.Channel != corechannel.PlatformTelegram || read.ChannelConnector != corechannel.ConnectorSystem {
 		t.Errorf("GetConversation = %+v", read)
 	}
-	if got, _ := s.LatestChatConversation(ctx, other, corechannel.PlatformTelegram, chat); got != nil {
+	if got, _ := s.LatestChatConversation(ctx, userID, corechannel.PlatformTelegram, "asst1", chat); got != nil {
+		t.Errorf("another bot's chat continued the system bot's conversation: %+v", got)
+	}
+	third, err := s.CreateChatConversation(ctx, space, userID, corechannel.PlatformTelegram, "asst1", chat)
+	if err != nil {
+		t.Fatalf("CreateChatConversation: %v", err)
+	}
+	if got, _ := s.LatestChatConversation(ctx, userID, corechannel.PlatformTelegram, "asst1", chat); got == nil || got.ID != third.ID {
+		t.Errorf("assistant bot conversation = %+v, want %s", got, third.ID)
+	}
+	if got, _ := s.LatestChatConversation(ctx, userID, corechannel.PlatformTelegram, corechannel.ConnectorSystem, chat); got == nil || got.ID != second.ID {
+		t.Errorf("system bot conversation moved to %+v", got)
+	}
+	if got, _ := s.LatestChatConversation(ctx, other, corechannel.PlatformTelegram, corechannel.ConnectorSystem, chat); got != nil {
 		t.Error("another user continued this user's chat conversation")
 	}
 }

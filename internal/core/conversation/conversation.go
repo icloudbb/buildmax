@@ -22,10 +22,14 @@ type Conversation struct {
 	Channel string `json:"channel"`
 	// ChannelRef addresses the chat a platform-carried conversation belongs to.
 	// Empty for Portal and webhook conversations.
-	ChannelRef string    `json:"channel_ref,omitempty"`
-	Title      string    `json:"title,omitempty"`
-	CreatedBy  string    `json:"created_by"`
-	CreatedAt  time.Time `json:"created_at"`
+	ChannelRef string `json:"channel_ref,omitempty"`
+	// ChannelConnector is the key of the bot the chat talks to, since one
+	// platform can have several and a chat id can repeat across them. Empty for
+	// Portal and webhook conversations. Internal: clients have no use for it.
+	ChannelConnector string    `json:"-"`
+	Title            string    `json:"title,omitempty"`
+	CreatedBy        string    `json:"created_by"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 // Message is one message in a Tier 1 conversation.

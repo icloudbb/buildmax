@@ -19,7 +19,7 @@ const genericFailure = "Something went wrong on the BuildMax side. Please try ag
 // handle answers one message. Every refusal happens before a model runs: an
 // unlinked sender, a group chat, or a sender who may not use the Space gets a
 // fixed reply that carries no Space data.
-func (g *Gateway) handle(ctx context.Context, c corechannel.Connector, in corechannel.Inbound) {
+func (g *Gateway) handle(ctx context.Context, c bot, in corechannel.Inbound) {
 	// Group chats are not served: every reply there is visible to people who
 	// may not belong to the Space, and binding a group is a disclosure decision
 	// this version does not offer.
@@ -66,8 +66,8 @@ func parseCommand(text string) (string, string, bool) {
 	return strings.ToLower(head), strings.TrimSpace(arg), true
 }
 
-func (g *Gateway) converse(ctx context.Context, c corechannel.Connector, in corechannel.Inbound, ident *corechannel.Identity, text string) {
-	conv, refusal := g.currentConversation(ctx, c.Platform(), in.ChatID, ident.UserID)
+func (g *Gateway) converse(ctx context.Context, c bot, in corechannel.Inbound, ident *corechannel.Identity, text string) {
+	conv, refusal := g.currentConversation(ctx, c, in.ChatID, ident.UserID)
 	if refusal != "" {
 		g.reply(ctx, c, in.ChatID, refusal)
 		return
@@ -90,10 +90,10 @@ func (g *Gateway) converse(ctx context.Context, c corechannel.Connector, in core
 // currentConversation returns the chat's newest conversation, or starts one in
 // the sender's personal Space, having checked the sender may use its Space. A
 // non-empty string is the refusal to send instead.
-func (g *Gateway) currentConversation(ctx context.Context, platform, chatID, userID string) (*coreconv.Conversation, string) {
-	conv, err := g.conversations.LatestChatConversation(ctx, userID, platform, chatID)
+func (g *Gateway) currentConversation(ctx context.Context, c bot, chatID, userID string) (*coreconv.Conversation, string) {
+	conv, err := g.conversations.LatestChatConversation(ctx, userID, c.Platform(), c.key, chatID)
 	if err != nil {
-		g.log.Error("chat conversation lookup failed", "platform", platform, "err", err)
+		g.log.Error("chat conversation lookup failed", "platform", c.Platform(), "err", err)
 		return nil, genericFailure
 	}
 	if conv != nil {
@@ -109,16 +109,16 @@ func (g *Gateway) currentConversation(ctx context.Context, platform, chatID, use
 		}
 		return nil, "You have no Space to talk in yet. Use /space to choose one."
 	}
-	return g.startConversation(ctx, platform, chatID, userID, space)
+	return g.startConversation(ctx, c, chatID, userID, space)
 }
 
-func (g *Gateway) startConversation(ctx context.Context, platform, chatID, userID string, space *corespace.Space) (*coreconv.Conversation, string) {
+func (g *Gateway) startConversation(ctx context.Context, c bot, chatID, userID string, space *corespace.Space) (*coreconv.Conversation, string) {
 	if refusal := g.checkEligible(ctx, userID, space.ID, space.Name); refusal != "" {
 		return nil, refusal
 	}
-	conv, err := g.conversations.CreateChatConversation(ctx, space.ID, userID, platform, chatID)
+	conv, err := g.conversations.CreateChatConversation(ctx, space.ID, userID, c.Platform(), c.key, chatID)
 	if err != nil {
-		g.log.Error("chat conversation not created", "platform", platform, "err", err)
+		g.log.Error("chat conversation not created", "platform", c.Platform(), "err", err)
 		return nil, genericFailure
 	}
 	return conv, ""
@@ -190,17 +190,17 @@ func (g *Gateway) turnFailure(conv *coreconv.Conversation, err error) string {
 	return genericFailure
 }
 
-func (g *Gateway) command(ctx context.Context, c corechannel.Connector, in corechannel.Inbound, ident *corechannel.Identity, cmd, arg string) {
+func (g *Gateway) command(ctx context.Context, c bot, in corechannel.Inbound, ident *corechannel.Identity, cmd, arg string) {
 	switch cmd {
 	case "start", "help":
-		g.reply(ctx, c, in.ChatID, g.helpText(ctx, c.Platform(), in.ChatID, ident.UserID))
+		g.reply(ctx, c, in.ChatID, g.helpText(ctx, c, in.ChatID, ident.UserID))
 	case "new":
-		space, refusal := g.currentSpace(ctx, c.Platform(), in.ChatID, ident.UserID)
+		space, refusal := g.currentSpace(ctx, c, in.ChatID, ident.UserID)
 		if refusal != "" {
 			g.reply(ctx, c, in.ChatID, refusal)
 			return
 		}
-		if _, refusal := g.startConversation(ctx, c.Platform(), in.ChatID, ident.UserID, space); refusal != "" {
+		if _, refusal := g.startConversation(ctx, c, in.ChatID, ident.UserID, space); refusal != "" {
 			g.reply(ctx, c, in.ChatID, refusal)
 			return
 		}
@@ -216,10 +216,10 @@ const commandList = `/new — start a new conversation
 /space — list your Spaces; /space <number> switches
 /help — show this help`
 
-func (g *Gateway) helpText(ctx context.Context, platform, chatID, userID string) string {
+func (g *Gateway) helpText(ctx context.Context, c bot, chatID, userID string) string {
 	var b strings.Builder
 	b.WriteString("Talk to your BuildMax assistant here: ask questions, or ask it to start work in a Space. You'll hear back here when work it started finishes.")
-	if space, refusal := g.currentSpace(ctx, platform, chatID, userID); refusal == "" {
+	if space, refusal := g.currentSpace(ctx, c, chatID, userID); refusal == "" {
 		fmt.Fprintf(&b, "\n\nCurrent Space: %s", space.Name)
 	}
 	b.WriteString("\n\n" + commandList)
@@ -231,13 +231,13 @@ func (g *Gateway) helpText(ctx context.Context, platform, chatID, userID string)
 
 // currentSpace is the Space of the chat's newest conversation, or the user's
 // personal Space before there is one.
-func (g *Gateway) currentSpace(ctx context.Context, platform, chatID, userID string) (*corespace.Space, string) {
+func (g *Gateway) currentSpace(ctx context.Context, c bot, chatID, userID string) (*corespace.Space, string) {
 	spaces, err := g.spaces.ListSpacesByUser(ctx, userID)
 	if err != nil {
 		g.log.Error("space listing failed", "err", err)
 		return nil, genericFailure
 	}
-	conv, err := g.conversations.LatestChatConversation(ctx, userID, platform, chatID)
+	conv, err := g.conversations.LatestChatConversation(ctx, userID, c.Platform(), c.key, chatID)
 	if err != nil {
 		g.log.Error("chat conversation lookup failed", "err", err)
 		return nil, genericFailure
@@ -276,7 +276,7 @@ func personalOf(spaces []corespace.Space, userID string) *corespace.Space {
 // spaceCommand lists the user's Spaces, or switches the chat to one by number
 // or exact name. Switching starts a new conversation there: a conversation
 // belongs to one Space for its whole life.
-func (g *Gateway) spaceCommand(ctx context.Context, c corechannel.Connector, in corechannel.Inbound, ident *corechannel.Identity, arg string) {
+func (g *Gateway) spaceCommand(ctx context.Context, c bot, in corechannel.Inbound, ident *corechannel.Identity, arg string) {
 	spaces, err := g.spaces.ListSpacesByUser(ctx, ident.UserID)
 	if err != nil {
 		g.log.Error("space listing failed", "err", err)
@@ -288,7 +288,7 @@ func (g *Gateway) spaceCommand(ctx context.Context, c corechannel.Connector, in 
 		return
 	}
 	if arg == "" {
-		current, _ := g.currentSpace(ctx, c.Platform(), in.ChatID, ident.UserID)
+		current, _ := g.currentSpace(ctx, c, in.ChatID, ident.UserID)
 		var b strings.Builder
 		b.WriteString("Your Spaces:\n")
 		for i, s := range spaces {
@@ -317,7 +317,7 @@ func (g *Gateway) spaceCommand(ctx context.Context, c corechannel.Connector, in 
 		g.reply(ctx, c, in.ChatID, "No Space matches that. Send /space to see the list.")
 		return
 	}
-	if _, refusal := g.startConversation(ctx, c.Platform(), in.ChatID, ident.UserID, target); refusal != "" {
+	if _, refusal := g.startConversation(ctx, c, in.ChatID, ident.UserID, target); refusal != "" {
 		g.reply(ctx, c, in.ChatID, refusal)
 		return
 	}
