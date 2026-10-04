@@ -194,6 +194,14 @@ one boundary that must hold across replicas: starting a turn.
   safety net for a >TTL pause, on top of the mutual exclusion the held lease and
   its renewal deliver. The token is zero on the single-instance (`local`) path,
   which enforces no fence because the in-process queue is the only writer.
+- Both survive Redis losing its data. A lock's key holds its fence with a nonce
+  unique to the grant, so renewal and release act only for that grant; and a
+  missing fence counter starts from the clock in microseconds, not from zero.
+  Without that, a restarted Redis re-issued fence 1: a holder that still had
+  fence 1 kept renewing the next holder's lock, so two replicas held one chat
+  connector and both answered each message, and a conversation that had
+  accepted a higher token refused its next turns until the counter climbed past
+  it.
 - Queue **position** becomes per-replica and therefore approximate across
   replicas. That is acceptable: position is a UX hint the surface shows, not a
   guarantee, and the serialization it hints at is now enforced by the lease.
