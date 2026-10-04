@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/space-assistants.md#10-the-front-door-turn
 depends_on: [64-space-assistant-entity.md]
 verification: ["./make test", "./make test mysql", "./make check docs"]
-claim:
+claim: gougoujiang 2026-10-04
 pr:
 ---
 
