@@ -259,6 +259,14 @@ deployment, so it neither reads real data nor owns a stack. Fault injection
 stays in that one spec; every other Portal suite reports the real deployment
 truthfully.
 
+Two specs need a double only kind deploys, and skip on a deployment without it:
+`sso.spec.ts` signs in through the mock OIDC provider, and
+`assistant-chat.spec.ts` links a chat account and talks to a Space Assistant
+through the Telegram Bot API double, playing the person in the chat through the
+double's control routes. [Local Kubernetes Deployment](../deploy/local-kind.md)
+describes both doubles. A green `e2e compose` run says nothing about either
+path; only `e2e kind` exercises them.
+
 ### Running A Second Deployment Alongside The First
 
 `./make kind up` and `./make compose up` keep the fixed name and ports every

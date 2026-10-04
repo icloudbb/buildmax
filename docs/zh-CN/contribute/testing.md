@@ -216,6 +216,12 @@ npm --prefix portal exec -- playwright install chromium # the browser itself
   并打印出它留下了什么——其中大多数都没有对应的删除路由,因此那行输出
   就是清理说明。
 
+有两个 spec 需要只有 kind 才部署的替身,在没有替身的部署上会跳过:
+`sso.spec.ts` 通过模拟 OIDC 提供方登录,`assistant-chat.spec.ts` 关联一个
+聊天账号,并通过 Telegram Bot API 替身与 Space Assistant 对话,借替身的控制
+路由扮演聊天中的那个人。两个替身见 [本地 Kubernetes 部署](../deploy/local-kind.md)。
+`e2e compose` 通过并不能说明这两条路径;只有 `e2e kind` 会覆盖它们。
+
 ### 在第一个部署旁边再运行一个部署
 
 `./make kind up` 和 `./make compose up` 会保留每份文档都假定的固定名字

@@ -115,6 +115,16 @@ worker_api:
 secret:
   kek_file: /etc/buildmax/kek/kek.json
 
+# The chat gateway's system bot, against the in-cluster Bot API double
+# (deployment/smoke/mock-telegram.kind.yaml), so the browser suite can link a
+# chat account and talk to Space Assistant bots, which share this
+# api_base_url. The token is a fixture the double accepts, not a credential.
+# The restore drill withholds it, as docs/deploy/backup-restore.md says to.
+channels:
+  telegram:
+    bot_token: "1000:smoke-system"
+    api_base_url: http://buildmax-smoke-telegram.buildmax.svc.cluster.local:8080
+
 storage:
   persist_backend: minio
   artifact_backend: minio
