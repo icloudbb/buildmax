@@ -284,7 +284,7 @@ func (c *fakeConnector) Receive(ctx context.Context, _ func(corechannel.Inbound)
 	return nil
 }
 func (c *fakeConnector) Send(context.Context, corechannel.Outbound) error { return nil }
-func (c *fakeConnector) Typing(context.Context, string) error            { return nil }
+func (c *fakeConnector) Typing(context.Context, string) error             { return nil }
 func (c *fakeConnector) Info(context.Context) corechannel.Info {
 	return corechannel.Info{Platform: corechannel.PlatformTelegram, BotHandle: "@hr_bot"}
 }
