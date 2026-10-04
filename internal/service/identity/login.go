@@ -303,7 +303,9 @@ func (s *Service) verifyPassword(ctx context.Context, email, password string) (*
 		return nil, fmt.Errorf("read account: %w", err)
 	}
 	var hash string
-	if user != nil {
+	// A service account never signs in: it gets the "no password set" refusal
+	// without its hash being read, whatever the store holds.
+	if user != nil && !user.IsService() {
 		hash, err = s.Passwords.PasswordHash(ctx, user.ID)
 		if err != nil {
 			return nil, fmt.Errorf("read password hash: %w", err)
@@ -330,7 +332,9 @@ func (s *Service) verifyLoginCode(ctx context.Context, email, otp string) (*core
 	if err != nil {
 		return nil, fmt.Errorf("read account: %w", err)
 	}
-	if user == nil {
+	// A service account is answered as no account at all: no code is ever
+	// redeemable for one.
+	if user == nil || user.IsService() {
 		return nil, &InvalidCredential{Method: MethodLoginCode, Reason: "no account for that email"}
 	}
 	// The account is resolved from the submitted address first, and the code is

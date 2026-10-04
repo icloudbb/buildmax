@@ -14,6 +14,7 @@ import (
 	"time"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	coreschedule "github.com/icloudbb/buildmax/internal/core/schedule"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
@@ -188,6 +189,15 @@ func testUpgradeFrom(t *testing.T, dump, tag string) {
 	}
 	if _, err := s.CreateIssueInSpace(ctx, manifest.SpaceID, manifest.OwnerID, coreissue.CreateInput{Title: "after upgrade"}); err != nil {
 		t.Errorf("CreateIssueInSpace on the upgraded schema: %v", err)
+	}
+	// user.email was NOT NULL before service accounts; two with no email is
+	// what proves AutoMigrate relaxed it on a predecessor table.
+	for _, name := range []string{"after upgrade 1", "after upgrade 2"} {
+		if _, err := s.CreateServiceAccount(ctx, coreidentity.NewServiceAccount{
+			SpaceID: manifest.SpaceID, Name: name, SponsorUserID: manifest.OwnerID,
+		}); err != nil {
+			t.Errorf("CreateServiceAccount on the upgraded schema: %v", err)
+		}
 	}
 
 	// The next start of the same binary finds nothing left to do.

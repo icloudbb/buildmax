@@ -47,6 +47,10 @@ type AdminSpaceMember struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email,omitempty"`
 	Role   string `json:"role"`
+	// Name and Kind identify a service account, which has no email and can
+	// never be made owner.
+	Name string `json:"name,omitempty"`
+	Kind string `json:"kind,omitempty"`
 }
 
 // listAdminSpacesHandler serves GET /api/admin/spaces.
@@ -192,6 +196,10 @@ func (h *Handler) getAdminSpaceHandler(w http.ResponseWriter, r *http.Request) {
 			// Showing the user id beats refusing to describe the space.
 			if user, err := h.cfg.Users.GetUser(r.Context(), member.UserID); err == nil && user != nil {
 				row.Email = user.Email
+				row.Kind = userKind(*user)
+				if user.IsService() {
+					row.Name = user.Name
+				}
 			}
 		}
 		detail.Members = append(detail.Members, row)

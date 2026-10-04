@@ -20,9 +20,13 @@ import (
 // the surface where that would matter most — see the secret assertion in
 // system_authz_matrix_test.go.
 type AdminUser struct {
-	ID                string     `json:"id"`
-	Email             string     `json:"email"`
-	Name              string     `json:"name,omitempty"`
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name,omitempty"`
+	// Kind is human or service; a service account has no email and never
+	// signs in, so the list marks it rather than showing a blank person.
+	Kind              string     `json:"kind"`
+	SponsorUserID     *string    `json:"sponsor_user_id,omitempty"`
 	HasPassword       bool       `json:"has_password"`
 	DisabledAt        *time.Time `json:"disabled_at,omitempty"`
 	LastLoginAt       *time.Time `json:"last_login_at,omitempty"`
@@ -35,12 +39,22 @@ func toAdminUser(u coreidentity.User) AdminUser {
 		ID:                u.ID,
 		Email:             u.Email,
 		Name:              u.Name,
+		Kind:              userKind(u),
+		SponsorUserID:     u.SponsorUserID,
 		HasPassword:       u.HasPassword,
 		DisabledAt:        u.DisabledAt,
 		LastLoginAt:       u.LastLoginAt,
 		LastLoginPlatform: u.LastLoginPlatform,
 		CreatedAt:         u.CreatedAt,
 	}
+}
+
+// userKind reads an unset kind, as a test double leaves it, as a person.
+func userKind(u coreidentity.User) string {
+	if u.IsService() {
+		return coreidentity.KindService
+	}
+	return coreidentity.KindHuman
 }
 
 // AdminUsersResponse is a page of accounts.
@@ -272,6 +286,11 @@ func (h *Handler) issueAdminLoginCodeHandler(w http.ResponseWriter, r *http.Requ
 	}
 	user, ok := h.adminTargetUser(w, r)
 	if !ok {
+		return
+	}
+	// A service account has no way in by design, so there is nothing to issue.
+	if user.IsService() {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "a service account cannot sign in")
 		return
 	}
 	// A code for an account that cannot use it would be a way in that opens

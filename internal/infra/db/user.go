@@ -15,8 +15,15 @@ import (
 type userRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_user_public_id;not null"`
-	Email    string `gorm:"type:varchar(255);uniqueIndex;not null"`
-	Name     string `gorm:"type:varchar(255)"`
+	// Email is NULL for a service account, which has no way to sign in. The
+	// unique index admits any number of NULLs.
+	Email *string `gorm:"type:varchar(255);uniqueIndex"`
+	Name  string  `gorm:"type:varchar(255)"`
+	// Kind is human or service; see coreidentity.User.Kind.
+	Kind string `gorm:"column:kind;type:varchar(16);not null;default:'human'"`
+	// SponsorUserID is the accountable owner or admin of a service account,
+	// NULL for a person.
+	SponsorUserID *uint64 `gorm:"column:sponsor_user_id"`
 	// PasswordHash is NULL for an account that has never set one: created by an
 	// operator and not yet claimed, or signing in with login codes only. It
 	// stays nullable so that an account authenticated somewhere else — an
@@ -34,14 +41,34 @@ type userRow struct {
 
 func (userRow) TableName() string { return "user" }
 
-func toUser(row *userRow) *coreidentity.User {
-	if row == nil {
+// userReadRow is userRow plus the handle its sponsor reference resolves to.
+// See spaceReadRow for why the row is a named field.
+type userReadRow struct {
+	Row             userRow `gorm:"embedded"`
+	SponsorPublicID *string `gorm:"column:sponsor_public_id"`
+}
+
+// userSelect is the read shape for an account. Filters must qualify columns
+// with `user`, because the sponsor join reads the same table.
+func (s *Store) userSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&userRow{}).
+		Select("`user`.*, sp.public_id AS sponsor_public_id").
+		Joins("LEFT JOIN `user` sp ON sp.id = `user`.sponsor_user_id")
+}
+
+func toUser(read *userReadRow) *coreidentity.User {
+	if read == nil {
 		return nil
 	}
-	return &coreidentity.User{
+	row := &read.Row
+	kind := row.Kind
+	if kind == "" {
+		kind = coreidentity.KindHuman
+	}
+	u := &coreidentity.User{
 		ID:                row.PublicID,
-		Email:             row.Email,
 		Name:              row.Name,
+		Kind:              kind,
 		LastLoginAt:       row.LastLoginAt,
 		LastLoginPlatform: row.LastLoginPlatform,
 		DisabledAt:        row.DisabledAt,
@@ -49,15 +76,27 @@ func toUser(row *userRow) *coreidentity.User {
 		// Whether a password exists, never what it is.
 		HasPassword: row.PasswordHash != nil && *row.PasswordHash != "",
 	}
+	if row.Email != nil {
+		u.Email = *row.Email
+	}
+	if row.SponsorUserID != nil && read.SponsorPublicID != nil {
+		sponsor := *read.SponsorPublicID
+		u.SponsorUserID = &sponsor
+	}
+	return u
 }
 
+// toUserRow builds the insert for a person. Service accounts are written by
+// CreateServiceAccount, which sets what this leaves out.
 func toUserRow(m *coreidentity.User) *userRow {
 	if m == nil {
 		return nil
 	}
+	email := m.Email
 	return &userRow{
-		Email:             m.Email,
+		Email:             &email,
 		Name:              m.Name,
+		Kind:              coreidentity.KindHuman,
 		LastLoginAt:       m.LastLoginAt,
 		LastLoginPlatform: m.LastLoginPlatform,
 		DisabledAt:        m.DisabledAt,
@@ -73,34 +112,53 @@ func toUserRow(m *coreidentity.User) *userRow {
 // common case of searching by the part before the @.
 func (s *Store) ListUsers(ctx context.Context, filter coreidentity.UserFilter, limit, offset int) ([]coreidentity.User, int, error) {
 	limit, offset = clampPage(limit, offset)
-	q := s.db.WithContext(ctx).Model(&userRow{})
+	// The filters are applied twice: to a plain count, and to the joined read,
+	// whose multi-column select Count cannot wrap.
+	countQ := s.filterUsers(ctx, s.db.WithContext(ctx).Model(&userRow{}), filter)
+	var total int64
+	if err := countQ.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	q := s.filterUsers(ctx, s.userSelect(ctx), filter)
+	var rows []userReadRow
+	if err := q.Order("`user`.created_at DESC, `user`.id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]coreidentity.User, 0, len(rows))
+	for i := range rows {
+		out = append(out, *toUser(&rows[i]))
+	}
+	return out, int(total), nil
+}
+
+func (s *Store) filterUsers(ctx context.Context, q *gorm.DB, filter coreidentity.UserFilter) *gorm.DB {
 	if filter.Query != "" {
-		q = q.Where("email LIKE ?", "%"+filter.Query+"%")
+		q = q.Where("`user`.email LIKE ?", "%"+filter.Query+"%")
 	}
 	if filter.Disabled != nil {
 		if *filter.Disabled {
-			q = q.Where("disabled_at IS NOT NULL")
+			q = q.Where("`user`.disabled_at IS NOT NULL")
 		} else {
-			q = q.Where("disabled_at IS NULL")
+			q = q.Where("`user`.disabled_at IS NULL")
 		}
 	}
 	if filter.HasPassword != nil {
 		if *filter.HasPassword {
-			q = q.Where("password_hash IS NOT NULL")
+			q = q.Where("`user`.password_hash IS NOT NULL")
 		} else {
-			q = q.Where("password_hash IS NULL")
+			q = q.Where("`user`.password_hash IS NULL")
 		}
 	}
 	if filter.Platform != "" {
-		q = q.Where("last_login_platform = ?", filter.Platform)
+		q = q.Where("`user`.last_login_platform = ?", filter.Platform)
 	}
 	if filter.LastLoginAfter != nil {
 		// A NULL last_login_at (never signed in) fails the comparison, so a
 		// time bound also excludes accounts that never logged in.
-		q = q.Where("last_login_at >= ?", *filter.LastLoginAfter)
+		q = q.Where("`user`.last_login_at >= ?", *filter.LastLoginAfter)
 	}
 	if filter.LastLoginBefore != nil {
-		q = q.Where("last_login_at < ?", *filter.LastLoginBefore)
+		q = q.Where("`user`.last_login_at < ?", *filter.LastLoginBefore)
 	}
 	if filter.SystemRole != "" {
 		// A subquery, not a join: a join would return one user row per grant and
@@ -109,21 +167,9 @@ func (s *Store) ListUsers(ctx context.Context, filter coreidentity.UserFilter, l
 		holders := s.db.WithContext(ctx).Model(&systemGrantRow{}).
 			Select("user_id").
 			Where("role = ? AND revoked_at IS NULL", filter.SystemRole)
-		q = q.Where("id IN (?)", holders)
+		q = q.Where("`user`.id IN (?)", holders)
 	}
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	var rows []userRow
-	if err := q.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
-		return nil, 0, err
-	}
-	out := make([]coreidentity.User, 0, len(rows))
-	for i := range rows {
-		out = append(out, *toUser(&rows[i]))
-	}
-	return out, int(total), nil
+	return q
 }
 
 // SetUserDisabled disables or enables an account.
@@ -173,8 +219,8 @@ func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *
 
 // UserByEmail returns the user with the given email, or (nil, nil) when not found.
 func (s *Store) UserByEmail(ctx context.Context, email string) (*coreidentity.User, error) {
-	var u userRow
-	err := s.db.WithContext(ctx).Where("email = ?", email).First(&u).Error
+	var u userReadRow
+	err := s.userSelect(ctx).Where("`user`.email = ?", email).Take(&u).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -190,8 +236,8 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*coreidentity.User,
 	if !ok {
 		return nil, nil
 	}
-	var u userRow
-	err := s.db.WithContext(ctx).Where("public_id = ?", id).First(&u).Error
+	var u userReadRow
+	err := s.userSelect(ctx).Where("`user`.public_id = ?", id).Take(&u).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

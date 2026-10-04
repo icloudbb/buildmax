@@ -34,6 +34,9 @@ type spaceMemberResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 	UserName  *string   `json:"user_name,omitempty"`
 	UserEmail *string   `json:"user_email,omitempty"`
+	// UserKind is human or service, so a client can keep service accounts out
+	// of people pickers while still naming them in the roster.
+	UserKind string `json:"user_kind,omitempty"`
 }
 
 type inviteMemberRequest struct {
@@ -104,6 +107,10 @@ func spaceMemberToResponse(member corespace.Member, user *coreidentity.User) spa
 		if user.Email != "" {
 			resp.UserEmail = &user.Email
 		}
+		resp.UserKind = coreidentity.KindHuman
+		if user.IsService() {
+			resp.UserKind = coreidentity.KindService
+		}
 	}
 	return resp
 }
@@ -159,7 +166,10 @@ func (h *Handler) spaceService() *spacesvc.Service {
 }
 
 func newSpaceService(cfg Config) *spacesvc.Service {
-	return &spacesvc.Service{Spaces: cfg.Spaces, Agents: cfg.Agents, Users: cfg.Users, LoginCodes: cfg.LoginCodes}
+	return &spacesvc.Service{
+		Spaces: cfg.Spaces, Agents: cfg.Agents, Users: cfg.Users, LoginCodes: cfg.LoginCodes,
+		ServiceAccounts: cfg.ServiceAccounts, Lifecycle: cfg.Lifecycle,
+	}
 }
 
 func (h *Handler) listSpaceMembersHandler(w http.ResponseWriter, r *http.Request) {

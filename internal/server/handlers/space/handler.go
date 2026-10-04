@@ -19,6 +19,7 @@ import (
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	"github.com/icloudbb/buildmax/internal/server/access"
+	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
 	agentsvc "github.com/icloudbb/buildmax/internal/service/agent"
 	"github.com/icloudbb/buildmax/internal/service/audit"
 	"github.com/icloudbb/buildmax/internal/service/plugin"
@@ -43,6 +44,10 @@ type Config struct {
 	// route unavailable, which is what a deployment with no login-code store
 	// has. See docs/design/space-membership-lifecycle.md §5.4.
 	LoginCodes coreidentity.LoginCodeStore
+	// ServiceAccounts and Lifecycle back the Space's service accounts. Nil
+	// ServiceAccounts leaves those routes reporting the feature is off.
+	ServiceAccounts coreidentity.ServiceAccountStore
+	Lifecycle       *accountlifecycle.Service
 	// Workflows answers one question here -- which published workflows still
 	// name an agent -- so that deleting one cannot silently break them. Nil
 	// leaves that check unmade, which is what a deployment without workflows
@@ -121,6 +126,12 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/spaces/{space_id}/members/{user_id}", h.removeSpaceMemberHandler)
 	mux.HandleFunc("PATCH /api/spaces/{space_id}/members/{user_id}", h.setMemberRoleHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/members/{user_id}/login-code", h.issueMemberLoginCodeHandler)
+
+	// Service accounts. See docs/design/space-assistants.md §6.
+	mux.HandleFunc("GET /api/spaces/{space_id}/service-accounts", h.listServiceAccountsHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/service-accounts", h.createServiceAccountHandler)
+	mux.HandleFunc("PATCH /api/spaces/{space_id}/service-accounts/{user_id}", h.updateServiceAccountHandler)
+	mux.HandleFunc("PUT /api/spaces/{space_id}/service-accounts/{user_id}/state", h.setServiceAccountStateHandler)
 
 	// Invitations. See docs/design/space-membership-lifecycle.md.
 	mux.HandleFunc("POST /api/spaces/{space_id}/invitations", h.inviteMemberHandler)

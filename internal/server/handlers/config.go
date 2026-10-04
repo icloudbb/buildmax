@@ -89,6 +89,7 @@ type Config struct {
 	// Stores
 	UserStore             coreidentity.UserStore
 	LoginCodeStore        coreidentity.LoginCodeStore
+	ServiceAccountStore   coreidentity.ServiceAccountStore
 	PasswordStore         coreidentity.PasswordStore
 	RefreshTokenStore     coreidentity.RefreshTokenStore
 	AuthSessionStore      coreidentity.AuthSessionStore

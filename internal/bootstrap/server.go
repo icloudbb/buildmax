@@ -628,6 +628,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		Stores: httpserver.StoresConfig{
 			UserStore:                st,
 			LoginCodeStore:           st,
+			ServiceAccountStore:      st,
 			PasswordStore:            st,
 			RefreshTokenStore:        st,
 			AuthSessionStore:         st,

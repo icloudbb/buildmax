@@ -87,7 +87,9 @@ func (s *Service) Refresh(ctx context.Context, token string) (*RefreshResult, er
 	if err != nil {
 		return nil, fmt.Errorf("read account: %w", err)
 	}
-	if user == nil {
+	// A service account is refused like a missing one: it never holds a
+	// session, so a refresh token naming it is not one this server meant.
+	if user == nil || user.IsService() {
 		s.revokeSession(ctx, rotated.SessionID, now, "missing user")
 		return nil, &InvalidRefresh{
 			Reason: "the account is gone", UserID: rotated.UserID, SessionID: rotated.SessionID,
