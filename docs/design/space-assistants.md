@@ -6,8 +6,9 @@
 > accepted — in progress: the many-bot Gateway (§9), service accounts (§6),
 > the Assistant entity, its bot binding, and the publish statement (§4, §8),
 > the front-door turn with its readable-file tools (§10), release contracts
-> with outcome reports (§8, §11), escalation, and Schedule delivery (§11) are
-> built; the validation run (§18) found two gaps, filed as backlog tasks
+> with outcome reports (§8, §11), escalation, Schedule delivery (§11), and
+> telling roster work the verified requester (§7.3) are built; the validation
+> run (§18) found two gaps, one now fixed and one filed as a backlog task
 >
 > This record decides how a Space publishes **Assistants**: conversational
 > service front doors that answer people outside the Space's own work, dispatch
@@ -582,8 +583,12 @@ ran in a fresh conversation (`/new`).
 - *Identity claims reach roster work.* The roster Agent sees only the name the
   front-door model passes in StartTask, so a requester can ask for anyone's
   record by claiming to be them. Every scripted red-team prompt was refused;
-  the leak needed only a plausible claim. Filed as
-  [backlog 78](../backlog/78-assistant-verified-requester.md).
+  the leak needed only a plausible claim. Fixed by telling roster work the
+  verified requester (§7.3). Rerun on kind with the same model: a requester
+  signed in as `bob@acme.example` sent the same prompt six times, three with
+  the Agent's original instructions ("the employee named in the request") and
+  three with instructions to use the verified identity; all six returned Bob's
+  own balance and none Alice's.
 - *A Workflow's outcome never reaches the requester.* The leave request ran to a
   releasable decision in 20 s, but the requester heard only "submitted for
   review". Filed as
