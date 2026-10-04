@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/space-assistants.md#11-results-escalation-and-delivery
 depends_on: []
 verification: ["./make test", "./make test mysql", "kind"]
-claim:
+claim: gougoujiang 2026-10-04
 pr:
 ---
 
