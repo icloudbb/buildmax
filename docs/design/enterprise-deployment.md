@@ -554,21 +554,26 @@ Manual product validation:
    single-use login codes.
 
 The remaining questions came from the retired *Private production operations*
-proposal. The reference topology it asked for now exists; what it asked for and
-did not get is evidence that the topology can be operated. The required
-exercises and their still-open evidence live in the
-[Beta readiness record](../deploy/beta-readiness.md):
+proposal. The reference topology it asked for now exists; what it asked for
+next is evidence that the topology can be operated. The required exercises and
+their evidence live in the [Beta readiness record](../deploy/beta-readiness.md),
+which holds the 2026-10-03 exercise of v0.2.0-alpha.22 on DigitalOcean:
 
 6. What availability and recovery targets are realistic for the first Beta? The
    deployment reference states a recovery *procedure* — restore from backup,
    redeploy the previous image tag — without stating an objective it meets.
-7. Has a restore actually been exercised? Recovering a space and a completed run
-   needs the database and the bucket restored *together*, and nothing has proven
-   that the pair comes back consistent.
-8. Has the candidate's declared schema path and recovery been exercised?
-   Alpha migrations can drop compatibility. Name the starting schema and test
-   any claimed binary rollback, or prove the destructive-cutover restore path;
-   `manual/support.md` does not promise blanket N-1 compatibility.
+   The readiness record now sets RPO to the last database snapshot and RTO to
+   10 minutes to the first Artifact with a matching checksum; the alpha.22
+   exercise measured 632s, over that target, so the target stays open.
+7. ~~Has a restore actually been exercised?~~ **Exercised on v0.2.0-alpha.22:**
+   the database and bucket were restored together into an empty environment;
+   every row from before the recovery point came back, `storage verify
+   --checksums` was clean, and a pre-backup Task continued from its checkpoint.
+8. ~~Has the candidate's declared schema path and recovery been exercised?~~
+   **Exercised on v0.2.0-alpha.22:** alpha.21 to alpha.22 in place, and alpha.16
+   to alpha.22 through a real schema change, where alpha.16 refuses the newer
+   schema and a paired restore rolls back. `manual/support.md` still does not
+   promise blanket N-1 compatibility.
 9. ~~Which metrics make a deployment supportable?~~ **Decided for the first
    Beta: a metrics endpoint is not a prerequisite.** The minimum diagnostic set
    is logs, `/readyz`, System Status, TaskRun and artifact state, the run trace,
@@ -576,11 +581,12 @@ exercises and their still-open evidence live in the
    prove that set explains every required outcome. Add `/metrics` later only
    when an exercise names a concrete signal that the existing surfaces cannot
    provide.
-10. How are JWT signing keys, access/refresh sessions, per-run tokens, database,
-    storage, and model credentials **rotated**? Injection is settled — env
-    overrides sourced from a Secret — but nothing documents what a rotation
-    does to sessions, in-flight task runs, or a worker Job that already holds a
-    run token.
+10. ~~How are JWT signing keys, access/refresh sessions, per-run tokens,
+    database, storage, and model credentials **rotated**?~~ **Answered:** the
+    [credential rotation runbook](../deploy/credential-rotation.md) states each
+    procedure and its effect on sessions, in-flight runs, and workers; the
+    alpha.22 exercise rotated every credential except the database password,
+    which the project owner waived.
 11. Which versions of Kubernetes, MySQL, and S3-compatible storage form the
     supported matrix? `manual/support.md` grades surfaces and platforms but
     names no dependency versions, and `deployment/production/README.md` states

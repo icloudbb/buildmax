@@ -44,30 +44,32 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 
 开始前填写此表。仅有标签不构成不可变证据。
 
+下表记录第二次、完整的演练：2026-10-03 至 2026-10-04 在 DigitalOcean 上针对 v0.2.0-alpha.22 进行。2026-10-02 的第一次演练从 v0.2.0-alpha.18 开始，发现的每个缺陷都在 alpha.21 之前修复；这一次在同一个发布版本上重跑了每个门槛，因此全部证据都来自此处记录的产物。
+
 | 字段 | 记录值 |
 |---|---|
-| 版本和提交 | 未记录 |
-| Server 镜像摘要 | 未记录 |
-| Worker 镜像摘要 | 未记录 |
-| Portal 镜像摘要 | 未记录 |
-| 已启用/禁用功能清单 | 未记录 |
-| 操作人员 | 未记录 |
-| 演练日期和环境 | 未记录 |
-| Kubernetes 版本和发行版 | 未记录 |
-| CNI 和实际执行的 NetworkPolicy 行为 | 未记录 |
-| Server 副本数和 coordination mode | 未记录 |
-| Redis 产品和版本 | 未记录 |
-| MySQL 产品和版本 | 未记录 |
-| S3 产品、版本或服务及区域 | 未记录 |
-| TLS 终止和 Ingress | 未记录 |
-| 托管 provider、协议和模型别名 | 未记录 |
-| Worker sandbox、seccomp 和 AppArmor 配置 | 未记录 |
-| 当前 KEK id | 未记录 |
-| Trace、audit、Artifact 和 checkpoint 保留策略 | 未记录 |
-| 预期用户数、Space 数和并发 Run 数 | 未记录 |
-| 目标 RPO 和 RTO | 未记录 |
-| 已脱敏的配置快照 | 未记录 |
-| 起始 schema/commit 及受支持的升级或全新安装路径 | 未记录 |
+| 版本和提交 | v0.2.0-alpha.22 @ `fe0f2b63` |
+| Server 镜像摘要 | `ghcr.io/icloudbb/buildmax@sha256:3cb0fca80e2123bbe8b316b5c37b2fad4661b4b8be32f5a7a9762db6c21d32fd` |
+| Worker 镜像摘要 | 与 Server 相同的镜像 |
+| Portal 镜像摘要 | `ghcr.io/icloudbb/buildmax-portal@sha256:348782e25227a2a973e63140c5b1a686cfec254aaa21c2fc66f48eacd3b40029` |
+| 已启用/禁用功能清单 | 关闭注册；未配置 Remote Control、Telegram、OIDC、远程 MCP 和浏览器工具；Worker 配置拒绝 stdio MCP 以及包含 hook 或 MCP 的 Plugin 发布 |
+| 操作人员 | 项目负责人（@gougoujiang）；旅程由实现者 Agent 使用探针脚本执行，而非独立运维人员 |
+| 演练日期和环境 | 2026-10-03 至 2026-10-04，DigitalOcean `sgp1`，使用 `./make ocean` 部署（[DigitalOcean](digitalocean.md)） |
+| Kubernetes 版本和发行版 | DOKS 1.36.3-do.5，两个 `s-2vcpu-4gb` 节点 |
+| CNI 和实际执行的 NetworkPolicy 行为 | Cilium v1.19.3（DigitalOcean 托管）；Server 入站、Redis 和 Worker 出站策略均已执行，并用真实 TCP 探测 |
+| Server 副本数和 coordination mode | 两个副本分布在不同节点，配有 PodDisruptionBudget；Redis coordination |
+| Redis 产品和版本 | `redis:7.4.11-alpine`，集群内单副本 |
+| MySQL 产品和版本 | DigitalOcean Managed MySQL 8.4.8，TLS 连接并校验 CA |
+| S3 产品、版本或服务及区域 | DigitalOcean Spaces，`sgp1`，经 VPC endpoint 访问 |
+| TLS 终止和 Ingress | Caddy 2.10.2 与 Let's Encrypt，位于带 CIDR 白名单的 DigitalOcean TCP 负载均衡器之后 |
+| 托管 provider、协议和模型别名 | OpenRouter，OpenAI chat completions，`openai/gpt-5.6-luna`，目录模型名 GPT-5.6 Luna；Worker 经托管网关调用 |
+| Worker sandbox、seccomp 和 AppArmor 配置 | bubblewrap 0.12.0，使用独立网络命名空间；Localhost seccomp `buildmax/worker-bwrap.json`；AppArmor `Unconfined`；root 加 `SYS_ADMIN` 与 `NET_ADMIN`，在 Bash 运行前全部丢弃 |
+| 当前 KEK id | `file:root:4`，在 Q6 中轮换；rewrap 之后没有任何行仍使用旧 key |
+| Trace、audit、Artifact 和 checkpoint 保留策略 | 审计和 trace 永久保留；已删除 Artifact 的字节由每小时清理回收；checkpoint 孤儿每小时清理；已完成的 Worker Job 1 小时后删除 |
+| 预期用户数、Space 数和并发 Run 数 | 21 个账号，14 个共享 Space 加个人 Space，一分钟内最多启动 6 个 Worker Job |
+| 目标 RPO 和 RTO | RPO：最近一次 `mysqldump --single-transaction` 快照；RTO：10 分钟内得到校验和一致的第一个 Artifact（实测 632 秒，超出目标） |
+| 已脱敏的配置快照 | 渲染后的 `server.yaml` 随本地证据包归档；模板为 `deployment/ocean/buildmax.yaml.tmpl` |
+| 起始 schema/commit 及受支持的升级或全新安装路径 | 在 alpha.18 全新安装的部署上，从 alpha.21 原地升级（无 schema 变更）；全新安装由空库配对恢复和从 alpha.16 经真实 schema 变更的升级演练覆盖 |
 
 ## 已接受的限制
 
@@ -176,31 +178,42 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 
 每个旅程或演练添加一行。如果真正证明是 Pod 日志、恢复后标识符、checksum 或截图，仅有 CI 摘要页面不够。
 
+下表记录 v0.2.0-alpha.22 的演练。其证据（逐项结果、探针脚本、日志和渲染后的配置）是一个本地证据包，其中包含该部署的主机名、白名单地址和测试账号；它尚未发布到发布 Space 可读的位置，而这是资格验证之前本记录要求的。运行中有若干探针需要修正；证据包逐一列出，没有一处掩盖产品缺陷。
+
 | Gate 或演练 | 结果 | 证据 URL 或产物 | 说明和后续事项 |
 |---|---|---|---|
-| Q0 候选范围、配置与供应链 | 未运行 | — | — |
-| Q1 身份、授权与治理 | 未运行 | — | — |
-| Q2 核心产品旅程 | 未运行 | — | — |
-| Q3 执行与 Secret 边界 | 未运行 | — | — |
-| Q4 持久化与分布式正确性 | 未运行 | — | — |
-| 执行中取消和 Worker 优雅丢失 | 未运行 | — | — |
-| Worker 硬丢失和显式 Retry | 未运行 | — | — |
-| MySQL、Redis 和对象存储故障 | 未运行 | — | — |
-| Provider 故障 | 未运行 | — | — |
-| 数据库与 bucket 配对恢复 | 未运行 | — | — |
-| 声明的 schema 路径与配对恢复回退 | 未运行 | — | — |
-| Credential 和 Worker TLS 轮换 | 未运行 | — | — |
-| Retention 和 capacity | 未运行 | — | — |
-| 24 小时运行窗口 | 未运行 | — | — |
-| 非作者 operator 旅程 | 未运行 | — | — |
-| 真实模型产品 evaluation | 未运行 | — | — |
-| 本地和 Desktop 发布回归 | 未运行 | — | — |
+| Q0 候选范围、配置与供应链 | 通过 | 本地证据包 | 每个 Pod 都运行固定的镜像摘要；用 `gh attestation verify` 验证来源证明；`fe0f2b63` 上的 Trivy 扫描、SBOM，以及 CI、Windows、CodeQL、冒烟和发布流程全部成功。 |
+| Q1 身份、授权与治理 | 通过 | 本地证据包 | 注册、会话、角色、跨 Space 拒绝、停用、移除成员、所有者恢复、配额拒绝。 |
+| Q2 核心产品旅程 | 通过 | 本地证据包 | 真实模型的会话、Task、Continue、Retry、取消、AskUser、Issue、带人工请求和策略终态的图 Workflow、跨 Server 滚动和数据库中断的 Schedule、Secret、Plugin、webhook。三个仅适用于 kind 的探针不适用；其真实模型对应项均通过。 |
+| Q3 执行与 Secret 边界 | 通过，一项部分通过 | 本地证据包 | Bash 不持有任何 capability，读不到 Worker 凭证，即使去掉代理变量网络档位仍然生效；Worker 无法访问 MySQL。部分通过：认领前的运行令牌无法隔离，因为调度器几秒内就会认领。 |
+| Q4 持久化与分布式正确性 | 通过 | 本地证据包 | 跨副本流式输出和回合串行化、Redis 重启、与 Redis 断开的租约持有者被 409 拒绝、并发 Continue/Retry/取消、运行期间滚动两个副本。 |
+| 执行中取消和 Worker 优雅丢失 | 通过 | 本地证据包 | 在宽限期内取消且保留输出和 Artifact；收到 SIGTERM 的 Worker 报告 `interrupted`，没有隐藏重试。 |
+| Worker 硬丢失和显式 Retry | 通过 | 本地证据包 | 从节点发出的 SIGKILL 136 秒后结算为 `worker_lost`；显式重试在新 Job 中运行。被杀的 Job 显示成功，因为 Worker 的退出码表示派发结果，而不是运行结果。 |
+| MySQL、Redis 和对象存储故障 | 通过 | 本地证据包 | 数据库中断后 Schedule 只合并补跑一次；Redis 中断时会话回合返回 503；无法访问存储的 Worker 以 `infrastructure` 失败该运行；存储中断时 Artifact 下载 20 秒返回 503，恢复后内容不变。 |
+| Provider 故障 | 通过 | 本地证据包 | 401、429、503、慢响应和不可达 provider：运行与托管调用的分类和日志一致；没有泄漏凭证。 |
+| 数据库与 bucket 配对恢复 | 通过；RTO 超出目标 | 本地证据包 | 恢复点之前全部 7649 条行都在，`storage verify --checksums` 干净，恢复后的凭证和 checkpoint 可用。RTO 632 秒，超出 10 分钟目标：演练从操作人员的机器经 port-forward 复制 8416 个对象。 |
+| 声明的 schema 路径与配对恢复回退 | 通过 | 本地证据包 | alpha.21 原地升级到 alpha.22；alpha.16 经真实 schema 变更升级到 alpha.22；alpha.16 拒绝更新后的 schema；通过配对恢复回退。 |
+| Credential 和 Worker TLS 轮换 | 通过；一项豁免 | 本地证据包 | JWT、Worker 证书与 CA、KEK 及 rewrap、Spaces 密钥、模型密钥双向轮换，退役的密钥上没有任何调用。数据库密码轮换见下方豁免。 |
+| Retention 和 capacity | 部分通过 | 本地证据包 | 已演练 Artifact 清除和审计裁剪；审计和 trace 永久保留。24 小时窗口内（包含全部资格验证探针），数据库从 9.50 MB 增至 11.16 MB，bucket 前缀从 5.87 MB 增至 8.18 MB，trace 增加 372 个对象（0.79 MB）；10 GiB 的数据库磁盘足以支撑数年。部分通过是因为没有配置磁盘和 bucket 监控，而永久保留要求有监控。 |
+| 24 小时运行窗口 | 通过 | 本地证据包 | 2026-10-03T02:46Z 至 2026-10-04T02:46Z：216 次定时触发全部按时执行并成功，没有滞留工作，期间经历了本次演练的全部操作：Server 滚动、为凭证轮换执行的五次部署、Redis、数据库和存储中断，以及恢复演练。 |
+| 非作者 operator 旅程 | 豁免 | 本地证据包 | 见下方豁免。 |
+| 真实模型产品 evaluation | 通过 | 本地证据包 | 在候选提交上用 GPT-5.6 Luna 运行 `./make eval`：12 个计分试验全部通过，95% CI 76–100%，0 个未计分。这是小型套件，不是基准分数。 |
+| 本地和 Desktop 发布回归 | 部分通过 | 本地证据包 | 候选版本 CI 覆盖 CLI/TUI、provider 合约测试和 Desktop UI 构建；打包后的 Desktop 启动和 Desktop UI 套件需要原生窗口，未运行。 |
 
 ## 决策
 
 当前决策：**尚未达到 BETA 就绪条件**。
 
+v0.2.0-alpha.22 的演练没有发现产品缺陷，也没有失败的条目。签署之前，恢复时间必须达到目标或调整目标，保留策略需要配置磁盘和 bucket 监控，证据必须发布到发布 Space 可读的位置，上表中其余部分通过的条目必须通过或作为限制被接受。
+
 资格验证要求所有核心 Gate 通过，不得存在 authorization escape、无法解释的数据损失、stranded durable work、数据库 pointer 指向缺失对象，或未解决的 critical/high security finding。任何 waiver 都必须指出未满足行为、用户影响、补偿性 operator control、owner 和到期时间；它是明确的发布决策，而不是暗示通过。
+
+项目负责人于 2026-10-02 记录、并沿用到 alpha.22 演练的豁免：
+
+| 未满足的行为 | 用户影响 | 补偿控制 | 负责人 | 到期 |
+|---|---|---|---|---|
+| 未演练数据库密码轮换 | 轮换流程若有错误，会在真实轮换时才暴露 | [DigitalOcean](digitalocean.md) 中记录了流程；托管数据库只能从集群访问 | @gougoujiang | 本候选版本 |
+| 没有独立运维人员完成旅程 | 新运维人员会遇到的文档缺口没有被衡量 | 每个旅程都使用探针脚本按文档化的接口执行 | @gougoujiang | 本候选版本 |
 
 | 角色 | 姓名 | 日期 | 决策或 waiver 链接 |
 |---|---|---|---|
