@@ -72,6 +72,8 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
           return "Security"
         case "secrets":
           return "Secrets"
+        case "serviceAccounts":
+          return "Service accounts"
         case "audit":
           return "Audit"
         case "overview":

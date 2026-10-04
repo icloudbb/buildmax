@@ -28,7 +28,7 @@ import {
   updateIssue,
 } from "../../features/issues"
 import { RunTraceModal } from "../../features/runs"
-import { getSpaceMembers } from "../../features/spaces/api"
+import { getSpaceMembers, peopleOnly } from "../../features/spaces/api"
 import { getWorkflows, runIssueWorkflow } from "../../features/workflows"
 import { useSpace } from "../../contexts/SpaceContext"
 import { useApp } from "../../contexts/AppContext"
@@ -520,7 +520,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                       <span className="issues-page__field-label">Owner</span>
                       <select className="issues-page__select" value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
                         <option value="">Unassigned</option>
-                        {members.map((member) => (
+                        {peopleOnly(members).map((member) => (
                           <option key={member.user_id} value={member.user_id}>
                             {memberLabel(member)}
                           </option>

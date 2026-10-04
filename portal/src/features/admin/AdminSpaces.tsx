@@ -351,9 +351,10 @@ export function AdminSpaces({
           <ul className="admin-list">
             {selected.members.map((member) => (
               <li key={member.user_id} className="admin-list__row">
-                <span className="admin-list__main">{member.email || member.user_id}</span>
+                <span className="admin-list__main">{member.email || member.name || member.user_id}</span>
+                {member.kind === "service" ? <span className="admin-pill">service account</span> : null}
                 <span className="admin-pill">{member.role}</span>
-                {!selected.personal && member.role !== "owner" ? (
+                {!selected.personal && member.role !== "owner" && member.kind !== "service" ? (
                   <Button
                     variant="secondary" size="compact"
                     disabled={busy}

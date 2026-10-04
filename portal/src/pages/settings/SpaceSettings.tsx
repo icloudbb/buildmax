@@ -12,6 +12,7 @@ import { SpaceAuditSection } from "../../features/audit"
 import { SpacePlugins } from "../../features/spacePlugins"
 import { SpaceSandboxDefaults } from "../../features/spaceSandbox"
 import { SpaceSecrets } from "../../features/spaceSecrets"
+import { SpaceServiceAccounts } from "../../features/spaceServiceAccounts"
 import { SpaceAgentInstructions } from "../../features/spaceInstructions"
 import { useAuth } from "../../contexts/AuthContext"
 import { isAllowed } from "../../state/permissionState"
@@ -167,6 +168,16 @@ export function SpaceSettings({ spaceId, section }: { spaceId: string; section: 
             // until BuildMax has finer space grants. See
             // docs/design/space-secrets.md §10.
             ownerState={currentUserIsOwnerState}
+          />
+        ) : null}
+        {section === "serviceAccounts" ? (
+          <SpaceServiceAccounts
+            token={token}
+            spaceId={spaceId}
+            isPersonalSpace={isPersonalSpace}
+            members={members}
+            currentUserId={user?.id}
+            manageState={canManageSpaceState}
           />
         ) : null}
         {section === "audit" ? (

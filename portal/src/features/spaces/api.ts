@@ -10,10 +10,66 @@ import type {
   ApiInvitation,
   ApiMemberLoginCode,
   ApiMemberRole,
+  ApiServiceAccount,
   ApiSpace,
   ApiSpaceMember,
   ApiUsage,
 } from "../../lib/api/types"
+
+/**
+ * The members a person can be picked from: everyone but the Space's service
+ * accounts, which are listed in the roster but are never a person to assign.
+ */
+export function peopleOnly(members: ApiSpaceMember[]): ApiSpaceMember[] {
+  return members.filter((member) => member.user_kind !== "service")
+}
+
+function serviceAccountsBase(spaceId: string): string {
+  return `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/service-accounts`
+}
+
+export async function getServiceAccounts(spaceId: string, token: string): Promise<ApiServiceAccount[]> {
+  return requestJson<ApiServiceAccount[]>(serviceAccountsBase(spaceId), { headers: authHeaders(token) })
+}
+
+export async function createServiceAccount(
+  spaceId: string,
+  body: { name: string; sponsor_user_id?: string },
+  token: string
+): Promise<ApiServiceAccount> {
+  return requestJson<ApiServiceAccount>(serviceAccountsBase(spaceId), {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+}
+
+/** Rename or re-sponsor. Taking sponsorship clears needs_sponsor. */
+export async function updateServiceAccount(
+  spaceId: string,
+  userId: string,
+  body: { name?: string; sponsor_user_id?: string },
+  token: string
+): Promise<ApiServiceAccount> {
+  return requestJson<ApiServiceAccount>(`${serviceAccountsBase(spaceId)}/${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function setServiceAccountState(
+  spaceId: string,
+  userId: string,
+  disabled: boolean,
+  token: string
+): Promise<ApiServiceAccount> {
+  return requestJson<ApiServiceAccount>(`${serviceAccountsBase(spaceId)}/${encodeURIComponent(userId)}/state`, {
+    method: "PUT",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ disabled }),
+  })
+}
 
 export async function getSpaces(token: string): Promise<ApiSpace[]> {
   return requestJson<ApiSpace[]>(`${getApiBase()}/api/spaces`, {

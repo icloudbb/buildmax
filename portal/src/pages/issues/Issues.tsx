@@ -8,7 +8,7 @@ import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../l
 import { collectionFilter, createIssue, getIssues } from "../../features/issues"
 import { IssueBoard } from "./IssueBoard"
 import { getAgents } from "../../features/agents"
-import { getSpaceMembers } from "../../features/spaces/api"
+import { getSpaceMembers, peopleOnly } from "../../features/spaces/api"
 import { getWorkflows } from "../../features/workflows"
 import { IssueModal } from "../../components/IssueModal"
 import { useSpaceCapability } from "../../contexts/SpaceContext"
@@ -268,7 +268,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
           <select className="issues-page__select" value={owner ?? ""} onChange={(e) => setQuery({ owner: e.target.value || undefined })}>
             <option value="">Anyone</option>
             <option value="me">Me</option>
-            {members
+            {peopleOnly(members)
               .filter((member) => member.user_id !== userId)
               .map((member) => (
                 <option key={member.user_id} value={member.user_id}>

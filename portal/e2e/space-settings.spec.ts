@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
-import { getJSON, session } from "./fixtures"
+import { createSpace, getJSON, reportLeftovers, session, tagged } from "./fixtures"
 
 /**
  * The space overview is where an operator reads the deployment's own settings
@@ -71,4 +71,43 @@ test("the space members section names the signed-in account", async ({ page }) =
   })
   await expect(members.getByText("Me", { exact: true })).toBeVisible()
   await expect(page.locator(".settings-section__error")).toHaveCount(0)
+})
+
+test("a space owner creates and disables a service account", async ({ page }) => {
+  // A service account belongs to a team space, never a personal one, so the
+  // spec makes its own. The page is reloaded so the switcher knows the Space.
+  const current = await session(page)
+  const team = await createSpace(page, current, tagged("Service account probe"))
+  reportLeftovers(team.id, [`space ${team.id}`])
+  await page.reload()
+  await page.goto(`/#/spaces/${team.id}/settings/service-accounts`)
+
+  const section = page.getByRole("region", { name: "Service accounts" })
+  await section.getByRole("button", { name: "New service account" }).click()
+  const name = tagged("Probe bot")
+  await section.getByLabel("Name").fill(name)
+  await section.getByRole("button", { name: "Create service account" }).click()
+
+  const card = section.getByTestId("service-account").filter({ hasText: name })
+  await expect(card).toContainText("Sponsored by you")
+  await expect(card).toContainText("active")
+
+  await card.getByRole("button", { name: "Disable" }).click()
+  await expect(card.getByRole("button", { name: "Enable" })).toBeVisible()
+  await expect(card).toContainText("disabled")
+
+  // What the page shows is what the server holds, not local state.
+  const accounts = await getJSON<{ id: string; name: string; disabled_at?: string }[]>(
+    page,
+    `${current.apiBase}/api/spaces/${team.id}/service-accounts`,
+    current
+  )
+  const stored = accounts.find((a) => a.name === name)
+  expect(stored?.disabled_at, "the server did not record the disable").toBeTruthy()
+
+  // The roster names it as a service account and offers no member controls.
+  await page.goto(`/#/spaces/${team.id}/settings/members`)
+  const row = page.locator(".space-settings-page__member").filter({ hasText: name })
+  await expect(row).toContainText("Service account")
+  await expect(row.getByRole("button")).toHaveCount(0)
 })

@@ -43,6 +43,7 @@ export type SpaceSection =
   | "plugins"
   | "security"
   | "secrets"
+  | "serviceAccounts"
   | "audit"
   | "memberNew"
 
@@ -77,6 +78,9 @@ export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = 
   // Owner-only content, but the tab stays visible for everyone, the same as
   // Audit: the section itself explains why a member cannot manage it.
   { id: "secrets", label: "Secrets", icon: ToolboxIcon },
+  // Space-owned principals work runs as. Any member sees the inventory; owners
+  // and admins manage it. See docs/design/space-assistants.md §6.
+  { id: "serviceAccounts", label: "Service accounts", icon: AgentsIcon },
   // Owner-only content, but the tab stays visible for everyone: the section
   // explains why a member cannot read it, which is more useful than a tab that
   // silently exists for some people and not others.
@@ -567,12 +571,14 @@ export function SpaceMembersSection({
         <ul className="space-settings-page__member-list">
           {members.map((member) => {
             const isSelf = member.user_id === userId
+            const isService = member.user_kind === "service"
             // A member's own row never carries a role editor, a remove
             // button, or a login-code action -- changing your own role
             // (including demoting the sole owner) goes through transfer,
             // not this list. See docs/design/space-membership-lifecycle.md
-            // §5.2-§5.3.
-            const canManageThisRow = currentUserIsOwner && !isSelf
+            // §5.2-§5.3. A service account's row carries none either: it is
+            // a member for life and is managed under Service accounts.
+            const canManageThisRow = currentUserIsOwner && !isSelf && !isService
             return (
               <li key={member.user_id} className="space-settings-page__member">
                 <div className="space-settings-page__member-main">
@@ -580,7 +586,7 @@ export function SpaceMembersSection({
                     {memberDisplayName(member, userId)}
                   </span>
                   <span className="space-settings-page__member-meta">
-                    {member.user_email ?? member.user_id}
+                    {isService ? "Service account" : member.user_email ?? member.user_id}
                   </span>
                 </div>
                 <div className="space-settings-page__member-actions">

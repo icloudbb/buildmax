@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { BaseModal, Button } from "@buildmax/gui"
 import type { ApiSpaceMember } from "../lib/api/types"
+import { peopleOnly } from "../features/spaces/api"
 import type { Agent, Issue, Workflow } from "../lib/types"
 
 interface IssueModalProps {
@@ -98,7 +99,7 @@ export function IssueModal({
               <span className="issues-page__field-label">Owner</span>
               <select className="issues-page__select" value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
                 <option value="">Unassigned</option>
-                {members.map((member) => (
+                {peopleOnly(members).map((member) => (
                   <option key={member.user_id} value={member.user_id}>
                     {memberLabel(member)}
                   </option>
