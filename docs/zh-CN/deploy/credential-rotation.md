@@ -29,7 +29,7 @@ kubectl -n buildmax rollout status deployment/buildmax-server
 
 滚动发布以 `maxUnavailable: 0` 逐个替换 Pod，API 保持可用。当 `rollout status` 返回且没有旧 Server Pod 仍在终止时（`kubectl -n buildmax get pods -l app=buildmax-server`），滚动完成。
 
-有两个凭证——对象存储密钥和直连提供商密钥——还会在创建每个 worker Job 时**按值**传给它。Job 在整个运行期间都保留启动时拿到的密钥，因此在停用其中任何一个旧密钥之前，要等滚动之前创建的所有 worker Job 结束。以下命令列出仍在运行的 worker Job 及其启动时间：
+有两个凭证——对象存储密钥和直连提供商密钥——还会传给每个 worker Job，方式是引用 `worker.k8s.credential_secret` 指定的 Secret，在 Job 的 Pod 启动时解析。运行中的 Pod 在整个运行期间都保留启动时拿到的密钥，因此在停用其中任何一个旧密钥之前，要等滚动之前创建的所有 worker Job 结束。以下命令列出仍在运行的 worker Job 及其启动时间：
 
 ```sh
 kubectl -n buildmax get jobs -l app.kubernetes.io/name=buildmax-worker \
@@ -94,7 +94,7 @@ MySQL 8.0.14 及以上版本每个账户可保留两个密码，因此新密码�
 
 如果 Server 和 worker 通过 IRSA、workload identity 或实例配置文件访问存储桶，请跳过本节：该身份由平台负责轮换。
 
-静态密钥通过让两个拥有相同存储桶权限的身份重叠来轮换——同一 IAM 用户的两个访问密钥，或绑定同一策略的两个 MinIO 用户。worker 按值持有密钥，因此旧密钥要一直保持启用，直到携带它的 Job 全部结束。
+静态密钥通过让两个拥有相同存储桶权限的身份重叠来轮换——同一 IAM 用户的两个访问密钥，或绑定同一策略的两个 MinIO 用户。运行中的 worker 会一直使用其 Pod 启动时拿到的密钥，因此旧密钥要一直保持启用，直到以它启动的 Job 全部结束。
 
 1. 创建拥有相同权限的新密钥。在 AWS 上，对同一用户执行 `aws iam create-access-key`；在 MinIO 上：
 
@@ -131,7 +131,7 @@ kubectl -n buildmax exec -i deploy/buildmax-server -- buildmax-server model set-
 
 该变更会更新目录行的修订版本，网关从下一次调用起使用新密钥：无需重启，托管 worker 也从未持有该密钥。已在进行中的调用会用旧密钥完成，因此请在超过该模型的调用超时后再到提供商处吊销旧密钥。验证经该模型的调用成功，且提供商显示旧密钥不再被使用。
 
-**直连模型密钥**（`conversation.model.api_key`，通过 `BUILDMAX_CONVERSATION_MODEL_API_KEY` 设置）由 Server 在启动时读取，并按值传给直连提供商的 worker。修改 Secret、滚动 Server、等待滚动之前创建的 worker Job 结束，然后在提供商处吊销旧密钥。
+**直连模型密钥**（`conversation.model.api_key`，通过 `BUILDMAX_CONVERSATION_MODEL_API_KEY` 设置）由 Server 在启动时读取，并传给直连提供商的 worker，各 worker 在其 Pod 启动时解析它。修改 Secret、滚动 Server、等待滚动之前创建的 worker Job 结束，然后在提供商处吊销旧密钥。
 
 ## 密钥加密密钥
 

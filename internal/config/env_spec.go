@@ -103,20 +103,25 @@ type EnvVar struct {
 	// holds no provider credential, so passing one would hand a model-driven
 	// process a key it has no use for.
 	DirectLLMOnly bool
+	// Credential marks a variable whose value is a secret. A Kubernetes worker
+	// Job receives a marked variable as a reference to the Secret named by
+	// worker.k8s.credential_secret rather than as its value, so the value is
+	// never written into the Job object.
+	Credential bool
 }
 
 var envVars = []EnvVar{
 	{Name: EnvKeyBuildmaxHome, Default: "~/.buildmax", Description: "Application data directory; locates settings.yaml and server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxServerURL, Description: "Override for settings.yaml server_url and server.yaml worker.server_url", WorkerNeeds: true},
-	{Name: EnvKeyBuildmaxJWTSecret, Description: "Override for jwt_secret in server.yaml; inject at deploy time in production"},
+	{Name: EnvKeyBuildmaxJWTSecret, Description: "Override for jwt_secret in server.yaml; inject at deploy time in production", Credential: true},
 	{Name: EnvKeyBuildmaxPublicBaseURL, Description: "Override for public_base_url in server.yaml; the externally reachable origin artifact share links are built from"},
-	{Name: EnvKeyBuildmaxDatabasePassword, Description: "Override for database.password in server.yaml"},
-	{Name: EnvKeyBuildmaxMinIOAccessKey, Description: "Override for storage.minio.access_key in server.yaml", WorkerNeeds: true},
-	{Name: EnvKeyBuildmaxMinIOSecretKey, Description: "Override for storage.minio.secret_key in server.yaml", WorkerNeeds: true},
-	{Name: EnvKeyBuildmaxConversationAPIKey, Description: "Override for conversation.model.api_key in server.yaml", WorkerNeeds: true, DirectLLMOnly: true},
-	{Name: EnvKeyBuildmaxCoordinationRedisPassword, Description: "Override for coordination.redis.password in server.yaml; the multi-replica coordination backend"},
-	{Name: EnvKeyBuildmaxOIDCClientSecret, Description: "Override for oidc.client_secret in server.yaml; the confidential OIDC client's secret, injected at deploy time"},
-	{Name: EnvKeyBuildmaxTelegramBotToken, Description: "Override for channels.telegram.bot_token in server.yaml; the Telegram bot's token, injected at deploy time"},
+	{Name: EnvKeyBuildmaxDatabasePassword, Description: "Override for database.password in server.yaml", Credential: true},
+	{Name: EnvKeyBuildmaxMinIOAccessKey, Description: "Override for storage.minio.access_key in server.yaml", WorkerNeeds: true, Credential: true},
+	{Name: EnvKeyBuildmaxMinIOSecretKey, Description: "Override for storage.minio.secret_key in server.yaml", WorkerNeeds: true, Credential: true},
+	{Name: EnvKeyBuildmaxConversationAPIKey, Description: "Override for conversation.model.api_key in server.yaml", WorkerNeeds: true, DirectLLMOnly: true, Credential: true},
+	{Name: EnvKeyBuildmaxCoordinationRedisPassword, Description: "Override for coordination.redis.password in server.yaml; the multi-replica coordination backend", Credential: true},
+	{Name: EnvKeyBuildmaxOIDCClientSecret, Description: "Override for oidc.client_secret in server.yaml; the confidential OIDC client's secret, injected at deploy time", Credential: true},
+	{Name: EnvKeyBuildmaxTelegramBotToken, Description: "Override for channels.telegram.bot_token in server.yaml; the Telegram bot's token, injected at deploy time", Credential: true},
 	{Name: EnvKeyBuildmaxCORSOrigin, Description: "Override for cors_origin in server.yaml; set where the Portal's host port is chosen"},
 	// The three model-selection overrides are read by the server, which decides
 	// the transport and resolves the catalog, and delivered to each worker per
@@ -129,7 +134,7 @@ var envVars = []EnvVar{
 	// run by the scheduler, never inherited from the server. Leaving it unmarked
 	// is what strips a stale value the server happens to be holding, so the only
 	// token a worker can find is the one minted for its own run.
-	{Name: EnvKeyBuildmaxRunToken, Description: "Per-run credential for the managed LLM gateway; minted by the scheduler, not set by an operator"},
+	{Name: EnvKeyBuildmaxRunToken, Description: "Per-run credential for the managed LLM gateway; minted by the scheduler, not set by an operator", Credential: true},
 	// Deliberately not WorkerNeeds, for the same reason as the run token: the
 	// scheduler sets it per dispatch from its own shutdown budget, and a stale
 	// value inherited from the server would describe the wrong window.
@@ -140,7 +145,7 @@ var envVars = []EnvVar{
 	{Name: EnvKeyBuildmaxTestDSN, Description: "MySQL DSN for store integration tests; unset skips those tests"},
 	{Name: EnvKeyBuildmaxCacheQualifyProvider, Description: "Provider for the prompt-cache qualification suite; unset skips it"},
 	{Name: EnvKeyBuildmaxCacheQualifyModel, Description: "Model identifier for the prompt-cache qualification suite"},
-	{Name: EnvKeyBuildmaxCacheQualifyAPIKey, Description: "Credential for the prompt-cache qualification suite; a real, paid provider"},
+	{Name: EnvKeyBuildmaxCacheQualifyAPIKey, Description: "Credential for the prompt-cache qualification suite; a real, paid provider", Credential: true},
 	{Name: EnvKeyBuildmaxCacheQualifyBaseURL, Description: "Base URL override for the prompt-cache qualification suite"},
 	{Name: EnvKeyBuildmaxCacheQualifySlow, Description: "Include the qualification scenarios that wait out a retention window (1/true/yes/on)"},
 	{Name: EnvKeyBuildmaxSandboxEnabled, Description: "Override sandbox.enabled in settings; values: 1/true/yes/on or 0/false/no/off", WorkerNeeds: true},
@@ -170,6 +175,16 @@ func WorkerNeedsEnv(name string, managedLLM bool) bool {
 	for _, v := range envVars {
 		if v.Name == name {
 			return v.WorkerNeeds && !(managedLLM && v.DirectLLMOnly)
+		}
+	}
+	return false
+}
+
+// IsCredentialEnv reports whether name holds a secret value.
+func IsCredentialEnv(name string) bool {
+	for _, v := range envVars {
+		if v.Name == name {
+			return v.Credential
 		}
 	}
 	return false

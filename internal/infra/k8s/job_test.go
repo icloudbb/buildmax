@@ -175,6 +175,62 @@ func TestK8sJobRunner_NoConfigMap(t *testing.T) {
 	}
 }
 
+func mustWorkerEnv(t *testing.T, managedLLM bool) []corev1.EnvVar {
+	t.Helper()
+	env, err := WorkerEnvFromEnviron(managedLLM, "buildmax-secret")
+	if err != nil {
+		t.Fatalf("WorkerEnvFromEnviron: %v", err)
+	}
+	return env
+}
+
+// TestWorkerEnvFromEnviron_ReferencesCredentialsInsteadOfCopyingThem asserts
+// that no credential value is written into a worker Job. Anyone who can read
+// Jobs or Pods in the namespace can read their env values, so the storage keys
+// travel as references to the Secret the server's own copy came from.
+func TestWorkerEnvFromEnviron_ReferencesCredentialsInsteadOfCopyingThem(t *testing.T) {
+	t.Setenv(config.EnvKeyBuildmaxServerURL, "https://server.example")
+	t.Setenv(config.EnvKeyBuildmaxMinIOAccessKey, "minio-key")
+	t.Setenv(config.EnvKeyBuildmaxMinIOSecretKey, "minio-secret")
+	t.Setenv(config.EnvKeyBuildmaxConversationAPIKey, "provider-key")
+
+	env, err := WorkerEnvFromEnviron(false, "worker-creds")
+	if err != nil {
+		t.Fatalf("WorkerEnvFromEnviron: %v", err)
+	}
+	byName := make(map[string]corev1.EnvVar, len(env))
+	for _, e := range env {
+		byName[e.Name] = e
+	}
+	for _, name := range []string{config.EnvKeyBuildmaxMinIOAccessKey, config.EnvKeyBuildmaxMinIOSecretKey, config.EnvKeyBuildmaxConversationAPIKey} {
+		e, ok := byName[name]
+		if !ok {
+			t.Errorf("%s was not passed to the worker", name)
+			continue
+		}
+		if e.Value != "" {
+			t.Errorf("%s carries its value in the Job spec", name)
+		}
+		ref := e.ValueFrom
+		if ref == nil || ref.SecretKeyRef == nil || ref.SecretKeyRef.Name != "worker-creds" || ref.SecretKeyRef.Key != name {
+			t.Errorf("%s = %+v, want a reference to key %s of Secret worker-creds", name, e.ValueFrom, name)
+		}
+	}
+	if got := byName[config.EnvKeyBuildmaxServerURL]; got.Value != "https://server.example" || got.ValueFrom != nil {
+		t.Errorf("%s = %+v, want its value: it is not a credential", config.EnvKeyBuildmaxServerURL, got)
+	}
+}
+
+// TestWorkerEnvFromEnviron_RefusesCredentialsWithoutASecret: with no Secret to
+// reference, the only way to pass a credential would be its value, which is
+// what this path exists to stop.
+func TestWorkerEnvFromEnviron_RefusesCredentialsWithoutASecret(t *testing.T) {
+	t.Setenv(config.EnvKeyBuildmaxMinIOSecretKey, "minio-secret")
+	if _, err := WorkerEnvFromEnviron(true, ""); err == nil || !strings.Contains(err.Error(), "worker.k8s.credential_secret") {
+		t.Fatalf("err = %v, want a refusal naming worker.k8s.credential_secret", err)
+	}
+}
+
 // TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials asserts the Job pod
 // gets what a worker reads and nothing else. The server process holds the JWT
 // signing secret and the database password; forwarding them would give every
@@ -189,7 +245,7 @@ func TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials(t *testing.T) {
 	t.Setenv("BUILDMAX_ADDED_LATER", "unknown")
 	t.Setenv("PATH_LIKE_NON_BUILDMAX", "ignored")
 
-	got := WorkerEnvFromEnviron(false)
+	got := mustWorkerEnv(t, false)
 	byName := make(map[string]string, len(got))
 	for _, e := range got {
 		byName[e.Name] = e.Value
@@ -460,7 +516,7 @@ func TestWorkerEnvFromEnviron_DropsInheritedRunToken(t *testing.T) {
 	t.Setenv(config.EnvKeyBuildmaxRunToken, "some-other-runs-token")
 	t.Setenv(config.EnvKeyBuildmaxMinIOAccessKey, "kept")
 
-	env := WorkerEnvFromEnviron(false)
+	env := mustWorkerEnv(t, false)
 	var sawInherited bool
 	for _, e := range env {
 		if e.Name == config.EnvKeyBuildmaxRunToken {
@@ -491,7 +547,7 @@ func TestWorkerEnvFromEnviron_ManagedPodHasNoProviderKey(t *testing.T) {
 		return out
 	}
 
-	managed := names(WorkerEnvFromEnviron(true))
+	managed := names(mustWorkerEnv(t, true))
 	if _, ok := managed[config.EnvKeyBuildmaxConversationAPIKey]; ok {
 		t.Errorf("%s reached a managed worker pod", config.EnvKeyBuildmaxConversationAPIKey)
 	}
@@ -499,7 +555,7 @@ func TestWorkerEnvFromEnviron_ManagedPodHasNoProviderKey(t *testing.T) {
 		t.Error("managed filtering dropped the storage credential, which every run still needs")
 	}
 
-	if _, ok := names(WorkerEnvFromEnviron(false))[config.EnvKeyBuildmaxConversationAPIKey]; !ok {
+	if _, ok := names(mustWorkerEnv(t, false))[config.EnvKeyBuildmaxConversationAPIKey]; !ok {
 		t.Errorf("%s was withheld from a direct worker pod", config.EnvKeyBuildmaxConversationAPIKey)
 	}
 }

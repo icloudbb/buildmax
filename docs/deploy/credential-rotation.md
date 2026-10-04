@@ -42,10 +42,12 @@ The rollout replaces pods one at a time with `maxUnavailable: 0`, so the API
 stays up. It is complete when `rollout status` returns and no old server pod is
 still terminating (`kubectl -n buildmax get pods -l app=buildmax-server`).
 
-Two credentials — the object-storage key and a direct provider key — are also
-handed to each worker Job **by value** when the Job is created. A Job keeps the
-key it started with for its whole run, so before retiring one of those keys,
-wait until every worker Job created before the roll has finished. This lists the
+Two credentials — the object-storage key and a direct provider key — also reach
+each worker Job, as references to the Secret named by
+`worker.k8s.credential_secret` that are resolved when the Job's pod starts. A
+running pod keeps the key it started with for its whole run, so before retiring
+one of those keys, wait until every worker Job created before the roll has
+finished. This lists the
 worker Jobs still running and when each started:
 
 ```sh
@@ -139,8 +141,8 @@ workload identity, or an instance profile: the platform rotates that identity.
 
 A static key is rotated by overlapping two identities that hold the same bucket
 permissions — two access keys on one IAM user, or two MinIO users with the same
-policy. Workers hold the key by value, so the old one stays enabled until the
-Jobs that carry it are gone.
+policy. A running worker keeps the key its pod started with, so the old one
+stays enabled until the Jobs that started with it are gone.
 
 1. Create the new key with the same access. On AWS, `aws iam create-access-key`
    on the same user; on MinIO:
@@ -194,9 +196,9 @@ the model succeeds and that the provider shows the old key unused.
 
 **A direct model key** (`conversation.model.api_key`, set through
 `BUILDMAX_CONVERSATION_MODEL_API_KEY`) is read by the server at startup and
-handed by value to workers that call the provider directly. Patch the Secret,
-roll the server, wait for the worker Jobs created before the roll to finish,
-then revoke the old key at the provider.
+handed to workers that call the provider directly, each resolving it when its
+pod starts. Patch the Secret, roll the server, wait for the worker Jobs created
+before the roll to finish, then revoke the old key at the provider.
 
 ## Key-Encryption Key
 

@@ -253,6 +253,10 @@ worker:
     # server listener. Empty mounts none (system roots, or plain HTTP dev).
     ca_config_map: ""
     home_dir: /buildmax          # BUILDMAX_HOME inside a worker pod
+    # The Secret worker pods read their credentials from (object-storage keys,
+    # and the provider key on direct transport), each under a key named like
+    # its environment variable. Jobs reference it instead of carrying values.
+    credential_secret: buildmax-secret
     # How long a finished worker Job and its pod stay before Kubernetes
     # deletes them — only a window for `kubectl logs`, since the run's result
     # and trace do not depend on the pod. 0s deletes them on finish.
