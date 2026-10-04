@@ -89,6 +89,8 @@ type workflowRunRow struct {
 	// ScheduleID is the recurring schedule that started this run, or NULL for any
 	// other trigger. Indexed so a schedule's firing history is one keyed lookup.
 	ScheduleID *uint64 `gorm:"column:schedule_id;index"`
+	// ConversationID is the conversation whose turn started this run, or NULL.
+	ConversationID *uint64 `gorm:"column:conversation_id;index"`
 	// Input is the run's immutable input JSON, validated against the definition's
 	// input_schema at admission. NULL when the definition declares no input_schema.
 	Input  *string `gorm:"column:input;type:longtext"`
@@ -121,20 +123,23 @@ func (workflowRunRow) TableName() string { return "workflow_run" }
 // workflowRunReadRow is the row plus the handles its references resolve to. A
 // pointer field is one a LEFT JOIN may leave NULL.
 type workflowRunReadRow struct {
-	Row               workflowRunRow `gorm:"embedded"`
-	WorkflowPublicID  string         `gorm:"column:workflow_public_id"`
-	IssuePublicID     *string        `gorm:"column:issue_public_id"`
-	SchedulePublicID  *string        `gorm:"column:schedule_public_id"`
-	CreatedByPublicID string         `gorm:"column:created_by_public_id"`
+	Row                  workflowRunRow `gorm:"embedded"`
+	WorkflowPublicID     string         `gorm:"column:workflow_public_id"`
+	IssuePublicID        *string        `gorm:"column:issue_public_id"`
+	SchedulePublicID     *string        `gorm:"column:schedule_public_id"`
+	ConversationPublicID *string        `gorm:"column:conversation_public_id"`
+	CreatedByPublicID    string         `gorm:"column:created_by_public_id"`
 }
 
 func (s *Store) workflowRunSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&workflowRunRow{}).
 		Select("workflow_run.*, w.public_id AS workflow_public_id, i.public_id AS issue_public_id, " +
-			"sc.public_id AS schedule_public_id, cb.public_id AS created_by_public_id").
+			"sc.public_id AS schedule_public_id, cv.public_id AS conversation_public_id, " +
+			"cb.public_id AS created_by_public_id").
 		Joins("INNER JOIN workflow w ON w.id = workflow_run.workflow_id").
 		Joins("LEFT JOIN issue i ON i.id = workflow_run.issue_id").
 		Joins("LEFT JOIN schedule sc ON sc.id = workflow_run.schedule_id").
+		Joins("LEFT JOIN conversation cv ON cv.id = workflow_run.conversation_id").
 		Joins("INNER JOIN `user` cb ON cb.id = workflow_run.created_by")
 }
 
@@ -295,6 +300,10 @@ func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 	if row.Row.ScheduleID != nil {
 		schedule := derefPublicID(row.SchedulePublicID)
 		out.ScheduleID = &schedule
+	}
+	if row.Row.ConversationID != nil {
+		conversation := derefPublicID(row.ConversationPublicID)
+		out.ConversationID = &conversation
 	}
 	return out
 }
@@ -625,6 +634,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,
 		ScheduleID:       in.ScheduleID,
+		ConversationID:   in.ConversationID,
 		Input:            in.Input,
 		Status:           in.Status,
 		CreatedBy:        in.CreatedBy,
@@ -664,6 +674,13 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 				return err
 			}
 			row.ScheduleID = &scheduleKey
+		}
+		if in.ConversationID != nil && *in.ConversationID != "" {
+			conversationKey, err := lookupKey(ctx, tx, "conversation", *in.ConversationID)
+			if err != nil {
+				return err
+			}
+			row.ConversationID = &conversationKey
 		}
 		return createWithPublicID(ctx, tx, "uq_workflow_run_public_id",
 			func(id string) { row.PublicID = id }, row)

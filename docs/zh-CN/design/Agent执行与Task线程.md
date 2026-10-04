@@ -132,6 +132,8 @@ Conversation 可以通过其受限工具调用同一个 Task 应用服务，把�
 
 只有在用户尚未做出类型化选择、或者用户明确要求它来协调时，Conversation 才可以自行选择 Agent。一个已经提供了 `agent_id` 的客户端，不应该把它编码进自然语言散文，再交给另一个模型去解读。
 
+[Space Assistant](空间助手.md) 的会话是唯一一种提问者不是权限主体的情形。它创建的 Task 的 `created_by` 是该 Assistant 的 service account，Task 还会把 `requested_by`（请求者）、`assistant_id` 和 `assistant_revision` 记录为溯源信息。所选 Agent 必须在 Assistant 的名册上，由 Server 检查。
+
 ### 4.5 API、Webhook 与定时任务
 
 非会话型的调用方通过同一个服务创建归属于 Space 的 Task。每一种来源都会记录一个类型化的触发来源，以及在其边界上可获得的调用者身份；没有谁会为了存储或授权而凭空发明一个 Conversation。
@@ -240,6 +242,9 @@ Task
   issue_id                 optional shared-work relation
   workflow_step_run_id     optional deterministic-plan relation
   created_by               required actor
+  requested_by             optional: the requester, when a Space Assistant
+                           dispatched the Task as its service account
+  assistant_id / _revision optional: that Assistant and its revision
   session_id               stable Task session
   title / objective
   status / last_run_id

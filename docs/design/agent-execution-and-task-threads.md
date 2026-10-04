@@ -184,6 +184,12 @@ typed selection or when the user explicitly asked it to coordinate. A client
 that supplies `agent_id` must not encode it into prose for another model to
 interpret.
 
+A [Space Assistant](space-assistants.md)'s conversation is the one case where
+the person asking is not the authority. Its Task's `created_by` is the
+Assistant's service account, and the Task also records `requested_by` (the
+requester), `assistant_id`, and `assistant_revision` as provenance. The Agent
+must be on the Assistant's roster, which the Server checks.
+
 ### 4.5 API, Webhook, And Schedule
 
 Non-conversational callers create Space-owned Tasks through the same service.
@@ -334,6 +340,9 @@ Task
   issue_id                 optional shared-work relation
   workflow_step_run_id     optional deterministic-plan relation
   created_by               required actor
+  requested_by             optional: the requester, when a Space Assistant
+                           dispatched the Task as its service account
+  assistant_id / _revision optional: that Assistant and its revision
   session_id               stable Task session
   title / objective
   status / last_run_id

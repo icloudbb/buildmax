@@ -30,6 +30,9 @@ type conversationResponse struct {
 	Title     string    `json:"title,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	CreatedBy string    `json:"created_by"`
+	// AssistantID marks a Space Assistant's conversation, which continues only
+	// in its chat; UserID is then the requester.
+	AssistantID string `json:"assistant_id,omitempty"`
 }
 
 type createConversationRequest struct {
@@ -198,13 +201,14 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 	out := make([]conversationResponse, len(list))
 	for i := range list {
 		out[i] = conversationResponse{
-			ID:        list[i].ID,
-			UserID:    list[i].UserID,
-			SpaceID:   list[i].SpaceID,
-			Channel:   list[i].Channel,
-			Title:     list[i].Title,
-			CreatedAt: list[i].CreatedAt,
-			CreatedBy: list[i].CreatedBy,
+			ID:          list[i].ID,
+			UserID:      list[i].UserID,
+			SpaceID:     list[i].SpaceID,
+			Channel:     list[i].Channel,
+			Title:       list[i].Title,
+			CreatedAt:   list[i].CreatedAt,
+			CreatedBy:   list[i].CreatedBy,
+			AssistantID: list[i].AssistantID,
 		}
 	}
 	httputil.WriteJSON(w, http.StatusOK, conversationListResponse{Conversations: out, Total: total})

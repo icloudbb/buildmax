@@ -342,6 +342,9 @@ type Run struct {
 	// person, agent, issue, or recovery started it. It records the trigger so a
 	// schedule can list the runs it fired, mirroring a Task's schedule linkage.
 	ScheduleID *string `json:"schedule_id,omitempty"`
+	// ConversationID is the conversation whose turn started this run, or nil.
+	// A Space Assistant's turn reads only the runs its own conversation started.
+	ConversationID *string `json:"conversation_id,omitempty"`
 	// Input is the run's immutable input JSON, validated against the definition's
 	// input_schema at admission. Nil when the definition declares no input_schema.
 	Input     *string `json:"input,omitempty"`
@@ -673,6 +676,8 @@ type CreateRunInput struct {
 	// ScheduleID is the schedule that started the run, or nil for any other
 	// trigger. It is recorded so a schedule can list the runs it fired.
 	ScheduleID *string
+	// ConversationID is the conversation whose turn started the run, or nil.
+	ConversationID *string
 	// Input is the run's immutable input JSON, already validated against the
 	// definition's input_schema. Nil when the definition declares no input_schema.
 	Input      *string

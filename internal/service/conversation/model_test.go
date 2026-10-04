@@ -14,7 +14,7 @@ import (
 
 // turnBinding is one identity a turn asked the model to bind.
 type turnBinding struct {
-	userID, spaceID, conversationID string
+	userID, spaceID, conversationID, model string
 }
 
 // fixedModel hands every turn the same client and records who it was bound to.
@@ -24,8 +24,8 @@ type fixedModel struct {
 	bound  []turnBinding
 }
 
-func (m *fixedModel) ForConversation(_ context.Context, userID, spaceID, conversationID string) (llm.LLMClient, error) {
-	m.bound = append(m.bound, turnBinding{userID, spaceID, conversationID})
+func (m *fixedModel) ForConversation(_ context.Context, userID, spaceID, conversationID, model string) (llm.LLMClient, error) {
+	m.bound = append(m.bound, turnBinding{userID, spaceID, conversationID, model})
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -74,7 +74,7 @@ func TestHandleTurnBindsTheModelToTheTurnAndTitlesThroughIt(t *testing.T) {
 		t.Fatalf("HandleTurn: %v", err)
 	}
 
-	want := []turnBinding{{"u_member", "tm_team", conversationID}}
+	want := []turnBinding{{"u_member", "tm_team", conversationID, ""}}
 	if len(model.bound) != 1 || model.bound[0] != want[0] {
 		t.Fatalf("bound = %+v, want %+v", model.bound, want)
 	}

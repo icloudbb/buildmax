@@ -27,17 +27,30 @@ type ServerModel struct {
 
 // ForConversation returns a client whose every call is recorded against the
 // conversation, the person taking the turn, and the conversation's space.
+// model is a catalog model name a Space Assistant chose; empty uses the
+// deployment's conversation model.
 //
 // The target is resolved now, so a turn on a disabled or deleted model fails
 // before it writes anything, and so the client can report the target's context
 // window to the loop that compacts against it.
-func (m *ServerModel) ForConversation(ctx context.Context, userID, spaceID, conversationID string) (cllm.LLMClient, error) {
+func (m *ServerModel) ForConversation(ctx context.Context, userID, spaceID, conversationID, model string) (cllm.LLMClient, error) {
 	if m == nil || m.Service == nil || m.Service.Router == nil || m.Service.Router.Resolver == nil {
 		return nil, ErrCatalogNotConfigured
 	}
-	target, err := m.Service.Router.Resolver.ResolveTargetByID(ctx, m.TargetID, BaselineCapabilities())
-	if err != nil {
-		return nil, fmt.Errorf("conversation model %q: %w", m.TargetID, err)
+	resolver := m.Service.Router.Resolver
+	var target Target
+	if model == "" {
+		t, err := resolver.ResolveTargetByID(ctx, m.TargetID, BaselineCapabilities())
+		if err != nil {
+			return nil, fmt.Errorf("conversation model %q: %w", m.TargetID, err)
+		}
+		target = t
+	} else {
+		res, err := resolver.Resolve(ctx, ResolveRequest{Name: model, Requires: BaselineCapabilities()})
+		if err != nil {
+			return nil, fmt.Errorf("conversation model %q: %w", model, err)
+		}
+		target = res.Target
 	}
 	return &serverModelClient{
 		service:       m.Service,
@@ -47,7 +60,7 @@ func (m *ServerModel) ForConversation(ctx context.Context, userID, spaceID, conv
 			UserID:         &userID,
 			ConversationID: &conversationID,
 			Surface:        coregw.CallSurfaceConversation,
-			TargetID:       m.TargetID,
+			TargetID:       target.ID,
 		},
 	}, nil
 }

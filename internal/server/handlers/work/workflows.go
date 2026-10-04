@@ -51,6 +51,7 @@ type workflowRunResponse struct {
 	WorkflowRevision int             `json:"workflow_revision,omitempty"`
 	IssueID          *string         `json:"issue_id,omitempty"`
 	ScheduleID       *string         `json:"schedule_id,omitempty"`
+	ConversationID   *string         `json:"conversation_id,omitempty"`
 	Status           string          `json:"status"`
 	CreatedBy        string          `json:"created_by"`
 	CreatedAt        time.Time       `json:"created_at"`
@@ -220,6 +221,7 @@ func workflowRunToResponse(run coreworkflow.Run) workflowRunResponse {
 		WorkflowRevision: run.WorkflowRevision,
 		IssueID:          run.IssueID,
 		ScheduleID:       run.ScheduleID,
+		ConversationID:   run.ConversationID,
 		Status:           run.Status,
 		CreatedBy:        run.CreatedBy,
 		CreatedAt:        run.CreatedAt,

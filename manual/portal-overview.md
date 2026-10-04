@@ -86,9 +86,15 @@ Open **Space** from the user menu (owners and admins can change these):
   **Bind bot** takes a token from [@BotFather](https://t.me/BotFather); it is
   stored encrypted, so the deployment needs `secret.kek_file`, and a bot already
   connected to BuildMax is refused. People reach the bot after linking their
-  Telegram account (see [Chat apps](chat-apps.md)). Assistants do not answer
-  questions yet: a published one tells people it is not answering yet, and a
-  paused one says it is paused. Personal spaces cannot have them.
+  Telegram account (see [Chat apps](chat-apps.md)). A published assistant
+  answers people in its audience in a private chat, can start only its roster's
+  Agents and Workflows, and tells each person on its first reply which space
+  runs it and that the space can review the conversation, which appears in the
+  space's conversations but continues only in the chat. `/new` starts a new
+  conversation and `/help` describes the assistant. For now it reports only
+  whether work it started is running or finished, not the result, and sends no
+  message when work finishes. A paused one says it is paused. Personal spaces
+  cannot have them.
 - **Audit** — a record of what happened in the space.
 
 ## How models are chosen

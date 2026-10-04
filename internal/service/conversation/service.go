@@ -28,8 +28,10 @@ var (
 // Space before the first call is what lets each call be recorded in the managed
 // call ledger and counted against the Space's quota. See
 // docs/design/llm-gateway.md section 10.
+//
+// model names a catalog model; empty uses the deployment's conversation model.
 type Model interface {
-	ForConversation(ctx context.Context, userID, spaceID, conversationID string) (llm.LLMClient, error)
+	ForConversation(ctx context.Context, userID, spaceID, conversationID, model string) (llm.LLMClient, error)
 }
 
 // Service is the single Tier 1 orchestration entry point for portal turns.
@@ -58,6 +60,9 @@ type HandleTurnCmd struct {
 	// message-history writes. Zero on the single-instance path. See
 	// docs/design/server-coordination.md §7.
 	Fence int64
+	// Assistant runs the turn as a Space Assistant's front door; UserID is
+	// then the requester. Set by that front door only.
+	Assistant *AssistantTurn
 }
 
 // RerunTaskCmd describes a direct task-rerun request (bypasses the LLM layer).
@@ -115,10 +120,27 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 	if conv == nil {
 		return ConversationResult{}, ErrInvalidTarget
 	}
+	// Which assistant answers is the conversation's, decided when it was
+	// created: an Assistant's conversation never takes a personal turn, which
+	// would run with the person's tools, and the reverse.
+	if (conv.AssistantID != "" || cmd.Assistant != nil) &&
+		(cmd.Assistant == nil || cmd.Assistant.ID != conv.AssistantID) {
+		return ConversationResult{}, ErrAssistantConversation
+	}
 	spaceID := conv.SpaceID
-	client, err := s.Model.ForConversation(ctx, cmd.UserID, spaceID, cmd.ConversationID)
+	model := ""
+	if cmd.Assistant != nil {
+		model = cmd.Assistant.Model
+	}
+	client, err := s.Model.ForConversation(ctx, cmd.UserID, spaceID, cmd.ConversationID, model)
 	if err != nil {
 		return ConversationResult{}, err
+	}
+	agents := s.fetchAgentSummaries(ctx, spaceID)
+	spaces := s.Spaces
+	if cmd.Assistant != nil {
+		agents = assistantAgentSummaries(agents, cmd.Assistant.Agents)
+		spaces = nil
 	}
 
 	runInput := turnRunInput{
@@ -128,15 +150,16 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		UserID:          cmd.UserID,
 		SpaceID:         spaceID,
 		SpaceName:       s.fetchSpaceName(ctx, spaceID),
-		Spaces:          s.Spaces,
+		Spaces:          spaces,
 		TaskService:     s.TaskService,
 		WorkflowService: s.WorkflowService,
-		AgentSummaries:  s.fetchAgentSummaries(ctx, spaceID),
+		AgentSummaries:  agents,
 		// The title is one more call of this turn's, so it is made through the
 		// turn's client and recorded with the rest.
 		TitleGenerator: llm.NewTitleGenerator(client),
 		StreamSink:     cmd.StreamSink,
 		Fence:          cmd.Fence,
+		Assistant:      cmd.Assistant,
 	}
 	reply, err := runConversationTurn(ctx, s.ConversationStore, s.MessageStore, client, runInput)
 	return ConversationResult{Reply: reply}, err

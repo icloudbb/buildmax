@@ -18,14 +18,17 @@ type conversationMessageRow struct {
 	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_conversation_message_public_id;not null"`
 	// The composite index is what serves a transcript read: every listing is
 	// one conversation's messages in created_at order.
-	ConversationID    uint64    `gorm:"column:conversation_id;not null;index:idx_conversation_message_conversation,priority:1"`
-	Role              string    `gorm:"type:varchar(16);not null"`
-	Content           string    `gorm:"type:text;not null"`
-	Channel           *string   `gorm:"type:varchar(32)"`
-	ToolCallID        *string   `gorm:"type:varchar(64);column:tool_call_id"`
-	ToolCallsJSON     *string   `gorm:"type:text;column:tool_calls"`
-	ProviderStateJSON *string   `gorm:"type:text;column:provider_state"`
-	PartsJSON         *string   `gorm:"type:mediumtext;column:parts"`
+	ConversationID    uint64  `gorm:"column:conversation_id;not null;index:idx_conversation_message_conversation,priority:1"`
+	Role              string  `gorm:"type:varchar(16);not null"`
+	Content           string  `gorm:"type:text;not null"`
+	Channel           *string `gorm:"type:varchar(32)"`
+	ToolCallID        *string `gorm:"type:varchar(64);column:tool_call_id"`
+	ToolCallsJSON     *string `gorm:"type:text;column:tool_calls"`
+	ProviderStateJSON *string `gorm:"type:text;column:provider_state"`
+	PartsJSON         *string `gorm:"type:mediumtext;column:parts"`
+	// AssistantRevision is the Space Assistant revision that produced the
+	// message, in an Assistant conversation; zero elsewhere.
+	AssistantRevision int       `gorm:"column:assistant_revision;not null;default:0"`
 	CreatedAt         time.Time `gorm:"autoCreateTime;index:idx_conversation_message_conversation,priority:2"`
 }
 
@@ -57,6 +60,7 @@ func toConversationMessage(row *conversationMessageReadRow) *coreconv.Message {
 		ToolCallsJSON:     row.Row.ToolCallsJSON,
 		ProviderStateJSON: row.Row.ProviderStateJSON,
 		PartsJSON:         row.Row.PartsJSON,
+		AssistantRevision: row.Row.AssistantRevision,
 		CreatedAt:         row.Row.CreatedAt,
 	}
 }
@@ -81,6 +85,7 @@ func (s *Store) AppendMessage(ctx context.Context, in coreconv.AppendInput) (*co
 		ToolCallsJSON:     in.ToolCallsJSON,
 		ProviderStateJSON: in.ProviderStateJSON,
 		PartsJSON:         in.PartsJSON,
+		AssistantRevision: in.AssistantRevision,
 		CreatedAt:         time.Now().UTC(),
 	}
 	insert := func(tx *gorm.DB, convKey uint64) error {

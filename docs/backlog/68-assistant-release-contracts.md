@@ -28,6 +28,12 @@ or Portal links.
   requesters' Tasks, non-releasable fields, Space data outside the roster) run
   against a fake model that complies, proving the server, not the model, holds
   the boundary.
+- Starting point: an Assistant turn's tools are built in
+  `internal/service/conversation/assistant_turn.go`, where GetTask and
+  GetWorkflowRun already return status only, and the Gateway's
+  `ReportRunTerminal` skips Assistant conversations
+  (`internal/service/channel/report.go`). Each Task records `assistant_id` and
+  `assistant_revision`, which name the roster entry's contract.
 
 ## Out Of Scope
 

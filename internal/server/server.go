@@ -155,6 +155,9 @@ type ServicesConfig struct {
 	// Assistants manages Space Assistants and keeps their bots connected to
 	// Channels. Nil leaves the Assistant routes reporting the feature off.
 	Assistants *assistantsvc.Service
+	// AssistantFrontDoor answers people on Assistants' bots. Nil leaves those
+	// bots answering that the assistant is not available.
+	AssistantFrontDoor *assistantsvc.FrontDoor
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -289,8 +292,9 @@ func New(cfg Config) *Server {
 	s.handlers = handlers.NewHandler(buildHandlersConfig(cfg, s.drain))
 	if gw := cfg.Services.Channels; gw != nil {
 		gw.SetTurns(s.handlers)
-		if a := cfg.Services.Assistants; a != nil {
-			gw.SetFrontDoor(assistantsvc.FrontDoor{Service: a})
+		if door := cfg.Services.AssistantFrontDoor; door != nil {
+			door.Turns = s.handlers
+			gw.SetFrontDoor(door)
 		}
 	}
 

@@ -218,7 +218,7 @@ func (c *gatedLLMClient) ContextWindow() int { return 0 }
 // staticModel hands every turn the same client.
 type staticModel struct{ client llm.LLMClient }
 
-func (m staticModel) ForConversation(context.Context, string, string, string) (llm.LLMClient, error) {
+func (m staticModel) ForConversation(context.Context, string, string, string, string) (llm.LLMClient, error) {
 	return m.client, nil
 }
 

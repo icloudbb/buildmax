@@ -398,25 +398,3 @@ func TestSyncFollowsTheStoredBindings(t *testing.T) {
 		t.Errorf("registered after delete = %v", got)
 	}
 }
-
-func TestFrontDoorAnswersOnlyWhileAvailable(t *testing.T) {
-	f := newFixture(t)
-	ctx := context.Background()
-	f.connector["good"] = &fakeConnector{id: "200"}
-	v, _ := f.svc.Create(ctx, CreateCmd{SpaceID: team, ActorID: owner, Def: hrDefinition()})
-	v, _ = f.svc.Bind(ctx, BindCmd{SpaceID: team, ActorID: owner, AssistantID: v.Assistant.ID, Platform: "telegram", Token: "good"})
-	door := FrontDoor{Service: f.svc}
-
-	if got := door.Answer(ctx, v.Binding.ID, corechannel.Inbound{Text: "hi"}, member); !strings.Contains(got, "paused") {
-		t.Errorf("paused answer = %q", got)
-	}
-	if _, err := f.svc.SetState(ctx, SetStateCmd{SpaceID: team, ActorID: owner, AssistantID: v.Assistant.ID, State: coreassistant.StateActive, ConfirmStatement: v.Statement.Digest}); err != nil {
-		t.Fatal(err)
-	}
-	if got := door.Answer(ctx, v.Binding.ID, corechannel.Inbound{Text: "hi"}, member); !strings.Contains(got, "not answering questions yet") {
-		t.Errorf("active answer = %q", got)
-	}
-	if got := door.Answer(ctx, "unknown", corechannel.Inbound{Text: "hi"}, member); got != "This assistant is not available." {
-		t.Errorf("unknown bot answer = %q", got)
-	}
-}

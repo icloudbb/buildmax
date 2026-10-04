@@ -153,16 +153,19 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *coretask.CreateInput) 
 	taskID := fmt.Sprintf("t_mock_%d", id)
 	lastRunID := fmt.Sprintf("r_mock_%d", id)
 	task := &coretask.Task{
-		ID:             taskID,
-		ConversationID: in.ConversationID,
-		SpaceID:        in.SpaceID,
-		Status:         "PENDING",
-		Input:          in.Input,
-		Title:          in.Title,
-		CreatedBy:      in.CreatedBy,
-		CreatedAt:      seqTime(12345),
-		AgentID:        in.AgentID,
-		IssueID:        in.IssueID,
+		ID:                taskID,
+		ConversationID:    in.ConversationID,
+		SpaceID:           in.SpaceID,
+		Status:            "PENDING",
+		Input:             in.Input,
+		Title:             in.Title,
+		CreatedBy:         in.CreatedBy,
+		RequestedBy:       in.RequestedBy,
+		AssistantID:       in.AssistantID,
+		AssistantRevision: in.AssistantRevision,
+		CreatedAt:         seqTime(12345),
+		AgentID:           in.AgentID,
+		IssueID:           in.IssueID,
 	}
 	task.LastRunID = &lastRunID
 	m.List = append(m.List, *task)

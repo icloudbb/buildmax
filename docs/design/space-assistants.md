@@ -4,8 +4,9 @@
 
 > **Audience:** contributors, product designers, and operators · **Status:**
 > accepted — in progress: the many-bot Gateway (§9), service accounts (§6),
-> and the Assistant entity, its bot binding, and the publish statement (§4, §8)
-> are built; Assistants do not answer yet
+> the Assistant entity, its bot binding, and the publish statement (§4, §8),
+> and the front-door turn (§10) are built; release contracts, readable files,
+> escalation, and delivery are not
 >
 > This record decides how a Space publishes **Assistants**: conversational
 > service front doors that answer people outside the Space's own work, dispatch
@@ -460,7 +461,8 @@ Each slice is a backlog task, in order:
    [current state](../current-state.md#account-space-and-extension-surfaces).
 3. Assistant entity, binding, and management (§4, §8 publish statement) —
    built; see [current state](../current-state.md#account-space-and-extension-surfaces).
-4. [Assistant front-door turn](../backlog/66-assistant-front-door-turn.md) (§7.2, §7.3, §10).
+4. Assistant front-door turn (§7.2, §7.3, §10) — built; until slice 5,
+   Task and Workflow reads return status only and no outcome report is sent.
 5. [Release contracts and Assistant outcome reports](../backlog/68-assistant-release-contracts.md) (§8, §11).
 6. [Readable files tool](../backlog/70-assistant-readable-files.md) (§8, §10).
 7. [Escalation to an Issue](../backlog/72-assistant-escalation.md) (§11).
