@@ -69,8 +69,10 @@ second window onto it.
 | Whose authority runs the work | The user's | A grant the Space gives the Assistant, bounded by its roster |
 | What may be returned | Anything the user may already see | Only what the Space decided this audience may learn |
 
-Today one deployment-wide bot per platform serves every linked user, and each
-sender is resolved to their own account (`internal/service/channel/handle.go`):
+Today one **system bot** per platform serves every linked user. It is the bot
+the operator configures for the whole deployment, owned by no user or Space.
+Each sender is resolved to their own account
+(`internal/service/channel/handle.go`):
 
 - an unlinked sender gets a pairing code and no model call;
 - a linked sender gets their own Conversation, keyed by user, platform, and
@@ -97,7 +99,9 @@ it said. The same Assistant keeps sending the notifications the old bot sent.
 **Evidence.**
 
 - The maintainer reports the pattern directly: organizations run separate HR,
-  marketing, and audit bots, so far mostly for notification.
+  marketing, and audit bots, so far mostly for notification. Many small and
+  medium organizations run them on Telegram rather than an enterprise chat
+  suite, which is why the first scope stays on the one shipped adapter.
 - Chat suites ship per-team bots as a first-class product. Feishu aily publishes
   an app to a bot channel that works in direct messages and in groups on
   @mention, with separate scheduled and group-event tasks. WeCom lets members
@@ -138,17 +142,24 @@ These are true in current code:
 - **Tasks can carry an `output_schema`.** Their runs must satisfy it, and the
   result is persisted as structured data
   ([structured output](../design/structured-output.md)).
-- **One bot per platform per deployment.** The Telegram token is operator
-  configuration. "Space-owned bots wait for a team that needs its own bot
+- **One system bot per platform per deployment.** The Telegram token is
+  operator configuration. "Space-owned bots wait for a team that needs its own bot
   identity" ([instant-messaging channels §4](../design/instant-messaging-channels.md#4-concepts)).
 - **Outcome reports only reach the chat that started the work.** A run is
   reported only if its Task carries a Conversation with a `channel_ref`. The
   report includes up to 1500 characters of raw output and a Portal link.
   Schedules, webhooks, and Workflow node Tasks have no delivery target.
-- **Requester identity requires a BuildMax account.** Linking uses an
-  eight-character pairing code confirmed in Portal. Automatic linking from an
-  enterprise identity provider is an open question
-  ([instant-messaging channels §12](../design/instant-messaging-channels.md#12-open-questions)).
+- **Chat links are already user-level.** `channel_identity` maps a platform,
+  tenant, and external user id to one BuildMax user, with no bot or Space
+  dimension, and is managed under **Account → Chat accounts** in Portal
+  ([instant-messaging channels §6](../design/instant-messaging-channels.md#6-pairing)).
+  Telegram user ids are the same across bots, so one link identifies a person
+  to every Telegram bot the deployment runs.
+- **Only the system bot can start a pairing.** A code is issued only when an
+  unlinked account messages the system bot (`offerPairing`,
+  `internal/service/channel/links.go`). Portal can confirm a code but cannot
+  start one. A deployment with Space-owned bots and no system bot would have no
+  way to link anyone.
 
 ## 5. Goals And Non-Goals
 
@@ -172,8 +183,11 @@ These are true in current code:
   [assistant orchestration](assistant-orchestration-and-workflow-boundary.md).
 - A knowledge-base product. This paper reserves the Assistant as the owner of
   knowledge scope (§9) but does not design retrieval.
-- Public or anonymous Internet audiences. The first audience is an
-  organization's own verified people.
+- Public or anonymous Internet audiences. Every requester is a signed-in
+  BuildMax user with a linked chat account (§8).
+- Chat platforms other than Telegram. Each platform's identity model, such as
+  tenant-scoped ids, per-app ids, or linking from an enterprise identity
+  provider, belongs to that platform's adapter when it is added.
 - Replacing the personal assistant. It stays user-scoped (§2).
 - Guaranteeing that nothing readable by the Assistant can ever be inferred by a
   requester. §9 states this as a residual limit.
@@ -197,12 +211,16 @@ Knowledge scope is deliberately not a field yet. When a knowledge source exists,
 the Assistant is where its scope is set, because scope is a disclosure decision
 (§9). Until then the only readable material is whatever the roster can reach.
 
-**Channel binding** (new, child of Assistant). A platform credential, such as a
-Feishu app or a Telegram bot token, stored like a Space Secret, together with the
-platform tenant and enabled state. One Assistant may be bound on several
-platforms, and one platform may host many bindings. This replaces the single
-deployment-wide connector for Space-owned bots. It does not replace the
-operator-configured personal bot.
+**Channel binding** (new, child of Assistant). A platform credential, initially
+a Telegram bot token, stored like a Space Secret, together with its enabled
+state. One deployment may host many bindings on one platform, and a later
+adapter may let one Assistant be bound on several platforms. Bindings sit beside
+the operator-configured system bot, which keeps serving the personal assistant.
+
+**Chat link** (existing, user-level, unchanged). The `channel_identity` row
+stays the single fact that a chat account belongs to a BuildMax user. An
+Assistant never keeps its own link table; it reads the same row and adds its
+audience check on top. What changes is where a link can start (§8).
 
 **Conversation** (extended). An optional `assistant_id`. A direct-message
 Conversation with an Assistant is keyed by Assistant, platform, chat, and
@@ -221,7 +239,7 @@ the Assistant, and work is a Task.
 
 | Role | Who | Answers |
 |---|---|---|
-| Requester | The person asking, identified by a verified chat identity or BuildMax account | Who asked, for audit and for requester-bound lookups |
+| Requester | The person asking: a BuildMax user identified through their chat link | Who asked, for audit and for requester-bound lookups |
 | Assistant (responder) | The published front door and its revision | What answered and under which configuration |
 | Operating authority | The grant the Space gives the Assistant, bounded by its roster | Whose permission ran the work |
 | Executing actor | The Agent revision and TaskRun the Assistant dispatched | What actually did the work |
@@ -237,40 +255,52 @@ overloaded meaning of that field.
 
 There are three separate decisions.
 
-**1. Who may ask (audience).** It is a closed set to start with:
+**1. How the requester is identified.** A requester must be an active
+BuildMax user whose chat account is linked by pairing. On Telegram nothing
+weaker is trustworthy: a Telegram id proves only that some Telegram account
+sent the message, not who that person is in the organization. The pairing
+ceremony is what ties the two together, because the code is confirmed by the
+signed-in user in Portal after seeing the chat handle
+([instant-messaging channels §6](../design/instant-messaging-channels.md#6-pairing)).
+
+Pairing therefore becomes user-level infrastructure rather than a feature of
+the system bot:
+
+- **Any server-managed bot can start a pairing.** When an unlinked account
+  messages an Assistant's bot, that bot offers a code exactly as the system bot
+  does, and confirmation writes the same `channel_identity` row. Which bot
+  delivered the code does not matter; the trust root is the Portal
+  confirmation. This removes today's dependency on a configured system bot
+  (§4).
+- **One link serves every bot.** Telegram ids do not vary by bot, so a person
+  who has paired once is recognized by the system bot and every Assistant.
+- **Unlinking stays Portal-only**, and a disabled account is refused on every
+  message while its link remains, as today.
+
+Other platforms may offer stronger or cheaper identity, such as tenant-scoped
+ids or linking from an enterprise identity provider (channels open question 1).
+That is each adapter's concern when it is added. The Assistant model only
+requires that a message resolve to a BuildMax user.
+
+**2. Who may ask (audience).** Every requester is already an authenticated
+BuildMax user, so the audience is a policy over users. It is a closed set to
+start with:
 
 - Space members only;
-- verified people of a named chat tenant, for example the organization's Feishu
-  tenant;
-- a named list of groups or departments, when the platform can verify them.
+- any active user of the deployment;
+- a named list of users, or the members of named Spaces.
 
 A requester outside the audience gets a fixed refusal and no model call, as
 unlinked senders do today. Eligibility is checked on every message.
-
-**2. How the requester is identified.** There are three options:
-
-- **A BuildMax account via pairing**, as today. It is strong, but it does not
-  scale to a whole organization.
-- **A verified chat-tenant identity without a BuildMax account.** The
-  platform's tenant-scoped user id, verified by the platform's signed event
-  delivery. This is enough to answer from material approved for the whole
-  audience.
-- **Automatic linking from the enterprise identity provider**, when the
-  deployment's OIDC issuer and the chat tenant are the same organization
-  (channels open question 1).
-
-The recommendation is that the audience policy decides. Tenant identity is
-sufficient for audience-wide answers. Anything bound to the requester's own data
-requires a linked BuildMax account and runs that call as the requester.
 
 **3. Whose authority runs the work.** The requester usually has no rights in the
 Space. There are two options:
 
 - **A. Keep "the sender is the actor".** Make every requester a Space member
   with a new restricted role that may only converse through an Assistant. This
-  adds no authority concept, but it bloats memberships, requires every
-  requester to hold an account, and the restricted role is option B in
-  disguise.
+  adds no authority concept, but every Assistant's audience becomes Space
+  membership, memberships bloat across every department, and the restricted
+  role is option B in disguise.
 - **B. Separate authority from provenance (recommended).** Dispatched Tasks run
   under an `organization_grant` that the Space gives the Assistant. The grant
   is limited to its roster, with the sponsor accountable and the requester
@@ -318,7 +348,7 @@ Two consequences shape the product:
   explicit, reviewable set.
 - **Publishing is a disclosure decision, and the UI should say so.** Before an
   Assistant goes live, show the Space owner what it can reach and who can ask:
-  "Anyone in the Acme Feishu tenant can ask this Assistant. It can read these
+  "Any active user of this deployment can ask this Assistant. It can read these
   files and run the HR Agent, which holds the HRIS credential." A Space owner
   who understands that sentence is a stronger control than any output filter.
 
@@ -412,18 +442,24 @@ Space.
   existing quota machinery, and escalation instead of retry loops.
 - **Notification noise.** Mitigation: deliveries are explicit per Schedule or
   Workflow, and nothing subscribes requesters implicitly.
+- **The bot token holder can read requesters' messages.** A Space-owned
+  Telegram bot is created by a person with BotFather. Whoever holds its token
+  can read and send messages as that bot, outside BuildMax. This does not weaken
+  pairing, because codes are issued by the Server and confirmed in Portal, and
+  the token holder cannot forge a sender id. It is a disclosure fact for
+  requesters. Mitigation: the Assistant's first reply and its description state
+  who operates it, and the publish statement names the token as held by the
+  Space.
 
 ## 14. Smallest Validation Slice
 
 One department-shaped Assistant end to end, without new platform breadth:
 
 1. An Assistant entity in one Space, with instructions, model, a roster of one
-   Agent and one Workflow, a sponsor, and a tenant audience.
-2. One channel binding on one platform. Use Feishu if the target organization
-   uses it; otherwise use a Space-owned Telegram bot to prove the model before
-   adding an adapter.
-3. Direct messages only. Requesters are identified by verified tenant identity,
-   and no BuildMax account is required for audience-wide answers.
+   Agent and one Workflow, a sponsor, and an audience of all active users.
+2. One Space-owned Telegram bot binding, with no new platform adapter.
+3. Direct messages only. Requesters are linked BuildMax users, and the
+   Assistant's bot can start a pairing itself.
 4. Dispatched Tasks run under the interim sponsor authority with the requester
    recorded, and roster members declare a releasable `output_schema`.
 5. A front-door read tool limited to an allowlisted set of Space files.
@@ -441,9 +477,8 @@ Measure:
 
 ## 15. Open Questions And Decision Evidence
 
-1. Is there a named organization whose departmental bots would adopt this, and
-   on which chat platform? Without one, this stays a proposal behind the Beta
-   gate.
+1. Is there a named organization whose departmental bots would adopt this on
+   Telegram? Without one, this stays a proposal behind the Beta gate.
 2. Does `organization_grant` land first in the identity proposal, or does the
    validation slice run on the sponsor interim? What evidence would end the
    interim?
