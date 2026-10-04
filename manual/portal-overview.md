@@ -95,7 +95,11 @@ Open **Space** from the user menu (owners and admins can change these):
   files directly, without starting work; it reads only text files (Markdown,
   plain text, CSV, JSON, YAML, and the like) up to 128 KiB each. Its Agents and
   Workflow steps do not see those uploads: they read the space's **Files**, so a
-  policy both need is uploaded to both. Of a result, the assistant
+  policy both need is uploaded to both. Each Agent and Workflow step it starts
+  is told the name and email of the person asking, from their BuildMax account
+  and never from what they type in the chat, so an Agent that looks up personal
+  records can be told in its instructions to answer only for that person. Of a
+  result, the assistant
   and the person asking see only the fields its roster entry marks releasable,
   never raw output, error text, or a link; when an Agent's task finishes, the
   person gets those fields in the chat, or a short note if it failed. When it

@@ -645,8 +645,11 @@ Assistant's bot in a private chat is answered only when the Assistant is
 available and the user is active and in its audience, all checked before any
 model runs. The turn uses the Assistant's instructions and model, is metered to
 the requester in the Assistant's Space, and can start only roster Agents and
-Workflows, as the service account; each Task records the requester, the
-Assistant, and its revision, and each stored message the revision. The
+Workflows, as the service account; each Task and Workflow run records the
+requester, the Assistant, and its revision (a step's Task inherits its run's),
+and each stored message the revision. A worker fetching such a Task is sent the
+requester's account name and email, which become their own system-prompt
+layer, and holds the run while the requester cannot be resolved. The
 conversation belongs to the Assistant's Space, where its members can read it,
 and continues only in the chat; the first reply says so. A roster Agent's Task
 must answer in its entry's output schema, and the turn's Task and Workflow
