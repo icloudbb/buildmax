@@ -11,7 +11,7 @@ Related: [roadmap](../ROADMAP.md) R5,
 [Agent execution and Task threads](../design/agent-execution-and-task-threads.md),
 [Space secrets](../design/space-secrets.md),
 [scheduled Agent execution](../design/scheduled-agent-execution.md),
-[client sessions and API credentials](client-sessions-and-api-credentials.md),
+[enterprise identity and access](../design/enterprise-identity-and-access.md),
 [Agent delegation to user applications](agent-app-delegation.md), and the
 [enterprise capability inventory](enterprise-capability-requirements.md).
 

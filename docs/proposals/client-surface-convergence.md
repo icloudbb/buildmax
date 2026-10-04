@@ -12,7 +12,7 @@ Related: [roadmap](../ROADMAP.md), [surface positioning](../design/surface-posit
 [Server architecture](../contribute/architecture/server.md),
 [Remote Control](../design/remote-control.md),
 [long-running workspace Environments](long-running-workspace-environments.md), and
-[client sessions and API credentials](client-sessions-and-api-credentials.md).
+[enterprise identity and access](../design/enterprise-identity-and-access.md).
 
 ## Contents
 
@@ -162,8 +162,8 @@ data layer's transport, not the UI and not the framework.
   converge on shared UI and a shared data contract, per
   [surface positioning](../design/surface-positioning.md).
 - Changing the authentication or authorization model; this paper assumes the
-  existing session and credential work (see
-  [client sessions and API credentials](client-sessions-and-api-credentials.md)).
+  existing session and credential model (see
+  [enterprise identity and access](../design/enterprise-identity-and-access.md)).
 
 ## 8. The Convergence Model
 

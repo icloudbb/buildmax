@@ -549,11 +549,12 @@ holds.
 The user access token then defaulted to seven days (it is now 15 minutes),
 which was acceptable for early trusted-deployment experiments but not a complete
 managed-client lifecycle.
-Refresh has since shipped, so a login outlives one access token and a session
-can be revoked. What is still missing before the feature is described as
-production-ready is native secret storage, an absolute session lifetime, and an
-audience-scoped credential — see
-[client sessions and API credentials](../proposals/client-sessions-and-api-credentials.md).
+Refresh, a 90-day absolute session lifetime, and OS credential-store storage for
+CLI and Desktop logins have since shipped, so a login outlives one access token,
+cannot renew forever, and can be revoked. What is still missing before the
+feature is described as production-ready is an audience-scoped credential: the
+access token carries no audience or scopes. See
+[enterprise identity and access](enterprise-identity-and-access.md) §7.
 
 ## 12. Client Configuration And UX
 
@@ -766,12 +767,12 @@ must not require a real model API key.
 
 These choices need resolution before their milestone begins:
 
-1. Refresh has shipped, so a managed client's login now survives access-token
-   expiry. What is still unresolved is where a native client keeps the refresh
-   token, whether a session has an absolute lifetime, whether an access token
-   carries an audience and scopes, and how an unattended caller authenticates at
-   all — see
-   [client sessions and API credentials](../proposals/client-sessions-and-api-credentials.md).
+1. Refresh, absolute session expiry, and native credential-store storage have
+   shipped, so a managed client's login survives access-token expiry. What is
+   still unresolved is whether an access token carries an audience and scopes,
+   and how an unattended caller authenticates at all — see
+   [enterprise identity and access](enterprise-identity-and-access.md) §7 and
+   §18.
 2. What minimum database shape represents space aliases? The catalog is settled —
    `llm_model`, credential in the row — but aliases are still a deployment-wide
    map in `server.yaml`.

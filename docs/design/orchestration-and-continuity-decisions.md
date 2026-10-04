@@ -9,9 +9,8 @@ Related and reconciled here:
 [agent execution and Task threads](agent-execution-and-task-threads.md),
 [workflow runtime](workflow-runtime.md),
 [assistant orchestration and workflow boundary](../proposals/assistant-orchestration-and-workflow-boundary.md),
-[task workspace checkpoints](task-workspace-checkpoints.md),
-[portal execution model](portal-execution-model.md), and
-[session tree and agent mailbox](../proposals/session-tree-and-agent-mailbox.md).
+[task workspace checkpoints](task-workspace-checkpoints.md), and
+[portal execution model](portal-execution-model.md).
 
 Created: 2026-09-06
 
@@ -179,8 +178,8 @@ No action reintroduces a compatibility layer, per the Alpha change rules.
   concept — measure value before deciding.
 - **Naming:** "Assistant" vs a named Agent vs "Coordinator"; "Workflow" vs
   "Automation." Decide with the concept, not before it.
-- **Session tree and agent mailbox:** the
-  [proposal](../proposals/session-tree-and-agent-mailbox.md) describes a richer
-  branched-workspace and automatic-resume model that the adopted narrow
-  continuity deliberately does not build; its fan-out/fan-in must converge with
-  Workflow's planner/map before either expands. It stays a proposal.
+- **Session tree and agent mailbox:** the proposal was retired. Persistent
+  fork supervision, durable mailboxes, and change sets are not planned; its
+  fan-out concern is carried by
+  [assistant orchestration](../proposals/assistant-orchestration-and-workflow-boundary.md)
+  and Workflow `needs` joins.

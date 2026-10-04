@@ -53,7 +53,7 @@ BuildMax 仍处于 Alpha。企业部署、系统管理、治理与执行控制�
 | 关注点 | 现有文档 | 本清单补充的内容 |
 |---|---|---|
 | 企业身份 | [企业身份与访问](../design/企业身份与访问.md) | 将 SSO 和人员预配关联到人员生命周期结果 |
-| Session 与自动化凭证 | [客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md) | 将撤销关联到无人值守工作和账户生命周期 |
+| Session 与自动化凭证 | [企业身份与访问](../design/企业身份与访问.md) §7 与 §18、[Agent 执行身份与委托](agent-execution-identity-and-delegation.md) | 将撤销关联到无人值守工作和账户生命周期 |
 | 角色、配额和审计 | [Space 治理](../design/Space治理.md)、[系统管理](../design/系统管理.md) | 汇总集中可见性与控制方面的问题 |
 | 密钥与执行信任 | [Space Secret](../design/Space密钥.md)、[信任框架](../design/信任保障.md)、[沙箱边界](../design/沙箱边界.md)、[插件分发](../design/Space插件分发.md) | 识别策略与集成要求，但不宣称它们已经存在 |
 | 部署与恢复 | [企业部署](../design/企业部署.md)、[Beta 验收](../../deploy/beta-readiness.md) | 将部署控制关联到可度量的运维结果 |

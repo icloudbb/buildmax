@@ -11,7 +11,7 @@
 [Agent 执行与 Task 线程](../design/Agent执行与Task线程.md)、
 [Space Secret](../design/Space密钥.md)、
 [定时 Agent 执行](../design/定时Agent执行.md)、
-[客户端 Session 与 API 凭证](client-sessions-and-api-credentials.md)、
+[企业身份与访问](../design/企业身份与访问.md)、
 [Agent 代表用户使用应用](agent-app-delegation.md)，以及
 [企业功能要求盘点](enterprise-capability-requirements.md)。
 

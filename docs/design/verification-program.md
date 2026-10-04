@@ -548,7 +548,16 @@ Not tested:
 Implementation and acceptance use separate contexts. The implementation pass
 may add focused tests. A fresh acceptance pass receives the requirement, public
 interfaces, and diff, and tries to falsify the behavior by finding missing
-outcomes, forbidden side effects, and shared assumptions.
+outcomes, forbidden side effects, and shared assumptions. Its verdict is
+`accept` (the evidence supports the acceptance criteria), `reject` (a concrete
+defect or missing proof returns to implementation), or `needs-decision` (the
+remaining question changes product intent or authorized scope and goes to the
+maintainer).
+
+Repair between those passes is bounded. The implementing Agent may fix
+deterministic test or CI failures only within the task's scope; repeated
+failure, a changed design assumption, an environmental incident, or a proposed
+weakening of the oracle leaves the loop for the maintainer to classify.
 
 Review rules:
 

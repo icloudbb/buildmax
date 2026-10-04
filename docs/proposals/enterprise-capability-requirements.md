@@ -63,7 +63,7 @@ uses historical phases or describes an earlier baseline.
 | Concern | Existing home | What this inventory adds |
 |---|---|---|
 | Corporate identity | [Enterprise identity and access](../design/enterprise-identity-and-access.md) | Relates SSO and provisioning to personnel lifecycle outcomes |
-| Sessions and automation credentials | [Client sessions and API credentials](client-sessions-and-api-credentials.md) | Connects revocation to unattended work and account lifecycle |
+| Sessions and automation credentials | [Enterprise identity and access](../design/enterprise-identity-and-access.md) §7 and §18, [Agent execution identity and delegation](agent-execution-identity-and-delegation.md) | Connects revocation to unattended work and account lifecycle |
 | Roles, quota, and audit | [Space governance](../design/space-governance.md), [system administration](../design/system-administration.md) | Collects questions about centralized visibility and control |
 | Secrets and execution trust | [Space secrets](../design/space-secrets.md), [trust harness](../design/trust-harness.md), [sandbox boundaries](../design/sandbox-boundaries.md), [plugin distribution](../design/plugin-space-distribution.md) | Identifies policy and integration requirements without claiming they exist |
 | Deployment and recovery | [Enterprise deployment](../design/enterprise-deployment.md), [Beta readiness](../deploy/beta-readiness.md) | Connects deployment controls to measurable operating outcomes |

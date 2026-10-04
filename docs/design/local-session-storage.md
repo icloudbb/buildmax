@@ -7,9 +7,8 @@
 > Related: [session architecture](../contribute/architecture/session.md),
 > [sessions and traces](../../manual/sessions-and-traces.md),
 > [durable run trace](durable-run-trace.md),
-> [context durability](context-durability.md),
-> [durable Agent sessions](../proposals/durable-agent-sessions.md), and
-> [session trees and mailboxes](../proposals/session-tree-and-agent-mailbox.md).
+> [context durability](context-durability.md), and
+> [durable Agent sessions](../proposals/durable-agent-sessions.md).
 
 ## Contents
 
@@ -578,8 +577,7 @@ A checkpoint is a promise about state. Everywhere else the word is used, it
 means "put things back the way they were" — files included. This design cannot
 keep that promise: BuildMax has no versioned workspace capability and no design
 record for one, the earlier record having been withdrawn rather than
-implemented, as [`trust-harness.md`](trust-harness.md) and the session-tree
-proposal both state.
+implemented, as [`trust-harness.md`](trust-harness.md) states.
 
 A conversation-only checkpoint would therefore have been a name that promises
 more than the thing does, over a capability rewind already provides. Worse, the
@@ -656,7 +654,11 @@ same work the parent did.
 The child starts its own usage and cost totals at zero. Inheriting the parent's
 would double-count the same money as soon as anyone added the two sessions up.
 Title and workspace are carried, because they describe the conversation being
-continued rather than the run that produced it.
+continued rather than the run that produced it. The model is not: the child
+selects the forking surface's default model, as any new session does. Carrying
+the workspace means a fork shares the parent's working directory; there is no
+fork-time isolation, and a fork that needs its own tree enters one with the
+`Worktree` tool ([workspace root and worktrees](workspace-root-and-worktrees.md)).
 
 Physical copying is O(n), but it gives the Alpha implementation clear
 ownership:
@@ -695,9 +697,11 @@ the Task tool: parent history classifies the call, while the child journal says
 whether the child itself reached a terminal turn.
 
 A sealed child is retained with its parent under the chosen retention policy.
-Persistent supervision, mailboxes, automatic parent resume, user-visible child
-navigation, and workspace isolation remain decisions in the session-tree
-proposal.
+A subagent that needs its own tree gets one through the `Task` tool's
+`worktree` option (workspace root and worktrees, D7). Persistent fork
+supervision, durable mailboxes, and automatic parent resume are not planned;
+[local background jobs](local-background-jobs.md#durability-is-not-planned)
+records why.
 
 ## 10. Traces
 
