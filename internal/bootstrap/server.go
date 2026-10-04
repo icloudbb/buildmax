@@ -167,7 +167,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	serverConfig.Services.Channels = buildChannelGateway(sc, store, elig, coordBackend)
 	serverConfig.Services.Assistants = buildAssistants(sc, store, serverConfig.Services.Channels, serverConfig.Conv.LLMGateway)
 	if a := serverConfig.Services.Assistants; a != nil {
-		serverConfig.Services.AssistantFrontDoor = &assistantsvc.FrontDoor{Service: a, Conversations: store, Eligibility: elig}
+		serverConfig.Services.AssistantFrontDoor = &assistantsvc.FrontDoor{Service: a, Conversations: store, Tasks: store, Eligibility: elig}
 	}
 
 	sched, err := scheduler.NewScheduler(store, runner, runTokenMinter(sc, jwtSecret))

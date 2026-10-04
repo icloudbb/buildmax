@@ -7,6 +7,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coreassistant "github.com/icloudbb/buildmax/internal/core/assistant"
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	"github.com/icloudbb/buildmax/internal/core/llm"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
@@ -139,7 +140,7 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 	agents := s.fetchAgentSummaries(ctx, spaceID)
 	spaces := s.Spaces
 	if cmd.Assistant != nil {
-		agents = assistantAgentSummaries(agents, cmd.Assistant.Agents)
+		agents = assistantAgentSummaries(agents, cmd.Assistant.ids(coreassistant.KindAgent))
 		spaces = nil
 	}
 

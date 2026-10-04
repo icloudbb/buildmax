@@ -11,6 +11,7 @@ import (
 	coreassistant "github.com/icloudbb/buildmax/internal/core/assistant"
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	chansvc "github.com/icloudbb/buildmax/internal/service/channel"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
@@ -34,11 +35,17 @@ type Turns interface {
 	RunAssistantTurn(ctx context.Context, conversationID, requesterID, channel, message string, a conversation.AssistantTurn) (string, error)
 }
 
+// Tasks reads the Task a finished run belongs to, for its title and Agent.
+type Tasks interface {
+	GetTask(ctx context.Context, taskID string) (*coretask.Task, error)
+}
+
 // FrontDoor answers linked people who message an Assistant's bot. It is the
 // chat Gateway's channel.FrontDoor. See docs/design/space-assistants.md §10.
 type FrontDoor struct {
 	Service       *Service
 	Conversations Conversations
+	Tasks         Tasks
 	// Eligibility decides whether a requester may use a Space for an
 	// Assistant whose audience is its members.
 	Eligibility eligibility.Checker
@@ -191,22 +198,69 @@ func (f *FrontDoor) turnFailure(a *coreassistant.Assistant, conv *coreconv.Conve
 	return genericFailure
 }
 
+// Outcome implements channel.FrontDoor: it tells a requester that work their
+// conversation started has ended, through the Assistant's current bot. A
+// success carries only the result's releasable fields; a failure or a
+// cancellation is a fixed sentence, never error text or a link. Nothing is
+// sent while the Assistant would not answer this requester.
+func (f *FrontDoor) Outcome(ctx context.Context, conv *coreconv.Conversation, info coretask.RunTerminalInfo) (string, string, bool) {
+	if f == nil || f.Service.ready() != nil || conv.AssistantID == "" {
+		return "", "", false
+	}
+	s := f.Service
+	a, err := s.Store.GetAssistant(ctx, conv.AssistantID)
+	if err != nil || a == nil {
+		return "", "", false
+	}
+	if avail, err := s.Availability(ctx, a); err != nil || avail != coreassistant.Available {
+		return "", "", false
+	}
+	if f.checkRequester(ctx, a, conv.UserID) != "" {
+		return "", "", false
+	}
+	b, err := s.Store.GetBindingByAssistant(ctx, a.ID)
+	if err != nil || b == nil || b.Platform != conv.Channel {
+		return "", "", false
+	}
+	var t *coretask.Task
+	if f.Tasks != nil {
+		t, _ = f.Tasks.GetTask(ctx, info.TaskID)
+	}
+	return b.ID, outcomeText(a, t, info), true
+}
+
+func outcomeText(a *coreassistant.Assistant, t *coretask.Task, info coretask.RunTerminalInfo) string {
+	name := "The work you asked for"
+	if t != nil && t.Title != "" {
+		name = fmt.Sprintf("“%s”", t.Title)
+	}
+	switch coretask.RunStatus(info.Status) {
+	case coretask.RunStatusSucceeded:
+		if info.AwaitingAnswer {
+			return name + " needs more information from the Space before it can finish. Someone there may follow up."
+		}
+		var entry *coreassistant.RosterEntry
+		if t != nil && t.AgentID != nil {
+			entry = a.Def.Entry(coreassistant.KindAgent, *t.AgentID)
+		}
+		if fields := coreassistant.Release(info.Structured, entry); len(fields) > 0 {
+			return name + " is done.\n\n" + coreassistant.FormatReleased(fields)
+		}
+		return name + " is done. There is nothing from it this assistant may share."
+	case coretask.RunStatusCanceled:
+		return name + " was stopped."
+	default:
+		return name + " could not be completed."
+	}
+}
+
 // turnProfile is the conversation service's view of the Assistant's current
 // revision.
 func turnProfile(a *coreassistant.Assistant) conversation.AssistantTurn {
-	t := conversation.AssistantTurn{
+	return conversation.AssistantTurn{
 		ID: a.ID, Revision: a.Revision, Name: a.Def.Name, Instructions: a.Def.Instructions,
-		Model: a.Def.Model, ActingUserID: a.Def.ServiceAccountID,
+		Model: a.Def.Model, ActingUserID: a.Def.ServiceAccountID, Roster: a.Def.Roster,
 	}
-	for _, e := range a.Def.Roster {
-		switch e.Kind {
-		case coreassistant.KindAgent:
-			t.Agents = append(t.Agents, e.ID)
-		case coreassistant.KindWorkflow:
-			t.Workflows = append(t.Workflows, e.ID)
-		}
-	}
-	return t
 }
 
 // parseCommand reads "/new@SomeBot" as "new". Telegram appends the bot's name

@@ -3,6 +3,7 @@ package assistant
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,8 @@ import (
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
+	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
 )
 
@@ -175,7 +178,7 @@ func TestFrontDoorRunsTheTurnAsTheAssistant(t *testing.T) {
 	}
 	p := call.profile
 	if call.requesterID != outsider || p.ActingUserID != a.Def.ServiceAccountID || p.ID != a.ID || p.Revision != a.Revision ||
-		p.Instructions != "Answer HR questions." || len(p.Agents) != 1 || p.Agents[0] != "agent_hr" || len(p.Workflows) != 1 || p.Workflows[0] != "wf_leave" {
+		p.Instructions != "Answer HR questions." || len(p.Roster) != 2 || p.Roster[0].ID != "agent_hr" || p.Roster[1].ID != "wf_leave" || p.Roster[0].Releasable[0] != "answer" {
 		t.Errorf("turn = %+v", call)
 	}
 
@@ -222,5 +225,43 @@ func TestFrontDoorTurnFailures(t *testing.T) {
 	f.turns.err = fmt.Errorf("upstream said: secret internal detail")
 	if got := f.ask(t, member, "c1", "hi"); strings.Contains(got, "secret") || strings.Contains(got, "http") {
 		t.Errorf("failure answer = %q", got)
+	}
+}
+
+type fakeTasks map[string]*coretask.Task
+
+func (f fakeTasks) GetTask(_ context.Context, id string) (*coretask.Task, error) { return f[id], nil }
+
+// An outcome report carries only the releasable fields, through the
+// Assistant's current bot; a failure is a fixed sentence; nothing is sent
+// while the Assistant would not answer the requester.
+func TestFrontDoorOutcomeReleasesOnlyContractedFields(t *testing.T) {
+	f := newFrontDoorFixture(t, coreassistant.AudienceSpaceMembers)
+	agent := "agent_hr"
+	f.door.Tasks = fakeTasks{"tk": {ID: "tk", Title: "Leave balance", AgentID: &agent}}
+	ctx := context.Background()
+	f.ask(t, member, "c1", "how many days?")
+	conv := &f.convs.list[0]
+	structured := `{"answer":"15 days","raw":"SECRET_RAW"}`
+	output, errText := "SECRET_OUTPUT", "SECRET_ERROR"
+	info := coretask.RunTerminalInfo{TaskID: "tk", ConversationID: conv.ID, Status: string(coretask.RunStatusSucceeded), Structured: &structured, Output: &output}
+
+	key, text, ok := f.door.Outcome(ctx, conv, info)
+	if !ok || key != f.view.Binding.ID || text != "“Leave balance” is done.\n\nanswer: 15 days" {
+		t.Errorf("success = %q, %q, %v", key, text, ok)
+	}
+	info.Status, info.ErrorMessage = string(coretask.RunStatusFailed), &errText
+	if _, text, _ := f.door.Outcome(ctx, conv, info); text != "“Leave balance” could not be completed." {
+		t.Errorf("failure = %q", text)
+	}
+	info.Status = string(coretask.RunStatusCanceled)
+	if _, text, _ := f.door.Outcome(ctx, conv, info); strings.Contains(text, "SECRET") || !strings.Contains(text, "stopped") {
+		t.Errorf("cancel = %q", text)
+	}
+
+	// The requester left the Space: no report.
+	f.spaces.Members = slices.DeleteFunc(f.spaces.Members, func(m corespace.Member) bool { return m.UserID == member })
+	if _, _, ok := f.door.Outcome(ctx, conv, info); ok {
+		t.Error("reported to a requester outside the audience")
 	}
 }

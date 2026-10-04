@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/core/apierr"
+	coreassistant "github.com/icloudbb/buildmax/internal/core/assistant"
 	"github.com/icloudbb/buildmax/internal/core/llm"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
@@ -43,20 +44,43 @@ type AssistantTurn struct {
 	// runs as it; the turn's UserID, the requester, is who asked and whom the
 	// model calls are metered to.
 	ActingUserID string
-	// Agents and Workflows are the roster: the only ones its tools may start.
-	Agents    []string
-	Workflows []string
+	// Roster is the only work its tools may start, each entry with its release
+	// contract: the only fields of a result the requester may learn.
+	Roster []coreassistant.RosterEntry
+}
+
+func (a *AssistantTurn) ids(kind string) []string {
+	var out []string
+	for _, e := range a.Roster {
+		if e.Kind == kind {
+			out = append(out, e.ID)
+		}
+	}
+	return out
+}
+
+func (a *AssistantTurn) entry(kind, id string) *coreassistant.RosterEntry {
+	return coreassistant.Definition{Roster: a.Roster}.Entry(kind, id)
+}
+
+// released renders a result through its roster entry's release contract.
+func released(result *string, entry *coreassistant.RosterEntry) string {
+	fields := coreassistant.Release(result, entry)
+	if len(fields) == 0 {
+		return "result: nothing this assistant may share\n"
+	}
+	return "result:\n" + coreassistant.FormatReleased(fields) + "\n"
 }
 
 const assistantToolGuidance = `# Tools
 - StartTask: start one of the agents listed in its description on a background task. Always pass agent_id. Tell the person it has started.
 - ListTasks: list the tasks started in this conversation.
-- GetTask: get one task's status by task_id.
+- GetTask: get one task's status, and its result once it has finished, by task_id.
 - ListWorkflows: list the workflows you may run and the input each needs.
 - RunWorkflow: start a run of one of those workflows, passing input that matches its input_schema.
-- GetWorkflowRun: get the status of a workflow run started in this conversation.
+- GetWorkflowRun: get the status, and the result once it has finished, of a workflow run started in this conversation.
 
-Task and workflow results are not shown to you yet: report their status, and tell the person the Space will follow up when you cannot answer. Do not expose internal IDs.`
+A result shows only the fields the Space allows you to share; report those and nothing more. The person is told when work you start finishes. Do not expose internal IDs.`
 
 // assistantRules are the disclosure rules every Assistant keeps, whatever its
 // instructions say. See docs/design/space-assistants.md §8.
@@ -103,23 +127,22 @@ func buildAssistantTools(in turnRunInput, sourceMessageID *string) []llm.Tool {
 	a := in.Assistant
 	var tools []llm.Tool
 	if svc := in.TaskService; svc != nil {
-		if len(a.Agents) > 0 {
+		if len(a.ids(coreassistant.KindAgent)) > 0 {
 			tools = append(tools, newStartTaskTool(&assistantStartTaskRunner{
 				tasks: svc, in: in, sourceMessageID: sourceMessageID,
 			}, in.AgentSummaries))
 		}
-		if r := newListTasksStoreRunner(svc.Tasks); r != nil {
-			tools = append(tools, newListTasksTool(in.ConversationID, r))
-		}
 		if svc.Tasks != nil {
-			tools = append(tools, newGetTaskTool(in.ConversationID, &assistantGetTaskRunner{tasks: svc}))
+			tools = append(tools,
+				newListTasksTool(in.ConversationID, &assistantListTasksRunner{tasks: svc}),
+				newGetTaskTool(in.ConversationID, &assistantGetTaskRunner{tasks: svc, assistant: a}))
 		}
 	}
-	if wf := in.WorkflowService; wf != nil && in.SpaceID != "" && len(a.Workflows) > 0 {
+	if wf := in.WorkflowService; wf != nil && in.SpaceID != "" && len(a.ids(coreassistant.KindWorkflow)) > 0 {
 		tools = append(tools,
-			newListWorkflowsTool(&assistantListWorkflowsRunner{svc: wf, spaceID: in.SpaceID, roster: a.Workflows}),
+			newListWorkflowsTool(&assistantListWorkflowsRunner{svc: wf, spaceID: in.SpaceID, roster: a.ids(coreassistant.KindWorkflow)}),
 			newRunWorkflowTool(&assistantRunWorkflowRunner{svc: wf, in: in}),
-			newGetWorkflowRunTool(&assistantGetWorkflowRunRunner{svc: wf, spaceID: in.SpaceID, conversationID: in.ConversationID}),
+			newGetWorkflowRunTool(&assistantGetWorkflowRunRunner{svc: wf, spaceID: in.SpaceID, conversationID: in.ConversationID, assistant: a}),
 		)
 	}
 	return tools
@@ -144,10 +167,21 @@ type assistantStartTaskRunner struct {
 
 func (r *assistantStartTaskRunner) StartTask(ctx context.Context, input string, agentID *string) (string, string, error) {
 	a := r.in.Assistant
-	if agentID == nil || !slices.Contains(a.Agents, *agentID) {
+	if agentID == nil {
 		return "", "", errNotOnRoster
 	}
+	entry := a.entry(coreassistant.KindAgent, *agentID)
+	if entry == nil {
+		return "", "", errNotOnRoster
+	}
+	// The run must answer in the contract's shape, or nothing of it is released.
+	var schema *string
+	if len(entry.OutputSchema) > 0 {
+		s := string(entry.OutputSchema)
+		schema = &s
+	}
 	result, err := r.tasks.StartBackgroundTask(ctx, task.CreateTaskCmd{
+		OutputSchema:      schema,
 		ConversationID:    r.in.ConversationID,
 		UserID:            a.ActingUserID,
 		SpaceID:           r.in.SpaceID,
@@ -166,10 +200,32 @@ func (r *assistantStartTaskRunner) StartTask(ctx context.Context, input string, 
 	return result.TaskID, result.RunID, nil
 }
 
-// assistantGetTaskRunner reports status only: a Task's output reaches an
-// Assistant turn through its release contract, not raw.
-type assistantGetTaskRunner struct {
+// assistantListTasksRunner lists this conversation's Tasks by title and
+// status: no input or output.
+type assistantListTasksRunner struct {
 	tasks *task.Service
+}
+
+func (r *assistantListTasksRunner) ListTasks(ctx context.Context, conversationID string) (string, error) {
+	list, _, err := r.tasks.Tasks.ListTasksByConversationPaginated(ctx, conversationID, false, 10, 0)
+	if err != nil {
+		return "", err
+	}
+	if len(list) == 0 {
+		return "No tasks in this conversation.", nil
+	}
+	var lines []string
+	for i, t := range list {
+		lines = append(lines, fmt.Sprintf("%d. %s | %s | %s | %s", i+1, t.ID, util.TruncateRunes(t.Title, 60), t.Status, util.FormatMinute(t.CreatedAt)))
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
+// assistantGetTaskRunner reports a Task's status and, once it succeeded, the
+// releasable fields of its structured result: never raw output or error text.
+type assistantGetTaskRunner struct {
+	tasks     *task.Service
+	assistant *AssistantTurn
 }
 
 func (r *assistantGetTaskRunner) GetTask(ctx context.Context, conversationID, taskID string) (string, error) {
@@ -177,8 +233,19 @@ func (r *assistantGetTaskRunner) GetTask(ctx context.Context, conversationID, ta
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("task_id: %s\ntitle: %s\nstatus: %s\ncreated_at: %s\n",
-		t.ID, t.Title, t.Status, util.FormatMinute(t.CreatedAt)), nil
+	out := fmt.Sprintf("task_id: %s\ntitle: %s\nstatus: %s\ncreated_at: %s\n",
+		t.ID, t.Title, t.Status, util.FormatMinute(t.CreatedAt))
+	if t.Status != string(coretask.RunStatusSucceeded) || t.LastRunID == nil || t.AgentID == nil || r.tasks.TaskRuns == nil {
+		return out, nil
+	}
+	run, err := r.tasks.TaskRuns.GetTaskRun(ctx, *t.LastRunID)
+	if err != nil {
+		return "", err
+	}
+	if run == nil || len(run.Questions) > 0 {
+		return out, nil
+	}
+	return out + released(run.Structured, r.assistant.entry(coreassistant.KindAgent, *t.AgentID)), nil
 }
 
 type assistantListWorkflowsRunner struct {
@@ -221,7 +288,7 @@ type assistantRunWorkflowRunner struct {
 
 func (r *assistantRunWorkflowRunner) RunWorkflow(ctx context.Context, workflowID, input string, issueID *string) (string, string, error) {
 	a := r.in.Assistant
-	if !slices.Contains(a.Workflows, workflowID) {
+	if a.entry(coreassistant.KindWorkflow, workflowID) == nil {
 		return "", "", errNotOnRoster
 	}
 	// An Issue is Space work the requester has no standing in.
@@ -242,12 +309,13 @@ func (r *assistantRunWorkflowRunner) RunWorkflow(ctx context.Context, workflowID
 	return run.ID, run.Status, nil
 }
 
-// assistantGetWorkflowRunRunner reads only runs this conversation started, and
-// only their status.
+// assistantGetWorkflowRunRunner reads only runs this conversation started: their
+// status and the releasable fields of a succeeded run's result.
 type assistantGetWorkflowRunRunner struct {
 	svc            *workflow.Service
 	spaceID        string
 	conversationID string
+	assistant      *AssistantTurn
 }
 
 func (r *assistantGetWorkflowRunRunner) GetWorkflowRun(ctx context.Context, workflowRunID string) (string, error) {
@@ -258,6 +326,10 @@ func (r *assistantGetWorkflowRunRunner) GetWorkflowRun(ctx context.Context, work
 	if run.ConversationID == nil || *run.ConversationID != r.conversationID {
 		return "", apierr.New(apierr.KindNotFound, "workflow run not found in this conversation")
 	}
-	return fmt.Sprintf("workflow_run_id: %s\nstatus: %s\ncreated_at: %s\n",
-		run.ID, run.Status, util.FormatMinute(run.CreatedAt)), nil
+	out := fmt.Sprintf("workflow_run_id: %s\nstatus: %s\ncreated_at: %s\n",
+		run.ID, run.Status, util.FormatMinute(run.CreatedAt))
+	if run.Status != string(coreworkflow.RunStatusSucceeded) {
+		return out, nil
+	}
+	return out + released(run.Result, r.assistant.entry(coreassistant.KindWorkflow, run.WorkflowID)), nil
 }

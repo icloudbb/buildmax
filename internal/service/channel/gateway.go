@@ -67,8 +67,13 @@ type TurnRunner interface {
 // bot, such as a Space Assistant's. The Gateway has already identified the
 // sender and checked their sign-in; who may ask, and what is answered, is the
 // front door's. It returns the reply to send, or "" for none.
+//
+// Outcome reports the end of a run started in one of the front door's
+// conversations: the bot to send it through and the text, or ok false for no
+// report. What a requester may learn of a result is the front door's too.
 type FrontDoor interface {
 	Answer(ctx context.Context, connectorKey string, in corechannel.Inbound, userID string) string
+	Outcome(ctx context.Context, conv *coreconv.Conversation, info coretask.RunTerminalInfo) (connectorKey, text string, ok bool)
 }
 
 // Conversations is the slice of Conversation storage the gateway needs.

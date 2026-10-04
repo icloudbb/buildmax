@@ -47,6 +47,7 @@ func (a *Announcer) Announce(ctx context.Context, taskRunID, status string, outp
 		UserID:         task.CreatedBy,
 		Status:         status,
 		Output:         output,
+		Structured:     run.Structured,
 		ErrorMessage:   errorMessage,
 		AwaitingAnswer: len(run.Questions) > 0,
 	}
