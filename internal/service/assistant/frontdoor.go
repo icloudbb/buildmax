@@ -11,8 +11,8 @@ import (
 	coreassistant "github.com/icloudbb/buildmax/internal/core/assistant"
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
-	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	chansvc "github.com/icloudbb/buildmax/internal/service/channel"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
 )
