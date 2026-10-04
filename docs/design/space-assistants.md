@@ -3,7 +3,8 @@
 > **简体中文：** [阅读中文镜像](../zh-CN/design/空间助手.md)
 
 > **Audience:** contributors, product designers, and operators · **Status:**
-> accepted — in progress: service accounts (§6) are built
+> accepted — in progress: the many-bot Gateway (§9) and service accounts (§6)
+> are built
 >
 > This record decides how a Space publishes **Assistants**: conversational
 > service front doors that answer people outside the Space's own work, dispatch
@@ -448,7 +449,8 @@ An Assistant whose Space has spent its quota refuses with a fixed reply.
 
 Each slice is a backlog task, in order:
 
-1. [Gateway with many bots and pairing from any bot](../backlog/60-channel-gateway-many-bots.md) (§7.1, §9).
+1. Gateway with many bots and pairing from any bot (§7.1, §9) — built; see
+   [instant-messaging channels §4](instant-messaging-channels.md#4-concepts).
 2. Service accounts (§6) — built; see
    [current state](../current-state.md#account-space-and-extension-surfaces).
 3. [Assistant entity, binding, and management](../backlog/64-space-assistant-entity.md) (§4, §8 publish statement).
