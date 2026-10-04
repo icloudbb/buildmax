@@ -7,7 +7,7 @@
   starts only roster Agents and Workflows as its service account, records who
   asked on each Task, answers from its readable text files directly, and passes
   on only the result fields the Space marked releasable, including in the
-  message sent when the work finishes. A request it cannot answer becomes an
+  message sent when an Agent's task or a Workflow run finishes. A request it cannot answer becomes an
   Issue in the Space, from which a member replies to the requester's chat, and
   a Schedule can send each result's releasable fields to one person through it.
   The publish statement also names the space's Files its Agents and Workflow

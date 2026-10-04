@@ -653,9 +653,11 @@ layer, and holds the run while the requester cannot be resolved. The
 conversation belongs to the Assistant's Space, where its members can read it,
 and continues only in the chat; the first reply says so. A roster Agent's Task
 must answer in its entry's output schema, and the turn's Task and Workflow
-reads and the outcome report sent when such a Task ends carry only the
-releasable fields of the result under the current roster: no raw output, error
-text, or link. The turn's ListFiles and ReadFile read the Assistant's
+reads and the outcome report sent when such a Task or Workflow run ends carry
+only the releasable fields of the result under the current roster: no raw
+output, error text, or link. A Workflow run's report is recorded as pending
+when the run starts and sent by the delivery sweeper once it ends, at most
+once. The turn's ListFiles and ReadFile read the Assistant's
 allowlisted Space files in the Server: text media types only, 128 KiB a file
 and 384 KiB a turn, and every id off the allowlist gets the same refusal.
 The turn's Escalate opens one Issue in the Space per call, created by the
