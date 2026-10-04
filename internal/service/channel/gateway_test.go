@@ -10,6 +10,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/util"
@@ -30,6 +31,7 @@ type harness struct {
 	convs *fakeConversations
 	elig  *fakeEligibility
 	turns *fakeTurns
+	users *fakeUsers
 }
 
 func newHarness(t *testing.T) *harness {
@@ -40,7 +42,9 @@ func newHarness(t *testing.T) *harness {
 		convs: &fakeConversations{},
 		elig:  &fakeEligibility{},
 		turns: &fakeTurns{},
+		users: &fakeUsers{lastLogin: map[string]*time.Time{}},
 	}
+	h.users.signedIn(adaID, time.Now())
 	h.g = New(Config{
 		Connectors:    []corechannel.Connector{h.conn},
 		Identities:    h.ids,
@@ -51,6 +55,7 @@ func newHarness(t *testing.T) *harness {
 		}}},
 		Tasks:       fakeTasks{"task1": {ID: "task1", Title: "Summarize the logs"}},
 		Eligibility: h.elig,
+		Users:       h.users,
 		PortalURL:   portalURL,
 	})
 	h.g.SetTurns(h.turns)
@@ -166,6 +171,72 @@ func TestIneligibleSenderIsRefusedBeforeTheModel(t *testing.T) {
 	}
 	if h.conn.last() != "Your BuildMax account is disabled." {
 		t.Errorf("reply = %q", h.conn.last())
+	}
+}
+
+// A link acts only for someone who signed in within the window. Past it, every
+// message, command, and report is refused until they sign in again, and the
+// link itself survives, so no new code is needed.
+func TestLinkStopsActingWithoutARecentSignIn(t *testing.T) {
+	h := newHarness(t)
+	h.ids.link(adaID, adaChat)
+	h.send(dm("start the job"))
+	conv := h.convs.all()[0]
+	output := "done"
+	info := coretask.RunTerminalInfo{TaskRunID: "run1", TaskID: "task1", ConversationID: conv.ID, SpaceID: personalID, UserID: adaID, Status: string(coretask.RunStatusSucceeded), Output: &output}
+
+	h.users.signedIn(adaID, time.Now().Add(-coreidentity.SessionAbsoluteTTLDefault-time.Hour))
+	before := len(h.conn.messages())
+	h.send(dm("still there?"))
+	h.send(dm("/space"))
+	h.g.ReportRunTerminal(context.Background(), info)
+	msgs := h.conn.messages()
+	if len(msgs) != before+2 {
+		t.Fatalf("messages = %d, want two refusals and no report", len(msgs)-before)
+	}
+	for _, m := range msgs[before:] {
+		if !strings.Contains(m.Text, "Sign in again") || !strings.Contains(m.Text, portalURL+"/#/account/chat") {
+			t.Errorf("refusal = %q", m.Text)
+		}
+	}
+	if len(h.turns.seen()) != 1 {
+		t.Errorf("turns = %d, want only the one before the window passed", len(h.turns.seen()))
+	}
+	if h.ids.onlyCode() != "" {
+		t.Error("a stale link was offered a new pairing code")
+	}
+
+	h.users.signedIn(adaID, time.Now())
+	h.send(dm("back"))
+	if len(h.turns.seen()) != 2 {
+		t.Error("signing in again did not restore the link")
+	}
+}
+
+func TestConfirmPairingRefusesWithoutARecentSignIn(t *testing.T) {
+	h := newHarness(t)
+	h.send(dm("hello"))
+	code := h.ids.onlyCode()
+	h.users.signedIn(adaID, time.Now().Add(-coreidentity.SessionAbsoluteTTLDefault-time.Hour))
+
+	if _, err := h.g.ConfirmPairing(context.Background(), adaID, displayCode(code)); !errors.Is(err, corechannel.ErrSignInRequired) {
+		t.Fatalf("ConfirmPairing = %v, want ErrSignInRequired", err)
+	}
+	if links, _ := h.ids.ListIdentitiesByUser(context.Background(), adaID); len(links) != 0 {
+		t.Errorf("a refused confirmation created a link: %+v", links)
+	}
+}
+
+func TestActiveUntilFollowsTheLastSignIn(t *testing.T) {
+	h := newHarness(t)
+	at := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	h.users.signedIn(adaID, at)
+	got, err := h.g.ActiveUntil(context.Background(), adaID)
+	if err != nil || got == nil || !got.Equal(at.Add(coreidentity.SessionAbsoluteTTLDefault)) {
+		t.Errorf("ActiveUntil = %v, %v; want the default window after the sign-in", got, err)
+	}
+	if got, _ := h.g.ActiveUntil(context.Background(), "never_signed_in"); got != nil {
+		t.Errorf("ActiveUntil for an account that never signed in = %v, want nil", got)
 	}
 }
 

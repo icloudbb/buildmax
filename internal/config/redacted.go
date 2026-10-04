@@ -144,6 +144,7 @@ type RedactedOIDCConfig struct {
 type RedactedChannelsConfig struct {
 	TelegramAPIBaseURL string       `json:"telegram_api_base_url,omitempty"`
 	TelegramBotToken   SecretStatus `json:"telegram_bot_token"`
+	SignInWindow       string       `json:"sign_in_window,omitempty"`
 }
 
 // Redacted returns the operator-facing view of the configuration.
@@ -226,6 +227,9 @@ func (sc ServerConfig) Redacted() RedactedServerConfig {
 	}
 	if sc.SessionAbsoluteTTL > 0 {
 		out.SessionAbsoluteTTL = sc.SessionAbsoluteTTL.String()
+	}
+	if sc.Channels.SignInWindow > 0 {
+		out.Channels.SignInWindow = sc.Channels.SignInWindow.String()
 	}
 	if sc.ShutdownGrace > 0 {
 		out.ShutdownGrace = sc.ShutdownGrace.String()

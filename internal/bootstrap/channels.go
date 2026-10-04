@@ -19,6 +19,12 @@ func buildChannelGateway(sc config.ServerConfig, store *db.Store, elig eligibili
 	if tg := sc.Channels.Telegram; tg.BotToken != "" {
 		connectors = append(connectors, telegram.New(telegram.Config{Token: tg.BotToken, APIBaseURL: tg.APIBaseURL}))
 	}
+	// The window defaults to the session ceiling: a chat link is a login's
+	// authority without its session, so it lives no longer than one could.
+	window := sc.Channels.SignInWindow
+	if window <= 0 {
+		window = sc.SessionAbsoluteTTL
+	}
 	var locker chansvc.Locker
 	if backend != nil {
 		locker = servercoord.NewConnectorLocker(backend)
@@ -30,6 +36,8 @@ func buildChannelGateway(sc config.ServerConfig, store *db.Store, elig eligibili
 		Spaces:        store,
 		Tasks:         store,
 		Eligibility:   elig,
+		Users:         store,
+		SignInWindow:  window,
 		PortalURL:     sc.PublicBaseURL,
 		Locker:        locker,
 	})

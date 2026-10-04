@@ -18,6 +18,7 @@ import (
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
@@ -68,6 +69,11 @@ type Conversations interface {
 	CreateChatConversation(ctx context.Context, spaceID, userID, channel, channelRef string) (*coreconv.Conversation, error)
 }
 
+// Users reads an account's last sign-in, which bounds how long its chat links act.
+type Users interface {
+	GetUser(ctx context.Context, userID string) (*coreidentity.User, error)
+}
+
 // Spaces lists the Spaces a user belongs to.
 type Spaces interface {
 	ListSpacesByUser(ctx context.Context, userID string) ([]corespace.Space, error)
@@ -98,6 +104,11 @@ type Config struct {
 	Spaces        Spaces
 	Tasks         Tasks
 	Eligibility   eligibility.Checker
+	Users         Users
+	// SignInWindow is how long after a user's last sign-in their chat links
+	// keep acting (corechannel.ActiveUntil). Zero means the default session
+	// lifetime, so a link never outlives what a login could.
+	SignInWindow time.Duration
 	// PortalURL is the public origin links in chat messages point at. Empty
 	// leaves links out and tells people where to go in words instead.
 	PortalURL string
@@ -114,6 +125,8 @@ type Gateway struct {
 	spaces        Spaces
 	tasks         Tasks
 	eligible      eligibility.Checker
+	users         Users
+	signInWindow  time.Duration
 	portalURL     string
 	locker        Locker
 	log           *slog.Logger
@@ -146,6 +159,10 @@ func New(cfg Config) *Gateway {
 	if log == nil {
 		log = slog.Default()
 	}
+	window := cfg.SignInWindow
+	if window <= 0 {
+		window = coreidentity.SessionAbsoluteTTLDefault
+	}
 	g := &Gateway{
 		connectors:    make(map[string]corechannel.Connector, len(cfg.Connectors)),
 		identities:    cfg.Identities,
@@ -153,6 +170,8 @@ func New(cfg Config) *Gateway {
 		spaces:        cfg.Spaces,
 		tasks:         cfg.Tasks,
 		eligible:      cfg.Eligibility,
+		users:         cfg.Users,
+		signInWindow:  window,
 		portalURL:     cfg.PortalURL,
 		locker:        cfg.Locker,
 		log:           log.With("component", "channel_gateway"),

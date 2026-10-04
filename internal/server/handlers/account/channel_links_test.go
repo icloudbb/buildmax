@@ -18,10 +18,13 @@ import (
 )
 
 // stubLinks is a ChannelLinks that knows one pending code, "GOODCODE", and
-// records who confirmed it.
+// records who confirmed it. "STALECODE" stands for a user whose last sign-in is
+// outside the window.
 type stubLinks struct {
 	links []corechannel.Identity
 }
+
+var stubActiveUntil = time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)
 
 func (s *stubLinks) Platforms(context.Context) []corechannel.Info {
 	return []corechannel.Info{{Platform: "telegram", Name: "Telegram", BotHandle: "@bot"}}
@@ -35,6 +38,9 @@ func (s *stubLinks) PreviewPairing(_ context.Context, code string) (*corechannel
 }
 
 func (s *stubLinks) ConfirmPairing(_ context.Context, userID, code string) (*corechannel.Identity, error) {
+	if code == "STALECODE" {
+		return nil, corechannel.ErrSignInRequired
+	}
 	if code != "GOODCODE" {
 		return nil, corechannel.ErrPairingNotFound
 	}
@@ -51,6 +57,10 @@ func (s *stubLinks) ListLinks(_ context.Context, userID string) ([]corechannel.I
 		}
 	}
 	return out, nil
+}
+
+func (s *stubLinks) ActiveUntil(context.Context, string) (*time.Time, error) {
+	return &stubActiveUntil, nil
 }
 
 func (s *stubLinks) Unlink(_ context.Context, userID, id string) error {
@@ -111,6 +121,9 @@ func TestChannelLinkLifecycle(t *testing.T) {
 	if len(list.Platforms) != 1 || list.Platforms[0].BotHandle != "@bot" || len(list.Links) != 1 || list.Links[0].ID != "link1" {
 		t.Errorf("list = %+v", list)
 	}
+	if list.ActiveUntil == nil || !list.ActiveUntil.Equal(stubActiveUntil) {
+		t.Errorf("active_until = %v, want %v", list.ActiveUntil, stubActiveUntil)
+	}
 
 	if rec := serve(mux, http.MethodDelete, "/api/channel-links/link1", ""); rec.Code != http.StatusNoContent {
 		t.Fatalf("delete = %d %s", rec.Code, rec.Body.String())
@@ -118,6 +131,19 @@ func TestChannelLinkLifecycle(t *testing.T) {
 	firstEvent(t, store, coreaudit.ChannelLinkRemoved)
 	if rec := serve(mux, http.MethodDelete, "/api/channel-links/link1", ""); rec.Code != http.StatusNotFound {
 		t.Errorf("second delete = %d, want 404", rec.Code)
+	}
+}
+
+// A user whose last sign-in is too old is told to sign in again rather than
+// handed a link that could not act.
+func TestChannelLinkRefusedWithoutARecentSignIn(t *testing.T) {
+	mux, store := channelFixture(t, &stubLinks{})
+	rec := serve(mux, http.MethodPost, "/api/channel-links", `{"code":"STALECODE"}`)
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "sign in") {
+		t.Errorf("confirm = %d %s, want 403 asking to sign in", rec.Code, rec.Body.String())
+	}
+	if len(store.Events) != 0 {
+		t.Errorf("a refused link was audited: %+v", store.Events)
 	}
 }
 

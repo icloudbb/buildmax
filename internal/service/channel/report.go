@@ -21,8 +21,8 @@ const (
 // credential, not the receive lease.
 //
 // It reports only while the conversation's owner can still see the result:
-// their account may still work in the Space, and they still have a chat
-// account linked on that platform.
+// their account may still work in the Space, they still have a chat account
+// linked on that platform, and they signed in recently enough for it to act.
 func (g *Gateway) ReportRunTerminal(ctx context.Context, info coretask.RunTerminalInfo) {
 	if g == nil || info.ConversationID == "" {
 		return
@@ -48,6 +48,9 @@ func (g *Gateway) ReportRunTerminal(ctx context.Context, info coretask.RunTermin
 		linked = linked || l.Platform == conv.Channel
 	}
 	if !linked {
+		return
+	}
+	if active, err := g.linkActive(ctx, conv.UserID); err != nil || !active {
 		return
 	}
 	title := ""

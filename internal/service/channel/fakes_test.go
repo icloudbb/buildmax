@@ -11,6 +11,7 @@ import (
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
@@ -306,4 +307,22 @@ func (f *fakeLocker) TryAcquire(context.Context, string) (Lease, bool, error) {
 	f.grant = false
 	f.lease = &fakeLease{lost: make(chan struct{}), released: make(chan struct{})}
 	return f.lease, true, nil
+}
+
+// fakeUsers holds each account's last sign-in.
+type fakeUsers struct {
+	mu        sync.Mutex
+	lastLogin map[string]*time.Time
+}
+
+func (f *fakeUsers) GetUser(_ context.Context, userID string) (*coreidentity.User, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return &coreidentity.User{ID: userID, LastLoginAt: f.lastLogin[userID]}, nil
+}
+
+func (f *fakeUsers) signedIn(userID string, at time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastLogin[userID] = &at
 }

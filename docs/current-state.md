@@ -688,7 +688,9 @@ turn names its Space in the prompt and can list the user's Spaces with
 and Portal's conversation list marks a conversation from a chat app. People
 link a Telegram account by messaging the bot and confirming its code under
 Account → Chat accounts; every message is checked against Space eligibility
-before any model runs. One replica at a time receives, under a Redis lease when
+before any model runs, and a link acts only while its user's last sign-in is
+within `channels.sign_in_window` (default the session ceiling), so it cannot
+outlive a login. One replica at a time receives, under a Redis lease when
 there are several. Group chats, other chat platforms, streaming replies, and
 approvals from chat are not built
 ([gateway](../internal/service/channel/gateway.go),

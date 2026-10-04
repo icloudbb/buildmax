@@ -54,6 +54,18 @@ If your BuildMax account is disabled, or you leave the Space a conversation
 uses, the bot stops answering for it right away. The link stays until you
 remove it.
 
+## Stay signed in
+
+The bot acts for you only while you have signed in to BuildMax recently: by
+default within the last 90 days, or a shorter window your operator sets. After
+that it answers every message with a request to sign in again, and sends no
+task reports. Signing in to Portal is enough to resume; you do not need a new
+code. **Account → Chat accounts** shows until when your linked accounts act.
+
+This keeps a chat link from outliving your sign-in: someone who can no longer
+sign in to BuildMax, for example after leaving an organization that signs in
+through single sign-on, also stops being served in chat.
+
 ## For operators
 
 1. Create a bot with [@BotFather](https://t.me/BotFather) and copy its token.
@@ -74,7 +86,12 @@ remove it.
 
 3. Set `public_base_url` so the bot can send confirmation links. Without it,
    people type the code into Portal themselves.
-4. Restart the server. Under **Administration**, **Effective configuration**
+4. Optionally set `channels.sign_in_window`, how long after a person's last
+   sign-in their chat links keep acting. It defaults to `session_absolute_ttl`
+   (90 days). A deployment that offboards people only at its identity provider
+   should set it to the bound it accepts for chat access, because a link has no
+   session for the provider's sign-in limit to end.
+5. Restart the server. Under **Administration**, **Effective configuration**
    shows `telegram_bot_token` as set.
 
 The bot receives by long polling, so the server needs outbound HTTPS to

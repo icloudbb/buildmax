@@ -103,6 +103,12 @@ type ServerConfig struct {
 // ServerChannelsConfig holds one block per supported chat platform.
 type ServerChannelsConfig struct {
 	Telegram ServerTelegramConfig `mapstructure:"telegram"`
+	// SignInWindow is how long after a user's last BuildMax sign-in their chat
+	// links keep acting; past it the bot asks them to sign in again. Zero uses
+	// session_absolute_ttl, so a link never outlives what a login could. A
+	// deployment that offboards only at its identity provider sets it to the
+	// bound it accepts for chat access.
+	SignInWindow time.Duration `mapstructure:"sign_in_window"`
 }
 
 // ServerTelegramConfig configures the Telegram bot. The bot receives by long
