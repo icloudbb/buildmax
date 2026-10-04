@@ -1,2 +1,2 @@
 export { SpaceAssistants } from "./SpaceAssistants"
-export { getAssistant } from "./api"
+export { getAssistant, listAssistantRequesters, listAssistants } from "./api"

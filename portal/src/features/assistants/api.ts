@@ -1,6 +1,6 @@
 import { ApiRequestError, apiFetch, getApiBase, parseErrorResponse, throwIfNotOk } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
-import type { ApiAssistant, ApiAssistantDefinition, ApiAssistantStatement } from "../../lib/api/types"
+import type { ApiAssistant, ApiAssistantDefinition, ApiAssistantRequester, ApiAssistantStatement } from "../../lib/api/types"
 
 /**
  * The server refused a change because it alters what the Assistant discloses
@@ -120,4 +120,10 @@ export async function bindAssistant(
 
 export async function unbindAssistant(spaceId: string, assistantId: string, token: string): Promise<ApiAssistant> {
   return send<ApiAssistant>(`${one(spaceId, assistantId)}/binding`, { method: "DELETE", headers: authHeaders(token) })
+}
+
+/** The people an Assistant's bot may message, most recent first. Owners and admins only. */
+export async function listAssistantRequesters(spaceId: string, assistantId: string, token: string): Promise<ApiAssistantRequester[]> {
+  const res = await send<{ requesters: ApiAssistantRequester[] }>(`${one(spaceId, assistantId)}/requesters`, { headers: authHeaders(token) })
+  return res.requesters
 }

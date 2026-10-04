@@ -337,8 +337,41 @@ export interface ApiSchedule {
   /** The task (agent) or workflow run (workflow) the last firing produced. */
   last_fire_ref?: string | null
   consecutive_failures: number
+  /** Set when each firing's releasable result is sent to one person through a
+   *  Space Assistant's bot. */
+  delivery?: ApiScheduleDeliveryTarget
   created_at: string
   updated_at: string
+}
+
+export interface ApiScheduleDeliveryTarget {
+  assistant_id: string
+  /** The person the result is sent to; they have written to the Assistant. */
+  requester_id: string
+}
+
+/** How one firing's result was delivered through the Assistant, or why not. */
+export interface ApiScheduleDelivery {
+  id: string
+  schedule_id: string
+  /** The task (agent) or workflow run (workflow) the firing started. */
+  fire_ref: string
+  status: "pending" | "delivered" | "skipped" | "failed"
+  reason?: string
+  created_at: string
+  settled_at?: string | null
+}
+
+export interface ApiScheduleDeliveryListResponse {
+  deliveries: ApiScheduleDelivery[]
+  total: number
+}
+
+/** A person an Assistant's bot may message: they have written to it. */
+export interface ApiAssistantRequester {
+  user_id: string
+  name?: string
+  last_conversation_at: string
 }
 
 export interface ApiScheduleListResponse {
