@@ -16,7 +16,7 @@ import (
 
 // buildAssistants assembles Space Assistants over the chat Gateway. Their bots
 // share the system bot's Telegram API base URL, which only tests change.
-func buildAssistants(sc config.ServerConfig, store *db.Store, channels *chansvc.Gateway, gw *llmgateway.Service) *assistantsvc.Service {
+func buildAssistants(sc config.ServerConfig, store *db.Store, files assistantsvc.SpaceFiles, channels *chansvc.Gateway, gw *llmgateway.Service) *assistantsvc.Service {
 	if channels == nil {
 		return nil
 	}
@@ -30,6 +30,7 @@ func buildAssistants(sc config.ServerConfig, store *db.Store, channels *chansvc.
 		Workflows:       store,
 		Artifacts:       store,
 		Secrets:         store,
+		SpaceFiles:      files,
 		Audit:           audit.NewRecorder(store),
 		Bots: &assistantsvc.Reconciler{
 			Store:   store,

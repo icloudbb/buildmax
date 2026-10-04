@@ -166,7 +166,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// server.yaml connects none. The server starts its receivers with the rest
 	// of its background work and stops them first on shutdown.
 	serverConfig.Services.Channels = buildChannelGateway(sc, store, elig, coordBackend)
-	serverConfig.Services.Assistants = buildAssistants(sc, store, serverConfig.Services.Channels, serverConfig.Conv.LLMGateway)
+	serverConfig.Services.Assistants = buildAssistants(sc, store, storage.persist, serverConfig.Services.Channels, serverConfig.Conv.LLMGateway)
 	if a := serverConfig.Services.Assistants; a != nil {
 		serverConfig.Services.AssistantFrontDoor = &assistantsvc.FrontDoor{
 			Service: a, Conversations: store, Tasks: store, Eligibility: elig,

@@ -1418,6 +1418,10 @@ export interface ApiAssistantStatement {
   readable_files: ApiAssistantNamedRef[]
   agents: ApiAssistantStatementAgent[]
   workflows: (ApiAssistantNamedRef & { agents: ApiAssistantStatementAgent[] })[]
+  /** The Space's Files the roster's Agents and Workflow steps can read, up to
+   *  twenty names; space_files_total counts them all. */
+  space_files: string[]
+  space_files_total: number
   text: string
   digest: string
 }

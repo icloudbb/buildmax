@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -99,7 +100,8 @@ func newFixture(t *testing.T) *fixture {
 		Store: store, Spaces: spaces, Users: users,
 		ServiceAccounts: &spacesvc.Service{Spaces: spaces, Users: users, ServiceAccounts: &mock.MockServiceAccountStore{Users: users, Spaces: spaces}},
 		Agents:          agents, Workflows: workflows, Artifacts: artifacts,
-		Secrets: fakeSecrets{{ID: "sec_hris", SpaceID: team, Name: "HRIS"}},
+		Secrets:    fakeSecrets{{ID: "sec_hris", SpaceID: team, Name: "HRIS"}},
+		SpaceFiles: fakeSpaceFiles{team: {"salary-bands.md", "leave-balances.csv"}},
 		Bots: &Reconciler{Store: store, Gateway: f.gateway, Connect: func(_, token string) (corechannel.Connector, error) {
 			c := f.connector[token]
 			if c == nil {
@@ -176,6 +178,12 @@ func TestCreateRefusesWhatTheSpaceDoesNotOwn(t *testing.T) {
 	}
 }
 
+type fakeSpaceFiles map[string][]string
+
+func (f fakeSpaceFiles) ListFiles(_ context.Context, spaceID string) ([]string, error) {
+	return append([]string(nil), f[spaceID]...), nil
+}
+
 func TestStatementNamesWhatTheAudienceCanReach(t *testing.T) {
 	f := newFixture(t)
 	v, err := f.svc.Create(context.Background(), CreateCmd{SpaceID: team, ActorID: owner, Def: hrDefinition()})
@@ -183,13 +191,42 @@ func TestStatementNamesWhatTheAudienceCanReach(t *testing.T) {
 		t.Fatal(err)
 	}
 	st := v.Statement
-	for _, want := range []string{"Any member of this Space", `"leave-policy.md"`, `Agent "HR Agent", which holds the Secrets "HRIS"`, `Workflow "Leave lookup", whose steps run as "HR Agent"`} {
+	// The Space's Files are named too: the roster's work reads them, and the
+	// readable-files list alone does not show it (design §18).
+	for _, want := range []string{"Any member of this Space", `"leave-policy.md"`, `Agent "HR Agent", which holds the Secrets "HRIS"`, `Workflow "Leave lookup", whose steps run as "HR Agent"`,
+		`can read every file in this Space's Files, now "leave-balances.csv" and "salary-bands.md"`} {
 		if !strings.Contains(st.Text, want) {
 			t.Errorf("statement lacks %q: %s", want, st.Text)
 		}
 	}
 	if st.Digest == "" {
 		t.Error("no digest")
+	}
+
+	// A file added to the Space's Files changes what the work can read, so
+	// the statement and its digest change with it; the list is bounded.
+	many := make([]string, maxStatementFiles+3)
+	for i := range many {
+		many[i] = fmt.Sprintf("doc-%02d.md", i)
+	}
+	f.svc.SpaceFiles = fakeSpaceFiles{team: many}
+	wider, err := f.svc.Statement(context.Background(), team, v.Assistant.Def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wider.Digest == st.Digest || len(wider.SpaceFiles) != maxStatementFiles || !strings.Contains(wider.Text, "and 3 more") {
+		t.Errorf("statement with many files = %d named, text %q", len(wider.SpaceFiles), wider.Text)
+	}
+
+	// A roster that runs nothing reads no Space Files, so none are named.
+	def := v.Assistant.Def
+	def.Roster = nil
+	bare, err := f.svc.Statement(context.Background(), team, def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bare.SpaceFiles) != 0 || strings.Contains(bare.Text, "Space's Files") {
+		t.Errorf("statement without a roster = %q", bare.Text)
 	}
 }
 
