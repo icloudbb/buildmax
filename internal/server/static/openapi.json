@@ -392,10 +392,12 @@
           "readable_files": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}}}},
           "agents": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "secrets": {"type": "array", "items": {"type": "string"}}}}},
           "workflows": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "agents": {"type": "array", "items": {"type": "object"}}}}},
+          "space_files": {"type": "array", "items": {"type": "string"}, "description": "The Space's Files the roster's Agents and Workflow steps can read, up to twenty paths. Empty when the roster runs nothing."},
+          "space_files_total": {"type": "integer", "description": "How many files the Space's Files hold in all."},
           "text": {"type": "string"},
           "digest": {"type": "string"}
         },
-        "required": ["audience", "readable_files", "agents", "workflows", "text", "digest"]
+        "required": ["audience", "readable_files", "agents", "workflows", "space_files", "space_files_total", "text", "digest"]
       },
       "AssistantDefinition": {
         "type": "object",

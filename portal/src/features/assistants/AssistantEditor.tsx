@@ -287,7 +287,10 @@ export function AssistantEditor({
 
         <fieldset className="asst-editor__group">
           <legend className="modal__label">Readable files</legend>
-          <p className="sec-edit__hint">Space files it may read to answer. Anything it can read, anyone who can ask may learn.</p>
+          <p className="sec-edit__hint">
+            Uploaded files (Artifacts) it may read to answer. Its Agents and Workflow steps read the space's Files
+            instead, so a document both need goes in both. Anything it can read, anyone who can ask may learn.
+          </p>
           <ReadableFilesPicker
             artifacts={options?.artifacts ?? []}
             total={options?.artifactsTotal ?? 0}

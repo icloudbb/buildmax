@@ -90,8 +90,12 @@ type Service struct {
 	Workflows       Workflows
 	Artifacts       Artifacts
 	Secrets         Secrets
-	Models          Models
-	Audit           *audit.Recorder
+	// SpaceFiles lists the Space's Files, which every roster Agent and Workflow
+	// step can read, so the publish statement can name them. Nil leaves them
+	// unnamed but still stated.
+	SpaceFiles SpaceFiles
+	Models     Models
+	Audit      *audit.Recorder
 	// Bots connects bindings to the chat Gateway. Nil leaves bindings stored
 	// but unserved, as on a server without chat support.
 	Bots *Reconciler
@@ -507,6 +511,14 @@ func parseWorkflow(wf *coreworkflow.Workflow) (*coreworkflow.Definition, error) 
 	return &def, nil
 }
 
+// maxStatementFiles bounds how many of the Space's Files the statement names.
+const maxStatementFiles = 20
+
+// SpaceFiles lists a Space's Files by path.
+type SpaceFiles interface {
+	ListFiles(ctx context.Context, spaceID string) ([]string, error)
+}
+
 // Statement is what publishing an Assistant discloses, in the terms a Space
 // owner can judge (design §8): who can ask, what it can read, what it can run,
 // and which Secrets that work can use.
@@ -515,7 +527,12 @@ type Statement struct {
 	ReadableFiles []NamedRef       `json:"readable_files"`
 	Agents        []StatementAgent `json:"agents"`
 	Workflows     []StatementFlow  `json:"workflows"`
-	Text          string           `json:"text"`
+	// SpaceFiles are the Space's Files the roster's work can read, named
+	// because the readable-files list alone does not show them (validation
+	// run, design §18). Empty when the roster runs nothing.
+	SpaceFiles      []string `json:"space_files"`
+	SpaceFilesTotal int      `json:"space_files_total"`
+	Text            string   `json:"text"`
 	// Digest identifies this statement. Confirming it is how an owner says
 	// they saw exactly this before it went live.
 	Digest string `json:"digest"`
@@ -621,13 +638,25 @@ func (s *Service) Statement(ctx context.Context, spaceID string, def coreassista
 		}
 		st.ReadableFiles = append(st.ReadableFiles, ref)
 	}
+	st.SpaceFiles = []string{}
+	if (len(st.Agents) > 0 || len(st.Workflows) > 0) && s.SpaceFiles != nil {
+		files, err := s.SpaceFiles.ListFiles(ctx, spaceID)
+		if err != nil {
+			return st, err
+		}
+		slices.Sort(files)
+		st.SpaceFilesTotal = len(files)
+		st.SpaceFiles = files[:min(len(files), maxStatementFiles)]
+	}
 	st.Text = statementText(st)
 	body, err := json.Marshal(struct {
 		Audience      string
 		ReadableFiles []NamedRef
 		Agents        []StatementAgent
 		Workflows     []StatementFlow
-	}{st.Audience, st.ReadableFiles, st.Agents, st.Workflows})
+		SpaceFiles    []string
+		SpaceFilesN   int
+	}{st.Audience, st.ReadableFiles, st.Agents, st.Workflows, st.SpaceFiles, st.SpaceFilesTotal})
 	if err != nil {
 		return st, err
 	}
@@ -664,6 +693,23 @@ func statementText(st Statement) string {
 	}
 	if len(st.Agents) == 0 && len(st.Workflows) == 0 {
 		b.WriteString(" It can run no Agents or Workflows.")
+	} else {
+		// What its work reads is part of what it discloses, and is not on the
+		// readable-files list.
+		b.WriteString(" Those Agents and Workflow steps can read every file in this Space's Files")
+		if st.SpaceFilesTotal == 0 {
+			b.WriteString(", which is empty now.")
+		} else {
+			quoted := make([]string, len(st.SpaceFiles))
+			for i, n := range st.SpaceFiles {
+				quoted[i] = fmt.Sprintf("%q", n)
+			}
+			b.WriteString(", now " + joinNames(quoted))
+			if more := st.SpaceFilesTotal - len(st.SpaceFiles); more > 0 {
+				fmt.Fprintf(&b, " and %d more", more)
+			}
+			b.WriteString(".")
+		}
 	}
 	b.WriteString(" Treat everything it can read or run as disclosed to everyone who can ask.")
 	return b.String()

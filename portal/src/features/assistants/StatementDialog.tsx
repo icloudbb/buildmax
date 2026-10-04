@@ -72,6 +72,25 @@ export function StatementSummary({ statement }: { statement: ApiAssistantStateme
             )}
           </dd>
         </div>
+        {statement.agents.length > 0 || statement.workflows.length > 0 ? (
+          <div>
+            <dt>Space Files its work can read</dt>
+            <dd>
+              {statement.space_files_total === 0 ? (
+                "None yet"
+              ) : (
+                <ul>
+                  {statement.space_files.map((name) => (
+                    <li key={name}>{name}</li>
+                  ))}
+                  {statement.space_files_total > statement.space_files.length ? (
+                    <li>and {statement.space_files_total - statement.space_files.length} more</li>
+                  ) : null}
+                </ul>
+              )}
+            </dd>
+          </div>
+        ) : null}
       </dl>
     </div>
   )

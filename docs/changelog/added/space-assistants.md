@@ -9,5 +9,7 @@
   on only the result fields the Space marked releasable, including in the
   message sent when the work finishes. A request it cannot answer becomes an
   Issue in the Space, from which a member replies to the requester's chat, and
-  a Schedule can send each result's releasable fields to one person through it
+  a Schedule can send each result's releasable fields to one person through it.
+  The publish statement also names the space's Files its Agents and Workflow
+  steps can read
   ([Portal overview](https://github.com/icloudbb/buildmax/blob/main/manual/portal-overview.md#space-settings)).

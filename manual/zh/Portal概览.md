@@ -69,10 +69,10 @@ Space 有三种角色：
 - **Assistants** —— 此 space 通过自己的 Telegram bot 发布的服务入口，例如 HR
   助手或审计助手，面向 space 本身工作以外的人。owner 和 admin 为每个 Assistant
   设定指令、它可以运行的 Agent 和已发布的 Workflow（以及哪些结果字段可以展示
-  给提问者）、它可以读取的文件，以及谁可以提问：此 space 的成员，或所有活跃
+  给提问者）、它可以读取的已上传文件（Artifacts），以及谁可以提问：此 space 的成员，或所有活跃
   用户。它的工作以一个 service account 的身份运行，除非你另行选择，否则会按它
   的名称自动创建。Assistant 创建后处于暂停状态。**Publish** 会准确列出谁可以
-  提问、它能读取和运行什么（包括这些 Agent 持有的 Secret），并请你确认，因为它
+  提问、它能读取和运行什么（包括这些 Agent 持有的 Secret，以及它们运行时能读取的 space Files），并请你确认，因为它
   能触及的一切都等同于披露给所有可以提问的人；对已发布的 Assistant 修改这些内容
   时会再次请你确认。**Bind bot** 接受来自 [@BotFather](https://t.me/BotFather)
   的 token；它会被加密存储，因此部署需要配置 `secret.kek_file`，已经接入
@@ -82,7 +82,8 @@ Space 有三种角色：
   该 space 可以查看这段对话；这段对话会出现在 space 的对话列表中，但只能在聊天中
   继续。`/new` 开始新对话，`/help` 介绍这个 Assistant。它会直接根据可读文件作答，
   无需启动工作；它只读取文本文件（Markdown、纯文本、CSV、JSON、YAML 等），每个不超过
-  128 KiB。对于工作结果，Assistant
+  128 KiB。它的 Agent 和 Workflow 步骤看不到这些上传：它们读取的是 space 的
+  **Files**，所以两者都需要的政策文件要分别上传到两处。对于工作结果，Assistant
   和提问者只能看到名册条目标为可放行的字段，看不到原始输出、错误文本或链接；Agent
   的 task 结束时，对方会在聊天中收到这些字段，失败时则收到一句简短说明。它无法回答
   时会升级：在 space 中创建一个 issue，并告诉对方会有人跟进；成员在该 issue 上用
