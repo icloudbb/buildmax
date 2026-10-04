@@ -44,6 +44,7 @@ export type SpaceSection =
   | "security"
   | "secrets"
   | "serviceAccounts"
+  | "assistants"
   | "audit"
   | "memberNew"
 
@@ -81,6 +82,11 @@ export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = 
   // Space-owned principals work runs as. Any member sees the inventory; owners
   // and admins manage it. See docs/design/space-assistants.md §6.
   { id: "serviceAccounts", label: "Service accounts", icon: AgentsIcon },
+  // Service front doors the space publishes on its own chat bots. Any member
+  // sees them; owners and admins manage and publish them. A personal space
+  // cannot have one, which the section itself says. See
+  // docs/design/space-assistants.md.
+  { id: "assistants", label: "Assistants", icon: NewChatIcon },
   // Owner-only content, but the tab stays visible for everyone: the section
   // explains why a member cannot read it, which is more useful than a tab that
   // silently exists for some people and not others.

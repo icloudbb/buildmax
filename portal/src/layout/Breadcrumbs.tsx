@@ -74,6 +74,8 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
           return "Secrets"
         case "serviceAccounts":
           return "Service accounts"
+        case "assistants":
+          return "Assistants"
         case "audit":
           return "Audit"
         case "overview":
@@ -81,6 +83,13 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
           return "Overview"
       }
     })()
+    if (route.section === "assistants" && route.assistantId) {
+      return [
+        { label: "Space settings", route: { name: "space", spaceId: route.spaceId, section: "overview" } },
+        { label: "Assistants", route: { name: "space", spaceId: route.spaceId, section: "assistants" } },
+        { label: entityLabels[route.assistantId] ?? "Assistant", route },
+      ]
+    }
     return [
       { label: "Space settings", route: { name: "space", spaceId: route.spaceId, section: "overview" } },
       { label: sectionLabel, route },

@@ -13,11 +13,20 @@ import { SpacePlugins } from "../../features/spacePlugins"
 import { SpaceSandboxDefaults } from "../../features/spaceSandbox"
 import { SpaceSecrets } from "../../features/spaceSecrets"
 import { SpaceServiceAccounts } from "../../features/spaceServiceAccounts"
+import { SpaceAssistants } from "../../features/assistants"
 import { SpaceAgentInstructions } from "../../features/spaceInstructions"
 import { useAuth } from "../../contexts/AuthContext"
 import { isAllowed } from "../../state/permissionState"
 
-export function SpaceSettings({ spaceId, section }: { spaceId: string; section: SpaceSection }) {
+export function SpaceSettings({
+  spaceId,
+  section,
+  assistantId,
+}: {
+  spaceId: string
+  section: SpaceSection
+  assistantId?: string
+}) {
   const [inviteOpen, setInviteOpen] = useState(section === "memberNew")
   const {
     user,
@@ -179,6 +188,17 @@ export function SpaceSettings({ spaceId, section }: { spaceId: string; section: 
             currentUserId={user?.id}
             manageState={canManageSpaceState}
             onChanged={() => void loadMembers()}
+          />
+        ) : null}
+        {section === "assistants" ? (
+          <SpaceAssistants
+            token={token}
+            spaceId={spaceId}
+            assistantId={assistantId}
+            isPersonalSpace={isPersonalSpace}
+            members={members}
+            currentUserId={user?.id}
+            manageState={canManageSpaceState}
           />
         ) : null}
         {section === "audit" ? (

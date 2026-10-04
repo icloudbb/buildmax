@@ -96,7 +96,7 @@ export function AppRouter({
 
   if (route.name === "account") return <AccountSettings section={route.section ?? "general"} code={route.code} />
   if (route.name === "space")
-    return <SpaceSettings spaceId={route.spaceId} section={route.section ?? "overview"} />
+    return <SpaceSettings spaceId={route.spaceId} section={route.section ?? "overview"} assistantId={route.assistantId} />
   if (route.name === "admin")
     return <AdminSettings section={route.section ?? "overview"} userId={route.userId} spaceId={route.spaceId} />
 

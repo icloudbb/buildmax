@@ -240,6 +240,50 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
       return { summary: "Re-enabled a service account", denied: false, target }
     case "service_account.sponsor_changed":
       return { summary: "Changed a service account's sponsor", denied: false, target }
+    case "assistant.created":
+      return {
+        summary: event.detail ? `Created the assistant ${event.detail}` : "Created an assistant",
+        denied: false,
+        target,
+      }
+    case "assistant.updated":
+      return {
+        summary: event.detail ? `Changed an assistant's definition (${event.detail})` : "Changed an assistant's definition",
+        denied: false,
+        target,
+      }
+    case "assistant.deleted":
+      return {
+        summary: event.detail ? `Deleted the assistant ${event.detail}` : "Deleted an assistant",
+        denied: false,
+        target,
+      }
+    case "assistant.activated":
+      return {
+        summary: event.detail ? `Published the assistant ${event.detail}` : "Published an assistant",
+        denied: false,
+        target,
+      }
+    case "assistant.paused":
+      return {
+        summary: event.detail ? `Paused the assistant ${event.detail}` : "Paused an assistant",
+        denied: false,
+        target,
+      }
+    case "assistant.sponsor_changed":
+      return { summary: "Changed an assistant's sponsor", denied: false, target }
+    case "assistant.bound":
+      return {
+        summary: event.detail ? `Bound the bot @${event.detail} to an assistant` : "Bound a bot to an assistant",
+        denied: false,
+        target,
+      }
+    case "assistant.unbound":
+      return {
+        summary: event.detail ? `Unbound the bot from the assistant ${event.detail}` : "Unbound an assistant's bot",
+        denied: false,
+        target,
+      }
     case "access.denied":
       return {
         summary: event.target_id ? `Was refused: ${event.target_id}` : "Was refused a request",

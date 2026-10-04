@@ -31,6 +31,25 @@ describe("describeEvent", () => {
     expect(got.summary).toBe("Changed the quota tier: free_trial -> pro")
   })
 
+  it("reads a Space Assistant's lifecycle, never with a bot token", () => {
+    // The detail is the name, the revision for an edit, and the bot's handle
+    // for a binding, per internal/core/audit.
+    expect(describeEvent(event({ action: "assistant.created", detail: "HR desk" })).summary).toBe(
+      "Created the assistant HR desk",
+    )
+    expect(describeEvent(event({ action: "assistant.updated", detail: "revision 3" })).summary).toBe(
+      "Changed an assistant's definition (revision 3)",
+    )
+    expect(describeEvent(event({ action: "assistant.activated", detail: "HR desk" })).summary).toBe(
+      "Published the assistant HR desk",
+    )
+    expect(describeEvent(event({ action: "assistant.paused" })).summary).toBe("Paused an assistant")
+    expect(describeEvent(event({ action: "assistant.bound", detail: "hr_desk_bot" })).summary).toBe(
+      "Bound the bot @hr_desk_bot to an assistant",
+    )
+    expect(describeEvent(event({ action: "assistant.sponsor_changed", target_id: "as_1" })).target).toBe("as_1")
+  })
+
   it("shows an action it does not recognise verbatim", () => {
     // Action strings are permanent and a newer server may write one this
     // Portal predates. Dropping the row, or relabelling it "unknown", hides an

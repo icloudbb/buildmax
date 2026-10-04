@@ -55,7 +55,18 @@ export type Route =
   | {
       name: "space"
       spaceId: string
-      section?: "overview" | "members" | "plugins" | "security" | "secrets" | "serviceAccounts" | "audit" | "memberNew"
+      section?:
+        | "overview"
+        | "members"
+        | "plugins"
+        | "security"
+        | "secrets"
+        | "serviceAccounts"
+        | "assistants"
+        | "audit"
+        | "memberNew"
+      // The open Space Assistant. Only meaningful for the assistants section.
+      assistantId?: string
     }
   | {
       name: "admin"
