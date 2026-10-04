@@ -132,6 +132,14 @@ says so. Open the task with **Answer in Task** or the report's **Open Task**,
 and reply there with **Continue** — a comment on the issue does not reach the
 agent.
 
+An issue a space assistant escalated says so under its description: which
+assistant, and for whom (someone outside the space when the person asking is not
+a member). Its **Discussion** offers **Reply to requester** beside **Comment**:
+it sends what you wrote, up to 4000 characters, to the person's chat through
+the assistant's bot and records it on the issue as your comment. It is refused
+while the assistant is paused, has no bot, or would no longer answer that
+person. The reply does not reach the assistant's model.
+
 ## Work an issue on your machine
 
 Issues you own can also be worked locally, where your files and tools are.

@@ -96,8 +96,11 @@ Open **Space** from the user menu (owners and admins can change these):
   plain text, CSV, JSON, YAML, and the like) up to 128 KiB each. Of a result, the assistant
   and the person asking see only the fields its roster entry marks releasable,
   never raw output, error text, or a link; when an Agent's task finishes, the
-  person gets those fields in the chat, or a short note if it failed. A paused
-  one says it is paused. Personal spaces cannot have them.
+  person gets those fields in the chat, or a short note if it failed. When it
+  cannot answer, it escalates: it opens an issue in the space and tells the
+  person someone will follow up, which a member does with **Reply to requester**
+  on the issue (see [Conversations & issues](portal-issues.md#issue-detail)). A
+  paused one says it is paused. Personal spaces cannot have them.
 - **Audit** — a record of what happened in the space.
 
 ## How models are chosen
