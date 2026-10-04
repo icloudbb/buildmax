@@ -73,6 +73,22 @@ Open **Space** from the user menu (owners and admins can change these):
   **Take sponsorship**. A service account is a member of this space only, cannot
   sign in, and never appears when you pick a person, such as an issue's owner.
   Personal spaces cannot have them.
+- **Assistants** — service front doors the space publishes on their own
+  Telegram bot, such as an HR or audit assistant, for people outside the space's
+  own work. Owners and admins define each one's instructions, the Agents and
+  published Workflows it may run (with which result fields may be shown to the
+  person asking), the files it may read, and who may ask: the space's members or
+  every active user. Its work runs as a service account, created with its name
+  unless you choose one. An assistant starts paused. **Publish** shows exactly
+  who can ask and what it can read and run, including the Secrets those Agents
+  hold, and asks you to confirm, because everything it can reach is disclosed to
+  everyone who can ask; changing that later on a published assistant asks again.
+  **Bind bot** takes a token from [@BotFather](https://t.me/BotFather); it is
+  stored encrypted, so the deployment needs `secret.kek_file`, and a bot already
+  connected to BuildMax is refused. People reach the bot after linking their
+  Telegram account (see [Chat apps](chat-apps.md)). Assistants do not answer
+  questions yet: a published one tells people it is not answering yet, and a
+  paused one says it is paused. Personal spaces cannot have them.
 - **Audit** — a record of what happened in the space.
 
 ## How models are chosen

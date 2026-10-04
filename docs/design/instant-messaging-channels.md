@@ -134,6 +134,11 @@ Each concept is listed with the requirement that fails without it.
   - Registration asks the platform for the bot's own id and refuses one
     already served (`ErrBotInUse`): a Telegram token delivers each update to
     one poller, so a second connector would take the first one's messages.
+  - Only the system bot runs the personal assistant. A linked person's message
+    to any other bot goes to that bot's **front door** (`FrontDoor`), which a
+    Space Assistant implements, after pairing and the sign-in window are
+    checked. It never falls through to the personal assistant, which would
+    serve the sender's own Spaces through a bot someone else operates.
 - **`channel_identity`** is platform, tenant, and external user id mapped to a
   user.
   - Without it, a message cannot carry per-sender authority.

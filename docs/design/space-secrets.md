@@ -561,9 +561,9 @@ mechanics are decided:
   `key_id`, and moves the current pointer to it. New writes use it immediately.
   Existing rows keep their old `key_id` and stay decryptable because the file
   still holds the old KEK.
-- `rewrap` walks every row carrying a `wrapped_dek` — Space Secret values and
-  managed-model credentials, which share the deployment KEK, and later external
-  descriptors — and for each unwraps the DEK with the row's named KEK, rewraps
+- `rewrap` walks every row carrying a `wrapped_dek` — Space Secret values,
+  managed-model credentials, and Space Assistant bot tokens, which share the
+  deployment KEK, and later external descriptors — and for each unwraps the DEK with the row's named KEK, rewraps
   it under the current KEK, and updates `wrapped_dek` and `key_id`. The
   `ciphertext` never changes, because the DEK did not. Nor does any associated
   data: the DEK wrap binds none, so a rewrap cannot disturb the Space or
