@@ -11,8 +11,8 @@ import { createSpace, getJSON, reportLeftovers, session, tagged } from "./fixtur
  * the digest it showed, so the confirmation a person makes is the one the
  * server records.
  *
- * Binding a bot needs a reachable Telegram API, which this stack does not run,
- * so it is not exercised here.
+ * Binding a bot needs a reachable Telegram Bot API. kind runs a double of one,
+ * and assistant-chat.spec.ts binds a bot and talks to it there.
  */
 
 /** WCAG A/AA over one region, on the same terms as accessibility.spec.ts. */

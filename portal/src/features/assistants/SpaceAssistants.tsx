@@ -187,7 +187,7 @@ function AssistantList({ token, spaceId, canManage }: { token: string | null; sp
                     </a>
                     <span className="sec-card__desc">
                       {describeAudience(a.audience)} can ask
-                      {a.binding ? ` · @${a.binding.bot_handle} on ${platformName(a.binding.platform)}` : " · no bot bound"}
+                      {a.binding ? ` · ${a.binding.bot_handle} on ${platformName(a.binding.platform)}` : " · no bot bound"}
                     </span>
                   </div>
                   <AvailabilityBadge availability={a.availability} />

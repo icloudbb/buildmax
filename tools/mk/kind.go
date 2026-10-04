@@ -349,7 +349,7 @@ func kindUp() error {
 		return err
 	}
 
-	if err := buildAndLoadKindImages(cluster, []kindImage{kindImageServer, kindImagePortal, kindImageSmoke, kindImageSmokeOIDC}); err != nil {
+	if err := buildAndLoadKindImages(cluster, []kindImage{kindImageServer, kindImagePortal, kindImageSmoke, kindImageSmokeOIDC, kindImageSmokeTelegram}); err != nil {
 		return err
 	}
 	if err := ensureKindNamespace("buildmax"); err != nil {
@@ -387,18 +387,20 @@ func kindUp() error {
 		dumpKindNamespace("buildmax")
 		return err
 	}
-	if err := kindKubectl("apply", "-f", "deployment/smoke/mock-llm.kind.yaml"); err != nil {
-		return err
+	for _, manifest := range []string{"deployment/smoke/mock-llm.kind.yaml", "deployment/smoke/mock-telegram.kind.yaml"} {
+		if err := kindKubectl("apply", "-f", manifest); err != nil {
+			return err
+		}
 	}
 	if err := applyKindSmokeConfig(); err != nil {
 		return err
 	}
-	for _, deployment := range []string{"buildmax-smoke-llm", "buildmax-smoke-oidc", "buildmax-server", "buildmax-portal"} {
+	for _, deployment := range kindUpDeployments {
 		if err := kindKubectl("rollout", "restart", "deployment/"+deployment, "-n", "buildmax"); err != nil {
 			return err
 		}
 	}
-	for _, deployment := range []string{"buildmax-smoke-llm", "buildmax-smoke-oidc", "buildmax-server", "buildmax-portal"} {
+	for _, deployment := range kindUpDeployments {
 		if err := kindKubectl("rollout", "status", "deployment/"+deployment, "-n", "buildmax", "--timeout=180s"); err != nil {
 			return err
 		}
@@ -429,6 +431,10 @@ func kindUp() error {
 	}
 	return nil
 }
+
+// kindUpDeployments is every Deployment `kind up` restarts and waits for, so
+// each picks up the images it just loaded under their fixed :local tags.
+var kindUpDeployments = []string{"buildmax-smoke-llm", "buildmax-smoke-oidc", "buildmax-smoke-telegram", "buildmax-server", "buildmax-portal"}
 
 func kindSmoke() error {
 	if err := requireCommands("kubectl"); err != nil {

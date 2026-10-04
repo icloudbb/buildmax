@@ -1185,8 +1185,17 @@ func (d *restoreDrill) restoreServer(b restoreDrillBackup) error {
 	if err != nil {
 		return err
 	}
-	if problems := recoveryConfigProblems(string(serverYAML)); len(problems) > 0 {
+	// The kind config carries the mock system bot's token, so the drill
+	// withholds it as the runbook tells an operator to, then checks the result.
+	recoveryYAML, err := withoutTelegramToken(string(serverYAML))
+	if err != nil {
+		return err
+	}
+	if problems := recoveryConfigProblems(recoveryYAML); len(problems) > 0 {
 		return fmt.Errorf("refusing to start a recovery server: %s", strings.Join(problems, "; "))
+	}
+	if err := os.WriteFile(d.path("server.recovery.yaml"), []byte(recoveryYAML), 0o600); err != nil {
+		return err
 	}
 	if err := ensureKindNamespace("buildmax"); err != nil {
 		return err
@@ -1196,7 +1205,7 @@ func (d *restoreDrill) restoreServer(b restoreDrillBackup) error {
 	}
 	for _, create := range [][]string{
 		{"secret", "generic", "buildmax-kek", "--from-file=kek.json=" + d.path("kek.json")},
-		{"configmap", "buildmax-config", "--from-file=server.yaml=" + d.path("server.yaml")},
+		{"configmap", "buildmax-config", "--from-file=server.yaml=" + d.path("server.recovery.yaml")},
 	} {
 		args := append(append([]string{"create"}, create...), "-n", "buildmax", "--dry-run=client", "-o", "yaml")
 		manifest, err := captureKindKubectl(args...)
@@ -1266,6 +1275,46 @@ func recoveryConfigProblems(serverYAML string) []string {
 		problems = append(problems, config.EnvKeyBuildmaxTelegramBotToken+" is set; withhold it from a recovery environment")
 	}
 	return problems
+}
+
+// withoutTelegramToken returns serverYAML with channels.telegram.bot_token
+// removed and everything else kept.
+func withoutTelegramToken(serverYAML string) (string, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(serverYAML), &doc); err != nil {
+		return "", fmt.Errorf("server.yaml does not parse: %w", err)
+	}
+	if len(doc.Content) == 0 {
+		return serverYAML, nil
+	}
+	telegram := yamlMappingValue(yamlMappingValue(doc.Content[0], "channels"), "telegram")
+	if telegram == nil {
+		return serverYAML, nil
+	}
+	for i := 0; i+1 < len(telegram.Content); i += 2 {
+		if telegram.Content[i].Value == "bot_token" {
+			telegram.Content = append(telegram.Content[:i], telegram.Content[i+2:]...)
+			break
+		}
+	}
+	out, err := yaml.Marshal(&doc)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+// yamlMappingValue is the value under key in a YAML mapping node, or nil.
+func yamlMappingValue(node *yaml.Node, key string) *yaml.Node {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i+1]
+		}
+	}
+	return nil
 }
 
 // withoutManifestDocument drops the one document of the given kind and name

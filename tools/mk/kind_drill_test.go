@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestDiffFingerprints(t *testing.T) {
@@ -164,5 +166,40 @@ func TestRecoveryConfigProblems(t *testing.T) {
 	t.Setenv("BUILDMAX_TELEGRAM_BOT_TOKEN", "123:abc")
 	if got := recoveryConfigProblems("port: 5678\n"); len(got) != 1 {
 		t.Fatalf("an environment bot token was not refused: %v", got)
+	}
+}
+
+// The kind config names the mock system bot, so the drill restores with the
+// token withheld; what is left must still be the deployment's configuration.
+func TestRestoreDrillWithholdsTheKindBotToken(t *testing.T) {
+	t.Chdir("../..")
+	t.Setenv("BUILDMAX_TELEGRAM_BOT_TOKEN", "")
+	raw, err := os.ReadFile("deployment/smoke/server.kind.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recoveryConfigProblems(string(raw))) == 0 {
+		t.Fatal("server.kind.yaml no longer sets a bot token; this test and the drill's withholding step are stale")
+	}
+	recovery, err := withoutTelegramToken(string(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := recoveryConfigProblems(recovery); len(got) != 0 {
+		t.Fatalf("the withheld config is still refused: %v", got)
+	}
+	var before, after map[string]any
+	if err := yaml.Unmarshal(raw, &before); err != nil {
+		t.Fatal(err)
+	}
+	if err := yaml.Unmarshal([]byte(recovery), &after); err != nil {
+		t.Fatal(err)
+	}
+	delete(before["channels"].(map[string]any)["telegram"].(map[string]any), "bot_token")
+	if !reflect.DeepEqual(before, after) {
+		t.Errorf("withholding the token changed more than the token:\nbefore %v\nafter  %v", before, after)
+	}
+	if same, err := withoutTelegramToken("port: 5678\n"); err != nil || same != "port: 5678\n" {
+		t.Errorf("a config without channels = %q, %v; want it unchanged", same, err)
 	}
 }

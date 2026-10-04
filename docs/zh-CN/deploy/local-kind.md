@@ -23,7 +23,7 @@
 1. 安装 ingress-nginx、MySQL 和 MinIO——由于 MinIO 已停止发布镜像，服务端和 `mc`
    镜像来自社区 MinIO 分支 [SILO](https://silo.pgsty.com)
 2. 分别通过集群内 Job 创建 `bmstore` 存储桶并扩展 MySQL 开发权限
-3. 构建并加载服务器、Portal、确定性模拟模型和模拟 OIDC 提供方镜像
+3. 构建并加载服务器、Portal、确定性模拟模型、模拟 OIDC 提供方和模拟 Telegram Bot API 镜像
 4. 生成临时本地 Secret，应用 BuildMax 清单
 5. 等待每个 Deployment 就绪
 6. 创建真实 TaskRun，在 Kubernetes Worker Job 中执行，并通过 API 验证 Artifact
@@ -236,6 +236,26 @@ BUILDMAX_OIDC_CLIENT_SECRET=…
 ```
 
 此时冒烟测试只检查登录是否从该 IdP 开始，浏览器套件会跳过 SSO 测试，登录需要手动完成。删除这些变量后再次运行 `kind up` 即可回到模拟提供方。
+
+### 聊天应用
+
+每个 kind 栈都把聊天网关连接到与服务器一同部署的 Telegram Bot API 替身（`deployment/smoke/mock-telegram.kind.yaml`，由 `internal/testsupport/mocktelegram` 构建）。`deployment/smoke/server.kind.yaml` 给系统机器人配置令牌 `1000:smoke-system`，并把 `channels.telegram.api_base_url` 指向替身的 Service，Space Assistant 的机器人也共用这个地址。替身把任何形如 `<digits>:<secret>` 的令牌当作一个机器人接受，其 id 是那串数字、handle 是 `@smoke<digits>_bot`，因此给 Assistant 绑定机器人不需要 BotFather。
+
+没有人能在 Telegram 应用里打开这些机器人。聊天另一端的人通过入口在 Portal 源上发布的控制路由来扮演：
+
+```bash
+# 以用户 42 的身份给机器人 1000（系统机器人）发一条私聊消息
+curl -X POST http://localhost:8080/smoke-telegram/control/updates \
+  -d '{"bot_id":"1000","from_id":42,"username":"me","text":"hello"}'
+# 按时间先后读取机器人发出的消息；两个过滤条件都可省略
+curl 'http://localhost:8080/smoke-telegram/control/messages?bot_id=1000&chat_id=42'
+# 清空所有排队的更新和已发送的消息
+curl -X POST http://localhost:8080/smoke-telegram/control/reset
+```
+
+系统机器人会给未关联的发送者回复一个关联码；在 **Account → Chat accounts** 中确认后，该聊天用户就关联到当前登录的账号。`./make e2e kind` 中的 `assistant-chat.spec.ts` 走完这次关联，绑定并发布一个 Assistant，再通过这些路由读回它的回复。替身把状态保存在内存中，因此它的 pod 重启后两个列表都会清空。
+
+恢复演练会对恢复服务器隐去系统机器人的令牌，正如 [备份与恢复](backup-restore.md) 要求运维人员做的那样。
 
 ## 为什么仍保留 Compose
 

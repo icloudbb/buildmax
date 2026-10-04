@@ -255,7 +255,7 @@ export function AssistantDetail({
         {a.binding ? (
           <>
             <p className="sec__copy">
-              @{a.binding.bot_handle} on {platformName(a.binding.platform)}, bound{" "}
+              {a.binding.bot_handle} on {platformName(a.binding.platform)}, bound{" "}
               {new Date(a.binding.created_at).toLocaleDateString()}. Whoever holds its token can also read its messages
               through {platformName(a.binding.platform)}.
             </p>

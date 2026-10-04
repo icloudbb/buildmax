@@ -34,8 +34,8 @@ network plugin instead of kind's default kindnet, then:
    stopped publishing images
 2. creates the `bmstore` bucket and widens the MySQL dev grant, each from an
    in-cluster Job
-3. builds and loads the server, Portal, deterministic mock-model, and mock
-   OIDC provider images
+3. builds and loads the server, Portal, deterministic mock-model, mock OIDC
+   provider, and mock Telegram Bot API images
 4. generates an ephemeral local Secret and applies the BuildMax manifests
 5. waits for every Deployment to become ready
 6. creates a real TaskRun, executes it in a Kubernetes worker Job, and verifies
@@ -395,6 +395,40 @@ BUILDMAX_OIDC_CLIENT_SECRET=…
 The smoke then checks only that sign-in starts at that IdP, and the browser
 suite skips its SSO tests; signing in is done by hand. Remove the variables and
 run `kind up` again to return to the mock.
+
+### Chat Apps
+
+Every kind stack connects the chat gateway to a Telegram Bot API double
+deployed beside the server (`deployment/smoke/mock-telegram.kind.yaml`, built
+from `internal/testsupport/mocktelegram`). `deployment/smoke/server.kind.yaml`
+gives the system bot the token `1000:smoke-system` and points
+`channels.telegram.api_base_url` at the double's Service, which Space Assistant
+bots share. The double accepts any token of the form `<digits>:<secret>` as a
+bot whose id is the digits and whose handle is `@smoke<digits>_bot`, so binding
+an Assistant to a bot needs no BotFather.
+
+Nobody can open these bots in a Telegram app. The people on the other side of
+the chat are played through control routes the ingress publishes on the Portal
+origin:
+
+```bash
+# send bot 1000 (the system bot) a private message from user 42
+curl -X POST http://localhost:8080/smoke-telegram/control/updates \
+  -d '{"bot_id":"1000","from_id":42,"username":"me","text":"hello"}'
+# read what the bots sent, oldest first; both filters are optional
+curl 'http://localhost:8080/smoke-telegram/control/messages?bot_id=1000&chat_id=42'
+# forget every queued update and sent message
+curl -X POST http://localhost:8080/smoke-telegram/control/reset
+```
+
+The system bot answers an unlinked sender with a link code; confirming it under
+**Account → Chat accounts** links that chat user to the signed-in account.
+`assistant-chat.spec.ts` in `./make e2e kind` walks that link, binds and
+publishes an Assistant, and reads its reply back through these routes. The
+double keeps its state in memory, so a restart of its pod forgets both lists.
+
+The restore drill withholds the system bot's token from the recovery server, as
+[Backup And Restore](backup-restore.md) tells an operator to.
 
 ## Why Compose Still Exists
 
