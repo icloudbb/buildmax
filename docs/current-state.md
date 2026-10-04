@@ -14,9 +14,12 @@ proof that code is missing.
 
 BuildMax remains Alpha. Local Agent execution and the private Space execution
 path are implemented, including direct Task threads, persistent workspace
-checkpoints, managed inference, and operator administration. This is not yet
-proof of production multi-tenant readiness or of a qualified Beta candidate.
-The [Beta readiness record](deploy/beta-readiness.md) remains unqualified.
+checkpoints, managed inference, and operator administration. This is not
+proof of production multi-tenant readiness. The v0.2.0-alpha.22 candidate
+passed the private-deployment Beta qualification on DigitalOcean on 2026-10-04,
+with the waivers and accepted limits in the
+[Beta readiness record](deploy/beta-readiness.md); releases stay Alpha-versioned
+until a Beta release is cut.
 
 The supported unattended-worker profile now disables stdio MCP: a resolved
 stdio server fails a worker run during assembly, before its command runs and
@@ -548,8 +551,8 @@ Each trace is bounded by field and record caps. When an operator sets
 for runs that ended before the cutoff, clears their TaskRun pointers, and
 records a `traces.pruned` audit event. Zero remains the keep-forever default, so
 an operator who leaves it unchanged still owns capacity planning. Deletion and
-pointer clearing are retryable, but this mechanism is not evidence that a
-candidate's chosen retention and capacity policy has been exercised.
+pointer clearing are retryable. The alpha.22 qualification kept the default and
+measured about 2.1 KB of trace per run; trace pruning was not exercised there.
 
 ## Account, Space, And Extension Surfaces
 
@@ -802,11 +805,14 @@ handling and cleanup, including the liveness sweep that settles a run whose
 worker went silent — the hard-loss path the deployment cannot reproduce, since
 the kernel drops an in-container SIGKILL to PID 1 and any kubelet deletion starts
 with the SIGTERM the worker reports on. These are not equivalent to candidate
-exercises for paired restore, credential rotation, and schema upgrade.
+exercises for paired restore, credential rotation, and schema upgrade; those ran
+on the v0.2.0-alpha.22 candidate against its own DigitalOcean dependencies and
+are recorded in the [Beta readiness record](deploy/beta-readiness.md).
 
 Compose, kind, production Kubernetes manifests, release verification, SBOM,
-image scanning, and provenance workflows exist. Their presence does not fill
-the unsigned [Beta readiness record](deploy/beta-readiness.md).
+image scanning, and provenance workflows exist. Their presence is not
+qualification evidence; the signed [Beta readiness record](deploy/beta-readiness.md)
+holds that.
 
 ## Verification For This Review
 

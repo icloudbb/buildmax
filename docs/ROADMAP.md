@@ -3,7 +3,7 @@
 > **简体中文：** [阅读中文镜像](zh-CN/ROADMAP.md)
 >
 > **Audience:** users, operators, and contributors · **Status:** current — Alpha
-> **Last reviewed:** 2026-09-26
+> **Last reviewed:** 2026-10-04
 
 BuildMax is an open-source Agent runtime for local work and private Space
 deployment. CLI/TUI, Desktop, and Server/Portal use the same Go Agent Core.
@@ -11,15 +11,17 @@ You can use the local tools without deploying a Server.
 
 **The next milestone is a dependable private-deployment Beta:** an operator can
 deploy, run work, understand failures, and recover using documented procedures.
-BuildMax has not passed that gate. No Beta release date is committed here;
-release readiness depends on evidence, not the number of features implemented.
+The v0.2.0-alpha.22 candidate passed that gate on 2026-10-04, with the waivers
+and accepted limits in the [Beta readiness record](deploy/beta-readiness.md).
+Releases stay Alpha-versioned until a Beta release is cut; no date is committed
+here, and readiness depends on evidence, not the number of features implemented.
 
 ## At A Glance
 
 | Horizon | User outcome | Current position |
 |---|---|---|
 | Available in Alpha | Run Agents locally or in a private Space, with managed models, background and scheduled work, shared results, and diagnostic traces. | Implemented capabilities have different limits; see the [current-state assessment](current-state.md) and [user manual](../manual/introduction.md). |
-| Next: private-deployment Beta | Trust the worker boundary, supported Server topology, persistence, and recovery procedures. | The worker boundary contract (R0) and durable-state correctness (R1) are closed and evidenced, R1 including a deployed cross-replica coordination exercise; long-running recovery (R2) and candidate operating evidence for one immutable deployment (R3) remain open. |
+| Next: private-deployment Beta | Trust the worker boundary, supported Server topology, persistence, and recovery procedures. | R0 through R3 are closed: on 2026-10-04 the v0.2.0-alpha.22 candidate passed the Beta qualification on DigitalOcean, with its evidence published on the release. A Beta release has not been cut. |
 | Later: evidence-led expansion | Richer Workflows, integrations, and local experiences that solve demonstrated user problems. | Candidate directions, not release commitments. |
 
 This roadmap owns priority, sequencing, and release gates. Implementation
@@ -32,10 +34,9 @@ historical capability groupings; the R0–R5 order below governs current work.
 
 ## Active Priority Order
 
-R0 closed the supported worker contract and R1 closed durable state correctness.
-R2 closes the remaining release-blocking engineering gap: bounding long-running
-operation and recovery. R3 then qualifies one immutable candidate through the
-documented operator journey.
+R0 closed the supported worker contract, R1 durable state correctness, and R2
+long-running operation and recovery. R3 qualified one immutable candidate,
+v0.2.0-alpha.22, through the documented operator journey on 2026-10-04.
 R4–R5 are post-Beta, evidence-led work rather than prerequisites hidden inside
 the release path. These are priorities, not claims that someone is currently
 assigned to every item.
@@ -111,7 +112,7 @@ Design: [Server coordination](design/server-coordination.md) and
 
 ### R2. Bound Long-Running Operation And Recovery
 
-**Status:** in-progress
+**Status:** done
 
 **Test infrastructure implemented; lifecycle evidence remains.** The MySQL
 scope runs on pull requests and covers critical authorization, TaskRun state,
@@ -151,13 +152,15 @@ and object digests, with a measured recovery time. A kind rehearsal is not
 candidate evidence. Release preparation dispatches a Compose upgrade drill that
 rehearses the predecessor image's upgrade to the candidate. It then starts the
 old image against the upgraded database and recovers by restoring the
-pre-upgrade backup. That is a rehearsal too, not candidate evidence. No
-candidate has yet proved paired restore, its upgrade, or credential rotation.
+pre-upgrade backup. That is a rehearsal too, not candidate evidence. The
+v0.2.0-alpha.22 candidate then proved paired restore, its upgrade, and
+credential rotation on its own DigitalOcean dependencies (R3).
 
-**Next:** the remaining lifecycle evidence — paired database-and-bucket
-restore on the candidate's own dependencies, the upgrade from the predecessor
-binary, and credential rotation on the candidate — several of which land as the
-R3 operator journey. Real-MySQL coverage for
+**Closed by the alpha.22 qualification:** paired database-and-bucket restore on
+the candidate's own dependencies, the upgrade from the predecessor binary, and
+credential rotation on the candidate. Trace storage is capacity-planned from the
+measured growth; disk and bucket monitoring is waived for the first Beta.
+Real-MySQL coverage for
 [quota windows](https://github.com/icloudbb/buildmax/issues/498) and cross-Space
 store scoping, and the deployed worker-loss, database-outage,
 object-storage-readiness outage/recovery, and worker object-storage write-denial
@@ -175,9 +178,9 @@ Design: [verification program](design/verification-program.md) and
 
 ### R3. Qualify One Private-Deployment Candidate
 
-**Status:** candidate-proof-remains
+**Status:** done
 
-**Candidate profile defined; a first exercise is recorded, not signed.** Account bootstrap,
+**Qualified: v0.2.0-alpha.22 passed on 2026-10-04.** Account bootstrap,
 login-code recovery, Space membership, managed models, direct and Issue-linked
 Tasks, graph Workflows with human requests and retry/timeout policy, Schedules,
 Secrets, the supported Plugin profile,
@@ -191,12 +194,13 @@ A 2026-10-02 exercise on DigitalOcean began on v0.2.0-alpha.18; the defects it
 found were fixed through v0.2.0-alpha.21. A full rerun on v0.2.0-alpha.22 on
 2026-10-03 exercised every gate on that one release, including a 24-hour
 operating window that closed on 2026-10-04, and found no product defect and no
-failed item. The project owner waived the non-author operator journey and
-database password rotation.
+failed item. The project owner waived the non-author operator journey,
+database password rotation, and disk and bucket monitoring, accepted the
+remaining partial rows as limits, and signed the decision on 2026-10-04; the
+redacted evidence bundle is published on the release.
 
-**Next:** add disk and bucket monitoring for keep-forever retention, publish
-the evidence where the release space can read it, and resolve the partial rows
-in the [Beta readiness record](deploy/beta-readiness.md).
+**Next:** cut a Beta release when the project owner chooses; the waived
+monitoring stays open for the first Beta.
 Fix only gaps that the journey demonstrates. A 2026-09-28 operator drill showed the diagnosis
 journey could not detect stalled or failing work from Administration; runtime
 operations metadata

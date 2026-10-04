@@ -1,9 +1,9 @@
 # Beta 就绪记录
 
 > **翻译说明：** 本文是[英文原文](../../deploy/beta-readiness.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
-> **受众：** 运维人员和发布负责人 · **状态：** 当前——尚未通过资格验证
+> **受众：** 运维人员和发布负责人 · **状态：** 当前——已通过资格验证（v0.2.0-alpha.22）
 
-BuildMax **尚未通过 Beta 门槛**。本文定义首次私有部署 Beta 的受支持配置、用于验证同一不可变候选版本的流程，以及发布决策所需的证据记录。自动化测试只能证明候选版本已经可以开始演练；只有使用拟发布的同一组不可变产物生成的结果，才算资格验证证据。
+v0.2.0-alpha.22 候选版本已于 2026-10-04 **通过 Beta 门槛**；决策、豁免和签署见文末。本文定义首次私有部署 Beta 的受支持配置、用于验证同一不可变候选版本的流程，以及发布决策所需的证据记录。自动化测试只能证明候选版本已经可以开始演练；只有使用拟发布的同一组不可变产物生成的结果，才算资格验证证据。
 
 首次 Beta 是对一个有边界的部署配置作出的承诺，而不是对每项已实现功能的承诺。下列核心配置项目会阻塞发布；本地表面保留各自的发布回归门槛。Experimental 配置可以与候选版本一起发布，但不会继承 Beta 承诺；按本文记录为关闭时，也不会阻塞 Beta。
 
@@ -68,21 +68,24 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 | Trace、audit、Artifact 和 checkpoint 保留策略 | 审计和 trace 永久保留；已删除 Artifact 的字节由每小时清理回收；checkpoint 孤儿每小时清理；已完成的 Worker Job 1 小时后删除 |
 | 预期用户数、Space 数和并发 Run 数 | 21 个账号，14 个共享 Space 加个人 Space，一分钟内最多启动 6 个 Worker Job |
 | 目标 RPO 和 RTO | RPO：最近一次 `mysqldump --single-transaction` 快照；RTO：15 分钟内得到校验和一致的第一个 Artifact（实测 632 秒）。项目负责人于 2026-10-04 将目标从 10 分钟放宽：恢复时间随 bucket 规模增长（alpha.18 上 1522 个对象用 237 秒，alpha.22 上 8416 个对象用 632 秒），且演练是从操作人员的机器复制对象，而不是在云厂商内部复制 |
-| 已脱敏的配置快照 | 渲染后的 `server.yaml` 随本地证据包归档；模板为 `deployment/ocean/buildmax.yaml.tmpl` |
+| 已脱敏的配置快照 | 渲染后的 `server.yaml` 收录在已发布的证据包中（`evidence/q0/server.yaml`）；模板为 `deployment/ocean/buildmax.yaml.tmpl` |
 | 起始 schema/commit 及受支持的升级或全新安装路径 | 在 alpha.18 全新安装的部署上，从 alpha.21 原地升级（无 schema 变更）；全新安装由空库配对恢复和从 alpha.16 经真实 schema 变更的升级演练覆盖 |
 
 ## 已接受的限制
 
 记录运维人员和参与者已接受以下全部限制：
 
-- [ ] 部署不直接暴露给不可信公共网络。
-- [ ] 官方 Worker 镜像选择并探测严格 OS sandbox 基线；候选版本证明 Bash 受约束。受支持的 Worker 配置会禁用 stdio MCP，除非其子进程受声明边界约束。原生 Worker Pod 按文档使用 root、`SYS_ADMIN`、`NET_ADMIN` 以及 seccomp/AppArmor 配置，`bwrap` 会在 Bash 运行前丢弃所有 capability；本次 Beta 不要求 gVisor 等外层 runtime。
-- [ ] Sandbox 将 Bash 的写入限制在 Run workspace 内，但不限制读取：Bash 可以读取 Pod 的只读文件系统，包括挂载的 server 配置，因此该配置不得包含任何凭证。Bash 不继承 Worker 自身的环境，而且 Worker 会把自身标记为不可转储，因此重新绑定的容器 `/proc` 也不会通过 `/proc/<pid>/environ` 暴露它。保留的 `BUILDMAX_*` 环境变量名不能作为 Secret 授权目标。
-- [ ] 一般 Worker 出站没有强制 Pod 级目标 allow-list：Worker 进程自身需要访问对象存储和 Server。除 `open` 外的任一网络档位下，Bash 都运行在独立的网络命名空间中，唯一出口是强制执行该档位的沙箱代理；`open` 档下与 Pod 共享网络。Worker 端口 `NetworkPolicy` 限制控制通道入站，但不限制出站流量。
-- [ ] Worker 可以获得存储凭证或投射的存储身份，因为它直接读写运行状态和 Artifact。
-- [ ] Hook 按文档 fail open；Worker 配置会禁用不受支持的可执行 Plugin 和 stdio MCP 内容，而不是宣称它们受到约束。
-- [ ] SSO、multi-region、丢失 Run 自动重新派发、binary rollback 和以上 Experimental 配置不属于此次 Beta。
-- [ ] HTTP 和配置兼容性仍采用 Alpha 合同；回退意味着使用匹配的二进制恢复升级前配对备份的数据库和 bucket。
+- [x] 部署不直接暴露给不可信公共网络。
+- [x] 官方 Worker 镜像选择并探测严格 OS sandbox 基线；候选版本证明 Bash 受约束。受支持的 Worker 配置会禁用 stdio MCP，除非其子进程受声明边界约束。原生 Worker Pod 按文档使用 root、`SYS_ADMIN`、`NET_ADMIN` 以及 seccomp/AppArmor 配置，`bwrap` 会在 Bash 运行前丢弃所有 capability；本次 Beta 不要求 gVisor 等外层 runtime。
+- [x] Sandbox 将 Bash 的写入限制在 Run workspace 内，但不限制读取：Bash 可以读取 Pod 的只读文件系统，包括挂载的 server 配置，因此该配置不得包含任何凭证。Bash 不继承 Worker 自身的环境，而且 Worker 会把自身标记为不可转储，因此重新绑定的容器 `/proc` 也不会通过 `/proc/<pid>/environ` 暴露它。保留的 `BUILDMAX_*` 环境变量名不能作为 Secret 授权目标。
+- [x] 一般 Worker 出站没有强制 Pod 级目标 allow-list：Worker 进程自身需要访问对象存储和 Server。除 `open` 外的任一网络档位下，Bash 都运行在独立的网络命名空间中，唯一出口是强制执行该档位的沙箱代理；`open` 档下与 Pod 共享网络。Worker 端口 `NetworkPolicy` 限制控制通道入站，但不限制出站流量。
+- [x] Worker 可以获得存储凭证或投射的存储身份，因为它直接读写运行状态和 Artifact。在 Kubernetes 上，这些凭证和运行令牌一样以明文值写在 Job spec 中，因此任何能读取该命名空间中 Job 或 Pod 的身份都能读到它们。
+- [x] Hook 按文档 fail open；Worker 配置会禁用不受支持的可执行 Plugin 和 stdio MCP 内容，而不是宣称它们受到约束。
+- [x] SSO、multi-region、丢失 Run 自动重新派发、binary rollback 和以上 Experimental 配置不属于此次 Beta。
+- [x] HTTP 和配置兼容性仍采用 Alpha 合同；回退意味着使用匹配的二进制恢复升级前配对备份的数据库和 bucket。
+- [x] 未能证明运行令牌在运行被认领之前会被拒绝：调度器几秒内就会认领，这一窗口无法隔离。该令牌只对应一个运行，运行结束后即被拒绝。
+- [x] 被 SIGKILL 的 Worker Job 会向 Kubernetes 报告成功，因为 Worker 的退出码表示派发结果，而不是运行结果；以结算为 `worker_lost` 的 TaskRun 记录为准。
+- [x] 此次资格验证没有运行打包后的 Desktop 启动和 Desktop UI 套件；Desktop 属于发布回归配置，由候选版本的 CI 和打包构建覆盖。
 
 ## Q0. 范围与预检
 
@@ -178,45 +181,46 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 
 每个旅程或演练添加一行。如果真正证明是 Pod 日志、恢复后标识符、checksum 或截图，仅有 CI 摘要页面不够。
 
-下表记录 v0.2.0-alpha.22 的演练。其证据（逐项结果、探针脚本、日志和渲染后的配置）是一个本地证据包，其中包含该部署的主机名、白名单地址和测试账号；它尚未发布到发布 Space 可读的位置，而这是资格验证之前本记录要求的。运行中有若干探针需要修正；证据包逐一列出，没有一处掩盖产品缺陷。
+下表记录 v0.2.0-alpha.22 的演练。其证据（逐项结果、采集的 JSON、渲染后的配置和探针脚本）已作为 [beta-qualification-v0.2.0-alpha.22.tar.gz](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) 发布在该版本的 Release 上，旁边附有 SHA-256 文件。主机名、地址、运维账号和凭证均已脱敏，不包含运行日志。运行中有若干探针需要修正；证据包逐一列出，没有一处掩盖产品缺陷。
 
 | Gate 或演练 | 结果 | 证据 URL 或产物 | 说明和后续事项 |
 |---|---|---|---|
-| Q0 候选范围、配置与供应链 | 通过 | 本地证据包 | 每个 Pod 都运行固定的镜像摘要；用 `gh attestation verify` 验证来源证明；`fe0f2b63` 上的 Trivy 扫描、SBOM，以及 CI、Windows、CodeQL、冒烟和发布流程全部成功。 |
-| Q1 身份、授权与治理 | 通过 | 本地证据包 | 注册、会话、角色、跨 Space 拒绝、停用、移除成员、所有者恢复、配额拒绝。 |
-| Q2 核心产品旅程 | 通过 | 本地证据包 | 真实模型的会话、Task、Continue、Retry、取消、AskUser、Issue、带人工请求和策略终态的图 Workflow、跨 Server 滚动和数据库中断的 Schedule、Secret、Plugin、webhook。三个仅适用于 kind 的探针不适用；其真实模型对应项均通过。 |
-| Q3 执行与 Secret 边界 | 通过，一项部分通过 | 本地证据包 | Bash 不持有任何 capability，读不到 Worker 凭证，即使去掉代理变量网络档位仍然生效；Worker 无法访问 MySQL。部分通过：认领前的运行令牌无法隔离，因为调度器几秒内就会认领。 |
-| Q4 持久化与分布式正确性 | 通过 | 本地证据包 | 跨副本流式输出和回合串行化、Redis 重启、与 Redis 断开的租约持有者被 409 拒绝、并发 Continue/Retry/取消、运行期间滚动两个副本。 |
-| 执行中取消和 Worker 优雅丢失 | 通过 | 本地证据包 | 在宽限期内取消且保留输出和 Artifact；收到 SIGTERM 的 Worker 报告 `interrupted`，没有隐藏重试。 |
-| Worker 硬丢失和显式 Retry | 通过 | 本地证据包 | 从节点发出的 SIGKILL 136 秒后结算为 `worker_lost`；显式重试在新 Job 中运行。被杀的 Job 显示成功，因为 Worker 的退出码表示派发结果，而不是运行结果。 |
-| MySQL、Redis 和对象存储故障 | 通过 | 本地证据包 | 数据库中断后 Schedule 只合并补跑一次；Redis 中断时会话回合返回 503；无法访问存储的 Worker 以 `infrastructure` 失败该运行；存储中断时 Artifact 下载 20 秒返回 503，恢复后内容不变。 |
-| Provider 故障 | 通过 | 本地证据包 | 401、429、503、慢响应和不可达 provider：运行与托管调用的分类和日志一致；没有泄漏凭证。 |
-| 数据库与 bucket 配对恢复 | 通过 | 本地证据包 | 恢复点之前全部 7649 条行都在，`storage verify --checksums` 干净，恢复后的凭证和 checkpoint 可用。RTO 632 秒，在 15 分钟目标之内；演练从操作人员的机器经 port-forward 复制 8416 个对象。 |
-| 声明的 schema 路径与配对恢复回退 | 通过 | 本地证据包 | alpha.21 原地升级到 alpha.22；alpha.16 经真实 schema 变更升级到 alpha.22；alpha.16 拒绝更新后的 schema；通过配对恢复回退。 |
-| Credential 和 Worker TLS 轮换 | 通过；一项豁免 | 本地证据包 | JWT、Worker 证书与 CA、KEK 及 rewrap、Spaces 密钥、模型密钥双向轮换，退役的密钥上没有任何调用。数据库密码轮换见下方豁免。 |
-| Retention 和 capacity | 部分通过 | 本地证据包 | 已演练 Artifact 清除和审计裁剪；审计和 trace 永久保留。24 小时窗口内（包含全部资格验证探针），数据库从 9.50 MB 增至 11.16 MB，bucket 前缀从 5.87 MB 增至 8.18 MB，trace 增加 372 个对象（0.79 MB）；10 GiB 的数据库磁盘足以支撑数年。部分通过是因为没有配置磁盘和 bucket 监控，而永久保留要求有监控。 |
-| 24 小时运行窗口 | 通过 | 本地证据包 | 2026-10-03T02:46Z 至 2026-10-04T02:46Z：216 次定时触发全部按时执行并成功，没有滞留工作，期间经历了本次演练的全部操作：Server 滚动、为凭证轮换执行的五次部署、Redis、数据库和存储中断，以及恢复演练。 |
-| 非作者 operator 旅程 | 豁免 | 本地证据包 | 见下方豁免。 |
-| 真实模型产品 evaluation | 通过 | 本地证据包 | 在候选提交上用 GPT-5.6 Luna 运行 `./make eval`：12 个计分试验全部通过，95% CI 76–100%，0 个未计分。这是小型套件，不是基准分数。 |
-| 本地和 Desktop 发布回归 | 部分通过 | 本地证据包 | 候选版本 CI 覆盖 CLI/TUI、provider 合约测试和 Desktop UI 构建；打包后的 Desktop 启动和 Desktop UI 套件需要原生窗口，未运行。 |
+| Q0 候选范围、配置与供应链 | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 每个 Pod 都运行固定的镜像摘要；用 `gh attestation verify` 验证来源证明；`fe0f2b63` 上的 Trivy 扫描、SBOM，以及 CI、Windows、CodeQL、冒烟和发布流程全部成功。 |
+| Q1 身份、授权与治理 | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 注册、会话、角色、跨 Space 拒绝、停用、移除成员、所有者恢复、配额拒绝。 |
+| Q2 核心产品旅程 | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 真实模型的会话、Task、Continue、Retry、取消、AskUser、Issue、带人工请求和策略终态的图 Workflow、跨 Server 滚动和数据库中断的 Schedule、Secret、Plugin、webhook。三个仅适用于 kind 的探针不适用；其真实模型对应项均通过。 |
+| Q3 执行与 Secret 边界 | 通过；一项已接受的限制 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | Bash 不持有任何 capability，读不到 Worker 凭证，即使去掉代理变量网络档位仍然生效；Worker 无法访问 MySQL。部分通过：认领前的运行令牌无法隔离，因为调度器几秒内就会认领。 |
+| Q4 持久化与分布式正确性 | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 跨副本流式输出和回合串行化、Redis 重启、与 Redis 断开的租约持有者被 409 拒绝、并发 Continue/Retry/取消、运行期间滚动两个副本。 |
+| 执行中取消和 Worker 优雅丢失 | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 在宽限期内取消且保留输出和 Artifact；收到 SIGTERM 的 Worker 报告 `interrupted`，没有隐藏重试。 |
+| Worker 硬丢失和显式 Retry | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 从节点发出的 SIGKILL 136 秒后结算为 `worker_lost`；显式重试在新 Job 中运行。被杀的 Job 显示成功，因为 Worker 的退出码表示派发结果，而不是运行结果。 |
+| MySQL、Redis 和对象存储故障 | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 数据库中断后 Schedule 只合并补跑一次；Redis 中断时会话回合返回 503；无法访问存储的 Worker 以 `infrastructure` 失败该运行；存储中断时 Artifact 下载 20 秒返回 503，恢复后内容不变。 |
+| Provider 故障 | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 401、429、503、慢响应和不可达 provider：运行与托管调用的分类和日志一致；没有泄漏凭证。 |
+| 数据库与 bucket 配对恢复 | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 恢复点之前全部 7649 条行都在，`storage verify --checksums` 干净，恢复后的凭证和 checkpoint 可用。RTO 632 秒，在 15 分钟目标之内；演练从操作人员的机器经 port-forward 复制 8416 个对象。 |
+| 声明的 schema 路径与配对恢复回退 | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | alpha.21 原地升级到 alpha.22；alpha.16 经真实 schema 变更升级到 alpha.22；alpha.16 拒绝更新后的 schema；通过配对恢复回退。 |
+| Credential 和 Worker TLS 轮换 | 通过；一项豁免 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | JWT、Worker 证书与 CA、KEK 及 rewrap、Spaces 密钥、模型密钥双向轮换，退役的密钥上没有任何调用。数据库密码轮换见下方豁免。 |
+| Retention 和 capacity | 部分通过；已豁免 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 已演练 Artifact 清除和审计裁剪；审计和 trace 永久保留。24 小时窗口内（包含全部资格验证探针），数据库从 9.50 MB 增至 11.16 MB，bucket 前缀从 5.87 MB 增至 8.18 MB，trace 增加 372 个对象（0.79 MB）；10 GiB 的数据库磁盘足以支撑数年。部分通过是因为没有配置磁盘和 bucket 监控，而永久保留要求有监控。 |
+| 24 小时运行窗口 | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 2026-10-03T02:46Z 至 2026-10-04T02:46Z：216 次定时触发全部按时执行并成功，没有滞留工作，期间经历了本次演练的全部操作：Server 滚动、为凭证轮换执行的五次部署、Redis、数据库和存储中断，以及恢复演练。 |
+| 非作者 operator 旅程 | 豁免 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 见下方豁免。 |
+| 真实模型产品 evaluation | 通过 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 在候选提交上用 GPT-5.6 Luna 运行 `./make eval`：12 个计分试验全部通过，95% CI 76–100%，0 个未计分。这是小型套件，不是基准分数。 |
+| 本地和 Desktop 发布回归 | 部分通过；已接受的限制 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 候选版本 CI 覆盖 CLI/TUI、provider 合约测试和 Desktop UI 构建；打包后的 Desktop 启动和 Desktop UI 套件需要原生窗口，未运行。 |
 
 ## 决策
 
-当前决策：**尚未达到 BETA 就绪条件**。
+当前决策：**已通过 BETA 资格验证**——v0.2.0-alpha.22（`fe0f2b63`），由项目负责人于 2026-10-04 签署。
 
-v0.2.0-alpha.22 的演练没有发现产品缺陷，也没有失败的条目。签署之前，保留策略需要配置磁盘和 bucket 监控，证据必须发布到发布 Space 可读的位置，上表中其余部分通过的条目必须通过或作为限制被接受。
+v0.2.0-alpha.22 的演练没有发现产品缺陷，也没有失败的条目。每个核心 Gate 都已通过，或由下方的豁免、上文的已接受限制覆盖。BuildMax 只有一位维护者：旅程由实现者 Agent 使用探针脚本执行，项目负责人兼任下表三个角色。在切出 Beta 版本之前，发布版本号仍沿用 Alpha。
 
 资格验证要求所有核心 Gate 通过，不得存在 authorization escape、无法解释的数据损失、stranded durable work、数据库 pointer 指向缺失对象，或未解决的 critical/high security finding。任何 waiver 都必须指出未满足行为、用户影响、补偿性 operator control、owner 和到期时间；它是明确的发布决策，而不是暗示通过。
 
-项目负责人于 2026-10-02 记录、并沿用到 alpha.22 演练的豁免：
+项目负责人于 2026-10-02 记录、并沿用到 alpha.22 演练的豁免，以及 2026-10-04 新增的监控豁免：
 
 | 未满足的行为 | 用户影响 | 补偿控制 | 负责人 | 到期 |
 |---|---|---|---|---|
 | 未演练数据库密码轮换 | 轮换流程若有错误，会在真实轮换时才暴露 | [DigitalOcean](digitalocean.md) 中记录了流程；托管数据库只能从集群访问 | @gougoujiang | 本候选版本 |
 | 没有独立运维人员完成旅程 | 新运维人员会遇到的文档缺口没有被衡量 | 每个旅程都使用探针脚本按文档化的接口执行 | @gougoujiang | 本候选版本 |
+| 永久保留的审计和 trace 没有磁盘和 bucket 监控 | 存储可能在没有预警的情况下写满 | 资格验证负载下实测增长（数据库每天 +1.65 MB，bucket 每天 +2.30 MB）使 10 GiB 数据库磁盘足以支撑数年；`audit.retention_days` 和 `trace.retention_days` 可随时开启清理 | @gougoujiang | 首个 Beta 期间 |
 
 | 角色 | 姓名 | 日期 | 决策或 waiver 链接 |
 |---|---|---|---|
-| Qualification operator | 未签署 | — | — |
-| Engineering owner | 未签署 | — | — |
-| Release owner | 未签署 | — | — |
+| Qualification operator | @gougoujiang（旅程由实现者 Agent 执行） | 2026-10-04 | [证据包](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) |
+| Engineering owner | @gougoujiang | 2026-10-04 | 见上方豁免 |
+| Release owner | @gougoujiang | 2026-10-04 | 见上方豁免 |

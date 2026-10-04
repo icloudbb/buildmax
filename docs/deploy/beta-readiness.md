@@ -1,9 +1,10 @@
 # Beta Readiness Record
 
 > **简体中文：** [阅读中文镜像](../zh-CN/deploy/beta-readiness.md)
-> **Audience:** operators and release managers · **Status:** current — not qualified
+> **Audience:** operators and release managers · **Status:** current — qualified (v0.2.0-alpha.22)
 
-BuildMax has **not passed the Beta gate**. This document defines the supported
+The v0.2.0-alpha.22 candidate **passed the Beta gate** on 2026-10-04; the
+decision, waivers, and signatures are at the end. This document defines the supported
 profile for the first private-deployment Beta, the procedure that qualifies one
 immutable candidate for that profile, and the evidence record for the decision.
 Automated tests show that a candidate is ready to exercise; only results
@@ -109,43 +110,54 @@ artifacts recorded here.
 | Trace, audit, Artifact, and checkpoint retention | Audit and traces kept indefinitely; deleted Artifact bytes reclaimed on the hourly sweep; checkpoint orphan sweep hourly; finished worker Jobs removed after 1h |
 | Expected users, Spaces, and concurrent runs | 21 accounts, 14 shared Spaces plus personal Spaces, up to 6 worker Jobs started in one minute |
 | Target RPO and RTO | RPO: the last `mysqldump --single-transaction` snapshot; RTO: 15 minutes to the first Artifact with a matching checksum (measured 632s). The project owner raised the target from 10 minutes on 2026-10-04: the time grows with the bucket (237s for 1522 objects on alpha.18, 632s for 8416 on alpha.22), and the drill copies objects from the operator's machine rather than within the provider |
-| Configuration snapshot, with secrets redacted | Rendered `server.yaml` archived with the local evidence bundle; template `deployment/ocean/buildmax.yaml.tmpl` |
+| Configuration snapshot, with secrets redacted | Rendered `server.yaml` in the published evidence bundle (`evidence/q0/server.yaml`); template `deployment/ocean/buildmax.yaml.tmpl` |
 | Starting schema/commit and supported upgrade or clean-install path | In-place upgrade from alpha.21 (no schema change) on the deployment clean-installed on alpha.18; clean install covered by the paired restore into an empty database and an upgrade drill from alpha.16 through a real schema change |
 
 ## Accepted Limits
 
 Record that the operator and participants accepted all of these limits:
 
-- [ ] The deployment is not exposed directly to an untrusted public network.
-- [ ] Official worker images select and probe the strict OS sandbox baseline;
+- [x] The deployment is not exposed directly to an untrusted public network.
+- [x] Official worker images select and probe the strict OS sandbox baseline;
   the candidate demonstrates confined Bash. Stdio MCP is disabled in the
   supported worker profile unless its child process is confined by that
   declared boundary. The native worker pod uses root plus `SYS_ADMIN` and
   `NET_ADMIN` with the documented seccomp/AppArmor profile, and `bwrap` drops
   every capability before Bash runs; an outer runtime such as gVisor is not
   required for this Beta.
-- [ ] The sandbox confines Bash writes to the run workspace, not its reads: Bash
+- [x] The sandbox confines Bash writes to the run workspace, not its reads: Bash
   can read the pod's read-only filesystem, including the mounted server
   configuration, which must therefore hold no credentials. Bash does not inherit
   the worker's own environment, and the worker marks itself non-dumpable, so the
   re-bound container `/proc` does not expose it through `/proc/<pid>/environ`
   either. Reserved `BUILDMAX_*` environment names cannot be Secret-grant targets.
-- [ ] General worker egress has no enforced Pod-level destination allow-list: the
+- [x] General worker egress has no enforced Pod-level destination allow-list: the
   worker process itself reaches object storage and the Server. Bash under any
   network tier but `open` runs in a network namespace of its own whose only way
   out is the sandbox proxy, which enforces the tier; under `open` it shares the
   pod's network. The worker-port `NetworkPolicy` restricts control-channel
   ingress; it does not restrict outbound traffic.
-- [ ] Storage credentials or projected storage identity are available to the
-  worker because it reads and writes run state and Artifacts directly.
-- [ ] Hooks fail open as documented, and the worker profile disables
+- [x] Storage credentials or projected storage identity are available to the
+  worker because it reads and writes run state and Artifacts directly. On
+  Kubernetes they reach the worker, like the run token, as plain values in the
+  Job spec, so anyone who can read Jobs or Pods in the namespace can read them.
+- [x] Hooks fail open as documented, and the worker profile disables
   unsupported executable Plugin and stdio MCP content rather than claiming it
   is confined.
-- [ ] SSO, multi-region operation, automatic re-dispatch of lost runs, binary
+- [x] SSO, multi-region operation, automatic re-dispatch of lost runs, binary
   rollback, and the experimental profiles above are not part of this Beta.
-- [ ] HTTP and configuration compatibility remain Alpha contracts; rollback
+- [x] HTTP and configuration compatibility remain Alpha contracts; rollback
   means restoring the paired pre-upgrade database and bucket with matching
   binaries.
+- [x] A run token was not shown to be refused before its run is claimed: the
+  scheduler claims within seconds, so that window could not be isolated. The
+  token names one run and is refused once the run ends.
+- [x] A worker Job killed with SIGKILL reports success to Kubernetes, because
+  the worker's exit code reports dispatch rather than the run; the TaskRun
+  record, settled `worker_lost`, is authoritative.
+- [x] The packaged Desktop launch and the Desktop UI suite were not run in this
+  qualification; Desktop is a release-regression profile covered by the
+  candidate's CI and package builds.
 
 ## Q0. Scope And Preflight
 
@@ -367,40 +379,44 @@ Add one row per journey or drill. A CI summary page is not enough when pod logs,
 restored identifiers, checksums, or screenshots are the actual proof.
 
 The rows below record the v0.2.0-alpha.22 exercise. Its evidence (per-item
-results, probe scripts, logs, and rendered configuration) is a local bundle that
-names the deployment's hosts, allow-listed address, and test accounts; it is not
-yet published where the release space can read it, which this record requires
-before qualification. Several probes needed fixing during the run; the bundle
-lists each one, and none of them hid a product defect.
+results, captured JSON, rendered configuration, and the probe scripts) is
+published on the release as
+[beta-qualification-v0.2.0-alpha.22.tar.gz](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz),
+with a SHA-256 file beside it. Hostnames, addresses, the operator account, and
+credentials are redacted, and run logs are not included. Several probes needed
+fixing during the run; the bundle lists each one, and none of them hid a
+product defect.
 
 | Gate or exercise | Result | Evidence URL or artifact | Notes and follow-up |
 |---|---|---|---|
-| Q0 candidate scope, configuration, and supply chain | Passed | Local evidence bundle | Pinned digests ran in every pod; provenance verified with `gh attestation verify`; Trivy scans, SBOMs, and CI, Windows, CodeQL, smoke, and release runs on `fe0f2b63` all succeeded. |
-| Q1 identity, authorization, and governance | Passed | Local evidence bundle | Signup, sessions, roles, cross-Space refusal, disable, member removal, owner recovery, quota refusal. |
-| Q2 core product journeys | Passed | Local evidence bundle | Real-model Conversation, Tasks, Continue, Retry, cancel, AskUser, Issues, graph Workflows with human requests and policy end states, Schedules across a Server roll and a database outage, Secrets, Plugins, webhooks. Three kind-only probes are not applicable; their real-model equivalents passed. |
-| Q3 execution and Secret boundaries | Passed, one partial | Local evidence bundle | Bash holds no capability, cannot read worker credentials, and the network tier holds without the proxy variables; a worker cannot reach MySQL. Partial: a run token before claim could not be isolated, since the scheduler claims within seconds. |
-| Q4 durable and distributed correctness | Passed | Local evidence bundle | Cross-replica streaming and turn serialization, Redis restart, a lease holder partitioned from Redis refused with 409, concurrent Continue/Retry/cancel, rolling both replicas under a run. |
-| Running cancellation and graceful worker loss | Passed | Local evidence bundle | Canceled within grace with output and Artifact kept; a SIGTERMed worker reports `interrupted` without a hidden retry. |
-| Hard worker loss and explicit retry | Passed | Local evidence bundle | A SIGKILL from the node settled `worker_lost` after 136s; explicit retry ran a new Job. The killed Job reports success because the worker's exit code reports dispatch, not the run. |
-| MySQL, Redis, and object-storage outages | Passed | Local evidence bundle | Schedules coalesce one catch-up after a database outage; a Conversation turn during a Redis outage answers 503; a worker that cannot reach storage fails the run as `infrastructure`; an Artifact download during a storage outage answers 503 in 20s and the Artifact reads back unchanged. |
-| Provider failures | Passed | Local evidence bundle | 401, 429, 503, slow answer, and unroutable provider: run and managed-call classes and logs agree; no credential leaked. |
-| Paired database and bucket restore | Passed | Local evidence bundle | All 7649 rows from before the recovery point present, `storage verify --checksums` clean, restored credential and checkpoint work. RTO 632s, within the 15-minute target; the drill copies 8416 objects from the operator's machine through a port-forward. |
-| Declared schema path and paired-restore rollback | Passed | Local evidence bundle | alpha.21 to alpha.22 in place; alpha.16 to alpha.22 through a real schema change; alpha.16 refuses the newer schema; rollback by paired restore. |
-| Credential and worker-TLS rotation | Passed; one item waived | Local evidence bundle | JWT, worker certificate and CA, KEK with rewrap, Spaces key, and model key in both directions with no call on the retired key. Database password rotation waived below. |
-| Retention and capacity | Partial | Local evidence bundle | Artifact purge and audit pruning exercised; audit and traces are kept indefinitely. Over the 24-hour window, including all qualification probing, the database grew 9.50 to 11.16 MB, the bucket prefix 5.87 to 8.18 MB, and traces by 372 objects (0.79 MB); the 10 GiB database disk covers that for years. Partial because no disk or bucket monitoring is configured, which keep-forever retention requires. |
-| 24-hour operating window | Passed | Local evidence bundle | 2026-10-03T02:46Z to 2026-10-04T02:46Z: 216 of 216 scheduled fires on time and succeeded, nothing stranded, across every drill of the exercise: Server rolls, five deploys for credential rotation, Redis, database, and storage outages, and the restore. |
-| Non-author operator journey | Waived | Local evidence bundle | See the waivers below. |
-| Real-model product evaluation | Passed | Local evidence bundle | `./make eval` at the candidate commit with GPT-5.6 Luna: 12 of 12 scored trials, 95% CI 76–100%, 0 unscored. A small suite, not a benchmark. |
-| Local and Desktop release regressions | Partial | Local evidence bundle | Candidate CI covers CLI/TUI, provider contract tests, and the Desktop UI build; packaged Desktop launch and the Desktop UI suite need a native window and were not run. |
+| Q0 candidate scope, configuration, and supply chain | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | Pinned digests ran in every pod; provenance verified with `gh attestation verify`; Trivy scans, SBOMs, and CI, Windows, CodeQL, smoke, and release runs on `fe0f2b63` all succeeded. |
+| Q1 identity, authorization, and governance | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | Signup, sessions, roles, cross-Space refusal, disable, member removal, owner recovery, quota refusal. |
+| Q2 core product journeys | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | Real-model Conversation, Tasks, Continue, Retry, cancel, AskUser, Issues, graph Workflows with human requests and policy end states, Schedules across a Server roll and a database outage, Secrets, Plugins, webhooks. Three kind-only probes are not applicable; their real-model equivalents passed. |
+| Q3 execution and Secret boundaries | Passed; one accepted limit | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | Bash holds no capability, cannot read worker credentials, and the network tier holds without the proxy variables; a worker cannot reach MySQL. Partial: a run token before claim could not be isolated, since the scheduler claims within seconds. |
+| Q4 durable and distributed correctness | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | Cross-replica streaming and turn serialization, Redis restart, a lease holder partitioned from Redis refused with 409, concurrent Continue/Retry/cancel, rolling both replicas under a run. |
+| Running cancellation and graceful worker loss | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | Canceled within grace with output and Artifact kept; a SIGTERMed worker reports `interrupted` without a hidden retry. |
+| Hard worker loss and explicit retry | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | A SIGKILL from the node settled `worker_lost` after 136s; explicit retry ran a new Job. The killed Job reports success because the worker's exit code reports dispatch, not the run. |
+| MySQL, Redis, and object-storage outages | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | Schedules coalesce one catch-up after a database outage; a Conversation turn during a Redis outage answers 503; a worker that cannot reach storage fails the run as `infrastructure`; an Artifact download during a storage outage answers 503 in 20s and the Artifact reads back unchanged. |
+| Provider failures | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 401, 429, 503, slow answer, and unroutable provider: run and managed-call classes and logs agree; no credential leaked. |
+| Paired database and bucket restore | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | All 7649 rows from before the recovery point present, `storage verify --checksums` clean, restored credential and checkpoint work. RTO 632s, within the 15-minute target; the drill copies 8416 objects from the operator's machine through a port-forward. |
+| Declared schema path and paired-restore rollback | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | alpha.21 to alpha.22 in place; alpha.16 to alpha.22 through a real schema change; alpha.16 refuses the newer schema; rollback by paired restore. |
+| Credential and worker-TLS rotation | Passed; one item waived | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | JWT, worker certificate and CA, KEK with rewrap, Spaces key, and model key in both directions with no call on the retired key. Database password rotation waived below. |
+| Retention and capacity | Partial; waived | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | Artifact purge and audit pruning exercised; audit and traces are kept indefinitely. Over the 24-hour window, including all qualification probing, the database grew 9.50 to 11.16 MB, the bucket prefix 5.87 to 8.18 MB, and traces by 372 objects (0.79 MB); the 10 GiB database disk covers that for years. Partial because no disk or bucket monitoring is configured, which keep-forever retention requires. |
+| 24-hour operating window | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | 2026-10-03T02:46Z to 2026-10-04T02:46Z: 216 of 216 scheduled fires on time and succeeded, nothing stranded, across every drill of the exercise: Server rolls, five deploys for credential rotation, Redis, database, and storage outages, and the restore. |
+| Non-author operator journey | Waived | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | See the waivers below. |
+| Real-model product evaluation | Passed | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | `./make eval` at the candidate commit with GPT-5.6 Luna: 12 of 12 scored trials, 95% CI 76–100%, 0 unscored. A small suite, not a benchmark. |
+| Local and Desktop release regressions | Partial; accepted limit | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) | Candidate CI covers CLI/TUI, provider contract tests, and the Desktop UI build; packaged Desktop launch and the Desktop UI suite need a native window and were not run. |
 
 ## Decision
 
-Current decision: **NOT READY FOR BETA**.
+Current decision: **QUALIFIED FOR BETA** — v0.2.0-alpha.22 (`fe0f2b63`), signed
+by the project owner on 2026-10-04.
 
-The v0.2.0-alpha.22 exercise found no product defect and no failed item. Before
-signing, retention needs disk and bucket monitoring, the evidence has to be published
-where the release space can read it, and the remaining partial rows above have
-to pass or be accepted as limits.
+The v0.2.0-alpha.22 exercise found no product defect and no failed item. Every
+core gate passed or is covered by a waiver below or an accepted limit above.
+BuildMax has one maintainer: the journeys were driven by the implementing agent
+with probe scripts, and the project owner holds all three roles below. Releases
+stay Alpha-versioned until a Beta release is cut.
 
 Qualification requires every core gate to pass, with no authorization escape,
 unexplained data loss, stranded durable work, database pointer to a missing
@@ -408,15 +424,16 @@ object, or unresolved critical/high security finding. A waiver must name the
 unmet behavior, user impact, compensating operator control, owner, and expiry;
 it is an explicit release decision rather than an implied pass.
 
-Waivers recorded by the project owner on 2026-10-02 and kept for the alpha.22 exercise:
+Waivers recorded by the project owner on 2026-10-02 and kept for the alpha.22 exercise, plus the monitoring waiver added on 2026-10-04:
 
 | Unmet behavior | User impact | Compensating control | Owner | Expiry |
 |---|---|---|---|---|
 | Database password rotation not exercised | A wrong rotation procedure would surface during a real rotation | Documented procedure in [DigitalOcean](digitalocean.md); the managed database is reachable only from the cluster | @gougoujiang | This candidate |
 | No independent operator completed the journeys | Documentation gaps a new operator would hit are not measured | Every journey ran against the documented surfaces with probe scripts | @gougoujiang | This candidate |
+| No disk or bucket monitoring for keep-forever audit and traces | Storage could fill without warning | Measured growth under qualification load (database +1.65 MB, bucket +2.30 MB a day) leaves the 10 GiB database disk years of room; `audit.retention_days` and `trace.retention_days` turn on pruning at any time | @gougoujiang | The first Beta |
 
 | Role | Name | Date | Decision or waiver link |
 |---|---|---|---|
-| Qualification operator | Not signed | — | — |
-| Engineering owner | Not signed | — | — |
-| Release owner | Not signed | — | — |
+| Qualification operator | @gougoujiang (journeys run by the implementing agent) | 2026-10-04 | [Evidence bundle](https://github.com/icloudbb/buildmax/releases/download/v0.2.0-alpha.22/beta-qualification-v0.2.0-alpha.22.tar.gz) |
+| Engineering owner | @gougoujiang | 2026-10-04 | Waivers above |
+| Release owner | @gougoujiang | 2026-10-04 | Waivers above |

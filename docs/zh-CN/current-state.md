@@ -14,8 +14,9 @@
 
 BuildMax 仍处于 Alpha。本地 Agent 执行与私有 Space 执行链路已经实现，
 包括独立 Task 线程、持久工作区检查点、托管推理和运维管理。
-这些不等于已具备生产多租户服务能力，也不证明 Beta 候选版本已通过验证。
-[Beta 就绪记录](deploy/beta-readiness.md)仍未合格。
+这些不等于已具备生产多租户服务能力。v0.2.0-alpha.22 候选版本已于 2026-10-04 在 DigitalOcean 上
+通过私有部署 Beta 资格验证，豁免与已接受的限制见 [Beta 就绪记录](deploy/beta-readiness.md)；
+在切出 Beta 版本之前，发布版本号仍沿用 Alpha。
 
 受支持的无人值守 worker 配置现在失败关闭地禁用 stdio MCP：解析到的 stdio server
 在装配期、命令运行前、首次模型调用前让 worker 运行失败，而远程传输与本地界面不受
@@ -335,8 +336,8 @@ worker TaskRun 在领取后丢失时不会自动重新分发；这是首个 Beta
 每份轨迹都有字段与记录数量上限。运维人员把 `trace.retention_days` 设置为大于零后，
 Server 自有的小时级清理会删除结束时间早于截止点的 Run 轨迹、清除相应 TaskRun 指针，
 并记录 `traces.pruned` 审计事件。零仍表示默认永久保留，因此保持默认值的运维人员仍须负责
-容量规划。删除和指针清理均可重试，但这一机制本身不能证明候选版本选择的保留与容量策略
-已经实际演练。
+容量规划。删除和指针清理均可重试。alpha.22 资格验证保持了默认值，实测每次运行约产生 2.1 KB 轨迹；
+那次没有演练轨迹清理。
 
 ## 账号、Space 与扩展界面
 
@@ -494,10 +495,11 @@ worker 的写入且 /readyz 保持健康时，首次 Run 在种子检查点处�
 失联 Run 处理和清理，包括了结一次 worker 已经静默的 Run 的存活性巡检——这条硬丢失路径
 无法从部署侧复现，因为内核不会把容器内发给 PID 1 的 SIGKILL 投递给它，而 kubelet 的任何
 删除都从 worker 会据以自报的 SIGTERM 开始。这些不等于候选版本已经演练配对恢复、凭证轮换和
-模式升级。
+模式升级；这些演练已在 v0.2.0-alpha.22 候选版本自己的 DigitalOcean 依赖上完成，记录在
+[Beta 就绪记录](deploy/beta-readiness.md)中。
 
 Compose、kind、生产 Kubernetes 清单、发布验证、SBOM、镜像扫描及来源证明工作流已存在。
-它们的存在不能替代尚未签署的 [Beta 就绪记录](deploy/beta-readiness.md)。
+它们的存在不是资格验证证据；资格验证证据由已签署的 [Beta 就绪记录](deploy/beta-readiness.md)承载。
 
 ## 本次复核的验证
 
