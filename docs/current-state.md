@@ -633,7 +633,8 @@ files, an audience of Space members or all active users, and the service account
 its work runs as, created with the Assistant's name by default. Definitions keep
 append-only revisions. An Assistant starts paused; publishing it, or changing
 what an active one discloses, needs the generated statement of who can ask and
-what it can read and run (including the Secrets those Agents hold) confirmed by
+what it can read and run (including the Secrets those Agents hold and the
+Space's Files their work reads) confirmed by
 its digest. An active Assistant also pauses itself while its service account is
 disabled or it lacks a valid sponsor. An Assistant can be bound to its own
 Telegram bot: the token is checked with Telegram, sealed under the deployment

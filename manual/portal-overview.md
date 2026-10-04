@@ -77,11 +77,11 @@ Open **Space** from the user menu (owners and admins can change these):
   Telegram bot, such as an HR or audit assistant, for people outside the space's
   own work. Owners and admins define each one's instructions, the Agents and
   published Workflows it may run (with which result fields may be shown to the
-  person asking), the files it may read, and who may ask: the space's members or
+  person asking), the uploaded files (Artifacts) it may read, and who may ask: the space's members or
   every active user. Its work runs as a service account, created with its name
   unless you choose one. An assistant starts paused. **Publish** shows exactly
   who can ask and what it can read and run, including the Secrets those Agents
-  hold, and asks you to confirm, because everything it can reach is disclosed to
+  hold and the space's Files their work reads, and asks you to confirm, because everything it can reach is disclosed to
   everyone who can ask; changing that later on a published assistant asks again.
   **Bind bot** takes a token from [@BotFather](https://t.me/BotFather); it is
   stored encrypted, so the deployment needs `secret.kek_file`, and a bot already
@@ -93,7 +93,9 @@ Open **Space** from the user menu (owners and admins can change these):
   space's conversations but continues only in the chat. `/new` starts a new
   conversation and `/help` describes the assistant. It answers from its readable
   files directly, without starting work; it reads only text files (Markdown,
-  plain text, CSV, JSON, YAML, and the like) up to 128 KiB each. Of a result, the assistant
+  plain text, CSV, JSON, YAML, and the like) up to 128 KiB each. Its Agents and
+  Workflow steps do not see those uploads: they read the space's **Files**, so a
+  policy both need is uploaded to both. Of a result, the assistant
   and the person asking see only the fields its roster entry marks releasable,
   never raw output, error text, or a link; when an Agent's task finishes, the
   person gets those fields in the chat, or a short note if it failed. When it
