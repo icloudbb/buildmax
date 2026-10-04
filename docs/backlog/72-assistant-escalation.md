@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/space-assistants.md#11-results-escalation-and-delivery
 depends_on: [66-assistant-front-door-turn.md]
 verification: ["./make test", "./make check portal", "./make e2e kind", "./make check docs"]
-claim:
+claim: gougoujiang 2026-10-04
 pr:
 ---
 
