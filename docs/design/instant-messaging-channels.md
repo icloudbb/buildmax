@@ -118,7 +118,10 @@ Each concept is listed with the requirement that fails without it.
   - [Space Secrets §4](space-secrets.md) already places BuildMax's own
     credentials in operator configuration.
   - A deployment normally has one bot per platform.
-  - Space-owned bots wait for a team that needs its own bot identity.
+  - Space-owned bots wait for a team that needs its own bot identity. The
+    [Space Assistants proposal](../proposals/space-assistants.md) explores
+    that case: a Space publishes a service front door whose requesters are
+    not its operating authority.
 - **`channel_identity`** is platform, tenant, and external user id mapped to a
   user.
   - Without it, a message cannot carry per-sender authority.

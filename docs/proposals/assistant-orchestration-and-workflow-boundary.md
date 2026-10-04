@@ -40,6 +40,13 @@ roster of existing Space Agents and dynamically decide how to complete an
 objective. This paper calls that provisional user-facing concept an
 **Assistant**.
 
+A separate paper, [Space Assistants](space-assistants.md), uses the same name
+for a different concept: a Space's service front door with its own audience,
+operating authority, and disclosure boundary, which does justify a separate
+entity for reasons this paper does not examine. Orchestration there happens at
+the Conversation tier. Here, "Assistant" still means a manager Agent that
+delegates inside a Task, and that remains this paper's open question.
+
 The decision is not whether a sufficiently capable model can call another
 model. It is whether exposing and persisting an Assistant creates enough value
 over one strong Agent to justify another product concept, and whether that
