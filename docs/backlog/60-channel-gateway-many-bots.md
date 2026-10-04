@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/space-assistants.md#9-a-gateway-with-many-bots
 depends_on: []
 verification: ["./make test", "./make test mysql", "./make check docs"]
-claim:
+claim: gougoujiang 2026-10-04
 pr:
 ---
 
