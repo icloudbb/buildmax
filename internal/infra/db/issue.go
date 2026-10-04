@@ -29,6 +29,9 @@ type issueRow struct {
 	ExecutorKind *string `gorm:"column:executor_kind;type:varchar(32)"`
 	ExecutorID   *string `gorm:"column:executor_id;type:varchar(64)"`
 	CreatedBy    uint64  `gorm:"column:created_by;not null"`
+	// ConversationID is the Space Assistant conversation an escalated Issue
+	// came from, NULL otherwise.
+	ConversationID *uint64 `gorm:"column:conversation_id;index"`
 	// Version is the optimistic-concurrency token. Every accepted update carries
 	// the version it was built from and bumps it, so two writers racing on one
 	// issue produce one winner and one refusal instead of a silent overwrite.
@@ -48,6 +51,10 @@ type issueReadRow struct {
 	ParentPublicID    *string  `gorm:"column:parent_public_id"`
 	CreatedByPublicID string   `gorm:"column:created_by_public_id"`
 	OwnerPublicID     *string  `gorm:"column:owner_public_id"`
+	// The escalation's conversation, and the requester and Assistant it names.
+	ConversationPublicID *string `gorm:"column:conversation_public_id"`
+	RequesterPublicID    *string `gorm:"column:requester_public_id"`
+	AssistantPublicID    *string `gorm:"column:assistant_public_id"`
 }
 
 func (s *Store) issueSelect(ctx context.Context) *gorm.DB {
@@ -58,12 +65,16 @@ func issueSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&issueRow{}).
 		Select("issue.*, u.public_id AS user_public_id, t.public_id AS space_public_id, " +
 			"p.public_id AS parent_public_id, cb.public_id AS created_by_public_id, " +
-			"o.public_id AS owner_public_id").
+			"o.public_id AS owner_public_id, cv.public_id AS conversation_public_id, " +
+			"rq.public_id AS requester_public_id, asst.public_id AS assistant_public_id").
 		Joins("INNER JOIN `user` u ON u.id = issue.user_id").
 		Joins("LEFT JOIN space t ON t.id = issue.space_id").
 		Joins("LEFT JOIN issue p ON p.id = issue.parent_issue_id").
 		Joins("INNER JOIN `user` cb ON cb.id = issue.created_by").
-		Joins("LEFT JOIN `user` o ON o.id = issue.owner_id")
+		Joins("LEFT JOIN `user` o ON o.id = issue.owner_id").
+		Joins("LEFT JOIN conversation cv ON cv.id = issue.conversation_id").
+		Joins("LEFT JOIN `user` rq ON rq.id = cv.user_id").
+		Joins("LEFT JOIN assistant asst ON asst.id = cv.assistant_id")
 }
 
 func toIssue(row *issueReadRow) *coreissue.Issue {
@@ -83,6 +94,11 @@ func toIssue(row *issueReadRow) *coreissue.Issue {
 		CreatedAt:    row.Row.CreatedAt,
 		UpdatedAt:    row.Row.UpdatedAt,
 		Version:      row.Row.Version,
+	}
+	if row.Row.ConversationID != nil {
+		out.ConversationID = derefPublicID(row.ConversationPublicID)
+		out.RequestedBy = derefPublicID(row.RequesterPublicID)
+		out.AssistantID = derefPublicID(row.AssistantPublicID)
 	}
 	if row.Row.ParentIssueID != nil {
 		parent := derefPublicID(row.ParentPublicID)
@@ -160,6 +176,23 @@ func (s *Store) CreateIssueInSpace(ctx context.Context, spaceID, createdBy strin
 			}
 			row.OwnerID = &owner
 		}
+		if in.ConversationID != "" {
+			var conv conversationRow
+			id, ok := util.CanonicalPublicID(in.ConversationID)
+			if !ok {
+				return apierr.ErrNotFound
+			}
+			if err := tx.Where("public_id = ?", id).Take(&conv).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return apierr.ErrNotFound
+				}
+				return err
+			}
+			if conv.SpaceID != row.SpaceID {
+				return apierr.ErrNotFound
+			}
+			row.ConversationID = &conv.ID
+		}
 		return createWithPublicID(ctx, tx, "uq_issue_public_id",
 			func(id string) { row.PublicID = id }, row)
 	}); err != nil {
@@ -192,6 +225,9 @@ func createdIssue(row *issueRow, spaceID, createdBy string, in coreissue.CreateI
 		CreatedAt:     row.CreatedAt,
 		UpdatedAt:     row.UpdatedAt,
 		Version:       row.Version,
+	}
+	if row.ConversationID != nil {
+		out.ConversationID = in.ConversationID
 	}
 	if row.OwnerID != nil {
 		out.OwnerID = &in.OwnerID

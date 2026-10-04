@@ -272,7 +272,10 @@ const (
 	// AssistantUnbound record a Space Assistant's lifecycle. The target is the
 	// Assistant's id; the detail is its name, its revision for updated, the new
 	// sponsor's id for sponsor_changed, and the bot's handle for bound. A bot
-	// token is never in the trail. See docs/design/space-assistants.md.
+	// token is never in the trail. AssistantRequesterReplied records a member
+	// answering an escalated Issue's requester through the Assistant's bot; its
+	// target is the Issue and its detail the Assistant's name, never the text.
+	// See docs/design/space-assistants.md.
 	AssistantCreated        = "assistant.created"
 	AssistantUpdated        = "assistant.updated"
 	AssistantDeleted        = "assistant.deleted"
@@ -281,6 +284,8 @@ const (
 	AssistantSponsorChanged = "assistant.sponsor_changed"
 	AssistantBound          = "assistant.bound"
 	AssistantUnbound        = "assistant.unbound"
+
+	AssistantRequesterReplied = "assistant.requester_replied"
 )
 
 // ActorOperator is the ActorID for an action taken by an operator command

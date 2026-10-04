@@ -17,19 +17,24 @@ import (
 )
 
 type IssueResponse struct {
-	ID            string    `json:"id"`
-	UserID        string    `json:"user_id"`
-	SpaceID       string    `json:"space_id,omitempty"`
-	ParentIssueID *string   `json:"parent_issue_id,omitempty"`
-	Title         string    `json:"title"`
-	Description   string    `json:"description"`
-	Status        string    `json:"status"`
-	OwnerID       *string   `json:"owner_id,omitempty"`
-	ExecutorKind  *string   `json:"executor_kind,omitempty"`
-	ExecutorID    *string   `json:"executor_id,omitempty"`
-	CreatedBy     string    `json:"created_by"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID            string  `json:"id"`
+	UserID        string  `json:"user_id"`
+	SpaceID       string  `json:"space_id,omitempty"`
+	ParentIssueID *string `json:"parent_issue_id,omitempty"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	Status        string  `json:"status"`
+	OwnerID       *string `json:"owner_id,omitempty"`
+	ExecutorKind  *string `json:"executor_kind,omitempty"`
+	ExecutorID    *string `json:"executor_id,omitempty"`
+	// ConversationID, AssistantID, and RequestedBy are set on an Issue a
+	// Space Assistant escalated: the chat it came from, and who asked.
+	ConversationID string    `json:"conversation_id,omitempty"`
+	AssistantID    string    `json:"assistant_id,omitempty"`
+	RequestedBy    string    `json:"requested_by,omitempty"`
+	CreatedBy      string    `json:"created_by"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 	// Version is what a later update must send back. Every response that
 	// carries an issue carries it, because every one of them is a potential
 	// read half of a read-modify-write.
@@ -97,20 +102,23 @@ type patchIssueRequest struct {
 
 func issueToResponse(issue coreissue.Issue) IssueResponse {
 	return IssueResponse{
-		ID:            issue.ID,
-		UserID:        issue.UserID,
-		SpaceID:       issue.SpaceID,
-		ParentIssueID: issue.ParentIssueID,
-		Title:         issue.Title,
-		Description:   issue.Description,
-		Status:        issue.Status,
-		OwnerID:       issue.OwnerID,
-		ExecutorKind:  issue.ExecutorKind,
-		ExecutorID:    issue.ExecutorID,
-		CreatedBy:     issue.CreatedBy,
-		CreatedAt:     issue.CreatedAt,
-		UpdatedAt:     issue.UpdatedAt,
-		Version:       issue.Version,
+		ID:             issue.ID,
+		UserID:         issue.UserID,
+		SpaceID:        issue.SpaceID,
+		ParentIssueID:  issue.ParentIssueID,
+		Title:          issue.Title,
+		Description:    issue.Description,
+		Status:         issue.Status,
+		OwnerID:        issue.OwnerID,
+		ExecutorKind:   issue.ExecutorKind,
+		ExecutorID:     issue.ExecutorID,
+		ConversationID: issue.ConversationID,
+		AssistantID:    issue.AssistantID,
+		RequestedBy:    issue.RequestedBy,
+		CreatedBy:      issue.CreatedBy,
+		CreatedAt:      issue.CreatedAt,
+		UpdatedAt:      issue.UpdatedAt,
+		Version:        issue.Version,
 	}
 }
 

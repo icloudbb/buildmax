@@ -654,11 +654,18 @@ releasable fields of the result under the current roster: no raw output, error
 text, or link. The turn's ListFiles and ReadFile read the Assistant's
 allowlisted Space files in the Server: text media types only, 128 KiB a file
 and 384 KiB a turn, and every id off the allowlist gets the same refusal.
-Escalation and delivery are not built
+The turn's Escalate opens one Issue in the Space per call, created by the
+service account and linked to the conversation, from which the Issue reads its
+Assistant and requester; a Space member's Reply to requester on that Issue is
+sent through the Assistant's bot into the chat, recorded as a comment, and
+audited, and refused while the Assistant would not answer that requester
+itself. Delivery is not built
 ([release](../internal/core/assistant/release.go),
 [front door](../internal/service/assistant/frontdoor.go),
 [turn](../internal/service/conversation/assistant_turn.go),
 [files](../internal/service/conversation/assistant_files.go),
+[escalation](../internal/service/conversation/assistant_escalate.go),
+[reply](../internal/service/assistant/reply.go),
 [design](design/space-assistants.md)).
 
 `buildmax admin` provides authenticated administrator, account, and model-catalog

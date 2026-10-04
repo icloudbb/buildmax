@@ -64,6 +64,9 @@ type CreateIssueCmd struct {
 	OwnerID      string
 	ExecutorKind string
 	ExecutorID   string
+	// ConversationID is set by a Space Assistant's escalation: the
+	// conversation the request came from.
+	ConversationID string
 }
 
 type UpdateIssueCmd struct {
@@ -138,13 +141,14 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*coreiss
 		return nil, err
 	}
 	return s.Issues.CreateIssueInSpace(ctx, cmd.SpaceID, cmd.UserID, coreissue.CreateInput{
-		Title:         cmd.Title,
-		Description:   cmd.Description,
-		ParentIssueID: parent,
-		Status:        cmd.Status,
-		OwnerID:       cmd.OwnerID,
-		ExecutorKind:  cmd.ExecutorKind,
-		ExecutorID:    cmd.ExecutorID,
+		Title:          cmd.Title,
+		Description:    cmd.Description,
+		ParentIssueID:  parent,
+		Status:         cmd.Status,
+		OwnerID:        cmd.OwnerID,
+		ExecutorKind:   cmd.ExecutorKind,
+		ExecutorID:     cmd.ExecutorID,
+		ConversationID: cmd.ConversationID,
 	})
 }
 

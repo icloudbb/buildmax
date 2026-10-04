@@ -284,6 +284,15 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
         denied: false,
         target,
       }
+    case "assistant.requester_replied":
+      // The target is the Issue; the detail is the Assistant that carried it.
+      return {
+        summary: event.detail
+          ? `Replied to a requester through the assistant ${event.detail}`
+          : "Replied to an assistant's requester",
+        denied: false,
+        target,
+      }
     case "access.denied":
       return {
         summary: event.target_id ? `Was refused: ${event.target_id}` : "Was refused a request",

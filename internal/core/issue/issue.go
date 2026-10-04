@@ -66,11 +66,18 @@ type Issue struct {
 	// selected. Like OwnerID, ExecutorID stays an opaque handle: ExecutorKind
 	// says which table it names, because one numeric column cannot reference
 	// rows in two.
-	ExecutorKind *string   `json:"executor_kind,omitempty"`
-	ExecutorID   *string   `json:"executor_id,omitempty"`
-	CreatedBy    string    `json:"created_by"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ExecutorKind *string `json:"executor_kind,omitempty"`
+	ExecutorID   *string `json:"executor_id,omitempty"`
+	// ConversationID is the Space Assistant conversation this Issue was
+	// escalated from; AssistantID and RequestedBy are read from it, never
+	// stored twice. A member answers the requester from the Issue. See
+	// docs/design/space-assistants.md §11.
+	ConversationID string    `json:"conversation_id,omitempty"`
+	AssistantID    string    `json:"assistant_id,omitempty"`
+	RequestedBy    string    `json:"requested_by,omitempty"`
+	CreatedBy      string    `json:"created_by"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 	// Version counts accepted updates, starting at 1. It is the precondition an
 	// update must carry, so a reader that acts on a stale copy is refused
 	// instead of overwriting whatever it never saw.
@@ -88,6 +95,9 @@ type CreateInput struct {
 	OwnerID       string
 	ExecutorKind  string
 	ExecutorID    string
+	// ConversationID records the Assistant conversation an escalation came
+	// from; it must belong to the same Space.
+	ConversationID string
 }
 
 type UpdateInput struct {

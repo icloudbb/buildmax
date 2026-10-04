@@ -5,9 +5,9 @@
 > **Audience:** contributors, product designers, and operators · **Status:**
 > accepted — in progress: the many-bot Gateway (§9), service accounts (§6),
 > the Assistant entity, its bot binding, and the publish statement (§4, §8),
-> the front-door turn with its readable-file tools (§10), and release
-> contracts with outcome reports (§8, §11) are built; escalation and delivery
-> are not
+> the front-door turn with its readable-file tools (§10), release contracts
+> with outcome reports (§8, §11), and escalation (§11) are built; delivery is
+> not
 >
 > This record decides how a Space publishes **Assistants**: conversational
 > service front doors that answer people outside the Space's own work, dispatch
@@ -404,7 +404,10 @@ An Assistant whose Space has spent its quota refuses with a fixed reply.
   created by the service account, with the requester and conversation recorded,
   and tells the requester a person will follow up. A Space member answers from
   the Issue with an explicit "reply to requester" action, which sends through the
-  Assistant's bot and is recorded on the Issue.
+  Assistant's bot and is recorded on the Issue. The reply is refused whenever the
+  Assistant would not answer that requester itself — paused, unbound, or the
+  requester no longer in its audience — and it does not enter the model's
+  context.
 - **Outbound delivery.** A Schedule in the Space may name an Assistant and one
   requester as its delivery target. When a fire's run ends, the releasable result
   is sent to that requester through the Assistant's bot. Telegram lets a bot
@@ -470,7 +473,7 @@ Each slice is a backlog task, in order:
 5. Release contracts and Assistant outcome reports (§8, §11) — built; Workflow
    runs an Assistant starts are read through GetWorkflowRun but not reported.
 6. Readable files tool (§8, §10) — built.
-7. [Escalation to an Issue](../backlog/72-assistant-escalation.md) (§11).
+7. Escalation to an Issue (§11) — built.
 8. [Schedule delivery through an Assistant](../backlog/74-assistant-schedule-delivery.md) (§11).
 9. [Validation run](../backlog/76-space-assistant-validation.md): measure answer
    accuracy on a fixed question set, leakage under a scripted red-team set,

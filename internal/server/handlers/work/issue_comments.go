@@ -1,12 +1,14 @@
 package work
 
 import (
+	"context"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"net/http"
 	"time"
 
 	coreissue "github.com/icloudbb/buildmax/internal/core/issue"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
+	assistantsvc "github.com/icloudbb/buildmax/internal/service/assistant"
 	"github.com/icloudbb/buildmax/internal/service/issue"
 )
 
@@ -192,4 +194,46 @@ func (h *Handler) deleteIssueCommentHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// RequesterReplier answers an escalated Issue's requester. The Space
+// Assistant front door implements it.
+type RequesterReplier interface {
+	ReplyToRequester(ctx context.Context, cmd assistantsvc.ReplyCmd) (*coreissue.Comment, error)
+}
+
+type requesterReplyRequest struct {
+	Text string `json:"text"`
+}
+
+// replyToRequesterHandler serves POST /api/spaces/{space_id}/issues/{issue_id}/requester-replies.
+// Anyone who may comment on the Issue may answer its requester; the reply is
+// sent through the Assistant's bot and recorded as their comment.
+func (h *Handler) replyToRequesterHandler(w http.ResponseWriter, r *http.Request) {
+	userID, spaceID, issueID, ok := h.resolveCommentIssue(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := h.guard().SpaceAction(w, r, userID, spaceID, corespace.ActionCommentIssue); !ok {
+		return
+	}
+	if h.cfg.RequesterReplies == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "assistants not configured")
+		return
+	}
+	var req requesterReplyRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	created, err := h.cfg.RequesterReplies.ReplyToRequester(r.Context(), assistantsvc.ReplyCmd{
+		SpaceID: spaceID, ActorID: userID, IssueID: issueID, Text: req.Text,
+	})
+	if err != nil {
+		if h.writeIssueServiceError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "reply_to_requester", "issue_id", issueID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusCreated, issueCommentToResponse(*created))
 }

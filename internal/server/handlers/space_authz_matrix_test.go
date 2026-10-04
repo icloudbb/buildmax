@@ -164,6 +164,9 @@ var spaceRoutes = []authzCase{
 	{"POST", "/api/spaces/{space_id}/issues/{issue_id}/comments", corespace.RoleMember, false},
 	{"PATCH", "/api/spaces/{space_id}/issues/{issue_id}/comments/{comment_id}", corespace.RoleMember, false},
 	{"DELETE", "/api/spaces/{space_id}/issues/{issue_id}/comments/{comment_id}", corespace.RoleMember, false},
+	// Answering an escalated Issue's requester is a comment that also leaves
+	// through the Assistant's bot, so it follows commenting.
+	{"POST", "/api/spaces/{space_id}/issues/{issue_id}/requester-replies", corespace.RoleMember, false},
 	{"POST", "/api/spaces/{space_id}/issues/{issue_id}/agent-runs", corespace.RoleMember, false},
 	{"POST", "/api/spaces/{space_id}/issues/{issue_id}/workflow-runs", corespace.RoleMember, false},
 

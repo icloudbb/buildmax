@@ -48,6 +48,9 @@ describe("describeEvent", () => {
       "Bound the bot @hr_desk_bot to an assistant",
     )
     expect(describeEvent(event({ action: "assistant.sponsor_changed", target_id: "as_1" })).target).toBe("as_1")
+    expect(describeEvent(event({ action: "assistant.requester_replied", detail: "HR desk" })).summary).toBe(
+      "Replied to a requester through the assistant HR desk",
+    )
   })
 
   it("shows an action it does not recognise verbatim", () => {

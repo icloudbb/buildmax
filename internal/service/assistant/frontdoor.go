@@ -25,6 +25,7 @@ const (
 // Conversations finds and starts an Assistant's conversations: one requester
 // in one chat, newest first.
 type Conversations interface {
+	GetConversation(ctx context.Context, conversationID string) (*coreconv.Conversation, error)
 	LatestAssistantConversation(ctx context.Context, assistantID, userID, channel, channelRef string) (*coreconv.Conversation, error)
 	CreateAssistantConversation(ctx context.Context, assistantID, spaceID, userID, channel, connector, channelRef string) (*coreconv.Conversation, error)
 }
@@ -46,6 +47,8 @@ type FrontDoor struct {
 	Service       *Service
 	Conversations Conversations
 	Tasks         Tasks
+	// Issues backs a member's reply to an escalated Issue's requester.
+	Issues Issues
 	// Eligibility decides whether a requester may use a Space for an
 	// Assistant whose audience is its members.
 	Eligibility eligibility.Checker

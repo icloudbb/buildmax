@@ -4,13 +4,15 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { buildHash } from "../../router"
 import type { ApiIssueComment, ApiSpaceMember } from "../../lib/api/types"
-import { createIssueComment, deleteIssueComment, getIssueComments, updateIssueComment } from "./comments"
+import { createIssueComment, deleteIssueComment, getIssueComments, replyToRequester, updateIssueComment } from "./comments"
 import { getErrorMessage } from "../../lib/errorMessage"
 
 /** Matches CommentBodyLimit in internal/service/issue. */
 const BODY_LIMIT = 16 * 1024
 /** Where the counter appears, so a long comment warns before the server refuses it. */
 const COUNTER_THRESHOLD = 15 * 1024
+/** Matches the reply limit in internal/service/assistant, under a chat message's. */
+const REPLY_LIMIT = 4000
 
 /**
  * How often the thread reloads. There is no push channel for comments yet, so
@@ -34,6 +36,11 @@ interface IssueDiscussionProps {
    * The callback must be stable, or it will re-fire on every render.
    */
   onCommentsChanged?: (comments: ApiIssueComment[]) => void
+  /**
+   * Set when the Issue was escalated by a Space Assistant: the composer can then
+   * send its text to the requester's chat through that Assistant's bot.
+   */
+  requesterReply?: { assistantName: string }
 }
 
 function formatTimestamp(rfc3339: string): string {
@@ -50,12 +57,14 @@ export function IssueDiscussion({
   agentNames,
   onOpenTrace,
   onCommentsChanged,
+  requesterReply,
 }: IssueDiscussionProps) {
   const [comments, setComments] = useState<ApiIssueComment[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [replying, setReplying] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState("")
   // Tracks the latest load so a slow response cannot overwrite a newer one.
@@ -141,6 +150,23 @@ export function IssueDiscussion({
       setError(getErrorMessage(err, "Failed to post comment"))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleReply() {
+    if (!spaceId || !issueId || !token) return
+    const text = draft.trim()
+    if (!text || replying) return
+    setReplying(true)
+    setError(null)
+    try {
+      const recorded = await replyToRequester(spaceId, issueId, text, token)
+      setComments((prev) => [...prev, recorded])
+      setDraft("")
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to reply to the requester"))
+    } finally {
+      setReplying(false)
     }
   }
 
@@ -290,6 +316,22 @@ export function IssueDiscussion({
           >
             Comment
           </Button>
+          {requesterReply ? (
+            <Button
+              variant="secondary"
+              busy={replying}
+              onClick={() => void handleReply()}
+              disabled={draft.trim() === "" || [...draft.trim()].length > REPLY_LIMIT}
+              title={`Send this text to the requester's chat through ${requesterReply.assistantName}`}
+            >
+              Reply to requester
+            </Button>
+          ) : null}
+          {requesterReply && [...draft.trim()].length > REPLY_LIMIT ? (
+            <span className="page-activity__meta">
+              A reply to the requester is limited to {REPLY_LIMIT} characters.
+            </span>
+          ) : null}
           {draft.length > COUNTER_THRESHOLD ? (
             <span className="page-activity__meta">
               {draft.length} / {BODY_LIMIT}

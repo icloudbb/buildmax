@@ -30,6 +30,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/server/scheduler"
 	assistantsvc "github.com/icloudbb/buildmax/internal/service/assistant"
 	"github.com/icloudbb/buildmax/internal/service/audit"
+	issuesvc "github.com/icloudbb/buildmax/internal/service/issue"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
 	"github.com/icloudbb/buildmax/internal/service/quota"
@@ -167,7 +168,10 @@ func RunServer(ctx context.Context, portOverride int) error {
 	serverConfig.Services.Channels = buildChannelGateway(sc, store, elig, coordBackend)
 	serverConfig.Services.Assistants = buildAssistants(sc, store, serverConfig.Services.Channels, serverConfig.Conv.LLMGateway)
 	if a := serverConfig.Services.Assistants; a != nil {
-		serverConfig.Services.AssistantFrontDoor = &assistantsvc.FrontDoor{Service: a, Conversations: store, Tasks: store, Eligibility: elig}
+		serverConfig.Services.AssistantFrontDoor = &assistantsvc.FrontDoor{
+			Service: a, Conversations: store, Tasks: store, Eligibility: elig,
+			Issues: &issuesvc.Service{Issues: store, Comments: store},
+		}
 	}
 
 	sched, err := scheduler.NewScheduler(store, runner, runTokenMinter(sc, jwtSecret))

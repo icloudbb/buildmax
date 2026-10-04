@@ -4,8 +4,9 @@ import { createSpace, getJSON, reportLeftovers, session, tagged, type Session } 
 
 /**
  * A Space Assistant answering a person in a chat app, end to end: the chat
- * link made in the Portal, the bot bound and published in the Portal, and the
- * reply that comes back through the bot.
+ * link made in the Portal, the bot bound and published in the Portal, the
+ * reply that comes back through the bot, and a request it escalates to an Issue
+ * that a member answers from the Portal.
  *
  * kind runs a Telegram Bot API double (deployment/smoke/mock-telegram) and
  * points the server's system bot at it. The spec plays the person on the other
@@ -47,6 +48,10 @@ interface StoredAssistant {
   name: string
   availability: string
   binding?: { bot_handle: string }
+}
+
+interface IssueList {
+  issues: { id: string; title: string; assistant_id?: string }[]
 }
 
 interface ConversationList {
@@ -110,7 +115,7 @@ async function deleteQuietly(page: Page, path: string, current: Session): Promis
   if (!res.ok() && res.status() !== 404) console.log(`[e2e] cleanup DELETE ${path} → ${res.status()}`)
 }
 
-test("a linked member talks to a published Space Assistant through its own bot", async ({ page }) => {
+test("a linked member talks to a published Space Assistant through its own bot and is answered from an escalated Issue", async ({ page }) => {
   // A real turn runs between the message and the reply, on top of linking,
   // creating, binding, and publishing in the browser.
   test.setTimeout(180_000)
@@ -186,6 +191,38 @@ test("a linked member talks to a published Space Assistant through its own bot",
     const conv = list.conversations.find((c) => c.assistant_id === assistantId)
     expect(conv, "the Space does not list the assistant's conversation").toBeTruthy()
     expect(conv!.channel).toBe("telegram")
+
+    // A request the Assistant cannot answer becomes an Issue that a member
+    // answers. The mock model calls Escalate only for the message carrying the
+    // marker, so no other spec's turn can take the armed call.
+    const marker = `refund${freshID("9")}`
+    const arm = await page.request.post("/smoke-llm/control/toolcall", {
+      data: { name: "Escalate", args: { summary: `Asks for a refund on order 42 (${marker})` }, match: marker },
+    })
+    expect(arm.ok(), `arm Escalate → ${arm.status()} ${await arm.text()}`).toBeTruthy()
+    await tell(page, assistantBot, fromId, `I want a refund for order 42 ${marker}`)
+    let issueId = ""
+    await expect
+      .poll(
+        async () => {
+          const res = await getJSON<IssueList>(page, `${current.apiBase}/api/spaces/${team.id}/issues`, current)
+          issueId = res.issues.find((i) => i.assistant_id === assistantId)?.id ?? ""
+          return issueId
+        },
+        { message: "the escalation opened no Issue", timeout: 60_000, intervals: [500, 1_000, 2_000] }
+      )
+      .not.toBe("")
+
+    // The Issue says where it came from, and its Discussion answers the
+    // requester in the chat through the Assistant's bot.
+    await page.goto(`/#/spaces/${team.id}/issues/${issueId}`)
+    await expect(page.getByTestId("issue-escalation")).toContainText(`Escalated by ${name} for you`)
+    await page.getByRole("navigation", { name: "Issue sections" }).getByRole("button", { name: "Discussion" }).click()
+    const answer = `Refund for order 42 approved (${marker})`
+    await page.getByPlaceholder("Write a comment").fill(answer)
+    await page.getByRole("button", { name: "Reply to requester" }).click()
+    await expect(page.getByText(`Replied to the requester through ${name}:`)).toBeVisible()
+    await awaitReply(page, assistantBot, fromId, (t) => t === answer, "the member's reply")
   } finally {
     // An attached cluster keeps running: a bound bot would be polled for good,
     // and the link would keep acting as the test account.

@@ -294,6 +294,18 @@ type fakeGateway struct {
 	mu         sync.Mutex
 	registered map[string]corechannel.Connector
 	system     string
+	sent       []string
+	sendErr    error
+}
+
+func (g *fakeGateway) Send(_ context.Context, platform, key, chatID, text string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.sendErr != nil {
+		return g.sendErr
+	}
+	g.sent = append(g.sent, platform+"|"+key+"|"+chatID+"|"+text)
+	return nil
 }
 
 func (g *fakeGateway) Register(ctx context.Context, key string, c corechannel.Connector) error {

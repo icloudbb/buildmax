@@ -106,6 +106,11 @@ Agent 的最终回复会作为报告贴到 **Discussion**，并附有指向该�
 通过 **Answer in Task** 或报告上的 **Open Task** 打开 Task，在那里用 **Continue** 回答——在 Issue 上
 发表评论不会传到 Agent。
 
+由 space assistant 升级而来的 Issue 会在描述下方说明来源：哪个 assistant、为谁创建（提问者不是成员时显示为
+space 之外的某人）。它的 **Discussion** 在 **Comment** 旁提供 **Reply to requester**：把你写的内容（最多
+4000 个字符）通过该 assistant 的 bot 发到对方的聊天中，并作为你的评论记录在 Issue 上。assistant 已暂停、
+没有 bot，或不再回答此人时，回复会被拒绝。回复不会传到 assistant 的模型。
+
 ## 在本机处理 Issue
 
 你负责的 Issue 也可以在本地处理，那里有你的文件和工具。
