@@ -882,6 +882,9 @@ worker_api:                          # the internal listener serving /api/worker
 # audit:                             # governance trail retention
 #   retention_days: 365              # default 0 — keep every event forever
 
+# trace:                             # durable run-trace retention
+#   retention_days: 90               # default 0 — keep every trace forever
+
 storage:
   persist_backend: local_fs          # or minio — space uploads
   artifact_backend: local_fs         # or minio — artifact content
@@ -1036,6 +1039,15 @@ writes an `audit.pruned` event naming the range and the count — so a trail tha
 begins partway through says that policy shortened it rather than leaving a
 reader to wonder. Nothing else in BuildMax deletes an audit event, and there is
 no way to delete a particular one.
+
+`trace.retention_days` does the same for durable run traces. It also defaults to
+**0**, keeping every trace. Setting it starts an hourly sweep that deletes the
+trace object of each run that ended before the window and then clears that
+run's pointer to it, so the run reads as having no trace rather than as one
+whose trace went missing; each sweep that removed anything writes a
+`traces.pruned` event. A large backlog is spread across sweeps (at most 10,000
+runs per sweep). With the default, trace storage grows with every run, and
+sizing the bucket for it is the operator's job.
 
 A space owner can download their space's trail from space settings, and a System
 Administrator can download the deployment-wide one, filtered, from `#/admin`.
