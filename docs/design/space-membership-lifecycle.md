@@ -387,6 +387,12 @@ Administration → Spaces, and the break-glass
 public Server or the IdP is unavailable. It never transfers a Space an owner can
 still sign in to. See [system administration](system-administration.md) §8.4.
 
+A service account ([Space Assistants](space-assistants.md) §6) is the one
+member none of this section moves. It is created together with its `member`
+row in one team Space and keeps that row for life: invitation, role change,
+ownership transfer, removal, the member login code, and owner recovery all
+refuse it. Disabling it is how it stops.
+
 ## 6. Out Of Scope
 
 - **Space-initiated account creation.** §1's central decision: an invitation

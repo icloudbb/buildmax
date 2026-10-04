@@ -27,6 +27,7 @@ describe("hash router", () => {
     // survive a reload, so every one of them needs a URL.
     [`#/spaces/${SPACE}/settings/audit`, { name: "space", spaceId: SPACE, section: "audit" }],
     [`#/spaces/${SPACE}/settings/security`, { name: "space", spaceId: SPACE, section: "security" }],
+    [`#/spaces/${SPACE}/settings/service-accounts`, { name: "space", spaceId: SPACE, section: "serviceAccounts" }],
     // Deployment administration is a separate area from space settings, and
     // its sections are linkable for the same reason the space ones are.
     ["#/admin", { name: "admin", section: "overview" }],

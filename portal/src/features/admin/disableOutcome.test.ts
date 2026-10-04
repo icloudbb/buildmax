@@ -6,6 +6,7 @@ function after(partial: Partial<ApiAdminUserAfterDisable>): ApiAdminUserAfterDis
   return {
     id: "u_1",
     email: "gone@corp.com",
+    kind: "human",
     has_password: true,
     created_at: "2026-09-01T00:00:00Z",
     disabled_at: "2026-09-26T00:00:00Z",

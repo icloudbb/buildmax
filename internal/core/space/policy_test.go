@@ -45,6 +45,7 @@ func TestAllowsMatrix(t *testing.T) {
 		ActionCommentIssue:          {owner: true, admin: true, member: true},
 		ActionManageSecrets:         {owner: true, admin: false, member: false},
 		ActionReadSecrets:           {owner: true, admin: true, member: false},
+		ActionManageServiceAccounts: {owner: true, admin: true, member: false},
 		ActionManageSchedules:       {owner: true, admin: true, member: true},
 	}
 	for _, action := range Actions() {

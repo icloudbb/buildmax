@@ -341,9 +341,24 @@
           "role": {"type": "string"},
           "created_at": {"type": "string", "format": "date-time"},
           "user_name": {"type": "string"},
-          "user_email": {"type": "string"}
+          "user_email": {"type": "string"},
+          "user_kind": {"type": "string", "enum": ["human", "service"], "description": "service marks a Space-owned service account, which people pickers leave out."}
         },
         "required": ["space_id", "user_id", "role", "created_at"]
+      },
+      "ServiceAccount": {
+        "type": "object",
+        "description": "A Space-owned service account: a non-human principal work runs as, accountable through a human sponsor. It has no email and no credential. See docs/design/space-assistants.md §6.",
+        "properties": {
+          "id": {"type": "string"},
+          "space_id": {"type": "string"},
+          "name": {"type": "string"},
+          "sponsor_user_id": {"type": "string"},
+          "needs_sponsor": {"type": "boolean", "description": "True when the sponsor is missing, disabled, or no longer an owner or admin of the Space. Cleared by re-sponsoring to an owner or admin."},
+          "disabled_at": {"type": "string", "format": "date-time"},
+          "created_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "space_id", "name", "needs_sponsor", "created_at"]
       },
       "Invitation": {
         "type": "object",
@@ -943,15 +958,17 @@
         "type": "object",
         "properties": {
           "id": {"type": "string"},
-          "email": {"type": "string"},
+          "email": {"type": "string", "description": "Empty for a service account."},
           "name": {"type": "string"},
+          "kind": {"type": "string", "enum": ["human", "service"]},
+          "sponsor_user_id": {"type": "string", "description": "The accountable owner or admin of a service account."},
           "has_password": {"type": "boolean"},
           "disabled_at": {"type": "string", "format": "date-time"},
           "last_login_at": {"type": "string", "format": "date-time"},
           "last_login_platform": {"type": "string"},
           "created_at": {"type": "string", "format": "date-time"}
         },
-        "required": ["id", "email", "has_password", "created_at"]
+        "required": ["id", "email", "kind", "has_password", "created_at"]
       },
       "AdminGrant": {
         "type": "object",
@@ -2696,6 +2713,10 @@
             "description": "OK",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminLoginCode"}}}
           },
+          "400": {
+            "description": "The account is a service account, which cannot sign in",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
           "404": {
             "description": "Account not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
@@ -3655,8 +3676,122 @@
             "description": "Not a member of this space",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
+          "400": {
+            "description": "The member is a service account, which cannot sign in",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
           "409": {
             "description": "The account is disabled",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/service-accounts": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List the space's service accounts",
+        "description": "Any member may read the inventory. Each entry reports whether it needs a sponsor.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/ServiceAccount"}}}}
+          },
+          "403": {
+            "description": "Not a member of this space",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a service account in the space",
+        "description": "Owner or admin. The account becomes a member of this team space and of no other. The sponsor defaults to the caller and must be an enabled owner or admin of the space. Audited as service_account.created.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}, "sponsor_user_id": {"type": "string"}},
+                "required": ["name"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {"description": "Created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ServiceAccount"}}}},
+          "400": {
+            "description": "Missing or too long name, invalid sponsor, or a personal space",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "403": {
+            "description": "Only an owner or admin may manage service accounts",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/service-accounts/{user_id}": {
+      "parameters": [
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "patch": {
+        "summary": "Rename or re-sponsor a service account",
+        "description": "Owner or admin. Re-sponsoring to an enabled owner or admin clears needs_sponsor. Audited as service_account.renamed and service_account.sponsor_changed.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"type": "object", "properties": {"name": {"type": "string"}, "sponsor_user_id": {"type": "string"}}}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ServiceAccount"}}}},
+          "400": {
+            "description": "Missing or too long name, or invalid sponsor",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "403": {
+            "description": "Only an owner or admin may manage service accounts",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "No service account with that id in this space",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/service-accounts/{user_id}/state": {
+      "parameters": [
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "put": {
+        "summary": "Disable or re-enable a service account",
+        "description": "Owner or admin. Disabling uses the account gate: work running as it is stopped as for a disabled person. Audited as service_account.disabled or service_account.enabled.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"type": "object", "properties": {"disabled": {"type": "boolean"}}, "required": ["disabled"]}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ServiceAccount"}}}},
+          "403": {
+            "description": "Only an owner or admin may manage service accounts",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "No service account with that id in this space",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }

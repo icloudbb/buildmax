@@ -65,6 +65,14 @@ Open **Space** from the user menu (owners and admins can change these):
 - **Sandbox defaults** — the default confinement for `Bash` in this space's runs.
   See [Sandbox](sandbox.md).
 - **Secrets** — values runs can use, managed by the owner.
+- **Service accounts** — identities owned by the space that its automation runs
+  as, so work does not depend on one person's account. Owners and admins create,
+  rename, disable, and re-enable them. Each has a **sponsor**, an owner or admin
+  accountable for it; when the sponsor leaves that role or is disabled, the
+  account shows **Needs a sponsor** until an owner or admin chooses
+  **Take sponsorship**. A service account is a member of this space only, cannot
+  sign in, and never appears when you pick a person, such as an issue's owner.
+  Personal spaces cannot have them.
 - **Audit** — a record of what happened in the space.
 
 ## How models are chosen

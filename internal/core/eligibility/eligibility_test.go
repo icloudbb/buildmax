@@ -72,6 +72,24 @@ func TestCheck(t *testing.T) {
 			wantErr: eligibility.ErrAccountDisabled,
 		},
 		{
+			// A service account is a user row, so it passes the same gate a
+			// person does; that is what lets Assistants run as one.
+			name: "enabled service account member is eligible",
+			users: &mock.MockUserStore{ByID: map[string]*coreidentity.User{
+				userID: {ID: userID, Kind: coreidentity.KindService},
+			}},
+			spaces:  memberSpaces(),
+			wantErr: nil,
+		},
+		{
+			name: "disabled service account is refused",
+			users: &mock.MockUserStore{ByID: map[string]*coreidentity.User{
+				userID: {ID: userID, Kind: coreidentity.KindService, DisabledAt: &disabledAt},
+			}},
+			spaces:  memberSpaces(),
+			wantErr: eligibility.ErrAccountDisabled,
+		},
+		{
 			name:    "missing account is refused like disabled",
 			users:   &mock.MockUserStore{ByID: map[string]*coreidentity.User{}},
 			spaces:  memberSpaces(),

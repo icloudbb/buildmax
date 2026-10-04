@@ -173,16 +173,21 @@ for the ownership rationale.
 
 ### `user`
 
-One row per person. An operator or an allowed OIDC first sign-in may create it;
-native self-registration is disabled by default (see
-[../../deploy/authentication.md](../../deploy/authentication.md)).
+One row per person or Space-owned service account. An operator or an allowed
+OIDC first sign-in may create a person; native self-registration is disabled by
+default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
+A Space owner or admin creates a service account, together with its one
+`member` row in that team Space and no personal Space (see
+[../../design/space-assistants.md](../../design/space-assistants.md) §6).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Auto-increment primary key, internal |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
-| `email` | `varchar(255)` | no | Unique; the login identifier |
+| `email` | `varchar(255)` | yes | Unique; the login identifier. `NULL` for a service account, which never signs in |
 | `name` | `varchar(255)` | yes | Display name |
+| `kind` | `varchar(16)` | no | `human` (default) or `service` |
+| `sponsor_user_id` | `bigint unsigned` | yes | A service account's accountable owner or admin, `user.id`; `NULL` for a person |
 | `password_hash` | `varchar(255)` | yes | argon2id, PHC-encoded. `NULL` until a password is set |
 | `password_set_at` | `datetime(6)` | yes |  |
 | `last_login_at` | `datetime(6)` | yes |  |
@@ -190,7 +195,8 @@ native self-registration is disabled by default (see
 | `disabled_at` | `datetime(6)` | yes | Non-`NULL` means every credential this account holds is refused |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `email`; unique `public_id`.
+Indexes: PK `id`; unique `email` (admitting any number of `NULL`s); unique
+`public_id`.
 
 `disabled_at` is read on every authenticated request, which is why it is a
 column on this row rather than a side table: the check has to be one

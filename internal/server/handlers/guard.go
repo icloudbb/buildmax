@@ -268,6 +268,8 @@ func (h *Handler) buildSpaceHandler() *spaceroutes.Handler {
 		Audit:            h.cfg.Audit,
 		Plugins:          h.cfg.PluginService,
 		LoginCodes:       h.cfg.LoginCodeStore,
+		ServiceAccounts:  h.cfg.ServiceAccountStore,
+		Lifecycle:        h.accountLifecycle(),
 		Secrets:          h.cfg.SecretStore,
 		SecretService:    h.cfg.SecretService,
 		Models:           h.modelCatalog(),

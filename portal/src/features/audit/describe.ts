@@ -222,6 +222,24 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
         denied: false,
         target,
       }
+    case "service_account.created":
+      return {
+        summary: event.detail ? `Created the service account ${event.detail}` : "Created a service account",
+        denied: false,
+        target,
+      }
+    case "service_account.renamed":
+      return {
+        summary: event.detail ? `Renamed a service account to ${event.detail}` : "Renamed a service account",
+        denied: false,
+        target,
+      }
+    case "service_account.disabled":
+      return { summary: "Disabled a service account", denied: false, target }
+    case "service_account.enabled":
+      return { summary: "Re-enabled a service account", denied: false, target }
+    case "service_account.sponsor_changed":
+      return { summary: "Changed a service account's sponsor", denied: false, target }
     case "access.denied":
       return {
         summary: event.target_id ? `Was refused: ${event.target_id}` : "Was refused a request",

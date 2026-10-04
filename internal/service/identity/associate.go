@@ -77,8 +77,8 @@ func (s *Service) Associate(ctx context.Context, in AssociationInput) (*Associat
 		}
 		// A link whose account is gone is a broken state, not a login. Refuse
 		// generically rather than provisioning a replacement under the same
-		// subject.
-		if user == nil {
+		// subject. A link to a service account is the same: it never signs in.
+		if user == nil || user.IsService() {
 			return nil, ErrNotAuthorizedForDeployment
 		}
 		// Rule 2: a disabled account is refused after the identity is known, so the
@@ -98,6 +98,11 @@ func (s *Service) Associate(ctx context.Context, in AssociationInput) (*Associat
 	existing, err := s.Users.UserByEmail(ctx, in.VerifiedEmail)
 	if err != nil {
 		return nil, fmt.Errorf("read account by email: %w", err)
+	}
+	// A service account has no email to match, but a link to one must never
+	// be written however it was reached.
+	if existing != nil && existing.IsService() {
+		return nil, ErrNotAuthorizedForDeployment
 	}
 	if existing != nil {
 		// Rule 2 before any linking.
@@ -168,7 +173,7 @@ func (s *Service) resolveRace(ctx context.Context, in AssociationInput) (*Associ
 	if err != nil {
 		return nil, fmt.Errorf("read account after race: %w", err)
 	}
-	if user == nil {
+	if user == nil || user.IsService() {
 		return nil, ErrNotAuthorizedForDeployment
 	}
 	if user.Disabled() {

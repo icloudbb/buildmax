@@ -19,6 +19,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
+	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
 )
 
 var (
@@ -101,6 +102,11 @@ type Service struct {
 	// own space. Nil leaves that route unavailable, which is what a deployment
 	// with no login-code store has.
 	LoginCodes coreidentity.LoginCodeStore
+	// ServiceAccounts and Lifecycle back the Space's service accounts: the
+	// first writes them, the second is the account gate that disables and
+	// re-enables one. Nil leaves those routes unavailable.
+	ServiceAccounts coreidentity.ServiceAccountStore
+	Lifecycle       *accountlifecycle.Service
 	// Now is the clock. Nil means time.Now. Tests set it to pin an invitation's
 	// expiry rather than waiting on InvitationTTLDefault.
 	Now func() time.Time
@@ -258,6 +264,9 @@ func (s *Service) InviteMember(ctx context.Context, cmd InviteMemberCmd) (*cores
 	if user == nil {
 		return nil, nil, ErrInviteeAccountRequired
 	}
+	if user.IsService() {
+		return nil, nil, ErrServiceAccountCannotJoin
+	}
 	if isMember(members, user.ID) {
 		return nil, nil, ErrAlreadyMember
 	}
@@ -391,6 +400,9 @@ func (s *Service) RemoveMember(ctx context.Context, cmd RemoveMemberCmd) error {
 	if !isMember(members, cmd.TargetUserID) {
 		return ErrMemberNotFound
 	}
+	if err := s.refuseServiceAccountMember(ctx, cmd.TargetUserID); err != nil {
+		return err
+	}
 	return s.Spaces.RemoveSpaceMember(ctx, cmd.SpaceID, cmd.TargetUserID)
 }
 
@@ -418,6 +430,9 @@ func (s *Service) SetMemberRole(ctx context.Context, cmd SetMemberRoleCmd) error
 	}
 	if !isMember(members, cmd.TargetUserID) {
 		return ErrMemberNotFound
+	}
+	if err := s.refuseServiceAccountMember(ctx, cmd.TargetUserID); err != nil {
+		return err
 	}
 
 	if role == corespace.RoleOwner {
@@ -466,6 +481,9 @@ func (s *Service) IssueMemberLoginCode(ctx context.Context, cmd IssueMemberLogin
 		user, err := s.Users.GetUser(ctx, cmd.TargetUserID)
 		if err != nil {
 			return "", time.Time{}, err
+		}
+		if user != nil && user.IsService() {
+			return "", time.Time{}, ErrServiceAccountNoSignIn
 		}
 		if user != nil && user.Disabled() {
 			return "", time.Time{}, ErrTargetAccountDisabled

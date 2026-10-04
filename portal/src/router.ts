@@ -68,6 +68,7 @@ function parseSpaceScopedRoute(spaceId: string, rest: string[], query = new URLS
       if (id === "plugins") return { name: "space", spaceId, section: "plugins" }
       if (id === "security") return { name: "space", spaceId, section: "security" }
       if (id === "secrets") return { name: "space", spaceId, section: "secrets" }
+      if (id === "service-accounts") return { name: "space", spaceId, section: "serviceAccounts" }
       if (id === "audit") return { name: "space", spaceId, section: "audit" }
       return { name: "space", spaceId, section: "overview" }
   }
@@ -215,6 +216,8 @@ export function buildHash(route: Route): string {
           return `${prefix}/security`
         case "secrets":
           return `${prefix}/secrets`
+        case "serviceAccounts":
+          return `${prefix}/service-accounts`
         case "audit":
           return `${prefix}/audit`
         case "overview":

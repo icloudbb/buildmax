@@ -9,6 +9,32 @@ import (
 	"testing"
 )
 
+// A service account has no email, so the list names it and marks it rather
+// than printing a blank person who has "no password yet".
+func TestAdminUserListMarksServiceAccounts(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"users": []map[string]any{{"id": "u_svc", "email": "", "name": "HR operations", "kind": "service"}},
+			"total": 1,
+		})
+	}))
+	t.Cleanup(srv.Close)
+	signInHome(t, t.TempDir(), srv.URL)
+
+	cmd := newAdminUserCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"list"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("list: %v: %s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "HR operations (service account)") || strings.Contains(out.String(), "no password yet") {
+		t.Errorf("service account row = %q", out.String())
+	}
+}
+
 // A disable whose cleanup partly failed still disabled the account. The command
 // must say so, name what failed and how to retry, and exit nonzero so a script
 // does not read the cleanup as done.

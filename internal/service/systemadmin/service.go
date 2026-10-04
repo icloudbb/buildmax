@@ -34,6 +34,9 @@ var (
 	// could not authorize a request, so it is refused with an actionable
 	// conflict rather than stored as dormant authority an operator cannot see.
 	ErrAccountDisabled = apierr.New(apierr.KindConflict, "the account is disabled; enable it before granting a role")
+	// ErrServiceAccount means the target is a service account. A system role
+	// is reached through a signed-in session, which a service account never has.
+	ErrServiceAccount = apierr.New(apierr.KindInvalid, "a service account cannot hold a system role")
 	// ErrLastHolder means revoking would leave the deployment with nobody in
 	// the role. Only the shell may do that, because only the shell can undo it.
 	ErrLastHolder = apierr.New(apierr.KindConflict, "this is the deployment's last holder of the role")
@@ -59,6 +62,9 @@ func (s *Service) Grant(ctx context.Context, userID, role string, actor coreaudi
 	}
 	if user == nil {
 		return nil, ErrAccountNotFound
+	}
+	if user.IsService() {
+		return nil, ErrServiceAccount
 	}
 	if user.Disabled() {
 		return nil, ErrAccountDisabled

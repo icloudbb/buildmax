@@ -98,6 +98,7 @@ type AuthConfig struct {
 type StoresConfig struct {
 	UserStore             coreidentity.UserStore
 	LoginCodeStore        coreidentity.LoginCodeStore
+	ServiceAccountStore   coreidentity.ServiceAccountStore
 	PasswordStore         coreidentity.PasswordStore
 	RefreshTokenStore     coreidentity.RefreshTokenStore
 	AuthSessionStore      coreidentity.AuthSessionStore
@@ -387,6 +388,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		OIDCStatus:               cfg.OIDCStatus,
 		Audit:                    cfg.Audit,
 		LoginCodeStore:           cfg.Stores.LoginCodeStore,
+		ServiceAccountStore:      cfg.Stores.ServiceAccountStore,
 		PasswordStore:            cfg.Stores.PasswordStore,
 		RefreshTokenStore:        cfg.Stores.RefreshTokenStore,
 		AuthSessionStore:         cfg.Stores.AuthSessionStore,

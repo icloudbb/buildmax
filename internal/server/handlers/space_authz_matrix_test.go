@@ -111,6 +111,14 @@ var spaceRoutes = []authzCase{
 	{"PATCH", "/api/spaces/{space_id}/members/{user_id}", corespace.RoleOwner, false},
 	{"POST", "/api/spaces/{space_id}/members/{user_id}/login-code", corespace.RoleOwner, false},
 
+	// Service accounts: any member sees the inventory, as with the roster;
+	// managing one is owner-or-admin, the authority over the shared automation
+	// it runs. See docs/design/space-assistants.md §6.3.
+	{"GET", "/api/spaces/{space_id}/service-accounts", corespace.RoleMember, false},
+	{"POST", "/api/spaces/{space_id}/service-accounts", corespace.RoleAdmin, false},
+	{"PATCH", "/api/spaces/{space_id}/service-accounts/{user_id}", corespace.RoleAdmin, false},
+	{"PUT", "/api/spaces/{space_id}/service-accounts/{user_id}/state", corespace.RoleAdmin, false},
+
 	// Invitation is the one membership action admin holds, at member role
 	// only -- see docs/design/space-membership-lifecycle.md §5.1 and §7. That
 	// role-content restriction is enforced by the service, not the route, so
@@ -238,11 +246,13 @@ func matrixMuxWithGrants(t *testing.T, grants coreidentity.SystemGrantStore) *ht
 		},
 	}
 	conversations := &mock.MockConversationStore{}
+	users := &mock.MockUserStore{}
 	h := NewHandler(Config{
 		JWTSecret:                matrixSecret,
 		LLMGateway:               llmTestService(t, &llmStubClient{content: "ok"}, nil),
 		SpaceStore:               spaces,
-		UserStore:                &mock.MockUserStore{},
+		UserStore:                users,
+		ServiceAccountStore:      &mock.MockServiceAccountStore{Users: users, Spaces: spaces},
 		AgentStore:               &mock.MockAgentStore{},
 		IssueStore:               &mock.MockIssueStore{},
 		IssueCommentStore:        &mock.MockIssueCommentStore{},

@@ -100,6 +100,19 @@ func TestActiveUser(t *testing.T) {
 		}
 	})
 
+	t.Run("a service account is 401 even with a live session", func(t *testing.T) {
+		users := &mock.MockUserStore{ByID: map[string]*coreidentity.User{"u1": {ID: "u1", Kind: coreidentity.KindService}}}
+		g := newGuard(users, sessionStore("s1", "u1", future, nil))
+		token := testsupport.SignJWTWithSID("u1", "s1", guardSecret)
+		rec, r := req(token)
+		if _, ok := g.ActiveUser(rec, r); ok || rec.Code != http.StatusUnauthorized {
+			t.Fatalf("ok=%v code=%d, want refused 401 for a service account", ok, rec.Code)
+		}
+		if _, ok := g.TokenSubjectActive(r.Context(), token); ok {
+			t.Fatal("the WebSocket path admitted a service account")
+		}
+	})
+
 	t.Run("no session store skips the session check", func(t *testing.T) {
 		g := &Guard{JWTSecret: guardSecret, Users: activeUsers(), Now: func() time.Time { return now }}
 		// A token with no sid at all is admitted when no session store is wired.

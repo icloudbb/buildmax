@@ -58,12 +58,20 @@ function nextDayStartISO(date: string): string | undefined {
 
 function accountState(user: ApiAdminUser): { label: string; disabled: boolean } {
   if (user.disabled_at) return { label: "Disabled", disabled: true }
+  // A service account never has a password, so "no password yet" would read
+  // as something left to do.
+  if (user.kind === "service") return { label: "Active", disabled: false }
   if (!user.has_password) return { label: "No password yet", disabled: false }
   return { label: "Active", disabled: false }
 }
 
 function whenever(rfc3339?: string): string {
   return rfc3339 ? new Date(rfc3339).toLocaleString() : "never"
+}
+
+/** A service account has no email; it is shown by name and marked. */
+function accountLabel(user: ApiAdminUser): string {
+  return user.kind === "service" ? user.name || user.id : user.email
 }
 
 /**
@@ -362,8 +370,9 @@ export function AdminAccounts({
                     className="admin-list__main admin-list__main--action"
                     onClick={() => navigate({ name: "admin", section: "accounts", userId: user.id })}
                   >
-                    {user.email}
+                    {accountLabel(user)}
                   </button>
+                  {user.kind === "service" ? <span className="admin-pill">Service account</span> : null}
                   <span
                     className={
                       state.disabled ? "admin-pill admin-pill--bad" : "admin-pill"
@@ -445,7 +454,7 @@ export function AdminAccounts({
         <section className="settings-page__section" ref={detailRef}>
           <div className="settings-page__section-head">
             <div>
-              <h2 className="settings-page__section-title">{selected.email}</h2>
+              <h2 className="settings-page__section-title">{accountLabel(selected)}</h2>
               <p className="settings-page__section-copy">
                 {selected.id} · created {whenever(selected.created_at)} ·{" "}
                 {selected.session_count} live session
@@ -536,7 +545,7 @@ export function AdminAccounts({
           <div className="admin-actions">
             <Button
               variant="secondary"
-              disabled={busy || Boolean(selected.disabled_at)}
+              disabled={busy || Boolean(selected.disabled_at) || selected.kind === "service"}
               onClick={() => {
                 if (
                   !window.confirm(

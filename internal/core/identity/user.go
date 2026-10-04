@@ -24,10 +24,28 @@ type User struct {
 	// deletion — nothing is removed, and enabling reverses the state and
 	// nothing else. See docs/design/system-administration.md section 8.
 	DisabledAt *time.Time `json:"disabled_at,omitempty"`
+	// Kind is KindHuman or KindService. A service account is a Space-owned
+	// principal work runs as: it has no email, password, login code, external
+	// identity, or session, and every sign-in path refuses it. See
+	// docs/design/space-assistants.md §6.
+	Kind string `json:"kind"`
+	// SponsorUserID names the human owner or admin accountable for a service
+	// account. Nil for a person.
+	SponsorUserID *string `json:"sponsor_user_id,omitempty"`
 }
+
+// Account kinds.
+const (
+	KindHuman   = "human"
+	KindService = "service"
+)
 
 // Disabled reports whether the account is currently refused.
 func (u User) Disabled() bool { return u.DisabledAt != nil }
+
+// IsService reports whether the account is a service account rather than a
+// person.
+func (u User) IsService() bool { return u.Kind == KindService }
 
 // UserStore looks up users by email and creates new users.
 // UserFilter narrows a ListUsers result. A zero value matches every account;

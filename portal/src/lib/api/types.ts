@@ -760,8 +760,11 @@ export interface ApiSystemGrantsResponse {
 /** One account as an administrator sees it. Never a hash, never a token. */
 export interface ApiAdminUser {
   id: string
+  /** Empty for a service account. */
   email: string
   name?: string
+  kind: "human" | "service"
+  sponsor_user_id?: string
   has_password: boolean
   /** Non-null means every credential this account holds is refused. */
   disabled_at?: string
@@ -1142,6 +1145,9 @@ export interface ApiAdminSpaceMember {
   user_id: string
   email?: string
   role: string
+  /** Set for a service account, which has no email. */
+  name?: string
+  kind?: "human" | "service"
 }
 
 export interface ApiAdminSpaceDetail extends ApiAdminSpace {
@@ -1298,6 +1304,24 @@ export interface ApiSpaceMember {
   created_at?: string
   user_name?: string
   user_email?: string
+  /** "service" marks a Space-owned service account; people pickers leave it out. */
+  user_kind?: "human" | "service"
+}
+
+/**
+ * A Space-owned service account: a non-human principal work runs as, with a
+ * human sponsor and no email or credential. See
+ * docs/design/space-assistants.md §6.
+ */
+export interface ApiServiceAccount {
+  id: string
+  space_id: string
+  name: string
+  sponsor_user_id?: string
+  /** The sponsor is gone, disabled, or no longer an owner or admin here. */
+  needs_sponsor: boolean
+  disabled_at?: string
+  created_at: string
 }
 
 /**

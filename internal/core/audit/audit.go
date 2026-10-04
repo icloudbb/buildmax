@@ -255,6 +255,18 @@ const (
 	SecretCreated   = "secret.created"
 	SecretDisabled  = "secret.disabled"
 	SecretDestroyed = "secret.destroyed"
+	// ServiceAccountCreated, ServiceAccountRenamed, ServiceAccountDisabled,
+	// ServiceAccountEnabled, and ServiceAccountSponsorChanged record a
+	// Space-owned service account's lifecycle as its Space's owners and admins
+	// change it. The target is the account's user id; the detail is its name for
+	// created and renamed, and the new sponsor's id for sponsor_changed. A
+	// deployment administrator disabling one is user.disabled, as for anyone.
+	// See docs/design/space-assistants.md §6.3.
+	ServiceAccountCreated        = "service_account.created"
+	ServiceAccountRenamed        = "service_account.renamed"
+	ServiceAccountDisabled       = "service_account.disabled"
+	ServiceAccountEnabled        = "service_account.enabled"
+	ServiceAccountSponsorChanged = "service_account.sponsor_changed"
 )
 
 // ActorOperator is the ActorID for an action taken by an operator command

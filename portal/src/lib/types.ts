@@ -55,7 +55,7 @@ export type Route =
   | {
       name: "space"
       spaceId: string
-      section?: "overview" | "members" | "plugins" | "security" | "secrets" | "audit" | "memberNew"
+      section?: "overview" | "members" | "plugins" | "security" | "secrets" | "serviceAccounts" | "audit" | "memberNew"
     }
   | {
       name: "admin"

@@ -159,7 +159,7 @@ func (g *Gateway) ActiveUntil(ctx context.Context, userID string) (*time.Time, e
 		return nil, nil
 	}
 	user, err := g.users.GetUser(ctx, userID)
-	if err != nil || user == nil {
+	if err != nil || user == nil || user.IsService() {
 		return nil, err
 	}
 	until, ok := corechannel.ActiveUntil(user.LastLoginAt, g.signInWindow)

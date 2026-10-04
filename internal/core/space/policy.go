@@ -62,6 +62,11 @@ const (
 	// for a run they could already start by hand. See
 	// docs/design/scheduled-agent-execution.md §9.
 	ActionManageSchedules Action = "manage_schedules"
+	// ActionManageServiceAccounts covers creating, renaming, disabling,
+	// re-enabling, and re-sponsoring the Space's service accounts. Owner or
+	// admin, the same authority as the shared automation they run. See
+	// docs/design/space-assistants.md §6.3.
+	ActionManageServiceAccounts Action = "manage_service_accounts"
 )
 
 // Actions returns every action, so a test can prove the matrix covers each one
@@ -81,6 +86,7 @@ func Actions() []Action {
 		ActionManageSecrets,
 		ActionReadSecrets,
 		ActionManageSchedules,
+		ActionManageServiceAccounts,
 	}
 }
 
@@ -124,7 +130,8 @@ func Allows(role string, action Action) bool {
 	switch action {
 	case ActionManageSpaceMembers, ActionChangeMemberRole, ActionReadAuditTrail, ActionModerateIssueComments, ActionManageSecrets:
 		return role == RoleOwner
-	case ActionManageAgents, ActionManageWorkflows, ActionAssignIssueWorkflow, ActionInviteSpaceMember, ActionReadSecrets:
+	case ActionManageAgents, ActionManageWorkflows, ActionAssignIssueWorkflow, ActionInviteSpaceMember, ActionReadSecrets,
+		ActionManageServiceAccounts:
 		return role == RoleOwner || role == RoleAdmin
 	case ActionRunWorkflow, ActionCommentIssue, ActionManageSchedules:
 		return role == RoleOwner || role == RoleAdmin || role == RoleMember

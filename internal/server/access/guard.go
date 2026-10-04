@@ -73,6 +73,12 @@ func (g *Guard) ActiveUser(w http.ResponseWriter, r *http.Request) (string, bool
 			httputil.WriteJSONError(w, http.StatusForbidden, DisabledMessage)
 			return "", false
 		}
+		// A service account never holds a session; a token naming one was not
+		// issued by a sign-in, so it is refused as unauthenticated.
+		if user != nil && user.IsService() {
+			httputil.WriteJSONError(w, http.StatusUnauthorized, "unauthorized")
+			return "", false
+		}
 	}
 	if !g.activeSession(w, r, claims) {
 		return "", false
@@ -129,7 +135,7 @@ func (g *Guard) TokenSubjectActive(ctx context.Context, tokenStr string) (string
 		if err != nil {
 			return "", false
 		}
-		if user != nil && user.Disabled() {
+		if user != nil && (user.Disabled() || user.IsService()) {
 			return "", false
 		}
 	}

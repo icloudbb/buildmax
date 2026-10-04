@@ -23,6 +23,9 @@ var (
 	ErrOwnerStillActive   = apierr.New(apierr.KindConflict, "an owner can still sign in; they can transfer ownership themselves")
 	ErrSuccessorNotMember = apierr.New(apierr.KindInvalid, "the successor must already be a member of the space")
 	ErrSuccessorDisabled  = apierr.New(apierr.KindConflict, "the successor account is disabled")
+	// ErrSuccessorIsService refuses a service account, which holds member and
+	// nothing more for its whole life.
+	ErrSuccessorIsService = apierr.New(apierr.KindInvalid, "a service account cannot own a space")
 )
 
 // Service performs disabled-owner-only ownership recovery. It does the mechanics
@@ -106,6 +109,9 @@ func (s *Service) RecoverOwnership(ctx context.Context, cmd RecoverCmd) (demoted
 	}
 	if successor == nil || successor.Disabled() {
 		return "", ErrSuccessorDisabled
+	}
+	if successor.IsService() {
+		return "", ErrSuccessorIsService
 	}
 
 	if err := s.Spaces.TransferOwnership(ctx, cmd.SpaceID, demotedOwner, cmd.SuccessorID); err != nil {

@@ -838,8 +838,10 @@ forms of evidence are required before claiming support for that provider.
   deletion.
 - PATs, credentials for service accounts, or unattended-client credentials.
   PATs are reconsidered only for a named personal scripting or API use case.
-  [Space Assistants §6](space-assistants.md#6-service-accounts) adds Space-owned
-  service accounts that cannot sign in and hold no credential; any wider
+  Space-owned service accounts exist
+  ([Space Assistants §6](space-assistants.md#6-service-accounts)): a `user` row
+  of kind `service` with no email, password, login code, SSO link, or session,
+  which every sign-in path refuses and which holds no credential. Any wider
   automation-principal lifecycle belongs to
   [Agent execution identity and delegation](../proposals/agent-execution-identity-and-delegation.md).
   The existing webhook key is not a PAT to widen: it has a name, owner, hash,

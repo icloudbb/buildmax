@@ -97,13 +97,17 @@ func runAdminUserList(cmd *cobra.Command, _ []string) error {
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "EMAIL\tID\tSTATE")
 	for _, a := range accounts {
-		state := "active"
+		label, state := a.Email, "active"
+		service := a.Kind == "service"
+		if service {
+			label = a.Name + " (service account)"
+		}
 		if a.Disabled() {
 			state = "disabled"
-		} else if !a.HasPassword {
+		} else if !a.HasPassword && !service {
 			state = "no password yet"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", a.Email, a.ID, state)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", label, a.ID, state)
 	}
 	if err := w.Flush(); err != nil {
 		return err
