@@ -11,6 +11,7 @@ package channel
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -65,8 +66,8 @@ type TurnRunner interface {
 // Conversations is the slice of Conversation storage the gateway needs.
 type Conversations interface {
 	GetConversation(ctx context.Context, conversationID string) (*coreconv.Conversation, error)
-	LatestChatConversation(ctx context.Context, userID, channel, channelRef string) (*coreconv.Conversation, error)
-	CreateChatConversation(ctx context.Context, spaceID, userID, channel, channelRef string) (*coreconv.Conversation, error)
+	LatestChatConversation(ctx context.Context, userID, channel, connector, channelRef string) (*coreconv.Conversation, error)
+	CreateChatConversation(ctx context.Context, spaceID, userID, channel, connector, channelRef string) (*coreconv.Conversation, error)
 }
 
 // Users reads an account's last sign-in, which bounds how long its chat links act.
@@ -98,6 +99,8 @@ type Lease interface {
 
 // Config assembles a Gateway.
 type Config struct {
+	// Connectors are the system bots from server configuration, registered
+	// under corechannel.ConnectorSystem. Others are added with Register.
 	Connectors    []corechannel.Connector
 	Identities    corechannel.IdentityStore
 	Conversations Conversations
@@ -118,8 +121,6 @@ type Config struct {
 
 // Gateway connects chat platforms to Conversations.
 type Gateway struct {
-	connectors    map[string]corechannel.Connector
-	order         []string
 	identities    corechannel.IdentityStore
 	conversations Conversations
 	spaces        Spaces
@@ -136,13 +137,31 @@ type Gateway struct {
 	turns   TurnRunner
 
 	mu       sync.Mutex
+	bots     map[string]*registration
+	order    []string
 	chats    map[string]*chatQueue
 	seen     map[string]time.Time
 	offered  map[string]time.Time
+	ctx      context.Context
 	cancel   context.CancelFunc
-	started  bool
 	receiver sync.WaitGroup
 	work     sync.WaitGroup
+}
+
+// bot is a connector together with the key it is registered under. Every
+// message, conversation, and pairing carries the key, because one platform can
+// have several bots and a person's chat id can be the same with each of them.
+type bot struct {
+	key string
+	corechannel.Connector
+}
+
+// registration is one registered bot and, while the Gateway runs, the receive
+// loop serving it.
+type registration struct {
+	bot
+	stop context.CancelFunc
+	done chan struct{}
 }
 
 type chatQueue struct {
@@ -150,11 +169,10 @@ type chatQueue struct {
 	pending []corechannel.Inbound
 }
 
-// New returns a Gateway, or nil when no connector is configured.
+// New returns a Gateway serving the system connectors in cfg. It exists even
+// without one, so bots registered later, such as a Space Assistant's, can be
+// served by a deployment that configures no system bot.
 func New(cfg Config) *Gateway {
-	if len(cfg.Connectors) == 0 {
-		return nil
-	}
 	log := cfg.Logger
 	if log == nil {
 		log = slog.Default()
@@ -164,7 +182,6 @@ func New(cfg Config) *Gateway {
 		window = coreidentity.SessionAbsoluteTTLDefault
 	}
 	g := &Gateway{
-		connectors:    make(map[string]corechannel.Connector, len(cfg.Connectors)),
 		identities:    cfg.Identities,
 		conversations: cfg.Conversations,
 		spaces:        cfg.Spaces,
@@ -176,15 +193,118 @@ func New(cfg Config) *Gateway {
 		locker:        cfg.Locker,
 		log:           log.With("component", "channel_gateway"),
 		now:           time.Now,
+		bots:          map[string]*registration{},
 		chats:         map[string]*chatQueue{},
 		seen:          map[string]time.Time{},
 		offered:       map[string]time.Time{},
 	}
+	// Server configuration holds at most one bot per platform, so the system
+	// key alone cannot collide: its key is the platform's system bot.
 	for _, c := range cfg.Connectors {
-		g.connectors[c.Platform()] = c
-		g.order = append(g.order, c.Platform())
+		key := systemKey(c.Platform())
+		g.bots[key] = &registration{bot: bot{key: corechannel.ConnectorSystem, Connector: c}}
+		g.order = append(g.order, key)
 	}
 	return g
+}
+
+// systemKey is the registry key of a platform's system bot. Other bots are
+// registered under their own globally unique key.
+func systemKey(platform string) string {
+	return corechannel.ConnectorSystem + ":" + platform
+}
+
+func registryKey(key, platform string) string {
+	if key == "" || key == corechannel.ConnectorSystem {
+		return systemKey(platform)
+	}
+	return key
+}
+
+// connector returns the bot registered under key on platform, or nil. An
+// empty key is the system bot, which is what rows written before keys existed
+// meant.
+func (g *Gateway) connector(platform, key string) *bot {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	r := g.bots[registryKey(key, platform)]
+	if r == nil || r.Platform() != platform {
+		return nil
+	}
+	b := r.bot
+	return &b
+}
+
+// Register adds a bot under key and, if the Gateway is running, starts
+// receiving for it. It refuses a key already in use and a bot BuildMax already
+// receives for under another key.
+func (g *Gateway) Register(ctx context.Context, key string, c corechannel.Connector) error {
+	if key == "" || key == corechannel.ConnectorSystem {
+		return fmt.Errorf("register chat connector: key %q is reserved", key)
+	}
+	id, err := c.BotID(ctx)
+	if err != nil {
+		return fmt.Errorf("register chat connector: identify bot: %w", err)
+	}
+	g.mu.Lock()
+	others := make([]bot, 0, len(g.bots))
+	_, taken := g.bots[key]
+	for _, r := range g.bots {
+		if r.Platform() == c.Platform() {
+			others = append(others, r.bot)
+		}
+	}
+	g.mu.Unlock()
+	if taken {
+		return fmt.Errorf("register chat connector: key %q is already registered", key)
+	}
+	// Asked outside the lock: a connector may call its platform to answer.
+	for _, o := range others {
+		otherID, err := o.BotID(ctx)
+		if err != nil {
+			return fmt.Errorf("register chat connector: identify bot %q: %w", o.key, err)
+		}
+		if otherID == id {
+			return corechannel.ErrBotInUse
+		}
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if _, taken := g.bots[key]; taken {
+		return fmt.Errorf("register chat connector: key %q is already registered", key)
+	}
+	r := &registration{bot: bot{key: key, Connector: c}}
+	g.bots[key] = r
+	g.order = append(g.order, key)
+	if g.ctx != nil {
+		g.startLocked(r)
+	}
+	return nil
+}
+
+// Unregister stops receiving for the bot under key and removes it, waiting for
+// its receive loop to return. Messages it already accepted are still answered.
+// Unknown keys are ignored.
+func (g *Gateway) Unregister(key string) {
+	g.mu.Lock()
+	r := g.bots[key]
+	if r == nil || r.key == corechannel.ConnectorSystem {
+		g.mu.Unlock()
+		return
+	}
+	delete(g.bots, key)
+	for i, k := range g.order {
+		if k == key {
+			g.order = append(g.order[:i], g.order[i+1:]...)
+			break
+		}
+	}
+	stop, done := r.stop, r.done
+	g.mu.Unlock()
+	if stop != nil {
+		stop()
+		<-done
+	}
 }
 
 // SetTurns wires the turn runner. It is set after construction because the
@@ -201,26 +321,33 @@ func (g *Gateway) turnRunner() TurnRunner {
 	return g.turns
 }
 
-// Start begins receiving on every connector. Receiving stops at Stop; sending
-// (replies, outcome reports, link confirmations) works whether or not this
-// replica is the one receiving.
+// Start begins receiving on every registered bot, and on every bot registered
+// later. Receiving stops at Stop; sending (replies, outcome reports, link
+// confirmations) works whether or not this replica is the one receiving.
 func (g *Gateway) Start() {
 	if g == nil {
 		return
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.started {
+	if g.ctx != nil {
 		return
 	}
-	g.started = true
-	ctx, cancel := context.WithCancel(context.Background())
-	g.cancel = cancel
-	for _, platform := range g.order {
-		c := g.connectors[platform]
-		g.receiver.Add(1)
-		go g.runConnector(ctx, c)
+	g.ctx, g.cancel = context.WithCancel(context.Background())
+	for _, key := range g.order {
+		g.startLocked(g.bots[key])
 	}
+}
+
+func (g *Gateway) startLocked(r *registration) {
+	ctx, stop := context.WithCancel(g.ctx)
+	r.stop, r.done = stop, make(chan struct{})
+	g.receiver.Add(1)
+	go func() {
+		defer g.receiver.Done()
+		defer close(r.done)
+		g.runConnector(ctx, r.bot)
+	}()
 }
 
 // Stop ends receiving and waits for the receivers to return. Messages already
@@ -255,11 +382,10 @@ func (g *Gateway) Wait(ctx context.Context) {
 	}
 }
 
-func (g *Gateway) runConnector(ctx context.Context, c corechannel.Connector) {
-	defer g.receiver.Done()
-	log := g.log.With("platform", c.Platform())
+func (g *Gateway) runConnector(ctx context.Context, c bot) {
+	log := g.log.With("platform", c.Platform(), "connector", c.key)
 	for ctx.Err() == nil {
-		runCtx, release, ok := g.hold(ctx, c.Platform())
+		runCtx, release, ok := g.hold(ctx, c)
 		if !ok {
 			sleep(ctx, standbyRetry)
 			continue
@@ -274,15 +400,15 @@ func (g *Gateway) runConnector(ctx context.Context, c corechannel.Connector) {
 	}
 }
 
-// hold takes the connector's lease, returning a context that ends when the
+// hold takes the bot's receive lease, returning a context that ends when the
 // lease is lost. Without a locker this replica is the only one and always holds.
-func (g *Gateway) hold(ctx context.Context, platform string) (context.Context, func(), bool) {
+func (g *Gateway) hold(ctx context.Context, c bot) (context.Context, func(), bool) {
 	if g.locker == nil {
 		return ctx, func() {}, true
 	}
-	lease, ok, err := g.locker.TryAcquire(ctx, "channel-connector:"+platform)
+	lease, ok, err := g.locker.TryAcquire(ctx, "channel-connector:"+c.Platform()+":"+c.key)
 	if err != nil {
-		g.log.Warn("could not ask for the chat connector lease", "platform", platform, "err", err)
+		g.log.Warn("could not ask for the chat connector lease", "platform", c.Platform(), "connector", c.key, "err", err)
 		return nil, nil, false
 	}
 	if !ok {
@@ -292,7 +418,7 @@ func (g *Gateway) hold(ctx context.Context, platform string) (context.Context, f
 	go func() {
 		select {
 		case <-lease.Lost():
-			g.log.Warn("chat connector lease lost; stopping receive", "platform", platform)
+			g.log.Warn("chat connector lease lost; stopping receive", "platform", c.Platform(), "connector", c.key)
 			cancel()
 		case <-runCtx.Done():
 		}
@@ -307,12 +433,13 @@ func sleep(ctx context.Context, d time.Duration) {
 	}
 }
 
-// accept queues a delivered message behind any other from the same chat, so a
-// chat's messages are answered in order while different chats proceed at once.
-func (g *Gateway) accept(c corechannel.Connector, in corechannel.Inbound) {
-	key := c.Platform() + "\x00" + in.Tenant + "\x00" + in.ChatID
+// accept queues a delivered message behind any other from the same chat with
+// the same bot, so a chat's messages are answered in order while different
+// chats proceed at once.
+func (g *Gateway) accept(c bot, in corechannel.Inbound) {
+	key := c.Platform() + "\x00" + c.key + "\x00" + in.Tenant + "\x00" + in.ChatID
 	g.mu.Lock()
-	if g.duplicateLocked(c.Platform(), in.EventID) {
+	if g.duplicateLocked(c, in.EventID) {
 		g.mu.Unlock()
 		return
 	}
@@ -324,7 +451,7 @@ func (g *Gateway) accept(c corechannel.Connector, in corechannel.Inbound) {
 	if q.running {
 		if len(q.pending) >= maxPendingPerChat {
 			g.mu.Unlock()
-			g.log.Warn("chat queue full; dropping message", "platform", c.Platform())
+			g.log.Warn("chat queue full; dropping message", "platform", c.Platform(), "connector", c.key)
 			return
 		}
 		q.pending = append(q.pending, in)
@@ -337,7 +464,7 @@ func (g *Gateway) accept(c corechannel.Connector, in corechannel.Inbound) {
 	go g.drainChat(c, key, q, in)
 }
 
-func (g *Gateway) drainChat(c corechannel.Connector, key string, q *chatQueue, in corechannel.Inbound) {
+func (g *Gateway) drainChat(c bot, key string, q *chatQueue, in corechannel.Inbound) {
 	defer g.work.Done()
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), turnTimeout)
@@ -356,14 +483,15 @@ func (g *Gateway) drainChat(c corechannel.Connector, key string, q *chatQueue, i
 }
 
 // duplicateLocked records an event id and reports whether it was already seen.
-// Only one replica receives for a connector, so memory is enough; a handoff can
-// still redeliver, which the connector narrows by confirming what it took.
-func (g *Gateway) duplicateLocked(platform, eventID string) bool {
+// Event ids are per bot. Only one replica receives for a bot, so memory is
+// enough; a handoff can still redeliver, which the connector narrows by
+// confirming what it took.
+func (g *Gateway) duplicateLocked(c bot, eventID string) bool {
 	if eventID == "" {
 		return false
 	}
 	now := g.now()
-	id := platform + "\x00" + eventID
+	id := c.Platform() + "\x00" + c.key + "\x00" + eventID
 	if at, ok := g.seen[id]; ok && now.Sub(at) < seenWindow {
 		return true
 	}

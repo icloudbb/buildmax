@@ -11,9 +11,10 @@ import (
 	chansvc "github.com/icloudbb/buildmax/internal/service/channel"
 )
 
-// buildChannelGateway assembles the chat connectors server.yaml configures, or
-// returns nil when it configures none. With a coordination backend, a lease
-// keeps each connector receiving on one replica at a time.
+// buildChannelGateway assembles the Gateway with the system bots server.yaml
+// configures. It is built even without one, because bots registered later
+// need it. With a coordination backend, a lease keeps each bot receiving on
+// one replica at a time.
 func buildChannelGateway(sc config.ServerConfig, store *db.Store, elig eligibility.Checker, backend *coordination.Backend) *chansvc.Gateway {
 	var connectors []corechannel.Connector
 	if tg := sc.Channels.Telegram; tg.BotToken != "" {

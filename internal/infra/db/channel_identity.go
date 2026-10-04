@@ -36,15 +36,17 @@ func (channelIdentityRow) TableName() string { return "channel_identity" }
 // hash is stored, so a database backup yields nothing redeemable. One pending
 // row per chat account: a new request replaces the old one.
 type channelPairingRow struct {
-	ID             uint64    `gorm:"primaryKey;autoIncrement"`
-	CodeHash       string    `gorm:"column:code_hash;type:char(64) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex;not null"`
-	Platform       string    `gorm:"column:platform;type:varchar(32) CHARACTER SET ascii COLLATE ascii_bin;not null;uniqueIndex:uq_channel_pairing_external,priority:1"`
-	Tenant         string    `gorm:"column:tenant;type:varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;not null;default:'';uniqueIndex:uq_channel_pairing_external,priority:2"`
-	ExternalUserID string    `gorm:"column:external_user_id;type:varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;not null;uniqueIndex:uq_channel_pairing_external,priority:3"`
-	ChatID         string    `gorm:"column:chat_id;type:varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;not null"`
-	Handle         string    `gorm:"column:handle;type:varchar(255)"`
-	ExpiresAt      time.Time `gorm:"column:expires_at;not null;index"`
-	CreatedAt      time.Time `gorm:"autoCreateTime"`
+	ID             uint64 `gorm:"primaryKey;autoIncrement"`
+	CodeHash       string `gorm:"column:code_hash;type:char(64) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex;not null"`
+	Platform       string `gorm:"column:platform;type:varchar(32) CHARACTER SET ascii COLLATE ascii_bin;not null;uniqueIndex:uq_channel_pairing_external,priority:1"`
+	Tenant         string `gorm:"column:tenant;type:varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;not null;default:'';uniqueIndex:uq_channel_pairing_external,priority:2"`
+	ExternalUserID string `gorm:"column:external_user_id;type:varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;not null;uniqueIndex:uq_channel_pairing_external,priority:3"`
+	ChatID         string `gorm:"column:chat_id;type:varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;not null"`
+	// Connector is the key of the bot that issued the code; it confirms the link.
+	Connector string    `gorm:"column:connector;type:varchar(64) CHARACTER SET ascii COLLATE ascii_bin;not null;default:''"`
+	Handle    string    `gorm:"column:handle;type:varchar(255)"`
+	ExpiresAt time.Time `gorm:"column:expires_at;not null;index"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
 }
 
 func (channelPairingRow) TableName() string { return "channel_pairing" }
@@ -80,6 +82,7 @@ func (r channelIdentityReadRow) toIdentity() corechannel.Identity {
 func (p channelPairingRow) toPairing() corechannel.Pairing {
 	return corechannel.Pairing{
 		Platform:       p.Platform,
+		Connector:      p.Connector,
 		Tenant:         p.Tenant,
 		ExternalUserID: p.ExternalUserID,
 		ChatID:         p.ChatID,
@@ -165,6 +168,7 @@ func (s *Store) CreatePairing(ctx context.Context, p corechannel.Pairing, code s
 	row := channelPairingRow{
 		CodeHash:       hashPairingCode(code),
 		Platform:       p.Platform,
+		Connector:      p.Connector,
 		Tenant:         p.Tenant,
 		ExternalUserID: p.ExternalUserID,
 		ChatID:         p.ChatID,

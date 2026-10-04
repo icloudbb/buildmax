@@ -16,9 +16,9 @@ const (
 	reportErrorLimit  = 500
 )
 
-// ReportRunTerminal tells the chat a Task came from how its run ended. It runs
-// on whichever replica saw the run finish: sending needs only the bot
-// credential, not the receive lease.
+// ReportRunTerminal tells the chat a Task came from how its run ended, through
+// the bot that chat talks to. It runs on whichever replica saw the run finish:
+// sending needs only the bot credential, not the receive lease.
 //
 // It reports only while the conversation's owner can still see the result:
 // their account may still work in the Space, they still have a chat account
@@ -31,7 +31,7 @@ func (g *Gateway) ReportRunTerminal(ctx context.Context, info coretask.RunTermin
 	if err != nil || conv == nil || conv.ChannelRef == "" {
 		return
 	}
-	c := g.connectors[conv.Channel]
+	c := g.connector(conv.Channel, conv.ChannelConnector)
 	if c == nil {
 		return
 	}
@@ -61,7 +61,7 @@ func (g *Gateway) ReportRunTerminal(ctx context.Context, info coretask.RunTermin
 	}
 	sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
-	g.reply(sendCtx, c, conv.ChannelRef, g.formatReport(info, title))
+	g.reply(sendCtx, *c, conv.ChannelRef, g.formatReport(info, title))
 }
 
 func (g *Gateway) formatReport(info coretask.RunTerminalInfo, title string) string {

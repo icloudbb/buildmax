@@ -37,7 +37,7 @@ type harness struct {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	h := &harness{
-		conn:  newFakeConnector(),
+		conn:  newFakeConnector("100"),
 		ids:   newFakeIdentities(),
 		convs: &fakeConversations{},
 		elig:  &fakeEligibility{},
@@ -66,14 +66,26 @@ func dm(text string) corechannel.Inbound {
 	return corechannel.Inbound{ChatID: adaChat, ChatType: corechannel.ChatPrivate, SenderID: adaChat, SenderHandle: "@ada", Text: text}
 }
 
-func (h *harness) send(in corechannel.Inbound) {
-	h.g.handle(context.Background(), h.conn, in)
+func (h *harness) system() bot {
+	return bot{key: corechannel.ConnectorSystem, Connector: h.conn}
 }
 
-func TestNewReturnsNilWithoutConnectors(t *testing.T) {
-	if New(Config{}) != nil {
-		t.Fatal("a gateway with no connector should be nil so the server skips it")
+func (h *harness) send(in corechannel.Inbound) {
+	h.g.handle(context.Background(), h.system(), in)
+}
+
+// A deployment without a system bot still gets a Gateway, so bots registered
+// later have somewhere to run; it simply lists no platform to link through.
+func TestNewWithoutConnectorsServesNoBotYet(t *testing.T) {
+	g := New(Config{})
+	if g == nil {
+		t.Fatal("New returned nil")
 	}
+	if p := g.Platforms(context.Background()); len(p) != 0 {
+		t.Errorf("Platforms = %+v, want none", p)
+	}
+	g.Start()
+	g.Stop()
 }
 
 // An unlinked sender gets a link code and nothing else: no model runs.
@@ -310,11 +322,11 @@ func TestAcceptSerializesAChatAndDropsRedeliveries(t *testing.T) {
 	for i, text := range []string{"one", "two", "three"} {
 		in := dm(text)
 		in.EventID = string(rune('a' + i))
-		h.g.accept(h.conn, in)
+		h.g.accept(h.system(), in)
 	}
 	dup := dm("two")
 	dup.EventID = "b"
-	h.g.accept(h.conn, dup)
+	h.g.accept(h.system(), dup)
 	close(h.turns.block)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

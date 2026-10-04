@@ -117,11 +117,23 @@ Each concept is listed with the requirement that fails without it.
   in `server.yaml`, injected through `BUILDMAX_TELEGRAM_BOT_TOKEN`.
   - [Space Secrets §4](space-secrets.md) already places BuildMax's own
     credentials in operator configuration.
-  - A deployment normally has one bot per platform.
+  - A deployment normally has one **system bot** per platform: the bot
+    configured here, which serves every linked user as their personal
+    assistant.
   - Space-owned bots belong to [Space Assistants](space-assistants.md): a
     Space publishes a service front door with its own bot, whose requesters
     are not its operating authority. Their bots are bound in Portal, not in
     `server.yaml`.
+- **Connector key** names which bot a message, pairing, or conversation
+  belongs to: `system` for the system bot, and a registration key for any other.
+  - Without it, a second bot on a platform is indistinguishable from the
+    first. A Telegram user's private chat id is the same with every bot, so
+    the chat id alone cannot say which conversation a message continues.
+  - The Gateway registers and removes bots at runtime (`Register`,
+    `Unregister`). It exists even when no system bot is configured.
+  - Registration asks the platform for the bot's own id and refuses one
+    already served (`ErrBotInUse`): a Telegram token delivers each update to
+    one poller, so a second connector would take the first one's messages.
 - **`channel_identity`** is platform, tenant, and external user id mapped to a
   user.
   - Without it, a message cannot carry per-sender authority.
@@ -139,6 +151,8 @@ Each concept is listed with the requirement that fails without it.
     reported to the right chat.
   - Several rows share one ref. The newest is the chat's current conversation.
     `/new` and `/space` start another in place, and no pointer table is needed.
+  - `conversation.channel_connector` records the bot, and a lookup matches
+    both. A conversation is continued only through the bot it started on.
   - Only the Gateway sets it. `telegram` is therefore not in `ValidChannels()`,
     and neither the HTTP nor the WebSocket create path accepts it.
 
@@ -195,6 +209,13 @@ use `core/channel.Connector`.
    `code`. It shows the platform and handle being linked.
 3. On confirmation, `POST /api/channel-links` consumes the code and creates the
    link in one locked transaction. The chat is then told it is linked.
+
+**Any bot can start a pairing.** The link belongs to the person, not to the bot:
+`channel_identity` has no bot dimension, and Telegram user ids are the same
+across bots, so one link makes the person known to every bot on the platform.
+The pairing records the connector key of the bot that issued the code, and that
+bot confirms the link. A deployment whose only bots are Space Assistants' can
+still link people.
 
 The code is confirmed on the trusted surface, as in OpenClaw, Claude Code
 Channels, and Claude Tag, rather than pasting a Portal-issued secret into a
@@ -260,8 +281,8 @@ A Connector's `Receive` runs only on the replica holding the connector's lease.
 - **Single replica.** In `coordination.mode: local` there is one replica and no
   lease.
 - **Redis mode.**
-  - Each replica calls `TryAcquireLock("channel-connector:<platform>")` every 10
-    seconds until it wins.
+  - Each replica calls `TryAcquireLock("channel-connector:<platform>:<key>")`
+    every 10 seconds until it wins, one lease per bot.
   - The winner holds the lock for a 30-second TTL and renews it in the
     background.
   - The renewer closes `Lease.Lost()` when the key is gone, or cannot be
@@ -277,6 +298,8 @@ A Connector's `Receive` runs only on the replica holding the connector's lease.
   again" reply.
 - **Sending needs no lease.** Replies, link confirmations, and outcome reports
   go out from whichever replica has them.
+- **Per bot.** Deduplication of redelivered events and the per-chat queue are
+  keyed by bot as well as chat, since event ids are per bot.
 
 ## 9. Outcome Reports
 
@@ -287,6 +310,9 @@ A Connector's `Receive` runs only on the replica holding the connector's lease.
 - **Who can still see it.** The report is sent only while the conversation's
   owner still passes eligibility for its Space, and still has a link on that
   platform.
+- **Which bot.** The report leaves through the bot the conversation started
+  on. A conversation written before connector keys existed belongs to the
+  system bot.
 - **What it says.** The report gives the Task title and status, up to 1500
   characters of output (500 of an error), and a Portal link. A run that ended
   on `AskUser` questions is reported as waiting for an answer, and keeps the

@@ -254,6 +254,25 @@ func TestInfoNamesTheBot(t *testing.T) {
 	}
 }
 
+func TestBotIDIsTheBotsTelegramID(t *testing.T) {
+	_, srv := newFakeBotAPI(t)
+	id, err := New(Config{Token: testToken, APIBaseURL: srv.URL}).BotID(context.Background())
+	if err != nil || id != "1" {
+		t.Errorf("BotID = %q, %v; want 1", id, err)
+	}
+}
+
+func TestBotIDFailsOnARejectedToken(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error_code": 401, "description": "Unauthorized"})
+	}))
+	t.Cleanup(srv.Close)
+	if _, err := New(Config{Token: testToken, APIBaseURL: srv.URL}).BotID(context.Background()); err == nil {
+		t.Error("BotID succeeded with a rejected token")
+	}
+}
+
 func TestSplitMessageCountsUTF16AndPrefersNewlines(t *testing.T) {
 	// An emoji is two UTF-16 units: three of them do not fit in five units.
 	parts := splitMessage("😀😀😀", 5)

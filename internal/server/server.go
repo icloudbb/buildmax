@@ -146,9 +146,10 @@ type ServicesConfig struct {
 	// disables the worker checkpoint route, which is what a deployment with no
 	// checkpoint storage has.
 	WorkspaceCheckpoints *workspacesvc.Service
-	// Channels carries instant-messaging chats into Conversations. Nil when no
-	// chat platform is configured. The server wires its turn runner, reports
-	// run outcomes through it, and starts and stops its receivers.
+	// Channels carries instant-messaging chats into Conversations. Nil only
+	// where a deployment is assembled without chat support, such as some
+	// tests. The server wires its turn runner, reports run outcomes through
+	// it, and starts and stops its receivers.
 	Channels *chansvc.Gateway
 }
 
