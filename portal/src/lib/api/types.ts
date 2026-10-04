@@ -1387,6 +1387,7 @@ export interface ApiAssistantStatement {
 /** An Assistant's bot. The token is never returned. */
 export interface ApiAssistantBinding {
   platform: string
+  /** The bot's handle as the platform writes it, "@" included. */
   bot_handle: string
   created_at: string
 }
