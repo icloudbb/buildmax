@@ -178,6 +178,7 @@ export function SpaceSettings({ spaceId, section }: { spaceId: string; section: 
             members={members}
             currentUserId={user?.id}
             manageState={canManageSpaceState}
+            onChanged={() => void loadMembers()}
           />
         ) : null}
         {section === "audit" ? (

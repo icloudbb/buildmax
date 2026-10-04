@@ -25,6 +25,7 @@ export function SpaceServiceAccounts({
   members,
   currentUserId,
   manageState,
+  onChanged,
 }: {
   token: string | null
   spaceId: string
@@ -33,6 +34,8 @@ export function SpaceServiceAccounts({
   currentUserId?: string
   /** Owner-or-admin capability state. */
   manageState: PermissionState
+  /** Called after a change, since a service account is also a roster member. */
+  onChanged?: () => void
 }) {
   const canManage = isAllowed(manageState) && !isPersonalSpace
   const [data, setData] = useState<ApiServiceAccount[] | null>(null)
@@ -81,6 +84,7 @@ export function SpaceServiceAccounts({
     try {
       await run()
       await load()
+      onChanged?.()
     } catch (err) {
       setActionError({ id, message: getErrorMessage(err, fallback) })
     } finally {
@@ -128,6 +132,7 @@ export function SpaceServiceAccounts({
             await createServiceAccount(spaceId, { name }, token)
             setCreating(false)
             await load()
+            onChanged?.()
           }}
         />
       ) : null}
