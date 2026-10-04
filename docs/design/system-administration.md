@@ -148,6 +148,7 @@ to prevent is one principal quietly acquiring another's reach.
 | **User** | Access token from a password or login code | Resources of spaces they belong to, at their role | Anything in a space they are not in |
 | **Space owner** | The same token, plus an `owner` membership row | Membership, shared automation, and the audit trail of *that* space | Any other space; any deployment-scoped surface |
 | **System Administrator** | The same token, plus an active grant row | Accounts, grants, system status, redacted configuration, cross-space **metadata** and audit, model catalog state | Prompts, messages, tool output, artifacts, files, and run traces of spaces they are not in |
+| **Service account** | Nothing: it holds no credential, and every sign-in path and the request guard refuse it | Its one team Space, at `member`, through work dispatched as it | Every route; any other Space; any management role or system grant |
 | **Worker run** | A run token naming one run | The four `/api/worker/*` routes for that run | Every user route; every other run |
 | **Infrastructure operator** | Database, cluster, and secret access | Everything, by construction | — |
 
@@ -343,12 +344,12 @@ The table is the registered surface; `internal/server/handlers/admin` owns it.
 |---|---|---|
 | `GET /api/admin/me` | The caller's grant: role, granted at, granted by | — |
 | `GET /api/admin/grants` | Active grants, and revoked ones on request | — |
-| `POST /api/admin/grants` | Grants `system_admin` to a user id | A grant to an account that does not exist |
+| `POST /api/admin/grants` | Grants `system_admin` to a user id | A grant to an account that does not exist, or to a service account |
 | `DELETE /api/admin/grants/{user_id}` | Revokes it | The last effective holder (§6) |
-| `GET /api/admin/users` | Accounts, newest first, `?q=` on email, paged | Password hashes, login codes, token values |
-| `GET /api/admin/users/{user_id}` | One account: email, name, last login and platform, `has_password`, `disabled_at`, space memberships with roles, active session count | Everything in the row above |
+| `GET /api/admin/users` | Accounts, newest first, `?q=` on email, paged; each carries `kind` (`human` or `service`) and a service account's `sponsor_user_id` | Password hashes, login codes, token values |
+| `GET /api/admin/users/{user_id}` | One account: email, name, `kind`, last login and platform, `has_password`, `disabled_at`, space memberships with roles, active session count | Everything in the row above |
 | `POST /api/admin/users` | Creates an account and its personal space | — |
-| `POST /api/admin/users/{user_id}/login-code` | Issues a single-use code, shown once | A code that can be read back later |
+| `POST /api/admin/users/{user_id}/login-code` | Issues a single-use code, shown once | A code that can be read back later; a code for a service account |
 | `GET /api/admin/users/{user_id}/deactivation-impact` | What a disable would stop (§8.3): live sessions, webhook keys, shared-Space memberships and roles, sole-owned shared Space IDs, enabled Schedules, active runs by status, the cancellation bound | Prompts, inputs, outputs, Artifact names, traces, raw errors, secrets |
 | `PUT /api/admin/users/{user_id}/state` | Sets the account's `disabled` flag (§8). A disable accepts `retire_webhook_keys` and returns the reloaded account with its cleanup counts | — |
 | `GET /api/admin/users/{user_id}/identities` | The account's external-identity links: issuer, subject, last-seen email and name, last login | — |
@@ -363,7 +364,7 @@ The table is the registered surface; `internal/server/handlers/admin` owns it.
 | `GET /api/admin/spaces/{space_id}` | The same, plus members and roles, plus usage against the tier | Issues, conversations, artifacts, files, traces |
 | `GET /api/admin/audit-events` | The trail across every space, filtered by `space_id`, `actor_id`, `action`, `since`, `until`, paged | Anything the event does not already hold |
 | `GET /api/admin/audit-events/export` | The same filtered trail as a CSV or JSONL download; the export is itself audited | The same |
-| `PUT /api/admin/spaces/{space_id}/owner` | Promotes an enabled member to owner when every recorded owner is disabled (§8.4) | A healthy Space, a personal Space, a successor who is not already a member |
+| `PUT /api/admin/spaces/{space_id}/owner` | Promotes an enabled member to owner when every recorded owner is disabled (§8.4) | A healthy Space, a personal Space, a successor who is not already a member or is a service account |
 | `GET /api/admin/quota-tiers` | The seeded tiers: name, run and token limits per period, storage limit, period | — |
 | `PUT /api/admin/spaces/{space_id}/quota-tier` | Assigns a Space, team or personal, to an existing tier (§7.2) | An unknown tier, named in the refusal alongside the valid ones |
 | `POST /api/admin/llm/models` | Creates a model, encrypting a write-only credential | Credential material in the response |
@@ -512,6 +513,17 @@ Enabling reverses the gate and nothing else. Sessions stay revoked, canceled
 runs stay canceled, paused Schedules stay paused, retired keys stay retired, and
 the person signs in again. Undo is not a goal.
 
+**Service accounts use the same gate.** A service account
+([Space Assistants §6](space-assistants.md#6-service-accounts)) is a `user` row
+with `kind = service`, a NULL email, and a sponsor. It has no credential, so the
+rows above about passwords, codes, refresh, and access tokens never apply; the
+rows about work do. A System Administrator disables or enables one with
+`PUT /api/admin/users/{user_id}/state` like any account, and the Space's owners
+and admins can do the same through
+`PUT /api/spaces/{space_id}/service-accounts/{user_id}/state`, which runs the
+same deactivation service. The admin user list marks it, and the routes that
+assume a person — a login code, a system grant, ownership recovery — refuse it.
+
 ### 8.2 Execution Eligibility
 
 `internal/core/eligibility` owns one question: may this user run work in this
@@ -649,7 +661,9 @@ no schema change is needed. Owner recovery (§8.4) later added
 `space.ownership_recovered`, and quota tier assignment (§7.2)
 `space.quota_tier_changed`, with the old and new tier as `old -> new` in its
 detail. Both are written with the Space's id so the Space's own trail shows
-them.
+them. Service accounts added `service_account.created`, `.renamed`, `.disabled`,
+`.enabled`, and `.sponsor_changed`, written by the Space's owners and admins
+with the Space's id; an administrator's disable of one is `user.disabled`.
 
 Two things fall out of adding these:
 

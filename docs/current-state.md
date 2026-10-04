@@ -608,6 +608,24 @@ See the [identity service](../internal/service/identity/account.go), the
 [OIDC provider](../internal/infra/oidc/provider.go), and the
 [Space service](../internal/service/space/service.go).
 
+Space-owned service accounts exist as a second account kind: a `user` row with
+`kind = service`, no email, and a sponsor who must be an enabled owner or admin
+of its one team Space, where it is a `member` for life. No sign-in path accepts
+one (password, login code, SSO linking, refresh, the request guard, and chat
+pairing all refuse it), it holds no credential, and the routes that assume a
+person — invitation, role change, removal, login codes, system grants, and
+ownership recovery — refuse it. Owners and admins create, rename, disable,
+re-enable, and re-sponsor them in Space settings
+(`/api/spaces/{space_id}/service-accounts`), each audited as a
+`service_account.*` event; disabling runs the same deactivation service as an
+administrator's disable. Whether one needs a sponsor is derived on read and
+appears when the sponsor is demoted, removed, or disabled. The admin user list
+marks them and Portal's people pickers leave them out. Nothing in production
+yet runs work as one: the eligibility gates accept an active one and refuse a
+disabled one, as tests show, and the Space Assistant front door is the first
+planned user ([Space Assistants](design/space-assistants.md) §6). See the
+[service-account service](../internal/service/space/service_accounts.go).
+
 `buildmax admin` provides authenticated administrator, account, and model-catalog
 operations. `buildmax-server` retains database-direct bootstrap and recovery
 commands. Model credentials are encrypted under the deployment key-encryption
