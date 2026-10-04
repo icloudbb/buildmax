@@ -26,10 +26,14 @@ type Conversation struct {
 	// ChannelConnector is the key of the bot the chat talks to, since one
 	// platform can have several and a chat id can repeat across them. Empty for
 	// Portal and webhook conversations. Internal: clients have no use for it.
-	ChannelConnector string    `json:"-"`
-	Title            string    `json:"title,omitempty"`
-	CreatedBy        string    `json:"created_by"`
-	CreatedAt        time.Time `json:"created_at"`
+	ChannelConnector string `json:"-"`
+	// AssistantID is the Space Assistant that answers this conversation, or
+	// empty for the person's own assistant. UserID is then the requester.
+	// See docs/design/space-assistants.md §4.
+	AssistantID string    `json:"assistant_id,omitempty"`
+	Title       string    `json:"title,omitempty"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // Message is one message in a Tier 1 conversation.
@@ -46,8 +50,11 @@ type Message struct {
 	ProviderStateJSON *string `json:"provider_state,omitempty"`
 	// PartsJSON is non-text content on the message, stored as the canonical
 	// part list. Content remains the text describing it.
-	PartsJSON *string   `json:"parts,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	PartsJSON *string `json:"parts,omitempty"`
+	// AssistantRevision is the Assistant revision that answered, on a message
+	// in an Assistant conversation; zero otherwise.
+	AssistantRevision int       `json:"assistant_revision,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 // AppendInput is one message to store.
@@ -66,6 +73,8 @@ type AppendInput struct {
 	ProviderStateJSON *string
 	// PartsJSON is set when the message carries non-text content.
 	PartsJSON *string
+	// AssistantRevision stamps a message in an Assistant conversation.
+	AssistantRevision int
 	// Fence is the turn's cross-replica lease token. When above zero the store
 	// rejects the write with ErrStaleTurnWrite if the conversation has already
 	// accepted a higher token, so a holder that resumed after its lease expired

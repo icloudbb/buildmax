@@ -31,14 +31,20 @@ type taskRow struct {
 	Output                *string `gorm:"type:text"`
 	// OutputSchema is the JSON Schema a run's final answer must satisfy, nil for a
 	// free-text task. See docs/design/structured-output.md.
-	OutputSchema *string    `gorm:"type:text"`
-	CreatedBy    uint64     `gorm:"column:created_by;not null"`
-	CreatedAt    time.Time  `gorm:"autoCreateTime;index:idx_task_space_created,priority:2"`
-	StartedAt    *time.Time `gorm:""`
-	EndedAt      *time.Time `gorm:""`
-	ErrorMessage *string    `gorm:"type:text"`
-	SessionID    *string    `gorm:"type:varchar(36)"`
-	LastRunID    *uint64    `gorm:"column:last_run_id;index"`
+	OutputSchema *string `gorm:"type:text"`
+	CreatedBy    uint64  `gorm:"column:created_by;not null"`
+	// RequestedBy, AssistantID, and AssistantRevision record a Space
+	// Assistant's dispatch: who asked and what answered them. CreatedBy is then
+	// the Assistant's service account. NULL and zero otherwise.
+	RequestedBy       *uint64    `gorm:"column:requested_by;index"`
+	AssistantID       *uint64    `gorm:"column:assistant_id;index"`
+	AssistantRevision int        `gorm:"column:assistant_revision;not null;default:0"`
+	CreatedAt         time.Time  `gorm:"autoCreateTime;index:idx_task_space_created,priority:2"`
+	StartedAt         *time.Time `gorm:""`
+	EndedAt           *time.Time `gorm:""`
+	ErrorMessage      *string    `gorm:"type:text"`
+	SessionID         *string    `gorm:"type:varchar(36)"`
+	LastRunID         *uint64    `gorm:"column:last_run_id;index"`
 	// AwaitingAnswer projects the latest run ending on AskUser questions.
 	AwaitingAnswer bool    `gorm:"not null;default:false"`
 	AgentID        *uint64 `gorm:"column:agent_id;index"`
@@ -74,6 +80,8 @@ type taskReadRow struct {
 	IssuePublicID        *string `gorm:"column:issue_public_id"`
 	SchedulePublicID     *string `gorm:"column:schedule_public_id"`
 	AgentPublicID        *string `gorm:"column:agent_public_id"`
+	RequestedByPublicID  *string `gorm:"column:requested_by_public_id"`
+	AssistantPublicID    *string `gorm:"column:assistant_public_id"`
 }
 
 // taskSelect is the one place the join set for a task read is written down, so
@@ -84,14 +92,17 @@ func (s *Store) taskSelect(ctx context.Context) *gorm.DB {
 		Select("task.*, c.public_id AS conversation_public_id, t.public_id AS space_public_id, " +
 			"cb.public_id AS created_by_public_id, lr.public_id AS last_run_public_id, " +
 			"i.public_id AS issue_public_id, sc.public_id AS schedule_public_id, " +
-			"a.public_id AS agent_public_id").
+			"a.public_id AS agent_public_id, rb.public_id AS requested_by_public_id, " +
+			"asst.public_id AS assistant_public_id").
 		Joins("LEFT JOIN conversation c ON c.id = task.conversation_id").
 		Joins("INNER JOIN space t ON t.id = task.space_id").
 		Joins("INNER JOIN `user` cb ON cb.id = task.created_by").
 		Joins("LEFT JOIN task_run lr ON lr.id = task.last_run_id").
 		Joins("LEFT JOIN issue i ON i.id = task.issue_id").
 		Joins("LEFT JOIN schedule sc ON sc.id = task.schedule_id").
-		Joins("LEFT JOIN agent a ON a.id = task.agent_id")
+		Joins("LEFT JOIN agent a ON a.id = task.agent_id").
+		Joins("LEFT JOIN `user` rb ON rb.id = task.requested_by").
+		Joins("LEFT JOIN assistant asst ON asst.id = task.assistant_id")
 }
 
 func toTask(row *taskReadRow) *coretask.Task {
@@ -110,6 +121,9 @@ func toTask(row *taskReadRow) *coretask.Task {
 		Output:                row.Row.Output,
 		OutputSchema:          row.Row.OutputSchema,
 		CreatedBy:             row.CreatedByPublicID,
+		RequestedBy:           derefPublicID(row.RequestedByPublicID),
+		AssistantID:           derefPublicID(row.AssistantPublicID),
+		AssistantRevision:     row.Row.AssistantRevision,
 		CreatedAt:             row.Row.CreatedAt,
 		StartedAt:             row.Row.StartedAt,
 		EndedAt:               row.Row.EndedAt,
@@ -469,6 +483,18 @@ func createTaskAndRunTx(ctx context.Context, tx *gorm.DB, in *coretask.CreateInp
 		return err
 	}
 	taskDB.CreatedBy = creator
+	if in.AssistantID != "" {
+		requester, err := lookupKey(ctx, tx, "user", in.RequestedBy)
+		if err != nil {
+			return err
+		}
+		assistant, err := lookupKey(ctx, tx, "assistant", in.AssistantID)
+		if err != nil {
+			return err
+		}
+		taskDB.RequestedBy, taskDB.AssistantID = &requester, &assistant
+		taskDB.AssistantRevision = in.AssistantRevision
+	}
 	if in.AgentID != nil && *in.AgentID != "" {
 		key, err := lookupKey(ctx, tx, "agent", *in.AgentID)
 		if err != nil {
@@ -525,6 +551,8 @@ func createdTask(in *coretask.CreateInput, taskDB *taskRow, runDB *taskRunRow) *
 		IssuePublicID:        optionalCanonicalPublicID(in.IssueID),
 		SchedulePublicID:     optionalCanonicalPublicID(in.ScheduleID),
 		AgentPublicID:        optionalCanonicalPublicID(in.AgentID),
+		RequestedByPublicID:  optionalCanonicalPublicID(&in.RequestedBy),
+		AssistantPublicID:    optionalCanonicalPublicID(&in.AssistantID),
 	})
 }
 

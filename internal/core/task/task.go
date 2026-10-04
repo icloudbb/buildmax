@@ -236,14 +236,22 @@ type Task struct {
 	// machine-readable result — a Workflow node with an output_schema; nil for a
 	// free-text Task. It rides the Task because Continue reuses it across runs.
 	// See docs/design/structured-output.md.
-	OutputSchema *string    `json:"output_schema,omitempty"`
-	CreatedBy    string     `json:"created_by"`
-	CreatedAt    time.Time  `json:"created_at"`
-	StartedAt    *time.Time `json:"started_at,omitempty"`
-	EndedAt      *time.Time `json:"ended_at,omitempty"`
-	ErrorMessage *string    `json:"error_message,omitempty"`
-	SessionID    *string    `json:"session_id,omitempty"`
-	LastRunID    *string    `json:"last_run_id,omitempty"`
+	OutputSchema *string `json:"output_schema,omitempty"`
+	// CreatedBy is the authority the Task runs under. For a Task a Space
+	// Assistant dispatched it is the Assistant's service account, and
+	// RequestedBy is the person who asked, recorded as provenance only; with
+	// AssistantID and AssistantRevision it names what answered them. See
+	// docs/design/space-assistants.md §5.
+	CreatedBy         string     `json:"created_by"`
+	RequestedBy       string     `json:"requested_by,omitempty"`
+	AssistantID       string     `json:"assistant_id,omitempty"`
+	AssistantRevision int        `json:"assistant_revision,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	EndedAt           *time.Time `json:"ended_at,omitempty"`
+	ErrorMessage      *string    `json:"error_message,omitempty"`
+	SessionID         *string    `json:"session_id,omitempty"`
+	LastRunID         *string    `json:"last_run_id,omitempty"`
 	// AwaitingAnswer projects the latest run ending on AskUser questions: the
 	// Task is waiting for the user to answer them by continuing it. See
 	// docs/design/agent-user-questions.md.
@@ -453,6 +461,12 @@ type CreateInput struct {
 	// as their final answer, or nil for free text. See
 	// docs/design/structured-output.md.
 	OutputSchema *string
+	// RequestedBy, AssistantID, and AssistantRevision record a Space
+	// Assistant's dispatch: the requester and the Assistant revision, beside
+	// CreatedBy, its service account. Empty otherwise.
+	RequestedBy       string
+	AssistantID       string
+	AssistantRevision int
 }
 
 // UpdateInput updates a task to the given status with optional fields.

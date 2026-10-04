@@ -540,7 +540,7 @@ func TestWiredConversationModelRecordsEveryCallInTheLedger(t *testing.T) {
 	if err := wireLLM(&cfg, sc, store, nil); err != nil {
 		t.Fatalf("wireLLM: %v", err)
 	}
-	client, err := cfg.Conv.ConversationModel.ForConversation(context.Background(), "u_member", "tm_team", "cv_one")
+	client, err := cfg.Conv.ConversationModel.ForConversation(context.Background(), "u_member", "tm_team", "cv_one", "")
 	if err != nil {
 		t.Fatalf("ForConversation: %v", err)
 	}

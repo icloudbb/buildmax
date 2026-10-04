@@ -31,6 +31,11 @@ func (g *Gateway) ReportRunTerminal(ctx context.Context, info coretask.RunTermin
 	if err != nil || conv == nil || conv.ChannelRef == "" {
 		return
 	}
+	// A Space Assistant's requester may see only a result's releasable fields,
+	// which this report does not know about.
+	if conv.AssistantID != "" {
+		return
+	}
 	c := g.connector(conv.Channel, conv.ChannelConnector)
 	if c == nil {
 		return

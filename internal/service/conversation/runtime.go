@@ -46,6 +46,9 @@ When starting or continuing a task, or running a workflow, tell the user it is r
 // matters because a person who belongs to several Spaces cannot otherwise tell
 // where the work the assistant starts will land.
 func systemPrompt(in turnRunInput) string {
+	if in.Assistant != nil {
+		return assistantSystemPrompt(in)
+	}
 	var b strings.Builder
 	b.WriteString(systemPromptBase)
 	if in.SpaceName != "" {
@@ -90,6 +93,8 @@ type turnRunInput struct {
 	// write this turn makes. Zero disables fencing. See
 	// docs/design/server-coordination.md §7.
 	Fence int64
+	// Assistant, when set, runs the turn as a Space Assistant's front door.
+	Assistant *AssistantTurn
 }
 
 // buildConversationTools builds this turn's task tools.
@@ -98,6 +103,9 @@ type turnRunInput struct {
 // run these tools create records it, so the request a worker was given can be
 // compared with what the person actually asked for.
 func buildConversationTools(in turnRunInput, sourceMessageID *string) []llm.Tool {
+	if in.Assistant != nil {
+		return buildAssistantTools(in, sourceMessageID)
+	}
 	if in.TaskService == nil {
 		return nil
 	}
@@ -125,7 +133,7 @@ func buildConversationTools(in turnRunInput, sourceMessageID *string) []llm.Tool
 		if r := newListWorkflowsServiceRunner(wf, in.SpaceID); r != nil {
 			tools = append(tools, newListWorkflowsTool(r))
 		}
-		if r := newRunWorkflowServiceRunner(wf, in.SpaceID, in.UserID); r != nil {
+		if r := newRunWorkflowServiceRunner(wf, in.SpaceID, in.UserID, in.ConversationID); r != nil {
 			tools = append(tools, newRunWorkflowTool(r))
 		}
 		if r := newGetWorkflowRunServiceRunner(wf, in.SpaceID); r != nil {
@@ -146,6 +154,8 @@ type conversationBuffer struct {
 	// fence stamps every persisted message with the turn's lease token so a
 	// stale replica's write is rejected. Zero disables the check.
 	fence int64
+	// assistantRevision stamps every message an Assistant turn stores.
+	assistantRevision int
 }
 
 func (b *conversationBuffer) HistoryMessages() []llm.Message {
@@ -197,6 +207,7 @@ func (b *conversationBuffer) Append(m llm.Message) error {
 		ProviderStateJSON: providerStateJSON,
 		PartsJSON:         partsJSON,
 		Fence:             b.fence,
+		AssistantRevision: b.assistantRevision,
 	})
 	return err
 }
@@ -241,12 +252,17 @@ func prepareRun(ctx context.Context, msgStore coreconv.MessageStore, in turnRunI
 	}
 	firstRound := len(msgs) == 0
 	channelPtr := &in.Channel
+	revision := 0
+	if in.Assistant != nil {
+		revision = in.Assistant.Revision
+	}
 	incoming, err := msgStore.AppendMessage(ctx, coreconv.AppendInput{
-		ConversationID: in.ConversationID,
-		Role:           "user",
-		Content:        in.Message,
-		Channel:        channelPtr,
-		Fence:          in.Fence,
+		ConversationID:    in.ConversationID,
+		Role:              "user",
+		Content:           in.Message,
+		Channel:           channelPtr,
+		Fence:             in.Fence,
+		AssistantRevision: revision,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("append incoming message: %w", err)
@@ -264,11 +280,12 @@ func prepareRun(ctx context.Context, msgStore coreconv.MessageStore, in turnRunI
 	return &preparedRun{
 		firstRound: firstRound,
 		buffer: &conversationBuffer{
-			ctx:            ctx,
-			conversationID: in.ConversationID,
-			msgStore:       msgStore,
-			msgs:           llmMsgs,
-			fence:          in.Fence,
+			ctx:               ctx,
+			conversationID:    in.ConversationID,
+			msgStore:          msgStore,
+			msgs:              llmMsgs,
+			fence:             in.Fence,
+			assistantRevision: revision,
 		},
 		toolsList: buildConversationTools(in, sourceMessageID),
 	}, nil
@@ -313,6 +330,9 @@ func runLoop(ctx context.Context, convStore coreconv.Store, msgStore coreconv.Me
 		return "", err
 	}
 	maybeUpdateTitle(ctx, convStore, in, prepared)
+	if in.Assistant != nil && prepared.firstRound {
+		reply = assistantFirstReplyNotice(in) + "\n\n" + reply
+	}
 	return reply, nil
 }
 

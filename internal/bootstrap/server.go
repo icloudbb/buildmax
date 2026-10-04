@@ -28,6 +28,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/server/authtoken"
 	servercoord "github.com/icloudbb/buildmax/internal/server/coordination"
 	"github.com/icloudbb/buildmax/internal/server/scheduler"
+	assistantsvc "github.com/icloudbb/buildmax/internal/service/assistant"
 	"github.com/icloudbb/buildmax/internal/service/audit"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 	pluginsvc "github.com/icloudbb/buildmax/internal/service/plugin"
@@ -165,6 +166,9 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// of its background work and stops them first on shutdown.
 	serverConfig.Services.Channels = buildChannelGateway(sc, store, elig, coordBackend)
 	serverConfig.Services.Assistants = buildAssistants(sc, store, serverConfig.Services.Channels, serverConfig.Conv.LLMGateway)
+	if a := serverConfig.Services.Assistants; a != nil {
+		serverConfig.Services.AssistantFrontDoor = &assistantsvc.FrontDoor{Service: a, Conversations: store, Eligibility: elig}
+	}
 
 	sched, err := scheduler.NewScheduler(store, runner, runTokenMinter(sc, jwtSecret))
 	if err != nil {

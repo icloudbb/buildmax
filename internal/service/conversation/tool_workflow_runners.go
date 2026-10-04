@@ -23,11 +23,11 @@ func newListWorkflowsServiceRunner(svc *workflow.Service, spaceID string) listWo
 	return &listWorkflowsServiceRunner{svc: svc, spaceID: spaceID}
 }
 
-func newRunWorkflowServiceRunner(svc *workflow.Service, spaceID, userID string) runWorkflowRunner {
+func newRunWorkflowServiceRunner(svc *workflow.Service, spaceID, userID, conversationID string) runWorkflowRunner {
 	if svc == nil || spaceID == "" {
 		return nil
 	}
-	return &runWorkflowServiceRunner{svc: svc, spaceID: spaceID, userID: userID}
+	return &runWorkflowServiceRunner{svc: svc, spaceID: spaceID, userID: userID, conversationID: conversationID}
 }
 
 func newGetWorkflowRunServiceRunner(svc *workflow.Service, spaceID string) getWorkflowRunRunner {
@@ -86,19 +86,24 @@ func inputSchemaOf(definition string) string {
 }
 
 type runWorkflowServiceRunner struct {
-	svc     *workflow.Service
-	spaceID string
-	userID  string
+	svc            *workflow.Service
+	spaceID        string
+	userID         string
+	conversationID string
 }
 
 func (r *runWorkflowServiceRunner) RunWorkflow(ctx context.Context, workflowID, input string, issueID *string) (runID, status string, err error) {
-	run, _, err := r.svc.StartWorkflowRun(ctx, workflow.StartWorkflowRunCmd{
+	cmd := workflow.StartWorkflowRunCmd{
 		SpaceID:    r.spaceID,
 		UserID:     r.userID,
 		WorkflowID: workflowID,
 		IssueID:    issueID,
 		Input:      input,
-	})
+	}
+	if r.conversationID != "" {
+		cmd.ConversationID = &r.conversationID
+	}
+	run, _, err := r.svc.StartWorkflowRun(ctx, cmd)
 	if err != nil {
 		return "", "", err
 	}

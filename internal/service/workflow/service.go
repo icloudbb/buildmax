@@ -164,6 +164,8 @@ type StartWorkflowRunCmd struct {
 	// person, agent, or issue trigger. It is recorded on the run so the schedule
 	// can list its firing history.
 	ScheduleID *string
+	// ConversationID is the conversation whose turn started the run, or nil.
+	ConversationID *string
 	// Input is the caller-supplied run input JSON. It is validated against the
 	// workflow's input_schema and frozen onto the run; empty means no input, which
 	// a workflow that declares an input_schema rejects.
@@ -482,6 +484,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 		WorkflowRevision: workflow.Revision,
 		IssueID:          cmd.IssueID,
 		ScheduleID:       cmd.ScheduleID,
+		ConversationID:   cmd.ConversationID,
 		Input:            runInput,
 		Status:           string(coreworkflow.RunStatusRunning),
 		CreatedBy:        cmd.UserID,

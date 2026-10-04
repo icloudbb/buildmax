@@ -137,6 +137,7 @@ func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in coreworkflow
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,
 		ScheduleID:       in.ScheduleID,
+		ConversationID:   in.ConversationID,
 		Status:           in.Status,
 		CreatedBy:        in.CreatedBy,
 		CreatedAt:        time.Now().UTC(),

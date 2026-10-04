@@ -29,7 +29,7 @@ func (q *spaceQuota) Check(_ context.Context, spaceID string, addRuns, addTokens
 func conversationClient(t *testing.T, svc *llmgateway.Service, targetID string) cllm.LLMClient {
 	t.Helper()
 	model := &llmgateway.ServerModel{Service: svc, TargetID: targetID}
-	client, err := model.ForConversation(context.Background(), "u_member", "tm_team", "cv_one")
+	client, err := model.ForConversation(context.Background(), "u_member", "tm_team", "cv_one", "")
 	if err != nil {
 		t.Fatalf("ForConversation: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestServerModelResolvesTheTargetWhenATurnBinds(t *testing.T) {
 
 	for _, targetID := range []string{"mt_retired", "mt_deep", "mt_missing"} {
 		model := &llmgateway.ServerModel{Service: svc, TargetID: targetID}
-		if _, err := model.ForConversation(context.Background(), "u", "tm", "cv"); err == nil {
+		if _, err := model.ForConversation(context.Background(), "u", "tm", "cv", ""); err == nil {
 			t.Errorf("%s: bound a turn to a target that cannot serve it", targetID)
 		}
 	}

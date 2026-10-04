@@ -7,7 +7,10 @@ import (
 
 	coreassistant "github.com/icloudbb/buildmax/internal/core/assistant"
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
+	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	infrasecret "github.com/icloudbb/buildmax/internal/infra/secret"
 )
 
@@ -158,4 +161,73 @@ func containsBinding(list []coreassistant.Binding, id string) bool {
 		}
 	}
 	return false
+}
+
+// An Assistant's conversation is found by Assistant, requester, and chat, not
+// by bot, and a Task or Workflow run it starts reads back its provenance.
+func TestAssistantConversationAndProvenance(t *testing.T) {
+	s, ctx := newTestStore(t)
+	owner := newTestUser(t, s, "convowner")
+	requester := newTestUser(t, s, "convrequester")
+	space := newTestSpace(t, s, owner)
+	a, err := s.CreateAssistant(ctx, space, owner, owner, testAssistantDef("Front"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, err := s.LatestAssistantConversation(ctx, a.ID, requester, "telegram", "chat-1"); err != nil || got != nil {
+		t.Fatalf("before any = %+v, %v", got, err)
+	}
+	first, err := s.CreateAssistantConversation(ctx, a.ID, space, requester, "telegram", "bind_old", "chat-1")
+	if err != nil {
+		t.Fatalf("CreateAssistantConversation: %v", err)
+	}
+	// A rebound bot has a new connector key; the conversation still continues.
+	got, err := s.LatestAssistantConversation(ctx, a.ID, requester, "telegram", "chat-1")
+	if err != nil || got == nil || got.ID != first.ID || got.AssistantID != a.ID || got.UserID != requester || got.SpaceID != space {
+		t.Fatalf("latest = %+v, %v", got, err)
+	}
+	if other, _ := s.LatestAssistantConversation(ctx, a.ID, owner, "telegram", "chat-1"); other != nil {
+		t.Error("another requester's conversation was found")
+	}
+	if personal, _ := s.LatestChatConversation(ctx, requester, "telegram", "bind_old", "chat-1"); personal != nil {
+		t.Errorf("chat lookup returned the assistant's conversation: %+v", personal)
+	}
+
+	msg, err := s.AppendMessage(ctx, coreconv.AppendInput{ConversationID: first.ID, Role: "user", Content: "hi", AssistantRevision: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored, _ := s.ListMessages(ctx, first.ID); len(stored) != 1 || stored[0].ID != msg.ID || stored[0].AssistantRevision != 4 {
+		t.Errorf("messages = %+v", stored)
+	}
+
+	tk, err := s.CreateTask(ctx, &coretask.CreateInput{
+		ConversationID: first.ID, SpaceID: space, Input: "look up leave", CreatedBy: owner,
+		RequestedBy: requester, AssistantID: a.ID, AssistantRevision: 4,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	read, err := s.GetTask(ctx, tk.ID)
+	if err != nil || read.RequestedBy != requester || read.AssistantID != a.ID || read.AssistantRevision != 4 || read.CreatedBy != owner {
+		t.Errorf("task = %+v, %v", read, err)
+	}
+	if tk.RequestedBy != requester || tk.AssistantID != a.ID {
+		t.Errorf("created task = %+v", tk)
+	}
+
+	wf, err := s.CreateWorkflow(ctx, space, owner, "wf", "", `{"schema_version":1,"nodes":[]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := s.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
+		WorkflowID: wf.ID, ConversationID: &first.ID, Status: string(coreworkflow.RunStatusRunning), CreatedBy: owner,
+	})
+	if err != nil {
+		t.Fatalf("CreateWorkflowRun: %v", err)
+	}
+	if got, err := s.GetWorkflowRun(ctx, run.ID); err != nil || got.ConversationID == nil || *got.ConversationID != first.ID {
+		t.Errorf("workflow run = %+v, %v", got, err)
+	}
 }

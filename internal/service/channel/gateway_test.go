@@ -9,6 +9,7 @@ import (
 
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
+	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
@@ -370,6 +371,17 @@ func TestReportRunTerminalTellsTheOriginatingChat(t *testing.T) {
 	h.g.ReportRunTerminal(context.Background(), info)
 	// Nor for a run from a conversation no chat carries.
 	info.ConversationID = "portal-conversation"
+	h.g.ReportRunTerminal(context.Background(), info)
+	// Nor from a Space Assistant's conversation: its requester may see only
+	// a result's releasable fields, which a report does not know.
+	h.ids.link(adaID, adaChat)
+	h.convs.mu.Lock()
+	h.convs.convs = append(h.convs.convs, coreconv.Conversation{
+		ID: "assistant-conversation", SpaceID: personalID, UserID: adaID, Channel: conv.Channel,
+		ChannelConnector: conv.ChannelConnector, ChannelRef: adaChat, AssistantID: "asst_hr",
+	})
+	h.convs.mu.Unlock()
+	info.ConversationID = "assistant-conversation"
 	h.g.ReportRunTerminal(context.Background(), info)
 	if len(h.conn.messages()) != before+1 {
 		t.Errorf("reports sent where none should be: %+v", h.conn.messages()[before+1:])

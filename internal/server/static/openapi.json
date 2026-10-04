@@ -151,6 +151,9 @@
           "title": { "type": "string" },
           "output": { "type": "string", "nullable": true },
           "created_by": { "type": "string" },
+          "requested_by": { "type": "string", "description": "On a Task a Space Assistant dispatched: the person who asked. created_by is then the Assistant's service account." },
+          "assistant_id": { "type": "string", "description": "The Space Assistant that dispatched this Task." },
+          "assistant_revision": { "type": "integer", "description": "The Assistant revision that dispatched this Task." },
           "created_at": { "type": "string", "format": "date-time" },
           "started_at": { "type": "string", "format": "date-time", "nullable": true },
           "ended_at": { "type": "string", "format": "date-time", "nullable": true },
@@ -207,7 +210,8 @@
           "channel": { "type": "string" },
           "title": { "type": "string" },
           "created_at": { "type": "string", "format": "date-time" },
-          "created_by": { "type": "string" }
+          "created_by": { "type": "string" },
+          "assistant_id": { "type": "string", "description": "Set on a Space Assistant's conversation, which continues only in its chat; user_id is then the requester." }
         }
       },
       "ConversationMessage": {

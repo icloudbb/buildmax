@@ -14,21 +14,26 @@ import (
 )
 
 type TaskResponse struct {
-	ID             string     `json:"id"`
-	SpaceID        string     `json:"space_id"`
-	ConversationID string     `json:"conversation_id,omitempty"`
-	SessionID      *string    `json:"session_id,omitempty"`
-	Status         string     `json:"status"`
-	Input          string     `json:"input"`
-	Title          string     `json:"title,omitempty"`
-	Output         *string    `json:"output,omitempty"`
-	CreatedBy      string     `json:"created_by"`
-	CreatedAt      time.Time  `json:"created_at"`
-	StartedAt      *time.Time `json:"started_at,omitempty"`
-	EndedAt        *time.Time `json:"ended_at,omitempty"`
-	ErrorMessage   *string    `json:"error_message,omitempty"`
-	AgentID        *string    `json:"agent_id,omitempty"`
-	IssueID        *string    `json:"issue_id,omitempty"`
+	ID             string  `json:"id"`
+	SpaceID        string  `json:"space_id"`
+	ConversationID string  `json:"conversation_id,omitempty"`
+	SessionID      *string `json:"session_id,omitempty"`
+	Status         string  `json:"status"`
+	Input          string  `json:"input"`
+	Title          string  `json:"title,omitempty"`
+	Output         *string `json:"output,omitempty"`
+	CreatedBy      string  `json:"created_by"`
+	// RequestedBy, AssistantID, and AssistantRevision are set on a Task a
+	// Space Assistant dispatched: who asked, and what answered them.
+	RequestedBy       string     `json:"requested_by,omitempty"`
+	AssistantID       string     `json:"assistant_id,omitempty"`
+	AssistantRevision int        `json:"assistant_revision,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	EndedAt           *time.Time `json:"ended_at,omitempty"`
+	ErrorMessage      *string    `json:"error_message,omitempty"`
+	AgentID           *string    `json:"agent_id,omitempty"`
+	IssueID           *string    `json:"issue_id,omitempty"`
 	// LastRunID names the run behind the task's current status. The run-scoped
 	// routes -- trace, LLM calls -- are keyed by it, so a caller that can see a
 	// task can reach what that task actually did.
@@ -53,23 +58,26 @@ type createTaskRequest struct {
 
 func taskToResponse(task coretask.Task) TaskResponse {
 	return TaskResponse{
-		ID:             task.ID,
-		SpaceID:        task.SpaceID,
-		ConversationID: task.ConversationID,
-		SessionID:      task.SessionID,
-		Status:         task.Status,
-		Input:          task.Input,
-		Title:          task.Title,
-		Output:         task.Output,
-		CreatedBy:      task.CreatedBy,
-		CreatedAt:      task.CreatedAt,
-		StartedAt:      task.StartedAt,
-		EndedAt:        task.EndedAt,
-		ErrorMessage:   task.ErrorMessage,
-		AgentID:        task.AgentID,
-		IssueID:        task.IssueID,
-		LastRunID:      task.LastRunID,
-		AwaitingAnswer: task.AwaitingAnswer,
+		ID:                task.ID,
+		SpaceID:           task.SpaceID,
+		ConversationID:    task.ConversationID,
+		SessionID:         task.SessionID,
+		Status:            task.Status,
+		Input:             task.Input,
+		Title:             task.Title,
+		Output:            task.Output,
+		CreatedBy:         task.CreatedBy,
+		RequestedBy:       task.RequestedBy,
+		AssistantID:       task.AssistantID,
+		AssistantRevision: task.AssistantRevision,
+		CreatedAt:         task.CreatedAt,
+		StartedAt:         task.StartedAt,
+		EndedAt:           task.EndedAt,
+		ErrorMessage:      task.ErrorMessage,
+		AgentID:           task.AgentID,
+		IssueID:           task.IssueID,
+		LastRunID:         task.LastRunID,
+		AwaitingAnswer:    task.AwaitingAnswer,
 	}
 }
 

@@ -90,6 +90,11 @@ type CreateTaskCmd struct {
 	// as their final answer, or nil for free text. A Workflow node with an
 	// output_schema sets it. See docs/design/structured-output.md.
 	OutputSchema *string
+	// RequestedBy, AssistantID, and AssistantRevision record a Space
+	// Assistant's dispatch; UserID is then its service account.
+	RequestedBy       string
+	AssistantID       string
+	AssistantRevision int
 }
 
 // CreateRunCmd creates a new run on an existing task.
@@ -196,6 +201,9 @@ func (s *Service) buildCreateInput(ctx context.Context, cmd CreateTaskCmd) (*cor
 		AdmissionKey:              cmd.AdmissionKey,
 		WorkflowNodeRunID:         cmd.WorkflowNodeRunID,
 		OutputSchema:              cmd.OutputSchema,
+		RequestedBy:               cmd.RequestedBy,
+		AssistantID:               cmd.AssistantID,
+		AssistantRevision:         cmd.AssistantRevision,
 	}
 	if selectedAgent != nil {
 		revision := selectedAgent.Revision

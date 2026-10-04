@@ -107,6 +107,7 @@ func (m *MockConversationMessageStore) AppendMessage(_ context.Context, in corec
 		ToolCallsJSON:     in.ToolCallsJSON,
 		ProviderStateJSON: in.ProviderStateJSON,
 		PartsJSON:         in.PartsJSON,
+		AssistantRevision: in.AssistantRevision,
 		CreatedAt:         seqTime(len(m.Messages) + 1),
 	}
 	m.Messages = append(m.Messages, msg)
