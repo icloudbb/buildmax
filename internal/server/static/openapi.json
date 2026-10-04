@@ -134,8 +134,31 @@
           "last_fire_at": { "type": "string", "format": "date-time", "nullable": true },
           "last_fire_ref": { "type": "string", "nullable": true, "description": "The task (agent) or workflow run (workflow) the last firing produced." },
           "consecutive_failures": { "type": "integer" },
+          "delivery": { "$ref": "#/components/schemas/ScheduleDeliveryTarget" },
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ScheduleDeliveryTarget": {
+        "type": "object",
+        "description": "Sends each firing's releasable result to one person through a Space Assistant's bot. The assistant's roster must include the schedule's executor, and the person must already have a conversation with it. Setting one, or editing a schedule that has one (other than pausing or resuming it), needs the right to manage assistants. In a PATCH, an empty assistant_id removes it.",
+        "properties": {
+          "assistant_id": { "type": "string" },
+          "requester_id": { "type": "string" }
+        },
+        "required": ["assistant_id", "requester_id"]
+      },
+      "ScheduleDelivery": {
+        "type": "object",
+        "description": "How one firing's result was delivered through an Assistant, or why it was not.",
+        "properties": {
+          "id": { "type": "string" },
+          "schedule_id": { "type": "string" },
+          "fire_ref": { "type": "string", "description": "The task (agent) or workflow run (workflow) the firing started." },
+          "status": { "type": "string", "enum": ["pending", "delivered", "skipped", "failed"] },
+          "reason": { "type": "string", "enum": ["no_target", "run_not_succeeded", "assistant_unavailable", "no_bot", "requester_not_in_audience", "link_inactive", "no_conversation", "not_on_roster", "nothing_releasable"], "description": "Why a skipped delivery was not sent." },
+          "created_at": { "type": "string", "format": "date-time" },
+          "settled_at": { "type": "string", "format": "date-time", "nullable": true }
         }
       },
       "Task": {
@@ -1922,6 +1945,38 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/schedules/{schedule_id}/deliveries": {
+      "parameters": [
+        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "schedule_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "get": {
+        "summary": "List how a schedule's results were delivered through its Assistant",
+        "description": "Newest first. One entry per firing that started its executor while the schedule had a delivery target.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deliveries": { "type": "array", "items": { "$ref": "#/components/schemas/ScheduleDelivery" } },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "No such schedule in this space", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
@@ -3836,6 +3891,19 @@
           "403": {"description": "Only an owner or admin may manage assistants", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
           "404": {"description": "No such assistant in this space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
           "409": {"description": "Publishing needs the current statement confirmed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AssistantStatementRequired"}}}}
+        }
+      }
+    },
+    "/api/spaces/{space_id}/assistants/{assistant_id}/requesters": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "assistant_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List the people an Assistant's bot may message",
+        "description": "Owner or admin. Everyone who has a conversation with the assistant, most recent first: the people a schedule's delivery target is chosen from.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object", "properties": {"requesters": {"type": "array", "items": {"type": "object", "properties": {"user_id": {"type": "string"}, "name": {"type": "string"}, "last_conversation_at": {"type": "string", "format": "date-time"}}}}}}}}},
+          "403": {"description": "Only an owner or admin may manage assistants", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "No such assistant in this space", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
         }
       }
     },

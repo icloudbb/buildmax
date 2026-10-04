@@ -165,6 +165,23 @@ refused then rather than failing every firing. Pausing,
 consecutive-failure handling, and missed-firing behaviour work exactly as they
 do for an agent schedule.
 
+### Send results to a person through an assistant
+
+Owners and admins can have a schedule send each result to one person through a
+[space assistant](portal-overview.md#space-settings) whose roster includes what
+the schedule runs. In the schedule form, choose the assistant under **Send
+results to a person**, then the person: only people who have written to that
+assistant are listed, because its bot can message only them. Each finished run
+sends the fields the assistant's roster entry marks releasable, through its
+bot, to that person's chat. Once a schedule sends results, only owners and
+admins can edit it; any member can still pause it.
+
+The schedule's triggered tasks or runs then show a **Delivery** column: sent,
+waiting for the run, could not be sent, or not sent with the reason, such as the
+assistant being paused, the person no longer being in its audience, their chat
+link being inactive, or the result having no field the assistant may share. A
+run that failed sends nothing.
+
 The **Schedules** entry in the sidebar shows every schedule in the space across
 all agents and workflows, so you can see what unattended work is set up and
 pause any of it; you can also create one there and pick what it runs. **Pause

@@ -28,6 +28,7 @@ type Conversations interface {
 	GetConversation(ctx context.Context, conversationID string) (*coreconv.Conversation, error)
 	LatestAssistantConversation(ctx context.Context, assistantID, userID, channel, channelRef string) (*coreconv.Conversation, error)
 	CreateAssistantConversation(ctx context.Context, assistantID, spaceID, userID, channel, connector, channelRef string) (*coreconv.Conversation, error)
+	ListAssistantRequesters(ctx context.Context, assistantID string, limit int) ([]coreassistant.Requester, error)
 }
 
 // Turns runs one Assistant turn through the same turn queue as every other
@@ -53,7 +54,11 @@ type FrontDoor struct {
 	// Assistant whose audience is its members.
 	Eligibility eligibility.Checker
 	Turns       Turns
-	Log         *slog.Logger
+	// Schedules and Runs back delivering a Schedule's results through an
+	// Assistant; without them nothing is delivered.
+	Schedules DeliverySchedules
+	Runs      DeliveryRuns
+	Log       *slog.Logger
 }
 
 func (f *FrontDoor) log() *slog.Logger {

@@ -191,6 +191,15 @@ func TestAssistantConversationAndProvenance(t *testing.T) {
 	if other, _ := s.LatestAssistantConversation(ctx, a.ID, owner, "telegram", "chat-1"); other != nil {
 		t.Error("another requester's conversation was found")
 	}
+	// Any chat matches when none is named, which is how a delivery finds the
+	// requester's chat with the Assistant.
+	if anyChat, err := s.LatestAssistantConversation(ctx, a.ID, requester, "", ""); err != nil || anyChat == nil || anyChat.ID != first.ID {
+		t.Errorf("latest in any chat = %+v, %v", anyChat, err)
+	}
+	people, err := s.ListAssistantRequesters(ctx, a.ID, 10)
+	if err != nil || len(people) != 1 || people[0].UserID != requester || people[0].LastConversationAt.IsZero() {
+		t.Errorf("requesters = %+v, %v; want the one who wrote", people, err)
+	}
 	if personal, _ := s.LatestChatConversation(ctx, requester, "telegram", "bind_old", "chat-1"); personal != nil {
 		t.Errorf("chat lookup returned the assistant's conversation: %+v", personal)
 	}

@@ -51,7 +51,10 @@ type Config struct {
 	// Assistants serves the Space Assistant routes. Nil reports the feature
 	// off.
 	Assistants *assistantsvc.Service
-	Lifecycle  *accountlifecycle.Service
+	// AssistantFrontDoor checks a Schedule's delivery target and lists who an
+	// Assistant's bot may message. Nil refuses delivery targets.
+	AssistantFrontDoor *assistantsvc.FrontDoor
+	Lifecycle          *accountlifecycle.Service
 	// Workflows answers one question here -- which published workflows still
 	// name an agent -- so that deleting one cannot silently break them. Nil
 	// leaves that check unmade, which is what a deployment without workflows
@@ -144,6 +147,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/spaces/{space_id}/assistants/{assistant_id}/state", h.setAssistantStateHandler)
 	mux.HandleFunc("PUT /api/spaces/{space_id}/assistants/{assistant_id}/binding", h.bindAssistantHandler)
 	mux.HandleFunc("DELETE /api/spaces/{space_id}/assistants/{assistant_id}/binding", h.unbindAssistantHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/assistants/{assistant_id}/requesters", h.listAssistantRequestersHandler)
 
 	// Invitations. See docs/design/space-membership-lifecycle.md.
 	mux.HandleFunc("POST /api/spaces/{space_id}/invitations", h.inviteMemberHandler)
@@ -167,6 +171,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/spaces/{space_id}/schedules/{schedule_id}", h.getScheduleHandler)
 	mux.HandleFunc("PATCH /api/spaces/{space_id}/schedules/{schedule_id}", h.patchScheduleHandler)
 	mux.HandleFunc("DELETE /api/spaces/{space_id}/schedules/{schedule_id}", h.deleteScheduleHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/schedules/{schedule_id}/deliveries", h.listScheduleDeliveriesHandler)
 
 	// Plugin activation
 	mux.HandleFunc("GET /api/spaces/{space_id}/plugin-activations", h.listPluginActivationsHandler)

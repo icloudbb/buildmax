@@ -7,6 +7,8 @@ import {
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import type {
   ApiSchedule,
+  ApiScheduleDeliveryListResponse,
+  ApiScheduleDeliveryTarget,
   ApiScheduleListResponse,
   ApiTasksListResponse,
   ApiWorkflowRunListResponse,
@@ -24,6 +26,7 @@ export interface CreateScheduleBody {
   input: string
   cron_expr: string
   timezone: string
+  delivery?: ApiScheduleDeliveryTarget
 }
 
 // UpdateScheduleBody is a partial patch: an omitted field is left unchanged.
@@ -33,6 +36,8 @@ export interface UpdateScheduleBody {
   cron_expr?: string
   timezone?: string
   enabled?: boolean
+  /** An empty assistant_id removes the delivery target. */
+  delivery?: ApiScheduleDeliveryTarget
 }
 
 export async function listSchedules(spaceId: string, token: string): Promise<ApiScheduleListResponse> {
@@ -68,4 +73,10 @@ export async function listScheduleTasks(spaceId: string, scheduleId: string, tok
 // listScheduleRuns returns the workflow runs a workflow schedule has triggered, newest first.
 export async function listScheduleRuns(spaceId: string, scheduleId: string, token: string): Promise<ApiWorkflowRunListResponse> {
   return requestJson<ApiWorkflowRunListResponse>(`${one(spaceId, scheduleId)}/runs`, { headers: authHeaders(token) })
+}
+
+// listScheduleDeliveries returns how each firing's result was delivered through
+// the schedule's Assistant, newest first.
+export async function listScheduleDeliveries(spaceId: string, scheduleId: string, token: string): Promise<ApiScheduleDeliveryListResponse> {
+  return requestJson<ApiScheduleDeliveryListResponse>(`${one(spaceId, scheduleId)}/deliveries`, { headers: authHeaders(token) })
 }

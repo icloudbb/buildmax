@@ -6,8 +6,8 @@
 > accepted — in progress: the many-bot Gateway (§9), service accounts (§6),
 > the Assistant entity, its bot binding, and the publish statement (§4, §8),
 > the front-door turn with its readable-file tools (§10), release contracts
-> with outcome reports (§8, §11), and escalation (§11) are built; delivery is
-> not
+> with outcome reports (§8, §11), escalation, and Schedule delivery (§11) are
+> built
 >
 > This record decides how a Space publishes **Assistants**: conversational
 > service front doors that answer people outside the Space's own work, dispatch
@@ -414,7 +414,18 @@ An Assistant whose Space has spent its quota refuses with a fixed reply.
   message only people who have started a chat with it, so the target must be a
   requester with an existing conversation with that Assistant. Workflow runs a
   Schedule fires are covered the same way. Chat and group targets wait for group
-  support.
+  support. The target is checked when it is saved: the Assistant's roster must
+  include the Schedule's executor, since nothing else could be released. An
+  Agent firing runs under that entry's output schema. Choosing a target, and
+  editing a Schedule that has one, needs the right to manage Assistants, because
+  it shapes what the Space's bot says to someone; a member may still pause it.
+  Each firing that starts its executor records a pending delivery with the fire,
+  and a sweeper on every replica settles it from durable state once the run
+  ends, claiming it before sending, so a result is sent at most once and
+  survives a restart. At send time every rule that would stop the Assistant
+  answering the requester itself applies, then the current roster entry's
+  release contract; a delivery that fails one is skipped with its reason, shown
+  in the Schedule's run history. A failed or canceled run sends nothing.
 
 ## 12. Review And Retention
 
@@ -474,7 +485,7 @@ Each slice is a backlog task, in order:
    runs an Assistant starts are read through GetWorkflowRun but not reported.
 6. Readable files tool (§8, §10) — built.
 7. Escalation to an Issue (§11) — built.
-8. [Schedule delivery through an Assistant](../backlog/74-assistant-schedule-delivery.md) (§11).
+8. Schedule delivery through an Assistant (§11) — built.
 9. [Validation run](../backlog/76-space-assistant-validation.md): measure answer
    accuracy on a fixed question set, leakage under a scripted red-team set,
    front-door and worker latency, escalation rate, and whether a Space owner can

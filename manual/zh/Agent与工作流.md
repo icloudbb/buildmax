@@ -142,6 +142,19 @@ Workflow 则无需填写）、cron 表达式与时区。每次触发启动一次
 只有已发布的 Workflow 才能被定时——先发布草稿。保存定时任务时会像运行时一样检查输入：Workflow 无法接受的输入，或某个步骤需要 Issue 的 Workflow，会在保存时被拒绝，而不是每次触发都失败。暂停、连续失败处理与错过
 触发的行为，与 Agent schedule 完全一致。
 
+### 通过 assistant 把结果发给某人
+
+Owner 和 admin 可以让一个 schedule 通过某个 [space assistant](Portal概览.md#space-设置)
+把每次的结果发给一个人，前提是该 assistant 的名册包含这个 schedule 运行的对象。在
+schedule 表单的 **Send results to a person** 下先选 assistant，再选接收人：只列出
+给该 assistant 写过消息的人，因为它的 bot 只能给这些人发消息。每次运行结束后，
+assistant 名册条目标为可放行的字段会通过其 bot 发到此人的聊天中。schedule 一旦会
+发送结果，就只有 owner 和 admin 能编辑它；任何成员仍可暂停它。
+
+此后该 schedule 触发的 task 或运行会显示 **Delivery** 列：已发送、等待运行、无法
+发送，或未发送并附原因，例如 assistant 已暂停、此人已不在其受众内、其聊天链接已
+失效，或结果中没有 assistant 可分享的字段。失败的运行不会发送任何内容。
+
 侧边栏中的 **Schedules** 入口展示该 Space 中所有 Agent 与 Workflow 的全部
 schedule，让你看到设置了哪些无人值守的工作，并可暂停其中任何一个；你也可以
 在此创建一个并选择它运行什么。**Pause all** 与 **Resume all** 可一键翻转该

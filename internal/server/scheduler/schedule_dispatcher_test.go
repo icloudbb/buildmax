@@ -540,3 +540,54 @@ func TestDispatcherDefersFireWhenEligibilityIsUnavailable(t *testing.T) {
 		t.Errorf("next_fire_at = %v, want advanced past %v", stored.NextFireAt, t0)
 	}
 }
+
+func (f *fakeScheduleStore) ListPendingDeliveries(context.Context, int) ([]coreschedule.FireDelivery, error) {
+	return nil, nil
+}
+
+func (f *fakeScheduleStore) SettleDelivery(context.Context, coreschedule.SettleDeliveryInput) (bool, error) {
+	return false, nil
+}
+
+func (f *fakeScheduleStore) ListDeliveriesBySchedule(context.Context, string, int, int) ([]coreschedule.FireDelivery, int, error) {
+	return nil, 0, nil
+}
+
+type fakeContracts struct{ schema *string }
+
+func (c fakeContracts) DeliveryOutputSchema(context.Context, coreschedule.Schedule) *string {
+	return c.schema
+}
+
+// An Agent firing of a schedule that delivers through an Assistant answers in
+// the roster entry's output schema, so its result has fields to release; one
+// that delivers nowhere is admitted as before.
+func TestDispatcherAppliesTheDeliveryContract(t *testing.T) {
+	t0 := time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC)
+	schema := `{"type":"object","properties":{"summary":{"type":"string"}}}`
+	delivering := hourlySchedule(t0)
+	delivering.Delivery = &coreschedule.Delivery{AssistantID: "as1", RequesterID: "u2"}
+	plain := hourlySchedule(t0)
+	plain.ID = "sched2"
+	store := newFakeScheduleStore(delivering, plain)
+	admitter := &fakeAdmitter{}
+	d := newTestDispatcher(t, store, admitter, t0).WithDeliveryContracts(fakeContracts{schema: &schema})
+
+	d.sweep(context.Background())
+
+	if admitter.count() != 2 {
+		t.Fatalf("admitter received %d tasks, want 2", admitter.count())
+	}
+	for _, cmd := range admitter.cmds {
+		switch *cmd.ScheduleID {
+		case "sched1":
+			if cmd.OutputSchema == nil || *cmd.OutputSchema != schema {
+				t.Errorf("delivering firing output schema = %v, want the roster entry's", cmd.OutputSchema)
+			}
+		case "sched2":
+			if cmd.OutputSchema != nil {
+				t.Errorf("plain firing output schema = %q, want none", *cmd.OutputSchema)
+			}
+		}
+	}
+}

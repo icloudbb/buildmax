@@ -107,6 +107,14 @@ type Assistant struct {
 	UpdatedAt     time.Time
 }
 
+// Requester is a person who has a conversation with an Assistant: someone the
+// Assistant's bot may message, such as a Schedule's delivery target.
+type Requester struct {
+	UserID             string    `json:"user_id"`
+	Name               string    `json:"name,omitempty"`
+	LastConversationAt time.Time `json:"last_conversation_at"`
+}
+
 // Binding is an Assistant's bot. The token never leaves the store except to
 // build the connector that speaks as the bot.
 type Binding struct {

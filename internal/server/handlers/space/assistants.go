@@ -287,3 +287,37 @@ func (h *Handler) unbindAssistantHandler(w http.ResponseWriter, r *http.Request)
 	v, err := h.cfg.Assistants.Unbind(r.Context(), spaceID, userID, id)
 	h.writeAssistant(w, http.StatusOK, v, err, "unbind_assistant", userID, spaceID)
 }
+
+type assistantRequestersResponse struct {
+	Requesters []coreassistant.Requester `json:"requesters"`
+}
+
+// listAssistantRequestersHandler serves GET
+// /api/spaces/{space_id}/assistants/{assistant_id}/requesters: the people its
+// bot may message, which a Schedule's delivery target is chosen from.
+func (h *Handler) listAssistantRequestersHandler(w http.ResponseWriter, r *http.Request) {
+	userID, spaceID, ok := h.assistantPath(w, r, true)
+	if !ok {
+		return
+	}
+	id, ok := httputil.PathValue(w, r, "assistant_id")
+	if !ok {
+		return
+	}
+	if h.cfg.AssistantFrontDoor == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "assistant chats not configured")
+		return
+	}
+	list, err := h.cfg.AssistantFrontDoor.Requesters(r.Context(), spaceID, id)
+	if err != nil {
+		if httputil.WriteServiceError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_assistant_requesters", "user_id", userID, "space_id", spaceID)
+		return
+	}
+	if list == nil {
+		list = []coreassistant.Requester{}
+	}
+	httputil.WriteJSON(w, http.StatusOK, assistantRequestersResponse{Requesters: list})
+}

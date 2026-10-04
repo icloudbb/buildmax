@@ -69,20 +69,29 @@ func (g *Gateway) ReportRunTerminal(ctx context.Context, info coretask.RunTermin
 // mayReport is whether the conversation's owner still has a chat account
 // linked on its platform and signed in recently enough for it to act.
 func (g *Gateway) mayReport(ctx context.Context, conv *coreconv.Conversation) bool {
-	links, err := g.identities.ListIdentitiesByUser(ctx, conv.UserID)
+	ok, err := g.Reachable(ctx, conv.UserID, conv.Channel)
 	if err != nil {
 		g.log.Warn("outcome report skipped: link lookup failed", "err", err)
-		return false
+	}
+	return err == nil && ok
+}
+
+// Reachable is whether userID still has a chat account linked on platform and
+// signed in recently enough for it to act, which every message BuildMax sends
+// them unprompted requires.
+func (g *Gateway) Reachable(ctx context.Context, userID, platform string) (bool, error) {
+	links, err := g.identities.ListIdentitiesByUser(ctx, userID)
+	if err != nil {
+		return false, err
 	}
 	linked := false
 	for _, l := range links {
-		linked = linked || l.Platform == conv.Channel
+		linked = linked || l.Platform == platform
 	}
 	if !linked {
-		return false
+		return false, nil
 	}
-	active, err := g.linkActive(ctx, conv.UserID)
-	return err == nil && active
+	return g.linkActive(ctx, userID)
 }
 
 func (g *Gateway) formatReport(info coretask.RunTerminalInfo, title string) string {

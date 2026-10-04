@@ -81,9 +81,72 @@ type Schedule struct {
 	// run ended failed. A canceled execution is neither. It bounds runaway cost:
 	// the dispatcher pauses a schedule that fails this many times in a row (the
 	// threshold lives with the dispatcher). Enabling a schedule clears it.
-	ConsecutiveFailures int       `json:"consecutive_failures"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ConsecutiveFailures int `json:"consecutive_failures"`
+	// Delivery, when set, sends each firing's releasable result to one person
+	// through a Space Assistant's bot.
+	Delivery  *Delivery `json:"delivery,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Delivery names who hears a schedule's result and through which Assistant.
+// The result is released under the Assistant's roster entry for the schedule's
+// executor at the time it is sent. See docs/design/space-assistants.md §11.
+type Delivery struct {
+	AssistantID string `json:"assistant_id"`
+	// RequesterID is the BuildMax user the result goes to. A bot can message
+	// only people who started a chat with it, so they must already have a
+	// conversation with the Assistant.
+	RequesterID string `json:"requester_id"`
+}
+
+// Delivery statuses. A firing that started its executor on a schedule with a
+// Delivery records one pending FireDelivery; it settles once when the run ends.
+const (
+	DeliveryPending   = "pending"
+	DeliveryDelivered = "delivered"
+	// DeliverySkipped is a delivery that was not attempted; Reason says why.
+	DeliverySkipped = "skipped"
+	// DeliveryFailed is a send the chat platform refused or could not take.
+	DeliveryFailed = "failed"
+)
+
+// Skip reasons, recorded on a skipped delivery and shown in the schedule's run
+// history so the Space can tell what to fix.
+const (
+	SkipNoTarget          = "no_target"
+	SkipRunNotSucceeded   = "run_not_succeeded"
+	SkipAssistantGone     = "assistant_unavailable"
+	SkipNoBot             = "no_bot"
+	SkipNotInAudience     = "requester_not_in_audience"
+	SkipLinkInactive      = "link_inactive"
+	SkipNoConversation    = "no_conversation"
+	SkipNotOnRoster       = "not_on_roster"
+	SkipNothingReleasable = "nothing_releasable"
+)
+
+// FireDelivery is one firing's delivery: what the firing started (FireRef, read
+// alongside the schedule's ExecutorKind) and how sending its result went.
+type FireDelivery struct {
+	ID         string     `json:"id"`
+	ScheduleID string     `json:"schedule_id"`
+	FireRef    string     `json:"fire_ref"`
+	Status     string     `json:"status"`
+	Reason     string     `json:"reason,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	SettledAt  *time.Time `json:"settled_at,omitempty"`
+}
+
+// SettleDeliveryInput settles a delivery still in From, pending when empty.
+// Settling is the claim: of two replicas that reach one delivery, one settles
+// it and sends, and the other does neither. A send that then fails moves the
+// delivery from delivered to failed.
+type SettleDeliveryInput struct {
+	DeliveryID string
+	From       string
+	Status     string
+	Reason     string
+	SettledAt  time.Time
 }
 
 // CreateInput describes a new Schedule. NextFireAt is supplied by the caller,
@@ -99,6 +162,7 @@ type CreateInput struct {
 	Timezone     string
 	Enabled      bool
 	NextFireAt   time.Time
+	Delivery     *Delivery
 }
 
 // UpdateInput changes a Schedule's editable fields. Only non-nil fields are
@@ -118,6 +182,9 @@ type UpdateInput struct {
 	// schedule never carries a stale reason or a count that would pause it again
 	// before it fired; the store enforces that so no caller has to remember it.
 	PauseReason *string
+	// Delivery sets the delivery target; a Delivery with an empty AssistantID
+	// removes it.
+	Delivery *Delivery
 }
 
 // ClaimInput advances a due Schedule's NextFireAt only when it still equals
@@ -132,7 +199,8 @@ type ClaimInput struct {
 // RecordFireInput records one firing. Failed means the executor could not be
 // started, which counts toward the consecutive-failure counter at once. A
 // firing that started leaves the counter alone: what it started has not ended
-// yet, and the store folds that outcome in when it does. FireRef is nil when the
+// yet, and the store folds that outcome in when it does. A firing that started
+// on a schedule with a Delivery also records a pending FireDelivery. FireRef is nil when the
 // firing produced nothing. It is the Task id for an Agent firing, the
 // workflow-run id for a Workflow firing.
 type RecordFireInput struct {
@@ -167,4 +235,12 @@ type Store interface {
 	// of what it started is folded into the counter by the run transition that
 	// records it, in the same transaction, so no caller reports it here.
 	RecordFire(ctx context.Context, in RecordFireInput) error
+	// ListPendingDeliveries returns pending deliveries across Spaces, oldest
+	// first, capped at limit.
+	ListPendingDeliveries(ctx context.Context, limit int) ([]FireDelivery, error)
+	// SettleDelivery settles a pending delivery; false means it was no longer
+	// pending.
+	SettleDelivery(ctx context.Context, in SettleDeliveryInput) (bool, error)
+	// ListDeliveriesBySchedule returns a schedule's deliveries newest first.
+	ListDeliveriesBySchedule(ctx context.Context, scheduleID string, limit, offset int) ([]FireDelivery, int, error)
 }

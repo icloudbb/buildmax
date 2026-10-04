@@ -422,7 +422,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           {tab === "schedules" ? (
             <section className="detail-tabs__panel" role="tabpanel" id="agent-panel-schedules" aria-labelledby="agent-tab-schedules">
               {token ? (
-                <SchedulesSection token={token} spaceId={spaceId} executorKind="agent" executorId={agent.id} executorName={agent.name} canManage={canManageSchedules} />
+                <SchedulesSection token={token} spaceId={spaceId} executorKind="agent" executorId={agent.id} executorName={agent.name} canManage={canManageSchedules} canDeliver={canManage} />
               ) : null}
             </section>
           ) : null}

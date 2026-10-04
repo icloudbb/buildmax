@@ -516,6 +516,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
                   executorName={workflow.name}
                   workflowDefinition={workflow.definition}
                   canManage={canManageSchedules}
+                  canDeliver={canManageWorkflows}
                 />
               ) : null}
             </section>

@@ -37,6 +37,8 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
     currentUserRole === "owner" || currentUserRole === "admin" || currentUserRole === "member"
   )
   const canManage = isAllowed(canManageState)
+  // Sending results through an Assistant speaks for the Space: owners and admins.
+  const canDeliver = isAllowed(useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin"))
   // Creating needs a token to call the API; the pause/resume actions already do.
   const canCreate = canManage && !!token
 
@@ -180,6 +182,7 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
           token={token as string}
           spaceId={spaceId}
           executors={executors}
+          canDeliver={canDeliver}
           onCreated={async () => {
             setCreating(false)
             await fetchSchedules()

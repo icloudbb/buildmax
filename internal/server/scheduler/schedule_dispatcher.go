@@ -49,6 +49,13 @@ type WorkflowStarter interface {
 	StartWorkflowRun(ctx context.Context, cmd workflowsvc.StartWorkflowRunCmd) (*coreworkflow.Run, []coreworkflow.NodeRun, error)
 }
 
+// DeliveryContracts gives an Agent firing of a schedule that delivers through
+// an Assistant the output schema its roster entry requires, so the run's
+// result has fields to release. Nil when there is none to apply.
+type DeliveryContracts interface {
+	DeliveryOutputSchema(ctx context.Context, s coreschedule.Schedule) *string
+}
+
 // ScheduleDispatcher polls for due schedules and admits one Task per firing
 // through the Task service. It creates no execution state of its own: a firing
 // is an ordinary Task tagged with a schedule trigger source.
@@ -64,7 +71,10 @@ type ScheduleDispatcher struct {
 	// eligible answers whether a schedule's creator may still run work in its
 	// Space. Nil skips the check, which is what a deployment that wires no
 	// authority stores has.
-	eligible    eligibility.Checker
+	eligible eligibility.Checker
+	// contracts applies a delivering schedule's release contract. Nil fires
+	// without one.
+	contracts   DeliveryContracts
 	interval    time.Duration
 	maxFailures int
 	// now is the clock, injectable so a test can drive due times and catch-up
@@ -110,6 +120,13 @@ func (d *ScheduleDispatcher) WithEligibility(c eligibility.Checker) *ScheduleDis
 // failure and the schedule pauses after a run of them.
 func (d *ScheduleDispatcher) WithWorkflows(w WorkflowStarter) *ScheduleDispatcher {
 	d.workflows = w
+	return d
+}
+
+// WithDeliveryContracts lets an Agent firing of a delivering schedule answer in
+// its Assistant roster entry's output schema.
+func (d *ScheduleDispatcher) WithDeliveryContracts(c DeliveryContracts) *ScheduleDispatcher {
+	d.contracts = c
 	return d
 }
 
@@ -287,7 +304,12 @@ func (d *ScheduleDispatcher) startExecutor(ctx context.Context, s coreschedule.S
 		return &run.ID, nil
 	default:
 		agentID := s.ExecutorID
+		var outputSchema *string
+		if d.contracts != nil && s.Delivery != nil {
+			outputSchema = d.contracts.DeliveryOutputSchema(ctx, s)
+		}
 		task, err := d.admitter.CreateTask(ctx, tasksvc.CreateTaskCmd{
+			OutputSchema:  outputSchema,
 			SpaceID:       s.SpaceID,
 			UserID:        s.CreatedBy,
 			AgentID:       &agentID,

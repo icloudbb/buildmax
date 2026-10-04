@@ -26,6 +26,7 @@ var (
 	ErrScheduleNotFound     = apierr.New(apierr.KindNotFound, "schedule not found")
 	ErrNameTooLong          = apierr.New(apierr.KindInvalid, "name is too long")
 	ErrInputTooLong         = apierr.New(apierr.KindInvalid, "input is too long")
+	ErrDeliveryIncomplete   = apierr.New(apierr.KindInvalid, "delivery needs both assistant_id and requester_id")
 )
 
 // maxScheduleNameRunes bounds a schedule name to its varchar(256) column;
@@ -41,6 +42,12 @@ type WorkflowLookup interface {
 	GetWorkflow(ctx context.Context, workflowID string) (*coreworkflow.Workflow, error)
 }
 
+// DeliveryTargets checks a delivery target against the Assistant it names. The
+// Assistant service owns those rules; nil refuses every target.
+type DeliveryTargets interface {
+	CheckDeliveryTarget(ctx context.Context, spaceID, executorKind, executorID string, d coreschedule.Delivery) error
+}
+
 // Service owns the application logic for recurring schedules: input and cron
 // validation, computing each schedule's next fire, and confirming a schedule
 // belongs to the space acting on it. Space membership is enforced above it by
@@ -50,6 +57,8 @@ type Service struct {
 	Schedules coreschedule.Store
 	Agents    agentdef.Store
 	Workflows WorkflowLookup
+	// Deliveries checks a delivery target when one is set.
+	Deliveries DeliveryTargets
 	// Now is the clock used to compute the first fire. Nil means the wall clock.
 	Now func() time.Time
 }
@@ -72,6 +81,7 @@ type CreateCmd struct {
 	Input        string
 	CronExpr     string
 	Timezone     string
+	Delivery     *coreschedule.Delivery
 }
 
 func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coreschedule.Schedule, error) {
@@ -108,6 +118,11 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coreschedule.Sche
 	if err := s.requireExecutorInSpace(ctx, cmd.ExecutorKind, cmd.ExecutorID, cmd.SpaceID, cmd.Input); err != nil {
 		return nil, err
 	}
+	if cmd.Delivery != nil {
+		if err := s.checkDelivery(ctx, cmd.SpaceID, cmd.ExecutorKind, cmd.ExecutorID, *cmd.Delivery); err != nil {
+			return nil, err
+		}
+	}
 	next, err := Next(cmd.CronExpr, cmd.Timezone, s.now())
 	if err != nil {
 		return nil, invalid(err)
@@ -123,6 +138,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coreschedule.Sche
 		Timezone:     cmd.Timezone,
 		Enabled:      true,
 		NextFireAt:   next,
+		Delivery:     cmd.Delivery,
 	})
 }
 
@@ -160,6 +176,9 @@ type UpdateCmd struct {
 	CronExpr   *string
 	Timezone   *string
 	Enabled    *bool
+	// Delivery sets the delivery target; one with an empty AssistantID removes
+	// it.
+	Delivery *coreschedule.Delivery
 }
 
 func (s *Service) Update(ctx context.Context, cmd UpdateCmd) (*coreschedule.Schedule, error) {
@@ -184,7 +203,13 @@ func (s *Service) Update(ctx context.Context, cmd UpdateCmd) (*coreschedule.Sche
 			return nil, err
 		}
 	}
+	if cmd.Delivery != nil && cmd.Delivery.AssistantID != "" {
+		if err := s.checkDelivery(ctx, existing.SpaceID, existing.ExecutorKind, existing.ExecutorID, *cmd.Delivery); err != nil {
+			return nil, err
+		}
+	}
 	in := coreschedule.UpdateInput{
+		Delivery:   cmd.Delivery,
 		ScheduleID: cmd.ScheduleID,
 		Name:       cmd.Name,
 		Input:      cmd.Input,
@@ -226,6 +251,25 @@ func (s *Service) Delete(ctx context.Context, spaceID, scheduleID string) error 
 		return err
 	}
 	return s.Schedules.DeleteSchedule(ctx, scheduleID)
+}
+
+// ListDeliveries returns a schedule's deliveries newest first, after
+// confirming it belongs to spaceID.
+func (s *Service) ListDeliveries(ctx context.Context, spaceID, scheduleID string, limit, offset int) ([]coreschedule.FireDelivery, int, error) {
+	if _, err := s.Get(ctx, spaceID, scheduleID); err != nil {
+		return nil, 0, err
+	}
+	return s.Schedules.ListDeliveriesBySchedule(ctx, scheduleID, limit, offset)
+}
+
+func (s *Service) checkDelivery(ctx context.Context, spaceID, executorKind, executorID string, d coreschedule.Delivery) error {
+	if strings.TrimSpace(d.AssistantID) == "" || strings.TrimSpace(d.RequesterID) == "" {
+		return ErrDeliveryIncomplete
+	}
+	if s.Deliveries == nil {
+		return ErrNotConfigured
+	}
+	return s.Deliveries.CheckDeliveryTarget(ctx, spaceID, executorKind, executorID, d)
 }
 
 // requireExecutorInSpace confirms the schedule's executor is usable in the

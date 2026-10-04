@@ -659,13 +659,18 @@ service account and linked to the conversation, from which the Issue reads its
 Assistant and requester; a Space member's Reply to requester on that Issue is
 sent through the Assistant's bot into the chat, recorded as a comment, and
 audited, and refused while the Assistant would not answer that requester
-itself. Delivery is not built
+itself. A Schedule whose executor is on an Assistant's roster can name that
+Assistant and one person who has written to it as its delivery target, which
+owners and admins set; each firing records a pending delivery, and a sweeper on
+every replica sends the run's releasable fields through the Assistant's bot
+once it ends, or records why it skipped, in the Schedule's run history
 ([release](../internal/core/assistant/release.go),
 [front door](../internal/service/assistant/frontdoor.go),
 [turn](../internal/service/conversation/assistant_turn.go),
 [files](../internal/service/conversation/assistant_files.go),
 [escalation](../internal/service/conversation/assistant_escalate.go),
 [reply](../internal/service/assistant/reply.go),
+[delivery](../internal/service/assistant/delivery.go),
 [design](design/space-assistants.md)).
 
 `buildmax admin` provides authenticated administrator, account, and model-catalog

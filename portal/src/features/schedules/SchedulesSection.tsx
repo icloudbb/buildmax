@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@buildmax/gui"
-import type { ApiSchedule, ApiTask, ApiWorkflowRun } from "../../lib/api/types"
+import type { ApiAssistant, ApiSchedule, ApiScheduleDelivery, ApiTask, ApiWorkflowRun } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { Alert } from "../../components/state/Alert"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiTaskToTask } from "../../lib/api/mappers"
 import { runStatusLabel, runStatusTone, taskStatusLabel } from "../conversations/thread"
+import { listAssistants } from "../assistants"
 import { CreateScheduleForm } from "./CreateScheduleForm"
+import { describeDelivery } from "./delivery"
 import {
   deleteSchedule,
+  listScheduleDeliveries,
   listScheduleRuns,
   listScheduleTasks,
   listSchedules,
@@ -27,6 +30,8 @@ interface SchedulesSectionProps {
   executorName?: string
   workflowDefinition?: string
   canManage: boolean
+  // Owners and admins may send results to a person through an Assistant.
+  canDeliver?: boolean
 }
 
 function formatWhen(iso: string | null | undefined): string {
@@ -43,11 +48,13 @@ export function SchedulesSection({
   executorName,
   workflowDefinition,
   canManage,
+  canDeliver,
 }: SchedulesSectionProps) {
   // null distinguishes "not yet fetched" from an executor with no schedules.
   const [schedules, setSchedules] = useState<ApiSchedule[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [assistants, setAssistants] = useState<ApiAssistant[]>([])
 
   const load = useCallback(async () => {
     setError(null)
@@ -63,6 +70,22 @@ export function SchedulesSection({
   useEffect(() => {
     void load()
   }, [load])
+
+  // Names the assistant a delivering schedule sends through; without it the
+  // card says "an assistant".
+  const delivers = schedules?.some((s) => s.delivery) ?? false
+  useEffect(() => {
+    if (!delivers) return
+    let cancelled = false
+    listAssistants(spaceId, token)
+      .then((list) => {
+        if (!cancelled) setAssistants(list)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [delivers, spaceId, token])
 
   if (error && schedules === null) {
     return (
@@ -86,6 +109,7 @@ export function SchedulesSection({
             token={token}
             spaceId={spaceId}
             pinned={{ kind: executorKind, id: executorId, name: executorName ?? executorId, definition: workflowDefinition }}
+            canDeliver={canDeliver}
             onCreated={async () => {
               setCreating(false)
               await load()
@@ -112,6 +136,7 @@ export function SchedulesSection({
               spaceId={spaceId}
               token={token}
               canManage={canManage}
+              assistantName={assistants.find((a) => a.id === s.delivery?.assistant_id)?.name}
               onChanged={load}
             />
           ))}
@@ -126,12 +151,14 @@ function ScheduleCard({
   spaceId,
   token,
   canManage,
+  assistantName,
   onChanged,
 }: {
   schedule: ApiSchedule
   spaceId: string
   token: string
   canManage: boolean
+  assistantName?: string
   onChanged: () => Promise<void>
 }) {
   const isWorkflow = schedule.executor_kind === "workflow"
@@ -141,6 +168,8 @@ function ScheduleCard({
   const [runs, setRuns] = useState<ApiWorkflowRun[] | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
+  // Keyed by the task or run each firing started.
+  const [deliveries, setDeliveries] = useState<Record<string, ApiScheduleDelivery> | null>(null)
 
   async function toggleEnabled() {
     setBusyAction("toggle")
@@ -173,6 +202,10 @@ function ScheduleCard({
     setHistoryLoading(true)
     setErr(null)
     try {
+      if (schedule.delivery) {
+        const res = await listScheduleDeliveries(spaceId, schedule.id, token)
+        setDeliveries(Object.fromEntries(res.deliveries.map((d) => [d.fire_ref, d])))
+      }
       if (isWorkflow) {
         const res = await listScheduleRuns(spaceId, schedule.id, token)
         setRuns(res.runs)
@@ -229,6 +262,12 @@ function ScheduleCard({
           <dt>Last fire</dt>
           <dd>{formatWhen(schedule.last_fire_at)}</dd>
         </div>
+        {schedule.delivery ? (
+          <div>
+            <dt>Results</dt>
+            <dd>Sent to one person through {assistantName ?? "an assistant"}</dd>
+          </div>
+        ) : null}
       </dl>
 
       <p className="agent-schedules__prompt">{schedule.input || (isWorkflow ? "(no run input)" : "")}</p>
@@ -269,6 +308,7 @@ function ScheduleCard({
                 <th>Run</th>
                 <th>Status</th>
                 <th>When</th>
+                {deliveries ? <th>Delivery</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -288,6 +328,7 @@ function ScheduleCard({
                     </span>
                   </td>
                   <td className="agent-runs__when">{formatWhen(r.created_at)}</td>
+                  {deliveries ? <td>{describeDelivery(deliveries[r.id])}</td> : null}
                 </tr>
               ))}
             </tbody>
@@ -299,6 +340,7 @@ function ScheduleCard({
                 <th>Task</th>
                 <th>Status</th>
                 <th>When</th>
+                {deliveries ? <th>Delivery</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -320,6 +362,7 @@ function ScheduleCard({
                       </span>
                     </td>
                     <td className="agent-runs__when">{ui.timeLabel}</td>
+                    {deliveries ? <td>{describeDelivery(deliveries[t.id])}</td> : null}
                   </tr>
                 )
               })}

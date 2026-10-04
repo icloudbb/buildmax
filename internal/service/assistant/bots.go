@@ -27,6 +27,7 @@ type Gateway interface {
 	Registered() []string
 	BotInUse(ctx context.Context, platform, botID, except string) (bool, error)
 	Send(ctx context.Context, platform, connectorKey, chatID, text string) error
+	Reachable(ctx context.Context, userID, platform string) (bool, error)
 }
 
 // ConnectorFactory builds the connector that speaks as a bot from its token.
