@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/space-assistants.md#11-results-escalation-and-delivery
 depends_on: [68-assistant-release-contracts.md]
 verification: ["./make test", "./make test mysql", "./make check portal", "./make check docs"]
-claim:
+claim: gougoujiang 2026-10-04
 pr:
 ---
 
