@@ -387,8 +387,8 @@ lists each one, and none of them hid a product defect.
 | Paired database and bucket restore | Passed; RTO over target | Local evidence bundle | All 7649 rows from before the recovery point present, `storage verify --checksums` clean, restored credential and checkpoint work. RTO 632s against the 10-minute target: the drill copies 8416 objects from the operator's machine through a port-forward. |
 | Declared schema path and paired-restore rollback | Passed | Local evidence bundle | alpha.21 to alpha.22 in place; alpha.16 to alpha.22 through a real schema change; alpha.16 refuses the newer schema; rollback by paired restore. |
 | Credential and worker-TLS rotation | Passed; one item waived | Local evidence bundle | JWT, worker certificate and CA, KEK with rewrap, Spaces key, and model key in both directions with no call on the retired key. Database password rotation waived below. |
-| Retention and capacity | Pending the window close | Local evidence bundle | Artifact purge and audit pruning exercised. Audit and traces are kept indefinitely; growth is measured against the window's start baseline. |
-| 24-hour operating window | In progress | Local evidence bundle | Started 2026-10-03T02:46Z in Space `BQ Window a22`. |
+| Retention and capacity | Partial | Local evidence bundle | Artifact purge and audit pruning exercised; audit and traces are kept indefinitely. Over the 24-hour window, including all qualification probing, the database grew 9.50 to 11.16 MB, the bucket prefix 5.87 to 8.18 MB, and traces by 372 objects (0.79 MB); the 10 GiB database disk covers that for years. Partial because no disk or bucket monitoring is configured, which keep-forever retention requires. |
+| 24-hour operating window | Passed | Local evidence bundle | 2026-10-03T02:46Z to 2026-10-04T02:46Z: 216 of 216 scheduled fires on time and succeeded, nothing stranded, across every drill of the exercise: Server rolls, five deploys for credential rotation, Redis, database, and storage outages, and the restore. |
 | Non-author operator journey | Waived | Local evidence bundle | See the waivers below. |
 | Real-model product evaluation | Passed | Local evidence bundle | `./make eval` at the candidate commit with GPT-5.6 Luna: 12 of 12 scored trials, 95% CI 76–100%, 0 unscored. A small suite, not a benchmark. |
 | Local and Desktop release regressions | Partial | Local evidence bundle | Candidate CI covers CLI/TUI, provider contract tests, and the Desktop UI build; packaged Desktop launch and the Desktop UI suite need a native window and were not run. |
@@ -398,10 +398,10 @@ lists each one, and none of them hid a product defect.
 Current decision: **NOT READY FOR BETA**.
 
 The v0.2.0-alpha.22 exercise found no product defect and no failed item. Before
-signing, the 24-hour window has to complete, the restore time has to meet its
-target or the target has to change, the evidence has to be published where the
-release space can read it, and the partial rows above have to pass or be
-accepted as limits.
+signing, the restore time has to meet its target or the target has to change,
+retention needs disk and bucket monitoring, the evidence has to be published
+where the release space can read it, and the remaining partial rows above have
+to pass or be accepted as limits.
 
 Qualification requires every core gate to pass, with no authorization escape,
 unexplained data loss, stranded durable work, database pointer to a missing

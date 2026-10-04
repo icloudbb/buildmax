@@ -189,14 +189,15 @@ is R3 work when it prevents a documented core journey or operator diagnosis.
 
 A 2026-10-02 exercise on DigitalOcean began on v0.2.0-alpha.18; the defects it
 found were fixed through v0.2.0-alpha.21. A full rerun on v0.2.0-alpha.22 on
-2026-10-03 exercised every gate on that one release and found no product defect
-and no failed item. The project owner waived the non-author operator journey and
+2026-10-03 exercised every gate on that one release, including a 24-hour
+operating window that closed on 2026-10-04, and found no product defect and no
+failed item. The project owner waived the non-author operator journey and
 database password rotation.
 
-**Next:** complete the 24-hour window, bring the paired-restore time within its
-target or change the target, publish the evidence where the release space can
-read it, and resolve the partial rows in the
-[Beta readiness record](deploy/beta-readiness.md).
+**Next:** bring the paired-restore time within its target or change the
+target, add disk and bucket monitoring for keep-forever retention, publish the
+evidence where the release space can read it, and resolve the partial rows in
+the [Beta readiness record](deploy/beta-readiness.md).
 Fix only gaps that the journey demonstrates. A 2026-09-28 operator drill showed the diagnosis
 journey could not detect stalled or failing work from Administration; runtime
 operations metadata

@@ -194,8 +194,8 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 | 数据库与 bucket 配对恢复 | 通过；RTO 超出目标 | 本地证据包 | 恢复点之前全部 7649 条行都在，`storage verify --checksums` 干净，恢复后的凭证和 checkpoint 可用。RTO 632 秒，超出 10 分钟目标：演练从操作人员的机器经 port-forward 复制 8416 个对象。 |
 | 声明的 schema 路径与配对恢复回退 | 通过 | 本地证据包 | alpha.21 原地升级到 alpha.22；alpha.16 经真实 schema 变更升级到 alpha.22；alpha.16 拒绝更新后的 schema；通过配对恢复回退。 |
 | Credential 和 Worker TLS 轮换 | 通过；一项豁免 | 本地证据包 | JWT、Worker 证书与 CA、KEK 及 rewrap、Spaces 密钥、模型密钥双向轮换，退役的密钥上没有任何调用。数据库密码轮换见下方豁免。 |
-| Retention 和 capacity | 等待窗口结束 | 本地证据包 | 已演练 Artifact 清除和审计裁剪。审计和 trace 永久保留；增长以窗口开始时的基线计算。 |
-| 24 小时运行窗口 | 进行中 | 本地证据包 | 2026-10-03T02:46Z 在 Space `BQ Window a22` 中开始。 |
+| Retention 和 capacity | 部分通过 | 本地证据包 | 已演练 Artifact 清除和审计裁剪；审计和 trace 永久保留。24 小时窗口内（包含全部资格验证探针），数据库从 9.50 MB 增至 11.16 MB，bucket 前缀从 5.87 MB 增至 8.18 MB，trace 增加 372 个对象（0.79 MB）；10 GiB 的数据库磁盘足以支撑数年。部分通过是因为没有配置磁盘和 bucket 监控，而永久保留要求有监控。 |
+| 24 小时运行窗口 | 通过 | 本地证据包 | 2026-10-03T02:46Z 至 2026-10-04T02:46Z：216 次定时触发全部按时执行并成功，没有滞留工作，期间经历了本次演练的全部操作：Server 滚动、为凭证轮换执行的五次部署、Redis、数据库和存储中断，以及恢复演练。 |
 | 非作者 operator 旅程 | 豁免 | 本地证据包 | 见下方豁免。 |
 | 真实模型产品 evaluation | 通过 | 本地证据包 | 在候选提交上用 GPT-5.6 Luna 运行 `./make eval`：12 个计分试验全部通过，95% CI 76–100%，0 个未计分。这是小型套件，不是基准分数。 |
 | 本地和 Desktop 发布回归 | 部分通过 | 本地证据包 | 候选版本 CI 覆盖 CLI/TUI、provider 合约测试和 Desktop UI 构建；打包后的 Desktop 启动和 Desktop UI 套件需要原生窗口，未运行。 |
@@ -204,7 +204,7 @@ Remote Control、Telegram、Portal OIDC、本地 app connector、remote MCP 和 
 
 当前决策：**尚未达到 BETA 就绪条件**。
 
-v0.2.0-alpha.22 的演练没有发现产品缺陷，也没有失败的条目。签署之前，24 小时窗口必须完成，恢复时间必须达到目标或调整目标，证据必须发布到发布 Space 可读的位置，上表中部分通过的条目必须通过或作为限制被接受。
+v0.2.0-alpha.22 的演练没有发现产品缺陷，也没有失败的条目。签署之前，恢复时间必须达到目标或调整目标，保留策略需要配置磁盘和 bucket 监控，证据必须发布到发布 Space 可读的位置，上表中其余部分通过的条目必须通过或作为限制被接受。
 
 资格验证要求所有核心 Gate 通过，不得存在 authorization escape、无法解释的数据损失、stranded durable work、数据库 pointer 指向缺失对象，或未解决的 critical/high security finding。任何 waiver 都必须指出未满足行为、用户影响、补偿性 operator control、owner 和到期时间；它是明确的发布决策，而不是暗示通过。
 
