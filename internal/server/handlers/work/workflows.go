@@ -46,22 +46,27 @@ type workflowRevisionListResponse struct {
 }
 
 type workflowRunResponse struct {
-	ID               string          `json:"id"`
-	WorkflowID       string          `json:"workflow_id"`
-	WorkflowRevision int             `json:"workflow_revision,omitempty"`
-	IssueID          *string         `json:"issue_id,omitempty"`
-	ScheduleID       *string         `json:"schedule_id,omitempty"`
-	ConversationID   *string         `json:"conversation_id,omitempty"`
-	Status           string          `json:"status"`
-	CreatedBy        string          `json:"created_by"`
-	CreatedAt        time.Time       `json:"created_at"`
-	StartedAt        *time.Time      `json:"started_at,omitempty"`
-	EndedAt          *time.Time      `json:"ended_at,omitempty"`
-	ErrorMessage     *string         `json:"error_message,omitempty"`
-	FailureClass     string          `json:"failure_class,omitempty"`
-	DeadlineAt       *time.Time      `json:"deadline_at,omitempty"`
-	Input            json.RawMessage `json:"input,omitempty"`
-	Result           json.RawMessage `json:"result,omitempty"`
+	ID               string  `json:"id"`
+	WorkflowID       string  `json:"workflow_id"`
+	WorkflowRevision int     `json:"workflow_revision,omitempty"`
+	IssueID          *string `json:"issue_id,omitempty"`
+	ScheduleID       *string `json:"schedule_id,omitempty"`
+	ConversationID   *string `json:"conversation_id,omitempty"`
+	// RequestedBy, AssistantID, and AssistantRevision are set on a run a
+	// Space Assistant started: who asked, and what answered them.
+	RequestedBy       string          `json:"requested_by,omitempty"`
+	AssistantID       string          `json:"assistant_id,omitempty"`
+	AssistantRevision int             `json:"assistant_revision,omitempty"`
+	Status            string          `json:"status"`
+	CreatedBy         string          `json:"created_by"`
+	CreatedAt         time.Time       `json:"created_at"`
+	StartedAt         *time.Time      `json:"started_at,omitempty"`
+	EndedAt           *time.Time      `json:"ended_at,omitempty"`
+	ErrorMessage      *string         `json:"error_message,omitempty"`
+	FailureClass      string          `json:"failure_class,omitempty"`
+	DeadlineAt        *time.Time      `json:"deadline_at,omitempty"`
+	Input             json.RawMessage `json:"input,omitempty"`
+	Result            json.RawMessage `json:"result,omitempty"`
 }
 
 type workflowNodeRunResponse struct {
@@ -216,22 +221,25 @@ func workflowRevisionToResponse(rev coreworkflow.Revision) workflowRevisionRespo
 
 func workflowRunToResponse(run coreworkflow.Run) workflowRunResponse {
 	return workflowRunResponse{
-		ID:               run.ID,
-		WorkflowID:       run.WorkflowID,
-		WorkflowRevision: run.WorkflowRevision,
-		IssueID:          run.IssueID,
-		ScheduleID:       run.ScheduleID,
-		ConversationID:   run.ConversationID,
-		Status:           run.Status,
-		CreatedBy:        run.CreatedBy,
-		CreatedAt:        run.CreatedAt,
-		StartedAt:        run.StartedAt,
-		EndedAt:          run.EndedAt,
-		ErrorMessage:     run.ErrorMessage,
-		FailureClass:     run.FailureClass,
-		DeadlineAt:       run.DeadlineAt,
-		Input:            rawJSONOrNil(run.Input),
-		Result:           rawJSONOrNil(run.Result),
+		ID:                run.ID,
+		WorkflowID:        run.WorkflowID,
+		WorkflowRevision:  run.WorkflowRevision,
+		IssueID:           run.IssueID,
+		ScheduleID:        run.ScheduleID,
+		ConversationID:    run.ConversationID,
+		RequestedBy:       run.RequestedBy,
+		AssistantID:       run.AssistantID,
+		AssistantRevision: run.AssistantRevision,
+		Status:            run.Status,
+		CreatedBy:         run.CreatedBy,
+		CreatedAt:         run.CreatedAt,
+		StartedAt:         run.StartedAt,
+		EndedAt:           run.EndedAt,
+		ErrorMessage:      run.ErrorMessage,
+		FailureClass:      run.FailureClass,
+		DeadlineAt:        run.DeadlineAt,
+		Input:             rawJSONOrNil(run.Input),
+		Result:            rawJSONOrNil(run.Result),
 	}
 }
 

@@ -190,6 +190,9 @@ type AppConfig struct {
 	// Issue. There is no in-process Issue tool: the Agent reads and reports
 	// through the command surface. See docs/design/agent-bridge-cli.md.
 	Issue *IssueContext
+	// Requester, when non-nil, is the verified person a Space Assistant
+	// started this run for. See docs/design/space-assistants.md §5.
+	Requester *Requester
 	// EnableBackgroundJobs turns on local background jobs: Bash gains
 	// run_in_background and the Job tools are registered. Only interactive
 	// surfaces (TUI, Desktop) set it — print mode has no host process to own
@@ -348,6 +351,7 @@ type AgentApp struct {
 	runProvenance               RunProvenance
 	artifactPublisher           tools.ArtifactPublisher
 	issue                       *IssueContext
+	requester                   *Requester
 	grantsMu                    sync.Mutex
 	grants                      map[string]*agent.SessionGrants
 	turns                       turnCoordinator
@@ -1708,7 +1712,7 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 // promptCapabilities reports what this surface can actually do, so the prompt
 // describes the tools the agent was given rather than the ones it might have.
 func (a *AgentApp) promptCapabilities() PromptCapabilities {
-	return PromptCapabilities{Artifacts: a.artifactPublisher != nil, AskUser: a.askUser, Issue: a.issue}
+	return PromptCapabilities{Artifacts: a.artifactPublisher != nil, AskUser: a.askUser, Issue: a.issue, Requester: a.requester}
 }
 
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {

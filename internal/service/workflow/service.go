@@ -166,6 +166,12 @@ type StartWorkflowRunCmd struct {
 	ScheduleID *string
 	// ConversationID is the conversation whose turn started the run, or nil.
 	ConversationID *string
+	// RequestedBy, AssistantID, and AssistantRevision record a Space
+	// Assistant's dispatch: the verified requester and the Assistant revision,
+	// beside UserID, its service account. Empty otherwise.
+	RequestedBy       string
+	AssistantID       string
+	AssistantRevision int
 	// Input is the caller-supplied run input JSON. It is validated against the
 	// workflow's input_schema and frozen onto the run; empty means no input, which
 	// a workflow that declares an input_schema rejects.
@@ -480,16 +486,19 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 		runTimeout = def.Policy.TimeoutSeconds
 	}
 	run, err := s.Workflows.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
-		WorkflowID:       workflow.ID,
-		WorkflowRevision: workflow.Revision,
-		IssueID:          cmd.IssueID,
-		ScheduleID:       cmd.ScheduleID,
-		ConversationID:   cmd.ConversationID,
-		Input:            runInput,
-		Status:           string(coreworkflow.RunStatusRunning),
-		CreatedBy:        cmd.UserID,
-		StartedAt:        &now,
-		DeadlineAt:       coreworkflow.Deadline(now, runTimeout),
+		WorkflowID:        workflow.ID,
+		WorkflowRevision:  workflow.Revision,
+		IssueID:           cmd.IssueID,
+		ScheduleID:        cmd.ScheduleID,
+		ConversationID:    cmd.ConversationID,
+		RequestedBy:       cmd.RequestedBy,
+		AssistantID:       cmd.AssistantID,
+		AssistantRevision: cmd.AssistantRevision,
+		Input:             runInput,
+		Status:            string(coreworkflow.RunStatusRunning),
+		CreatedBy:         cmd.UserID,
+		StartedAt:         &now,
+		DeadlineAt:        coreworkflow.Deadline(now, runTimeout),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -1218,6 +1227,9 @@ func (s *Service) createStepTask(ctx context.Context, spaceID, userID string, ru
 		AdmissionKey:      coreworkflow.TaskAdmissionKey(step.WorkflowRunID, step.NodeID),
 		WorkflowNodeRunID: step.ID,
 		OutputSchema:      step.OutputSchema,
+		RequestedBy:       run.RequestedBy,
+		AssistantID:       run.AssistantID,
+		AssistantRevision: run.AssistantRevision,
 	})
 	if err != nil {
 		return nil, "", "", err

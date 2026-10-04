@@ -14,6 +14,7 @@ import (
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	"github.com/icloudbb/buildmax/internal/core/eligibility"
+	"github.com/icloudbb/buildmax/internal/core/identity"
 	coreplugin "github.com/icloudbb/buildmax/internal/core/plugin"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
@@ -33,6 +34,12 @@ type SpaceSandboxDefaultsReader interface {
 	GetSpace(ctx context.Context, spaceID string) (*corespace.Space, error)
 }
 
+// UserReader resolves the verified requester of a Task a Space Assistant
+// started: the only user a run token learns about besides its own initiator.
+type UserReader interface {
+	GetUser(ctx context.Context, userID string) (*identity.User, error)
+}
+
 type Config struct {
 	// JWTSecret verifies the run token every route here requires. Empty means
 	// this deployment mints none, so no worker call can be authenticated.
@@ -48,6 +55,9 @@ type Config struct {
 	// starting. Nil skips the check, matching a deployment that wires no
 	// authority stores. See docs/design/system-administration.md §8.2.
 	Eligible eligibility.Checker
+	// Users resolves whom a Space Assistant's Task works for. Nil refuses to
+	// start such a Task rather than start it without knowing.
+	Users UserReader
 	// Spaces resolves a run's space default sandbox tiers -- what an agent that
 	// declares neither inherits. Nil means no space falls through beyond the
 	// agent's own declaration.

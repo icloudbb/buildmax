@@ -125,6 +125,17 @@ type TaskRunTask struct {
 	// validated value on its terminal PATCH. Absent means a free-text Task. See
 	// docs/design/structured-output.md.
 	OutputSchema *string `json:"output_schema,omitempty"`
+	// Requester is the person a Space Assistant started this Task for, as
+	// BuildMax verified them. The worker gives it to the Agent in its own
+	// prompt layer, which nothing the model wrote into the task input can
+	// change. Absent for any other Task. See docs/design/space-assistants.md §5.
+	Requester *TaskRunRequester `json:"requester,omitempty"`
+}
+
+// TaskRunRequester is the verified identity of the person a run works for.
+type TaskRunRequester struct {
+	Name  string `json:"name,omitempty"`
+	Email string `json:"email,omitempty"`
 }
 
 // PatchTaskRunRequest is the JSON body for PATCH /api/worker/task-runs/{task_run_id} (snake_case).

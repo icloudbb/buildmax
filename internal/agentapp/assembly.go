@@ -84,6 +84,9 @@ func buildSystemPromptWithLayers(workspaceDir, modelName, spaceInstructions, add
 	if caps.Issue != nil {
 		appendLayer("issue", issuePromptLayer(caps.Issue))
 	}
+	if caps.Requester != nil {
+		appendLayer("requester", requesterPromptLayer(caps.Requester))
+	}
 	if global, err := ReadAgentsMd(config.DataDir()); err == nil && global != "" {
 		appendLayer("user_agents_md", global)
 	}

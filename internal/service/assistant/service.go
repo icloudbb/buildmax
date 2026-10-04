@@ -710,6 +710,8 @@ func statementText(st Statement) string {
 			}
 			b.WriteString(".")
 		}
+		// The requester's identity goes the other way: to the Space's work.
+		b.WriteString(" Each of them is told the name and email of the person who asked.")
 	}
 	b.WriteString(" Treat everything it can read or run as disclosed to everyone who can ask.")
 	return b.String()

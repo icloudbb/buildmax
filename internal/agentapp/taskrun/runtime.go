@@ -149,14 +149,17 @@ type RunTaskInput struct {
 	// eventually drops it.
 	AdditionalSystemPrompt string
 	SpaceAgentInstructions string
-	Run                    *coretask.Run
-	SessionID              string
-	Paths                  RuntimePaths
-	Persist                blob.PersistStorage
-	Updater                TaskRunUpdater
-	StreamSender           workerclient.StreamSender
-	Model                  config.ModelEntry
-	Managed                ManagedInference
+	// Requester is the verified person a Space Assistant started this run
+	// for, told to the Agent in its own prompt layer; nil otherwise.
+	Requester    *agentapp.Requester
+	Run          *coretask.Run
+	SessionID    string
+	Paths        RuntimePaths
+	Persist      blob.PersistStorage
+	Updater      TaskRunUpdater
+	StreamSender workerclient.StreamSender
+	Model        config.ModelEntry
+	Managed      ManagedInference
 	// ModelCredentialHint is where Model's API key is configured, named by a
 	// refused-credential error; never the key. Empty means settings.yaml. A
 	// direct run's model is the server's, so its dispatcher names that source.
@@ -484,7 +487,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 		effectiveSessionID = *task.SessionID
 	}
 	agentRun, err := runAgentTask(ctx, run, dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.ModelCredentialHint, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
-		artifactPublisher(input.WorkerAPI, run.ID), issueContext(input.WorkerAPI, task),
+		artifactPublisher(input.WorkerAPI, run.ID), issueContext(input.WorkerAPI, task), input.Requester,
 		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants, task.OutputSchema, input.AskUser)
 	result := runResult{
 		EndTime:          time.Now().UTC(),
@@ -616,7 +619,7 @@ func runProvenance(run *coretask.Run) agentapp.RunProvenance {
 	}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, modelCredentialHint string, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issue *agentapp.IssueContext, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string, askUser bool) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, modelCredentialHint string, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issue *agentapp.IssueContext, requester *agentapp.Requester, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string, outputSchema *string, askUser bool) (agentRunOutput, error) {
 	// One redactor over this run's Secret values covers every model-written text
 	// the run hands to the server: the live stream, the reply, and the
 	// structured and question data reported with it. See
@@ -655,6 +658,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGl
 			RunProvenance:               runProvenance(run),
 			ArtifactPublisher:           publisher,
 			Issue:                       issue,
+			Requester:                   requester,
 			// A worker executes model-chosen shell commands, so it resolves
 			// the stricter worker sandbox baseline whenever it is running
 			// from an image that actually installs the OS backend -- see

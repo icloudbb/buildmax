@@ -42,7 +42,7 @@ func TestDeferredQuestionEndsTheRunAndTheAnswerContinuesIt(t *testing.T) {
 	firstRun := &coretask.Run{ID: "run1", Input: "scaffold a small service"}
 	firstDirs := testRunDirs(t)
 	first, err := runAgentTask(ctx, firstRun, firstDirs.runDir, firstDirs.runGlobal, firstDirs.runOSHome,
-		sessionID, nil, model, "", ManagedInference{}, nil, "", "", nil, nil, "", "", nil, nil, true)
+		sessionID, nil, model, "", ManagedInference{}, nil, "", "", nil, nil, nil, "", "", nil, nil, true)
 	if err != nil {
 		t.Fatalf("first run: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestDeferredQuestionEndsTheRunAndTheAnswerContinuesIt(t *testing.T) {
 	secondDirs := testRunDirs(t)
 	restoreSessionFromPreviousRun(ctx, task, secondRun, secondDirs.runGlobal, persist)
 	second, err := runAgentTask(ctx, secondRun, secondDirs.runDir, secondDirs.runGlobal, secondDirs.runOSHome,
-		sessionID, nil, model, "", ManagedInference{}, nil, "", "", nil, nil, "", "", nil, nil, true)
+		sessionID, nil, model, "", ManagedInference{}, nil, "", "", nil, nil, nil, "", "", nil, nil, true)
 	if err != nil {
 		t.Fatalf("continued run: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestAskUserIsOffUnlessTheServerAllowsIt(t *testing.T) {
 	}
 	dirs := testRunDirs(t)
 	if _, err := runAgentTask(ctx, &coretask.Run{ID: "run1", Input: "go"}, dirs.runDir, dirs.runGlobal, dirs.runOSHome,
-		"sid-off", nil, model, "", ManagedInference{}, nil, "", "", nil, nil, "", "", nil, nil, false); err != nil {
+		"sid-off", nil, model, "", ManagedInference{}, nil, "", "", nil, nil, nil, "", "", nil, nil, false); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if body := string(server.Requests()[0].Body); strings.Contains(body, `"`+agent.ToolNameAskUser+`"`) {

@@ -11,5 +11,6 @@
   Issue in the Space, from which a member replies to the requester's chat, and
   a Schedule can send each result's releasable fields to one person through it.
   The publish statement also names the space's Files its Agents and Workflow
-  steps can read
+  steps can read, and each of those is told the name and email of the person
+  asking from their account, never from a name claimed in the chat
   ([Portal overview](https://github.com/icloudbb/buildmax/blob/main/manual/portal-overview.md#space-settings)).

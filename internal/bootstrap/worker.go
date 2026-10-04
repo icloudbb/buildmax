@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/icloudbb/buildmax/internal/agentapp"
 	"github.com/icloudbb/buildmax/internal/agentapp/taskrun"
 	"github.com/icloudbb/buildmax/internal/config"
 	"github.com/icloudbb/buildmax/internal/core/session"
@@ -293,6 +294,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		Checkpoints:            checkpointStore,
 		AdditionalSystemPrompt: fetched.AgentInstructions,
 		SpaceAgentInstructions: fetched.SpaceAgentInstructions,
+		Requester:              requesterOf(fetched.Requester),
 		Plugins:                fetched.Plugins,
 		SandboxNetworkTier:     config.SandboxNetworkTier(fetched.SandboxNetworkTier),
 		SandboxFilesystemTier:  config.SandboxFilesystemTier(fetched.SandboxFilesystemTier),
@@ -393,4 +395,13 @@ func reportCanceledBeforeStart(ctx context.Context, updater taskrun.TaskRunUpdat
 		return err
 	}
 	return coretask.ErrRunCanceled
+}
+
+// requesterOf restates the verified requester the server sent in the shape the
+// run's prompt takes.
+func requesterOf(r *workerclient.TaskRunRequester) *agentapp.Requester {
+	if r == nil {
+		return nil
+	}
+	return &agentapp.Requester{Name: r.Name, Email: r.Email}
 }

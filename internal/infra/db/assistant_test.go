@@ -233,9 +233,13 @@ func TestAssistantConversationAndProvenance(t *testing.T) {
 	}
 	run, err := s.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
 		WorkflowID: wf.ID, ConversationID: &first.ID, Status: string(coreworkflow.RunStatusRunning), CreatedBy: owner,
+		RequestedBy: requester, AssistantID: a.ID, AssistantRevision: 4,
 	})
 	if err != nil {
 		t.Fatalf("CreateWorkflowRun: %v", err)
+	}
+	if got, err := s.GetWorkflowRun(ctx, run.ID); err != nil || got.RequestedBy != requester || got.AssistantID != a.ID || got.AssistantRevision != 4 {
+		t.Errorf("workflow run provenance = %+v, %v", got, err)
 	}
 	if got, err := s.GetWorkflowRun(ctx, run.ID); err != nil || got.ConversationID == nil || *got.ConversationID != first.ID {
 		t.Errorf("workflow run = %+v, %v", got, err)

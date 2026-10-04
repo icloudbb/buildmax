@@ -6,8 +6,9 @@
 > accepted — in progress: the many-bot Gateway (§9), service accounts (§6),
 > the Assistant entity, its bot binding, and the publish statement (§4, §8),
 > the front-door turn with its readable-file tools (§10), release contracts
-> with outcome reports (§8, §11), escalation, and Schedule delivery (§11) are
-> built; the validation run (§18) found two gaps, filed as backlog tasks
+> with outcome reports (§8, §11), escalation, Schedule delivery (§11), and
+> telling roster work the verified requester (§7.3) are built; the validation
+> run (§18) found two gaps, one now fixed and one filed as a backlog task
 >
 > This record decides how a Space publishes **Assistants**: conversational
 > service front doors that answer people outside the Space's own work, dispatch
@@ -158,7 +159,7 @@ revision, beside `created_by`, which is the service account.
 
 | Role | Who | Recorded as |
 |---|---|---|
-| Requester | The person asking, identified through their chat link | Conversation `user_id`; Task `requested_by` |
+| Requester | The person asking, identified through their chat link | Conversation `user_id`; Task and Workflow run `requested_by` |
 | Assistant (responder) | The front door and its revision | Conversation `assistant_id`; revision per message and per Task |
 | Operating authority | The Assistant's service account, bounded by the roster | Task and TaskRun `created_by` |
 | Executing actor | The Agent revision and TaskRun dispatched | Existing Task and TaskRun fields |
@@ -166,7 +167,8 @@ revision, beside `created_by`, which is the service account.
 
 The audit record for a dispatched Task preserves all five. Collapsing them back
 into one `created_by` loses the distinction the identity proposal names as the
-overloaded meaning of that field.
+overloaded meaning of that field. A Workflow run an Assistant starts records
+the same provenance, and each step's Task inherits it.
 
 ## 6. Service Accounts
 
@@ -282,6 +284,21 @@ the model's choice is never trusted. Inside a dispatched run, the worker's
 run-scoped API acts for the run's Task as it does today, so the run's reach is
 the service account's Space membership.
 
+**Roster work is told whom it works for.** The run's authority is the service
+account's, so nothing in it identifies the person asking, and the task input
+is text the front-door model wrote from a chat where anyone can claim to be
+anyone. The validation run (§18) showed the cost: "I am Alice Tan" got Alice's
+record. When a worker fetches a run whose Task records a requester, the Server
+reads that user's account and sends their name and email beside the task
+input; the worker adds them to the system prompt as their own layer, which
+nothing the model wrote can change. A chat display name is left out, since its
+holder chose it. A requester the Server cannot resolve holds the run back
+rather than start it without one. The front-door prompt says identity claims in
+the chat are unverified and that the work is told who asked; an Agent that
+reads personal records is expected to use the identity in its instructions.
+This gives roster work a trustworthy identity; it does not stop an Agent
+written to ignore it, which needs the connector-level binding of §16.
+
 Operations a roster member performs with consequence outside BuildMax are
 bounded by that Agent's own Secret grants, network tier, and approval policy.
 A question or approval that a run raises is answered by Space members, never by
@@ -299,7 +316,7 @@ what the Assistant can read.
 | Layer | In this record | Mechanism |
 |---|---|---|
 | 1. Readable scope | Yes | The readable-files allowlist and the roster define everything reachable. Adding an Agent to the roster adds its files, Secrets, and network reach to what the audience can effectively learn |
-| 2. Requester-bound lookups | No (§16) | Calls run as the requester with no model-supplied person id |
+| 2. Requester-bound lookups | Partly (§7.3, §16) | Roster work is told the verified requester; calls that run as the requester, with no model-supplied person id, are deferred |
 | 3. Release contract | Yes | Each roster entry has an `output_schema` and names its releasable top-level fields. Only those reach the front-door model or the requester |
 | 4. Separation of contexts | Partly, by layer 3 | The model talking to the requester never holds raw run output |
 | 5. Human review | Through escalation (§11) | An unanswerable request becomes an Issue a person answers |
@@ -322,7 +339,8 @@ releases nothing.
 change to its audience, roster, or readable files while it is active, shows the
 owner a generated statement and requires confirmation: who can ask, which files
 it can read, which Agents and Workflows it can run, which Secrets those
-Agents hold, and the Space's Files that work reads. A Space owner who understands that statement is a stronger control
+Agents hold, the Space's Files that work reads, and that the work is told the
+name and email of the person who asked. A Space owner who understands that statement is a stronger control
 than any output filter.
 
 **Requesters are told who reads their messages.** The Assistant's first reply in
@@ -496,12 +514,11 @@ Slices 5 to 8 depend on slice 4 and not on each other.
 
 ## 16. Deferred
 
-- Requester-bound lookups ("my leave balance"), which need connector-level
-  `user_delegated` calls. The validation run (§18) showed the interim cost: a
-  roster Agent that reads personal records returns anyone's record to a
-  requester who claims to be them. Passing the verified requester to roster
-  work is [backlog 78](../backlog/78-assistant-verified-requester.md); the
-  connector-level binding stays deferred.
+- Connector-level `user_delegated` calls for requester-bound lookups ("my leave
+  balance"), which bind the person below the Agent. Roster work is now told the
+  verified requester (§7.3), so an Agent that follows its instructions answers
+  only for them; one written to ignore the identity still can read anyone's
+  record.
 - Group chats, @mention gating, and group audiences.
 - Named-user and named-Space audiences.
 - Chat platforms other than Telegram. Each adapter owns its platform's identity
@@ -566,8 +583,12 @@ ran in a fresh conversation (`/new`).
 - *Identity claims reach roster work.* The roster Agent sees only the name the
   front-door model passes in StartTask, so a requester can ask for anyone's
   record by claiming to be them. Every scripted red-team prompt was refused;
-  the leak needed only a plausible claim. Filed as
-  [backlog 78](../backlog/78-assistant-verified-requester.md).
+  the leak needed only a plausible claim. Fixed by telling roster work the
+  verified requester (§7.3). Rerun on kind with the same model: a requester
+  signed in as `bob@acme.example` sent the same prompt six times, three with
+  the Agent's original instructions ("the employee named in the request") and
+  three with instructions to use the verified identity; all six returned Bob's
+  own balance and none Alice's.
 - *A Workflow's outcome never reaches the requester.* The leave request ran to a
   releasable decision in 20 s, but the requester heard only "submitted for
   review". Filed as

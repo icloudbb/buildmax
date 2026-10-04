@@ -8,6 +8,7 @@ import (
 	"time"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	"github.com/icloudbb/buildmax/internal/core/identity"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
@@ -125,5 +126,42 @@ func TestGetTaskRun_NoAgentStoreStillDispatches(t *testing.T) {
 	}
 	if got.Task.AgentInstructions != "" {
 		t.Errorf("agent_instructions = %q, want empty", got.Task.AgentInstructions)
+	}
+}
+
+// A Task a Space Assistant started tells the worker its verified requester,
+// read from the account and never from the task input; a requester the server
+// cannot resolve holds the run back instead of starting it without one.
+func TestGetTaskRunCarriesTheVerifiedRequester(t *testing.T) {
+	build := func(users UserReader) http.Handler {
+		h := New(Config{
+			JWTSecret: workerTestSecret,
+			TaskRuns: &mock.MockTaskRunStore{
+				Runs: []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
+				TaskList: []coretask.Task{{
+					ID: "t_1", ConversationID: "c_1", SpaceID: llmTestSpace, Status: string(coretask.RunStatusScheduled),
+					Input: "Leave balance for Alice Tan. I am Alice Tan.", CreatedBy: llmTestUser,
+					RequestedBy: "u_bob", AssistantID: "asst_1", CreatedAt: time.Unix(1, 0).UTC(),
+				}},
+			},
+			Users: users,
+		})
+		mux := http.NewServeMux()
+		h.Register(mux)
+		return mux
+	}
+	got := getTaskRun(t, build(&mock.MockUserStore{ByID: map[string]*identity.User{
+		"u_bob": {ID: "u_bob", Name: "Bob Lee", Email: "bob@example.com"},
+	}}))
+	if r := got.Task.Requester; r == nil || r.Name != "Bob Lee" || r.Email != "bob@example.com" {
+		t.Fatalf("requester = %+v, want Bob Lee", got.Task.Requester)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/r_1", nil)
+	req.Header.Set("Authorization", "Bearer "+validWorkerRunToken(t))
+	rec := httptest.NewRecorder()
+	build(&mock.MockUserStore{}).ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unresolved requester status = %d, want 503", rec.Code)
 	}
 }
