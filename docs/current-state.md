@@ -620,14 +620,12 @@ re-enable, and re-sponsor them in Space settings
 `service_account.*` event; disabling runs the same deactivation service as an
 administrator's disable. Whether one needs a sponsor is derived on read and
 appears when the sponsor is demoted, removed, or disabled. The admin user list
-marks them and Portal's people pickers leave them out. Nothing in production
-yet runs work as one: the eligibility gates accept an active one and refuse a
-disabled one, as tests show, and the Space Assistant front door is the first
-planned user ([Space Assistants](design/space-assistants.md) §6). See the
+marks them and Portal's people pickers leave them out. A Space Assistant's work
+runs as its service account; the eligibility gates accept an active one and
+refuse a disabled one ([Space Assistants](design/space-assistants.md) §6). See the
 [service-account service](../internal/service/space/service_accounts.go).
 
-Space Assistants can be defined and published but do not yet answer questions.
-Owners and admins of a team Space define one under Space settings
+Space Assistants answer linked people through their own bots. Owners and admins of a team Space define one under Space settings
 (`/api/spaces/{space_id}/assistants`): instructions, an optional model, a roster
 of Space Agents and published Workflows, each with a release contract (an
 output schema and the top-level fields a requester may see), readable Space
@@ -642,9 +640,18 @@ Telegram bot: the token is checked with Telegram, sealed under the deployment
 KEK (rewrapped with the rest), never returned, and refused when the bot is
 already connected, including as the system bot. Every replica keeps the chat
 Gateway's bots in step with the stored bindings. A linked user who messages an
-Assistant's bot is told whether it is paused; answering, release enforcement,
-readable-file reads, escalation, and delivery are not built
-([service](../internal/service/assistant/service.go),
+Assistant's bot in a private chat is answered only when the Assistant is
+available and the user is active and in its audience, all checked before any
+model runs. The turn uses the Assistant's instructions and model, is metered to
+the requester in the Assistant's Space, and can start only roster Agents and
+Workflows, as the service account; each Task records the requester, the
+Assistant, and its revision, and each stored message the revision. The
+conversation belongs to the Assistant's Space, where its members can read it,
+and continues only in the chat; the first reply says so. Task and Workflow
+reads return status only, no outcome report is sent, and readable-file reads,
+escalation, and delivery are not built
+([front door](../internal/service/assistant/frontdoor.go),
+[turn](../internal/service/conversation/assistant_turn.go),
 [design](design/space-assistants.md)).
 
 `buildmax admin` provides authenticated administrator, account, and model-catalog

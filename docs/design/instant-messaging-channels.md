@@ -139,6 +139,11 @@ Each concept is listed with the requirement that fails without it.
     Space Assistant implements, after pairing and the sign-in window are
     checked. It never falls through to the personal assistant, which would
     serve the sender's own Spaces through a bot someone else operates.
+  - The front door runs its own pre-model checks and a Tier 1 turn with the
+    Assistant's profile through the same turn queue. Its conversations carry
+    `assistant_id` and are found by Assistant, requester, and chat rather than
+    by connector key, so a rebound bot continues them. See
+    [Space Assistants §10](space-assistants.md#10-the-front-door-turn).
 - **`channel_identity`** is platform, tenant, and external user id mapped to a
   user.
   - Without it, a message cannot carry per-sender authority.
@@ -311,7 +316,8 @@ A Connector's `Receive` runs only on the replica holding the connector's lease.
 `OnTaskRunTerminal` also calls `Gateway.ReportRunTerminal`.
 
 - **Which runs.** Only a run whose Task carries a Conversation with a
-  `channel_ref` is reported.
+  `channel_ref` is reported, and not one from a Space Assistant's
+  conversation, whose requester may see only a result's releasable fields.
 - **Who can still see it.** The report is sent only while the conversation's
   owner still passes eligibility for its Space, and still has a link on that
   platform.
