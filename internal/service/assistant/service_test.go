@@ -154,11 +154,11 @@ func TestCreateRefusesWhatTheSpaceDoesNotOwn(t *testing.T) {
 			d.Roster[1].ID = "wf_noresult"
 		},
 		"workflow result that is not the structured output": func(d *coreassistant.Definition) { d.Roster[1].ID = "wf_envelope" },
-		"releasable outside the schema": func(d *coreassistant.Definition) { d.Roster[0].Releasable = []string{"salary"} },
-		"agent without output_schema":   func(d *coreassistant.Definition) { d.Roster[0].OutputSchema = nil },
-		"file of another space":         func(d *coreassistant.Definition) { d.ReadableFiles = []string{"file_other"} },
-		"unknown audience":              func(d *coreassistant.Definition) { d.Audience = "everyone" },
-		"someone else as the account":   func(d *coreassistant.Definition) { d.ServiceAccountID = member },
+		"releasable outside the schema":                     func(d *coreassistant.Definition) { d.Roster[0].Releasable = []string{"salary"} },
+		"agent without output_schema":                       func(d *coreassistant.Definition) { d.Roster[0].OutputSchema = nil },
+		"file of another space":                             func(d *coreassistant.Definition) { d.ReadableFiles = []string{"file_other"} },
+		"unknown audience":                                  func(d *coreassistant.Definition) { d.Audience = "everyone" },
+		"someone else as the account":                       func(d *coreassistant.Definition) { d.ServiceAccountID = member },
 	}
 	for name, edit := range cases {
 		t.Run(name, func(t *testing.T) {
