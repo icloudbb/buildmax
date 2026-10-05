@@ -1,4 +1,5 @@
-// The app chrome: sidebar, status bar, banners, and the bootstrap screens.
+// The app chrome: sidebar, status bar, banners, the bootstrap screens, and the
+// words every dialog and menu shares.
 export const shellMessages = {
   en: {
     'shell.loading': 'Loading…',
@@ -38,6 +39,12 @@ export const shellMessages = {
     'shell.language': 'Language',
     'shell.signIn': 'Sign in to a server',
     'shell.signOut': 'Sign out',
+    'shell.close': 'Close',
+    'shell.cancel': 'Cancel',
+    'shell.delete': 'Delete',
+    'shell.remove': 'Remove',
+    'shell.rename': 'Rename',
+    'shell.working': 'Working…',
   },
   'zh-CN': {
     'shell.loading': '加载中…',
@@ -77,5 +84,11 @@ export const shellMessages = {
     'shell.language': '语言',
     'shell.signIn': '登录服务器',
     'shell.signOut': '退出登录',
+    'shell.close': '关闭',
+    'shell.cancel': '取消',
+    'shell.delete': '删除',
+    'shell.remove': '移除',
+    'shell.rename': '重命名',
+    'shell.working': '处理中…',
   },
 };

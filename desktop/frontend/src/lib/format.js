@@ -1,7 +1,13 @@
 // Turning values into the strings the interface shows. Nothing here touches
 // React or the Go side, which is why it can be read and changed on its own.
+// A function that produces words takes the caller's translator and defaults
+// to English.
 
-export function formatSessionMeta(createdAt) {
+import { translate } from '../i18n';
+
+const english = (key, vars) => translate('en', key, vars);
+
+export function formatSessionMeta(createdAt, t = english) {
   if (!createdAt) return '';
   try {
     const d = new Date(createdAt);
@@ -10,10 +16,10 @@ export function formatSessionMeta(createdAt) {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays < 7) return `${diffDays}d`;
+    if (diffMins < 1) return t('home.age.now');
+    if (diffMins < 60) return t('home.age.minutes', { n: diffMins });
+    if (diffHours < 24) return t('home.age.hours', { n: diffHours });
+    if (diffDays < 7) return t('home.age.days', { n: diffDays });
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   } catch {
     return '';

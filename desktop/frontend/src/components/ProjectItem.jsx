@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { formatSessionMeta } from '../lib/format';
 import { Chevron, MoreIcon, PinIcon, PlusIcon } from './icons';
 import { AttentionDot } from './TabBar';
+import { useT } from '../i18n';
 
 export const SESSION_PAGE_SIZE = 10;
 
 export function ProjectItem({ project, sessions, isActive, selectedSessionId, onSelectSession, onNewChat, onRename, onDelete, onClearSessions, onRenameSession, onDeleteSession, onPinSession, waitingSessions, waiting = false }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(isActive);
   const [showMenu, setShowMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -68,7 +70,7 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
   function startSessionRename(session) {
     setSessionMenuId(null);
     setRenamingSessionId(session.id);
-    setSessionRenameValue(session.title?.trim() || 'Chat');
+    setSessionRenameValue(session.title?.trim() || t('chat.untitled'));
   }
 
   async function submitSessionRename(session) {
@@ -127,8 +129,8 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
             type="button"
             className="sidebar__icon-btn"
             onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
-            title="Project options"
-            aria-label="Project options"
+            title={t('home.project.options')}
+            aria-label={t('home.project.options')}
           >
             <MoreIcon />
           </button>
@@ -136,8 +138,8 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
             type="button"
             className="sidebar__icon-btn"
             onClick={onNewChat}
-            title="New Chat"
-            aria-label={`New chat in ${project.name}`}
+            title={t('home.project.newChat')}
+            aria-label={t('home.project.newChatIn', { name: project.name })}
           >
             <PlusIcon />
           </button>
@@ -145,13 +147,13 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
           {showMenu && (
             <div className="context-menu" role="menu">
               <button type="button" className="context-menu__item" role="menuitem" onClick={startRename}>
-                Rename
+                {t('shell.rename')}
               </button>
               <button type="button" className="context-menu__item" role="menuitem" onClick={handleClearSessions}>
-                Clear sessions
+                {t('home.project.clearSessions')}
               </button>
               <button type="button" className="context-menu__item context-menu__item--danger" role="menuitem" onClick={handleDelete}>
-                Remove
+                {t('shell.remove')}
               </button>
             </div>
           )}
@@ -180,12 +182,12 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
                   className="sidebar__row-main"
                   onClick={() => onSelectSession(s.id)}
                   aria-current={s.id === selectedSessionId ? 'true' : undefined}
-                  title={s.title || 'Chat'}
+                  title={s.title || t('chat.untitled')}
                 >
-                  {s.pinned && <span className="sidebar__row-pin" aria-label="Pinned"><PinIcon /></span>}
-                  <span className="sidebar__row-label">{s.title?.trim() || 'Chat'}</span>
+                  {s.pinned && <span className="sidebar__row-pin" aria-label={t('home.session.pinned')}><PinIcon /></span>}
+                  <span className="sidebar__row-label">{s.title?.trim() || t('chat.untitled')}</span>
                   {waitingSessions?.has(s.id) && <AttentionDot />}
-                  <span className="sidebar__row-meta">{formatSessionMeta(s.created_at)}</span>
+                  <span className="sidebar__row-meta">{formatSessionMeta(s.created_at, t)}</span>
                 </button>
               )}
               <div
@@ -196,21 +198,21 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
                   type="button"
                   className="sidebar__icon-btn"
                   onClick={(e) => { e.stopPropagation(); setSessionMenuId((id) => id === s.id ? null : s.id); }}
-                  title="Session options"
-                  aria-label="Session options"
+                  title={t('home.session.options')}
+                  aria-label={t('home.session.options')}
                 >
                   <MoreIcon />
                 </button>
                 {sessionMenuId === s.id && (
                   <div className="context-menu" role="menu">
                     <button type="button" className="context-menu__item" role="menuitem" onClick={() => handleSessionPin(s)}>
-                      {s.pinned ? 'Unpin' : 'Pin'}
+                      {s.pinned ? t('home.session.unpin') : t('home.session.pin')}
                     </button>
                     <button type="button" className="context-menu__item" role="menuitem" onClick={() => startSessionRename(s)}>
-                      Rename
+                      {t('shell.rename')}
                     </button>
                     <button type="button" className="context-menu__item context-menu__item--danger" role="menuitem" onClick={() => handleSessionDelete(s)}>
-                      Delete
+                      {t('shell.delete')}
                     </button>
                   </div>
                 )}
@@ -223,7 +225,7 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
               className="sidebar__row sidebar__row--nested sidebar__row--more"
               onClick={() => setShowAllSessions(true)}
             >
-              Show {sessions.length - SESSION_PAGE_SIZE} more…
+              {t('shell.showMore', { count: sessions.length - SESSION_PAGE_SIZE })}
             </button>
           )}
         </div>

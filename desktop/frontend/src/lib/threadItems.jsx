@@ -1,14 +1,17 @@
 import { formatToolArgs, shortToolArgs, toolDisplayName } from './format';
 import { buildToolResultMap } from './messages';
 import { MarkdownMessage } from '../components/MarkdownMessage';
+import { translate } from '../i18n';
+
+const english = (key, vars) => translate('en', key, vars);
 
 // messageThreadItems turns a session's messages into ChatThread items in the
 // chat display style: assistant/user bubbles, background-event details, and each
 // assistant tool call folded with its result. It is the shared rendering behind
 // the live chat (ChatSession) and the read-and-continue view of a scheduled
 // run, so both look identical. Callers append their own extra items (queued
-// prompts, notices) to the returned array.
-export function messageThreadItems(messages) {
+// prompts, notices) to the returned array. t is the caller's translator.
+export function messageThreadItems(messages, t = english) {
   const toolResults = buildToolResultMap(messages);
   return messages.flatMap((m, i) => {
     if (m.role === 'tool') return [];
@@ -38,7 +41,7 @@ export function messageThreadItems(messages) {
       return [{
         id: `message-${i}`,
         role: m.role,
-        label: 'Background',
+        label: t('chat.background'),
         hideAvatar: true,
         body: (
           <details className="page-chat__msg-content">
@@ -51,7 +54,7 @@ export function messageThreadItems(messages) {
     return [{
       id: `message-${i}`,
       role: m.role,
-      label: m.role === 'user' ? 'You' : m.role,
+      label: roleLabel(m.role, t),
       hideAvatar: true,
       body: (
         <div className="page-chat__msg-content">
@@ -61,4 +64,10 @@ export function messageThreadItems(messages) {
       ),
     }];
   });
+}
+
+function roleLabel(role, t) {
+  if (role === 'user') return t('chat.you');
+  if (role === 'assistant') return t('chat.assistant');
+  return role;
 }

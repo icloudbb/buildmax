@@ -839,9 +839,11 @@ export default function App() {
     } catch {
       const held = (sessions ?? []).filter((s) => s.project_id === id).length;
       setConfirmState({
-        title: 'Delete project',
-        confirmLabel: 'Delete project',
-        message: `This project still has ${held || 'some'} session(s). Delete the project and its sessions? Files in the project folder are not touched.`,
+        title: t('home.deleteProject.title'),
+        confirmLabel: t('home.deleteProject.title'),
+        message: held
+          ? t('home.deleteProject.message', { count: held })
+          : t('home.deleteProject.messageUnknown'),
         onConfirm: async () => {
           try {
             await app.DeleteProject(id, true);
@@ -916,9 +918,9 @@ export default function App() {
 
   function handleClearProjectSessions(project, projectSessions = []) {
     setConfirmState({
-      title: 'Clear all sessions',
-      confirmLabel: 'Clear sessions',
-      message: `Clear all sessions for ${project.name}? This does not delete files in the project folder.`,
+      title: t('home.clearSessions.title'),
+      confirmLabel: t('home.project.clearSessions'),
+      message: t('home.clearSessions.message', { name: project.name }),
       onConfirm: async () => {
         try {
           const visibleIds = projectSessions.map((s) => s.id);

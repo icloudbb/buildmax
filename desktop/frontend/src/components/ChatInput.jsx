@@ -7,23 +7,25 @@ import { JobsDrawer } from './JobsDrawer';
 import { HistoryModal } from './HistoryModal';
 import { AgentsModal, MCPModal, PluginsModal, ToolsModal, WorktreeModal } from './Modals';
 import { EventsOn } from '../lib/wailsRuntime';
+import { useT } from '../i18n';
 
 // CommandPalette is the "/" overlay: the slash commands the surface offers,
 // then the skills, filtered by what follows the slash. It is the Desktop
 // counterpart to the TUI's completion popup — selecting a command dispatches
 // it, selecting a skill drops its "/name" into the composer to send.
 export function CommandPalette({ items, selected, onSelect, onHighlight }) {
+  const t = useT();
   if (!items.length) {
     return (
       <div className="slash-popup">
-        <div className="slash-popup__title">Commands</div>
-        <p className="slash-popup__empty">No match.</p>
+        <div className="slash-popup__title">{t('chat.palette.commands')}</div>
+        <p className="slash-popup__empty">{t('chat.palette.noMatch')}</p>
       </div>
     );
   }
   return (
-    <div className="slash-popup" role="listbox" aria-label="Commands">
-      <div className="slash-popup__title">Commands &amp; skills</div>
+    <div className="slash-popup" role="listbox" aria-label={t('chat.palette.commands')}>
+      <div className="slash-popup__title">{t('chat.palette.title')}</div>
       {items.map((item, i) => (
         <button
           key={item.key}
@@ -34,11 +36,11 @@ export function CommandPalette({ items, selected, onSelect, onHighlight }) {
           className={`slash-popup__item ${i === selected ? 'slash-popup__item--active' : ''} ${item.disabled ? 'slash-popup__item--disabled' : ''}`}
           onMouseEnter={() => onHighlight(i)}
           onClick={() => onSelect(item)}
-          title={item.disabled ? 'Send a message first' : item.description}
+          title={item.disabled ? t('chat.palette.needsSession') : item.description}
         >
           <span className="slash-popup__cmd">
             /{item.name}
-            {item.kind === 'skill' && <span className="slash-popup__tag"> skill</span>}
+            {item.kind === 'skill' && <span className="slash-popup__tag"> {t('chat.palette.skill')}</span>}
           </span>
           {item.description && <span className="slash-popup__desc">{item.description}</span>}
         </button>
@@ -53,6 +55,7 @@ export function CommandPalette({ items, selected, onSelect, onHighlight }) {
 // reads at a glance. Clicking it opens the exact counts a ring can only
 // approximate.
 export function ContextDonut({ status }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -82,7 +85,7 @@ export function ContextDonut({ status }) {
   const radius = 7;
   const circumference = 2 * Math.PI * radius;
   const level = pct >= 90 ? 'danger' : pct >= 75 ? 'warn' : 'ok';
-  const label = known ? `Context: ${pct}% used` : 'Context usage unknown';
+  const label = known ? t('chat.context.used', { pct }) : t('chat.context.unknown');
 
   return (
     <div className="ctx-donut" ref={ref}>
@@ -113,18 +116,18 @@ export function ContextDonut({ status }) {
       </button>
 
       {open && (
-        <div className="ctx-donut__popover" role="dialog" aria-label="Context window">
+        <div className="ctx-donut__popover" role="dialog" aria-label={t('chat.context.window')}>
           {known ? (
             <>
               <div className="ctx-donut__popover-pct">{pct}%</div>
               <dl className="ctx-donut__popover-list">
-                <div><dt>Used</dt><dd>{formatTokenCount(used)}</dd></div>
-                <div><dt>Free</dt><dd>{formatTokenCount(free)}</dd></div>
-                <div><dt>Window</dt><dd>{formatTokenCount(limit)}</dd></div>
+                <div><dt>{t('chat.context.usedLabel')}</dt><dd>{formatTokenCount(used)}</dd></div>
+                <div><dt>{t('chat.context.freeLabel')}</dt><dd>{formatTokenCount(free)}</dd></div>
+                <div><dt>{t('chat.context.windowLabel')}</dt><dd>{formatTokenCount(limit)}</dd></div>
               </dl>
             </>
           ) : (
-            <p className="ctx-donut__popover-empty">No context reading yet.</p>
+            <p className="ctx-donut__popover-empty">{t('chat.context.noReading')}</p>
           )}
         </div>
       )}
@@ -135,6 +138,7 @@ export function ContextDonut({ status }) {
 // --- ChatInput ---
 
 export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, approvalKeys = true, questionRequest, onAnswer, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onShowInfo, onShowChanges, infoOpen, onToggleInfo }) {
+  const t = useT();
   const [prompt, setPrompt] = useState('');
 
   // A draft handed in (an Issue's "Start chat") fills the composer once and is
@@ -152,9 +156,10 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
 
   // Status bar state (loaded per project)
   const [models, setModels] = useState([]);
-  // Where this session's prompts go. It is the app's mode rather than a property
-  // of one model, so the picker says it once above the list.
-  const [modelMode, setModelMode] = useState('');
+  // Where this session's prompts go: to the server when signed in (managed),
+  // else from this machine. It is the app's mode rather than a property of
+  // one model, so the picker says it once above the list.
+  const [modelMode, setModelMode] = useState(null);
   const [currentModel, setCurrentModel] = useState('');
   const [gitBranch, setGitBranch] = useState('');
   const [showModelDropdown, setShowModelDropdown] = useState(false);
@@ -206,11 +211,7 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
     ]).then(([modelsRes, skillsRes, cmdRes]) => {
       if (modelsRes.status === 'fulfilled') {
         setModels(modelsRes.value.models ?? []);
-        setModelMode(
-          modelsRes.value.managed
-            ? `Prompts go to ${modelsRes.value.server_url}`
-            : 'Prompts go from this machine to each provider',
-        );
+        setModelMode({ managed: !!modelsRes.value.managed, server: modelsRes.value.server_url ?? '' });
       }
       if (skillsRes.status === 'fulfilled') setSkills(skillsRes.value.skills ?? []);
       if (cmdRes.status === 'fulfilled') setCommands(cmdRes.value ?? []);
@@ -390,7 +391,7 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
 
   const displayModel = currentModel
     ? (currentModel.length > 24 ? currentModel.slice(0, 22) + '…' : currentModel)
-    : 'No model';
+    : t('chat.model.none');
 
   return (
     <div className="chat-input-wrap">
@@ -421,10 +422,10 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
         onCancel={onCancel}
         loading={loading}
         error={error}
-        placeholder="Type a message… (/ for commands, Enter to send)"
+        placeholder={t('chat.composer.placeholder')}
         queueWhileLoading
-        queuePlaceholder="Type a message… (Enter to queue it for the next turn)"
-        ariaLabel="Message"
+        queuePlaceholder={t('chat.composer.queuePlaceholder')}
+        ariaLabel={t('chat.composer.label')}
         onKeyDown={handleKeyDown}
         ghost={suggestion}
         onAcceptGhost={handleAcceptSuggestion}
@@ -437,7 +438,7 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
             type="button"
             className="model-selector__btn"
             onClick={() => setShowModelDropdown((v) => !v)}
-            title={currentModel || 'Select model'}
+            title={currentModel || t('chat.model.select')}
           >
             <span className="model-selector__label">{displayModel}</span>
             <span className="model-selector__arrow" aria-hidden>▾</span>
@@ -445,7 +446,9 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
           {showModelDropdown && models.length > 0 && (
             <div className="model-selector__dropdown" role="listbox">
               {modelMode && (
-                <div className="model-selector__mode">{modelMode}</div>
+                <div className="model-selector__mode">
+                  {modelMode.managed ? t('shell.promptsGoTo', { server: modelMode.server }) : t('chat.model.direct')}
+                </div>
               )}
               {models.map((m) => {
                 // Derive the active mark from currentModel, the state a switch
@@ -475,7 +478,7 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
 
         {/* Git branch */}
         {gitBranch && (
-          <span className="chat-status-bar__branch" title={`Branch: ${gitBranch}`}>
+          <span className="chat-status-bar__branch" title={t('chat.branch', { branch: gitBranch })}>
             ⎇ {gitBranch}
           </span>
         )}
@@ -488,8 +491,8 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
             className={`chat-status-bar__info ${infoOpen ? 'chat-status-bar__info--active' : ''}`}
             onClick={onToggleInfo}
             aria-pressed={!!infoOpen}
-            title="Session info"
-            aria-label="Session info"
+            title={t('chat.sessionInfo')}
+            aria-label={t('chat.sessionInfo')}
           >
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <circle cx="12" cy="12" r="9" />
@@ -504,7 +507,7 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
         {/* Everything the status bar used to offer as buttons is now a slash
             command; the hint says how to reach them. */}
         <span className="chat-status-bar__hint">
-          {runningJobs > 0 ? `${runningJobs} running · ` : ''}/ for commands
+          {runningJobs > 0 ? `${t('chat.running', { count: runningJobs })} · ` : ''}{t('chat.slashHint')}
         </span>
       </div>
 
