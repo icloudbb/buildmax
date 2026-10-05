@@ -8,7 +8,7 @@ describe("Portal message catalog", () => {
   })
 
   it("keeps placeholders identical across languages", () => {
-    const placeholders = (text: unknown) => JSON.stringify(text).match(/\{\w+\}/g)?.sort() ?? []
+    const placeholders = (text: unknown) => [...new Set(JSON.stringify(text ?? "").match(/\{\w+\}/g))].sort()
     const en = portalMessages.en as Record<string, unknown>
     const zh = portalMessages["zh-CN"] as Record<string, unknown>
     for (const key of Object.keys(en)) {

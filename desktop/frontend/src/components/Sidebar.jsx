@@ -5,6 +5,8 @@ import { Explorer } from './Explorer';
 import { SidebarSectionHeader } from './SidebarSection';
 import { ClockIcon, HomeIcon, IssueIcon, PlusIcon, SearchIcon } from './icons';
 import { readStored, writeStored } from '../lib/storage';
+import { LOCALES, LOCALE_NAMES, useLocale } from '@buildmax/gui';
+import { useT } from '../i18n';
 
 const PROJECT_PAGE_SIZE = 10;
 
@@ -42,6 +44,8 @@ export function Sidebar({
   account,
   waiting,
 }) {
+  const t = useT();
+  const { locale, setLocale } = useLocale();
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [projectSectionOpen, setProjectSectionOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -111,8 +115,8 @@ export function Sidebar({
   const { authStatus, localMode, onSignIn, onSignOut } = account;
 
   return (
-    <aside className="sidebar" aria-label="Sidebar" style={{ width }} ref={asideRef}>
-      <nav className="sidebar__destinations" aria-label="Primary">
+    <aside className="sidebar" aria-label={t('shell.sidebar')} style={{ width }} ref={asideRef}>
+      <nav className="sidebar__destinations" aria-label={t('shell.primary')}>
         <button
           type="button"
           className={`sidebar__row sidebar__row-main sidebar__destination${onHomeView ? ' sidebar__row--active' : ''}`}
@@ -120,7 +124,7 @@ export function Sidebar({
           aria-current={onHomeView ? 'page' : undefined}
         >
           <span className="sidebar__row-icon"><HomeIcon /></span>
-          <span className="sidebar__row-label">Home</span>
+          <span className="sidebar__row-label">{t('shell.nav.home')}</span>
         </button>
         <button
           type="button"
@@ -129,7 +133,7 @@ export function Sidebar({
           aria-current={view === 'schedules' ? 'page' : undefined}
         >
           <span className="sidebar__row-icon"><ClockIcon /></span>
-          <span className="sidebar__row-label">Schedules</span>
+          <span className="sidebar__row-label">{t('shell.nav.schedules')}</span>
         </button>
         {/* Space Issues exist only on a server, so the destination does too:
             local mode has no work to receive and shows no empty promise of it. */}
@@ -141,20 +145,20 @@ export function Sidebar({
             aria-current={view === 'issues' ? 'page' : undefined}
           >
             <span className="sidebar__row-icon"><IssueIcon /></span>
-            <span className="sidebar__row-label">Issues</span>
+            <span className="sidebar__row-label">{t('shell.nav.issues')}</span>
           </button>
         )}
       </nav>
 
-      <section className={`sidebar__projects ${projectsFlex}`} aria-label="Projects">
-        <SidebarSectionHeader label="Projects" open={projectsOpen} onToggle={() => setProjectsOpen((v) => !v)} attention={(waiting?.projects.size ?? 0) > 0}>
+      <section className={`sidebar__projects ${projectsFlex}`} aria-label={t('shell.projects')}>
+        <SidebarSectionHeader label={t('shell.projects')} open={projectsOpen} onToggle={() => setProjectsOpen((v) => !v)} attention={(waiting?.projects.size ?? 0) > 0}>
           <button
             type="button"
             className="sidebar__icon-btn"
             aria-pressed={searchVisible}
             onClick={() => (searchVisible ? closeSearch() : setSearchOpen(true))}
-            title="Search sessions"
-            aria-label="Search sessions"
+            title={t('shell.searchSessions')}
+            aria-label={t('shell.searchSessions')}
           >
             <SearchIcon />
           </button>
@@ -162,8 +166,8 @@ export function Sidebar({
             type="button"
             className="sidebar__icon-btn"
             onClick={onCreateProject}
-            title="New Project"
-            aria-label="New Project"
+            title={t('shell.newProject')}
+            aria-label={t('shell.newProject')}
           >
             <PlusIcon />
           </button>
@@ -180,8 +184,8 @@ export function Sidebar({
                   value={sessionFilter}
                   onChange={(e) => onSessionFilterChange(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Escape') closeSearch(); }}
-                  placeholder="Search sessions"
-                  aria-label="Search sessions"
+                  placeholder={t('shell.searchSessions')}
+                  aria-label={t('shell.searchSessions')}
                   autoFocus
                 />
               </div>
@@ -190,7 +194,7 @@ export function Sidebar({
               {projects.length === 0 ? (
                 <button type="button" className="sidebar__row sidebar__row-main" onClick={onCreateProject}>
                   <span className="sidebar__row-icon"><PlusIcon /></span>
-                  <span className="sidebar__row-label">New Project</span>
+                  <span className="sidebar__row-label">{t('shell.newProject')}</span>
                 </button>
               ) : (
                 <>
@@ -219,7 +223,7 @@ export function Sidebar({
                       className="sidebar__row sidebar__row--more"
                       onClick={() => setShowAllProjects(true)}
                     >
-                      Show {projects.length - PROJECT_PAGE_SIZE} more…
+                      {t('shell.showMore', { count: projects.length - PROJECT_PAGE_SIZE })}
                     </button>
                   )}
                 </>
@@ -236,7 +240,7 @@ export function Sidebar({
               className="sidebar__split"
               role="separator"
               aria-orientation="horizontal"
-              aria-label="Resize project section"
+              aria-label={t('shell.resizeProjectSection')}
               onMouseDown={startSectionResize}
             />
           )}
@@ -264,7 +268,7 @@ export function Sidebar({
           onClick={() => setUserMenuOpen((v) => !v)}
           aria-expanded={userMenuOpen}
           aria-haspopup="menu"
-          aria-label="User menu"
+          aria-label={t('shell.userMenu')}
         >
           <Avatar
             label={(authStatus.name?.trim() || authStatus.email || 'Local').slice(0, 1).toUpperCase()}
@@ -272,18 +276,36 @@ export function Sidebar({
           />
           <span className="sidebar__user-name">
             {localMode
-              ? 'Local mode'
+              ? t('shell.localMode')
               : authStatus.name?.trim() || (authStatus.email ? authStatus.email.split('@')[0] : '')}
           </span>
         </button>
         {userMenuOpen && (
           <div className="sidebar__user-menu" role="menu">
             <div className="sidebar__user-menu-email">
-              {localMode ? 'Models from settings.yaml' : authStatus.email}
+              {localMode ? t('shell.localModels') : authStatus.email}
             </div>
             {!localMode && authStatus.server_url && (
-              <div className="sidebar__user-menu-server">Prompts go to {authStatus.server_url}</div>
+              <div className="sidebar__user-menu-server">{t('shell.promptsGoTo', { server: authStatus.server_url })}</div>
             )}
+            <div className="sidebar__user-menu-divider" />
+            <div className="sidebar__user-menu-server">{t('shell.language')}</div>
+            {LOCALES.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className="sidebar__user-menu-item"
+                role="menuitemradio"
+                aria-checked={locale === option}
+                lang={option}
+                onClick={() => {
+                  setUserMenuOpen(false);
+                  setLocale(option);
+                }}
+              >
+                {locale === option ? '✓ ' : ''}{LOCALE_NAMES[option]}
+              </button>
+            ))}
             <div className="sidebar__user-menu-divider" />
             <button
               type="button"
@@ -295,7 +317,7 @@ export function Sidebar({
                 else onSignOut();
               }}
             >
-              {localMode ? 'Sign in to a server' : 'Sign out'}
+              {localMode ? t('shell.signIn') : t('shell.signOut')}
             </button>
           </div>
         )}
