@@ -87,6 +87,15 @@ describe("LocaleProvider", () => {
     expect(localStorage.getItem("buildmax_locale")).toBe("zh-CN")
   })
 
+  it("does not store a detected default", () => {
+    render(
+      <LocaleProvider>
+        <Greeting />
+      </LocaleProvider>,
+    )
+    expect(localStorage.getItem("buildmax_locale")).toBeNull()
+  })
+
   it("starts from a stored choice", () => {
     localStorage.setItem("buildmax_locale", "zh-CN")
     render(

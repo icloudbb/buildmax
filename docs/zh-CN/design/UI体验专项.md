@@ -198,18 +198,24 @@ Desktop 改用 gui 的 `Button`、`BaseModal`、`Drawer` 与图标，并删除�
   Skill 译为“技能”，Audit 译为“审计”，Service account 译为“服务账号”，
   Administration 译为“系统管理”。
 
-英文为权威语言。中文缺失的键回退到英文，并有检查报告缺失的键。
+英文为权威语言。中文缺失的键回退到英文，并有检查报告缺失的键。在 effect 或异步回调中
+组合的文本（例如加载失败时的兜底错误）使用 `useStableT`，它的引用在切换语言后保持
+不变，因此切换语言不会重新加载数据或重新订阅事件。
+
+机制、语言切换、两端外壳、Help 以及试点流程（Portal 的 Issue 列表、详情与运行详情；
+Desktop 的首页与项目对话）已交付。其余页面的提取不必等待阶段 2：文案会在改造时随组件
+一起移动，先提取不会造成重复工作。
 
 ## 阶段
 
 | 阶段 | 结果 | 可执行工作 |
 |---|---|---|
 | 0. 审计 | Portal 与 Desktop 核心流程的分级问题报告，并附视觉语言建议 | [backlog 10](../../backlog/10-ui-journey-audit.md) |
-| 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏；共享基础组件；i18n 基础设施；Desktop 改用 gui 基础组件 | backlog [14](../../backlog/14-ui-visual-and-a11y-guardrails.md)、[16](../../backlog/16-gui-shared-primitives.md)、[18](../../backlog/18-ui-i18n-foundation.md)、[20](../../backlog/20-desktop-gui-convergence.md) |
+| 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏；共享基础组件；i18n 基础设施；Desktop 改用 gui 基础组件 | backlog [14](../../backlog/14-ui-visual-and-a11y-guardrails.md)、[16](../../backlog/16-gui-shared-primitives.md)、[20](../../backlog/20-desktop-gui-convergence.md) |
 | 2. 视觉语言决定 | 维护者依据阶段 0 报告选择“打磨”或“新视觉语言”，并更新本记录与页面体系记录 | 决定，不是任务 |
 | 3. Portal 改造 | 按流程顺序解决 Blocker 与 Major 问题 | 依据阶段 0 报告拆分任务 |
 | 4. Desktop 改造 | Desktop 同样处理；问题涉及 `App.jsx` 的地方顺带拆分 | 依据阶段 0 报告拆分任务 |
-| 5. 中文与复审 | 完整的 `zh-CN` 目录；用两种语言重跑阶段 0 的流程，并与基线对比 | 阶段 3–4 之后拆分任务 |
+| 5. 中文与复审 | 完整的 `zh-CN` 目录；用两种语言重跑阶段 0 的流程，并与基线对比 | 文案目录见 [backlog 22](../../backlog/22-ui-i18n-remaining-pages.md)；复审在阶段 3–4 之后拆分 |
 
 阶段 0 与 token、护栏、i18n 任务彼此独立，可以并行。基础组件与 Desktop 收敛工作
 依赖 token 完整性。改造任务要等审计结果出来再拆分，因为任务内容就是审计的产出。

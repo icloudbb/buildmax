@@ -231,18 +231,27 @@ Both surfaces ship English and Simplified Chinese.
   服务账号, and Administration as 系统管理.
 
 English stays authoritative. A missing Chinese key falls back to English, and a
-check reports missing keys.
+check reports missing keys. Text composed inside an effect or an async callback,
+such as a load's fallback error, uses `useStableT`, whose identity survives a
+language switch, so switching language never reloads data or resubscribes
+events.
+
+The mechanism, the language switch, both shells, Help, and the pilot journeys
+(Portal Issue list, detail, and run details; Desktop home and project chat)
+ship. The remaining pages are extracted without waiting for phase 2: a string
+moves with its component during rework, so extracting first costs nothing
+twice.
 
 ## Phases
 
 | Phase | Outcome | Ready work |
 |---|---|---|
 | 0. Audit | A graded findings report for the Portal and Desktop core journeys, with a visual-language recommendation | [backlog 10](../backlog/10-ui-journey-audit.md) |
-| 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails; shared primitives; i18n infrastructure; Desktop on gui primitives | backlog [14](../backlog/14-ui-visual-and-a11y-guardrails.md), [16](../backlog/16-gui-shared-primitives.md), [18](../backlog/18-ui-i18n-foundation.md), [20](../backlog/20-desktop-gui-convergence.md) |
+| 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails; shared primitives; i18n infrastructure; Desktop on gui primitives | backlog [14](../backlog/14-ui-visual-and-a11y-guardrails.md), [16](../backlog/16-gui-shared-primitives.md), [20](../backlog/20-desktop-gui-convergence.md) |
 | 2. Visual-language decision | The maintainer accepts "refine" or "new language" from the phase 0 report; this record and the page-system record are updated | Decision, not a task |
 | 3. Portal rework | Blocker and Major findings resolved, in journey order | Tasks drafted from the phase 0 report |
 | 4. Desktop rework | Same for Desktop; `App.jsx` decomposed where the findings touch it | Tasks drafted from the phase 0 report |
-| 5. Chinese and re-audit | Complete `zh-CN` catalogs; the phase 0 journeys re-run in both locales and compared with the baseline | Tasks drafted after phases 3–4 |
+| 5. Chinese and re-audit | Complete `zh-CN` catalogs; the phase 0 journeys re-run in both locales and compared with the baseline | [backlog 22](../backlog/22-ui-i18n-remaining-pages.md) for the catalogs; the re-audit is drafted after phases 3–4 |
 
 Phase 0 and the token, guardrail, and i18n tasks are independent and can run in
 parallel. Primitive and Desktop convergence work depends on token integrity.

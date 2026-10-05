@@ -333,7 +333,7 @@ export const issuesMessages = {
     "issues.subIssues.placeholder": "新子 Issue 标题",
     "issues.subIssues.add": "添加子 Issue",
 
-    "issues.outcome.heading": "最近执行情况",
+    "issues.outcome.heading": "最新结果",
     "issues.outcome.latestRun": "最近运行：",
     "issues.outcome.workflow": "Workflow：",
     "issues.outcome.started": "开始时间：",

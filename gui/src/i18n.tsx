@@ -71,18 +71,24 @@ const fallbackContext: LocaleContextValue = { locale: "en", setLocale: () => {} 
 const LocaleContext = createContext<LocaleContextValue | null>(null)
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>(detectLocale)
+  const [locale, setLocaleState] = useState<Locale>(detectLocale)
 
   useEffect(() => {
     document.documentElement.lang = locale
+  }, [locale])
+
+  // Only an explicit choice is stored; a detected default stays live, so it
+  // follows the browser language until the person picks one.
+  const setLocale = useCallback((next: Locale) => {
+    setLocaleState(next)
     try {
-      localStorage.setItem(LOCALE_KEY, locale)
+      localStorage.setItem(LOCALE_KEY, next)
     } catch {
       /* the choice still applies for this page */
     }
-  }, [locale])
+  }, [])
 
-  const value = useMemo(() => ({ locale, setLocale }), [locale])
+  const value = useMemo(() => ({ locale, setLocale }), [locale, setLocale])
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
 }
 

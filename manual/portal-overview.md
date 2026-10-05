@@ -37,7 +37,10 @@ remembers where you were.
 toggle.
 
 **User menu** — the button at the bottom of the sidebar opens **Account**,
-**Space** settings, **Help**, and **Sign Out**.
+**Remote Control**, **Help**, the interface **Language** (English or 简体中文),
+and **Sign Out**. The language is remembered in this browser and starts from the
+browser's own language; Help follows it. Desktop has the same choice in its user
+menu. Pages not yet translated still show English.
 
 ## Spaces and roles
 
