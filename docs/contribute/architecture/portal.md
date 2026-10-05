@@ -44,6 +44,11 @@ Portal owns the cloud/space lane:
   state across themes and widths before trusting the migrated pages.
 - API calls live under `portal/src/features/*/api.ts` and `portal/src/lib/api`.
 - Shared presentation components come from `@buildmax/gui`.
+- Colors, shadows, the overlay, and the monospace stack come from the semantic
+  tokens in `gui/src/theme.css`, which defines each one for the light and the
+  dark theme. Portal CSS holds no color literal and references no custom
+  property that no stylesheet defines; Stylelint enforces both (see
+  [conventions](../conventions.md#colors-come-from-theme-tokens)).
 - The shared `Button` and `IconButton` own action appearance, target size, focus,
   and busy state. Portal owns placement and permission decisions. Collection
   creation stays in the header, while an empty state explains what is missing.

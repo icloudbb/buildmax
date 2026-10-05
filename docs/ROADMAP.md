@@ -348,9 +348,11 @@ contrast guardrail, a Desktop that reuses almost none of `@buildmax/gui`, and an
 English-only interface.
 
 **Next:** an Agent-driven audit of the Portal and Desktop core journeys produces
-graded findings and a visual-language recommendation, while token integrity,
-visual and accessibility guardrails, shared primitives, the English/Chinese
-catalog, and Desktop's move onto shared overlays proceed in parallel. Page
+graded findings and a visual-language recommendation, while visual and
+accessibility guardrails, shared primitives, the English/Chinese catalog, and
+Desktop's move onto shared overlays proceed in parallel. Token integrity is
+done: every referenced token is defined for both themes, and Stylelint rejects
+raw colors and undefined custom properties in all three packages. Page
 rework is drafted from the audit, not before it. The CLI/TUI is out of scope.
 
 **Done when:** every Blocker and Major audit finding is resolved or accepted

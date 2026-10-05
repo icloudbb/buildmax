@@ -198,7 +198,7 @@ Desktop 改用 gui 的 `Button`、`BaseModal`、`Drawer` 与图标，并删除�
 | 阶段 | 结果 | 可执行工作 |
 |---|---|---|
 | 0. 审计 | Portal 与 Desktop 核心流程的分级问题报告，并附视觉语言建议 | [backlog 10](../../backlog/10-ui-journey-audit.md) |
-| 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏；共享基础组件；i18n 基础设施；Desktop 改用 gui 基础组件 | backlog [12](../../backlog/12-ui-token-integrity.md)、[14](../../backlog/14-ui-visual-and-a11y-guardrails.md)、[16](../../backlog/16-gui-shared-primitives.md)、[18](../../backlog/18-ui-i18n-foundation.md)、[20](../../backlog/20-desktop-gui-convergence.md) |
+| 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏；共享基础组件；i18n 基础设施；Desktop 改用 gui 基础组件 | backlog [14](../../backlog/14-ui-visual-and-a11y-guardrails.md)、[16](../../backlog/16-gui-shared-primitives.md)、[18](../../backlog/18-ui-i18n-foundation.md)、[20](../../backlog/20-desktop-gui-convergence.md) |
 | 2. 视觉语言决定 | 维护者依据阶段 0 报告选择“打磨”或“新视觉语言”，并更新本记录与页面体系记录 | 决定，不是任务 |
 | 3. Portal 改造 | 按流程顺序解决 Blocker 与 Major 问题 | 依据阶段 0 报告拆分任务 |
 | 4. Desktop 改造 | Desktop 同样处理；问题涉及 `App.jsx` 的地方顺带拆分 | 依据阶段 0 报告拆分任务 |

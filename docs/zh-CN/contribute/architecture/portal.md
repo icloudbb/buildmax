@@ -35,6 +35,9 @@ Portal 负责云端/Space 使用场景：
   逐一确认每种角色与状态。
 - API 调用位于 `portal/src/features/*/api.ts` 和 `portal/src/lib/api`。
 - 共享展示组件来自 `@buildmax/gui`。
+- 颜色、阴影、遮罩层和等宽字体栈来自 `gui/src/theme.css` 中的语义 token，该文件为浅色和
+  深色主题分别定义每一个 token。Portal CSS 不包含颜色字面量，也不引用任何样式表都未定义的
+  自定义属性；两条规则均由 Stylelint 强制执行（见[约定](../conventions.md)）。
 - 共享 `Button` 和 `IconButton` 负责操作的外观、点击区域、焦点和忙碌状态。
   Portal 负责位置与权限判断。集合页在页头提供创建入口，空状态说明当前缺少什么。
   Issue 详情默认展示阅读视图，结果与下一步操作先于编辑表单。

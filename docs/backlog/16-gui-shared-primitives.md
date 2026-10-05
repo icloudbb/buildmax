@@ -3,7 +3,7 @@ id: gui-shared-primitives
 title: Add the shared form, menu, feedback, and status primitives to @buildmax/gui
 roadmap: R6
 source: docs/design/ui-experience-program.md#d4-one-presentation-layer-for-both-surfaces
-depends_on: [12-ui-token-integrity.md]
+depends_on: []
 verification: ["./make check gui", "./make check portal", "./make e2e local"]
 claim:
 pr:

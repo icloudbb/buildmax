@@ -345,6 +345,10 @@ the frontend build and invokes the Wails version pinned by `go.mod`.
   agent runtime in the frontend or command package.
 - Keep shared presentation in `gui` and Desktop-specific state in
   `desktop/frontend`.
+- Take colors from the `gui/src/theme.css` tokens; Desktop CSS holds no color
+  literal and no undefined custom property, which `./make check desktop`
+  enforces. The xterm palette in `desktop/frontend/src/lib/terminalTheme.js` is
+  the one exception.
 - Preserve JSON field names and the project file format when changing persisted
   desktop state.
 - Test Go bridge changes with `./make test`; test frontend changes with

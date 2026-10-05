@@ -310,13 +310,19 @@ Portal 把浏览器级别的断言留给 Playwright,在那里,一个真实引擎
 重点。
 
 ```bash
-./make check gui               # build the package, type-check, run its tests
+./make check gui               # build the package, lint its CSS, type-check, run its tests
 npm --prefix gui test          # the tests alone, while iterating
+npm --prefix portal run lint:css  # one package's stylesheet lint alone
 ```
 
 `gui` 中的 `npm test` 会先做类型检查再运行:`tsconfig.json` 排除了测试
 文件,这样任何测试文件的 `.d.ts` 都不会进入 `dist/`;`tsconfig.test.json`
 则为了这次检查把它们放回来。
+
+每个包的 `npm run lint` 还会对 `src/**/*.css` 运行 Stylelint。它拒绝
+`gui/src/theme.css` 之外的颜色字面量,以及引用任何样式表都未定义的自定义属性的
+`var()`;规则见[约定](conventions.md)。`./make check gui`、`portal` 和
+`desktop` 都会运行它。
 
 ## 新增一个测试
 

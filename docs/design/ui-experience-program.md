@@ -231,7 +231,7 @@ check reports missing keys.
 | Phase | Outcome | Ready work |
 |---|---|---|
 | 0. Audit | A graded findings report for the Portal and Desktop core journeys, with a visual-language recommendation | [backlog 10](../backlog/10-ui-journey-audit.md) |
-| 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails; shared primitives; i18n infrastructure; Desktop on gui primitives | backlog [12](../backlog/12-ui-token-integrity.md), [14](../backlog/14-ui-visual-and-a11y-guardrails.md), [16](../backlog/16-gui-shared-primitives.md), [18](../backlog/18-ui-i18n-foundation.md), [20](../backlog/20-desktop-gui-convergence.md) |
+| 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails; shared primitives; i18n infrastructure; Desktop on gui primitives | backlog [14](../backlog/14-ui-visual-and-a11y-guardrails.md), [16](../backlog/16-gui-shared-primitives.md), [18](../backlog/18-ui-i18n-foundation.md), [20](../backlog/20-desktop-gui-convergence.md) |
 | 2. Visual-language decision | The maintainer accepts "refine" or "new language" from the phase 0 report; this record and the page-system record are updated | Decision, not a task |
 | 3. Portal rework | Blocker and Major findings resolved, in journey order | Tasks drafted from the phase 0 report |
 | 4. Desktop rework | Same for Desktop; `App.jsx` decomposed where the findings touch it | Tasks drafted from the phase 0 report |

@@ -123,6 +123,7 @@ Issue，显示单个 Issue 的描述、子 Issue 和最近讨论，可以改变�
 
 - 将 Wails 绑定保留在 `internal/interface/desktop`；不要在前端或命令包中组装另一套 Agent 运行时。
 - 共享展示保留在 `gui`，Desktop 专属状态保留在 `desktop/frontend`。
+- 颜色取自 `gui/src/theme.css` 的 token；Desktop CSS 不包含颜色字面量，也不引用未定义的自定义属性，由 `./make check desktop` 强制执行。`desktop/frontend/src/lib/terminalTheme.js` 中的 xterm 配色是唯一例外。
 - 修改持久化 Desktop 状态时保留 JSON 字段名和 Project 文件格式。
 - Go 桥接变更用 `./make test` 测试；前端变更用 `./make check desktop`；原生打包边界用 `./make build`。
 
