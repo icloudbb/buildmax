@@ -4,7 +4,8 @@ import type { Agent, Issue, IssueFlow, IssueFlowRun, Task, Workflow } from "../.
 import type { ApiIssueComment, ApiIssueFlowResponse, ApiSpaceMember } from "../../lib/api/types"
 import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { statusLabel } from "../../lib/statusLabels"
+import { useStatusLabel } from "../../lib/statusLabels"
+import { useT, type MessageKey } from "../../i18n"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
 import { taskIsRetryable, taskIsStoppable } from "../../lib/taskStatus"
@@ -47,11 +48,11 @@ interface IssueDetailProps {
 // independent -- nothing here duplicates another tab's content.
 type IssueTab = "overview" | "discussion" | "results" | "runs"
 
-const ISSUE_TABS: { id: IssueTab; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "discussion", label: "Discussion" },
-  { id: "results", label: "Results" },
-  { id: "runs", label: "Runs" },
+const ISSUE_TABS: { id: IssueTab; label: MessageKey }[] = [
+  { id: "overview", label: "issues.tab.overview" },
+  { id: "discussion", label: "issues.tab.discussion" },
+  { id: "results", label: "issues.tab.results" },
+  { id: "runs", label: "issues.tab.runs" },
 ]
 
 function mapIssueFlow(api: ApiIssueFlowResponse): IssueFlow {
@@ -75,16 +76,13 @@ function formatTimestamp(rfc3339: string): string {
   return new Date(rfc3339).toLocaleString()
 }
 
-/** A run that stopped on questions finished, but the work is waiting on a person. */
-function agentTaskLabel(task: Task): string {
-  return task.awaitingAnswer ? "Needs your answer" : statusLabel(task.status)
-}
-
 function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
   return flow?.runs[0] ?? null
 }
 
 export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProps) {
+  const t = useT()
+  const statusLabel = useStatusLabel()
   const { currentUserRole } = useSpace()
   const { setEntityLabel } = useApp()
   const [tab, setTab] = useState<IssueTab>("overview")
@@ -166,7 +164,9 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         setUnavailable("error")
       }
       setFlow(null)
-      setLoadError(getErrorMessage(err, "Failed to load issue detail"))
+      // The fallback is translated at render: a language switch must not
+      // re-run this load, which would reset an open edit form.
+      setLoadError(err instanceof Error ? err.message : null)
     } finally {
       setLoading(false)
     }
@@ -220,31 +220,40 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     return out
   }, [agents])
 
+  /** A run that stopped on questions finished, but the work is waiting on a person. */
+  function agentTaskLabel(task: Task): string {
+    return task.awaitingAnswer ? t("issues.detail.needsAnswer") : statusLabel(task.status)
+  }
+
   // Owner and Executor are independent: an Issue can have one, the other,
   // both, or neither, which one combined field could never say at once.
   function ownerLabel(issue: Issue): string | null {
     if (!issue.ownerId) return null
-    if (issue.ownerId === userId) return "Me"
+    if (issue.ownerId === userId) return t("issues.me")
     const member = members.find((item) => item.user_id === issue.ownerId)
     if (member?.user_name) return member.user_name
     if (member?.user_email) return member.user_email
-    return member ? `Member ${member.user_id.slice(0, 8)}` : "Member"
+    return member ? t("issues.memberId", { id: member.user_id.slice(0, 8) }) : t("issues.member")
   }
 
   // The requester may be someone outside the Space, whom members cannot name.
   function requesterLabel(requestedBy: string): string {
-    if (requestedBy === userId) return "you"
+    if (requestedBy === userId) return t("issues.detail.requesterYou")
     const member = members.find((item) => item.user_id === requestedBy)
-    if (!member) return "someone outside this Space"
-    return member.user_name || member.user_email || `Member ${member.user_id.slice(0, 8)}`
+    if (!member) return t("issues.detail.requesterOutside")
+    return member.user_name || member.user_email || t("issues.memberId", { id: member.user_id.slice(0, 8) })
   }
 
   function executorLabel(issue: Issue): string | null {
     if (issue.executorKind === "agent") {
-      return agents.find((agent) => agent.id === issue.executorId)?.name || "Agent"
+      return agents.find((agent) => agent.id === issue.executorId)?.name || t("issues.agent")
     }
     if (issue.executorKind === "workflow") {
-      return flow?.workflow?.name || workflows.find((workflow) => workflow.id === issue.executorId)?.name || "Workflow"
+      return (
+        flow?.workflow?.name ||
+        workflows.find((workflow) => workflow.id === issue.executorId)?.name ||
+        t("issues.workflow")
+      )
     }
     return null
   }
@@ -253,21 +262,21 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   // for two labeled lines.
   function summaryLabel(issue: Issue): string {
     const parts = [ownerLabel(issue), executorLabel(issue)].filter((label): label is string => label != null)
-    return parts.length > 0 ? parts.join(" · ") : "Unassigned"
+    return parts.length > 0 ? parts.join(" · ") : t("issues.unassigned")
   }
 
   function memberLabel(member: ApiSpaceMember): string {
-    if (member.user_id === userId) return "Me"
+    if (member.user_id === userId) return t("issues.me")
     if (member.user_name && member.user_name.trim() !== "") return member.user_name
     if (member.user_email && member.user_email.trim() !== "") return member.user_email
-    return `Member ${member.user_id.slice(0, 8)}`
+    return t("issues.memberId", { id: member.user_id.slice(0, 8) })
   }
 
   function handleSave() {
     if (!token || !spaceId || !flow) return
     const [executorKind, executorID] = executorValue ? executorValue.split(":") : ["", ""]
     if (executorKind === "workflow" && !canAssignWorkflow) {
-      setSaveError("Workflow assignment is limited to space owners and admins")
+      setSaveError(t("issues.detail.workflowRestricted"))
       return
     }
     setSaving(true)
@@ -291,8 +300,8 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         setEditing(false)
         setSaveMessage(
           executorKind === "agent" || executorKind === "workflow"
-            ? "Saved. This did not start a run — use Run to schedule one."
-            : "Saved.",
+            ? t("issues.detail.savedNoRun")
+            : t("issues.detail.saved"),
         )
         return load()
       })
@@ -301,11 +310,11 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         // the form usable again: the version it holds is stale, so every
         // further save would be refused for the same reason.
         if (err instanceof ApiRequestError && err.status === 409) {
-          setSaveError("This issue changed while you were editing it. It has been reloaded — reapply your change.")
+          setSaveError(t("issues.detail.conflict"))
           void load()
           return
         }
-        setSaveError(getErrorMessage(err, "Failed to update issue"))
+        setSaveError(getErrorMessage(err, t("issues.detail.error.update")))
       })
       .finally(() => setSaving(false))
   }
@@ -321,7 +330,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         setSubIssueTitle("")
         return load()
       })
-      .catch((err) => setSubIssueError(getErrorMessage(err, "Failed to add sub-issue")))
+      .catch((err) => setSubIssueError(getErrorMessage(err, t("issues.detail.error.addSubIssue"))))
       .finally(() => setAddingSubIssue(false))
   }
 
@@ -336,7 +345,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         // this form -- that link is the confirmation Run succeeded.
         navigate({ name: "workflowRun", spaceId, workflowRunId: detail.run.id })
       })
-      .catch((err) => setRunError(getErrorMessage(err, "Failed to run workflow")))
+      .catch((err) => setRunError(getErrorMessage(err, t("issues.detail.error.runWorkflow"))))
       .finally(() => setRunningWorkflow(false))
   }
 
@@ -346,7 +355,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     setRunError(null)
     cancelTask(spaceId, taskId, token)
       .then(() => load())
-      .catch((err) => setRunError(getErrorMessage(err, "Failed to stop this run")))
+      .catch((err) => setRunError(getErrorMessage(err, t("issues.detail.error.stop"))))
       .finally(() => setCancelingTaskId(null))
   }
 
@@ -356,7 +365,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     setRunError(null)
     retryTask(spaceId, taskId, token)
       .then(() => load())
-      .catch((err) => setRunError(getErrorMessage(err, "Failed to retry this run")))
+      .catch((err) => setRunError(getErrorMessage(err, t("issues.detail.error.retry"))))
       .finally(() => setRetryingTaskId(null))
   }
 
@@ -371,14 +380,14 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         // a form that just quietly reloaded.
         navigate({ name: "task", spaceId, taskId: created.id })
       })
-      .catch((err) => setRunError(getErrorMessage(err, "Failed to run agent")))
+      .catch((err) => setRunError(getErrorMessage(err, t("issues.detail.error.runAgent"))))
       .finally(() => setRunningAgent(false))
   }
 
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">Loading…</p>
+        <p className="page-activity__empty">{t("shell.loading")}</p>
       </div>
     )
   }
@@ -388,9 +397,9 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
       <ResourceUnavailable
         resourceLabel="Issue"
         kind={unavailable}
-        errorMessage={loadError}
+        errorMessage={loadError ?? t("issues.detail.error.load")}
         onRetry={() => void load()}
-        backLabel="Back to Issues"
+        backLabel={t("issues.detail.back")}
         onBack={() => navigate({ name: "issues", spaceId })}
       />
     )
@@ -406,13 +415,18 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   const workflowRunDisabledReason = !isWorkflowAssigned
     ? null
     : assignedWorkflowStatus !== "published"
-      ? "This workflow is not published, so it cannot be run yet."
+      ? t("issues.detail.workflowUnpublished")
       : null
+  // The Assistant's name is a link inside the sentence, so the translated
+  // sentence is split at its placeholder rather than assembled from fragments.
+  const [escalatedBefore, escalatedAfter] = flow.issue.escalation
+    ? t("issues.detail.escalated", { requester: requesterLabel(flow.issue.escalation.requestedBy) }).split("{assistant}")
+    : ["", ""]
   const agentStillExists = agents.some((agent) => agent.id === flow?.issue.executorId)
   const agentRunDisabledReason = !isAgentAssigned
     ? null
     : !agentStillExists
-      ? "The assigned agent no longer exists."
+      ? t("issues.detail.agentMissing")
       : null
 
   function cancelEditing() {
@@ -436,61 +450,64 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         <div>
           <h1 className="page-activity__title">{flow.issue.title}</h1>
           <p className="page-activity__subtitle">
-            {statusLabel(flow.issue.status)} · {ownerLabel(flow.issue) ?? "Unassigned owner"}
+            {statusLabel(flow.issue.status)} · {ownerLabel(flow.issue) ?? t("issues.detail.unassignedOwner")}
           </p>
         </div>
         <div className="page-activity__actions">
           <ButtonLink variant="tertiary" href={buildHash({ name: "issues", spaceId })}>
-            Back to Issues
+            {t("issues.detail.back")}
           </ButtonLink>
           <Button variant="tertiary" disabled={loading || editing} onClick={() => void load()}>
-            Refresh
+            {t("issues.detail.refresh")}
           </Button>
           {!editing ? <Button variant="secondary" onClick={() => {
             setTab("overview")
             setEditing(true)
-          }}>Edit issue</Button> : null}
+          }}>{t("issues.detail.edit")}</Button> : null}
         </div>
       </div>
 
-      <section className="issues-page__panel issue-detail-page__summary" aria-label="Issue summary">
+      <section className="issues-page__panel issue-detail-page__summary" aria-label={t("issues.detail.summary")}>
         <div className="issues-page__toolbar">
-          <h2 className="issues-page__section-title">Overview</h2>
+          <h2 className="issues-page__section-title">{t("issues.tab.overview")}</h2>
           <span className="issues-page__status">{statusLabel(flow.issue.status)}</span>
         </div>
-        <p className="issue-detail-page__description">{flow.issue.description || "No description yet."}</p>
+        <p className="issue-detail-page__description">{flow.issue.description || t("issues.detail.noDescription")}</p>
         {flow.issue.escalation ? (
           <p className="page-activity__meta" data-testid="issue-escalation">
-            Escalated by{" "}
+            {escalatedBefore}
             <a href={buildHash({ name: "space", spaceId, section: "assistants", assistantId: flow.issue.escalation.assistantId })}>
-              {assistantName ?? "an assistant"}
-            </a>{" "}
-            for {requesterLabel(flow.issue.escalation.requestedBy)}. Reply to requester in Discussion sends your text
-            to their chat.
+              {assistantName ?? t("issues.detail.anAssistant")}
+            </a>
+            {escalatedAfter}
           </p>
         ) : null}
         <div className="issues-page__meta-row">
-          <span className="page-activity__meta">Owner: {ownerLabel(flow.issue) ?? "Unassigned"}</span>
-          <span className="page-activity__meta">Executor: {executorLabel(flow.issue) ?? "None"}</span>
+          <span className="page-activity__meta">
+            {t("issues.detail.ownerLine", { owner: ownerLabel(flow.issue) ?? t("issues.unassigned") })}
+          </span>
+          <span className="page-activity__meta">
+            {t("issues.detail.executorLine", { executor: executorLabel(flow.issue) ?? t("issues.none") })}
+          </span>
         </div>
         <div className="issue-detail-page__outcome">
-          <strong>Latest result</strong>
+          <strong>{t("issues.detail.latestResult")}</strong>
           {flow.latestResult ? (
             <Button variant="tertiary" onClick={() => setTab("results")}>{flow.latestResult.title}</Button>
           ) : (
-            <span className="page-activity__meta">No result yet.</span>
+            <span className="page-activity__meta">{t("issues.detail.noResult")}</span>
           )}
         </div>
         {!editing ? <div className="issues-page__form-actions">
           {isWorkflowAssigned ? <span className="page-activity__action-group">
             <Button variant="primary" busy={runningWorkflow} disabled={loading || workflowRunDisabledReason != null} title={workflowRunDisabledReason ?? undefined} onClick={handleRunWorkflow}>
-              Run workflow
+              {t("issues.detail.runWorkflow")}
             </Button>
             {workflowRunDisabledReason ? <span className="page-activity__meta">{workflowRunDisabledReason}</span> : null}
           </span> : null}
           {isAgentAssigned ? <span className="page-activity__action-group">
             <Button variant="primary" busy={runningAgent} disabled={loading || agentRunDisabledReason != null} title={agentRunDisabledReason ?? undefined} onClick={handleRunAgent}>
-              Run agent
+              {t("issues.detail.runAgent")}
             </Button>
             {agentRunDisabledReason ? <span className="page-activity__meta">{agentRunDisabledReason}</span> : null}
           </span> : null}
@@ -500,23 +517,23 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
       </section>
 
       <>
-        <nav className="issue-detail-page__tabs" aria-label="Issue sections">
-          {ISSUE_TABS.map((t) => (
+        <nav className="issue-detail-page__tabs" aria-label={t("issues.detail.sections")}>
+          {ISSUE_TABS.map((item) => (
             <button
-              key={t.id}
+              key={item.id}
               type="button"
               className={
-                t.id === tab ? "issue-detail-page__tab issue-detail-page__tab--active" : "issue-detail-page__tab"
+                item.id === tab ? "issue-detail-page__tab issue-detail-page__tab--active" : "issue-detail-page__tab"
               }
-              aria-current={t.id === tab}
-              disabled={editing && t.id !== "overview"}
-              onClick={() => setTab(t.id)}
+              aria-current={item.id === tab}
+              disabled={editing && item.id !== "overview"}
+              onClick={() => setTab(item.id)}
             >
-              {t.label}
-              {t.id === "discussion" && comments.length > 0 ? (
+              {t(item.label)}
+              {item.id === "discussion" && comments.length > 0 ? (
                 <span className="issue-detail-page__tab-count">{comments.length}</span>
               ) : null}
-              {t.id === "results" && flow.outputs.length > 0 ? (
+              {item.id === "results" && flow.outputs.length > 0 ? (
                 <span className="issue-detail-page__tab-count">{flow.outputs.length}</span>
               ) : null}
             </button>
@@ -528,16 +545,16 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
             <div className="issue-detail-page__panel issue-detail-page__grid">
               {editing ? <section className="issues-page__panel">
                 <div className="issues-page__toolbar">
-                  <h2 className="issues-page__section-title">Edit issue</h2>
+                  <h2 className="issues-page__section-title">{t("issues.detail.edit")}</h2>
                   <span className="issues-page__status">{statusLabel(flow.issue.status)}</span>
                 </div>
                 <div className="issues-page__form">
                   <label className="issues-page__field">
-                    <span className="issues-page__field-label">Title</span>
+                    <span className="issues-page__field-label">{t("issues.field.title")}</span>
                     <input className="issues-page__input" value={title} onChange={(e) => setTitle(e.target.value)} />
                   </label>
                   <label className="issues-page__field">
-                    <span className="issues-page__field-label">Description</span>
+                    <span className="issues-page__field-label">{t("issues.field.description")}</span>
                     <textarea
                       className="issues-page__textarea"
                       rows={8}
@@ -547,68 +564,80 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                   </label>
                   <div className="issue-detail-page__split">
                     <label className="issues-page__field">
-                      <span className="issues-page__field-label">Business Status</span>
+                      <span className="issues-page__field-label">{t("issues.field.businessStatus")}</span>
                       <select className="issues-page__select" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
-                        <option value="todo">To do</option>
-                        <option value="in_progress">In progress</option>
-                        <option value="done">Done</option>
+                        <option value="todo">{statusLabel("todo")}</option>
+                        <option value="in_progress">{statusLabel("in_progress")}</option>
+                        <option value="done">{statusLabel("done")}</option>
                       </select>
                     </label>
                     <label className="issues-page__field">
-                      <span className="issues-page__field-label">Owner</span>
+                      <span className="issues-page__field-label">{t("issues.field.owner")}</span>
                       <select className="issues-page__select" value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
-                        <option value="">Unassigned</option>
+                        <option value="">{t("issues.unassigned")}</option>
                         {peopleOnly(members).map((member) => (
                           <option key={member.user_id} value={member.user_id}>
                             {memberLabel(member)}
                           </option>
                         ))}
                       </select>
-                      <span className="issues-page__field-label">Who is accountable for this issue.</span>
+                      <span className="issues-page__field-label">{t("issues.field.ownerHint")}</span>
                     </label>
                   </div>
                   <label className="issues-page__field">
-                    <span className="issues-page__field-label">Executor</span>
+                    <span className="issues-page__field-label">{t("issues.field.executor")}</span>
                     <select className="issues-page__select" value={executorValue} onChange={(e) => setExecutorValue(e.target.value)}>
-                      <option value="">None</option>
+                      <option value="">{t("issues.none")}</option>
                       {agents.map((agent) => (
                         <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
                       ))}
                       {canAssignWorkflow
                         ? publishedAssignableWorkflows.map((workflow) => (
                             <option key={workflow.id} value={`workflow:${workflow.id}`}>
-                              {workflow.name}{workflow.status !== "published" ? ` (${workflow.status})` : ""}
+                              {workflow.status !== "published"
+                                ? t("issues.workflowWithStatus", {
+                                    name: workflow.name,
+                                    status: statusLabel(workflow.status).toLowerCase(),
+                                  })
+                                : workflow.name}
                             </option>
                           ))
                         : null}
                     </select>
                     <span className="issues-page__field-label">
                       {canAssignWorkflow
-                        ? "What runs the work. Only published workflows are available for new assignment."
-                        : "What runs the work. Workflow assignment is limited to space owners and admins."}
+                        ? t("issues.field.executorHintReassign")
+                        : t("issues.field.executorHintRestricted")}
                     </span>
                   </label>
                   {status === "done" && openChildCount > 0 ? (
                     <p className="page-activity__meta">
-                      {openChildCount} sub-issue{openChildCount === 1 ? " is" : "s are"} still open. Closing this issue
-                      anyway is allowed — sub-issue status is never rolled up.
+                      {t("issues.detail.openChildren", { count: openChildCount })}
                     </p>
                   ) : null}
                   <div className="issues-page__meta-row">
-                    <div className="page-activity__meta">Owner: {ownerLabel(flow.issue) ?? "Unassigned"}</div>
-                    <div className="page-activity__meta">Executor: {executorLabel(flow.issue) ?? "None"}</div>
-                    <div className="page-activity__meta">Created: {formatTimestamp(flow.issue.createdAt)}</div>
-                    <div className="page-activity__meta">Updated: {formatTimestamp(flow.issue.updatedAt)}</div>
+                    <div className="page-activity__meta">
+                      {t("issues.detail.ownerLine", { owner: ownerLabel(flow.issue) ?? t("issues.unassigned") })}
+                    </div>
+                    <div className="page-activity__meta">
+                      {t("issues.detail.executorLine", { executor: executorLabel(flow.issue) ?? t("issues.none") })}
+                    </div>
+                    <div className="page-activity__meta">
+                      {t("issues.detail.createdLine", { time: formatTimestamp(flow.issue.createdAt) })}
+                    </div>
+                    <div className="page-activity__meta">
+                      {t("issues.detail.updatedLine", { time: formatTimestamp(flow.issue.updatedAt) })}
+                    </div>
                   </div>
                   <div className="issues-page__form-actions">
-                    <Button variant="secondary" disabled={saving} onClick={cancelEditing}>Cancel</Button>
+                    <Button variant="secondary" disabled={saving} onClick={cancelEditing}>{t("issues.cancel")}</Button>
                     <Button
                       variant="primary"
                       busy={saving}
                       disabled={saving || loading || !title.trim()}
                       onClick={handleSave}
                     >
-                      Save changes
+                      {t("issues.detail.saveChanges")}
                     </Button>
                   </div>
                   {saveError ? (
@@ -621,12 +650,12 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
 
               <section className="issues-page__panel">
                 <div className="issues-page__toolbar">
-                  <h2 className="issues-page__section-title">{flow.parent ? "Parent Issue" : "Sub-issues"}</h2>
+                  <h2 className="issues-page__section-title">{flow.parent ? t("issues.subIssues.parent") : t("issues.subIssues.heading")}</h2>
                   {flow.parent ? null : (
                     <span className="page-activity__meta">
                       {flow.issue.childCount === 0
-                        ? "None yet"
-                        : `${flow.issue.doneChildCount}/${flow.issue.childCount} done`}
+                        ? t("issues.subIssues.noneYet")
+                        : t("issues.subIssuesDone", { done: flow.issue.doneChildCount, total: flow.issue.childCount })}
                     </span>
                   )}
                 </div>
@@ -636,13 +665,13 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                       ← {flow.parent.title}
                     </ButtonLink>
                     <p className="page-activity__meta">
-                      This is a sub-issue. Sub-issues cannot have sub-issues of their own.
+                      {t("issues.subIssues.isChild")}
                     </p>
                   </div>
                 ) : (
                   <>
                     {flow.children.length === 0 ? (
-                      <p className="page-activity__empty">No sub-issues yet.</p>
+                      <p className="page-activity__empty">{t("issues.subIssues.empty")}</p>
                     ) : (
                       <ul className="issue-detail-page__children">
                         {flow.children.map((child) => (
@@ -663,7 +692,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                       <input
                         className="issues-page__input"
                         value={subIssueTitle}
-                        placeholder="New sub-issue title"
+                        placeholder={t("issues.subIssues.placeholder")}
                         onChange={(e) => setSubIssueTitle(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
@@ -678,7 +707,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                         disabled={subIssueTitle.trim() === ""}
                         onClick={handleAddSubIssue}
                       >
-                        Add sub-issue
+                        {t("issues.subIssues.add")}
                       </Button>
                     </div>
                     {subIssueError ? <p className="page-activity__empty">{subIssueError}</p> : null}
@@ -688,46 +717,55 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
 
               <section className="issues-page__panel issue-detail-page__wide">
                 <div className="issues-page__toolbar">
-                  <h2 className="issues-page__section-title">Latest Outcome</h2>
+                  <h2 className="issues-page__section-title">{t("issues.outcome.heading")}</h2>
                   <span className="issues-page__status">
                     {currentRun ? statusLabel(currentRun.run.status) : latestAgentTask ? agentTaskLabel(latestAgentTask) : statusLabel("no_runs")}
                   </span>
                 </div>
                 {currentRun ? (
                   <div className="workflow-run-page__meta">
-                    <div><strong>Latest run:</strong> {currentRun.run.id}</div>
-                    <div><strong>Workflow:</strong> {flow.workflow?.name ?? currentRun.run.workflowId}</div>
-                    <div><strong>Started:</strong> {currentRun.run.startedAt ? formatTimestamp(currentRun.run.startedAt) : "Not started"}</div>
-                    <div><strong>Steps:</strong> {currentRun.steps.filter((step) => step.status === "succeeded").length} / {currentRun.steps.length} done</div>
+                    <div><strong>{t("issues.outcome.latestRun")}</strong> {currentRun.run.id}</div>
+                    <div><strong>{t("issues.outcome.workflow")}</strong> {flow.workflow?.name ?? currentRun.run.workflowId}</div>
+                    <div>
+                      <strong>{t("issues.outcome.started")}</strong>{" "}
+                      {currentRun.run.startedAt ? formatTimestamp(currentRun.run.startedAt) : t("issues.outcome.notStarted")}
+                    </div>
+                    <div>
+                      <strong>{t("issues.outcome.steps")}</strong>{" "}
+                      {t("issues.outcome.stepsValue", {
+                        done: currentRun.steps.filter((step) => step.status === "succeeded").length,
+                        total: currentRun.steps.length,
+                      })}
+                    </div>
                     {currentRun.run.errorMessage ? <div className="modal__error">{currentRun.run.errorMessage}</div> : null}
                     <div className="workflow-run-page__step-actions">
                       <ButtonLink variant="secondary" href={buildHash({ name: "workflowRun", spaceId, workflowRunId: currentRun.run.id })}>
-                        Open Run Detail
+                        {t("issues.outcome.openRun")}
                       </ButtonLink>
                       {currentRunLatestTaskId ? (
                         <ButtonLink variant="tertiary" href={buildHash({ name: "task", spaceId, taskId: currentRunLatestTaskId })}>
-                          Open Task
+                          {t("issues.outcome.openTask")}
                         </ButtonLink>
                       ) : null}
                       <Button variant="tertiary" onClick={() => setTab("runs")}>
-                        View all runs
+                        {t("issues.outcome.viewAllRuns")}
                       </Button>
                     </div>
                   </div>
                 ) : latestAgentTask ? (
                   <div className="workflow-run-page__meta">
-                    <div><strong>Latest agent task:</strong> {latestAgentTask.id}</div>
-                    <div><strong>Agent:</strong> {executorLabel(flow.issue) ?? "Agent"}</div>
-                    <div><strong>Created:</strong> {formatTimestamp(latestAgentTask.createdAt)}</div>
-                    <div><strong>Status:</strong> {agentTaskLabel(latestAgentTask)}</div>
+                    <div><strong>{t("issues.outcome.latestAgentTask")}</strong> {latestAgentTask.id}</div>
+                    <div><strong>{t("issues.outcome.agent")}</strong> {executorLabel(flow.issue) ?? t("issues.agent")}</div>
+                    <div><strong>{t("issues.outcome.created")}</strong> {formatTimestamp(latestAgentTask.createdAt)}</div>
+                    <div><strong>{t("issues.outcome.status")}</strong> {agentTaskLabel(latestAgentTask)}</div>
                     {latestAgentTask.awaitingAnswer ? (
                       <p className="page-activity__meta">
-                        The agent asked a question. Answer it by continuing the task — a comment here does not reach it.
+                        {t("issues.outcome.agentAsked")}
                       </p>
                     ) : null}
                     <div className="workflow-run-page__step-actions">
                       <ButtonLink variant="secondary" href={buildHash({ name: "task", spaceId, taskId: latestAgentTask.id })}>
-                        {latestAgentTask.awaitingAnswer ? "Answer in Task" : "Open Task"}
+                        {latestAgentTask.awaitingAnswer ? t("issues.outcome.answerInTask") : t("issues.outcome.openTask")}
                       </ButtonLink>
                       {taskIsStoppable(latestAgentTask.status) ? (
                         <Button
@@ -735,7 +773,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                           busy={cancelingTaskId === latestAgentTask.id}
                           onClick={() => handleCancelTask(latestAgentTask.id)}
                         >
-                          Stop Run
+                          {t("issues.outcome.stopRun")}
                         </Button>
                       ) : null}
                       {taskIsRetryable(latestAgentTask.status) ? (
@@ -744,16 +782,16 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                           busy={retryingTaskId === latestAgentTask.id}
                           onClick={() => handleRetryTask(latestAgentTask.id)}
                         >
-                          Retry Run
+                          {t("issues.outcome.retryRun")}
                         </Button>
                       ) : null}
                       <Button variant="tertiary" onClick={() => setTab("runs")}>
-                        View all runs
+                        {t("issues.outcome.viewAllRuns")}
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  <p className="page-activity__empty">No execution runs recorded for this issue yet.</p>
+                  <p className="page-activity__empty">{t("issues.outcome.none")}</p>
                 )}
               </section>
             </div>
@@ -763,15 +801,15 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
             <div className="issue-detail-page__panel">
               <section className="issues-page__panel issue-detail-page__wide">
                 <div className="issues-page__toolbar">
-                  <h2 className="issues-page__section-title">Discussion</h2>
+                  <h2 className="issues-page__section-title">{t("issues.tab.discussion")}</h2>
                   <div className="issues-page__toolbar-actions">
                     <span className="page-activity__meta">
                       {comments.length === 0
-                        ? "No comments"
-                        : `${comments.length} comment${comments.length === 1 ? "" : "s"}`}
+                        ? t("issues.discussion.noComments")
+                        : t("issues.comments", { count: comments.length })}
                     </span>
                     <ButtonLink variant="tertiary" href={buildHash({ name: "explore", spaceId })}>
-                      Files
+                      {t("issues.discussion.files")}
                     </ButtonLink>
                   </div>
                 </div>
@@ -785,7 +823,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                   agentNames={agentNames}
                   onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
                   onCommentsChanged={setComments}
-                  requesterReply={flow.issue.escalation ? { assistantName: assistantName ?? "the assistant" } : undefined}
+                  requesterReply={flow.issue.escalation ? { assistantName: assistantName ?? t("issues.detail.theAssistant") } : undefined}
                 />
               </section>
             </div>
@@ -795,11 +833,11 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
             <div className="issue-detail-page__panel">
               <section className="issues-page__panel issue-detail-page__wide">
                 <div className="issues-page__toolbar">
-                  <h2 className="issues-page__section-title">Results</h2>
+                  <h2 className="issues-page__section-title">{t("issues.tab.results")}</h2>
                   <span className="page-activity__meta">
                     {flow.outputs.length === 0
-                      ? "No outputs yet"
-                      : `${flow.outputs.length} output${flow.outputs.length === 1 ? "" : "s"}`}
+                      ? t("issues.results.noOutputs")
+                      : t("issues.results.outputs", { count: flow.outputs.length })}
                   </span>
                 </div>
                 <OutputsList
@@ -817,14 +855,14 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
             <div className="issue-detail-page__panel issue-detail-page__grid">
               <section className="issues-page__panel">
                 <div className="issues-page__toolbar">
-                  <h2 className="issues-page__section-title">Run History</h2>
-                  <span className="page-activity__meta">{flow.total} total</span>
+                  <h2 className="issues-page__section-title">{t("issues.runs.history")}</h2>
+                  <span className="page-activity__meta">{t("issues.runs.total", { count: flow.total })}</span>
                 </div>
                 <p className="page-activity__subtitle">
-                  Each workflow run's steps and diagnostics live on its own run detail page.
+                  {t("issues.runs.hint")}
                 </p>
                 {flow.runs.length === 0 ? (
-                  <p className="page-activity__empty">No runs yet.</p>
+                  <p className="page-activity__empty">{t("issues.runs.empty")}</p>
                 ) : (
                   <ul className="workflow-page__runs">
                     {flow.runs.map((item) => (
@@ -850,11 +888,11 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
 
               <section className="issues-page__panel">
                 <div className="issues-page__toolbar">
-                  <h2 className="issues-page__section-title">Agent Run Sequence</h2>
-                  <span className="page-activity__meta">{flow.agentTasks.length} tasks</span>
+                  <h2 className="issues-page__section-title">{t("issues.runs.agentSequence")}</h2>
+                  <span className="page-activity__meta">{t("issues.runs.tasks", { count: flow.agentTasks.length })}</span>
                 </div>
                 {flow.agentTasks.length === 0 ? (
-                  <p className="page-activity__empty">No agent runs recorded for this issue yet.</p>
+                  <p className="page-activity__empty">{t("issues.runs.agentEmpty")}</p>
                 ) : (
                   <ul className="workflow-page__runs">
                     {flow.agentTasks.map((task) => (
@@ -879,7 +917,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                             busy={cancelingTaskId === task.id}
                             onClick={() => handleCancelTask(task.id)}
                           >
-                            Stop Run
+                            {t("issues.outcome.stopRun")}
                           </Button>
                         ) : null}
                         {taskIsRetryable(task.status) ? (
@@ -889,7 +927,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                             busy={retryingTaskId === task.id}
                             onClick={() => handleRetryTask(task.id)}
                           >
-                            Retry Run
+                            {t("issues.outcome.retryRun")}
                           </Button>
                         ) : null}
                         <pre className="workflow-page__step-output">{task.summary}</pre>

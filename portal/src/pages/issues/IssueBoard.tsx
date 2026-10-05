@@ -5,7 +5,8 @@ import { buildHash } from "../../router"
 import { ApiRequestError } from "../../lib/api/client"
 import { apiIssueToIssue } from "../../lib/api/mappers"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { statusLabel } from "../../lib/statusLabels"
+import { useStatusLabel } from "../../lib/statusLabels"
+import { useT } from "../../i18n"
 import {
   ISSUE_LANES,
   LANE_PAGE_SIZE,
@@ -56,6 +57,8 @@ interface IssueBoardProps {
  * A move is an ordinary versioned status update; nothing here runs work.
  */
 export function IssueBoard({ token, spaceId, filter, ownerLabel, executorLabel }: IssueBoardProps) {
+  const t = useT()
+  const statusLabel = useStatusLabel()
   const [lanes, setLanes] = useState<Record<IssueLane, LaneState>>(initialLanes)
   const [moving, setMoving] = useState<Record<string, IssueLane>>({})
   const [announcement, setAnnouncement] = useState<Announcement | null>(null)
@@ -85,10 +88,10 @@ export function IssueBoard({ token, spaceId, filter, ownerLabel, executorLabel }
         })
         .catch((err) => {
           if (seq !== laneSeq.current[lane]) return
-          patchLane(lane, { error: classifyError(err, `Failed to load ${statusLabel(lane)} issues`), loading: false })
+          patchLane(lane, { error: classifyError(err, t("issues.board.loadLane", { lane: statusLabel(lane) })), loading: false })
         })
     },
-    [token, spaceId, stableFilter, patchLane],
+    [token, spaceId, stableFilter, patchLane, t, statusLabel],
   )
 
   useEffect(() => {
@@ -117,7 +120,7 @@ export function IssueBoard({ token, spaceId, filter, ownerLabel, executorLabel }
       })
       .catch((err) => {
         if (seq !== laneSeq.current[lane]) return
-        patchLane(lane, { loadingMore: false, moreError: getErrorMessage(err, "Failed to load more issues") })
+        patchLane(lane, { loadingMore: false, moreError: getErrorMessage(err, t("issues.board.loadMore")) })
       })
   }
 
@@ -142,7 +145,7 @@ export function IssueBoard({ token, spaceId, filter, ownerLabel, executorLabel }
         [to]: { ...prev[to], items: [updated, ...(prev[to].items ?? []).filter((item) => item.id !== issue.id)], total: prev[to].total + 1 },
       }))
       focusTarget.current = { issueId: issue.id, lane: to }
-      setAnnouncement({ tone: "status", text: `Moved “${issue.title}” to ${statusLabel(to)}.` })
+      setAnnouncement({ tone: "status", text: t("issues.board.moved", { title: issue.title, lane: statusLabel(to) }) })
       await Promise.all([reload(from), reload(to)])
     } catch (err) {
       focusTarget.current = { issueId: issue.id, lane: from }
@@ -151,11 +154,17 @@ export function IssueBoard({ token, spaceId, filter, ownerLabel, executorLabel }
         // exists, so they decide again against the reloaded board.
         setAnnouncement({
           tone: "alert",
-          text: `“${issue.title}” changed since the board loaded it, so it was not moved. The board has been reloaded — check it and move again if needed.`,
+          text: t("issues.board.conflict", { title: issue.title }),
         })
         await Promise.all(ISSUE_LANES.map((lane) => reload(lane)))
       } else {
-        setAnnouncement({ tone: "alert", text: `Couldn’t move “${issue.title}”: ${getErrorMessage(err, "the update failed")}` })
+        setAnnouncement({
+          tone: "alert",
+          text: t("issues.board.moveFailed", {
+            title: issue.title,
+            error: getErrorMessage(err, t("issues.board.updateFailed")),
+          }),
+        })
       }
     } finally {
       setMoving((prev) => {
@@ -182,10 +191,11 @@ export function IssueBoard({ token, spaceId, filter, ownerLabel, executorLabel }
     <div className="issue-board">
       {failedLanes.length > 0 && loadedLanes.length > 0 ? (
         <div className="state-alert state-alert--stale" role="status">
-          <p className="state-alert__title">Board incomplete</p>
+          <p className="state-alert__title">{t("issues.board.incomplete")}</p>
           <p className="state-alert__message">
-            {failedLanes.map((lane) => statusLabel(lane)).join(" and ")} couldn’t load, so this board does not show every
-            Issue. An empty-looking lane is not proof there is no work in it.
+            {t("issues.board.incompleteMessage", {
+              lanes: failedLanes.map((lane) => statusLabel(lane)).join(t("issues.board.laneSeparator")),
+            })}
           </p>
         </div>
       ) : null}
@@ -237,6 +247,8 @@ function BoardLane({ lane, state, spaceId, moving, ownerLabel, executorLabel, on
     error: state.error,
     isEmpty: (items) => items.length === 0,
   })
+  const t = useT()
+  const statusLabel = useStatusLabel()
   const items = state.items ?? []
   const headingId = laneHeadingId(lane)
 
@@ -252,20 +264,20 @@ function BoardLane({ lane, state, spaceId, moving, ownerLabel, executorLabel, on
       </header>
 
       {resource.kind === "loading" ? (
-        <p className="page-activity__empty">Loading…</p>
+        <p className="page-activity__empty">{t("shell.loading")}</p>
       ) : resource.kind === "error" || resource.kind === "forbidden" || resource.kind === "notFound" ? (
         <Alert
           tone={resource.kind}
           message={resource.error.message}
-          retry={resource.kind === "forbidden" ? undefined : { label: "Retry", onClick: onRetry }}
+          retry={resource.kind === "forbidden" ? undefined : { label: t("shell.retry"), onClick: onRetry }}
         />
       ) : (
         <>
           {resource.kind === "stale" ? (
-            <Alert tone="stale" message={resource.error.message} retry={{ label: "Retry", onClick: onRetry }} />
+            <Alert tone="stale" message={resource.error.message} retry={{ label: t("shell.retry"), onClick: onRetry }} />
           ) : null}
           {resource.kind === "readyEmpty" ? (
-            <p className="page-activity__empty">No issues in {statusLabel(lane)}.</p>
+            <p className="page-activity__empty">{t("issues.board.laneEmpty", { lane: statusLabel(lane) })}</p>
           ) : (
             <ul className="issue-board__cards">
               {items.map((issue) => (
@@ -285,10 +297,10 @@ function BoardLane({ lane, state, spaceId, moving, ownerLabel, executorLabel, on
           {items.length < state.total ? (
             <div className="issue-board__more">
               <span className="page-activity__meta">
-                {items.length} of {state.total}
+                {t("issues.board.shown", { shown: items.length, total: state.total })}
               </span>
               <Button variant="secondary" size="compact" busy={state.loadingMore} onClick={onMore}>
-                Show more
+                {t("issues.board.showMore")}
               </Button>
             </div>
           ) : null}
@@ -313,6 +325,8 @@ interface BoardCardProps {
 }
 
 function BoardCard({ issue, spaceId, movingTo, owner, executor, onMove }: BoardCardProps) {
+  const t = useT()
+  const statusLabel = useStatusLabel()
   return (
     <article className="issue-board__card" data-issue-card={issue.id} aria-busy={movingTo ? true : undefined}>
       <a className="issue-board__open" href={buildHash({ name: "issue", spaceId, issueId: issue.id })}>
@@ -320,38 +334,36 @@ function BoardCard({ issue, spaceId, movingTo, owner, executor, onMove }: BoardC
       </a>
       <dl className="issue-board__facts">
         <div>
-          <dt>Owner</dt>
-          <dd>{owner ?? "Unowned"}</dd>
+          <dt>{t("issues.field.owner")}</dt>
+          <dd>{owner ?? t("issues.board.unowned")}</dd>
         </div>
         <div>
-          <dt>Executor</dt>
-          <dd>{executor ?? "No executor"}</dd>
+          <dt>{t("issues.field.executor")}</dt>
+          <dd>{executor ?? t("issues.board.noExecutor")}</dd>
         </div>
         {issue.childCount > 0 ? (
           <div>
-            <dt>Sub-issues</dt>
-            <dd>
-              {issue.doneChildCount}/{issue.childCount} done
-            </dd>
+            <dt>{t("issues.board.subIssues")}</dt>
+            <dd>{t("issues.subIssuesDone", { done: issue.doneChildCount, total: issue.childCount })}</dd>
           </div>
         ) : null}
         <div>
-          <dt>Updated</dt>
+          <dt>{t("issues.board.updated")}</dt>
           <dd>{issue.updatedLabel}</dd>
         </div>
       </dl>
       {/* The named, non-drag path is the move contract: it works the same
           for keyboard, assistive technology, touch, and pointer. */}
-      <div className="issue-board__move" role="group" aria-label={`Move “${issue.title}”`}>
+      <div className="issue-board__move" role="group" aria-label={t("issues.board.moveCard", { title: issue.title })}>
         <span className="issue-board__move-label" aria-hidden="true">
-          Move to
+          {t("issues.board.moveTo")}
         </span>
         {ISSUE_LANES.filter((lane) => lane !== issue.status).map((lane) => (
           <Button
             key={lane}
             variant="tertiary"
             size="compact"
-            aria-label={`Move to ${statusLabel(lane)}`}
+            aria-label={t("issues.board.moveToLane", { lane: statusLabel(lane) })}
             busy={movingTo === lane}
             disabled={movingTo !== undefined}
             onClick={() => onMove(issue, lane)}

@@ -3,6 +3,7 @@ import type { IssueOutput } from "../../lib/types"
 import { artifactContentUrl } from "../artifacts"
 import { downloadAuthenticated } from "../../lib/download"
 import { navigate } from "../../router"
+import { useT } from "../../i18n"
 
 interface OutputCardProps {
   output: IssueOutput
@@ -25,6 +26,7 @@ export function OutputCard({
   onOpenRun,
   onOpenTrace,
 }: OutputCardProps) {
+  const t = useT()
   const { source } = output
   return (
     <article className="issue-outputs__card">
@@ -65,14 +67,14 @@ export function OutputCard({
           }}
           disabled={!token}
         >
-          Download
+          {t("issues.output.download")}
         </Button>
         {source.conversationId && onOpenConversation ? (
           <Button
             variant="tertiary" size="compact"
             onClick={() => onOpenConversation(source.conversationId!)}
           >
-            Open conversation
+            {t("issues.output.openConversation")}
           </Button>
         ) : null}
         {source.workflowRunId && onOpenRun ? (
@@ -80,7 +82,7 @@ export function OutputCard({
             variant="tertiary" size="compact"
             onClick={() => onOpenRun(source.workflowRunId!)}
           >
-            Open run detail
+            {t("issues.output.openRun")}
           </Button>
         ) : null}
         {source.taskRunId && onOpenTrace ? (
@@ -88,7 +90,7 @@ export function OutputCard({
             variant="tertiary" size="compact"
             onClick={() => onOpenTrace(source.taskRunId!)}
           >
-            Run details
+            {t("issues.output.runDetails")}
           </Button>
         ) : null}
       </footer>
@@ -105,8 +107,9 @@ interface OutputsListProps {
 }
 
 export function OutputsList({ outputs, token, onOpenConversation, onOpenRun, onOpenTrace }: OutputsListProps) {
+  const t = useT()
   if (outputs.length === 0) {
-    return <p className="page-activity__empty">No results produced yet.</p>
+    return <p className="page-activity__empty">{t("issues.output.empty")}</p>
   }
   return (
     <div className="issue-outputs__list">

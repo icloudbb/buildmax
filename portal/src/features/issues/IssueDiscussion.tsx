@@ -6,6 +6,7 @@ import { buildHash } from "../../router"
 import type { ApiIssueComment, ApiSpaceMember } from "../../lib/api/types"
 import { createIssueComment, deleteIssueComment, getIssueComments, replyToRequester, updateIssueComment } from "./comments"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { useT } from "../../i18n"
 
 /** Matches CommentBodyLimit in internal/service/issue. */
 const BODY_LIMIT = 16 * 1024
@@ -59,6 +60,7 @@ export function IssueDiscussion({
   onCommentsChanged,
   requesterReply,
 }: IssueDiscussionProps) {
+  const t = useT()
   const [comments, setComments] = useState<ApiIssueComment[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -82,12 +84,12 @@ export function IssueDiscussion({
           setError(null)
         }
       } catch (err) {
-        if (seq === loadSeq.current) setError(getErrorMessage(err, "Failed to load comments"))
+        if (seq === loadSeq.current) setError(getErrorMessage(err, t("issues.comment.error.load")))
       } finally {
         if (seq === loadSeq.current && showSpinner) setLoading(false)
       }
     },
-    [spaceId, issueId, token],
+    [spaceId, issueId, token, t],
   )
 
   useEffect(() => {
@@ -109,22 +111,22 @@ export function IssueDiscussion({
   const memberNames = useMemo(() => {
     const out: Record<string, string> = {}
     for (const member of members) {
-      out[member.user_id] = member.user_name || member.user_email || `Member ${member.user_id.slice(0, 8)}`
+      out[member.user_id] = member.user_name || member.user_email || t("issues.memberId", { id: member.user_id.slice(0, 8) })
     }
     return out
-  }, [members])
+  }, [members, t])
 
   function personLabel(authorID: string): string {
-    if (authorID === userId) return "Me"
-    return memberNames[authorID] || `Member ${authorID.slice(0, 8)}`
+    if (authorID === userId) return t("issues.me")
+    return memberNames[authorID] || t("issues.memberId", { id: authorID.slice(0, 8) })
   }
 
   function authorLabel(comment: ApiIssueComment): string {
-    if (comment.author_kind === "agent") return agentNames[comment.author_id] || "Agent"
+    if (comment.author_kind === "agent") return agentNames[comment.author_id] || t("issues.agent")
     if (comment.author_kind === "system") return "BuildMax"
     // Named as a report by a person, not as an agent this deployment ran: it
     // scheduled nothing, admitted no quota, and recorded no trace for it.
-    if (comment.author_kind === "local_agent") return `Agent on ${personLabel(comment.author_id)}'s machine, reported`
+    if (comment.author_kind === "local_agent") return t("issues.comment.localAgent", { person: personLabel(comment.author_id) })
     return personLabel(comment.author_id)
   }
 
@@ -147,7 +149,7 @@ export function IssueDiscussion({
       setComments((prev) => [...prev, created])
       setDraft("")
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to post comment"))
+      setError(getErrorMessage(err, t("issues.comment.error.post")))
     } finally {
       setSubmitting(false)
     }
@@ -164,7 +166,7 @@ export function IssueDiscussion({
       setComments((prev) => [...prev, recorded])
       setDraft("")
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to reply to the requester"))
+      setError(getErrorMessage(err, t("issues.comment.error.reply")))
     } finally {
       setReplying(false)
     }
@@ -180,19 +182,19 @@ export function IssueDiscussion({
       setEditingId(null)
       setEditDraft("")
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to save comment"))
+      setError(getErrorMessage(err, t("issues.comment.error.save")))
     }
   }
 
   async function handleDelete(commentId: string) {
     if (!spaceId || !issueId || !token) return
     // Deletion is permanent — the row is removed, not tombstoned.
-    if (!window.confirm("Delete this comment? This cannot be undone.")) return
+    if (!window.confirm(t("issues.comment.confirmDelete"))) return
     try {
       await deleteIssueComment(spaceId, issueId, commentId, token)
       setComments((prev) => prev.filter((c) => c.id !== commentId))
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to delete comment"))
+      setError(getErrorMessage(err, t("issues.comment.error.delete")))
     }
   }
 
@@ -211,9 +213,9 @@ export function IssueDiscussion({
         </p>
       ) : null}
       {loading ? (
-        <p className="page-activity__empty">Loading…</p>
+        <p className="page-activity__empty">{t("shell.loading")}</p>
       ) : comments.length === 0 ? (
-        <p className="page-activity__empty">No comments yet.</p>
+        <p className="page-activity__empty">{t("issues.comment.empty")}</p>
       ) : (
         <ol className="issue-discussion__list">
           {comments.map((comment) => (
@@ -224,7 +226,7 @@ export function IssueDiscussion({
                 </span>
                 <span className="page-activity__meta">
                   {formatTimestamp(comment.created_at)}
-                  {comment.edited_at ? " · edited" : ""}
+                  {comment.edited_at ? t("issues.comment.edited") : ""}
                 </span>
               </div>
               {editingId === comment.id ? (
@@ -242,10 +244,10 @@ export function IssueDiscussion({
                       onClick={() => void handleSaveEdit(comment.id)}
                       disabled={editDraft.trim() === ""}
                     >
-                      Save
+                      {t("issues.comment.save")}
                     </Button>
                     <Button variant="secondary" size="compact" onClick={() => setEditingId(null)}>
-                      Cancel
+                      {t("issues.cancel")}
                     </Button>
                   </div>
                 </div>
@@ -262,7 +264,7 @@ export function IssueDiscussion({
                     variant="tertiary" size="compact"
                     href={buildHash({ name: "task", spaceId, taskId: comment.source_task_id })}
                   >
-                    Open Task
+                    {t("issues.comment.openTask")}
                   </ButtonLink>
                 ) : null}
                 {comment.source_task_run_id && onOpenTrace ? (
@@ -270,7 +272,7 @@ export function IssueDiscussion({
                     variant="tertiary" size="compact"
                     onClick={() => onOpenTrace(comment.source_task_run_id!)}
                   >
-                    Run details
+                    {t("issues.comment.runDetails")}
                   </Button>
                 ) : null}
                 {canEdit(comment) && editingId !== comment.id ? (
@@ -281,7 +283,7 @@ export function IssueDiscussion({
                       setEditDraft(comment.body)
                     }}
                   >
-                    Edit
+                    {t("issues.comment.edit")}
                   </Button>
                 ) : null}
                 {canDelete(comment) ? (
@@ -289,7 +291,7 @@ export function IssueDiscussion({
                     variant="danger" size="compact"
                     onClick={() => void handleDelete(comment.id)}
                   >
-                    Delete
+                    {t("issues.comment.delete")}
                   </Button>
                 ) : null}
               </div>
@@ -303,7 +305,7 @@ export function IssueDiscussion({
           value={draft}
           maxLength={BODY_LIMIT}
           rows={3}
-          placeholder="Write a comment. Cmd/Ctrl+Enter to post."
+          placeholder={t("issues.comment.placeholder")}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleComposerKeyDown}
         />
@@ -314,7 +316,7 @@ export function IssueDiscussion({
             onClick={() => void handleSubmit()}
             disabled={draft.trim() === ""}
           >
-            Comment
+            {t("issues.comment.post")}
           </Button>
           {requesterReply ? (
             <Button
@@ -322,14 +324,14 @@ export function IssueDiscussion({
               busy={replying}
               onClick={() => void handleReply()}
               disabled={draft.trim() === "" || [...draft.trim()].length > REPLY_LIMIT}
-              title={`Send this text to the requester's chat through ${requesterReply.assistantName}`}
+              title={t("issues.comment.replyTitle", { assistant: requesterReply.assistantName })}
             >
-              Reply to requester
+              {t("issues.comment.reply")}
             </Button>
           ) : null}
           {requesterReply && [...draft.trim()].length > REPLY_LIMIT ? (
             <span className="page-activity__meta">
-              A reply to the requester is limited to {REPLY_LIMIT} characters.
+              {t("issues.comment.replyLimit", { limit: REPLY_LIMIT })}
             </span>
           ) : null}
           {draft.length > COUNTER_THRESHOLD ? (

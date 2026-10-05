@@ -1,4 +1,6 @@
+import type { Translate } from "@buildmax/gui"
 import type { ApiTaskRunTrace, ApiTraceBoundary, ApiTraceMCP } from "../../lib/api/types"
+import type { MessageKey } from "../../i18n"
 
 /** How a boundary should read to someone deciding whether to trust a run. */
 export interface BoundaryDescription {
@@ -17,29 +19,29 @@ export interface BoundaryDescription {
   sources: string | null
 }
 
-export function describeBoundary(boundary?: ApiTraceBoundary): BoundaryDescription {
+export function describeBoundary(
+  boundary: ApiTraceBoundary | undefined,
+  t: Translate<MessageKey>,
+): BoundaryDescription {
   if (!boundary) {
-    return {
-      tone: "unknown",
-      text: "This trace predates boundary recording, so what confined the run is unknown.",
-      sources: null,
-    }
+    return { tone: "unknown", text: t("runs.boundary.unknown"), sources: null }
   }
   const sources = boundary.sources?.length ? boundary.sources.join(" → ") : null
   if (!boundary.sandboxed) {
-    return {
-      tone: "open",
-      text: "Not sandboxed — nothing confined this run's shell commands.",
-      sources,
-    }
+    return { tone: "open", text: t("runs.boundary.open"), sources }
   }
-  const parts = ["Ran sandboxed"]
-  if (boundary.backend) parts.push(`via ${boundary.backend}`)
-  let text = parts.join(" ")
-  if (boundary.mode) text += ` (${boundary.mode})`
-  text += "."
-  if (boundary.downgraded) text += " The boundary resolved weaker than configured."
-  return { tone: "sandboxed", text, sources }
+  const { backend, mode } = boundary
+  const sentences = [
+    backend && mode
+      ? t("runs.boundary.sandboxedViaMode", { backend, mode })
+      : backend
+        ? t("runs.boundary.sandboxedVia", { backend })
+        : mode
+          ? t("runs.boundary.sandboxedMode", { mode })
+          : t("runs.boundary.sandboxed"),
+  ]
+  if (boundary.downgraded) sentences.push(t("runs.boundary.downgraded"))
+  return { tone: "sandboxed", text: sentences.join(t("runs.sentenceSeparator")), sources }
 }
 
 /** How a run's MCP treatment should read beside the boundary. */
@@ -56,26 +58,18 @@ export interface MCPDescription {
   text: string
 }
 
-export function describeMCP(mcp?: ApiTraceMCP): MCPDescription {
+export function describeMCP(mcp: ApiTraceMCP | undefined, t: Translate<MessageKey>): MCPDescription {
   if (!mcp) {
-    return {
-      tone: "unknown",
-      text: "This trace predates MCP-treatment recording, so how MCP transports were treated is unknown.",
-    }
+    return { tone: "unknown", text: t("runs.mcp.unknown") }
   }
+  // Transport names are protocol identifiers, listed as recorded.
   const remote = mcp.remote_transports?.length
-    ? `Remote transports in use: ${mcp.remote_transports.join(", ")}.`
-    : "No remote MCP servers were configured."
+    ? t("runs.mcp.remote", { transports: mcp.remote_transports.join(", ") })
+    : t("runs.mcp.noRemote")
   if (mcp.stdio_disabled) {
-    return {
-      tone: "enforced",
-      text: `stdio MCP disabled by the unattended-worker profile. ${remote}`,
-    }
+    return { tone: "enforced", text: t("runs.mcp.enforced", { remote }) }
   }
-  return {
-    tone: "open",
-    text: `stdio MCP allowed on this surface. ${remote}`,
-  }
+  return { tone: "open", text: t("runs.mcp.open", { remote }) }
 }
 
 export function formatDuration(ms?: number): string {

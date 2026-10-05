@@ -16,6 +16,7 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
 import { statusLabel } from "../../lib/statusLabels"
+import { useT } from "../../i18n"
 
 interface TaskDetailProps {
   token: string | null
@@ -53,6 +54,7 @@ function TypingDots() {
 }
 
 export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
+  const t = useT()
   const { user } = useAuth()
   const { entityLabels, setEntityLabel, setBreadcrumbTrail } = useApp()
   const historyRef = useRef<HTMLElement | null>(null)
@@ -210,14 +212,14 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   const items = useMemo<ChatThreadItem[]>(() => {
     return runs.flatMap((run) => {
       const active = activeStatuses.has(run.status)
-      const inputLabel = runInputLabel(run)
+      const inputLabel = runInputLabel(run, t)
       return [
         {
           id: `${run.id}-input`,
           role: "user",
           label: inputLabel,
           avatar:
-            inputLabel === "You" && user ? (
+            inputLabel === t("runs.input.you") && user ? (
               <UserAvatar user={user} size="sm" />
             ) : (
               <Avatar label={inputLabel.slice(0, 1)} size="sm" />
@@ -266,7 +268,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
         },
       ]
     })
-  }, [runs, user, streamingText])
+  }, [runs, user, streamingText, t])
 
   async function handleContinue() {
     const message = input.trim()

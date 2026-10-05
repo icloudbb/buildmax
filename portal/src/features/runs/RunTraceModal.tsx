@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { BaseModal, Button } from "@buildmax/gui"
+import { BaseModal, Button, type Translate } from "@buildmax/gui"
 import type {
   ApiRunProvenance,
   ApiTaskRunLLMCall,
@@ -10,6 +10,7 @@ import type {
   ApiTraceWorkspace,
 } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { useT, type MessageKey } from "../../i18n"
 import { navigate } from "../../router"
 import { formatSize } from "../artifacts"
 import { getTaskRunProvenance, getTaskRunTrace, listTaskRunLLMCalls } from "./api"
@@ -38,12 +39,13 @@ interface RunTraceModalProps {
  * confined run from an unconfined one has no reason to trust either.
  */
 function BoundaryLine({ boundary }: { boundary?: ApiTraceBoundary }) {
-  const described = describeBoundary(boundary)
+  const t = useT()
+  const described = describeBoundary(boundary, t)
   return (
     <p className={`run-trace__boundary run-trace__boundary--${described.tone}`}>
       {described.text}
       {described.sources ? (
-        <span className="run-trace__sources">Decided by: {described.sources}</span>
+        <span className="run-trace__sources">{t("runs.boundary.decidedBy", { sources: described.sources })}</span>
       ) : null}
     </p>
   )
@@ -56,20 +58,23 @@ function BoundaryLine({ boundary }: { boundary?: ApiTraceBoundary }) {
  * keeps a trace that never recorded the treatment from reading as "allowed".
  */
 function MCPLine({ mcp }: { mcp?: ApiTraceMCP }) {
-  const described = describeMCP(mcp)
+  const t = useT()
+  const described = describeMCP(mcp, t)
   return (
     <p className={`run-trace__mcp run-trace__mcp--${described.tone}`}>{described.text}</p>
   )
 }
 
 function ToolRow({ tool }: { tool: ApiTraceToolCall }) {
+  const t = useT()
   return (
     <li className={tool.denied ? "run-trace__tool run-trace__tool--denied" : "run-trace__tool"}>
       <span className="run-trace__tool-name">{tool.name}</span>
       {tool.path ? <span className="run-trace__tool-path">{tool.path}</span> : null}
       {tool.denied ? (
         <span className="run-trace__tool-denied">
-          denied{tool.deny_reason ? ` · ${tool.deny_reason}` : ""}
+          {t("runs.trace.denied")}
+          {tool.deny_reason ? ` · ${tool.deny_reason}` : ""}
         </span>
       ) : (
         <span className="run-trace__tool-duration">{formatDuration(tool.duration_ms)}</span>
@@ -79,6 +84,7 @@ function ToolRow({ tool }: { tool: ApiTraceToolCall }) {
 }
 
 function TraceBody({ trace }: { trace: ApiTaskRunTrace }) {
+  const t = useT()
   const tools = trace.tools ?? []
   const files = trace.files_changed ?? []
   return (
@@ -90,44 +96,46 @@ function TraceBody({ trace }: { trace: ApiTaskRunTrace }) {
           which otherwise read as a complete accounting. */}
       {!trace.complete ? (
         <p className="run-trace__incomplete" role="status">
-          This run wrote no terminal record — it was killed, or its trace was cut short.
-          The figures below cover only what was written.
+          {t("runs.trace.incomplete")}
         </p>
       ) : null}
 
       {trace.error ? (
         <div className="run-trace__error" role="alert">
-          <span className="run-trace__label">Failed</span>
+          <span className="run-trace__label">{t("runs.trace.failed")}</span>
           <pre className="run-trace__error-text">{trace.error}</pre>
         </div>
       ) : null}
 
       <dl className="run-trace__stats">
         <div>
-          <dt>Model</dt>
+          <dt>{t("runs.trace.model")}</dt>
           <dd>{trace.model || "—"}</dd>
         </div>
         <div>
-          <dt>Duration</dt>
+          <dt>{t("runs.trace.duration")}</dt>
           <dd>{runElapsed(trace)}</dd>
         </div>
         <div>
-          <dt>Model calls</dt>
+          <dt>{t("runs.trace.modelCalls")}</dt>
           <dd>{trace.llm_calls}</dd>
         </div>
         <div>
-          <dt>Tool calls</dt>
+          <dt>{t("runs.trace.toolCalls")}</dt>
           <dd>{trace.tool_calls}</dd>
         </div>
         <div>
-          <dt>Tokens</dt>
+          <dt>{t("runs.trace.tokens")}</dt>
           <dd>
-            {trace.prompt_tokens.toLocaleString()} in · {trace.completion_tokens.toLocaleString()} out
+            {t("runs.trace.tokensValue", {
+              prompt: trace.prompt_tokens.toLocaleString(),
+              completion: trace.completion_tokens.toLocaleString(),
+            })}
           </dd>
         </div>
         {trace.compactions > 0 ? (
           <div>
-            <dt>Compactions</dt>
+            <dt>{t("runs.trace.compactions")}</dt>
             <dd>{trace.compactions}</dd>
           </div>
         ) : null}
@@ -135,7 +143,7 @@ function TraceBody({ trace }: { trace: ApiTaskRunTrace }) {
 
       {files.length > 0 ? (
         <section className="run-trace__section">
-          <h3 className="run-trace__heading">Files changed</h3>
+          <h3 className="run-trace__heading">{t("runs.trace.filesChanged")}</h3>
           <ul className="run-trace__files">
             {files.map((path) => (
               <li key={path}>{path}</li>
@@ -146,7 +154,7 @@ function TraceBody({ trace }: { trace: ApiTaskRunTrace }) {
 
       {tools.length > 0 ? (
         <section className="run-trace__section">
-          <h3 className="run-trace__heading">Tool calls</h3>
+          <h3 className="run-trace__heading">{t("runs.trace.toolCalls")}</h3>
           <ul className="run-trace__tools">
             {tools.map((tool, i) => (
               <ToolRow key={`${tool.name}-${i}`} tool={tool} />
@@ -155,7 +163,7 @@ function TraceBody({ trace }: { trace: ApiTaskRunTrace }) {
           {/* A short list must never be mistaken for a short run. */}
           {trace.tools_truncated ? (
             <p className="run-trace__truncated">
-              Showing the first {tools.length} of {trace.tool_calls} calls.
+              {t("runs.trace.toolsTruncated", { shown: tools.length, total: trace.tool_calls })}
             </p>
           ) : null}
         </section>
@@ -168,29 +176,29 @@ function TraceBody({ trace }: { trace: ApiTaskRunTrace }) {
 // status codes into a phrase a reader understands. An empty status is the common
 // case, not an error: a first run restores nothing, and a reply-only run
 // captures nothing.
-function workspaceRestoreLabel(status?: string): string {
+function workspaceRestoreLabel(status: string | undefined, t: Translate<MessageKey>): string {
   switch (status) {
     case "restored":
-      return "Restored from checkpoint"
+      return t("runs.workspace.restored")
     case "failed":
-      return "Restore failed"
+      return t("runs.workspace.restoreFailed")
     case "pending":
-      return "Restoring…"
+      return t("runs.workspace.restoring")
     default:
-      return "Not required"
+      return t("runs.workspace.restoreNotRequired")
   }
 }
 
-function workspaceCheckpointLabel(status?: string): string {
+function workspaceCheckpointLabel(status: string | undefined, t: Translate<MessageKey>): string {
   switch (status) {
     case "committed":
-      return "Committed"
+      return t("runs.workspace.committed")
     case "failed":
-      return "Capture failed"
+      return t("runs.workspace.captureFailed")
     case "pending":
-      return "Capturing…"
+      return t("runs.workspace.capturing")
     default:
-      return "Not captured"
+      return t("runs.workspace.notCaptured")
   }
 }
 
@@ -200,29 +208,30 @@ function workspaceCheckpointLabel(status?: string): string {
  * the run recorded these as it ran. A failure carries the bounded reason.
  */
 function WorkspaceSection({ workspace }: { workspace?: ApiTraceWorkspace }) {
+  const t = useT()
   const ws = workspace ?? {}
   return (
     <section className="run-trace__section">
-      <h3 className="run-trace__heading">Workspace</h3>
+      <h3 className="run-trace__heading">{t("runs.workspace.heading")}</h3>
       <dl className="run-trace__stats">
         <div>
-          <dt>Restore</dt>
-          <dd>{workspaceRestoreLabel(ws.restore_status)}</dd>
+          <dt>{t("runs.workspace.restore")}</dt>
+          <dd>{workspaceRestoreLabel(ws.restore_status, t)}</dd>
         </div>
         <div>
-          <dt>Checkpoint</dt>
-          <dd>{workspaceCheckpointLabel(ws.checkpoint_status)}</dd>
+          <dt>{t("runs.workspace.checkpoint")}</dt>
+          <dd>{workspaceCheckpointLabel(ws.checkpoint_status, t)}</dd>
         </div>
       </dl>
       {ws.restore_error ? (
         <div className="run-trace__error" role="alert">
-          <span className="run-trace__label">Restore error</span>
+          <span className="run-trace__label">{t("runs.workspace.restoreError")}</span>
           <pre className="run-trace__error-text">{ws.restore_error}</pre>
         </div>
       ) : null}
       {ws.checkpoint_error ? (
         <div className="run-trace__error" role="alert">
-          <span className="run-trace__label">Checkpoint error</span>
+          <span className="run-trace__label">{t("runs.workspace.checkpointError")}</span>
           <pre className="run-trace__error-text">{ws.checkpoint_error}</pre>
         </div>
       ) : null}
@@ -231,20 +240,21 @@ function WorkspaceSection({ workspace }: { workspace?: ApiTraceWorkspace }) {
 }
 
 function SpendCallRow({ call }: { call: ApiTaskRunLLMCall }) {
+  const t = useT()
   const failed = call.status === "FAILED" || call.status === "CANCELED"
   const tokens =
     typeof call.total_tokens === "number"
-      ? `${call.total_tokens.toLocaleString()} tokens`
+      ? t("runs.call.tokens", { tokens: call.total_tokens.toLocaleString() })
       : // An unreported count is not a free call, so it says so rather than
         // showing a zero the provider never sent.
-        "usage not reported"
+        t("runs.call.usageNotReported")
   return (
     <li className={failed ? "run-trace__call run-trace__call--failed" : "run-trace__call"}>
       <span className="run-trace__call-model">{call.model || "—"}</span>
       <span className="run-trace__call-tokens">{tokens}</span>
       {failed ? (
         <span className="run-trace__call-failed">
-          {call.status.toLowerCase()}
+          {t(call.status === "FAILED" ? "runs.call.failed" : "runs.call.canceled")}
           {call.error_class ? ` · ${call.error_class}` : ""}
         </span>
       ) : (
@@ -254,12 +264,14 @@ function SpendCallRow({ call }: { call: ApiTaskRunLLMCall }) {
           row without it means "not reported", not "missed". */}
       {(call.cache_read_tokens ?? 0) > 0 || (call.cache_write_tokens ?? 0) > 0 ? (
         <span className="run-trace__call-cache">
-          cache {(call.cache_read_tokens ?? 0).toLocaleString()} r /{" "}
-          {(call.cache_write_tokens ?? 0).toLocaleString()} w
+          {t("runs.call.cache", {
+            read: (call.cache_read_tokens ?? 0).toLocaleString(),
+            write: (call.cache_write_tokens ?? 0).toLocaleString(),
+          })}
         </span>
       ) : null}
       {typeof call.attempts === "number" && call.attempts > 1 ? (
-        <span className="run-trace__call-attempts">{call.attempts} attempts</span>
+        <span className="run-trace__call-attempts">{t("runs.call.attempts", { count: call.attempts })}</span>
       ) : null}
     </li>
   )
@@ -283,11 +295,12 @@ function SpendSection({
   error: string | null
   trace: ApiTaskRunTrace | null
 }) {
-  const note = describeSpend({ calls, error, trace })
+  const t = useT()
+  const note = describeSpend({ calls, error, trace }, t)
   const summary = summarizeSpend(calls)
   return (
     <section className="run-trace__section">
-      <h3 className="run-trace__heading">Managed model calls</h3>
+      <h3 className="run-trace__heading">{t("runs.spend.heading")}</h3>
       {note ? (
         <p className="run-trace__spend-note" role={error ? "alert" : undefined}>
           {note}
@@ -296,17 +309,17 @@ function SpendSection({
         <>
           <dl className="run-trace__stats">
             <div>
-              <dt>Accounted calls</dt>
+              <dt>{t("runs.spend.accountedCalls")}</dt>
               <dd>{summary.calls}</dd>
             </div>
             <div>
-              <dt>Accounted tokens</dt>
+              <dt>{t("runs.spend.accountedTokens")}</dt>
               <dd>
                 {summary.totalTokens.toLocaleString()}
                 {summary.unreported > 0 ? (
                   <span className="run-trace__unreported">
                     {" "}
-                    · {summary.unreported} call{summary.unreported === 1 ? "" : "s"} unreported
+                    · {t("runs.spend.unreported", { count: summary.unreported })}
                   </span>
                 ) : null}
               </dd>
@@ -316,15 +329,14 @@ function SpendSection({
                 providers that report nothing at all. */}
             {summary.cacheReadTokens > 0 || summary.cacheWriteTokens > 0 ? (
               <div>
-                <dt>Cached prompt (read / write)</dt>
+                <dt>{t("runs.spend.cached")}</dt>
                 <dd>
                   {summary.cacheReadTokens.toLocaleString()} /{" "}
                   {summary.cacheWriteTokens.toLocaleString()}
                   {summary.cacheUnreported > 0 ? (
                     <span className="run-trace__unreported">
                       {" "}
-                      · {summary.cacheUnreported} call
-                      {summary.cacheUnreported === 1 ? "" : "s"} reported no cache
+                      · {t("runs.spend.cacheUnreported", { count: summary.cacheUnreported })}
                     </span>
                   ) : null}
                 </dd>
@@ -334,7 +346,7 @@ function SpendSection({
                 An estimate assembled from half a price list looks
                 authoritative and is not. */}
             <div>
-              <dt>Estimated cost</dt>
+              <dt>{t("runs.spend.estimatedCost")}</dt>
               <dd>
                 {summary.cost ? (
                   <>
@@ -342,12 +354,12 @@ function SpendSection({
                     {summary.unpriced > 0 ? (
                       <span className="run-trace__unreported">
                         {" "}
-                        · {summary.unpriced} call{summary.unpriced === 1 ? "" : "s"} unpriced
+                        · {t("runs.spend.unpriced", { count: summary.unpriced })}
                       </span>
                     ) : null}
                   </>
                 ) : (
-                  <span className="run-trace__unreported">unavailable</span>
+                  <span className="run-trace__unreported">{t("runs.spend.unavailable")}</span>
                 )}
               </dd>
             </div>
@@ -356,31 +368,31 @@ function SpendSection({
                 calling that a small saving would be a false claim. */}
             {summary.cost && cacheSaving(summary.cost) !== null ? (
               <div>
-                <dt>Saved by caching</dt>
+                <dt>{t("runs.spend.savedByCaching")}</dt>
                 <dd>
                   {formatAmount(cacheSaving(summary.cost) ?? 0, summary.cost.currency)}
                   <span className="run-trace__unreported">
                     {" "}
-                    · {formatAmount(summary.cost.baseline, summary.cost.currency)} uncached
+                    · {t("runs.spend.uncached", { amount: formatAmount(summary.cost.baseline, summary.cost.currency) })}
                   </span>
                 </dd>
               </div>
             ) : null}
             {summary.failed > 0 ? (
               <div>
-                <dt>Failed calls</dt>
+                <dt>{t("runs.spend.failedCalls")}</dt>
                 <dd>{summary.failed}</dd>
               </div>
             ) : null}
             {summary.inFlight > 0 ? (
               <div>
-                <dt>Unfinished calls</dt>
+                <dt>{t("runs.spend.unfinishedCalls")}</dt>
                 <dd>{summary.inFlight}</dd>
               </div>
             ) : null}
             {summary.retried > 0 ? (
               <div>
-                <dt>Retries</dt>
+                <dt>{t("runs.spend.retries")}</dt>
                 <dd>{summary.retried}</dd>
               </div>
             ) : null}
@@ -393,8 +405,7 @@ function SpendSection({
               <li key={entry.model}>
                 <span className="run-trace__call-model">{entry.model}</span>
                 <span className="run-trace__call-tokens">
-                  {entry.calls} call{entry.calls === 1 ? "" : "s"} ·{" "}
-                  {entry.totalTokens.toLocaleString()} tokens
+                  {t("runs.spend.modelUsage", { count: entry.calls, tokens: entry.totalTokens.toLocaleString() })}
                 </span>
               </li>
             ))}
@@ -430,24 +441,25 @@ function OriginSection({
   provenance: ApiRunProvenance | null
   error: string | null
 }) {
+  const t = useT()
   if (!provenance) {
     return (
       <section className="run-trace__section">
-        <h3 className="run-trace__heading">Origin</h3>
+        <h3 className="run-trace__heading">{t("runs.origin.heading")}</h3>
         <p className="run-trace__spend-note" role={error ? "alert" : undefined}>
-          {error ?? "Where this run came from was not recorded."}
+          {error ?? t("runs.origin.notRecorded")}
         </p>
       </section>
     )
   }
-  const origin = describeOrigin(provenance)
-  const agent = describeAgent(provenance)
-  const spaceInstructions = describeSpaceInstructions(provenance)
+  const origin = describeOrigin(provenance, t)
+  const agent = describeAgent(provenance, t)
+  const spaceInstructions = describeSpaceInstructions(provenance, t)
   const said = provenance.source_message
   const verbatim = inputMatchesMessage(provenance)
   return (
     <section className="run-trace__section">
-      <h3 className="run-trace__heading">Origin</h3>
+      <h3 className="run-trace__heading">{t("runs.origin.heading")}</h3>
       <p className="run-trace__origin-text">{origin.text}</p>
       {spaceInstructions ? (
         <p
@@ -473,11 +485,11 @@ function OriginSection({
       ) : null}
       {said ? (
         <>
-          <span className="run-trace__origin-label">Asked for as</span>
+          <span className="run-trace__origin-label">{t("runs.origin.askedFor")}</span>
           <pre className="run-trace__quote">{said.content}</pre>
           {said.truncated ? (
             <p className="run-trace__truncated">
-              Quoted to the first part of the message; the conversation has the rest.
+              {t("runs.origin.quoteTruncated")}
             </p>
           ) : null}
         </>
@@ -485,18 +497,18 @@ function OriginSection({
         <p className="run-trace__spend-note">
           {origin.quote === "none-expected"
             ? origin.isRepeat
-              ? "Nothing was said for this run — it repeats an earlier one with the same input."
-              : "No message asked for this run; a runtime dispatched it."
-            : "No message is recorded for this run, so what was asked for cannot be compared."}
+              ? t("runs.origin.noneRepeat")
+              : t("runs.origin.noneDispatched")
+            : t("runs.origin.noneRecorded")}
         </p>
       )}
-      <span className="run-trace__origin-label">Sent to the worker</span>
+      <span className="run-trace__origin-label">{t("runs.origin.sentToWorker")}</span>
       <pre className="run-trace__quote">{provenance.input}</pre>
       {said && !said.truncated ? (
         <p className="run-trace__truncated">
           {verbatim
-            ? "The request was passed through unchanged."
-            : "The instruction was rewritten from the message above."}
+            ? t("runs.origin.verbatim")
+            : t("runs.origin.rewritten")}
         </p>
       ) : null}
     </section>
@@ -517,10 +529,11 @@ function PluginsSection({
   spaceId: string | null
   onClose: () => void
 }) {
+  const t = useT()
   if (!pins || pins.length === 0) return null
   return (
     <section className="run-trace__section">
-      <h3 className="run-trace__heading">Plugins</h3>
+      <h3 className="run-trace__heading">{t("runs.plugins.heading")}</h3>
       <ul className="run-trace__tools">
         {pins.map((pin) => (
           <li key={pin.plugin_name} className="run-trace__tool">
@@ -538,7 +551,7 @@ function PluginsSection({
           if (spaceId) navigate({ name: "space", spaceId, section: "plugins" })
         }}
       >
-        Open Space Plugins
+        {t("runs.plugins.open")}
       </button>
     </section>
   )
@@ -552,10 +565,11 @@ function ArtifactsSection({
   artifacts: ApiRunProvenance["artifacts"]
   onClose: () => void
 }) {
+  const t = useT()
   if (!artifacts || artifacts.length === 0) return null
   return (
     <section className="run-trace__section">
-      <h3 className="run-trace__heading">Artifacts published</h3>
+      <h3 className="run-trace__heading">{t("runs.artifacts.heading")}</h3>
       <ul className="run-trace__tools">
         {artifacts.map((artifact) => (
           <li key={artifact.id} className="run-trace__tool">
@@ -584,6 +598,7 @@ function ArtifactsSection({
  * produced, why it ended, and what confined it.
  */
 export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunTraceModalProps) {
+  const t = useT()
   const [trace, setTrace] = useState<ApiTaskRunTrace | null>(null)
   const [provenance, setProvenance] = useState<ApiRunProvenance | null>(null)
   const [provenanceError, setProvenanceError] = useState<string | null>(null)
@@ -616,7 +631,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
         // The server explains a missing trace precisely — never recorded, or
         // gone from storage. Those mean different things to an operator, so
         // pass its message through instead of substituting a generic failure.
-        if (!cancelled) setError(getErrorMessage(err, "Failed to load this run's trace"))
+        if (!cancelled) setError(getErrorMessage(err, t("runs.error.trace")))
       })
     const callsRequest = listTaskRunLLMCalls(spaceId, taskRunId, token)
       .then((result) => {
@@ -624,7 +639,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
       })
       .catch((err) => {
         if (!cancelled) {
-          setCallsError(getErrorMessage(err, "Failed to load this run's model calls"))
+          setCallsError(getErrorMessage(err, t("runs.error.calls")))
         }
       })
 
@@ -634,7 +649,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
       })
       .catch((err) => {
         if (!cancelled) {
-          setProvenanceError(getErrorMessage(err, "Failed to load where this run came from"))
+          setProvenanceError(getErrorMessage(err, t("runs.error.origin")))
         }
       })
 
@@ -644,12 +659,12 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
     return () => {
       cancelled = true
     }
-  }, [open, spaceId, token, taskRunId])
+  }, [open, spaceId, token, taskRunId, t])
 
   return (
     <BaseModal
       open={open}
-      title="Run details"
+      title={t("runs.title")}
       titleId="run-trace-title"
       onClose={onClose}
       className="modal--large"
@@ -657,7 +672,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
       <div className="modal__body">
         <p className="modal__hint">{taskRunId ?? ""}</p>
         {loading ? (
-          <p className="page-activity__empty">Loading…</p>
+          <p className="page-activity__empty">{t("shell.loading")}</p>
         ) : (
           <>
             {/* First and unconditional: a run that wrote no trace still came
@@ -682,7 +697,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
       </div>
       <div className="modal__actions">
         <Button variant="secondary" onClick={onClose}>
-          Close
+          {t("runs.close")}
         </Button>
       </div>
     </BaseModal>
