@@ -214,7 +214,7 @@
   gap: 0.6rem;
   margin: 0.6rem 0 1rem;
   padding: 0.8rem 1rem;
-  border: 1px solid var(--border, #d0d7de);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
 }
 
@@ -241,12 +241,12 @@
 }
 
 .workflow-run-input__required {
-  color: var(--danger, #d1242f);
+  color: var(--color-danger);
 }
 
 .workflow-run-input__description {
   font-weight: 400;
-  color: var(--muted, #57606a);
+  color: var(--color-text-muted);
 }
 
 /* Read-only workflow DAG (WorkflowGraph). Node boxes are laid out left-to-right
@@ -267,7 +267,7 @@
 }
 
 .wf-graph__edge {
-  stroke: var(--color-border, #d0d7de);
+  stroke: var(--color-border);
   stroke-width: 2;
 }
 
@@ -278,11 +278,11 @@
   justify-content: center;
   gap: 0.1rem;
   padding: 0.35rem 0.55rem;
-  border: 1px solid var(--color-border, #d0d7de);
+  border: 1px solid var(--color-border);
   border-left-width: 4px;
   border-radius: 8px;
-  background: var(--color-bg-elevated, #fff);
-  color: var(--color-text, #1f2328);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
   text-align: left;
   font: inherit;
   overflow: hidden;
@@ -293,11 +293,11 @@ button.wf-graph__node {
 }
 
 button.wf-graph__node:hover {
-  background: var(--color-bg-hover, #f6f8fa);
+  background: var(--color-bg-hover);
 }
 
 button.wf-graph__node:focus-visible {
-  outline: 2px solid var(--color-focus-ring, #0969da);
+  outline: 2px solid var(--color-focus);
   outline-offset: 1px;
 }
 
@@ -309,7 +309,7 @@ button.wf-graph__node:focus-visible {
 
 .wf-graph__node-sub {
   font-size: 0.72rem;
-  color: var(--color-text-muted, #57606a);
+  color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
 
@@ -317,7 +317,7 @@ button.wf-graph__node:focus-visible {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--color-text-muted, #57606a);
+  color: var(--color-text-muted);
 }
 
 .wf-graph__node--succeeded {
@@ -329,20 +329,20 @@ button.wf-graph__node:focus-visible {
 }
 
 .wf-graph__node--failed {
-  border-left-color: var(--color-danger, #d1242f);
+  border-left-color: var(--color-danger);
 }
 
 /* A retrying node is between attempts: still live, not yet failed. */
 .wf-graph__node--retry_wait,
 .wf-graph__node--waiting,
 .wf-graph__node--blocked {
-  border-left-color: var(--color-warning, #9a6700);
+  border-left-color: var(--color-warning);
 }
 
 .wf-graph__node--canceled,
 .wf-graph__node--pending,
 .wf-graph__node--unknown {
-  border-left-color: var(--color-border, #d0d7de);
+  border-left-color: var(--color-border);
 }
 
 /* State-driven detail page: status pill, header meta chip, banners, topology. */
@@ -361,15 +361,15 @@ button.wf-graph__node:focus-visible {
 }
 
 .workflow-status-pill--published {
-  border-color: #bfe3c7;
-  background: #e9f6ec;
-  color: #2f7d43;
+  border-color: color-mix(in srgb, var(--color-status-success) 30%, transparent);
+  background: color-mix(in srgb, var(--color-status-success) 10%, transparent);
+  color: var(--color-status-success);
 }
 
 .workflow-status-pill--draft {
-  border-color: #f0d9a8;
-  background: #fff7e6;
-  color: #8a6d1f;
+  border-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  color: var(--color-warning);
 }
 
 .workflow-detail__banner {

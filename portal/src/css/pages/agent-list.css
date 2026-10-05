@@ -47,7 +47,7 @@
 
 .agent-card:hover {
   border-color: var(--color-text-muted);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-raised);
   background: var(--color-bg-muted);
 }
 

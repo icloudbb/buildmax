@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--color-overlay);
   animation: modal-fade-in 0.15s ease-out;
 }
 
@@ -297,7 +297,7 @@ button.modal__group-header:hover {
 .modal__error {
   margin: 0;
   font-size: 0.85rem;
-  color: #c00;
+  color: var(--color-danger);
 }
 
 .modal__actions {

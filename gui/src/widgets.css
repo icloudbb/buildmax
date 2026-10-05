@@ -141,14 +141,14 @@
 }
 
 .bm-chat-composer__button--cancel {
-  color: #b91c1c;
-  border-color: #b91c1c;
+  color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 .bm-chat-composer__button--cancel:hover {
-  background: #fef2f2;
-  border-color: #991b1b;
-  color: #991b1b;
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 .bm-chat-composer__spinner {
   animation: bm-chat-composer-spin 0.7s linear infinite;
@@ -161,7 +161,7 @@
 
 .bm-chat-composer__error {
   margin: 0.5rem 0 0;
-  color: #b91c1c;
+  color: var(--color-danger);
   font-size: 0.95rem;
 }
 
@@ -189,7 +189,7 @@
 }
 
 .bm-chat-thread__text--error {
-  color: #b91c1c;
+  color: var(--color-danger);
 }
 
 .bm-chat-thread__row {
@@ -303,13 +303,13 @@
 }
 
 .bm-question__btn--primary {
-  border-color: var(--color-accent, #3b82f6);
-  background: var(--color-accent, #3b82f6);
-  color: #fff;
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .bm-question__btn--primary:hover:not(:disabled) {
-  color: #fff;
+  color: var(--color-accent-text);
   filter: brightness(1.08);
 }
 
@@ -318,7 +318,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-accent, #3b82f6);
+  color: var(--color-accent);
 }
 
 .bm-question__tabs {
@@ -339,7 +339,7 @@
 }
 
 .bm-question__tab--active {
-  border-color: var(--color-accent, #3b82f6);
+  border-color: var(--color-accent);
   color: var(--color-text);
   font-weight: 600;
 }
@@ -350,8 +350,8 @@
 }
 
 .bm-question__option--checked {
-  border-color: var(--color-accent, #3b82f6);
-  background: color-mix(in srgb, var(--color-accent, #3b82f6) 8%, transparent);
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
 .bm-question__text {
@@ -384,11 +384,11 @@
 
 .bm-question__option:hover,
 .bm-question__option:focus-visible {
-  border-color: var(--color-accent, #3b82f6);
+  border-color: var(--color-accent);
 }
 
 .bm-question__num {
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   color: var(--color-text-muted);
 }
 

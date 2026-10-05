@@ -50,8 +50,8 @@
 }
 
 .page-schedules__banner--error {
-  background: var(--color-danger-bg, rgba(220, 60, 60, 0.12));
-  color: var(--color-danger, #c0392b);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
 }
 
 .page-schedules__banner button {
@@ -169,10 +169,10 @@
    red outline and red text set it apart from the neutral Pause/Edit ghosts. */
 .page-schedules__danger {
   padding: 0.4rem 0.75rem;
-  border: 1px solid var(--color-danger, #c0392b);
+  border: 1px solid var(--color-danger);
   border-radius: 6px;
   background: none;
-  color: var(--color-danger, #c0392b);
+  color: var(--color-danger);
   font: inherit;
   font-size: 0.82rem;
   font-weight: 600;
@@ -180,19 +180,19 @@
 }
 
 .page-schedules__danger:hover {
-  background: var(--color-danger, #c0392b);
-  color: #fff;
+  background: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
 /* The delete-confirm dialog's warning line, in danger red. */
 .page-schedules__confirm-warn {
-  color: var(--color-danger, #c0392b);
+  color: var(--color-danger);
 }
 
 .page-schedules__form-error {
   margin: 0;
   font-size: 0.82rem;
-  color: var(--color-danger, #c0392b);
+  color: var(--color-danger);
 }
 
 .page-schedules__hint {
@@ -243,8 +243,8 @@
 }
 
 .page-schedules__badge--on {
-  background: var(--color-success-bg, rgba(60, 160, 90, 0.15));
-  color: var(--color-success, #2e7d46);
+  background: color-mix(in srgb, var(--color-status-success) 15%, transparent);
+  color: var(--color-status-success);
 }
 
 .page-schedules__badge--off {
@@ -253,8 +253,8 @@
 }
 
 .page-schedules__badge--warn {
-  background: var(--color-danger-bg, rgba(220, 60, 60, 0.12));
-  color: var(--color-danger, #c0392b);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
 }
 
 .page-schedules__card-meta {
@@ -307,7 +307,7 @@
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--color-border-subtle);
   border-radius: 8px;
-  background: var(--color-surface);
+  background: var(--color-bg-elevated);
   color: var(--color-text);
   font: inherit;
   text-align: left;
@@ -315,7 +315,7 @@
 }
 
 .page-schedules__run:hover:not(:disabled) {
-  background: var(--color-surface-hover, rgba(127, 127, 127, 0.1));
+  background: var(--color-bg-hover);
 }
 
 .page-schedules__run:disabled {
@@ -348,11 +348,11 @@
 }
 
 .page-schedules__run-status--ok {
-  color: var(--color-success, #2e7d32);
+  color: var(--color-status-success);
 }
 
 .page-schedules__run-status--failed {
-  color: var(--color-danger, #c62828);
+  color: var(--color-danger);
 }
 
 .page-schedules__run-status--running {
@@ -394,7 +394,7 @@
 }
 
 .page-schedules__preview-error {
-  color: var(--color-danger, #c62828);
+  color: var(--color-danger);
 }
 
 .page-schedules__preview-hint {

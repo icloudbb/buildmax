@@ -87,7 +87,7 @@
   flex-shrink: 0;
   width: 12px;
   text-align: center;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 700;
 }
@@ -110,7 +110,7 @@
 .explorer__change-counts {
   flex-shrink: 0;
   margin-left: auto;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   color: var(--color-text-subtle);
 }
@@ -185,7 +185,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   border: 1px solid var(--color-border);
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
 }
 
 .explorer__change--depth1,
@@ -286,7 +286,7 @@
 }
 
 .explorer__hint--error {
-  color: var(--color-error, #dc2626);
+  color: var(--color-danger);
 }
 
 .explorer__hint--nested {

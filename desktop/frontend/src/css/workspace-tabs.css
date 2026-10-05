@@ -22,12 +22,12 @@
   border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 0.8rem;
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
 }
 
 .workspace-banner--error {
-  color: var(--color-danger, #d64545);
-  border-color: var(--color-danger, #d64545);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 .workspace-banner button {
@@ -63,7 +63,7 @@
   margin-top: 6px;
   border-top: 1px solid var(--color-border);
   font-size: 0.75rem;
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
 }
 
 .workspace-statusbar__status {
@@ -93,7 +93,7 @@
 
 .workspace-statusbar__browser:hover {
   background: var(--color-border);
-  color: var(--color-text, inherit);
+  color: var(--color-text);
 }
 
 .browser-view {
@@ -103,11 +103,11 @@
   align-items: center;
   justify-content: center;
   overflow: auto;
-  background: var(--color-bg, #1e1e1e);
+  background: var(--color-bg);
 }
 
 .browser-view--empty {
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
   font-size: 0.85rem;
   padding: 1rem;
   text-align: center;
@@ -136,7 +136,7 @@
 
 .workspace-statusbar__btn:hover {
   background: var(--color-border);
-  color: var(--color-text, inherit);
+  color: var(--color-text);
 }
 
 .workspace-statusbar__btn svg {
@@ -167,11 +167,11 @@
   max-height: 320px;
   overflow-y: auto;
   padding: 4px;
-  background: var(--color-surface, #fff);
+  background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
-  color: var(--color-text, inherit);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-text);
 }
 
 .launchpad-popover__title {
@@ -180,12 +180,12 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
 }
 
 .launchpad-empty {
   padding: 6px 8px;
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
 }
 
 .launchpad-item {
@@ -219,14 +219,14 @@
   background: none;
   border: none;
   padding: 0 8px;
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
 }
 
 .launchpad-item__remove:hover {
-  color: var(--color-text, inherit);
+  color: var(--color-text);
 }
 
 .launchpad-actions {
@@ -240,7 +240,7 @@
   padding: 6px 8px;
   background: none;
   border: none;
-  color: var(--color-accent, #3b82f6);
+  color: var(--color-accent);
   font-size: 0.8rem;
   text-align: left;
   cursor: pointer;
@@ -261,7 +261,7 @@
 .launchpad-urlform__input {
   width: 100%;
   padding: 4px 6px;
-  background: var(--color-bg, #fff);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 4px;
   color: inherit;
@@ -283,9 +283,9 @@
 }
 
 .launchpad-urlform__save {
-  background: var(--color-accent, #3b82f6);
-  border-color: var(--color-accent, #3b82f6);
-  color: #fff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .launchpad-urlform__save[disabled] {
@@ -325,16 +325,16 @@
 /* When more than one pane is open, mark the focused one — it is where the next
    opened file, diff, or terminal will land. */
 .workspace-pane--focused {
-  border-color: var(--color-accent, #4a9eff);
+  border-color: var(--color-accent);
 }
 
 .workspace-pane--focused .workspace-tabs__bar {
-  box-shadow: inset 0 2px 0 var(--color-accent, #4a9eff);
+  box-shadow: inset 0 2px 0 var(--color-accent);
 }
 
 /* The pane a dragged tab would drop into. */
 .workspace-pane--drop {
-  outline: 2px dashed var(--color-accent, #4a9eff);
+  outline: 2px dashed var(--color-accent);
   outline-offset: -2px;
   border-radius: 6px;
 }
@@ -352,7 +352,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
   font-size: 0.85rem;
 }
 
@@ -382,7 +382,7 @@
 .chat-info__title {
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
 }
 
 .chat-info__close {
@@ -426,15 +426,15 @@
   display: flex;
   align-items: center;
   border-radius: 6px 6px 0 0;
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
   border: 1px solid transparent;
   border-bottom: none;
 }
 
 .workspace-tabs__tab--active {
   color: var(--color-text);
-  background: var(--color-surface, rgba(127, 127, 127, 0.1));
-  box-shadow: inset 0 -2px 0 var(--color-accent, #4a9eff);
+  background: var(--color-bg-muted);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
 }
 
 .workspace-tabs__tab--preview .workspace-tabs__tab-title {
@@ -485,7 +485,7 @@
   align-self: center;
   background: none;
   border: none;
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
   cursor: pointer;
   opacity: 0.6;
   padding: 0 0.45rem;
@@ -509,7 +509,7 @@
   align-self: center;
   background: none;
   border: none;
-  color: var(--color-text-muted, #888);
+  color: var(--color-text-muted);
   cursor: pointer;
   opacity: 0.6;
   padding: 0 0.3rem;
@@ -528,11 +528,11 @@
 
 /* Drag-to-reorder: a bar on the edge the dragged tab would drop against. */
 .workspace-tabs__tab--drop-before {
-  box-shadow: inset 2px 0 0 var(--color-accent, #4a9eff);
+  box-shadow: inset 2px 0 0 var(--color-accent);
 }
 
 .workspace-tabs__tab--drop-after {
-  box-shadow: inset -2px 0 0 var(--color-accent, #4a9eff);
+  box-shadow: inset -2px 0 0 var(--color-accent);
 }
 
 /* Tab context menu. It reuses .context-menu (see sidebar.css) for its frame; the
@@ -580,7 +580,7 @@
 
 .workspace-tabs__tab-rename:focus {
   outline: none;
-  border-color: var(--color-accent, #4a9eff);
+  border-color: var(--color-accent);
 }
 
 /* Maximize as an overlay: the pane floats above the grid, which stays visible
@@ -591,7 +591,7 @@
   z-index: 50;
   display: flex;
   padding: 3%;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--color-overlay);
   animation: workspace-maximize-fade 0.12s ease-out;
 }
 
@@ -602,7 +602,7 @@
   border-radius: 10px;
   overflow: hidden;
   background: var(--color-bg);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-modal);
   animation: workspace-maximize-zoom 0.12s ease-out;
 }
 

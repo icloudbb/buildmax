@@ -281,7 +281,7 @@
 }
 
 .page-chat__markdown th {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--color-bg-muted);
   font-weight: 600;
 }
 

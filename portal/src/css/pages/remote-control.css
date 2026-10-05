@@ -163,7 +163,7 @@
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.55;
   color: var(--color-text);
@@ -203,7 +203,7 @@
   border: 1px solid var(--color-primary);
   border-radius: 8px;
   background: var(--color-primary);
-  color: var(--color-bg, #fff);
+  color: var(--color-bg);
   cursor: pointer;
   font: inherit;
   font-weight: 600;
@@ -216,7 +216,7 @@
 
 /* The AskUser question set, rendered by @buildmax/gui QuestionForm. */
 .rc-question {
-  border: 1px solid var(--color-accent, #3b82f6);
+  border: 1px solid var(--color-accent);
   border-radius: 10px;
   padding: 12px 14px;
 }
@@ -246,7 +246,7 @@
 }
 
 .rc-approval__tool {
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   color: var(--color-warning);
 }
 

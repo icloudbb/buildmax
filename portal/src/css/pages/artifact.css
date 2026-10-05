@@ -44,7 +44,7 @@
 }
 
 .artifact-details__digest {
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 
@@ -99,7 +99,7 @@
 }
 
 .artifact-share-dialog__link {
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   font-size: 12px;
   overflow-wrap: anywhere;
   flex: 1 1 auto;

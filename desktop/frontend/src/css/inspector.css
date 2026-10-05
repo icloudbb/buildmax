@@ -53,7 +53,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--color-bg-elevated, var(--color-bg));
+  background: var(--color-bg-elevated);
   border-left: 1px solid var(--color-border);
   color: var(--color-text);
 }
@@ -162,7 +162,7 @@
 
 .inspector--expanded .diff-drawer__body {
   display: grid;
-  grid-template-columns: var(--list-w, 16rem) 5px minmax(0, 1fr);
+  grid-template-columns: 16rem 5px minmax(0, 1fr);
 }
 
 .inspector--expanded .diff-drawer__sidebar {
@@ -198,7 +198,7 @@
 
 .info-panel__path {
   margin-top: 0.15rem;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 0.76rem;
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
@@ -249,7 +249,7 @@
 
 .inspector--expanded .file-browser {
   display: grid;
-  grid-template-columns: var(--tree-w, 16rem) 5px minmax(0, 1fr);
+  grid-template-columns: 16rem 5px minmax(0, 1fr);
 }
 
 .inspector--expanded .file-browser__tree {
@@ -312,7 +312,7 @@
 }
 
 .file-tree__hint--error {
-  color: var(--color-error, #dc2626);
+  color: var(--color-danger);
 }
 
 /* File preview pane */
@@ -340,7 +340,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   font-weight: 600;
 }
@@ -378,8 +378,8 @@
 }
 
 .file-view__badge--error {
-  color: var(--color-danger, #d64545);
-  border-color: var(--color-danger, #d64545);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
   max-width: 18rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -398,7 +398,7 @@
   overflow: auto;
   margin: 0;
   padding: 0.6rem 0.85rem;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   line-height: 1.5;
   white-space: pre;
@@ -418,7 +418,7 @@
   outline: none;
   background: transparent;
   color: var(--color-text);
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   line-height: 1.5;
   tab-size: 4;
@@ -450,5 +450,5 @@
 }
 
 .file-view__hint--error {
-  color: var(--color-error, #dc2626);
+  color: var(--color-danger);
 }

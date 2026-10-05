@@ -471,7 +471,7 @@
   padding: 0.6rem 0.75rem;
   max-height: 12rem;
   overflow: auto;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   line-height: 1.4;
   white-space: pre-wrap;
@@ -492,7 +492,7 @@
   padding: 0.75rem 1rem;
   max-height: 60vh;
   overflow: auto;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   line-height: 1.45;
   white-space: pre-wrap;

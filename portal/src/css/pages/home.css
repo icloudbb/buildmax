@@ -18,7 +18,7 @@
 .page-home__error {
   margin: 0 0 0.75rem;
   font-size: 0.85rem;
-  color: #c00;
+  color: var(--color-danger);
 }
 
 /* New Chat page */

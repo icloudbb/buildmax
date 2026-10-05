@@ -301,7 +301,7 @@
   padding: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: var(--color-bg-subtle);
+  background: var(--color-bg-muted);
 }
 
 .agent-schedules__label {
@@ -336,7 +336,7 @@
 .agent-schedules__error {
   margin: 0;
   font-size: 0.82rem;
-  color: var(--color-error);
+  color: var(--color-danger);
 }
 
 .agent-schedules__list {
