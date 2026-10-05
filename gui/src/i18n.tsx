@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -124,7 +125,9 @@ export function missingKeys(messages: Messages<string>): string[] {
 export type Translate<K extends string> = (key: K, vars?: MessageVars) => string
 
 /**
- * Bind a catalog to the locale context. `useT` serves components; `translate`
+ * Bind a catalog to the locale context. `useT` serves rendering; `useStableT`
+ * serves text composed inside effects and async callbacks, whose dependencies
+ * must not change with the language or a switch would reload data; `translate`
  * serves code that already knows the locale.
  */
 export function createTranslator<K extends string>(messages: Messages<K>) {
@@ -138,5 +141,14 @@ export function createTranslator<K extends string>(messages: Messages<K>) {
     return useCallback((key: K, vars?: MessageVars) => translate(locale, key, vars), [locale])
   }
 
-  return { translate, useT }
+  function useStableT(): Translate<K> {
+    const { locale } = useLocale()
+    const current = useRef(locale)
+    useEffect(() => {
+      current.current = locale
+    }, [locale])
+    return useCallback((key: K, vars?: MessageVars) => translate(current.current, key, vars), [])
+  }
+
+  return { translate, useT, useStableT }
 }

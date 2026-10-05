@@ -17,7 +17,7 @@ const sample = {
   "zh-CN": { "s.hello": "你好，{name}", "s.items": "{count} 项" },
 } satisfies Messages<string>
 
-const { translate, useT } = createTranslator(sample)
+const { translate, useT, useStableT } = createTranslator(sample)
 
 function Greeting() {
   const t = useT()
@@ -97,5 +97,27 @@ describe("LocaleProvider", () => {
       </LocaleProvider>,
     )
     expect(screen.getByRole("button", { name: "关闭" })).toBeTruthy()
+  })
+})
+
+describe("useStableT", () => {
+  it("keeps one identity across a language switch and translates in the current language", () => {
+    const seen: unknown[] = []
+    let latest: ((key: "s.hello", vars: { name: string }) => string) | null = null
+    function Probe() {
+      const stable = useStableT()
+      const { setLocale } = useLocale()
+      seen.push(stable)
+      latest = stable
+      return <button type="button" onClick={() => setLocale("zh-CN")}>zh</button>
+    }
+    render(
+      <LocaleProvider>
+        <Probe />
+      </LocaleProvider>,
+    )
+    act(() => fireEvent.click(screen.getByRole("button", { name: "zh" })))
+    expect(new Set(seen).size).toBe(1)
+    expect(latest!("s.hello", { name: "Ada" })).toBe("你好，Ada")
   })
 })

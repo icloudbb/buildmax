@@ -4,7 +4,7 @@ import type { Agent, Issue, IssueCollectionQuery } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStatusLabel } from "../../lib/statusLabels"
-import { useT } from "../../i18n"
+import { useStableT, useT } from "../../i18n"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../lib/api/mappers"
 import { collectionFilter, createIssue, getIssues } from "../../features/issues"
 import { IssueBoard } from "./IssueBoard"
@@ -32,6 +32,7 @@ interface IssuesProps {
 
 export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
   const t = useT()
+  const stableT = useStableT()
   const statusLabel = useStatusLabel()
   const { view, owner, executor } = query
   const isBoard = view === "board"
@@ -78,8 +79,8 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
         setMembers(memberRes)
         setWorkflows(workflowRes.workflows.map(apiWorkflowToWorkflow))
       })
-      .catch((err) => setSupportError(classifyError(err, t("issues.error.loadSupport"))))
-  }, [token, spaceId, t])
+      .catch((err) => setSupportError(classifyError(err, stableT("issues.error.loadSupport"))))
+  }, [token, spaceId, stableT])
 
   const fetchIssues = useCallback(() => {
     if (!token || !spaceId || isBoard) {
@@ -101,9 +102,9 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
       })
       // issuesData from a prior successful fetch (if any) is left in place, so
       // a failed refresh reads as Stale rather than wiping the list.
-      .catch((err) => setListError(classifyError(err, t("issues.error.loadIssues"))))
+      .catch((err) => setListError(classifyError(err, stableT("issues.error.loadIssues"))))
       .finally(() => setLoading(false))
-  }, [page, token, spaceId, isBoard, owner, executor, t])
+  }, [page, token, spaceId, isBoard, owner, executor, stableT])
 
   const issuesState = useMemo(
     () => deriveResourceState({ loading, data: issuesData, error: listError, isEmpty: (data) => data.length === 0 }),

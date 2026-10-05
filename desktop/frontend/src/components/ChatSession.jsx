@@ -7,7 +7,7 @@ import { EventsOn } from '../lib/wailsRuntime';
 import { MarkdownMessage } from './MarkdownMessage';
 import { InfoPanel } from './InfoPanel';
 import { ChatInput } from './ChatInput';
-import { useT } from '../i18n';
+import { useStableT, useT } from '../i18n';
 
 // A session without a title names its tab with this. The tab title is saved in
 // the workspace layout, so it stays English there and TabBar translates it.
@@ -46,6 +46,7 @@ export function ChatSession({
   draft = null, onDraftConsumed,
 }) {
   const t = useT();
+  const stableT = useStableT();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -177,7 +178,7 @@ export function ChatSession({
       if (!ownEvent(payload)) return;
       streamingContentRef.current = '';
       setToolActivity('');
-      setError(payload?.message ?? t('chat.streamError'));
+      setError(payload?.message ?? stableT('chat.streamError'));
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === 'assistant' && last?.content === '') return prev.slice(0, -1);
@@ -225,7 +226,7 @@ export function ChatSession({
     const unsubBlocked = EventsOn(EV_MESSAGE_BLOCKED, (payload) => {
       if (!ownEvent(payload)) return;
       setQueuedMessages(payload?.queued ?? []);
-      setError(t('chat.blocked', { reason: payload?.reason ?? t('chat.noReason') }));
+      setError(stableT('chat.blocked', { reason: payload?.reason ?? stableT('chat.noReason') }));
     });
     const unsubJobDelivery = EventsOn(EV_JOB_DELIVERY, (payload) => {
       if ((payload?.session_id ?? '') !== sessionIdRef.current || !sessionIdRef.current) return;
@@ -235,8 +236,8 @@ export function ChatSession({
       setMessages((prev) => [...prev, {
         role: 'user',
         source: payload?.source || 'background_event',
-        content: t('chat.jobDelivery', {
-          source: payload?.source ?? t('chat.backgroundEvent'),
+        content: stableT('chat.jobDelivery', {
+          source: payload?.source ?? stableT('chat.backgroundEvent'),
           job: payload?.job_id ?? '',
           title: payload?.title ?? '',
         }),
@@ -251,7 +252,7 @@ export function ChatSession({
       unsubToolStart?.(); unsubToolEnd?.(); unsubRunStatus?.(); unsubDequeued?.();
       unsubBlocked?.(); unsubJobDelivery?.(); unsubTurnDigest?.();
     };
-  }, [ownEvent, app, tab, onSessionAdopted, onSessionsChanged, onTitle, t]);
+  }, [ownEvent, app, tab, onSessionAdopted, onSessionsChanged, onTitle, stableT]);
 
   // Pull parked background deliveries whenever this session is idle and on screen.
   // A projectless scheduled session has no jobs, so skip it entirely.

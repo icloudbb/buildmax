@@ -8,4 +8,4 @@ import { shellMessages } from './shell';
 // docs/design/ui-experience-program.md (D5).
 export const desktopMessages = mergeMessages(shellMessages, homeMessages, chatMessages);
 
-export const { useT, translate } = createTranslator(desktopMessages);
+export const { useT, useStableT, translate } = createTranslator(desktopMessages);

@@ -6,7 +6,7 @@ import { buildHash } from "../../router"
 import type { ApiIssueComment, ApiSpaceMember } from "../../lib/api/types"
 import { createIssueComment, deleteIssueComment, getIssueComments, replyToRequester, updateIssueComment } from "./comments"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { useT } from "../../i18n"
+import { useStableT, useT } from "../../i18n"
 
 /** Matches CommentBodyLimit in internal/service/issue. */
 const BODY_LIMIT = 16 * 1024
@@ -61,6 +61,7 @@ export function IssueDiscussion({
   requesterReply,
 }: IssueDiscussionProps) {
   const t = useT()
+  const stableT = useStableT()
   const [comments, setComments] = useState<ApiIssueComment[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -84,12 +85,12 @@ export function IssueDiscussion({
           setError(null)
         }
       } catch (err) {
-        if (seq === loadSeq.current) setError(getErrorMessage(err, t("issues.comment.error.load")))
+        if (seq === loadSeq.current) setError(getErrorMessage(err, stableT("issues.comment.error.load")))
       } finally {
         if (seq === loadSeq.current && showSpinner) setLoading(false)
       }
     },
-    [spaceId, issueId, token, t],
+    [spaceId, issueId, token, stableT],
   )
 
   useEffect(() => {

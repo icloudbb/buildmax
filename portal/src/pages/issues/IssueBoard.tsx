@@ -6,7 +6,7 @@ import { ApiRequestError } from "../../lib/api/client"
 import { apiIssueToIssue } from "../../lib/api/mappers"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStatusLabel } from "../../lib/statusLabels"
-import { useT } from "../../i18n"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 import {
   ISSUE_LANES,
   LANE_PAGE_SIZE,
@@ -58,6 +58,7 @@ interface IssueBoardProps {
  */
 export function IssueBoard({ token, spaceId, filter, ownerLabel, executorLabel }: IssueBoardProps) {
   const t = useT()
+  const stableT = useStableT()
   const statusLabel = useStatusLabel()
   const [lanes, setLanes] = useState<Record<IssueLane, LaneState>>(initialLanes)
   const [moving, setMoving] = useState<Record<string, IssueLane>>({})
@@ -88,10 +89,10 @@ export function IssueBoard({ token, spaceId, filter, ownerLabel, executorLabel }
         })
         .catch((err) => {
           if (seq !== laneSeq.current[lane]) return
-          patchLane(lane, { error: classifyError(err, t("issues.board.loadLane", { lane: statusLabel(lane) })), loading: false })
+          patchLane(lane, { error: classifyError(err, stableT("issues.board.loadLane", { lane: stableT(`status.${lane}` as MessageKey) })), loading: false })
         })
     },
-    [token, spaceId, stableFilter, patchLane, t, statusLabel],
+    [token, spaceId, stableFilter, patchLane, stableT],
   )
 
   useEffect(() => {

@@ -18,4 +18,4 @@ export const portalMessages = mergeMessages(
 
 export type MessageKey = keyof typeof portalMessages.en
 
-export const { useT, translate } = createTranslator(portalMessages)
+export const { useT, useStableT, translate } = createTranslator(portalMessages)

@@ -10,7 +10,7 @@ import type {
   ApiTraceWorkspace,
 } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { useT, type MessageKey } from "../../i18n"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 import { navigate } from "../../router"
 import { formatSize } from "../artifacts"
 import { getTaskRunProvenance, getTaskRunTrace, listTaskRunLLMCalls } from "./api"
@@ -599,6 +599,7 @@ function ArtifactsSection({
  */
 export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunTraceModalProps) {
   const t = useT()
+  const stableT = useStableT()
   const [trace, setTrace] = useState<ApiTaskRunTrace | null>(null)
   const [provenance, setProvenance] = useState<ApiRunProvenance | null>(null)
   const [provenanceError, setProvenanceError] = useState<string | null>(null)
@@ -631,7 +632,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
         // The server explains a missing trace precisely — never recorded, or
         // gone from storage. Those mean different things to an operator, so
         // pass its message through instead of substituting a generic failure.
-        if (!cancelled) setError(getErrorMessage(err, t("runs.error.trace")))
+        if (!cancelled) setError(getErrorMessage(err, stableT("runs.error.trace")))
       })
     const callsRequest = listTaskRunLLMCalls(spaceId, taskRunId, token)
       .then((result) => {
@@ -639,7 +640,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
       })
       .catch((err) => {
         if (!cancelled) {
-          setCallsError(getErrorMessage(err, t("runs.error.calls")))
+          setCallsError(getErrorMessage(err, stableT("runs.error.calls")))
         }
       })
 
@@ -649,7 +650,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
       })
       .catch((err) => {
         if (!cancelled) {
-          setProvenanceError(getErrorMessage(err, t("runs.error.origin")))
+          setProvenanceError(getErrorMessage(err, stableT("runs.error.origin")))
         }
       })
 
@@ -659,7 +660,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
     return () => {
       cancelled = true
     }
-  }, [open, spaceId, token, taskRunId, t])
+  }, [open, spaceId, token, taskRunId, stableT])
 
   return (
     <BaseModal
