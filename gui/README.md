@@ -5,7 +5,8 @@ Shared React UI components and styles for BuildMax portal and desktop app. Imple
 ## Exports
 
 - **Theme**: `ThemeProvider`, `useTheme`, `ThemeToggle`, and type `Theme` (`"light" | "dark"`).
-- **Styles**: `theme.css` — CSS variables for light/dark (`data-theme`). Import as `@buildmax/gui/theme.css`.
+- **Styles**: `theme.css` — CSS variables for light/dark (`data-theme`). Import as `@buildmax/gui/theme.css`. It is the only stylesheet that may hold color literals.
+- **Stylelint config**: `stylelint/tokens.mjs` — shared by the `stylelint.config.mjs` of gui, Portal, and Desktop; rejects color literals outside `theme.css` and `var()` references to undefined custom properties. Run with `npm run lint`.
 - **Button, ButtonLink, and IconButton**: Presentational controls with primary, secondary, tertiary, and danger roles; `Button` also supports busy and compact states. Use `ButtonLink` for navigation. Import `button.css` after `theme.css`.
 - **BaseModal**: Presentational modal component; props: `open`, `title`, `titleId`, `onClose`, optional `className`, optional `hideHeader`, `children`. Type `BaseModalProps` is exported for TypeScript.
 - **FormModal**: Form-oriented modal shell and its field/select configuration types.

@@ -13,7 +13,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "eslint . --max-warnings 0 && npm run lint:css",
+    "lint:css": "stylelint \"src/**/*.css\"",
     "test": "vitest run",
     "e2e": "playwright test"
   },
@@ -38,6 +39,7 @@
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.12.0",
     "jsdom": "^30.0.1",
+    "stylelint": "^17.16.0",
     "vite": "^7.3.6",
     "vitest": "^4.1.11"
   }

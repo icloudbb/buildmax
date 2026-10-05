@@ -221,7 +221,7 @@ func helpTopics() []helpTopic {
 			},
 			args: []helpRow{
 				{"go", "gofmt, go mod tidy, build, vet, race tests, lint"},
-				{"gui", "gui build, then the shared component tests"},
+				{"gui", "gui build, then the stylesheet lint and shared component tests"},
 				{"portal", "gui build, then Portal lint, build, and tests"},
 				{"desktop", "gui build, then Desktop frontend lint, build, and tests"},
 				{"docs", "Architecture boundary tests and the Markdown lint (needs npm)"},
