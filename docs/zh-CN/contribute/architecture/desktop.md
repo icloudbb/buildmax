@@ -95,6 +95,12 @@ Project 的中央界面是由 tab 组成的网格。每个 tab 渲染一种类�
 
 状态栏是全局的：在 Home 和 Project 中都包含侧边栏开关（同一个按钮负责隐藏和显示侧边栏）、Launchpad 和主题切换，打开 Project 时还会增加新建终端和网格/tab 切换控件。Launchpad 是一组快速启动条目（应用、可执行文件、文档或 URL，可带参数），由 `internal/infra/locallaunchpadstore` 保存在 `<BUILDMAX_HOME>/launchpad.json` 中。条目是全局的，而不是按 Project 划分。`LaunchEntry` 把目标交给操作系统（macOS 上用 `open`，Windows 上用 `start`，Linux 上用 `xdg-open` 或直接执行目标），且不等待其结束，因此固定的网站在默认浏览器中打开，而不是在 tab 中。
 
+界面文案来自 `desktop/frontend/src/i18n/`：每个区域一个文件，英文与简体中文放在一起，
+使用与 Portal 相同的 `@buildmax/gui` `LocaleProvider` 与翻译函数。`main.jsx` 用该
+provider 包裹整个应用，因此 `App` 自身也能翻译其横幅与状态栏。语言在用户菜单中选择，
+与主题一样保存在 webview 的本地存储中。`catalog.test.js` 会在某个键缺少中文或占位符
+不一致时失败。未包裹 provider 渲染的组件（例如组件测试中）显示英文。
+
 ## Space Issues
 
 服务器模式下，侧边栏会多出 **Issues** 入口（`components/IssuesView.jsx`）；本地模式和登录过期时它不存在，

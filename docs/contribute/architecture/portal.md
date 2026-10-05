@@ -35,7 +35,7 @@ Portal owns the cloud/space lane:
 
 - Routes are in `portal/src/router.ts`. A few standalone pages that need no
   sign-in or Space are matched on the real path in `portal/src/main.tsx` and
-  render inside only `ThemeProvider`: the public share link
+  render inside only `ThemeProvider` and the root `LocaleProvider`: the public share link
   `/shared/artifacts/<token>` and the component specimen at `/specimen`.
 - Pages live under `portal/src/pages/*`.
 - `/specimen` is a design and review artifact, not a product page: it renders the
@@ -77,6 +77,17 @@ Portal owns the cloud/space lane:
   roles. Portal CSS defines no button geometry, color, or focus rule of its own:
   a page passes a class to `Button` only for placement. An in-flight action sets
   `busy` rather than swapping its label.
+- Interface text comes from `portal/src/i18n/`: one file per area, each holding
+  the English and Simplified Chinese messages together, merged in `index.ts`.
+  Components call `useT()`; `MessageKey` types every key, and
+  `catalog.test.ts` fails when a key lacks Chinese or its placeholders differ.
+  `LocaleProvider` from `@buildmax/gui` wraps every root in `main.tsx`; the
+  language is chosen in the user menu, stored per browser, and defaults from
+  the browser language. Help follows it, so the manual and the interface never
+  disagree. Status labels translate through `useStatusLabel()`. Text the server
+  returns is shown as received. Pages not yet migrated still render English; see
+  the [UI experience program](../../design/ui-experience-program.md) for the
+  extraction order and the glossary.
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
   `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
   conversation streaming.

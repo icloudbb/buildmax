@@ -27,7 +27,7 @@ Portal 负责云端/Space 使用场景：
 ## 当前结构
 
 - 路由位于 `portal/src/router.ts`。少数无需登录或 Space 的独立页面，在
-  `portal/src/main.tsx` 中按真实路径匹配，并仅包裹 `ThemeProvider` 渲染：公共分享
+  `portal/src/main.tsx` 中按真实路径匹配，并仅包裹 `ThemeProvider` 与根部的 `LocaleProvider` 渲染：公共分享
   链接 `/shared/artifacts/<token>` 与组件样张 `/specimen`。
 - 页面位于 `portal/src/pages/*`。
 - `/specimen` 是设计与评审产物，而非产品页面：它一次性呈现共享操作语法、语义 token、
@@ -55,6 +55,13 @@ Portal 负责云端/Space 使用场景：
   Administration、Space 设置、Files、Marketplace 和登录页使用相同层级。Portal CSS 不再定义
   任何按钮的几何、颜色或焦点规则：页面传给 `Button` 的 class 只用于定位。进行中的操作设置
   `busy`，而不是替换按钮文案。
+- 界面文案来自 `portal/src/i18n/`：每个区域一个文件，同时包含英文与简体中文消息，由
+  `index.ts` 合并。组件调用 `useT()`；`MessageKey` 为每个键提供类型，`catalog.test.ts`
+  会在某个键缺少中文或占位符不一致时失败。`@buildmax/gui` 的 `LocaleProvider` 在
+  `main.tsx` 中包裹每个根；语言在用户菜单中选择，按浏览器保存，默认取浏览器语言。
+  Help 跟随界面语言，因此手册与界面不会不一致。状态标签通过 `useStatusLabel()` 翻译。
+  服务器返回的文本按原样显示。尚未迁移的页面仍显示英文；提取顺序与术语表见
+  [UI 体验专项](../../design/UI体验专项.md)。
 - 横切状态位于 `portal/src/contexts/`：`AppContext`、`AuthContext`、`SpaceContext`，以及承载 Conversation 流式传输的 `WebSocketContext`。
 - HTTP 层是 `portal/src/lib/api/`（`client`、`mappers`、`types`，以及用于流式传输的 `sse` 和 `ws`）。
 - `portal/src/features/conversations/` 绘制对话记录，并在同一线程中为 Conversation 启动的每个后台 Task 显示一张卡片。卡片从 tasks 路由读取，socket 每次报告失效通知时都会重新加载，因此运行产出了什么不依赖 Tier 1 对它撰写的摘要。`thread.ts` 决定顺序。

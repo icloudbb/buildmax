@@ -183,13 +183,20 @@ Desktop 改用 gui 的 `Button`、`BaseModal`、`Drawer` 与图标，并删除�
   目录的 `useT()` 查找。每个应用拥有自己的目录文件。gui 自身的文案（例如
   `QuestionForm` 与 `ChatComposer` 中的文案）放在 gui 的目录里。
 - **不引入库。** 只需要插值与英文复数规则。引入依赖带来的概念比它省掉的还多。
-- **语言选择。** 语言是按设备保存的偏好：Portal 存于 `localStorage`，Desktop 存于
-  本地设置，默认取自 `navigator.language`。账户级偏好先不做，等有人需要在多台设备
+- **语言选择。** 语言是按设备保存的偏好：Portal 与 Desktop 的 webview 都把它与主题
+  一起存于 `localStorage`，默认取自 `navigator.language`。账户级偏好先不做，等有人需要在多台设备
   上保持同一语言时再加。
 - **Help 页。** 内嵌的对照表迁入目录，并跟随界面语言。
 - **服务端消息。** API 错误文本保持英文。界面翻译它能识别的情形，其余情况显示
   服务端原文。
-- **术语。** 领域名词遵循一份统一的术语表，见[开放问题](#开放问题)。
+- **术语。** 界面沿用中文手册的约定。BuildMax 实体名保留英文：Agent、Space、Issue、
+  Task、TaskRun、Workflow、Artifact、Portal、Desktop、MCP 与 Webhook。用户在手册、
+  CLI 与 API 错误中都会遇到它们，同一个名字才能处处通用。通用术语则翻译：
+  Conversation 与 Chat 译为“对话”，Session 译为“会话”，Run 译为“运行”，Schedule
+  译为“定时任务”，Plugin 译为“插件”，Marketplace 译为“插件市场”，Secret 译为
+  “密钥”，Files 译为“文件”，Assistant 译为“助手”，Remote Control 译为“远程控制”，
+  Skill 译为“技能”，Audit 译为“审计”，Service account 译为“服务账号”，
+  Administration 译为“系统管理”。
 
 英文为权威语言。中文缺失的键回退到英文，并有检查报告缺失的键。
 
@@ -239,9 +246,6 @@ Desktop 改用 gui 的 `Button`、`BaseModal`、`Drawer` 与图标，并删除�
 ## 开放问题
 
 - **视觉语言。** 打磨当前的中性风格，还是采用新风格？在阶段 2 依据审计决定。
-- **中文术语。** 文档镜像保留首字母大写的领域名词（Space、Issue、Task、Workflow、
-  Agent）为英文。界面是否也这样做，还是翻译，例如“空间”“事项”？术语表要在翻译
-  第一份目录之前定下来，同时也适用于手册的中文页面。
 - **Desktop TypeScript。** Desktop 是否迁移到 TypeScript？默认只转换收敛工作涉及的
   文件。只有当审计或收敛工作表明无类型的 props 正在导致缺陷时，才做全量迁移。
 - **截图基线。** Linux CI 与 macOS 的字体渲染不同，基线在哪个平台生成？存放在哪里？

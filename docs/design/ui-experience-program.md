@@ -213,15 +213,22 @@ Both surfaces ship English and Simplified Chinese.
 - **No library.** The only needs are interpolation and an English plural rule.
   A dependency would add more concepts than it removes.
 - **Locale choice.** The locale is a per-device preference, stored in
-  `localStorage` for Portal and in Desktop's local settings. It defaults from
-  `navigator.language`. An account-level preference is left out until a person
-  needs the same locale across devices.
+  `localStorage` beside the theme in both Portal and Desktop's webview. It
+  defaults from `navigator.language`. An account-level preference is left out
+  until a person needs the same locale across devices.
 - **Help page.** Its inline table moves into the catalog, and it follows the
   interface locale.
 - **Server-originated messages.** API error text stays English. The UI
   translates the conditions it recognizes and shows the server text otherwise.
-- **Terminology.** Domain nouns follow one glossary, see
-  [Open Questions](#open-questions).
+- **Terminology.** The interface uses the same convention as the Chinese
+  manual. BuildMax entity names stay in English: Agent, Space, Issue, Task,
+  TaskRun, Workflow, Artifact, Portal, Desktop, MCP, and Webhook. A person
+  meets them in the manual, the CLI, and API errors, so one name works
+  everywhere. General terms are translated: Conversation and Chat as 对话,
+  Session as 会话, Run as 运行, Schedule as 定时任务, Plugin as 插件,
+  Marketplace as 插件市场, Secret as 密钥, Files as 文件, Assistant as 助手,
+  Remote Control as 远程控制, Skill as 技能, Audit as 审计, Service account as
+  服务账号, and Administration as 系统管理.
 
 English stays authoritative. A missing Chinese key falls back to English, and a
 check reports missing keys.
@@ -285,11 +292,6 @@ shipped in that record as they land.
 
 - **Visual language.** Refine the current neutral style or adopt a new one?
   This is decided in phase 2 from the audit.
-- **Chinese terminology.** The documentation mirror keeps capitalized domain
-  names (Space, Issue, Task, Workflow, Agent) in English. Should the interface
-  do the same, or translate them, for example 空间 or 事项? The glossary is
-  decided before the first catalog is translated and applies to the manual's
-  Chinese pages too.
 - **Desktop TypeScript.** Should Desktop migrate to TypeScript? The default is
   to convert only the files the convergence touches. A full migration is taken
   only if the audit or convergence work shows untyped props causing defects.

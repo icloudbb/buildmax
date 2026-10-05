@@ -34,6 +34,8 @@ export default defineConfig({
     storageState: "./e2e/.auth/state.json",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    // The interface follows the browser language; specs assert English text.
+    locale: "en-US",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 })
