@@ -1,7 +1,7 @@
 ---
 id: <slug>
 title: <one imperative line>
-roadmap: <R0|R1|R2|R3|R4|R5|none>
+roadmap: <R0|R1|R2|R3|R4|R5|R6|none>
 source: <docs/design/some-record.md#section, or "direct">
 depends_on: []          # other task files, e.g. [20-other-task.md]
 verification: []        # test scopes from docs/contribute/testing.md

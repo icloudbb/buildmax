@@ -30,7 +30,7 @@ evidence belongs in [current state](current-state.md), design rationale in
 [Beta readiness record](deploy/beta-readiness.md). Approved work decomposed into
 ready-to-execute units lives in the [backlog](backlog/README.md). “Implemented”
 does not mean qualified in a real deployment. Earlier P0–P4 phase names in design records are
-historical capability groupings; the R0–R5 order below governs current work.
+historical capability groupings; the R0–R6 priorities below govern current work.
 
 ## Active Priority Order
 
@@ -38,7 +38,9 @@ R0 closed the supported worker contract, R1 durable state correctness, and R2
 long-running operation and recovery. R3 qualified one immutable candidate,
 v0.2.0-alpha.22, through the documented operator journey on 2026-10-04.
 R4–R5 are post-Beta, evidence-led work rather than prerequisites hidden inside
-the release path. These are priorities, not claims that someone is currently
+the release path. R6, opened on 2026-10-05, is active now: the functional gate
+passed, but the Portal and Desktop experience has not been validated beyond its
+implementers. These are priorities, not claims that someone is currently
 assigned to every item.
 
 Each priority below opens with a machine-readable `**Status:**` line —
@@ -330,6 +332,35 @@ Design: [Workflow runtime](design/workflow-runtime.md) and
 [orchestration and continuity decisions](design/orchestration-and-continuity-decisions.md).
 The ordered follow-ons above are specified by the linked records rather than
 being duplicated here.
+
+### R6. Validate And Rebuild The Portal And Desktop Experience
+
+**Status:** open
+
+**Opened 2026-10-05; active alongside the Beta-cut decision.** The
+v0.2.0-alpha.22 qualification proved the journeys work, but only their
+implementers drove them: the non-author operator journey was waived, the Desktop
+UI suite and packaged launch were accepted as partial, and no Portal or Desktop
+screen has been reviewed against a new person's expectations. The frontends
+also lack the foundation a rework needs — about sixty references to undefined
+design tokens, hard-coded colors that ignore dark mode, no visual-regression or
+contrast guardrail, a Desktop that reuses almost none of `@buildmax/gui`, and an
+English-only interface.
+
+**Next:** an Agent-driven audit of the Portal and Desktop core journeys produces
+graded findings and a visual-language recommendation, while token integrity,
+visual and accessibility guardrails, shared primitives, the English/Chinese
+catalog, and Desktop's move onto shared overlays proceed in parallel. Page
+rework is drafted from the audit, not before it. The CLI/TUI is out of scope.
+
+**Done when:** every Blocker and Major audit finding is resolved or accepted
+with a reason and a re-audit finds none new, the token, contrast, and
+visual-regression guardrails run in CI, Desktop renders no hand-rolled overlay
+or icon set, and both surfaces ship complete English and Simplified Chinese
+catalogs.
+
+Design: [UI experience program](design/ui-experience-program.md); tasks are in
+the [backlog](backlog/README.md).
 
 ## Beta Gate
 

@@ -136,7 +136,7 @@ func (t boardTask) blockers(live map[string]bool) []string {
 }
 
 type roadmapPriority struct {
-	id     string // R0..R5
+	id     string // R0..R6
 	status string
 	title  string
 }
