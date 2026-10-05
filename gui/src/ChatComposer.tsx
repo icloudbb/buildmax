@@ -1,4 +1,5 @@
 import type { KeyboardEvent } from "react"
+import { useGuiT } from "./messages"
 
 export interface ChatComposerProps {
   value: string
@@ -37,7 +38,6 @@ export interface ChatComposerProps {
   onAcceptGhost?: () => void
 }
 
-const DEFAULT_PLACEHOLDER = "Type a message… (Enter to send, Shift+Enter for new line)"
 
 // The action buttons are icon-only to keep the composer compact; the state's
 // text still rides on aria-label and title, so screen readers and hover keep it.
@@ -92,20 +92,27 @@ export function ChatComposer({
   disabled = false,
   loading = false,
   error,
-  placeholder = DEFAULT_PLACEHOLDER,
-  ariaLabel = "Message",
-  submitLabel = "Send",
-  loadingLabel = "Sending…",
+  placeholder: placeholderProp,
+  ariaLabel: ariaLabelProp,
+  submitLabel: submitLabelProp,
+  loadingLabel: loadingLabelProp,
   rows = 2,
   allowShiftEnter = true,
   onCancel,
-  cancelLabel = "Stop",
+  cancelLabel: cancelLabelProp,
   queueWhileLoading = false,
-  queueLabel = "Queue",
+  queueLabel: queueLabelProp,
   queuePlaceholder,
   ghost,
   onAcceptGhost,
 }: ChatComposerProps) {
+  const t = useGuiT()
+  const placeholder = placeholderProp ?? t("gui.composer.placeholder")
+  const ariaLabel = ariaLabelProp ?? t("gui.composer.message")
+  const submitLabel = submitLabelProp ?? t("gui.composer.send")
+  const loadingLabel = loadingLabelProp ?? t("gui.composer.sending")
+  const cancelLabel = cancelLabelProp ?? t("gui.composer.stop")
+  const queueLabel = queueLabelProp ?? t("gui.composer.queue")
   const queueing = loading && queueWhileLoading
   const showCancel = loading && !!onCancel
   const inputDisabled = disabled || (loading && !queueing)

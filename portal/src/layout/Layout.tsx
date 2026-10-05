@@ -7,6 +7,7 @@ import { Drawer, ThemeToggle } from "@buildmax/gui"
 import { navigate } from "../router"
 import { useMediaQuery } from "../hooks/useMediaQuery"
 import { useSpace } from "../contexts/SpaceContext"
+import { useT } from "../i18n"
 
 // Matches the Narrow range's upper bound in the Portal responsive design
 // (320–767px; Compact starts at 768px) — the shell switches from the
@@ -28,6 +29,7 @@ export function Layout({
   onLogout,
   children,
 }: LayoutProps) {
+  const t = useT()
   const narrow = useMediaQuery(NARROW_QUERY)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { currentSpace, spacesState } = useSpace()
@@ -61,13 +63,13 @@ export function Layout({
           className="shell__menu-btn"
           aria-expanded={drawerOpen}
           aria-controls="nav-drawer"
-          aria-label="Open navigation"
+          aria-label={t("shell.openNavigation")}
           onClick={() => setDrawerOpen(true)}
         >
           <MenuIcon className="shell__menu-icon" />
         </button>
         <div className="shell__compact-title">
-          <span className="shell__compact-space">{route.name === "admin" ? "Deployment" : currentSpace?.name ?? unresolvedSpaceLabel(spacesState)}</span>
+          <span className="shell__compact-space">{route.name === "admin" ? t("shell.deployment") : currentSpace?.name ?? unresolvedSpaceLabel(spacesState, t)}</span>
           <span className="shell__compact-page">{pageTitle}</span>
         </div>
       </header>
@@ -75,7 +77,7 @@ export function Layout({
         id="nav-drawer"
         open={drawerOpen && narrow}
         onClose={() => setDrawerOpen(false)}
-        title="Navigation"
+        title={t("shell.navigation")}
         titleId="nav-drawer-title"
       >
         <SidebarNavContent
@@ -129,14 +131,15 @@ function MenuIcon({ className }: { className?: string }) {
 
 /** HelpButton opens the end-user help manual served from the portal image. */
 function HelpButton({ active }: { active: boolean }) {
+  const t = useT()
   return (
     <button
       type="button"
       className={`theme-toggle ${active ? "theme-toggle--active" : ""}`}
       onClick={() => navigate({ name: "help" })}
-      aria-label="Help"
+      aria-label={t("shell.help")}
       aria-current={active ? "page" : undefined}
-      title="Help"
+      title={t("shell.help")}
     >
       <HelpIcon className="theme-toggle__icon" />
     </button>
@@ -165,14 +168,15 @@ function HelpIcon({ className }: { className?: string }) {
 
 /** MarketplaceButton opens the deployment-wide plugin catalog. */
 function MarketplaceButton({ active }: { active: boolean }) {
+  const t = useT()
   return (
     <button
       type="button"
       className={`theme-toggle ${active ? "theme-toggle--active" : ""}`}
       onClick={() => navigate({ name: "marketplace" })}
-      aria-label="Marketplace"
+      aria-label={t("shell.marketplace")}
       aria-current={active ? "page" : undefined}
-      title="Marketplace"
+      title={t("shell.marketplace")}
     >
       <StorefrontIcon className="theme-toggle__icon" />
     </button>

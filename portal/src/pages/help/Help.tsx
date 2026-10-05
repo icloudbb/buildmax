@@ -3,6 +3,8 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { Components } from "react-markdown"
 import { navigate } from "../../router"
+import { useLocale } from "@buildmax/gui"
+import { useT } from "../../i18n"
 
 /**
  * Help renders the end-user manual that ships inside the portal image. The pages
@@ -11,51 +13,16 @@ import { navigate } from "../../router"
  * and lives at /help; the Chinese translation lives at /help/zh. This page
  * fetches <base>/manifest.json for the table of contents and <base>/<slug>.md
  * for a page, so adding documentation never touches the portal bundle — only the
- * markdown. The chosen language is the reader's own preference, remembered per
- * browser; the slug set is identical across languages, so switching keeps the
- * current page.
+ * markdown. The manual follows the interface language, and switching it here
+ * switches the interface too; the slug set is identical across languages, so
+ * switching keeps the current page.
  */
 
 type Lang = "en" | "zh"
 
-const LANG_KEY = "buildmax-help-lang"
-
 /** English is served from /help, every other language from /help/<lang>. */
 function basePath(lang: Lang): string {
   return lang === "en" ? "/help" : `/help/${lang}`
-}
-
-/** The reader's remembered choice, else the browser's language, else English. */
-function initialLang(): Lang {
-  try {
-    const saved = localStorage.getItem(LANG_KEY)
-    if (saved === "en" || saved === "zh") return saved
-  } catch {
-    // Private mode or blocked storage: fall through to locale detection.
-  }
-  if (typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("zh")) {
-    return "zh"
-  }
-  return "en"
-}
-
-const UI: Record<Lang, { manifestError: string; pageError: string; notFound: string; back: string; help: string; langLabel: string }> = {
-  en: {
-    manifestError: "The help manual could not be loaded.",
-    pageError: "This help page could not be loaded.",
-    notFound: "Page not found",
-    back: "Back to the start of the manual",
-    help: "Help",
-    langLabel: "Language",
-  },
-  zh: {
-    manifestError: "无法加载帮助手册。",
-    pageError: "无法加载此帮助页面。",
-    notFound: "未找到页面",
-    back: "返回手册首页",
-    help: "帮助",
-    langLabel: "语言",
-  },
 }
 
 interface HelpPage {
@@ -101,18 +68,12 @@ function linkedFile(href: string): string | null {
 }
 
 export function Help({ slug }: { slug?: string }) {
-  const [lang, setLang] = useState<Lang>(initialLang)
-  const ui = UI[lang]
+  const t = useT()
+  const { locale, setLocale } = useLocale()
+  const lang: Lang = locale === "zh-CN" ? "zh" : "en"
   const base = basePath(lang)
 
-  const chooseLang = (next: Lang) => {
-    setLang(next)
-    try {
-      localStorage.setItem(LANG_KEY, next)
-    } catch {
-      // Storage unavailable: the choice still applies for this view.
-    }
-  }
+  const chooseLang = (next: Lang) => setLocale(next === "zh" ? "zh-CN" : "en")
 
   const [manifest, setManifest] = useState<HelpManifest | null>(null)
   const [manifestError, setManifestError] = useState(false)
@@ -218,7 +179,7 @@ export function Help({ slug }: { slug?: string }) {
   )
 
   const langToggle = (
-    <div className="help__lang" role="group" aria-label={ui.langLabel}>
+    <div className="help__lang" role="group" aria-label={t("help.language")}>
       <button
         type="button"
         className={`help__lang-btn ${lang === "en" ? "help__lang-btn--active" : ""}`}
@@ -243,13 +204,13 @@ export function Help({ slug }: { slug?: string }) {
       <div className="help">
         <nav className="help__nav" aria-label="Help contents">
           <div className="help__nav-head">
-            <p className="help__nav-title">{ui.help}</p>
+            <p className="help__nav-title">{t("help.title")}</p>
             {langToggle}
           </div>
         </nav>
         <div className="help__content">
           <p className="help__error" role="alert">
-            {ui.manifestError}
+            {t("help.manifestError")}
           </p>
         </div>
       </div>
@@ -260,7 +221,7 @@ export function Help({ slug }: { slug?: string }) {
     <div className="help">
       <nav className="help__nav" aria-label="Help contents">
         <div className="help__nav-head">
-          <p className="help__nav-title">{manifest?.title ?? ui.help}</p>
+          <p className="help__nav-title">{manifest?.title ?? t("help.title")}</p>
           {langToggle}
         </div>
         {manifest?.sections.map((section) => (
@@ -289,18 +250,18 @@ export function Help({ slug }: { slug?: string }) {
       <div className="help__content" ref={contentRef}>
         {!known ? (
           <div className="help__empty">
-            <p className="help__empty-title">{ui.notFound}</p>
+            <p className="help__empty-title">{t("help.notFound")}</p>
             <button
               type="button"
               className="help__empty-link"
               onClick={() => navigate({ name: "help" })}
             >
-              {ui.back}
+              {t("help.back")}
             </button>
           </div>
         ) : notFound ? (
           <p className="help__error" role="alert">
-            {ui.pageError}
+            {t("help.pageError")}
           </p>
         ) : loading || content === null ? (
           <div className="help__skeleton" aria-hidden>

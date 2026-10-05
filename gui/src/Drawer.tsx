@@ -1,5 +1,6 @@
 import { useRef, type ReactNode } from "react"
 import { useOverlayA11y } from "./useOverlayA11y"
+import { useGuiT } from "./messages"
 
 export interface DrawerProps {
   id?: string
@@ -12,6 +13,7 @@ export interface DrawerProps {
 
 /** An accessible, left-edge slide-in overlay for narrow-width navigation. */
 export function Drawer({ id, open, title, titleId, onClose, children }: DrawerProps) {
+  const t = useGuiT()
   const containerRef = useRef<HTMLDivElement>(null)
 
   useOverlayA11y({ open, onClose, containerRef })
@@ -33,7 +35,7 @@ export function Drawer({ id, open, title, titleId, onClose, children }: DrawerPr
           <h2 className="drawer__title" id={titleId}>
             {title}
           </h2>
-          <button type="button" className="drawer__close" onClick={onClose} aria-label="Close">
+          <button type="button" className="drawer__close" onClick={onClose} aria-label={t("gui.close")}>
             &times;
           </button>
         </div>

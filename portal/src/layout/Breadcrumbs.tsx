@@ -3,6 +3,7 @@ import type { Route, Conversation } from "../lib/types"
 import { navigate } from "../router"
 import { useApp } from "../contexts/AppContext"
 import { useSpace } from "../contexts/SpaceContext"
+import { useT } from "../i18n"
 
 export interface Crumb {
   label: string
@@ -19,6 +20,7 @@ interface BreadcrumbsProps {
  * and the compact header, which needs only the current page's label.
  */
 export function useBreadcrumbs(route: Route, conversations: Conversation[] = []): Crumb[] {
+  const t = useT()
   const { entityLabels, breadcrumbTrails } = useApp()
   // Artifact detail carries no Space id of its own (the one ID-resolved
   // exception) -- by the time its label is published here, ArtifactDetail has
@@ -27,35 +29,35 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
   const { currentSpaceId } = useSpace()
 
   if (route.name === "explore") {
-    return [{ label: "Files", route: { name: "explore", spaceId: route.spaceId } }]
+    return [{ label: t("shell.nav.files"), route: { name: "explore", spaceId: route.spaceId } }]
   }
   if (route.name === "agents") {
-    return [{ label: "Agents", route: { name: "agents", spaceId: route.spaceId } }]
+    return [{ label: t("shell.nav.agents"), route: { name: "agents", spaceId: route.spaceId } }]
   }
   if (route.name === "agent") {
     return [
-      { label: "Agents", route: { name: "agents", spaceId: route.spaceId } },
-      { label: entityLabels[route.agentId] ?? "Agent", route },
+      { label: t("shell.nav.agents"), route: { name: "agents", spaceId: route.spaceId } },
+      { label: entityLabels[route.agentId] ?? t("shell.crumbs.agent"), route },
     ]
   }
   if (route.name === "account") {
     const sectionLabel = (() => {
       switch (route.section) {
         case "usage":
-          return "Usage"
+          return t("shell.crumbs.usage")
         case "webhook":
-          return "Webhook Keys"
+          return t("shell.crumbs.webhookKeys")
         case "chat":
-          return "Chat accounts"
+          return t("shell.crumbs.chatAccounts")
         case "invitations":
-          return "Invitations"
+          return t("shell.crumbs.invitations")
         case "general":
         default:
-          return "General"
+          return t("shell.crumbs.general")
       }
     })()
     return [
-      { label: "Account", route: { name: "account", section: "general" } },
+      { label: t("shell.crumbs.account"), route: { name: "account", section: "general" } },
       { label: sectionLabel, route },
     ]
   }
@@ -63,35 +65,35 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
     const sectionLabel = (() => {
       switch (route.section) {
         case "members":
-          return "Members"
+          return t("shell.crumbs.members")
         case "memberNew":
-          return "Invite Member"
+          return t("shell.crumbs.inviteMember")
         case "plugins":
-          return "Plugins"
+          return t("shell.crumbs.plugins")
         case "security":
-          return "Security"
+          return t("shell.crumbs.security")
         case "secrets":
-          return "Secrets"
+          return t("shell.crumbs.secrets")
         case "serviceAccounts":
-          return "Service accounts"
+          return t("shell.crumbs.serviceAccounts")
         case "assistants":
-          return "Assistants"
+          return t("shell.crumbs.assistants")
         case "audit":
-          return "Audit"
+          return t("shell.crumbs.audit")
         case "overview":
         default:
-          return "Overview"
+          return t("shell.crumbs.overview")
       }
     })()
     if (route.section === "assistants" && route.assistantId) {
       return [
-        { label: "Space settings", route: { name: "space", spaceId: route.spaceId, section: "overview" } },
-        { label: "Assistants", route: { name: "space", spaceId: route.spaceId, section: "assistants" } },
-        { label: entityLabels[route.assistantId] ?? "Assistant", route },
+        { label: t("shell.nav.spaceSettings"), route: { name: "space", spaceId: route.spaceId, section: "overview" } },
+        { label: t("shell.crumbs.assistants"), route: { name: "space", spaceId: route.spaceId, section: "assistants" } },
+        { label: entityLabels[route.assistantId] ?? t("shell.crumbs.assistant"), route },
       ]
     }
     return [
-      { label: "Space settings", route: { name: "space", spaceId: route.spaceId, section: "overview" } },
+      { label: t("shell.nav.spaceSettings"), route: { name: "space", spaceId: route.spaceId, section: "overview" } },
       { label: sectionLabel, route },
     ]
   }
@@ -99,99 +101,100 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
     const sectionLabel = (() => {
       switch (route.section) {
         case "administrators":
-          return "Administrators"
+          return t("shell.admin.administrators")
         case "accounts":
-          return "Accounts"
+          return t("shell.admin.accounts")
         case "spaces":
-          return "Spaces"
+          return t("shell.admin.spaces")
         case "models":
-          return "Models"
+          return t("shell.admin.models")
         case "plugins":
-          return "Plugins"
+          return t("shell.crumbs.plugins")
         case "audit":
-          return "Audit"
+          return t("shell.crumbs.audit")
         case "overview":
         default:
-          return "Overview"
+          return t("shell.crumbs.overview")
       }
     })()
     return [
-      { label: "Administration", route: { name: "admin", section: "overview" } },
+      { label: t("shell.nav.administration"), route: { name: "admin", section: "overview" } },
       { label: sectionLabel, route },
     ]
   }
   if (route.name === "workflows") {
-    return [{ label: "Workflows", route: { name: "workflows", spaceId: route.spaceId } }]
+    return [{ label: t("shell.nav.workflows"), route: { name: "workflows", spaceId: route.spaceId } }]
   }
   if (route.name === "workflow") {
     return [
-      { label: "Workflows", route: { name: "workflows", spaceId: route.spaceId } },
-      { label: entityLabels[route.workflowId] ?? "Workflow", route },
+      { label: t("shell.nav.workflows"), route: { name: "workflows", spaceId: route.spaceId } },
+      { label: entityLabels[route.workflowId] ?? t("shell.crumbs.workflow"), route },
     ]
   }
   if (route.name === "workflowRun") {
     return [
-      { label: "Workflows", route: { name: "workflows", spaceId: route.spaceId } },
-      { label: entityLabels[route.workflowRunId] ?? "Workflow Run", route },
+      { label: t("shell.nav.workflows"), route: { name: "workflows", spaceId: route.spaceId } },
+      { label: entityLabels[route.workflowRunId] ?? t("shell.crumbs.workflowRun"), route },
     ]
   }
   if (route.name === "schedules") {
-    return [{ label: "Schedules", route: { name: "schedules", spaceId: route.spaceId } }]
+    return [{ label: t("shell.nav.schedules"), route: { name: "schedules", spaceId: route.spaceId } }]
   }
   if (route.name === "issues") {
-    return [{ label: "Issues", route: { name: "issues", spaceId: route.spaceId } }]
+    return [{ label: t("shell.nav.issues"), route: { name: "issues", spaceId: route.spaceId } }]
   }
   if (route.name === "issue") {
     return [
-      { label: "Issues", route: { name: "issues", spaceId: route.spaceId } },
-      { label: entityLabels[route.issueId] ?? "Issue", route },
+      { label: t("shell.nav.issues"), route: { name: "issues", spaceId: route.spaceId } },
+      { label: entityLabels[route.issueId] ?? t("shell.crumbs.issue"), route },
     ]
   }
   if (route.name === "artifacts") {
-    return [{ label: "Artifacts", route: { name: "artifacts", spaceId: route.spaceId } }]
+    return [{ label: t("shell.nav.artifacts"), route: { name: "artifacts", spaceId: route.spaceId } }]
   }
   if (route.name === "artifact") {
     return currentSpaceId
       ? [
-          { label: "Artifacts", route: { name: "artifacts", spaceId: currentSpaceId } },
-          { label: entityLabels[route.artifactId] ?? "Artifact", route },
+          { label: t("shell.nav.artifacts"), route: { name: "artifacts", spaceId: currentSpaceId } },
+          { label: entityLabels[route.artifactId] ?? t("shell.crumbs.artifact"), route },
         ]
-      : [{ label: entityLabels[route.artifactId] ?? "Artifact", route }]
+      : [{ label: entityLabels[route.artifactId] ?? t("shell.crumbs.artifact"), route }]
   }
   if (route.name === "marketplace") {
-    return [{ label: "Marketplace", route: { name: "marketplace" } }]
+    return [{ label: t("shell.marketplace"), route: { name: "marketplace" } }]
   }
   if (route.name === "task") {
     // A task's parents (agent / issue / conversation) are not in the route, so
     // the detail page publishes the trail; fall back until it loads.
     return (
       breadcrumbTrails[route.taskId] ?? [
-        { label: "Chat", route: { name: "chat", spaceId: route.spaceId } },
-        { label: "Task", route },
+        { label: t("shell.nav.chat"), route: { name: "chat", spaceId: route.spaceId } },
+        { label: t("shell.crumbs.task"), route },
       ]
     )
   }
   if (route.name === "chat" && route.conversationId) {
     const conv = conversations.find((c) => c.id === route.conversationId)
-    const convLabel = conv?.title?.trim() || conv?.timeLabel || "Conversation"
+    const convLabel = conv?.title?.trim() || conv?.timeLabel || t("shell.crumbs.conversation")
     return [
-      { label: "Chat", route: { name: "chat", spaceId: route.spaceId } },
+      { label: t("shell.nav.chat"), route: { name: "chat", spaceId: route.spaceId } },
       { label: convLabel, route },
     ]
   }
   if (route.name === "chat") {
-    return [{ label: "Chat", route }]
+    return [{ label: t("shell.nav.chat"), route }]
   }
   if (route.name === "help") {
-    return [{ label: "Help", route: { name: "help" } }]
+    return [{ label: t("shell.help"), route: { name: "help" } }]
   }
   if (route.name === "notFound") {
-    return [{ label: "Page not found", route }]
+    return [{ label: t("shell.crumbs.notFound"), route }]
   }
   return []
 }
 
 export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
+  const t = useT()
   const crumbs = useBreadcrumbs(route, conversations)
   const [overflowOpen, setOverflowOpen] = useState(false)
 
@@ -201,7 +204,7 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
   const visibleCrumbs = collapsedAncestors.length > 0 ? crumbs.slice(-2) : crumbs
 
   return (
-    <nav className="breadcrumbs" aria-label="Breadcrumb">
+    <nav className="breadcrumbs" aria-label={t("shell.crumbs.label")}>
       {collapsedAncestors.length > 0 && (
         <span className="breadcrumbs__segment breadcrumbs__segment--overflow">
           <button
@@ -209,7 +212,7 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
             className="breadcrumbs__link breadcrumbs__overflow-toggle"
             aria-expanded={overflowOpen}
             aria-haspopup="menu"
-            aria-label="Show earlier breadcrumbs"
+            aria-label={t("shell.crumbs.earlier")}
             onClick={() => setOverflowOpen((open) => !open)}
           >
             …

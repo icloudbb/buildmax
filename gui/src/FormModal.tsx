@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react"
 import { BaseModal } from "./BaseModal"
 import { Button } from "./Button"
+import { useGuiT } from "./messages"
 
 export interface FormModalSelectOption {
   value: string
@@ -93,11 +94,13 @@ export function FormModal({
   loading = false,
   error,
   submitLabel,
-  cancelLabel = "Cancel",
+  cancelLabel: cancelLabelProp,
   onClose,
   onSubmit,
   children,
 }: FormModalProps) {
+  const t = useGuiT()
+  const cancelLabel = cancelLabelProp ?? t("gui.cancel")
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((field) => [field.key, ""]))
   )

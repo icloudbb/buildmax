@@ -13,8 +13,10 @@ import { useConversations } from "./hooks/useConversations"
 import { deriveResourceState } from "./state/resourceState"
 import { Login } from "./pages/auth/Login"
 import { navigate } from "./router"
+import { useT } from "./i18n"
 
 function AppContent() {
+  const t = useT()
   const { token, user, status, logout } = useAuth()
   const { route } = useApp()
   const { currentSpaceId, spacesState, refetchSpaces, setCurrentSpaceId } = useSpace()
@@ -58,7 +60,7 @@ function AppContent() {
     // Restoring the session from the refresh cookie. Render a bare loader
     // rather than the login form, which would otherwise flash on every reload
     // for an already-signed-in user.
-    return <div className="app-loading">Loading…</div>
+    return <div className="app-loading">{t("shell.loading")}</div>
   }
 
   if (!token) {
@@ -76,17 +78,17 @@ function AppContent() {
       <div className="app-loading">
         {spacesState.kind === "readyEmpty" ? (
           <EmptyState
-            message="You don't belong to a Space yet."
-            action={{ label: "Create Space", onClick: () => setCreateSpaceOpen(true) }}
+            message={t("shell.noSpaceYet")}
+            action={{ label: t("shell.createSpace"), onClick: () => setCreateSpaceOpen(true) }}
           />
         ) : spacesState.kind === "error" || spacesState.kind === "forbidden" || spacesState.kind === "notFound" ? (
           <Alert
             tone={spacesState.kind}
             message={spacesState.error.message}
-            retry={{ label: "Retry", onClick: () => void refetchSpaces() }}
+            retry={{ label: t("shell.retry"), onClick: () => void refetchSpaces() }}
           />
         ) : (
-          "Loading…"
+          t("shell.loading")
         )}
         <CreateSpaceDialog open={createSpaceOpen} onClose={() => setCreateSpaceOpen(false)} />
       </div>

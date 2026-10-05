@@ -1,4 +1,5 @@
 import { type ComponentType } from "react"
+import type { MessageKey } from "../../i18n"
 import SettingsIcon from "../../icons/settings.svg?react"
 import AgentsIcon from "../../icons/agents.svg?react"
 import ShieldIcon from "../../icons/shield.svg?react"
@@ -18,7 +19,7 @@ export type AdminSection =
 
 export interface AdminNavItem {
   id: AdminSection
-  label: string
+  labelKey: MessageKey
   icon: ComponentType<{ className?: string }>
 }
 
@@ -30,12 +31,12 @@ export interface AdminNavItem {
  * call, then what happened.
  */
 export const ADMIN_NAV: AdminNavItem[] = [
-  { id: "overview", label: "Overview", icon: SettingsIcon },
-  { id: "administrators", label: "Administrators", icon: ShieldIcon },
-  { id: "accounts", label: "Accounts", icon: AgentsIcon },
-  { id: "spaces", label: "Spaces", icon: FilesIcon },
-  { id: "models", label: "Models", icon: ToolboxIcon },
-  { id: "calls", label: "LLM calls", icon: UsageIcon },
-  { id: "plugins", label: "Plugins", icon: ToolboxIcon },
-  { id: "audit", label: "Audit", icon: UsageIcon },
+  { id: "overview", labelKey: "shell.admin.overview", icon: SettingsIcon },
+  { id: "administrators", labelKey: "shell.admin.administrators", icon: ShieldIcon },
+  { id: "accounts", labelKey: "shell.admin.accounts", icon: AgentsIcon },
+  { id: "spaces", labelKey: "shell.admin.spaces", icon: FilesIcon },
+  { id: "models", labelKey: "shell.admin.models", icon: ToolboxIcon },
+  { id: "calls", labelKey: "shell.admin.calls", icon: UsageIcon },
+  { id: "plugins", labelKey: "shell.admin.plugins", icon: ToolboxIcon },
+  { id: "audit", labelKey: "shell.admin.audit", icon: UsageIcon },
 ]

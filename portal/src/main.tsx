@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ThemeProvider } from '@buildmax/gui'
+import { LocaleProvider, ThemeProvider } from '@buildmax/gui'
 import App from './App'
 import { SharedArtifact } from './pages/shared/SharedArtifact'
 import { Specimen } from './pages/specimen/Specimen'
@@ -31,5 +31,7 @@ function rootElement() {
 }
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>{rootElement()}</StrictMode>,
+  <StrictMode>
+    <LocaleProvider>{rootElement()}</LocaleProvider>
+  </StrictMode>,
 )

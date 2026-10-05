@@ -24,6 +24,8 @@ import { useAdminAccess } from "../features/admin"
 import { ADMIN_NAV } from "../features/admin/nav"
 import { spaceSwitchTarget } from "../lib/spaceSwitch"
 import type { ResourceState } from "../state/resourceState"
+import { LOCALES, LOCALE_NAMES, useLocale, type Translate } from "@buildmax/gui"
+import { useT, type MessageKey } from "../i18n"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
 const LOGO_ASCII = `
@@ -78,26 +80,27 @@ function isAdminActive(route: Route): boolean {
  * a Space name (e.g. the old "My Space" fallback while loading failed) — see
  * docs/design/portal-state-and-permission-feedback.md.
  */
-export function unresolvedSpaceLabel(spacesState: ResourceState<unknown>): string {
+export function unresolvedSpaceLabel(spacesState: ResourceState<unknown>, t: Translate<MessageKey>): string {
   switch (spacesState.kind) {
     case "loading":
     case "refreshing":
-      return "Loading…"
+      return t("shell.spaceLoading")
     case "readyEmpty":
-      return "No space"
+      return t("shell.noSpace")
     default:
-      return "Space unavailable"
+      return t("shell.spaceUnavailable")
   }
 }
 
 /** The persistent desktop/compact sidebar: a collapsible icon rail, the app's chrome. */
 export function Sidebar({ route, user, onLogout }: SidebarProps) {
+  const t = useT()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   return (
     <aside
       className={cn("sidebar", sidebarCollapsed && "sidebar--collapsed")}
-      aria-label="Sidebar"
+      aria-label={t("shell.sidebar")}
     >
       <div className="sidebar__header">
         {sidebarCollapsed ? (
@@ -105,8 +108,8 @@ export function Sidebar({ route, user, onLogout }: SidebarProps) {
             type="button"
             className="sidebar__logo-expand"
             onClick={() => setSidebarCollapsed(false)}
-            aria-label="Expand sidebar"
-            title="Expand sidebar"
+            aria-label={t("shell.expandSidebar")}
+            title={t("shell.expandSidebar")}
           >
             <SidebarExpandIcon className="sidebar__logo-expand-icon" aria-hidden />
           </button>
@@ -119,8 +122,8 @@ export function Sidebar({ route, user, onLogout }: SidebarProps) {
               type="button"
               className="sidebar__collapse-btn"
               onClick={() => setSidebarCollapsed(true)}
-              aria-label="Collapse sidebar"
-              title="Collapse sidebar"
+              aria-label={t("shell.collapseSidebar")}
+              title={t("shell.collapseSidebar")}
             >
               <SidebarCollapseIcon className="sidebar__collapse-btn-icon" aria-hidden />
             </button>
@@ -154,6 +157,8 @@ export function SidebarNavContent({
   collapsed = false,
   onNavigate,
 }: SidebarNavContentProps) {
+  const t = useT()
+  const { locale, setLocale } = useLocale()
   const { spaces, spacesState, currentSpace, currentSpaceId, loading: spacesLoading, setCurrentSpaceId } = useSpace()
   const { setPendingConversation } = useApp()
   const { isAdmin: isSystemAdmin } = useAdminAccess()
@@ -201,10 +206,10 @@ export function SidebarNavContent({
 
   return (
     <>
-      <nav className="sidebar__nav" aria-label="Primary">
+      <nav className="sidebar__nav" aria-label={t("shell.primary")}>
         <div className="sidebar__section">
           {route.name === "admin" ? (
-            <div className="sidebar__space-display" aria-label="Current scope">{collapsed ? "D" : "Deployment"}</div>
+            <div className="sidebar__space-display" aria-label={t("shell.currentScope")}>{collapsed ? t("shell.deploymentInitial") : t("shell.deployment")}</div>
           ) : !collapsed ? (
             <div className="sidebar__space-switcher">
               <div className="sidebar__space-head">
@@ -212,14 +217,14 @@ export function SidebarNavContent({
                   className="sidebar__space-label"
                   htmlFor={showSpaceSwitcher ? spaceSelectId : undefined}
                 >
-                  Space
+                  {t("shell.space")}
                 </label>
                 <button
                   type="button"
                   className="sidebar__space-add"
                   onClick={() => setCreateSpaceOpen(true)}
-                  aria-label="Create a new space"
-                  title="Create a new space"
+                  aria-label={t("shell.createSpaceTitle")}
+                  title={t("shell.createSpaceTitle")}
                 >
                   +
                 </button>
@@ -233,7 +238,7 @@ export function SidebarNavContent({
                   disabled={spacesLoading}
                 >
                   {personalSpaces.length > 0 ? (
-                    <optgroup label="Personal">
+                    <optgroup label={t("shell.personal")}>
                       {personalSpaces.map((space) => (
                         <option key={space.id} value={space.id}>
                           {space.name}
@@ -242,7 +247,7 @@ export function SidebarNavContent({
                     </optgroup>
                   ) : null}
                   {sharedSpaces.length > 0 ? (
-                    <optgroup label="Spaces">
+                    <optgroup label={t("shell.spaces")}>
                       {sharedSpaces.map((space) => (
                         <option key={space.id} value={space.id}>
                           {space.name}
@@ -252,29 +257,29 @@ export function SidebarNavContent({
                   ) : null}
                 </select>
               ) : (
-                <div className="sidebar__space-display" aria-label="Current space">
-                  {currentSpace?.name ?? unresolvedSpaceLabel(spacesState)}
+                <div className="sidebar__space-display" aria-label={t("shell.currentSpace")}>
+                  {currentSpace?.name ?? unresolvedSpaceLabel(spacesState, t)}
                 </div>
               )}
             </div>
           ) : (
             <div
               className="sidebar__space-badge"
-              title={currentSpace?.name ?? unresolvedSpaceLabel(spacesState)}
+              title={currentSpace?.name ?? unresolvedSpaceLabel(spacesState, t)}
             >
               {currentSpace ? currentSpace.name.slice(0, 1).toUpperCase() : "…"}
             </div>
           )}
         </div>
         {route.name !== "admin" ? <><div className="sidebar__group">
-          <span className="sidebar__group-label">Work</span>
+          <span className="sidebar__group-label">{t("shell.group.work")}</span>
           <button
             type="button"
             className={cn("sidebar__nav-item", route.name === "chat" && "sidebar__nav-item--active")}
             onClick={() => go({ name: "chat", spaceId: currentSpaceId! })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Chat</span>
+            <span className="sidebar__nav-item-text">{t("shell.nav.chat")}</span>
           </button>
           <button
             type="button"
@@ -282,7 +287,7 @@ export function SidebarNavContent({
             onClick={() => go({ name: "issues", spaceId: currentSpaceId! })}
           >
             <IssueIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Issues</span>
+            <span className="sidebar__nav-item-text">{t("shell.nav.issues")}</span>
           </button>
           <button
             type="button"
@@ -290,7 +295,7 @@ export function SidebarNavContent({
             onClick={() => go({ name: "agents", spaceId: currentSpaceId! })}
           >
             <AgentsIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Agents</span>
+            <span className="sidebar__nav-item-text">{t("shell.nav.agents")}</span>
           </button>
           <button
             type="button"
@@ -298,7 +303,7 @@ export function SidebarNavContent({
             onClick={() => go({ name: "workflows", spaceId: currentSpaceId! })}
           >
             <WorkflowIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Workflows</span>
+            <span className="sidebar__nav-item-text">{t("shell.nav.workflows")}</span>
           </button>
           <button
             type="button"
@@ -306,18 +311,18 @@ export function SidebarNavContent({
             onClick={() => go({ name: "schedules", spaceId: currentSpaceId! })}
           >
             <ScheduleIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Schedules</span>
+            <span className="sidebar__nav-item-text">{t("shell.nav.schedules")}</span>
           </button>
         </div>
         <div className="sidebar__group">
-          <span className="sidebar__group-label">Resources</span>
+          <span className="sidebar__group-label">{t("shell.group.resources")}</span>
           <button
             type="button"
             className={cn("sidebar__nav-item", isFilesActive(route) && "sidebar__nav-item--active")}
             onClick={() => go({ name: "explore", spaceId: currentSpaceId! })}
           >
             <FilesIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Files</span>
+            <span className="sidebar__nav-item-text">{t("shell.nav.files")}</span>
           </button>
           <button
             type="button"
@@ -325,18 +330,18 @@ export function SidebarNavContent({
             onClick={() => go({ name: "artifacts", spaceId: currentSpaceId! })}
           >
             <ArtifactIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Artifacts</span>
+            <span className="sidebar__nav-item-text">{t("shell.nav.artifacts")}</span>
           </button>
         </div>
         <div className="sidebar__group">
-          <span className="sidebar__group-label">Manage</span>
+          <span className="sidebar__group-label">{t("shell.group.manage")}</span>
           <button
             type="button"
             className={cn("sidebar__nav-item", isSpaceSettingsActive(route) && "sidebar__nav-item--active")}
             onClick={() => go({ name: "space", spaceId: currentSpaceId!, section: "overview" })}
           >
             <SettingsIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Space settings</span>
+            <span className="sidebar__nav-item-text">{t("shell.nav.spaceSettings")}</span>
           </button>
         </div>
         {isSystemAdmin && (
@@ -351,7 +356,7 @@ export function SidebarNavContent({
               onClick={() => go({ name: "admin", section: "overview" })}
             >
               <ShieldIcon className="sidebar__nav-icon" aria-hidden />
-              <span className="sidebar__nav-item-text">Administration</span>
+              <span className="sidebar__nav-item-text">{t("shell.nav.administration")}</span>
             </button>
           </div>
         )}</> : <>
@@ -360,7 +365,7 @@ export function SidebarNavContent({
             the sidebar is how you move between them — followed by the escape
             hatch back to a Space. */}
         <div className="sidebar__group sidebar__group--global">
-          <span className="sidebar__group-label">Administration</span>
+          <span className="sidebar__group-label">{t("shell.nav.administration")}</span>
           {ADMIN_NAV.map((item) => {
             const Icon = item.icon
             const active = (route.section ?? "overview") === item.id
@@ -372,7 +377,7 @@ export function SidebarNavContent({
                 onClick={() => go({ name: "admin", section: item.id })}
               >
                 <Icon className="sidebar__nav-icon" aria-hidden />
-                <span className="sidebar__nav-item-text">{item.label}</span>
+                <span className="sidebar__nav-item-text">{t(item.labelKey)}</span>
               </button>
             )
           })}
@@ -382,18 +387,18 @@ export function SidebarNavContent({
             if (currentSpaceId) go({ name: "chat", spaceId: currentSpaceId })
           }}>
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Back to space</span>
+            <span className="sidebar__nav-item-text">{t("shell.nav.backToSpace")}</span>
           </button>
         </div></>}
       </nav>
-      <div className="sidebar__footer" aria-label="User" ref={userMenuRef}>
+      <div className="sidebar__footer" aria-label={t("shell.user")} ref={userMenuRef}>
         <button
           type="button"
           className="sidebar__user-trigger"
           onClick={() => setUserMenuOpen((open) => !open)}
           aria-expanded={userMenuOpen}
           aria-haspopup="menu"
-          aria-label="User menu"
+          aria-label={t("shell.userMenu")}
         >
           <UserAvatar user={user} size="sm" />
           <span className="sidebar__user-name">
@@ -415,7 +420,7 @@ export function SidebarNavContent({
             {!collapsed && currentSpace && route.name !== "admin" ? (
               <>
                 <div className="sidebar__user-menu-space" role="none">
-                  <span className="sidebar__user-menu-space-label">Current space</span>
+                  <span className="sidebar__user-menu-space-label">{t("shell.currentSpace")}</span>
                   <span className="sidebar__user-menu-space-name">{currentSpace.name}</span>
                 </div>
                 <div className="sidebar__user-menu-divider" role="separator" />
@@ -433,7 +438,7 @@ export function SidebarNavContent({
               <span className="sidebar__user-menu-item-icon" aria-hidden>
                 <SettingsIcon />
               </span>
-              Account
+              {t("shell.menu.account")}
             </button>
             <button
               type="button"
@@ -447,7 +452,7 @@ export function SidebarNavContent({
               <span className="sidebar__user-menu-item-icon" aria-hidden>
                 <AgentsIcon />
               </span>
-              Remote Control
+              {t("shell.menu.remoteControl")}
             </button>
             <button
               type="button"
@@ -461,8 +466,31 @@ export function SidebarNavContent({
               <span className="sidebar__user-menu-item-icon" aria-hidden>
                 <HelpIcon />
               </span>
-              Help
+              {t("shell.menu.help")}
             </button>
+            <div className="sidebar__user-menu-divider" role="separator" />
+            <div className="sidebar__user-menu-space" role="none">
+              <span className="sidebar__user-menu-space-label">{t("shell.menu.language")}</span>
+            </div>
+            {LOCALES.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className="sidebar__user-menu-item"
+                role="menuitemradio"
+                aria-checked={locale === option}
+                lang={option}
+                onClick={() => {
+                  setUserMenuOpen(false)
+                  setLocale(option)
+                }}
+              >
+                <span className="sidebar__user-menu-item-icon" aria-hidden>
+                  {locale === option ? "✓" : ""}
+                </span>
+                {LOCALE_NAMES[option]}
+              </button>
+            ))}
             <div className="sidebar__user-menu-divider" role="separator" />
             <button
               type="button"
@@ -477,7 +505,7 @@ export function SidebarNavContent({
               <span className="sidebar__user-menu-item-icon" aria-hidden>
                 <SignOutIcon />
               </span>
-              Sign Out
+              {t("shell.menu.signOut")}
             </button>
           </div>
         )}

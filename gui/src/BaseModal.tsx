@@ -1,5 +1,6 @@
 import { useRef, type ReactNode } from "react"
 import { useOverlayA11y } from "./useOverlayA11y"
+import { useGuiT } from "./messages"
 
 export interface BaseModalProps {
   open: boolean
@@ -22,6 +23,7 @@ export function BaseModal({
   hideHeader,
   children,
 }: BaseModalProps) {
+  const t = useGuiT()
   const focusRef = useRef<HTMLDivElement>(null)
 
   useOverlayA11y({ open, onClose, containerRef: focusRef })
@@ -48,7 +50,7 @@ export function BaseModal({
               type="button"
               className="modal__close"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={t("gui.close")}
             >
               &times;
             </button>
