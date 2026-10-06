@@ -15,8 +15,8 @@ import type { BreadcrumbCrumb } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
-import { statusLabel } from "../../lib/statusLabels"
-import { useT } from "../../i18n"
+import { useStatusLabel } from "../../lib/statusLabels"
+import { useStableT, useT } from "../../i18n"
 
 interface TaskDetailProps {
   token: string | null
@@ -44,8 +44,9 @@ function fmtWhen(ts?: string | null): string {
 /** A working indicator shown while a run is still in flight, in place of the
  *  raw pending/scheduled/running status the user does not need to see. */
 function TypingDots() {
+  const t = useT()
   return (
-    <span className="typing-dots" role="status" aria-label="Agent is working">
+    <span className="typing-dots" role="status" aria-label={t("tasks.working")}>
       <span />
       <span />
       <span />
@@ -55,6 +56,8 @@ function TypingDots() {
 
 export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   const t = useT()
+  const stableT = useStableT()
+  const statusLabel = useStatusLabel()
   const { user } = useAuth()
   const { entityLabels, setEntityLabel, setBreadcrumbTrail } = useApp()
   const historyRef = useRef<HTMLElement | null>(null)
@@ -96,12 +99,12 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
           setUnavailable("error")
         }
         setTask(null)
-        setError(getErrorMessage(err, "Failed to load task"))
+        setError(getErrorMessage(err, stableT("tasks.error.load")))
       }
     } finally {
       setLoading(false)
     }
-  }, [spaceId, taskId, token])
+  }, [spaceId, taskId, token, stableT])
 
   useEffect(() => {
     setLoading(true)
@@ -172,39 +175,41 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   // so its origin is the workflow run the server resolved for it. Only a task
   // with no recorded origin at all (a direct agent run) shows the Agent here,
   // because that genuinely is where it came from.
+  // The trail is display state, not a load, so it follows `t` and is rebuilt
+  // in the new language when the language changes.
   useEffect(() => {
     if (!task) return
-    const leaf: BreadcrumbCrumb = { label: task.title || "Task", route: { name: "task", spaceId, taskId } }
+    const leaf: BreadcrumbCrumb = { label: task.title || t("shell.crumbs.task"), route: { name: "task", spaceId, taskId } }
     let trail: BreadcrumbCrumb[]
     if (task.issue_id) {
       trail = [
-        { label: "Issues", route: { name: "issues", spaceId } },
-        { label: entityLabels[task.issue_id] ?? "Issue", route: { name: "issue", spaceId, issueId: task.issue_id } },
+        { label: t("shell.nav.issues"), route: { name: "issues", spaceId } },
+        { label: entityLabels[task.issue_id] ?? t("shell.crumbs.issue"), route: { name: "issue", spaceId, issueId: task.issue_id } },
         leaf,
       ]
     } else if (task.conversation_id) {
       trail = [
-        { label: "Chat", route: { name: "chat", spaceId } },
-        { label: "Conversation", route: { name: "chat", spaceId, conversationId: task.conversation_id } },
+        { label: t("shell.nav.chat"), route: { name: "chat", spaceId } },
+        { label: t("shell.crumbs.conversation"), route: { name: "chat", spaceId, conversationId: task.conversation_id } },
         leaf,
       ]
     } else if (task.workflow_run_id) {
       trail = [
-        { label: "Workflows", route: { name: "workflows", spaceId } },
-        { label: "Workflow run", route: { name: "workflowRun", spaceId, workflowRunId: task.workflow_run_id } },
+        { label: t("shell.nav.workflows"), route: { name: "workflows", spaceId } },
+        { label: t("tasks.workflowRun"), route: { name: "workflowRun", spaceId, workflowRunId: task.workflow_run_id } },
         leaf,
       ]
     } else if (task.agent_id) {
       trail = [
-        { label: "Agents", route: { name: "agents", spaceId } },
-        { label: entityLabels[task.agent_id] ?? "Agent", route: { name: "agent", spaceId, agentId: task.agent_id } },
+        { label: t("shell.nav.agents"), route: { name: "agents", spaceId } },
+        { label: entityLabels[task.agent_id] ?? t("shell.crumbs.agent"), route: { name: "agent", spaceId, agentId: task.agent_id } },
         leaf,
       ]
     } else {
-      trail = [{ label: "Chat", route: { name: "chat", spaceId } }, leaf]
+      trail = [{ label: t("shell.nav.chat"), route: { name: "chat", spaceId } }, leaf]
     }
     setBreadcrumbTrail(taskId, trail)
-  }, [task, taskId, spaceId, entityLabels, setBreadcrumbTrail])
+  }, [task, taskId, spaceId, entityLabels, setBreadcrumbTrail, t])
 
   // The task rendered as a conversation: each run is one user turn (its input)
   // and one agent turn (its output). Run-level technical detail lives in the
@@ -236,8 +241,8 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
           // While a run is in flight the label stays "Agent" — the working dots
           // carry the state; only a finished run shows Done / Failed / Stopped.
           label: active
-            ? "Agent"
-            : `Agent · ${run.questions?.length ? "Needs your answer" : runStatusLabel(run.status)}`,
+            ? t("tasks.agent")
+            : `${t("tasks.agent")} · ${run.questions?.length ? t("chat.needsAnswer") : runStatusLabel(run.status, t)}`,
           avatar: <AgentAvatar size="sm" />,
           body: run.output ? (
             <div className="page-chat__msg-content page-chat__markdown">
@@ -257,13 +262,13 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
             // A run can finish its work in tool calls and end without a word;
             // "No output" would read as if it did nothing.
             <p className="bm-chat-thread__text bm-chat-thread__text--muted">
-              Finished without a written reply.{" "}
+              {t("tasks.noReply")}{" "}
               <Button variant="tertiary" size="compact" onClick={() => setTraceRunId(run.id)}>
-                See what it did
+                {t("tasks.seeWhatItDid")}
               </Button>
             </p>
           ) : (
-            <p className="bm-chat-thread__text bm-chat-thread__text--muted">No output.</p>
+            <p className="bm-chat-thread__text bm-chat-thread__text--muted">{t("tasks.noOutput")}</p>
           ),
         },
       ]
@@ -282,7 +287,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
       setRuns((current) => [...current, run])
       setInput("")
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to continue task"))
+      setError(getErrorMessage(err, stableT("tasks.error.continue")))
     } finally {
       setSending(false)
     }
@@ -294,7 +299,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
     setError(null)
     cancelTask(spaceId, taskId, token)
       .then(() => load(true))
-      .catch((err) => setError(getErrorMessage(err, "Failed to stop this run")))
+      .catch((err) => setError(getErrorMessage(err, stableT("tasks.error.stop"))))
       .finally(() => setStopping(false))
   }
 
@@ -304,7 +309,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
     setError(null)
     retryTask(spaceId, taskId, token)
       .then(() => load(true))
-      .catch((err) => setError(getErrorMessage(err, "Failed to retry this run")))
+      .catch((err) => setError(getErrorMessage(err, stableT("tasks.error.retry"))))
       .finally(() => setRetrying(false))
   }
 
@@ -313,7 +318,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">Loading…</p>
+        <p className="page-activity__empty">{t("shell.loading")}</p>
       </div>
     )
   }
@@ -321,11 +326,11 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   if (unavailable) {
     return (
       <ResourceUnavailable
-        resourceLabel="Task"
+        resourceLabel={t("tasks.resource")}
         kind={unavailable}
         errorMessage={error}
         onRetry={() => void load()}
-        backLabel="Back to Chat"
+        backLabel={t("tasks.backToChat")}
         onBack={() => navigate({ name: "chat", spaceId })}
       />
     )
@@ -335,24 +340,24 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
     <div className="page-chat task-thread">
       <header className="task-thread__header">
         <div>
-          <h1 className="page-activity__title">{task?.title || "Task"}</h1>
+          <h1 className="page-activity__title">{task?.title || t("tasks.untitled")}</h1>
           <p className="page-activity__subtitle">
             {agentName ? `${agentName} · ` : ""}
-            {task ? taskStatusLabel(task) : "Loading"}
+            {task ? taskStatusLabel(task, t) : t("tasks.loading")}
           </p>
         </div>
         <div className="task-thread__header-actions">
           {running ? (
-            <Button variant="danger" busy={stopping} onClick={handleStop}>Stop</Button>
+            <Button variant="danger" busy={stopping} onClick={handleStop}>{t("tasks.stop")}</Button>
           ) : runs.length > 0 ? (
-            <Button variant="secondary" busy={retrying} onClick={handleRetry}>Retry last run</Button>
+            <Button variant="secondary" busy={retrying} onClick={handleRetry}>{t("tasks.retryLast")}</Button>
           ) : null}
           <Button variant="tertiary" aria-haspopup="dialog" onClick={() => setDetailsOpen(true)}>
-            Details
+            {t("tasks.details")}
           </Button>
           {task?.agent_id ? (
             <ButtonLink variant="tertiary" href={buildHash({ name: "agent", spaceId, agentId: task.agent_id })}>
-              Open agent
+              {t("tasks.openAgent")}
             </ButtonLink>
           ) : null}
         </div>
@@ -361,52 +366,52 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
       {task ? (
         <BaseModal
           open={detailsOpen}
-          title="Task details"
+          title={t("tasks.details.title")}
           titleId="task-details-title"
           onClose={() => setDetailsOpen(false)}
         >
           <div className="modal__body">
           <dl className="task-details__kv">
-            <dt>Agent</dt>
+            <dt>{t("tasks.details.agent")}</dt>
             <dd>
               {task.agent_id ? (
                 <a className="task-details__link" href={buildHash({ name: "agent", spaceId, agentId: task.agent_id })}>
-                  {agentName ?? "Agent"}
+                  {agentName ?? t("tasks.details.agent")}
                 </a>
               ) : (
                 "—"
               )}
             </dd>
-            <dt>Status</dt>
-            <dd>{taskStatusLabel(task)}</dd>
-            <dt>Trigger</dt>
+            <dt>{t("tasks.details.status")}</dt>
+            <dd>{taskStatusLabel(task, t)}</dd>
+            <dt>{t("tasks.details.trigger")}</dt>
             <dd>{runs[0]?.trigger_source ? statusLabel(runs[0].trigger_source) : "—"}</dd>
-            <dt>Started</dt>
+            <dt>{t("tasks.details.started")}</dt>
             <dd>{fmtWhen(task.started_at)}</dd>
-            <dt>Ended</dt>
+            <dt>{t("tasks.details.ended")}</dt>
             <dd>{fmtWhen(task.ended_at)}</dd>
-            <dt>Duration</dt>
+            <dt>{t("tasks.details.duration")}</dt>
             <dd>{fmtDuration(task.started_at, task.ended_at)}</dd>
-            <dt>Runs</dt>
+            <dt>{t("tasks.details.runs")}</dt>
             <dd>{runs.length}</dd>
-            <dt>Task</dt>
+            <dt>{t("tasks.details.task")}</dt>
             <dd className="task-details__mono">{task.id}</dd>
             {task.issue_id ? (
               <>
-                <dt>Issue</dt>
+                <dt>{t("tasks.details.issue")}</dt>
                 <dd>
                   <a className="task-details__link" href={buildHash({ name: "issue", spaceId, issueId: task.issue_id })}>
-                    Open issue
+                    {t("tasks.details.openIssue")}
                   </a>
                 </dd>
               </>
             ) : null}
             {task.conversation_id ? (
               <>
-                <dt>Conversation</dt>
+                <dt>{t("tasks.details.conversation")}</dt>
                 <dd>
                   <a className="task-details__link" href={buildHash({ name: "chat", spaceId, conversationId: task.conversation_id })}>
-                    Open conversation
+                    {t("tasks.details.openConversation")}
                   </a>
                 </dd>
               </>
@@ -422,7 +427,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
                   setTraceRunId(traceRun)
                 }}
               >
-                View trace
+                {t("tasks.details.viewTrace")}
               </Button>
             ) : null}
           </div>
@@ -432,13 +437,13 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
 
       <ChatThread
         historyRef={historyRef}
-        ariaLabel="Task conversation"
+        ariaLabel={t("tasks.thread.label")}
         items={items}
-        loadingText={loading ? "Loading conversation…" : null}
+        loadingText={loading ? t("tasks.thread.loading") : null}
         errorText={error}
-        emptyText="No runs yet."
+        emptyText={t("tasks.thread.empty")}
       />
-      <section className="page-chat__input" aria-label="Continue task">
+      <section className="page-chat__input" aria-label={t("tasks.continue.label")}>
         <ChatComposer
           value={input}
           onChange={setInput}
@@ -448,13 +453,13 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
           error={error}
           placeholder={
             running
-              ? "Wait for the current run to finish…"
+              ? t("tasks.continue.waiting")
               : task?.awaiting_answer
-                ? "Answer the agent's questions in your own words…"
-                : "Continue this task…"
+                ? t("tasks.continue.answer")
+                : t("tasks.continue.placeholder")
           }
-          ariaLabel="Continue task"
-          submitLabel="Continue"
+          ariaLabel={t("tasks.continue.label")}
+          submitLabel={t("tasks.continue.submit")}
         />
       </section>
 

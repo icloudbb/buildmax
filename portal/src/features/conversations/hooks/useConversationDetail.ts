@@ -6,6 +6,7 @@ import {
   useWebSocket,
 } from "../../../contexts/WebSocketContext"
 import { useSpace } from "../../../contexts/SpaceContext"
+import { useStableT } from "../../../i18n"
 
 interface UseConversationDetailOptions {
   spaceId: string | null
@@ -53,6 +54,7 @@ export function useConversationDetail({
   const ws = useWebSocket()
   const { busy: sending, markBusy, queued: queuedMessages } = useConversationBusy(conversationId)
   const { currentSpaceId } = useSpace()
+  const stableT = useStableT()
   const {
     data: messagesData,
     loading: messagesLoading,
@@ -63,7 +65,7 @@ export function useConversationDetail({
     [spaceId, conversationId, token],
     {
       enabled: !!(token && spaceId && conversationId),
-      errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load messages"),
+      errorMessage: (e) => (e instanceof Error ? e.message : stableT("chat.error.loadMessages")),
     }
   )
 

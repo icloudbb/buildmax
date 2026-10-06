@@ -6,6 +6,7 @@ import { getErrorMessage } from "../../../lib/errorMessage"
 import type { ApiTask } from "../../../lib/api/types"
 import type { RequestErrorKind } from "../../../state/resourceState"
 import { cancelTask, getTasks, retryTask } from "../../tasks/api"
+import { useStableT, type MessageKey } from "../../../i18n"
 
 interface UseConversationTasksOptions {
   spaceId: string | null
@@ -49,6 +50,7 @@ export function useConversationTasks({
   token,
 }: UseConversationTasksOptions): ConversationTaskCards {
   const ws = useWebSocket()
+  const stableT = useStableT()
   const {
     data: tasks,
     error: tasksError,
@@ -56,7 +58,7 @@ export function useConversationTasks({
     refetch,
   } = useFetch(() => getTasks(spaceId!, conversationId, token!), [spaceId, conversationId, token], {
     enabled: !!(token && spaceId && conversationId),
-    errorMessage: (e) => getErrorMessage(e, "Failed to load tasks"),
+    errorMessage: (e) => getErrorMessage(e, stableT("chat.error.loadTasks")),
   })
 
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null)
@@ -96,26 +98,26 @@ export function useConversationTasks({
   }, [ws, conversationId])
 
   const runAction = useCallback(
-    (taskId: string, action: (spaceId: string, taskId: string, token: string) => Promise<unknown>, failed: string) => {
+    (taskId: string, action: (spaceId: string, taskId: string, token: string) => Promise<unknown>, failed: MessageKey) => {
       if (!spaceId || !token) return
       setBusyTaskId(taskId)
       setActionError(null)
       action(spaceId, taskId, token)
-        .catch((err) => setActionError({ taskId, message: getErrorMessage(err, failed) }))
+        .catch((err) => setActionError({ taskId, message: getErrorMessage(err, stableT(failed)) }))
         .finally(() => {
           setBusyTaskId(null)
           refetchRef.current()
         })
     },
-    [spaceId, token]
+    [spaceId, token, stableT]
   )
 
   const stop = useCallback(
-    (taskId: string) => runAction(taskId, cancelTask, "Failed to stop the run"),
+    (taskId: string) => runAction(taskId, cancelTask, "chat.error.stopRun"),
     [runAction]
   )
   const retry = useCallback(
-    (taskId: string) => runAction(taskId, retryTask, "Failed to run it again"),
+    (taskId: string) => runAction(taskId, retryTask, "chat.error.runAgain"),
     [runAction]
   )
 

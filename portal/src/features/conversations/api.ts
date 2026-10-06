@@ -6,6 +6,8 @@ import {
 } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import { readSSEStream } from "../../lib/api/sse"
+import { detectLocale } from "@buildmax/gui"
+import { translate } from "../../i18n"
 import type {
   AddConversationMessageResponse,
   ApiConversationMessagesResponse,
@@ -71,7 +73,7 @@ export async function createConversationStream(
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    const msg = await parseErrorResponse(res, "Create conversation failed")
+    const msg = await parseErrorResponse(res, translate(detectLocale(), "chat.error.createConversation"))
     callbacks.onError(new Error(msg))
     return
   }
@@ -114,7 +116,7 @@ export async function addConversationMessageStream(
     signal: options?.signal,
   })
   if (!res.ok) {
-    const msg = await parseErrorResponse(res, "Send message failed")
+    const msg = await parseErrorResponse(res, translate(detectLocale(), "chat.error.sendMessage"))
     callbacks.onError(new Error(msg))
     return
   }

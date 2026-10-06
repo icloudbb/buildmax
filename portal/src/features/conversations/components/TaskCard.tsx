@@ -1,5 +1,6 @@
 import { Button } from "@buildmax/gui"
 import type { ApiTask } from "../../../lib/api/types"
+import { useT } from "../../../i18n"
 import { taskRunFailed, taskRunFinished, taskStatusLabel } from "../thread"
 
 const previewMaxLen = 600
@@ -45,6 +46,7 @@ export function TaskCard({
   onOpenIssue,
   error,
 }: TaskCardProps) {
+  const t = useT()
   const tone = statusTone(task.status)
   const finished = taskRunFinished(task.status)
   const body = preview(task.output)
@@ -52,29 +54,29 @@ export function TaskCard({
   return (
     <article className={`task-card task-card--${tone}`}>
       <header className="task-card__head">
-        <span className={`task-card__status task-card__status--${tone}`}>{taskStatusLabel(task)}</span>
+        <span className={`task-card__status task-card__status--${tone}`}>{taskStatusLabel(task, t)}</span>
         <span className="task-card__title">{task.title || task.input}</span>
       </header>
       {task.error_message ? <p className="task-card__error">{task.error_message}</p> : null}
       {body ? <pre className="task-card__preview">{body}</pre> : null}
       {!body && !task.error_message && finished ? (
-        <p className="task-card__meta">This run finished without output.</p>
+        <p className="task-card__meta">{t("chat.card.noOutput")}</p>
       ) : null}
       {error ? <p className="task-card__error">{error}</p> : null}
       <footer className="task-card__actions">
         {!finished ? (
-          <Button variant="danger" size="compact" busy={busy} onClick={() => onStop(task.id)}>Stop</Button>
+          <Button variant="danger" size="compact" busy={busy} onClick={() => onStop(task.id)}>{t("chat.card.stop")}</Button>
         ) : (
-          <Button variant="secondary" size="compact" busy={busy} onClick={() => onRetry(task.id)}>Run again</Button>
+          <Button variant="secondary" size="compact" busy={busy} onClick={() => onRetry(task.id)}>{t("chat.card.runAgain")}</Button>
         )}
         {task.last_run_id ? (
           <Button variant="tertiary" size="compact" onClick={() => onOpenTrace(task.last_run_id!)}>
-            Run details
+            {t("chat.card.runDetails")}
           </Button>
         ) : null}
         {task.issue_id && onOpenIssue ? (
           <Button variant="tertiary" size="compact" onClick={() => onOpenIssue(task.issue_id!)}>
-            Open issue
+            {t("chat.card.openIssue")}
           </Button>
         ) : null}
       </footer>

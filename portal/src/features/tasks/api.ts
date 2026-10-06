@@ -7,6 +7,8 @@ import {
 } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import { readSSEStream } from "../../lib/api/sse"
+import { detectLocale } from "@buildmax/gui"
+import { translate } from "../../i18n"
 import type {
   ApiTask,
   ApiTaskRun,
@@ -119,7 +121,7 @@ export async function cancelTask(
     { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) } }
   )
   if (res.status === 409) {
-    const msg = await parseErrorResponse(res, "This task has no run in progress")
+    const msg = await parseErrorResponse(res, translate(detectLocale(), "tasks.error.noRunInProgress"))
     throw new Error(msg)
   }
   await throwIfNotOk(res)
@@ -143,7 +145,7 @@ export async function retryTask(
     { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) } }
   )
   if (res.status === 409) {
-    const msg = await parseErrorResponse(res, "This task cannot be retried right now")
+    const msg = await parseErrorResponse(res, translate(detectLocale(), "tasks.error.cannotRetry"))
     throw new Error(msg)
   }
   await throwIfNotOk(res)
@@ -175,7 +177,7 @@ export async function streamTaskOutput(
   const url = `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/tasks/${encodeURIComponent(taskId)}/stream`
   const res = await apiFetch(url, { headers: authHeaders(token), signal: options?.signal })
   if (!res.ok) {
-    callbacks.onError(new Error(await parseErrorResponse(res, "Task stream failed")))
+    callbacks.onError(new Error(await parseErrorResponse(res, translate(detectLocale(), "tasks.error.stream"))))
     return
   }
   await readSSEStream(res, {
