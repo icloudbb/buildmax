@@ -6,6 +6,7 @@ import { FileList } from "./FileList"
 import { FileTree } from "./FileTree"
 import { FileViewer } from "./FileViewer"
 import { useFilesExplorer } from "../hooks/useFilesExplorer"
+import { useT } from "../../../i18n"
 
 interface FilesExplorerProps {
   spaceId: string
@@ -13,6 +14,7 @@ interface FilesExplorerProps {
 }
 
 export function FilesExplorer({ spaceId, className }: FilesExplorerProps) {
+  const t = useT()
   const { token } = useAuth()
   const explorer = useFilesExplorer({ spaceId, token })
   // Narrow layouts show one column at a time (folder contents, or the
@@ -42,13 +44,13 @@ export function FilesExplorer({ spaceId, className }: FilesExplorerProps) {
           variant="primary" busy={explorer.uploading}
           onClick={() => explorer.fileInputRef.current?.click()}
         >
-          Upload Files
+          {t("files.uploadFiles")}
         </Button>
         <Button
           variant="secondary" busy={explorer.uploading}
           onClick={() => explorer.folderInputRef.current?.click()}
         >
-          Upload Folder
+          {t("files.uploadFolder")}
         </Button>
         {explorer.uploadMsg && (
           <span
@@ -80,7 +82,7 @@ export function FilesExplorer({ spaceId, className }: FilesExplorerProps) {
         <div className="page-explore__content-panel">
           {narrow && explorer.canGoBack && (
             <button type="button" className="page-explore__back" onClick={explorer.goBack}>
-              <span aria-hidden="true">‹ </span>Back
+              <span aria-hidden="true">‹ </span>{t("files.back")}
             </button>
           )}
           {showList && (

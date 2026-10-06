@@ -21,6 +21,7 @@ import {
   sourceLabel,
   uploadArtifact,
 } from "../../features/artifacts"
+import { useStableT, useT } from "../../i18n"
 
 const PAGE_SIZE = 50
 
@@ -36,6 +37,8 @@ interface ArtifactsProps {
 }
 
 export function Artifacts({ spaceId }: ArtifactsProps) {
+  const t = useT()
+  const stableT = useStableT()
   const { token, user } = useAuth()
   const { currentUserRole } = useSpace()
   // null means "not yet successfully fetched", distinct from [] meaning the
@@ -66,10 +69,10 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
         })
         // itemsData from a prior successful fetch (if any) is left in place,
         // so a failed refresh reads as Stale rather than wiping the list.
-        .catch((err) => setListError(classifyError(err, "Failed to load artifacts")))
+        .catch((err) => setListError(classifyError(err, stableT("artifacts.error.load"))))
         .finally(() => setLoading(false))
     },
-    [spaceId, token]
+    [spaceId, token, stableT]
   )
 
   useEffect(() => {
@@ -93,7 +96,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
       await uploadArtifact(spaceId, token, file)
       load(0)
     } catch (err) {
-      setUploadError(getErrorMessage(err, "Upload failed"))
+      setUploadError(getErrorMessage(err, stableT("artifacts.error.upload")))
     } finally {
       setUploading(false)
     }
@@ -106,7 +109,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
     try {
       await downloadAuthenticated(artifactContentUrl(artifact.id), token, artifact.filename)
     } catch (err) {
-      setRowError({ id: artifact.id, message: getErrorMessage(err, "Download failed") })
+      setRowError({ id: artifact.id, message: getErrorMessage(err, stableT("artifacts.error.download")) })
     } finally {
       setBusyAction(null)
     }
@@ -114,7 +117,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
 
   async function onDelete(artifact: ApiArtifact) {
     if (!token) return
-    if (!confirmArtifactDeletion(artifact)) return
+    if (!confirmArtifactDeletion(artifact, t)) return
     setBusyAction({ id: artifact.id, kind: "delete" })
     setRowError(null)
     try {
@@ -122,23 +125,20 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
       setItemsData((prev) => (prev ?? []).filter((a) => a.id !== artifact.id))
       setTotal((prev) => Math.max(0, prev - 1))
     } catch (err) {
-      setRowError({ id: artifact.id, message: getErrorMessage(err, "Delete failed") })
+      setRowError({ id: artifact.id, message: getErrorMessage(err, stableT("artifacts.error.delete")) })
     } finally {
       setBusyAction(null)
     }
   }
 
-  const countLabel = itemsData === null ? null : total === 1 ? "1 artifact" : `${total} artifacts`
+  const countLabel = itemsData === null ? null : t("artifacts.count", { count: total })
 
   return (
     <div className="page-activity">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Artifacts</h1>
-          <p className="page-activity__subtitle">
-            Files this space keeps. Each one has a stable reference any member can open, and its
-            content never changes — a new version is a new artifact.
-          </p>
+          <h1 className="page-activity__title">{t("artifacts.title")}</h1>
+          <p className="page-activity__subtitle">{t("artifacts.subtitle")}</p>
         </div>
         <div className="page-activity__actions">
           <Button
@@ -147,7 +147,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
             busy={uploading}
             disabled={!spaceId}
           >
-            Upload a file
+            {t("artifacts.upload")}
           </Button>
           <input
             ref={fileInput}
@@ -166,7 +166,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
         <Alert
           tone={itemsState.kind === "stale" ? "stale" : itemsState.kind}
           message={itemsState.error.message}
-          retry={{ label: "Retry", onClick: () => load(0) }}
+          retry={{ label: t("shell.retry"), onClick: () => load(0) }}
         />
       )}
       {uploadError ? (
@@ -175,11 +175,11 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
         </p>
       ) : null}
 
-      <section className="issues-page__panel" aria-label="Artifact list">
+      <section className="issues-page__panel" aria-label={t("artifacts.list")}>
         {countLabel ? <p className="page-activity__meta">{countLabel}</p> : null}
 
         {itemsState.kind === "readyEmpty" ? (
-          <EmptyState message="Nothing kept here yet. Upload a file, or have an agent publish one with UploadArtifact." />
+          <EmptyState message={t("artifacts.empty")} />
         ) : null}
 
         {itemsState.kind !== "forbidden" && itemsState.kind !== "notFound" && items.length > 0 ? (
@@ -194,7 +194,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
                   </a>
                   <span className="artifact-row__meta">
                     {artifact.filename} · {formatSize(artifact.size_bytes)} ·{" "}
-                    {sourceLabel(artifact)}
+                    {sourceLabel(artifact, t)}
                   </span>
                 </div>
                 <div className="artifact-row__meta">
@@ -208,7 +208,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
                     busy={busyAction?.id === artifact.id && busyAction.kind === "download"}
                     disabled={busyAction?.id === artifact.id}
                   >
-                    Download
+                    {t("artifacts.download")}
                   </Button>
                   {mayDelete(artifact, user?.id, currentUserRole) ? (
                     <Button
@@ -218,7 +218,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
                       busy={busyAction?.id === artifact.id && busyAction.kind === "delete"}
                       disabled={busyAction?.id === artifact.id}
                     >
-                      Delete
+                      {t("artifacts.delete")}
                     </Button>
                   ) : null}
                 </div>
@@ -232,7 +232,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
           </ul>
         ) : null}
 
-        {loading ? <p className="page-activity__empty">Loading…</p> : null}
+        {loading ? <p className="page-activity__empty">{t("shell.loading")}</p> : null}
 
         {itemsState.kind !== "forbidden" && itemsState.kind !== "notFound" && items.length < total ? (
           <Button
@@ -240,7 +240,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
             onClick={() => load(items.length)}
             disabled={loading}
           >
-            Show older ({total - items.length} more)
+            {t("artifacts.showOlder", { count: total - items.length })}
           </Button>
         ) : null}
       </section>

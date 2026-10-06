@@ -1,3 +1,5 @@
+import { useT } from "../../../i18n"
+
 interface FileViewerProps {
   selectedFileId: string | null
   selectedFileName: string | null
@@ -13,15 +15,16 @@ export function FileViewer({
   fileError,
   fileContent,
 }: FileViewerProps) {
+  const t = useT()
   if (!selectedFileId) return null
 
   return (
-    <section className="page-explore__viewer" aria-label="File content">
+    <section className="page-explore__viewer" aria-label={t("files.fileContent")}>
       <h3 className="page-explore__viewer-title">{selectedFileName ?? selectedFileId}</h3>
-      {fileLoading && <p className="page-explore__viewer-loading">Loading…</p>}
+      {fileLoading && <p className="page-explore__viewer-loading">{t("shell.loading")}</p>}
       {fileError && (
         <p className="page-explore__viewer-error" role="alert">
-          Error: {fileError}
+          {t("files.viewerError", { message: fileError })}
         </p>
       )}
       {!fileLoading && !fileError && (

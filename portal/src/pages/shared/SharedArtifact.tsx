@@ -9,6 +9,7 @@ import {
   formatSize,
   sharedRawUrl,
 } from "../../features/artifacts"
+import { useStableT, useT } from "../../i18n"
 
 /**
  * SharedArtifact is the public page a share link opens. It needs no login: the
@@ -18,6 +19,8 @@ import {
  * shared HTML prototype runs in its sandbox.
  */
 export function SharedArtifact({ token }: { token: string }) {
+  const t = useT()
+  const stableT = useStableT()
   const [meta, setMeta] = useState<ApiSharedMeta | null>(null)
   const [text, setText] = useState<string | null>(null)
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
@@ -47,7 +50,7 @@ export function SharedArtifact({ token }: { token: string }) {
           }
         }
       } catch (err) {
-        if (!cancelled) setError(getErrorMessage(err, "This link is not available"))
+        if (!cancelled) setError(getErrorMessage(err, stableT("artifacts.shared.unavailable")))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -56,12 +59,12 @@ export function SharedArtifact({ token }: { token: string }) {
       cancelled = true
       if (created) URL.revokeObjectURL(created)
     }
-  }, [token])
+  }, [token, stableT])
 
   if (loading) {
     return (
       <div className="shared-page">
-        <p className="page-activity__empty">Loading…</p>
+        <p className="page-activity__empty">{t("shell.loading")}</p>
       </div>
     )
   }
@@ -73,10 +76,8 @@ export function SharedArtifact({ token }: { token: string }) {
     return (
       <div className="shared-page">
         <div className="shared-page__card">
-          <h1 className="shared-page__title">Link unavailable</h1>
-          <p className="shared-page__subtitle">
-            This link may have expired, been revoked, or never existed.
-          </p>
+          <h1 className="shared-page__title">{t("artifacts.shared.unavailableTitle")}</h1>
+          <p className="shared-page__subtitle">{t("artifacts.shared.unavailableBody")}</p>
         </div>
       </div>
     )
@@ -96,14 +97,12 @@ export function SharedArtifact({ token }: { token: string }) {
         {/* A normal link, not a fetch: the raw URL is public, so the browser can
             download it directly without this page holding any credential. */}
         <ButtonLink variant={meta.preview === "none" ? "primary" : "secondary"} href={sharedRawUrl(token, true)}>
-          Download
+          {t("artifacts.download")}
         </ButtonLink>
       </div>
 
       {meta.preview === "none" ? (
-        <p className="page-activity__empty">
-          This file type is offered as a download rather than a preview.
-        </p>
+        <p className="page-activity__empty">{t("artifacts.shared.noPreview")}</p>
       ) : (
         <div className="shared-page__body">
           <ArtifactContentView

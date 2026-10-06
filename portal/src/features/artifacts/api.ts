@@ -1,3 +1,4 @@
+import { detectLocale } from "@buildmax/gui"
 import { apiFetch, getApiBase, parseErrorResponse, requestJson } from "../../lib/api/client"
 import { authHeaders } from "../../lib/api/common"
 import type {
@@ -7,6 +8,12 @@ import type {
   ApiArtifactShareList,
   ApiSharedMeta,
 } from "../../lib/api/types"
+import { translate, type MessageKey } from "../../i18n"
+
+// Fallbacks shown when the server gives no message, in the interface language.
+function fallback(key: MessageKey): string {
+  return translate(detectLocale(), key)
+}
 
 /**
  * The space route lists and receives; the id route reads one.
@@ -57,7 +64,7 @@ export async function uploadArtifact(
   const url = `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/artifacts${query}`
   const res = await apiFetch(url, { method: "POST", headers: authHeaders(token), body: form })
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "Upload failed"))
+    throw new Error(await parseErrorResponse(res, fallback("artifacts.error.upload")))
   }
   return (await res.json()) as ApiArtifact
 }
@@ -66,7 +73,7 @@ export async function deleteArtifact(artifactId: string, token: string): Promise
   const url = `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}`
   const res = await apiFetch(url, { method: "DELETE", headers: authHeaders(token) })
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "Delete failed"))
+    throw new Error(await parseErrorResponse(res, fallback("artifacts.error.delete")))
   }
 }
 
@@ -76,7 +83,7 @@ export async function createShare(artifactId: string, token: string): Promise<Ap
   const url = `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}/shares`
   const res = await apiFetch(url, { method: "POST", headers: authHeaders(token) })
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "Could not create a public link"))
+    throw new Error(await parseErrorResponse(res, fallback("artifacts.share.error.create")))
   }
   return (await res.json()) as ApiArtifactShare
 }
@@ -90,7 +97,7 @@ export async function revokeShare(artifactId: string, shareId: string, token: st
   const url = `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}/shares/${encodeURIComponent(shareId)}`
   const res = await apiFetch(url, { method: "DELETE", headers: authHeaders(token) })
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "Could not revoke the link"))
+    throw new Error(await parseErrorResponse(res, fallback("artifacts.share.error.revoke")))
   }
 }
 
@@ -105,7 +112,7 @@ export function sharedRawUrl(shareToken: string, download = false): string {
 export async function fetchSharedMeta(shareToken: string): Promise<ApiSharedMeta> {
   const res = await fetch(`${getApiBase()}/shared/artifacts/${encodeURIComponent(shareToken)}/meta`)
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "This link is not available"))
+    throw new Error(await parseErrorResponse(res, fallback("artifacts.shared.unavailable")))
   }
   return (await res.json()) as ApiSharedMeta
 }
@@ -116,7 +123,7 @@ export async function fetchSharedContent(
 ): Promise<{ text?: string; objectUrl?: string; mediaType: string }> {
   const res = await fetch(sharedRawUrl(shareToken))
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "This link is not available"))
+    throw new Error(await parseErrorResponse(res, fallback("artifacts.shared.unavailable")))
   }
   const mediaType = res.headers.get("Content-Type") ?? ""
   if (mediaType.startsWith("text/")) {
@@ -138,7 +145,7 @@ export async function fetchArtifactPreview(
 ): Promise<{ text?: string; objectUrl?: string; mediaType: string }> {
   const res = await apiFetch(artifactContentUrl(artifactId), { headers: authHeaders(token) })
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "Preview failed"))
+    throw new Error(await parseErrorResponse(res, fallback("artifacts.preview.failed")))
   }
   const mediaType = res.headers.get("Content-Type") ?? ""
   if (mediaType.startsWith("text/")) {

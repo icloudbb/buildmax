@@ -4,6 +4,7 @@ import { findNodeById, findParentId, getChildren } from "../../../lib/explore"
 import { getErrorMessage } from "../../../lib/errorMessage"
 import { useFetch } from "../../../hooks/useFetch"
 import { getFileContent, getFileTree, uploadFiles } from "../api"
+import { useStableT, useT } from "../../../i18n"
 
 interface UseFilesExplorerOptions {
   spaceId: string | null
@@ -11,6 +12,8 @@ interface UseFilesExplorerOptions {
 }
 
 export function useFilesExplorer({ spaceId, token }: UseFilesExplorerOptions) {
+  const t = useT()
+  const stableT = useStableT()
   const {
     data: tree,
     loading: treeLoading,
@@ -22,7 +25,7 @@ export function useFilesExplorer({ spaceId, token }: UseFilesExplorerOptions) {
     [spaceId, token],
     {
       enabled: !!(spaceId && token),
-      errorMessage: (e) => getErrorMessage(e, "Failed to load files"),
+      errorMessage: (e) => getErrorMessage(e, stableT("files.error.loadTree")),
     }
   )
 
@@ -43,7 +46,7 @@ export function useFilesExplorer({ spaceId, token }: UseFilesExplorerOptions) {
     [spaceId, selectedFileId, token],
     {
       enabled: !!(spaceId && token && selectedFileId),
-      errorMessage: (e) => getErrorMessage(e, "Failed to load file"),
+      errorMessage: (e) => getErrorMessage(e, stableT("files.error.loadFile")),
     }
   )
 
@@ -89,27 +92,27 @@ export function useFilesExplorer({ spaceId, token }: UseFilesExplorerOptions) {
   const doUpload = useCallback(
     async (files: File[], paths?: string[], options?: { maxFiles?: number }) => {
       if (!spaceId || !token) {
-        setUploadMsg({ text: "Not authenticated", isError: true })
+        setUploadMsg({ text: stableT("files.upload.notAuthenticated"), isError: true })
         return
       }
       const { maxFiles } = options ?? {}
       if (maxFiles != null && files.length > maxFiles) {
-        setUploadMsg({ text: `Too many files (max ${maxFiles})`, isError: true })
+        setUploadMsg({ text: stableT("files.upload.tooMany", { max: maxFiles }), isError: true })
         return
       }
       setUploading(true)
       setUploadMsg(null)
       try {
         const res = await uploadFiles(files, spaceId, token, paths)
-        setUploadMsg({ text: `Uploaded ${res.uploaded.length} file(s)`, isError: false })
+        setUploadMsg({ text: stableT("files.upload.done", { count: res.uploaded.length }), isError: false })
         await refetchTree()
       } catch (err) {
-        setUploadMsg({ text: getErrorMessage(err, "Upload failed"), isError: true })
+        setUploadMsg({ text: getErrorMessage(err, stableT("files.upload.failed")), isError: true })
       } finally {
         setUploading(false)
       }
     },
-    [spaceId, token, refetchTree]
+    [spaceId, token, refetchTree, stableT]
   )
 
   const handleUpload = useCallback(
@@ -143,7 +146,7 @@ export function useFilesExplorer({ spaceId, token }: UseFilesExplorerOptions) {
 
   const children = tree ? getChildren(tree, selectedFolderId) : []
   const selectedFolderNode = tree ? findNodeById(tree, selectedFolderId) : undefined
-  const folderName = selectedFolderId === "." ? "home" : selectedFolderNode?.name ?? "—"
+  const folderName = selectedFolderId === "." ? t("files.root") : selectedFolderNode?.name ?? "—"
   const selectedFileName =
     tree && selectedFileId ? findNodeById(tree, selectedFileId)?.name ?? null : null
 

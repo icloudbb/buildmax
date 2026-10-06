@@ -1,4 +1,6 @@
+import type { Translate } from "@buildmax/gui"
 import type { ApiArtifact } from "../../lib/api/types"
+import type { MessageKey } from "../../i18n"
 import { artifactLabel } from "./display"
 
 /**
@@ -10,11 +12,6 @@ import { artifactLabel } from "./display"
  * and every link anyone saved to this one stays broken. That is worth stating
  * once, identically, rather than once per button.
  */
-export function confirmArtifactDeletion(artifact: ApiArtifact): boolean {
-  return window.confirm(
-    `Delete ${artifactLabel(artifact)}?\n\n` +
-      "Members lose access immediately, and anyone holding this reference will " +
-      "find it gone. Re-uploading the file creates a different artifact, so the " +
-      "reference cannot be restored."
-  )
+export function confirmArtifactDeletion(artifact: ApiArtifact, t: Translate<MessageKey>): boolean {
+  return window.confirm(t("artifacts.confirmDelete", { label: artifactLabel(artifact) }))
 }

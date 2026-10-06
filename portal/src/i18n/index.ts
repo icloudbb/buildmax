@@ -4,6 +4,9 @@ import { statusMessages } from "./status"
 import { helpMessages } from "./help"
 import { issuesMessages } from "./issues"
 import { runsMessages } from "./runs"
+import { filesMessages } from "./files"
+import { artifactsMessages } from "./artifacts"
+import { marketplaceMessages } from "./marketplace"
 
 // One file per area, each holding both languages, so a string and its
 // translation change together. Terms follow the glossary in
@@ -14,6 +17,9 @@ export const portalMessages = mergeMessages(
   helpMessages,
   issuesMessages,
   runsMessages,
+  filesMessages,
+  artifactsMessages,
+  marketplaceMessages,
 )
 
 export type MessageKey = keyof typeof portalMessages.en
