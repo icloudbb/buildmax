@@ -244,8 +244,8 @@ events.
 Every Portal and Desktop page ships in both languages; only the `/specimen`
 design page stays English. Pages were extracted without waiting for phase 2:
 a string moves with its component during rework, so extracting first costs
-nothing twice. Dates follow the interface language too, formatted at render
-time rather than stored as mapped English labels.
+nothing twice. Dates are formatted at render time, never stored as mapped
+English labels.
 
 ## Phases
 
