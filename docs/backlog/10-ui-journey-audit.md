@@ -5,7 +5,7 @@ roadmap: R6
 source: docs/design/ui-experience-program.md#d2-agent-driven-validation-recorded-as-such
 depends_on: []
 verification: ["kind", "./make check docs"]
-claim:
+claim: gougoujiang 2026-10-06
 pr:
 ---
 
