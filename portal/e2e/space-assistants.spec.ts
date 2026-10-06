@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Page } from "@playwright/test"
 
-import { createSpace, getJSON, reportLeftovers, session, tagged } from "./fixtures"
+import { animationsSettled, createSpace, getJSON, reportLeftovers, session, tagged } from "./fixtures"
 
 /**
  * A Space Assistant is published only after its owner confirms the statement
@@ -17,10 +17,10 @@ import { createSpace, getJSON, reportLeftovers, session, tagged } from "./fixtur
 
 /** WCAG A/AA over one region, on the same terms as accessibility.spec.ts. */
 async function expectAccessible(page: Page, include: string) {
+  await animationsSettled(page)
   const results = await new AxeBuilder({ page })
     .include(include)
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-    .disableRules(["color-contrast"])
     .analyze()
   const found = results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)
   expect(found, found.join("\n")).toEqual([])

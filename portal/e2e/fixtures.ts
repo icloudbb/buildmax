@@ -133,3 +133,19 @@ export async function uploadFile(page: Page, session: Session, name: string, con
 export function reportLeftovers(spaceId: string, resources: string[]): void {
   console.log(`[e2e] run ${RUN_ID} left in space ${spaceId}: ${resources.join(", ")}`)
 }
+
+/**
+ * Wait for finite CSS animations to end. An axe contrast check taken while a
+ * dialog is still fading in measures the half-transparent frame, not the
+ * colors anyone reads. Infinite ones (spinners) are left running.
+ */
+export async function animationsSettled(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  )
+}
