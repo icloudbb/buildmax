@@ -17,6 +17,7 @@ import {
 import "@xyflow/react/dist/style.css"
 import { Button } from "@buildmax/gui"
 import type { Agent } from "../../lib/types"
+import { useT } from "../../i18n"
 import {
   HUMAN_INPUT_STEP_TYPE,
   MAX_NODE_ATTEMPTS,
@@ -65,25 +66,26 @@ type StepNode = Node<StepNodeData, "wfStep">
  *  lands on the left (a `needs` this step depends on), an outgoing edge leaves
  *  the right (a step that depends on this one). */
 function StepNodeComponent({ data, selected }: NodeProps<StepNode>) {
+  const t = useT()
   return (
     <div
       className={`wf-node${selected ? " wf-node--selected" : ""}${data.errorCount > 0 ? " wf-node--error" : ""}`}
     >
       <Handle type="target" position={Position.Left} />
       <div className="wf-node__id">{data.label}</div>
-      <div className="wf-node__agent">{data.agentName || "No agent selected"}</div>
-      <div className="wf-node__prompt">{data.prompt || "No prompt"}</div>
+      <div className="wf-node__agent">{data.agentName || t("workflows.editor.noAgent")}</div>
+      <div className="wf-node__prompt">{data.prompt || t("workflows.editor.noPrompt")}</div>
       <div className="wf-node__tags">
         {data.issueAccess && data.issueAccess !== "none" ? (
-          <span className="wf-node__badge">issue: {data.issueAccess}</span>
+          <span className="wf-node__badge">{t("workflows.editor.issueBadge", { access: data.issueAccess })}</span>
         ) : null}
         {data.maxAttempts && data.maxAttempts > 1 ? (
-          <span className="wf-node__badge">{data.maxAttempts} attempts</span>
+          <span className="wf-node__badge">{t("workflows.editor.attemptsBadge", { count: data.maxAttempts })}</span>
         ) : null}
-        {data.timeoutSeconds ? <span className="wf-node__badge">timeout {formatTimeout(data.timeoutSeconds)}</span> : null}
+        {data.timeoutSeconds ? <span className="wf-node__badge">{t("workflows.editor.timeoutBadge", { duration: formatTimeout(data.timeoutSeconds) })}</span> : null}
         {data.errorCount > 0 ? (
           <span className="wf-node__badge wf-node__badge--error">
-            {data.errorCount} {data.errorCount === 1 ? "issue" : "issues"}
+            {t("workflows.editor.errorBadge", { count: data.errorCount })}
           </span>
         ) : null}
       </div>
@@ -156,6 +158,7 @@ interface WorkflowVisualEditorProps {
  * definition.
  */
 export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: WorkflowVisualEditorProps) {
+  const t = useT()
   const { steps, errors } = state
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -201,7 +204,7 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
         draggable: !disabled,
         data: {
           label: step.id,
-          agentName: step.type === HUMAN_INPUT_STEP_TYPE ? "Answered by a person" : (agentName.get(step.targetAgentId) ?? ""),
+          agentName: step.type === HUMAN_INPUT_STEP_TYPE ? t("workflows.editor.byPerson") : (agentName.get(step.targetAgentId) ?? ""),
           prompt: step.prompt,
           issueAccess: step.issueAccess,
           maxAttempts: step.maxAttempts,
@@ -209,7 +212,7 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
           errorCount: errorCountById[step.id] ?? 0,
         },
       })),
-    [steps, positions, layout, effectiveSelectedId, disabled, agentName, errorCountById],
+    [steps, positions, layout, effectiveSelectedId, disabled, agentName, errorCountById, t],
   )
 
   const edges = useMemo<Edge[]>(
@@ -280,7 +283,7 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
               setSelectedId(id)
             }}
           >
-            Add step
+            {t("workflows.editor.addStep")}
           </Button>
         ) : null}
         {!disabled ? (
@@ -292,19 +295,19 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
               setSelectedId(id)
             }}
           >
-            Add input step
+            {t("workflows.editor.addInputStep")}
           </Button>
         ) : null}
         <Button variant="tertiary" size="compact" onClick={() => setPositions({})}>
-          Re-layout
+          {t("workflows.editor.relayout")}
         </Button>
         <label className="wf-visual__parallel">
-          <span className="issues-page__field-label">Max parallel</span>
+          <span className="issues-page__field-label">{t("workflows.editor.maxParallel")}</span>
           <input
             className="issues-page__input"
             type="number"
             min={1}
-            placeholder="auto"
+            placeholder={t("workflows.editor.auto")}
             value={state.maxParallelNodes ?? ""}
             disabled={disabled}
             onChange={(e) => {
@@ -314,12 +317,12 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
           />
         </label>
         <label className="wf-visual__parallel">
-          <span className="issues-page__field-label">Run timeout (min)</span>
+          <span className="issues-page__field-label">{t("workflows.editor.runTimeout")}</span>
           <input
             className="issues-page__input"
             type="number"
             min={1}
-            placeholder="none"
+            placeholder={t("workflows.editor.none")}
             value={secondsToMinutesInput(state.runTimeoutSeconds)}
             disabled={disabled}
             onChange={(e) => state.setRunTimeoutSeconds(minutesInputToSeconds(e.target.value) ?? null)}
@@ -330,7 +333,7 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
       <div className="wf-visual__body">
         <div className="wf-visual__canvas">
           {steps.length === 0 ? (
-            <p className="page-activity__empty">No steps yet. Add one to begin.</p>
+            <p className="page-activity__empty">{t("workflows.editor.noSteps")}</p>
           ) : (
             <ReactFlowProvider>
               <ReactFlow
@@ -370,7 +373,7 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
               onRename={renameStepAndPosition}
             />
           ) : (
-            <p className="page-activity__meta">Select a step to edit it, or drag from a step's right edge to another step's left edge to add a dependency.</p>
+            <p className="page-activity__meta">{t("workflows.editor.selectHint")}</p>
           )}
         </aside>
       </div>
@@ -400,6 +403,7 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
   // id (and thus this node's identity) changes once per rename rather than on
   // every keystroke.
   const [idDraft, setIdDraft] = useState(step.id)
+  const t = useT()
   const [idError, setIdError] = useState<string | null>(null)
 
   function commitId() {
@@ -409,11 +413,11 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
       return
     }
     if (!next) {
-      setIdError("A step needs an id.")
+      setIdError(t("workflows.editor.idRequired"))
       return
     }
     if (allSteps.some((s) => s.id !== step.id && s.id === next)) {
-      setIdError(`Step id "${next}" is already used.`)
+      setIdError(t("workflows.editor.idTaken", { id: next }))
       return
     }
     setIdError(null)
@@ -423,18 +427,18 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
   return (
     <div className="wf-inspector">
       <div className="wf-inspector__head">
-        <strong>{human ? "Input step" : "Step"}</strong>
+        <strong>{human ? t("workflows.editor.inputStep") : t("workflows.editor.step")}</strong>
         {!disabled ? (
           <Button variant="danger" size="compact" disabled={allSteps.length === 1} onClick={() => state.removeStep(step.id)}>
-            Remove
+            {t("workflows.editor.remove")}
           </Button>
         ) : null}
       </div>
       <label className="issues-page__field">
-        <span className="issues-page__field-label">Step id</span>
+        <span className="issues-page__field-label">{t("workflows.editor.stepId")}</span>
         <input
           className="issues-page__input"
-          aria-label="Step id"
+          aria-label={t("workflows.editor.stepId")}
           value={idDraft}
           disabled={disabled}
           onChange={(e) => setIdDraft(e.target.value)}
@@ -453,14 +457,14 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
       ) : (
         <>
       <label className="issues-page__field">
-        <span className="issues-page__field-label">Agent</span>
+        <span className="issues-page__field-label">{t("workflows.editor.agent")}</span>
         <select
           className="issues-page__input"
           value={step.targetAgentId}
           disabled={disabled}
           onChange={(e) => state.changeStep(step.id, { targetAgentId: e.target.value })}
         >
-          <option value="">Select an agent</option>
+          <option value="">{t("workflows.editor.selectAgent")}</option>
           {agents.map((agent) => (
             <option key={agent.id} value={agent.id}>
               {agent.name} ({agent.id})
@@ -469,7 +473,7 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
         </select>
       </label>
       <label className="issues-page__field">
-        <span className="issues-page__field-label">Prompt</span>
+        <span className="issues-page__field-label">{t("workflows.editor.prompt")}</span>
         <textarea
           className="issues-page__textarea"
           rows={4}
@@ -479,7 +483,7 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
         />
       </label>
       <label className="issues-page__field">
-        <span className="issues-page__field-label">Issue access</span>
+        <span className="issues-page__field-label">{t("workflows.editor.issueAccess")}</span>
         <select
           className="issues-page__input"
           value={step.issueAccess ?? "none"}
@@ -495,7 +499,7 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
       </label>
       <div className="wf-inspector__row">
         <label className="issues-page__field">
-          <span className="issues-page__field-label">Attempts</span>
+          <span className="issues-page__field-label">{t("workflows.editor.attempts")}</span>
           <input
             className="issues-page__input"
             type="number"
@@ -512,69 +516,66 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
           />
         </label>
         <label className="issues-page__field">
-          <span className="issues-page__field-label">Timeout per attempt (min)</span>
+          <span className="issues-page__field-label">{t("workflows.editor.attemptTimeout")}</span>
           <input
             className="issues-page__input"
             type="number"
             min={1}
-            placeholder="none"
+            placeholder={t("workflows.editor.none")}
             value={secondsToMinutesInput(step.timeoutSeconds)}
             disabled={disabled}
             onChange={(e) => state.changeStep(step.id, { timeoutSeconds: minutesInputToSeconds(e.target.value) })}
           />
         </label>
       </div>
-      <p className="page-activity__meta">
-        A failed or timed-out attempt is retried after a backoff while attempts remain. Retry only steps that are
-        safe to run again: an attempt may already have acted before it failed.
-      </p>
+      <p className="page-activity__meta">{t("workflows.editor.retryNote")}</p>
         </>
       )}
       <div className="workflow-page__step-bindings">
-        <span className="issues-page__field-label">Inputs from the workflow input and steps this one depends on</span>
+        <span className="issues-page__field-label">{t("workflows.editor.bindings")}</span>
         {bindings.map((binding, bindingIndex) => (
           <div key={bindingIndex} className="workflow-page__binding">
             <input
               className="issues-page__input"
-              aria-label={`Input ${bindingIndex + 1} name`}
-              placeholder="name"
+              aria-label={t("workflows.editor.bindingName", { n: bindingIndex + 1 })}
+              placeholder={t("workflows.editor.namePlaceholder")}
               value={binding.name}
               disabled={disabled}
               onChange={(e) => state.changeBinding(step.id, bindingIndex, { name: e.target.value })}
             />
             <select
               className="issues-page__input"
-              aria-label={`Input ${bindingIndex + 1} source`}
+              aria-label={t("workflows.editor.bindingSource", { n: bindingIndex + 1 })}
               value={binding.source}
               disabled={disabled}
               onChange={(e) => state.changeBinding(step.id, bindingIndex, { source: e.target.value })}
             >
-              <option value="">Select a source</option>
-              <option value={WORKFLOW_INPUT_SOURCE}>Workflow input</option>
+              <option value="">{t("workflows.editor.selectSource")}</option>
+              <option value={WORKFLOW_INPUT_SOURCE}>{t("workflows.editor.workflowInput")}</option>
               {predecessorSteps.map((predecessor) => (
                 <option key={predecessor.id} value={nodeOutputSource(predecessor.id)}>
-                  {predecessor.id} output
+                  {t("workflows.editor.stepOutput", { id: predecessor.id })}
                 </option>
               ))}
             </select>
             <input
               className="issues-page__input"
-              aria-label={`Input ${bindingIndex + 1} pointer`}
-              placeholder="pointer, e.g. /text (empty = whole value)"
+              aria-label={t("workflows.editor.bindingPointer", { n: bindingIndex + 1 })}
+              placeholder={t("workflows.editor.pointerPlaceholder")}
               value={binding.pointer}
               disabled={disabled}
               onChange={(e) => state.changeBinding(step.id, bindingIndex, { pointer: e.target.value })}
             />
             {!disabled ? (
               <Button variant="danger" size="compact" onClick={() => state.removeBinding(step.id, bindingIndex)}>
-                Remove input
+                {t("workflows.editor.removeInput")}
               </Button>
             ) : null}
           </div>
         ))}
         {!disabled ? (
           <Button variant="secondary" size="compact" onClick={() => state.addBinding(step.id)}>
-            Add input
+            {t("workflows.editor.addInput")}
           </Button>
         ) : null}
       </div>
@@ -595,12 +596,13 @@ const CUSTOM = "custom"
  *  answer it takes, and how long it stays open. A custom answer schema is
  *  authored in raw JSON and shown here as such, not rewritten. */
 function HumanStepFields({ state, step, disabled }: { state: WorkflowStepsState; step: WorkflowStepDraft; disabled: boolean }) {
+  const t = useT()
   const answerKind =
     step.outputSchema === undefined ? FREE_TEXT : JSON.stringify(JSON.parse(step.outputSchema)) === YES_NO_SCHEMA ? YES_NO : CUSTOM
   return (
     <>
       <label className="issues-page__field">
-        <span className="issues-page__field-label">Question for a person</span>
+        <span className="issues-page__field-label">{t("workflows.editor.question")}</span>
         <textarea
           className="issues-page__textarea"
           rows={4}
@@ -610,34 +612,31 @@ function HumanStepFields({ state, step, disabled }: { state: WorkflowStepsState;
         />
       </label>
       <label className="issues-page__field">
-        <span className="issues-page__field-label">Answer</span>
+        <span className="issues-page__field-label">{t("workflows.editor.answer")}</span>
         <select
           className="issues-page__input"
           value={answerKind}
           disabled={disabled || answerKind === CUSTOM}
           onChange={(e) => state.changeStep(step.id, { outputSchema: e.target.value === YES_NO ? YES_NO_SCHEMA : undefined })}
         >
-          <option value={FREE_TEXT}>Free text</option>
-          <option value={YES_NO}>Yes or no</option>
-          {answerKind === CUSTOM ? <option value={CUSTOM}>Custom schema (edit in raw JSON)</option> : null}
+          <option value={FREE_TEXT}>{t("workflows.editor.freeText")}</option>
+          <option value={YES_NO}>{t("workflows.editor.yesNo")}</option>
+          {answerKind === CUSTOM ? <option value={CUSTOM}>{t("workflows.editor.customSchema")}</option> : null}
         </select>
       </label>
       <label className="issues-page__field">
-        <span className="issues-page__field-label">Expires after (min)</span>
+        <span className="issues-page__field-label">{t("workflows.editor.expiresAfter")}</span>
         <input
           className="issues-page__input"
           type="number"
           min={1}
-          placeholder="never"
+          placeholder={t("workflows.editor.never")}
           value={secondsToMinutesInput(step.timeoutSeconds)}
           disabled={disabled}
           onChange={(e) => state.changeStep(step.id, { timeoutSeconds: minutesInputToSeconds(e.target.value) })}
         />
       </label>
-      <p className="page-activity__meta">
-        The run waits here, without holding a worker, until someone who can run this workflow answers. Declining,
-        or letting it expire, fails the step and stops the run.
-      </p>
+      <p className="page-activity__meta">{t("workflows.editor.waitNote")}</p>
     </>
   )
 }

@@ -1,3 +1,4 @@
+import { useT } from "../../i18n"
 import type { InputField, InputFormValues } from "./runInput"
 
 interface RunInputFormProps {
@@ -16,11 +17,12 @@ interface RunInputFormProps {
  * assembled input against the full schema, so this form aims to be usable rather
  * than to re-implement schema validation.
  */
-export function WorkflowRunInputForm({ fields, values, disabled, onChange, title = "Run input" }: RunInputFormProps) {
+export function WorkflowRunInputForm({ fields, values, disabled, onChange, title }: RunInputFormProps) {
+  const t = useT()
   if (fields.length === 0) return null
   return (
     <div className="workflow-run-input">
-      <h3 className="workflow-run-input__title">{title}</h3>
+      <h3 className="workflow-run-input__title">{title ?? t("workflows.input.title")}</h3>
       {fields.map((field) => {
         const value = values[field.name]
         const label = (
@@ -54,7 +56,7 @@ export function WorkflowRunInputForm({ fields, values, disabled, onChange, title
                 disabled={disabled}
                 onChange={(e) => onChange(field.name, e.target.value)}
               >
-                <option value="">Choose…</option>
+                <option value="">{t("workflows.input.choose")}</option>
                 {field.enumValues?.map((option) => (
                   <option key={option} value={option}>
                     {option}
@@ -66,7 +68,7 @@ export function WorkflowRunInputForm({ fields, values, disabled, onChange, title
                 rows={3}
                 value={typeof value === "string" ? value : ""}
                 disabled={disabled}
-                placeholder="JSON value"
+                placeholder={t("workflows.input.jsonPlaceholder")}
                 onChange={(e) => onChange(field.name, e.target.value)}
               />
             ) : (

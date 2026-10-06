@@ -6,6 +6,9 @@
  * values back into the input object the server validates authoritatively.
  */
 
+import { detectLocale, type Translate } from "@buildmax/gui"
+import { translate, type MessageKey } from "../../i18n"
+
 export type InputFieldType = "string" | "number" | "integer" | "boolean" | "enum" | "json"
 
 export interface InputField {
@@ -80,11 +83,13 @@ export function schemaFields(schema: unknown): ParsedInputSchema | null {
  * Builds the input object to POST from the form's values, coercing each field by
  * its type and collecting user-facing errors. A required field left empty and a
  * malformed number or JSON value are reported; the server still validates the
- * result against the full schema.
+ * result against the full schema. Without `t`, errors are in the active
+ * interface language.
  */
 export function buildInputValue(
   fields: InputField[],
   values: InputFormValues,
+  t: Translate<MessageKey> = (key, vars) => translate(detectLocale(), key, vars),
 ): { value: Record<string, unknown>; errors: string[] } {
   const value: Record<string, unknown> = {}
   const errors: string[] = []
@@ -96,13 +101,13 @@ export function buildInputValue(
     }
     const text = typeof raw === "string" ? raw.trim() : ""
     if (text === "") {
-      if (field.required) errors.push(`"${field.name}" is required.`)
+      if (field.required) errors.push(t("workflows.input.required", { name: field.name }))
       continue
     }
     if (field.type === "number" || field.type === "integer") {
       const num = Number(text)
       if (!Number.isFinite(num) || (field.type === "integer" && !Number.isInteger(num))) {
-        errors.push(`"${field.name}" must be ${field.type === "integer" ? "an integer" : "a number"}.`)
+        errors.push(t(field.type === "integer" ? "workflows.input.integer" : "workflows.input.number", { name: field.name }))
         continue
       }
       value[field.name] = num
@@ -112,7 +117,7 @@ export function buildInputValue(
       try {
         value[field.name] = JSON.parse(text)
       } catch {
-        errors.push(`"${field.name}" must be valid JSON.`)
+        errors.push(t("workflows.input.json", { name: field.name }))
       }
       continue
     }

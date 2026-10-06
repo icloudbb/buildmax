@@ -1,4 +1,5 @@
-import type { Question } from "@buildmax/gui"
+import type { Question, Translate } from "@buildmax/gui"
+import type { MessageKey } from "../../i18n"
 import { schemaFields, type InputField } from "./runInput"
 
 /**
@@ -26,13 +27,17 @@ export function answerMode(schema: unknown): AnswerMode {
 }
 
 /** Turns a scalar field's text into the JSON value to send, or an error. */
-export function scalarValue(type: "string" | "number" | "integer", text: string): { value?: unknown; error?: string } {
+export function scalarValue(
+  type: "string" | "number" | "integer",
+  text: string,
+  t: Translate<MessageKey>,
+): { value?: unknown; error?: string } {
   const trimmed = text.trim()
-  if (trimmed === "") return { error: "Enter an answer." }
+  if (trimmed === "") return { error: t("workflows.request.enterAnswer") }
   if (type === "string") return { value: trimmed }
   const num = Number(trimmed)
   if (!Number.isFinite(num) || (type === "integer" && !Number.isInteger(num))) {
-    return { error: type === "integer" ? "Enter a whole number." : "Enter a number." }
+    return { error: t(type === "integer" ? "workflows.request.enterWholeNumber" : "workflows.request.enterNumber") }
   }
   return { value: num }
 }
@@ -48,9 +53,9 @@ export function formatQuestionAnswers(questions: Question[], answers: string[]):
 }
 
 /** A resolved request's response as one line of text for the run record. */
-export function describeResponse(response: unknown): string {
+export function describeResponse(response: unknown, t: Translate<MessageKey>): string {
   if (response === undefined || response === null) return ""
   if (typeof response === "string") return response
-  if (typeof response === "boolean") return response ? "Yes" : "No"
+  if (typeof response === "boolean") return t(response ? "workflows.request.yes" : "workflows.request.no")
   return JSON.stringify(response)
 }

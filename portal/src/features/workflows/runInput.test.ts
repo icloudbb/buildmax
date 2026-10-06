@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
+import type { Translate } from "@buildmax/gui"
+import { translate, type MessageKey } from "../../i18n"
 import { buildInputValue, parseInputSchema } from "./runInput"
+
+const t: Translate<MessageKey> = (key, vars) => translate("en", key, vars)
 
 const withSchema = (schema: unknown) =>
   JSON.stringify({ schema_version: 1, input_schema: schema, steps: [] })
@@ -60,7 +64,7 @@ describe("buildInputValue", () => {
   )!.fields
 
   it("coerces each field by type and omits empty optional fields", () => {
-    const { value, errors } = buildInputValue(fields, { topic: "markets", count: "3", deep: true, extra: "" })
+    const { value, errors } = buildInputValue(fields, { topic: "markets", count: "3", deep: true, extra: "" }, t)
     expect(errors).toEqual([])
     // A boolean always contributes its checkbox state; an empty optional text or
     // JSON field is omitted rather than sent as an empty string.
@@ -68,18 +72,18 @@ describe("buildInputValue", () => {
   })
 
   it("reports a missing required field", () => {
-    const { errors } = buildInputValue(fields, { topic: "  " })
+    const { errors } = buildInputValue(fields, { topic: "  " }, t)
     expect(errors.some((e) => /"topic" is required/.test(e))).toBe(true)
   })
 
   it("reports a non-integer number and invalid JSON", () => {
-    const { errors } = buildInputValue(fields, { topic: "x", count: "1.5", extra: "{bad" })
+    const { errors } = buildInputValue(fields, { topic: "x", count: "1.5", extra: "{bad" }, t)
     expect(errors.some((e) => /"count" must be an integer/.test(e))).toBe(true)
     expect(errors.some((e) => /"extra" must be valid JSON/.test(e))).toBe(true)
   })
 
   it("parses a JSON field into a nested value", () => {
-    const { value, errors } = buildInputValue(fields, { topic: "x", extra: '{"a":1}' })
+    const { value, errors } = buildInputValue(fields, { topic: "x", extra: '{"a":1}' }, t)
     expect(errors).toEqual([])
     // deep is a boolean field left unchecked, so it contributes false.
     expect(value).toEqual({ topic: "x", deep: false, extra: { a: 1 } })

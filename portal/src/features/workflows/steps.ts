@@ -1,4 +1,6 @@
+import type { Translate } from "@buildmax/gui"
 import type { Agent } from "../../lib/types"
+import { translate, type MessageKey } from "../../i18n"
 
 /**
  * `agent_task` is the only step type the runtime executes today, so it is not
@@ -163,21 +165,23 @@ export function newStepId(): string {
   return `step_${random.replace(/-/g, "").slice(0, 8)}`
 }
 
-export function newStep(agentId = ""): WorkflowStepDraft {
+/** The starting text is the caller's to translate: it becomes the step's
+ *  instruction once saved. */
+export function newStep(agentId = "", prompt = translate("en", "workflows.step.defaultPrompt")): WorkflowStepDraft {
   return {
     id: newStepId(),
     type: AGENT_TASK_STEP_TYPE,
     targetAgentId: agentId,
-    prompt: "Describe what this step should do.",
+    prompt,
   }
 }
 
-export function newHumanStep(): WorkflowStepDraft {
+export function newHumanStep(prompt = translate("en", "workflows.step.defaultQuestion")): WorkflowStepDraft {
   return {
     id: newStepId(),
     type: HUMAN_INPUT_STEP_TYPE,
     targetAgentId: "",
-    prompt: "What should the person decide or provide?",
+    prompt,
   }
 }
 
@@ -372,10 +376,10 @@ export interface StepError {
  * against, so neither path can leave Save enabled for a definition the
  * runtime would refuse -- an unsupported step type included.
  */
-export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): StepError[] {
+export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[], t: Translate<MessageKey>): StepError[] {
   const errors: StepError[] = []
   if (steps.length === 0) {
-    errors.push({ index: -1, message: "A workflow needs at least one step." })
+    errors.push({ index: -1, message: t("workflows.validate.noSteps") })
     return errors
   }
   const seenIds = new Set<string>()
@@ -383,9 +387,9 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
   const preds = transitivePredecessors(steps)
   steps.forEach((step, index) => {
     if (!step.id.trim()) {
-      errors.push({ index, message: "This step is missing its id." })
+      errors.push({ index, message: t("workflows.validate.missingId") })
     } else if (seenIds.has(step.id)) {
-      errors.push({ index, message: `Step id "${step.id}" is used by more than one step.` })
+      errors.push({ index, message: t("workflows.validate.duplicateId", { id: step.id }) })
     }
     seenIds.add(step.id)
     // Each needs edge must name another existing node, and the edges cannot form
@@ -393,43 +397,40 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
     // DAG; the linear form derives valid edges from order.
     for (const need of effectiveNeeds(steps, index)) {
       if (need === step.id) {
-        errors.push({ index, message: `Step "${step.id}" cannot depend on itself.` })
+        errors.push({ index, message: t("workflows.validate.selfNeed", { id: step.id }) })
       } else if (!allIds.has(need)) {
-        errors.push({ index, message: `Step "${step.id}" depends on unknown step "${need}".` })
+        errors.push({ index, message: t("workflows.validate.unknownNeed", { id: step.id, need }) })
       } else if (preds.get(need)?.has(step.id)) {
-        errors.push({ index, message: `Steps "${step.id}" and "${need}" depend on each other.` })
+        errors.push({ index, message: t("workflows.validate.cycle", { id: step.id, need }) })
       }
     }
     if (step.type !== AGENT_TASK_STEP_TYPE && step.type !== HUMAN_INPUT_STEP_TYPE) {
-      errors.push({
-        index,
-        message: `"${step.type}" is not a step type the runtime supports -- only Agent and input steps are.`,
-      })
+      errors.push({ index, message: t("workflows.validate.unsupportedType", { type: step.type }) })
     }
     if (step.type === HUMAN_INPUT_STEP_TYPE) {
-      if (step.targetAgentId) errors.push({ index, message: "An input step is answered by a person and names no agent." })
+      if (step.targetAgentId) errors.push({ index, message: t("workflows.validate.inputNoAgent") })
       if (step.maxAttempts !== undefined && step.maxAttempts > 1) {
-        errors.push({ index, message: "An input step is answered once; it cannot retry." })
+        errors.push({ index, message: t("workflows.validate.inputNoRetry") })
       }
       if (step.issueAccess && step.issueAccess !== "none") {
-        errors.push({ index, message: "An input step runs no Task, so it has no Issue access." })
+        errors.push({ index, message: t("workflows.validate.inputNoIssue") })
       }
-      if (!step.prompt.trim()) errors.push({ index, message: "This step needs a question for the person." })
+      if (!step.prompt.trim()) errors.push({ index, message: t("workflows.validate.inputQuestion") })
     } else {
       if (!step.targetAgentId) {
-        errors.push({ index, message: "Choose an agent for this step." })
+        errors.push({ index, message: t("workflows.validate.chooseAgent") })
       } else if (!agents.some((agent) => agent.id === step.targetAgentId)) {
-        errors.push({ index, message: "The agent this step targets no longer exists." })
+        errors.push({ index, message: t("workflows.validate.agentGone") })
       }
       if (!step.prompt.trim()) {
-        errors.push({ index, message: "This step needs a prompt." })
+        errors.push({ index, message: t("workflows.validate.needsPrompt") })
       }
     }
     if (step.maxAttempts !== undefined && (!Number.isInteger(step.maxAttempts) || step.maxAttempts < 1 || step.maxAttempts > MAX_NODE_ATTEMPTS)) {
-      errors.push({ index, message: `Attempts must be a whole number from 1 to ${MAX_NODE_ATTEMPTS}.` })
+      errors.push({ index, message: t("workflows.validate.attempts", { max: MAX_NODE_ATTEMPTS }) })
     }
     if (step.timeoutSeconds !== undefined && !validTimeout(step.timeoutSeconds)) {
-      errors.push({ index, message: "A step timeout must be between 1 minute and 30 days." })
+      errors.push({ index, message: t("workflows.validate.stepTimeout") })
     }
     // A binding selects from the run input or a predecessor node's output at a
     // pointer. A node source can only name a transitive predecessor, each name on
@@ -440,25 +441,25 @@ export function validateSteps(steps: WorkflowStepDraft[], agents: Agent[]): Step
     const bindingNames = new Set<string>()
     step.bindings?.forEach((binding) => {
       const name = binding.name.trim()
-      const label = name || "(unnamed)"
+      const label = name || t("workflows.validate.unnamed")
       if (!name) {
-        errors.push({ index, message: "An input binding needs a name." })
+        errors.push({ index, message: t("workflows.validate.bindingName") })
       } else if (bindingNames.has(name)) {
-        errors.push({ index, message: `Input binding "${name}" is defined more than once on this step.` })
+        errors.push({ index, message: t("workflows.validate.bindingDuplicate", { name }) })
       }
       bindingNames.add(name)
       if (!binding.source) {
-        errors.push({ index, message: `Input binding "${label}" needs a source.` })
+        errors.push({ index, message: t("workflows.validate.bindingSource", { name: label }) })
       } else if (binding.source !== WORKFLOW_INPUT_SOURCE) {
         const fromStep = parseNodeOutputSource(binding.source)
         if (fromStep === null) {
-          errors.push({ index, message: `Input binding "${label}" has an unknown source.` })
+          errors.push({ index, message: t("workflows.validate.bindingUnknownSource", { name: label }) })
         } else if (!predIds.has(fromStep)) {
-          errors.push({ index, message: `Input binding "${label}" must read from the workflow input or a step this one depends on.` })
+          errors.push({ index, message: t("workflows.validate.bindingPredecessor", { name: label }) })
         }
       }
       if (binding.pointer && !binding.pointer.startsWith("/")) {
-        errors.push({ index, message: `Input binding "${label}" pointer must be empty or begin with "/".` })
+        errors.push({ index, message: t("workflows.validate.bindingPointer", { name: label }) })
       }
     })
   })
@@ -471,10 +472,10 @@ function validTimeout(seconds: number): boolean {
 
 /** Validates the definition-level policy the toolbar edits. Its problems have
  *  no step, so they carry index -1. */
-export function validateDefinitionPolicy(options: DefinitionOptions): StepError[] {
+export function validateDefinitionPolicy(options: DefinitionOptions, t: Translate<MessageKey>): StepError[] {
   const errors: StepError[] = []
   if (options.runTimeoutSeconds != null && !validTimeout(options.runTimeoutSeconds)) {
-    errors.push({ index: -1, message: "The run timeout must be between 1 minute and 30 days." })
+    errors.push({ index: -1, message: t("workflows.validate.runTimeout") })
   }
   return errors
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { BaseModal, Button } from "@buildmax/gui"
 import type { Agent } from "../lib/types"
+import { useStableT, useT } from "../i18n"
 import { newStep, stepsToDefinition, useWorkflowSteps, WorkflowStepsEditor } from "../features/workflows"
 
 interface WorkflowModalProps {
@@ -16,6 +17,8 @@ interface WorkflowModalProps {
  *  page (`WorkflowDetail`), which needs Runs and History alongside the same
  *  step editor -- there is no reason to fit both into one modal. */
 export function WorkflowModal({ open, agents = [], loading, error, onClose, onSubmit }: WorkflowModalProps) {
+  const t = useT()
+  const stableT = useStableT()
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const stepsState = useWorkflowSteps(agents)
@@ -35,27 +38,27 @@ export function WorkflowModal({ open, agents = [], loading, error, onClose, onSu
     initializedForOpen.current = true
     setName("")
     setDescription("")
-    hydrate(stepsToDefinition([newStep(agents[0]?.id ?? "")]))
-  }, [open, agents, hydrate])
+    hydrate(stepsToDefinition([newStep(agents[0]?.id ?? "", stableT("workflows.step.defaultPrompt"))]))
+  }, [open, agents, hydrate, stableT])
 
   const canSubmit = !loading && name.trim() !== "" && errors.length === 0 && !(advanced && definitionParseError)
 
   return (
-    <BaseModal open={open} title="New Workflow" titleId="workflow-modal-title" onClose={onClose} className="modal--large">
+    <BaseModal open={open} title={t("workflows.new")} titleId="workflow-modal-title" onClose={onClose} className="modal--large">
       <div className="modal__body">
         <div className="workflow-page__form">
           <label className="issues-page__field">
-            <span className="issues-page__field-label">Name</span>
-            <input className="issues-page__input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Customer research workflow" />
+            <span className="issues-page__field-label">{t("workflows.field.name")}</span>
+            <input className="issues-page__input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("workflows.modal.namePlaceholder")} />
           </label>
           <label className="issues-page__field">
-            <span className="issues-page__field-label">Description</span>
-            <textarea className="issues-page__textarea" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this workflow does" />
+            <span className="issues-page__field-label">{t("workflows.field.description")}</span>
+            <textarea className="issues-page__textarea" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("workflows.modal.descriptionPlaceholder")} />
           </label>
 
           <WorkflowStepsEditor state={stepsState} agents={agents} />
           {agents.length === 0 ? (
-            <p className="page-activity__meta">Create at least one agent first to assign it to a step.</p>
+            <p className="page-activity__meta">{t("workflows.modal.needAgent")}</p>
           ) : null}
 
           {error ? (
@@ -65,7 +68,7 @@ export function WorkflowModal({ open, agents = [], loading, error, onClose, onSu
           ) : null}
           <div className="modal__actions">
             <Button variant="secondary" onClick={onClose} disabled={loading}>
-              Cancel
+              {t("workflows.cancel")}
             </Button>
             <Button
               type="button"
@@ -74,7 +77,7 @@ export function WorkflowModal({ open, agents = [], loading, error, onClose, onSu
               disabled={!canSubmit}
               onClick={() => onSubmit({ name: name.trim(), description, definition })}
             >
-              Create workflow
+              {t("workflows.modal.create")}
             </Button>
           </div>
         </div>

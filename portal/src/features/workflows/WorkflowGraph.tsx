@@ -1,5 +1,6 @@
 import { useMemo } from "react"
-import { statusLabel } from "../../lib/statusLabels"
+import { useStatusLabel } from "../../lib/statusLabels"
+import { useT } from "../../i18n"
 
 /** One node to draw. `needs` are the ids this node depends on (its inbound
  *  edges). `onOpen`, when set, makes the node a button that opens its detail. */
@@ -78,12 +79,14 @@ export function computeGraphLayout(nodes: GraphNode[]): { positioned: Positioned
  * takes plain nodes and never fetches. A node with `onOpen` is a button that
  * opens its detail (its Task, in the run view).
  */
-export function WorkflowGraph({ nodes, emptyLabel = "No nodes to graph." }: { nodes: GraphNode[]; emptyLabel?: string }) {
+export function WorkflowGraph({ nodes, emptyLabel }: { nodes: GraphNode[]; emptyLabel?: string }) {
+  const t = useT()
+  const statusLabel = useStatusLabel()
   const { positioned, width, height } = useMemo(() => computeGraphLayout(nodes), [nodes])
   const posById = useMemo(() => new Map(positioned.map((p) => [p.id, p])), [positioned])
 
   if (nodes.length === 0) {
-    return <p className="page-activity__empty">{emptyLabel}</p>
+    return <p className="page-activity__empty">{emptyLabel ?? t("workflows.graph.empty")}</p>
   }
 
   const edges = positioned.flatMap((node) =>

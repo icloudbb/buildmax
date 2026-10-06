@@ -36,7 +36,8 @@ import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { isAllowed } from "../../state/permissionState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 import { useApp } from "../../contexts/AppContext"
-import { statusLabel } from "../../lib/statusLabels"
+import { useStatusLabel } from "../../lib/statusLabels"
+import { useStableT, useT } from "../../i18n"
 
 interface WorkflowDetailProps {
   token: string | null
@@ -47,6 +48,9 @@ interface WorkflowDetailProps {
 type Tab = "overview" | "definition" | "runs" | "schedules" | "revisions"
 
 export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailProps) {
+  const t = useT()
+  const stableT = useStableT()
+  const statusLabel = useStatusLabel()
   const { currentUserRole, currentSpaceMembers } = useSpace()
   const { setEntityLabel } = useApp()
   const [agents, setAgents] = useState<Agent[]>([])
@@ -146,11 +150,11 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         setUnavailable("error")
       }
       setWorkflow(null)
-      setError(getErrorMessage(err, "Failed to load workflow"))
+      setError(getErrorMessage(err, stableT("workflows.detail.error.load")))
     } finally {
       setLoading(false)
     }
-  }, [token, spaceId, workflowId, hydrateSteps])
+  }, [token, spaceId, workflowId, hydrateSteps, stableT])
 
   const loadRevisions = useCallback(() => {
     if (!token || !spaceId) return
@@ -160,9 +164,9 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       .then((res) => setRevisionsData(res.revisions.map(apiWorkflowRevisionToWorkflowRevision)))
       // revisionsData from a prior successful fetch (if any) is left in place,
       // so a failed refresh reads as Stale rather than wiping history.
-      .catch((err) => setRevisionsListError(classifyError(err, "Failed to load history")))
+      .catch((err) => setRevisionsListError(classifyError(err, stableT("workflows.detail.error.history"))))
       .finally(() => setRevisionsLoading(false))
-  }, [token, spaceId, workflowId])
+  }, [token, spaceId, workflowId, stableT])
 
   // Resolve the opaque author id to a member's name; fall back to the id only
   // when the member is not in the loaded list.
@@ -182,7 +186,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         createdLabel: rev.createdLabel,
         summary: `${rev.name} · ${statusLabel(rev.status)}`,
       })) ?? null,
-    [revisionsData, memberName]
+    [revisionsData, memberName, statusLabel]
   )
   const revisionsState = useMemo(
     () =>
@@ -228,7 +232,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         hydrateSteps(mapped.definition)
         loadRevisions()
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to update workflow")))
+      .catch((err) => setError(getErrorMessage(err, stableT("workflows.detail.error.update"))))
       .finally(() => setSaving(false))
   }
 
@@ -266,7 +270,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         hydrateSteps(mapped.definition)
         loadRevisions()
       })
-      .catch((err) => setRestoreRevisionError({ revision, message: getErrorMessage(err, "Failed to restore revision") }))
+      .catch((err) => setRestoreRevisionError({ revision, message: getErrorMessage(err, stableT("workflows.detail.error.restore")) }))
       .finally(() => setRestoringRevision(null))
   }
 
@@ -284,7 +288,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
     if (!token || !spaceId || !workflow) return
     let input: unknown
     if (inputFields.length > 0) {
-      const built = buildInputValue(inputFields, inputValues)
+      const built = buildInputValue(inputFields, inputValues, t)
       if (built.errors.length > 0) {
         setError(built.errors.join(" "))
         return
@@ -300,14 +304,14 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         setRunModalOpen(false)
         navigate({ name: "workflowRun", spaceId, workflowRunId: mappedRun.id })
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to run workflow")))
+      .catch((err) => setError(getErrorMessage(err, stableT("workflows.detail.error.run"))))
       .finally(() => setRunning(false))
   }
 
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">Loading…</p>
+        <p className="page-activity__empty">{t("shell.loading")}</p>
       </div>
     )
   }
@@ -315,11 +319,11 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   if (unavailable) {
     return (
       <ResourceUnavailable
-        resourceLabel="Workflow"
+        resourceLabel={t("workflows.resource")}
         kind={unavailable}
         errorMessage={error}
         onRetry={() => void load()}
-        backLabel="Back to Workflows"
+        backLabel={t("workflows.backToList")}
         onBack={() => navigate({ name: "workflows", spaceId })}
       />
     )
@@ -339,7 +343,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
       <div className="page-activity__head">
         <div>
           <h1 className="page-activity__title">
-            {workflow ? workflow.name : "Workflow Detail"}
+            {workflow ? workflow.name : t("workflows.detail.fallbackTitle")}
             {workflow ? (
               <span className={`workflow-status-pill workflow-status-pill--${workflow.status}`}>
                 {statusLabel(workflow.status)}
@@ -347,15 +351,15 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
             ) : null}
           </h1>
           <p className="page-activity__subtitle">
-            {workflow?.description || "Edit the workflow definition, run it manually, and inspect recent executions."}
+            {workflow?.description || t("workflows.detail.subtitle")}
           </p>
         </div>
         <div className="page-activity__actions">
           <ButtonLink variant="tertiary" href={buildHash({ name: "workflows", spaceId })}>
-            Back to Workflows
+            {t("workflows.backToList")}
           </ButtonLink>
           <Button variant="tertiary" disabled={loading} onClick={() => void load()}>
-            Refresh
+            {t("workflows.refresh")}
           </Button>
           <Button
             variant="primary"
@@ -363,7 +367,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
             disabled={loading || workflow == null || !published}
             onClick={handleRunClick}
           >
-            Run Workflow
+            {t("workflows.detail.run")}
           </Button>
         </div>
       </div>
@@ -374,15 +378,15 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         <>
           <DetailTabs<Tab>
             tabs={[
-              { id: "overview", label: "Overview" },
-              { id: "definition", label: "Definition" },
-              { id: "runs", label: "Runs", count: runs.length },
-              { id: "schedules", label: "Schedules" },
-              { id: "revisions", label: "Revisions", count: workflow.revision },
+              { id: "overview", label: t("workflows.tab.overview") },
+              { id: "definition", label: t("workflows.tab.definition") },
+              { id: "runs", label: t("workflows.tab.runs"), count: runs.length },
+              { id: "schedules", label: t("workflows.tab.schedules") },
+              { id: "revisions", label: t("workflows.tab.revisions"), count: workflow.revision },
             ]}
             active={tab}
             onChange={setTab}
-            label="Workflow sections"
+            label={t("workflows.detail.sections")}
             idPrefix="workflow"
           />
 
@@ -390,53 +394,45 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
             <section className="detail-tabs__panel" role="tabpanel" id="workflow-panel-overview" aria-labelledby="workflow-tab-overview">
               {!published ? (
                 <p className="workflow-detail__banner">
-                  This workflow is currently {statusLabel(workflow.status)}. Open the Definition tab to keep working on
-                  it, then Publish before manual runs, schedules, or issue assignment.
+                  {t("workflows.detail.notPublished", { status: statusLabel(workflow.status) })}
                 </p>
               ) : null}
               <div className="issues-page__toolbar">
-                <h2 className="issues-page__section-title">Plan</h2>
+                <h2 className="issues-page__section-title">{t("workflows.detail.plan")}</h2>
                 <span className="page-activity__meta">
-                  {steps.length} {steps.length === 1 ? "step" : "steps"}
+                  {t("workflows.detail.stepCount", { count: steps.length })}
                   {inputFields.length > 0
-                    ? ` · ${inputFields.length} ${inputFields.length === 1 ? "input" : "inputs"}`
+                    ? ` · ${t("workflows.detail.inputCount", { count: inputFields.length })}`
                     : ""}
                 </span>
               </div>
-              <WorkflowGraph nodes={topologyNodes} emptyLabel="This workflow has no steps." />
+              <WorkflowGraph nodes={topologyNodes} emptyLabel={t("workflows.detail.noSteps")} />
             </section>
           ) : null}
 
           {tab === "definition" ? (
             <section className="detail-tabs__panel" role="tabpanel" id="workflow-panel-definition" aria-labelledby="workflow-tab-definition">
               {canManageWorkflowsState === "denied" ? (
-                <p className="page-activity__empty">
-                  This workflow is read-only for your role. You can still inspect it, and run it when it is published.
-                </p>
+                <p className="page-activity__empty">{t("workflows.detail.readOnly")}</p>
               ) : canManageWorkflowsState === "failed" ? (
-                <p className="page-activity__empty">
-                  Couldn&apos;t verify your role in this space, so editing stays unavailable. Refresh to try again.
-                </p>
+                <p className="page-activity__empty">{t("workflows.access.unverified")}</p>
               ) : canManageWorkflowsState === "unknown" ? (
-                <p className="page-activity__empty">Checking whether you can manage this workflow…</p>
+                <p className="page-activity__empty">{t("workflows.access.checkingOne")}</p>
               ) : null}
 
               {published ? (
-                <p className="workflow-detail__banner">
-                  Editing a published workflow. Save as draft keeps your changes without publishing; Publish writes them
-                  as a new published revision.
-                </p>
+                <p className="workflow-detail__banner">{t("workflows.detail.editingPublished")}</p>
               ) : null}
 
               <details className="workflow-editor__settings">
-                <summary className="workflow-editor__settings-summary">Settings — name and description</summary>
+                <summary className="workflow-editor__settings-summary">{t("workflows.detail.settings")}</summary>
                 <div className="workflow-editor__settings-fields">
                   <label className="issues-page__field">
-                    <span className="issues-page__field-label">Name</span>
+                    <span className="issues-page__field-label">{t("workflows.field.name")}</span>
                     <input className="issues-page__input" value={name} disabled={!canManageWorkflows} onChange={(e) => setName(e.target.value)} />
                   </label>
                   <label className="issues-page__field">
-                    <span className="issues-page__field-label">Description</span>
+                    <span className="issues-page__field-label">{t("workflows.field.description")}</span>
                     <textarea
                       className="issues-page__textarea"
                       rows={3}
@@ -453,17 +449,17 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
               {canManageWorkflows ? (
                 <div className="workflow-page__inline-actions">
                   <Button variant="secondary" busy={saving} disabled={saveDisabled} onClick={handleSaveDraft}>
-                    Save as draft
+                    {t("workflows.detail.saveDraft")}
                   </Button>
                   <Button variant="primary" busy={saving} disabled={saveDisabled} onClick={handlePublish}>
-                    Publish
+                    {t("workflows.detail.publish")}
                   </Button>
                   <Button variant="tertiary" disabled={saving} onClick={discardEdits}>
-                    Discard changes
+                    {t("workflows.detail.discard")}
                   </Button>
                   {workflow.status !== "archived" ? (
                     <Button variant="tertiary" disabled={saving} onClick={handleArchive}>
-                      Archive
+                      {t("workflows.detail.archive")}
                     </Button>
                   ) : null}
                 </div>
@@ -474,11 +470,11 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
           {tab === "runs" ? (
             <section className="detail-tabs__panel" role="tabpanel" id="workflow-panel-runs" aria-labelledby="workflow-tab-runs">
               <div className="issues-page__toolbar">
-                <h2 className="issues-page__section-title">Recent Runs</h2>
-                <span className="page-activity__meta">{runs.length} total</span>
+                <h2 className="issues-page__section-title">{t("workflows.detail.recentRuns")}</h2>
+                <span className="page-activity__meta">{t("workflows.total", { count: runs.length })}</span>
               </div>
               {runs.length === 0 ? (
-                <p className="page-activity__empty">No runs yet.</p>
+                <p className="page-activity__empty">{t("workflows.detail.noRuns")}</p>
               ) : (
                 <ul className="workflow-page__runs">
                   {runs.map((run) => (
@@ -504,9 +500,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
           {tab === "schedules" ? (
             <section className="detail-tabs__panel" role="tabpanel" id="workflow-panel-schedules" aria-labelledby="workflow-tab-schedules">
               {!published ? (
-                <p className="page-activity__empty">
-                  Only a published workflow can be scheduled. Publish it from the Definition tab first.
-                </p>
+                <p className="page-activity__empty">{t("workflows.detail.scheduleUnpublished")}</p>
               ) : token ? (
                 <SchedulesSection
                   token={token}
@@ -525,7 +519,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
           {tab === "revisions" ? (
             <section className="detail-tabs__panel" role="tabpanel" id="workflow-panel-revisions" aria-labelledby="workflow-tab-revisions">
               <RevisionHistory
-                title="Version history"
+                title={t("workflows.detail.versionHistory")}
                 state={revisionsState}
                 onRetry={loadRevisions}
                 currentRevision={workflow.revision}
@@ -534,10 +528,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
                 restoreError={restoreRevisionError}
                 onRestore={handleRestoreRevision}
               />
-              <p className="page-activity__meta">
-                Restoring writes that version's name, description, and steps back as a new version. The lifecycle state is
-                left as it is.
-              </p>
+              <p className="page-activity__meta">{t("workflows.detail.restoreNote")}</p>
             </section>
           ) : null}
         </>
@@ -545,12 +536,12 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
 
       <BaseModal
         open={runModalOpen}
-        title="Run Workflow"
+        title={t("workflows.detail.run")}
         titleId="workflow-run-modal-title"
         onClose={() => setRunModalOpen(false)}
       >
         <p className="page-activity__subtitle">
-          {workflow ? `${workflow.name} · v${workflow.revision}` : ""} — provide inputs, then start a run.
+          {t("workflows.detail.runSubtitle", { workflow: workflow ? `${workflow.name} · v${workflow.revision}` : "" })}
         </p>
         <WorkflowRunInputForm
           fields={inputFields}
@@ -560,9 +551,9 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         />
         {error ? <p className="page-activity__empty">{error}</p> : null}
         <div className="workflow-page__inline-actions">
-          <Button variant="primary" busy={running} disabled={workflow == null || !published} onClick={handleRunWorkflow}>Start run</Button>
+          <Button variant="primary" busy={running} disabled={workflow == null || !published} onClick={handleRunWorkflow}>{t("workflows.detail.startRun")}</Button>
           <Button variant="secondary" disabled={running} onClick={() => setRunModalOpen(false)}>
-            Cancel
+            {t("workflows.cancel")}
           </Button>
         </div>
       </BaseModal>

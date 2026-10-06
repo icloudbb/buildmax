@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
+import type { Translate } from "@buildmax/gui"
+import { translate, type MessageKey } from "../../i18n"
 import { answerMode, describeResponse, formatQuestionAnswers, scalarValue } from "./request"
+
+const t: Translate<MessageKey> = (key, vars) => translate("en", key, vars)
 
 describe("answerMode", () => {
   it("chooses how an answer is entered from the response schema", () => {
@@ -14,9 +18,9 @@ describe("answerMode", () => {
 
 describe("scalarValue", () => {
   it("coerces typed answers and reports bad ones", () => {
-    expect(scalarValue("integer", " 3 ")).toEqual({ value: 3 })
-    expect(scalarValue("integer", "3.5").error).toBeTruthy()
-    expect(scalarValue("string", "  ").error).toBeTruthy()
+    expect(scalarValue("integer", " 3 ", t)).toEqual({ value: 3 })
+    expect(scalarValue("integer", "3.5", t).error).toBeTruthy()
+    expect(scalarValue("string", "  ", t).error).toBeTruthy()
   })
 })
 
@@ -31,8 +35,8 @@ describe("formatQuestionAnswers", () => {
 
 describe("describeResponse", () => {
   it("renders a response for the run record", () => {
-    expect(describeResponse(true)).toBe("Yes")
-    expect(describeResponse("ship it")).toBe("ship it")
-    expect(describeResponse({ approved: false })).toBe('{"approved":false}')
+    expect(describeResponse(true, t)).toBe("Yes")
+    expect(describeResponse("ship it", t)).toBe("ship it")
+    expect(describeResponse({ approved: false }, t)).toBe('{"approved":false}')
   })
 })

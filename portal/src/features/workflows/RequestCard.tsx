@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Button, QuestionForm } from "@buildmax/gui"
 import type { WorkflowRequest } from "../../lib/types"
+import { useStableT, useT } from "../../i18n"
 import { WorkflowRunInputForm } from "./RunInputForm"
 import { buildInputValue, type InputFormValues } from "./runInput"
 import { answerMode, formatQuestionAnswers, scalarValue } from "./request"
@@ -21,6 +22,8 @@ interface RequestCardProps {
  * Declining stops the step, and with it the run.
  */
 export function WorkflowRequestCard({ request, onRespond, keys = false }: RequestCardProps) {
+  const t = useT()
+  const stableT = useStableT()
   const mode = answerMode(request.responseSchema)
   const [text, setText] = useState("")
   const [values, setValues] = useState<InputFormValues>({})
@@ -35,7 +38,7 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
     try {
       await onRespond(response)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send the response.")
+      setError(err instanceof Error ? err.message : stableT("workflows.request.sendFailed"))
     } finally {
       setBusy(false)
     }
@@ -44,15 +47,15 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
   function submitAnswer() {
     switch (mode.kind) {
       case "text":
-        if (!text.trim()) return setError("Enter an answer.")
+        if (!text.trim()) return setError(t("workflows.request.enterAnswer"))
         return void send({ action: "answer", response: text.trim() })
       case "scalar": {
-        const { value, error: problem } = scalarValue(mode.type, text)
+        const { value, error: problem } = scalarValue(mode.type, text, t)
         if (problem) return setError(problem)
         return void send({ action: "answer", response: value })
       }
       case "fields": {
-        const built = buildInputValue(mode.fields, values)
+        const built = buildInputValue(mode.fields, values, t)
         if (built.errors.length > 0) return setError(built.errors.join(" "))
         return void send({ action: "answer", response: built.value })
       }
@@ -60,7 +63,7 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
         try {
           return void send({ action: "answer", response: JSON.parse(text) })
         } catch {
-          return setError("Enter valid JSON.")
+          return setError(t("workflows.request.enterJson"))
         }
     }
   }
@@ -68,10 +71,12 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
   const expires = request.expiresAt ? new Date(request.expiresAt).toLocaleString() : null
 
   return (
-    <section className="workflow-request" aria-label={`Request from step ${request.nodeId}`}>
+    <section className="workflow-request" aria-label={t("workflows.request.label", { step: request.nodeId })}>
       <div className="workflow-request__head">
-        <strong>{request.kind === "question" ? `Step ${request.nodeId} asks` : `Step ${request.nodeId} needs your input`}</strong>
-        {expires ? <span className="page-activity__meta">Expires {expires}</span> : null}
+        <strong>{request.kind === "question"
+            ? t("workflows.request.asks", { step: request.nodeId })
+            : t("workflows.request.needsInput", { step: request.nodeId })}</strong>
+        {expires ? <span className="page-activity__meta">{t("workflows.request.expires", { time: expires })}</span> : null}
       </div>
       {request.prompt ? <p className="workflow-request__prompt">{request.prompt}</p> : null}
 
@@ -79,7 +84,7 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
         <QuestionForm
           questions={request.questions}
           keys={keys}
-          title="Answer to continue the step"
+          title={t("workflows.request.answerToContinue")}
           onAnswer={(answer) =>
             "declined" in answer
               ? void send({ action: "decline", reason: "The questions were dismissed." })
@@ -89,17 +94,17 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
       ) : mode.kind === "boolean" ? (
         <div className="workflow-request__actions">
           <Button busy={busy} disabled={busy} onClick={() => void send({ action: "answer", response: true })}>
-            Yes
+            {t("workflows.request.yes")}
           </Button>
           <Button variant="secondary" disabled={busy} onClick={() => void send({ action: "answer", response: false })}>
-            No
+            {t("workflows.request.no")}
           </Button>
         </div>
       ) : (
         <>
           {mode.kind === "fields" ? (
             <WorkflowRunInputForm
-              title="Your answer"
+              title={t("workflows.request.yourAnswer")}
               fields={mode.fields}
               values={values}
               disabled={busy}
@@ -107,7 +112,7 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
             />
           ) : (
             <label className="issues-page__field">
-              <span className="issues-page__field-label">{mode.kind === "json" ? "Your answer (JSON)" : "Your answer"}</span>
+              <span className="issues-page__field-label">{mode.kind === "json" ? t("workflows.request.yourAnswerJson") : t("workflows.request.yourAnswer")}</span>
               {mode.kind === "scalar" && mode.type !== "string" ? (
                 <input className="issues-page__input" type="number" value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
               ) : (
@@ -117,7 +122,7 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
           )}
           <div className="workflow-request__actions">
             <Button busy={busy} disabled={busy} onClick={submitAnswer}>
-              Submit answer
+              {t("workflows.request.submit")}
             </Button>
           </div>
         </>
@@ -127,21 +132,21 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
         declining ? (
           <div className="workflow-request__decline">
             <label className="issues-page__field">
-              <span className="issues-page__field-label">Why decline? The step fails with this reason.</span>
+              <span className="issues-page__field-label">{t("workflows.request.whyDecline")}</span>
               <input className="issues-page__input" value={reason} disabled={busy} onChange={(e) => setReason(e.target.value)} />
             </label>
             <div className="workflow-request__actions">
               <Button variant="danger" disabled={busy} onClick={() => void send({ action: "decline", reason })}>
-                Decline and stop the run
+                {t("workflows.request.declineAndStop")}
               </Button>
               <Button variant="tertiary" disabled={busy} onClick={() => setDeclining(false)}>
-                Keep open
+                {t("workflows.request.keepOpen")}
               </Button>
             </div>
           </div>
         ) : (
           <Button variant="tertiary" size="compact" disabled={busy} onClick={() => setDeclining(true)}>
-            Decline…
+            {t("workflows.request.decline")}
           </Button>
         )
       ) : null}
