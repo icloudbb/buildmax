@@ -63,7 +63,7 @@ func allHelpSections() []helpSection {
 			{"check [scope]", "Run checks for go, gui, portal, desktop, docs, all, or ci"},
 			{"fmt", "Format every tracked Go file with gofmt"},
 			{"lint", "Run pinned golangci-lint and govulncheck"},
-			{"e2e <suite>", "Run one end-to-end suite: cli, desktop, desktop-ui, desktop-launch, local, compose, kind, or all"},
+			{"e2e <suite>", "Run one end-to-end suite: cli, desktop, desktop-ui, desktop-launch, visual, local, compose, kind, or all"},
 			{"run <target>", "Run a binary or frontend development server locally"},
 			{"board [--md]", "Show project status derived from the backlog, Roadmap, and git"},
 			{"clean", "Remove binaries, native app builds, node_modules, and dist"},
@@ -221,7 +221,7 @@ func helpTopics() []helpTopic {
 			},
 			args: []helpRow{
 				{"go", "gofmt, go mod tidy, build, vet, race tests, lint"},
-				{"gui", "gui build, then the stylesheet lint and shared component tests"},
+				{"gui", "gui build, then its lint (CSS, jsx-a11y) and shared component tests"},
 				{"portal", "gui build, then Portal lint, build, and tests"},
 				{"desktop", "gui build, then Desktop frontend lint, build, and tests"},
 				{"docs", "Architecture boundary tests and the Markdown lint (needs npm)"},
@@ -254,12 +254,12 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "e2e",
-			usage:   "e2e <cli|desktop|desktop-ui [core]|desktop-launch|local|compose|kind|all>",
+			usage:   "e2e <cli|desktop|desktop-ui [core]|desktop-launch|visual [--update]|local|compose|kind|all>",
 			summary: "Run one end-to-end suite.",
 			details: []string{
-				"The suites are a local feedback loop, not a pull-request gate, and none of\n" +
-					"them needs a provider API key: every one answers the model from a committed\n" +
-					"scenario. They differ in what they own — the Portal suites attach to a\n" +
+				"The suites are a local feedback loop, not a pull-request gate (`visual` is\n" +
+					"the exception, below), and none of them needs a provider API key: every\n" +
+					"one answers the model from a committed scenario or from fixtures. They differ in what they own — the Portal suites attach to a\n" +
 					"deployment someone else started, `local` and `desktop-ui` each own a stack\n" +
 					"for one run (a Compose deployment, a `wails dev` process), and `cli` owns\n" +
 					"nothing but a temporary directory. Each says which it is before it starts.",
@@ -273,6 +273,13 @@ func helpTopics() []helpTopic {
 					"native window too, as a side effect of starting; this suite makes no\n" +
 					"assertion about it and does not need one to be present. It stops what it\n" +
 					"started when the run ends either way.",
+				"`visual` is the one suite that gates pull requests. It renders Portal's\n" +
+					"and Desktop's production builds from fixtures, with no deployment, compares\n" +
+					"them with the screenshot baselines committed under each package's\n" +
+					"visual/__screenshots__/, and runs axe with contrast. It needs Docker: the\n" +
+					"browser runs in the Playwright image matching the lockfiles, the only\n" +
+					"renderer the baselines are valid for. `--update` rewrites the baselines;\n" +
+					"review the PNG diff before committing it.",
 				"Whatever the outcome, the suite leaves its evidence under " + artifactDir + "/.",
 			},
 			args: []helpRow{
@@ -280,6 +287,7 @@ func helpTopics() []helpTopic {
 				{"desktop", "The Desktop bridge suite: bound methods, events, approvals — no window"},
 				{"desktop-ui", "desktop/frontend driven through `wails dev`; add `core` for the @smoke subset CI gates on"},
 				{"desktop-launch", "Launch the packaged app (after `build desktop`) and require it to stay up"},
+				{"visual", "Portal and Desktop screenshot baselines and contrast; `--update` rewrites them"},
 				{"local", "Portal browser tests against a Compose stack this command owns"},
 				{"compose", "The same tests against a running Compose stack"},
 				{"kind", "The same tests against a running kind deployment"},

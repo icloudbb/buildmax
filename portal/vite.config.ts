@@ -39,7 +39,7 @@ export default defineConfig({
   test: {
     // e2e/ holds Playwright specs, which need a browser and a running
     // deployment. Vitest would otherwise collect them by extension and fail on
-    // the import. `./make e2e` runs those.
-    exclude: ['node_modules/**', 'dist/**', 'e2e/**'],
+    // the import. `./make e2e` runs those; visual/ is `./make e2e visual`.
+    exclude: ['node_modules/**', 'dist/**', 'e2e/**', 'visual/**'],
   },
 })

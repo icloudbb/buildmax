@@ -362,6 +362,12 @@ cross-compile, golangci-lint, govulncheck, the Go test suite with `-race`, all
 three frontend builds, frontend lint and tests, a Git-history secret scan,
 dependency-license checks, and Markdown lint.
 
+Every pull request also runs `Visual (Portal, Desktop)`. It compares Portal and
+Desktop screenshots with the committed baselines and runs axe, contrast
+included. When a change to how a page looks is intended, refresh the baselines
+with `./make e2e visual --update` and commit them with the change; see
+[docs/contribute/testing.md](docs/contribute/testing.md#screenshot-baselines).
+
 Additional pull-request checks are path-scoped rather than universal. Release
 configuration changes run `goreleaser check`, and Portal image changes build
 the image. The native Windows suite runs after Go, task-runner, and Windows

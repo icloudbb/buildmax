@@ -170,10 +170,10 @@ func batchArgs(files []string) [][]string {
 	return batches
 }
 
-// checkGUI builds the shared component package, lints its stylesheets, and
-// runs its own tests. The build already runs as part of the Portal and Desktop
-// scopes, because both consume dist/; what is here and nowhere else is gui's
-// own lint and test run.
+// checkGUI builds the shared component package, lints it (Stylelint and the
+// jsx-a11y ESLint pass), and runs its own tests. The build already runs as
+// part of the Portal and Desktop scopes, because both consume dist/; what is
+// here and nowhere else is gui's own lint and test run.
 func checkGUI() error {
 	if err := buildGUI(); err != nil {
 		return err
@@ -283,6 +283,15 @@ func checkCI(checks map[string]func() error) error {
 	if err != nil {
 		return fmt.Errorf("check ci mysql: %w", err)
 	}
+	// The screenshot job renders in Docker, for the same reason MySQL is
+	// conditional: this command does not start a daemon for you.
+	visualRan := have("docker") && succeeds("docker", "info")
+	if visualRan {
+		fmt.Println("[check] ci: visual")
+		if err := e2eVisual(nil); err != nil {
+			return fmt.Errorf("check ci visual: %w", err)
+		}
+	}
 	if err := reportWorktreeDrift(before); err != nil {
 		return err
 	}
@@ -290,6 +299,9 @@ func checkCI(checks map[string]func() error) error {
 	if !mysqlRan {
 		fmt.Printf("[check] ci did not run the MySQL job: set %s and run `./make test mysql`\n",
 			config.EnvKeyBuildmaxTestDSN)
+	}
+	if !visualRan {
+		fmt.Printf("[check] ci did not run the visual job: start Docker and run `%s e2e visual`\n", mk())
 	}
 	return nil
 }

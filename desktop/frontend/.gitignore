@@ -1,2 +1,6 @@
 test-results/
 playwright-report/
+# Screenshot baselines are rendered on Linux only (./make e2e visual); a bare
+# run elsewhere writes images that must never become baselines.
+visual/__screenshots__/**/*-darwin.png
+visual/__screenshots__/**/*-win32.png

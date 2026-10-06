@@ -47,9 +47,13 @@ func cmdE2E(args []string) error {
 		return usageErrorf("e2e", "e2e needs a suite")
 	}
 	suite := args[0]
-	// desktop-ui optionally takes a scope; every other suite takes none.
+	// desktop-ui optionally takes a scope and visual an --update; every other
+	// suite takes no argument.
 	if suite == "desktop-ui" {
 		return e2eDesktopUI(args[1:])
+	}
+	if suite == "visual" {
+		return e2eVisual(args[1:])
 	}
 	if len(args) > 1 {
 		return usageErrorf("e2e", "e2e runs one suite at a time")

@@ -214,7 +214,7 @@ Portal 与 Desktop 的所有页面都已提供两种语言；只有 `/specimen` 
 | 阶段 | 结果 | 可执行工作 |
 |---|---|---|
 | 0. 审计 | Portal 与 Desktop 核心流程的分级问题报告，并附视觉语言建议 | [Portal](../contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) 与 [Desktop](../contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) 报告 |
-| 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏；共享基础组件；i18n 基础设施；Desktop 改用 gui 基础组件 | backlog [14](../../backlog/14-ui-visual-and-a11y-guardrails.md)、[16](../../backlog/16-gui-shared-primitives.md)、[20](../../backlog/20-desktop-gui-convergence.md) |
+| 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏（已交付）；共享基础组件；i18n 基础设施；Desktop 改用 gui 基础组件 | backlog [16](../../backlog/16-gui-shared-primitives.md)、[20](../../backlog/20-desktop-gui-convergence.md) |
 | 2. 视觉语言决定 | 维护者依据阶段 0 报告选择“打磨”或“新视觉语言”，并更新本记录与页面体系记录 | 决定，不是任务 |
 | 3. Portal 改造 | 按流程顺序解决 Blocker 与 Major 问题 | 依据阶段 0 报告拆分任务 |
 | 4. Desktop 改造 | Desktop 同样处理；问题涉及 `App.jsx` 的地方顺带拆分 | 依据阶段 0 报告拆分任务 |
@@ -257,7 +257,13 @@ Portal 与 Desktop 的所有页面都已提供两种语言；只有 `/specimen` 
 - **视觉语言。** 打磨当前的中性风格，还是采用新风格？在阶段 2 依据审计决定。
 - **Desktop TypeScript。** Desktop 是否迁移到 TypeScript？默认只转换收敛工作涉及的
   文件。只有当审计或收敛工作表明无类型的 props 正在导致缺陷时，才做全量迁移。
-- **截图基线。** Linux CI 与 macOS 的字体渲染不同，基线在哪个平台生成？存放在哪里？
-  由阶段 1 决定，预期答案是只以 Linux CI 作为基线平台。
+- **截图基线。** *已在阶段 1 解决：* Linux 是唯一的基线平台。所有基线都在官方
+  Playwright 镜像中渲染，其版本与 lockfile 固定的 `@playwright/test` 一致；本地的
+  `./make e2e visual` 与拉取请求作业都是如此，因此本地通过与 CI 通过是同一个结论。
+  基线与 spec 一起提交在各包的 `visual/__screenshots__/` 下，用
+  `./make e2e visual --update` 刷新。这些套件从 fixture 渲染生产构建而不依赖部署，
+  这正是它们能作为拉取请求门禁的原因；同理，Desktop 的视图使用 fixture bridge 而不是
+  `wails dev`——后者只在 macOS 作业上运行，会让 macOS 成为第二个基线平台。
+  [测试指南](../contribute/testing.md#截图基线)说明了如何运行、更新与评审基线。
 - **Space 默认落地页。** 应该是 Chat 还是 Issues？这个问题继承自页面体系记录，审计
   应当为它提供证据。

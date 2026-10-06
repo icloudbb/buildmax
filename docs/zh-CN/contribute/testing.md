@@ -19,6 +19,7 @@
 ./make e2e cli        # just the CLI and TUI suite
 ./make e2e desktop    # just the Desktop bridge suite
 ./make e2e desktop-ui # desktop/frontend through `wails dev`'s browser bridge
+./make e2e visual     # Portal and Desktop screenshots against the baselines, plus axe contrast (Docker)
 ./make e2e local      # Portal in a browser, against a Compose stack this command owns
 ./make e2e all        # cli, desktop, then local — the release-time matrix
 ./make kind up        # build the local cluster and verify a Kubernetes worker run
@@ -48,8 +49,9 @@ Session、设置和凭据——于是它的结果取决于运行它的机器是�
 | Desktop bridge 及其事件、审批,或 Session 历史 | `./make e2e desktop` |
 | desktop/frontend 的 React 应用，或它调用某个绑定 Go 方法的方式 | `./make e2e desktop-ui` |
 | Wails 配置、desktop 资源内嵌,或该应用的打包方式 | `./make build desktop`——没有别的命令能构建打包好的应用，而 `go build ./...` 只会编译 `!desktop` 桩代码 |
-| `gui/` 中的一个共享组件 | `./make check gui` |
-| Portal 的展示层或一个共享组件 | `./make check portal` 或 `./make check gui`，再用 `./make e2e local` 作快速的浏览器循环 |
+| `gui/` 中的一个共享组件 | `./make check gui`，然后 `./make e2e visual` |
+| Portal 的展示层或一个共享组件 | `./make check portal` 或 `./make check gui`，然后 `./make e2e visual`，再用 `./make e2e local` 作快速的浏览器循环 |
+| 主题 token、页面布局，或任何会改变页面外观的东西 | `./make e2e visual`；如果改动是有意的，运行 `./make e2e visual --update` 并把基线与改动一起提交 |
 | Portal 的行为,或 Portal 调用的某个 Server 路由 | 使用下面的本地 kind 循环；以 `./make e2e kind` 收尾 |
 | Server 处理器、Service、认证、Conversation,或 Task 派发 | 使用下面的本地 kind 循环；运行 `./make kind smoke`，若行为在浏览器中可见则再加上 `./make e2e kind` |
 | Worker、调度器、存储,或模型网关 | `./make kind up`，然后 `./make kind smoke`；网关路径用 `./make kind smoke managed` |
@@ -95,6 +97,7 @@ Portal 或 Server 的变更提出了端到端的主张时,作者有责任产出�
 | `./make e2e cli` | Go | 60 秒以内 | 一个临时 `BUILDMAX_HOME`、一个 workspace,以及一个它在进程内启动的 Marketplace server |
 | `./make e2e desktop` | Go | 60 秒以内 | 同上 |
 | `./make e2e desktop-ui` | Go、Node、Chromium | 60 秒以内 | 一个 `wails dev` 进程,以及一个全新、用完即弃的 `BUILDMAX_HOME` |
+| `./make e2e visual` | Docker、Node | 3 分钟以内，外加一次性的镜像拉取 | 每个包一个容器；不需要部署 |
 | `./make e2e local` | Docker、Node、Chromium | 10 分钟以内 | 一个它自己启动并停止的 Compose 技术栈 |
 | `./make e2e compose` | 一个已经在运行的 Compose 技术栈 | 2 分钟以内 | 什么都不拥有——它只是访客 |
 | `./make e2e kind` | 一个已经在运行的 kind 集群 | 2 分钟以内 | 什么都不拥有——它只是访客 |
@@ -268,13 +271,14 @@ status`/`logs`/`down`、`kind status`/`logs`/`down`、
 
 | 触发条件 | 运行什么 |
 |---|---|
-| 每个拉取请求 | 必需的 `ci.yml` 作业:Go、前端、开源合规,以及部署冒烟健康检查 |
+| 每个拉取请求 | 必需的 `ci.yml` 作业:Go、前端、开源合规,以及部署冒烟健康检查;以及截图与对比度套件 `Visual (Portal, Desktop)` |
 | 相关的拉取请求 | 发布配置校验,或一次 Portal 镜像构建 |
 | 合并到 `main` | 必需 CI、针对 Go/任务运行器改动的原生 Windows 检查、CodeQL、发布快照,以及按路径划分的部署冒烟测试 |
 | 定时 | 每日部署冒烟测试与原生 Windows 套件,每周 CodeQL 分析 |
 | 手动触发 | 所选定的工作流,用于发布准备或怀疑出现的环境回归 |
 
-端到端验证被刻意排除在拉取请求门禁之外。一次合并后的失败,由破坏它的
+端到端验证被刻意排除在拉取请求门禁之外。visual 套件是例外,因为它不需要
+部署:它从 fixture 渲染生产构建,因此和单元测试一样确定。一次合并后的失败,由破坏它的
 那次合并的作者去分诊,如果不能在一个工作日内修复,那次合并就会被回退。
 一个间歇性失败的测试,会在当天就被隔离,而不是被重试。
 
@@ -310,7 +314,7 @@ Portal 把浏览器级别的断言留给 Playwright,在那里,一个真实引擎
 重点。
 
 ```bash
-./make check gui               # build the package, lint its CSS, type-check, run its tests
+./make check gui               # build the package, lint it, type-check, run its tests
 npm --prefix gui test          # the tests alone, while iterating
 npm --prefix portal run lint:css  # one package's stylesheet lint alone
 ```
@@ -323,6 +327,62 @@ npm --prefix portal run lint:css  # one package's stylesheet lint alone
 `gui/src/theme.css` 之外的颜色字面量,以及引用任何样式表都未定义的自定义属性的
 `var()`;规则见[约定](conventions.md)。`./make check gui`、`portal` 和
 `desktop` 都会运行它。
+
+同一个 `npm run lint` 还会在三个包中以 `eslint-plugin-jsx-a11y` 的推荐规则
+运行 ESLint,因此非交互元素上的点击处理器、没有标签的控件,或误用的 ARIA
+角色都会让检查失败。修正标记,而不是禁用规则;一次禁用必须附带行内理由,
+说明该规则对这种模式是错的。`gui` 使用 `eslint-parser-oxc` 解析,因为它
+构建所用的 TypeScript 7 没有可供 typescript-eslint 使用的 JavaScript API。
+
+## 截图基线
+
+`./make e2e visual` 让一个改动无法在评审者看不到的情况下改变页面外观,或
+让对比度低于 WCAG AA。它只需要 Docker,不需要任何正在运行的东西。
+
+```bash
+./make e2e visual            # compare against the committed baselines
+./make e2e visual --update   # rewrite the baselines after an intended change
+BUILDMAX_E2E_WORKERS=1 ./make e2e visual   # one browser at a time, on a busy machine
+```
+
+它覆盖的内容:
+
+- **Portal**(`portal/visual/`):`/specimen` 页面,以及每种模板各一个页面
+  ——collection(Issues)、detail(一个 Issue)、editor(一个草稿 Workflow
+  的定义)、diagnostics(一个带有失败运行及其重试的 Task)和 settings
+  (Space 设置)——浅色与深色主题,宽度 1280 和 390 CSS 像素。specimen 和
+  每个模板页面还会在两种主题下运行 axe 的 WCAG 2.1 A/AA 规则,包括
+  `color-contrast`。
+- **Desktop**(`desktop/frontend/visual/`):黄金路径视图——全新的首页、
+  有内容的首页、New Project 对话框,以及 server 登录页——两种主题,每个
+  视图也都经过 axe 检查。
+
+两个套件都不需要部署或 `wails dev`。每个套件通过 Playwright 请求路由提供
+自己的生产构建,并用其 `visual/` 目录中的 fixture 应答 API 或 Wails
+bridge,同时固定时钟、关闭动画。没有 fixture 应答的请求会让测试按名称
+失败,所以一个开始发出新调用的页面会直接说明,而不是渲染出一个无法解释的
+错误状态。`desktop-ui` 套件仍然用真实 bridge 验证 React 应用;这个套件
+只关心外观。
+
+**Linux 是唯一的基线平台。** 字体与抗锯齿在 macOS、Windows 和 Linux 之间
+各不相同,所以浏览器总是运行在官方 Playwright 镜像中,其版本与两个
+lockfile 固定的 `@playwright/test` 一致
+(`mcr.microsoft.com/playwright:v<version>-noble`)。该命令从已安装的包
+读取这个版本,在宿主机上构建,在容器中渲染,本地和 CI 都是如此。基线与
+spec 一起提交在 `visual/__screenshots__/` 下,以 `linux` 命名;在 Mac 上
+直接运行 `npx playwright test` 没有可比较的对象,不能作为证据。升级
+Playwright 会改变渲染器,因此需要同时刷新基线。
+
+比较是严格的(`threshold: 0.02`,不容忍任何像素差异):所有基线都由同一个
+镜像渲染,所以输出可复现,而默认容差会让一个文本颜色变化约三十个灰阶而
+不被察觉。
+
+评审失败时,打开 `.artifacts/e2e/visual/`(在 CI 中是 `visual-diffs`
+artifact):每处不一致都有 expected、actual 和 diff 图片。如果改动是回归,
+就修复它。如果是有意的,运行 `./make e2e visual --update`,在 diff 中查看
+每一张变化的 PNG(桌面客户端或 GitHub 的图片 diff 能并排显示),并在同一个
+改动中提交它们,在拉取请求里说明页面为何看起来不同。更新会从零重新生成
+所有基线,所以被删除测试的图片也会一并移除。
 
 ## 新增一个测试
 
