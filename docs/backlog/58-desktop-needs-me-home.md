@@ -3,7 +3,7 @@ id: desktop-needs-me-home
 title: Show the work that needs the signed-in person on Desktop's Home
 roadmap: R6
 source: docs/design/ui-experience-program.md#d6-the-landing-page-shows-the-work-that-needs-the-person
-depends_on: [22-portal-needs-me-landing.md]
+depends_on: [38-portal-needs-me-landing.md]
 verification: ["./make test", "./make e2e desktop", "./make check desktop", "./make e2e desktop-ui"]
 claim:
 pr:

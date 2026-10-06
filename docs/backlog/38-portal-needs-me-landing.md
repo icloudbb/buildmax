@@ -68,7 +68,10 @@ Write that section in the navigation record, because it owns the default
 destination and the rejected dashboard. Update its zh-CN mirror. Take the
 decision to the maintainer in the shape that
 [backlog/README.md](README.md#from-roadmap-to-ready-tasks) step 3 describes,
-and build only after approval. The design answers:
+and build only after approval. On 2026-10-07 the maintainer accepted the
+recommended direction (Space-scoped, the Issues page as the default landing
+page); the section still needs approval before code. Its design section runs
+in parallel with the Major-carrying tasks before it. The design answers:
 
 1. **Attention.** When does an owned Issue need attention? *Recommended:* when
    its latest run failed, is awaiting an answer, or has a pending Workflow

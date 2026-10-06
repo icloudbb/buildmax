@@ -65,7 +65,7 @@ commands, Enter to send)") and once in `chat.slashHint`, both in
 - The emoji 💬 tab icon from D18. It is part of the single icon set in
   [task 20](20-desktop-gui-convergence.md).
 - Tool card and approval rendering, which is
-  [task 48](48-desktop-tool-approval-preview.md).
+  [task 48](26-desktop-tool-approval-preview.md).
 
 ## Acceptance Criteria
 

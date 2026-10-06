@@ -43,11 +43,10 @@ fires. After sign-in it resolves to the server's managed default.
 ## Scope
 
 - When a schedule is saved with "Default", resolve it to the concrete model
-  current at save time, store that model, and use it at fire time. The audit's
-  follow-up recommended this ("show and pin"). If the maintainer prefers
-  "Default" to keep following the default, stop and return the choice. In that
-  case the card must still show the resolved model, and a sign-in that changes
-  it must be visible before the next fire.
+  current at save time, store that model, use it at fire time, and show it on
+  the schedule. The maintainer chose this "show and pin" behavior on
+  2026-10-07, accepting that a later change of the default does not move
+  existing schedules.
 - Show the schedule's model on its card and in the edit dialog.
 - If the stored model cannot run in the current mode, for example after
   sign-in, the card says so before the next fire. The fire then fails with
@@ -58,7 +57,7 @@ fires. After sign-in it resolves to the server's managed default.
 ## Out Of Scope
 
 - The rest of the schedule dialog and list, which is
-  [task 54](54-desktop-schedule-form.md).
+  [task 54](56-desktop-schedule-form.md).
 - Portal's server-side schedules.
 
 ## Acceptance Criteria

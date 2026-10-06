@@ -74,7 +74,7 @@ that contradict each other.**
 
 ## Out Of Scope
 
-- Naming runs and removing raw IDs, which is [task 30](30-portal-work-naming.md).
+- Naming runs and removing raw IDs, which is [task 30](42-portal-work-naming.md).
 - Failure presentation, which is [task 32](32-portal-failure-explanation.md).
 
 ## Acceptance Criteria

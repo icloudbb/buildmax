@@ -50,7 +50,7 @@ edited or deleted from its row. This task carries Portal audit finding P12.
 ## Out Of Scope
 
 - Desktop's local schedule dialog, which is
-  [task 54](54-desktop-schedule-form.md). Use the same rules there.
+  [task 54](56-desktop-schedule-form.md). Use the same rules there.
 - New schedule capabilities.
 
 ## Acceptance Criteria

@@ -73,7 +73,7 @@ preference.**
 
 ## Out Of Scope
 
-- The landing page's content, which is [task 22](22-portal-needs-me-landing.md).
+- The landing page's content, which is [task 22](38-portal-needs-me-landing.md).
 - Visual restyling of the sidebar.
 
 ## Acceptance Criteria

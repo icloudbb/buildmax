@@ -290,7 +290,7 @@ The first complete slice is accepted only when:
    whatever page a signed-in person lands on shows the work that needs them.
    The audit found that neither Chat nor Issues does today. Which page hosts it
    is designed in
-   [backlog task 22](../backlog/22-portal-needs-me-landing.md).
+   [backlog task 22](../backlog/38-portal-needs-me-landing.md).
 2. Which real Issue results and failure states should seed the specimen and
    operator review? Existing QA data did not complete an Issue-to-result run
    during this inspection.
