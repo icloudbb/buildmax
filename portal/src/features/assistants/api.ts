@@ -1,6 +1,8 @@
+import { detectLocale } from "@buildmax/gui"
 import { ApiRequestError, apiFetch, getApiBase, parseErrorResponse, throwIfNotOk } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import type { ApiAssistant, ApiAssistantDefinition, ApiAssistantRequester, ApiAssistantStatement } from "../../lib/api/types"
+import { translate } from "../../i18n"
 
 /**
  * The server refused a change because it alters what the Assistant discloses
@@ -40,7 +42,7 @@ async function send<T>(url: string, init: RequestInit): Promise<T> {
       // Not the statement shape; fall through to a plain conflict.
     }
     if (body.statement?.digest) {
-      throw new StatementRequiredError(body.error ?? "Confirm what this assistant discloses", body.statement)
+      throw new StatementRequiredError(body.error ?? translate(detectLocale(), "assistants.error.confirmStatement"), body.statement)
     }
     throw new ApiRequestError(body.error ?? (text || res.statusText), 409)
   }
@@ -104,7 +106,7 @@ export async function setAssistantState(
 export async function deleteAssistant(spaceId: string, assistantId: string, token: string): Promise<void> {
   const res = await apiFetch(one(spaceId, assistantId), { method: "DELETE", headers: authHeaders(token) })
   if (!res.ok) {
-    throw new ApiRequestError(await parseErrorResponse(res, "Failed to delete the assistant"), res.status)
+    throw new ApiRequestError(await parseErrorResponse(res, translate(detectLocale(), "assistants.error.delete")), res.status)
   }
 }
 

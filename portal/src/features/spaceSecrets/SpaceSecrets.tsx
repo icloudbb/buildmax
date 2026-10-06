@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button, IconButton, getInitials } from "@buildmax/gui"
 import type { ApiSecret } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 import { createSecret, editSecret, listSecrets, setSecretState } from "./api"
 import { Alert } from "../../components/state/Alert"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
@@ -42,6 +43,8 @@ export function SpaceSecrets({
   /** Owner-only capability state — see docs/design/portal-state-and-permission-feedback.md#permission-model. */
   ownerState: PermissionState
 }) {
+  const t = useT()
+  const stableT = useStableT()
   const canManage = isAllowed(ownerState)
   // null means "not yet successfully fetched", distinct from [] meaning the
   // space genuinely has no secrets. See deriveResourceState.
@@ -61,11 +64,11 @@ export function SpaceSecrets({
     } catch (err) {
       // secretsData from a prior successful fetch (if any) is left in place,
       // so a failed refresh reads as Stale rather than wiping the list.
-      setLoadError(classifyError(err, "Failed to load this space's secrets"))
+      setLoadError(classifyError(err, stableT("secrets.error.load")))
     } finally {
       setLoading(false)
     }
-  }, [token, spaceId])
+  }, [token, spaceId, stableT])
 
   useEffect(() => {
     void load()
@@ -82,13 +85,13 @@ export function SpaceSecrets({
       <section className="sec">
         <div className="sec__head">
           <div>
-            <h2 className="sec__title">Secrets</h2>
+            <h2 className="sec__title">{t("secrets.title")}</h2>
             <p className="sec__copy">
               {ownerState === "unknown"
-                ? "Checking whether you can manage this space's secrets…"
+                ? t("secrets.checking")
                 : ownerState === "failed"
-                  ? "Couldn't verify your role in this space, so secrets stay unavailable. Refresh to try again."
-                  : "Only a space owner can view or manage this space's secrets."}
+                  ? t("secrets.unverified")
+                  : t("secrets.ownerOnly")}
             </p>
           </div>
         </div>
@@ -102,16 +105,12 @@ export function SpaceSecrets({
     <section className="sec">
       <div className="sec__head">
         <div>
-          <h2 className="sec__title">Secrets</h2>
-          <p className="sec__copy">
-            Credentials this space&apos;s agents can use — a GitHub token, an internal
-            API key. Stored encrypted; values are never shown again after you save
-            them.
-          </p>
+          <h2 className="sec__title">{t("secrets.title")}</h2>
+          <p className="sec__copy">{t("secrets.intro")}</p>
         </div>
         {!creating ? (
           <Button variant="primary" onClick={() => setCreating(true)}>
-            New secret
+            {t("secrets.new")}
           </Button>
         ) : null}
       </div>
@@ -119,11 +118,8 @@ export function SpaceSecrets({
       <div className="sec-callout" role="note">
         <KeyIcon />
         <div>
-          <strong>An agent you grant a secret to can read its value.</strong> It runs
-          commands the model chooses, and a value in its environment can be printed —
-          so anyone who can trigger that agent can obtain the value without owning the
-          secret. Prefer a short-lived, narrowly scoped credential, and don&apos;t
-          grant one to an agent you would not hand it to directly.
+          <strong>{t("secrets.warning.lead")}</strong>
+          {t("secrets.warning.body")}
         </div>
       </div>
 
@@ -134,7 +130,7 @@ export function SpaceSecrets({
         <Alert
           tone={secretsState.kind === "stale" ? "stale" : secretsState.kind}
           message={secretsState.error.message}
-          retry={{ label: "Retry", onClick: () => void load() }}
+          retry={{ label: t("shell.retry"), onClick: () => void load() }}
         />
       )}
 
@@ -159,11 +155,8 @@ export function SpaceSecrets({
       ) : secretsState.kind === "error" || secretsState.kind === "forbidden" || secretsState.kind === "notFound" ? null : live.length === 0 && !creating ? (
         <div className="sec-empty">
           <KeyIcon />
-          <p className="sec-empty__title">No secrets yet</p>
-          <p className="sec-empty__copy">
-            Add a credential your space&apos;s agents can use. Its value is encrypted on
-            save and never shown again.
-          </p>
+          <p className="sec-empty__title">{t("secrets.empty.title")}</p>
+          <p className="sec-empty__copy">{t("secrets.empty.copy")}</p>
         </div>
       ) : (
         <ul className="sec-list">
@@ -204,6 +197,7 @@ function CreateSecretForm({
   const [description, setDescription] = useState("")
   const [rows, setRows] = useState<ItemRow[]>(emptyRows())
   const [raw, setRaw] = useState(false)
+  const t = useT()
   const [rawText, setRawText] = useState("{\n  \n}")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -215,28 +209,28 @@ function CreateSecretForm({
       try {
         const parsed: unknown = JSON.parse(rawText)
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          throw new Error("expected a JSON object of string values")
+          throw new Error(t("secrets.error.jsonShape"))
         }
         items = {}
         for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
           items[k] = String(v)
         }
       } catch (err) {
-        setError(getErrorMessage(err, "The items are not valid JSON"))
+        setError(getErrorMessage(err, t("secrets.error.invalidJson")))
         return
       }
     } else {
       items = rowsToItems(rows)
     }
     if (!name.trim() || Object.keys(items).length === 0) {
-      setError("A secret needs a name and at least one item.")
+      setError(t("secrets.error.required"))
       return
     }
     setBusy(true)
     try {
       await onCreate(name.trim(), description.trim(), items)
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to create the secret"))
+      setError(getErrorMessage(err, t("secrets.error.create")))
     } finally {
       setBusy(false)
     }
@@ -245,12 +239,12 @@ function CreateSecretForm({
   return (
     <div className="sec-form">
       <div className="sec-form__head">
-        <h3 className="sec-form__title">New secret</h3>
+        <h3 className="sec-form__title">{t("secrets.new")}</h3>
       </div>
 
       <div className="sec-field">
         <label className="modal__label" htmlFor="secret-name">
-          Name
+          {t("secrets.field.name")}
         </label>
         <input
           id="secret-name"
@@ -263,22 +257,23 @@ function CreateSecretForm({
 
       <div className="sec-field">
         <label className="modal__label" htmlFor="secret-description">
-          Description <span className="sec-field__optional">optional</span>
+          {t("secrets.field.description")}{" "}
+          <span className="sec-field__optional">{t("secrets.field.optional")}</span>
         </label>
         <input
           id="secret-description"
           className="modal__input"
           value={description}
-          placeholder="What it is for — never the value itself"
+          placeholder={t("secrets.field.descriptionPlaceholder")}
           onChange={(e) => setDescription(e.target.value)}
         />
       </div>
 
       <div className="sec-field">
         <div className="sec-field__row">
-          <span className="modal__label">Items</span>
+          <span className="modal__label">{t("secrets.field.items")}</span>
           <Button variant="tertiary" size="compact" onClick={() => setRaw(!raw)}>
-            {raw ? "Row editor" : "Paste JSON"}
+            {raw ? t("secrets.rowEditor") : t("secrets.pasteJson")}
           </Button>
         </div>
         {raw ? (
@@ -302,10 +297,10 @@ function CreateSecretForm({
 
       <div className="sec-form__actions">
         <Button variant="secondary" onClick={onCancel} disabled={busy}>
-          Cancel
+          {t("secrets.cancel")}
         </Button>
         <Button variant="primary" busy={busy} onClick={() => void submit()}>
-          Create secret
+          {t("secrets.create")}
         </Button>
       </div>
     </div>
@@ -319,13 +314,14 @@ function ItemRowsEditor({
   rows: ItemRow[]
   setRows: (rows: ItemRow[]) => void
 }) {
+  const t = useT()
   return (
     <div className="sec-items">
       {rows.map((row, i) => (
         <div key={i} className="sec-item">
           <input
             className="modal__input sec-item__key"
-            aria-label="Item name"
+            aria-label={t("secrets.item.name")}
             placeholder="ITEM_NAME"
             value={row.key}
             onChange={(e) => {
@@ -336,8 +332,8 @@ function ItemRowsEditor({
           />
           <input
             className="modal__input sec-item__val"
-            aria-label="Item value"
-            placeholder="value"
+            aria-label={t("secrets.item.value")}
+            placeholder={t("secrets.item.valuePlaceholder")}
             type="password"
             value={row.value}
             onChange={(e) => {
@@ -349,8 +345,8 @@ function ItemRowsEditor({
           <IconButton
             variant="tertiary"
             onClick={() => setRows(rows.filter((_, j) => j !== i))}
-            aria-label="Remove item"
-            title="Remove item"
+            aria-label={t("secrets.item.remove")}
+            title={t("secrets.item.remove")}
           >
             ✕
           </IconButton>
@@ -360,10 +356,16 @@ function ItemRowsEditor({
         variant="tertiary" size="compact" className="sec-items__add"
         onClick={() => setRows([...rows, { key: "", value: "" }])}
       >
-        + Add item
+        {t("secrets.item.add")}
       </Button>
     </div>
   )
+}
+
+const STATE_LABEL: Record<ApiSecret["state"], MessageKey> = {
+  active: "secrets.state.active",
+  disabled: "secrets.state.disabled",
+  destroyed: "secrets.state.destroyed",
 }
 
 const STATE_TONE: Record<ApiSecret["state"], string> = {
@@ -389,6 +391,7 @@ function SecretCard({
   }) => Promise<void>
   onSetState: (state: "active" | "disabled" | "destroyed") => Promise<void>
 }) {
+  const t = useT()
   const destroyed = secret.state === "destroyed"
   return (
     <div className={`sec-card ${open ? "sec-card--open" : ""} ${destroyed ? "sec-card--dead" : ""}`}>
@@ -404,7 +407,7 @@ function SecretCard({
         </div>
         <span className={`sec-status sec-status--${STATE_TONE[secret.state]}`}>
           <span className="sec-status__dot" aria-hidden />
-          {secret.state}
+          {t(STATE_LABEL[secret.state])}
         </span>
       </div>
 
@@ -416,33 +419,33 @@ function SecretCard({
             </span>
           ))
         ) : (
-          <span className="sec-card__noitems">no items</span>
+          <span className="sec-card__noitems">{t("secrets.noItems")}</span>
         )}
       </div>
 
       {!destroyed ? (
         <div className="sec-card__actions">
           <Button variant="secondary" size="compact" onClick={onToggle}>
-            {open ? "Close" : "Edit items"}
+            {open ? t("secrets.close") : t("secrets.editItems")}
           </Button>
           {secret.state === "active" ? (
             <Button variant="tertiary" size="compact" onClick={() => void onSetState("disabled")}>
-              Disable
+              {t("secrets.disable")}
             </Button>
           ) : (
             <Button variant="tertiary" size="compact" onClick={() => void onSetState("active")}>
-              Enable
+              {t("secrets.enable")}
             </Button>
           )}
           <Button
             variant="danger" size="compact" className="sec-card__destroy"
             onClick={() => {
-              if (window.confirm(`Destroy secret "${secret.name}"? This cannot be undone.`)) {
+              if (window.confirm(t("secrets.destroyConfirm", { name: secret.name }))) {
                 void onSetState("destroyed")
               }
             }}
           >
-            Destroy
+            {t("secrets.destroy")}
           </Button>
         </div>
       ) : null}
@@ -466,6 +469,7 @@ function EditItemsForm({
   }) => Promise<void>
 }) {
   const [rows, setRows] = useState<ItemRow[]>(emptyRows())
+  const t = useT()
   const [remove, setRemove] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -482,14 +486,14 @@ function EditItemsForm({
     const set = rowsToItems(rows)
     const removeList = [...remove]
     if (Object.keys(set).length === 0 && removeList.length === 0) {
-      setError("Nothing to change: set an item or mark one to remove.")
+      setError(t("secrets.edit.nothing"))
       return
     }
     setBusy(true)
     try {
       await onEditItems({ set, remove: removeList })
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to edit the secret's items"))
+      setError(getErrorMessage(err, t("secrets.edit.error")))
     } finally {
       setBusy(false)
     }
@@ -497,10 +501,7 @@ function EditItemsForm({
 
   return (
     <div className="sec-edit">
-      <p className="sec-edit__hint">
-        Values are never shown. Set an item to replace its value, or mark one to
-        remove.
-      </p>
+      <p className="sec-edit__hint">{t("secrets.edit.hint")}</p>
       {secret.item_names.length > 0 ? (
         <div className="sec-remove">
           {secret.item_names.map((name) => (
@@ -510,13 +511,13 @@ function EditItemsForm({
                 checked={remove.has(name)}
                 onChange={() => toggleRemove(name)}
               />
-              Remove <code>{name}</code>
+              {t("secrets.edit.remove")} <code>{name}</code>
             </label>
           ))}
         </div>
       ) : null}
 
-      <span className="modal__label">Set or add items</span>
+      <span className="modal__label">{t("secrets.edit.setOrAdd")}</span>
       <ItemRowsEditor rows={rows} setRows={setRows} />
 
       {error ? (
@@ -527,7 +528,7 @@ function EditItemsForm({
 
       <div className="sec-form__actions">
         <Button variant="primary" size="compact" busy={busy} onClick={() => void submit()}>
-          Save items
+          {t("secrets.edit.save")}
         </Button>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react"
 import type { ApiAuditEvent } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { actorLabel, describeEvent, formatEventTime } from "../audit/describe"
+import { useT } from "../../i18n"
 import { exportAdminAuditEvents, searchAdminAuditEvents } from "./api"
 
 const PAGE_SIZE = 50
@@ -23,6 +24,7 @@ interface AuditFilters {
  * absence of one: an empty space filter already means "any space".
  */
 export function AdminAudit({ token, currentUserId }: { token: string | null; currentUserId?: string }) {
+  const t = useT()
   const [events, setEvents] = useState<ApiAuditEvent[]>([])
   const [total, setTotal] = useState(0)
   const [filters, setFilters] = useState<AuditFilters>({ spaceId: "", actorId: "", action: "" })
@@ -165,14 +167,14 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
         ) : (
           <ul className="audit-list">
             {events.map((event) => {
-              const described = describeEvent(event)
+              const described = describeEvent(event, t)
               return (
                 <li
                   key={event.id}
                   className={described.denied ? "audit-row audit-row--denied" : "audit-row"}
                 >
                   <div className="audit-row__main">
-                    <span className="audit-row__actor">{actorLabel(event, currentUserId)}</span>
+                    <span className="audit-row__actor">{actorLabel(event, t, currentUserId)}</span>
                     <span className="audit-row__summary">{described.summary}</span>
                   </div>
                   <div className="audit-row__meta">

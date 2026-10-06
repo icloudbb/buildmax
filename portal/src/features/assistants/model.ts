@@ -1,3 +1,4 @@
+import type { Translate } from "@buildmax/gui"
 import type {
   ApiAssistant,
   ApiAssistantAudience,
@@ -6,6 +7,7 @@ import type {
   ApiAssistantRosterEntry,
 } from "../../lib/api/types"
 import { parseDefinition, parseNodeOutputSource } from "../workflows/steps"
+import type { MessageKey } from "../../i18n"
 
 /**
  * The top-level property names of an object schema: the units a release
@@ -23,16 +25,19 @@ export function schemaProperties(schema: unknown): string[] | null {
 }
 
 /** Reads an Agent entry's output_schema text, as typed into the editor. */
-export function parseOutputSchema(text: string): { schema: unknown; properties: string[] } | { error: string } {
-  if (!text.trim()) return { error: "An Agent on the roster needs an output schema." }
+export function parseOutputSchema(
+  text: string,
+  t: Translate<MessageKey>,
+): { schema: unknown; properties: string[] } | { error: string } {
+  if (!text.trim()) return { error: t("assistants.schema.required") }
   let schema: unknown
   try {
     schema = JSON.parse(text)
   } catch {
-    return { error: "The output schema is not valid JSON." }
+    return { error: t("assistants.schema.invalidJson") }
   }
   const properties = schemaProperties(schema)
-  if (properties === null) return { error: 'The output schema must be an object schema ({"type": "object", ...}).' }
+  if (properties === null) return { error: t("assistants.schema.notObject") }
   return { schema, properties }
 }
 
@@ -72,22 +77,33 @@ export interface AvailabilityView {
   tone: "active" | "suspended" | "blocked"
 }
 
-export function describeAvailability(availability: ApiAssistantAvailability): AvailabilityView {
+export function describeAvailability(
+  availability: ApiAssistantAvailability,
+  t: Translate<MessageKey>,
+): AvailabilityView {
   switch (availability) {
     case "available":
-      return { label: "Available", reason: "Published and answering its audience.", tone: "active" }
+      return {
+        label: t("assistants.availability.available"),
+        reason: t("assistants.availability.availableReason"),
+        tone: "active",
+      }
     case "paused":
-      return { label: "Paused", reason: "Not published. It answers nobody until an owner or admin publishes it.", tone: "blocked" }
+      return {
+        label: t("assistants.availability.paused"),
+        reason: t("assistants.availability.pausedReason"),
+        tone: "blocked",
+      }
     case "service_account_disabled":
       return {
-        label: "Service account disabled",
-        reason: "Published, but paused automatically: its service account is disabled or gone.",
+        label: t("assistants.availability.serviceAccountDisabled"),
+        reason: t("assistants.availability.serviceAccountDisabledReason"),
         tone: "suspended",
       }
     case "needs_sponsor":
       return {
-        label: "Needs a sponsor",
-        reason: "Published, but paused automatically: nobody accountable sponsors it or its service account.",
+        label: t("assistants.availability.needsSponsor"),
+        reason: t("assistants.availability.needsSponsorReason"),
         tone: "suspended",
       }
     default:
@@ -96,8 +112,8 @@ export function describeAvailability(availability: ApiAssistantAvailability): Av
   }
 }
 
-export function describeAudience(audience: ApiAssistantAudience): string {
-  return audience === "all_users" ? "Every active user of this deployment" : "Members of this space"
+export function describeAudience(audience: ApiAssistantAudience, t: Translate<MessageKey>): string {
+  return audience === "all_users" ? t("assistants.audience.allUsers") : t("assistants.audience.spaceMembers")
 }
 
 export function platformName(platform: string): string {
@@ -182,14 +198,21 @@ export function parseFieldList(text: string): string[] {
  * entry's releasable fields are kept only while its schema still has them, so
  * editing the schema cannot leave a stale field the server would refuse.
  */
-export function draftToDefinition(draft: AssistantDraft): { definition: ApiAssistantDefinition } | { error: string } {
+export function draftToDefinition(
+  draft: AssistantDraft,
+  t: Translate<MessageKey>,
+): { definition: ApiAssistantDefinition } | { error: string } {
   const name = draft.name.trim()
-  if (!name) return { error: "An assistant needs a name." }
+  if (!name) return { error: t("assistants.draft.nameRequired") }
   const roster: ApiAssistantRosterEntry[] = []
   for (const entry of draft.roster) {
-    if (!entry.id) return { error: `Choose the ${entry.kind} for every roster entry.` }
+    if (!entry.id) {
+      return {
+        error: entry.kind === "agent" ? t("assistants.draft.chooseAgent") : t("assistants.draft.chooseWorkflow"),
+      }
+    }
     if (entry.kind === "agent") {
-      const parsed = parseOutputSchema(entry.schemaText)
+      const parsed = parseOutputSchema(entry.schemaText, t)
       if ("error" in parsed) return { error: parsed.error }
       roster.push({
         kind: "agent",

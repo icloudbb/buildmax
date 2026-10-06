@@ -11,6 +11,7 @@ import { getAgents, listAgentModels } from "../agents/api"
 import { getWorkflows } from "../workflows/api"
 import { listArtifacts } from "../artifacts/api"
 import { getServiceAccounts } from "../spaces/api"
+import { useT, type MessageKey } from "../../i18n"
 import {
   type AssistantDraft,
   type RosterDraft,
@@ -32,7 +33,7 @@ interface Options {
   models: string[]
   serviceAccounts: ApiServiceAccount[]
   /** What could not be loaded, so a missing choice is explained rather than silent. */
-  failed: string[]
+  failed: MessageKey[]
 }
 
 function useEditorOptions(spaceId: string, token: string | null): Options | null {
@@ -48,21 +49,21 @@ function useEditorOptions(spaceId: string, token: string | null): Options | null
       getServiceAccounts(spaceId, token),
     ]).then(([agents, workflows, artifacts, models, accounts]) => {
       if (cancelled) return
-      const failed: string[] = []
-      const value = <T,>(r: PromiseSettledResult<T>, what: string, fallback: T): T => {
+      const failed: MessageKey[] = []
+      const value = <T,>(r: PromiseSettledResult<T>, what: MessageKey, fallback: T): T => {
         if (r.status === "fulfilled") return r.value
         failed.push(what)
         return fallback
       }
-      const artifactList = value(artifacts, "files", { items: [], total: 0 })
+      const artifactList = value(artifacts, "assistants.editor.option.files", { items: [], total: 0 })
       setOptions({
-        agents: value(agents, "agents", []),
+        agents: value(agents, "assistants.editor.option.agents", []),
         // Only a published Workflow can be on a roster.
-        workflows: value(workflows, "workflows", { workflows: [] }).workflows.filter((w) => w.status === "published"),
+        workflows: value(workflows, "assistants.editor.option.workflows", { workflows: [] }).workflows.filter((w) => w.status === "published"),
         artifacts: artifactList.items,
         artifactsTotal: artifactList.total,
-        models: value(models, "models", []),
-        serviceAccounts: value(accounts, "service accounts", []),
+        models: value(models, "assistants.editor.option.models", []),
+        serviceAccounts: value(accounts, "assistants.editor.option.serviceAccounts", []),
         failed,
       })
     })
@@ -99,6 +100,7 @@ export function AssistantEditor({
   onSubmit: (definition: ApiAssistantDefinition) => void
   onCancel?: () => void
 }) {
+  const t = useT()
   const [draft, setDraft] = useState<AssistantDraft>(initial)
   const [localError, setLocalError] = useState<string | null>(null)
   const options = useEditorOptions(spaceId, token)
@@ -111,7 +113,7 @@ export function AssistantEditor({
     setDraft((prev) => ({ ...prev, roster: prev.roster.map((e, i) => (i === index ? { ...e, ...next } : e)) }))
 
   function submit() {
-    const built = draftToDefinition(draft)
+    const built = draftToDefinition(draft, t)
     if ("error" in built) {
       setLocalError(built.error)
       return
@@ -130,38 +132,41 @@ export function AssistantEditor({
   return (
     <form
       className="sec-form asst-editor"
-      aria-label={mode === "create" ? "New assistant" : "Assistant definition"}
+      aria-label={mode === "create" ? t("assistants.editor.formNew") : t("assistants.editor.formEdit")}
       onSubmit={(e) => {
         e.preventDefault()
         submit()
       }}
     >
       <div className="sec-form__head">
-        <h3 className="sec-form__title">{mode === "create" ? "New assistant" : "Definition"}</h3>
+        <h3 className="sec-form__title">{mode === "create" ? t("assistants.editor.formNew") : t("assistants.editor.definition")}</h3>
       </div>
       {options && options.failed.length > 0 ? (
         <p className="sec__error" role="alert">
-          Could not load {options.failed.join(", ")}; those choices are missing below.
+          {t("assistants.editor.loadFailed", {
+            what: options.failed.map((key) => t(key)).join(t("assistants.listSeparator")),
+          })}
         </p>
       ) : null}
 
       <fieldset className="asst-editor__fields" disabled={readOnly || busy}>
         <div className="sec-field">
           <label className="modal__label" htmlFor={field("name")}>
-            Name
+            {t("assistants.editor.name")}
           </label>
           <input
             id={field("name")}
             className="modal__input"
             value={draft.name}
             maxLength={255}
-            placeholder="HR help desk"
+            placeholder={t("assistants.editor.namePlaceholder")}
             onChange={(e) => set("name", e.target.value)}
           />
         </div>
         <div className="sec-field">
           <label className="modal__label" htmlFor={field("description")}>
-            Description <span className="sec-field__optional">(optional)</span>
+            {t("assistants.editor.description")}{" "}
+            <span className="sec-field__optional">{t("assistants.editor.optional")}</span>
           </label>
           <textarea
             id={field("description")}
@@ -169,13 +174,14 @@ export function AssistantEditor({
             rows={2}
             maxLength={2000}
             value={draft.description}
-            placeholder="What requesters can ask it about"
+            placeholder={t("assistants.editor.descriptionPlaceholder")}
             onChange={(e) => set("description", e.target.value)}
           />
         </div>
         <div className="sec-field">
           <label className="modal__label" htmlFor={field("instructions")}>
-            Instructions <span className="sec-field__optional">(optional)</span>
+            {t("assistants.editor.instructions")}{" "}
+            <span className="sec-field__optional">{t("assistants.editor.optional")}</span>
           </label>
           <textarea
             id={field("instructions")}
@@ -189,7 +195,7 @@ export function AssistantEditor({
         <div className="asst-editor__row">
           <div className="sec-field">
             <label className="modal__label" htmlFor={field("model")}>
-              Model
+              {t("assistants.editor.model")}
             </label>
             <select
               id={field("model")}
@@ -197,7 +203,7 @@ export function AssistantEditor({
               value={draft.model}
               onChange={(e) => set("model", e.target.value)}
             >
-              <option value="">Deployment default</option>
+              <option value="">{t("assistants.editor.modelDefault")}</option>
               {modelOptions.map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -207,7 +213,7 @@ export function AssistantEditor({
           </div>
           <div className="sec-field">
             <label className="modal__label" htmlFor={field("audience")}>
-              Who can ask
+              {t("assistants.editor.whoCanAsk")}
             </label>
             <select
               id={field("audience")}
@@ -215,15 +221,15 @@ export function AssistantEditor({
               value={draft.audience}
               onChange={(e) => set("audience", e.target.value as AssistantDraft["audience"])}
             >
-              <option value="space_members">Members of this space</option>
-              <option value="all_users">Every active user of this deployment</option>
+              <option value="space_members">{t("assistants.audience.spaceMembers")}</option>
+              <option value="all_users">{t("assistants.audience.allUsers")}</option>
             </select>
           </div>
         </div>
 
         <div className="sec-field">
           <label className="modal__label" htmlFor={field("service-account")}>
-            Service account
+            {t("assistants.editor.serviceAccount")}
           </label>
           <select
             id={field("service-account")}
@@ -231,27 +237,24 @@ export function AssistantEditor({
             value={draft.serviceAccountId}
             onChange={(e) => set("serviceAccountId", e.target.value)}
           >
-            {mode === "create" ? <option value="">Create one with this assistant&apos;s name</option> : null}
+            {mode === "create" ? <option value="">{t("assistants.editor.serviceAccountNew")}</option> : null}
             {draft.serviceAccountId && !options?.serviceAccounts.some((sa) => sa.id === draft.serviceAccountId) ? (
               <option value={draft.serviceAccountId}>{draft.serviceAccountId}</option>
             ) : null}
             {(options?.serviceAccounts ?? []).map((sa) => (
               <option key={sa.id} value={sa.id}>
                 {sa.name}
-                {sa.disabled_at ? " (disabled)" : ""}
+                {sa.disabled_at ? t("assistants.editor.serviceAccountDisabled") : ""}
               </option>
             ))}
           </select>
-          <p className="sec-edit__hint">The authority its work runs as, instead of any one person&apos;s.</p>
+          <p className="sec-edit__hint">{t("assistants.editor.serviceAccountHint")}</p>
         </div>
 
         <fieldset className="asst-editor__group">
-          <legend className="modal__label">Roster</legend>
-          <p className="sec-edit__hint">
-            The Agents and published Workflows it may run. Each declares a result shape and which of its top-level
-            fields may reach a requester; nothing else from a run does.
-          </p>
-          {draft.roster.length === 0 ? <p className="sec-card__noitems">It runs nothing; it can only answer from its files.</p> : null}
+          <legend className="modal__label">{t("assistants.editor.roster")}</legend>
+          <p className="sec-edit__hint">{t("assistants.editor.rosterHint")}</p>
+          {draft.roster.length === 0 ? <p className="sec-card__noitems">{t("assistants.editor.rosterEmpty")}</p> : null}
           <ul className="asst-roster">
             {draft.roster.map((entry, index) => (
               <li key={entry.key ?? index}>
@@ -273,24 +276,21 @@ export function AssistantEditor({
                 size="compact"
                 onClick={() => set("roster", [...draft.roster, newRosterEntry("agent")])}
               >
-                Add agent
+                {t("assistants.editor.addAgent")}
               </Button>
               <Button
                 size="compact"
                 onClick={() => set("roster", [...draft.roster, newRosterEntry("workflow")])}
               >
-                Add workflow
+                {t("assistants.editor.addWorkflow")}
               </Button>
             </div>
           ) : null}
         </fieldset>
 
         <fieldset className="asst-editor__group">
-          <legend className="modal__label">Readable files</legend>
-          <p className="sec-edit__hint">
-            Uploaded files (Artifacts) it may read to answer. Its Agents and Workflow steps read the space's Files
-            instead, so a document both need goes in both. Anything it can read, anyone who can ask may learn.
-          </p>
+          <legend className="modal__label">{t("assistants.editor.readableFiles")}</legend>
+          <p className="sec-edit__hint">{t("assistants.editor.readableFilesHint")}</p>
           <ReadableFilesPicker
             artifacts={options?.artifacts ?? []}
             total={options?.artifactsTotal ?? 0}
@@ -309,11 +309,11 @@ export function AssistantEditor({
         <div className="sec-form__actions">
           {onCancel ? (
             <Button variant="secondary" onClick={onCancel} disabled={busy}>
-              Cancel
+              {t("assistants.editor.cancel")}
             </Button>
           ) : null}
           <Button type="submit" variant="primary" busy={busy}>
-            {mode === "create" ? "Create assistant" : "Save changes"}
+            {mode === "create" ? t("assistants.editor.create") : t("assistants.editor.save")}
           </Button>
         </div>
       ) : null}
@@ -338,22 +338,23 @@ function RosterEntryEditor({
   onChange: (next: Partial<RosterDraft>) => void
   onRemove: () => void
 }) {
+  const t = useT()
   const isAgent = entry.kind === "agent"
   const choices = isAgent
     ? agents.map((a) => ({ id: a.id, name: a.name }))
     : workflows.map((w) => ({ id: w.id, name: w.name }))
-  const kindLabel = isAgent ? "Agent" : "Workflow"
+  const kindLabel = isAgent ? t("assistants.roster.agent") : t("assistants.roster.workflow")
 
   // Releasable candidates come from the schema: the Agent entry's own, or the
   // Workflow's result node. When neither can be read, the names are typed.
   const candidates = useMemo(() => {
     if (isAgent) {
-      const parsed = parseOutputSchema(entry.schemaText)
+      const parsed = parseOutputSchema(entry.schemaText, t)
       return "error" in parsed ? { fields: null, error: entry.schemaText.trim() ? parsed.error : null } : { fields: parsed.properties, error: null }
     }
     const wf = workflows.find((w) => w.id === entry.id)
     return { fields: wf ? workflowResultProperties(wf.definition) : null, error: null }
-  }, [isAgent, entry.schemaText, entry.id, workflows])
+  }, [isAgent, entry.schemaText, entry.id, workflows, t])
 
   const [fieldText, setFieldText] = useState(entry.releasable.join(", "))
 
@@ -374,7 +375,7 @@ function RosterEntryEditor({
             value={entry.id}
             onChange={(e) => onChange({ id: e.target.value, releasable: [] })}
           >
-            <option value="">Choose {isAgent ? "an agent" : "a published workflow"}</option>
+            <option value="">{isAgent ? t("assistants.roster.chooseAgent") : t("assistants.roster.chooseWorkflow")}</option>
             {entry.id && !choices.some((c) => c.id === entry.id) ? <option value={entry.id}>{entry.id}</option> : null}
             {choices.map((c) => (
               <option key={c.id} value={c.id}>
@@ -385,7 +386,7 @@ function RosterEntryEditor({
         </div>
         {!readOnly ? (
           <Button size="compact" variant="tertiary" className="asst-roster__remove" onClick={onRemove}>
-            Remove {kindLabel.toLowerCase()}
+            {isAgent ? t("assistants.roster.removeAgent") : t("assistants.roster.removeWorkflow")}
           </Button>
         ) : null}
       </div>
@@ -393,7 +394,7 @@ function RosterEntryEditor({
       {isAgent ? (
         <div className="sec-field">
           <label className="modal__label" htmlFor={`${fieldId}-schema`}>
-            Output schema (JSON)
+            {t("assistants.roster.outputSchema")}
           </label>
           <textarea
             id={`${fieldId}-schema`}
@@ -409,9 +410,9 @@ function RosterEntryEditor({
 
       {candidates.fields ? (
         <fieldset className="asst-editor__checks">
-          <legend className="modal__label">Releasable fields</legend>
+          <legend className="modal__label">{t("assistants.roster.releasable")}</legend>
           {candidates.fields.length === 0 ? (
-            <p className="sec-card__noitems">The result schema has no top-level properties.</p>
+            <p className="sec-card__noitems">{t("assistants.roster.noProperties")}</p>
           ) : (
             candidates.fields.map((name) => (
               <label key={name} className="asst-check">
@@ -428,7 +429,7 @@ function RosterEntryEditor({
       ) : !isAgent && entry.id ? (
         <div className="sec-field">
           <label className="modal__label" htmlFor={`${fieldId}-fields`}>
-            Releasable fields (comma-separated)
+            {t("assistants.roster.releasableTyped")}
           </label>
           <input
             id={`${fieldId}-fields`}
@@ -439,7 +440,7 @@ function RosterEntryEditor({
               onChange({ releasable: parseFieldList(e.target.value) })
             }}
           />
-          <p className="sec-edit__hint">Top-level properties of the result node&apos;s output schema.</p>
+          <p className="sec-edit__hint">{t("assistants.roster.releasableTypedHint")}</p>
         </div>
       ) : null}
     </div>
@@ -457,10 +458,11 @@ function ReadableFilesPicker({
   selected: string[]
   onChange: (next: string[]) => void
 }) {
+  const t = useT()
   // A selected file beyond the loaded page still shows, so saving never drops it silently.
   const unknown = selected.filter((id) => !artifacts.some((a) => a.id === id))
   if (artifacts.length === 0 && unknown.length === 0) {
-    return <p className="sec-card__noitems">This space has no files to choose from.</p>
+    return <p className="sec-card__noitems">{t("assistants.files.none")}</p>
   }
   const toggle = (id: string, on: boolean) => onChange(on ? [...selected, id] : selected.filter((x) => x !== id))
   return (
@@ -478,7 +480,7 @@ function ReadableFilesPicker({
         </label>
       ))}
       {total > artifacts.length ? (
-        <p className="sec-edit__hint">Showing the newest {artifacts.length} of {total} files.</p>
+        <p className="sec-edit__hint">{t("assistants.files.showing", { shown: artifacts.length, total })}</p>
       ) : null}
     </div>
   )
