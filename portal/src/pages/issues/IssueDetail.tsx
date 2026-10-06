@@ -5,6 +5,7 @@ import type { ApiIssueComment, ApiIssueFlowResponse, ApiSpaceMember } from "../.
 import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStatusLabel } from "../../lib/statusLabels"
+import { useRelativeTime, useTimestamp } from "../../lib/dateFormat"
 import { useT, type MessageKey } from "../../i18n"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
@@ -72,10 +73,6 @@ function mapIssueFlow(api: ApiIssueFlowResponse): IssueFlow {
   }
 }
 
-function formatTimestamp(rfc3339: string): string {
-  return new Date(rfc3339).toLocaleString()
-}
-
 function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
   return flow?.runs[0] ?? null
 }
@@ -83,6 +80,8 @@ function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
 export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProps) {
   const t = useT()
   const statusLabel = useStatusLabel()
+  const relativeTime = useRelativeTime()
+  const formatTimestamp = useTimestamp()
   const { currentUserRole } = useSpace()
   const { setEntityLabel } = useApp()
   const [tab, setTab] = useState<IssueTab>("overview")
@@ -875,7 +874,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                           <span>
                             <strong>{item.run.id}</strong>
                             <span className="page-activity__meta workflow-detail-page__run-id">
-                              {item.run.createdLabel}
+                              {relativeTime(item.run.createdAt)}
                             </span>
                           </span>
                           <span className="issues-page__status">{statusLabel(item.run.status)}</span>
@@ -905,7 +904,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                           <span>
                             <strong>{task.title}</strong>
                             <span className="page-activity__meta workflow-detail-page__run-id">
-                              {task.timeLabel}
+                              {relativeTime(task.timeAt)}
                             </span>
                           </span>
                           <span className="issues-page__status">{agentTaskLabel(task)}</span>

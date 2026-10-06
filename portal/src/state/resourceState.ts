@@ -1,5 +1,7 @@
 import { ApiRequestError } from "../lib/api/client"
+import { detectLocale } from "@buildmax/gui"
 import { getErrorMessage } from "../lib/errorMessage"
+import { translate } from "../i18n"
 
 /**
  * Cause of a failed resource request, derived from the HTTP status when known.
@@ -14,7 +16,10 @@ export interface RequestError {
 }
 
 /** Maps a caught fetch error to a RequestError. 403 -> forbidden, 404 -> notFound, else -> error. */
-export function classifyError(err: unknown, fallback = "Request failed"): RequestError {
+export function classifyError(
+  err: unknown,
+  fallback = translate(detectLocale(), "common.requestFailed"),
+): RequestError {
   const message = getErrorMessage(err, fallback)
   if (err instanceof ApiRequestError) {
     if (err.status === 403) return { kind: "forbidden", message }

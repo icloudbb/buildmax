@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext"
 import { useSpace } from "../contexts/SpaceContext"
 import { createSpace } from "../features/spaces/api"
 import { getErrorMessage } from "../lib/errorMessage"
+import { useStableT, useT } from "../i18n"
 
 interface CreateSpaceDialogProps {
   open: boolean
@@ -11,6 +12,8 @@ interface CreateSpaceDialogProps {
 }
 
 export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
+  const t = useT()
+  const stableT = useStableT()
   const { token } = useAuth()
   const { refetchSpaces } = useSpace()
   const [spaceName, setSpaceName] = useState("")
@@ -27,7 +30,7 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
       await refetchSpaces(created.id)
       onClose()
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to create space"))
+      setError(getErrorMessage(err, stableT("common.space.createFailed")))
     } finally {
       setCreating(false)
     }
@@ -36,7 +39,7 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
   return (
     <BaseModal
       open={open}
-      title="Create Space"
+      title={t("shell.createSpace")}
       titleId="create-space-dialog-title"
       onClose={() => {
         if (creating) return
@@ -48,14 +51,14 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
       <div className="modal__body">
         <div className="space-settings-page__dialog">
           <p className="space-settings-page__muted">
-            Create a new shared space for agents, workflows, issues, and conversations.
+            {t("common.space.createIntro")}
           </p>
           <input
             className="issues-page__input"
             type="text"
             value={spaceName}
             onChange={(e) => setSpaceName(e.target.value)}
-            placeholder="e.g. Design, Ops, Research"
+            placeholder={t("common.space.namePlaceholder")}
             autoFocus
           />
           {error ? (
@@ -73,14 +76,14 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
                 onClose()
               }}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="primary" busy={creating}
               disabled={!spaceName.trim()}
               onClick={() => void handleCreate()}
             >
-              Create Space
+              {t("shell.createSpace")}
             </Button>
           </div>
         </div>

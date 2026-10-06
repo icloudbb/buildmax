@@ -4,6 +4,7 @@ import { artifactContentUrl } from "../artifacts"
 import { downloadAuthenticated } from "../../lib/download"
 import { navigate } from "../../router"
 import { useT } from "../../i18n"
+import { useTimestamp } from "../../lib/dateFormat"
 
 interface OutputCardProps {
   output: IssueOutput
@@ -11,10 +12,6 @@ interface OutputCardProps {
   onOpenConversation?: (conversationId: string) => void
   onOpenRun?: (workflowRunId: string) => void
   onOpenTrace?: (taskRunId: string) => void
-}
-
-function formatTimestamp(rfc3339: string): string {
-  return new Date(rfc3339).toLocaleString()
 }
 
 // An issue output is an artifact a run published: a file reached by its own id
@@ -27,6 +24,7 @@ export function OutputCard({
   onOpenTrace,
 }: OutputCardProps) {
   const t = useT()
+  const formatTimestamp = useTimestamp()
   const { source } = output
   return (
     <article className="issue-outputs__card">

@@ -1,6 +1,7 @@
 import { Button } from "@buildmax/gui"
 import { navigate } from "../../router"
 import { useSpace } from "../../contexts/SpaceContext"
+import { useT } from "../../i18n"
 
 /**
  * The address itself matched no route -- a typo, a stale bookmark from
@@ -11,17 +12,15 @@ import { useSpace } from "../../contexts/SpaceContext"
  * current Space.
  */
 export function NotFoundPage() {
+  const t = useT()
   const { currentSpaceId } = useSpace()
 
   return (
     <div className="page-activity">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Page not found</h1>
-          <p className="page-activity__subtitle">
-            Nothing here matches this address. It may be mistyped, or a link from before a
-            rename.
-          </p>
+          <h1 className="page-activity__title">{t("common.notFound.title")}</h1>
+          <p className="page-activity__subtitle">{t("common.notFound.body")}</p>
         </div>
       </div>
       <div className="page-activity__actions">
@@ -29,7 +28,7 @@ export function NotFoundPage() {
           variant="primary"
           onClick={() => currentSpaceId && navigate({ name: "chat", spaceId: currentSpaceId })}
         >
-          Back to Chat
+          {t("common.notFound.back")}
         </Button>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
 import { classifyError, type RequestErrorKind } from "../state/resourceState"
+import { useStableT } from "../i18n"
 
 export interface UseFetchOptions {
   /** When false, no fetch runs and data/error are cleared. Default true. */
@@ -27,7 +28,8 @@ export function useFetch<T>(
   deps: unknown[],
   options: UseFetchOptions = {}
 ): UseFetchResult<T> {
-  const { enabled = true, errorMessage = (e) => getErrorMessage(e, "Request failed") } = options
+  const stableT = useStableT()
+  const { enabled = true, errorMessage = (e) => getErrorMessage(e, stableT("common.requestFailed")) } = options
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

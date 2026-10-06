@@ -5,6 +5,7 @@ import { getAuthMethods, login, loginWithPassword } from "../../features/auth"
 import { getApiBase } from "../../lib/api/client"
 import type { AuthMethods } from "../../lib/api/types"
 import { useAuth } from "../../contexts/AuthContext"
+import { useStableT, useT } from "../../i18n"
 import { signInOptions, ssoErrorMessage } from "./loginView"
 
 /**
@@ -20,17 +21,21 @@ import { signInOptions, ssoErrorMessage } from "./loginView"
  * a "Sign in with <provider>" button when SSO is on.
  */
 export function Login() {
+  const t = useT()
+  const stableT = useStableT()
   const { login: setAuth } = useAuth()
   const [methods, setMethods] = useState<AuthMethods | null>(null)
   const [mode, setMode] = useState<"password" | "code">("password")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [otp, setOtp] = useState("")
-  const [error, setError] = useState<string | null>(() =>
-    typeof window === "undefined"
-      ? null
-      : ssoErrorMessage(new URLSearchParams(window.location.search).get("sso_error"))
+  const [error, setError] = useState<string | null>(null)
+  // The callback's error class, kept as a code so its message follows the
+  // interface language.
+  const [ssoError, setSsoError] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("sso_error")
   )
+  const shownError = error ?? ssoErrorMessage(ssoError, t)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -48,6 +53,7 @@ export function Login() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setSsoError(null)
     setLoading(true)
     try {
       // Trimmed to match canSubmit, and because both fields are pasted: a code
@@ -60,7 +66,7 @@ export function Login() {
           : await login(email.trim(), otp.trim())
       setAuth(res)
     } catch (err) {
-      setError(getErrorMessage(err, "Sign in failed"))
+      setError(getErrorMessage(err, stableT("auth.signInFailed")))
     } finally {
       setLoading(false)
     }
@@ -69,36 +75,37 @@ export function Login() {
   function switchTo(next: "password" | "code") {
     setMode(next)
     setError(null)
+    setSsoError(null)
     setPassword("")
     setOtp("")
   }
 
   const canSubmit = email.trim() !== "" && (mode === "password" ? password !== "" : otp.trim() !== "")
 
-  const options = methods === null ? null : signInOptions(methods)
+  const options = methods === null ? null : signInOptions(methods, t)
   const showLocal = options?.showLocal ?? false
   const showSSO = options?.showSSO ?? false
-  const providerName = options?.providerName ?? "single sign-on"
+  const providerName = options?.providerName ?? t("auth.genericProvider")
 
   return (
     <div className="login-page">
       <div className="login-page__card">
         <h1 className="login-page__title">BuildMax</h1>
         {methods === null ? (
-          <p className="login-page__subtitle">Loading…</p>
+          <p className="login-page__subtitle">{t("auth.loading")}</p>
         ) : (
           <>
             <p className="login-page__subtitle">
               {!showLocal
-                ? `Sign in with ${providerName}`
+                ? t("auth.signInWith", { provider: providerName })
                 : mode === "password"
-                  ? "Sign in to continue"
-                  : "Sign in with a login code from your administrator"}
+                  ? t("auth.signInToContinue")
+                  : t("auth.signInWithCode")}
             </p>
 
-            {error && (
+            {shownError && (
               <p className="login-page__error" role="alert">
-                {error}
+                {shownError}
               </p>
             )}
 
@@ -112,16 +119,16 @@ export function Login() {
                 }}
                 disabled={loading}
               >
-                Sign in with {providerName}
+                {t("auth.signInWith", { provider: providerName })}
               </Button>
             )}
 
-            {showLocal && showSSO && <div className="login-page__divider">or</div>}
+            {showLocal && showSSO && <div className="login-page__divider">{t("auth.or")}</div>}
 
             {showLocal && (
               <form onSubmit={handleSubmit} className="login-page__form">
                 <label className="login-page__label" htmlFor="login-email">
-                  Email
+                  {t("auth.email")}
                 </label>
                 <input
                   id="login-email"
@@ -137,7 +144,7 @@ export function Login() {
                 {mode === "password" ? (
                   <>
                     <label className="login-page__label" htmlFor="login-password">
-                      Password
+                      {t("auth.password")}
                     </label>
                     <input
                       id="login-password"
@@ -153,7 +160,7 @@ export function Login() {
                 ) : (
                   <>
                     <label className="login-page__label" htmlFor="login-otp">
-                      Login code
+                      {t("auth.loginCode")}
                     </label>
                     <input
                       id="login-otp"
@@ -174,7 +181,7 @@ export function Login() {
                   variant="primary" busy={loading}
                   disabled={!canSubmit}
                 >
-                  Sign in
+                  {t("auth.signIn")}
                 </Button>
                 <button
                   type="button"
@@ -182,9 +189,7 @@ export function Login() {
                   onClick={() => switchTo(mode === "password" ? "code" : "password")}
                   disabled={loading}
                 >
-                  {mode === "password"
-                    ? "Forgot your password, or have a login code?"
-                    : "Sign in with a password"}
+                  {mode === "password" ? t("auth.useCode") : t("auth.usePassword")}
                 </button>
               </form>
             )}
@@ -192,10 +197,7 @@ export function Login() {
         )}
       </div>
       {showLocal && mode === "code" && (
-        <p className="login-page__footer">
-          Ask an administrator for a code. Once you are in, set a password from
-          account settings.
-        </p>
+        <p className="login-page__footer">{t("auth.codeFooter")}</p>
       )}
     </div>
   )

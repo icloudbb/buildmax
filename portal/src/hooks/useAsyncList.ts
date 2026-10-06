@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { classifyError, type RequestError } from "../state/resourceState"
+import { useStableT } from "../i18n"
 
 export interface UseAsyncListOptions {
   /** Optional callback when loading state changes (e.g. for parent state). */
   setLoading?: (loading: boolean) => void
-  /** Fallback message when the caught error carries none. Default: "Request failed". */
+  /**
+   * Fallback message when the caught error carries none. Default: "Request
+   * failed". Read when a fetch fails, so a translated message changing with the
+   * language never refetches.
+   */
   fallbackMessage?: string
 }
 
@@ -24,7 +29,9 @@ export function useAsyncList<T, U>(
   options?: UseAsyncListOptions
 ): { data: U[] | null; loading: boolean; error: RequestError | null; refetch: () => Promise<void> } {
   const setExternalLoading = options?.setLoading
-  const fallbackMessage = options?.fallbackMessage ?? "Request failed"
+  const stableT = useStableT()
+  const fallbackMessageRef = useRef(options?.fallbackMessage)
+  fallbackMessageRef.current = options?.fallbackMessage
   const [data, setData] = useState<U[] | null>(null)
   const [loading, setLoadingState] = useState(false)
   const [error, setError] = useState<RequestError | null>(null)
@@ -45,13 +52,13 @@ export function useAsyncList<T, U>(
       })
       .catch((err) => {
         // Prior data (if any) is left in place: a failed refresh is Stale, not Error.
-        setError(classifyError(err, fallbackMessage))
+        setError(classifyError(err, fallbackMessageRef.current ?? stableT("common.requestFailed")))
       })
       .finally(() => {
         setLoadingState(false)
         setExternalLoading?.(false)
       })
-  }, [setExternalLoading, fallbackMessage])
+  }, [setExternalLoading, stableT])
 
   useEffect(() => {
     if (!enabled) {

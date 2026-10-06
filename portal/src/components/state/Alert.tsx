@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { Button } from "@buildmax/gui"
+import { useT, type MessageKey } from "../../i18n"
 
 export interface AlertAction {
   label: string
@@ -24,11 +25,11 @@ export interface AlertProps {
   children?: ReactNode
 }
 
-const TITLE: Record<AlertTone, string> = {
-  error: "Something went wrong",
-  forbidden: "Access denied",
-  notFound: "Not found",
-  stale: "Showing previous data",
+const TITLE: Record<AlertTone, MessageKey> = {
+  error: "common.alert.error",
+  forbidden: "common.alert.forbidden",
+  notFound: "common.alert.notFound",
+  stale: "common.alert.stale",
 }
 
 const TONE_CLASS: Record<AlertTone, string> = {
@@ -45,9 +46,10 @@ const TONE_CLASS: Record<AlertTone, string> = {
  * content, not a blocking alert.
  */
 export function Alert({ tone, message, retry, navigate, children }: AlertProps) {
+  const t = useT()
   return (
     <div className={`state-alert state-alert--${TONE_CLASS[tone]}`} role={tone === "stale" ? "status" : "alert"}>
-      <p className="state-alert__title">{TITLE[tone]}</p>
+      <p className="state-alert__title">{t(TITLE[tone])}</p>
       <p className="state-alert__message">{message}</p>
       {children}
       {(retry || navigate) && (

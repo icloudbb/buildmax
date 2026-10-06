@@ -6,6 +6,7 @@ import { ApiRequestError } from "../../lib/api/client"
 import { apiIssueToIssue } from "../../lib/api/mappers"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStatusLabel } from "../../lib/statusLabels"
+import { useRelativeTime } from "../../lib/dateFormat"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import {
   ISSUE_LANES,
@@ -328,6 +329,7 @@ interface BoardCardProps {
 function BoardCard({ issue, spaceId, movingTo, owner, executor, onMove }: BoardCardProps) {
   const t = useT()
   const statusLabel = useStatusLabel()
+  const relativeTime = useRelativeTime()
   return (
     <article className="issue-board__card" data-issue-card={issue.id} aria-busy={movingTo ? true : undefined}>
       <a className="issue-board__open" href={buildHash({ name: "issue", spaceId, issueId: issue.id })}>
@@ -350,7 +352,7 @@ function BoardCard({ issue, spaceId, movingTo, owner, executor, onMove }: BoardC
         ) : null}
         <div>
           <dt>{t("issues.board.updated")}</dt>
-          <dd>{issue.updatedLabel}</dd>
+          <dd>{relativeTime(issue.updatedAt)}</dd>
         </div>
       </dl>
       {/* The named, non-drag path is the move contract: it works the same

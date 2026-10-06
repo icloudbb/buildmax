@@ -4,6 +4,7 @@ import type { Agent, Issue, IssueCollectionQuery } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStatusLabel } from "../../lib/statusLabels"
+import { useRelativeTime } from "../../lib/dateFormat"
 import { useStableT, useT } from "../../i18n"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../lib/api/mappers"
 import { collectionFilter, createIssue, getIssues } from "../../features/issues"
@@ -34,6 +35,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
   const t = useT()
   const stableT = useStableT()
   const statusLabel = useStatusLabel()
+  const relativeTime = useRelativeTime()
   const { view, owner, executor } = query
   const isBoard = view === "board"
   const { currentUserRole } = useSpace()
@@ -368,7 +370,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
                     <span className="page-activity__meta">
                       {assigneeLabel(issue)}
                     </span>
-                    <span className="page-activity__meta">{issue.updatedLabel}</span>
+                    <span className="page-activity__meta">{relativeTime(issue.updatedAt)}</span>
                   </span>
                 </button>
                 {issue.childCount > 0 ? (

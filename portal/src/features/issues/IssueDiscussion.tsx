@@ -7,6 +7,7 @@ import type { ApiIssueComment, ApiSpaceMember } from "../../lib/api/types"
 import { createIssueComment, deleteIssueComment, getIssueComments, replyToRequester, updateIssueComment } from "./comments"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT } from "../../i18n"
+import { useTimestamp } from "../../lib/dateFormat"
 
 /** Matches CommentBodyLimit in internal/service/issue. */
 const BODY_LIMIT = 16 * 1024
@@ -44,10 +45,6 @@ interface IssueDiscussionProps {
   requesterReply?: { assistantName: string }
 }
 
-function formatTimestamp(rfc3339: string): string {
-  return new Date(rfc3339).toLocaleString()
-}
-
 export function IssueDiscussion({
   spaceId,
   issueId,
@@ -61,6 +58,7 @@ export function IssueDiscussion({
   requesterReply,
 }: IssueDiscussionProps) {
   const t = useT()
+  const formatTimestamp = useTimestamp()
   const stableT = useStableT()
   const [comments, setComments] = useState<ApiIssueComment[]>([])
   const [loading, setLoading] = useState(false)

@@ -31,21 +31,9 @@ import type {
   WorkflowNodeRun,
   WorkflowRequest,
 } from "../types"
-
-/** Format an RFC 3339 instant as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
-function formatRelativeTime(rfc3339: string): string {
-  const d = new Date(rfc3339)
-  const today = new Date()
-  if (d.toDateString() === today.toDateString()) {
-    return `Today ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-  }
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (d.toDateString() === yesterday.toDateString()) {
-    return `Yesterday ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-  }
-  return d.toLocaleString()
-}
+// The mapped *Label fields are English; a translated view formats the
+// underlying instant at render time with useRelativeTime instead.
+import { formatRelativeTime } from "../dateFormat"
 
 function taskStatusToUI(status: string): Task["status"] {
   switch (status) {
@@ -239,6 +227,7 @@ export function apiTaskToTask(api: ApiTask): Task {
     title,
     status: taskStatusToUI(api.status),
     timeLabel: formatRelativeTime(ts),
+    timeAt: ts,
     summary,
     createdAt: api.created_at,
     agentId: api.agent_id ?? undefined,

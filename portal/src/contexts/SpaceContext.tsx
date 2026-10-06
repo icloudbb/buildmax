@@ -18,6 +18,7 @@ import {
 import { classifyError, deriveResourceState, type RequestError, type ResourceState } from "../state/resourceState"
 import { derivePermissionState, type PermissionState } from "../state/permissionState"
 import { useAuth } from "./AuthContext"
+import { useStableT } from "../i18n"
 
 export interface SpaceSummary {
   id: string
@@ -63,6 +64,7 @@ function normalizeSpaceName(space: { name: string; personal_for_user_id?: string
 }
 
 export function SpaceProvider({ children }: { children: ReactNode }) {
+  const stableT = useStableT()
   const { token, user, status } = useAuth()
   // null means "not yet successfully fetched", distinct from [] meaning the
   // account genuinely has no Spaces. See deriveResourceState.
@@ -103,11 +105,11 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       // Prior spacesData (if any) is intentionally left in place: a failed
       // refresh of an already-loaded list is Stale, not Error.
-      setSpacesError(classifyError(err, "Failed to load spaces"))
+      setSpacesError(classifyError(err, stableT("common.space.loadFailed")))
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [token, stableT])
 
   useEffect(() => {
     // Wait for the session restore to settle before fetching or clearing. On a
@@ -137,7 +139,7 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
       .catch((err) => {
         // Members (and so currentUserRole) are left as-is on failure: a lookup
         // failure must not read the same as "confirmed not a member".
-        if (!cancelled) setRoleError(classifyError(err, "Failed to load membership"))
+        if (!cancelled) setRoleError(classifyError(err, stableT("common.space.membershipFailed")))
       })
       .finally(() => {
         if (!cancelled) setRoleLoading(false)
@@ -145,7 +147,7 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [token, currentSpaceId])
+  }, [token, currentSpaceId, stableT])
 
   const spaces = spacesData ?? EMPTY_SPACES
 

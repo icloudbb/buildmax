@@ -9,6 +9,8 @@ export interface Task {
   title: string
   status: "pending" | "running" | "success" | "failed" | "canceled"
   timeLabel: string
+  /** The instant timeLabel describes: when the task ended, else when it was created. */
+  timeAt: string
   summary: string
   createdAt: string
   /** Set when the task was started from an agent. */
