@@ -335,7 +335,7 @@ being duplicated here.
 
 ### R6. Validate And Rebuild The Portal And Desktop Experience
 
-**Status:** open
+**Status:** in-progress
 
 **Opened 2026-10-05; active alongside the Beta-cut decision.** The
 v0.2.0-alpha.22 qualification proved the journeys work, but only their
@@ -347,18 +347,20 @@ design tokens, hard-coded colors that ignore dark mode, no visual-regression or
 contrast guardrail, a Desktop that reuses almost none of `@buildmax/gui`, and an
 English-only interface.
 
-**Next:** an Agent-driven audit of the Portal and Desktop core journeys produces
-graded findings and a visual-language recommendation, while shared
-primitives and Desktop's move onto shared overlays proceed in parallel. Token
-integrity is done: every referenced token is defined for both themes, and
-Stylelint rejects raw colors and undefined custom properties in all three
-packages. The visual and accessibility guardrails are done too: every pull
-request compares Portal and Desktop screenshots with Linux-rendered baselines
-and runs axe with contrast, and `eslint-plugin-jsx-a11y` lints all three
-packages. Both surfaces
-ship complete English and Simplified Chinese interfaces, chosen in the user
-menu. Page
-rework is drafted from the audit, not before it. The CLI/TUI is out of scope.
+**Next:** Portal and Desktop rework, drafted as backlog tasks from the
+Agent-driven phase 0 audit, while shared primitives and Desktop's move onto
+shared overlays proceed in parallel. The audit of the core journeys found no
+Blocker and eight Major findings across the two surfaces. On 2026-10-07 the
+maintainer chose to refine the current visual language rather than replace it,
+and decided that whatever page a signed-in person lands on shows the work that
+needs them; no page does that today. Token integrity is done: every referenced
+token is defined for both themes, and Stylelint rejects raw colors and
+undefined custom properties in all three packages. The visual and
+accessibility guardrails are done too: every pull request compares Portal and
+Desktop screenshots with Linux-rendered baselines and runs axe with contrast,
+and `eslint-plugin-jsx-a11y` lints all three packages. Both surfaces ship
+complete English and Simplified Chinese interfaces, chosen in the user menu.
+The CLI/TUI is out of scope.
 
 **Done when:** every Blocker and Major audit finding is resolved or accepted
 with a reason and a re-audit finds none new, the token, contrast, and

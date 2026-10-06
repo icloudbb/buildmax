@@ -248,7 +248,7 @@ Workflow `output_schema`、图执行和 JSON Pointer 绑定已经实现。类型
 
 ### R6. 验证并改造 Portal 与 Desktop 体验
 
-**Status:** open
+**Status:** in-progress
 
 **2026-10-05 开启；与是否发布 Beta 的决定并行推进。** v0.2.0-alpha.22 的验证证明了
 各条流程能跑通，但驱动它们的只有实现者：非作者运维流程被豁免，Desktop UI 套件与打包
@@ -256,12 +256,15 @@ Workflow `output_schema`、图执行和 JSON Pointer 绑定已经实现。类型
 改造所需的基础——约六十处引用未定义的设计 token、硬编码颜色不随暗色主题变化、没有视觉
 回归或对比度护栏、Desktop 几乎没有复用 `@buildmax/gui`，界面也只有英文。
 
-**下一步：** 由 Agent 驱动的 Portal 与 Desktop 核心流程审计产出分级问题清单与视觉语言
-建议；同时并行推进共享基础组件，以及 Desktop 迁移到共享浮层。token 完整性已完成：
+**下一步：** 依据由 Agent 驱动的阶段 0 审计拆分出的 backlog 任务改造 Portal 与
+Desktop，同时并行推进共享基础组件，以及 Desktop 迁移到共享浮层。核心流程审计在两端
+共发现 0 个 Blocker、8 个 Major 问题。2026-10-07 维护者决定打磨现有视觉语言而不是
+替换它，并决定已登录用户落地的无论是哪个页面，都要展示需要他处理的工作；目前没有页面
+做到这一点。token 完整性已完成：
 每个被引用的 token 都为两种主题定义，Stylelint 在三个包中拒绝原始颜色与未定义的自定义
 属性。视觉与无障碍护栏也已完成：每个拉取请求都会把 Portal 与 Desktop 的截图与 Linux
 渲染的基线比较，并运行包含对比度的 axe 检查，`eslint-plugin-jsx-a11y` 检查全部三个包。两端都已提供完整的英文与简体中文界面，在用户菜单中
-选择。页面改造依据审计结果拆分，而不是先于审计。CLI/TUI 不在范围内。
+选择。CLI/TUI 不在范围内。
 
 **完成标准：** 审计中每个 Blocker 与 Major 问题都已解决或带理由接受，复审没有发现新的
 此类问题；token、对比度与视觉回归护栏在 CI 中运行；Desktop 不再有手写浮层或独立图标集；

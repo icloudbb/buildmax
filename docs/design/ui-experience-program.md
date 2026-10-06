@@ -2,7 +2,7 @@
 
 > **简体中文：** [阅读中文镜像](../zh-CN/design/UI体验专项.md)
 >
-> **Audience:** Portal, Desktop, and `@buildmax/gui` contributors · **Status:** active plan — not started
+> **Audience:** Portal, Desktop, and `@buildmax/gui` contributors · **Status:** active plan — partial
 >
 > **Opened:** 2026-10-05
 
@@ -133,6 +133,20 @@ recommendation and the findings behind it. The maintainer makes the call in
 phase 2. Until then, foundation work stays neutral to that choice: tokens and
 primitives make either outcome cheaper.
 
+*Decided 2026-10-07: refine the current neutral style.* Both phase 0 reports
+recommended it, and none of their eight Major findings comes from color, type,
+or layout style. They come from where a result lives, how a failure explains
+itself, how a person reaches an executor or an Issue's chat, how a record is
+named, and what an approval or a schedule tells the person. A new visual
+language would leave every one of them in place. The visual gaps that remain
+are consistency gaps: raw status words beside styled labels, default-blue
+links, an emoji icon among line icons, a dialog footer below the fold, and
+color-only diff marks. The shared primitives
+([task 16](../backlog/16-gui-shared-primitives.md)), Desktop convergence
+([task 20](../backlog/20-desktop-gui-convergence.md)), and the screenshot,
+contrast, and jsx-a11y guardrails from phase 1 address them. Phases 3 and 4
+therefore change information, copy, and behavior inside the existing style.
+
 ### D2. Agent-driven validation, recorded as such
 
 The maintainer chose Agent-executed validation over recruited human testers.
@@ -247,21 +261,61 @@ a string moves with its component during rework, so extracting first costs
 nothing twice. Dates are formatted at render time, never stored as mapped
 English labels.
 
+### D6. The landing page shows the work that needs the person
+
+*Decided 2026-10-07 from the phase 0 audit.* Whatever page a signed-in person
+lands on shows the work waiting on them:
+
+- Issues they own that need attention;
+- failed runs;
+- runs waiting on their answer;
+- pending Workflow input requests.
+
+The audit found that neither Chat nor Issues shows any of these. A team member
+with a failed run, two runs at "Needs your answer", and a pending Workflow
+input request saw none of them on Chat or Issues. They were reachable only
+through one Agent's run list or through Administration's counts. Desktop's
+signed-in Home has the same gap: owned Issues sit in a separate view, and
+nothing on Home says one is waiting.
+
+The decision fixes the outcome, not the host page. Today's API cannot answer
+the question in one request:
+
+- The Issue list filters by owner (`owner=me`) but carries no run state.
+- Tasks carry their creator, origin Issue, status, and `awaiting_answer`, but
+  they are listed only per Agent, Conversation, or Schedule.
+- Pending Workflow requests are listed for the whole Space, and any member
+  who may run Workflows may answer one.
+
+The [navigation record](portal-navigation-and-space-context.md#alternatives-rejected)
+rejected a dashboard built without an authoritative aggregate query, and that
+reason still holds. The audit now supplies the operator questions; the query
+does not exist yet. So the query, what makes a run "mine", and which page hosts
+the result are designed before they are built.
+[Task 22](../backlog/22-portal-needs-me-landing.md) carries that design and the
+Portal build. [Task 58](../backlog/58-desktop-needs-me-home.md) brings the same
+answer to Desktop's Home.
+
 ## Phases
 
 | Phase | Outcome | Ready work |
 |---|---|---|
-| 0. Audit | A graded findings report for the Portal and Desktop core journeys, with a visual-language recommendation | [Portal](../contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) and [Desktop](../contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) reports |
+| 0. Audit | A graded findings report for the Portal and Desktop core journeys, with a visual-language recommendation (done 2026-10-06) | [Portal](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) and [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) reports, kept in history at commit `718a6ab3`; every finding is carried by a phase 3–4 task |
 | 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails (shipped); shared primitives; i18n infrastructure; Desktop on gui primitives | backlog [16](../backlog/16-gui-shared-primitives.md), [20](../backlog/20-desktop-gui-convergence.md) |
-| 2. Visual-language decision | The maintainer accepts "refine" or "new language" from the phase 0 report; this record and the page-system record are updated | Decision, not a task |
-| 3. Portal rework | Blocker and Major findings resolved, in journey order | Tasks drafted from the phase 0 report |
-| 4. Desktop rework | Same for Desktop; `App.jsx` decomposed where the findings touch it | Tasks drafted from the phase 0 report |
-| 5. Chinese and re-audit | Complete `zh-CN` catalogs (shipped); the phase 0 journeys re-run in both locales and compared with the baseline | The re-audit is drafted after phases 3–4 |
+| 2. Visual-language decision | Decided 2026-10-07: refine the current neutral style ([D1](#d1-audit-before-redesign)), and the landing page shows the work that needs the person ([D6](#d6-the-landing-page-shows-the-work-that-needs-the-person)). This record and the page-system record are updated | Decision, not a task |
+| 3. Portal rework | Blocker and Major findings resolved, in journey order | backlog [22](../backlog/22-portal-needs-me-landing.md), [24](../backlog/24-portal-shell-navigation.md), [26](../backlog/26-portal-issue-executor-path.md), [28](../backlog/28-portal-issue-result.md), [30](../backlog/30-portal-work-naming.md), [32](../backlog/32-portal-failure-explanation.md), [34](../backlog/34-portal-administration-labels.md), [36](../backlog/36-portal-workflow-authoring.md), [38](../backlog/38-portal-schedule-form.md), [40](../backlog/40-portal-files-and-artifacts.md), [42](../backlog/42-portal-members-and-invitations.md) |
+| 4. Desktop rework | Same for Desktop; `App.jsx` decomposed where the findings touch it | backlog [44](../backlog/44-desktop-narrow-window-and-first-launch.md), [46](../backlog/46-desktop-chat-turn-echo.md), [48](../backlog/48-desktop-tool-approval-preview.md), [50](../backlog/50-desktop-diff-and-terminal-tabs.md), [52](../backlog/52-desktop-schedule-model.md), [54](../backlog/54-desktop-schedule-form.md), [56](../backlog/56-desktop-issue-start-chat-and-sign-in.md), [58](../backlog/58-desktop-needs-me-home.md) |
+| 5. Chinese and re-audit | Complete `zh-CN` catalogs (shipped); the phase 0 journeys re-run in both locales and compared with the baseline: the [Portal](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) and [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) reports at commit `718a6ab3` | The re-audit is drafted after phases 3–4 |
 
 Phase 0 and the token, guardrail, and i18n tasks are independent and can run in
 parallel. Primitive and Desktop convergence work depends on token integrity.
-Rework tasks are not drafted before the audit exists, because their content is
-the audit's output.
+Rework tasks were drafted only after the audit existed, because their content
+is the audit's output. Each task copies in the findings it carries, with their
+screen, step, reproduction, and grade, so the reports could leave the tree.
+A finding that task 16 or 20 already fixes is recorded in that task's notes
+rather than drafted twice. Portal finding P22, one 1.3 MB script served
+uncompressed, did not block a journey. It stays with Portal performance in R5,
+as the [non-goals](#non-goals) require.
 
 ## Relationship To Existing Records
 
@@ -304,8 +358,8 @@ shipped in that record as they land.
 
 ## Open Questions
 
-- **Visual language.** Refine the current neutral style or adopt a new one?
-  This is decided in phase 2 from the audit.
+- **Visual language.** *Resolved in phase 2:* refine the current neutral
+  style. See [D1](#d1-audit-before-redesign).
 - **Desktop TypeScript.** Should Desktop migrate to TypeScript? The default is
   to convert only the files the convergence touches. A full migration is taken
   only if the audit or convergence work shows untyped props causing defects.
@@ -322,6 +376,8 @@ shipped in that record as they land.
   have made macOS a second baseline platform. The
   [testing guide](../contribute/testing.md#screenshot-baselines) explains how to
   run, update, and review them.
-- **Default Space landing page.** Should it be Chat or Issues? This question is
-  inherited from the page-system record, and the audit should produce evidence
-  for it.
+- **Default Space landing page.** *Resolved in phase 2:* the question is not
+  Chat or Issues but what the landing shows. Whatever page a signed-in person
+  lands on shows the work that needs them; see
+  [D6](#d6-the-landing-page-shows-the-work-that-needs-the-person). Which page
+  hosts it is part of task 22's design.
