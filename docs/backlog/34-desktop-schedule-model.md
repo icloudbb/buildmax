@@ -57,7 +57,7 @@ fires. After sign-in it resolves to the server's managed default.
 ## Out Of Scope
 
 - The rest of the schedule dialog and list, which is
-  [task 54](56-desktop-schedule-form.md).
+  [task 56](56-desktop-schedule-form.md).
 - Portal's server-side schedules.
 
 ## Acceptance Criteria

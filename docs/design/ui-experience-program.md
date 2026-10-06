@@ -292,7 +292,7 @@ rejected a dashboard built without an authoritative aggregate query, and that
 reason still holds. The audit now supplies the operator questions; the query
 does not exist yet. So the query, what makes a run "mine", and which page hosts
 the result are designed before they are built.
-[Task 22](../backlog/38-portal-needs-me-landing.md) carries that design and the
+[Task 38](../backlog/38-portal-needs-me-landing.md) carries that design and the
 Portal build. [Task 58](../backlog/58-desktop-needs-me-home.md) brings the same
 answer to Desktop's Home.
 
@@ -380,4 +380,4 @@ shipped in that record as they land.
   Chat or Issues but what the landing shows. Whatever page a signed-in person
   lands on shows the work that needs them; see
   [D6](#d6-the-landing-page-shows-the-work-that-needs-the-person). Which page
-  hosts it is part of task 22's design.
+  hosts it is part of task 38's design.

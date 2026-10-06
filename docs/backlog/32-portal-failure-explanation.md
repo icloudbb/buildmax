@@ -88,7 +88,7 @@ These were checked on `main` at `e36fa722`:
 ## Out Of Scope
 
 - Administration's wording for the same failure, which is
-  [task 34](44-portal-administration-labels.md).
+  [task 44](44-portal-administration-labels.md).
 - Changing whether a disabled Secret should fail the run.
 
 ## Acceptance Criteria

@@ -70,8 +70,8 @@ carries Desktop audit findings D10, D11, D12, and D13.
 ## Out Of Scope
 
 - Which model a schedule runs, which is
-  [task 52](34-desktop-schedule-model.md).
-- Portal's schedule form, which is [task 38](48-portal-schedule-form.md).
+  [task 34](34-desktop-schedule-model.md).
+- Portal's schedule form, which is [task 48](48-portal-schedule-form.md).
   Keep the same timezone and error rules on both surfaces.
 
 ## Acceptance Criteria
