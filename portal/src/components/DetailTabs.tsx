@@ -52,7 +52,7 @@ export function DetailTabs<T extends string>({ tabs, active, onChange, label, id
   }
 
   return (
-    <nav className="detail-tabs" aria-label={label} role="tablist">
+    <div className="detail-tabs" aria-label={label} role="tablist">
       {tabs.map((t, index) => (
         <button
           key={t.id}
@@ -73,6 +73,6 @@ export function DetailTabs<T extends string>({ tabs, active, onChange, label, id
           {t.count !== undefined && t.count > 0 ? <span className="detail-tabs__count">{t.count}</span> : null}
         </button>
       ))}
-    </nav>
+    </div>
   )
 }

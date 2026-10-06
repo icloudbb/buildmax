@@ -40,7 +40,7 @@ export function FileTree({
           />
         )}
         {tree && tree.type === "folder" && (
-          <ul className="explore-tree__list" role="tree" aria-label={t("files.folderTree")}>
+          <ul className="explore-tree__list" aria-label={t("files.folderTree")}>
             <TreePanel
               node={tree}
               depth={0}

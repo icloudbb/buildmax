@@ -146,6 +146,9 @@ export function TabBar({
             <input
               className="workspace-tabs__tab-rename"
               value={renameValue}
+              // The field replaces the title on the user's Rename action, whose
+              // menu item unmounts; focus must follow into the field.
+              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
               onChange={(e) => setRenameValue(e.target.value)}
               onBlur={commitRename}
@@ -237,7 +240,8 @@ export function TabBar({
       )}
       {menuTab && (
         <>
-          <div className="context-menu__backdrop" onClick={closeMenu} onContextMenu={(e) => { e.preventDefault(); closeMenu(); }} />
+          {/* A pointer click-catcher for dismissing the menu, not a control. */}
+          <div className="context-menu__backdrop" role="presentation" onClick={closeMenu} onContextMenu={(e) => { e.preventDefault(); closeMenu(); }} />
           <div className="context-menu context-menu--tab" style={{ position: 'fixed', top: menu.y, left: menu.x }} role="menu">
             {canRename && (
               <button type="button" className="context-menu__item" onClick={() => { const target = menuTab; closeMenu(); startRename(target); }}>{t('shell.rename')}</button>

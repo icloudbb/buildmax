@@ -1,6 +1,7 @@
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
+import jsxA11y from 'eslint-plugin-jsx-a11y'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 // The desktop frontend is plain JSX with no type checking, so ESLint is the
@@ -10,6 +11,7 @@ export default [
   { ignores: ['dist', 'wailsjs'] },
   js.configs.recommended,
   reactHooks.configs.flat['recommended-latest'],
+  jsxA11y.flatConfigs.recommended,
   {
     plugins: { 'react-refresh': reactRefresh },
     rules: {
@@ -33,11 +35,14 @@ export default [
       // eligibility rule rejects that valid bridge pattern; hook ordering and
       // exhaustive dependency checks remain enabled.
       'react-hooks/set-state-in-effect': 'off',
+      // A focusable separator is the WAI-ARIA window splitter, an interactive
+      // widget, so it may take tabIndex. tabpanel is the plugin's default.
+      'jsx-a11y/no-noninteractive-tabindex': ['error', { tags: [], roles: ['tabpanel', 'separator'], allowExpressionValues: true }],
     },
   },
   {
-    // The Playwright driver and its config run under Node, not the browser.
-    files: ['e2e/**/*.js', 'playwright.config.js'],
+    // The Playwright drivers and their configs run under Node, not the browser.
+    files: ['e2e/**/*.js', 'visual/**/*.js', 'playwright*.config.js'],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.node,

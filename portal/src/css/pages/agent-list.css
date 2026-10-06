@@ -55,12 +55,31 @@
   opacity: 1;
 }
 
-.agent-card:focus {
+.agent-card:has(.agent-card__open:focus-visible) {
   outline: 2px solid var(--color-text);
   outline-offset: 2px;
 }
 
-.agent-card:focus:not(:focus-visible) {
+/* The card's open button looks like the plain title; its hit area stretches
+   over the whole card. */
+.agent-card__open {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-card__open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.agent-card__open:focus-visible {
   outline: none;
 }
 
@@ -251,6 +270,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+}
+
+/* The Run button sits above the open button's stretched hit area. */
+.agent-card__foot .bm-button {
+  z-index: 1;
 }
 
 .agent-card__stat {

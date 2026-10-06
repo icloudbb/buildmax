@@ -59,7 +59,7 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
             value={spaceName}
             onChange={(e) => setSpaceName(e.target.value)}
             placeholder={t("common.space.namePlaceholder")}
-            autoFocus
+            data-autofocus
           />
           {error ? (
             <p className="modal__error" role="alert">

@@ -17,9 +17,16 @@ const PROJECT_SECTION_DEFAULT_HEIGHT = 320;
 const PROJECT_SECTION_MIN_HEIGHT = 96;
 const PROJECTS_MIN_HEIGHT = 160;
 
+const SECTION_KEY_STEP = 16;
+
 function clampSectionHeight(h) {
   const n = Number(h);
   return Number.isFinite(n) ? Math.max(PROJECT_SECTION_MIN_HEIGHT, n) : PROJECT_SECTION_DEFAULT_HEIGHT;
+}
+
+// The tallest the project section may grow inside a sidebar this tall.
+function sectionMaxFor(asideHeight) {
+  return Math.max(PROJECT_SECTION_MIN_HEIGHT, asideHeight - PROJECTS_MIN_HEIGHT);
 }
 
 // Sidebar has three layers, each with one look: global destinations (Home,
@@ -56,8 +63,18 @@ export function Sidebar({
   );
   const asideRef = useRef(null);
   const userMenuRef = useRef(null);
+  // Tracked so the section splitter can announce its upper bound.
+  const [asideHeight, setAsideHeight] = useState(0);
 
   useEffect(() => { writeStored(LS_PROJECT_SECTION_HEIGHT, sectionHeight); }, [sectionHeight]);
+
+  useEffect(() => {
+    const el = asideRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => setAsideHeight(el.clientHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // A mode switch (a click, or /diff from a chat) is a request to see the
   // section, so it reopens a collapsed one.
@@ -77,7 +94,7 @@ export function Sidebar({
     e.preventDefault();
     const startY = e.clientY;
     const startH = sectionHeight;
-    const max = Math.max(PROJECT_SECTION_MIN_HEIGHT, (asideRef.current?.clientHeight ?? 0) - PROJECTS_MIN_HEIGHT);
+    const max = sectionMaxFor(asideRef.current?.clientHeight ?? 0);
     const onMove = (ev) => setSectionHeight(Math.round(Math.min(max, clampSectionHeight(startH + startY - ev.clientY))));
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
@@ -88,6 +105,18 @@ export function Sidebar({
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [sectionHeight]);
+
+  // The keyboard path for the same resize. The section sits below the split,
+  // so ArrowUp grows it, matching the drag direction.
+  const resizeSectionByKey = useCallback((e) => {
+    const max = sectionMaxFor(asideRef.current?.clientHeight ?? 0);
+    const step = { ArrowUp: SECTION_KEY_STEP, ArrowDown: -SECTION_KEY_STEP }[e.key];
+    if (step) setSectionHeight((h) => Math.min(max, clampSectionHeight(h + step)));
+    else if (e.key === 'Home') setSectionHeight(PROJECT_SECTION_MIN_HEIGHT);
+    else if (e.key === 'End') setSectionHeight(max);
+    else return;
+    e.preventDefault();
+  }, []);
 
   function closeSearch() {
     setSearchOpen(false);
@@ -186,6 +215,8 @@ export function Sidebar({
                   onKeyDown={(e) => { if (e.key === 'Escape') closeSearch(); }}
                   placeholder={t('shell.searchSessions')}
                   aria-label={t('shell.searchSessions')}
+                  // The box opens on the user's search click; focus follows it.
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                 />
               </div>
@@ -236,12 +267,20 @@ export function Sidebar({
       {showProjectSection && (
         <>
           {projectsOpen && projectSectionOpen && (
+            // A focusable separator is the WAI-ARIA window splitter, an
+            // interactive widget; jsx-a11y treats every separator as static.
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
             <div
               className="sidebar__split"
               role="separator"
               aria-orientation="horizontal"
               aria-label={t('shell.resizeProjectSection')}
+              aria-valuenow={sectionHeight}
+              aria-valuemin={PROJECT_SECTION_MIN_HEIGHT}
+              aria-valuemax={sectionMaxFor(asideHeight)}
+              tabIndex={0}
               onMouseDown={startSectionResize}
+              onKeyDown={resizeSectionByKey}
             />
           )}
           <Explorer
