@@ -83,7 +83,7 @@ Project 的中央界面是由 tab 组成的网格。每个 tab 渲染一种类�
 
 文件 tab 通过 `ReadWorkspaceFile` 读取，预览上限 512 KiB，遇到二进制内容（NUL 字节）时只报告而不返回。路径会被规范化，使 `..` 无法越过根目录；根目录是 Session 自己的工作区（worktree，如有），否则是 Project 的默认工作区。`WriteWorkspaceFile` 写入同一根目录并返回新的预览；`FileView` 只对既非二进制也未截断的预览提供编辑，因此保存永远不会改写只持有部分内容的文件。
 
-每个聊天 tab 是绑定到一个 Session 的 `ChatSession`：它持有该 Session 的对话记录和运行状态，只处理带有其 `session_id` 的事件。新聊天在运行开始前没有 ID；运行在任何流事件之前发出一次带有所创建 ID 的 `desktop/session-adopted`，且只有以新聊天开始的运行会发出，因此即使其他 Session 正在流式输出，待定 tab 也能获得正确的 ID。
+每个聊天 tab 是绑定到一个 Session 的 `ChatSession`：它持有该 Session 的对话记录和运行状态，只处理带有其 `session_id` 的事件。新聊天在运行开始前没有 ID；运行在任何流事件之前发出一次带有所创建 ID 的 `desktop/session-adopted`，且只有以新聊天开始的运行会发出，因此即使其他 Session 正在流式输出，待定 tab 也能获得正确的 ID。获得 ID 时不会重新加载 Session：此时运行尚未写入提示词，所以 tab 保留发送时建立的对话记录，在本轮结束时再读回 Session。既无文本也无工具调用的助手消息不渲染任何内容。
 
 工具审批按运行划分。每个 Project 运行都有自己的审批处理器，`App` 以新生成的 `approval_id` 持有每个未回答的请求。`desktop/approval-request` 携带该 ID、Project 以及该运行的 Session ID；此时新聊天已经获得了自己的 ID，因此两个新聊天不会共用同一个提示。前端为每个 Session 保留一个待处理请求，只在该 Session 的聊天 tab 中显示（隐藏的 tab 再次显示时请求仍在），并通过 `RespondApproval(approval_id, decision)` 回答。一个 ID 只能回答一次：未知、已回答或已撤回的 ID 会返回错误且不会到达任何运行。取消一个运行只会撤回它自己的请求，运行结束时前端也会丢弃该 Session 的请求。审批快捷键只在获得焦点的 pane 中生效，因此一次按键不会同时回答两个 Session。“本 Session 内允许”的授权由 `agentapp` 按 Session 保存，不会延续到该 Project 的其他 Session。
 
