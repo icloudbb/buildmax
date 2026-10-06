@@ -2,6 +2,7 @@ import { useTheme } from '@buildmax/gui';
 import { useEffect, useState } from 'react';
 import { highlightToHtml } from '../lib/highlight';
 import { MarkdownMessage } from './MarkdownMessage';
+import { useStableT, useT } from '../i18n';
 
 const MARKDOWN_RE = /\.(md|markdown)$/i;
 
@@ -12,6 +13,8 @@ const MARKDOWN_RE = /\.(md|markdown)$/i;
 // never rewrites content the preview only partly holds.
 export function FileView({ projectID, sessionID, path, app }) {
   const { theme } = useTheme();
+  const t = useT();
+  const stableT = useStableT();
   const [file, setFile] = useState(null); // { content, binary, truncated, error, loading }
   const [viewMode, setViewMode] = useState('source'); // 'source' | 'preview' (Markdown only)
   const [highlightedHtml, setHighlightedHtml] = useState(null);
@@ -32,7 +35,7 @@ export function FileView({ projectID, sessionID, path, app }) {
     setSaveError(null);
     if (!path) { setFile(null); return undefined; }
     if (!app?.ReadWorkspaceFile) {
-      setFile({ error: 'Rebuild the desktop app to preview files.', loading: false });
+      setFile({ error: stableT('files.rebuildPreview'), loading: false });
       return undefined;
     }
     setFile({ loading: true });
@@ -46,7 +49,7 @@ export function FileView({ projectID, sessionID, path, app }) {
       })
       .catch((err) => { if (!cancelled) setFile({ error: err?.message ?? String(err), loading: false }); });
     return () => { cancelled = true; };
-  }, [projectID, sessionID, path, app]);
+  }, [projectID, sessionID, path, app, stableT]);
 
   // Highlight source once content or theme settles; Markdown preview and the
   // editor render through their own paths instead.
@@ -88,26 +91,26 @@ export function FileView({ projectID, sessionID, path, app }) {
     }
   }
 
-  if (!path) return <p className="file-view__hint">Select a file to preview it.</p>;
-  if (!file || file.loading) return <p className="file-view__hint">Loading…</p>;
+  if (!path) return <p className="file-view__hint">{t('files.selectFile')}</p>;
+  if (!file || file.loading) return <p className="file-view__hint">{t('shell.loading')}</p>;
   if (file.error) return <p className="file-view__hint file-view__hint--error">{file.error}</p>;
-  if (file.binary) return <p className="file-view__hint">Binary file — no preview.</p>;
+  if (file.binary) return <p className="file-view__hint">{t('files.binary')}</p>;
 
   return (
     <div className="file-view">
       <div className="file-view__header">
         <span className="file-view__path">{path}</span>
-        {file.truncated && <span className="file-view__badge">truncated</span>}
+        {file.truncated && <span className="file-view__badge">{t('files.truncated')}</span>}
         {saveError && <span className="file-view__badge file-view__badge--error">{saveError}</span>}
         {!editing && isMarkdown && (
-          <div className="file-view__mode" role="group" aria-label="View mode">
+          <div className="file-view__mode" role="group" aria-label={t('files.viewMode')}>
             <button
               type="button"
               className={`file-view__mode-btn ${viewMode === 'source' ? 'file-view__mode-btn--active' : ''}`}
               aria-pressed={viewMode === 'source'}
               onClick={() => setViewMode('source')}
             >
-              Source
+              {t('files.source')}
             </button>
             <button
               type="button"
@@ -115,14 +118,14 @@ export function FileView({ projectID, sessionID, path, app }) {
               aria-pressed={viewMode === 'preview'}
               onClick={() => setViewMode('preview')}
             >
-              Preview
+              {t('files.preview')}
             </button>
           </div>
         )}
         {editing ? (
-          <div className="file-view__mode" role="group" aria-label="Edit actions">
+          <div className="file-view__mode" role="group" aria-label={t('files.editActions')}>
             <button type="button" className="file-view__mode-btn file-view__mode-btn--active" onClick={save} disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? t('files.saving') : t('files.save')}
             </button>
             <button
               type="button"
@@ -130,12 +133,12 @@ export function FileView({ projectID, sessionID, path, app }) {
               onClick={() => { setEditing(false); setSaveError(null); }}
               disabled={saving}
             >
-              Cancel
+              {t('shell.cancel')}
             </button>
           </div>
         ) : canEdit && (
           <button type="button" className="file-view__mode-btn file-view__edit" onClick={startEdit}>
-            Edit
+            {t('files.edit')}
           </button>
         )}
       </div>
@@ -145,7 +148,7 @@ export function FileView({ projectID, sessionID, path, app }) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           spellCheck={false}
-          aria-label={`Edit ${path}`}
+          aria-label={t('files.editPath', { path })}
         />
       ) : isMarkdown && viewMode === 'preview' ? (
         <div className="file-view__preview">

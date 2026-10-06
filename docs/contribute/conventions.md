@@ -264,6 +264,27 @@ exactly one task run.
 Never log a credential, and never log a provider's raw error body — it can carry
 account identifiers and request fragments.
 
+## Colors Come From Theme Tokens
+
+`gui/src/theme.css` is the only stylesheet in `gui`, `portal`, and
+`desktop/frontend` that holds a color literal. Every other rule takes its color,
+shadow, and overlay from a semantic token there, such as `--color-danger`,
+`--color-warning`, `--shadow-popover`, or `--color-overlay`, so the dark theme
+follows without a per-page override. A tint is `color-mix()` over a token, not a
+new literal. When no existing token means what a rule needs, add one to
+`theme.css` for both themes. Do not add a synonym for a token that already
+exists.
+
+A `var()` must name a custom property that some stylesheet defines. An
+undefined one, with no fallback, makes the whole declaration silently do
+nothing; with a fallback, it hides a literal.
+
+Stylelint enforces both rules in each package's `npm run lint`, which
+`./make check gui|portal|desktop` runs. The shared configuration and the
+undefined-property rule live in `gui/stylelint/tokens.mjs`. The xterm palette
+in `desktop/frontend/src/lib/terminalTheme.js` is JavaScript handed to xterm,
+and is the one named exception.
+
 ## Commit Messages And Pull Requests
 
 The repository's public record carries project content: the change, rationale,

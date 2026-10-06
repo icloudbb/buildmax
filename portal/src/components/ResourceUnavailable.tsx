@@ -1,9 +1,10 @@
-import { Button } from "@buildmax/gui"
+import { Button, useLocale } from "@buildmax/gui"
+import { useT } from "../i18n"
 
 export type ResourceUnavailableKind = "notFound" | "forbidden" | "error"
 
 interface ResourceUnavailableProps {
-  /** The resource family's noun, e.g. "Agent", "Workflow", "Issue". */
+  /** The resource family's noun in the interface language, e.g. "Agent", "Workflow", "Issue". */
   resourceLabel: string
   kind: ResourceUnavailableKind
   /** The caught message, shown only for kind === "error". */
@@ -35,12 +36,17 @@ export function ResourceUnavailable({
   backLabel,
   onBack,
 }: ResourceUnavailableProps) {
+  const t = useT()
+  const { locale } = useLocale()
+  // English reads the noun lowercase mid-sentence ("No issue with…"); Chinese
+  // keeps the glossary's capitalized English terms as they are.
+  const resource = locale === "en" ? resourceLabel.toLowerCase() : resourceLabel
   const subtitle =
     kind === "notFound"
-      ? `No ${resourceLabel.toLowerCase()} with this reference exists. It may have been deleted, or the link may be wrong.`
+      ? t("common.unavailable.notFound", { resource })
       : kind === "forbidden"
-        ? `This ${resourceLabel.toLowerCase()} belongs to a Space you don't have access to. The Space may not exist, or you may not be a member.`
-        : `This ${resourceLabel.toLowerCase()} could not be loaded.`
+        ? t("common.unavailable.forbidden", { resource })
+        : t("common.unavailable.error", { resource })
 
   return (
     <div className="page-activity">
@@ -58,7 +64,7 @@ export function ResourceUnavailable({
       <div className="page-activity__actions">
         {kind === "error" ? (
           <Button variant="primary" onClick={onRetry}>
-            Try again
+            {t("common.tryAgain")}
           </Button>
         ) : null}
         <Button variant="secondary" onClick={onBack}>

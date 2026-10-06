@@ -1,26 +1,19 @@
+import { useCallback } from "react"
+import { useLocale, type Locale } from "@buildmax/gui"
+import { translate, type MessageKey } from "../i18n"
+import { statusMessages } from "../i18n/status"
+
 /** Human-facing labels for persisted status values. Keep technical values in APIs. */
-export function statusLabel(value: string): string {
-  const labels: Record<string, string> = {
-    todo: "To do",
-    in_progress: "In progress",
-    done: "Done",
-    pending: "Pending",
-    running: "Running",
-    failing: "Stopping after failure",
-    canceling: "Canceling",
-    success: "Succeeded",
-    succeeded: "Succeeded",
-    failed: "Failed",
-    canceled: "Canceled",
-    blocked: "Blocked",
-    retry_wait: "Waiting to retry",
-    waiting: "Waiting for input",
-    draft: "Draft",
-    published: "Published",
-    archived: "Archived",
-    no_runs: "No runs yet",
-  }
-  return labels[value] ?? value.replace(/_/g, " ").replace(/^./, (first: string) => first.toUpperCase())
+export function statusLabel(value: string, locale: Locale = "en"): string {
+  const key = `status.${value}`
+  if (key in statusMessages.en) return translate(locale, key as MessageKey)
+  return value.replace(/_/g, " ").replace(/^./, (first: string) => first.toUpperCase())
+}
+
+/** {@link statusLabel} in the interface language. */
+export function useStatusLabel(): (value: string) => string {
+  const { locale } = useLocale()
+  return useCallback((value: string) => statusLabel(value, locale), [locale])
 }
 
 /**

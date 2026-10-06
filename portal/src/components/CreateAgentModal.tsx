@@ -4,6 +4,7 @@ import type { ApiSecret, ApiSecretConsumption } from "../lib/api/types"
 import { agentFields, buildAgentDefinition, buildAgentGroups } from "../features/agents"
 import { SecretConsumptionEditor } from "./SecretConsumptionEditor"
 import { PluginSelectionEditor } from "./PluginSelectionEditor"
+import { useT } from "../i18n"
 
 interface CreateAgentModalProps {
   open: boolean
@@ -37,7 +38,9 @@ export function CreateAgentModal({
 }: CreateAgentModalProps) {
   const [consumption, setConsumption] = useState<ApiSecretConsumption>({})
   const [plugins, setPlugins] = useState<string[]>([])
+  const t = useT()
   const groups = buildAgentGroups({
+    t,
     pluginEditor: (
       <PluginSelectionEditor value={plugins} onChange={setPlugins} available={availablePlugins} />
     ),
@@ -48,15 +51,15 @@ export function CreateAgentModal({
   return (
     <FormModal
       open={open}
-      title="New Agent"
+      title={t("agents.createModal.title")}
       titleId="create-agent-title"
-      fields={agentFields(availableModels)}
+      fields={agentFields(availableModels, t)}
       groups={groups}
       layout="tabs"
-      hint="Agents are personas or task templates you can use across your account."
+      hint={t("agents.createModal.hint")}
       loading={loading}
       error={error}
-      submitLabel="Create agent"
+      submitLabel={t("agents.create")}
       onClose={onClose}
       onSubmit={(values) => {
         const definition = buildAgentDefinition(values, plugins, consumption)

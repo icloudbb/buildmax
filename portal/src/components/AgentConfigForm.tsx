@@ -2,7 +2,8 @@ import { useEffect, useState } from "react"
 import { Button, type FormModalFieldConfig } from "@buildmax/gui"
 import type { Agent } from "../lib/types"
 import type { ApiSecret, ApiSecretConsumption } from "../lib/api/types"
-import { AGENT_GROUP_META, agentFields, buildAgentDefinition, type AgentDefinitionInput } from "../features/agents"
+import { agentFields, agentGroupMeta, buildAgentDefinition, type AgentDefinitionInput } from "../features/agents"
+import { useT } from "../i18n"
 import { SecretConsumptionEditor } from "./SecretConsumptionEditor"
 import { PluginSelectionEditor } from "./PluginSelectionEditor"
 
@@ -49,10 +50,11 @@ export function AgentConfigForm({
   onSave,
   onDelete,
 }: AgentConfigFormProps) {
+  const t = useT()
   const [values, setValues] = useState<Record<string, string>>(() => seedValues(agent))
   const [plugins, setPlugins] = useState<string[]>(agent.plugins ?? [])
   const [consumption, setConsumption] = useState<ApiSecretConsumption>(agent.secretConsumption ?? {})
-  const [activeGroup, setActiveGroup] = useState<string>(AGENT_GROUP_META[0]?.id ?? "basics")
+  const [activeGroup, setActiveGroup] = useState<string>("basics")
 
   useEffect(() => {
     setValues(seedValues(agent))
@@ -75,9 +77,7 @@ export function AgentConfigForm({
 
   function handleDelete() {
     if (
-      window.confirm(
-        "Delete this agent? It leaves the space and cannot be restored. Runs, tasks, and history that already reference it stay readable.",
-      )
+      window.confirm(t("agents.config.confirmDelete"))
     ) {
       onDelete()
     }
@@ -91,7 +91,7 @@ export function AgentConfigForm({
       <div key={field.key} className="agent-config__field">
         <label className="modal__label" htmlFor={`agent-cfg-${field.key}`}>
           {field.label}
-          {field.optional ? <span className="modal__optional"> (optional)</span> : null}
+          {field.optional ? <span className="modal__optional">{t("agents.config.optional")}</span> : null}
         </label>
         {field.type === "textarea" ? (
           <textarea
@@ -140,9 +140,10 @@ export function AgentConfigForm({
     )
   }
 
-  const fields = agentFields(availableModels)
+  const fields = agentFields(availableModels, t)
   const nameEmpty = !values.name?.trim()
-  const group = AGENT_GROUP_META.find((g) => g.id === activeGroup) ?? AGENT_GROUP_META[0]
+  const groups = agentGroupMeta(t)
+  const group = groups.find((g) => g.id === activeGroup) ?? groups[0]
 
   // The active section's body. Basics and Sandbox are plain fields split by
   // group; Plugins and Secrets are their own sub-editors.
@@ -160,8 +161,8 @@ export function AgentConfigForm({
   return (
     <div className="agent-config">
       <div className="agent-config__body">
-        <nav className="agent-config__nav" aria-label="Configuration sections">
-          {AGENT_GROUP_META.map((g) => (
+        <nav className="agent-config__nav" aria-label={t("agents.config.sections")}>
+          {groups.map((g) => (
             <button
               key={g.id}
               type="button"
@@ -191,11 +192,11 @@ export function AgentConfigForm({
 
       {canManage ? (
         <div className="agent-config__actions">
-          <Button variant="primary" busy={saving} disabled={disabled || deleting || nameEmpty} onClick={handleSubmit}>Save changes</Button>
-          <Button variant="danger" busy={deleting} disabled={saving} onClick={handleDelete}>Delete agent</Button>
+          <Button variant="primary" busy={saving} disabled={disabled || deleting || nameEmpty} onClick={handleSubmit}>{t("agents.config.save")}</Button>
+          <Button variant="danger" busy={deleting} disabled={saving} onClick={handleDelete}>{t("agents.config.delete")}</Button>
         </div>
       ) : (
-        <p className="page-activity__empty">This agent is read-only for your role.</p>
+        <p className="page-activity__empty">{t("agents.config.readOnly")}</p>
       )}
     </div>
   )

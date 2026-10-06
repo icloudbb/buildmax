@@ -364,7 +364,7 @@
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 7px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  box-shadow: var(--shadow-popover);
   min-width: 9rem;
   padding: 0.25rem;
 }
@@ -388,11 +388,11 @@
 }
 
 .context-menu__item--danger {
-  color: var(--color-error, #e04040);
+  color: var(--color-danger);
 }
 
 .context-menu__item--danger:hover {
-  background: rgba(224, 64, 64, 0.08);
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
 }
 
 /* Footer */
@@ -450,7 +450,7 @@
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-popover);
   display: flex;
   flex-direction: column;
   z-index: 10;

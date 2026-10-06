@@ -212,7 +212,7 @@
 .help__article pre {
   margin: 0 0 16px;
   padding: 14px 16px;
-  background: var(--color-bg-subtle);
+  background: var(--color-bg-muted);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   overflow-x: auto;
@@ -267,7 +267,7 @@
 
 /* States. */
 .help__error {
-  color: var(--color-danger, var(--color-error));
+  color: var(--color-danger);
   font-size: 14px;
 }
 

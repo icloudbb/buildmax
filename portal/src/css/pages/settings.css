@@ -9,9 +9,9 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.35rem;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border);
   border-radius: 999px;
-  background: var(--panel-bg);
+  background: var(--color-bg-elevated);
   width: fit-content;
   max-width: 100%;
   overflow-x: auto;
@@ -86,9 +86,9 @@
 
 .settings-page__section {
   padding: 1.5rem;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border);
   border-radius: 1.25rem;
-  background: var(--panel-bg);
+  background: var(--color-bg-elevated);
 }
 
 .settings-page__section-head {
@@ -107,7 +107,7 @@
 
 .settings-page__section-copy {
   margin: 0.35rem 0 0;
-  color: var(--muted-text);
+  color: var(--color-text-muted);
   line-height: 1.5;
 }
 

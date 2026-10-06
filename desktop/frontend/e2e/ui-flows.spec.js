@@ -98,3 +98,14 @@ test('local mode offers no Issues destination', async ({ page }) => {
   await expect(primary.getByRole('button', { name: 'Schedules' })).toBeVisible()
   await expect(primary.getByRole('button', { name: 'Issues' })).toHaveCount(0)
 })
+
+test('switching to Chinese from the user menu translates the shell in place', async ({ page }) => {
+  await page.locator('.sidebar__user-trigger').click()
+  await page.getByRole('menuitemradio', { name: '简体中文' }).click()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+  await expect(page.locator('.sidebar__row-label', { hasText: '定时任务' })).toBeVisible()
+
+  await page.locator('.sidebar__user-trigger').click()
+  await page.getByRole('menuitemradio', { name: 'English' }).click()
+  await expect(page.locator('.sidebar__row-label', { hasText: 'Schedules' })).toBeVisible()
+})

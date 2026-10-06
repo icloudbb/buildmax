@@ -15,7 +15,6 @@ export {
 export {
   artifactLabel,
   formatSize,
-  formatTime,
   mayDelete,
   sourceLabel,
 } from "./display"

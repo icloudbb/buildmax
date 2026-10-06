@@ -106,7 +106,7 @@
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 
@@ -123,7 +123,7 @@
   width: 100%;
   height: 60vh;
   border: 0;
-  background: #fff;
+  background: var(--color-document-bg);
 }
 
 /* Rendered Markdown. Kept narrow and readable rather than styled as a document;

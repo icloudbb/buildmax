@@ -1,4 +1,6 @@
+import type { Translate } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
+import { useT, type MessageKey } from "../../i18n"
 import { navigate } from "../../router"
 import { listRemoteSessions, type RemoteSession } from "../../features/remoteControl/api"
 
@@ -9,17 +11,17 @@ interface RemoteControlListProps {
 const POLL_INTERVAL_MS = 4000
 
 /** Best-effort "moments ago" without pulling in a date library. */
-function relativeSeen(rfc3339?: string): string {
-  if (!rfc3339) return "never"
+function relativeSeen(t: Translate<MessageKey>, rfc3339?: string): string {
+  if (!rfc3339) return t("remote.seen.never")
   const then = new Date(rfc3339).getTime()
-  if (Number.isNaN(then)) return "unknown"
+  if (Number.isNaN(then)) return t("remote.seen.unknown")
   const secs = Math.max(0, Math.round((Date.now() - then) / 1000))
-  if (secs < 45) return "just now"
+  if (secs < 45) return t("remote.seen.justNow")
   const mins = Math.round(secs / 60)
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 60) return t("remote.seen.minutes", { count: mins })
   const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.round(hours / 24)}d ago`
+  if (hours < 24) return t("remote.seen.hours", { count: hours })
+  return t("remote.seen.days", { count: Math.round(hours / 24) })
 }
 
 /**
@@ -28,6 +30,7 @@ function relativeSeen(rfc3339?: string): string {
  * online dots stay current without a dedicated push channel.
  */
 export function RemoteControlList({ token }: RemoteControlListProps) {
+  const t = useT()
   const [sessions, setSessions] = useState<RemoteSession[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -53,10 +56,11 @@ export function RemoteControlList({ token }: RemoteControlListProps) {
   return (
     <div className="rc-page">
       <header className="rc-page__header">
-        <h1 className="rc-page__title">Remote Control</h1>
+        <h1 className="rc-page__title">{t("remote.title")}</h1>
         <p className="rc-page__subtitle">
-          Sessions you started on your machines with <code>buildmax --remote-control</code>. Watch one from here; it
-          keeps running on that machine.
+          {t("remote.subtitleBefore")}
+          <code>buildmax --remote-control</code>
+          {t("remote.subtitleAfter")}
         </p>
       </header>
 
@@ -64,10 +68,11 @@ export function RemoteControlList({ token }: RemoteControlListProps) {
 
       {loaded && sessions.length === 0 && !error ? (
         <div className="rc-empty">
-          <p>No live sessions.</p>
+          <p>{t("remote.empty")}</p>
           <p className="rc-empty__hint">
-            Run <code>buildmax --remote-control</code> on a machine, signed in to this server, to make its session
-            reachable here.
+            {t("remote.emptyHintBefore")}
+            <code>buildmax --remote-control</code>
+            {t("remote.emptyHintAfter")}
           </p>
         </div>
       ) : null}
@@ -83,8 +88,8 @@ export function RemoteControlList({ token }: RemoteControlListProps) {
               >
                 <span
                   className={`rc-status-dot rc-status-dot--${s.status}`}
-                  aria-label={s.status === "online" ? "Online" : "Offline"}
-                  title={s.status === "online" ? "Online" : "Offline"}
+                  aria-label={s.status === "online" ? t("remote.online") : t("remote.offline")}
+                  title={s.status === "online" ? t("remote.online") : t("remote.offline")}
                 />
                 <span className="rc-list__main">
                   <span className="rc-list__name">{s.display_name || s.host || s.id}</span>
@@ -93,7 +98,9 @@ export function RemoteControlList({ token }: RemoteControlListProps) {
                   </span>
                 </span>
                 <span className="rc-list__seen">
-                  {s.status === "online" ? "online" : `last seen ${relativeSeen(s.last_seen_at)}`}
+                  {s.status === "online"
+                    ? t("remote.onlineLower")
+                    : t("remote.lastSeen", { when: relativeSeen(t, s.last_seen_at) })}
                 </span>
               </button>
             </li>

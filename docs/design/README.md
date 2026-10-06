@@ -65,6 +65,7 @@ remaining list. Update this snapshot when either changes.
 | [Scheduled Agent execution](scheduled-agent-execution.md) | Specification | Complete | Recurring Agent and Workflow runs on the Task plane: the Schedule entity, exactly-once firing across replicas, and runaway control |
 | [Space Assistants](space-assistants.md) | Active plan | Partial | Space-published service front doors on their own chat bots: roster-bounded dispatch, Space-owned service accounts as the operating authority, audience, and the disclosure boundary |
 | [Instant-messaging channels](instant-messaging-channels.md) | Active plan | Partial | Chat platforms as a transport into Space Conversations: pairing, per-message authorization, the receive lease, and outcome reports; Telegram direct messages ship, groups and other platforms remain |
+| [UI experience program](ui-experience-program.md) | Active plan | Not started | Agent-driven audit of the Portal and Desktop journeys, token and visual guardrails, one shared presentation layer, and English/Chinese interfaces |
 
 ## Agent Runtime and Models
 

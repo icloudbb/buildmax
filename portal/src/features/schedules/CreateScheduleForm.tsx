@@ -7,6 +7,7 @@ import { WorkflowRunInputForm } from "../workflows/RunInputForm"
 import { buildInputValue, parseInputSchema, type InputFormValues } from "../workflows/runInput"
 import { createSchedule } from "./api"
 import { deliveringAssistants } from "./delivery"
+import { useStableT, useT } from "../../i18n"
 
 // ScheduleExecutorOption is one thing a schedule can fire: an agent (its input is
 // a prompt) or a workflow (its input is the run input its input_schema declares,
@@ -37,6 +38,8 @@ interface CreateScheduleFormProps {
 // workflow-detail section, and the space-wide overview. The executor is either
 // pinned by the host page or chosen from executors; exactly one is provided.
 export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliver, onCreated, onCancel }: CreateScheduleFormProps) {
+  const t = useT()
+  const stableT = useStableT()
   const [selectedId, setSelectedId] = useState(pinned?.id ?? executors?.[0]?.id ?? "")
   const [name, setName] = useState("")
   const [prompt, setPrompt] = useState("")
@@ -76,12 +79,12 @@ export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliv
         setRequesterId(list[0]?.user_id ?? "")
       })
       .catch((e) => {
-        if (!cancelled) setErr(getErrorMessage(e, "Failed to load who the assistant can message"))
+        if (!cancelled) setErr(getErrorMessage(e, stableT("schedules.form.error.loadRequesters")))
       })
     return () => {
       cancelled = true
     }
-  }, [deliveryAssistantId, spaceId, token])
+  }, [deliveryAssistantId, spaceId, token, stableT])
 
   const nothingToSchedule = executors !== undefined && executors.length === 0
   const executor = useMemo<ScheduleExecutorOption | undefined>(
@@ -102,11 +105,11 @@ export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliv
 
   async function submit() {
     if (!executor) {
-      setErr("Choose something to run.")
+      setErr(t("schedules.form.error.chooseExecutor"))
       return
     }
     if (!cronExpr.trim() || !timezone.trim()) {
-      setErr("A cron expression and timezone are required.")
+      setErr(t("schedules.form.error.cronRequired"))
       return
     }
     let input: string
@@ -123,13 +126,13 @@ export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliv
       }
     } else {
       if (!prompt.trim()) {
-        setErr("A prompt is required.")
+        setErr(t("schedules.form.error.promptRequired"))
         return
       }
       input = prompt
     }
     if (deliveryVia && !requesterId) {
-      setErr("Choose who receives the results, or don't send them.")
+      setErr(t("schedules.form.error.chooseRecipient"))
       return
     }
     setBusy(true)
@@ -150,7 +153,7 @@ export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliv
       )
       await onCreated()
     } catch (e) {
-      setErr(getErrorMessage(e, "Failed to create schedule"))
+      setErr(getErrorMessage(e, t("schedules.error.create")))
     } finally {
       setBusy(false)
     }
@@ -166,14 +169,14 @@ export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliv
     >
       {executors ? (
         <label className="agent-schedules__label">
-          Runs
+          {t("schedules.form.runs")}
           {nothingToSchedule ? (
-            <span className="agent-schedules__hint">Create an agent or publish a workflow first, then schedule it.</span>
+            <span className="agent-schedules__hint">{t("schedules.form.nothing")}</span>
           ) : (
             <select className="agent-schedules__input" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
               {executors.map((e) => (
                 <option key={`${e.kind}:${e.id}`} value={e.id}>
-                  {e.name} ({e.kind})
+                  {t("schedules.form.executorOption", { name: e.name, kind: t(`schedules.kind.${e.kind}`) })}
                 </option>
               ))}
             </select>
@@ -181,8 +184,8 @@ export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliv
         </label>
       ) : null}
       <label className="agent-schedules__label">
-        Name (optional)
-        <input className="agent-schedules__input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nightly summary" />
+        {t("schedules.form.name")}
+        <input className="agent-schedules__input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("schedules.form.namePlaceholder")} />
       </label>
       {executor?.kind === "workflow" ? (
         inputSchema && inputSchema.fields.length > 0 ? (
@@ -193,35 +196,35 @@ export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliv
             onChange={(fieldName, value) => setInputValues((prev) => ({ ...prev, [fieldName]: value }))}
           />
         ) : (
-          <p className="agent-schedules__hint">This workflow takes no input; each firing starts a run with none.</p>
+          <p className="agent-schedules__hint">{t("schedules.form.noInput")}</p>
         )
       ) : (
         <label className="agent-schedules__label">
-          Prompt
-          <textarea className="agent-schedules__input" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} placeholder="Summarize the new issues" />
+          {t("schedules.form.prompt")}
+          <textarea className="agent-schedules__input" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} placeholder={t("schedules.form.promptPlaceholder")} />
         </label>
       )}
       <label className="agent-schedules__label">
-        Cron expression
+        {t("schedules.form.cron")}
         <input className="agent-schedules__input" value={cronExpr} onChange={(e) => setCronExpr(e.target.value)} placeholder="0 9 * * *" />
-        <span className="agent-schedules__hint">Five fields: minute hour day-of-month month day-of-week. Example: 0 9 * * * is 09:00 daily.</span>
+        <span className="agent-schedules__hint">{t("schedules.form.cronHint")}</span>
       </label>
       <label className="agent-schedules__label">
-        Timezone
+        {t("schedules.form.timezone")}
         <input className="agent-schedules__input" value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="Asia/Shanghai" />
-        <span className="agent-schedules__hint">An IANA timezone name; the cron time is read in it.</span>
+        <span className="agent-schedules__hint">{t("schedules.form.timezoneHint")}</span>
       </label>
       {canDeliver && deliveryOptions.length > 0 ? (
         <fieldset className="agent-schedules__label">
-          <legend>Send results to a person (optional)</legend>
+          <legend>{t("schedules.form.deliver")}</legend>
           <label className="agent-schedules__label">
-            Through assistant
+            {t("schedules.form.through")}
             <select
               className="agent-schedules__input"
               value={deliveryVia}
               onChange={(e) => setDeliveryAssistantId(e.target.value)}
             >
-              <option value="">Don't send</option>
+              <option value="">{t("schedules.form.dontSend")}</option>
               {deliveryOptions.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
@@ -231,37 +234,32 @@ export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliv
           </label>
           {deliveryVia ? (
             requesters === null ? (
-              <span className="agent-schedules__hint">Loading…</span>
+              <span className="agent-schedules__hint">{t("shell.loading")}</span>
             ) : requesters.length === 0 ? (
-              <span className="agent-schedules__hint">
-                Nobody has written to this assistant yet. Its bot can message only people who wrote to it first.
-              </span>
+              <span className="agent-schedules__hint">{t("schedules.form.noRequesters")}</span>
             ) : (
               <label className="agent-schedules__label">
-                To
+                {t("schedules.form.to")}
                 <select className="agent-schedules__input" value={requesterId} onChange={(e) => setRequesterId(e.target.value)}>
                   {requesters.map((r) => (
                     <option key={r.user_id} value={r.user_id}>
-                      {r.name || `User ${r.user_id.slice(0, 8)}`}
+                      {r.name || t("schedules.form.user", { id: r.user_id.slice(0, 8) })}
                     </option>
                   ))}
                 </select>
               </label>
             )
           ) : null}
-          <span className="agent-schedules__hint">
-            Each result is sent through the assistant's bot, showing only the fields its roster entry marks
-            releasable.
-          </span>
+          <span className="agent-schedules__hint">{t("schedules.form.deliverHint")}</span>
         </fieldset>
       ) : null}
       {err ? <p className="agent-schedules__error" role="alert">{err}</p> : null}
       <div className="agent-schedules__form-actions">
         <Button type="submit" variant="primary" busy={busy} disabled={nothingToSchedule}>
-          Create schedule
+          {t("schedules.form.create")}
         </Button>
         <Button variant="secondary" onClick={onCancel} disabled={busy}>
-          Cancel
+          {t("schedules.form.cancel")}
         </Button>
       </div>
     </form>

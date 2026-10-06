@@ -1,5 +1,6 @@
-import { Button } from "@buildmax/gui"
+import { Button, type Translate } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 import type { ApiPlugin, ApiPluginRelease } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import {
@@ -22,6 +23,8 @@ import {
  * and a browser cannot pack it.
  */
 export function AdminPlugins({ token }: { token: string | null }) {
+  const t = useT()
+  const stableT = useStableT()
   const [plugins, setPlugins] = useState<ApiPlugin[]>([])
   const [loading, setLoading] = useState(true)
   const [busyName, setBusyName] = useState<string | null>(null)
@@ -34,29 +37,21 @@ export function AdminPlugins({ token }: { token: string | null }) {
     setError(null)
     listAdminPlugins(token)
       .then((res) => setPlugins(res.plugins))
-      .catch((err) => setError(getErrorMessage(err, "Failed to load the plugin catalog")))
+      .catch((err) => setError(getErrorMessage(err, stableT("admin.plugins.loadError"))))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [token, stableT])
 
   useEffect(load, [load])
 
   function toggleArchived(entry: ApiPlugin) {
     if (!token) return
     const archived = Boolean(entry.archived_at)
-    if (
-      !archived &&
-      !window.confirm(
-        `Retire ${entry.name}?\n\n` +
-          "It leaves the default catalog and accepts no new releases. Nothing is " +
-          "deleted: copies already installed keep working, and restoring it undoes this.",
-      )
-    )
-      return
+    if (!archived && !window.confirm(t("admin.plugins.retireConfirm", { name: entry.name }))) return
     setBusyName(entry.name)
     setError(null)
     setAdminPluginArchived(token, entry.name, !archived)
       .then(load)
-      .catch((err) => setError(getErrorMessage(err, "The change did not complete")))
+      .catch((err) => setError(getErrorMessage(err, stableT("admin.changeFailed"))))
       .finally(() => setBusyName(null))
   }
 
@@ -65,11 +60,8 @@ export function AdminPlugins({ token }: { token: string | null }) {
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Plugins</h2>
-            <p className="settings-page__section-copy">
-              What this deployment publishes. A release is skills, subagents, MCP
-              servers, and hooks that run on the machine of whoever installs it.
-            </p>
+            <h2 className="settings-page__section-title">{t("admin.plugins.title")}</h2>
+            <p className="settings-page__section-copy">{t("admin.plugins.copy")}</p>
           </div>
         </div>
 
@@ -80,9 +72,9 @@ export function AdminPlugins({ token }: { token: string | null }) {
         ) : null}
 
         {loading ? (
-          <p className="admin-empty">Loading…</p>
+          <p className="admin-empty">{t("shell.loading")}</p>
         ) : plugins.length === 0 ? (
-          <p className="admin-empty">Nothing has been published yet.</p>
+          <p className="admin-empty">{t("admin.plugins.empty")}</p>
         ) : (
           <ul className="admin-list">
             {plugins.map((entry) => {
@@ -94,13 +86,13 @@ export function AdminPlugins({ token }: { token: string | null }) {
                     <span className="admin-list__meta"> · {entry.name}</span>
                   </span>
                   <span className={archived ? "admin-pill" : "admin-pill admin-pill--ok"}>
-                    {archived ? "retired" : "published"}
+                    {archived ? t("admin.plugins.retired") : t("admin.plugins.published")}
                   </span>
                   <Button
                     variant="tertiary" size="compact"
                     onClick={() => setExpanded(expanded === entry.name ? null : entry.name)}
                   >
-                    {expanded === entry.name ? "Hide releases" : "Releases"}
+                    {expanded === entry.name ? t("admin.plugins.hideReleases") : t("admin.plugins.releases")}
                   </Button>
                   <Button
                     variant={archived ? "secondary" : "danger"}
@@ -108,7 +100,7 @@ export function AdminPlugins({ token }: { token: string | null }) {
                     busy={busyName === entry.name}
                     onClick={() => toggleArchived(entry)}
                   >
-                    {archived ? "Restore" : "Retire"}
+                    {archived ? t("admin.plugins.restore") : t("admin.retire")}
                   </Button>
                 </li>
               )
@@ -118,14 +110,12 @@ export function AdminPlugins({ token }: { token: string | null }) {
 
         {expanded ? <PluginReleases token={token} name={expanded} onChange={load} /> : null}
 
-        <p className="admin-scope-note">
-          Publishing is a command, because what is published is a directory on the
-          publisher’s machine:
-        </p>
+        <p className="admin-scope-note">{t("admin.plugins.publishNote")}</p>
         <code className="admin-code__value">buildmax plugin publish ./my-plugin</code>
         <p className="admin-scope-note">
-          Installing happens on a machine, not here. This deployment cannot see what
-          anybody installed — <code>buildmax plugin list</code> there answers that.
+          {t("admin.plugins.installNoteBefore")}
+          <code>buildmax plugin list</code>
+          {t("admin.plugins.installNoteAfter")}
         </p>
       </section>
     </div>
@@ -142,6 +132,8 @@ function PluginReleases({
   name: string
   onChange: () => void
 }) {
+  const t = useT()
+  const stableT = useStableT()
   const [releases, setReleases] = useState<ApiPluginRelease[]>([])
   const [loading, setLoading] = useState(true)
   const [busyVersion, setBusyVersion] = useState<string | null>(null)
@@ -153,21 +145,15 @@ function PluginReleases({
     setError(null)
     listAdminPluginReleases(token, name)
       .then((res) => setReleases(res.releases))
-      .catch((err) => setError(getErrorMessage(err, "Failed to load releases")))
+      .catch((err) => setError(getErrorMessage(err, stableT("admin.plugins.releasesLoadError"))))
       .finally(() => setLoading(false))
-  }, [token, name])
+  }, [token, name, stableT])
 
   useEffect(load, [load])
 
   function yank(release: ApiPluginRelease) {
     if (!token) return
-    const reason = window.prompt(
-      `Withdraw ${name} ${release.version}?\n\n` +
-        "It leaves the default choice for new installs. Copies already installed keep " +
-        "working, and it stays installable by exact version.\n\n" +
-        "Why? This is shown to anyone who asks for it afterwards.",
-      "",
-    )
+    const reason = window.prompt(t("admin.plugins.withdrawPrompt", { name, version: release.version }), "")
     if (reason === null) return
     setBusyVersion(release.version)
     setError(null)
@@ -176,11 +162,11 @@ function PluginReleases({
         load()
         onChange()
       })
-      .catch((err) => setError(getErrorMessage(err, "The withdrawal did not complete")))
+      .catch((err) => setError(getErrorMessage(err, stableT("admin.plugins.withdrawFailed"))))
       .finally(() => setBusyVersion(null))
   }
 
-  if (loading) return <p className="admin-empty">Loading releases…</p>
+  if (loading) return <p className="admin-empty">{t("admin.plugins.loadingReleases")}</p>
 
   return (
     <div className="admin-sections">
@@ -190,7 +176,7 @@ function PluginReleases({
         </p>
       ) : null}
       {releases.length === 0 ? (
-        <p className="admin-empty">No releases yet.</p>
+        <p className="admin-empty">{t("admin.plugins.noReleases")}</p>
       ) : (
         <ul className="admin-list">
           {releases.map((release) => {
@@ -199,7 +185,7 @@ function PluginReleases({
               <li key={`${release.plugin_name}@${release.version}`} className="admin-list__row">
                 <span className="admin-list__main">
                   {release.version}
-                  <span className="admin-list__meta"> · {contributionSummary(release)}</span>
+                  <span className="admin-list__meta"> · {contributionSummary(release, t)}</span>
                 </span>
                 {/* A digest is what lets a publisher and a consumer compare
                     notes about the same bytes, so it is shown rather than kept. */}
@@ -211,21 +197,21 @@ function PluginReleases({
                     className="admin-pill admin-pill--bad"
                     title={release.yanked_reason || undefined}
                   >
-                    withdrawn
+                    {t("admin.plugins.withdrawn")}
                   </span>
                 ) : (
-                  <span className="admin-pill admin-pill--ok">available</span>
+                  <span className="admin-pill admin-pill--ok">{t("admin.plugins.available")}</span>
                 )}
                 {release.source.dirty ? (
                   // Packed from a working tree that was not the commit it names.
-                  <span className="admin-pill admin-pill--bad">dirty tree</span>
+                  <span className="admin-pill admin-pill--bad">{t("admin.plugins.dirty")}</span>
                 ) : null}
                 <Button
                   variant="danger" size="compact"
                   disabled={yanked || busyVersion === release.version}
                   onClick={() => yank(release)}
                 >
-                  Withdraw
+                  {t("admin.plugins.withdraw")}
                 </Button>
               </li>
             )
@@ -237,19 +223,19 @@ function PluginReleases({
 }
 
 /** contributionSummary says what a release brings, in the order it matters. */
-export function contributionSummary(release: ApiPluginRelease): string {
+export function contributionSummary(release: ApiPluginRelease, t: Translate<MessageKey>): string {
   const parts: string[] = []
-  const counts: [number | undefined, string][] = [
-    [release.inspection.skills?.length, "skill"],
-    [release.inspection.subagents?.length, "subagent"],
-    [release.inspection.mcp?.length, "MCP server"],
-    [release.inspection.hooks?.length, "hook"],
+  const counts: [number | undefined, MessageKey][] = [
+    [release.inspection.skills?.length, "admin.plugins.skills"],
+    [release.inspection.subagents?.length, "admin.plugins.subagents"],
+    [release.inspection.mcp?.length, "admin.plugins.mcpServers"],
+    [release.inspection.hooks?.length, "admin.plugins.hooks"],
   ]
-  for (const [count, noun] of counts) {
-    if (count) parts.push(`${count} ${noun}${count === 1 ? "" : "s"}`)
+  for (const [count, key] of counts) {
+    if (count) parts.push(t(key, { count }))
   }
-  if (parts.length === 0) return "nothing this build recognises"
-  return parts.join(", ")
+  if (parts.length === 0) return t("admin.plugins.nothingRecognised")
+  return parts.join(t("admin.listSeparator"))
 }
 
 /** shortDigest keeps a digest readable while staying unambiguous in a listing. */

@@ -11,6 +11,7 @@ import {
   type AdminSection,
 } from "../../features/admin"
 import { useAuth } from "../../contexts/AuthContext"
+import { useT } from "../../i18n"
 import { useSpace } from "../../contexts/SpaceContext"
 import { navigate } from "../../router"
 
@@ -35,6 +36,7 @@ export function AdminSettings({
   userId?: string
   spaceId?: string
 }) {
+  const t = useT()
   const { token, user } = useAuth()
   const { isAdmin, loading } = useAdminAccess()
   const { currentSpaceId } = useSpace()
@@ -42,7 +44,7 @@ export function AdminSettings({
   if (loading) {
     return (
       <div className="settings-page">
-        <p className="admin-empty">Checking your access…</p>
+        <p className="admin-empty">{t("admin.checkingAccess")}</p>
       </div>
     )
   }
@@ -55,11 +57,8 @@ export function AdminSettings({
     <div className="settings-page">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Administration</h1>
-          <p className="page-activity__subtitle">
-            This deployment: its health, its accounts, and what has been done to it.
-            Space contents are not here and are not reachable from here.
-          </p>
+          <h1 className="page-activity__title">{t("admin.title")}</h1>
+          <p className="page-activity__subtitle">{t("admin.subtitle")}</p>
         </div>
       </div>
 

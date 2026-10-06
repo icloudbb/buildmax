@@ -3,7 +3,9 @@ import { Button } from "@buildmax/gui"
 import type { Agent, Workflow, WorkflowRequest } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { statusLabel } from "../../lib/statusLabels"
+import { useStatusLabel } from "../../lib/statusLabels"
+import { useStableT, useT } from "../../i18n"
+import { useRelativeTime } from "../../lib/dateFormat"
 import {
   apiAgentToAgent,
   apiWorkflowRequestToWorkflowRequest,
@@ -28,6 +30,10 @@ interface WorkflowsProps {
 }
 
 export function Workflows({ token, spaceId }: WorkflowsProps) {
+  const t = useT()
+  const relativeTime = useRelativeTime()
+  const stableT = useStableT()
+  const statusLabel = useStatusLabel()
   const { currentUserRole } = useSpace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [pendingRequests, setPendingRequests] = useState<WorkflowRequest[]>([])
@@ -68,9 +74,9 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
       })
       // workflowsData from a prior successful fetch (if any) is left in place,
       // so a failed refresh reads as Stale rather than wiping the list.
-      .catch((err) => setListError(classifyError(err, "Failed to load workflows")))
+      .catch((err) => setListError(classifyError(err, stableT("workflows.error.load"))))
       .finally(() => setLoading(false))
-  }, [token, spaceId])
+  }, [token, spaceId, stableT])
 
   useEffect(() => {
     void fetchWorkflows()
@@ -81,12 +87,7 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
     [loading, workflowsData, listError]
   )
 
-  const workflowCountLabel = useMemo(() => {
-    const count = workflowsData?.length ?? 0
-    if (count === 0) return "0 workflows"
-    if (count === 1) return "1 workflow"
-    return `${count} workflows`
-  }, [workflowsData])
+  const workflowCountLabel = t("workflows.list.count", { count: workflowsData?.length ?? 0 })
 
   function handleCreate(values: { name: string; description: string; definition: string }) {
     if (!token || !spaceId) return
@@ -98,7 +99,7 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
         // Success lands on the created workflow, not back on the list.
         navigate({ name: "workflow", spaceId, workflowId: created.id })
       })
-      .catch((err) => setCreateError(getErrorMessage(err, "Failed to create workflow")))
+      .catch((err) => setCreateError(getErrorMessage(err, stableT("workflows.error.create"))))
       .finally(() => setSaving(false))
   }
 
@@ -106,10 +107,8 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
     <div className="page-activity">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Workflows</h1>
-          <p className="page-activity__subtitle">
-            Define reusable step-by-step execution plans and run them manually.
-          </p>
+          <h1 className="page-activity__title">{t("workflows.title")}</h1>
+          <p className="page-activity__subtitle">{t("workflows.subtitle")}</p>
         </div>
         <div className="page-activity__actions">
           {canManageWorkflows ? (
@@ -120,7 +119,7 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
                 setCreateOpen(true)
               }}
             >
-              New Workflow
+              {t("workflows.new")}
             </Button>
           ) : null}
         </div>
@@ -133,27 +132,23 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
         <Alert
           tone={workflowsState.kind === "stale" ? "stale" : workflowsState.kind}
           message={workflowsState.error.message}
-          retry={{ label: "Retry", onClick: () => void fetchWorkflows() }}
+          retry={{ label: t("shell.retry"), onClick: () => void fetchWorkflows() }}
         />
       )}
       {canManageWorkflowsState === "denied" ? (
-        <p className="page-activity__empty">
-          You can view workflows here, but only space owners and admins can create or edit them.
-        </p>
+        <p className="page-activity__empty">{t("workflows.access.denied")}</p>
       ) : canManageWorkflowsState === "failed" ? (
-        <p className="page-activity__empty">
-          Couldn&apos;t verify your role in this space, so editing stays unavailable. Refresh to try again.
-        </p>
+        <p className="page-activity__empty">{t("workflows.access.unverified")}</p>
       ) : canManageWorkflowsState === "unknown" ? (
-        <p className="page-activity__empty">Checking whether you can manage workflows…</p>
+        <p className="page-activity__empty">{t("workflows.access.checking")}</p>
       ) : null}
 
       {pendingRequests.length > 0 ? (
-        <section className="issues-page__panel" aria-label="Waiting for input">
+        <section className="issues-page__panel" aria-label={t("workflows.pending.title")}>
           <div className="issues-page__toolbar">
-            <h2 className="issues-page__section-title">Waiting for input</h2>
+            <h2 className="issues-page__section-title">{t("workflows.pending.title")}</h2>
             <span className="page-activity__meta">
-              {pendingRequests.length === 1 ? "1 request needs an answer" : `${pendingRequests.length} requests need an answer`}
+              {t("workflows.pending.count", { count: pendingRequests.length })}
             </span>
           </div>
           <ul className="workflow-page__pending">
@@ -166,7 +161,7 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
                 >
                   <strong>{request.nodeId}</strong>{" "}
                   <span className="page-activity__meta">
-                    {request.kind === "question" ? "asked a question" : "needs input"}
+                    {request.kind === "question" ? t("workflows.pending.question") : t("workflows.pending.input")}
                     {request.prompt ? ` · ${request.prompt.split("\n")[0]}` : ""}
                   </span>
                 </button>
@@ -176,19 +171,19 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
         </section>
       ) : null}
 
-      <section className="issues-page__panel" aria-label="Workflow list">
+      <section className="issues-page__panel" aria-label={t("workflows.list.label")}>
         <div className="issues-page__toolbar">
           {workflowsData !== null ? <span className="page-activity__meta">{workflowCountLabel}</span> : null}
         </div>
 
         {workflowsState.kind === "loading" ? (
-          <p className="page-activity__empty">Loading…</p>
+          <p className="page-activity__empty">{t("shell.loading")}</p>
         ) : workflowsState.kind === "readyEmpty" ? (
           <EmptyState
             message={
               canManageWorkflows
-                ? "No workflows yet. Create one to define a reusable execution plan for this space."
-                : "No workflows are available in this space yet. Space owners and admins can publish one when a shared process is ready."
+                ? t("workflows.list.empty")
+                : t("workflows.list.emptyViewer")
             }
           />
         ) : workflowsState.kind === "error" || workflowsState.kind === "forbidden" || workflowsState.kind === "notFound" ? null : (
@@ -203,12 +198,12 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
                   <span className="issues-page__row-main">
                     <span className="issues-page__row-title">{workflow.name}</span>
                     <span className="issues-page__row-desc">
-                      {workflow.description?.trim() || "No description"}
+                      {workflow.description?.trim() || t("workflows.list.noDescription")}
                     </span>
                   </span>
                   <span className="issues-page__row-side">
                     <span className="issues-page__status">{statusLabel(workflow.status)}</span>
-                    <span className="page-activity__meta">{workflow.updatedLabel}</span>
+                    <span className="page-activity__meta">{relativeTime(workflow.updatedAt)}</span>
                   </span>
                 </button>
               </li>

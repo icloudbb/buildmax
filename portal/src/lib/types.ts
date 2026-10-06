@@ -8,7 +8,8 @@ export interface Task {
   sessionId?: string
   title: string
   status: "pending" | "running" | "success" | "failed" | "canceled"
-  timeLabel: string
+  /** The instant a list shows for the task: when it ended, else when it was created. */
+  timeAt: string
   summary: string
   createdAt: string
   /** Set when the task was started from an agent. */
@@ -25,7 +26,6 @@ export interface Conversation {
   channel: string
   title: string
   createdAt: string
-  timeLabel: string
 }
 
 // --- Route types ---
@@ -140,7 +140,6 @@ export interface AgentRevision {
   model?: string
   createdBy: string
   createdAt: string
-  createdLabel: string
 }
 
 /**
@@ -173,7 +172,6 @@ export interface Issue {
   createdBy: string
   createdAt: string
   updatedAt: string
-  updatedLabel: string
   /** Optimistic-concurrency token; an update must send the version it read. */
   version: number
   /** Derived server-side per response, never stored. */
@@ -203,7 +201,6 @@ export interface Workflow {
   createdBy: string
   createdAt: string
   updatedAt: string
-  updatedLabel: string
 }
 
 export interface WorkflowRevision {
@@ -216,7 +213,6 @@ export interface WorkflowRevision {
   status: string
   createdBy: string
   createdAt: string
-  createdLabel: string
 }
 
 export interface WorkflowRun {
@@ -233,7 +229,6 @@ export interface WorkflowRun {
   /** When the run fails if unfinished; null when its definition sets no timeout. */
   deadlineAt?: string | null
   result?: unknown | null
-  createdLabel: string
 }
 
 export interface WorkflowNodeRun {

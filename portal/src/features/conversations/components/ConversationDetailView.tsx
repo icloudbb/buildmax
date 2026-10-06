@@ -7,6 +7,7 @@ import type { ConversationTaskCards } from "../hooks/useConversationTasks"
 import { buildConversationThread } from "../thread"
 import { TaskCard } from "./TaskCard"
 import { Alert } from "../../../components/state/Alert"
+import { useT } from "../../../i18n"
 
 interface ConversationDetailViewProps {
   historyRef: React.RefObject<HTMLElement | null>
@@ -46,6 +47,7 @@ export function ConversationDetailView({
   user,
   onSend,
 }: ConversationDetailViewProps) {
+  const t = useT()
   // Messages and task cards are separate records ordered against each other by
   // when each was created; see thread.ts.
   const items: ChatThreadItem[] = buildConversationThread(messages, taskCards.tasks).map((entry) => {
@@ -54,7 +56,7 @@ export function ConversationDetailView({
       return {
         id: task.id,
         role: "task",
-        label: "Background task",
+        label: t("chat.thread.backgroundTask"),
         hideAvatar: true,
         body: (
           <TaskCard
@@ -74,7 +76,7 @@ export function ConversationDetailView({
     return {
       id: msg.id,
       role: msg.role,
-      label: isUser ? "You" : msg.role,
+      label: isUser ? t("chat.thread.you") : msg.role === "assistant" ? t("chat.thread.assistant") : msg.role,
       avatar: isUser && user ? <UserAvatar user={user} size="sm" /> : <AgentAvatar size="sm" />,
       body: msg.content ? (
         <div className="page-chat__msg-content page-chat__markdown">
@@ -94,7 +96,7 @@ export function ConversationDetailView({
     items.push({
       id: "optimistic-user",
       role: "user",
-      label: "You",
+      label: t("chat.thread.you"),
       avatar: user ? <UserAvatar user={user} size="sm" /> : undefined,
       body: (
         <div className="page-chat__msg-content page-chat__markdown">
@@ -110,7 +112,7 @@ export function ConversationDetailView({
     items.push({
       id: `queued-${i}`,
       role: "user",
-      label: "You (queued)",
+      label: t("chat.thread.youQueued"),
       avatar: user ? <UserAvatar user={user} size="sm" /> : undefined,
       body: (
         <div className="page-chat__msg-content page-chat__markdown page-chat__msg-content--queued">
@@ -124,14 +126,14 @@ export function ConversationDetailView({
     items.push({
       id: "streaming-assistant",
       role: "assistant",
-      label: "Assistant (streaming)",
+      label: t("chat.thread.assistantStreaming"),
       avatar: <AgentAvatar size="sm" />,
       body: (
         <div className="page-chat__msg-content page-chat__markdown">
           {streamingContent ? (
             <Markdown remarkPlugins={[remarkGfm]}>{streamingContent}</Markdown>
           ) : (
-            <p className="bm-chat-thread__text bm-chat-thread__text--muted">Thinking…</p>
+            <p className="bm-chat-thread__text bm-chat-thread__text--muted">{t("chat.thread.thinking")}</p>
           )}
         </div>
       ),
@@ -143,30 +145,30 @@ export function ConversationDetailView({
       {taskCards.tasksError ? (
         <Alert
           tone={taskCards.tasksErrorKind === "error" && taskCards.tasks.length > 0 ? "stale" : taskCards.tasksErrorKind ?? "error"}
-          message={`Background tasks: ${taskCards.tasksError}`}
-          retry={taskCards.tasksErrorKind === "forbidden" ? undefined : { label: "Retry tasks", onClick: taskCards.retryLoad }}
+          message={t("chat.thread.tasksError", { error: taskCards.tasksError })}
+          retry={taskCards.tasksErrorKind === "forbidden" ? undefined : { label: t("chat.thread.retryTasks"), onClick: taskCards.retryLoad }}
         />
       ) : null}
       <ChatThread
         historyRef={historyRef}
-        ariaLabel="Conversation history"
+        ariaLabel={t("chat.thread.history")}
         items={items}
-        loadingText={messagesLoading ? "Loading conversation…" : null}
+        loadingText={messagesLoading ? t("chat.thread.loading") : null}
         errorText={messagesError}
-        emptyText="No messages yet. Use the input below to start."
+        emptyText={t("chat.thread.empty")}
       />
 
-      <section className="page-chat__input" aria-label="Send a message">
+      <section className="page-chat__input" aria-label={t("chat.thread.sendSection")}>
         <ChatComposer
           value={input}
           onChange={setInput}
           onSubmit={onSend}
           loading={sending}
           error={sendError}
-          placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
+          placeholder={t("chat.thread.placeholder")}
           queueWhileLoading
-          queuePlaceholder="Type a message… (Enter to queue it for the next turn)"
-          ariaLabel="Message"
+          queuePlaceholder={t("chat.thread.queuePlaceholder")}
+          ariaLabel={t("chat.thread.message")}
         />
       </section>
     </div>

@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
+import { useT } from '../i18n';
 
 // Session grants are what keep a per-write prompt from being something users
 // turn off. Keep the outcomes and keys identical to the TUI panel.
 const APPROVAL_CHOICES = [
-  { decision: 'once',    label: 'Allow once(y)',    variant: 'allow' },
-  { decision: 'session', label: 'Allow session(a)', variant: 'allow' },
-  { decision: 'deny',    label: 'Deny(n)',          variant: 'deny'  },
+  { decision: 'once',    label: 'chat.approval.once',    variant: 'allow' },
+  { decision: 'session', label: 'chat.approval.session', variant: 'allow' },
+  { decision: 'deny',    label: 'chat.approval.deny',    variant: 'deny'  },
 ];
 
 // keys is false for a panel outside the focused pane: shortcuts listen on the
 // window, and two visible panels would otherwise both answer one key press.
 export function ApprovalPanel({ request, onRespond, keys = true }) {
+  const t = useT();
   const [selected, setSelected] = useState(0);
 
   useEffect(() => {
@@ -34,7 +36,7 @@ export function ApprovalPanel({ request, onRespond, keys = true }) {
   return (
     <div className="approval-panel">
       <div className="approval-panel__header">
-        <span className="approval-panel__title">Tool Approval</span>
+        <span className="approval-panel__title">{t('chat.approval.title')}</span>
         <span className="approval-panel__tool">{request.tool_name}</span>
       </div>
 
@@ -59,7 +61,7 @@ export function ApprovalPanel({ request, onRespond, keys = true }) {
           origin or one MCP server/tool, not every later call. */}
       {request.target && (
         <div className="approval-panel__target">
-          Allow session covers only: <code>{request.target}</code>
+          {t('chat.approval.scope')} <code>{request.target}</code>
         </div>
       )}
 
@@ -72,10 +74,10 @@ export function ApprovalPanel({ request, onRespond, keys = true }) {
             onClick={() => onRespond(choice.decision)}
             onMouseEnter={() => setSelected(i)}
           >
-            {choice.label}
+            {t(choice.label)}
           </button>
         ))}
-        <span className="approval-panel__hint">← → select · Enter confirm</span>
+        <span className="approval-panel__hint">{t('chat.approval.hint')}</span>
       </div>
     </div>
   );

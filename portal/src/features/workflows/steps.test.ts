@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest"
+import type { Translate } from "@buildmax/gui"
+import { translate, type MessageKey } from "../../i18n"
 import type { Agent } from "../../lib/types"
 import {
   HUMAN_INPUT_STEP_TYPE,
@@ -12,6 +14,8 @@ import {
   validateSteps,
   type WorkflowStepDraft,
 } from "./steps"
+
+const t: Translate<MessageKey> = (key, vars) => translate("en", key, vars)
 
 function agent(id: string): Agent {
   return { id, name: id, revision: 1, createdAt: "1970-01-01T00:00:00Z" }
@@ -174,29 +178,29 @@ describe("input steps", () => {
     expect(node.agent).toBeUndefined()
     expect(node.output_schema).toEqual({ type: "boolean" })
     expect(node.policy).toEqual({ timeout_seconds: 3600 })
-    expect(validateSteps([human], agents)).toEqual([])
+    expect(validateSteps([human], agents, t)).toEqual([])
   })
 
   it("refuse an agent, retries, or Issue access", () => {
     const human = { ...newHumanStep(), id: "h" }
-    expect(validateSteps([{ ...human, targetAgentId: "a_1" }], agents)).toHaveLength(1)
-    expect(validateSteps([{ ...human, maxAttempts: 2 }], agents)).toHaveLength(1)
-    expect(validateSteps([{ ...human, issueAccess: "if_bound" }], agents)).toHaveLength(1)
+    expect(validateSteps([{ ...human, targetAgentId: "a_1" }], agents, t)).toHaveLength(1)
+    expect(validateSteps([{ ...human, maxAttempts: 2 }], agents, t)).toHaveLength(1)
+    expect(validateSteps([{ ...human, issueAccess: "if_bound" }], agents, t)).toHaveLength(1)
   })
 })
 
 describe("policy validation", () => {
   const agents = [agent("a_1")]
   it("rejects attempts and timeouts outside the server's bounds", () => {
-    expect(validateSteps([step({ maxAttempts: 5, timeoutSeconds: 60 })], agents)).toEqual([])
-    expect(validateSteps([step({ maxAttempts: 6 })], agents)[0].message).toContain("Attempts")
-    expect(validateSteps([step({ maxAttempts: 1.5 })], agents)).toHaveLength(1)
-    expect(validateSteps([step({ timeoutSeconds: 30 })], agents)[0].message).toContain("timeout")
+    expect(validateSteps([step({ maxAttempts: 5, timeoutSeconds: 60 })], agents, t)).toEqual([])
+    expect(validateSteps([step({ maxAttempts: 6 })], agents, t)[0].message).toContain("Attempts")
+    expect(validateSteps([step({ maxAttempts: 1.5 })], agents, t)).toHaveLength(1)
+    expect(validateSteps([step({ timeoutSeconds: 30 })], agents, t)[0].message).toContain("timeout")
   })
 
   it("rejects a run timeout below a minute", () => {
-    expect(validateDefinitionPolicy({ runTimeoutSeconds: 3600 })).toEqual([])
-    expect(validateDefinitionPolicy({ runTimeoutSeconds: 30 })[0].index).toBe(-1)
+    expect(validateDefinitionPolicy({ runTimeoutSeconds: 3600 }, t)).toEqual([])
+    expect(validateDefinitionPolicy({ runTimeoutSeconds: 30 }, t)[0].index).toBe(-1)
   })
 })
 
@@ -229,33 +233,33 @@ describe("validateSteps", () => {
   const agents = [agent("a_1"), agent("a_2")]
 
   it("accepts a well-formed single Agent step", () => {
-    expect(validateSteps([step()], agents)).toEqual([])
+    expect(validateSteps([step()], agents, t)).toEqual([])
   })
 
   it("refuses an empty step list rather than persisting nothing", () => {
-    const errors = validateSteps([], agents)
+    const errors = validateSteps([], agents, t)
     expect(errors).toEqual([{ index: -1, message: expect.stringContaining("at least one step") }])
   })
 
   it("rejects a step type the runtime does not execute, from the step form or advanced JSON alike", () => {
-    const errors = validateSteps([step({ type: "shell_command" })], agents)
+    const errors = validateSteps([step({ type: "shell_command" })], agents, t)
     expect(errors.some((e) => e.index === 0 && e.message.includes("shell_command"))).toBe(true)
   })
 
   it("catches duplicate step ids", () => {
-    const errors = validateSteps([step({ id: "dup" }), step({ id: "dup" })], agents)
+    const errors = validateSteps([step({ id: "dup" }), step({ id: "dup" })], agents, t)
     const duplicateErrors = errors.filter((e) => e.message.includes("more than one step"))
     expect(duplicateErrors).toHaveLength(1)
     expect(duplicateErrors[0].index).toBe(1)
   })
 
   it("requires an agent that actually exists in this space", () => {
-    expect(validateSteps([step({ targetAgentId: "" })], agents)[0].message).toContain("Choose an agent")
-    expect(validateSteps([step({ targetAgentId: "gone" })], agents)[0].message).toContain("no longer exists")
+    expect(validateSteps([step({ targetAgentId: "" })], agents, t)[0].message).toContain("Choose an agent")
+    expect(validateSteps([step({ targetAgentId: "gone" })], agents, t)[0].message).toContain("no longer exists")
   })
 
   it("requires a prompt", () => {
-    expect(validateSteps([step({ prompt: "  " })], agents)[0].message).toContain("prompt")
+    expect(validateSteps([step({ prompt: "  " })], agents, t)[0].message).toContain("prompt")
   })
 
   // The form and the advanced JSON both run this, so these mirror the server's
@@ -266,12 +270,12 @@ describe("validateSteps", () => {
       step({ id: "collect" }),
       step({ id: "summarize", bindings: [{ name: "research", source: "node.collect.output", pointer: "/text" }] }),
     ]
-    expect(validateSteps(steps, agents)).toEqual([])
+    expect(validateSteps(steps, agents, t)).toEqual([])
   })
 
   it("accepts a binding to the workflow input on the first step", () => {
     const steps = [step({ id: "a", bindings: [{ name: "topic", source: "workflow.input", pointer: "/topic" }] })]
-    expect(validateSteps(steps, agents)).toEqual([])
+    expect(validateSteps(steps, agents, t)).toEqual([])
   })
 
   it("refuses a binding to a later step", () => {
@@ -279,12 +283,12 @@ describe("validateSteps", () => {
       step({ id: "collect", bindings: [{ name: "x", source: "node.summarize.output", pointer: "" }] }),
       step({ id: "summarize" }),
     ]
-    expect(validateSteps(steps, agents).some((e) => e.index === 0 && /depends on/.test(e.message))).toBe(true)
+    expect(validateSteps(steps, agents, t).some((e) => e.index === 0 && /depends on/.test(e.message))).toBe(true)
   })
 
   it("refuses a binding to the step itself", () => {
     const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", source: "node.b.output", pointer: "" }] })]
-    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /depends on/.test(e.message))).toBe(true)
+    expect(validateSteps(steps, agents, t).some((e) => e.index === 1 && /depends on/.test(e.message))).toBe(true)
   })
 
   it("refuses a binding to an existing node that is not a predecessor", () => {
@@ -293,7 +297,7 @@ describe("validateSteps", () => {
       step({ id: "a", needs: [] }),
       step({ id: "b", needs: [], bindings: [{ name: "x", source: "node.a.output", pointer: "" }] }),
     ]
-    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /depends on/.test(e.message))).toBe(true)
+    expect(validateSteps(steps, agents, t).some((e) => e.index === 1 && /depends on/.test(e.message))).toBe(true)
   })
 
   it("accepts a binding to a transitive predecessor across a fan-in", () => {
@@ -303,7 +307,7 @@ describe("validateSteps", () => {
       step({ id: "analyze", needs: ["collect"] }),
       step({ id: "report", needs: ["analyze"], bindings: [{ name: "r", source: "node.collect.output", pointer: "/text" }] }),
     ]
-    expect(validateSteps(steps, agents)).toEqual([])
+    expect(validateSteps(steps, agents, t)).toEqual([])
   })
 
   it("rejects a needs cycle", () => {
@@ -311,27 +315,27 @@ describe("validateSteps", () => {
       step({ id: "a", needs: ["b"] }),
       step({ id: "b", needs: ["a"] }),
     ]
-    expect(validateSteps(steps, agents).some((e) => /depend on each other/.test(e.message))).toBe(true)
+    expect(validateSteps(steps, agents, t).some((e) => /depend on each other/.test(e.message))).toBe(true)
   })
 
   it("rejects a needs edge to an unknown node", () => {
     const steps = [step({ id: "a", needs: ["ghost"] })]
-    expect(validateSteps(steps, agents).some((e) => /unknown step/.test(e.message))).toBe(true)
+    expect(validateSteps(steps, agents, t).some((e) => /unknown step/.test(e.message))).toBe(true)
   })
 
   it("refuses a binding with no name", () => {
     const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "  ", source: "node.a.output", pointer: "" }] })]
-    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /needs a name/.test(e.message))).toBe(true)
+    expect(validateSteps(steps, agents, t).some((e) => e.index === 1 && /needs a name/.test(e.message))).toBe(true)
   })
 
   it("refuses a binding with no source chosen", () => {
     const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", source: "", pointer: "" }] })]
-    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /needs a source/.test(e.message))).toBe(true)
+    expect(validateSteps(steps, agents, t).some((e) => e.index === 1 && /needs a source/.test(e.message))).toBe(true)
   })
 
   it("refuses a pointer that does not begin with a slash", () => {
     const steps = [step({ id: "a" }), step({ id: "b", bindings: [{ name: "x", source: "node.a.output", pointer: "text" }] })]
-    expect(validateSteps(steps, agents).some((e) => e.index === 1 && /pointer must/.test(e.message))).toBe(true)
+    expect(validateSteps(steps, agents, t).some((e) => e.index === 1 && /pointer must/.test(e.message))).toBe(true)
   })
 
   it("refuses two bindings sharing a name on one step", () => {
@@ -345,7 +349,7 @@ describe("validateSteps", () => {
         ],
       }),
     ]
-    expect(validateSteps(steps, agents).filter((e) => /more than once/.test(e.message))).toHaveLength(1)
+    expect(validateSteps(steps, agents, t).filter((e) => /more than once/.test(e.message))).toHaveLength(1)
   })
 })
 

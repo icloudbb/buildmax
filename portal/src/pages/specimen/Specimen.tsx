@@ -14,6 +14,7 @@ import { ResourceUnavailable, type ResourceUnavailableKind } from "../../compone
 import { RevisionHistory } from "../../components/RevisionHistory"
 import { runStatusLabel, runStatusTone } from "../../features/conversations/thread"
 import { statusLabel } from "../../lib/statusLabels"
+import { useT } from "../../i18n"
 import "./Specimen.css"
 
 // The specimen is a design artifact, not part of the app: it renders the shared
@@ -110,6 +111,7 @@ function ButtonRow({ variant, size }: { variant: ButtonVariant; size: ButtonSize
 }
 
 export function Specimen() {
+  const t = useT()
   return (
     <div className="spec-page">
       <header className="spec-head">
@@ -232,7 +234,7 @@ export function Specimen() {
         <div className="spec-chips">
           {RUN_STATUSES.map((value) => (
             <span className={`spec-chip spec-chip--${runStatusTone(value)}`} key={value}>
-              {runStatusLabel(value)}
+              {runStatusLabel(value, t)}
               <code className="spec-chip__raw">{value}</code>
             </span>
           ))}
@@ -313,9 +315,9 @@ export function Specimen() {
             state={{
               kind: "ready",
               data: [
-                { id: "r3", revision: 3, createdBy: "ada", createdLabel: "2m ago", summary: "Tighten the retry policy" },
-                { id: "r2", revision: 2, createdBy: "grace", createdLabel: "1h ago", summary: "Add the review step" },
-                { id: "r1", revision: 1, createdBy: "ada", createdLabel: "yesterday", summary: null },
+                { id: "r3", revision: 3, createdBy: "ada", createdAt: "2026-01-12T09:58:00Z", summary: "Tighten the retry policy" },
+                { id: "r2", revision: 2, createdBy: "grace", createdAt: "2026-01-12T09:00:00Z", summary: "Add the review step" },
+                { id: "r1", revision: 1, createdBy: "ada", createdAt: "2026-01-11T16:30:00Z", summary: null },
               ],
             }}
             onRetry={noop}

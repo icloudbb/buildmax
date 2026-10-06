@@ -209,7 +209,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -222,7 +222,7 @@
   border-radius: 10px;
   width: 26rem;
   max-width: calc(100vw - 2rem);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-modal);
   display: flex;
   flex-direction: column;
 }
@@ -330,7 +330,7 @@
 .modal-field-error {
   margin: 0;
   font-size: 0.8rem;
-  color: var(--color-error, #e53e3e);
+  color: var(--color-danger);
 }
 
 .modal-footer {
@@ -381,8 +381,8 @@
    unmistakable next to the neutral Cancel. */
 .modal-btn--danger {
   border: none;
-  background: var(--color-danger, #c0392b);
-  color: #fff;
+  background: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
 .modal-btn--danger:not(:disabled):hover {
@@ -403,5 +403,5 @@
 
 /* A danger info modal accents its header red (used by ConfirmModal). */
 .info-modal-panel--danger .modal-title {
-  color: var(--color-danger, #c0392b);
+  color: var(--color-danger);
 }

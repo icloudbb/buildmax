@@ -3,6 +3,7 @@ import type { ApiArtifact } from "../../lib/api/types"
 import { getTaskRunProvenance } from "../runs/api"
 import { navigate } from "../../router"
 import { sourceLabel } from "./display"
+import { useT } from "../../i18n"
 
 interface ArtifactOriginProps {
   artifact: ApiArtifact
@@ -22,6 +23,7 @@ interface ArtifactOriginProps {
  * error: the label stays plain text and nothing is reported.
  */
 export function ArtifactOrigin({ artifact, spaceId, token }: ArtifactOriginProps) {
+  const t = useT()
   const [taskId, setTaskId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export function ArtifactOrigin({ artifact, spaceId, token }: ArtifactOriginProps
     }
   }, [artifact.source_id, artifact.source_type, spaceId, token])
 
-  const label = sourceLabel(artifact)
+  const label = sourceLabel(artifact, t)
   if (!taskId || !spaceId) return <>{label}</>
 
   return (

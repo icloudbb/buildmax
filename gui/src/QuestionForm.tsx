@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react"
+import { useGuiT } from "./messages"
 
 // The shapes mirror agent.Question and agent.QuestionOption on the wire, so a
 // surface passes the payload it received straight through.
@@ -44,7 +45,9 @@ function isTyping(target: EventTarget | null): boolean {
  * sent once every question has an answer. Presentation only: the surface frames
  * it and delivers the answer.
  */
-export function QuestionForm({ questions, onAnswer, keys = true, title = "Question" }: QuestionFormProps) {
+export function QuestionForm({ questions, onAnswer, keys = true, title: titleProp }: QuestionFormProps) {
+  const t = useGuiT()
+  const title = titleProp ?? t("gui.question.title")
   const [current, setCurrent] = useState(0)
   const [answers, setAnswers] = useState<string[]>(() => questions.map(() => ""))
   const [checked, setChecked] = useState<boolean[][]>(() => questions.map((q) => (q.options ?? []).map(() => false)))
@@ -121,7 +124,7 @@ export function QuestionForm({ questions, onAnswer, keys = true, title = "Questi
                 className={`bm-question__tab${i === current ? " bm-question__tab--active" : ""}`}
                 onClick={() => setCurrent(i)}
               >
-                {qq.header || `Q${i + 1}`}
+                {qq.header || t("gui.question.tab", { n: i + 1 })}
                 {answers[i] ? " ✓" : ""}
               </button>
             ))}
@@ -156,15 +159,15 @@ export function QuestionForm({ questions, onAnswer, keys = true, title = "Questi
           className="bm-question__input"
           value={texts[current] ?? ""}
           onChange={(e) => setTexts((prev) => prev.map((t, i) => (i === current ? e.target.value : t)))}
-          placeholder={options.length > 0 ? "Or type your own answer…" : "Type your answer…"}
-          aria-label="Your answer"
+          placeholder={options.length > 0 ? t("gui.question.ownAnswer") : t("gui.question.answer")}
+          aria-label={t("gui.question.answerLabel")}
           autoFocus={keys && options.length === 0}
         />
         <button type="submit" className="bm-question__btn bm-question__btn--primary" disabled={!composed()}>
-          {multi ? "Confirm" : "Send"}
+          {multi ? t("gui.question.confirm") : t("gui.question.send")}
         </button>
         <button type="button" className="bm-question__btn" onClick={() => onAnswer({ declined: true })}>
-          Dismiss
+          {t("gui.question.dismiss")}
         </button>
       </form>
     </div>

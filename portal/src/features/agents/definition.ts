@@ -1,84 +1,74 @@
-import type { FormModalFieldConfig } from "@buildmax/gui"
+import type { FormModalFieldConfig, FormModalSelectOption, Translate } from "@buildmax/gui"
 import type { ApiSecretConsumption } from "../../lib/api/types"
-import {
-  AGENT_SANDBOX_FILESYSTEM_TIER_OPTIONS,
-  AGENT_SANDBOX_NETWORK_TIER_OPTIONS,
-} from "../../lib/sandboxTiers"
+import type { MessageKey } from "../../i18n"
+import { agentSandboxFilesystemTierOptions, agentSandboxNetworkTierOptions } from "../../lib/sandboxTiers"
 
 // The empty-value option for the model select: no name means the run uses the
 // deployment's default model.
-export const DEPLOYMENT_DEFAULT_MODEL_OPTION = { value: "", label: "Deployment default" }
+export function deploymentDefaultModelOption(t: Translate<MessageKey>): FormModalSelectOption {
+  return { value: "", label: t("agents.field.deploymentDefault") }
+}
 
 // The scalar agent fields (everything but the plugin and secret sub-editors),
 // the single source both the create dialog and the inline detail-page editor
 // render from. `group` keys split the fields into the sections both surfaces
-// show in their sidebars (see AGENT_GROUP_META). The model select's options are
-// a placeholder here; call agentFields(models) to fill them from the catalog.
-export const AGENT_FIELDS: FormModalFieldConfig[] = [
-  {
-    key: "name",
-    label: "Name",
-    type: "text",
-    placeholder: "e.g. Code reviewer",
-    maxLength: 200,
-    group: "basics",
-  },
-  {
-    key: "description",
-    label: "Description",
-    type: "text",
-    placeholder: "Short description",
-    optional: true,
-    maxLength: 500,
-    group: "basics",
-  },
-  {
-    key: "instructions",
-    label: "Instructions",
-    type: "textarea",
-    placeholder: "System instructions for this agent",
-    optional: true,
-    rows: 4,
-    group: "basics",
-  },
-  {
-    key: "model",
-    label: "Model",
-    type: "select",
-    optional: true,
-    // Options are the deployment default plus whatever the catalog lists;
-    // agentFields fills them in, since they are not known at module load.
-    options: [DEPLOYMENT_DEFAULT_MODEL_OPTION],
-    group: "basics",
-  },
-  {
-    key: "sandbox_network_tier",
-    label: "Network access",
-    type: "select",
-    optional: true,
-    options: AGENT_SANDBOX_NETWORK_TIER_OPTIONS,
-    group: "sandbox",
-  },
-  {
-    key: "sandbox_filesystem_tier",
-    label: "Filesystem access",
-    type: "select",
-    optional: true,
-    options: AGENT_SANDBOX_FILESYSTEM_TIER_OPTIONS,
-    group: "sandbox",
-  },
-]
-
-// agentFields returns the field set with the model select's options filled from
-// the catalog: the deployment default first, then every model the deployment
-// offers. Both editors call it with the models they fetched, so a deployment
-// with no catalog (or one still loading) shows only the default.
-export function agentFields(models: string[]): FormModalFieldConfig[] {
-  const options = [
-    DEPLOYMENT_DEFAULT_MODEL_OPTION,
-    ...models.map((name) => ({ value: name, label: name })),
+// show in their sidebars (see agentGroupMeta). The model select offers the
+// deployment default first, then every model the catalog lists; both editors
+// pass the models they fetched, so a deployment with no catalog (or one still
+// loading) shows only the default.
+export function agentFields(models: string[], t: Translate<MessageKey>): FormModalFieldConfig[] {
+  return [
+    {
+      key: "name",
+      label: t("agents.field.name"),
+      type: "text",
+      placeholder: t("agents.field.namePlaceholder"),
+      maxLength: 200,
+      group: "basics",
+    },
+    {
+      key: "description",
+      label: t("agents.field.description"),
+      type: "text",
+      placeholder: t("agents.field.descriptionPlaceholder"),
+      optional: true,
+      maxLength: 500,
+      group: "basics",
+    },
+    {
+      key: "instructions",
+      label: t("agents.field.instructions"),
+      type: "textarea",
+      placeholder: t("agents.field.instructionsPlaceholder"),
+      optional: true,
+      rows: 4,
+      group: "basics",
+    },
+    {
+      key: "model",
+      label: t("agents.field.model"),
+      type: "select",
+      optional: true,
+      options: [deploymentDefaultModelOption(t), ...models.map((name) => ({ value: name, label: name }))],
+      group: "basics",
+    },
+    {
+      key: "sandbox_network_tier",
+      label: t("agents.field.network"),
+      type: "select",
+      optional: true,
+      options: agentSandboxNetworkTierOptions(t),
+      group: "sandbox",
+    },
+    {
+      key: "sandbox_filesystem_tier",
+      label: t("agents.field.filesystem"),
+      type: "select",
+      optional: true,
+      options: agentSandboxFilesystemTierOptions(t),
+      group: "sandbox",
+    },
   ]
-  return AGENT_FIELDS.map((field) => (field.key === "model" ? { ...field, options } : field))
 }
 
 export interface AgentDefinitionInput {

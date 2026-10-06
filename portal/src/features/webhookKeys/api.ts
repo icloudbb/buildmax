@@ -5,6 +5,8 @@ import {
   parseErrorResponse,
 } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
+import { detectLocale } from "@buildmax/gui"
+import { translate } from "../../i18n"
 
 export interface WebhookKeyMeta {
   id: string
@@ -49,7 +51,7 @@ export async function revokeWebhookKey(
     headers: authHeaders(token),
   })
   if (!res.ok) {
-    const msg = await parseErrorResponse(res, "Failed to revoke key")
+    const msg = await parseErrorResponse(res, translate(detectLocale(), "account.webhook.revokeError"))
     throw new Error(msg)
   }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { BaseModal, Button, ButtonLink, getInitials } from "@buildmax/gui"
+import { BaseModal, Button, ButtonLink, getInitials, type Translate } from "@buildmax/gui"
 import type { ApiPlugin, ApiPluginRelease } from "../../lib/api/types"
 import { getPlugin, listPlugins } from "../../features/plugins/api"
 import { newestInstallable } from "../../features/plugins/releaseSelection"
@@ -7,6 +7,7 @@ import { useSpace } from "../../contexts/SpaceContext"
 import { buildHash } from "../../router"
 import { Alert } from "../../components/state/Alert"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 
 /**
  * Marketplace is the deployment-wide plugin catalog, reached from the header
@@ -23,6 +24,8 @@ import { classifyError, deriveResourceState, type RequestError } from "../../sta
 const EMPTY_PLUGINS: ApiPlugin[] = []
 
 export function Marketplace({ token }: { token: string | null }) {
+  const t = useT()
+  const stableT = useStableT()
   const { currentSpace, currentUserRole } = useSpace()
   // null means "not yet successfully fetched", distinct from [] meaning the
   // deployment genuinely publishes nothing. See deriveResourceState.
@@ -58,9 +61,9 @@ export function Marketplace({ token }: { token: string | null }) {
       })
       // pluginsData from a prior successful fetch (if any) is left in place,
       // so a failed refresh reads as Stale rather than wiping the catalog.
-      .catch((err) => setLoadError(classifyError(err, "Failed to load the plugin catalog")))
+      .catch((err) => setLoadError(classifyError(err, stableT("marketplace.error.load"))))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [token, stableT])
 
   useEffect(load, [load])
 
@@ -85,16 +88,11 @@ export function Marketplace({ token }: { token: string | null }) {
     <div className="marketplace">
       <div className="marketplace__head">
         <div>
-          <h1 className="marketplace__title">Marketplace</h1>
-          <p className="marketplace__subtitle">
-            Plugins this deployment publishes — skills, subagents, MCP servers, and
-            hooks you can install on your own machine.
-          </p>
+          <h1 className="marketplace__title">{t("marketplace.title")}</h1>
+          <p className="marketplace__subtitle">{t("marketplace.subtitle")}</p>
         </div>
         {!loading && plugins.length > 0 ? (
-          <span className="marketplace__count">
-            {plugins.length} {plugins.length === 1 ? "plugin" : "plugins"}
-          </span>
+          <span className="marketplace__count">{t("marketplace.count", { count: plugins.length })}</span>
         ) : null}
       </div>
 
@@ -104,10 +102,10 @@ export function Marketplace({ token }: { token: string | null }) {
           <input
             type="search"
             className="marketplace__search-input"
-            placeholder="Search plugins…"
+            placeholder={t("marketplace.searchPlaceholder")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search plugins"
+            aria-label={t("marketplace.searchLabel")}
           />
         </div>
       ) : null}
@@ -119,7 +117,7 @@ export function Marketplace({ token }: { token: string | null }) {
         <Alert
           tone={pluginsState.kind === "stale" ? "stale" : pluginsState.kind}
           message={pluginsState.error.message}
-          retry={{ label: "Retry", onClick: load }}
+          retry={{ label: t("shell.retry"), onClick: load }}
         />
       )}
 
@@ -132,15 +130,12 @@ export function Marketplace({ token }: { token: string | null }) {
       ) : pluginsState.kind === "error" || pluginsState.kind === "forbidden" || pluginsState.kind === "notFound" ? null : plugins.length === 0 ? (
         <div className="marketplace__empty">
           <StorefrontGlyph />
-          <p className="marketplace__empty-title">Nothing published yet</p>
-          <p className="marketplace__empty-copy">
-            When an administrator publishes a plugin, it shows up here for anyone to
-            install.
-          </p>
+          <p className="marketplace__empty-title">{t("marketplace.empty.title")}</p>
+          <p className="marketplace__empty-copy">{t("marketplace.empty.copy")}</p>
         </div>
       ) : filtered.length === 0 ? (
         <p className="marketplace__empty-copy marketplace__empty-copy--inline">
-          No plugin matches “{query}”.
+          {t("marketplace.noMatch", { query })}
         </p>
       ) : (
         <div className="marketplace__grid">
@@ -156,8 +151,9 @@ export function Marketplace({ token }: { token: string | null }) {
       )}
 
       <p className="marketplace__foot">
-        Installing happens where the agent runs. This page cannot see your machine,
-        so what is installed there is <code>buildmax plugin list</code> there.
+        {t("marketplace.foot.lead")}
+        <code>buildmax plugin list</code>
+        {t("marketplace.foot.tail")}
       </p>
 
       {selectedPlugin ? (
@@ -184,8 +180,9 @@ function PluginCard({
   release: ApiPluginRelease | null
   onOpen: () => void
 }) {
+  const t = useT()
   const title = plugin.display_name || plugin.name
-  const chips = contributionChips(release)
+  const chips = contributionChips(release, t)
   return (
     <button type="button" className="mkt-card" onClick={onOpen}>
       <div className="mkt-card__head">
@@ -202,7 +199,7 @@ function PluginCard({
       {plugin.description ? (
         <p className="mkt-card__desc">{plugin.description}</p>
       ) : (
-        <p className="mkt-card__desc mkt-card__desc--empty">No description.</p>
+        <p className="mkt-card__desc mkt-card__desc--empty">{t("marketplace.noDescription")}</p>
       )}
 
       {chips.length > 0 ? (
@@ -234,6 +231,7 @@ function PluginDetailModal({
   canManageSpace: boolean
   onClose: () => void
 }) {
+  const t = useT()
   const title = plugin.display_name || plugin.name
   return (
     <BaseModal
@@ -259,22 +257,19 @@ function PluginDetailModal({
         {release ? (
           <>
             <p className="mkt-detail__meta">
-              Newest release <strong>v{release.version}</strong>
+              {t("marketplace.detail.newest")} <strong>v{release.version}</strong>
               {release.min_buildmax_version
-                ? ` · needs BuildMax ${release.min_buildmax_version}+`
+                ? t("marketplace.detail.needs", { version: release.min_buildmax_version })
                 : ""}
-              {` · digest ${release.digest.replace(/^sha256:/, "").slice(0, 12)}…`}
+              {t("marketplace.detail.digest", { digest: release.digest.replace(/^sha256:/, "").slice(0, 12) })}
             </p>
 
             <Contributions release={release} />
 
             {release.inspection.env_refs?.length ? (
               <section className="mkt-detail__section">
-                <h3 className="mkt-detail__section-title">Environment</h3>
-                <p className="mkt-detail__hint">
-                  Reads these variables — a plugin that looks installed and does
-                  nothing is usually one that is unset:
-                </p>
+                <h3 className="mkt-detail__section-title">{t("marketplace.detail.environment")}</h3>
+                <p className="mkt-detail__hint">{t("marketplace.detail.environmentHint")}</p>
                 <div className="mkt-chips">
                   {release.inspection.env_refs.map((name) => (
                     <span key={name} className="mkt-chip mkt-chip--mono">
@@ -289,24 +284,20 @@ function PluginDetailModal({
 
             {spaceName && canManageSpace ? (
               <section className="mkt-detail__section">
-                <h3 className="mkt-detail__section-title">Space activation</h3>
+                <h3 className="mkt-detail__section-title">{t("marketplace.detail.activation")}</h3>
                 <p className="mkt-detail__hint">
-                  Publishing here does not activate it anywhere. To let {spaceName}&apos;s
-                  background runs use it, activate it in Space Plugins.
+                  {t("marketplace.detail.activationHint", { space: spaceName })}
                 </p>
                 {spaceId ? (
                   <ButtonLink variant="secondary" href={buildHash({ name: "space", spaceId, section: "plugins" })}>
-                    Open Space Plugins
+                    {t("marketplace.detail.openSpacePlugins")}
                   </ButtonLink>
                 ) : null}
               </section>
             ) : null}
           </>
         ) : (
-          <p className="mkt-detail__meta">
-            Nothing here is installable: every release was withdrawn. An exact
-            version can still be recovered from a terminal.
-          </p>
+          <p className="mkt-detail__meta">{t("marketplace.detail.withdrawn")}</p>
         )}
       </div>
     </BaseModal>
@@ -315,28 +306,29 @@ function PluginDetailModal({
 
 /** Contributions lists what a release brings, grouped by kind. */
 function Contributions({ release }: { release: ApiPluginRelease }) {
+  const t = useT()
   const insp = release.inspection
   const groups: { label: string; items: string[] }[] = []
-  if (insp.skills?.length) groups.push({ label: "Skills", items: insp.skills })
+  if (insp.skills?.length) groups.push({ label: t("marketplace.group.skills"), items: insp.skills })
   if (insp.subagents?.length)
-    groups.push({ label: "Subagents", items: insp.subagents.map((s) => s.name) })
+    groups.push({ label: t("marketplace.group.subagents"), items: insp.subagents.map((s) => s.name) })
   if (insp.mcp?.length)
-    groups.push({ label: "MCP servers", items: insp.mcp.map((s) => `${s.id} (${s.transport})`) })
+    groups.push({ label: t("marketplace.group.mcp"), items: insp.mcp.map((s) => `${s.id} (${s.transport})`) })
   if (insp.hooks?.length)
-    groups.push({ label: "Hooks", items: insp.hooks.map((h) => `${h.event} · ${h.type}`) })
+    groups.push({ label: t("marketplace.group.hooks"), items: insp.hooks.map((h) => `${h.event} · ${h.type}`) })
 
   if (groups.length === 0) {
     return (
       <section className="mkt-detail__section">
-        <h3 className="mkt-detail__section-title">Contributes</h3>
-        <p className="mkt-detail__hint">Nothing this build recognises.</p>
+        <h3 className="mkt-detail__section-title">{t("marketplace.detail.contributes")}</h3>
+        <p className="mkt-detail__hint">{t("marketplace.detail.nothingRecognised")}</p>
       </section>
     )
   }
 
   return (
     <section className="mkt-detail__section">
-      <h3 className="mkt-detail__section-title">Contributes</h3>
+      <h3 className="mkt-detail__section-title">{t("marketplace.detail.contributes")}</h3>
       <div className="mkt-detail__groups">
         {groups.map((group) => (
           <div key={group.label} className="mkt-detail__group">
@@ -357,6 +349,7 @@ function Contributions({ release }: { release: ApiPluginRelease }) {
 
 /** InstallCommand shows the command and copies it to the clipboard. */
 function InstallCommand({ name }: { name: string }) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
   const command = `buildmax plugin install ${name}`
 
@@ -372,11 +365,11 @@ function InstallCommand({ name }: { name: string }) {
 
   return (
     <section className="mkt-detail__section">
-      <h3 className="mkt-detail__section-title">Install</h3>
+      <h3 className="mkt-detail__section-title">{t("marketplace.detail.install")}</h3>
       <div className="mkt-install">
         <code className="mkt-install__cmd">{command}</code>
         <Button variant="secondary" size="compact" onClick={copy}>
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("marketplace.detail.copied") : t("marketplace.detail.copy")}
         </Button>
       </div>
     </section>
@@ -384,19 +377,15 @@ function InstallCommand({ name }: { name: string }) {
 }
 
 /** contributionChips is the card's one-line summary of a release's payload. */
-function contributionChips(release: ApiPluginRelease | null): string[] {
+function contributionChips(release: ApiPluginRelease | null, t: Translate<MessageKey>): string[] {
   if (!release) return []
   const insp = release.inspection
   const chips: string[] = []
-  if (insp.skills?.length) chips.push(countLabel(insp.skills.length, "skill"))
-  if (insp.subagents?.length) chips.push(countLabel(insp.subagents.length, "subagent"))
-  if (insp.mcp?.length) chips.push(countLabel(insp.mcp.length, "MCP server"))
-  if (insp.hooks?.length) chips.push(countLabel(insp.hooks.length, "hook"))
+  if (insp.skills?.length) chips.push(t("marketplace.chip.skills", { count: insp.skills.length }))
+  if (insp.subagents?.length) chips.push(t("marketplace.chip.subagents", { count: insp.subagents.length }))
+  if (insp.mcp?.length) chips.push(t("marketplace.chip.mcp", { count: insp.mcp.length }))
+  if (insp.hooks?.length) chips.push(t("marketplace.chip.hooks", { count: insp.hooks.length }))
   return chips
-}
-
-function countLabel(n: number, noun: string): string {
-  return `${n} ${noun}${n === 1 ? "" : "s"}`
 }
 
 function SearchIcon() {

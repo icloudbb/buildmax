@@ -40,6 +40,11 @@ This is an accepted direction with a partial implementation. The current-state
 document distinguishes shipped behavior from the remaining migration. This
 decision does not change the product model or the roadmap's Beta gate.
 
+The remaining migration is executed by the
+[UI experience program](ui-experience-program.md), which owns its sequencing
+and validation; this record stays the specification for page anatomy and
+action grammar.
+
 ## User outcome, evidence, and constraints
 
 The essential outcome is that a Space participant can scan a page, find its one

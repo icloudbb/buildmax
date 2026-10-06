@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useLocale } from '@buildmax/gui';
+import { useT } from '../i18n';
+import { intlLocale } from '../lib/format';
 
-function formatWritten(entry) {
+function formatWritten(entry, t, locale) {
   if (!entry.updated_at) return '';
   const at = Date.parse(entry.updated_at);
   if (Number.isNaN(at)) return '';
-  const written = new Date(at).toLocaleString();
-  return entry.verified_at ? `${written} · verified ${entry.verified_at}` : written;
+  const written = new Date(at).toLocaleString(intlLocale(locale));
+  return entry.verified_at ? t('memory.verified', { written, verified: entry.verified_at }) : written;
 }
 
 // MemoryView lists what the project remembers and shows one memory's body. It
@@ -16,6 +19,8 @@ function formatWritten(entry) {
 // directory is shown so they can; editing here needs the refusal path a
 // digest-checked write can take, which is its own piece of work.
 export function MemoryView({ projectID, app }) {
+  const t = useT();
+  const { locale } = useLocale();
   const [payload, setPayload] = useState(null);
   const [error, setError] = useState(null);
   const [selectedName, setSelectedName] = useState('');
@@ -39,12 +44,12 @@ export function MemoryView({ projectID, app }) {
   // The three ways to have no memories are different states, and an empty list
   // says none of them: a store that cannot be read is not a store with nothing
   // in it.
-  let meta = 'Loading…';
+  let meta = t('shell.loading');
   if (error) meta = '';
-  else if (payload?.unavailable) meta = `cannot be read: ${payload.unavailable}`;
+  else if (payload?.unavailable) meta = t('memory.unavailable', { reason: payload.unavailable });
   else if (payload) {
-    const count = memories.length === 1 ? '1 memory' : `${memories.length} memories`;
-    meta = `${count} · index ${payload.index_chars}/${payload.index_budget} characters sent on every call`;
+    const count = t('memory.count', { count: memories.length });
+    meta = t('memory.meta', { count, chars: payload.index_chars, budget: payload.index_budget });
   }
 
   return (
@@ -54,20 +59,17 @@ export function MemoryView({ projectID, app }) {
 
       {skipped.map((s) => (
         <p key={s.file} className="diff-drawer__error">
-          {s.file} is skipped and never loaded: {s.reason}
+          {t('memory.skipped', { file: s.file, reason: s.reason })}
         </p>
       ))}
 
       {error ? (
         <p className="diff-drawer__error">{error}</p>
       ) : payload && memories.length === 0 ? (
-        <p className="diff-drawer__empty">
-          Nothing is remembered for this project yet. The agent writes a memory when it
-          decides something is worth carrying into later sessions.
-        </p>
+        <p className="diff-drawer__empty">{t('memory.empty')}</p>
       ) : (
         <div className="diff-drawer__body">
-          <aside className="diff-drawer__sidebar" aria-label="Memories">
+          <aside className="diff-drawer__sidebar" aria-label={t('memory.list')}>
             {memories.map((m) => (
               <button
                 key={m.name}
@@ -84,14 +86,14 @@ export function MemoryView({ projectID, app }) {
             ))}
           </aside>
 
-          <section className="diff-drawer__viewer" aria-label="Memory">
+          <section className="diff-drawer__viewer" aria-label={t('memory.viewer')}>
             {selected ? (
               <>
                 <div className="diff-drawer__viewer-header">
                   <span className="diff-drawer__viewer-path">{selected.name}</span>
                   <span className="diff-drawer__viewer-kind">{selected.type}</span>
-                  {formatWritten(selected) && (
-                    <span className="diff-drawer__viewer-kind">{formatWritten(selected)}</span>
+                  {formatWritten(selected, t, locale) && (
+                    <span className="diff-drawer__viewer-kind">{formatWritten(selected, t, locale)}</span>
                   )}
                 </div>
                 <pre
@@ -102,7 +104,7 @@ export function MemoryView({ projectID, app }) {
                 </pre>
               </>
             ) : (
-              <p className="diff-drawer__empty">Select a memory to read it.</p>
+              <p className="diff-drawer__empty">{t('memory.select')}</p>
             )}
           </section>
         </div>

@@ -37,7 +37,11 @@ remembers where you were.
 toggle.
 
 **User menu** — the button at the bottom of the sidebar opens **Account**,
-**Space** settings, **Help**, and **Sign Out**.
+**Remote Control**, **Help**, the interface **Language** (English or 简体中文),
+and **Sign Out**. The language is remembered in this browser and starts from the
+browser's own language; Help follows it. Desktop has the same choice in its user
+menu. Text the server returns, such as an error's detail, and Agent output are
+shown as they arrive.
 
 ## Spaces and roles
 

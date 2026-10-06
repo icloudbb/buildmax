@@ -3,6 +3,7 @@ import { apiConversationToConversation } from "../lib/api/mappers"
 import { getConversations } from "../features/conversations"
 import type { RequestError } from "../state/resourceState"
 import { useAsyncList } from "./useAsyncList"
+import { useT } from "../i18n"
 
 const CONVERSATIONS_LIMIT = 100
 
@@ -11,6 +12,7 @@ export function useConversations(
   currentSpaceId: string | null,
   enabled = true
 ): { data: Conversation[] | null; loading: boolean; error: RequestError | null; refetch: () => Promise<void> } {
+  const t = useT()
   return useAsyncList(
     () => {
       if (!token || !currentSpaceId) return Promise.resolve([])
@@ -21,6 +23,6 @@ export function useConversations(
     (list) => list.map(apiConversationToConversation),
     [token, currentSpaceId],
     enabled && !!token && !!currentSpaceId,
-    { fallbackMessage: "Failed to load conversations" }
+    { fallbackMessage: t("common.conversations.loadFailed") }
   )
 }

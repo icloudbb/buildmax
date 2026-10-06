@@ -10,8 +10,10 @@ import {
   useSettingsData,
 } from "./shared"
 import { navigate } from "../../router"
+import { useT } from "../../i18n"
 
 export function AccountSettings({ section, code }: { section: AccountSection; code?: string }) {
+  const t = useT()
   const {
     token,
     user,
@@ -30,10 +32,8 @@ export function AccountSettings({ section, code }: { section: AccountSection; co
     <div className="settings-page">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Account</h1>
-          <p className="page-activity__subtitle">
-            Your global profile, usage, and integration settings.
-          </p>
+          <h1 className="page-activity__title">{t("account.title")}</h1>
+          <p className="page-activity__subtitle">{t("account.subtitle")}</p>
         </div>
       </div>
 
@@ -43,7 +43,7 @@ export function AccountSettings({ section, code }: { section: AccountSection; co
         </p>
       ) : null}
 
-      <div className="settings-page__tabs" aria-label="Account sections" role="tablist">
+      <div className="settings-page__tabs" aria-label={t("account.tabs")} role="tablist">
           {ACCOUNT_NAV.map((item) => {
             const Icon = item.icon
             const active = item.id === section
@@ -59,7 +59,7 @@ export function AccountSettings({ section, code }: { section: AccountSection; co
                 <span className="settings-page__tab-icon" aria-hidden>
                   <Icon />
                 </span>
-                <span className="settings-page__tab-label">{item.label}</span>
+                <span className="settings-page__tab-label">{t(item.labelKey)}</span>
               </button>
             )
           })}

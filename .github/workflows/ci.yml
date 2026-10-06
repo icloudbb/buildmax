@@ -248,12 +248,13 @@ jobs:
         run: npm install --global npm@11.17.0
 
       # portal depends on @buildmax/gui via a file: link, so gui builds first.
-      # gui has no ESLint step: typescript-eslint does not support the
+      # gui's lint is Stylelint only: typescript-eslint does not support the
       # TypeScript 7 it builds with, and its own build type-checks it.
       - name: Build gui
         working-directory: gui
         run: |
           npm ci
+          npm run lint
           npm run build
           npm test
 

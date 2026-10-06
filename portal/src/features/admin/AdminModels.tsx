@@ -1,5 +1,6 @@
 import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useStableT, useT } from "../../i18n"
 import type { ApiAdminModel } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { createAdminModel, listAdminModels, setAdminModelEnabled, type AdminCreateModelInput } from "./api"
@@ -93,6 +94,8 @@ function buildInput(f: ModelForm): AdminCreateModelInput {
 }
 
 export function AdminModels({ token }: { token: string | null }) {
+  const t = useT()
+  const stableT = useStableT()
   // null means "not yet successfully fetched", distinct from [] meaning the
   // catalog genuinely has no models. See deriveResourceState.
   const [modelsData, setModelsData] = useState<ApiAdminModel[] | null>(null)
@@ -120,9 +123,9 @@ export function AdminModels({ token }: { token: string | null }) {
       })
       // modelsData from a prior successful fetch (if any) is left in place,
       // so a failed refresh reads as Stale rather than wiping the catalog.
-      .catch((err) => setListError(classifyError(err, "Failed to load the model catalog")))
+      .catch((err) => setListError(classifyError(err, stableT("admin.models.loadError"))))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [token, stableT])
 
   useEffect(load, [load])
 
@@ -140,18 +143,16 @@ export function AdminModels({ token }: { token: string | null }) {
     if (!token) return
     if (
       entry.enabled &&
-      !window.confirm(
-        `Retire ${entry.name}?\n\n` +
-          "Callers stop being able to name it. Nothing is deleted and no credential " +
-          "changes — enabling it again restores it.",
-      )
+      !window.confirm(t("admin.models.retireConfirm", { name: entry.name }))
     )
       return
     setBusyId(entry.id)
     setToggleError(null)
     setAdminModelEnabled(token, entry.id, !entry.enabled)
       .then(load)
-      .catch((err) => setToggleError({ id: entry.id, message: getErrorMessage(err, "The change did not complete") }))
+      .catch((err) =>
+        setToggleError({ id: entry.id, message: getErrorMessage(err, stableT("admin.changeFailed")) }),
+      )
       .finally(() => setBusyId(null))
   }
 
@@ -166,10 +167,10 @@ export function AdminModels({ token }: { token: string | null }) {
         // Clear the whole form, which is what drops the key from the page — it
         // was never persisted anywhere else.
         setForm(emptyForm)
-        setNotice(`Added ${created.name}. It is available to signed-in users now.`)
+        setNotice(stableT("admin.models.added", { name: created.name }))
         load()
       })
-      .catch((err) => setFormError(getErrorMessage(err, "The model was not added")))
+      .catch((err) => setFormError(getErrorMessage(err, stableT("admin.models.notAdded"))))
       .finally(() => setCreating(false))
   }
 
@@ -178,10 +179,10 @@ export function AdminModels({ token }: { token: string | null }) {
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Models</h2>
+            <h2 className="settings-page__section-title">{t("admin.models.title")}</h2>
             <p className="settings-page__section-copy">
-              The upstreams this deployment will call.
-              {defaultModel ? ` Callers that name no model get “${defaultModel}”.` : ""}
+              {t("admin.models.copy")}
+              {defaultModel ? t("admin.models.defaultCopy", { model: defaultModel }) : ""}
             </p>
           </div>
         </div>
@@ -193,15 +194,15 @@ export function AdminModels({ token }: { token: string | null }) {
           <Alert
             tone={modelsState.kind === "stale" ? "stale" : modelsState.kind}
             message={modelsState.error.message}
-            retry={{ label: "Retry", onClick: load }}
+            retry={{ label: t("shell.retry"), onClick: load }}
           />
         )}
         {notice ? <p className="admin-notice">{notice}</p> : null}
 
         {modelsState.kind === "loading" ? (
-          <p className="admin-empty">Loading…</p>
+          <p className="admin-empty">{t("shell.loading")}</p>
         ) : modelsState.kind === "readyEmpty" ? (
-          <EmptyState message="The catalog is empty." />
+          <EmptyState message={t("admin.models.empty")} />
         ) : modelsState.kind === "error" || modelsState.kind === "forbidden" || modelsState.kind === "notFound" ? null : (
           <ul className="admin-list">
             {models.map((entry) => (
@@ -211,10 +212,10 @@ export function AdminModels({ token }: { token: string | null }) {
                   <span className="admin-list__meta"> · {entry.model}</span>
                 </span>
                 <span className={entry.enabled ? "admin-pill admin-pill--ok" : "admin-pill"}>
-                  {entry.enabled ? "enabled" : "retired"}
+                  {entry.enabled ? t("admin.models.enabled") : t("admin.models.retired")}
                 </span>
                 {entry.name === defaultModel ? (
-                  <span className="admin-list__meta">default</span>
+                  <span className="admin-list__meta">{t("admin.models.default")}</span>
                 ) : null}
                 <Button
                   variant={entry.enabled ? "danger" : "secondary"}
@@ -222,7 +223,7 @@ export function AdminModels({ token }: { token: string | null }) {
                   busy={busyId === entry.id}
                   onClick={() => toggle(entry)}
                 >
-                  {entry.enabled ? "Retire" : "Enable"}
+                  {entry.enabled ? t("admin.retire") : t("admin.enable")}
                 </Button>
                 {toggleError?.id === entry.id ? (
                   <p className="settings-section__error" role="alert">
@@ -235,20 +236,17 @@ export function AdminModels({ token }: { token: string | null }) {
         )}
 
         <p className="admin-scope-note">
-          Every enabled catalog entry is available to signed-in users. Its name is the
-          stable client-facing identifier; <code>llm.default_model</code> selects the
-          default when a client names none.
+          {t("admin.models.scopeNoteBefore")}
+          <code>llm.default_model</code>
+          {t("admin.models.scopeNoteAfter")}
         </p>
       </section>
 
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Add a model</h2>
-            <p className="settings-page__section-copy">
-              The API key is stored encrypted and never shown again. A deployment with no
-              encryption key configured cannot accept one.
-            </p>
+            <h2 className="settings-page__section-title">{t("admin.models.addTitle")}</h2>
+            <p className="settings-page__section-copy">{t("admin.models.addCopy")}</p>
           </div>
         </div>
 
@@ -261,7 +259,7 @@ export function AdminModels({ token }: { token: string | null }) {
         <form className="admin-form" onSubmit={submit}>
           <div className="admin-form__grid">
             <label className="admin-field">
-              <span className="admin-field__label">Name</span>
+              <span className="admin-field__label">{t("admin.models.name")}</span>
               <input
                 className="admin-input"
                 value={form.name}
@@ -270,7 +268,7 @@ export function AdminModels({ token }: { token: string | null }) {
               />
             </label>
             <label className="admin-field">
-              <span className="admin-field__label">Provider</span>
+              <span className="admin-field__label">{t("admin.models.provider")}</span>
               <input
                 className="admin-input"
                 value={form.providerType}
@@ -279,7 +277,7 @@ export function AdminModels({ token }: { token: string | null }) {
               />
             </label>
             <label className="admin-field">
-              <span className="admin-field__label">API URL</span>
+              <span className="admin-field__label">{t("admin.models.apiURL")}</span>
               <input
                 className="admin-input"
                 value={form.apiURL}
@@ -288,7 +286,7 @@ export function AdminModels({ token }: { token: string | null }) {
               />
             </label>
             <label className="admin-field">
-              <span className="admin-field__label">Provider model ID</span>
+              <span className="admin-field__label">{t("admin.models.providerModel")}</span>
               <input
                 className="admin-input"
                 value={form.model}
@@ -297,7 +295,7 @@ export function AdminModels({ token }: { token: string | null }) {
               />
             </label>
             <label className="admin-field">
-              <span className="admin-field__label">API key</span>
+              <span className="admin-field__label">{t("admin.models.apiKey")}</span>
               <input
                 className="admin-input"
                 type="password"
@@ -308,7 +306,7 @@ export function AdminModels({ token }: { token: string | null }) {
               />
             </label>
             <label className="admin-field">
-              <span className="admin-field__label">Context window</span>
+              <span className="admin-field__label">{t("admin.models.contextWindow")}</span>
               <input
                 className="admin-input"
                 type="number"
@@ -320,55 +318,55 @@ export function AdminModels({ token }: { token: string | null }) {
           </div>
 
           <details className="admin-advanced">
-            <summary>Advanced</summary>
+            <summary>{t("admin.models.advanced")}</summary>
             <div className="admin-form__grid">
               <label className="admin-field">
-                <span className="admin-field__label">Call timeout (s)</span>
+                <span className="admin-field__label">{t("admin.models.callTimeout")}</span>
                 <input className="admin-input" type="number" value={form.callTimeout} onChange={(e) => set("callTimeout", e.target.value)} />
               </label>
               <label className="admin-field">
-                <span className="admin-field__label">Max tokens</span>
+                <span className="admin-field__label">{t("admin.models.maxTokens")}</span>
                 <input className="admin-input" type="number" value={form.maxTokens} onChange={(e) => set("maxTokens", e.target.value)} />
               </label>
               <label className="admin-field">
-                <span className="admin-field__label">Reasoning</span>
+                <span className="admin-field__label">{t("admin.models.reasoning")}</span>
                 <input className="admin-input" value={form.reasoning} onChange={(e) => set("reasoning", e.target.value)} placeholder="off, low, medium, high" />
               </label>
               <label className="admin-field">
-                <span className="admin-field__label">Cache mode</span>
+                <span className="admin-field__label">{t("admin.models.cacheMode")}</span>
                 <input className="admin-input" value={form.cacheMode} onChange={(e) => set("cacheMode", e.target.value)} placeholder="auto, off, force" />
               </label>
               <label className="admin-field">
-                <span className="admin-field__label">Cache TTL</span>
+                <span className="admin-field__label">{t("admin.models.cacheTTL")}</span>
                 <input className="admin-input" value={form.cacheTTL} onChange={(e) => set("cacheTTL", e.target.value)} placeholder="provider_default, 5m, 1h" />
               </label>
               <label className="admin-field">
-                <span className="admin-field__label">Currency</span>
+                <span className="admin-field__label">{t("admin.models.currency")}</span>
                 <input className="admin-input" value={form.currency} onChange={(e) => set("currency", e.target.value)} placeholder="USD" />
               </label>
               <label className="admin-field">
-                <span className="admin-field__label">Input price / Mtok</span>
+                <span className="admin-field__label">{t("admin.models.inputPrice")}</span>
                 <input className="admin-input" value={form.inputPrice} onChange={(e) => set("inputPrice", e.target.value)} />
               </label>
               <label className="admin-field">
-                <span className="admin-field__label">Output price / Mtok</span>
+                <span className="admin-field__label">{t("admin.models.outputPrice")}</span>
                 <input className="admin-input" value={form.outputPrice} onChange={(e) => set("outputPrice", e.target.value)} />
               </label>
               <label className="admin-field">
-                <span className="admin-field__label">Cache-read price / Mtok</span>
+                <span className="admin-field__label">{t("admin.models.cacheReadPrice")}</span>
                 <input className="admin-input" value={form.cacheReadPrice} onChange={(e) => set("cacheReadPrice", e.target.value)} />
               </label>
               <label className="admin-field">
-                <span className="admin-field__label">Cache-write price / Mtok</span>
+                <span className="admin-field__label">{t("admin.models.cacheWritePrice")}</span>
                 <input className="admin-input" value={form.cacheWritePrice} onChange={(e) => set("cacheWritePrice", e.target.value)} />
               </label>
               <label className="admin-field">
-                <span className="admin-field__label">Capabilities (comma-separated)</span>
+                <span className="admin-field__label">{t("admin.models.capabilities")}</span>
                 <input className="admin-input" value={form.capabilities} onChange={(e) => set("capabilities", e.target.value)} placeholder="text_chat, tool_calls" />
               </label>
               <label className="admin-field admin-field--checkbox">
                 <input type="checkbox" checked={form.vision} onChange={(e) => set("vision", e.target.checked)} />
-                <span className="admin-field__label">Accepts image input</span>
+                <span className="admin-field__label">{t("admin.models.vision")}</span>
               </label>
             </div>
           </details>
@@ -380,7 +378,7 @@ export function AdminModels({ token }: { token: string | null }) {
               busy={creating}
               disabled={!form.name.trim() || !form.apiURL.trim() || !form.model.trim()}
             >
-              Add model
+              {t("admin.models.add")}
             </Button>
           </div>
         </form>

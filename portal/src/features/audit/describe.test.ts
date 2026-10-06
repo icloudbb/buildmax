@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 import type { ApiAuditEvent } from "../../lib/api/types"
-import { actorLabel, describeEvent, formatEventTime } from "./describe"
+import { translate, type MessageKey } from "../../i18n"
+import { actorLabel, describeEvent } from "./describe"
+
+const t = (key: MessageKey, vars?: Record<string, string | number>) => translate("en", key, vars)
 
 function event(partial: Partial<ApiAuditEvent>): ApiAuditEvent {
   return {
@@ -18,7 +21,7 @@ describe("describeEvent", () => {
   it("marks a refusal apart from the actions around it", () => {
     // A denial is what shows someone probing at a boundary. Rendering it like
     // a successful action would bury the one entry an owner is looking for.
-    const got = describeEvent(event({ action: "access.denied", target_id: "manage_agents" }))
+    const got = describeEvent(event({ action: "access.denied", target_id: "manage_agents" }), t)
     expect(got.denied).toBe(true)
     expect(got.summary).toContain("manage_agents")
   })
@@ -26,6 +29,7 @@ describe("describeEvent", () => {
   it("names both tiers when an administrator moves a space", () => {
     const got = describeEvent(
       event({ action: "space.quota_tier_changed", target_id: "tm_1", detail: "free_trial -> pro" }),
+      t,
     )
     expect(got.denied).toBe(false)
     expect(got.summary).toBe("Changed the quota tier: free_trial -> pro")
@@ -34,21 +38,21 @@ describe("describeEvent", () => {
   it("reads a Space Assistant's lifecycle, never with a bot token", () => {
     // The detail is the name, the revision for an edit, and the bot's handle
     // for a binding, per internal/core/audit.
-    expect(describeEvent(event({ action: "assistant.created", detail: "HR desk" })).summary).toBe(
+    expect(describeEvent(event({ action: "assistant.created", detail: "HR desk" }), t).summary).toBe(
       "Created the assistant HR desk",
     )
-    expect(describeEvent(event({ action: "assistant.updated", detail: "revision 3" })).summary).toBe(
+    expect(describeEvent(event({ action: "assistant.updated", detail: "revision 3" }), t).summary).toBe(
       "Changed an assistant's definition (revision 3)",
     )
-    expect(describeEvent(event({ action: "assistant.activated", detail: "HR desk" })).summary).toBe(
+    expect(describeEvent(event({ action: "assistant.activated", detail: "HR desk" }), t).summary).toBe(
       "Published the assistant HR desk",
     )
-    expect(describeEvent(event({ action: "assistant.paused" })).summary).toBe("Paused an assistant")
-    expect(describeEvent(event({ action: "assistant.bound", detail: "hr_desk_bot" })).summary).toBe(
+    expect(describeEvent(event({ action: "assistant.paused" }), t).summary).toBe("Paused an assistant")
+    expect(describeEvent(event({ action: "assistant.bound", detail: "hr_desk_bot" }), t).summary).toBe(
       "Bound the bot @hr_desk_bot to an assistant",
     )
-    expect(describeEvent(event({ action: "assistant.sponsor_changed", target_id: "as_1" })).target).toBe("as_1")
-    expect(describeEvent(event({ action: "assistant.requester_replied", detail: "HR desk" })).summary).toBe(
+    expect(describeEvent(event({ action: "assistant.sponsor_changed", target_id: "as_1" }), t).target).toBe("as_1")
+    expect(describeEvent(event({ action: "assistant.requester_replied", detail: "HR desk" }), t).summary).toBe(
       "Replied to a requester through the assistant HR desk",
     )
   })
@@ -57,15 +61,21 @@ describe("describeEvent", () => {
     // Action strings are permanent and a newer server may write one this
     // Portal predates. Dropping the row, or relabelling it "unknown", hides an
     // audit entry — worse than showing a name the reader can search for.
-    const got = describeEvent(event({ action: "something.added.later" }))
+    const got = describeEvent(event({ action: "something.added.later" }), t)
     expect(got.summary).toBe("something.added.later")
     expect(got.denied).toBe(false)
   })
 
+  it("reads in Chinese, still naming an unrecognised action verbatim", () => {
+    const zh = (key: MessageKey, vars?: Record<string, string | number>) => translate("zh-CN", key, vars)
+    expect(describeEvent(event({ action: "agent.created", detail: "Reviewer" }), zh).summary).toBe("创建了 Agent Reviewer")
+    expect(describeEvent(event({ action: "something.added.later" }), zh).summary).toBe("something.added.later")
+  })
+
   it("uses the detail when there is one to use", () => {
-    expect(describeEvent(event({ action: "space.member_added", detail: "admin" })).summary)
+    expect(describeEvent(event({ action: "space.member_added", detail: "admin" }), t).summary)
       .toContain("admin")
-    expect(describeEvent(event({ action: "space.member_added" })).summary)
+    expect(describeEvent(event({ action: "space.member_added" }), t).summary)
       .toBe("Added a member")
   })
 
@@ -73,18 +83,18 @@ describe("describeEvent", () => {
     // These have no space, so a space owner can never see them. They are only
     // readable in the administration area, and they should read as sentences
     // there rather than as raw action strings.
-    expect(describeEvent(event({ action: "system.admin_granted", detail: "system_admin" })).summary)
+    expect(describeEvent(event({ action: "system.admin_granted", detail: "system_admin" }), t).summary)
       .toBe("Granted system_admin over the deployment")
-    expect(describeEvent(event({ action: "system.admin_revoked", detail: "system_admin" })).summary)
+    expect(describeEvent(event({ action: "system.admin_revoked", detail: "system_admin" }), t).summary)
       .toBe("Revoked system_admin over the deployment")
-    expect(describeEvent(event({ action: "user.created" })).summary).toBe("Created an account")
-    expect(describeEvent(event({ action: "user.disabled" })).summary).toBe("Disabled an account")
-    expect(describeEvent(event({ action: "user.disabled", detail: "cleanup incomplete: runs" })).summary)
+    expect(describeEvent(event({ action: "user.created" }), t).summary).toBe("Created an account")
+    expect(describeEvent(event({ action: "user.disabled" }), t).summary).toBe("Disabled an account")
+    expect(describeEvent(event({ action: "user.disabled", detail: "cleanup incomplete: runs" }), t).summary)
       .toBe("Disabled an account — cleanup incomplete: runs")
-    expect(describeEvent(event({ action: "user.enabled" })).summary).toBe("Enabled an account")
-    expect(describeEvent(event({ action: "user.login_code_issued" })).summary)
+    expect(describeEvent(event({ action: "user.enabled" }), t).summary).toBe("Enabled an account")
+    expect(describeEvent(event({ action: "user.login_code_issued" }), t).summary)
       .toBe("Issued a login code")
-    expect(describeEvent(event({ action: "user.sessions_revoked" })).summary)
+    expect(describeEvent(event({ action: "user.sessions_revoked" }), t).summary)
       .toBe("Revoked every session of an account")
   })
 
@@ -92,44 +102,44 @@ describe("describeEvent", () => {
     // It is not a user's intent — it is the server reporting a credential in
     // two places — so it gets the treatment a denial gets, not the treatment an
     // ordinary action gets.
-    expect(describeEvent(event({ action: "auth.refresh_reuse" })).denied).toBe(true)
+    expect(describeEvent(event({ action: "auth.refresh_reuse" }), t).denied).toBe(true)
   })
 
   it("gives retention the same treatment as a denial", () => {
     // It is the one action that removes evidence. A reader scanning the trail
     // must not skim past the row that explains why the trail starts where it
     // does, so it is called out rather than shown as ordinary housekeeping.
-    const got = describeEvent(event({ action: "audit.pruned", detail: "12 events from A to B" }))
+    const got = describeEvent(event({ action: "audit.pruned", detail: "12 events from A to B" }), t)
     expect(got.denied).toBe(true)
     expect(got.summary).toContain("12 events")
   })
 
   it("names an export and what left in it", () => {
-    const got = describeEvent(event({ action: "audit.exported", detail: "40 events" }))
+    const got = describeEvent(event({ action: "audit.exported", detail: "40 events" }), t)
     expect(got.denied).toBe(false)
     expect(got.summary).toContain("40 events")
   })
 
   it("separates approaching a quota from being stopped by one", () => {
     // One is a heads-up, the other is work not happening.
-    expect(describeEvent(event({ action: "quota.threshold_reached", detail: "runs 80% of 10" })).denied)
+    expect(describeEvent(event({ action: "quota.threshold_reached", detail: "runs 80% of 10" }), t).denied)
       .toBe(false)
-    expect(describeEvent(event({ action: "quota.exceeded", detail: "runs limit reached at 10 of 10" })).denied)
+    expect(describeEvent(event({ action: "quota.exceeded", detail: "runs limit reached at 10 of 10" }), t).denied)
       .toBe(true)
   })
 
   it("reads the invitation and role-change actions space-membership-lifecycle added", () => {
-    expect(describeEvent(event({ action: "space.member_invited", detail: "admin" })).summary)
+    expect(describeEvent(event({ action: "space.member_invited", detail: "admin" }), t).summary)
       .toContain("admin")
-    expect(describeEvent(event({ action: "space.invitation_accepted", detail: "member" })).summary)
+    expect(describeEvent(event({ action: "space.invitation_accepted", detail: "member" }), t).summary)
       .toContain("member")
-    expect(describeEvent(event({ action: "space.invitation_revoked" })).summary)
+    expect(describeEvent(event({ action: "space.invitation_revoked" }), t).summary)
       .toBe("Revoked a pending invitation")
-    expect(describeEvent(event({ action: "space.member_role_changed", detail: "owner" })).summary)
+    expect(describeEvent(event({ action: "space.member_role_changed", detail: "owner" }), t).summary)
       .toContain("owner")
-    expect(describeEvent(event({ action: "space.ownership_transferred" })).summary)
+    expect(describeEvent(event({ action: "space.ownership_transferred" }), t).summary)
       .toBe("Transferred ownership")
-    expect(describeEvent(event({ action: "space.member_login_code_issued" })).summary)
+    expect(describeEvent(event({ action: "space.member_login_code_issued" }), t).summary)
       .toBe("Issued a login code for a member")
   })
 
@@ -137,13 +147,13 @@ describe("describeEvent", () => {
     // An invitation names a specific, already-resolved account before anyone
     // acts on it, so its outcome is worth calling out either way -- unlike a
     // failed login, which says nothing about who the actor was.
-    expect(describeEvent(event({ action: "space.invitation_expired" })).denied).toBe(true)
+    expect(describeEvent(event({ action: "space.invitation_expired" }), t).denied).toBe(true)
   })
 
   it("does not show a target for events whose target is already in the summary", () => {
     // A login's target is the platform, which the sentence already names.
-    expect(describeEvent(event({ action: "user.login", target_id: "cli" })).target).toBeNull()
-    expect(describeEvent(event({ action: "space.member_removed", target_id: "u_2" })).target).toBe("u_2")
+    expect(describeEvent(event({ action: "user.login", target_id: "cli" }), t).target).toBeNull()
+    expect(describeEvent(event({ action: "space.member_removed", target_id: "u_2" }), t).target).toBe("u_2")
   })
 })
 
@@ -151,19 +161,13 @@ describe("actorLabel", () => {
   it("separates a person from the deployment itself", () => {
     // Model catalog changes are recorded as the system, because they run from a
     // shell on the server that no user id was verified for.
-    expect(actorLabel(event({ actor_type: "system", actor_id: "buildmax-server" })))
+    expect(actorLabel(event({ actor_type: "system", actor_id: "buildmax-server" }), t))
       .toBe("buildmax-server (system)")
-    expect(actorLabel(event({ actor_type: "worker", actor_id: "r_1" }))).toBe("r_1 (worker)")
+    expect(actorLabel(event({ actor_type: "worker", actor_id: "r_1" }), t)).toBe("r_1 (worker)")
   })
 
   it("names the reader as themselves", () => {
-    expect(actorLabel(event({ actor_id: "u_1" }), "u_1")).toBe("You")
-    expect(actorLabel(event({ actor_id: "u_2" }), "u_1")).toBe("u_2")
-  })
-})
-
-describe("formatEventTime", () => {
-  it("shows a dash rather than the epoch when there is no time", () => {
-    expect(formatEventTime("")).toBe("—")
+    expect(actorLabel(event({ actor_id: "u_1" }), t, "u_1")).toBe("You")
+    expect(actorLabel(event({ actor_id: "u_2" }), t, "u_1")).toBe("u_2")
   })
 })

@@ -27,6 +27,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } fr
 import { ThemeProvider, useTheme } from '@buildmax/gui';
 import { EventsOn } from './lib/wailsRuntime';
 import LoginPage from './LoginPage';
+import { useT } from './i18n';
 
 // Sidebar layout is a per-machine preference, remembered across runs.
 const SIDEBAR_MIN_WIDTH = 180;
@@ -58,13 +59,14 @@ function clampSidebarWidth(w) {
 // the destination — moon to go dark, sun to go light.
 function ThemeStatusButton() {
   const { theme, toggleTheme } = useTheme();
+  const t = useT();
   const dark = theme === 'dark';
   return (
     <button
       type="button"
       className="workspace-statusbar__btn"
-      title={dark ? 'Light mode' : 'Dark mode'}
-      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={dark ? t('shell.lightMode') : t('shell.darkMode')}
+      aria-label={dark ? t('shell.toLight') : t('shell.toDark')}
       onClick={toggleTheme}
     >
       <span aria-hidden>{dark ? <SunIcon /> : <MoonIcon />}</span>
@@ -73,6 +75,7 @@ function ThemeStatusButton() {
 }
 
 export default function App() {
+  const t = useT();
   const [sessions, setSessions] = useState([]);
   // The primary selected session: it drives which project is active and what the
   // sidebar/Explorer follow. Each chat tab owns its own run state (see
@@ -836,9 +839,11 @@ export default function App() {
     } catch {
       const held = (sessions ?? []).filter((s) => s.project_id === id).length;
       setConfirmState({
-        title: 'Delete project',
-        confirmLabel: 'Delete project',
-        message: `This project still has ${held || 'some'} session(s). Delete the project and its sessions? Files in the project folder are not touched.`,
+        title: t('home.deleteProject.title'),
+        confirmLabel: t('home.deleteProject.title'),
+        message: held
+          ? t('home.deleteProject.message', { count: held })
+          : t('home.deleteProject.messageUnknown'),
         onConfirm: async () => {
           try {
             await app.DeleteProject(id, true);
@@ -913,9 +918,9 @@ export default function App() {
 
   function handleClearProjectSessions(project, projectSessions = []) {
     setConfirmState({
-      title: 'Clear all sessions',
-      confirmLabel: 'Clear sessions',
-      message: `Clear all sessions for ${project.name}? This does not delete files in the project folder.`,
+      title: t('home.clearSessions.title'),
+      confirmLabel: t('home.project.clearSessions'),
+      message: t('home.clearSessions.message', { name: project.name }),
       onConfirm: async () => {
         try {
           const visibleIds = projectSessions.map((s) => s.id);
@@ -973,7 +978,7 @@ export default function App() {
     return (
       <ThemeProvider>
         <div className="shell"><div className="shell__body" style={{ padding: '2rem' }}>
-          <p className="page-chat__muted">Loading…</p>
+          <p className="page-chat__muted">{t('shell.loading')}</p>
         </div></div>
       </ThemeProvider>
     );
@@ -983,7 +988,7 @@ export default function App() {
       <ThemeProvider>
         <div className="shell"><div className="shell__body" style={{ padding: '2rem' }}>
           <p className="page-chat__muted">
-            Run this app with Wails (e.g. <code>wails dev</code> or <code>./make run desktop</code>).
+            {t('shell.needWails', { dev: 'wails dev', run: './make run desktop' })}
           </p>
         </div></div>
       </ThemeProvider>
@@ -993,7 +998,7 @@ export default function App() {
     return (
       <ThemeProvider>
         <div className="shell"><div className="shell__body" style={{ padding: '2rem' }}>
-          <p className="page-chat__muted">Loading…</p>
+          <p className="page-chat__muted">{t('shell.loading')}</p>
         </div></div>
       </ThemeProvider>
     );
@@ -1109,7 +1114,7 @@ export default function App() {
           <BrowserView sessionId={active.ref} />
         )}
         {!active && (
-          <div className="workspace-pane__empty">Open a file, diff, or terminal here.</div>
+          <div className="workspace-pane__empty">{t('shell.emptyPane')}</div>
         )}
       </>
     );
@@ -1195,13 +1200,11 @@ export default function App() {
         {deploymentUnavailable && (
           <div className="deployment-banner" role="alert">
             <span className="deployment-banner__text">
-              Cannot reach {authStatus.server_url}. Your login still works; while you are
-              signed in, prompts go only there, so this app waits for it rather than using
-              local models.
+              {t('shell.unreachable', { server: authStatus.server_url })}
             </span>
             <span className="deployment-banner__detail">{authStatus.unavailable_detail}</span>
             <button type="button" className="deployment-banner__retry" onClick={refreshAuthStatus}>
-              Retry
+              {t('shell.retry')}
             </button>
           </div>
         )}
@@ -1252,7 +1255,7 @@ export default function App() {
             className="sidebar-resizer"
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize sidebar"
+            aria-label={t('shell.resizeSidebar')}
             onMouseDown={startSidebarResize}
           />
 
@@ -1266,7 +1269,7 @@ export default function App() {
                   {error && (
                     <div className="workspace-banner workspace-banner--error">
                       <span>{error}</span>
-                      <button type="button" onClick={() => setError(null)} aria-label="Dismiss">✕</button>
+                      <button type="button" onClick={() => setError(null)} aria-label={t('shell.dismiss')}>✕</button>
                     </div>
                   )}
                 </div>
@@ -1327,29 +1330,29 @@ export default function App() {
                 className="workspace-statusbar__btn"
                 onClick={() => setLeftCollapsed((v) => !v)}
                 aria-pressed={!leftCollapsed}
-                title={leftCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-                aria-label={leftCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+                title={leftCollapsed ? t('shell.showSidebar') : t('shell.hideSidebar')}
+                aria-label={leftCollapsed ? t('shell.showSidebar') : t('shell.hideSidebar')}
               >
                 <span aria-hidden><SidebarIcon /></span>
               </button>
               <span className="workspace-statusbar__status">
                 {view === 'schedules'
-                  ? 'Schedules'
+                  ? t('shell.nav.schedules')
                   : view === 'issues'
-                    ? 'Issues'
+                    ? t('shell.nav.issues')
                     : currentProject
                     ? `${currentProject.name}${totalPanes > 1
-                      ? ` · ${totalPanes} panes`
+                      ? ` · ${t('shell.panes', { count: totalPanes })}`
                       : (focusedActiveTab?.title ? ` · ${focusedActiveTab.title}` : '')}`
-                    : 'Home'}
+                    : t('shell.nav.home')}
               </span>
               {currentProject && view === 'workbench' && (
                 <button
                   type="button"
                   className="workspace-statusbar__btn"
                   onClick={openTerminalTab}
-                  title="New terminal"
-                  aria-label="New terminal"
+                  title={t('shell.newTerminal')}
+                  aria-label={t('shell.newTerminal')}
                 >
                   <span aria-hidden>{'>_'}</span>
                 </button>
@@ -1358,8 +1361,8 @@ export default function App() {
                 <button
                   type="button"
                   className="workspace-statusbar__btn"
-                  title={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
-                  aria-label={totalPanes > 1 ? 'Collapse panes into tabs' : 'Tile tabs into a grid'}
+                  title={totalPanes > 1 ? t('shell.collapsePanes') : t('shell.tilePanes')}
+                  aria-label={totalPanes > 1 ? t('shell.collapsePanes') : t('shell.tilePanes')}
                   onClick={toggleGrid}
                 >
                   <span aria-hidden>{totalPanes > 1 ? <SplitRightIcon /> : <GridIcon />}</span>
@@ -1369,13 +1372,13 @@ export default function App() {
                 <button
                   type="button"
                   className="workspace-statusbar__browser"
-                  title={`Open the live browser view\n${browserList.map((b) => b.url).filter(Boolean).join('\n')}`}
+                  title={`${t('shell.openBrowser')}\n${browserList.map((b) => b.url).filter(Boolean).join('\n')}`}
                   onClick={() => openBrowserTab(browserList[0].id)}
                 >
                   <span aria-hidden>🌐</span>{' '}
                   {browserList.length === 1
-                    ? (browserList[0].title || browserList[0].url || 'Browser')
-                    : `${browserList.length} browser pages`}
+                    ? (browserList[0].title || browserList[0].url || t('shell.browser'))
+                    : t('shell.browserPages', { count: browserList.length })}
                 </button>
               )}
               <LaunchpadButton />

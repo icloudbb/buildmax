@@ -12,7 +12,6 @@ function issue(id: string): Issue {
     createdBy: "u_1",
     createdAt: "",
     updatedAt: "",
-    updatedLabel: "",
     version: 1,
     childCount: 0,
     doneChildCount: 0,

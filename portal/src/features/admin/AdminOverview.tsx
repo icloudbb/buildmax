@@ -1,4 +1,7 @@
+import { useLocale, type Translate } from "@buildmax/gui"
+import { formatTimestamp } from "../../lib/dateFormat"
 import { useEffect, useState } from "react"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 import type {
   ApiAdminMe,
   ApiAdminSpaceAttention,
@@ -6,6 +9,7 @@ import type {
   ApiAdminSystem,
 } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { statusLabel } from "../../lib/statusLabels"
 import { buildHash } from "../../router"
 import { getAdminConfig, getAdminMe, getAdminSystem, listAdminRuntimeSpaces } from "./api"
 import {
@@ -13,6 +17,7 @@ import {
   WORKFLOW_FAILURE_CLASSES,
   ageSince,
   failureLabel,
+  failureOwner,
   orderedFailures,
   timeUntil,
   waitingSummary,
@@ -30,23 +35,24 @@ function FailureTable({
   classes,
 }: {
   failures: [string, number][]
-  classes: Record<string, { label: string; owner: string }>
+  classes: typeof FAILURE_CLASSES
 }) {
+  const t = useT()
   return (
     <table className="admin-table">
       <thead>
         <tr>
-          <th scope="col">Cause</th>
-          <th scope="col">Runs</th>
-          <th scope="col">Who acts</th>
+          <th scope="col">{t("admin.overview.cause")}</th>
+          <th scope="col">{t("admin.overview.runs")}</th>
+          <th scope="col">{t("admin.overview.whoActs")}</th>
         </tr>
       </thead>
       <tbody>
         {failures.map(([cls, n]) => (
           <tr key={cls}>
-            <td>{failureLabel(cls, classes)}</td>
+            <td>{failureLabel(cls, t, classes)}</td>
             <td>{n}</td>
-            <td className="admin-table__muted">{classes[cls]?.owner ?? "—"}</td>
+            <td className="admin-table__muted">{failureOwner(cls, t, classes) ?? "—"}</td>
           </tr>
         ))}
       </tbody>
@@ -65,43 +71,68 @@ function SpaceWaiting({
   space: ApiAdminSpaceAttention
   serverTime: string
 }) {
-  const summary = waitingSummary(space.waiting_requests)
+  const t = useT()
+  const summary = waitingSummary(space.waiting_requests, t)
   if (!summary) return <>—</>
-  const expiry = timeUntil(space.next_request_expiry_at, serverTime)
+  const expiry = timeUntil(space.next_request_expiry_at, serverTime, t)
   return (
     <>
       {summary}
       <span className="admin-table__muted">
-        {` · oldest ${ageSince(space.oldest_waiting_request_at, serverTime) ?? "—"}`}
-        {expiry ? ` · expiry ${expiry}` : null}
+        {t("admin.overview.waitingOldest", {
+          age: ageSince(space.oldest_waiting_request_at, serverTime, t) ?? "—",
+        })}
+        {expiry ? t("admin.overview.waitingExpiry", { expiry }) : null}
       </span>
       {space.oldest_waiting_workflow_run_id ? (
         <div className="admin-table__muted">
-          Workflow run <code>{space.oldest_waiting_workflow_run_id}</code>
+          {t("admin.overview.workflowRun")} <code>{space.oldest_waiting_workflow_run_id}</code>
         </div>
       ) : null}
     </>
   )
 }
 
+/**
+ * "3 dispatch, 1 agent run". English lowercases the label after its count;
+ * Chinese keeps it as is, since lowercasing would mangle the Latin terms it
+ * keeps (Agent, Worker).
+ */
+function countedLabels(
+  counts: [string, number][],
+  label: (key: string) => string,
+  t: Translate<MessageKey>,
+  english: boolean,
+): string {
+  return counts
+    .map(([key, count]) => {
+      const text = label(key)
+      return t("admin.overview.failureCount", { count, label: english ? text.toLowerCase() : text })
+    })
+    .join(t("admin.listSeparator"))
+}
+
 /** Task run and Workflow run failures in the window, each by its own classes. */
 function SpaceFailures({ space }: { space: ApiAdminSpaceAttention }) {
-  const taskRuns = orderedFailures(space.failures)
-    .map(([cls, n]) => `${n} ${failureLabel(cls).toLowerCase()}`)
-    .join(", ")
-  const workflowRuns = orderedFailures(space.workflow_failures, WORKFLOW_FAILURE_CLASSES)
-    .map(([cls, n]) => `${n} ${failureLabel(cls, WORKFLOW_FAILURE_CLASSES).toLowerCase()}`)
-    .join(", ")
+  const t = useT()
+  const english = useLocale().locale === "en"
+  const taskRuns = countedLabels(orderedFailures(space.failures), (cls) => failureLabel(cls, t), t, english)
+  const workflowRuns = countedLabels(
+    orderedFailures(space.workflow_failures, WORKFLOW_FAILURE_CLASSES),
+    (cls) => failureLabel(cls, t, WORKFLOW_FAILURE_CLASSES),
+    t,
+    english,
+  )
   if (!taskRuns && !workflowRuns) return <>—</>
   return (
     <>
       {taskRuns ? <div>{taskRuns}</div> : null}
       {workflowRuns ? (
         <div>
-          {`Workflow: ${workflowRuns}`}
+          {t("admin.overview.workflowFailures", { failures: workflowRuns })}
           {space.latest_failed_workflow_run_id ? (
             <span className="admin-table__muted">
-              {" · latest "}
+              {t("admin.overview.latest")}
               <code>{space.latest_failed_workflow_run_id}</code>
             </span>
           ) : null}
@@ -130,6 +161,9 @@ function Fact({ label, value }: { label: string; value: string }) {
  * already has to be.
  */
 export function AdminOverview({ token }: { token: string | null }) {
+  const t = useT()
+  const stableT = useStableT()
+  const { locale } = useLocale()
   const [system, setSystem] = useState<ApiAdminSystem | null>(null)
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [me, setMe] = useState<ApiAdminMe | null>(null)
@@ -155,7 +189,7 @@ export function AdminOverview({ token }: { token: string | null }) {
         setAttention(spaces)
       })
       .catch((err) => {
-        if (!cancelled) setError(getErrorMessage(err, "Failed to load the deployment status"))
+        if (!cancelled) setError(getErrorMessage(err, stableT("admin.overview.loadError")))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -163,9 +197,9 @@ export function AdminOverview({ token }: { token: string | null }) {
     return () => {
       cancelled = true
     }
-  }, [token])
+  }, [token, stableT])
 
-  if (loading) return <p className="admin-empty">Loading the deployment status…</p>
+  if (loading) return <p className="admin-empty">{t("admin.overview.loading")}</p>
   if (error) {
     return (
       <p className="settings-section__error" role="alert">
@@ -183,13 +217,14 @@ export function AdminOverview({ token }: { token: string | null }) {
   const myGrant = me?.grants?.[0]
   const grantedBy = myGrant
     ? myGrant.granted_by === "buildmax-server"
-      ? "the operator command"
+      ? t("admin.overview.operatorCommand")
       : myGrant.granted_by
     : ""
   // The redacted config minus warnings, which have their own section. The server
   // has already reduced every credential to a set/not-set boolean, so this is
   // safe to render whole.
   const configEntries = Object.entries(config ?? {}).filter(([key]) => key !== "warnings")
+  const noneWaiting = t("admin.overview.noneWaiting")
 
   return (
     <div className="admin-sections">
@@ -197,17 +232,17 @@ export function AdminOverview({ token }: { token: string | null }) {
         <section className="settings-page__section">
           <div className="settings-page__section-head">
             <div>
-              <h2 className="settings-page__section-title">Your access</h2>
-              <p className="settings-page__section-copy">
-                Why you can see this area. Deployment authority is separate from any
-                space role you also hold.
-              </p>
+              <h2 className="settings-page__section-title">{t("admin.overview.accessTitle")}</h2>
+              <p className="settings-page__section-copy">{t("admin.overview.accessCopy")}</p>
             </div>
           </div>
           <div className="admin-facts">
-            <Fact label="Role" value={myGrant.role} />
-            <Fact label="Granted by" value={grantedBy} />
-            <Fact label="Granted" value={new Date(myGrant.granted_at).toLocaleString()} />
+            <Fact label={t("admin.overview.role")} value={myGrant.role} />
+            <Fact label={t("admin.overview.grantedBy")} value={grantedBy} />
+            <Fact
+              label={t("admin.overview.granted")}
+              value={formatTimestamp(myGrant.granted_at, locale)}
+            />
           </div>
         </section>
       ) : null}
@@ -215,17 +250,17 @@ export function AdminOverview({ token }: { token: string | null }) {
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Health</h2>
-            <p className="settings-page__section-copy">
-              What this server reports about itself. A failed check names the dependency
-              and not the reason — the reason is in the server log.
-            </p>
+            <h2 className="settings-page__section-title">{t("admin.overview.healthTitle")}</h2>
+            <p className="settings-page__section-copy">{t("admin.overview.healthCopy")}</p>
           </div>
-          <StatusPill ok={system.ready} label={system.ready ? "Ready" : "Not ready"} />
+          <StatusPill
+            ok={system.ready}
+            label={system.ready ? t("admin.overview.ready") : t("admin.overview.notReady")}
+          />
         </div>
         <div className="admin-facts">
           {system.dependencies.length === 0 ? (
-            <p className="admin-empty">This deployment registered no dependency checks.</p>
+            <p className="admin-empty">{t("admin.overview.noDependencies")}</p>
           ) : (
             system.dependencies.map((dep) => (
               <div key={dep.name} className="admin-fact">
@@ -240,16 +275,20 @@ export function AdminOverview({ token }: { token: string | null }) {
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Deployment</h2>
-            <p className="settings-page__section-copy">
-              Version, execution mode, and how work is flowing.
-            </p>
+            <h2 className="settings-page__section-title">{t("admin.overview.deploymentTitle")}</h2>
+            <p className="settings-page__section-copy">{t("admin.overview.deploymentCopy")}</p>
           </div>
         </div>
         <div className="admin-facts">
-          <Fact label="Version" value={system.version} />
-          <Fact label="Worker run mode" value={system.worker_run_mode ?? "unknown"} />
-          <Fact label="Worker model transport" value={system.worker_llm_transport ?? "unknown"} />
+          <Fact label={t("admin.overview.version")} value={system.version} />
+          <Fact
+            label={t("admin.overview.workerRunMode")}
+            value={system.worker_run_mode ?? t("admin.overview.unknown")}
+          />
+          <Fact
+            label={t("admin.overview.workerTransport")}
+            value={system.worker_llm_transport ?? t("admin.overview.unknown")}
+          />
           {/*
             Empty means no worker path reports a sandbox surface, which is every
             deployment today. It is not a claim that runs are unconfined — each
@@ -257,24 +296,27 @@ export function AdminOverview({ token }: { token: string | null }) {
             what is missing: the report.
           */}
           <Fact
-            label="Sandbox surface"
-            value={system.sandbox_surface ? system.sandbox_surface : "not reported"}
+            label={t("admin.overview.sandboxSurface")}
+            value={system.sandbox_surface ? system.sandbox_surface : t("admin.overview.notReported")}
           />
-          <Fact label="Self-registration" value={system.allow_signup ? "open" : "closed"} />
-          <Fact label="System administrators" value={String(system.system_admins)} />
+          <Fact
+            label={t("admin.overview.selfRegistration")}
+            value={system.allow_signup ? t("admin.overview.open") : t("admin.overview.closed")}
+          />
+          <Fact label={t("admin.overview.systemAdmins")} value={String(system.system_admins)} />
         </div>
       </section>
 
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Task runs</h2>
-            <p className="settings-page__section-copy">Counts by status across every space.</p>
+            <h2 className="settings-page__section-title">{t("admin.overview.taskRunsTitle")}</h2>
+            <p className="settings-page__section-copy">{t("admin.overview.taskRunsCopy")}</p>
           </div>
         </div>
         <div className="admin-facts">
           {runStatuses.length === 0 ? (
-            <p className="admin-empty">No runs yet.</p>
+            <p className="admin-empty">{t("admin.overview.noRuns")}</p>
           ) : (
             runStatuses.map(([status, count]) => (
               <Fact key={status} label={status} value={String(count)} />
@@ -287,27 +329,26 @@ export function AdminOverview({ token }: { token: string | null }) {
         <div className="settings-page__section-head">
           <div>
             <h2 id="admin-work-progress" className="settings-page__section-title">
-              Work progress
+              {t("admin.overview.progressTitle")}
             </h2>
-            <p className="settings-page__section-copy">
-              Whether work is moving. Ages are measured by the server&apos;s clock; nothing
-              here is a run&apos;s content.
-            </p>
+            <p className="settings-page__section-copy">{t("admin.overview.progressCopy")}</p>
           </div>
         </div>
         {runtime ? (
           <>
             <div className="admin-facts">
               <Fact
-                label="Oldest pending"
-                value={ageSince(runtime.oldest_pending_at, system.server_time) ?? "none waiting"}
+                label={t("admin.overview.oldestPending")}
+                value={ageSince(runtime.oldest_pending_at, system.server_time, t) ?? noneWaiting}
               />
               <Fact
-                label="Oldest scheduled, not started"
-                value={ageSince(runtime.oldest_unstarted_at, system.server_time) ?? "none waiting"}
+                label={t("admin.overview.oldestUnstarted")}
+                value={ageSince(runtime.oldest_unstarted_at, system.server_time, t) ?? noneWaiting}
               />
               <Fact
-                label={`Running, silent over ${Math.round(runtime.stale_after_seconds / 60)} min`}
+                label={t("admin.overview.staleRunning", {
+                  minutes: Math.round(runtime.stale_after_seconds / 60),
+                })}
                 value={String(runtime.stale_running)}
               />
               {/*
@@ -315,58 +356,61 @@ export function AdminOverview({ token }: { token: string | null }) {
                 task run numbers above show it. Any member of its Space may answer.
               */}
               <Fact
-                label="Workflow requests waiting on Space members"
-                value={waitingSummary(runtime.waiting_requests) ?? "none waiting"}
+                label={t("admin.overview.waitingRequests")}
+                value={waitingSummary(runtime.waiting_requests, t) ?? noneWaiting}
               />
               <Fact
-                label="Oldest waiting request"
-                value={ageSince(runtime.oldest_waiting_request_at, system.server_time) ?? "none waiting"}
+                label={t("admin.overview.oldestWaitingRequest")}
+                value={ageSince(runtime.oldest_waiting_request_at, system.server_time, t) ?? noneWaiting}
               />
               <Fact
-                label="Next request expiry"
-                value={timeUntil(runtime.next_request_expiry_at, system.server_time) ?? "none set"}
+                label={t("admin.overview.nextExpiry")}
+                value={
+                  timeUntil(runtime.next_request_expiry_at, system.server_time, t) ??
+                  t("admin.overview.noneSet")
+                }
               />
             </div>
             <h3 className="admin-subtitle">
-              Task run failures in the last {runtime.failure_window_hours} hours
+              {t("admin.overview.taskFailures", { hours: runtime.failure_window_hours })}
             </h3>
             {failures.length === 0 ? (
-              <p className="admin-empty">No failed task runs.</p>
+              <p className="admin-empty">{t("admin.overview.noTaskFailures")}</p>
             ) : (
               <FailureTable failures={failures} classes={FAILURE_CLASSES} />
             )}
             <h3 className="admin-subtitle">
-              Workflow run failures in the last {runtime.failure_window_hours} hours
+              {t("admin.overview.workflowFailuresTitle", { hours: runtime.failure_window_hours })}
             </h3>
             {workflowFailures.length === 0 ? (
-              <p className="admin-empty">No failed Workflow runs.</p>
+              <p className="admin-empty">{t("admin.overview.noWorkflowFailures")}</p>
             ) : (
               <FailureTable failures={workflowFailures} classes={WORKFLOW_FAILURE_CLASSES} />
             )}
           </>
         ) : (
           <p className="admin-empty" role="status">
-            Work progress is unavailable right now; the server could not read it.
+            {t("admin.overview.progressUnavailable")}
           </p>
         )}
 
-        <h3 className="admin-subtitle">Spaces needing attention</h3>
+        <h3 className="admin-subtitle">{t("admin.overview.attentionTitle")}</h3>
         {attention === null ? (
           <p className="admin-empty" role="status">
-            The Spaces needing attention are unavailable right now.
+            {t("admin.overview.attentionUnavailable")}
           </p>
         ) : attention.spaces.length === 0 ? (
-          <p className="admin-empty">No Space has waiting work, waiting requests, or recent failures.</p>
+          <p className="admin-empty">{t("admin.overview.noAttention")}</p>
         ) : (
           <table className="admin-table">
             <thead>
               <tr>
-                <th scope="col">Space</th>
-                <th scope="col">Owners</th>
-                <th scope="col">Active</th>
-                <th scope="col">Oldest active</th>
-                <th scope="col">Waiting on members</th>
-                <th scope="col">Failed</th>
+                <th scope="col">{t("admin.overview.colSpace")}</th>
+                <th scope="col">{t("admin.overview.colOwners")}</th>
+                <th scope="col">{t("admin.overview.colActive")}</th>
+                <th scope="col">{t("admin.overview.colOldestActive")}</th>
+                <th scope="col">{t("admin.overview.colWaiting")}</th>
+                <th scope="col">{t("admin.overview.colFailed")}</th>
               </tr>
             </thead>
             <tbody>
@@ -376,15 +420,28 @@ export function AdminOverview({ token }: { token: string | null }) {
                     <a href={buildHash({ name: "admin", section: "spaces", spaceId: space.space_id })}>
                       {space.name || space.space_id}
                     </a>
-                    {space.personal ? <span className="admin-table__muted"> · personal</span> : null}
+                    {space.personal ? (
+                      <span className="admin-table__muted">{t("admin.overview.personal")}</span>
+                    ) : null}
                   </td>
-                  <td>{space.owners.map((o) => o.email || o.user_id).join(", ") || "—"}</td>
+                  <td>
+                    {space.owners.map((o) => o.email || o.user_id).join(t("admin.listSeparator")) || "—"}
+                  </td>
                   <td>
                     {Object.entries(space.active)
-                      .map(([status, n]) => `${n} ${status.toLowerCase()}`)
-                      .join(", ") || "—"}
+                      .map(([status, n]) =>
+                        t("admin.overview.activeCount", {
+                          count: n,
+                          // English has always shown the raw status, lowercased.
+                          status:
+                            locale === "en"
+                              ? status.toLowerCase()
+                              : statusLabel(status.toLowerCase(), locale),
+                        }),
+                      )
+                      .join(t("admin.listSeparator")) || "—"}
                   </td>
-                  <td>{ageSince(space.oldest_active_at, system.server_time) ?? "—"}</td>
+                  <td>{ageSince(space.oldest_active_at, system.server_time, t) ?? "—"}</td>
                   <td>
                     <SpaceWaiting space={space} serverTime={system.server_time} />
                   </td>
@@ -398,7 +455,10 @@ export function AdminOverview({ token }: { token: string | null }) {
         )}
         {attention && attention.total > attention.spaces.length ? (
           <p className="admin-empty">
-            Showing the {attention.spaces.length} longest-waiting of {attention.total} Spaces.
+            {t("admin.overview.showingLongest", {
+              shown: attention.spaces.length,
+              total: attention.total,
+            })}
           </p>
         ) : null}
       </section>
@@ -407,10 +467,8 @@ export function AdminOverview({ token }: { token: string | null }) {
         <section className="settings-page__section">
           <div className="settings-page__section-head">
             <div>
-              <h2 className="settings-page__section-title">Configuration notes</h2>
-              <p className="settings-page__section-copy">
-                States worth knowing about. These are not errors — the server is running.
-              </p>
+              <h2 className="settings-page__section-title">{t("admin.overview.notesTitle")}</h2>
+              <p className="settings-page__section-copy">{t("admin.overview.notesCopy")}</p>
             </div>
           </div>
           <ul className="admin-warnings">
@@ -427,16 +485,16 @@ export function AdminOverview({ token }: { token: string | null }) {
         <section className="settings-page__section">
           <div className="settings-page__section-head">
             <div>
-              <h2 className="settings-page__section-title">Effective configuration</h2>
+              <h2 className="settings-page__section-title">{t("admin.overview.configTitle")}</h2>
               <p className="settings-page__section-copy">
-                The resolved <code>server.yaml</code>, read-only. Every credential is
-                shown only as whether it is set — never its value. Change it by editing
-                the file and restarting the server.
+                {t("admin.overview.configCopyBefore")}
+                <code>server.yaml</code>
+                {t("admin.overview.configCopyAfter")}
               </p>
             </div>
           </div>
           <details className="admin-config">
-            <summary className="admin-config__summary">Show configuration</summary>
+            <summary className="admin-config__summary">{t("admin.overview.showConfig")}</summary>
             <div className="admin-facts">
               {configEntries.map(([key, value]) => (
                 <Fact
@@ -453,22 +511,19 @@ export function AdminOverview({ token }: { token: string | null }) {
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Schema</h2>
-            <p className="settings-page__section-copy">
-              Migrations applied beyond the additive schema the row structs own. Not a
-              schema version.
-            </p>
+            <h2 className="settings-page__section-title">{t("admin.overview.schemaTitle")}</h2>
+            <p className="settings-page__section-copy">{t("admin.overview.schemaCopy")}</p>
           </div>
         </div>
         {system.schema_migrations.length === 0 ? (
-          <p className="admin-empty">No migrations have been applied.</p>
+          <p className="admin-empty">{t("admin.overview.noMigrations")}</p>
         ) : (
           <ul className="admin-list">
             {system.schema_migrations.map((migration) => (
               <li key={migration.id} className="admin-list__row">
                 <span className="admin-list__main">{migration.id}</span>
                 <time className="admin-list__meta">
-                  {new Date(migration.applied_at).toLocaleString()}
+                  {formatTimestamp(migration.applied_at, locale)}
                 </time>
               </li>
             ))}

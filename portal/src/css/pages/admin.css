@@ -48,7 +48,7 @@
   display: inline-flex;
   align-items: center;
   padding: 0.1rem 0.55rem;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   font-size: 0.75rem;
   color: var(--color-text-muted);
@@ -56,13 +56,13 @@
 }
 
 .admin-pill--ok {
-  border-color: var(--color-success, #2f855a);
-  color: var(--color-success, #2f855a);
+  border-color: var(--color-status-success);
+  color: var(--color-status-success);
 }
 
 .admin-pill--bad {
-  border-color: var(--color-danger, #c53030);
-  color: var(--color-danger, #c53030);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 
 .admin-toolbar {
@@ -77,9 +77,9 @@
   flex: 1 1 12rem;
   min-width: 0;
   padding: 0.45rem 0.7rem;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  background: var(--panel-bg);
+  background: var(--color-bg-elevated);
   color: var(--color-text);
   font: inherit;
   font-size: 0.9rem;
@@ -97,7 +97,7 @@
 
 .admin-field__label {
   font-size: 0.72rem;
-  color: var(--color-text-muted, #6b7280);
+  color: var(--color-text-muted);
 }
 
 .admin-field .admin-input {
@@ -126,7 +126,7 @@
 }
 
 .admin-advanced {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border);
   border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
 }
@@ -134,7 +134,7 @@
 .admin-advanced > summary {
   cursor: pointer;
   font-size: 0.85rem;
-  color: var(--color-text-muted, #6b7280);
+  color: var(--color-text-muted);
 }
 
 .admin-advanced > summary + .admin-form__grid {
@@ -162,7 +162,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.55rem 0;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .admin-list__row:last-child {
@@ -199,14 +199,14 @@
 .admin-list__id {
   font-size: 0.8rem;
   color: var(--color-text-muted);
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   overflow-wrap: anywhere;
 }
 
 .admin-table {
   width: 100%;
   border-collapse: collapse;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border);
   border-radius: 0.6rem;
   overflow: hidden;
 }
@@ -219,13 +219,13 @@
   font-weight: 600;
   color: var(--color-text-muted);
   padding: 0.55rem 0.85rem;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--panel-bg);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
 }
 
 .admin-table tbody td {
   padding: 0.6rem 0.85rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-border);
   font-size: 0.9rem;
   color: var(--color-text);
   vertical-align: middle;
@@ -261,9 +261,9 @@
 .admin-notice {
   margin: 0.5rem 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  background: var(--panel-bg);
+  background: var(--color-bg-elevated);
   font-size: 0.9rem;
 }
 
@@ -308,8 +308,8 @@
 
 .admin-warnings__item {
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-color);
-  border-left: 3px solid var(--color-warning, #b7791f);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-warning);
   border-radius: 0.35rem;
   font-size: 0.88rem;
 }
@@ -317,9 +317,9 @@
 .admin-code {
   margin: 0.75rem 0;
   padding: 0.75rem;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  background: var(--panel-bg);
+  background: var(--color-bg-elevated);
 }
 
 .admin-code__label {
@@ -331,7 +331,7 @@
 .admin-code__value {
   display: block;
   overflow-wrap: anywhere;
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   font-size: 0.85rem;
 }
 
@@ -351,7 +351,7 @@
    the account gate commits. Counts and ids only — never a space's contents. */
 .admin-detail__muted {
   margin: 0.5rem 0;
-  color: var(--color-text-muted, #6b7280);
+  color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
@@ -378,13 +378,13 @@
   gap: 0.15rem;
   min-width: 6rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  background: var(--panel-bg);
+  background: var(--color-bg-elevated);
 }
 
 .admin-impact li span {
-  color: var(--color-text-muted, #6b7280);
+  color: var(--color-text-muted);
   font-size: 0.8rem;
 }
 
@@ -396,8 +396,8 @@
   margin: 0.5rem 0;
   padding: 0.5rem 0.75rem;
   border-radius: 0.5rem;
-  border: 1px solid var(--color-danger, #c53030);
-  color: var(--color-danger, #c53030);
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
   font-size: 0.9rem;
 }
 

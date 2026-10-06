@@ -5,6 +5,7 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { artifactLabel } from "./display"
 import { fetchArtifactPreview } from "./api"
 import { ArtifactContentView } from "./ArtifactContentView"
+import { useStableT, useT } from "../../i18n"
 
 interface ArtifactPreviewProps {
   artifact: ApiArtifact | null
@@ -19,6 +20,8 @@ interface ArtifactPreviewProps {
  * never reaches here — ArtifactDetail gates on `preview`.
  */
 export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewProps) {
+  const t = useT()
+  const stableT = useStableT()
   const [text, setText] = useState<string | null>(null)
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -46,7 +49,7 @@ export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewPro
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(getErrorMessage(err, "Failed to load the preview"))
+        if (!cancelled) setError(getErrorMessage(err, stableT("artifacts.preview.error")))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -55,7 +58,7 @@ export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewPro
       cancelled = true
       if (created) URL.revokeObjectURL(created)
     }
-  }, [artifact, token, reloadKey])
+  }, [artifact, token, reloadKey, stableT])
 
   if (!artifact) return null
 
@@ -73,16 +76,16 @@ export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewPro
         <div className="artifact-preview__head">
           <span className="artifact-preview__title">{artifactLabel(artifact)}</span>
           <Button variant="tertiary" onClick={onClose}>
-            Close
+            {t("artifacts.preview.close")}
           </Button>
         </div>
       ) : null}
       <div className="artifact-preview__body">
-        {loading ? <p className="page-activity__empty">Loading…</p> : null}
+        {loading ? <p className="page-activity__empty">{t("shell.loading")}</p> : null}
         {error ? (
           <div className="artifact-preview__error" role="alert">
             <p className="settings-section__error">{error}</p>
-            <Button variant="secondary" size="compact" onClick={() => setReloadKey((current) => current + 1)}>Retry preview</Button>
+            <Button variant="secondary" size="compact" onClick={() => setReloadKey((current) => current + 1)}>{t("artifacts.preview.retry")}</Button>
           </div>
         ) : null}
         {!loading && !error ? (

@@ -25,11 +25,11 @@
 
 .page-explore__upload-msg {
   font-size: 0.85rem;
-  color: #16a34a;
+  color: var(--color-status-success);
 }
 
 .page-explore__upload-msg--error {
-  color: #dc2626;
+  color: var(--color-danger);
 }
 
 .page-explore__panels {
@@ -114,7 +114,7 @@
 }
 
 .explore-tree__error {
-  color: #dc2626;
+  color: var(--color-danger);
 }
 
 .page-explore__content-panel {
@@ -266,5 +266,5 @@
 }
 
 .page-explore__viewer-error {
-  color: #dc2626;
+  color: var(--color-danger);
 }

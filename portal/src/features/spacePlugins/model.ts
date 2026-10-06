@@ -1,3 +1,5 @@
+import type { Translate } from "@buildmax/gui"
+import type { MessageKey } from "../../i18n"
 import type {
   ApiAgent,
   ApiPluginActivation,
@@ -107,15 +109,15 @@ function parseVersion(version: string): number[] | null {
  * The bare word does not tell a reader whether an empty list means nothing is
  * available or everything is, which is exactly the confusion two modes create.
  */
-export function curationCopy(curation: ApiPluginCuration): string {
+export function curationCopy(curation: ApiPluginCuration, t: Translate<MessageKey>): string {
   return curation === "curated"
-    ? "Curated — an admin activates a plugin before an agent may name it."
-    : "Open — an agent may name any plugin in the catalog, and naming it activates it here."
+    ? t("settings.plugins.curationCurated")
+    : t("settings.plugins.curationOpen")
 }
 
 /** originCopy says how an activation came to exist, and who caused it. */
-export function originCopy(activation: ApiPluginActivation): string {
+export function originCopy(activation: ApiPluginActivation, t: Translate<MessageKey>): string {
   return activation.origin === "automatic"
-    ? `Activated automatically when ${activation.activated_by} saved an agent that names it`
-    : `Activated by ${activation.activated_by}`
+    ? t("settings.plugins.originAutomatic", { user: activation.activated_by })
+    : t("settings.plugins.originManual", { user: activation.activated_by })
 }

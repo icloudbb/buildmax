@@ -3,6 +3,8 @@ import { BaseModal, Button } from "@buildmax/gui"
 import type { ApiSpaceMember } from "../lib/api/types"
 import { peopleOnly } from "../features/spaces/api"
 import type { Agent, Issue, Workflow } from "../lib/types"
+import { useT } from "../i18n"
+import { useStatusLabel } from "../lib/statusLabels"
 
 interface IssueModalProps {
   open: boolean
@@ -39,6 +41,8 @@ export function IssueModal({
   onClose,
   onSubmit,
 }: IssueModalProps) {
+  const t = useT()
+  const statusLabel = useStatusLabel()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState<Issue["status"]>("todo")
@@ -62,16 +66,16 @@ export function IssueModal({
   }
 
   function memberLabel(member: ApiSpaceMember): string {
-    if (member.user_id === userId) return "Me"
+    if (member.user_id === userId) return t("issues.me")
     if (member.user_name && member.user_name.trim() !== "") return member.user_name
     if (member.user_email && member.user_email.trim() !== "") return member.user_email
-    return `Member ${member.user_id.slice(0, 8)}`
+    return t("issues.memberId", { id: member.user_id.slice(0, 8) })
   }
 
   return (
     <BaseModal
       open={open}
-      title="New Issue"
+      title={t("issues.new")}
       titleId="issue-modal-title"
       onClose={onClose}
       className="modal--large"
@@ -79,53 +83,66 @@ export function IssueModal({
       <div className="modal__body">
         <div className="issues-page__form">
           <label className="issues-page__field">
-            <span className="issues-page__field-label">Title</span>
-            <input className="issues-page__input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs to be done?" />
+            <span className="issues-page__field-label">{t("issues.field.title")}</span>
+            <input
+              className="issues-page__input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={t("issues.create.titlePlaceholder")}
+            />
           </label>
           <label className="issues-page__field">
-            <span className="issues-page__field-label">Description</span>
-            <textarea className="issues-page__textarea" rows={6} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add more context" />
+            <span className="issues-page__field-label">{t("issues.field.description")}</span>
+            <textarea
+              className="issues-page__textarea"
+              rows={6}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t("issues.create.descriptionPlaceholder")}
+            />
           </label>
           <label className="issues-page__field">
-            <span className="issues-page__field-label">Status</span>
+            <span className="issues-page__field-label">{t("issues.field.status")}</span>
             <select className="issues-page__select" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
-              <option value="todo">To do</option>
-              <option value="in_progress">In progress</option>
-              <option value="done">Done</option>
+              <option value="todo">{statusLabel("todo")}</option>
+              <option value="in_progress">{statusLabel("in_progress")}</option>
+              <option value="done">{statusLabel("done")}</option>
             </select>
           </label>
           <div className="issue-detail-page__split">
             <label className="issues-page__field">
-              <span className="issues-page__field-label">Owner</span>
+              <span className="issues-page__field-label">{t("issues.field.owner")}</span>
               <select className="issues-page__select" value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
-                <option value="">Unassigned</option>
+                <option value="">{t("issues.unassigned")}</option>
                 {peopleOnly(members).map((member) => (
                   <option key={member.user_id} value={member.user_id}>
                     {memberLabel(member)}
                   </option>
                 ))}
               </select>
-              <span className="issues-page__field-label">Who is accountable for this issue.</span>
+              <span className="issues-page__field-label">{t("issues.field.ownerHint")}</span>
             </label>
             <label className="issues-page__field">
-              <span className="issues-page__field-label">Executor</span>
+              <span className="issues-page__field-label">{t("issues.field.executor")}</span>
               <select className="issues-page__select" value={executorValue} onChange={(e) => setExecutorValue(e.target.value)}>
-                <option value="">None</option>
+                <option value="">{t("issues.none")}</option>
                 {agents.map((agent) => (
                   <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
                 ))}
                 {allowWorkflowAssignment
                   ? selectableWorkflows.map((workflow) => (
                       <option key={workflow.id} value={`workflow:${workflow.id}`}>
-                        {workflow.name}{workflow.status !== "published" ? ` (${workflow.status})` : ""}
+                        {workflow.status !== "published"
+                          ? t("issues.workflowWithStatus", { name: workflow.name, status: statusLabel(workflow.status).toLowerCase() })
+                          : workflow.name}
                       </option>
                     ))
                   : null}
               </select>
               <span className="issues-page__field-label">
                 {allowWorkflowAssignment
-                  ? "What runs the work. Only published workflows are available."
-                  : "What runs the work. Workflow assignment is limited to space owners and admins."}
+                  ? t("issues.field.executorHint")
+                  : t("issues.field.executorHintRestricted")}
               </span>
             </label>
           </div>
@@ -136,7 +153,7 @@ export function IssueModal({
           ) : null}
           <div className="modal__actions">
             <Button variant="secondary" onClick={discard} disabled={loading}>
-              Cancel
+              {t("issues.cancel")}
             </Button>
             <Button
               variant="primary"
@@ -154,7 +171,7 @@ export function IssueModal({
                 })
               }}
             >
-              Create issue
+              {t("issues.create.submit")}
             </Button>
           </div>
         </div>

@@ -18,11 +18,12 @@ import {
   confirmArtifactDeletion,
   deleteArtifact,
   formatSize,
-  formatTime,
   getArtifact,
   mayDelete,
   sourceLabel,
 } from "../../features/artifacts"
+import { useStableT, useT } from "../../i18n"
+import { useTimestamp } from "../../lib/dateFormat"
 
 interface ArtifactDetailProps {
   artifactId: string
@@ -37,6 +38,9 @@ interface ArtifactDetailProps {
  * the page.
  */
 export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
+  const t = useT()
+  const formatTime = useTimestamp()
+  const stableT = useStableT()
   const { token, user } = useAuth()
   const { setEntityLabel } = useApp()
   const { currentSpaceId, currentUserRole, setCurrentSpaceId } = useSpace()
@@ -63,10 +67,10 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
           setNotFound(true)
           return
         }
-        setError(getErrorMessage(err, "Failed to load the artifact"))
+        setError(getErrorMessage(err, stableT("artifacts.error.loadOne")))
       })
       .finally(() => setLoading(false))
-  }, [artifactId, token])
+  }, [artifactId, token, stableT])
 
   useEffect(() => {
     load()
@@ -93,7 +97,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
     try {
       await downloadAuthenticated(artifactContentUrl(artifact.id), token, artifact.filename)
     } catch (err) {
-      setError(getErrorMessage(err, "Download failed"))
+      setError(getErrorMessage(err, stableT("artifacts.error.download")))
     } finally {
       setBusyAction(null)
     }
@@ -101,14 +105,14 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
 
   async function onDelete() {
     if (!artifact || !token) return
-    if (!confirmArtifactDeletion(artifact)) return
+    if (!confirmArtifactDeletion(artifact, t)) return
     setBusyAction("delete")
     setError(null)
     try {
       await deleteArtifact(artifact.id, token)
       navigate({ name: "artifacts", spaceId: artifact?.space_id ?? currentSpaceId! })
     } catch (err) {
-      setError(getErrorMessage(err, "Delete failed"))
+      setError(getErrorMessage(err, stableT("artifacts.error.delete")))
       setBusyAction(null)
     }
   }
@@ -116,7 +120,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">Loading…</p>
+        <p className="page-activity__empty">{t("shell.loading")}</p>
       </div>
     )
   }
@@ -131,11 +135,9 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
       <div className="page-activity">
         <div className="page-activity__head">
           <div>
-            <h1 className="page-activity__title">Artifact</h1>
+            <h1 className="page-activity__title">{t("artifacts.detail.heading")}</h1>
             <p className="page-activity__subtitle">
-              {notFound
-                ? "No artifact with this reference is available to you. It may never have existed, may have been deleted, or may belong to a space you are not in."
-                : "This artifact could not be loaded."}
+              {notFound ? t("artifacts.detail.notFound") : t("artifacts.detail.loadFailed")}
             </p>
           </div>
         </div>
@@ -147,10 +149,10 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
         <div className="page-activity__actions">
           {!notFound ? (
             <Button variant="secondary" onClick={load}>
-              Try again
+              {t("artifacts.detail.tryAgain")}
             </Button>
           ) : null}
-          {currentSpaceId ? <ButtonLink variant="tertiary" href={buildHash({ name: "artifacts", spaceId: currentSpaceId })}>Back to artifacts</ButtonLink> : null}
+          {currentSpaceId ? <ButtonLink variant="tertiary" href={buildHash({ name: "artifacts", spaceId: currentSpaceId })}>{t("artifacts.detail.back")}</ButtonLink> : null}
         </div>
       </div>
     )
@@ -164,7 +166,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
         <div>
           <h1 className="page-activity__title">{artifactLabel(artifact)}</h1>
           <p className="page-activity__subtitle">
-            {artifact.filename} · {formatSize(artifact.size_bytes)} · {sourceLabel(artifact)}
+            {artifact.filename} · {formatSize(artifact.size_bytes)} · {sourceLabel(artifact, t)}
           </p>
         </div>
         <div className="page-activity__actions">
@@ -174,10 +176,10 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
             busy={busyAction === "download"}
             disabled={busyAction !== null}
           >
-            Download
+            {t("artifacts.download")}
           </Button>
           <Button variant="secondary" onClick={() => setShareOpen(true)}>
-            Share
+            {t("artifacts.share")}
           </Button>
           {canDelete ? (
             <Button
@@ -186,7 +188,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
               busy={busyAction === "delete"}
               disabled={busyAction !== null}
             >
-              Delete
+              {t("artifacts.delete")}
             </Button>
           ) : null}
         </div>
@@ -203,35 +205,33 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
       {artifact.preview !== "none" ? (
         <ArtifactPreview artifact={artifact} token={token} />
       ) : (
-        <p className="page-activity__empty">
-          This type is served as a download rather than displayed, so there is no preview.
-        </p>
+        <p className="page-activity__empty">{t("artifacts.detail.noPreview")}</p>
       )}
 
       <details className="artifact-details">
-        <summary className="artifact-details__summary">Details</summary>
+        <summary className="artifact-details__summary">{t("artifacts.detail.details")}</summary>
         <dl className="artifact-details__facts">
           <div>
-            <dt>Type</dt>
-            <dd>{artifact.media_type || "Unknown"}</dd>
+            <dt>{t("artifacts.detail.type")}</dt>
+            <dd>{artifact.media_type || t("artifacts.detail.unknownType")}</dd>
           </div>
           <div>
-            <dt>Size</dt>
+            <dt>{t("artifacts.detail.size")}</dt>
             <dd>{formatSize(artifact.size_bytes)}</dd>
           </div>
           <div>
-            <dt>Origin</dt>
+            <dt>{t("artifacts.detail.origin")}</dt>
             <dd>
               <ArtifactOrigin artifact={artifact} spaceId={currentSpaceId} token={token} />
             </dd>
           </div>
           <div>
-            <dt>Created</dt>
+            <dt>{t("artifacts.detail.created")}</dt>
             <dd>{formatTime(artifact.created_at)}</dd>
           </div>
           {artifact.expires_at ? (
             <div>
-              <dt>Expires</dt>
+              <dt>{t("artifacts.detail.expires")}</dt>
               <dd>{formatTime(artifact.expires_at)}</dd>
             </div>
           ) : null}
@@ -240,7 +240,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
             <dt>SHA-256</dt>
             <dd className="artifact-details__copyable">
               <code className="artifact-details__digest">{artifact.sha256}</code>
-              <CopyButton value={artifact.sha256} label="Copy" />
+              <CopyButton value={artifact.sha256} label={t("artifacts.copy")} />
             </dd>
           </div>
         </dl>

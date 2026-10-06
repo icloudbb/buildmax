@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getApp } from './lib/app';
+import { useT } from './i18n';
 
 // Where a server nobody has named listens on this machine. The Go side answers
 // with settings.yaml's server_url when there is one; this is the fallback for
@@ -19,6 +20,7 @@ const DEFAULT_SERVER_URL = 'http://localhost:5678';
  * no mail channel, so an operator issues that code by hand.
  */
 export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accountDisabled = false, knownServerURL = '' }) {
+  const t = useT();
   const [mode, setMode] = useState('password');
   const [serverURL, setServerURL] = useState(knownServerURL || DEFAULT_SERVER_URL);
   const [email, setEmail] = useState('');
@@ -73,18 +75,14 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
         <h1 className="login-page__title">BuildMax</h1>
         {expiredDetail ? (
           <p className="login-page__error" role="alert">
-            {accountDisabled
-              ? 'An administrator of this server disabled your account, so this app cannot use its models. Ask them to re-enable it, or return to using this machine on its own.'
-              : 'Your session has ended, so this app cannot reach its models. Sign in again, or return to using this machine on its own.'}
+            {accountDisabled ? t('login.accountDisabled') : t('login.sessionEnded')}
           </p>
         ) : null}
         <p className="login-page__subtitle">
-          {mode === 'password'
-            ? 'Sign in to a BuildMax server to use the models it offers'
-            : 'Sign in with a login code from your administrator'}
+          {mode === 'password' ? t('login.subtitle.password') : t('login.subtitle.code')}
         </p>
         <form onSubmit={handleSubmit} className="login-page__form">
-          <label className="login-page__label" htmlFor="login-server">Server URL</label>
+          <label className="login-page__label" htmlFor="login-server">{t('login.serverURL')}</label>
           <input
             id="login-server"
             type="text"
@@ -96,11 +94,10 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
             disabled={loading}
           />
           <p className="login-page__field-hint">
-            The API address. Behind an ingress it is the origin the Portal is on,
-            not the server's own port.
+            {t('login.serverHint')}
           </p>
 
-          <label className="login-page__label" htmlFor="login-email">Email</label>
+          <label className="login-page__label" htmlFor="login-email">{t('login.email')}</label>
           <input
             id="login-email"
             type="email"
@@ -114,7 +111,7 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
 
           {mode === 'password' ? (
             <>
-              <label className="login-page__label" htmlFor="login-password">Password</label>
+              <label className="login-page__label" htmlFor="login-password">{t('login.password')}</label>
               <input
                 id="login-password"
                 type="password"
@@ -128,7 +125,7 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
             </>
           ) : (
             <>
-              <label className="login-page__label" htmlFor="login-otp">Login code</label>
+              <label className="login-page__label" htmlFor="login-otp">{t('login.code')}</label>
               <input
                 id="login-otp"
                 type="text"
@@ -149,7 +146,7 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
             className="login-page__submit"
             disabled={loading || !serverURL.trim() || !email.trim() || !credential}
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? t('login.signingIn') : t('login.signIn')}
           </button>
           <button
             type="button"
@@ -157,25 +154,21 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
             onClick={switchMode}
             disabled={loading}
           >
-            {mode === 'password'
-              ? 'Forgot your password, or have a login code?'
-              : 'Sign in with a password'}
+            {mode === 'password' ? t('login.toCode') : t('login.toPassword')}
           </button>
         </form>
-        <div className="login-page__divider"><span>or</span></div>
+        <div className="login-page__divider"><span>{t('login.or')}</span></div>
         <button
           type="button"
           className="login-page__local"
           onClick={onCancel}
           disabled={loading}
         >
-          {expiredDetail ? 'Sign out and use this machine on its own' : 'Keep using this machine on its own'}
+          {expiredDetail ? t('login.signOutLocal') : t('login.keepLocal')}
         </button>
         <p className="login-page__local-hint">
-          The agent runs here, with the models in your settings.yaml.
-          {expiredDetail
-            ? ' Signing out removes the ended session; nothing local is discarded.'
-            : ' Nothing is lost by staying — you can sign in whenever you want.'}
+          {t('login.localHint')}
+          {expiredDetail ? t('login.localHint.expired') : t('login.localHint.stay')}
         </p>
       </div>
     </div>

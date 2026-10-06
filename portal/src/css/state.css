@@ -8,24 +8,24 @@
   gap: 0.4rem;
   padding: 0.85rem 1rem;
   border-radius: 8px;
-  border: 1px solid var(--color-danger, #c53030);
-  background: color-mix(in srgb, var(--color-danger, #c53030) 6%, transparent);
+  border: 1px solid var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 6%, transparent);
 }
 
 .state-alert--stale {
-  border-color: var(--color-warning, #b7791f);
-  background: color-mix(in srgb, var(--color-warning, #b7791f) 6%, transparent);
+  border-color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 6%, transparent);
 }
 
 .state-alert__title {
   margin: 0;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--color-danger, #c53030);
+  color: var(--color-danger);
 }
 
 .state-alert--stale .state-alert__title {
-  color: var(--color-warning, #b7791f);
+  color: var(--color-warning);
 }
 
 .state-alert__message {

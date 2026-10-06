@@ -1,5 +1,6 @@
 import { cn } from "../../../lib/cn"
 import type { ExploreNode } from "../../../lib/types"
+import { useT } from "../../../i18n"
 
 interface FileListProps {
   folderName: string
@@ -25,15 +26,14 @@ export function FileList({
   onSelectFolder,
   onSelectFile,
 }: FileListProps) {
+  const t = useT()
   return (
     <div className="page-explore__file-list-wrap">
       <h2 className="page-explore__content-heading">{folderName}</h2>
       <ul className="page-explore__list" role="list">
         {children.length === 0 && (treeLoading || treeError) ? null : children.length === 0 ? (
           <li className="page-explore__empty">
-            {isRoot
-              ? "Nothing uploaded yet. Upload files or a folder above, or have an agent write here during a run."
-              : "(empty)"}
+            {isRoot ? t("files.emptyRoot") : t("files.emptyFolder")}
           </li>
         ) : (
           children.map((node) => (

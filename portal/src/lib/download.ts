@@ -10,6 +10,8 @@
 
 import { apiFetch, parseErrorResponse } from "./api/client"
 import { authHeaders } from "./api/common"
+import { detectLocale } from "@buildmax/gui"
+import { translate } from "../i18n"
 
 /** Filename the server asked for, or null when it did not ask. */
 function filenameFromResponse(res: Response): string | null {
@@ -34,7 +36,7 @@ export async function downloadAuthenticated(
 ): Promise<void> {
   const res = await apiFetch(url, { headers: authHeaders(token) })
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "Download failed"))
+    throw new Error(await parseErrorResponse(res, translate(detectLocale(), "common.downloadFailed")))
   }
   const blob = await res.blob()
   const objectUrl = URL.createObjectURL(blob)

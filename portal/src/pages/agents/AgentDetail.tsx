@@ -33,6 +33,8 @@ import { useApp } from "../../contexts/AppContext"
 import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { isAllowed } from "../../state/permissionState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
+import { useStableT, useT } from "../../i18n"
+import { useRelativeTime } from "../../lib/dateFormat"
 
 interface AgentDetailProps {
   token: string | null
@@ -45,6 +47,9 @@ type Tab = "overview" | "config" | "runs" | "schedules" | "revisions"
 export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   const { currentUserRole, currentSpaceMembers } = useSpace()
   const { setEntityLabel } = useApp()
+  const t = useT()
+  const relativeTime = useRelativeTime()
+  const stableT = useStableT()
   const canManage = isAllowed(useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin"))
   // Schedules are member-tier (manage_schedules), unlike agent config which is
   // owner/admin, so any member of the space may create and pause them.
@@ -104,11 +109,11 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
         setUnavailable("error")
       }
       setAgent(null)
-      setError(getErrorMessage(err, "Failed to load agent"))
+      setError(getErrorMessage(err, stableT("agents.error.loadOne")))
     } finally {
       setLoading(false)
     }
-  }, [token, spaceId, agentId])
+  }, [token, spaceId, agentId, stableT])
 
   useEffect(() => {
     void load()
@@ -156,9 +161,9 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
       .then((res) => setRevisionsData(res.revisions.map(apiAgentRevisionToAgentRevision)))
       // revisionsData from a prior successful fetch (if any) is left in place,
       // so a failed refresh reads as Stale rather than wiping history.
-      .catch((err) => setRevisionsListError(classifyError(err, "Failed to load history")))
+      .catch((err) => setRevisionsListError(classifyError(err, stableT("agents.error.loadHistory"))))
       .finally(() => setRevisionsLoading(false))
-  }, [token, spaceId, agentId])
+  }, [token, spaceId, agentId, stableT])
 
   // Resolve the opaque author id to a member's name; fall back to the id only
   // when the member is not in the loaded list.
@@ -175,7 +180,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
         id: rev.id,
         revision: rev.revision,
         createdBy: memberName(rev.createdBy),
-        createdLabel: rev.createdLabel,
+        createdAt: rev.createdAt,
         summary: rev.instructions,
       })) ?? null,
     [revisionsData, memberName]
@@ -200,7 +205,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
         setAgent(apiAgentToAgent(updated))
         loadRevisions()
       })
-      .catch((err) => setSaveError(getErrorMessage(err, "Failed to update agent")))
+      .catch((err) => setSaveError(getErrorMessage(err, t("agents.error.update"))))
       .finally(() => setSaving(false))
   }
 
@@ -211,7 +216,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
     deleteAgent(spaceId, agent.id, token)
       .then(() => navigate({ name: "agents", spaceId }))
       .catch((err) => {
-        setSaveError(getErrorMessage(err, "Failed to delete agent"))
+        setSaveError(getErrorMessage(err, t("agents.error.delete")))
         setDeleting(false)
       })
   }
@@ -225,7 +230,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
         setAgent(apiAgentToAgent(restored))
         loadRevisions()
       })
-      .catch((err) => setRestoreRevisionError({ revision, message: getErrorMessage(err, "Failed to restore revision") }))
+      .catch((err) => setRestoreRevisionError({ revision, message: getErrorMessage(err, t("agents.error.restore")) }))
       .finally(() => setRestoringRevision(null))
   }
 
@@ -238,46 +243,46 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
         setRunOpen(false)
         navigate({ name: "task", spaceId, taskId: created.id })
       })
-      .catch((err) => setRunError(getErrorMessage(err, "Failed to run agent")))
+      .catch((err) => setRunError(getErrorMessage(err, t("agents.error.run"))))
       .finally(() => setStarting(false))
   }
 
   const stats = useMemo(() => {
-    const finished = tasks.filter((t) => taskRunFinished(t.status))
-    const failed = finished.filter((t) => taskRunFailed(t.status)).length
+    const finished = tasks.filter((task) => taskRunFinished(task.status))
+    const failed = finished.filter((task) => taskRunFailed(task.status)).length
     const succeeded = finished.length - failed
-    const running = tasks.some((t) => !taskRunFinished(t.status))
+    const running = tasks.some((task) => !taskRunFinished(task.status))
     const successRate = finished.length > 0 ? `${Math.round((succeeded / finished.length) * 100)}%` : "—"
-    return { total: tasks.length, successRate, running, lastRun: tasks[0] ? apiTaskToTask(tasks[0]).timeLabel : "—" }
+    return { total: tasks.length, successRate, running, lastRunAt: tasks[0] ? apiTaskToTask(tasks[0]).timeAt : null }
   }, [tasks])
 
   const secretWarnings = agent ? consumptionHealthCount(agent.secretConsumption, secrets) : 0
 
   function renderRunsTable(rows: ApiTask[]) {
-    if (rows.length === 0) return <p className="page-activity__empty">No executions yet.</p>
+    if (rows.length === 0) return <p className="page-activity__empty">{t("agents.runs.empty")}</p>
     return (
       <table className="agent-runs">
         <thead>
           <tr>
-            <th>Task</th>
-            <th>Status</th>
-            <th>When</th>
+            <th>{t("agents.runs.task")}</th>
+            <th>{t("agents.runs.status")}</th>
+            <th>{t("agents.runs.when")}</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((t) => {
-            const ui = apiTaskToTask(t)
-            const tone = runStatusTone(t.status)
+          {rows.map((task) => {
+            const ui = apiTaskToTask(task)
+            const tone = runStatusTone(task.status)
             return (
-              <tr key={t.id} onClick={() => navigate({ name: "task", spaceId, taskId: t.id })} tabIndex={0}
+              <tr key={task.id} onClick={() => navigate({ name: "task", spaceId, taskId: task.id })} tabIndex={0}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") navigate({ name: "task", spaceId, taskId: t.id })
+                  if (e.key === "Enter") navigate({ name: "task", spaceId, taskId: task.id })
                 }}>
                 <td className="agent-runs__title">{ui.title}</td>
                 <td>
-                  <span className={`agent-runs__status agent-runs__status--${tone}`}>{taskStatusLabel(t)}</span>
+                  <span className={`agent-runs__status agent-runs__status--${tone}`}>{taskStatusLabel(task, t)}</span>
                 </td>
-                <td className="agent-runs__when">{ui.timeLabel}</td>
+                <td className="agent-runs__when">{relativeTime(ui.timeAt)}</td>
               </tr>
             )
           })}
@@ -289,7 +294,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">Loading…</p>
+        <p className="page-activity__empty">{t("shell.loading")}</p>
       </div>
     )
   }
@@ -297,11 +302,11 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   if (unavailable) {
     return (
       <ResourceUnavailable
-        resourceLabel="Agent"
+        resourceLabel={t("agents.resource")}
         kind={unavailable}
         errorMessage={error}
         onRetry={() => void load()}
-        backLabel="Back to Agents"
+        backLabel={t("agents.backToAgents")}
         onBack={() => navigate({ name: "agents", spaceId })}
       />
     )
@@ -314,15 +319,15 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           <AgentAvatar size="md" className="agent-detail__avatar" />
           <div>
             <h1 className="page-activity__title">
-              {agent?.name ?? "Agent"}
-              {stats.running ? <span className="agent-detail__running">Running</span> : null}
+              {agent?.name ?? t("agents.resource")}
+              {stats.running ? <span className="agent-detail__running">{t("agents.runningBadge")}</span> : null}
             </h1>
             {agent?.description ? <p className="agent-detail__desc">{agent.description}</p> : null}
           </div>
         </div>
         <div className="page-activity__actions">
           <ButtonLink variant="tertiary" href={buildHash({ name: "agents", spaceId })}>
-            Back to Agents
+            {t("agents.backToAgents")}
           </ButtonLink>
           {tab !== "config" || !canManage ? (
             <Button
@@ -333,7 +338,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
                 setRunOpen(true)
               }}
             >
-              Run agent
+              {t("agents.runAgent")}
             </Button>
           ) : null}
         </div>
@@ -343,15 +348,15 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
         <>
           <DetailTabs<Tab>
             tabs={[
-              { id: "overview", label: "Overview" },
-              { id: "config", label: "Configuration" },
-              { id: "runs", label: "Runs", count: tasks.length },
-              { id: "schedules", label: "Schedules" },
-              { id: "revisions", label: "Revisions", count: agent.revision },
+              { id: "overview", label: t("agents.tab.overview") },
+              { id: "config", label: t("agents.tab.config") },
+              { id: "runs", label: t("agents.tab.runs"), count: tasks.length },
+              { id: "schedules", label: t("agents.tab.schedules") },
+              { id: "revisions", label: t("agents.tab.revisions"), count: agent.revision },
             ]}
             active={tab}
             onChange={setTab}
-            label="Agent sections"
+            label={t("agents.detail.sections")}
             idPrefix="agent"
           />
 
@@ -360,34 +365,34 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
               {secretWarnings > 0 ? (
                 <div className="agent-detail__banner" role="alert">
                   <span>
-                    ⚠ {secretWarnings} secret grant{secretWarnings === 1 ? "" : "s"} no longer resolve.
+                    ⚠ {t("agents.detail.secretWarning", { count: secretWarnings })}
                   </span>
                   {canManage ? (
                     <Button variant="secondary" onClick={() => setTab("config")}>
-                      Fix in config
+                      {t("agents.detail.fixInConfig")}
                     </Button>
                   ) : null}
                 </div>
               ) : null}
               <div className="agent-detail__stats">
                 <div className="agent-detail__stat">
-                  <span className="agent-detail__stat-label">Total runs</span>
+                  <span className="agent-detail__stat-label">{t("agents.detail.totalRuns")}</span>
                   <span className="agent-detail__stat-value">{stats.total}</span>
                 </div>
                 <div className="agent-detail__stat">
-                  <span className="agent-detail__stat-label">Success rate</span>
+                  <span className="agent-detail__stat-label">{t("agents.detail.successRate")}</span>
                   <span className="agent-detail__stat-value">{stats.successRate}</span>
                 </div>
                 <div className="agent-detail__stat">
-                  <span className="agent-detail__stat-label">Last run</span>
-                  <span className="agent-detail__stat-value agent-detail__stat-value--sm">{stats.lastRun}</span>
+                  <span className="agent-detail__stat-label">{t("agents.detail.lastRun")}</span>
+                  <span className="agent-detail__stat-value agent-detail__stat-value--sm">{stats.lastRunAt ? relativeTime(stats.lastRunAt) : "—"}</span>
                 </div>
               </div>
               <div className="agent-detail__section-head">
-                <h2 className="issues-page__section-title">Recent runs</h2>
+                <h2 className="issues-page__section-title">{t("agents.detail.recentRuns")}</h2>
                 {tasks.length > 3 ? (
                   <Button variant="tertiary" onClick={() => setTab("runs")}>
-                    View all
+                    {t("agents.detail.viewAll")}
                   </Button>
                 ) : null}
               </div>
@@ -414,7 +419,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
 
           {tab === "runs" ? (
             <section className="detail-tabs__panel" role="tabpanel" id="agent-panel-runs" aria-labelledby="agent-tab-runs">
-              <p className="page-activity__subtitle">Each run is a durable Task thread. Select one to open it.</p>
+              <p className="page-activity__subtitle">{t("agents.detail.runsHint")}</p>
               {renderRunsTable(tasks)}
             </section>
           ) : null}
@@ -430,7 +435,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           {tab === "revisions" ? (
             <section className="detail-tabs__panel" role="tabpanel" id="agent-panel-revisions" aria-labelledby="agent-tab-revisions">
               <RevisionHistory
-                title="Configuration history"
+                title={t("agents.detail.configHistory")}
                 state={revisionsState}
                 onRetry={loadRevisions}
                 currentRevision={agent.revision}

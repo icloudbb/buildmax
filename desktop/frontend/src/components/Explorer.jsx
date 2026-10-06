@@ -2,10 +2,11 @@ import { ExplorerTree } from './ExplorerTree';
 import { ExplorerChanges } from './ExplorerChanges';
 import { SidebarSectionHeader } from './SidebarSection';
 import { FilesIcon, SourceControlIcon } from './icons';
+import { useT } from '../i18n';
 
 const MODES = [
-  { id: 'files', label: 'Files', Icon: FilesIcon },
-  { id: 'changes', label: 'Changes', Icon: SourceControlIcon },
+  { id: 'files', label: 'explorer.files', Icon: FilesIcon },
+  { id: 'changes', label: 'explorer.changes', Icon: SourceControlIcon },
 ];
 
 // Explorer is the active project's own sidebar section (see
@@ -17,22 +18,23 @@ export function Explorer({
   projectID, projectName, sessionID, app, mode, onModeChange, open, onToggle, style, onOpenFile, onOpenDiff,
   onOpenCommitDiff,
 }) {
+  const t = useT();
   return (
     <section
       className={`explorer${open ? '' : ' explorer--closed'}`}
-      aria-label={`${projectName} workspace`}
+      aria-label={t('explorer.workspace', { name: projectName })}
       style={style}
     >
       <SidebarSectionHeader label={projectName} open={open} onToggle={onToggle}>
-        <div className="explorer__modes" role="group" aria-label="Workspace view">
+        <div className="explorer__modes" role="group" aria-label={t('explorer.view')}>
           {MODES.map(({ id, label, Icon }) => (
             <button
               key={id}
               type="button"
               className="sidebar__icon-btn explorer__mode-btn"
               aria-pressed={mode === id}
-              aria-label={label}
-              title={label}
+              aria-label={t(label)}
+              title={t(label)}
               onClick={() => onModeChange(id)}
             >
               <Icon />

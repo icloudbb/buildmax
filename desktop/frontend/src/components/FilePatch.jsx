@@ -1,7 +1,14 @@
 import { useTheme } from '@buildmax/gui';
 import { useEffect, useState } from 'react';
-import { displayDiffPath, highlightDiffRows, parsePatchLines, statusGlyph, statusTitle } from '../lib/format';
+import { displayDiffPath, highlightDiffRows, parsePatchLines, statusGlyph } from '../lib/format';
 import { highlightToLines } from '../lib/highlight';
+import { useT } from '../i18n';
+
+const STATUS_KEY = {
+  added: 'files.status.added',
+  deleted: 'files.status.deleted',
+  renamed: 'files.status.renamed',
+};
 
 // FilePatch renders one changed file's patch: a header and the syntax-highlighted
 // diff rows. It is the shared content of both the Explorer's diff tab and the
@@ -9,6 +16,7 @@ import { highlightToLines } from '../lib/highlight';
 // per-hunk and swaps in once ready; the parsed patch renders immediately.
 export function FilePatch({ file }) {
   const { theme } = useTheme();
+  const t = useT();
   const [highlightedRows, setHighlightedRows] = useState(null);
 
   useEffect(() => {
@@ -21,7 +29,7 @@ export function FilePatch({ file }) {
     return () => { cancelled = true; };
   }, [file, theme]);
 
-  if (!file) return <p className="diff-drawer__empty">Select a changed file.</p>;
+  if (!file) return <p className="diff-drawer__empty">{t('files.selectChanged')}</p>;
 
   return (
     <>
@@ -30,10 +38,10 @@ export function FilePatch({ file }) {
           {statusGlyph(file.status)}
         </span>
         <span className="diff-drawer__viewer-path">{displayDiffPath(file)}</span>
-        <span className="diff-drawer__viewer-kind">{statusTitle(file.status)}</span>
+        <span className="diff-drawer__viewer-kind">{t(STATUS_KEY[file.status] ?? 'files.status.modified')}</span>
       </div>
       {file.binary ? (
-        <p className="diff-drawer__empty">Binary file changed.</p>
+        <p className="diff-drawer__empty">{t('files.binaryChanged')}</p>
       ) : file.patch ? (
         <div className="diff-code" role="table">
           {(highlightedRows ?? parsePatchLines(file.patch)).map((row, idx) => (
@@ -42,7 +50,7 @@ export function FilePatch({ file }) {
               <span className="diff-code__line" role="cell">{row.newLine}</span>
               <code className="diff-code__text" role="cell">
                 {row.tokens
-                  ? row.tokens.map((t, i) => <span key={i} style={{ color: t.color }}>{t.content}</span>)
+                  ? row.tokens.map((tok, i) => <span key={i} style={{ color: tok.color }}>{tok.content}</span>)
                   // Line-content kinds carry a leading +/-/space diff marker that
                   // highlighted tokens never include; strip it here too so the
                   // text does not shift once tokens arrive.
@@ -50,10 +58,10 @@ export function FilePatch({ file }) {
               </code>
             </div>
           ))}
-          {file.truncated && <div className="diff-code__truncated">Diff truncated.</div>}
+          {file.truncated && <div className="diff-code__truncated">{t('files.diffTruncated')}</div>}
         </div>
       ) : (
-        <p className="diff-drawer__empty">No text diff available.</p>
+        <p className="diff-drawer__empty">{t('files.noTextDiff')}</p>
       )}
     </>
   );

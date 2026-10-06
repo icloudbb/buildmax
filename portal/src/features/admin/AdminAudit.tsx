@@ -1,8 +1,10 @@
 import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
+import { useStableT, useT } from "../../i18n"
 import type { ApiAuditEvent } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { actorLabel, describeEvent, formatEventTime } from "../audit/describe"
+import { actorLabel, describeEvent } from "../audit/describe"
+import { useTimestamp } from "../../lib/dateFormat"
 import { exportAdminAuditEvents, searchAdminAuditEvents } from "./api"
 
 const PAGE_SIZE = 50
@@ -23,6 +25,9 @@ interface AuditFilters {
  * absence of one: an empty space filter already means "any space".
  */
 export function AdminAudit({ token, currentUserId }: { token: string | null; currentUserId?: string }) {
+  const t = useT()
+  const formatEventTime = useTimestamp()
+  const stableT = useStableT()
   const [events, setEvents] = useState<ApiAuditEvent[]>([])
   const [total, setTotal] = useState(0)
   const [filters, setFilters] = useState<AuditFilters>({ spaceId: "", actorId: "", action: "" })
@@ -46,10 +51,10 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
           setEvents((prev) => (offset === 0 ? res.events : [...prev, ...res.events]))
           setTotal(res.total)
         })
-        .catch((err) => setError(getErrorMessage(err, "Failed to load the audit trail")))
+        .catch((err) => setError(getErrorMessage(err, stableT("admin.audit.loadError"))))
         .finally(() => setLoading(false))
     },
-    [token],
+    [token, stableT],
   )
 
   useEffect(() => {
@@ -73,7 +78,7 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
       actor_id: filters.actorId || undefined,
       action: filters.action || undefined,
     })
-      .catch((err) => setError(getErrorMessage(err, "Failed to export the audit trail")))
+      .catch((err) => setError(getErrorMessage(err, stableT("admin.audit.exportError"))))
       .finally(() => setExporting(false))
   }
 
@@ -82,11 +87,8 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Audit trail</h2>
-            <p className="settings-page__section-copy">
-              Who did what to which object, across every space. It carries no prompts, no
-              generated content, and no credentials.
-            </p>
+            <h2 className="settings-page__section-title">{t("admin.audit.title")}</h2>
+            <p className="settings-page__section-copy">{t("admin.audit.copy")}</p>
           </div>
         </div>
 
@@ -100,39 +102,39 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
           <input
             className="admin-input"
             value={filters.spaceId}
-            placeholder="Space id"
-            aria-label="Filter by space id"
+            placeholder={t("admin.audit.spacePlaceholder")}
+            aria-label={t("admin.audit.spaceLabel")}
             onChange={(e) => setFilters({ ...filters, spaceId: e.target.value })}
           />
           <input
             className="admin-input"
             value={filters.actorId}
-            placeholder="Actor id"
-            aria-label="Filter by actor id"
+            placeholder={t("admin.audit.actorPlaceholder")}
+            aria-label={t("admin.audit.actorLabel")}
             onChange={(e) => setFilters({ ...filters, actorId: e.target.value })}
           />
           <input
             className="admin-input"
             value={filters.action}
-            placeholder="Action, e.g. user.login"
-            aria-label="Filter by action"
+            placeholder={t("admin.audit.actionPlaceholder")}
+            aria-label={t("admin.audit.actionLabel")}
             onChange={(e) => setFilters({ ...filters, action: e.target.value })}
           />
           <Button type="submit" variant="primary" disabled={loading}>
-            Search
+            {t("admin.search")}
           </Button>
           <Button
             variant="secondary"
             onClick={() => apply({ spaceId: "none", actorId: filters.actorId, action: filters.action })}
-            title="Logins, grants, and account actions — the events no space-scoped reader can see"
+            title={t("admin.audit.deploymentOnlyTitle")}
           >
-            Deployment only
+            {t("admin.audit.deploymentOnly")}
           </Button>
           <Button
             variant="tertiary"
             onClick={() => apply({ spaceId: "", actorId: "", action: "" })}
           >
-            Clear
+            {t("admin.clear")}
           </Button>
           {/* Exports are recorded in the trail, against the administrator who
               took them — and, when narrowed to one space, in that space's own
@@ -141,16 +143,16 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
             variant="secondary"
             onClick={() => exportTrail("csv")}
             busy={exporting}
-            title="Download every event matching these filters"
+            title={t("admin.audit.exportTitle")}
           >
-            Export CSV
+            {t("admin.audit.exportCsv")}
           </Button>
           <Button
             variant="secondary"
             onClick={() => exportTrail("jsonl")}
             disabled={exporting}
           >
-            Export JSONL
+            {t("admin.audit.exportJsonl")}
           </Button>
         </form>
 
@@ -161,25 +163,25 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
         ) : null}
 
         {events.length === 0 && !loading ? (
-          <p className="admin-empty">No events match.</p>
+          <p className="admin-empty">{t("admin.audit.noEvents")}</p>
         ) : (
           <ul className="audit-list">
             {events.map((event) => {
-              const described = describeEvent(event)
+              const described = describeEvent(event, t)
               return (
                 <li
                   key={event.id}
                   className={described.denied ? "audit-row audit-row--denied" : "audit-row"}
                 >
                   <div className="audit-row__main">
-                    <span className="audit-row__actor">{actorLabel(event, currentUserId)}</span>
+                    <span className="audit-row__actor">{actorLabel(event, t, currentUserId)}</span>
                     <span className="audit-row__summary">{described.summary}</span>
                   </div>
                   <div className="audit-row__meta">
                     {event.space_id ? (
                       <span className="audit-row__target">{event.space_id}</span>
                     ) : (
-                      <span className="admin-pill">deployment</span>
+                      <span className="admin-pill">{t("admin.audit.deployment")}</span>
                     )}
                     {described.target ? (
                       <span className="audit-row__target">{described.target}</span>
@@ -198,7 +200,7 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
             disabled={loading}
             onClick={() => load(filters, events.length)}
           >
-            Load more ({events.length} of {total})
+            {t("admin.loadMore", { shown: events.length, total })}
           </Button>
         ) : null}
       </section>

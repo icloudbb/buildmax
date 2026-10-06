@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, useLocale } from "@buildmax/gui"
 import type { ApiAssistant, ApiAssistantDefinition, ApiAssistantStatement, ApiSpaceMember } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { intlLocale } from "../../lib/dateFormat"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 import { buildHash, navigate } from "../../router"
 import { useApp } from "../../contexts/AppContext"
 import { Alert } from "../../components/state/Alert"
@@ -43,6 +45,9 @@ export function AssistantDetail({
   currentUserId?: string
   canManage: boolean
 }) {
+  const t = useT()
+  const stableT = useStableT()
+  const { locale } = useLocale()
   const { setEntityLabel } = useApp()
   const [assistant, setAssistant] = useState<ApiAssistant | null>(null)
   const [loadError, setLoadError] = useState<RequestError | null>(null)
@@ -59,9 +64,9 @@ export function AssistantDetail({
     try {
       setAssistant(await getAssistant(spaceId, assistantId, token))
     } catch (err) {
-      setLoadError(classifyError(err, "Failed to load the assistant"))
+      setLoadError(classifyError(err, stableT("assistants.error.load")))
     }
-  }, [token, spaceId, assistantId])
+  }, [token, spaceId, assistantId, stableT])
 
   useEffect(() => {
     void load()
@@ -75,8 +80,8 @@ export function AssistantDetail({
   const initialDraft = useMemo(() => (assistant ? draftFromAssistant(assistant) : null), [assistant])
 
   const nameOf = (userId?: string) => {
-    if (!userId) return "nobody"
-    if (userId === currentUserId) return "you"
+    if (!userId) return t("assistants.nobody")
+    if (userId === currentUserId) return t("assistants.you")
     const member = members.find((m) => m.user_id === userId)
     return member?.user_name || member?.user_email || userId
   }
@@ -87,6 +92,7 @@ export function AssistantDetail({
    */
   async function attempt(
     what: string,
+    failure: MessageKey,
     run: (digest?: string) => Promise<ApiAssistant>,
     confirmLabel: string,
     onError: (message: string) => void
@@ -100,7 +106,7 @@ export function AssistantDetail({
         setConfirmError(null)
         setPending({ statement: err.statement, confirmLabel, notice: null, run: (digest) => run(digest) })
       } else {
-        onError(getErrorMessage(err, `Failed to ${what}`))
+        onError(getErrorMessage(err, t(failure)))
       }
     } finally {
       setBusy(null)
@@ -120,10 +126,10 @@ export function AssistantDetail({
         setPending({
           ...pending,
           statement: err.statement,
-          notice: "What this assistant discloses changed since this statement was shown. Review it again.",
+          notice: t("assistants.detail.statementChanged"),
         })
       } else {
-        setConfirmError(getErrorMessage(err, "Failed to publish"))
+        setConfirmError(getErrorMessage(err, t("assistants.error.publish")))
       }
     } finally {
       setBusy(null)
@@ -135,24 +141,24 @@ export function AssistantDetail({
       <section className="sec asst" aria-labelledby="assistant-title">
         <BackLink spaceId={spaceId} />
         <h2 className="sec__title" id="assistant-title">
-          Assistant
+          {t("assistants.assistant")}
         </h2>
-        <Alert tone={loadError.kind} message={loadError.message} retry={{ label: "Retry", onClick: () => void load() }} />
+        <Alert tone={loadError.kind} message={loadError.message} retry={{ label: t("shell.retry"), onClick: () => void load() }} />
       </section>
     )
   }
   if (!assistant || !initialDraft) {
     return (
-      <section className="sec asst" aria-label="Assistant">
+      <section className="sec asst" aria-label={t("assistants.assistant")}>
         <BackLink spaceId={spaceId} />
-        <p className="page-activity__empty">Loading assistant...</p>
+        <p className="page-activity__empty">{t("assistants.loading")}</p>
       </section>
     )
   }
 
   const a = assistant
-  const availability = describeAvailability(a.availability)
-  const t = token ?? ""
+  const availability = describeAvailability(a.availability, t)
+  const authToken = token ?? ""
   const isSponsor = a.sponsor_user_id === currentUserId
 
   const publish = () => {
@@ -161,32 +167,34 @@ export function AssistantDetail({
     setConfirmError(null)
     setPending({
       statement: a.statement,
-      confirmLabel: "Publish",
+      confirmLabel: t("assistants.detail.publish"),
       notice: null,
-      run: (digest) => setAssistantState(spaceId, a.id, "active", t, digest),
+      run: (digest) => setAssistantState(spaceId, a.id, "active", authToken, digest),
     })
   }
 
   const save = (definition: ApiAssistantDefinition) =>
     void attempt(
       "save",
-      (digest) => updateAssistant(spaceId, a.id, { definition, ...(digest ? { confirm_statement: digest } : {}) }, t),
-      "Save and keep published",
+      "assistants.error.save",
+      (digest) =>
+        updateAssistant(spaceId, a.id, { definition, ...(digest ? { confirm_statement: digest } : {}) }, authToken),
+      t("assistants.detail.saveKeepPublished"),
       (m) => setSaveError(m || null)
     )
 
-  const act = (what: string, run: () => Promise<ApiAssistant>) =>
-    void attempt(what, run, "Confirm", (m) => setActionError(m || null))
+  const act = (what: string, failure: MessageKey, run: () => Promise<ApiAssistant>) =>
+    void attempt(what, failure, run, t("assistants.detail.confirm"), (m) => setActionError(m || null))
 
   async function remove() {
-    if (!window.confirm(`Delete the assistant "${a.name}"? Its bot stops answering. Its service account stays.`)) return
+    if (!window.confirm(t("assistants.detail.deleteConfirm", { name: a.name }))) return
     setBusy("delete")
     setActionError(null)
     try {
-      await deleteAssistant(spaceId, a.id, t)
+      await deleteAssistant(spaceId, a.id, authToken)
       navigate({ name: "space", spaceId, section: "assistants" })
     } catch (err) {
-      setActionError(getErrorMessage(err, "Failed to delete the assistant"))
+      setActionError(getErrorMessage(err, t("assistants.error.delete")))
       setBusy(null)
     }
   }
@@ -200,7 +208,11 @@ export function AssistantDetail({
             {a.name}
           </h2>
           <p className="sec__copy">
-            Revision {a.revision} · {describeAudience(a.audience)} can ask · Sponsored by {nameOf(a.sponsor_user_id)}
+            {t("assistants.detail.summary", {
+              revision: a.revision,
+              audience: describeAudience(a.audience, t),
+              sponsor: nameOf(a.sponsor_user_id),
+            })}
           </p>
         </div>
         <AvailabilityBadge availability={a.availability} />
@@ -210,28 +222,35 @@ export function AssistantDetail({
       </p>
 
       {canManage ? (
-        <div className="sec-card__actions" role="group" aria-label="Assistant actions">
+        <div className="sec-card__actions" role="group" aria-label={t("assistants.detail.actions")}>
           {a.state === "active" ? (
-            <Button busy={busy === "pause"} onClick={() => act("pause", () => setAssistantState(spaceId, a.id, "paused", t))}>
-              Pause
+            <Button
+              busy={busy === "pause"}
+              onClick={() =>
+                act("pause", "assistants.error.pause", () => setAssistantState(spaceId, a.id, "paused", authToken))
+              }
+            >
+              {t("assistants.detail.pause")}
             </Button>
           ) : (
             <Button variant="primary" disabled={busy !== null} onClick={publish}>
-              Publish
+              {t("assistants.detail.publish")}
             </Button>
           )}
           {!isSponsor || a.availability === "needs_sponsor" ? (
             <Button
               busy={busy === "take sponsorship"}
               onClick={() =>
-                act("take sponsorship", () => updateAssistant(spaceId, a.id, { sponsor_user_id: currentUserId }, t))
+                act("take sponsorship", "assistants.error.takeSponsorship", () =>
+                  updateAssistant(spaceId, a.id, { sponsor_user_id: currentUserId }, authToken)
+                )
               }
             >
-              Take sponsorship
+              {t("assistants.detail.takeSponsorship")}
             </Button>
           ) : null}
           <Button variant="danger" className="sec-card__destroy" busy={busy === "delete"} onClick={() => void remove()}>
-            Delete
+            {t("assistants.detail.delete")}
           </Button>
         </div>
       ) : null}
@@ -243,26 +262,33 @@ export function AssistantDetail({
 
       <section className="sec-card" aria-labelledby="assistant-statement-heading">
         <h3 className="sec-form__title" id="assistant-statement-heading">
-          What publishing discloses
+          {t("assistants.detail.discloses")}
         </h3>
         <StatementSummary statement={a.statement} />
       </section>
 
       <section className="sec-card" aria-labelledby="assistant-bot-heading">
         <h3 className="sec-form__title" id="assistant-bot-heading">
-          Chat bot
+          {t("assistants.detail.chatBot")}
         </h3>
         {a.binding ? (
           <>
             <p className="sec__copy">
-              {a.binding.bot_handle} on {platformName(a.binding.platform)}, bound{" "}
-              {new Date(a.binding.created_at).toLocaleDateString()}. Whoever holds its token can also read its messages
-              through {platformName(a.binding.platform)}.
+              {t("assistants.detail.bound", {
+                handle: a.binding.bot_handle,
+                platform: platformName(a.binding.platform),
+                date: new Date(a.binding.created_at).toLocaleDateString(intlLocale(locale)),
+              })}
             </p>
             {canManage ? (
               <div className="sec-card__actions">
-                <Button busy={busy === "unbind"} onClick={() => act("unbind", () => unbindAssistant(spaceId, a.id, t))}>
-                  Unbind bot
+                <Button
+                  busy={busy === "unbind"}
+                  onClick={() =>
+                    act("unbind", "assistants.error.unbind", () => unbindAssistant(spaceId, a.id, authToken))
+                  }
+                >
+                  {t("assistants.detail.unbind")}
                 </Button>
               </div>
             ) : null}
@@ -273,19 +299,16 @@ export function AssistantDetail({
             onSubmit={(e) => {
               e.preventDefault()
               if (!botToken.trim()) return
-              act("bind", async () => {
-                const next = await bindAssistant(spaceId, a.id, { platform: "telegram", token: botToken.trim() }, t)
+              act("bind", "assistants.error.bind", async () => {
+                const next = await bindAssistant(spaceId, a.id, { platform: "telegram", token: botToken.trim() }, authToken)
                 setBotToken("")
                 return next
               })
             }}
           >
-            <p className="sec__copy">
-              Give it its own Telegram bot: create one with @BotFather and paste its token. The token is checked with
-              Telegram, stored sealed, and never shown again.
-            </p>
+            <p className="sec__copy">{t("assistants.detail.bindHint")}</p>
             <label className="modal__label" htmlFor="assistant-bot-token">
-              Telegram bot token
+              {t("assistants.detail.botToken")}
             </label>
             <div className="sec-item">
               <input
@@ -297,12 +320,12 @@ export function AssistantDetail({
                 onChange={(e) => setBotToken(e.target.value)}
               />
               <Button type="submit" variant="primary" busy={busy === "bind"} disabled={!botToken.trim()}>
-                Bind bot
+                {t("assistants.detail.bind")}
               </Button>
             </div>
           </form>
         ) : (
-          <p className="sec__copy">No bot is bound.</p>
+          <p className="sec__copy">{t("assistants.detail.noBot")}</p>
         )}
       </section>
 
@@ -321,7 +344,7 @@ export function AssistantDetail({
       <StatementDialog
         open={pending !== null}
         statement={pending?.statement ?? null}
-        confirmLabel={pending?.confirmLabel ?? "Confirm"}
+        confirmLabel={pending?.confirmLabel ?? t("assistants.detail.confirm")}
         notice={pending?.notice}
         busy={busy === "confirm"}
         error={confirmError}
@@ -333,9 +356,10 @@ export function AssistantDetail({
 }
 
 function BackLink({ spaceId }: { spaceId: string }) {
+  const t = useT()
   return (
     <a className="asst__back" href={buildHash({ name: "space", spaceId, section: "assistants" })}>
-      ← All assistants
+      {t("assistants.back")}
     </a>
   )
 }

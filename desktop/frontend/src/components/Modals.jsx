@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { folderBaseName } from '../lib/format';
+import { translate, useT } from '../i18n';
+
+const english = (key, vars) => translate('en', key, vars);
 
 export function CreateProjectModal({ app, onCreate, onClose }) {
+  const t = useT();
   const [name, setName] = useState('');
   const [folderPath, setFolderPath] = useState('');
   const [creating, setCreating] = useState(false);
-  const [browseError, setBrowseError] = useState('');
+  const [browseError, setBrowseError] = useState(false);
 
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape') onClose(); }
@@ -14,7 +18,7 @@ export function CreateProjectModal({ app, onCreate, onClose }) {
   }, [onClose]);
 
   async function handleBrowse() {
-    setBrowseError('');
+    setBrowseError(false);
     try {
       const path = await app.OpenFolderDialog();
       if (path) {
@@ -25,7 +29,7 @@ export function CreateProjectModal({ app, onCreate, onClose }) {
         }
       }
     } catch {
-      setBrowseError('Could not open folder picker.');
+      setBrowseError(true);
     }
   }
 
@@ -42,39 +46,39 @@ export function CreateProjectModal({ app, onCreate, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="presentation">
-      <div className="modal-panel" role="dialog" aria-modal="true" aria-label="New Project">
+      <div className="modal-panel" role="dialog" aria-modal="true" aria-label={t('shell.newProject')}>
         <div className="modal-header">
-          <h2 className="modal-title">New Project</h2>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">×</button>
+          <h2 className="modal-title">{t('shell.newProject')}</h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label={t('shell.close')}>×</button>
         </div>
         <div className="modal-body">
-          <label className="modal-label" htmlFor="proj-name">Name</label>
+          <label className="modal-label" htmlFor="proj-name">{t('home.create.name')}</label>
           <input
             id="proj-name"
             className="modal-input"
-            placeholder="My Project"
+            placeholder={t('home.create.namePlaceholder')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') folderPath ? handleCreate() : handleBrowse(); }}
             autoFocus
           />
-          <label className="modal-label">Folder</label>
+          <label className="modal-label">{t('home.create.folder')}</label>
           <button type="button" className="modal-browse-btn" onClick={handleBrowse}>
             {folderPath
               ? <span className="modal-browse-path" title={folderPath}>{folderPath}</span>
-              : <span className="modal-browse-placeholder">Choose folder…</span>}
+              : <span className="modal-browse-placeholder">{t('home.create.chooseFolder')}</span>}
           </button>
-          {browseError && <p className="modal-field-error">{browseError}</p>}
+          {browseError && <p className="modal-field-error">{t('home.create.browseFailed')}</p>}
         </div>
         <div className="modal-footer">
-          <button type="button" className="modal-btn modal-btn--cancel" onClick={onClose}>Cancel</button>
+          <button type="button" className="modal-btn modal-btn--cancel" onClick={onClose}>{t('shell.cancel')}</button>
           <button
             type="button"
             className="modal-btn modal-btn--primary"
             onClick={handleCreate}
             disabled={!name.trim() || !folderPath || creating}
           >
-            {creating ? 'Creating…' : 'Create Project'}
+            {creating ? t('home.create.creating') : t('home.create.submit')}
           </button>
         </div>
       </div>
@@ -85,6 +89,7 @@ export function CreateProjectModal({ app, onCreate, onClose }) {
 // --- Shared info modal ---
 
 export function InfoModal({ title, onClose, children, className }) {
+  const t = useT();
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape') onClose(); }
     window.addEventListener('keydown', onKey);
@@ -99,7 +104,7 @@ export function InfoModal({ title, onClose, children, className }) {
       <div className={`modal-panel info-modal-panel${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-header">
           <h2 className="modal-title">{title}</h2>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">×</button>
+          <button type="button" className="modal-close" onClick={onClose} aria-label={t('shell.close')}>×</button>
         </div>
         <div className="info-modal-body">{children}</div>
       </div>
@@ -113,7 +118,8 @@ export function InfoModal({ title, onClose, children, className }) {
 // It owns its own busy state, awaiting onConfirm so the button shows progress
 // and cannot be double-clicked; the caller closes the dialog on success (and
 // surfaces any error). `message` may be a string or arbitrary nodes.
-export function ConfirmModal({ title, message, confirmLabel = 'Delete', cancelLabel = 'Cancel', onConfirm, onCancel }) {
+export function ConfirmModal({ title, message, confirmLabel, cancelLabel, onConfirm, onCancel }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const confirm = async () => {
     setBusy(true);
@@ -131,10 +137,10 @@ export function ConfirmModal({ title, message, confirmLabel = 'Delete', cancelLa
           : message}
         <div className="modal-footer">
           <button type="button" className="modal-btn modal-btn--cancel" onClick={onCancel} disabled={busy}>
-            {cancelLabel}
+            {cancelLabel ?? t('shell.cancel')}
           </button>
           <button type="button" className="modal-btn modal-btn--danger" onClick={confirm} disabled={busy}>
-            {busy ? 'Working…' : confirmLabel}
+            {busy ? t('shell.working') : (confirmLabel ?? t('shell.delete'))}
           </button>
         </div>
       </div>
@@ -143,7 +149,8 @@ export function ConfirmModal({ title, message, confirmLabel = 'Delete', cancelLa
 }
 
 export function InfoList({ items, emptyText }) {
-  if (!items) return <p className="info-modal__muted">Loading…</p>;
+  const t = useT();
+  if (!items) return <p className="info-modal__muted">{t('shell.loading')}</p>;
   if (!items.length) return <p className="info-modal__muted">{emptyText}</p>;
   return (
     <ul className="info-modal__list">
@@ -168,6 +175,7 @@ export function InfoList({ items, emptyText }) {
 // --- MCP modal ---
 
 export function MCPModal({ projectID, app, onClose }) {
+  const t = useT();
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -180,7 +188,7 @@ export function MCPModal({ projectID, app, onClose }) {
   if (result) {
     if (result.load_error) {
       return (
-        <InfoModal title="MCP Servers" onClose={onClose}>
+        <InfoModal title={t('chat.mcp.title')} onClose={onClose}>
           <p className="info-modal__error">{result.load_error}</p>
         </InfoModal>
       );
@@ -188,16 +196,16 @@ export function MCPModal({ projectID, app, onClose }) {
     items = (result.servers ?? []).map((s) => ({
       key: s.id,
       name: s.id,
-      badge: s.ok ? `${s.tool_count} tool${s.tool_count !== 1 ? 's' : ''}` : 'error',
+      badge: s.ok ? t('chat.mcp.tools', { count: s.tool_count }) : t('chat.mcp.error'),
       badgeVariant: s.ok ? 'ok' : 'err',
       sub: s.type + ((!s.ok && s.error) ? ` · ${s.error}` : ''),
     }));
   }
   return (
-    <InfoModal title="MCP Servers" onClose={onClose}>
+    <InfoModal title={t('chat.mcp.title')} onClose={onClose}>
       {error
         ? <p className="info-modal__error">{error}</p>
-        : <InfoList items={items} emptyText="No MCP servers configured." />}
+        : <InfoList items={items} emptyText={t('chat.mcp.empty')} />}
     </InfoModal>
   );
 }
@@ -205,6 +213,7 @@ export function MCPModal({ projectID, app, onClose }) {
 // --- Agents modal ---
 
 export function AgentsModal({ projectID, app, onClose }) {
+  const t = useT();
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -217,16 +226,16 @@ export function AgentsModal({ projectID, app, onClose }) {
     ? (result.agents ?? []).map((a) => ({
         key: a.name,
         name: a.name,
-        badge: a.is_builtin ? 'builtin' : 'custom',
+        badge: a.is_builtin ? t('chat.agents.builtin') : t('chat.agents.custom'),
         badgeVariant: a.is_builtin ? 'default' : 'ok',
         sub: a.description,
       }))
     : null;
   return (
-    <InfoModal title="Agents" onClose={onClose}>
+    <InfoModal title={t('chat.agents.title')} onClose={onClose}>
       {error
         ? <p className="info-modal__error">{error}</p>
-        : <InfoList items={items} emptyText="No agents defined." />}
+        : <InfoList items={items} emptyText={t('chat.agents.empty')} />}
     </InfoModal>
   );
 }
@@ -234,6 +243,7 @@ export function AgentsModal({ projectID, app, onClose }) {
 // --- Tools modal ---
 
 export function ToolsModal({ projectID, app, onClose }) {
+  const t = useT();
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -243,21 +253,21 @@ export function ToolsModal({ projectID, app, onClose }) {
   }, [projectID, app]);
 
   const items = result
-    ? (result.tools ?? []).map((t) => ({
-        key: t.name,
-        name: t.name,
+    ? (result.tools ?? []).map((tool) => ({
+        key: tool.name,
+        name: tool.name,
         // Allow is the unremarkable case and stays silent; ask and deny are why
         // a reader looks here.
-        badge: t.action && t.action !== 'allow' ? t.action : undefined,
-        badgeVariant: t.action === 'deny' ? 'err' : 'default',
-        sub: [t.access, t.description].filter(Boolean).join(' · '),
+        badge: tool.action && tool.action !== 'allow' ? toolActionLabel(tool.action, t) : undefined,
+        badgeVariant: tool.action === 'deny' ? 'err' : 'default',
+        sub: [tool.access, tool.description].filter(Boolean).join(' · '),
       }))
     : null;
   return (
-    <InfoModal title="Tools" onClose={onClose}>
+    <InfoModal title={t('chat.tools.title')} onClose={onClose}>
       {error
         ? <p className="info-modal__error">{error}</p>
-        : <InfoList items={items} emptyText="No tools available." />}
+        : <InfoList items={items} emptyText={t('chat.tools.empty')} />}
     </InfoModal>
   );
 }
@@ -265,6 +275,7 @@ export function ToolsModal({ projectID, app, onClose }) {
 // --- Worktree modal ---
 
 export function WorktreeModal({ projectID, app, onClose }) {
+  const t = useT();
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -275,10 +286,8 @@ export function WorktreeModal({ projectID, app, onClose }) {
 
   if (result && !result.available) {
     return (
-      <InfoModal title="Worktrees" onClose={onClose}>
-        <p className="info-modal__muted">
-          This project is not a Git repository, so it has no worktrees.
-        </p>
+      <InfoModal title={t('chat.worktrees.title')} onClose={onClose}>
+        <p className="info-modal__muted">{t('chat.worktrees.notGit')}</p>
       </InfoModal>
     );
   }
@@ -287,18 +296,18 @@ export function WorktreeModal({ projectID, app, onClose }) {
     ? (result.worktrees ?? []).map((w) => ({
         key: w.path,
         name: w.name || w.path,
-        badge: w.current ? 'current' : (w.occupied ? 'in use' : undefined),
+        badge: w.current ? t('chat.worktrees.current') : (w.occupied ? t('chat.worktrees.inUse') : undefined),
         badgeVariant: w.current ? 'ok' : 'default',
-        sub: [w.branch ? `⎇ ${w.branch}` : '', w.holder ? `held by ${w.holder}` : '']
+        sub: [w.branch ? `⎇ ${w.branch}` : '', w.holder ? t('chat.worktrees.heldBy', { holder: w.holder }) : '']
           .filter(Boolean).join(' · '),
         path: w.path,
       }))
     : null;
   return (
-    <InfoModal title="Worktrees" onClose={onClose}>
+    <InfoModal title={t('chat.worktrees.title')} onClose={onClose}>
       {error
         ? <p className="info-modal__error">{error}</p>
-        : <InfoList items={items} emptyText="No worktrees." />}
+        : <InfoList items={items} emptyText={t('chat.worktrees.empty')} />}
     </InfoModal>
   );
 }
@@ -317,6 +326,7 @@ export function WorktreeModal({ projectID, app, onClose }) {
  * list is re-read afterwards rather than patched here.
  */
 export function PluginsModal({ projectID, app, onClose }) {
+  const t = useT();
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -360,24 +370,24 @@ export function PluginsModal({ projectID, app, onClose }) {
     ? (result.plugins ?? []).map((p) => ({
         key: p.name,
         name: p.display_name || p.name,
-        badge: p.state,
+        badge: PLUGIN_STATES.has(p.state) ? t(`chat.plugins.state.${p.state}`) : p.state,
         badgeVariant: p.state === 'active' ? 'ok' : p.state === 'error' ? 'err' : 'default',
-        sub: pluginSummary(p),
+        sub: pluginSummary(p, t),
         path: p.path,
       }))
     : null;
 
   return (
     <>
-    <InfoModal title="Plugins" onClose={onClose}>
+    <InfoModal title={t('chat.plugins.title')} onClose={onClose}>
       {error && <p className="info-modal__error">{error}</p>}
       {result?.allowed_sources?.length ? (
         <p className="info-modal__muted">
-          Operator policy allows only: {result.allowed_sources.join(', ')}
+          {t('chat.plugins.allowedSources', { sources: result.allowed_sources.join(t('chat.list.separator')) })}
         </p>
       ) : null}
 
-      <InfoList items={items} emptyText="No plugins installed." />
+      <InfoList items={items} emptyText={t('chat.plugins.empty')} />
 
       {(result?.plugins ?? []).map((p) => (
         <div key={`actions-${p.name}`} className="info-modal__item-row">
@@ -388,7 +398,7 @@ export function PluginsModal({ projectID, app, onClose }) {
             disabled={busy === p.name}
             onClick={() => act(p.name, () => app.SetPluginDisabled(p.name, p.state !== 'disabled'))}
           >
-            {p.state === 'disabled' ? 'Enable' : 'Disable'}
+            {p.state === 'disabled' ? t('chat.plugins.enable') : t('chat.plugins.disable')}
           </button>
           <button
             type="button"
@@ -401,7 +411,7 @@ export function PluginsModal({ projectID, app, onClose }) {
               act(p.name, () => app.UninstallPlugin(p.name, false));
             }}
           >
-            Remove
+            {t('shell.remove')}
           </button>
         </div>
       ))}
@@ -414,11 +424,11 @@ export function PluginsModal({ projectID, app, onClose }) {
         <input
           type="text"
           value={installName}
-          placeholder="plugin name"
+          placeholder={t('chat.plugins.namePlaceholder')}
           onChange={(e) => { setInstallName(e.target.value); setPlan(null); }}
         />
         <button type="button" className="chat-status-bar__btn" disabled={!installName.trim()} onClick={preview}>
-          Find
+          {t('chat.plugins.find')}
         </button>
       </div>
 
@@ -426,19 +436,17 @@ export function PluginsModal({ projectID, app, onClose }) {
         <div className="info-modal__item">
           <span className="info-modal__item-name">
             {plan.name} {plan.version}
-            {plan.already_installed ? ' — already installed' : ''}
+            {plan.already_installed ? t('chat.plugins.alreadyInstalled') : ''}
           </span>
-          <span className="info-modal__item-sub">{planSummary(plan)}</span>
+          <span className="info-modal__item-sub">{planSummary(plan, t)}</span>
           <span className="info-modal__item-path">{plan.digest}</span>
           {plan.missing_env?.length ? (
             <span className="info-modal__item-sub">
-              Reads these, not set here: {plan.missing_env.join(', ')}
+              {t('chat.plugins.missingEnv', { names: plan.missing_env.join(t('chat.list.separator')) })}
             </span>
           ) : null}
           {plan.dirty_source ? (
-            <span className="info-modal__item-sub">
-              Packed from a working tree with uncommitted changes.
-            </span>
+            <span className="info-modal__item-sub">{t('chat.plugins.dirtySource')}</span>
           ) : null}
           {!plan.already_installed && (
             <button
@@ -447,7 +455,7 @@ export function PluginsModal({ projectID, app, onClose }) {
               disabled={busy === plan.name}
               onClick={() => act(plan.name, () => app.InstallPlugin(plan.name, plan.version, false))}
             >
-              Install
+              {t('chat.plugins.install')}
             </button>
           )}
         </div>
@@ -455,9 +463,9 @@ export function PluginsModal({ projectID, app, onClose }) {
     </InfoModal>
     {pendingRemove && (
       <ConfirmModal
-        title="Remove plugin"
-        confirmLabel="Remove"
-        message={`${pendingRemove.name} is a Git checkout at ${pendingRemove.path}. Removing it deletes anything uncommitted in it. Continue?`}
+        title={t('chat.plugins.removeTitle')}
+        confirmLabel={t('shell.remove')}
+        message={t('chat.plugins.removeMessage', { name: pendingRemove.name, path: pendingRemove.path })}
         onCancel={() => setPendingRemove(null)}
         onConfirm={async () => {
           const p = pendingRemove;
@@ -470,38 +478,40 @@ export function PluginsModal({ projectID, app, onClose }) {
   );
 }
 
+// The plugin states with a label; any other is shown as the runtime sent it.
+const PLUGIN_STATES = new Set(['active', 'disabled', 'error']);
+
+function toolActionLabel(action, t) {
+  if (action === 'ask') return t('chat.tools.ask');
+  if (action === 'deny') return t('chat.tools.deny');
+  return action;
+}
+
+// What a plugin or a release contributes, counted per kind.
+function contributionCounts(source, t) {
+  const counts = [
+    [source.skills, 'chat.plugins.skills'],
+    [source.subagents, 'chat.plugins.subagents'],
+    [source.mcp, 'chat.plugins.mcp'],
+    [source.hooks, 'chat.plugins.hooks'],
+  ];
+  return counts.filter(([list]) => list?.length).map(([list, key]) => t(key, { count: list.length }));
+}
+
 /** pluginSummary is one line: where it came from, and what loaded. */
-export function pluginSummary(plugin) {
+export function pluginSummary(plugin, t = english) {
   const parts = [plugin.source];
   if (plugin.version) parts.push(plugin.version);
-  else if (plugin.commit) parts.push(plugin.commit.slice(0, 12) + (plugin.dirty ? ' (dirty)' : ''));
-
-  const counts = [
-    [plugin.skills, 'skill'],
-    [plugin.subagents, 'subagent'],
-    [plugin.mcp, 'MCP server'],
-    [plugin.hooks, 'hook'],
-  ];
-  for (const [list, noun] of counts) {
-    if (list?.length) parts.push(`${list.length} ${noun}${list.length === 1 ? '' : 's'}`);
-  }
+  else if (plugin.commit) parts.push(plugin.commit.slice(0, 12) + (plugin.dirty ? t('chat.plugins.dirty') : ''));
+  parts.push(...contributionCounts(plugin, t));
   // A plugin that loaded half of what it ships must not read as fully active.
-  if (plugin.shadowed?.length) parts.push(`${plugin.shadowed.length} overridden`);
+  if (plugin.shadowed?.length) parts.push(t('chat.plugins.overridden', { count: plugin.shadowed.length }));
   return parts.join(' · ');
 }
 
 /** planSummary says what installing would add. */
-export function planSummary(plan) {
-  const counts = [
-    [plan.skills, 'skill'],
-    [plan.subagents, 'subagent'],
-    [plan.mcp, 'MCP server'],
-    [plan.hooks, 'hook'],
-  ];
-  const parts = [];
-  for (const [list, noun] of counts) {
-    if (list?.length) parts.push(`${list.length} ${noun}${list.length === 1 ? '' : 's'}`);
-  }
-  if (parts.length === 0) return 'contributes nothing this build recognises';
-  return parts.join(', ');
+export function planSummary(plan, t = english) {
+  const parts = contributionCounts(plan, t);
+  if (parts.length === 0) return t('chat.plugins.contributesNothing');
+  return parts.join(t('chat.list.separator'));
 }

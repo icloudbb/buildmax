@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import type { Agent } from "../lib/types"
 import { BaseModal, Button } from "@buildmax/gui"
+import { useT } from "../i18n"
 
 interface RunAgentModalProps {
   open: boolean
@@ -19,6 +20,7 @@ export function RunAgentModal({
   onClose,
   onStart,
 }: RunAgentModalProps) {
+  const t = useT()
   const [input, setInput] = useState("")
 
   useEffect(() => {
@@ -36,17 +38,17 @@ export function RunAgentModal({
   return (
     <BaseModal
       open={open}
-      title={`Run ${agent.name}`}
+      title={t("agents.runNamed", { name: agent.name })}
       titleId="run-agent-modal-title"
       onClose={onClose}
       className="modal--large"
     >
       <div className="modal__body">
         <p className="modal__hint" id="run-agent-modal-hint">
-          Describe what you want this agent to do. Its saved instructions are applied by the worker.
+          {t("agents.runModal.hint")}
         </p>
         <label className="modal__label" htmlFor="run-agent-modal-input">
-          Task
+          {t("agents.runModal.task")}
         </label>
         <textarea
           id="run-agent-modal-input"
@@ -55,7 +57,7 @@ export function RunAgentModal({
           onChange={(e) => setInput(e.target.value)}
           rows={10}
           disabled={loading}
-          placeholder="What should the agent do?"
+          placeholder={t("agents.runModal.placeholder")}
           aria-describedby="run-agent-modal-hint"
         />
         {error ? (
@@ -70,7 +72,7 @@ export function RunAgentModal({
           onClick={onClose}
           disabled={loading}
         >
-          Cancel
+          {t("agents.runModal.cancel")}
         </Button>
         <Button
           variant="primary"
@@ -78,7 +80,7 @@ export function RunAgentModal({
           onClick={handleSubmit}
           disabled={loading || input.trim() === ""}
         >
-          Start
+          {t("agents.runModal.start")}
         </Button>
       </div>
     </BaseModal>

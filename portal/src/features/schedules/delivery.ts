@@ -1,31 +1,36 @@
+import type { Translate } from "@buildmax/gui"
 import type { ApiAssistant, ApiScheduleDelivery } from "../../lib/api/types"
+import type { MessageKey } from "../../i18n"
 
 /** Why a delivery was skipped, in the words the run history shows. Matches the
  *  reasons in internal/core/schedule. */
-const SKIP_REASONS: Record<string, string> = {
-  no_target: "the schedule no longer sends results",
-  run_not_succeeded: "the run did not succeed",
-  assistant_unavailable: "the assistant is paused or deleted",
-  no_bot: "the assistant has no bot",
-  requester_not_in_audience: "the person is no longer in the assistant's audience",
-  link_inactive: "the person's chat link is gone or inactive",
-  no_conversation: "the person has no chat with the assistant",
-  not_on_roster: "the assistant's roster no longer includes what this schedule runs",
-  nothing_releasable: "the result had no field the assistant may share",
+const SKIP_REASONS: Record<string, MessageKey> = {
+  no_target: "schedules.skip.no_target",
+  run_not_succeeded: "schedules.skip.run_not_succeeded",
+  assistant_unavailable: "schedules.skip.assistant_unavailable",
+  no_bot: "schedules.skip.no_bot",
+  requester_not_in_audience: "schedules.skip.requester_not_in_audience",
+  link_inactive: "schedules.skip.link_inactive",
+  no_conversation: "schedules.skip.no_conversation",
+  not_on_roster: "schedules.skip.not_on_roster",
+  nothing_releasable: "schedules.skip.nothing_releasable",
 }
 
 /** One delivery as a short status line for the run history. */
-export function describeDelivery(d: ApiScheduleDelivery | undefined): string {
+export function describeDelivery(d: ApiScheduleDelivery | undefined, t: Translate<MessageKey>): string {
   if (!d) return "—"
   switch (d.status) {
     case "pending":
-      return "Waiting for the run"
+      return t("schedules.delivery.pending")
     case "delivered":
-      return "Sent"
+      return t("schedules.delivery.delivered")
     case "failed":
-      return "Could not be sent"
-    case "skipped":
-      return `Not sent: ${(d.reason && SKIP_REASONS[d.reason]) || d.reason || "unknown reason"}`
+      return t("schedules.delivery.failed")
+    case "skipped": {
+      const known = d.reason ? SKIP_REASONS[d.reason] : undefined
+      const reason = known ? t(known) : d.reason || t("schedules.delivery.unknownReason")
+      return t("schedules.delivery.skipped", { reason })
+    }
     default:
       return d.status
   }

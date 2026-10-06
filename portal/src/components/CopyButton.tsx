@@ -1,6 +1,7 @@
 import { Button } from "@buildmax/gui"
 import { useEffect, useState } from "react"
 import { copyText } from "../lib/clipboard"
+import { useT } from "../i18n"
 
 interface CopyButtonProps {
   /** The text to copy. */
@@ -14,7 +15,8 @@ interface CopyButtonProps {
  * "Copy failed" when even the fallback could not — so a click always tells the
  * user what happened instead of appearing to do nothing.
  */
-export function CopyButton({ value, label = "Copy" }: CopyButtonProps) {
+export function CopyButton({ value, label }: CopyButtonProps) {
+  const t = useT()
   const [state, setState] = useState<"idle" | "ok" | "fail">("idle")
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export function CopyButton({ value, label = "Copy" }: CopyButtonProps) {
         void copyText(value).then((ok) => setState(ok ? "ok" : "fail"))
       }}
     >
-      {state === "ok" ? "Copied" : state === "fail" ? "Copy failed" : label}
+      {state === "ok" ? t("common.copied") : state === "fail" ? t("common.copyFailed") : (label ?? t("common.copy"))}
     </Button>
   )
 }

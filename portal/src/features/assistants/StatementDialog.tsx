@@ -1,5 +1,6 @@
 import { BaseModal, Button } from "@buildmax/gui"
 import type { ApiAssistantStatement } from "../../lib/api/types"
+import { useT } from "../../i18n"
 import { describeAudience } from "./model"
 
 /**
@@ -8,19 +9,21 @@ import { describeAudience } from "./model"
  * beside it, so an owner can check one against the other.
  */
 export function StatementSummary({ statement }: { statement: ApiAssistantStatement }) {
+  const t = useT()
+  const list = (names: string[]) => names.join(t("assistants.listSeparator"))
   return (
     <div className="asst-statement">
       <p className="asst-statement__text">{statement.text}</p>
       <dl className="asst-statement__facts">
         <div>
-          <dt>Who can ask</dt>
-          <dd>{describeAudience(statement.audience)}</dd>
+          <dt>{t("assistants.statement.whoCanAsk")}</dt>
+          <dd>{describeAudience(statement.audience, t)}</dd>
         </div>
         <div>
-          <dt>Files it can read</dt>
+          <dt>{t("assistants.statement.files")}</dt>
           <dd>
             {statement.readable_files.length === 0 ? (
-              "None"
+              t("assistants.statement.none")
             ) : (
               <ul>
                 {statement.readable_files.map((f) => (
@@ -31,16 +34,20 @@ export function StatementSummary({ statement }: { statement: ApiAssistantStateme
           </dd>
         </div>
         <div>
-          <dt>Agents it can run</dt>
+          <dt>{t("assistants.statement.agents")}</dt>
           <dd>
             {statement.agents.length === 0 ? (
-              "None"
+              t("assistants.statement.none")
             ) : (
               <ul>
                 {statement.agents.map((a) => (
                   <li key={a.id}>
                     {a.name}
-                    {a.secrets.length > 0 ? <span className="asst-statement__secrets"> — holds Secrets {a.secrets.join(", ")}</span> : null}
+                    {a.secrets.length > 0 ? (
+                      <span className="asst-statement__secrets">
+                        {t("assistants.statement.holdsSecrets", { secrets: list(a.secrets) })}
+                      </span>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -48,10 +55,10 @@ export function StatementSummary({ statement }: { statement: ApiAssistantStateme
           </dd>
         </div>
         <div>
-          <dt>Workflows it can run</dt>
+          <dt>{t("assistants.statement.workflows")}</dt>
           <dd>
             {statement.workflows.length === 0 ? (
-              "None"
+              t("assistants.statement.none")
             ) : (
               <ul>
                 {statement.workflows.map((w) => (
@@ -59,11 +66,15 @@ export function StatementSummary({ statement }: { statement: ApiAssistantStateme
                     {w.name}
                     {w.agents.length > 0 ? (
                       <span className="asst-statement__secrets">
-                        {" "}
-                        — steps run as{" "}
-                        {w.agents
-                          .map((a) => (a.secrets.length > 0 ? `${a.name} (Secrets ${a.secrets.join(", ")})` : a.name))
-                          .join(", ")}
+                        {t("assistants.statement.stepsRunAs", {
+                          agents: list(
+                            w.agents.map((a) =>
+                              a.secrets.length > 0
+                                ? t("assistants.statement.agentWithSecrets", { name: a.name, secrets: list(a.secrets) })
+                                : a.name
+                            )
+                          ),
+                        })}
                       </span>
                     ) : null}
                   </li>
@@ -74,17 +85,17 @@ export function StatementSummary({ statement }: { statement: ApiAssistantStateme
         </div>
         {statement.agents.length > 0 || statement.workflows.length > 0 ? (
           <div>
-            <dt>Space Files its work can read</dt>
+            <dt>{t("assistants.statement.spaceFiles")}</dt>
             <dd>
               {statement.space_files_total === 0 ? (
-                "None yet"
+                t("assistants.statement.noneYet")
               ) : (
                 <ul>
                   {statement.space_files.map((name) => (
                     <li key={name}>{name}</li>
                   ))}
                   {statement.space_files_total > statement.space_files.length ? (
-                    <li>and {statement.space_files_total - statement.space_files.length} more</li>
+                    <li>{t("assistants.statement.more", { count: statement.space_files_total - statement.space_files.length })}</li>
                   ) : null}
                 </ul>
               )}
@@ -121,11 +132,12 @@ export function StatementDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const t = useT()
   if (!statement) return null
   return (
     <BaseModal
       open={open}
-      title="Confirm what this assistant discloses"
+      title={t("assistants.statement.title")}
       titleId="assistant-statement-title"
       className="modal--large"
       onClose={() => {
@@ -134,10 +146,7 @@ export function StatementDialog({
     >
       <div className="modal__body">
         <div className="sec-callout" role="note">
-          <span>
-            Publishing is a disclosure decision. Everything this assistant can read or run is disclosed to everyone who
-            can ask it, however the question is phrased. Confirm only if that is acceptable.
-          </span>
+          <span>{t("assistants.statement.warning")}</span>
         </div>
         {notice ? (
           <p className="sec__error" role="alert">
@@ -152,7 +161,7 @@ export function StatementDialog({
         ) : null}
         <div className="modal__actions">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>
-            Cancel
+            {t("assistants.statement.cancel")}
           </Button>
           <Button variant="primary" busy={busy} onClick={onConfirm}>
             {confirmLabel}

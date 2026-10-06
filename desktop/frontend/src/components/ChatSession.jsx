@@ -7,6 +7,11 @@ import { EventsOn } from '../lib/wailsRuntime';
 import { MarkdownMessage } from './MarkdownMessage';
 import { InfoPanel } from './InfoPanel';
 import { ChatInput } from './ChatInput';
+import { useStableT, useT } from '../i18n';
+
+// A session without a title names its tab with this. The tab title is saved in
+// the workspace layout, so it stays English there and TabBar translates it.
+const UNTITLED = 'Chat';
 
 const EV_STREAM_DELTA = 'desktop/stream-delta';
 const EV_STREAM_DONE = 'desktop/stream-done';
@@ -40,6 +45,8 @@ export function ChatSession({
   onSessionAdopted, onSessionsChanged, onTitle, onOpenSession, onShowChanges,
   draft = null, onDraftConsumed,
 }) {
+  const t = useT();
+  const stableT = useStableT();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -79,7 +86,7 @@ export function ChatSession({
     app.GetSession(sessionId)
       .then((detail) => {
         setMessages(detail?.messages ?? []);
-        const title = detail?.title?.trim() || 'Chat';
+        const title = detail?.title?.trim() || UNTITLED;
         onTitle?.(tab, title);
       })
       .catch((err) => setError(err?.message ?? String(err)));
@@ -159,7 +166,7 @@ export function ChatSession({
       if (doneId) {
         app?.GetSession(doneId).then((detail) => {
           setMessages(detail?.messages ?? []);
-          const title = detail?.title?.trim() || 'Chat';
+          const title = detail?.title?.trim() || UNTITLED;
           onTitle?.(tab, title);
         }).catch(() => {});
       }
@@ -171,7 +178,7 @@ export function ChatSession({
       if (!ownEvent(payload)) return;
       streamingContentRef.current = '';
       setToolActivity('');
-      setError(payload?.message ?? 'Stream error');
+      setError(payload?.message ?? stableT('chat.streamError'));
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === 'assistant' && last?.content === '') return prev.slice(0, -1);
@@ -219,7 +226,7 @@ export function ChatSession({
     const unsubBlocked = EventsOn(EV_MESSAGE_BLOCKED, (payload) => {
       if (!ownEvent(payload)) return;
       setQueuedMessages(payload?.queued ?? []);
-      setError(`Message blocked by hook: ${payload?.reason ?? 'no reason given'}`);
+      setError(stableT('chat.blocked', { reason: payload?.reason ?? stableT('chat.noReason') }));
     });
     const unsubJobDelivery = EventsOn(EV_JOB_DELIVERY, (payload) => {
       if ((payload?.session_id ?? '') !== sessionIdRef.current || !sessionIdRef.current) return;
@@ -229,7 +236,11 @@ export function ChatSession({
       setMessages((prev) => [...prev, {
         role: 'user',
         source: payload?.source || 'background_event',
-        content: `⟳ ${payload?.source ?? 'background event'} from ${payload?.job_id ?? ''} — ${payload?.title ?? ''}`,
+        content: stableT('chat.jobDelivery', {
+          source: payload?.source ?? stableT('chat.backgroundEvent'),
+          job: payload?.job_id ?? '',
+          title: payload?.title ?? '',
+        }),
       }]);
     });
     const unsubTurnDigest = EventsOn(EV_TURN_DIGEST, (payload) => {
@@ -241,7 +252,7 @@ export function ChatSession({
       unsubToolStart?.(); unsubToolEnd?.(); unsubRunStatus?.(); unsubDequeued?.();
       unsubBlocked?.(); unsubJobDelivery?.(); unsubTurnDigest?.();
     };
-  }, [ownEvent, app, tab, onSessionAdopted, onSessionsChanged, onTitle]);
+  }, [ownEvent, app, tab, onSessionAdopted, onSessionsChanged, onTitle, stableT]);
 
   // Pull parked background deliveries whenever this session is idle and on screen.
   // A projectless scheduled session has no jobs, so skip it entirely.
@@ -280,8 +291,13 @@ export function ChatSession({
     reloadSession();
     const summarized = result?.summarized ?? 0;
     const text = summarized > 0
-      ? `Summarized ${summarized} message${summarized === 1 ? '' : 's'}, kept ${result?.kept ?? 0}. Context now ${result?.after_tokens ?? 0} tokens (was ${result?.before_tokens ?? 0}).`
-      : (result?.reason || 'Nothing to compact yet.');
+      ? t('chat.compactResult', {
+          count: summarized,
+          kept: result?.kept ?? 0,
+          after: result?.after_tokens ?? 0,
+          before: result?.before_tokens ?? 0,
+        })
+      : (result?.reason || t('chat.nothingToCompact'));
     setHistoryNotice({ kind: 'compact', text });
     setTurnDigest(null);
     if (app && sessionId) {
@@ -349,15 +365,15 @@ export function ChatSession({
     }
   }
 
-  const threadItems = messageThreadItems(messages);
+  const threadItems = messageThreadItems(messages, t);
 
   if (historyNotice) {
     threadItems.push({
       id: 'history-notice',
       role: 'system',
-      label: historyNotice.kind === 'fork' ? 'Forked'
-        : historyNotice.kind === 'compact' ? 'Compacted'
-        : 'Rewound',
+      label: historyNotice.kind === 'fork' ? t('chat.forked')
+        : historyNotice.kind === 'compact' ? t('chat.compacted')
+        : t('chat.rewound'),
       hideAvatar: true,
       body: <div className="page-chat__msg-content page-chat__history-notice">{historyNotice.text}</div>,
     });
@@ -366,7 +382,7 @@ export function ChatSession({
     threadItems.push({
       id: `queued-${i}`,
       role: 'user',
-      label: 'You (queued)',
+      label: t('chat.queued'),
       hideAvatar: true,
       body: (
         <div className="page-chat__msg-content page-chat__msg-content--queued">
@@ -379,7 +395,7 @@ export function ChatSession({
     threadItems.push({
       id: 'turn-recap',
       role: 'notice',
-      label: 'Turn recap',
+      label: t('chat.turnRecap'),
       hideAvatar: true,
       body: <div className="page-chat__recap">{turnDigest.recap}</div>,
     });
@@ -395,15 +411,15 @@ export function ChatSession({
   return (
     <div className="page-chat">
       {infoOpen && (
-        <div className="chat-info" aria-label="Session info">
+        <div className="chat-info" aria-label={t('chat.sessionInfo')}>
           <div className="chat-info__head">
-            <span className="chat-info__title">Session info</span>
+            <span className="chat-info__title">{t('chat.sessionInfo')}</span>
             <button
               type="button"
               className="chat-info__close"
               onClick={() => setInfoOpen(false)}
-              title="Close"
-              aria-label="Close session info"
+              title={t('shell.close')}
+              aria-label={t('chat.closeSessionInfo')}
             >
               ✕
             </button>
@@ -421,11 +437,11 @@ export function ChatSession({
       )}
       <ChatThread
         historyRef={historyRef}
-        ariaLabel="Conversation history"
+        ariaLabel={t('chat.history')}
         items={threadItems}
-        emptyText="Type a message below to start a new chat."
+        emptyText={t('chat.empty')}
       />
-      <section className="page-chat__input" aria-label="Send a message">
+      <section className="page-chat__input" aria-label={t('chat.sendMessage')}>
         <ChatInput
           onSend={handleSend}
           onCancel={handleCancel}

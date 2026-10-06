@@ -17,6 +17,7 @@ import { SpaceAssistants } from "../../features/assistants"
 import { SpaceAgentInstructions } from "../../features/spaceInstructions"
 import { useAuth } from "../../contexts/AuthContext"
 import { isAllowed } from "../../state/permissionState"
+import { useT } from "../../i18n"
 
 export function SpaceSettings({
   spaceId,
@@ -27,6 +28,7 @@ export function SpaceSettings({
   section: SpaceSection
   assistantId?: string
 }) {
+  const t = useT()
   const [inviteOpen, setInviteOpen] = useState(section === "memberNew")
   const {
     user,
@@ -99,10 +101,8 @@ export function SpaceSettings({
     <div className="settings-page">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Space settings</h1>
-          <p className="page-activity__subtitle">
-            Current space information, quota visibility, and member management.
-          </p>
+          <h1 className="page-activity__title">{t("settings.title")}</h1>
+          <p className="page-activity__subtitle">{t("settings.subtitle")}</p>
         </div>
       </div>
 
@@ -112,7 +112,7 @@ export function SpaceSettings({
         </p>
       ) : null}
 
-      <div className="settings-page__tabs" aria-label="Space sections" role="tablist">
+      <div className="settings-page__tabs" aria-label={t("settings.tabs")} role="tablist">
           {SPACE_NAV.map((item) => {
             const Icon = item.icon
             const active = item.id === (section === "memberNew" ? "members" : section)
@@ -128,7 +128,7 @@ export function SpaceSettings({
                 <span className="settings-page__tab-icon" aria-hidden>
                   <Icon />
                 </span>
-                <span className="settings-page__tab-label">{item.label}</span>
+                <span className="settings-page__tab-label">{t(item.labelKey)}</span>
               </button>
             )
           })}

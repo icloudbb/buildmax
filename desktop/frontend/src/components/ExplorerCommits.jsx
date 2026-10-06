@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { formatSessionMeta } from '../lib/format';
+import { useLocale } from '@buildmax/gui';
+import { formatSessionMeta, intlLocale } from '../lib/format';
 import { ChangeRow, ExplorerGroup } from './ExplorerRows';
 import { CommitIcon, MergeIcon } from './icons';
+import { useStableT, useT } from '../i18n';
 
 const PAGE_SIZE = 50;
 
@@ -11,6 +13,8 @@ const PAGE_SIZE = 50;
 // History is paged rather than loaded whole, since a repository can hold
 // hundreds of thousands of commits.
 export function ExplorerCommits({ projectID, sessionID, app, onOpenCommitDiff }) {
+  const t = useT();
+  const stableT = useStableT();
   const [open, setOpen] = useState(true);
   const [log, setLog] = useState({ loading: true, commits: [] });
   const [expanded, setExpanded] = useState(null);
@@ -22,7 +26,7 @@ export function ExplorerCommits({ projectID, sessionID, app, onOpenCommitDiff })
     setExpanded(null);
     setDetails({});
     if (!app?.ListCommits) {
-      setLog({ error: 'Rebuild the desktop app to view commits.', commits: [] });
+      setLog({ error: stableT('explorer.rebuildCommits'), commits: [] });
       return undefined;
     }
     app.ListCommits(projectID, sessionID, 0, PAGE_SIZE)
@@ -34,7 +38,7 @@ export function ExplorerCommits({ projectID, sessionID, app, onOpenCommitDiff })
       })
       .catch((err) => { if (!cancelled) setLog({ error: err?.message ?? String(err), commits: [] }); });
     return () => { cancelled = true; };
-  }, [projectID, sessionID, app]);
+  }, [projectID, sessionID, app, stableT]);
 
   function loadMore() {
     setLog((l) => ({ ...l, loadingMore: true }));
@@ -59,9 +63,9 @@ export function ExplorerCommits({ projectID, sessionID, app, onOpenCommitDiff })
   }
 
   let body;
-  if (log.loading) body = <div className="explorer__hint explorer__hint--nested">Loading…</div>;
+  if (log.loading) body = <div className="explorer__hint explorer__hint--nested">{t('shell.loading')}</div>;
   else if (log.error) body = <div className="explorer__hint explorer__hint--nested explorer__hint--error">{log.error}</div>;
-  else if (!log.commits.length) body = <div className="explorer__hint explorer__hint--nested">No commits yet.</div>;
+  else if (!log.commits.length) body = <div className="explorer__hint explorer__hint--nested">{t('explorer.noCommits')}</div>;
   else {
     body = (
       <>
@@ -78,7 +82,7 @@ export function ExplorerCommits({ projectID, sessionID, app, onOpenCommitDiff })
         {log.moreError && <div className="explorer__hint explorer__hint--nested explorer__hint--error">{log.moreError}</div>}
         {log.hasMore && (
           <button type="button" className="explorer__more" onClick={loadMore} disabled={log.loadingMore}>
-            {log.loadingMore ? 'Loading…' : 'Load more'}
+            {log.loadingMore ? t('shell.loading') : t('explorer.loadMore')}
           </button>
         )}
       </>
@@ -87,20 +91,22 @@ export function ExplorerCommits({ projectID, sessionID, app, onOpenCommitDiff })
 
   return (
     <ExplorerGroup
-      label="Commits"
+      label={t('explorer.commits')}
       open={open}
       onToggle={() => setOpen((v) => !v)}
-      badge={log.branch && <span className="explorer__ref" title={`On branch ${log.branch}`}>{log.branch}</span>}
+      badge={log.branch && <span className="explorer__ref" title={t('explorer.onBranch', { branch: log.branch })}>{log.branch}</span>}
     >
-      <div aria-label="Commits" className="explorer__group-body">{body}</div>
+      <div aria-label={t('explorer.commits')} className="explorer__group-body">{body}</div>
     </ExplorerGroup>
   );
 }
 
 function CommitRow({ commit, open, detail, onToggle, onOpenFile }) {
+  const t = useT();
+  const { locale } = useLocale();
   const merge = commit.parents?.length > 1;
   const Icon = merge ? MergeIcon : CommitIcon;
-  const when = commit.authored_at ? new Date(commit.authored_at).toLocaleString() : '';
+  const when = commit.authored_at ? new Date(commit.authored_at).toLocaleString(intlLocale(locale)) : '';
   return (
     <>
       <button
@@ -112,16 +118,16 @@ function CommitRow({ commit, open, detail, onToggle, onOpenFile }) {
       >
         <Icon />
         <span className="explorer__commit-subject">{commit.subject}</span>
-        <span className="explorer__commit-meta">{formatSessionMeta(commit.authored_at)}</span>
+        <span className="explorer__commit-meta">{formatSessionMeta(commit.authored_at, t, locale)}</span>
       </button>
       {open && (
-        <div className="explorer__commit-files" aria-label={`Files in ${commit.sha.slice(0, 8)}`}>
+        <div className="explorer__commit-files" aria-label={t('explorer.filesIn', { sha: commit.sha.slice(0, 8) })}>
           {!detail || detail.loading ? (
-            <div className="explorer__hint explorer__hint--deep">Loading…</div>
+            <div className="explorer__hint explorer__hint--deep">{t('shell.loading')}</div>
           ) : detail.error ? (
             <div className="explorer__hint explorer__hint--deep explorer__hint--error">{detail.error}</div>
           ) : detail.files.length === 0 ? (
-            <div className="explorer__hint explorer__hint--deep">No file changes.</div>
+            <div className="explorer__hint explorer__hint--deep">{t('explorer.noFileChanges')}</div>
           ) : (
             detail.files.map((f) => <ChangeRow key={`${f.status}:${f.path}`} file={f} depth={2} onOpen={onOpenFile} />)
           )}

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 import type { ApiConversationMessage, ApiTask } from "../../lib/api/types"
-import { buildConversationThread, taskRunFailed, taskRunFinished, taskStatusLabel } from "./thread"
+import { translate, type MessageKey } from "../../i18n"
+import { buildConversationThread, runStatusLabel, taskRunFailed, taskRunFinished, taskStatusLabel } from "./thread"
+
+const en = (key: MessageKey) => translate("en", key)
+const zh = (key: MessageKey) => translate("zh-CN", key)
 
 // The tests order entries by a small seed; the wire carries RFC 3339, whose
 // lexicographic order over UTC instants is chronological order.
@@ -75,8 +79,14 @@ describe("taskRunFinished", () => {
 
 describe("taskStatusLabel", () => {
   it("names a task waiting on the user's answer instead of calling it done", () => {
-    expect(taskStatusLabel({ status: "SUCCEEDED", awaiting_answer: true })).toBe("Needs your answer")
-    expect(taskStatusLabel({ status: "SUCCEEDED" })).toBe("Done")
-    expect(taskStatusLabel({ status: "RUNNING" })).toBe("Running")
+    expect(taskStatusLabel({ status: "SUCCEEDED", awaiting_answer: true }, en)).toBe("Needs your answer")
+    expect(taskStatusLabel({ status: "SUCCEEDED" }, en)).toBe("Done")
+    expect(taskStatusLabel({ status: "RUNNING" }, en)).toBe("Running")
+  })
+
+  it("reads in the interface language it is given", () => {
+    expect(taskStatusLabel({ status: "SUCCEEDED", awaiting_answer: true }, zh)).toBe("等待你的回答")
+    expect(runStatusLabel("PENDING", zh)).toBe("排队中")
+    expect(runStatusLabel("CANCELED", zh)).toBe("已停止")
   })
 })

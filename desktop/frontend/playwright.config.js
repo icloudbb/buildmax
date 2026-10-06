@@ -29,6 +29,8 @@ export default defineConfig({
     baseURL: process.env.BUILDMAX_E2E_BASE_URL ?? 'http://localhost:34115',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // The interface follows the browser language; specs assert English text.
+    locale: 'en-US',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 })

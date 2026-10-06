@@ -1,4 +1,6 @@
+import type { Translate } from "@buildmax/gui"
 import type { ApiLLMCallCost, ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../lib/api/types"
+import type { MessageKey } from "../../i18n"
 
 /** One currency unit, in the nano-units the API reports amounts as. */
 const NANO_PER_UNIT = 1_000_000_000
@@ -233,19 +235,20 @@ export function formatAmount(nano: number, currency: string): string {
  * substituting a generic one — "managed model calls not configured" and a
  * missing run are different facts, and the server already distinguishes them.
  */
-export function describeSpend(options: {
-  calls: ApiTaskRunLLMCall[]
-  /** The server's message when the ledger could not be read. */
-  error: string | null
-  trace: ApiTaskRunTrace | null
-}): string | null {
+export function describeSpend(
+  options: {
+    calls: ApiTaskRunLLMCall[]
+    /** The server's message when the ledger could not be read. */
+    error: string | null
+    trace: ApiTaskRunTrace | null
+  },
+  t: Translate<MessageKey>,
+): string | null {
   if (options.error) return options.error
   if (options.calls.length > 0) return null
   const traced = options.trace?.llm_calls ?? 0
-  if (traced > 0) {
-    return `This run called a model ${traced} time${traced === 1 ? "" : "s"} without going through the managed gateway, so the server accounted none of it. That is what direct mode does.`
-  }
-  return "This run called no model through the managed gateway."
+  if (traced > 0) return t("runs.spend.bypassed", { count: traced })
+  return t("runs.spend.none")
 }
 
 /** How long a call took, to the second. */

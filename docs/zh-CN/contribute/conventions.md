@@ -250,6 +250,23 @@ Task run。
 绝不记录凭据,也绝不记录 provider 的原始错误正文——它可能携带账户
 标识符和请求片段。
 
+## 颜色来自主题 token
+
+在 `gui`、`portal` 和 `desktop/frontend` 中,`gui/src/theme.css` 是唯一允许
+出现颜色字面量的样式表。其他规则的颜色、阴影和遮罩层都取自其中的语义 token,
+例如 `--color-danger`、`--color-warning`、`--shadow-popover` 或
+`--color-overlay`,这样深色主题无需逐页覆盖即可生效。浅色调用 `color-mix()`
+基于 token 生成,而不是写一个新的字面量。当没有现成 token 表达规则所需的含义时,
+在 `theme.css` 中为两个主题同时新增一个;不要为已有 token 添加同义词。
+
+`var()` 必须引用某个样式表定义过的自定义属性。未定义且没有回退值时,整条声明
+会静默失效;带回退值时,它会藏起一个字面量。
+
+Stylelint 在每个包的 `npm run lint` 中强制执行这两条规则,`./make check
+gui|portal|desktop` 会运行它。共享配置和未定义属性规则位于
+`gui/stylelint/tokens.mjs`。`desktop/frontend/src/lib/terminalTheme.js` 中的
+xterm 配色是交给 xterm 的 JavaScript,是唯一的具名例外。
+
 ## 提交信息与拉取请求
 
 仓库的公开记录承载项目内容：变更、理由、验证，以及对实质性协作负责的

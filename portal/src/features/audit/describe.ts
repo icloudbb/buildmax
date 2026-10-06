@@ -1,4 +1,6 @@
+import type { Translate } from "@buildmax/gui"
 import type { ApiAuditEvent } from "../../lib/api/types"
+import type { MessageKey } from "../../i18n"
 
 /** How one event should read in the trail. */
 export interface AuditEventDescription {
@@ -19,107 +21,112 @@ export interface AuditEventDescription {
  * reader cannot interpret is worse than showing them a name they can search
  * for.
  */
-export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
+export function describeEvent(event: ApiAuditEvent, t: Translate<MessageKey>): AuditEventDescription {
   const target = event.target_id ? event.target_id : null
+  // The sentence for this action, naming the detail when the event has one.
+  const say = (key: MessageKey, detailKey?: MessageKey) =>
+    detailKey && event.detail ? t(detailKey, { detail: event.detail }) : t(key)
   switch (event.action) {
     case "user.login":
-      return { summary: `Signed in from ${event.target_id || "an unknown platform"}`, denied: false, target: null }
+      return {
+        summary: event.target_id
+          ? t("audit.event.user.login", { platform: event.target_id })
+          : t("audit.event.user.loginUnknown"),
+        denied: false,
+        target: null,
+      }
     case "space.member_added":
       return {
-        summary: event.detail ? `Added a member as ${event.detail}` : "Added a member",
+        summary: say("audit.event.space.member_added", "audit.event.space.member_added.detail"),
         denied: false,
         target,
       }
     case "space.member_removed":
-      return { summary: "Removed a member", denied: false, target }
+      return { summary: say("audit.event.space.member_removed"), denied: false, target }
     case "space.member_invited":
       return {
-        summary: event.detail ? `Invited a member as ${event.detail}` : "Invited a member",
+        summary: say("audit.event.space.member_invited", "audit.event.space.member_invited.detail"),
         denied: false,
         target,
       }
     case "space.invitation_accepted":
       return {
-        summary: event.detail ? `Accepted an invitation as ${event.detail}` : "Accepted an invitation",
+        summary: say("audit.event.space.invitation_accepted", "audit.event.space.invitation_accepted.detail"),
         denied: false,
         target,
       }
     case "space.invitation_revoked":
-      return { summary: "Revoked a pending invitation", denied: false, target }
+      return { summary: say("audit.event.space.invitation_revoked"), denied: false, target }
     case "space.invitation_expired":
       // Not a denial in the access.denied sense, but the same reasoning
       // applies: an attempt against an expired invitation is worth noticing
       // the same way a refusal is.
-      return { summary: "An invitation was accepted after it expired", denied: true, target }
+      return { summary: say("audit.event.space.invitation_expired"), denied: true, target }
     case "space.member_role_changed":
       return {
-        summary: event.detail ? `Changed a member's role to ${event.detail}` : "Changed a member's role",
+        summary: say("audit.event.space.member_role_changed", "audit.event.space.member_role_changed.detail"),
         denied: false,
         target,
       }
     case "space.ownership_transferred":
-      return { summary: "Transferred ownership", denied: false, target }
+      return { summary: say("audit.event.space.ownership_transferred"), denied: false, target }
     case "space.member_login_code_issued":
-      return { summary: "Issued a login code for a member", denied: false, target }
+      return { summary: say("audit.event.space.member_login_code_issued"), denied: false, target }
     case "llm_model.created":
       return {
-        summary: event.detail ? `Added the model ${event.detail}` : "Added a model",
+        summary: say("audit.event.llm_model.created", "audit.event.llm_model.created.detail"),
         denied: false,
         target,
       }
     case "llm_model.enabled":
-      return { summary: "Enabled a model", denied: false, target }
+      return { summary: say("audit.event.llm_model.enabled"), denied: false, target }
     case "llm_model.disabled":
-      return { summary: "Disabled a model", denied: false, target }
+      return { summary: say("audit.event.llm_model.disabled"), denied: false, target }
     case "llm_model.credential_replaced":
       return {
-        summary: event.detail ? `Replaced the key for ${event.detail}` : "Replaced a model's key",
+        summary: say("audit.event.llm_model.credential_replaced", "audit.event.llm_model.credential_replaced.detail"),
         denied: false,
         target,
       }
     case "user.logout":
-      return { summary: "Signed out", denied: false, target: null }
+      return { summary: say("audit.event.user.logout"), denied: false, target: null }
     case "user.password_set":
-      return { summary: "Set a password", denied: false, target: null }
+      return { summary: say("audit.event.user.password_set"), denied: false, target: null }
     case "auth.refresh_reuse":
       return {
-        summary: "A refresh token was presented twice; the session was revoked",
+        summary: say("audit.event.auth.refresh_reuse"),
         denied: true,
         target,
       }
     case "user.created":
-      return { summary: "Created an account", denied: false, target }
+      return { summary: say("audit.event.user.created"), denied: false, target }
     case "user.login_code_issued":
-      return { summary: "Issued a login code", denied: false, target }
+      return { summary: say("audit.event.user.login_code_issued"), denied: false, target }
     case "user.disabled":
       return {
-        summary: event.detail ? `Disabled an account — ${event.detail}` : "Disabled an account",
+        summary: say("audit.event.user.disabled", "audit.event.user.disabled.detail"),
         denied: false,
         target,
       }
     case "user.enabled":
-      return { summary: "Enabled an account", denied: false, target }
+      return { summary: say("audit.event.user.enabled"), denied: false, target }
     case "user.sessions_revoked":
-      return { summary: "Revoked every session of an account", denied: false, target }
+      return { summary: say("audit.event.user.sessions_revoked"), denied: false, target }
     case "system.admin_granted":
       return {
-        summary: event.detail
-          ? `Granted ${event.detail} over the deployment`
-          : "Granted deployment authority",
+        summary: say("audit.event.system.admin_granted", "audit.event.system.admin_granted.detail"),
         denied: false,
         target,
       }
     case "system.admin_revoked":
       return {
-        summary: event.detail
-          ? `Revoked ${event.detail} over the deployment`
-          : "Revoked deployment authority",
+        summary: say("audit.event.system.admin_revoked", "audit.event.system.admin_revoked.detail"),
         denied: false,
         target,
       }
     case "audit.exported":
       return {
-        summary: event.detail ? `Exported the audit trail — ${event.detail}` : "Exported the audit trail",
+        summary: say("audit.event.audit.exported", "audit.event.audit.exported.detail"),
         denied: false,
         target: null,
       }
@@ -128,174 +135,170 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
       // gets the same treatment: a reader scanning the trail must not skim
       // past the row that explains why the trail starts where it does.
       return {
-        summary: event.detail
-          ? `Retention removed ${event.detail}`
-          : "Retention removed expired events",
+        summary: say("audit.event.audit.pruned", "audit.event.audit.pruned.detail"),
         denied: true,
         target: null,
       }
     case "quota.threshold_reached":
       return {
-        summary: event.detail ? `Approaching the quota: ${event.detail}` : "Approaching the quota",
+        summary: say("audit.event.quota.threshold_reached", "audit.event.quota.threshold_reached.detail"),
         denied: false,
         target: null,
       }
     case "quota.exceeded":
       return {
-        summary: event.detail ? `Quota reached: ${event.detail}` : "Quota reached; work was refused",
+        summary: say("audit.event.quota.exceeded", "audit.event.quota.exceeded.detail"),
         denied: true,
         target: null,
       }
     case "space.agent_instructions_set":
       return {
-        summary: event.detail
-          ? `Updated Space agent instructions — ${event.detail}`
-          : "Updated Space agent instructions",
+        summary: say("audit.event.space.agent_instructions_set", "audit.event.space.agent_instructions_set.detail"),
         denied: false,
         target,
       }
     case "space.created":
       return {
-        summary: event.detail ? `Created the space on the ${event.detail} tier` : "Created the space",
+        summary: say("audit.event.space.created", "audit.event.space.created.detail"),
         denied: false,
         target,
       }
     case "space.quota_tier_changed":
       return {
-        summary: event.detail ? `Changed the quota tier: ${event.detail}` : "Changed the quota tier",
+        summary: say("audit.event.space.quota_tier_changed", "audit.event.space.quota_tier_changed.detail"),
         denied: false,
         target,
       }
     case "webhook_key.created":
-      return { summary: "Created a webhook key", denied: false, target }
+      return { summary: say("audit.event.webhook_key.created"), denied: false, target }
     case "webhook_key.revoked":
-      return { summary: "Revoked a webhook key", denied: false, target }
+      return { summary: say("audit.event.webhook_key.revoked"), denied: false, target }
     case "channel_link.created":
       return {
-        summary: event.detail ? `Linked a ${event.detail} chat account` : "Linked a chat account",
+        summary: say("audit.event.channel_link.created", "audit.event.channel_link.created.detail"),
         denied: false,
         target,
       }
     case "channel_link.removed":
-      return { summary: "Unlinked a chat account", denied: false, target }
+      return { summary: say("audit.event.channel_link.removed"), denied: false, target }
     case "agent.created":
       return {
-        summary: event.detail ? `Created the agent ${event.detail}` : "Created an agent",
+        summary: say("audit.event.agent.created", "audit.event.agent.created.detail"),
         denied: false,
         target,
       }
     case "agent.updated":
       return {
-        summary: event.detail ? `Updated the agent ${event.detail}` : "Updated an agent",
+        summary: say("audit.event.agent.updated", "audit.event.agent.updated.detail"),
         denied: false,
         target,
       }
     case "agent.deleted":
-      return { summary: "Deleted an agent", denied: false, target }
+      return { summary: say("audit.event.agent.deleted"), denied: false, target }
     case "workflow.created":
       return {
-        summary: event.detail ? `Created the workflow ${event.detail}` : "Created a workflow",
+        summary: say("audit.event.workflow.created", "audit.event.workflow.created.detail"),
         denied: false,
         target,
       }
     case "workflow.updated":
       return {
-        summary: event.detail ? `Updated the workflow ${event.detail}` : "Updated a workflow",
+        summary: say("audit.event.workflow.updated", "audit.event.workflow.updated.detail"),
         denied: false,
         target,
       }
     case "workflow.published":
       return {
-        summary: event.detail ? `Published the workflow ${event.detail}` : "Published a workflow",
+        summary: say("audit.event.workflow.published", "audit.event.workflow.published.detail"),
         denied: false,
         target,
       }
     case "workflow.archived":
       return {
-        summary: event.detail ? `Archived the workflow ${event.detail}` : "Archived a workflow",
+        summary: say("audit.event.workflow.archived", "audit.event.workflow.archived.detail"),
         denied: false,
         target,
       }
     case "workflow.unpublished":
       return {
-        summary: event.detail ? `Returned the workflow ${event.detail} to draft` : "Returned a workflow to draft",
+        summary: say("audit.event.workflow.unpublished", "audit.event.workflow.unpublished.detail"),
         denied: false,
         target,
       }
     case "service_account.created":
       return {
-        summary: event.detail ? `Created the service account ${event.detail}` : "Created a service account",
+        summary: say("audit.event.service_account.created", "audit.event.service_account.created.detail"),
         denied: false,
         target,
       }
     case "service_account.renamed":
       return {
-        summary: event.detail ? `Renamed a service account to ${event.detail}` : "Renamed a service account",
+        summary: say("audit.event.service_account.renamed", "audit.event.service_account.renamed.detail"),
         denied: false,
         target,
       }
     case "service_account.disabled":
-      return { summary: "Disabled a service account", denied: false, target }
+      return { summary: say("audit.event.service_account.disabled"), denied: false, target }
     case "service_account.enabled":
-      return { summary: "Re-enabled a service account", denied: false, target }
+      return { summary: say("audit.event.service_account.enabled"), denied: false, target }
     case "service_account.sponsor_changed":
-      return { summary: "Changed a service account's sponsor", denied: false, target }
+      return { summary: say("audit.event.service_account.sponsor_changed"), denied: false, target }
     case "assistant.created":
       return {
-        summary: event.detail ? `Created the assistant ${event.detail}` : "Created an assistant",
+        summary: say("audit.event.assistant.created", "audit.event.assistant.created.detail"),
         denied: false,
         target,
       }
     case "assistant.updated":
       return {
-        summary: event.detail ? `Changed an assistant's definition (${event.detail})` : "Changed an assistant's definition",
+        summary: say("audit.event.assistant.updated", "audit.event.assistant.updated.detail"),
         denied: false,
         target,
       }
     case "assistant.deleted":
       return {
-        summary: event.detail ? `Deleted the assistant ${event.detail}` : "Deleted an assistant",
+        summary: say("audit.event.assistant.deleted", "audit.event.assistant.deleted.detail"),
         denied: false,
         target,
       }
     case "assistant.activated":
       return {
-        summary: event.detail ? `Published the assistant ${event.detail}` : "Published an assistant",
+        summary: say("audit.event.assistant.activated", "audit.event.assistant.activated.detail"),
         denied: false,
         target,
       }
     case "assistant.paused":
       return {
-        summary: event.detail ? `Paused the assistant ${event.detail}` : "Paused an assistant",
+        summary: say("audit.event.assistant.paused", "audit.event.assistant.paused.detail"),
         denied: false,
         target,
       }
     case "assistant.sponsor_changed":
-      return { summary: "Changed an assistant's sponsor", denied: false, target }
+      return { summary: say("audit.event.assistant.sponsor_changed"), denied: false, target }
     case "assistant.bound":
       return {
-        summary: event.detail ? `Bound the bot @${event.detail} to an assistant` : "Bound a bot to an assistant",
+        summary: say("audit.event.assistant.bound", "audit.event.assistant.bound.detail"),
         denied: false,
         target,
       }
     case "assistant.unbound":
       return {
-        summary: event.detail ? `Unbound the bot from the assistant ${event.detail}` : "Unbound an assistant's bot",
+        summary: say("audit.event.assistant.unbound", "audit.event.assistant.unbound.detail"),
         denied: false,
         target,
       }
     case "assistant.requester_replied":
       // The target is the Issue; the detail is the Assistant that carried it.
       return {
-        summary: event.detail
-          ? `Replied to a requester through the assistant ${event.detail}`
-          : "Replied to an assistant's requester",
+        summary: say("audit.event.assistant.requester_replied", "audit.event.assistant.requester_replied.detail"),
         denied: false,
         target,
       }
     case "access.denied":
       return {
-        summary: event.target_id ? `Was refused: ${event.target_id}` : "Was refused a request",
+        summary: event.target_id
+          ? t("audit.event.access.denied.target", { target: event.target_id })
+          : t("audit.event.access.denied"),
         denied: true,
         target: null,
       }
@@ -305,14 +308,9 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
 }
 
 /** actorLabel names who acted, distinguishing a person from the deployment. */
-export function actorLabel(event: ApiAuditEvent, currentUserId?: string): string {
-  if (event.actor_type === "system") return `${event.actor_id} (system)`
-  if (event.actor_type === "worker") return `${event.actor_id} (worker)`
-  if (currentUserId && event.actor_id === currentUserId) return "You"
+export function actorLabel(event: ApiAuditEvent, t: Translate<MessageKey>, currentUserId?: string): string {
+  if (event.actor_type === "system") return t("audit.actor.system", { actor: event.actor_id })
+  if (event.actor_type === "worker") return t("audit.actor.worker", { actor: event.actor_id })
+  if (currentUserId && event.actor_id === currentUserId) return t("audit.actor.you")
   return event.actor_id
-}
-
-export function formatEventTime(rfc3339: string): string {
-  if (!rfc3339) return "—"
-  return new Date(rfc3339).toLocaleString()
 }

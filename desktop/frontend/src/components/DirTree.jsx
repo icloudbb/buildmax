@@ -1,21 +1,23 @@
 import { Chevron, FileIcon, FolderIcon } from './icons';
+import { useT } from '../i18n';
 
 // DirTree renders a lazily-expanded workspace directory tree from the state a
 // useWorkspaceDir hook holds. It is presentational: clicking a directory calls
 // toggleDir; a single file click calls onFileClick(path) (preview) and a
 // double-click calls onFileOpen(path) (pin).
 export function DirTree({ byDir, expanded, toggleDir, onFileClick, onFileOpen, activePath }) {
+  const t = useT();
   function renderEntries(dir, depth) {
     const node = byDir[dir];
     const pad = { paddingLeft: `${0.5 + depth * 0.85}rem` };
     if (!node || (node.loading && !node.entries)) {
-      return <div className="file-tree__hint" style={pad}>Loading…</div>;
+      return <div className="file-tree__hint" style={pad}>{t('shell.loading')}</div>;
     }
     if (node.error) {
       return <div className="file-tree__hint file-tree__hint--error" style={pad}>{node.error}</div>;
     }
     if (node.entries.length === 0) {
-      return <div className="file-tree__hint" style={pad}>Empty</div>;
+      return <div className="file-tree__hint" style={pad}>{t('explorer.empty')}</div>;
     }
     return node.entries.map((e) => {
       const open = e.is_dir && expanded.has(e.path);

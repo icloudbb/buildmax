@@ -33,7 +33,7 @@
 
 .asst-files { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; }
 .asst-check { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--color-text); overflow-wrap: anywhere; }
-.asst-check code { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; }
+.asst-check code { font-family: var(--font-mono); font-size: 12px; }
 
 .asst-statement { display: flex; flex-direction: column; gap: 10px; }
 .asst-statement__text { margin: 0; font-size: 13px; line-height: 1.55; color: var(--color-text); }

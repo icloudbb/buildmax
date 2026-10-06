@@ -1,5 +1,7 @@
 import { getApiBase, requestJson, apiFetch, parseErrorResponse } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
+import { detectLocale } from "@buildmax/gui"
+import { translate } from "../../i18n"
 
 /** A chat platform this deployment has a bot on. */
 export interface ChannelPlatform {
@@ -58,6 +60,6 @@ export async function deleteChannelLink(linkId: string, token: string): Promise<
     headers: authHeaders(token),
   })
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "Failed to unlink"))
+    throw new Error(await parseErrorResponse(res, translate(detectLocale(), "account.chat.unlinkError")))
   }
 }

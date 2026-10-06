@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react"
-import { Button, ButtonLink } from "@buildmax/gui"
+import { Button, ButtonLink, useLocale, type Translate } from "@buildmax/gui"
 import type { Workflow, WorkflowRun, WorkflowNodeRun, WorkflowRequest } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { statusLabel } from "../../lib/statusLabels"
+import { useStatusLabel } from "../../lib/statusLabels"
+import { useStableT, useT, type MessageKey } from "../../i18n"
+import { formatRelativeTime, formatTimestamp, intlLocale } from "../../lib/dateFormat"
 import {
   apiWorkflowRunToWorkflowRun,
   apiWorkflowNodeRunToWorkflowNodeRun,
@@ -31,6 +33,10 @@ interface WorkflowRunDetailProps {
 }
 
 export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRunDetailProps) {
+  const t = useT()
+  const { locale } = useLocale()
+  const stableT = useStableT()
+  const statusLabel = useStatusLabel()
   const { setEntityLabel } = useApp()
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [run, setRun] = useState<WorkflowRun | null>(null)
@@ -82,7 +88,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
           setUnavailable("error")
         }
         setRun(null)
-        setError(getErrorMessage(err, "Failed to load workflow run"))
+        setError(getErrorMessage(err, stableT("workflows.run.error.load")))
       }
     } finally {
       if (background) {
@@ -91,7 +97,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
         setLoading(false)
       }
     }
-  }, [token, spaceId, workflowRunId])
+  }, [token, spaceId, workflowRunId, stableT])
 
   useEffect(() => {
     void load()
@@ -129,19 +135,29 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
       await cancelWorkflowRun(spaceId, run.id, token)
       await load(true)
     } catch (err) {
-      setActionError(getErrorMessage(err, "Could not cancel the run"))
+      setActionError(getErrorMessage(err, stableT("workflows.run.error.cancel")))
     } finally {
       setCanceling(false)
     }
   }
+  // Node types the runtime knows read as words; an unknown one falls back to
+  // the generic status formatting.
+  const nodeTypeLabel = (nodeType: string) =>
+    nodeType === "agent_task" || nodeType === "human_input"
+      ? t(`workflows.nodeType.${nodeType}`)
+      : statusLabel(nodeType)
   const refreshedLabel = lastRefreshedAt
-    ? new Date(lastRefreshedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    ? new Date(lastRefreshedAt).toLocaleTimeString(intlLocale(locale), {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
     : null
 
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">Loading…</p>
+        <p className="page-activity__empty">{t("shell.loading")}</p>
       </div>
     )
   }
@@ -149,11 +165,11 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
   if (unavailable) {
     return (
       <ResourceUnavailable
-        resourceLabel="Workflow Run"
+        resourceLabel={t("workflows.run.resource")}
         kind={unavailable}
         errorMessage={error}
         onRetry={() => void load()}
-        backLabel="Back to Workflows"
+        backLabel={t("workflows.backToList")}
         onBack={() => navigate({ name: "workflows", spaceId })}
       />
     )
@@ -163,9 +179,9 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
     <div className="page-activity">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">{workflow?.name ?? "Workflow run"}</h1>
+          <h1 className="page-activity__title">{workflow?.name ?? t("workflows.run.fallbackTitle")}</h1>
           <p className="page-activity__subtitle">
-            {run ? `${statusLabel(run.status)} · ${run.createdLabel}` : "Workflow run"}
+            {run ? `${statusLabel(run.status)} · ${formatRelativeTime(run.createdAt, locale)}` : t("workflows.run.fallbackTitle")}
           </p>
         </div>
         <div className="page-activity__actions">
@@ -177,16 +193,16 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
               void load(true)
             }}
           >
-            Refresh
+            {t("workflows.refresh")}
           </Button>
           {run && ["pending", "running"].includes(run.status) ? (
             <Button variant="danger" busy={canceling} disabled={canceling} onClick={() => void cancelRun()}>
-              Cancel run
+              {t("workflows.run.cancel")}
             </Button>
           ) : null}
           {workflow ? (
             <ButtonLink variant="tertiary" href={buildHash({ name: "workflow", spaceId, workflowId: workflow.id })}>
-              Back to Workflow
+              {t("workflows.run.back")}
             </ButtonLink>
           ) : null}
         </div>
@@ -205,7 +221,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
         <div className="workflow-run-page__grid">
           <section className="issues-page__panel">
             <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Result</h2>
+              <h2 className="issues-page__section-title">{t("workflows.run.result")}</h2>
               <span className="issues-page__status">{statusLabel(run.status)}</span>
             </div>
             {run.result != null ? (
@@ -214,24 +230,24 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                   {typeof run.result === "string" ? run.result : JSON.stringify(run.result, null, 2)}
                 </pre>
               </div>
-            ) : <p className="page-activity__meta">{isLive ? "The run is in progress. Its result will appear here." : "No result was produced."}</p>}
+            ) : <p className="page-activity__meta">{isLive ? t("workflows.run.inProgress") : t("workflows.run.noResult")}</p>}
             {run.errorMessage ? <p className="modal__error" role="alert">{run.errorMessage}</p> : null}
             <details className="workflow-run-page__diagnostics">
-              <summary>Run details</summary>
+              <summary>{t("workflows.run.details")}</summary>
             <div className="workflow-run-page__meta">
-              <div><strong>Run ID:</strong> {run.id}</div>
+              <div><strong>{t("workflows.run.id")}</strong> {run.id}</div>
               {run.workflowRevision ? (
-                <div><strong>Workflow version:</strong> v{run.workflowRevision}</div>
+                <div><strong>{t("workflows.run.version")}</strong> v{run.workflowRevision}</div>
               ) : null}
-              <div><strong>Created:</strong> {run.createdLabel}</div>
-              {run.startedAt ? <div><strong>Started:</strong> {new Date(run.startedAt).toLocaleString()}</div> : null}
-              {run.endedAt ? <div><strong>Ended:</strong> {new Date(run.endedAt).toLocaleString()}</div> : null}
-              {run.deadlineAt ? <div><strong>Deadline:</strong> {new Date(run.deadlineAt).toLocaleString()}</div> : null}
-              {run.issueId ? <div><strong>Issue ID:</strong> {run.issueId}</div> : null}
+              <div><strong>{t("workflows.run.created")}</strong> {formatRelativeTime(run.createdAt, locale)}</div>
+              {run.startedAt ? <div><strong>{t("workflows.run.started")}</strong> {formatTimestamp(run.startedAt, locale)}</div> : null}
+              {run.endedAt ? <div><strong>{t("workflows.run.ended")}</strong> {formatTimestamp(run.endedAt, locale)}</div> : null}
+              {run.deadlineAt ? <div><strong>{t("workflows.run.deadline")}</strong> {formatTimestamp(run.deadlineAt, locale)}</div> : null}
+              {run.issueId ? <div><strong>{t("workflows.run.issueId")}</strong> {run.issueId}</div> : null}
               <div>
-                <strong>Mode:</strong> {isLive ? "Live updates enabled" : "Final snapshot"}
+                <strong>{t("workflows.run.mode")}</strong> {isLive ? t("workflows.run.live") : t("workflows.run.final")}
               </div>
-              {refreshedLabel ? <div><strong>Last refreshed:</strong> {refreshedLabel}</div> : null}
+              {refreshedLabel ? <div><strong>{t("workflows.run.lastRefreshed")}</strong> {refreshedLabel}</div> : null}
             </div>
             </details>
           </section>
@@ -239,8 +255,8 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
           {steps.length > 0 ? (
             <section className="issues-page__panel">
               <div className="issues-page__toolbar">
-                <h2 className="issues-page__section-title">Graph</h2>
-                <span className="page-activity__meta">execution order by dependency</span>
+                <h2 className="issues-page__section-title">{t("workflows.run.graph")}</h2>
+                <span className="page-activity__meta">{t("workflows.run.graphHint")}</span>
               </div>
               <WorkflowGraph
                 nodes={steps.map((step) => ({
@@ -256,11 +272,11 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
 
           <section className="issues-page__panel">
             <div className="issues-page__toolbar">
-              <h2 className="issues-page__section-title">Steps</h2>
-              <span className="page-activity__meta">{steps.length} total</span>
+              <h2 className="issues-page__section-title">{t("workflows.run.steps")}</h2>
+              <span className="page-activity__meta">{t("workflows.total", { count: steps.length })}</span>
             </div>
             {steps.length === 0 ? (
-              <p className="page-activity__empty">No steps recorded.</p>
+              <p className="page-activity__empty">{t("workflows.run.noSteps")}</p>
             ) : (
               <ol className="workflow-page__steps">
                 {steps.map((step) => (
@@ -270,32 +286,34 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                       <span className="issues-page__status">{statusLabel(step.status)}</span>
                     </div>
                     <div className="workflow-page__step-body">
-                      <div className="page-activity__meta">{statusLabel(step.nodeType)}</div>
+                      <div className="page-activity__meta">{nodeTypeLabel(step.nodeType)}</div>
                       <div>{step.prompt}</div>
                       <StepAttempt step={step} />
                       {requests
                         .filter((request) => request.nodeRunId === step.id && request.status !== "pending")
                         .map((request) => (
                           <div key={request.id} className="page-activity__meta">
-                            {resolvedRequestLabel(request)}
+                            {resolvedRequestLabel(request, t)}
                           </div>
                         ))}
                       {step.targetAgentId ? (
                         <div className="page-activity__meta">
-                          Agent: {step.agentName ? `${step.agentName} (${step.targetAgentId})` : step.targetAgentId}
+                          {t("workflows.run.agentLine", {
+                            agent: step.agentName ? `${step.agentName} (${step.targetAgentId})` : step.targetAgentId,
+                          })}
                           {step.agentRevision ? ` · v${step.agentRevision}` : ""}
                         </div>
                       ) : null}
                       {step.agentInstructions ? (
                         <details className="workflow-run-page__step-agent">
-                          <summary className="page-activity__meta">Agent definition used by this step</summary>
+                          <summary className="page-activity__meta">{t("workflows.run.agentDefinition")}</summary>
                           <pre className="workflow-page__step-output">{step.agentInstructions}</pre>
                         </details>
                       ) : null}
                       {step.taskId ? (
                         <div className="page-activity__meta">
-                          Task: {step.taskId}
-                          {step.taskRunId ? ` / Run: ${step.taskRunId}` : ""}
+                          {t("workflows.run.taskLine", { task: step.taskId })}
+                          {step.taskRunId ? t("workflows.run.taskRunSuffix", { run: step.taskRunId }) : ""}
                         </div>
                       ) : null}
 					  {step.taskId ? (
@@ -304,13 +322,13 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                             variant="tertiary" size="compact"
 							onClick={() => navigate({ name: "task", spaceId, taskId: step.taskId! })}
                           >
-							Open Task
+							{t("workflows.run.openTask")}
                           </Button>
                         </div>
                       ) : null}
                       {step.resolvedInput ? (
                         <details className="workflow-run-page__step-agent">
-                          <summary className="page-activity__meta">Resolved input this node received</summary>
+                          <summary className="page-activity__meta">{t("workflows.run.resolvedInput")}</summary>
                           <pre className="workflow-page__step-output">{step.resolvedInput}</pre>
                         </details>
                       ) : null}
@@ -332,29 +350,37 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
  *  step retries, and when a running attempt times out. Silent for a one-attempt
  *  step with no timeout, which is most of them. */
 function StepAttempt({ step }: { step: WorkflowNodeRun }) {
+  const t = useT()
+  const { locale } = useLocale()
   const parts: string[] = []
-  if (step.maxAttempts > 1 && step.attempt > 0) parts.push(`Attempt ${step.attempt} of ${step.maxAttempts}`)
-  if (step.status === "retry_wait" && step.nextAttemptAt) {
-    parts.push(`next attempt at ${new Date(step.nextAttemptAt).toLocaleTimeString()}`)
+  if (step.maxAttempts > 1 && step.attempt > 0) {
+    parts.push(t("workflows.run.attempt", { attempt: step.attempt, max: step.maxAttempts }))
   }
-  if (step.status === "waiting") parts.push("waiting for a person")
+  if (step.status === "retry_wait" && step.nextAttemptAt) {
+    parts.push(t("workflows.run.nextAttempt", { time: new Date(step.nextAttemptAt).toLocaleTimeString(intlLocale(locale)) }))
+  }
+  if (step.status === "waiting") parts.push(t("workflows.run.waitingForPerson"))
   if (step.status === "running" && step.deadlineAt) {
-    parts.push(`times out at ${new Date(step.deadlineAt).toLocaleString()}`)
+    parts.push(t("workflows.run.timesOut", { time: formatTimestamp(step.deadlineAt, locale) }))
   }
   if (parts.length === 0) return null
   return <div className="page-activity__meta">{parts.join(" · ")}</div>
 }
 
 /** One line recording how a request a step waited on was resolved. */
-function resolvedRequestLabel(request: WorkflowRequest): string {
-  const what = request.kind === "question" ? "Question" : "Input"
-  const answer = describeResponse(request.response)
+function resolvedRequestLabel(request: WorkflowRequest, t: Translate<MessageKey>): string {
+  const what = t(request.kind === "question" ? "workflows.request.question" : "workflows.request.input")
+  const answer = describeResponse(request.response, t)
   switch (request.status) {
     case "answered":
-      return `${what} answered${answer ? `: ${answer}` : ""}`
+      return answer ? t("workflows.request.answeredWith", { what, answer }) : t("workflows.request.answered", { what })
     case "declined":
-      return `${what} declined${answer ? `: ${answer}` : ""}`
+      return answer ? t("workflows.request.declinedWith", { what, answer }) : t("workflows.request.declined", { what })
+    case "expired":
+      return t("workflows.request.expired", { what })
+    case "canceled":
+      return t("workflows.request.canceled", { what })
     default:
-      return `${what} ${request.status}`
+      return t("workflows.request.otherStatus", { what, status: request.status })
   }
 }

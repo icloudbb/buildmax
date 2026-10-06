@@ -35,12 +35,12 @@
 }
 
 .page-issues__row:hover {
-  background: var(--color-bg-muted, rgba(127, 127, 127, 0.08));
+  background: var(--color-bg-muted);
 }
 
 .page-issues__row--active {
   border-color: var(--color-border);
-  background: var(--color-bg-muted, rgba(127, 127, 127, 0.08));
+  background: var(--color-bg-muted);
 }
 
 .page-issues__row-title {
@@ -93,7 +93,7 @@
 }
 
 .page-issues__notice--error {
-  color: var(--color-danger, #c0392b);
+  color: var(--color-danger);
 }
 
 .page-issues__description {

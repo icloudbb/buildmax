@@ -1,5 +1,6 @@
 import { navigate } from "../router"
 import { useSpace } from "../contexts/SpaceContext"
+import { useT } from "../i18n"
 
 /**
  * Editor for the catalog plugins an agent loads for its background runs. It is
@@ -19,6 +20,7 @@ interface PluginSelectionEditorProps {
 
 export function PluginSelectionEditor({ value, onChange, available }: PluginSelectionEditorProps) {
   const { currentSpaceId } = useSpace()
+  const t = useT()
   // Union of what the space offers and what the agent already names, sorted, so
   // a stale name stays visible instead of vanishing from the list.
   const names = [...new Set([...available, ...value])].sort()
@@ -36,15 +38,15 @@ export function PluginSelectionEditor({ value, onChange, available }: PluginSele
   if (names.length === 0) {
     return (
       <p className="modal__hint">
-        No plugins are available to this space yet. A space owner can activate plugins in{" "}
+        {t("agents.plugins.emptyBefore")}
         <button
           type="button"
           className="agent-plugins__link"
           onClick={() => currentSpaceId && navigate({ name: "space", spaceId: currentSpaceId, section: "plugins" })}
         >
-          Space Plugins
+          {t("agents.plugins.emptyLink")}
         </button>
-        .
+        {t("agents.plugins.emptyAfter")}
       </p>
     )
   }
@@ -63,7 +65,7 @@ export function PluginSelectionEditor({ value, onChange, available }: PluginSele
             />
             <span className="agent-plugins__name">{name}</span>
             {stale ? (
-              <span className="agent-plugins__note">not available to this space</span>
+              <span className="agent-plugins__note">{t("agents.plugins.unavailable")}</span>
             ) : null}
           </label>
         )

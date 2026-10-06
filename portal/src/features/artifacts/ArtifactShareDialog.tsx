@@ -5,7 +5,8 @@ import { ApiRequestError } from "../../lib/api/client"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { CopyButton } from "../../components/CopyButton"
 import { createShare, listShares, revokeShare } from "./api"
-import { formatTime } from "./display"
+import { useTimestamp } from "../../lib/dateFormat"
+import { useStableT, useT } from "../../i18n"
 
 interface ArtifactShareDialogProps {
   artifactId: string
@@ -24,6 +25,9 @@ interface ArtifactShareDialogProps {
  * shows only each link's metadata and a Revoke.
  */
 export function ArtifactShareDialog({ artifactId, token, open, onClose }: ArtifactShareDialogProps) {
+  const t = useT()
+  const formatTime = useTimestamp()
+  const stableT = useStableT()
   const [shares, setShares] = useState<ApiArtifactShare[]>([])
   const [freshLink, setFreshLink] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -34,8 +38,8 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
     if (!token) return
     return listShares(artifactId, token)
       .then((res) => setShares(res.items ?? []))
-      .catch((err) => setError(getErrorMessage(err, "Could not load share links")))
-  }, [artifactId, token])
+      .catch((err) => setError(getErrorMessage(err, stableT("artifacts.share.error.load"))))
+  }, [artifactId, token, stableT])
 
   // Reload each time the dialog opens; clear the one-time link from a prior open.
   useEffect(() => {
@@ -58,7 +62,7 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
       if (err instanceof ApiRequestError && err.status === 503) {
         setUnavailable(true)
       } else {
-        setError(getErrorMessage(err, "Could not create a public link"))
+        setError(getErrorMessage(err, stableT("artifacts.share.error.create")))
       }
     } finally {
       setBusyAction(null)
@@ -74,7 +78,7 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
       if (freshLink) setFreshLink(null)
       await load()
     } catch (err) {
-      setError(getErrorMessage(err, "Could not revoke the link"))
+      setError(getErrorMessage(err, stableT("artifacts.share.error.revoke")))
     } finally {
       setBusyAction(null)
     }
@@ -85,22 +89,17 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
   return (
     <BaseModal
       open={open}
-      title="Share this artifact"
+      title={t("artifacts.share.title")}
       titleId="artifact-share-title"
       onClose={onClose}
       className="modal--large"
     >
       <div className="modal__body artifact-share-dialog">
         {unavailable ? (
-          <p className="page-activity__empty">
-            Public sharing is not enabled on this deployment.
-          </p>
+          <p className="page-activity__empty">{t("artifacts.share.unavailable")}</p>
         ) : (
           <>
-            <p className="artifact-share-dialog__hint">
-              A public link opens this file without a BuildMax login. It is
-              revocable and expires.
-            </p>
+            <p className="artifact-share-dialog__hint">{t("artifacts.share.hint")}</p>
 
             {error ? (
               <p className="settings-section__error" role="alert">
@@ -110,12 +109,10 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
 
             {freshLink ? (
               <div className="artifact-share-dialog__fresh">
-                <p className="artifact-share-dialog__note">
-                  New link — shown once. Copy it now.
-                </p>
+                <p className="artifact-share-dialog__note">{t("artifacts.share.fresh")}</p>
                 <div className="artifact-share-dialog__link-row">
                   <code className="artifact-share-dialog__link">{freshLink}</code>
-                  <CopyButton value={freshLink} />
+                  <CopyButton value={freshLink} label={t("artifacts.copy")} />
                 </div>
               </div>
             ) : null}
@@ -126,7 +123,7 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
               busy={busyAction === "create"}
               disabled={busyAction !== null}
             >
-              Create public link
+              {t("artifacts.share.create")}
             </Button>
 
             {live.length > 0 ? (
@@ -134,9 +131,9 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
                 {live.map((s) => (
                   <li key={s.share_id} className="artifact-share-dialog__item">
                     <span className="artifact-share-dialog__meta">
-                      Created {formatTime(s.created_at)}
-                      {s.expires_at ? ` · expires ${formatTime(s.expires_at)}` : ""}
-                      {` · ${s.retrieval_count} open${s.retrieval_count === 1 ? "" : "s"}`}
+                      {t("artifacts.share.created", { time: formatTime(s.created_at) })}
+                      {s.expires_at ? t("artifacts.share.expires", { time: formatTime(s.expires_at) }) : ""}
+                      {t("artifacts.share.opens", { count: s.retrieval_count })}
                     </span>
                     <Button
                       variant="danger"
@@ -145,13 +142,13 @@ export function ArtifactShareDialog({ artifactId, token, open, onClose }: Artifa
                       busy={busyAction === s.share_id}
                       disabled={busyAction !== null}
                     >
-                      Revoke
+                      {t("artifacts.share.revoke")}
                     </Button>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="page-activity__empty">No active links.</p>
+              <p className="page-activity__empty">{t("artifacts.share.none")}</p>
             )}
           </>
         )}

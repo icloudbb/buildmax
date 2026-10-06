@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { QuestionForm, type QuestionAnswer } from "@buildmax/gui"
+import { QuestionForm, type QuestionAnswer, type Translate } from "@buildmax/gui"
+import { useT, type MessageKey } from "../../i18n"
 import { navigate } from "../../router"
 import {
   cancelRemoteSession,
@@ -71,6 +72,7 @@ function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
  * content deltas, so this renders the accumulated text and does not steer.
  */
 export function RemoteControlSession({ token, sessionId }: RemoteControlSessionProps) {
+  const t = useT()
   const [text, setText] = useState("")
   const [status, setStatus] = useState<StreamStatus>("connecting")
   const [meta, setMeta] = useState<RemoteSession | null>(null)
@@ -250,24 +252,24 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
     <div className="rc-page rc-session">
       <header className="rc-page__header">
         <button type="button" className="rc-back" onClick={() => navigate({ name: "remoteControl" })}>
-          ← Sessions
+          {t("remote.back")}
         </button>
         <div className="rc-session__heading">
           <span
             className={`rc-status-dot rc-status-dot--${online ? "online" : "offline"}`}
-            aria-label={online ? "Online" : "Offline"}
+            aria-label={online ? t("remote.online") : t("remote.offline")}
           />
           <h1 className="rc-page__title">{title}</h1>
           {online && status === "streaming" ? (
             <button type="button" className="rc-stop" onClick={() => void stopRun()}>
-              Stop
+              {t("remote.stop")}
             </button>
           ) : null}
         </div>
         <p className="rc-page__subtitle">
           {meta ? [meta.platform, meta.host].filter(Boolean).join(" · ") : ""}
           {meta ? " · " : ""}
-          {statusLabel(status, online)}
+          {statusLabel(status, online, t)}
         </p>
       </header>
 
@@ -276,9 +278,7 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
           <pre className="rc-stream__body">{text}</pre>
         ) : (
           <p className="rc-stream__empty">
-            {online
-              ? "Waiting for output…"
-              : "This session is offline. It will stream again when it reconnects."}
+            {online ? t("remote.waiting") : t("remote.offlineBody")}
           </p>
         )}
       </div>
@@ -286,30 +286,30 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
       {approval && online ? (
         <div className="rc-approval">
           <div className="rc-approval__body">
-            <span className="rc-approval__title">Approve tool call</span>
-            <code className="rc-approval__tool">{approval.tool || "tool"}</code>
+            <span className="rc-approval__title">{t("remote.approveTitle")}</span>
+            <code className="rc-approval__tool">{approval.tool || t("remote.tool")}</code>
             {approval.summary ? <span className="rc-approval__summary">{approval.summary}</span> : null}
           </div>
           <div className="rc-approval__actions">
             <button type="button" className="rc-approval__btn" onClick={() => void answerApproval("once")}>
-              Allow once
+              {t("remote.allowOnce")}
             </button>
             <button type="button" className="rc-approval__btn" onClick={() => void answerApproval("session")}>
-              Allow session
+              {t("remote.allowSession")}
             </button>
             <button
               type="button"
               className="rc-approval__btn rc-approval__btn--deny"
               onClick={() => void answerApproval("deny")}
             >
-              Deny
+              {t("remote.deny")}
             </button>
           </div>
         </div>
       ) : null}
 
       {question?.questions && online ? (
-        <div className="rc-question" role="dialog" aria-label="Question from the agent">
+        <div className="rc-question" role="dialog" aria-label={t("remote.question")}>
           {/* keyed by id: a new set starts on its first question with no answers */}
           <QuestionForm key={question.id} questions={question.questions} onAnswer={(a) => void answerQuestion(a)} />
         </div>
@@ -332,12 +332,12 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
               void submitPrompt()
             }
           }}
-          placeholder={online ? "Send a message to this session…" : "Session is offline"}
+          placeholder={online ? t("remote.placeholder") : t("remote.placeholderOffline")}
           rows={2}
           disabled={!online || sending}
         />
         <button type="submit" className="rc-composer__send" disabled={!online || sending || !draft.trim()}>
-          {sending ? "Sending…" : "Send"}
+          {sending ? t("remote.sending") : t("remote.send")}
         </button>
       </form>
       {sendError ? <div className="rc-alert">{sendError}</div> : null}
@@ -345,7 +345,7 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
   )
 }
 
-function statusLabel(status: StreamStatus, online: boolean): string {
-  if (!online) return "offline"
-  return status === "streaming" ? "live" : "connecting…"
+function statusLabel(status: StreamStatus, online: boolean, t: Translate<MessageKey>): string {
+  if (!online) return t("remote.status.offline")
+  return status === "streaming" ? t("remote.status.live") : t("remote.status.connecting")
 }

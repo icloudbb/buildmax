@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react"
 import type { Agent } from "../../lib/types"
+import { useStableT, useT } from "../../i18n"
 import {
   newHumanStep,
   newStep,
@@ -16,6 +17,13 @@ import {
   type WorkflowStepDraft,
 } from "./steps"
 
+/** Why the raw JSON cannot be used, as a message key so it follows the
+ *  interface language. */
+export type DefinitionParseError =
+  | "workflows.editor.savedInvalid"
+  | "workflows.editor.invalidJson"
+  | "workflows.editor.fixJson"
+
 export interface WorkflowStepsState {
   steps: WorkflowStepDraft[]
   /** The definition JSON to submit. Always derived from `steps`, the one
@@ -25,7 +33,7 @@ export interface WorkflowStepsState {
   errors: StepError[]
   advanced: boolean
   definitionText: string
-  definitionParseError: string | null
+  definitionParseError: DefinitionParseError | null
   /** The definition's `policy.max_parallel_nodes`, editable beside the canvas. */
   maxParallelNodes: number | null
   setMaxParallelNodes: (value: number | null) => void
@@ -74,7 +82,9 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   const [result, setResult] = useState<string | undefined>(undefined)
   const [advanced, setAdvanced] = useState(false)
   const [definitionText, setDefinitionTextRaw] = useState("")
-  const [definitionParseError, setDefinitionParseError] = useState<string | null>(null)
+  const [definitionParseError, setDefinitionParseError] = useState<DefinitionParseError | null>(null)
+  const t = useT()
+  const stableT = useStableT()
 
   const hydrate = useCallback((definition: string) => {
     const parsed = parseDefinition(definition)
@@ -84,16 +94,19 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
     setInputSchema(parsed?.inputSchema)
     setResult(parsed?.result)
     setDefinitionTextRaw(definition)
-    setDefinitionParseError(parsed ? null : "This workflow's saved definition is not valid JSON.")
+    setDefinitionParseError(parsed ? null : "workflows.editor.savedInvalid")
     setAdvanced(!parsed)
   }, [])
 
   const addStep = useCallback((kind: "agent" | "human" = "agent") => {
-    const base = kind === "human" ? newHumanStep() : newStep(agents[0]?.id ?? "")
+    const base =
+      kind === "human"
+        ? newHumanStep(stableT("workflows.step.defaultQuestion"))
+        : newStep(agents[0]?.id ?? "", stableT("workflows.step.defaultPrompt"))
     const step: WorkflowStepDraft = { ...base, id: newStepId(), needs: [] }
     setSteps((prev) => [...prev, step])
     return step.id
-  }, [agents])
+  }, [agents, stableT])
 
   const removeStep = useCallback((id: string) => {
     setSteps((prev) =>
@@ -212,7 +225,7 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
       setResult(parsed.result)
       setDefinitionParseError(null)
     } else {
-      setDefinitionParseError("This isn't valid JSON yet.")
+      setDefinitionParseError("workflows.editor.invalidJson")
     }
   }, [])
 
@@ -222,7 +235,7 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
       // parse failure has no step state to hand back.
       const parsed = parseDefinition(definitionText)
       if (!parsed) {
-        setDefinitionParseError("Fix the JSON before returning to the visual editor.")
+        setDefinitionParseError("workflows.editor.fixJson")
         return
       }
       setSteps(normalizeNeeds(parsed.steps))
@@ -240,8 +253,8 @@ export function useWorkflowSteps(agents: Agent[]): WorkflowStepsState {
   }, [advanced, definitionText, steps, maxParallelNodes, runTimeoutSeconds, inputSchema, result])
 
   const errors = useMemo(
-    () => [...validateDefinitionPolicy({ runTimeoutSeconds }), ...validateSteps(steps, agents)],
-    [steps, agents, runTimeoutSeconds],
+    () => [...validateDefinitionPolicy({ runTimeoutSeconds }, t), ...validateSteps(steps, agents, t)],
+    [steps, agents, runTimeoutSeconds, t],
   )
   const definition = useMemo(
     () => stepsToDefinition(steps, { maxParallelNodes, runTimeoutSeconds, inputSchema, result }),

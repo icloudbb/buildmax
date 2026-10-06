@@ -1,6 +1,10 @@
+import type { Translate } from "@buildmax/gui"
 import { describe, expect, it } from "vitest"
+import { translate, type MessageKey } from "../../i18n"
 import { contributionSummary, shortDigest } from "./AdminPlugins"
 import type { ApiPluginRelease } from "../../lib/api/types"
+
+const t: Translate<MessageKey> = (key, vars) => translate("en", key, vars)
 
 function release(inspection: ApiPluginRelease["inspection"]): ApiPluginRelease {
   return {
@@ -21,12 +25,13 @@ describe("contributionSummary", () => {
     expect(
       contributionSummary(
         release({ skills: ["review"], subagents: [{ name: "reviewer" }], hooks: [] }),
+        t,
       ),
     ).toBe("1 skill, 1 subagent")
   })
 
   it("pluralises", () => {
-    expect(contributionSummary(release({ skills: ["a", "b"], mcp: [{ id: "x", transport: "stdio" }] }))).toBe(
+    expect(contributionSummary(release({ skills: ["a", "b"], mcp: [{ id: "x", transport: "stdio" }] }), t)).toBe(
       "2 skills, 1 MCP server",
     )
   })
@@ -34,7 +39,7 @@ describe("contributionSummary", () => {
   // A release that contributes nothing this build reads is a real state, and
   // saying so beats an empty cell somebody has to interpret.
   it("names an empty release", () => {
-    expect(contributionSummary(release({}))).toBe("nothing this build recognises")
+    expect(contributionSummary(release({}), t)).toBe("nothing this build recognises")
   })
 })
 

@@ -19,7 +19,7 @@ import (
 )
 
 var backlogRoadmaps = map[string]bool{
-	"R0": true, "R1": true, "R2": true, "R3": true, "R4": true, "R5": true, "none": true,
+	"R0": true, "R1": true, "R2": true, "R3": true, "R4": true, "R5": true, "R6": true, "none": true,
 }
 
 var roadmapStatuses = map[string]bool{
@@ -74,7 +74,7 @@ func checkBacklogTask(t *testing.T, path, name string) {
 		}
 	}
 	if v := fields["roadmap"]; v != "" && !backlogRoadmaps[v] {
-		t.Errorf("docs/backlog/%s roadmap %q is not one of R0-R5 or none", name, v)
+		t.Errorf("docs/backlog/%s roadmap %q is not one of R0-R6 or none", name, v)
 	}
 	if v := fields["claim"]; v != "" && !claimRe.MatchString(v) {
 		t.Errorf("docs/backlog/%s claim %q is not \"<handle> <YYYY-MM-DD>\"", name, v)

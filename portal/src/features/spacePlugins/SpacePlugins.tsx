@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, getInitials } from "@buildmax/gui"
+import { Button, getInitials, type Translate } from "@buildmax/gui"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 import type {
   ApiAgent,
   ApiPlugin,
@@ -38,6 +39,8 @@ export function SpacePlugins({
   spaceId: string | null
   canManage: boolean
 }) {
+  const t = useT()
+  const stableT = useStableT()
   // null means "not yet successfully fetched", distinct from [] meaning the
   // deployment genuinely publishes nothing. See deriveResourceState.
   const [rowsData, setRowsData] = useState<PluginRow[] | null>(null)
@@ -88,11 +91,11 @@ export function SpacePlugins({
     } catch (err) {
       // rowsData from a prior successful fetch (if any) is left in place, so
       // a failed refresh reads as Stale rather than wiping the list.
-      setLoadError(classifyError(err, "Failed to load this space's plugins"))
+      setLoadError(classifyError(err, stableT("settings.plugins.loadError")))
     } finally {
       setLoading(false)
     }
-  }, [token, spaceId])
+  }, [token, spaceId, stableT])
 
   useEffect(() => {
     void load()
@@ -112,28 +115,26 @@ export function SpacePlugins({
       await action()
       await load()
     } catch (err) {
-      setActionError({ key, message: getErrorMessage(err, "That did not work") })
+      setActionError({ key, message: getErrorMessage(err, stableT("settings.plugins.actionError")) })
     } finally {
       setBusy(null)
     }
   }
 
   const activeCount = rows.filter((r) => r.activation?.enabled).length
+  // The command is code inside the sentence, so the sentence is split at it.
+  const [footBefore, footAfter] = t("settings.plugins.foot").split("{command}")
 
   return (
     <section className="tp">
       <div className="tp__head">
         <div>
-          <h2 className="tp__title">Plugins</h2>
-          <p className="tp__copy">
-            What this space&apos;s background runs may use. An agent loads only the
-            plugins it names — activating one here makes it available to name, and
-            changes no existing agent.
-          </p>
+          <h2 className="tp__title">{t("settings.plugins.title")}</h2>
+          <p className="tp__copy">{t("settings.plugins.copy")}</p>
         </div>
         {!loading && rows.length > 0 ? (
           <span className="tp__count">
-            {activeCount} of {rows.length} active
+            {t("settings.plugins.activeCount", { active: activeCount, total: rows.length })}
           </span>
         ) : null}
       </div>
@@ -145,7 +146,7 @@ export function SpacePlugins({
         <Alert
           tone={rowsState.kind === "stale" ? "stale" : rowsState.kind}
           message={rowsState.error.message}
-          retry={{ label: "Retry", onClick: () => void load() }}
+          retry={{ label: t("shell.retry"), onClick: () => void load() }}
         />
       )}
 
@@ -166,7 +167,7 @@ export function SpacePlugins({
           ))}
         </div>
       ) : rowsState.kind === "error" || rowsState.kind === "forbidden" || rowsState.kind === "notFound" ? null : rows.length === 0 ? (
-        <p className="tp-empty">This deployment has published nothing yet.</p>
+        <p className="tp-empty">{t("settings.plugins.empty")}</p>
       ) : (
         <ul className="tp-list">
           {rows.map((row) => (
@@ -197,9 +198,9 @@ export function SpacePlugins({
       )}
 
       <p className="tp-foot">
-        A pin never moves on its own: a release published after an activation cannot
-        change what a run loads until somebody updates it here. What is installed on
-        your own machine is a different thing — <code>buildmax plugin list</code> there.
+        {footBefore}
+        <code>buildmax plugin list</code>
+        {footAfter}
       </p>
     </section>
   )
@@ -218,17 +219,18 @@ function CurationControl({
   error: string | null
   onChange: (next: ApiPluginCuration) => void
 }) {
+  const t = useT()
   const other: ApiPluginCuration = curation === "curated" ? "open" : "curated"
   return (
     <div className="tp-mode">
       <div className="tp-mode__text">
         <span className="tp-mode__label">
           <span className={`tp-mode__badge tp-mode__badge--${curation}`}>
-            {curation === "curated" ? "Curated" : "Open"}
+            {curation === "curated" ? t("settings.plugins.curated") : t("settings.plugins.open")}
           </span>
-          catalog mode
+          {t("settings.plugins.catalogMode")}
         </span>
-        <p className="tp-mode__copy">{curationCopy(curation)}</p>
+        <p className="tp-mode__copy">{curationCopy(curation, t)}</p>
         {error ? (
           <p className="tp__error" role="alert">
             {error}
@@ -240,7 +242,7 @@ function CurationControl({
           variant="secondary" busy={busy}
           onClick={() => onChange(other)}
         >
-          {other === "curated" ? "Curate this list" : "Open the catalog"}
+          {other === "curated" ? t("settings.plugins.curate") : t("settings.plugins.openCatalog")}
         </Button>
       ) : null}
     </div>
@@ -268,9 +270,10 @@ function PluginRowView({
   onUpdate: (version: string) => void
   onSetEnabled: (enabled: boolean) => void
 }) {
+  const t = useT()
   const { activation } = row
-  const status = pluginStatus(row)
-  const chips = contributionChips(row.newest)
+  const status = pluginStatus(row, t)
+  const chips = contributionChips(row.newest, t)
   return (
     <li className={`tp-card ${expanded ? "tp-card--open" : ""}`}>
       <div className="tp-card__head">
@@ -287,7 +290,7 @@ function PluginRowView({
         </span>
       </div>
 
-      <p className="tp-card__meta">{metaLine(row)}</p>
+      <p className="tp-card__meta">{metaLine(row, t)}</p>
 
       {chips.length > 0 || row.staleVersion ? (
         <div className="tp-chips">
@@ -297,18 +300,20 @@ function PluginRowView({
             </span>
           ))}
           {row.staleVersion ? (
-            <span className="tp-chip tp-chip--warn">Update to {row.staleVersion} available</span>
+            <span className="tp-chip tp-chip--warn">
+              {t("settings.plugins.updateAvailable", { version: row.staleVersion })}
+            </span>
           ) : null}
         </div>
       ) : null}
 
       <div className="tp-card__actions">
         <Button variant="tertiary" size="compact" onClick={onToggle}>
-          {expanded ? "Hide details" : "Details"}
+          {expanded ? t("settings.plugins.hideDetails") : t("settings.plugins.details")}
         </Button>
         {canManage && !activation && row.newest ? (
           <Button variant="secondary" size="compact" busy={busy} onClick={onActivate}>
-            Activate
+            {t("settings.plugins.activate")}
           </Button>
         ) : null}
         {canManage && activation && row.staleVersion ? (
@@ -316,7 +321,7 @@ function PluginRowView({
             variant="secondary" size="compact" busy={busy}
             onClick={() => onUpdate(row.staleVersion as string)}
           >
-            Update to {row.staleVersion}
+            {t("settings.plugins.updateTo", { version: row.staleVersion })}
           </Button>
         ) : null}
         {canManage && activation ? (
@@ -325,7 +330,7 @@ function PluginRowView({
             disabled={busy}
             onClick={() => onSetEnabled(!activation.enabled)}
           >
-            {activation.enabled ? "Suspend" : "Resume"}
+            {activation.enabled ? t("settings.plugins.suspend") : t("settings.plugins.resume")}
           </Button>
         ) : null}
       </div>
@@ -342,72 +347,64 @@ function PluginRowView({
 }
 
 /** pluginStatus is the single at-a-glance state a reader scans down the list. */
-function pluginStatus(row: PluginRow): { label: string; tone: string } {
-  if (row.executableOnly) return { label: "Needs operator approval", tone: "blocked" }
+function pluginStatus(row: PluginRow, t: Translate<MessageKey>): { label: string; tone: string } {
+  if (row.executableOnly) return { label: t("settings.plugins.status.needsApproval"), tone: "blocked" }
   if (!row.activation) {
-    if (!row.newest) return { label: "No release", tone: "idle" }
-    return { label: "Available", tone: "idle" }
+    if (!row.newest) return { label: t("settings.plugins.status.noRelease"), tone: "idle" }
+    return { label: t("settings.plugins.status.available"), tone: "idle" }
   }
-  if (!row.activation.enabled) return { label: "Suspended", tone: "suspended" }
-  return { label: "Active", tone: "active" }
+  if (!row.activation.enabled) return { label: t("settings.plugins.status.suspended"), tone: "suspended" }
+  return { label: t("settings.plugins.status.active"), tone: "active" }
 }
 
 /** metaLine is the plain-language line under the identity. */
-function metaLine(row: PluginRow): string {
+function metaLine(row: PluginRow, t: Translate<MessageKey>): string {
   if (!row.activation) {
-    if (row.executableOnly) {
-      return "Every release contributes hooks or MCP servers, which a space cannot activate yet."
-    }
-    if (!row.newest) return "Nothing here can be activated."
-    return "Not activated — no agent can name it until it is."
+    if (row.executableOnly) return t("settings.plugins.meta.executableOnly")
+    if (!row.newest) return t("settings.plugins.meta.nothing")
+    return t("settings.plugins.meta.notActivated")
   }
   const used =
     row.usedBy.length > 0
-      ? `Named by ${row.usedBy.join(", ")}`
-      : "No agent names it, so no run loads it"
-  return `Pinned to v${row.activation.version} · ${used}`
+      ? t("settings.plugins.meta.namedBy", { names: row.usedBy.join(t("settings.listSeparator")) })
+      : t("settings.plugins.meta.unnamed")
+  return t("settings.plugins.meta.pinned", { version: row.activation.version, used })
 }
 
 /** activationSummary is the one line that says where this plugin stands. */
-export function activationSummary(row: PluginRow): string {
+export function activationSummary(row: PluginRow, t: Translate<MessageKey>): string {
   if (!row.activation) {
-    if (row.executableOnly) {
-      return "Cannot be activated yet: every release contributes hooks or MCP servers"
-    }
-    if (!row.newest) return "Nothing here can be activated"
-    return "Not activated"
+    if (row.executableOnly) return t("settings.plugins.summary.executableOnly")
+    if (!row.newest) return t("settings.plugins.summary.nothing")
+    return t("settings.plugins.summary.notActivated")
   }
-  const state = row.activation.enabled ? "Activated" : "Suspended"
-  const stale = row.staleVersion ? `, ${row.staleVersion} available` : ""
+  const state = row.activation.enabled
+    ? t("settings.plugins.summary.activated")
+    : t("settings.plugins.status.suspended")
+  const stale = row.staleVersion ? t("settings.plugins.summary.stale", { version: row.staleVersion }) : ""
   const used =
     row.usedBy.length > 0
-      ? `named by ${row.usedBy.join(", ")}`
-      : "no agent names it, so no run loads it"
-  return `${state} at ${row.activation.version}${stale} · ${used}`
+      ? t("settings.plugins.summary.namedBy", { names: row.usedBy.join(t("settings.listSeparator")) })
+      : t("settings.plugins.summary.unnamed")
+  return t("settings.plugins.summary.line", { state, version: row.activation.version, stale, used })
 }
 
 function PluginRowDetail({ row }: { row: PluginRow }) {
+  const t = useT()
   return (
     <div className="tp-detail">
       {row.description ? <p className="tp-detail__desc">{row.description}</p> : null}
       {row.activation ? (
         <p className="tp-detail__meta">
-          {originCopy(row.activation)} · digest <code>{row.activation.digest}</code>
+          {originCopy(row.activation, t)} · {t("settings.plugins.digest")} <code>{row.activation.digest}</code>
         </p>
       ) : null}
       {row.activation && !row.activation.enabled ? (
-        <p className="tp-detail__note">
-          While suspended, a run whose agent names this plugin fails rather than
-          running without it.
-        </p>
+        <p className="tp-detail__note">{t("settings.plugins.suspendedNote")}</p>
       ) : null}
       {row.newest ? <ReleaseReport release={row.newest} /> : null}
       {row.executableOnly ? (
-        <p className="tp-detail__note">
-          Hooks and MCP servers start processes on the infrastructure a worker runs
-          on. Activating them needs an operator&apos;s decision, which this
-          deployment cannot record yet.
-        </p>
+        <p className="tp-detail__note">{t("settings.plugins.executableNote")}</p>
       ) : null}
     </div>
   )
@@ -415,12 +412,18 @@ function PluginRowDetail({ row }: { row: PluginRow }) {
 
 /** ReleaseReport is the same sanitized report an install shows locally. */
 function ReleaseReport({ release }: { release: ApiPluginRelease }) {
-  const groups = contributionGroups(release)
+  const t = useT()
+  const groups = contributionGroups(release, t)
+  // The version is emphasized inside the sentence, so the sentence is split at it.
+  const [newestBefore, newestAfter] = t("settings.plugins.newestRelease", {
+    user: release.published_by,
+  }).split("{version}")
   return (
     <div className="tp-detail__section">
       <p className="tp-detail__meta">
-        Newest activatable release <strong>v{release.version}</strong>, published by{" "}
-        {release.published_by}.
+        {newestBefore}
+        <strong>v{release.version}</strong>
+        {newestAfter}
       </p>
       {groups.map((group) => (
         <div key={group.label} className="tp-detail__group">
@@ -438,8 +441,9 @@ function ReleaseReport({ release }: { release: ApiPluginRelease }) {
         <p className="tp-detail__note">
           {/* No per-space secret exists yet, so an unset variable is the usual
               reason an activated plugin starts and does nothing. */}
-          Reads {release.inspection.env_refs.join(", ")}. A worker holds no per-space
-          secrets, so any it needs will be unset.
+          {t("settings.plugins.envRefs", {
+            vars: release.inspection.env_refs.join(t("settings.listSeparator")),
+          })}
         </p>
       ) : null}
     </div>
@@ -447,33 +451,35 @@ function ReleaseReport({ release }: { release: ApiPluginRelease }) {
 }
 
 /** contributionChips is the collapsed card's one-line payload summary. */
-function contributionChips(release: ApiPluginRelease | null): string[] {
+function contributionChips(release: ApiPluginRelease | null, t: Translate<MessageKey>): string[] {
   if (!release) return []
   const insp = release.inspection
   const chips: string[] = []
-  if (insp.skills?.length) chips.push(countLabel(insp.skills.length, "skill"))
-  if (insp.subagents?.length) chips.push(countLabel(insp.subagents.length, "subagent"))
-  if (insp.mcp?.length) chips.push(countLabel(insp.mcp.length, "MCP server"))
-  if (insp.hooks?.length) chips.push(countLabel(insp.hooks.length, "hook"))
+  if (insp.skills?.length) chips.push(t("settings.plugins.chip.skills", { count: insp.skills.length }))
+  if (insp.subagents?.length) chips.push(t("settings.plugins.chip.subagents", { count: insp.subagents.length }))
+  if (insp.mcp?.length) chips.push(t("settings.plugins.chip.mcp", { count: insp.mcp.length }))
+  if (insp.hooks?.length) chips.push(t("settings.plugins.chip.hooks", { count: insp.hooks.length }))
   return chips
 }
 
 /** contributionGroups is the expanded, named list of what a release brings. */
-function contributionGroups(release: ApiPluginRelease): { label: string; items: string[] }[] {
+function contributionGroups(
+  release: ApiPluginRelease,
+  t: Translate<MessageKey>,
+): { label: string; items: string[] }[] {
   const insp = release.inspection
   const groups: { label: string; items: string[] }[] = []
-  if (insp.skills?.length) groups.push({ label: "Skills", items: insp.skills })
+  if (insp.skills?.length) groups.push({ label: t("settings.plugins.group.skills"), items: insp.skills })
   if (insp.subagents?.length)
-    groups.push({ label: "Subagents", items: insp.subagents.map((s) => s.name) })
+    groups.push({ label: t("settings.plugins.group.subagents"), items: insp.subagents.map((s) => s.name) })
   if (insp.mcp?.length)
-    groups.push({ label: "MCP servers", items: insp.mcp.map((s) => `${s.id} (${s.transport})`) })
+    groups.push({
+      label: t("settings.plugins.group.mcp"),
+      items: insp.mcp.map((s) => `${s.id} (${s.transport})`),
+    })
   if (insp.hooks?.length)
-    groups.push({ label: "Hooks", items: insp.hooks.map((h) => `${h.event} · ${h.type}`) })
+    groups.push({ label: t("settings.plugins.group.hooks"), items: insp.hooks.map((h) => `${h.event} · ${h.type}`) })
   return groups
-}
-
-function countLabel(n: number, noun: string): string {
-  return `${n} ${noun}${n === 1 ? "" : "s"}`
 }
 
 async function loadReleases(

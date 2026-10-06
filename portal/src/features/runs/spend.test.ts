@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
+import type { Translate } from "@buildmax/gui"
 import type { ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../lib/api/types"
+import { translate, type MessageKey } from "../../i18n"
 import { cacheSaving, callElapsed, describeSpend, formatAmount, summarizeSpend } from "./spend"
+
+// The English catalog, which every expectation below is written against.
+const t: Translate<MessageKey> = (key, vars) => translate("en", key, vars)
 
 function call(overrides: Partial<ApiTaskRunLLMCall> = {}): ApiTaskRunLLMCall {
   return {
@@ -181,22 +186,22 @@ describe("summarizeSpend", () => {
 
 describe("describeSpend", () => {
   it("says nothing when there are calls to show", () => {
-    expect(describeSpend({ calls: [call()], error: null, trace: trace() })).toBeNull()
+    expect(describeSpend({ calls: [call()], error: null, trace: trace() }, t)).toBeNull()
   })
 
   it("distinguishes a run that bypassed the gateway from one that called nothing", () => {
     // Both have an empty ledger, and only the second spent nothing. Telling a
     // reader "no spend" for the first would hide every direct-mode call.
-    const bypassed = describeSpend({ calls: [], error: null, trace: trace({ llm_calls: 4 }) })
+    const bypassed = describeSpend({ calls: [], error: null, trace: trace({ llm_calls: 4 }) }, t)
     expect(bypassed).toContain("4 times")
     expect(bypassed).toContain("direct mode")
 
-    const quiet = describeSpend({ calls: [], error: null, trace: trace({ llm_calls: 0 }) })
+    const quiet = describeSpend({ calls: [], error: null, trace: trace({ llm_calls: 0 }) }, t)
     expect(quiet).toBe("This run called no model through the managed gateway.")
   })
 
   it("says nothing about direct mode when there is no trace to compare against", () => {
-    expect(describeSpend({ calls: [], error: null, trace: null })).toBe(
+    expect(describeSpend({ calls: [], error: null, trace: null }, t)).toBe(
       "This run called no model through the managed gateway."
     )
   })
@@ -204,11 +209,10 @@ describe("describeSpend", () => {
   it("passes the server's own explanation through", () => {
     // "managed model calls not configured" and a missing run mean different
     // things to an operator, and the server already distinguishes them.
-    const got = describeSpend({
-      calls: [],
-      error: "managed model calls not configured",
-      trace: trace({ llm_calls: 2 }),
-    })
+    const got = describeSpend(
+      { calls: [], error: "managed model calls not configured", trace: trace({ llm_calls: 2 }) },
+      t,
+    )
     expect(got).toBe("managed model calls not configured")
   })
 })

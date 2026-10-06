@@ -1,6 +1,8 @@
-import { Button } from "@buildmax/gui"
+import { Button, useLocale } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
+import { useStableT, useT } from "../i18n"
+import { formatTimestamp, intlLocale } from "../lib/dateFormat"
 import { navigate } from "../router"
 import {
   createChannelLink,
@@ -31,6 +33,9 @@ function platformName(platform: string, platforms: ListChannelLinksResponse["pla
  * See docs/design/instant-messaging-channels.md.
  */
 export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
+  const t = useT()
+  const { locale } = useLocale()
+  const stableT = useStableT()
   const [data, setData] = useState<ListChannelLinksResponse | null>(null)
   // Judged when the list arrives, not on every render, so a render stays pure.
   const [activity, setActivity] = useState<ChatLinkActivity | null>(null)
@@ -51,9 +56,9 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
         setData(res)
         setActivity(chatLinkActivity(res.active_until, Date.now()))
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to load chat accounts")))
+      .catch((err) => setError(getErrorMessage(err, stableT("account.chat.loadError"))))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [token, stableT])
 
   useEffect(() => {
     refresh()
@@ -70,11 +75,11 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
         .then((pairing) => setPending({ code: trimmed, pairing }))
         .catch((err) => {
           setPending(null)
-          setError(getErrorMessage(err, "That code was not found"))
+          setError(getErrorMessage(err, stableT("account.chat.codeNotFound")))
         })
         .finally(() => setLookingUp(false))
     },
-    [token]
+    [token, stableT]
   )
 
   // Opening the address the bot sent looks its code up straight away; the
@@ -102,7 +107,7 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
         clearCodeFromAddress()
         refresh()
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to link")))
+      .catch((err) => setError(getErrorMessage(err, stableT("account.chat.linkError"))))
       .finally(() => setConfirming(false))
   }
 
@@ -118,57 +123,61 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
     setUnlinkingId(linkId)
     deleteChannelLink(linkId, token)
       .then(refresh)
-      .catch((err) => setError(getErrorMessage(err, "Failed to unlink")))
+      .catch((err) => setError(getErrorMessage(err, stableT("account.chat.unlinkError"))))
       .finally(() => setUnlinkingId(null))
   }
 
   const platforms = data?.platforms ?? []
   const links = data?.links ?? []
+  // The chat account's name is emphasized inside the question, so the
+  // translated question is split at its placeholder.
+  const [confirmBefore, confirmAfter] = pending
+    ? t("account.chat.confirm", { platform: platformName(pending.pairing.platform, platforms) }).split("{handle}")
+    : ["", ""]
 
   return (
     <section className="settings-section settings-webhook">
-      <h2 className="settings-panel__heading">Linked chat apps</h2>
+      <h2 className="settings-panel__heading">{t("account.chat.heading")}</h2>
       <div className="settings-panel__heading-divider" role="separator" />
 
       {loading && !data ? (
-        <p className="settings-section__muted">Loading chat accounts…</p>
+        <p className="settings-section__muted">{t("account.chat.loading")}</p>
       ) : platforms.length === 0 ? (
-        <p className="settings-section__muted">
-          No chat app is connected to this BuildMax server. An operator can connect one; see the server
-          configuration guide.
-        </p>
+        <p className="settings-section__muted">{t("account.chat.noPlatform")}</p>
       ) : (
         <>
           <p className="settings-webhook__description">
-            Talk to your BuildMax assistant from a chat app. Send the bot any message
-            {platforms.map((p) =>
-              p.bot_url ? (
+            {t("account.chat.intro")}
+            {platforms.map((p) => {
+              if (!p.bot_url) return null
+              // The bot is a link inside the phrase, so the phrase is split at it.
+              const [before, after] = t("account.chat.botOn", { platform: p.name }).split("{bot}")
+              return (
                 <span key={p.platform}>
-                  {" "}
-                  (
+                  {before}
                   <a href={p.bot_url} target="_blank" rel="noreferrer">
                     {p.bot_handle ?? p.name}
-                  </a>{" "}
-                  on {p.name})
+                  </a>
+                  {after}
                 </span>
-              ) : null
-            )}
-            ; it answers with a link code. Open the link it sends, or enter the code here.
+              )
+            })}
+            {t("account.chat.introEnd")}
           </p>
 
           {pending ? (
-            <div className="settings-webhook__new-key" role="dialog" aria-label="Confirm chat link">
+            <div className="settings-webhook__new-key" role="dialog" aria-label={t("account.chat.confirmLabel")}>
               <p className="settings-webhook__new-key-warning">
-                Link {platformName(pending.pairing.platform, platforms)} account{" "}
-                <strong>{pending.pairing.handle || "(no name)"}</strong> to your BuildMax account? Messages from it
-                will act as you. Only confirm a code you asked for yourself.
+                {confirmBefore}
+                <strong>{pending.pairing.handle || t("account.chat.noName")}</strong>
+                {confirmAfter}
               </p>
               <div className="settings-webhook__create">
                 <Button variant="primary" busy={confirming} onClick={handleConfirm}>
-                  Link account
+                  {t("account.chat.link")}
                 </Button>
                 <Button variant="secondary" disabled={confirming} onClick={handleCancel}>
-                  Cancel
+                  {t("account.chat.cancel")}
                 </Button>
               </div>
             </div>
@@ -178,20 +187,23 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
                 type="text"
                 className="settings-webhook__input"
                 placeholder="ABCD-EFGH"
-                aria-label="Link code"
+                aria-label={t("account.chat.codeLabel")}
                 value={codeInput}
                 onChange={(e) => setCodeInput(e.target.value)}
                 disabled={lookingUp}
               />
               <Button variant="primary" busy={lookingUp} disabled={!codeInput.trim()} onClick={() => lookUp(codeInput)}>
-                Look up code
+                {t("account.chat.lookUp")}
               </Button>
             </div>
           )}
 
           {linked ? (
             <p className="settings-section__muted" role="status">
-              Linked {platformName(linked.platform, platforms)} account {linked.handle}. Send it a message to start.
+              {t("account.chat.linked", {
+                platform: platformName(linked.platform, platforms),
+                handle: linked.handle ?? "",
+              })}
             </p>
           ) : null}
         </>
@@ -206,19 +218,19 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
       {links.length > 0 && activity ? (
         <p className="settings-section__muted" role="status">
           {activity.state === "lapsed"
-            ? "These chat accounts stopped acting because your last sign-in is too old. Sign out and sign in again to resume them."
-            : `These chat accounts act for you until ${activity.until.toLocaleString()}. Signing in again extends this.`}
+            ? t("account.chat.lapsed")
+            : t("account.chat.activeUntil", { until: activity.until.toLocaleString(intlLocale(locale)) })}
         </p>
       ) : null}
 
       {links.length > 0 ? (
-        <ul className="settings-webhook__key-list" aria-label="Linked chat accounts">
+        <ul className="settings-webhook__key-list" aria-label={t("account.chat.listLabel")}>
           {links.map((l) => (
             <li key={l.id} className="settings-webhook__key-item">
               <span className="settings-webhook__key-name">
                 {platformName(l.platform, platforms)} · {l.handle || l.id}
               </span>
-              <span className="settings-webhook__key-meta">{new Date(l.created_at).toLocaleString()}</span>
+              <span className="settings-webhook__key-meta">{formatTimestamp(l.created_at, locale)}</span>
               <Button
                 variant="danger"
                 size="compact"
@@ -226,7 +238,7 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
                 disabled={unlinkingId !== null}
                 onClick={() => handleUnlink(l.id)}
               >
-                Unlink
+                {t("account.chat.unlink")}
               </Button>
             </li>
           ))}

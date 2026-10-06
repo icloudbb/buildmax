@@ -16,7 +16,7 @@
   padding: 2rem;
   background: var(--color-bg-elevated);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-raised);
 }
 
 .login-page__title {
@@ -62,7 +62,7 @@
 .login-page__error {
   margin: 0;
   font-size: 0.85rem;
-  color: #c00;
+  color: var(--color-danger);
 }
 
 .login-page__submit {

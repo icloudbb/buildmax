@@ -170,11 +170,15 @@ func batchArgs(files []string) [][]string {
 	return batches
 }
 
-// checkGUI builds the shared component package and runs its own tests. The
-// build already runs as part of the Portal and Desktop scopes, because both
-// consume dist/; what is here and nowhere else is the test run.
+// checkGUI builds the shared component package, lints its stylesheets, and
+// runs its own tests. The build already runs as part of the Portal and Desktop
+// scopes, because both consume dist/; what is here and nowhere else is gui's
+// own lint and test run.
 func checkGUI() error {
 	if err := buildGUI(); err != nil {
+		return err
+	}
+	if err := runIn("gui", "npm", "run", "lint"); err != nil {
 		return err
 	}
 	return runIn("gui", "npm", "test")

@@ -1,18 +1,16 @@
-import { Button } from "@buildmax/gui"
+import { Button, type Translate } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 import type { ApiSystemGrant } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { useTimestamp } from "../../lib/dateFormat"
 import { createAdminGrant, listAdminGrants, listAdminUsers, revokeAdminGrant } from "./api"
-
-function whenever(rfc3339?: string): string {
-  return rfc3339 ? new Date(rfc3339).toLocaleString() : "—"
-}
 
 // The grant's granting actor is a user id, or the operator sentinel when the
 // command line made it. Naming the shell keeps a bootstrap grant from reading as
 // one an unknown account handed out.
-function grantedByLabel(grantedBy: string): string {
-  return grantedBy === "buildmax-server" ? "operator command" : grantedBy
+function grantedByLabel(grantedBy: string, t: Translate<MessageKey>): string {
+  return grantedBy === "buildmax-server" ? t("admin.administrators.operatorCommand") : grantedBy
 }
 
 /**
@@ -25,6 +23,9 @@ function grantedByLabel(grantedBy: string): string {
  * `buildmax-server admin revoke`, and the refusal says so.
  */
 export function AdminAdministrators({ token }: { token: string | null }) {
+  const t = useT()
+  const whenever = useTimestamp()
+  const stableT = useStableT()
   const [grants, setGrants] = useState<ApiSystemGrant[]>([])
   const [includeRevoked, setIncludeRevoked] = useState(false)
   const [email, setEmail] = useState("")
@@ -40,10 +41,10 @@ export function AdminAdministrators({ token }: { token: string | null }) {
       setError(null)
       listAdminGrants(token, withRevoked)
         .then((res) => setGrants(res.grants))
-        .catch((err) => setError(getErrorMessage(err, "Failed to load administrators")))
+        .catch((err) => setError(getErrorMessage(err, stableT("admin.administrators.loadError"))))
         .finally(() => setLoading(false))
     },
-    [token],
+    [token, stableT],
   )
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export function AdminAdministrators({ token }: { token: string | null }) {
       setNotice(done)
       load(includeRevoked)
     } catch (err) {
-      setError(getErrorMessage(err, "The action did not complete"))
+      setError(getErrorMessage(err, stableT("admin.actionFailed")))
     } finally {
       setBusy(false)
     }
@@ -80,19 +81,19 @@ export function AdminAdministrators({ token }: { token: string | null }) {
       const found = await listAdminUsers(token, { q: wanted })
       const matches = found.users.filter((u) => u.email.toLowerCase() === wanted.toLowerCase())
       if (matches.length === 0) {
-        setError(`No account has the email ${wanted}. Create it under Accounts first.`)
+        setError(stableT("admin.administrators.noAccount", { email: wanted }))
         return
       }
       if (matches.length > 1) {
-        setError(`More than one account matches ${wanted}.`)
+        setError(stableT("admin.administrators.multiple", { email: wanted }))
         return
       }
       await createAdminGrant(token, matches[0].id)
       setEmail("")
-      setNotice(`${matches[0].email} can now administer this deployment.`)
+      setNotice(stableT("admin.administrators.granted", { email: matches[0].email }))
       load(includeRevoked)
     } catch (err) {
-      setError(getErrorMessage(err, "The grant did not complete"))
+      setError(getErrorMessage(err, stableT("admin.administrators.grantFailed")))
     } finally {
       setBusy(false)
     }
@@ -100,10 +101,7 @@ export function AdminAdministrators({ token }: { token: string | null }) {
 
   function confirmRevoke(g: ApiSystemGrant): boolean {
     return window.confirm(
-      `Revoke ${g.email || g.user_id}'s ${g.role}?\n\n` +
-        "This removes their access to the administration area on their next " +
-        "request. Their login sessions are left intact — this is not a disable.\n\n" +
-        "Revoking the deployment's last administrator is refused here.",
+      t("admin.administrators.revokeConfirm", { who: g.email || g.user_id, role: g.role }),
     )
   }
 
@@ -114,10 +112,9 @@ export function AdminAdministrators({ token }: { token: string | null }) {
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Administrators</h2>
+            <h2 className="settings-page__section-title">{t("admin.administrators.title")}</h2>
             <p className="settings-page__section-copy">
-              {active.length} account{active.length === 1 ? "" : "s"} can operate this
-              deployment. This is separate from any space role.
+              {t("admin.administrators.count", { count: active.length })}
             </p>
           </div>
         </div>
@@ -127,12 +124,12 @@ export function AdminAdministrators({ token }: { token: string | null }) {
             className="admin-input"
             type="email"
             value={email}
-            placeholder="account email to grant"
-            aria-label="Account email to grant administrator authority"
+            placeholder={t("admin.administrators.emailPlaceholder")}
+            aria-label={t("admin.administrators.emailLabel")}
             onChange={(e) => setEmail(e.target.value)}
           />
           <Button type="submit" variant="primary" disabled={busy}>
-            Grant
+            {t("admin.administrators.grant")}
           </Button>
         </form>
 
@@ -142,7 +139,7 @@ export function AdminAdministrators({ token }: { token: string | null }) {
             checked={includeRevoked}
             onChange={(e) => setIncludeRevoked(e.target.checked)}
           />
-          Show revoked history
+          {t("admin.administrators.showRevoked")}
         </label>
 
         {error ? (
@@ -153,22 +150,24 @@ export function AdminAdministrators({ token }: { token: string | null }) {
         {notice ? <p className="admin-notice">{notice}</p> : null}
 
         {loading ? (
-          <p className="admin-empty">Loading administrators…</p>
+          <p className="admin-empty">{t("admin.administrators.loading")}</p>
         ) : grants.length === 0 ? (
-          <p className="admin-empty">
-            No administrators. The first one is created with `buildmax-server admin grant`.
-          </p>
+          <p className="admin-empty">{t("admin.administrators.none")}</p>
         ) : (
           <ul className="admin-list">
             {grants.map((g) => (
               <li key={g.id} className="admin-list__row">
                 <span className="admin-list__main">{g.email || g.user_id}</span>
                 <span className={g.revoked_at ? "admin-pill admin-pill--bad" : "admin-pill admin-pill--ok"}>
-                  {g.revoked_at ? "revoked" : "active"}
+                  {g.revoked_at ? t("admin.administrators.revoked") : t("admin.administrators.active")}
                 </span>
                 <span className="admin-list__meta">
-                  {g.role} · granted by {grantedByLabel(g.granted_by)} · {whenever(g.granted_at)}
-                  {g.revoked_at ? ` · revoked ${whenever(g.revoked_at)}` : ""}
+                  {t("admin.administrators.meta", {
+                    role: g.role,
+                    by: grantedByLabel(g.granted_by, t),
+                    when: whenever(g.granted_at),
+                  })}
+                  {g.revoked_at ? t("admin.administrators.revokedAt", { when: whenever(g.revoked_at) }) : ""}
                 </span>
                 {!g.revoked_at ? (
                   <Button
@@ -178,12 +177,12 @@ export function AdminAdministrators({ token }: { token: string | null }) {
                       if (confirmRevoke(g)) {
                         void act(
                           () => revokeAdminGrant(token!, g.user_id),
-                          `Revoked ${g.email || g.user_id}'s ${g.role}.`,
+                          t("admin.administrators.revokedNotice", { who: g.email || g.user_id, role: g.role }),
                         )
                       }
                     }}
                   >
-                    Revoke
+                    {t("admin.revoke")}
                   </Button>
                 ) : null}
               </li>

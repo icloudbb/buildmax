@@ -1,4 +1,6 @@
+import type { Translate } from "@buildmax/gui"
 import type { ApiConversationMessage, ApiTask } from "../../lib/api/types"
+import type { MessageKey } from "../../i18n"
 
 export type ThreadEntry =
   | { kind: "message"; at: string; message: ApiConversationMessage }
@@ -28,21 +30,21 @@ export function runStatusTone(status: string): "running" | "done" | "failed" {
 }
 
 /** The human label for a run status, in the server's own vocabulary. */
-export function runStatusLabel(status: string): string {
+export function runStatusLabel(status: string, t: Translate<MessageKey>): string {
   switch (status.toUpperCase()) {
     case "PENDING":
-      return "Queued"
+      return t("chat.runStatus.queued")
     case "SCHEDULED":
-      return "Starting"
+      return t("chat.runStatus.starting")
     case "RUNNING":
-      return "Running"
+      return t("status.running")
     case "SUCCEEDED":
     case "SUCCESS":
-      return "Done"
+      return t("status.done")
     case "FAILED":
-      return "Failed"
+      return t("status.failed")
     case "CANCELED":
-      return "Stopped"
+      return t("chat.runStatus.stopped")
     default:
       return status
   }
@@ -52,8 +54,11 @@ export function runStatusLabel(status: string): string {
  * A task's status label. A task whose latest run ended on AskUser questions is
  * finished as a run but waiting on the user, and says so rather than "Done".
  */
-export function taskStatusLabel(task: { status: string; awaiting_answer?: boolean }): string {
-  return task.awaiting_answer ? "Needs your answer" : runStatusLabel(task.status)
+export function taskStatusLabel(
+  task: { status: string; awaiting_answer?: boolean },
+  t: Translate<MessageKey>
+): string {
+  return task.awaiting_answer ? t("chat.needsAnswer") : runStatusLabel(task.status, t)
 }
 
 /**

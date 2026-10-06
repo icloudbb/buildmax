@@ -3,7 +3,9 @@ import { Button } from "@buildmax/gui"
 import type { Agent, Issue, IssueCollectionQuery } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { statusLabel } from "../../lib/statusLabels"
+import { useStatusLabel } from "../../lib/statusLabels"
+import { useRelativeTime } from "../../lib/dateFormat"
+import { useStableT, useT } from "../../i18n"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../lib/api/mappers"
 import { collectionFilter, createIssue, getIssues } from "../../features/issues"
 import { IssueBoard } from "./IssueBoard"
@@ -30,6 +32,10 @@ interface IssuesProps {
 }
 
 export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
+  const t = useT()
+  const stableT = useStableT()
+  const statusLabel = useStatusLabel()
+  const relativeTime = useRelativeTime()
   const { view, owner, executor } = query
   const isBoard = view === "board"
   const { currentUserRole } = useSpace()
@@ -75,8 +81,8 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
         setMembers(memberRes)
         setWorkflows(workflowRes.workflows.map(apiWorkflowToWorkflow))
       })
-      .catch((err) => setSupportError(classifyError(err, "Failed to load members, agents, and workflows")))
-  }, [token, spaceId])
+      .catch((err) => setSupportError(classifyError(err, stableT("issues.error.loadSupport"))))
+  }, [token, spaceId, stableT])
 
   const fetchIssues = useCallback(() => {
     if (!token || !spaceId || isBoard) {
@@ -98,9 +104,9 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
       })
       // issuesData from a prior successful fetch (if any) is left in place, so
       // a failed refresh reads as Stale rather than wiping the list.
-      .catch((err) => setListError(classifyError(err, "Failed to load issues")))
+      .catch((err) => setListError(classifyError(err, stableT("issues.error.loadIssues"))))
       .finally(() => setLoading(false))
-  }, [page, token, spaceId, isBoard, owner, executor])
+  }, [page, token, spaceId, isBoard, owner, executor, stableT])
 
   const issuesState = useMemo(
     () => deriveResourceState({ loading, data: issuesData, error: listError, isEmpty: (data) => data.length === 0 }),
@@ -136,7 +142,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
     if (!nowOpen || !token || !spaceId || children[issueId] !== undefined) return
     getIssues(spaceId, token, { limit: 100, parentId: issueId })
       .then((res) => setChildren((prev) => ({ ...prev, [issueId]: res.issues.map(apiIssueToIssue) })))
-      .catch((err) => setListError(classifyError(err, "Failed to load sub-issues")))
+      .catch((err) => setListError(classifyError(err, t("issues.error.loadSubIssues"))))
   }
 
   // What is being done needs both halves at a glance: who is accountable and
@@ -145,37 +151,37 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
   function memberName(member: ApiSpaceMember): string {
     if (member.user_name) return member.user_name
     if (member.user_email) return member.user_email
-    return `Member ${member.user_id.slice(0, 8)}`
+    return t("issues.memberId", { id: member.user_id.slice(0, 8) })
   }
 
   function ownerLabel(issue: Issue): string | null {
     if (!issue.ownerId) return null
-    if (issue.ownerId === userId) return "Me"
+    if (issue.ownerId === userId) return t("issues.me")
     const member = members.find((item) => item.user_id === issue.ownerId)
-    return member ? memberName(member) : "Member"
+    return member ? memberName(member) : t("issues.member")
   }
 
   function executorLabel(issue: Issue): string | null {
     if (issue.executorKind === "agent") {
-      return agents.find((agent) => agent.id === issue.executorId)?.name || "Agent"
+      return agents.find((agent) => agent.id === issue.executorId)?.name || t("issues.agent")
     }
     if (issue.executorKind === "workflow") {
-      return workflows.find((workflow) => workflow.id === issue.executorId)?.name || "Workflow"
+      return workflows.find((workflow) => workflow.id === issue.executorId)?.name || t("issues.workflow")
     }
     return null
   }
 
   function assigneeLabel(issue: Issue): string {
     const parts = [ownerLabel(issue), executorLabel(issue)].filter((label): label is string => label != null)
-    return parts.length > 0 ? parts.join(" · ") : "Unassigned"
+    return parts.length > 0 ? parts.join(" · ") : t("issues.unassigned")
   }
 
   const pageLabel = useMemo(() => {
-    if (total === 0) return "0 issues"
+    if (total === 0) return t("issues.list.zero")
     const start = (page - 1) * PAGE_SIZE + 1
     const end = Math.min(page * PAGE_SIZE, total)
-    return `${start}-${end} of ${total}`
-  }, [page, total])
+    return t("issues.list.range", { start, end, total })
+  }, [page, total, t])
 
   async function handleCreate(values: {
     title: string
@@ -195,7 +201,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
       setCreateOpen(false)
       navigate({ name: "issue", spaceId, issueId: created.id })
     } catch (err) {
-      setCreateError(getErrorMessage(err, "Failed to create issue"))
+      setCreateError(getErrorMessage(err, t("issues.error.create")))
     } finally {
       setSaving(false)
     }
@@ -205,10 +211,8 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
     <div className="page-activity">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Issues</h1>
-          <p className="page-activity__subtitle">
-            Track space work items, ownership, and current progress.
-          </p>
+          <h1 className="page-activity__title">{t("issues.title")}</h1>
+          <p className="page-activity__subtitle">{t("issues.subtitle")}</p>
         </div>
         <div className="page-activity__actions">
           <Button
@@ -218,7 +222,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
               setCreateOpen(true)
             }}
           >
-            New Issue
+            {t("issues.new")}
           </Button>
         </div>
       </div>
@@ -230,44 +234,40 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
         <Alert
           tone={issuesState.kind === "stale" ? "stale" : issuesState.kind}
           message={issuesState.error.message}
-          retry={{ label: "Retry", onClick: () => void fetchIssues() }}
+          retry={{ label: t("shell.retry"), onClick: () => void fetchIssues() }}
         />
       )}
       {supportError ? (
         <Alert
           tone={supportError.kind}
           message={supportError.message}
-          retry={supportError.kind === "forbidden" ? undefined : { label: "Retry", onClick: fetchSupport }}
+          retry={supportError.kind === "forbidden" ? undefined : { label: t("shell.retry"), onClick: fetchSupport }}
         />
       ) : null}
       {canAssignWorkflowState === "denied" ? (
-        <p className="page-activity__empty">
-          You can create issues and assign people or agents here. Workflow assignment is reserved for space owners and admins.
-        </p>
+        <p className="page-activity__empty">{t("issues.access.workflowDenied")}</p>
       ) : canAssignWorkflowState === "failed" ? (
-        <p className="page-activity__empty">
-          Couldn&apos;t verify your role in this space, so workflow assignment stays unavailable. Refresh to try again.
-        </p>
+        <p className="page-activity__empty">{t("issues.access.workflowUnverified")}</p>
       ) : canAssignWorkflowState === "unknown" ? (
-        <p className="page-activity__empty">Checking whether you can assign workflows…</p>
+        <p className="page-activity__empty">{t("issues.access.workflowChecking")}</p>
       ) : null}
 
       {/* List and Board share one filter vocabulary, carried in the URL so a
           reload or a copied link reproduces the same projection. */}
       <div className="issues-page__controls">
-        <div className="issues-page__view-switch" role="group" aria-label="View">
+        <div className="issues-page__view-switch" role="group" aria-label={t("issues.view")}>
           <Button variant={isBoard ? "tertiary" : "secondary"} size="compact" aria-pressed={!isBoard} onClick={() => setQuery({ view: undefined })}>
-            List
+            {t("issues.view.list")}
           </Button>
           <Button variant={isBoard ? "secondary" : "tertiary"} size="compact" aria-pressed={isBoard} onClick={() => setQuery({ view: "board" })}>
-            Board
+            {t("issues.view.board")}
           </Button>
         </div>
         <label className="issues-page__filter">
-          <span className="issues-page__field-label">Owner</span>
+          <span className="issues-page__field-label">{t("issues.field.owner")}</span>
           <select className="issues-page__select" value={owner ?? ""} onChange={(e) => setQuery({ owner: e.target.value || undefined })}>
-            <option value="">Anyone</option>
-            <option value="me">Me</option>
+            <option value="">{t("issues.filter.anyone")}</option>
+            <option value="me">{t("issues.me")}</option>
             {peopleOnly(members)
               .filter((member) => member.user_id !== userId)
               .map((member) => (
@@ -276,16 +276,16 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
                 </option>
               ))}
             {owner && owner !== "me" && !members.some((member) => member.user_id === owner) ? (
-              <option value={owner}>{owner === userId ? "Me" : "Selected member"}</option>
+              <option value={owner}>{owner === userId ? t("issues.me") : t("issues.filter.selectedMember")}</option>
             ) : null}
           </select>
         </label>
         <label className="issues-page__filter">
-          <span className="issues-page__field-label">Executor</span>
+          <span className="issues-page__field-label">{t("issues.field.executor")}</span>
           <select className="issues-page__select" value={executor ?? ""} onChange={(e) => setQuery({ executor: e.target.value || undefined })}>
-            <option value="">Any executor</option>
+            <option value="">{t("issues.filter.anyExecutor")}</option>
             {agents.length > 0 ? (
-              <optgroup label="Agents">
+              <optgroup label={t("issues.filter.agents")}>
                 {agents.map((agent) => (
                   <option key={agent.id} value={`agent:${agent.id}`}>
                     {agent.name}
@@ -294,7 +294,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
               </optgroup>
             ) : null}
             {workflows.length > 0 ? (
-              <optgroup label="Workflows">
+              <optgroup label={t("issues.filter.workflows")}>
                 {workflows.map((workflow) => (
                   <option key={workflow.id} value={`workflow:${workflow.id}`}>
                     {workflow.name}
@@ -303,13 +303,15 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
               </optgroup>
             ) : null}
             {executor && !agents.some((agent) => `agent:${agent.id}` === executor) && !workflows.some((workflow) => `workflow:${workflow.id}` === executor) ? (
-              <option value={executor}>Selected {executor.startsWith("workflow:") ? "workflow" : "agent"}</option>
+              <option value={executor}>
+                {executor.startsWith("workflow:") ? t("issues.filter.selectedWorkflow") : t("issues.filter.selectedAgent")}
+              </option>
             ) : null}
           </select>
         </label>
         {owner || executor ? (
           <Button variant="tertiary" size="compact" onClick={() => setQuery({ owner: undefined, executor: undefined })}>
-            Clear filters
+            {t("issues.filter.clear")}
           </Button>
         ) : null}
       </div>
@@ -323,18 +325,18 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
           executorLabel={executorLabel}
         />
       ) : (
-      <section className="issues-page__panel" aria-label="Issue list">
+      <section className="issues-page__panel" aria-label={t("issues.list.label")}>
         <div className="issues-page__toolbar">
           {issuesData !== null ? <span className="page-activity__meta">{pageLabel}</span> : null}
         </div>
 
         {issuesState.kind === "loading" ? (
-          <p className="page-activity__empty">Loading…</p>
+          <p className="page-activity__empty">{t("shell.loading")}</p>
         ) : issuesState.kind === "readyEmpty" ? (
           owner || executor ? (
-            <EmptyState message="No top-level issues match these filters." />
+            <EmptyState message={t("issues.list.emptyFiltered")} />
           ) : (
-            <EmptyState message="No issues yet. Create one to track work, ownership, and progress in this space." />
+            <EmptyState message={t("issues.list.empty")} />
           )
         ) : issuesState.kind === "error" || issuesState.kind === "forbidden" || issuesState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
@@ -350,25 +352,25 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
                   <span className="issues-page__row-main">
                     <span className="issues-page__row-title">{issue.title}</span>
                     <span className="issues-page__row-desc">
-                      {issue.description?.trim() || "No description"}
+                      {issue.description?.trim() || t("issues.noDescription")}
                     </span>
                   </span>
                   <span className="issues-page__row-side">
                     {issue.childCount > 0 ? (
                       <span className="page-activity__meta">
-                        {issue.doneChildCount}/{issue.childCount} sub-issues
+                        {t("issues.list.subIssues", { done: issue.doneChildCount, total: issue.childCount })}
                       </span>
                     ) : null}
                     {issue.commentCount > 0 ? (
                       <span className="page-activity__meta">
-                        {issue.commentCount} comment{issue.commentCount === 1 ? "" : "s"}
+                        {t("issues.comments", { count: issue.commentCount })}
                       </span>
                     ) : null}
                     <span className="issues-page__status">{statusLabel(issue.status)}</span>
                     <span className="page-activity__meta">
                       {assigneeLabel(issue)}
                     </span>
-                    <span className="page-activity__meta">{issue.updatedLabel}</span>
+                    <span className="page-activity__meta">{relativeTime(issue.updatedAt)}</span>
                   </span>
                 </button>
                 {issue.childCount > 0 ? (
@@ -381,11 +383,11 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
                       size="compact"
                       onClick={() => toggleChildren(issue.id)}
                     >
-                      {expanded[issue.id] ? "Hide sub-issues" : "Show sub-issues"}
+                      {expanded[issue.id] ? t("issues.list.hideSubIssues") : t("issues.list.showSubIssues")}
                     </Button>
                     {expanded[issue.id] ? (
                       children[issue.id] === undefined ? (
-                        <p className="page-activity__empty">Loading…</p>
+                        <p className="page-activity__empty">{t("shell.loading")}</p>
                       ) : (
                         <ul className="issues-page__child-list">
                           {children[issue.id].map((child) => (
@@ -421,17 +423,17 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
-            Previous
+            {t("issues.list.previous")}
           </Button>
           <span className="page-activity__meta">
-            Page {page} / {totalPages}
+            {t("issues.list.page", { page, total: totalPages })}
           </span>
           <Button
             variant="secondary"
             disabled={page >= totalPages}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           >
-            Next
+            {t("issues.list.next")}
           </Button>
         </div> : null}
       </section>

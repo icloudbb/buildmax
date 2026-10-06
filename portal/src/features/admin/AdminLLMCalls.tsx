@@ -1,8 +1,9 @@
 import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
+import { useStableT, useT } from "../../i18n"
 import type { ApiAdminLLMCall, ApiAdminLLMCallCost } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { formatEventTime } from "../audit/describe"
+import { useTimestamp } from "../../lib/dateFormat"
 import { searchAdminLLMCalls } from "./api"
 
 const PAGE_SIZE = 50
@@ -46,6 +47,9 @@ function formatTokens(call: ApiAdminLLMCall): string | null {
  * them.
  */
 export function AdminLLMCalls({ token }: { token: string | null }) {
+  const t = useT()
+  const formatEventTime = useTimestamp()
+  const stableT = useStableT()
   const [calls, setCalls] = useState<ApiAdminLLMCall[]>([])
   const [total, setTotal] = useState(0)
   const [filters, setFilters] = useState<CallFilters>(EMPTY)
@@ -69,10 +73,10 @@ export function AdminLLMCalls({ token }: { token: string | null }) {
           setCalls((prev) => (offset === 0 ? res.calls : [...prev, ...res.calls]))
           setTotal(res.total)
         })
-        .catch((err) => setError(getErrorMessage(err, "Failed to load the call ledger")))
+        .catch((err) => setError(getErrorMessage(err, stableT("admin.calls.loadError"))))
         .finally(() => setLoading(false))
     },
-    [token],
+    [token, stableT],
   )
 
   useEffect(() => {
@@ -89,11 +93,8 @@ export function AdminLLMCalls({ token }: { token: string | null }) {
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">LLM calls</h2>
-            <p className="settings-page__section-copy">
-              What this deployment spent on managed inference, across every space, and on
-              which model. It carries no prompts and no generated content.
-            </p>
+            <h2 className="settings-page__section-title">{t("admin.calls.title")}</h2>
+            <p className="settings-page__section-copy">{t("admin.calls.copy")}</p>
           </div>
         </div>
 
@@ -107,36 +108,36 @@ export function AdminLLMCalls({ token }: { token: string | null }) {
           <input
             className="admin-input"
             value={filters.userId}
-            placeholder="User id"
-            aria-label="Filter by user id"
+            placeholder={t("admin.calls.userPlaceholder")}
+            aria-label={t("admin.calls.userLabel")}
             onChange={(e) => setFilters({ ...filters, userId: e.target.value })}
           />
           <input
             className="admin-input"
             value={filters.model}
-            placeholder="Model, e.g. gpt-luna"
-            aria-label="Filter by model"
+            placeholder={t("admin.calls.modelPlaceholder")}
+            aria-label={t("admin.calls.modelLabel")}
             onChange={(e) => setFilters({ ...filters, model: e.target.value })}
           />
           <input
             className="admin-input"
             value={filters.status}
-            placeholder="Status, e.g. SUCCEEDED"
-            aria-label="Filter by status"
+            placeholder={t("admin.calls.statusPlaceholder")}
+            aria-label={t("admin.filterByStatus")}
             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
           />
           <input
             className="admin-input"
             value={filters.surface}
-            placeholder="Surface, e.g. worker"
-            aria-label="Filter by surface"
+            placeholder={t("admin.calls.surfacePlaceholder")}
+            aria-label={t("admin.calls.surfaceLabel")}
             onChange={(e) => setFilters({ ...filters, surface: e.target.value })}
           />
           <Button type="submit" variant="primary" disabled={loading}>
-            Search
+            {t("admin.search")}
           </Button>
           <Button variant="tertiary" onClick={() => apply(EMPTY)}>
-            Clear
+            {t("admin.clear")}
           </Button>
         </form>
 
@@ -147,7 +148,7 @@ export function AdminLLMCalls({ token }: { token: string | null }) {
         ) : null}
 
         {calls.length === 0 && !loading ? (
-          <p className="admin-empty">No calls match.</p>
+          <p className="admin-empty">{t("admin.calls.noCalls")}</p>
         ) : (
           <ul className="admin-list">
             {calls.map((call) => {
@@ -157,11 +158,12 @@ export function AdminLLMCalls({ token }: { token: string | null }) {
               return (
                 <li key={call.id} className="admin-list__row">
                   <span className="admin-list__main">
-                    {call.model || call.upstream_model || "unknown model"}
+                    {call.model || call.upstream_model || t("admin.calls.unknownModel")}
                     {failed ? <span className="admin-pill">{call.status}</span> : null}
                   </span>
                   <span className="admin-list__meta">
                     {call.user_id ? `${call.user_id} · ` : ""}
+                    {/* The surface is an identifier, so its default is too. */}
                     {call.surface || "server"}
                     {call.provider_type ? ` · ${call.provider_type}` : ""}
                     {tokens ? ` · ${tokens}` : ""}
@@ -182,7 +184,7 @@ export function AdminLLMCalls({ token }: { token: string | null }) {
             disabled={loading}
             onClick={() => load(filters, calls.length)}
           >
-            Load more ({calls.length} of {total})
+            {t("admin.loadMore", { shown: calls.length, total })}
           </Button>
         ) : null}
       </section>

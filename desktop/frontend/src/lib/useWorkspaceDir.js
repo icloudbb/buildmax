@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useStableT } from '../i18n';
 
 // useWorkspaceDir lazily loads a project's workspace as an expandable directory
 // tree (App.ListWorkspaceDir), one level at a time so a large repository is
@@ -7,19 +8,20 @@ import { useCallback, useEffect, useState } from 'react';
 // so it reloads from the root whenever project or session changes.
 export function useWorkspaceDir(projectID, sessionID, app) {
   // dir path ("" is the root) -> { entries, error, loading }
+  const stableT = useStableT();
   const [byDir, setByDir] = useState({});
   const [expanded, setExpanded] = useState(() => new Set(['']));
 
   const loadDir = useCallback((dir) => {
     if (!app?.ListWorkspaceDir) {
-      setByDir((m) => ({ ...m, [dir]: { entries: [], error: 'Rebuild the desktop app to browse files.', loading: false } }));
+      setByDir((m) => ({ ...m, [dir]: { entries: [], error: stableT('explorer.rebuildFiles'), loading: false } }));
       return;
     }
     setByDir((m) => ({ ...m, [dir]: { ...(m[dir] ?? {}), loading: true } }));
     app.ListWorkspaceDir(projectID, sessionID, dir)
       .then((res) => setByDir((m) => ({ ...m, [dir]: { entries: res?.entries ?? [], error: res?.error ?? null, loading: false } })))
       .catch((err) => setByDir((m) => ({ ...m, [dir]: { entries: [], error: err?.message ?? String(err), loading: false } })));
-  }, [projectID, sessionID, app]);
+  }, [projectID, sessionID, app, stableT]);
 
   useEffect(() => {
     setByDir({});

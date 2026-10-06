@@ -298,6 +298,15 @@ operating system (`open` on macOS, `start` on Windows, `xdg-open` or the target
 itself on Linux) and does not wait for it, so a pinned website opens in the
 default browser, not in a tab.
 
+Interface text comes from `desktop/frontend/src/i18n/`, one file per area with
+English and Simplified Chinese together, through the same `@buildmax/gui`
+`LocaleProvider` and translator Portal uses. `main.jsx` wraps the app in the
+provider, so `App` itself translates its banners and status bar. The language is
+chosen in the user menu and stored in the webview's local storage beside the
+theme. `catalog.test.js` fails when a key lacks Chinese or its placeholders
+differ. Components rendered without the provider, as in component tests, render
+English.
+
 ## Space Issues
 
 In server mode the sidebar gains an **Issues** destination
@@ -345,6 +354,10 @@ the frontend build and invokes the Wails version pinned by `go.mod`.
   agent runtime in the frontend or command package.
 - Keep shared presentation in `gui` and Desktop-specific state in
   `desktop/frontend`.
+- Take colors from the `gui/src/theme.css` tokens; Desktop CSS holds no color
+  literal and no undefined custom property, which `./make check desktop`
+  enforces. The xterm palette in `desktop/frontend/src/lib/terminalTheme.js` is
+  the one exception.
 - Preserve JSON field names and the project file format when changing persisted
   desktop state.
 - Test Go bridge changes with `./make test`; test frontend changes with

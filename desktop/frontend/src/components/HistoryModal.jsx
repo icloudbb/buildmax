@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { InfoModal } from './Modals';
+import { useStableT, useT } from '../i18n';
 
 /**
  * HistoryModal is the picker behind rewind and fork.
@@ -10,7 +11,8 @@ import { InfoModal } from './Modals';
  * which messages each operation may be pointed at: which of them can be handed
  * back or branched from is a rule about the journal, not a presentation choice.
  * It reports the affected span once per point; everything below turns that one
- * number into two different sentences.
+ * number into two different sentences. Those helpers take the caller's
+ * translator `t`.
  */
 
 export const REWIND = 'rewind';
@@ -21,19 +23,19 @@ export function visiblePoints(points, mode) {
   return (mode === FORK ? points?.fork : points?.rewind) ?? [];
 }
 
-export function toolNames(point) {
+export function toolNames(point, t) {
   return (point.tools ?? [])
-    .map((t) => (t.interrupted ? `${t.name} (interrupted)` : t.name))
-    .join(', ');
+    .map((tool) => (tool.interrupted ? t('history.interrupted', { name: tool.name }) : tool.name))
+    .join(t('chat.list.separator'));
 }
 
 /** pointLabel is who spoke. A background event arrives as a user message but
  *  the user did not say it, so the Go side marks it and we do not call it
  *  theirs. */
-export function pointLabel(point) {
-  if (point.role === 'assistant') return 'agent';
-  if (point.role === 'event') return 'event';
-  return 'you';
+export function pointLabel(point, t) {
+  if (point.role === 'assistant') return t('history.who.agent');
+  if (point.role === 'event') return t('history.who.event');
+  return t('history.who.you');
 }
 
 /**
@@ -45,17 +47,16 @@ export function pointLabel(point) {
  * starts without knowing that work happened. Saying "removes" about a fork
  * would be false.
  */
-export function consequenceText(point, mode) {
+export function consequenceText(point, mode, t) {
   if (!point) return '';
-  const tools = toolNames(point);
+  const tools = toolNames(point, t);
   if (mode === FORK) {
-    if (!tools) return 'copies this conversation up to here into a new session';
-    return `new session starts here · will not know about: ${tools}`;
+    if (!tools) return t('history.forkCopies');
+    return t('history.forkUnaware', { tools });
   }
-  const plural = point.messages === 1 ? 'message' : 'messages';
-  const removes = `prompt comes back · removes ${point.messages} ${plural}`;
-  if (!tools) return `${removes} · nothing outside the conversation ran`;
-  return `${removes} · leaves in place: ${tools}`;
+  const removes = t('history.rewindRemoves', { count: point.messages });
+  if (!tools) return t('history.rewindNothingRan', { removes });
+  return t('history.rewindLeaves', { removes, tools });
 }
 
 /**
@@ -66,16 +67,16 @@ export function consequenceText(point, mode) {
  * Fork gives the other half of the same fact: the original lost nothing, and
  * the new session's history does not mention work that nonetheless happened.
  */
-export function moveReport(result, mode, restored = false) {
-  const tools = toolNames(result ?? {});
+export function moveReport(result, mode, restored, t) {
+  const tools = toolNames(result ?? {}, t);
   if (mode === FORK) {
-    if (!tools) return 'The original session is unchanged, and nothing outside the conversation ran after this point.';
-    return `The original session is unchanged. These ran after the fork point, so their effects are on disk but the new session's history does not mention them: ${tools}`;
+    if (!tools) return t('history.report.forkClean');
+    return t('history.report.forkTools', { tools });
   }
   const left = tools
-    ? `These ran before the rewind and their effects are still in place: ${tools}. Rewinding moves the conversation. It does not undo files, commands, or network calls.`
-    : 'Nothing outside the conversation ran in the part that was rewound, so there is nothing left over.';
-  return `${left}${promptNote(result ?? {}, restored)}`;
+    ? t('history.report.rewindTools', { tools })
+    : t('history.report.rewindClean');
+  return `${left}${promptNote(result ?? {}, restored, t)}`;
 }
 
 /**
@@ -84,15 +85,17 @@ export function moveReport(result, mode, restored = false) {
  * something to leave them guessing. Only the text comes back, so images the
  * message carried have to be named as not having.
  */
-function promptNote(result, restored) {
+function promptNote(result, restored, t) {
   if (!result.prompt) return '';
-  if (!restored) return ' The composer already held a draft, so the rewound prompt was left out of it.';
+  if (!restored) return t('history.report.draftKept');
   const images = result.attachments ?? 0;
-  if (!images) return ' The prompt is back in the composer.';
-  return ` The prompt is back in the composer. Its ${images === 1 ? '1 image' : `${images} images`} did not come back.`;
+  if (!images) return t('history.report.promptBack');
+  return t('history.report.imagesLost', { count: images });
 }
 
 export function HistoryModal({ projectID, sessionID, app, draft, onRewound, onForked, onClose }) {
+  const t = useT();
+  const stableT = useStableT();
   const [mode, setMode] = useState(REWIND);
   const [points, setPoints] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -119,14 +122,14 @@ export function HistoryModal({ projectID, sessionID, app, draft, onRewound, onFo
     try {
       if (mode === FORK) {
         const res = await app.ForkSession(projectID, sessionID, current.item_id);
-        onForked(res.session_id, moveReport(res, FORK));
+        onForked(res.session_id, moveReport(res, FORK, false, stableT));
       } else {
         const res = await app.RewindSession(projectID, sessionID, current.item_id);
         // A draft the user has already typed wins: rewinding is deliberate but
         // the draft is newer, and no branch holds it — the rewound prompt is at
         // least still in the journal.
         const restore = Boolean(res.prompt) && !draft?.trim();
-        onRewound(moveReport(res, REWIND, restore), restore ? res.prompt : '');
+        onRewound(moveReport(res, REWIND, restore, stableT), restore ? res.prompt : '');
       }
       onClose();
     } catch (err) {
@@ -140,11 +143,11 @@ export function HistoryModal({ projectID, sessionID, app, draft, onRewound, onFo
   }
 
   return (
-    <InfoModal title="History" onClose={onClose}>
-      <div className="history-modal__tabs" role="tablist" aria-label="What to do with the chosen message">
+    <InfoModal title={t('history.title')} onClose={onClose}>
+      <div className="history-modal__tabs" role="tablist" aria-label={t('history.tabs')}>
         {[
-          [REWIND, 'Rewind', 'Take a prompt back to send again'],
-          [FORK, 'Fork', 'Start a new session from here'],
+          [REWIND, t('history.rewind'), t('history.rewindHint')],
+          [FORK, t('history.fork'), t('history.forkHint')],
         ].map(([value, label, hint]) => (
           <button
             key={value}
@@ -162,15 +165,15 @@ export function HistoryModal({ projectID, sessionID, app, draft, onRewound, onFo
 
       {error && <p className="info-modal__error">{error}</p>}
 
-      {!points && <p className="info-modal__muted">Loading…</p>}
+      {!points && <p className="info-modal__muted">{t('shell.loading')}</p>}
       {points && rows.length === 0 && (
         <p className="info-modal__muted">
-          {mode === FORK ? 'Nothing to fork from yet.' : 'No prompt to take back yet.'}
+          {mode === FORK ? t('history.nothingToFork') : t('history.noPrompt')}
         </p>
       )}
 
       {rows.length > 0 && (
-        <ul className="info-modal__list" role="listbox" aria-label="Messages">
+        <ul className="info-modal__list" role="listbox" aria-label={t('history.messages')}>
           {rows.map((p) => (
             <li key={p.item_id}>
               <button
@@ -181,8 +184,8 @@ export function HistoryModal({ projectID, sessionID, app, draft, onRewound, onFo
                 onClick={() => setSelected(p.item_id)}
                 onDoubleClick={act}
               >
-                <span className="history-modal__who">{pointLabel(p)}</span>
-                <span className="history-modal__text">{p.content || '(no text)'}</span>
+                <span className="history-modal__who">{pointLabel(p, t)}</span>
+                <span className="history-modal__text">{p.content || t('history.noText')}</span>
               </button>
             </li>
           ))}
@@ -190,18 +193,18 @@ export function HistoryModal({ projectID, sessionID, app, draft, onRewound, onFo
       )}
 
       {current && (
-        <p className="history-modal__consequence">{consequenceText(current, mode)}</p>
+        <p className="history-modal__consequence">{consequenceText(current, mode, t)}</p>
       )}
 
       <div className="modal-footer">
-        <button type="button" className="modal-btn modal-btn--cancel" onClick={onClose}>Cancel</button>
+        <button type="button" className="modal-btn modal-btn--cancel" onClick={onClose}>{t('shell.cancel')}</button>
         <button
           type="button"
           className="modal-btn modal-btn--primary"
           onClick={act}
           disabled={!current || busy}
         >
-          {mode === FORK ? 'Fork here' : 'Take this prompt back'}
+          {mode === FORK ? t('history.forkHere') : t('history.takeBack')}
         </button>
       </div>
     </InfoModal>

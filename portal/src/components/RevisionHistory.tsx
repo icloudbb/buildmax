@@ -2,12 +2,15 @@ import { Button } from "@buildmax/gui"
 import { Alert } from "./state/Alert"
 import { EmptyState } from "./state/EmptyState"
 import type { ResourceState } from "../state/resourceState"
+import { useT } from "../i18n"
+import { useRelativeTime } from "../lib/dateFormat"
 
 interface RevisionEntry {
   id: string
   revision: number
   createdBy: string
-  createdLabel: string
+  /** RFC 3339; formatted in the interface language. */
+  createdAt: string
   summary?: string | null
 }
 
@@ -41,13 +44,15 @@ export function RevisionHistory({
   restoreError,
   onRestore,
 }: RevisionHistoryProps) {
+  const t = useT()
+  const relativeTime = useRelativeTime()
   return (
     <section className="revision-history">
       {title || currentRevision > 0 ? (
         <div className="revision-history__head">
           {title ? <h3 className="revision-history__title">{title}</h3> : <span />}
           {currentRevision > 0 ? (
-            <span className="page-activity__meta">Current: v{currentRevision}</span>
+            <span className="page-activity__meta">{t("common.history.current", { revision: currentRevision })}</span>
           ) : null}
         </div>
       ) : null}
@@ -58,13 +63,13 @@ export function RevisionHistory({
         <Alert
           tone={state.kind === "stale" ? "stale" : state.kind}
           message={state.error.message}
-          retry={{ label: "Retry", onClick: onRetry }}
+          retry={{ label: t("shell.retry"), onClick: onRetry }}
         />
       )}
       {state.kind === "loading" ? (
-        <p className="page-activity__empty">Loading history…</p>
+        <p className="page-activity__empty">{t("common.history.loading")}</p>
       ) : state.kind === "readyEmpty" ? (
-        <EmptyState message="No history recorded yet." />
+        <EmptyState message={t("common.history.empty")} />
       ) : state.kind === "error" || state.kind === "forbidden" || state.kind === "notFound" ? null : (
         <ol className="revision-history__list">
           {state.data.map((entry) => (
@@ -72,7 +77,7 @@ export function RevisionHistory({
               <div className="revision-history__item-head">
                 <strong>v{entry.revision}</strong>
                 <span className="page-activity__meta">
-                  {entry.createdBy} · {entry.createdLabel}
+                  {entry.createdBy} · {relativeTime(entry.createdAt)}
                 </span>
                 {canRestore && entry.revision !== currentRevision ? (
                   <Button
@@ -80,7 +85,7 @@ export function RevisionHistory({
                     disabled={restoringRevision !== null}
                     onClick={() => onRestore(entry.revision)}
                   >
-                    Restore
+                    {t("common.history.restore")}
                   </Button>
                 ) : null}
               </div>

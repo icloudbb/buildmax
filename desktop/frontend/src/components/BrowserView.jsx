@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { EventsOn } from '../lib/wailsRuntime';
+import { useT } from '../i18n';
 
 // BrowserView embeds a live view of the Agent's browser page for one session by
 // rendering the screencast frames that arrive over the desktop/browser/frame
@@ -7,6 +8,7 @@ import { EventsOn } from '../lib/wailsRuntime';
 // instance. The view is read-only in this slice; the page also stays open in its
 // own OS window. Frames are base64 JPEG.
 export default function BrowserView({ sessionId }) {
+  const t = useT();
   const [frame, setFrame] = useState(null);
 
   useEffect(() => {
@@ -21,13 +23,13 @@ export default function BrowserView({ sessionId }) {
   if (!frame) {
     return (
       <div className="browser-view browser-view--empty">
-        Waiting for the page… the browser also opens in its own window.
+        {t('files.browser.waiting')}
       </div>
     );
   }
   return (
     <div className="browser-view">
-      <img className="browser-view__frame" src={`data:image/jpeg;base64,${frame}`} alt="Live browser page" />
+      <img className="browser-view__frame" src={`data:image/jpeg;base64,${frame}`} alt={t('files.browser.frame')} />
     </div>
   );
 }

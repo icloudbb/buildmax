@@ -1,4 +1,7 @@
-/* BuildMax shared theme: CSS variables for light and dark */
+/* BuildMax shared theme: CSS variables for light and dark.
+   The only stylesheet allowed to hold color literals (enforced by Stylelint;
+   see gui/stylelint/tokens.mjs). Everything else uses these tokens, so a new
+   color role is added here for both themes rather than written inline. */
 
 :root,
 [data-theme="light"] {
@@ -16,15 +19,26 @@
   --color-input-bg: #fff;
   --color-input-border: #ccc;
   --color-focus-ring: rgba(26, 26, 26, 0.12);
+  --shadow-raised: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-popover: 0 4px 16px rgba(0, 0, 0, 0.14);
   --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.18);
+  --color-overlay: rgba(0, 0, 0, 0.45);
   --color-primary: #1a1a1a;
   --color-primary-text: #fff;
   --color-primary-hover: #363636;
   --color-focus: #424242;
   --color-danger: #b42318;
   --color-danger-text: #fff;
+  --color-warning: #a16207;
+  --color-warning-text: #fff;
+  --color-accent: #3b82f6;
+  --color-accent-text: #fff;
   --color-status-running: #92400e;
   --color-status-success: #166534;
+  /* User HTML artifacts are standalone pages that assume a white canvas, so
+     their frame stays white in both themes. */
+  --color-document-bg: #fff;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -54,13 +68,20 @@
   --color-input-bg: #252525;
   --color-input-border: #505050;
   --color-focus-ring: rgba(255, 255, 255, 0.12);
+  --shadow-raised: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-popover: 0 4px 16px rgba(0, 0, 0, 0.5);
   --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --color-overlay: rgba(0, 0, 0, 0.6);
   --color-primary: #e0e0e0;
   --color-primary-text: #1a1a1a;
   --color-primary-hover: #fff;
   --color-focus: #e0e0e0;
   --color-danger: #ff8e85;
   --color-danger-text: #1a1a1a;
+  --color-warning: #fbbf24;
+  --color-warning-text: #1a1a1a;
+  --color-accent: #4a9eff;
+  --color-accent-text: #1a1a1a;
   --color-status-running: #fbbf24;
   --color-status-success: #86efac;
 }

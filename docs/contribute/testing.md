@@ -382,13 +382,20 @@ own wiring to that component. Portal keeps browser-level assertions in
 Playwright, where a real engine is the point.
 
 ```bash
-./make check gui               # build the package, type-check, run its tests
+./make check gui               # build the package, lint its CSS, type-check, run its tests
 npm --prefix gui test          # the tests alone, while iterating
+npm --prefix portal run lint:css  # one package's stylesheet lint alone
 ```
 
 `npm test` in `gui` type-checks before it runs: `tsconfig.json` excludes test
 files so no `.d.ts` for one reaches `dist/`, and `tsconfig.test.json` puts them
 back for the check.
+
+Each package's `npm run lint` also runs Stylelint over `src/**/*.css`. It
+rejects a color literal outside `gui/src/theme.css` and a `var()` naming a
+custom property no stylesheet defines; the rule is in
+[conventions](conventions.md#colors-come-from-theme-tokens). `./make check gui`,
+`portal`, and `desktop` all run it.
 
 ## Adding A Test
 
