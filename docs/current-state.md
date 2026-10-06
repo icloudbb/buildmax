@@ -853,6 +853,10 @@ specimen is now served at `/specimen`, outside the authenticated shell: it
 renders the shared action grammar, semantic tokens, status vocabulary, and every
 resource state once, in both themes, reusing the real components. A non-author
 operator review of the work journeys has not been produced.
+Portal and Desktop render every page in English or Simplified Chinese from one
+catalog per area, chosen in the user menu; dates follow the chosen language,
+and server-returned text and Agent output are shown as received. Each Portal
+area has a browser check that renders it in Chinese.
 Desktop has bridge and browser-based UI suites under
 [`desktop/frontend/e2e`](../desktop/frontend/e2e), plus a packaged-application
 launch smoke on macOS and Windows CI. The launch smoke proves that the built

@@ -60,7 +60,9 @@ Portal 负责云端/Space 使用场景：
   会在某个键缺少中文或占位符不一致时失败。`@buildmax/gui` 的 `LocaleProvider` 在
   `main.tsx` 中包裹每个根；语言在用户菜单中选择，按浏览器保存，默认取浏览器语言。
   Help 跟随界面语言，因此手册与界面不会不一致。状态标签通过 `useStatusLabel()` 翻译。
-  服务器返回的文本按原样显示。尚未迁移的页面仍显示英文；提取顺序与术语表见
+  服务器返回的文本按原样显示。日期在渲染时通过 `lib/dateFormat.ts`（`useRelativeTime`、
+  `useTimestamp`）按界面语言格式化，而不是写进映射字段。每个区域都有一个
+  `portal/e2e/locale-*.spec.ts` 浏览器检查，用中文渲染该区域。术语表见
   [UI 体验专项](../../design/UI体验专项.md)。
 - 横切状态位于 `portal/src/contexts/`：`AppContext`、`AuthContext`、`SpaceContext`，以及承载 Conversation 流式传输的 `WebSocketContext`。
 - HTTP 层是 `portal/src/lib/api/`（`client`、`mappers`、`types`，以及用于流式传输的 `sse` 和 `ws`）。

@@ -40,7 +40,8 @@ toggle.
 **Remote Control**, **Help**, the interface **Language** (English or 简体中文),
 and **Sign Out**. The language is remembered in this browser and starts from the
 browser's own language; Help follows it. Desktop has the same choice in its user
-menu. Pages not yet translated still show English.
+menu. Text the server returns, such as an error's detail, and Agent output are
+shown as they arrive.
 
 ## Spaces and roles
 

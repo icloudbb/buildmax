@@ -236,11 +236,11 @@ such as a load's fallback error, uses `useStableT`, whose identity survives a
 language switch, so switching language never reloads data or resubscribes
 events.
 
-The mechanism, the language switch, both shells, Help, and the pilot journeys
-(Portal Issue list, detail, and run details; Desktop home and project chat)
-ship. The remaining pages are extracted without waiting for phase 2: a string
-moves with its component during rework, so extracting first costs nothing
-twice.
+Every Portal and Desktop page ships in both languages; only the `/specimen`
+design page stays English. Pages were extracted without waiting for phase 2:
+a string moves with its component during rework, so extracting first costs
+nothing twice. Dates follow the interface language too, formatted at render
+time rather than stored as mapped English labels.
 
 ## Phases
 
@@ -251,7 +251,7 @@ twice.
 | 2. Visual-language decision | The maintainer accepts "refine" or "new language" from the phase 0 report; this record and the page-system record are updated | Decision, not a task |
 | 3. Portal rework | Blocker and Major findings resolved, in journey order | Tasks drafted from the phase 0 report |
 | 4. Desktop rework | Same for Desktop; `App.jsx` decomposed where the findings touch it | Tasks drafted from the phase 0 report |
-| 5. Chinese and re-audit | Complete `zh-CN` catalogs; the phase 0 journeys re-run in both locales and compared with the baseline | [backlog 22](../backlog/22-ui-i18n-remaining-pages.md) for the catalogs; the re-audit is drafted after phases 3–4 |
+| 5. Chinese and re-audit | Complete `zh-CN` catalogs (shipped); the phase 0 journeys re-run in both locales and compared with the baseline | The re-audit is drafted after phases 3–4 |
 
 Phase 0 and the token, guardrail, and i18n tasks are independent and can run in
 parallel. Primitive and Desktop convergence work depends on token integrity.

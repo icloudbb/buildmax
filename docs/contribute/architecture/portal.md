@@ -85,9 +85,11 @@ Portal owns the cloud/space lane:
   language is chosen in the user menu, stored per browser, and defaults from
   the browser language. Help follows it, so the manual and the interface never
   disagree. Status labels translate through `useStatusLabel()`. Text the server
-  returns is shown as received. Pages not yet migrated still render English; see
-  the [UI experience program](../../design/ui-experience-program.md) for the
-  extraction order and the glossary.
+  returns is shown as received. Dates render in the interface language through
+  `lib/dateFormat.ts` (`useRelativeTime`, `useTimestamp`) at render time, never
+  in a mapped field. Each area has a `portal/e2e/locale-*.spec.ts` browser check
+  that renders it in Chinese. The glossary is in the
+  [UI experience program](../../design/ui-experience-program.md).
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
   `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
   conversation streaming.

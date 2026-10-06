@@ -352,7 +352,9 @@ graded findings and a visual-language recommendation, while visual and
 accessibility guardrails, shared primitives, the English/Chinese catalog, and
 Desktop's move onto shared overlays proceed in parallel. Token integrity is
 done: every referenced token is defined for both themes, and Stylelint rejects
-raw colors and undefined custom properties in all three packages. Page
+raw colors and undefined custom properties in all three packages. Both surfaces
+ship complete English and Simplified Chinese interfaces, chosen in the user
+menu. Page
 rework is drafted from the audit, not before it. The CLI/TUI is out of scope.
 
 **Done when:** every Blocker and Major audit finding is resolved or accepted
