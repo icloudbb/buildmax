@@ -5,7 +5,7 @@ roadmap: R6
 source: docs/design/ui-experience-program.md#d3-guardrails-before-rework
 depends_on: []
 verification: ["./make check gui", "./make check portal", "./make e2e local", "./make e2e desktop-ui"]
-claim:
+claim: gougoujiang 2026-10-06
 pr:
 ---
 
