@@ -70,7 +70,7 @@ grant.**
 ## Out Of Scope
 
 - Changing the permission model or the grant scopes themselves.
-- The Explorer diff tab. [Task 50](54-desktop-diff-and-terminal-tabs.md) also
+- The Explorer diff tab. [Task 54](54-desktop-diff-and-terminal-tabs.md) also
   needs a readable diff. Whichever task lands first owns the diff renderer and
   the other reuses it. It moves to gui only if Portal needs it too, under the
   program's D4 rule.

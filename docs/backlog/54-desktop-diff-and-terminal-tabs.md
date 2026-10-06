@@ -57,7 +57,7 @@ English.
   [program's non-goals](../design/ui-experience-program.md#non-goals) exclude.
   Raise it separately if it is wanted.
 - The approval card's diff, which is
-  [task 48](26-desktop-tool-approval-preview.md). Share the renderer with it.
+  [task 26](26-desktop-tool-approval-preview.md). Share the renderer with it.
 
 ## Acceptance Criteria
 
