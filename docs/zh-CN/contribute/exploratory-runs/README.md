@@ -30,5 +30,3 @@
 
 | 报告 | 界面 | 摘要 |
 |---|---|---|
-| [2026-10-06-desktop-ui-journey-audit.md](2026-10-06-desktop-ui-journey-audit.md) | desktop | 阶段 0 Desktop 六条旅程的 UI 审查：4 项 Major（发送的消息不回显、审批卡片误导、Issue 的“开始对话”失效、登录后定时任务换了模型），11 项 Minor，5 项 Cosmetic |
-| [2026-10-06-portal-ui-journey-audit.md](2026-10-06-portal-ui-journey-audit.md) | portal | 阶段 0 Portal 七条旅程的 UI 审查：4 项 Major（Issue 结果自相矛盾、失败原因只有原始错误、没有通往执行者的路径、邀请无法辨认），16 项 Minor，6 项 Cosmetic；建议沿用并打磨现有视觉语言 |

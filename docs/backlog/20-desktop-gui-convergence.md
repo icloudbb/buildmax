@@ -65,3 +65,10 @@ consolidation touches Portal.
 
 `useOverlayA11y` and `bodyScrollLock` are internal to gui. Use them through
 `BaseModal` and `Drawer`; do not re-export them.
+
+The phase 0 Desktop audit (D18, Cosmetic) found an emoji 💬 chat-tab icon
+among line icons in the workbench tab bar. The single icon set fixes it;
+replace that emoji too. The same finding's duplicated "/ for commands" hint
+is [task 46](22-desktop-chat-turn-echo.md). The New Schedule dialog's hidden
+footer (D10) is checked against this task's `FormModal` migration in
+[task 54](56-desktop-schedule-form.md).

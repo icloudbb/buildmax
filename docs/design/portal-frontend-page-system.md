@@ -43,7 +43,10 @@ decision does not change the product model or the roadmap's Beta gate.
 The remaining migration is executed by the
 [UI experience program](ui-experience-program.md), which owns its sequencing
 and validation; this record stays the specification for page anatomy and
-action grammar.
+action grammar. That program's phase 0 audit re-tested the visual choice
+against seven Portal journeys, and on 2026-10-07 the maintainer confirmed it:
+refine the neutral language, do not replace it. None of the audit's Major
+findings came from visual style.
 
 ## User outcome, evidence, and constraints
 
@@ -82,7 +85,9 @@ records remain authoritative.
 ## Recommended visual direction
 
 Use a restrained operational interface: neutral canvas, clear type hierarchy,
-few borders, and semantic color only for meaning. Keep the existing light/dark
+few borders, and semantic color only for meaning. This direction was confirmed
+on 2026-10-07 from the phase 0 audit
+([UI experience program D1](ui-experience-program.md#d1-audit-before-redesign)). Keep the existing light/dark
 theme inversion. A filled primary button may be dark in light mode and light in
 dark mode; its **role** must be consistent even when its literal color changes.
 Avoid using a solid fill merely to make a sparse page feel occupied.
@@ -279,8 +284,13 @@ The first complete slice is accepted only when:
 
 ## Open questions
 
-1. Should the default Space destination stay Chat or become Issues after an
-   operator journey? The page system does not need to decide this first.
+1. ~~Should the default Space destination stay Chat or become Issues after an
+   operator journey?~~ *Resolved 2026-10-07* by the UI experience program
+   ([D6](ui-experience-program.md#d6-the-landing-page-shows-the-work-that-needs-the-person)):
+   whatever page a signed-in person lands on shows the work that needs them.
+   The audit found that neither Chat nor Issues does today. Which page hosts it
+   is designed in
+   [backlog task 22](../backlog/38-portal-needs-me-landing.md).
 2. Which real Issue results and failure states should seed the specimen and
    operator review? Existing QA data did not complete an Issue-to-result run
    during this inspection.

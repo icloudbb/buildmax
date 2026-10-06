@@ -2,7 +2,7 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/ui-experience-program.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 
-> **受众：** Portal、Desktop 与 `@buildmax/gui` 贡献者 · **状态：** 活动计划 —— 未开始
+> **受众：** Portal、Desktop 与 `@buildmax/gui` 贡献者 · **状态：** 活动计划 —— 部分完成
 >
 > **开启：** 2026-10-05
 
@@ -118,6 +118,16 @@ toast、加载指示或骨架屏、表格。Portal 页面借用模态框的样�
 依据个人喜好。审计报告的结尾给出建议及其依据的问题，由维护者在阶段 2 拍板。在此
 之前，基础工作对这个选择保持中立：token 与基础组件会让两种结果都更容易实现。
 
+*2026-10-07 决定：打磨当前的中性风格。* 两份阶段 0 报告都这样建议，而且其中八个
+Major 问题没有一个来自颜色、字体或布局风格。它们来自结果放在哪里、失败如何说明自己、
+用户如何找到执行者或 Issue 的对话、记录如何命名，以及审批卡片和定时任务告诉用户什么。
+换一套新视觉语言，这些问题一个也不会消失。剩下的视觉缺口都是一致性问题：样式化标签旁
+的原始状态词、默认蓝色链接、线条图标中混入的 emoji 图标、落在折叠线以下的对话框底栏，
+以及只靠颜色区分的 diff 标记。共享基础组件
+（[任务 16](../../backlog/16-gui-shared-primitives.md)）、Desktop 收敛
+（[任务 20](../../backlog/20-desktop-gui-convergence.md)），以及阶段 1 的截图、对比度
+与 jsx-a11y 护栏会处理它们。因此阶段 3 与阶段 4 在现有风格之内改变信息、文案与行为。
+
 ### D2. 由 Agent 驱动验证，并如实记录
 
 维护者选择了由 Agent 执行验证，而不是招募真人测试者。审计与复审都遵循
@@ -209,19 +219,52 @@ Portal 与 Desktop 的所有页面都已提供两种语言；只有 `/specimen` 
 页面提取没有等待阶段 2：文案会在改造时随组件一起移动，先提取不会造成重复工作。日期在
 渲染时格式化，从不存成映射好的英文标签。
 
+### D6. 落地页展示需要本人处理的工作
+
+*2026-10-07 依据阶段 0 审计决定。* 已登录用户落地的无论是哪个页面，都要展示等待他
+处理的工作：
+
+- 他负责且需要关注的 Issue；
+- 失败的运行；
+- 等待他回答的运行；
+- 待处理的 Workflow 输入请求。
+
+审计发现 Chat 与 Issues 都不展示其中任何一项。一位团队成员有一次失败的运行、两个
+“需要你的回答”的运行，以及一个待处理的 Workflow 输入请求，但在 Chat 与 Issues 上都
+看不到。只能通过某个 Agent 的运行列表或系统管理中的计数找到它们。Desktop 登录后的
+主页也有同样的缺口：他负责的 Issue 放在单独的视图里，主页上没有任何提示说有 Issue
+在等待。
+
+这个决定确定的是结果，而不是承载页面。现有 API 无法用一次请求回答这个问题：
+
+- Issue 列表可以按负责人过滤（`owner=me`），但不带运行状态。
+- Task 带有创建者、来源 Issue、状态与 `awaiting_answer`，但只能按 Agent、对话或
+  定时任务列出。
+- 待处理的 Workflow 请求按整个 Space 列出，任何可以运行 Workflow 的成员都可以回答。
+
+[导航记录](Portal导航与Space上下文.md#被否决的替代方案)否决了没有权威聚合查询的
+仪表盘，这个理由仍然成立。审计现在提供了运维问题，但查询还不存在。因此，查询本身、
+怎样算“我的”运行，以及由哪个页面承载结果，都要先设计再实现。
+[任务 22](../../backlog/38-portal-needs-me-landing.md) 负责这份设计与 Portal 实现，
+[任务 58](../../backlog/58-desktop-needs-me-home.md) 把同样的结果带到 Desktop 主页。
+
 ## 阶段
 
 | 阶段 | 结果 | 可执行工作 |
 |---|---|---|
-| 0. 审计 | Portal 与 Desktop 核心流程的分级问题报告，并附视觉语言建议 | [Portal](../contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) 与 [Desktop](../contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) 报告 |
+| 0. 审计 | Portal 与 Desktop 核心流程的分级问题报告，并附视觉语言建议（2026-10-06 完成） | [Portal](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/zh-CN/contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) 与 [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/zh-CN/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) 报告，保存在提交 `718a6ab3` 的历史中；每个问题都由阶段 3–4 的某个任务承接 |
 | 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏（已交付）；共享基础组件；i18n 基础设施；Desktop 改用 gui 基础组件 | backlog [16](../../backlog/16-gui-shared-primitives.md)、[20](../../backlog/20-desktop-gui-convergence.md) |
-| 2. 视觉语言决定 | 维护者依据阶段 0 报告选择“打磨”或“新视觉语言”，并更新本记录与页面体系记录 | 决定，不是任务 |
-| 3. Portal 改造 | 按流程顺序解决 Blocker 与 Major 问题 | 依据阶段 0 报告拆分任务 |
-| 4. Desktop 改造 | Desktop 同样处理；问题涉及 `App.jsx` 的地方顺带拆分 | 依据阶段 0 报告拆分任务 |
-| 5. 中文与复审 | 完整的 `zh-CN` 目录（已交付）；用两种语言重跑阶段 0 的流程，并与基线对比 | 复审在阶段 3–4 之后拆分 |
+| 2. 视觉语言决定 | 2026-10-07 已决定：打磨当前的中性风格（[D1](#d1-先审计再重新设计)），落地页展示需要本人处理的工作（[D6](#d6-落地页展示需要本人处理的工作)）。本记录与页面体系记录已更新 | 决定，不是任务 |
+| 3. Portal 改造 | 先解决 Blocker 与 Major 问题，与 Desktop 交替进行（任务 22–36），再处理其余问题 | backlog [24](../../backlog/24-portal-issue-executor-path.md)、[28](../../backlog/28-portal-issue-result.md)、[32](../../backlog/32-portal-failure-explanation.md)、[36](../../backlog/36-portal-members-and-invitations.md)、[38](../../backlog/38-portal-needs-me-landing.md)、[40](../../backlog/40-portal-shell-navigation.md)、[42](../../backlog/42-portal-work-naming.md)、[44](../../backlog/44-portal-administration-labels.md)、[46](../../backlog/46-portal-workflow-authoring.md)、[48](../../backlog/48-portal-schedule-form.md)、[50](../../backlog/50-portal-files-and-artifacts.md) |
+| 4. Desktop 改造 | Desktop 同样处理；问题涉及 `App.jsx` 的地方顺带拆分 | backlog [22](../../backlog/22-desktop-chat-turn-echo.md)、[26](../../backlog/26-desktop-tool-approval-preview.md)、[30](../../backlog/30-desktop-issue-start-chat-and-sign-in.md)、[34](../../backlog/34-desktop-schedule-model.md)、[52](../../backlog/52-desktop-narrow-window-and-first-launch.md)、[54](../../backlog/54-desktop-diff-and-terminal-tabs.md)、[56](../../backlog/56-desktop-schedule-form.md)、[58](../../backlog/58-desktop-needs-me-home.md) |
+| 5. 中文与复审 | 完整的 `zh-CN` 目录（已交付）；用两种语言重跑阶段 0 的流程，并与基线对比：提交 `718a6ab3` 中的 [Portal](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/zh-CN/contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) 与 [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/zh-CN/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) 报告 | 复审在阶段 3–4 之后拆分 |
 
 阶段 0 与 token、护栏、i18n 任务彼此独立，可以并行。基础组件与 Desktop 收敛工作
-依赖 token 完整性。改造任务要等审计结果出来再拆分，因为任务内容就是审计的产出。
+依赖 token 完整性。改造任务在审计结果出来之后才拆分，因为任务内容就是审计的产出。
+每个任务都抄入它承接的问题，包括页面、步骤、复现方式与等级，因此报告可以从仓库中
+移除。任务 16 或 20 已经修复的问题记录在该任务的备注里，不再重复拆分。Portal 问题
+P22（单个 1.3 MB 脚本未压缩传输）没有阻碍任何流程，按照[非目标](#非目标)的要求，它
+留在 R5 的 Portal 性能工作中。
 
 ## 与现有记录的关系
 
@@ -254,7 +297,8 @@ Portal 与 Desktop 的所有页面都已提供两种语言；只有 `/specimen` 
 
 ## 开放问题
 
-- **视觉语言。** 打磨当前的中性风格，还是采用新风格？在阶段 2 依据审计决定。
+- **视觉语言。** *已在阶段 2 解决：* 打磨当前的中性风格。见
+  [D1](#d1-先审计再重新设计)。
 - **Desktop TypeScript。** Desktop 是否迁移到 TypeScript？默认只转换收敛工作涉及的
   文件。只有当审计或收敛工作表明无类型的 props 正在导致缺陷时，才做全量迁移。
 - **截图基线。** *已在阶段 1 解决：* Linux 是唯一的基线平台。所有基线都在官方
@@ -265,5 +309,6 @@ Portal 与 Desktop 的所有页面都已提供两种语言；只有 `/specimen` 
   这正是它们能作为拉取请求门禁的原因；同理，Desktop 的视图使用 fixture bridge 而不是
   `wails dev`——后者只在 macOS 作业上运行，会让 macOS 成为第二个基线平台。
   [测试指南](../contribute/testing.md#截图基线)说明了如何运行、更新与评审基线。
-- **Space 默认落地页。** 应该是 Chat 还是 Issues？这个问题继承自页面体系记录，审计
-  应当为它提供证据。
+- **Space 默认落地页。** *已在阶段 2 解决：* 问题不在于 Chat 还是 Issues，而在于
+  落地页展示什么。已登录用户落地的无论是哪个页面，都要展示需要他处理的工作，见
+  [D6](#d6-落地页展示需要本人处理的工作)。由哪个页面承载，是任务 22 设计的一部分。

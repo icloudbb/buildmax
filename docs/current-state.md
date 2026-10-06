@@ -867,8 +867,9 @@ Desktop has bridge and browser-based UI suites under
 launch smoke on macOS and Windows CI. The launch smoke proves that the built
 bundle starts and stays alive briefly; it does not drive or visually inspect the
 native window. Portal routes remain eagerly imported, with no route-level lazy
-loading in the current source. No fresh bundle size or throughput number was
-measured in this review.
+loading in the current source. The 2026-10-06 UI audit measured the result:
+one 1.3 MB script plus 151 KB of CSS, which the kind ingress served
+uncompressed. Production ingress compression and throughput were not measured.
 
 Deployment smoke includes retry, managed inference and its call ledger,
 cancellation of a running worker, worker-loss recovery (a run whose worker is
