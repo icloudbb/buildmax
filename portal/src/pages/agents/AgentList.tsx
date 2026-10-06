@@ -21,6 +21,7 @@ import { Alert } from "../../components/state/Alert"
 import { EmptyState } from "../../components/state/EmptyState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 import { isAllowed } from "../../state/permissionState"
+import { useStableT, useT } from "../../i18n"
 
 interface AgentListProps {
   token: string | null
@@ -33,6 +34,8 @@ const EMPTY_AGENTS: Agent[] = []
 
 export function AgentList({ token, spaceId }: AgentListProps) {
   const { currentUserRole } = useSpace()
+  const t = useT()
+  const stableT = useStableT()
   // null means "not yet successfully fetched", distinct from [] meaning the
   // space genuinely has no agents. See deriveResourceState.
   const [agentsData, setAgentsData] = useState<Agent[] | null>(null)
@@ -68,9 +71,9 @@ export function AgentList({ token, spaceId }: AgentListProps) {
       })
       // agentsData from a prior successful fetch (if any) is left in place, so
       // a failed refresh reads as Stale rather than wiping the grid.
-      .catch((err) => setListError(classifyError(err, "Failed to load agents")))
+      .catch((err) => setListError(classifyError(err, stableT("agents.error.load"))))
       .finally(() => setLoading(false))
-  }, [token, spaceId])
+  }, [token, spaceId, stableT])
 
   const agentsState = useMemo(
     () => deriveResourceState({ loading, data: agentsData, error: listError, isEmpty: (data) => data.length === 0 }),
@@ -148,10 +151,10 @@ export function AgentList({ token, spaceId }: AgentListProps) {
 
   const stats = useMemo(() => {
     const tasks = allTasks.map((x) => x.task)
-    const finished = tasks.filter((t) => taskRunFinished(t.status))
-    const failed = finished.filter((t) => taskRunFailed(t.status)).length
+    const finished = tasks.filter((task) => taskRunFinished(task.status))
+    const failed = finished.filter((task) => taskRunFailed(task.status)).length
     const succeeded = finished.length - failed
-    const running = tasks.filter((t) => !taskRunFinished(t.status)).length
+    const running = tasks.filter((task) => !taskRunFinished(task.status)).length
     const successRate = finished.length > 0 ? `${Math.round((succeeded / finished.length) * 100)}%` : "—"
     const warnings = canManageAgents
       ? agents.reduce((n, a) => n + consumptionHealthCount(a.secretConsumption, secrets), 0)
@@ -168,7 +171,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
     const ts = tasksByAgent[agent.id] ?? []
     return {
       count: ts.length,
-      running: ts.some((t) => !taskRunFinished(t.status)),
+      running: ts.some((task) => !taskRunFinished(task.status)),
       last: ts[0] ? apiTaskToTask(ts[0]).timeLabel : null,
     }
   }
@@ -193,7 +196,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
         setModalOpen(false)
         navigate({ name: "agent", spaceId, agentId: mapped.id })
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to create agent")))
+      .catch((err) => setError(getErrorMessage(err, t("agents.error.create"))))
       .finally(() => setCreating(false))
   }
 
@@ -212,27 +215,25 @@ export function AgentList({ token, spaceId }: AgentListProps) {
         navigate({ name: "task", spaceId, taskId: created.id })
       })
       .catch((err) => {
-        setError(getErrorMessage(err, "Failed to run agent"))
+        setError(getErrorMessage(err, t("agents.error.run")))
       })
       .finally(() => setStartingTaskAgentId(null))
   }
 
   const kpis: { label: string; value: string | number; show: boolean }[] = [
-    { label: "Agents", value: agents.length, show: true },
-    { label: "Running now", value: stats.running, show: true },
-    { label: "Total runs", value: stats.total, show: true },
-    { label: "Success rate", value: stats.successRate, show: true },
-    { label: "Config warnings", value: stats.warnings, show: canManageAgents },
+    { label: t("agents.kpi.agents"), value: agents.length, show: true },
+    { label: t("agents.kpi.running"), value: stats.running, show: true },
+    { label: t("agents.kpi.totalRuns"), value: stats.total, show: true },
+    { label: t("agents.kpi.successRate"), value: stats.successRate, show: true },
+    { label: t("agents.kpi.warnings"), value: stats.warnings, show: canManageAgents },
   ]
 
   return (
     <div className="page-activity">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Agents</h1>
-          <p className="page-activity__subtitle">
-            Create and manage space agents (personas / task templates).
-          </p>
+          <h1 className="page-activity__title">{t("agents.title")}</h1>
+          <p className="page-activity__subtitle">{t("agents.subtitle")}</p>
         </div>
         <div className="page-activity__actions">
           {canManageAgents ? (
@@ -243,9 +244,9 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                 setError(null)
                 setModalOpen(true)
               }}
-              aria-label="Create agent"
+              aria-label={t("agents.create")}
             >
-              Create agent
+              {t("agents.create")}
             </Button>
           ) : null}
         </div>
@@ -258,21 +259,17 @@ export function AgentList({ token, spaceId }: AgentListProps) {
         <Alert
           tone={agentsState.kind === "stale" ? "stale" : agentsState.kind}
           message={agentsState.error.message}
-          retry={{ label: "Retry", onClick: () => fetchAgents() }}
+          retry={{ label: t("shell.retry"), onClick: () => fetchAgents() }}
         />
       )}
       {error ? <p className="page-activity__empty">{error}</p> : null}
 
       {canManageAgentsState === "denied" ? (
-        <p className="page-activity__empty">
-          You can start conversations with space agents, but only space owners and admins can create or edit them.
-        </p>
+        <p className="page-activity__empty">{t("agents.role.denied")}</p>
       ) : canManageAgentsState === "failed" ? (
-        <p className="page-activity__empty">
-          Couldn&apos;t verify your role in this space, so creating or editing agents stays unavailable. Refresh to try again.
-        </p>
+        <p className="page-activity__empty">{t("agents.role.failed")}</p>
       ) : canManageAgentsState === "unknown" ? (
-        <p className="page-activity__empty">Checking whether you can manage agents…</p>
+        <p className="page-activity__empty">{t("agents.role.unknown")}</p>
       ) : null}
 
       {!loading && agents.length > 0 ? (
@@ -291,13 +288,11 @@ export function AgentList({ token, spaceId }: AgentListProps) {
       <div className="agent-home">
         <section className="agent-list">
           {agentsState.kind === "loading" ? (
-            <p className="page-activity__empty">Loading…</p>
+            <p className="page-activity__empty">{t("shell.loading")}</p>
           ) : agentsState.kind === "readyEmpty" ? (
             <EmptyState
               message={
-                canManageAgents
-                  ? 'No agents yet. Click "Create agent" to add one.'
-                  : "No agents are available in this space yet. Space owners and admins can add one when you're ready to share a reusable agent."
+                canManageAgents ? t("agents.empty.manager") : t("agents.empty.member")
               }
             />
           ) : agentsState.kind === "error" || agentsState.kind === "forbidden" || agentsState.kind === "notFound" ? null : (
@@ -310,7 +305,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                     className="agent-card"
                     role="button"
                     tabIndex={0}
-                    aria-label={`Open agent ${a.name}`}
+                    aria-label={t("agents.openNamed", { name: a.name })}
                     onClick={() => navigate({ name: "agent", spaceId, agentId: a.id })}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -324,9 +319,9 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                       <div className="agent-card__title-row">
                         <h3 className="agent-card__name">{a.name}</h3>
                         {meta.running ? (
-                          <span className="agent-card__running">running</span>
+                          <span className="agent-card__running">{t("agents.running")}</span>
                         ) : (
-                          <span className="agent-card__edit-hint" aria-hidden>Open</span>
+                          <span className="agent-card__edit-hint" aria-hidden>{t("agents.open")}</span>
                         )}
                       </div>
                     </header>
@@ -335,15 +330,13 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                     ) : null}
                     {canManageAgents && consumptionHealthCount(a.secretConsumption, secrets) > 0 ? (
                       <p className="agent-card__secret-warning" role="alert">
-                        ⚠ {consumptionHealthCount(a.secretConsumption, secrets)} secret grant
-                        {consumptionHealthCount(a.secretConsumption, secrets) === 1 ? "" : "s"} no longer
-                        resolve. Open the agent to fix.
+                        ⚠ {t("agents.card.secretWarning", { count: consumptionHealthCount(a.secretConsumption, secrets) })}
                       </p>
                     ) : null}
                     <div className="agent-card__foot">
                       <span className="agent-card__stat">
-                        {meta.count} run{meta.count === 1 ? "" : "s"}
-                        {meta.last ? ` · last ${meta.last}` : ""}
+                        {t("agents.card.runs", { count: meta.count })}
+                        {meta.last ? t("agents.card.lastRun", { when: meta.last }) : ""}
                       </span>
                       <Button
                         variant="secondary" size="compact"
@@ -352,9 +345,9 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                           handleOpenNewTaskModal(a)
                         }}
                         disabled={!token}
-                        aria-label={`Run ${a.name}`}
+                        aria-label={t("agents.runNamed", { name: a.name })}
                       >
-                        Run
+                        {t("agents.run")}
                       </Button>
                     </div>
                   </article>
@@ -366,9 +359,9 @@ export function AgentList({ token, spaceId }: AgentListProps) {
 
         {!loading && agents.length > 0 ? (
           <aside className="agent-activity">
-            <h2 className="agent-activity__title">Recent activity</h2>
+            <h2 className="agent-activity__title">{t("agents.activity.title")}</h2>
             {recent.length === 0 ? (
-              <p className="page-activity__empty">No runs yet.</p>
+              <p className="page-activity__empty">{t("agents.activity.empty")}</p>
             ) : (
               <div className="agent-activity__feed">
                 {recent.map(({ task, agent }) => {

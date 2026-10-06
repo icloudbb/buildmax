@@ -9,11 +9,10 @@ export {
   listAgentModels,
 } from "./api"
 export {
-  AGENT_FIELDS,
   agentFields,
-  DEPLOYMENT_DEFAULT_MODEL_OPTION,
+  deploymentDefaultModelOption,
   buildAgentDefinition,
   normalizeConsumption,
   type AgentDefinitionInput,
 } from "./definition"
-export { AGENT_GROUP_META, buildAgentGroups } from "./groups"
+export { agentGroupMeta, buildAgentGroups } from "./groups"

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
+import type { Translate } from "@buildmax/gui"
 import type { ApiSecret } from "../lib/api/types"
+import { translate, type MessageKey } from "../i18n"
 import { consumptionHealthCount, grantHealth } from "./SecretConsumptionEditor"
+
+const t: Translate<MessageKey> = (key, vars) => translate("en", key, vars)
 
 function secret(over: Partial<ApiSecret>): ApiSecret {
   return {
@@ -26,27 +30,27 @@ describe("grantHealth", () => {
   ]
 
   it("passes a resolvable grant", () => {
-    expect(grantHealth({ secret: "sec_gh", item: "token", env_name: "GH" }, secrets)).toBeNull()
+    expect(grantHealth({ secret: "sec_gh", item: "token", env_name: "GH" }, secrets, t)).toBeNull()
   })
   it("passes a whole-group grant", () => {
-    expect(grantHealth({ secret: "sec_gh" }, secrets)).toBeNull()
+    expect(grantHealth({ secret: "sec_gh" }, secrets, t)).toBeNull()
   })
   it("ignores an unfinished row with no secret", () => {
-    expect(grantHealth({ secret: "", item: "x", env_name: "X" }, secrets)).toBeNull()
+    expect(grantHealth({ secret: "", item: "x", env_name: "X" }, secrets, t)).toBeNull()
   })
   it("flags a missing secret", () => {
-    expect(grantHealth({ secret: "sec_gone", item: "token", env_name: "X" }, secrets)).toMatch(
+    expect(grantHealth({ secret: "sec_gone", item: "token", env_name: "X" }, secrets, t)).toMatch(
       /no longer exists/,
     )
   })
   it("flags a disabled secret", () => {
-    expect(grantHealth({ secret: "sec_off", item: "k", env_name: "K" }, secrets)).toMatch(/disabled/)
+    expect(grantHealth({ secret: "sec_off", item: "k", env_name: "K" }, secrets, t)).toMatch(/disabled/)
   })
   it("flags a destroyed secret", () => {
-    expect(grantHealth({ secret: "sec_dead" }, secrets)).toMatch(/destroyed/)
+    expect(grantHealth({ secret: "sec_dead" }, secrets, t)).toMatch(/destroyed/)
   })
   it("flags a missing item", () => {
-    expect(grantHealth({ secret: "sec_gh", item: "gone", env_name: "X" }, secrets)).toMatch(
+    expect(grantHealth({ secret: "sec_gh", item: "gone", env_name: "X" }, secrets, t)).toMatch(
       /no longer has an item/,
     )
   })

@@ -12,6 +12,7 @@ import { Alert } from "../../components/state/Alert"
 import { EmptyState } from "../../components/state/EmptyState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 import { isAllowed } from "../../state/permissionState"
+import { useStableT, useT } from "../../i18n"
 
 interface SchedulesPageProps {
   token: string | null
@@ -31,6 +32,8 @@ function formatWhen(iso: string | null | undefined): string {
 // docs/design/scheduled-agent-execution.md.
 export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
   const { currentUserRole } = useSpace()
+  const t = useT()
+  const stableT = useStableT()
   // Any member may manage schedules (manage_schedules is member-tier), so the
   // capability is membership itself, not the owner/admin gate agents use.
   const canManageState = useSpaceCapability(
@@ -83,9 +86,9 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
       })
       // schedulesData from a prior fetch is left in place, so a failed refresh
       // reads as Stale rather than wiping the list.
-      .catch((err) => setListError(classifyError(err, "Failed to load schedules")))
+      .catch((err) => setListError(classifyError(err, stableT("schedules.error.load"))))
       .finally(() => setLoading(false))
-  }, [token, spaceId])
+  }, [token, spaceId, stableT])
 
   useEffect(() => {
     void fetchSchedules()
@@ -96,10 +99,14 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
     [loading, schedulesData, listError]
   )
 
-  const countLabel = useMemo(() => {
-    const count = schedulesData?.length ?? 0
-    return count === 1 ? "1 schedule" : `${count} schedules`
-  }, [schedulesData])
+  const countLabel = t("schedules.count", { count: schedulesData?.length ?? 0 })
+
+  // A kind a newer server added shows as stored rather than disappearing.
+  function kindLabel(kind: string): string {
+    if (kind === "agent") return t("schedules.kind.agent")
+    if (kind === "workflow") return t("schedules.kind.workflow")
+    return kind
+  }
 
   function toggleEnabled(schedule: ApiSchedule) {
     if (!token || !spaceId) return
@@ -107,7 +114,7 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
     setActionError(null)
     updateSchedule(spaceId, schedule.id, { enabled: !schedule.enabled }, token)
       .then(() => fetchSchedules())
-      .catch((err) => setActionError(getErrorMessage(err, "Failed to update schedule")))
+      .catch((err) => setActionError(getErrorMessage(err, t("schedules.error.update"))))
       .finally(() => setBusyId(null))
   }
 
@@ -132,8 +139,8 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
     )
     const failed = results.filter((r) => r.status === "rejected").length
     if (failed > 0) {
-      const verb = target ? "resume" : "pause"
-      setActionError(`Failed to ${verb} ${failed} of ${affected.length} schedule${affected.length === 1 ? "" : "s"}.`)
+      const key = target ? "schedules.error.bulkResume" : "schedules.error.bulkPause"
+      setActionError(stableT(key, { failed, count: affected.length }))
     }
     await fetchSchedules()
     setBulkBusy(null)
@@ -143,10 +150,8 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
     <div className="page-activity">
       <div className="page-activity__head">
         <div>
-          <h1 className="page-activity__title">Schedules</h1>
-          <p className="page-activity__subtitle">
-            Every recurring schedule in this space. Each runs one agent or workflow on a cron timetable.
-          </p>
+          <h1 className="page-activity__title">{t("schedules.title")}</h1>
+          <p className="page-activity__subtitle">{t("schedules.subtitle")}</p>
         </div>
         <div className="page-activity__actions">
           {canManage && (schedulesData?.length ?? 0) > 0 ? (
@@ -157,7 +162,7 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
                 disabled={bulkBusy !== null || busyId !== null || enabledCount === 0}
                 onClick={() => void setAllEnabled(false)}
               >
-                Pause all
+                {t("schedules.pauseAll")}
               </Button>
               <Button
                 variant="secondary"
@@ -165,13 +170,13 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
                 disabled={bulkBusy !== null || busyId !== null || pausedCount === 0}
                 onClick={() => void setAllEnabled(true)}
               >
-                Resume all
+                {t("schedules.resumeAll")}
               </Button>
             </>
           ) : null}
           {canCreate && !creating ? (
             <Button variant="primary" onClick={() => setCreating(true)}>
-              New schedule
+              {t("schedules.new")}
             </Button>
           ) : null}
         </div>
@@ -198,20 +203,20 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
         <Alert
           tone={schedulesState.kind === "stale" ? "stale" : schedulesState.kind}
           message={schedulesState.error.message}
-          retry={{ label: "Retry", onClick: () => void fetchSchedules() }}
+          retry={{ label: t("shell.retry"), onClick: () => void fetchSchedules() }}
         />
       )}
       {actionError ? <Alert tone="error" message={actionError} /> : null}
 
-      <section className="issues-page__panel" aria-label="Schedule list">
+      <section className="issues-page__panel" aria-label={t("schedules.list")}>
         <div className="issues-page__toolbar">
           {schedulesData !== null ? <span className="page-activity__meta">{countLabel}</span> : null}
         </div>
 
         {schedulesState.kind === "loading" ? (
-          <p className="page-activity__empty">Loading…</p>
+          <p className="page-activity__empty">{t("shell.loading")}</p>
         ) : schedulesState.kind === "readyEmpty" ? (
-          <EmptyState message="No schedules yet. Schedule an agent or workflow to run at a set time." />
+          <EmptyState message={t("schedules.empty")} />
         ) : schedulesState.kind === "error" || schedulesState.kind === "forbidden" || schedulesState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
             {(schedulesData ?? []).map((s) => {
@@ -232,9 +237,9 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
                       >
                         {executorName}
                       </button>
-                      {` (${s.executor_kind}) · `}
+                      {` (${kindLabel(s.executor_kind)}) · `}
                       <code>{s.cron_expr}</code> {s.timezone}
-                      {s.enabled ? ` · next ${formatWhen(s.next_fire_at)}` : ""}
+                      {s.enabled ? t("schedules.next", { when: formatWhen(s.next_fire_at) }) : ""}
                     </span>
                   </div>
                   <div className="schedules-page__side">
@@ -243,11 +248,11 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
                         s.enabled ? "issues-page__status" : "issues-page__status schedules-page__status--off"
                       }
                     >
-                      {s.enabled ? "Enabled" : "Paused"}
+                      {s.enabled ? t("schedules.enabled") : t("schedules.paused")}
                     </span>
                     {s.consecutive_failures > 0 ? (
                       <span className="schedules-page__failures">
-                        {s.consecutive_failures} failure{s.consecutive_failures === 1 ? "" : "s"}
+                        {t("schedules.failures", { count: s.consecutive_failures })}
                       </span>
                     ) : null}
                     {canManage ? (
@@ -257,7 +262,7 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
                         disabled={busyId === s.id || bulkBusy !== null}
                         onClick={() => toggleEnabled(s)}
                       >
-                        {s.enabled ? "Pause" : "Resume"}
+                        {s.enabled ? t("schedules.pause") : t("schedules.resume")}
                       </Button>
                     ) : null}
                   </div>

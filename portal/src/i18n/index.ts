@@ -12,6 +12,8 @@ import { authMessages } from "./auth"
 import { chatMessages } from "./chat"
 import { tasksMessages } from "./tasks"
 import { workflowsMessages } from "./workflows"
+import { agentsMessages } from "./agents"
+import { schedulesMessages } from "./schedules"
 
 // One file per area, each holding both languages, so a string and its
 // translation change together. Terms follow the glossary in
@@ -30,6 +32,8 @@ export const portalMessages = mergeMessages(
   authMessages,
   tasksMessages,
   workflowsMessages,
+  agentsMessages,
+  schedulesMessages,
 )
 
 export type MessageKey = keyof typeof portalMessages.en
