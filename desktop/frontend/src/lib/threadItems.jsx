@@ -15,6 +15,10 @@ export function messageThreadItems(messages, t = english) {
   const toolResults = buildToolResultMap(messages);
   return messages.flatMap((m, i) => {
     if (m.role === 'tool') return [];
+    // An assistant message with no text and no tool call has nothing to show:
+    // the placeholder before a reply streams in, or a turn that ended silently
+    // after its tool calls. Its tool cards and the idle composer mark the end.
+    if (m.role === 'assistant' && !m.content && !m.source && !(m.tool_calls || []).length) return [];
     const toolCallLines = (m.tool_calls || []).map((tc, j) => {
       const result = toolResults.get(tc.id);
       const state = result ? (result.ok ? 'success' : 'error') : 'pending';

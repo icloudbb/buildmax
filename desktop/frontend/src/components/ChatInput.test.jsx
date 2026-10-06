@@ -93,6 +93,13 @@ describe('ChatInput command palette', () => {
     { name: 'info', description: 'Session info', requires_session: true },
   ];
 
+  it('gives the slash-command hint once, in the status bar', () => {
+    const { container } = renderInput();
+    const text = `${composer().placeholder}\n${container.textContent}`;
+    expect(text.match(/\/ for commands/g)).toHaveLength(1);
+    expect(composer().placeholder).toBe('Type a message… (Enter to send)');
+  });
+
   it('lists commands and skills when "/" is typed', async () => {
     const app = makeApp({
       GetSlashCommands: () => Promise.resolve(commands),

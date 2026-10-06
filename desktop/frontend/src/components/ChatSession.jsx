@@ -64,6 +64,10 @@ export function ChatSession({
   const sessionIdRef = useRef(sessionId);
   // True from launching a new chat until its run's id is adopted.
   const adoptingRef = useRef(false);
+  // The id this tab adopted from its own run. Its transcript is already on
+  // screen, and the session on disk does not hold the prompt yet when the id is
+  // announced, so loading it would replace the sent message with nothing.
+  const adoptedIdRef = useRef('');
   useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
 
   // ownEvent is true when a stream event belongs to this session. Adoption of a
@@ -81,7 +85,7 @@ export function ChatSession({
       setMessages([]);
       return;
     }
-    if (!app) return;
+    if (!app || sessionId === adoptedIdRef.current) return;
     setError(null);
     app.GetSession(sessionId)
       .then((detail) => {
@@ -121,6 +125,7 @@ export function ChatSession({
       const sid = payload?.session_id ?? '';
       if (sid && sessionIdRef.current === '' && adoptingRef.current) {
         sessionIdRef.current = sid;
+        adoptedIdRef.current = sid;
         adoptingRef.current = false;
         setSessionId(sid);
         onSessionAdopted?.(tab, sid);
