@@ -6,6 +6,8 @@ import {
   throwIfNotOk,
 } from "../../lib/api/client"
 import { authHeaders } from "../../lib/api/common"
+import { detectLocale } from "@buildmax/gui"
+import { translate } from "../../i18n"
 import type {
   ApiInvitation,
   ApiMemberLoginCode,
@@ -119,7 +121,7 @@ export async function removeSpaceMember(
     }
   )
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "Failed to remove member"))
+    throw new Error(await parseErrorResponse(res, translate(detectLocale(), "settings.error.removeMember")))
   }
   await throwIfNotOk(res)
 }
@@ -206,7 +208,7 @@ export async function revokeInvitation(
     }
   )
   if (!res.ok) {
-    throw new Error(await parseErrorResponse(res, "Failed to revoke the invitation"))
+    throw new Error(await parseErrorResponse(res, translate(detectLocale(), "settings.error.revokeInvitation")))
   }
   await throwIfNotOk(res)
 }

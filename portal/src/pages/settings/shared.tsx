@@ -34,7 +34,8 @@ import AgentsIcon from "../../icons/agents.svg?react"
 import NewChatIcon from "../../icons/new-chat.svg?react"
 import IssueIcon from "../../icons/issue.svg?react"
 import ShieldIcon from "../../icons/shield.svg?react"
-import { Button, BaseModal } from "@buildmax/gui"
+import { Button, BaseModal, type Translate } from "@buildmax/gui"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 
 export type AccountSection = "general" | "usage" | "webhook" | "chat" | "invitations"
 export type SpaceSection =
@@ -50,47 +51,47 @@ export type SpaceSection =
 
 interface SettingsNavItem<T extends string> {
   id: T
-  label: string
+  labelKey: MessageKey
   icon: ComponentType<{ className?: string }>
 }
 
 export const ACCOUNT_NAV: SettingsNavItem<Exclude<AccountSection, never>>[] = [
-  { id: "general", label: "General", icon: SettingsIcon },
-  { id: "usage", label: "Usage", icon: UsageIcon },
-  { id: "webhook", label: "Webhook", icon: ToolboxIcon },
+  { id: "general", labelKey: "account.nav.general", icon: SettingsIcon },
+  { id: "usage", labelKey: "account.nav.usage", icon: UsageIcon },
+  { id: "webhook", labelKey: "account.nav.webhook", icon: ToolboxIcon },
   // Chat-app accounts (Telegram) linked to this account. Account-owned, like
   // webhook keys. See docs/design/instant-messaging-channels.md.
-  { id: "chat", label: "Chat accounts", icon: NewChatIcon },
+  { id: "chat", labelKey: "account.nav.chat", icon: NewChatIcon },
   // Not space-scoped: what is pending for this account, across every space it
   // was invited to. See docs/design/space-membership-lifecycle.md §5.1, §9.
-  { id: "invitations", label: "Invitations", icon: AgentsIcon },
+  { id: "invitations", labelKey: "account.nav.invitations", icon: AgentsIcon },
 ]
 
 export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = [
-  { id: "overview", label: "Overview", icon: IssueIcon },
-  { id: "members", label: "Members", icon: AgentsIcon },
+  { id: "overview", labelKey: "settings.nav.overview", icon: IssueIcon },
+  { id: "members", labelKey: "settings.nav.members", icon: AgentsIcon },
   // What this space's background runs may use. Readable by any member, because
   // "why did this run have this plugin" is a question anyone debugging asks.
-  { id: "plugins", label: "Plugins", icon: ToolboxIcon },
+  { id: "plugins", labelKey: "settings.nav.plugins", icon: ToolboxIcon },
   // The sandbox tiers a background run inherits. Separate from Plugins because
   // "what may run" and "how confined it runs" are different decisions a reader
   // should not have to disentangle from one list.
-  { id: "security", label: "Security", icon: ShieldIcon },
+  { id: "security", labelKey: "settings.nav.security", icon: ShieldIcon },
   // Owner-only content, but the tab stays visible for everyone, the same as
   // Audit: the section itself explains why a member cannot manage it.
-  { id: "secrets", label: "Secrets", icon: ToolboxIcon },
+  { id: "secrets", labelKey: "settings.nav.secrets", icon: ToolboxIcon },
   // Space-owned principals work runs as. Any member sees the inventory; owners
   // and admins manage it. See docs/design/space-assistants.md §6.
-  { id: "serviceAccounts", label: "Service accounts", icon: AgentsIcon },
+  { id: "serviceAccounts", labelKey: "settings.nav.serviceAccounts", icon: AgentsIcon },
   // Service front doors the space publishes on its own chat bots. Any member
   // sees them; owners and admins manage and publish them. A personal space
   // cannot have one, which the section itself says. See
   // docs/design/space-assistants.md.
-  { id: "assistants", label: "Assistants", icon: NewChatIcon },
+  { id: "assistants", labelKey: "settings.nav.assistants", icon: NewChatIcon },
   // Owner-only content, but the tab stays visible for everyone: the section
   // explains why a member cannot read it, which is more useful than a tab that
   // silently exists for some people and not others.
-  { id: "audit", label: "Audit", icon: UsageIcon },
+  { id: "audit", labelKey: "settings.nav.audit", icon: UsageIcon },
 ]
 
 // Stable identity so a `?? []` derived list doesn't churn every render while
@@ -98,22 +99,37 @@ export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = 
 const EMPTY_MEMBERS: ApiSpaceMember[] = []
 const EMPTY_INVITATIONS: ApiInvitation[] = []
 
-function memberDisplayName(member: ApiSpaceMember, currentUserId?: string): string {
-  if (member.user_id === currentUserId) return "Me"
+function memberDisplayName(
+  member: ApiSpaceMember,
+  t: Translate<MessageKey>,
+  currentUserId?: string,
+): string {
+  if (member.user_id === currentUserId) return t("settings.members.me")
   if (member.user_name && member.user_name.trim() !== "") return member.user_name
   if (member.user_email && member.user_email.trim() !== "") return member.user_email
   return member.user_id
 }
 
+const ROLE_KEYS: Record<string, MessageKey> = {
+  owner: "settings.role.owner",
+  admin: "settings.role.admin",
+  member: "settings.role.member",
+}
+
+/** A Space role in the interface language; an unknown role stays its raw value. */
+function roleLabel(role: string, t: Translate<MessageKey>): string {
+  const key = ROLE_KEYS[role]
+  return key ? t(key) : role
+}
+
 export function SettingsGeneralSection({ user }: { user: LoginUser | null }) {
+  const t = useT()
   return (
     <section className="settings-page__section">
       <div className="settings-page__section-head">
         <div>
-          <h2 className="settings-page__section-title">General</h2>
-          <p className="settings-page__section-copy">
-            Account details for the currently signed-in user.
-          </p>
+          <h2 className="settings-page__section-title">{t("account.general.title")}</h2>
+          <p className="settings-page__section-copy">{t("account.general.copy")}</p>
         </div>
       </div>
       {user ? (
@@ -123,19 +139,19 @@ export function SettingsGeneralSection({ user }: { user: LoginUser | null }) {
           </div>
           <dl className="settings-general__fields">
             <div className="settings-general__field">
-              <dt className="settings-general__label">Name</dt>
+              <dt className="settings-general__label">{t("account.general.name")}</dt>
               <dd className="settings-general__value">
                 {user.name?.trim() || (user.email ? user.email.split("@")[0] : "—")}
               </dd>
             </div>
             <div className="settings-general__field">
-              <dt className="settings-general__label">Email</dt>
+              <dt className="settings-general__label">{t("account.general.email")}</dt>
               <dd className="settings-general__value">{user.email}</dd>
             </div>
           </dl>
         </div>
       ) : (
-        <p className="settings-section__muted">Not signed in.</p>
+        <p className="settings-section__muted">{t("account.general.signedOut")}</p>
       )}
     </section>
   )
@@ -149,6 +165,8 @@ export function SettingsGeneralSection({ user }: { user: LoginUser | null }) {
  * and demanding a value they cannot have would strand them.
  */
 export function SettingsPasswordSection({ token }: { token: string | null }) {
+  const t = useT()
+  const stableT = useStableT()
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -162,18 +180,18 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
     setError(null)
     setStatus(null)
     if (newPassword !== confirmPassword) {
-      setError("The two passwords do not match.")
+      setError(stableT("account.password.mismatch"))
       return
     }
     setSaving(true)
     try {
       await setPassword(token, newPassword, currentPassword || undefined)
-      setStatus("Password updated. Sessions already signed in are unaffected.")
+      setStatus(stableT("account.password.updated"))
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
     } catch (err) {
-      setError(getErrorMessage(err, "Could not update the password"))
+      setError(getErrorMessage(err, stableT("account.password.error")))
     } finally {
       setSaving(false)
     }
@@ -183,17 +201,13 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
     <section className="settings-page__section">
       <div className="settings-page__section-head">
         <div>
-          <h2 className="settings-page__section-title">Password</h2>
-          <p className="settings-page__section-copy">
-            Set a password, or change the one you have. Leave the current
-            password blank if you signed in with a login code and have not set
-            one yet.
-          </p>
+          <h2 className="settings-page__section-title">{t("account.password.title")}</h2>
+          <p className="settings-page__section-copy">{t("account.password.copy")}</p>
         </div>
       </div>
       <form className="settings-general" onSubmit={handleSubmit}>
         <label className="settings-general__label" htmlFor="current-password">
-          Current password
+          {t("account.password.current")}
         </label>
         <input
           id="current-password"
@@ -205,7 +219,7 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
           disabled={saving}
         />
         <label className="settings-general__label" htmlFor="new-password">
-          New password
+          {t("account.password.new")}
         </label>
         <input
           id="new-password"
@@ -218,7 +232,7 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
           disabled={saving}
         />
         <label className="settings-general__label" htmlFor="confirm-password">
-          Confirm new password
+          {t("account.password.confirm")}
         </label>
         <input
           id="confirm-password"
@@ -241,7 +255,7 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
           variant="primary" busy={saving}
           disabled={!token || newPassword === ""}
         >
-          Save password
+          {t("account.password.save")}
         </Button>
       </form>
     </section>
@@ -255,7 +269,8 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
  * fast answer and the trail is the durable one; neither replaces the other.
  */
 function QuotaPressureNote({ usage }: { usage: ApiUsage | null }) {
-  const pressure = describeQuotaPressure(usage)
+  const t = useT()
+  const pressure = describeQuotaPressure(usage, t)
   if (!pressure) return null
   return (
     <p
@@ -271,14 +286,18 @@ function QuotaPressureNote({ usage }: { usage: ApiUsage | null }) {
 // space, so the space figures above cannot include them; without this row a
 // signed-in user has nowhere to see what those sessions cost.
 function ManagedCallsRow({ totals }: { totals: ApiManagedCallTotals }) {
+  const t = useT()
   const cost = totals.costs.map((c) => formatAmount(c.total, c.currency)).join(" + ")
   return (
     <p className="settings-usage__row">
-      <span className="settings-usage__label">CLI and Desktop sessions</span>
+      <span className="settings-usage__label">{t("account.usage.sessions")}</span>
       <span>
-        {totals.call_count.toLocaleString()} calls, {totals.total_tokens.toLocaleString()} tokens
-        {cost ? `, ${cost}` : ""}
-        {totals.unpriced_calls > 0 ? ` (${totals.unpriced_calls} unpriced)` : ""}
+        {t("account.usage.calls", {
+          calls: totals.call_count.toLocaleString(),
+          tokens: totals.total_tokens.toLocaleString(),
+        })}
+        {cost ? t("account.usage.cost", { cost }) : ""}
+        {totals.unpriced_calls > 0 ? t("account.usage.unpriced", { count: totals.unpriced_calls }) : ""}
       </span>
     </p>
   )
@@ -293,20 +312,19 @@ export function SettingsUsageSection({
   error: string | null
   usage: ApiUsage | null
 }) {
+  const t = useT()
   return (
     <section className="settings-page__section">
       <div className="settings-page__section-head">
         <div>
-          <h2 className="settings-page__section-title">Usage</h2>
-          <p className="settings-page__section-copy">
-            Personal usage and plan limits for your account.
-          </p>
+          <h2 className="settings-page__section-title">{t("account.usage.title")}</h2>
+          <p className="settings-page__section-copy">{t("account.usage.copy")}</p>
         </div>
       </div>
-      {loading && <p className="settings-section__muted">Loading usage…</p>}
+      {loading && <p className="settings-section__muted">{t("account.usage.loading")}</p>}
       {error ? (
         <p className="settings-section__error" role="alert">
-          {error === "usage not available" ? "Usage not available." : error}
+          {error === "usage not available" ? t("account.usage.unavailable") : error}
         </p>
       ) : null}
       {/* Stated above the numbers, because a reader who has to divide two
@@ -316,19 +334,19 @@ export function SettingsUsageSection({
         <div className="settings-usage">
           {usage.tier ? (
             <p className="settings-usage__row">
-              <span className="settings-usage__label">Tier</span>
+              <span className="settings-usage__label">{t("account.usage.tier")}</span>
               <span>{usage.tier}</span>
             </p>
           ) : null}
           <p className="settings-usage__row">
-            <span className="settings-usage__label">Runs</span>
+            <span className="settings-usage__label">{t("account.usage.runs")}</span>
             <span>
               {usage.run_count}
               {usage.max_runs_per_period != null ? ` / ${usage.max_runs_per_period}` : ""}
             </span>
           </p>
           <p className="settings-usage__row">
-            <span className="settings-usage__label">Tokens</span>
+            <span className="settings-usage__label">{t("account.usage.tokens")}</span>
             <span>
               {usage.total_tokens.toLocaleString()}
               {usage.max_tokens_per_period != null
@@ -341,7 +359,7 @@ export function SettingsUsageSection({
               until somebody deletes an artifact. */}
           {usage.storage_bytes != null ? (
             <p className="settings-usage__row">
-              <span className="settings-usage__label">Artifact storage</span>
+              <span className="settings-usage__label">{t("account.usage.storage")}</span>
               <span>
                 {formatSize(usage.storage_bytes)}
                 {usage.max_storage_bytes != null && usage.max_storage_bytes > 0
@@ -355,7 +373,7 @@ export function SettingsUsageSection({
           ) : null}
           {usage.period_days > 0 ? (
             <p className="settings-usage__row settings-usage__period">
-              Rolling {usage.period_days} days — runs and tokens only
+              {t("account.usage.period", { days: usage.period_days })}
             </p>
           ) : null}
         </div>
@@ -365,14 +383,13 @@ export function SettingsUsageSection({
 }
 
 export function AccountWebhookSection({ token }: { token: string | null }) {
+  const t = useT()
   return (
     <section className="settings-page__section">
       <div className="settings-page__section-head">
         <div>
-          <h2 className="settings-page__section-title">Webhook</h2>
-          <p className="settings-page__section-copy">
-            Manage API keys for incoming automation triggers.
-          </p>
+          <h2 className="settings-page__section-title">{t("account.webhook.title")}</h2>
+          <p className="settings-page__section-copy">{t("account.webhook.copy")}</p>
         </div>
       </div>
       <WebhookKeysSection token={token} />
@@ -381,14 +398,13 @@ export function AccountWebhookSection({ token }: { token: string | null }) {
 }
 
 export function AccountChatSection({ token, code }: { token: string | null; code?: string }) {
+  const t = useT()
   return (
     <section className="settings-page__section">
       <div className="settings-page__section-head">
         <div>
-          <h2 className="settings-page__section-title">Chat accounts</h2>
-          <p className="settings-page__section-copy">
-            Use your assistant from a chat app, and hear there when work it started finishes.
-          </p>
+          <h2 className="settings-page__section-title">{t("account.chat.title")}</h2>
+          <p className="settings-page__section-copy">{t("account.chat.copy")}</p>
         </div>
       </div>
       <ChatAccountsSection token={token} code={code} />
@@ -413,58 +429,61 @@ export function SpaceOverviewSection({
   usage: ApiUsage | null
   currentUserRole: string | null
 }) {
+  const t = useT()
+  const loading = t("settings.loading")
+  const unavailable = t("settings.unavailable")
   return (
     <section className="settings-page__section">
       <div className="settings-page__section-head">
         <div>
-          <h2 className="settings-page__section-title">Space</h2>
-          <p className="settings-page__section-copy">
-            Overview and quota details for the current shared workspace.
-          </p>
+          <h2 className="settings-page__section-title">{t("settings.overview.title")}</h2>
+          <p className="settings-page__section-copy">{t("settings.overview.copy")}</p>
         </div>
-        <span className="space-settings-page__badge">{isPersonalSpace ? "Personal" : "Space"}</span>
+        <span className="space-settings-page__badge">
+          {isPersonalSpace ? t("settings.overview.personal") : t("settings.overview.space")}
+        </span>
       </div>
       <dl className="space-settings-page__summary">
         <div>
-          <dt>Space name</dt>
+          <dt>{t("settings.overview.name")}</dt>
           <dd>{currentSpaceName}</dd>
         </div>
         <div>
-          <dt>Members</dt>
-          <dd>{loadingMembers ? "Loading..." : members.length}</dd>
+          <dt>{t("settings.overview.members")}</dt>
+          <dd>{loadingMembers ? loading : members.length}</dd>
         </div>
         <div>
-          <dt>Your role</dt>
-          <dd>{currentUserRole ?? "member"}</dd>
+          <dt>{t("settings.overview.role")}</dt>
+          <dd>{roleLabel(currentUserRole ?? "member", t)}</dd>
         </div>
         <div>
-          <dt>Quota tier</dt>
-          <dd>{loadingUsage ? "Loading..." : usage?.tier ?? "Unavailable"}</dd>
+          <dt>{t("settings.overview.tier")}</dt>
+          <dd>{loadingUsage ? loading : usage?.tier ?? unavailable}</dd>
         </div>
         <div>
-          <dt>Runs this period</dt>
+          <dt>{t("settings.overview.runs")}</dt>
           <dd>
             {loadingUsage
-              ? "Loading..."
+              ? loading
               : usage?.max_runs_per_period != null
                 ? `${usage.run_count} / ${usage.max_runs_per_period}`
-                : (usage?.run_count ?? "Unavailable")}
+                : (usage?.run_count ?? unavailable)}
           </dd>
         </div>
         <div>
-          <dt>Tokens this period</dt>
+          <dt>{t("settings.overview.tokens")}</dt>
           <dd>
             {loadingUsage
-              ? "Loading..."
+              ? loading
               : usage?.max_tokens_per_period != null
                 ? `${usage.total_tokens.toLocaleString()} / ${usage.max_tokens_per_period.toLocaleString()}`
-                : (usage?.total_tokens != null ? usage.total_tokens.toLocaleString() : "Unavailable")}
+                : (usage?.total_tokens != null ? usage.total_tokens.toLocaleString() : unavailable)}
           </dd>
         </div>
       </dl>
       {usage ? (
         <p className="space-settings-page__muted">
-          Current usage window: last {usage.period_days} days.
+          {t("settings.overview.window", { days: usage.period_days })}
         </p>
       ) : null}
     </section>
@@ -531,28 +550,28 @@ export function SpaceMembersSection({
   loginCodeError: { userId: string; message: string } | null
   onIssueLoginCode: (memberUserId: string) => Promise<void>
 }) {
+  const t = useT()
   const canInvite = currentUserIsOwner || currentUserRole === "admin"
 
   return (
     <section className="settings-page__section">
       <div className="settings-page__section-head">
         <div>
-          <h2 className="settings-page__section-title">Members</h2>
+          <h2 className="settings-page__section-title">{t("settings.members.title")}</h2>
           <p className="settings-page__section-copy">
-            Owners and admins can invite spacemates who already have a BuildMax
-            account. Only owners manage roles and access to {currentSpaceName}.
+            {t("settings.members.copy", { space: currentSpaceName })}
           </p>
         </div>
         <div className="space-settings-page__member-head-actions">
           <span className="page-activity__meta">
-            {members.length} member{members.length === 1 ? "" : "s"}
+            {t("settings.members.count", { count: members.length })}
           </span>
           {canInvite ? (
             <Button
               variant="primary"
               onClick={() => navigate({ name: "space", spaceId, section: "memberNew" })}
             >
-              Invite
+              {t("settings.members.invite")}
             </Button>
           ) : null}
         </div>
@@ -565,14 +584,14 @@ export function SpaceMembersSection({
         <Alert
           tone={membersState.kind === "stale" ? "stale" : membersState.kind}
           message={membersState.error.message}
-          retry={{ label: "Retry", onClick: onRetryMembers }}
+          retry={{ label: t("shell.retry"), onClick: onRetryMembers }}
         />
       )}
 
       {membersState.kind === "loading" ? (
-        <p className="page-activity__empty">Loading members...</p>
+        <p className="page-activity__empty">{t("settings.members.loading")}</p>
       ) : membersState.kind === "readyEmpty" ? (
-        <p className="page-activity__empty">No members yet.</p>
+        <p className="page-activity__empty">{t("settings.members.empty")}</p>
       ) : membersState.kind === "error" || membersState.kind === "forbidden" || membersState.kind === "notFound" ? null : (
         <ul className="space-settings-page__member-list">
           {members.map((member) => {
@@ -589,10 +608,10 @@ export function SpaceMembersSection({
               <li key={member.user_id} className="space-settings-page__member">
                 <div className="space-settings-page__member-main">
                   <span className="space-settings-page__member-name">
-                    {memberDisplayName(member, userId)}
+                    {memberDisplayName(member, t, userId)}
                   </span>
                   <span className="space-settings-page__member-meta">
-                    {isService ? "Service account" : member.user_email ?? member.user_id}
+                    {isService ? t("settings.members.serviceAccount") : member.user_email ?? member.user_id}
                   </span>
                 </div>
                 <div className="space-settings-page__member-actions">
@@ -602,13 +621,13 @@ export function SpaceMembersSection({
                       value={member.role === "owner" ? "owner" : member.role}
                       disabled={changingRoleUserId === member.user_id}
                       onChange={(e) => void onChangeRole(member.user_id, e.target.value)}
-                      aria-label={`Role for ${memberDisplayName(member, userId)}`}
+                      aria-label={t("settings.members.roleFor", { name: memberDisplayName(member, t, userId) })}
                     >
-                      <option value="member">Member</option>
-                      <option value="admin">Admin</option>
+                      <option value="member">{t("settings.roleOption.member")}</option>
+                      <option value="admin">{t("settings.roleOption.admin")}</option>
                     </select>
                   ) : (
-                    <span className="space-settings-page__role">{member.role}</span>
+                    <span className="space-settings-page__role">{roleLabel(member.role, t)}</span>
                   )}
                   {canManageThisRow && member.role !== "owner" ? (
                     <Button
@@ -616,7 +635,7 @@ export function SpaceMembersSection({
                       disabled={changingRoleUserId === member.user_id}
                       onClick={() => void onTransferOwnership(member.user_id)}
                     >
-                      Make owner
+                      {t("settings.members.makeOwner")}
                     </Button>
                   ) : null}
                   {canManageThisRow ? (
@@ -624,7 +643,7 @@ export function SpaceMembersSection({
                       variant="secondary" size="compact" busy={issuingLoginCodeUserId === member.user_id}
                       onClick={() => void onIssueLoginCode(member.user_id)}
                     >
-                      Login code
+                      {t("settings.members.loginCode")}
                     </Button>
                   ) : null}
                   {canManageThisRow ? (
@@ -632,15 +651,14 @@ export function SpaceMembersSection({
                       variant="danger" size="compact" busy={removingUserId === member.user_id}
                       onClick={() => void onRemoveMember(member.user_id)}
                     >
-                      Remove
+                      {t("settings.members.remove")}
                     </Button>
                   ) : null}
                 </div>
                 {issuedLoginCode && issuedLoginCode.userId === member.user_id ? (
                   <div className="admin-code" role="status">
                     <p className="admin-code__label">
-                      Shown once, for {memberDisplayName(member, userId)}. It is stored
-                      nowhere it can be read back, so a lost code means issuing another.
+                      {t("settings.members.codeShownOnce", { name: memberDisplayName(member, t, userId) })}
                     </p>
                     <code className="admin-code__value">{issuedLoginCode.code}</code>
                   </div>
@@ -664,7 +682,7 @@ export function SpaceMembersSection({
 
       {canInvite ? (
         <div className="space-settings-page__invitations">
-          <h3 className="space-settings-page__subheading">Pending invitations</h3>
+          <h3 className="space-settings-page__subheading">{t("settings.members.pending")}</h3>
           {(invitationsState.kind === "error" ||
             invitationsState.kind === "forbidden" ||
             invitationsState.kind === "notFound" ||
@@ -672,13 +690,13 @@ export function SpaceMembersSection({
             <Alert
               tone={invitationsState.kind === "stale" ? "stale" : invitationsState.kind}
               message={invitationsState.error.message}
-              retry={{ label: "Retry", onClick: onRetryInvitations }}
+              retry={{ label: t("shell.retry"), onClick: onRetryInvitations }}
             />
           )}
           {invitationsState.kind === "loading" ? (
-            <p className="page-activity__empty">Loading invitations...</p>
+            <p className="page-activity__empty">{t("settings.members.loadingInvitations")}</p>
           ) : invitationsState.kind === "readyEmpty" ? (
-            <p className="page-activity__empty">No pending invitations.</p>
+            <p className="page-activity__empty">{t("settings.members.noInvitations")}</p>
           ) : invitationsState.kind === "error" ||
             invitationsState.kind === "forbidden" ||
             invitationsState.kind === "notFound" ? null : (
@@ -690,8 +708,10 @@ export function SpaceMembersSection({
                       {memberDisplayLabel(invitation)}
                     </span>
                     <span className="space-settings-page__member-meta">
-                      Invited as {invitation.role}, expires{" "}
-                      {new Date(invitation.expires_at).toLocaleString()}
+                      {t("settings.members.invitedAsExpires", {
+                        role: roleLabel(invitation.role, t),
+                        expires: new Date(invitation.expires_at).toLocaleString(),
+                      })}
                     </span>
                   </div>
                   <div className="space-settings-page__member-actions">
@@ -699,7 +719,7 @@ export function SpaceMembersSection({
                       variant="danger" size="compact" busy={revokingInvitationId === invitation.id}
                       onClick={() => void onRevokeInvitation(invitation.id)}
                     >
-                      Revoke
+                      {t("settings.members.revoke")}
                     </Button>
                   </div>
                   {revokeError?.invitationId === invitation.id ? (
@@ -742,6 +762,7 @@ export function SpaceInviteMemberDialog({
   onRoleChange: (value: string) => void
   onSubmit: () => Promise<void>
 }) {
+  const t = useT()
   const canInviteAsAdmin = currentUserRole === "owner"
   if (currentUserRole !== "owner" && currentUserRole !== "admin") {
     return null
@@ -750,7 +771,7 @@ export function SpaceInviteMemberDialog({
   return (
     <BaseModal
       open={open}
-      title="Invite"
+      title={t("settings.invite.title")}
       titleId="space-invite-member-dialog-title"
       onClose={() => {
         if (saving) return
@@ -760,12 +781,10 @@ export function SpaceInviteMemberDialog({
       <div className="modal__body">
         <div className="space-settings-page__dialog">
           <p className="space-settings-page__muted">
-            Invite a spacemate to {currentSpaceName} by email. The address must already
-            have a BuildMax account — a system administrator creates one when it
-            does not exist yet.
+            {t("settings.invite.copy", { space: currentSpaceName })}
           </p>
           <label className="settings-page__field-label" htmlFor="settings-member-email">
-            Spacemate email
+            {t("settings.invite.email")}
           </label>
           <input
             id="settings-member-email"
@@ -779,7 +798,7 @@ export function SpaceInviteMemberDialog({
           {canInviteAsAdmin ? (
             <>
               <label className="settings-page__field-label" htmlFor="settings-member-role">
-                Role
+                {t("settings.invite.role")}
               </label>
               <select
                 id="settings-member-role"
@@ -787,8 +806,8 @@ export function SpaceInviteMemberDialog({
                 value={role}
                 onChange={(e) => onRoleChange(e.target.value)}
               >
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
+                <option value="member">{t("settings.roleOption.member")}</option>
+                <option value="admin">{t("settings.roleOption.admin")}</option>
               </select>
             </>
           ) : null}
@@ -803,14 +822,14 @@ export function SpaceInviteMemberDialog({
               disabled={saving}
               onClick={onClose}
             >
-              Cancel
+              {t("settings.invite.cancel")}
             </Button>
             <Button
               variant="primary" busy={saving}
               disabled={!email.trim()}
               onClick={() => void onSubmit()}
             >
-              Send Invite
+              {t("settings.invite.send")}
             </Button>
           </div>
         </div>
@@ -834,15 +853,13 @@ export function AccountInvitationsSection({
   acceptError: string | null
   onAccept: (invitationId: string) => Promise<void>
 }) {
+  const t = useT()
   return (
     <section className="settings-page__section">
       <div className="settings-page__section-head">
         <div>
-          <h2 className="settings-page__section-title">Invitations</h2>
-          <p className="settings-page__section-copy">
-            Spaces that have invited you. Accepting joins the space immediately; a
-            pending invitation you ignore simply expires.
-          </p>
+          <h2 className="settings-page__section-title">{t("account.invitations.title")}</h2>
+          <p className="settings-page__section-copy">{t("account.invitations.copy")}</p>
         </div>
       </div>
       {(invitationsState.kind === "error" ||
@@ -852,7 +869,7 @@ export function AccountInvitationsSection({
         <Alert
           tone={invitationsState.kind === "stale" ? "stale" : invitationsState.kind}
           message={invitationsState.error.message}
-          retry={{ label: "Retry", onClick: onRetry }}
+          retry={{ label: t("shell.retry"), onClick: onRetry }}
         />
       )}
       {acceptError ? (
@@ -861,9 +878,9 @@ export function AccountInvitationsSection({
         </p>
       ) : null}
       {invitationsState.kind === "loading" ? (
-        <p className="page-activity__empty">Loading invitations...</p>
+        <p className="page-activity__empty">{t("settings.members.loadingInvitations")}</p>
       ) : invitationsState.kind === "readyEmpty" ? (
-        <p className="page-activity__empty">No pending invitations.</p>
+        <p className="page-activity__empty">{t("settings.members.noInvitations")}</p>
       ) : invitationsState.kind === "error" ||
         invitationsState.kind === "forbidden" ||
         invitationsState.kind === "notFound" ? null : (
@@ -872,10 +889,10 @@ export function AccountInvitationsSection({
             <li key={invitation.id} className="space-settings-page__member">
               <div className="space-settings-page__member-main">
                 <span className="space-settings-page__member-name">
-                  Invited as {invitation.role}
+                  {t("account.invitations.invitedAs", { role: roleLabel(invitation.role, t) })}
                 </span>
                 <span className="space-settings-page__member-meta">
-                  Expires {new Date(invitation.expires_at).toLocaleString()}
+                  {t("account.invitations.expires", { date: new Date(invitation.expires_at).toLocaleString() })}
                 </span>
               </div>
               <div className="space-settings-page__member-actions">
@@ -883,7 +900,7 @@ export function AccountInvitationsSection({
                   variant="primary" size="compact" busy={acceptingInvitationId === invitation.id}
                   onClick={() => void onAccept(invitation.id)}
                 >
-                  Accept
+                  {t("account.invitations.accept")}
                 </Button>
               </div>
             </li>
@@ -902,6 +919,8 @@ export function AccountInvitationsSection({
  * selected one is the only sensible source.
  */
 export function useSettingsData(spaceId?: string) {
+  const t = useT()
+  const stableT = useStableT()
   const { token, user } = useAuth()
   const { spaces, currentSpace: contextSpace, currentSpaceId: contextSpaceId, refetchSpaces } = useSpace()
   const currentSpaceId = spaceId ?? contextSpaceId
@@ -964,11 +983,11 @@ export function useSettingsData(spaceId?: string) {
     } catch (err) {
       // membersData from a prior successful fetch (if any) is left in place,
       // so a failed refresh reads as Stale rather than wiping the roster.
-      setMembersError(classifyError(err, "Failed to load space members"))
+      setMembersError(classifyError(err, stableT("settings.error.loadMembers")))
     } finally {
       setMembersLoading(false)
     }
-  }, [token, currentSpaceId])
+  }, [token, currentSpaceId, stableT])
 
   const loadSpaceUsage = useCallback(async () => {
     if (!token || !currentSpaceId) {
@@ -980,11 +999,11 @@ export function useSettingsData(spaceId?: string) {
     try {
       setSpaceUsage(await getSpaceUsage(currentSpaceId, token))
     } catch (err) {
-      setPageError(getErrorMessage(err, "Failed to load space usage"))
+      setPageError(getErrorMessage(err, stableT("settings.error.loadSpaceUsage")))
     } finally {
       setSpaceUsageLoading(false)
     }
-  }, [token, currentSpaceId])
+  }, [token, currentSpaceId, stableT])
 
   useEffect(() => {
     if (!token) {
@@ -997,12 +1016,12 @@ export function useSettingsData(spaceId?: string) {
         setUsage(data)
       })
       .catch((err) => {
-        setPageError(getErrorMessage(err, "Failed to load usage"))
+        setPageError(getErrorMessage(err, stableT("settings.error.loadUsage")))
       })
       .finally(() => {
         setUsageLoading(false)
       })
-  }, [token])
+  }, [token, stableT])
 
   useEffect(() => {
     void loadMembers()
@@ -1032,7 +1051,7 @@ export function useSettingsData(spaceId?: string) {
   const currentUserRole = currentUserMember?.role ?? null
   const canInvite = currentUserRole === "owner" || currentUserRole === "admin"
   const isPersonalSpace = Boolean(currentSpace?.personalForUserId)
-  const currentSpaceName = currentSpace?.name ?? "Current Space"
+  const currentSpaceName = currentSpace?.name ?? t("settings.currentSpace")
 
   // Owner-only and owner-or-admin capability states, distinguishing "still
   // resolving membership" and "the lookup failed" from a confirmed denial --
@@ -1068,11 +1087,11 @@ export function useSettingsData(spaceId?: string) {
       // A member without invite authority never reaches this branch (the
       // guard above returns first). This is a real fetch failure for someone
       // who can invite, and must not read the same as "none pending".
-      setInvitationsError(classifyError(err, "Failed to load invitations"))
+      setInvitationsError(classifyError(err, stableT("settings.error.loadInvitations")))
     } finally {
       setInvitationsLoading(false)
     }
-  }, [token, currentSpaceId, canInvite])
+  }, [token, currentSpaceId, canInvite, stableT])
 
   useEffect(() => {
     void loadInvitations()
@@ -1100,11 +1119,11 @@ export function useSettingsData(spaceId?: string) {
     try {
       setMyInvitationsData(await getMyInvitations(token))
     } catch (err) {
-      setMyInvitationsError(classifyError(err, "Failed to load invitations"))
+      setMyInvitationsError(classifyError(err, stableT("settings.error.loadInvitations")))
     } finally {
       setMyInvitationsLoading(false)
     }
-  }, [token])
+  }, [token, stableT])
 
   useEffect(() => {
     void loadMyInvitations()
@@ -1136,7 +1155,7 @@ export function useSettingsData(spaceId?: string) {
       navigate({ name: "space", spaceId: currentSpaceId, section: "members" })
       return true
     } catch (err) {
-      setInviteError(getErrorMessage(err, "Failed to invite"))
+      setInviteError(getErrorMessage(err, stableT("settings.error.invite")))
       return false
     } finally {
       setSavingInvite(false)
@@ -1151,7 +1170,7 @@ export function useSettingsData(spaceId?: string) {
       await revokeInvitation(currentSpaceId, invitationId, token)
       await loadInvitations()
     } catch (err) {
-      setRevokeError({ invitationId, message: getErrorMessage(err, "Failed to revoke the invitation") })
+      setRevokeError({ invitationId, message: getErrorMessage(err, stableT("settings.error.revokeInvitation")) })
     } finally {
       setRevokingInvitationId(null)
     }
@@ -1165,7 +1184,7 @@ export function useSettingsData(spaceId?: string) {
       await removeSpaceMember(currentSpaceId, memberUserId, token)
       await loadMembers()
     } catch (err) {
-      setRemoveError({ userId: memberUserId, message: getErrorMessage(err, "Failed to remove member") })
+      setRemoveError({ userId: memberUserId, message: getErrorMessage(err, stableT("settings.error.removeMember")) })
     } finally {
       setRemovingUserId(null)
     }
@@ -1179,7 +1198,7 @@ export function useSettingsData(spaceId?: string) {
       await setMemberRole(currentSpaceId, memberUserId, { role }, token)
       await loadMembers()
     } catch (err) {
-      setRoleError({ userId: memberUserId, message: getErrorMessage(err, "Failed to change the role") })
+      setRoleError({ userId: memberUserId, message: getErrorMessage(err, stableT("settings.error.changeRole")) })
     } finally {
       setChangingRoleUserId(null)
     }
@@ -1199,12 +1218,10 @@ export function useSettingsData(spaceId?: string) {
    */
   async function handleTransferOwnership(memberUserId: string) {
     const target = members.find((m) => m.user_id === memberUserId)
-    const label = target ? memberDisplayName(target, user?.id) : memberUserId
+    const label = target ? memberDisplayName(target, stableT, user?.id) : memberUserId
     if (
       !window.confirm(
-        `Make ${label} the owner of ${currentSpaceName}?\n\n` +
-          "This takes effect immediately, without their confirmation. You become " +
-          "an admin. You can transfer ownership back the same way.",
+        stableT("settings.members.transferConfirm", { name: label, space: currentSpaceName }),
       )
     ) {
       return
@@ -1221,7 +1238,7 @@ export function useSettingsData(spaceId?: string) {
       const res = await issueMemberLoginCode(currentSpaceId, memberUserId, token)
       setIssuedLoginCode({ userId: memberUserId, code: res.code, expiresAt: res.expires_at })
     } catch (err) {
-      setLoginCodeError({ userId: memberUserId, message: getErrorMessage(err, "Failed to issue a login code") })
+      setLoginCodeError({ userId: memberUserId, message: getErrorMessage(err, stableT("settings.error.issueLoginCode")) })
     } finally {
       setIssuingLoginCodeUserId(null)
     }
@@ -1238,7 +1255,7 @@ export function useSettingsData(spaceId?: string) {
       // current selection where it was.
       await refetchSpaces(currentSpaceId)
     } catch (err) {
-      setAcceptInvitationError(getErrorMessage(err, "Failed to accept the invitation"))
+      setAcceptInvitationError(getErrorMessage(err, stableT("settings.error.acceptInvitation")))
     } finally {
       setAcceptingInvitationId(null)
     }

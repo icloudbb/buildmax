@@ -1,3 +1,5 @@
+import type { Translate } from "@buildmax/gui"
+import type { MessageKey } from "../../i18n"
 import type { ApiUsage } from "../../lib/api/types"
 
 /**
@@ -41,44 +43,55 @@ function shareOf(used: number, max?: number): number | null {
  * this one. Folding it into the same sentence would tell someone at their
  * storage limit to wait, which would never work.
  */
-export function describeQuotaPressure(usage: ApiUsage | null): QuotaPressure | null {
+export function describeQuotaPressure(
+  usage: ApiUsage | null,
+  t: Translate<MessageKey>,
+): QuotaPressure | null {
   if (!usage) return null
   const runs = shareOf(usage.run_count, usage.max_runs_per_period)
   const tokens = shareOf(usage.total_tokens, usage.max_tokens_per_period)
   const storage = shareOf(usage.storage_bytes ?? 0, usage.max_storage_bytes)
 
-  const reached: string[] = []
-  const near: string[] = []
+  const reached: Resource[] = []
+  const near: Resource[] = []
   if (runs != null && runs >= 1) reached.push("runs")
   else if (runs != null && runs >= QUOTA_WARN_THRESHOLD) near.push("runs")
   if (tokens != null && tokens >= 1) reached.push("tokens")
   else if (tokens != null && tokens >= QUOTA_WARN_THRESHOLD) near.push("tokens")
 
-  const period = usage.period_days > 0 ? ` in this ${usage.period_days}-day window` : ""
+  const days = usage.period_days
+  const windowed = days > 0
   // A spent rate limit is the more urgent of the two, so it is said first.
   if (reached.length > 0) {
+    const resources = resourcesLabel(reached, t)
     return {
       tone: "reached",
-      text: `This space has used its full ${reached.join(" and ")} quota${period}. New work is refused until usage falls out of the window or the tier changes.`,
+      text: windowed
+        ? t("settings.quota.reachedWindow", { resources, days })
+        : t("settings.quota.reached", { resources }),
     }
   }
   if (storage != null && storage >= 1) {
-    return {
-      tone: "reached",
-      text: "This space has used its full artifact storage. New artifacts are refused until some are deleted or the tier changes.",
-    }
+    return { tone: "reached", text: t("settings.quota.storageReached") }
   }
   if (near.length > 0) {
+    const resources = resourcesLabel(near, t)
     return {
       tone: "near",
-      text: `This space has used most of its ${near.join(" and ")} quota${period}.`,
+      text: windowed
+        ? t("settings.quota.nearWindow", { resources, days })
+        : t("settings.quota.near", { resources }),
     }
   }
   if (storage != null && storage >= QUOTA_WARN_THRESHOLD) {
-    return {
-      tone: "near",
-      text: "This space has used most of its artifact storage.",
-    }
+    return { tone: "near", text: t("settings.quota.storageNear") }
   }
   return null
+}
+
+type Resource = "runs" | "tokens"
+
+function resourcesLabel(resources: Resource[], t: Translate<MessageKey>): string {
+  if (resources.length > 1) return t("settings.quota.runsAndTokens")
+  return resources[0] === "runs" ? t("settings.quota.runs") : t("settings.quota.tokens")
 }

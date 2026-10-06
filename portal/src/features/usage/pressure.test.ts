@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
+import type { Translate } from "@buildmax/gui"
 import type { ApiUsage } from "../../lib/api/types"
-import { describeQuotaPressure } from "./pressure"
+import { translate, type MessageKey } from "../../i18n"
+import { describeQuotaPressure as describeIn } from "./pressure"
+
+// The English catalog, which every expectation below is written against.
+const t: Translate<MessageKey> = (key, vars) => translate("en", key, vars)
+const describeQuotaPressure = (u: ApiUsage | null) => describeIn(u, t)
 
 function usage(overrides: Partial<ApiUsage> = {}): ApiUsage {
   return {

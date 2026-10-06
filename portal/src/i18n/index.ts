@@ -18,6 +18,8 @@ import { assistantsMessages } from "./assistants"
 import { secretsMessages } from "./secrets"
 import { serviceAccountsMessages } from "./serviceAccounts"
 import { auditMessages } from "./audit"
+import { settingsMessages } from "./settings"
+import { accountMessages } from "./account"
 
 // One file per area, each holding both languages, so a string and its
 // translation change together. Terms follow the glossary in
@@ -42,6 +44,8 @@ export const portalMessages = mergeMessages(
   secretsMessages,
   serviceAccountsMessages,
   auditMessages,
+  settingsMessages,
+  accountMessages,
 )
 
 export type MessageKey = keyof typeof portalMessages.en

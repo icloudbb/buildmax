@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
+import type { Translate } from "@buildmax/gui"
+import { translate, type MessageKey } from "../../i18n"
 import type { ApiAgent, ApiPluginActivation, ApiPluginRelease } from "../../lib/api/types"
 import { activationSummary } from "./SpacePlugins"
 import { buildPluginRow, contributesExecutable, isNewer } from "./model"
+
+// The English catalog, which every expectation below is written against.
+const t: Translate<MessageKey> = (key, vars) => translate("en", key, vars)
 
 function release(version: string, extra: Partial<ApiPluginRelease> = {}): ApiPluginRelease {
   return {
@@ -94,7 +99,7 @@ describe("buildPluginRow", () => {
     })
     expect(got.newest).toBeNull()
     expect(got.executableOnly).toBe(true)
-    expect(activationSummary(got)).toContain("Cannot be activated yet")
+    expect(activationSummary(got, t)).toContain("Cannot be activated yet")
   })
 
   it("reports a newer release without moving anything", () => {
@@ -115,7 +120,7 @@ describe("buildPluginRow", () => {
       agents: [agent("Reviewer", ["code-review"]), agent("Writer")],
     })
     expect(used.usedBy).toEqual(["Reviewer"])
-    expect(activationSummary(used)).toContain("named by Reviewer")
+    expect(activationSummary(used, t)).toContain("named by Reviewer")
 
     const unused = row({
       releases: [release("1.0.0")],
@@ -123,7 +128,7 @@ describe("buildPluginRow", () => {
       agents: [agent("Writer")],
     })
     // Nothing is inherited, so an activation no agent names is in force nowhere.
-    expect(activationSummary(unused)).toContain("no agent names it")
+    expect(activationSummary(unused, t)).toContain("no agent names it")
   })
 
   it("says a suspended activation is suspended, keeping its version", () => {
@@ -131,7 +136,7 @@ describe("buildPluginRow", () => {
       releases: [release("1.0.0")],
       activation: activation("1.0.0", { enabled: false }),
     })
-    expect(activationSummary(got)).toContain("Suspended at 1.0.0")
+    expect(activationSummary(got, t)).toContain("Suspended at 1.0.0")
   })
 })
 

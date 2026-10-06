@@ -1,6 +1,7 @@
 import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
+import { useStableT, useT } from "../i18n"
 import { CopyButton } from "./CopyButton"
 import {
   listWebhookKeys,
@@ -10,11 +11,19 @@ import {
   type CreateWebhookKeyResponse,
 } from "../features/webhookKeys/api"
 
+const WEBHOOK_CODES = new Map([
+  ["{header}", "Authorization: Bearer <key>"],
+  ["{altHeader}", "X-Webhook-Key"],
+  ["{endpoint}", "POST /api/webhook"],
+])
+
 interface WebhookKeysSectionProps {
   token: string | null
 }
 
 export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
+  const t = useT()
+  const stableT = useStableT()
   const [keys, setKeys] = useState<WebhookKeyMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -28,9 +37,9 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
     setLoading(true)
     listWebhookKeys(token)
       .then((res) => setKeys(res.keys))
-      .catch((err) => setError(getErrorMessage(err, "Failed to load keys")))
+      .catch((err) => setError(getErrorMessage(err, stableT("account.webhook.loadError"))))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [token, stableT])
 
   useEffect(() => {
     fetchKeys()
@@ -47,7 +56,7 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
         setKeyName("")
         fetchKeys()
       })
-      .catch((err) => setError(getErrorMessage(err, "Failed to create key")))
+      .catch((err) => setError(getErrorMessage(err, stableT("account.webhook.createError"))))
       .finally(() => setCreating(false))
   }
 
@@ -61,18 +70,25 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
     setRevokingId(keyId)
     revokeWebhookKey(keyId, token)
       .then(() => fetchKeys())
-      .catch((err) => setError(getErrorMessage(err, "Failed to revoke key")))
+      .catch((err) => setError(getErrorMessage(err, stableT("account.webhook.revokeError"))))
       .finally(() => setRevokingId(null))
   }
 
+  // The headers and the endpoint are code inside the sentence, so the
+  // translated sentence is split at their placeholders.
+  const description = t("account.webhook.description")
+    .split(/(\{header\}|\{altHeader\}|\{endpoint\})/)
+    .map((part, i) => {
+      const code = WEBHOOK_CODES.get(part)
+      return code ? <code key={i}>{code}</code> : part
+    })
+
   return (
     <section className="settings-section settings-webhook">
-      <h2 className="settings-panel__heading">Webhook API keys</h2>
+      <h2 className="settings-panel__heading">{t("account.webhook.heading")}</h2>
       <div className="settings-panel__heading-divider" role="separator" />
       <p className="settings-webhook__description">
-        Use these keys to trigger runs from external systems (e.g. CI, scripts) for your account. Send the key in{" "}
-        <code>Authorization: Bearer &lt;key&gt;</code> or <code>X-Webhook-Key</code> when calling{" "}
-        <code>POST /api/webhook</code>.
+        {description}
       </p>
 
       {error && (
@@ -82,9 +98,9 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
       )}
 
       {newKey && (
-        <div className="settings-webhook__new-key" role="dialog" aria-label="New webhook key">
+        <div className="settings-webhook__new-key" role="dialog" aria-label={t("account.webhook.newKey")}>
           <p className="settings-webhook__new-key-warning">
-            Copy the key now. It won&apos;t be shown again.
+            {t("account.webhook.copyNow")}
           </p>
           <div className="settings-webhook__new-key-row">
             <code className="settings-webhook__new-key-value">{newKey.key}</code>
@@ -94,7 +110,7 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
             variant="secondary"
             onClick={handleCloseNewKey}
           >
-            Done
+            {t("account.webhook.done")}
           </Button>
         </div>
       )}
@@ -103,7 +119,7 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
         <input
           type="text"
           className="settings-webhook__input"
-          placeholder="Key name (optional)"
+          placeholder={t("account.webhook.namePlaceholder")}
           value={keyName}
           onChange={(e) => setKeyName(e.target.value)}
           disabled={creating}
@@ -112,14 +128,14 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
           variant="primary" busy={creating}
           onClick={handleCreateKey}
         >
-          Create key
+          {t("account.webhook.create")}
         </Button>
       </div>
 
       {loading ? (
-        <p className="settings-section__muted">Loading keys…</p>
+        <p className="settings-section__muted">{t("account.webhook.loading")}</p>
       ) : keys.length === 0 ? (
-        <p className="settings-section__muted">No webhook keys yet. Create one above.</p>
+        <p className="settings-section__muted">{t("account.webhook.empty")}</p>
       ) : (
         <ul className="settings-webhook__key-list">
           {keys.map((k) => (
@@ -135,7 +151,7 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
                 disabled={revokingId !== null}
                 onClick={() => handleRevoke(k.id)}
               >
-                Revoke
+                {t("account.webhook.revoke")}
               </Button>
             </li>
           ))}
