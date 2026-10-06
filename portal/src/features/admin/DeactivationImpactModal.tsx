@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Button, BaseModal } from "@buildmax/gui"
+import { useStableT, useT } from "../../i18n"
 import type { ApiAdminUser, ApiDeactivationImpact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getDeactivationImpact } from "./api"
@@ -23,6 +24,8 @@ interface Props {
  * only; it never shows a Space's contents.
  */
 export function DeactivationImpactModal({ open, user, token, busy, onCancel, onConfirm }: Props) {
+  const t = useT()
+  const stableT = useStableT()
   const [impact, setImpact] = useState<ApiDeactivationImpact | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,7 +43,7 @@ export function DeactivationImpactModal({ open, user, token, busy, onCancel, onC
         if (!cancelled) setImpact(res)
       })
       .catch((err) => {
-        if (!cancelled) setError(getErrorMessage(err, "Could not load the impact"))
+        if (!cancelled) setError(getErrorMessage(err, stableT("admin.impact.loadError")))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -48,7 +51,7 @@ export function DeactivationImpactModal({ open, user, token, busy, onCancel, onC
     return () => {
       cancelled = true
     }
-  }, [open, user, token])
+  }, [open, user, token, stableT])
 
   if (!user) return null
 
@@ -59,7 +62,7 @@ export function DeactivationImpactModal({ open, user, token, busy, onCancel, onC
   return (
     <BaseModal
       open={open}
-      title={`Disable ${user.email}?`}
+      title={t("admin.impact.title", { email: user.email })}
       titleId="deactivation-impact-title"
       onClose={() => {
         if (busy) return
@@ -67,13 +70,9 @@ export function DeactivationImpactModal({ open, user, token, busy, onCancel, onC
       }}
     >
       <div className="modal__body">
-        <p className="admin-detail__muted">
-          Every credential this account holds stops working immediately. Live sessions are
-          revoked, its schedules pause, and its in-flight runs are canceled. This is not
-          deletion — enabling reverses the gate and nothing else.
-        </p>
+        <p className="admin-detail__muted">{t("admin.impact.intro")}</p>
 
-        {loading ? <p className="admin-detail__muted">Loading impact…</p> : null}
+        {loading ? <p className="admin-detail__muted">{t("admin.impact.loading")}</p> : null}
         {error ? (
           <p className="settings-section__error" role="alert">
             {error}
@@ -84,38 +83,35 @@ export function DeactivationImpactModal({ open, user, token, busy, onCancel, onC
           <>
             <ul className="admin-impact">
               <li>
-                <span>Live sessions</span>
+                <span>{t("admin.impact.liveSessions")}</span>
                 <strong>{impact.live_sessions}</strong>
               </li>
               <li>
-                <span>Webhook keys</span>
+                <span>{t("admin.impact.webhookKeys")}</span>
                 <strong>{impact.webhook_keys}</strong>
               </li>
               <li>
-                <span>Memberships</span>
+                <span>{t("admin.impact.memberships")}</span>
                 <strong>{impact.memberships.length}</strong>
               </li>
               <li>
-                <span>Enabled schedules</span>
+                <span>{t("admin.impact.enabledSchedules")}</span>
                 <strong>{impact.enabled_schedules}</strong>
               </li>
               <li>
-                <span>Active runs</span>
+                <span>{t("admin.impact.activeRuns")}</span>
                 <strong>{activeRuns}</strong>
               </li>
             </ul>
 
             {impact.sole_owned_space_ids.length > 0 ? (
               <p className="admin-impact__warn" role="alert">
-                {impact.sole_owned_space_ids.length} shared space
-                {impact.sole_owned_space_ids.length === 1 ? "" : "s"} would be left with no
-                enabled owner. Transfer ownership first, or recover it afterward from Spaces.
+                {t("admin.impact.soleOwned", { count: impact.sole_owned_space_ids.length })}
               </p>
             ) : null}
 
             <p className="admin-detail__muted">
-              Already-running work stops within about {impact.cancellation_bound} once its
-              worker next checks in; a tool call already in progress may finish.
+              {t("admin.impact.cancellationBound", { bound: impact.cancellation_bound })}
             </p>
 
             {impact.webhook_keys > 0 ? (
@@ -125,10 +121,7 @@ export function DeactivationImpactModal({ open, user, token, busy, onCancel, onC
                   checked={retireKeys}
                   onChange={(e) => setRetireKeys(e.target.checked)}
                 />
-                <span>
-                  Retire this account's webhook keys permanently (a leaver, not a temporary
-                  suspension). Leave unchecked to keep them for a deliberate return.
-                </span>
+                <span>{t("admin.impact.retireKeys")}</span>
               </label>
             ) : null}
           </>
@@ -136,7 +129,7 @@ export function DeactivationImpactModal({ open, user, token, busy, onCancel, onC
 
         <div className="admin-detail__actions">
           <Button variant="secondary" disabled={busy} onClick={onCancel}>
-            Cancel
+            {t("admin.impact.cancel")}
           </Button>
           <Button
             variant="danger"
@@ -144,7 +137,7 @@ export function DeactivationImpactModal({ open, user, token, busy, onCancel, onC
             disabled={loading}
             onClick={() => onConfirm(retireKeys)}
           >
-            Disable account
+            {t("admin.impact.disableAccount")}
           </Button>
         </div>
       </div>

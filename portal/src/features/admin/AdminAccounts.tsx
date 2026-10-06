@@ -1,11 +1,13 @@
-import { Button } from "@buildmax/gui"
+import { Button, type Translate } from "@buildmax/gui"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useStableT, useT, type MessageKey } from "../../i18n"
 import type { ApiAdminSession, ApiAdminUser, ApiAdminUserDetail } from "../../lib/api/types"
 import { DeactivationImpactModal } from "./DeactivationImpactModal"
 import { describeDisableOutcome } from "./disableOutcome"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { navigate } from "../../router"
 import { pageWindow } from "./pagination"
+import { roleLabel } from "./roles"
 import {
   createAdminUser,
   getAdminUser,
@@ -56,17 +58,17 @@ function nextDayStartISO(date: string): string | undefined {
   return d.toISOString()
 }
 
-function accountState(user: ApiAdminUser): { label: string; disabled: boolean } {
-  if (user.disabled_at) return { label: "Disabled", disabled: true }
+function accountState(user: ApiAdminUser, t: Translate<MessageKey>): { label: string; disabled: boolean } {
+  if (user.disabled_at) return { label: t("admin.accounts.disabled"), disabled: true }
   // A service account never has a password, so "no password yet" would read
   // as something left to do.
-  if (user.kind === "service") return { label: "Active", disabled: false }
-  if (!user.has_password) return { label: "No password yet", disabled: false }
-  return { label: "Active", disabled: false }
+  if (user.kind === "service") return { label: t("admin.accounts.active"), disabled: false }
+  if (!user.has_password) return { label: t("admin.accounts.noPassword"), disabled: false }
+  return { label: t("admin.accounts.active"), disabled: false }
 }
 
-function whenever(rfc3339?: string): string {
-  return rfc3339 ? new Date(rfc3339).toLocaleString() : "never"
+function whenever(t: Translate<MessageKey>, rfc3339?: string): string {
+  return rfc3339 ? new Date(rfc3339).toLocaleString() : t("admin.accounts.never")
 }
 
 /** A service account has no email; it is shown by name and marked. */
@@ -88,6 +90,8 @@ export function AdminAccounts({
   token: string | null
   selectedUserId?: string
 }) {
+  const t = useT()
+  const stableT = useStableT()
   const [users, setUsers] = useState<ApiAdminUser[]>([])
   const [total, setTotal] = useState(0)
   const [query, setQuery] = useState("")
@@ -135,10 +139,10 @@ export function AdminAccounts({
           setTotal(res.total)
           setOffset(off)
         })
-        .catch((err) => setError(getErrorMessage(err, "Failed to load accounts")))
+        .catch((err) => setError(getErrorMessage(err, stableT("admin.accounts.loadError"))))
         .finally(() => setLoading(false))
     },
-    [token],
+    [token, stableT],
   )
 
   useEffect(() => {
@@ -151,12 +155,12 @@ export function AdminAccounts({
       setLoginCode(null)
       getAdminUser(token, userId)
         .then(setSelected)
-        .catch((err) => setError(getErrorMessage(err, "Failed to load the account")))
+        .catch((err) => setError(getErrorMessage(err, stableT("admin.accounts.loadOneError"))))
       listAdminUserSessions(token, userId)
         .then((res) => setSessions(res.sessions))
         .catch(() => setSessions([]))
     },
-    [token],
+    [token, stableT],
   )
 
   // The URL owns which account is open, so the detail panel survives a reload
@@ -183,7 +187,7 @@ export function AdminAccounts({
       load(query, offset, filters)
       if (selected) openDetail(selected.id)
     } catch (err) {
-      setError(getErrorMessage(err, "The action did not complete"))
+      setError(getErrorMessage(err, stableT("admin.actionFailed")))
     } finally {
       setBusy(false)
     }
@@ -204,12 +208,9 @@ export function AdminAccounts({
       setNewEmail("")
       load(query, 0, filters)
       navigate({ name: "admin", section: "accounts", userId: user.id })
-      setNotice(
-        `Created ${user.email}. It cannot sign in yet — issue a login code below ` +
-          "and deliver it over a channel you trust.",
-      )
+      setNotice(stableT("admin.accounts.created", { email: user.email }))
     } catch (err) {
-      setError(getErrorMessage(err, "The account was not created"))
+      setError(getErrorMessage(err, stableT("admin.accounts.notCreated")))
     } finally {
       setBusy(false)
     }
@@ -232,7 +233,7 @@ export function AdminAccounts({
     act(
       () => setAdminUserDisabled(token!, user.id, true, { retireWebhookKeys }),
       (after) => {
-        const outcome = describeDisableOutcome(after)
+        const outcome = describeDisableOutcome(after, stableT)
         setCleanupRetry(outcome.incomplete ? { user, retireWebhookKeys } : null)
         return outcome.message
       },
@@ -245,10 +246,8 @@ export function AdminAccounts({
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Accounts</h2>
-            <p className="settings-page__section-copy">
-              {total} account{total === 1 ? "" : "s"} in this deployment.
-            </p>
+            <h2 className="settings-page__section-title">{t("admin.accounts.title")}</h2>
+            <p className="settings-page__section-copy">{t("admin.accounts.count", { count: total })}</p>
           </div>
         </div>
 
@@ -263,58 +262,58 @@ export function AdminAccounts({
             className="admin-input"
             type="search"
             value={query}
-            placeholder="Search by email"
-            aria-label="Search accounts by email"
+            placeholder={t("admin.accounts.searchPlaceholder")}
+            aria-label={t("admin.accounts.searchLabel")}
             onChange={(e) => setQuery(e.target.value)}
           />
           <Button type="submit" variant="primary" disabled={loading}>
-            Search
+            {t("admin.search")}
           </Button>
         </form>
 
-        <div className="admin-toolbar" role="group" aria-label="Filter accounts">
+        <div className="admin-toolbar" role="group" aria-label={t("admin.accounts.filters")}>
           <select
             className="admin-input"
-            aria-label="Filter by status"
+            aria-label={t("admin.filterByStatus")}
             value={filters.status}
             onChange={(e) => applyFilter({ status: e.target.value })}
           >
-            <option value="">Any status</option>
-            <option value="enabled">Enabled</option>
-            <option value="disabled">Disabled</option>
+            <option value="">{t("admin.accounts.anyStatus")}</option>
+            <option value="enabled">{t("admin.accounts.enabled")}</option>
+            <option value="disabled">{t("admin.accounts.disabled")}</option>
           </select>
           <select
             className="admin-input"
-            aria-label="Filter by password state"
+            aria-label={t("admin.accounts.filterPassword")}
             value={filters.hasPassword}
             onChange={(e) => applyFilter({ hasPassword: e.target.value })}
           >
-            <option value="">Any password</option>
-            <option value="true">Has a password</option>
-            <option value="false">No password yet</option>
+            <option value="">{t("admin.accounts.anyPassword")}</option>
+            <option value="true">{t("admin.accounts.hasPassword")}</option>
+            <option value="false">{t("admin.accounts.noPassword")}</option>
           </select>
           <select
             className="admin-input"
-            aria-label="Filter by system role"
+            aria-label={t("admin.accounts.filterRole")}
             value={filters.systemRole}
             onChange={(e) => applyFilter({ systemRole: e.target.value })}
           >
-            <option value="">Any role</option>
-            <option value="system_admin">Administrators</option>
+            <option value="">{t("admin.accounts.anyRole")}</option>
+            <option value="system_admin">{t("admin.accounts.administrators")}</option>
           </select>
           <select
             className="admin-input"
-            aria-label="Filter by last-login platform"
+            aria-label={t("admin.accounts.filterPlatform")}
             value={filters.platform}
             onChange={(e) => applyFilter({ platform: e.target.value })}
           >
-            <option value="">Any platform</option>
+            <option value="">{t("admin.accounts.anyPlatform")}</option>
             <option value="portal">Portal</option>
             <option value="cli">CLI</option>
             <option value="desktop">Desktop</option>
           </select>
           <label className="admin-field">
-            <span className="admin-field__label">Signed in after</span>
+            <span className="admin-field__label">{t("admin.accounts.signedInAfter")}</span>
             <input
               className="admin-input"
               type="date"
@@ -324,7 +323,7 @@ export function AdminAccounts({
             />
           </label>
           <label className="admin-field">
-            <span className="admin-field__label">Signed in before</span>
+            <span className="admin-field__label">{t("admin.accounts.signedInBefore")}</span>
             <input
               className="admin-input"
               type="date"
@@ -349,20 +348,20 @@ export function AdminAccounts({
                 disabled={busy}
                 onClick={() => runDisable(cleanupRetry.user, cleanupRetry.retireWebhookKeys)}
               >
-                Retry cleanup
+                {t("admin.accounts.retryCleanup")}
               </Button>
             ) : null}
           </p>
         ) : null}
 
         {loading ? (
-          <p className="admin-empty">Loading…</p>
+          <p className="admin-empty">{t("shell.loading")}</p>
         ) : users.length === 0 ? (
-          <p className="admin-empty">No accounts match.</p>
+          <p className="admin-empty">{t("admin.accounts.noMatch")}</p>
         ) : (
           <ul className="admin-list">
             {users.map((user) => {
-              const state = accountState(user)
+              const state = accountState(user, t)
               return (
                 <li key={user.id} className="admin-list__row">
                   <button
@@ -372,7 +371,9 @@ export function AdminAccounts({
                   >
                     {accountLabel(user)}
                   </button>
-                  {user.kind === "service" ? <span className="admin-pill">Service account</span> : null}
+                  {user.kind === "service" ? (
+                    <span className="admin-pill">{t("admin.accounts.serviceAccount")}</span>
+                  ) : null}
                   <span
                     className={
                       state.disabled ? "admin-pill admin-pill--bad" : "admin-pill"
@@ -381,7 +382,7 @@ export function AdminAccounts({
                     {state.label}
                   </span>
                   <span className="admin-list__meta">
-                    last signed in {whenever(user.last_login_at)}
+                    {t("admin.accounts.lastSignedIn", { when: whenever(t, user.last_login_at) })}
                   </span>
                 </li>
               )
@@ -399,17 +400,17 @@ export function AdminAccounts({
                     disabled={loading || !page.hasPrev}
                     onClick={() => load(query, page.prevOffset, filters)}
                   >
-                    Previous
+                    {t("admin.previous")}
                   </Button>
                   <span className="admin-pager__status">
-                    {page.from}&ndash;{page.to} of {total}
+                    {t("admin.pageStatus", { from: page.from, to: page.to, total })}
                   </span>
                   <Button
                     variant="secondary" size="compact"
                     disabled={loading || !page.hasNext}
                     onClick={() => load(query, page.nextOffset, filters)}
                   >
-                    Next
+                    {t("admin.next")}
                   </Button>
                 </div>
               )
@@ -420,11 +421,8 @@ export function AdminAccounts({
       <section className="settings-page__section">
         <div className="settings-page__section-head">
           <div>
-            <h2 className="settings-page__section-title">Create an account</h2>
-            <p className="settings-page__section-copy">
-              Creating an account gives nobody access. Issue a login code afterwards and
-              deliver it over a channel you trust — BuildMax has no mail channel.
-            </p>
+            <h2 className="settings-page__section-title">{t("admin.accounts.createTitle")}</h2>
+            <p className="settings-page__section-copy">{t("admin.accounts.createCopy")}</p>
           </div>
         </div>
         <form
@@ -441,11 +439,11 @@ export function AdminAccounts({
             type="email"
             value={newEmail}
             placeholder="name@example.com"
-            aria-label="Email for the new account"
+            aria-label={t("admin.accounts.emailLabel")}
             onChange={(e) => setNewEmail(e.target.value)}
           />
           <Button type="submit" variant="primary" disabled={busy || !newEmail.trim()}>
-            Create
+            {t("admin.accounts.create")}
           </Button>
         </form>
       </section>
@@ -456,55 +454,60 @@ export function AdminAccounts({
             <div>
               <h2 className="settings-page__section-title">{accountLabel(selected)}</h2>
               <p className="settings-page__section-copy">
-                {selected.id} · created {whenever(selected.created_at)} ·{" "}
-                {selected.session_count} live session
-                {selected.session_count === 1 ? "" : "s"}
+                {t("admin.accounts.detailMeta", {
+                  id: selected.id,
+                  when: whenever(t, selected.created_at),
+                  count: selected.session_count,
+                })}
               </p>
             </div>
             <Button
               variant="tertiary"
               onClick={() => navigate({ name: "admin", section: "accounts" })}
             >
-              Close
+              {t("admin.close")}
             </Button>
           </div>
 
           {selected.system_roles.length > 0 ? (
             <p className="admin-notice">
-              Holds {selected.system_roles.join(", ")} — this account can operate the
-              deployment.
+              {t("admin.accounts.holdsRoles", { roles: selected.system_roles.join(t("admin.listSeparator")) })}
             </p>
           ) : null}
 
           <div className="admin-facts">
             <div className="admin-fact">
-              <span className="admin-fact__label">Spaces</span>
+              <span className="admin-fact__label">{t("admin.accounts.spaces")}</span>
               <span className="admin-fact__value">
                 {selected.spaces.length === 0
-                  ? "none"
-                  : selected.spaces.map((space) => `${space.name} (${space.role})`).join(", ")}
+                  ? t("admin.accounts.none")
+                  : selected.spaces
+                      .map((space) =>
+                        t("admin.accounts.spaceRole", { name: space.name, role: roleLabel(space.role, t) }),
+                      )
+                      .join(t("admin.listSeparator"))}
               </span>
             </div>
           </div>
-          <p className="admin-scope-note">
-            Spaces are listed by name and role only. Reaching what is in one still
-            requires membership.
-          </p>
+          <p className="admin-scope-note">{t("admin.accounts.scopeNote")}</p>
 
-          <h3 className="settings-page__section-title">Sessions</h3>
+          <h3 className="settings-page__section-title">{t("admin.accounts.sessions")}</h3>
           {sessions.length === 0 ? (
-            <p className="admin-empty">No live sessions.</p>
+            <p className="admin-empty">{t("admin.accounts.noSessions")}</p>
           ) : (
             <ul className="admin-list">
               {sessions.map((session) => (
                 <li key={session.session_id} className="admin-list__row">
                   <span className="admin-list__main">
-                    {session.platform || "unknown platform"}
+                    {session.platform || t("admin.accounts.unknownPlatform")}
                     <span className="admin-list__id"> · {session.session_id}</span>
                   </span>
                   <span className="admin-list__meta">
-                    signed in {whenever(session.created_at)} · last active{" "}
-                    {whenever(session.last_rotated_at)} · expires {whenever(session.expires_at)}
+                    {t("admin.accounts.sessionMeta", {
+                      created: whenever(t, session.created_at),
+                      active: whenever(t, session.last_rotated_at),
+                      expires: whenever(t, session.expires_at),
+                    })}
                   </span>
                   <Button
                     variant="danger" size="compact"
@@ -512,20 +515,17 @@ export function AdminAccounts({
                     onClick={() => {
                       if (
                         !window.confirm(
-                          `Sign this ${session.platform || ""} session out?\n\n` +
-                            "Only this device is revoked; the account's other sessions stay " +
-                            "signed in. An access token it already holds keeps working until it " +
-                            "expires.",
+                          t("admin.accounts.revokeSessionConfirm", { platform: session.platform || "" }),
                         )
                       )
                         return
                       act(
                         () => revokeAdminUserSession(token!, selected.id, session.session_id),
-                        () => "Session revoked.",
+                        () => stableT("admin.accounts.sessionRevoked"),
                       )
                     }}
                   >
-                    Revoke
+                    {t("admin.revoke")}
                   </Button>
                 </li>
               ))}
@@ -534,10 +534,7 @@ export function AdminAccounts({
 
           {loginCode ? (
             <div className="admin-code" role="status">
-              <p className="admin-code__label">
-                Shown once. It is stored nowhere it can be read back, so a lost code means
-                issuing another.
-              </p>
+              <p className="admin-code__label">{t("admin.accounts.codeShownOnce")}</p>
               <code className="admin-code__value">{loginCode}</code>
             </div>
           ) : null}
@@ -547,45 +544,31 @@ export function AdminAccounts({
               variant="secondary"
               disabled={busy || Boolean(selected.disabled_at) || selected.kind === "service"}
               onClick={() => {
-                if (
-                  !window.confirm(
-                    `Issue a single-use login code for ${selected.email}?\n\n` +
-                      "It is shown once and recoverable nowhere. Deliver it over a channel " +
-                      "you trust.",
-                  )
-                )
-                  return
+                if (!window.confirm(t("admin.accounts.issueCodeConfirm", { email: selected.email }))) return
                 act(
                   () => issueAdminLoginCode(token!, selected.id),
                   (res) => {
                     setLoginCode(res.code)
-                    return `Code issued, valid until ${whenever(res.expires_at)}.`
+                    return stableT("admin.accounts.codeIssued", { when: whenever(stableT, res.expires_at) })
                   },
                 )
               }}
             >
-              Issue a login code
+              {t("admin.accounts.issueCode")}
             </Button>
 
             <Button
               variant="danger"
               disabled={busy}
               onClick={() => {
-                if (
-                  !window.confirm(
-                    `Sign ${selected.email} out of every device?\n\n` +
-                      "Their stored sessions are revoked. An access token they already " +
-                      "hold keeps working until it expires.",
-                  )
-                )
-                  return
+                if (!window.confirm(t("admin.accounts.revokeAllConfirm", { email: selected.email }))) return
                 act(
                   () => revokeAdminUserSessions(token!, selected.id),
-                  (res) => `Revoked ${res.revoked} session token${res.revoked === 1 ? "" : "s"}.`,
+                  (res) => stableT("admin.accounts.revokedTokens", { count: res.revoked }),
                 )
               }}
             >
-              Revoke sessions
+              {t("admin.accounts.revokeSessions")}
             </Button>
 
             {selected.disabled_at ? (
@@ -595,11 +578,11 @@ export function AdminAccounts({
                 onClick={() =>
                   act(
                     () => setAdminUserDisabled(token!, selected.id, false),
-                    (user) => `${user.email} can sign in again.`,
+                    (user) => stableT("admin.accounts.canSignInAgain", { email: user.email }),
                   )
                 }
               >
-                Enable
+                {t("admin.enable")}
               </Button>
             ) : (
               <Button
@@ -607,7 +590,7 @@ export function AdminAccounts({
                 disabled={busy}
                 onClick={() => setDisableTarget(selected)}
               >
-                Disable
+                {t("admin.accounts.disable")}
               </Button>
             )}
           </div>

@@ -1,7 +1,8 @@
 import { apiFetch, getApiBase, parseErrorResponse, requestJson, throwIfNotOk } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import { readSSEStream } from "../../lib/api/sse"
-import type { Question, QuestionAnswer } from "@buildmax/gui"
+import { detectLocale, type Question, type QuestionAnswer } from "@buildmax/gui"
+import { translate, type MessageKey } from "../../i18n"
 
 /** One live, device-resident session the signed-in user has made reachable. */
 export interface RemoteSession {
@@ -49,7 +50,7 @@ interface FrameStreamCallbacks<T> {
 async function streamPromptFrames<T>(
   sessionId: string,
   stream: "approval-stream" | "question-stream",
-  label: string,
+  failure: MessageKey,
   token: string,
   callbacks: FrameStreamCallbacks<T>,
   options?: { signal?: AbortSignal }
@@ -57,7 +58,7 @@ async function streamPromptFrames<T>(
   const url = `${getApiBase()}/api/remote-control/sessions/${encodeURIComponent(sessionId)}/${stream}`
   const res = await apiFetch(url, { headers: authHeaders(token), signal: options?.signal })
   if (!res.ok) {
-    callbacks.onError(new Error(await parseErrorResponse(res, `${label} stream failed`)))
+    callbacks.onError(new Error(await parseErrorResponse(res, translate(detectLocale(), failure))))
     return
   }
   await readSSEStream(res, {
@@ -93,7 +94,7 @@ export function streamRemoteApprovals(
   callbacks: FrameStreamCallbacks<ApprovalFrame>,
   options?: { signal?: AbortSignal }
 ): Promise<void> {
-  return streamPromptFrames(sessionId, "approval-stream", "Approval", token, callbacks, options)
+  return streamPromptFrames(sessionId, "approval-stream", "remote.error.approvalStream", token, callbacks, options)
 }
 
 /** One frame on a session's question stream: a pending AskUser set or its dismissal. */
@@ -110,7 +111,7 @@ export function streamRemoteQuestions(
   callbacks: FrameStreamCallbacks<QuestionFrame>,
   options?: { signal?: AbortSignal }
 ): Promise<void> {
-  return streamPromptFrames(sessionId, "question-stream", "Question", token, callbacks, options)
+  return streamPromptFrames(sessionId, "question-stream", "remote.error.questionStream", token, callbacks, options)
 }
 
 /** Answer a pending AskUser question set: one answer per question, or a dismissal. */
@@ -182,7 +183,7 @@ export async function streamRemoteSession(
   const url = `${getApiBase()}/api/remote-control/sessions/${encodeURIComponent(sessionId)}/stream`
   const res = await apiFetch(url, { headers: authHeaders(token), signal: options?.signal })
   if (!res.ok) {
-    callbacks.onError(new Error(await parseErrorResponse(res, "Remote Control stream failed")))
+    callbacks.onError(new Error(await parseErrorResponse(res, translate(detectLocale(), "remote.error.stream"))))
     return
   }
   await readSSEStream(res, {
