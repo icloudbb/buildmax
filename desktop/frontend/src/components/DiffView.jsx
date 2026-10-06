@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { FilePatch } from './FilePatch';
+import { useStableT, useT } from '../i18n';
 
 // DiffView renders one changed file's diff as a center tab. Without `commit` it
 // loads the workspace diff and shows the patch for `path`; with one it shows
 // that commit's change to `path`. Opened from the project section's Changes
 // mode, from either its uncommitted changes or its commit history.
 export function DiffView({ projectID, sessionID, path, commit, app }) {
+  const t = useT();
+  const stableT = useStableT();
   const [state, setState] = useState({ loading: true });
 
   useEffect(() => {
@@ -14,7 +17,7 @@ export function DiffView({ projectID, sessionID, path, commit, app }) {
     const fail = (err) => { if (!cancelled) setState({ error: err?.message ?? String(err) }); };
     if (commit) {
       if (!app?.GetCommitFileDiff) {
-        setState({ error: 'Rebuild the desktop app to view commit diffs.' });
+        setState({ error: stableT('files.rebuildCommitDiffs') });
         return undefined;
       }
       app.GetCommitFileDiff(projectID, sessionID, commit, path)
@@ -23,7 +26,7 @@ export function DiffView({ projectID, sessionID, path, commit, app }) {
       return () => { cancelled = true; };
     }
     if (!app?.GetWorkspaceDiff) {
-      setState({ error: 'Rebuild the desktop app to view diffs.' });
+      setState({ error: stableT('files.rebuildDiffs') });
       return undefined;
     }
     app.GetWorkspaceDiff(projectID, sessionID)
@@ -34,11 +37,11 @@ export function DiffView({ projectID, sessionID, path, commit, app }) {
       })
       .catch(fail);
     return () => { cancelled = true; };
-  }, [projectID, sessionID, path, commit, app]);
+  }, [projectID, sessionID, path, commit, app, stableT]);
 
-  if (state.loading) return <p className="diff-drawer__empty">Loading…</p>;
+  if (state.loading) return <p className="diff-drawer__empty">{t('shell.loading')}</p>;
   if (state.error) return <p className="diff-drawer__error">{state.error}</p>;
-  if (!state.file) return <p className="diff-drawer__empty">No uncommitted changes for {path}.</p>;
+  if (!state.file) return <p className="diff-drawer__empty">{t('files.noChangesFor', { path })}</p>;
 
   return (
     <div className="diff-view">

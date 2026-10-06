@@ -8,6 +8,7 @@ import { EventsOn } from '../lib/wailsRuntime';
 import { getApp } from '../lib/app';
 import { decodeBase64ToBytes } from '../lib/terminalBytes';
 import { terminalThemeFor } from '../lib/terminalTheme';
+import { useStableT } from '../i18n';
 
 // How much scrollback to persist per terminal, and how long after output settles
 // before writing a snapshot. The debounce coalesces bursts; a restart loses at
@@ -45,6 +46,7 @@ export function TerminalPane({ id, active, onExit, projectId, restoreKey, restor
   const snapMetaRef = useRef({ projectId, restoreKey });
   useEffect(() => { snapMetaRef.current = { projectId, restoreKey }; });
   const restoreRef = useRef(restoreContent);
+  const stableT = useStableT();
 
   // Create the emulator once and wire it to the backend strand.
   useEffect(() => {
@@ -112,8 +114,10 @@ export function TerminalPane({ id, active, onExit, projectId, restoreKey, restor
     });
     const offExit = EventsOn('desktop/terminal/exit', (p) => {
       if (!p || p.id !== id) return;
-      const code = typeof p.code === 'number' ? ` (${p.code})` : '';
-      term.write(`\r\n\x1b[90m[process exited${code}]\x1b[0m\r\n`);
+      const note = typeof p.code === 'number'
+        ? stableT('files.terminal.exitedCode', { code: p.code })
+        : stableT('files.terminal.exited');
+      term.write(`\r\n\x1b[90m[${note}]\x1b[0m\r\n`);
       onExitRef.current?.(id, p.code);
     });
 
@@ -134,7 +138,7 @@ export function TerminalPane({ id, active, onExit, projectId, restoreKey, restor
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [id]);
+  }, [id, stableT]);
 
   // When this pane becomes the active tab, refit to the now-visible area and
   // focus it. A hidden pane has no measurable size, so fit is deferred here.
