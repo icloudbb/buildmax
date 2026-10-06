@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Page } from "@playwright/test"
 
-import { session } from "./fixtures"
+import { animationsSettled, session } from "./fixtures"
 
 // A focused accessibility scan for the shell, one dialog, and one tabbed
 // surface, per the acceptance criteria in
@@ -17,17 +17,15 @@ import { session } from "./fixtures"
 // heuristics are a different, opinionated bar this design doc does not
 // commit to.
 //
-// `color-contrast` is disabled deliberately: the theme's muted/subtle text
-// tokens (`--color-text-subtle` and friends) predate this design doc and are
-// used sitewide, well beyond the shell/dialog/tabs work these slices did. A
-// numeric contrast-ratio audit is a separate, sitewide design-token effort —
-// conflating it with this scan would fail on a pre-existing gap this record
-// never committed to closing, not on a regression in what was built here.
+// `color-contrast` is on: the theme tokens meet AA in both themes, and the
+// screenshot suite (portal/visual) holds the specimen and one page per
+// template to it on every pull request. A violation here is fixed in the
+// token or the component, not by disabling the rule.
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]
-const DISABLED_RULES = ["color-contrast"]
 
 async function scan(page: Page, include: string) {
-  return new AxeBuilder({ page }).include(include).withTags(TAGS).disableRules(DISABLED_RULES).analyze()
+  await animationsSettled(page)
+  return new AxeBuilder({ page }).include(include).withTags(TAGS).analyze()
 }
 
 function describeViolations(violations: { id: string; help: string; nodes: { target: unknown[] }[] }[]): string {

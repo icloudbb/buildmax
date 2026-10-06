@@ -19,6 +19,10 @@ export interface UseOverlayA11yOptions {
  * focus in on open and restores it to the opener on close, locks body scroll
  * while open, and closes on Escape. Used by BaseModal and Drawer so both get
  * the same accessible overlay contract from one implementation.
+ *
+ * Focus moves to the element marked `data-autofocus`, else the first focusable
+ * one. The overlay owns initial focus: an `autoFocus` prop on a child runs
+ * first and is overridden here.
  */
 export function useOverlayA11y({ open, onClose, containerRef }: UseOverlayA11yOptions) {
   const onCloseRef = useRef(onClose)
@@ -36,9 +40,10 @@ export function useOverlayA11y({ open, onClose, containerRef }: UseOverlayA11yOp
     // a delayed opener focus cannot steal focus from the user's first keypress.
     const container = containerRef.current
     if (container) {
-      const [first] = focusableElements(container)
-      if (first) {
-        first.focus()
+      const target =
+        container.querySelector<HTMLElement>("[data-autofocus]") ?? focusableElements(container)[0]
+      if (target) {
+        target.focus()
       } else {
         container.focus()
       }

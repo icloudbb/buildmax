@@ -60,6 +60,8 @@ export function CreateProjectModal({ app, onCreate, onClose }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') folderPath ? handleCreate() : handleBrowse(); }}
+            // A dialog moves focus to its first field when it opens.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
           />
           <label className="modal-label">{t('home.create.folder')}</label>

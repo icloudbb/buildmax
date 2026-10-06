@@ -24,18 +24,19 @@ export function DirTree({ byDir, expanded, toggleDir, onFileClick, onFileOpen, a
       const active = !e.is_dir && activePath === e.path;
       return (
         <div key={e.path}>
-          <div
+          <button
+            type="button"
             className={`file-tree__row ${e.is_dir ? 'file-tree__row--dir' : 'file-tree__row--file'} ${active ? 'file-tree__row--active' : ''}`}
             style={pad}
             onClick={e.is_dir ? () => toggleDir(e.path) : () => onFileClick(e.path)}
             onDoubleClick={e.is_dir ? undefined : () => onFileOpen?.(e.path)}
-            role="button"
+            aria-expanded={e.is_dir ? open : undefined}
             title={e.path}
           >
             <span className="file-tree__caret" aria-hidden>{e.is_dir && <Chevron open={open} />}</span>
             <span className="file-tree__icon" aria-hidden>{e.is_dir ? <FolderIcon /> : <FileIcon />}</span>
             <span className="file-tree__name">{e.name}</span>
-          </div>
+          </button>
           {open && renderEntries(e.path, depth + 1)}
         </div>
       );

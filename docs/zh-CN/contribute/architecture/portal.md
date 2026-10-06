@@ -32,7 +32,9 @@ Portal 负责云端/Space 使用场景：
 - 页面位于 `portal/src/pages/*`。
 - `/specimen` 是设计与评审产物，而非产品页面：它一次性呈现共享操作语法、语义 token、
   状态词汇与全部资源状态，复用真实组件，使评审者在信任已迁移页面之前，能跨主题与宽度
-  逐一确认每种角色与状态。
+  逐一确认每种角色与状态。`portal/visual/` 中的截图套件把它以及每种模板的一个页面
+  对照已提交的基线，并对它们运行包含对比度的 axe 检查（见
+  [测试](../testing.md#截图基线)）。
 - API 调用位于 `portal/src/features/*/api.ts` 和 `portal/src/lib/api`。
 - 共享展示组件来自 `@buildmax/gui`。
 - 颜色、阴影、遮罩层和等宽字体栈来自 `gui/src/theme.css` 中的语义 token，该文件为浅色和

@@ -142,6 +142,9 @@ export function QuestionForm({ questions, onAnswer, keys = true, title: titlePro
               type="button"
               className={`bm-question__option${multi && checked[current]?.[i] ? " bm-question__option--checked" : ""}`}
               aria-pressed={multi ? Boolean(checked[current]?.[i]) : undefined}
+              // The pending question blocks the run, so the keyboard-driving
+              // form takes focus to make its answer path pointer-free.
+              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus={keys && i === 0}
               onClick={() => (multi ? toggle(i) : answer(o.label))}
             >
@@ -161,6 +164,8 @@ export function QuestionForm({ questions, onAnswer, keys = true, title: titlePro
           onChange={(e) => setTexts((prev) => prev.map((t, i) => (i === current ? e.target.value : t)))}
           placeholder={options.length > 0 ? t("gui.question.ownAnswer") : t("gui.question.answer")}
           aria-label={t("gui.question.answerLabel")}
+          // As above: the blocking question takes focus in keyboard mode.
+          // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus={keys && options.length === 0}
         />
         <button type="submit" className="bm-question__btn bm-question__btn--primary" disabled={!composed()}>

@@ -629,9 +629,9 @@ rather than discovered later.
 - **The `gui` package loses its only PR-time coverage.** That was accepted here
   only because it was cheap to replace, and it has been: `gui` has its own
   component tests and the frontend job runs them, so a shared-component
-  regression is caught before merge again. A lint step for the package is still
-  missing, and stays blocked until typescript-eslint supports the TypeScript
-  version it builds with.
+  regression is caught before merge again. Its lint step now exists too: a
+  jsx-a11y ESLint pass through the Oxc parser, since typescript-eslint cannot
+  read the TypeScript 7 the package builds with.
 
 ## 9. Delivery Order
 
@@ -705,8 +705,8 @@ rather than discovered later.
 
 Renaming the model-driven `./make smoke` rode along with step 3. Giving `gui`
 tests rode along with step 4, which is when Portal paths started depending on
-the shared components; a lint step for it is blocked until typescript-eslint
-supports the TypeScript version it builds with.
+the shared components; its lint step came later, with the UI guardrails,
+through the Oxc parser rather than typescript-eslint.
 
 ## 10. Success Criteria
 

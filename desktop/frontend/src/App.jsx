@@ -33,6 +33,7 @@ import { useT } from './i18n';
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 480;
 const SIDEBAR_DEFAULT_WIDTH = 288;
+const SIDEBAR_KEY_STEP = 16;
 const LS_SIDEBAR_COLLAPSED = 'bm.desktop.sidebarCollapsed';
 const LS_SIDEBAR_WIDTH = 'bm.desktop.sidebarWidth';
 // Workspace layout is remembered per project. Restoring reopens the tabs and the
@@ -135,6 +136,16 @@ export default function App() {
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+  }, []);
+
+  // The keyboard path for the same resize: arrows step, Home/End jump to the bounds.
+  const resizeSidebarByKey = useCallback((e) => {
+    const step = { ArrowLeft: -SIDEBAR_KEY_STEP, ArrowRight: SIDEBAR_KEY_STEP }[e.key];
+    if (step) setSidebarWidth((w) => clampSidebarWidth(w + step));
+    else if (e.key === 'Home') setSidebarWidth(SIDEBAR_MIN_WIDTH);
+    else if (e.key === 'End') setSidebarWidth(SIDEBAR_MAX_WIDTH);
+    else return;
+    e.preventDefault();
   }, []);
 
   // The project for the next new chat (set when user clicks + on a project,
@@ -1251,12 +1262,20 @@ export default function App() {
             }}
           />
 
+          {/* A focusable separator is the WAI-ARIA window splitter, an
+              interactive widget; jsx-a11y treats every separator as static. */}
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
           <div
             className="sidebar-resizer"
             role="separator"
             aria-orientation="vertical"
             aria-label={t('shell.resizeSidebar')}
+            aria-valuenow={sidebarWidth}
+            aria-valuemin={SIDEBAR_MIN_WIDTH}
+            aria-valuemax={SIDEBAR_MAX_WIDTH}
+            tabIndex={0}
             onMouseDown={startSidebarResize}
+            onKeyDown={resizeSidebarByKey}
           />
 
           <main className="shell__main">
@@ -1308,8 +1327,11 @@ export default function App() {
                     </div>
                   ))}
                   {maximizedPane && (
+                    // The scrim is a pointer shortcut; the pane's own tab bar
+                    // carries the keyboard-reachable restore button.
                     <div
                       className="workspace-maximize-overlay"
+                      role="presentation"
                       onClick={(e) => { if (e.target === e.currentTarget) setMaximizedPaneId(null); }}
                     >
                       <div className="workspace-maximize-overlay__card">

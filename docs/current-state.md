@@ -853,6 +853,11 @@ specimen is now served at `/specimen`, outside the authenticated shell: it
 renders the shared action grammar, semantic tokens, status vocabulary, and every
 resource state once, in both themes, reusing the real components. A non-author
 operator review of the work journeys has not been produced.
+Every pull request compares screenshots of the specimen, one Portal page per
+template, and Desktop's golden-path views, in both themes, with baselines
+rendered on Linux, and runs axe's WCAG A/AA rules, contrast included, on them;
+the muted and subtle text tokens and the light warning tone were darkened or
+lightened to pass AA. `eslint-plugin-jsx-a11y` lints gui, Portal, and Desktop.
 Portal and Desktop render every page in English or Simplified Chinese from one
 catalog per area, chosen in the user menu; dates follow the chosen language,
 and server-returned text and Agent output are shown as received. Each Portal

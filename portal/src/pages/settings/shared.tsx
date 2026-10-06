@@ -795,7 +795,7 @@ export function SpaceInviteMemberDialog({
             value={email}
             onChange={(e) => onEmailChange(e.target.value)}
             placeholder="spacemate@example.com"
-            autoFocus
+            data-autofocus
           />
           {canInviteAsAdmin ? (
             <>

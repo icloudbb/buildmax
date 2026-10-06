@@ -191,6 +191,8 @@ export function LaunchpadButton() {
                   placeholder="https://…"
                   value={urlValue}
                   onChange={(ev) => setUrlValue(ev.target.value)}
+                  // The form opens on the user's "add URL" click; focus follows it.
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                 />
                 <div className="launchpad-urlform__row">

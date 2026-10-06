@@ -118,6 +118,9 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
               onBlur={submitRename}
               onKeyDown={onRenameKeyDown}
               onClick={(e) => e.stopPropagation()}
+              // The field replaces the label on the user's Rename action, whose
+              // menu item unmounts; focus must follow into the field.
+              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
             />
           ) : (
@@ -176,6 +179,8 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
                   onChange={(e) => setSessionRenameValue(e.target.value)}
                   onBlur={() => submitSessionRename(s)}
                   onKeyDown={(e) => onSessionRenameKeyDown(e, s)}
+                  // As above: focus follows the Rename action into the field.
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                 />
               ) : (

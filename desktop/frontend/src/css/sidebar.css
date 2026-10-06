@@ -129,6 +129,11 @@
   border-top-color: var(--color-text-subtle);
 }
 
+.sidebar__split:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
 .sidebar__search {
   flex-shrink: 0;
   padding: 0 0.85rem 0.35rem;

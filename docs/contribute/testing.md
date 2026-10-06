@@ -28,6 +28,7 @@ guide describes.
 ./make e2e desktop-ui # desktop/frontend through `wails dev`'s browser bridge
 ./make e2e desktop-ui core # just the @smoke subset CI gates desktop changes on
 ./make e2e desktop-launch # launch the packaged app (after `build desktop`) and require it to stay up
+./make e2e visual     # Portal and Desktop screenshots against the baselines, plus axe contrast (Docker)
 ./make e2e local      # Portal in a browser, against a Compose stack this command owns
 ./make e2e all        # cli, desktop, then local — the release-time matrix
 ./make kind up        # build the local cluster and verify a Kubernetes worker run
@@ -57,8 +58,9 @@ package whose code reads those paths gives itself a `TestMain` calling
 | The Desktop bridge, its events, approvals, or session history | `./make e2e desktop` |
 | desktop/frontend's React app, or how it calls a bound Go method | `./make e2e desktop-ui` |
 | The Wails config, the desktop asset embedding, or the app's packaging | `./make build desktop` — nothing else builds the packaged app, and `go build ./...` compiles the `!desktop` stub instead |
-| A shared component in `gui/` | `./make check gui` |
-| Portal presentation or a shared component | `./make check portal` or `./make check gui`, then `./make e2e local` for the fast browser loop |
+| A shared component in `gui/` | `./make check gui`, then `./make e2e visual` |
+| Portal presentation or a shared component | `./make check portal` or `./make check gui`, then `./make e2e visual`, then `./make e2e local` for the fast browser loop |
+| A theme token, page layout, or anything else that changes how a page looks | `./make e2e visual`; if the change is intended, `./make e2e visual --update` and commit the baselines with it |
 | Portal behavior or a server route Portal calls | Use the local kind loop below; finish with `./make e2e kind` |
 | Server handlers, services, authentication, conversations, or task dispatch | Use the local kind loop below; run `./make kind smoke`, plus `./make e2e kind` when the behavior is browser-visible |
 | Worker, scheduler, storage, or the model gateway | `./make kind up`, then `./make kind smoke`; use `./make kind smoke managed` for the gateway path |
@@ -107,6 +109,7 @@ the author is responsible for producing the local-cluster evidence.
 | `./make e2e cli` | Go | under 60 s | a temporary `BUILDMAX_HOME`, a workspace, and a Marketplace server it starts in process |
 | `./make e2e desktop` | Go | under 60 s | the same |
 | `./make e2e desktop-ui` | Go, Node, Chromium | under 60 s | a `wails dev` process and a fresh, discarded `BUILDMAX_HOME` |
+| `./make e2e visual` | Docker, Node | under 3 min, plus a one-time image pull | a container per package; no deployment |
 | `./make e2e local` | Docker, Node, Chromium | under 10 min | a Compose stack it starts and stops |
 | `./make e2e compose` | a Compose stack already running | under 2 min | nothing — it is a guest |
 | `./make e2e kind` | a kind cluster already running | under 2 min | nothing — it is a guest |
@@ -339,13 +342,15 @@ becomes a weakened assertion.
 
 | Trigger | What runs |
 |---|---|
-| Every pull request | The required `ci.yml` jobs: Go, frontend, open-source policy, and deployment smoke health |
+| Every pull request | The required `ci.yml` jobs: Go, frontend, open-source policy, and deployment smoke health; and `Visual (Portal, Desktop)`, the screenshot and contrast suite |
 | Relevant pull request | Release configuration validation or a Portal image build |
 | Merge to `main` | Required CI, native Windows for Go/task-runner changes, CodeQL, release snapshot, and path-scoped deployment smoke |
 | Schedule | Daily deployment smoke and native Windows suite, weekly CodeQL analysis |
 | Manual dispatch | The selected workflow, for release preparation or a suspected environment regression |
 
-End-to-end verification is deliberately not a pull-request gate. A post-merge
+End-to-end verification is deliberately not a pull-request gate. The visual
+suite is the exception because it needs no deployment: it renders the
+production builds from fixtures, so it is as deterministic as a unit test. A post-merge
 failure is triaged by the author of the merge that broke it, and that merge is
 reverted if it is not fixed within one working day. A test that fails
 intermittently is quarantined the same day rather than retried.
@@ -382,7 +387,7 @@ own wiring to that component. Portal keeps browser-level assertions in
 Playwright, where a real engine is the point.
 
 ```bash
-./make check gui               # build the package, lint its CSS, type-check, run its tests
+./make check gui               # build the package, lint it, type-check, run its tests
 npm --prefix gui test          # the tests alone, while iterating
 npm --prefix portal run lint:css  # one package's stylesheet lint alone
 ```
@@ -396,6 +401,68 @@ rejects a color literal outside `gui/src/theme.css` and a `var()` naming a
 custom property no stylesheet defines; the rule is in
 [conventions](conventions.md#colors-come-from-theme-tokens). `./make check gui`,
 `portal`, and `desktop` all run it.
+
+The same `npm run lint` runs ESLint with `eslint-plugin-jsx-a11y`'s recommended
+rules in all three packages, so a click handler on a non-interactive element, an
+unlabelled control, or a misused ARIA role fails the check. Fix the markup
+rather than disabling the rule; a disable needs an inline reason that the rule
+is wrong for that pattern. `gui` parses with `eslint-parser-oxc`, because the
+TypeScript 7 it builds with has no JavaScript API for typescript-eslint to use.
+
+## Screenshot Baselines
+
+`./make e2e visual` is what keeps a change from altering how a page looks, or
+dropping below WCAG AA contrast, without a reviewer seeing it. It needs Docker
+and nothing else running.
+
+```bash
+./make e2e visual            # compare against the committed baselines
+./make e2e visual --update   # rewrite the baselines after an intended change
+BUILDMAX_E2E_WORKERS=1 ./make e2e visual   # one browser at a time, on a busy machine
+```
+
+What it covers:
+
+- **Portal** (`portal/visual/`): the `/specimen` page and one page per template
+  — collection (Issues), detail (an Issue), editor (a draft Workflow's
+  definition), diagnostics (a Task with a failed run and its retry), and
+  settings (Space settings) — in light and dark, at 1280 and 390 CSS pixels.
+  The specimen and every template page also run axe's WCAG 2.1 A/AA rules,
+  `color-contrast` included, in both themes.
+- **Desktop** (`desktop/frontend/visual/`): the golden-path views — a fresh
+  home, a home with work in it, the New Project dialog, and the server sign-in
+  page — in both themes, each also checked by axe.
+
+Neither suite needs a deployment or `wails dev`. Each serves its production
+build through Playwright request routing and answers the API, or the Wails
+bridge, from fixtures in its `visual/` directory, with the clock fixed and
+animation off. A request no fixture answers fails the test by name, so a page
+that starts making a new call says so instead of rendering an unexplained error
+state. The `desktop-ui` suite still proves the React app against the real
+bridge; this one is only about appearance.
+
+**Linux is the only baseline platform.** Fonts and antialiasing differ between
+macOS, Windows, and Linux, so the browser always runs in the official Playwright
+image whose version matches the `@playwright/test` both lockfiles pin
+(`mcr.microsoft.com/playwright:v<version>-noble`). The command reads that
+version from the installed package, builds on the host, and renders in the
+container, locally and in CI alike. The baselines are committed next to the
+specs under `visual/__screenshots__/`, named for `linux`; a bare
+`npx playwright test` on a Mac compares against nothing and is not evidence.
+Bumping Playwright changes the renderer, so it comes with a baseline refresh.
+
+The comparison is strict (`threshold: 0.02`, no tolerated pixels): one image
+renders every baseline, so its output reproduces, and the default tolerance
+would let a text color move by about thirty grey levels unseen.
+
+To review a failure, open `.artifacts/e2e/visual/` (in CI, the `visual-diffs`
+artifact): each mismatch has the expected, actual, and diff images. If the
+change is a regression, fix it. If it is intended, run
+`./make e2e visual --update`, look at every changed PNG in the diff (a desktop
+client or GitHub's image diff shows them side by side), and commit them in the
+same change, saying in the pull request why the pages look different. The
+update regenerates every baseline from nothing, so a removed test's images go
+too.
 
 ## Adding A Test
 

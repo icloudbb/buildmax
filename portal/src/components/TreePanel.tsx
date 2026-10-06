@@ -26,7 +26,9 @@ export function TreePanel({
   const folderChildren = (node.children ?? []).filter(isFolder)
 
   return (
-    <li className="explore-tree__item" role="treeitem" style={{ paddingLeft: `${depth * 1.25}rem` }}>
+    // Nested lists of disclosure buttons rather than an ARIA tree: a tree
+    // promises arrow-key navigation between items, which this does not have.
+    <li className="explore-tree__item" style={{ paddingLeft: `${depth * 1.25}rem` }}>
       <button
         type="button"
         className={`explore-tree__row ${isSelected ? "explore-tree__row--selected" : ""}`}
@@ -35,6 +37,7 @@ export function TreePanel({
           if (folderChildren.length > 0) onToggle(node.id)
         }}
         aria-expanded={folderChildren.length > 0 ? isExpanded : undefined}
+        aria-current={isSelected ? "true" : undefined}
       >
         {folderChildren.length > 0 ? (
           <span className="explore-tree__icon" aria-hidden>
@@ -46,7 +49,7 @@ export function TreePanel({
         <span className="explore-tree__label">{node.name}</span>
       </button>
       {isExpanded && folderChildren.length > 0 && (
-        <ul className="explore-tree__list" role="group">
+        <ul className="explore-tree__list">
           {folderChildren.map((child) => (
             <TreePanel
               key={child.id}

@@ -41,7 +41,10 @@ Portal owns the cloud/space lane:
 - `/specimen` is a design and review artifact, not a product page: it renders the
   shared action grammar, semantic tokens, status vocabulary, and every resource
   state once, reusing the real components so a reviewer can confirm each role and
-  state across themes and widths before trusting the migrated pages.
+  state across themes and widths before trusting the migrated pages. The
+  screenshot suite in `portal/visual/` holds it, and one page per template, to
+  committed baselines and runs axe with contrast on them (see
+  [testing](../testing.md#screenshot-baselines)).
 - API calls live under `portal/src/features/*/api.ts` and `portal/src/lib/api`.
 - Shared presentation components come from `@buildmax/gui`.
 - Colors, shadows, the overlay, and the monospace stack come from the semantic

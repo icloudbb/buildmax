@@ -2,6 +2,7 @@ import js from '@eslint/js'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
+import jsxA11y from 'eslint-plugin-jsx-a11y'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 // `npm run build` already type-checks with `tsc -b`; ESLint covers what the
@@ -11,6 +12,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   reactHooks.configs.flat['recommended-latest'],
+  jsxA11y.flatConfigs.recommended,
   {
     plugins: { 'react-refresh': reactRefresh },
     rules: {
@@ -53,6 +55,9 @@ export default tseslint.config(
       // the correctness-oriented Rules of Hooks and exhaustive-deps enabled.
       'react-hooks/refs': 'off',
       'react-hooks/set-state-in-effect': 'off',
+      // WebKit drops list semantics from a list styled `list-style: none`, so
+      // an explicit role="list" on one is deliberate. `nav` keeps the default.
+      'jsx-a11y/no-redundant-roles': ['error', { nav: ['navigation'], ul: ['list'], ol: ['list'] }],
     },
   },
 )

@@ -134,14 +134,14 @@ function ForkTreeNode({ node }) {
   if (!node) return null;
   const title = node.missing ? t('chat.info.sourceDeleted') : (node.title || t('chat.info.untitled'));
   return (
-    <li role="treeitem" aria-current={node.current ? 'true' : undefined}>
+    <li aria-current={node.current ? 'true' : undefined}>
       <div className={`info-tree__node ${node.current ? 'info-tree__node--current' : ''} ${node.missing ? 'info-tree__node--missing' : ''}`}>
         <span className="info-tree__title">{title}</span>
         <code className="info-tree__id">{node.id}</code>
         {node.current && <span className="info-tree__current">{t('chat.info.current')}</span>}
       </div>
       {(node.children ?? []).length > 0 && (
-        <ul role="group">
+        <ul>
           {node.children.map((child) => <ForkTreeNode key={child.id} node={child} />)}
         </ul>
       )}
@@ -170,7 +170,9 @@ function TreeTab({ projectID, sessionID, app }) {
   return (
     <div className="info-tree">
       <p className="info-tree__hint">{t('chat.info.forkHint')}</p>
-      <ul role="tree">
+      {/* A read-only hierarchy is nested lists; an ARIA tree is an
+          interactive widget with arrow-key navigation, which this is not. */}
+      <ul>
         <ForkTreeNode node={result.tree} />
       </ul>
     </div>

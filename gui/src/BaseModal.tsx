@@ -31,7 +31,17 @@ export function BaseModal({
   if (!open) return null
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    // The backdrop is a pointer shortcut for closing; keyboard users close with
+    // Escape (useOverlayA11y), so it is presentational, not a control. Clicks
+    // inside the dialog stop here so they never reach a clickable ancestor.
+    <div
+      className="modal-overlay"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+        else e.stopPropagation()
+      }}
+    >
       <div
         ref={focusRef}
         className={className ? `modal ${className}` : "modal"}
@@ -39,7 +49,6 @@ export function BaseModal({
         aria-modal="true"
         aria-labelledby={hideHeader ? undefined : titleId}
         aria-label={hideHeader ? title : undefined}
-        onClick={(e) => e.stopPropagation()}
       >
         {!hideHeader && (
           <div className="modal__header">

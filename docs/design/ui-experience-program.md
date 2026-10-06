@@ -252,7 +252,7 @@ English labels.
 | Phase | Outcome | Ready work |
 |---|---|---|
 | 0. Audit | A graded findings report for the Portal and Desktop core journeys, with a visual-language recommendation | [Portal](../contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) and [Desktop](../contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) reports |
-| 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails; shared primitives; i18n infrastructure; Desktop on gui primitives | backlog [14](../backlog/14-ui-visual-and-a11y-guardrails.md), [16](../backlog/16-gui-shared-primitives.md), [20](../backlog/20-desktop-gui-convergence.md) |
+| 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails (shipped); shared primitives; i18n infrastructure; Desktop on gui primitives | backlog [16](../backlog/16-gui-shared-primitives.md), [20](../backlog/20-desktop-gui-convergence.md) |
 | 2. Visual-language decision | The maintainer accepts "refine" or "new language" from the phase 0 report; this record and the page-system record are updated | Decision, not a task |
 | 3. Portal rework | Blocker and Major findings resolved, in journey order | Tasks drafted from the phase 0 report |
 | 4. Desktop rework | Same for Desktop; `App.jsx` decomposed where the findings touch it | Tasks drafted from the phase 0 report |
@@ -309,10 +309,19 @@ shipped in that record as they land.
 - **Desktop TypeScript.** Should Desktop migrate to TypeScript? The default is
   to convert only the files the convergence touches. A full migration is taken
   only if the audit or convergence work shows untyped props causing defects.
-- **Screenshot baselines.** Which platform renders the baselines, given that
-  Linux CI and macOS render fonts differently? Where are baselines stored?
-  Phase 1 decides; the expected answer is Linux CI as the only baseline
-  platform.
+- **Screenshot baselines.** *Resolved in phase 1:* Linux is the only
+  baseline platform. Every baseline is rendered in the official Playwright
+  image at the `@playwright/test` version the lockfiles pin, both by
+  `./make e2e visual` locally and by the pull-request job, so a local pass and
+  a CI pass are the same claim. Baselines are committed next to their specs
+  under each package's `visual/__screenshots__/`, and
+  `./make e2e visual --update` refreshes them. The suites render the
+  production builds from fixtures rather than a deployment, which is what lets
+  them gate pull requests; for the same reason Desktop's views use a fixture
+  bridge instead of `wails dev`, which runs only on the macOS job and would
+  have made macOS a second baseline platform. The
+  [testing guide](../contribute/testing.md#screenshot-baselines) explains how to
+  run, update, and review them.
 - **Default Space landing page.** Should it be Chat or Issues? This question is
   inherited from the page-system record, and the audit should produce evidence
   for it.

@@ -302,24 +302,23 @@ export function AgentList({ token, spaceId }: AgentListProps) {
               {agents.map((a) => {
                 const meta = agentMeta(a)
                 return (
-                  <article
-                    key={a.id}
-                    className="agent-card"
-                    role="button"
-                    tabIndex={0}
-                    aria-label={t("agents.openNamed", { name: a.name })}
-                    onClick={() => navigate({ name: "agent", spaceId, agentId: a.id })}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        navigate({ name: "agent", spaceId, agentId: a.id })
-                      }
-                    }}
-                  >
+                  <article key={a.id} className="agent-card">
                     <header className="agent-card__header">
                       <AgentAvatar size="md" className="agent-card__avatar" />
                       <div className="agent-card__title-row">
-                        <h3 className="agent-card__name">{a.name}</h3>
+                        <h3 className="agent-card__name">
+                          {/* A real button whose hit area stretches over the
+                              card, so the card stays one click target without
+                              nesting the Run button inside another control. */}
+                          <button
+                            type="button"
+                            className="agent-card__open"
+                            aria-label={t("agents.openNamed", { name: a.name })}
+                            onClick={() => navigate({ name: "agent", spaceId, agentId: a.id })}
+                          >
+                            {a.name}
+                          </button>
+                        </h3>
                         {meta.running ? (
                           <span className="agent-card__running">{t("agents.running")}</span>
                         ) : (
@@ -342,10 +341,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                       </span>
                       <Button
                         variant="secondary" size="compact"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleOpenNewTaskModal(a)
-                        }}
+                        onClick={() => handleOpenNewTaskModal(a)}
                         disabled={!token}
                         aria-label={t("agents.runNamed", { name: a.name })}
                       >

@@ -34,6 +34,7 @@
 }
 
 .explorer .file-tree__row {
+  width: calc(100% - 12px);
   height: var(--sidebar-row-h);
   margin: 0 6px;
   padding-top: 0;

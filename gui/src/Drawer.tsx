@@ -21,7 +21,16 @@ export function Drawer({ id, open, title, titleId, onClose, children }: DrawerPr
   if (!open) return null
 
   return (
-    <div className="drawer-overlay" onClick={onClose}>
+    // Presentational backdrop, as in BaseModal: Escape is the keyboard close,
+    // and clicks inside the drawer stop here.
+    <div
+      className="drawer-overlay"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+        else e.stopPropagation()
+      }}
+    >
       <div
         id={id}
         ref={containerRef}
@@ -29,7 +38,6 @@ export function Drawer({ id, open, title, titleId, onClose, children }: DrawerPr
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="drawer__header">
           <h2 className="drawer__title" id={titleId}>

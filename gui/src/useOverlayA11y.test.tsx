@@ -32,6 +32,21 @@ describe("useOverlayA11y", () => {
     expect(document.activeElement).toBe(screen.getByText("first"))
   })
 
+  it("moves focus to the element marked data-autofocus instead of the first", async () => {
+    function Marked() {
+      const containerRef = useRef<HTMLDivElement>(null)
+      useOverlayA11y({ open: true, onClose: () => {}, containerRef })
+      return (
+        <div ref={containerRef} tabIndex={-1}>
+          <button type="button">close</button>
+          <input aria-label="name" data-autofocus />
+        </div>
+      )
+    }
+    render(<Marked />)
+    expect(document.activeElement).toBe(screen.getByLabelText("name"))
+  })
+
   it("wraps Tab from the last focusable back to the first", async () => {
     render(<Harness onClose={() => {}} />)
     fireEvent.click(screen.getByText("opener"))

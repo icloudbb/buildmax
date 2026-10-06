@@ -32,7 +32,11 @@ export function ChatThread({
   emptyText,
 }: ChatThreadProps) {
   return (
-    <section ref={historyRef} className="bm-chat-thread" aria-label={ariaLabel}>
+    // Focusable because it scrolls: a keyboard user has no other way to read
+    // back through a long thread (WCAG 2.1.1, axe scrollable-region-focusable).
+    // jsx-a11y treats every non-widget as unfocusable and has no scroll case.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+    <section ref={historyRef} className="bm-chat-thread" aria-label={ariaLabel} tabIndex={0}>
       {loadingText ? (
         <p className="bm-chat-thread__text bm-chat-thread__text--muted">{loadingText}</p>
       ) : null}
