@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getApp } from '../lib/app';
+import { useT } from '../i18n';
 
 // RocketIcon — the launchpad glyph.
 function RocketIcon() {
@@ -18,6 +19,7 @@ function RocketIcon() {
 // Go backend; entries are stored on the Go side (launchpad.json), so they survive
 // independent of the webview cache and are shared across every window.
 export function LaunchpadButton() {
+  const t = useT();
   const [entries, setEntries] = useState([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -130,8 +132,8 @@ export function LaunchpadButton() {
       <button
         type="button"
         className="workspace-statusbar__btn"
-        title="Launchpad"
-        aria-label="Launchpad"
+        title={t('launchpad.title')}
+        aria-label={t('launchpad.title')}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
@@ -139,9 +141,9 @@ export function LaunchpadButton() {
       </button>
       {open && (
         <div className="launchpad-popover" role="menu">
-          <div className="launchpad-popover__title">Launchpad</div>
+          <div className="launchpad-popover__title">{t('launchpad.title')}</div>
           {entries.length === 0 ? (
-            <div className="launchpad-empty">No applications yet.</div>
+            <div className="launchpad-empty">{t('launchpad.empty')}</div>
           ) : (
             entries.map((e) => (
               <div className="launchpad-item" key={e.id}>
@@ -156,8 +158,8 @@ export function LaunchpadButton() {
                 <button
                   type="button"
                   className="launchpad-item__remove"
-                  title="Remove"
-                  aria-label={`Remove ${e.name}`}
+                  title={t('launchpad.remove')}
+                  aria-label={t('launchpad.removeEntry', { name: e.name })}
                   onClick={() => remove(e.id)}
                 >
                   ×
@@ -172,14 +174,14 @@ export function LaunchpadButton() {
               onClick={addApp}
               disabled={busy}
             >
-              {busy ? 'Adding…' : 'Add application…'}
+              {busy ? t('launchpad.adding') : t('launchpad.addApp')}
             </button>
             {urlForm ? (
               <form className="launchpad-urlform" onSubmit={addUrl}>
                 <input
                   className="launchpad-urlform__input"
                   type="text"
-                  placeholder="Name (optional)"
+                  placeholder={t('launchpad.namePlaceholder')}
                   value={urlName}
                   onChange={(ev) => setUrlName(ev.target.value)}
                 />
@@ -192,8 +194,8 @@ export function LaunchpadButton() {
                   autoFocus
                 />
                 <div className="launchpad-urlform__row">
-                  <button type="submit" className="launchpad-urlform__save" disabled={!urlValue.trim()}>Add</button>
-                  <button type="button" className="launchpad-urlform__cancel" onClick={closeUrlForm}>Cancel</button>
+                  <button type="submit" className="launchpad-urlform__save" disabled={!urlValue.trim()}>{t('launchpad.add')}</button>
+                  <button type="button" className="launchpad-urlform__cancel" onClick={closeUrlForm}>{t('shell.cancel')}</button>
                 </div>
               </form>
             ) : (
@@ -202,7 +204,7 @@ export function LaunchpadButton() {
                 className="launchpad-add"
                 onClick={() => setUrlForm(true)}
               >
-                Add URL…
+                {t('launchpad.addURL')}
               </button>
             )}
           </div>

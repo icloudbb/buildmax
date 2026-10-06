@@ -9,9 +9,13 @@ vi.mock('./ChatSession', () => ({
   ),
 }));
 
+import { LocaleProvider } from '@buildmax/gui';
 import { SchedulesView } from './SchedulesView';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.removeItem('buildmax_locale');
+});
 
 function baseApp(tasks = [], runs = []) {
   return {
@@ -151,5 +155,38 @@ describe('SchedulesView', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete task' })).toBeNull());
     expect(app.DeleteScheduledTask).not.toHaveBeenCalled();
+  });
+});
+
+describe('SchedulesView in Chinese', () => {
+  function inChinese(ui) {
+    localStorage.setItem('buildmax_locale', 'zh-CN');
+    return render(<LocaleProvider>{ui}</LocaleProvider>);
+  }
+
+  it('renders the list, its runs, and a task card in the chosen locale', async () => {
+    inChinese(<SchedulesView app={baseApp([{ ...sampleTask, consecutive_failures: 2 }], [sampleRun])} />);
+    expect(await screen.findByText('已启用')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '定时任务' })).toBeTruthy();
+    expect(screen.getByText('定时任务仅在本应用打开时运行。')).toBeTruthy();
+    expect(screen.getByRole('region', { name: '最近运行' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '任务（1）' })).toBeTruthy();
+    expect(screen.getByText('2 次失败')).toBeTruthy();
+    expect(await screen.findByText('已完成')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '暂停' })).toBeTruthy();
+  });
+
+  it('renders the form and the delete confirmation in the chosen locale', async () => {
+    inChinese(<SchedulesView app={baseApp([sampleTask])} />);
+    fireEvent.click(await screen.findByRole('button', { name: '新建定时任务' }));
+    expect(screen.getByRole('dialog', { name: '新建定时任务' })).toBeTruthy();
+    expect(screen.getByPlaceholderText('晨间摘要')).toBeTruthy();
+    expect(await screen.findByRole('option', { name: '默认（Fast）' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '创建定时任务' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }));
+    expect(await screen.findByRole('button', { name: '删除任务' })).toBeTruthy();
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === '要删除 Morning 吗？')).toBeTruthy();
   });
 });

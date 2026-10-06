@@ -2,12 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EventsOn } from '../lib/wailsRuntime';
 import { InfoModal, ConfirmModal } from './Modals';
 import { ChatSession } from './ChatSession';
+import { useT } from '../i18n';
 
 const EV_SCHEDULE_UPDATE = 'desktop/schedule-update';
-
-// A scheduled task fires only while the desktop app is open; this note sets that
-// expectation so nobody counts on an overnight run with the app closed.
-const OPEN_APP_NOTE = 'Scheduled tasks run only while this app is open.';
 
 const emptyForm = { workingDir: '', name: '', prompt: '', model: '', cronExpr: '0 9 * * *', timezone: 'UTC' };
 
@@ -22,10 +19,8 @@ function formatWhen(value) {
 
 // runStatusText turns a stored run status into a short label. A run left
 // "running" is one the app did not see finish — it was closed mid-run.
-function runStatusText(status) {
-  if (status === 'ok') return 'Done';
-  if (status === 'failed') return 'Failed';
-  if (status === 'running') return 'Running';
+function runStatusText(status, t) {
+  if (status === 'ok' || status === 'failed' || status === 'running') return t(`schedules.status.${status}`);
   return status || '—';
 }
 
@@ -35,17 +30,18 @@ function runStatusText(status) {
 // carry no project (they are hosted by the task's directory), so ChatSession is
 // given an empty projectId and the backend resolves the host from the session.
 function ScheduleRunDetail({ app, run, onClose }) {
+  const t = useT();
   const sessionId = run?.session_id || '';
   return (
-    <InfoModal title={run?.schedule_name || 'Run'} onClose={onClose} className="info-modal-panel--wide">
+    <InfoModal title={run?.schedule_name || t('schedules.run')} onClose={onClose} className="info-modal-panel--wide">
       <p className="info-modal__muted">
-        {formatWhen(run?.fired_at)} · {runStatusText(run?.status)}
+        {formatWhen(run?.fired_at)} · {runStatusText(run?.status, t)}
       </p>
       {run?.error && <p className="info-modal__error">{run.error}</p>}
       <div className="schedule-run-chat">
         <ChatSession
           projectId=""
-          projectName="Scheduled"
+          projectName={t('schedules.scheduledProject')}
           defaultWorkspace={run?.working_dir || ''}
           sessions={[]}
           tab={{ kind: 'chat', ref: sessionId, sessionId, key: `chat:${sessionId}` }}
@@ -66,6 +62,7 @@ function ScheduleRunDetail({ app, run, onClose }) {
 // the scheduled tasks themselves. Creating a task happens in a modal behind the
 // New Schedule button, not an always-visible form.
 export function SchedulesView({ app }) {
+  const t = useT();
   const [tasks, setTasks] = useState(null);
   const [runs, setRuns] = useState(null);
   const [error, setError] = useState(null);
@@ -178,7 +175,7 @@ export function SchedulesView({ app }) {
     setSaving(true);
     try {
       if (editingID) {
-        const cur = (tasks ?? []).find((t) => t.id === editingID);
+        const cur = (tasks ?? []).find((task) => task.id === editingID);
         await app.UpdateScheduledTask(
           editingID, form.workingDir, form.name, form.prompt, form.cronExpr, form.timezone, form.model,
           cur ? cur.enabled : true,
@@ -209,7 +206,7 @@ export function SchedulesView({ app }) {
   const toggleAll = async () => {
     if (!app?.SetAllScheduledTasksEnabled) return;
     // Pause every task when any is enabled; otherwise enable them all.
-    const target = !(tasks ?? []).some((t) => t.enabled);
+    const target = !(tasks ?? []).some((task) => task.enabled);
     try {
       await app.SetAllScheduledTasksEnabled(target);
       refresh();
@@ -234,23 +231,28 @@ export function SchedulesView({ app }) {
 
   const list = tasks ?? [];
   const runList = runs ?? [];
+  // The task name is bold inside the sentence, so the sentence is split around
+  // its placeholder rather than formatted into one string.
+  const [deleteBefore, deleteAfter] = t('schedules.deleteConfirm').split('{name}');
   const activeRun = useMemo(() => (runs ?? []).find((r) => r.id === openRunID) ?? null, [runs, openRunID]);
 
   return (
     <div className="page-schedules">
       <div className="page-schedules__header">
         <div>
-          <h1 className="page-schedules__title">Schedules</h1>
-          <p className="page-schedules__subtitle">{OPEN_APP_NOTE}</p>
+          <h1 className="page-schedules__title">{t('schedules.title')}</h1>
+          {/* A scheduled task fires only while the desktop app is open; this note
+              sets that expectation so nobody counts on an overnight run. */}
+          <p className="page-schedules__subtitle">{t('schedules.openAppNote')}</p>
         </div>
         <div className="page-schedules__header-actions">
           {list.length > 0 && app?.SetAllScheduledTasksEnabled && (
             <button type="button" className="page-schedules__ghost" onClick={toggleAll}>
-              {list.some((t) => t.enabled) ? 'Pause all' : 'Enable all'}
+              {list.some((task) => task.enabled) ? t('schedules.pauseAll') : t('schedules.enableAll')}
             </button>
           )}
           <button type="button" className="page-schedules__primary" onClick={openCreate}>
-            New Schedule
+            {t('schedules.new')}
           </button>
         </div>
       </div>
@@ -258,19 +260,19 @@ export function SchedulesView({ app }) {
       {error && (
         <div className="page-schedules__banner page-schedules__banner--error">
           <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} aria-label="Dismiss">✕</button>
+          <button type="button" onClick={() => setError(null)} aria-label={t('shell.dismiss')}>✕</button>
         </div>
       )}
 
       <div className="page-schedules__grid">
-        <section className="page-schedules__section" aria-label="Recent runs">
+        <section className="page-schedules__section" aria-label={t('schedules.recentRuns')}>
           <div className="page-schedules__section-head">
-            <h2>Recent runs</h2>
+            <h2>{t('schedules.recentRuns')}</h2>
           </div>
           {!runs ? (
-            <p className="page-schedules__empty">Loading…</p>
+            <p className="page-schedules__empty">{t('shell.loading')}</p>
           ) : runList.length === 0 ? (
-            <p className="page-schedules__empty">No runs yet. A task's fires will appear here.</p>
+            <p className="page-schedules__empty">{t('schedules.noRuns')}</p>
           ) : (
             <div className="page-schedules__runs">
               {runList.map((run) => (
@@ -280,13 +282,13 @@ export function SchedulesView({ app }) {
                   className="page-schedules__run"
                   onClick={() => run.session_id && setOpenRunID(run.id)}
                   disabled={!run.session_id}
-                  title={run.session_id ? 'Open this run' : 'This run created no session'}
+                  title={run.session_id ? t('schedules.openRun') : t('schedules.runNoSession')}
                 >
-                  <span className="page-schedules__run-title">{run.schedule_name || 'Task'}</span>
+                  <span className="page-schedules__run-title">{run.schedule_name || t('schedules.task')}</span>
                   <span className="page-schedules__run-meta">
                     <span>{formatWhen(run.fired_at)}</span>
                     <span className={`page-schedules__run-status page-schedules__run-status--${run.status}`}>
-                      {runStatusText(run.status)}
+                      {runStatusText(run.status, t)}
                     </span>
                   </span>
                 </button>
@@ -295,26 +297,26 @@ export function SchedulesView({ app }) {
           )}
         </section>
 
-        <section className="page-schedules__section" aria-label="Scheduled tasks">
+        <section className="page-schedules__section" aria-label={t('schedules.tasksRegion')}>
           <div className="page-schedules__section-head">
-            <h2>Tasks {tasks ? `(${list.length})` : ''}</h2>
+            <h2>{tasks ? t('schedules.tasksCount', { count: list.length }) : t('schedules.tasks')}</h2>
           </div>
           {!tasks ? (
-            <p className="page-schedules__empty">Loading…</p>
+            <p className="page-schedules__empty">{t('shell.loading')}</p>
           ) : list.length === 0 ? (
-            <p className="page-schedules__empty">No scheduled tasks yet. Create one with New Schedule.</p>
+            <p className="page-schedules__empty">{t('schedules.noTasks')}</p>
           ) : (
             <div className="page-schedules__list">
               {list.map((task) => (
                 <div key={task.id} className="page-schedules__card">
                   <div className="page-schedules__card-head">
-                    <span className="page-schedules__card-title">{task.name || task.prompt || 'Task'}</span>
+                    <span className="page-schedules__card-title">{task.name || task.prompt || t('schedules.task')}</span>
                     <span className={`page-schedules__badge ${task.enabled ? 'page-schedules__badge--on' : 'page-schedules__badge--off'}`}>
-                      {task.enabled ? 'Enabled' : 'Paused'}
+                      {task.enabled ? t('schedules.enabled') : t('schedules.paused')}
                     </span>
                     {task.consecutive_failures > 0 && (
-                      <span className="page-schedules__badge page-schedules__badge--warn" title="Consecutive failed fires">
-                        {task.consecutive_failures} failed
+                      <span className="page-schedules__badge page-schedules__badge--warn" title={t('schedules.failuresTitle')}>
+                        {t('schedules.failures', { count: task.consecutive_failures })}
                       </span>
                     )}
                   </div>
@@ -325,19 +327,19 @@ export function SchedulesView({ app }) {
                     <span><code>{task.cron_expr}</code> {task.timezone}</span>
                   </div>
                   <div className="page-schedules__card-meta">
-                    <span>Next: {formatWhen(task.next_fire_at)}</span>
+                    <span>{t('schedules.next', { when: formatWhen(task.next_fire_at) })}</span>
                     <span>·</span>
-                    <span>Last: {formatWhen(task.last_fire_at)}</span>
+                    <span>{t('schedules.last', { when: formatWhen(task.last_fire_at) })}</span>
                   </div>
                   <div className="page-schedules__card-actions">
                     <button type="button" className="page-schedules__ghost" onClick={() => toggle(task)}>
-                      {task.enabled ? 'Pause' : 'Resume'}
+                      {task.enabled ? t('schedules.pause') : t('schedules.resume')}
                     </button>
                     <button type="button" className="page-schedules__ghost" onClick={() => openEdit(task)}>
-                      Edit
+                      {t('schedules.edit')}
                     </button>
                     <button type="button" className="page-schedules__danger" onClick={() => setPendingDelete(task)}>
-                      Delete
+                      {t('schedules.delete')}
                     </button>
                   </div>
                 </div>
@@ -348,38 +350,38 @@ export function SchedulesView({ app }) {
       </div>
 
       {formOpen && (
-        <InfoModal title={editingID ? 'Edit schedule' : 'New schedule'} onClose={closeForm}>
+        <InfoModal title={editingID ? t('schedules.form.editTitle') : t('schedules.form.newTitle')} onClose={closeForm}>
           <form className="page-schedules__form" onSubmit={submit}>
             <label className="page-schedules__field">
-              <span>Working directory <em>(optional — defaults to your home)</em></span>
+              <span>{t('schedules.form.workingDir')} <em>{t('schedules.form.workingDirHint')}</em></span>
               <div className="page-schedules__dir-row">
                 <input
                   type="text"
                   value={form.workingDir}
-                  placeholder="~ (home)"
+                  placeholder={t('schedules.form.workingDirPlaceholder')}
                   onChange={(e) => setForm((f) => ({ ...f, workingDir: e.target.value }))}
                 />
                 {app?.PickScheduleDir && (
-                  <button type="button" className="page-schedules__ghost" onClick={browse}>Browse…</button>
+                  <button type="button" className="page-schedules__ghost" onClick={browse}>{t('schedules.form.browse')}</button>
                 )}
               </div>
             </label>
             <label className="page-schedules__field">
-              <span>Name <em>(optional)</em></span>
+              <span>{t('schedules.form.name')} <em>{t('schedules.form.optional')}</em></span>
               <input
                 type="text"
                 value={form.name}
-                placeholder="Morning summary"
+                placeholder={t('schedules.form.namePlaceholder')}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
             </label>
             <label className="page-schedules__field">
-              <span>Model</span>
+              <span>{t('schedules.form.model')}</span>
               <select
                 value={form.model}
                 onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
               >
-                <option value="">{defaultModel ? `Default (${defaultModel})` : 'Default'}</option>
+                <option value="">{defaultModel ? t('schedules.form.defaultModel', { model: defaultModel }) : t('schedules.form.default')}</option>
                 {models.map((m) => (
                   <option key={m.name} value={m.name}>
                     {m.provider_model && m.provider_model !== m.name ? `${m.name} — ${m.provider_model}` : m.name}
@@ -388,17 +390,17 @@ export function SchedulesView({ app }) {
               </select>
             </label>
             <label className="page-schedules__field">
-              <span>Prompt</span>
+              <span>{t('schedules.form.prompt')}</span>
               <textarea
                 rows={3}
                 value={form.prompt}
-                placeholder="What should the agent do each time?"
+                placeholder={t('schedules.form.promptPlaceholder')}
                 onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
               />
             </label>
             <div className="page-schedules__field-row">
               <label className="page-schedules__field">
-                <span>Cron</span>
+                <span>{t('schedules.form.cron')}</span>
                 <input
                   type="text"
                   value={form.cronExpr}
@@ -407,7 +409,7 @@ export function SchedulesView({ app }) {
                 />
               </label>
               <label className="page-schedules__field">
-                <span>Timezone</span>
+                <span>{t('schedules.form.timezone')}</span>
                 <input
                   type="text"
                   value={form.timezone}
@@ -421,24 +423,24 @@ export function SchedulesView({ app }) {
                 <span className="page-schedules__preview-error">{previewError}</span>
               ) : preview && preview.length > 0 ? (
                 <>
-                  <span className="page-schedules__preview-label">Next runs</span>
+                  <span className="page-schedules__preview-label">{t('schedules.form.nextRuns')}</span>
                   <ul>
                     {preview.map((when) => <li key={when}>{formatWhen(when)}</li>)}
                   </ul>
                 </>
               ) : (
                 <span className="page-schedules__preview-hint">
-                  Standard 5-field cron (minute hour day month weekday), evaluated in the timezone.
+                  {t('schedules.form.cronHint')}
                 </span>
               )}
             </div>
             {formError && <p className="page-schedules__form-error">{formError}</p>}
             <div className="modal-footer">
               <button type="button" className="modal-btn modal-btn--cancel" onClick={closeForm} disabled={saving}>
-                Cancel
+                {t('shell.cancel')}
               </button>
               <button type="submit" className="modal-btn modal-btn--primary" disabled={saving}>
-                {editingID ? 'Save changes' : 'Create schedule'}
+                {editingID ? t('schedules.form.save') : t('schedules.form.create')}
               </button>
             </div>
           </form>
@@ -451,18 +453,17 @@ export function SchedulesView({ app }) {
 
       {pendingDelete && (
         <ConfirmModal
-          title="Delete scheduled task"
-          confirmLabel="Delete task"
+          title={t('schedules.deleteTitle')}
+          confirmLabel={t('schedules.deleteConfirmLabel')}
           onCancel={() => setPendingDelete(null)}
           onConfirm={confirmDelete}
           message={(
             <>
               <p className="confirm-modal__message">
-                Delete <strong>{pendingDelete.name || pendingDelete.prompt || 'this task'}</strong>?
+                {deleteBefore}<strong>{pendingDelete.name || pendingDelete.prompt || t('schedules.thisTask')}</strong>{deleteAfter}
               </p>
               <p className="confirm-modal__message page-schedules__confirm-warn">
-                This cannot be undone. Its run history and every session it created
-                are permanently removed.
+                {t('schedules.deleteWarn')}
               </p>
             </>
           )}
