@@ -13,17 +13,13 @@ import { EmptyState } from "../../components/state/EmptyState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 import { isAllowed } from "../../state/permissionState"
 import { useStableT, useT } from "../../i18n"
+import { useTimestamp } from "../../lib/dateFormat"
 
 interface SchedulesPageProps {
   token: string | null
   spaceId: string
 }
 
-function formatWhen(iso: string | null | undefined): string {
-  if (!iso) return "—"
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString()
-}
 
 // This is the space-wide overview: every schedule across every agent, so an
 // owner can see what unattended automation is running. A member can create a
@@ -34,6 +30,7 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
   const { currentUserRole } = useSpace()
   const t = useT()
   const stableT = useStableT()
+  const formatWhen = useTimestamp()
   // Any member may manage schedules (manage_schedules is member-tier), so the
   // capability is membership itself, not the owner/admin gate agents use.
   const canManageState = useSpaceCapability(

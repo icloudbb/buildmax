@@ -19,10 +19,6 @@ export function formatSize(bytes: number): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`
 }
 
-export function formatTime(rfc3339: string): string {
-  return new Date(rfc3339).toLocaleString()
-}
-
 /** What produced the file, in the words a reader uses rather than the stored enum. */
 export function sourceLabel(artifact: ApiArtifact, t: Translate<MessageKey>): string {
   switch (artifact.source_type) {

@@ -1,6 +1,6 @@
 import type { Translate } from "@buildmax/gui"
 import type { ApiConversationMessage, ApiTask } from "../../lib/api/types"
-import { translate, type MessageKey } from "../../i18n"
+import type { MessageKey } from "../../i18n"
 
 export type ThreadEntry =
   | { kind: "message"; at: string; message: ApiConversationMessage }
@@ -29,11 +29,8 @@ export function runStatusTone(status: string): "running" | "done" | "failed" {
   return taskRunFailed(status) ? "failed" : "done"
 }
 
-// A caller that does not pass the interface language's translator reads English.
-const english: Translate<MessageKey> = (key, vars) => translate("en", key, vars)
-
 /** The human label for a run status, in the server's own vocabulary. */
-export function runStatusLabel(status: string, t: Translate<MessageKey> = english): string {
+export function runStatusLabel(status: string, t: Translate<MessageKey>): string {
   switch (status.toUpperCase()) {
     case "PENDING":
       return t("chat.runStatus.queued")
@@ -59,7 +56,7 @@ export function runStatusLabel(status: string, t: Translate<MessageKey> = englis
  */
 export function taskStatusLabel(
   task: { status: string; awaiting_answer?: boolean },
-  t: Translate<MessageKey> = english
+  t: Translate<MessageKey>
 ): string {
   return task.awaiting_answer ? t("chat.needsAnswer") : runStatusLabel(task.status, t)
 }

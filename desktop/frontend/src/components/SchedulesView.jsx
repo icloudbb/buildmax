@@ -2,17 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EventsOn } from '../lib/wailsRuntime';
 import { InfoModal, ConfirmModal } from './Modals';
 import { ChatSession } from './ChatSession';
+import { useLocale } from '@buildmax/gui';
 import { useT } from '../i18n';
+import { intlLocale } from '../lib/format';
 
 const EV_SCHEDULE_UPDATE = 'desktop/schedule-update';
 
 const emptyForm = { workingDir: '', name: '', prompt: '', model: '', cronExpr: '0 9 * * *', timezone: 'UTC' };
 
-function formatWhen(value) {
+function formatWhen(value, locale) {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(intlLocale(locale), {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 }
@@ -31,11 +33,12 @@ function runStatusText(status, t) {
 // given an empty projectId and the backend resolves the host from the session.
 function ScheduleRunDetail({ app, run, onClose }) {
   const t = useT();
+  const { locale } = useLocale();
   const sessionId = run?.session_id || '';
   return (
     <InfoModal title={run?.schedule_name || t('schedules.run')} onClose={onClose} className="info-modal-panel--wide">
       <p className="info-modal__muted">
-        {formatWhen(run?.fired_at)} · {runStatusText(run?.status, t)}
+        {formatWhen(run?.fired_at, locale)} · {runStatusText(run?.status, t)}
       </p>
       {run?.error && <p className="info-modal__error">{run.error}</p>}
       <div className="schedule-run-chat">
@@ -63,6 +66,7 @@ function ScheduleRunDetail({ app, run, onClose }) {
 // New Schedule button, not an always-visible form.
 export function SchedulesView({ app }) {
   const t = useT();
+  const { locale } = useLocale();
   const [tasks, setTasks] = useState(null);
   const [runs, setRuns] = useState(null);
   const [error, setError] = useState(null);
@@ -286,7 +290,7 @@ export function SchedulesView({ app }) {
                 >
                   <span className="page-schedules__run-title">{run.schedule_name || t('schedules.task')}</span>
                   <span className="page-schedules__run-meta">
-                    <span>{formatWhen(run.fired_at)}</span>
+                    <span>{formatWhen(run.fired_at, locale)}</span>
                     <span className={`page-schedules__run-status page-schedules__run-status--${run.status}`}>
                       {runStatusText(run.status, t)}
                     </span>
@@ -327,9 +331,9 @@ export function SchedulesView({ app }) {
                     <span><code>{task.cron_expr}</code> {task.timezone}</span>
                   </div>
                   <div className="page-schedules__card-meta">
-                    <span>{t('schedules.next', { when: formatWhen(task.next_fire_at) })}</span>
+                    <span>{t('schedules.next', { when: formatWhen(task.next_fire_at, locale) })}</span>
                     <span>·</span>
-                    <span>{t('schedules.last', { when: formatWhen(task.last_fire_at) })}</span>
+                    <span>{t('schedules.last', { when: formatWhen(task.last_fire_at, locale) })}</span>
                   </div>
                   <div className="page-schedules__card-actions">
                     <button type="button" className="page-schedules__ghost" onClick={() => toggle(task)}>
@@ -425,7 +429,7 @@ export function SchedulesView({ app }) {
                 <>
                   <span className="page-schedules__preview-label">{t('schedules.form.nextRuns')}</span>
                   <ul>
-                    {preview.map((when) => <li key={when}>{formatWhen(when)}</li>)}
+                    {preview.map((when) => <li key={when}>{formatWhen(when, locale)}</li>)}
                   </ul>
                 </>
               ) : (

@@ -4,7 +4,8 @@ import type { ApiAuditEvent } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT } from "../../i18n"
 import { exportAuditEvents, getAuditEvents } from "./api"
-import { actorLabel, describeEvent, formatEventTime } from "./describe"
+import { actorLabel, describeEvent } from "./describe"
+import { useTimestamp } from "../../lib/dateFormat"
 import { Alert } from "../../components/state/Alert"
 import { EmptyState } from "../../components/state/EmptyState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
@@ -22,6 +23,7 @@ interface SpaceAuditSectionProps {
 
 function AuditRow({ event, currentUserId }: { event: ApiAuditEvent; currentUserId?: string }) {
   const t = useT()
+  const formatEventTime = useTimestamp()
   const described = describeEvent(event, t)
   return (
     <li className={described.denied ? "audit-row audit-row--denied" : "audit-row"}>

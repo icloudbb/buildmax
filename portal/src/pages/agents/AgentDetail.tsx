@@ -34,6 +34,7 @@ import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { isAllowed } from "../../state/permissionState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 import { useStableT, useT } from "../../i18n"
+import { useRelativeTime } from "../../lib/dateFormat"
 
 interface AgentDetailProps {
   token: string | null
@@ -47,6 +48,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   const { currentUserRole, currentSpaceMembers } = useSpace()
   const { setEntityLabel } = useApp()
   const t = useT()
+  const relativeTime = useRelativeTime()
   const stableT = useStableT()
   const canManage = isAllowed(useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin"))
   // Schedules are member-tier (manage_schedules), unlike agent config which is
@@ -178,7 +180,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
         id: rev.id,
         revision: rev.revision,
         createdBy: memberName(rev.createdBy),
-        createdLabel: rev.createdLabel,
+        createdAt: rev.createdAt,
         summary: rev.instructions,
       })) ?? null,
     [revisionsData, memberName]
@@ -251,7 +253,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
     const succeeded = finished.length - failed
     const running = tasks.some((task) => !taskRunFinished(task.status))
     const successRate = finished.length > 0 ? `${Math.round((succeeded / finished.length) * 100)}%` : "—"
-    return { total: tasks.length, successRate, running, lastRun: tasks[0] ? apiTaskToTask(tasks[0]).timeLabel : "—" }
+    return { total: tasks.length, successRate, running, lastRunAt: tasks[0] ? apiTaskToTask(tasks[0]).timeAt : null }
   }, [tasks])
 
   const secretWarnings = agent ? consumptionHealthCount(agent.secretConsumption, secrets) : 0
@@ -278,9 +280,9 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
                 }}>
                 <td className="agent-runs__title">{ui.title}</td>
                 <td>
-                  <span className={`agent-runs__status agent-runs__status--${tone}`}>{taskStatusLabel(task)}</span>
+                  <span className={`agent-runs__status agent-runs__status--${tone}`}>{taskStatusLabel(task, t)}</span>
                 </td>
-                <td className="agent-runs__when">{ui.timeLabel}</td>
+                <td className="agent-runs__when">{relativeTime(ui.timeAt)}</td>
               </tr>
             )
           })}
@@ -383,7 +385,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
                 </div>
                 <div className="agent-detail__stat">
                   <span className="agent-detail__stat-label">{t("agents.detail.lastRun")}</span>
-                  <span className="agent-detail__stat-value agent-detail__stat-value--sm">{stats.lastRun}</span>
+                  <span className="agent-detail__stat-value agent-detail__stat-value--sm">{stats.lastRunAt ? relativeTime(stats.lastRunAt) : "—"}</span>
                 </div>
               </div>
               <div className="agent-detail__section-head">

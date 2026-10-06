@@ -31,9 +31,6 @@ import type {
   WorkflowNodeRun,
   WorkflowRequest,
 } from "../types"
-// The mapped *Label fields are English; a translated view formats the
-// underlying instant at render time with useRelativeTime instead.
-import { formatRelativeTime } from "../dateFormat"
 
 function taskStatusToUI(status: string): Task["status"] {
   switch (status) {
@@ -80,7 +77,6 @@ export function apiAgentRevisionToAgentRevision(api: ApiAgentRevision): AgentRev
     model: api.model,
     createdBy: api.created_by,
     createdAt: api.created_at,
-    createdLabel: formatRelativeTime(api.created_at),
   }
 }
 
@@ -101,7 +97,6 @@ export function apiIssueToIssue(api: ApiIssue): Issue {
     createdBy: api.created_by,
     createdAt: api.created_at,
     updatedAt: api.updated_at,
-    updatedLabel: formatRelativeTime(api.updated_at),
     version: api.version,
     escalation:
       api.conversation_id && api.assistant_id
@@ -121,7 +116,6 @@ export function apiWorkflowRevisionToWorkflowRevision(api: ApiWorkflowRevision):
     status: api.status,
     createdBy: api.created_by,
     createdAt: api.created_at,
-    createdLabel: formatRelativeTime(api.created_at),
   }
 }
 
@@ -137,7 +131,6 @@ export function apiWorkflowToWorkflow(api: ApiWorkflow): Workflow {
     createdBy: api.created_by,
     createdAt: api.created_at,
     updatedAt: api.updated_at,
-    updatedLabel: formatRelativeTime(api.updated_at),
   }
 }
 
@@ -155,7 +148,6 @@ export function apiWorkflowRunToWorkflowRun(api: ApiWorkflowRun): WorkflowRun {
     errorMessage: api.error_message ?? null,
     deadlineAt: api.deadline_at ?? null,
     result: api.result ?? null,
-    createdLabel: formatRelativeTime(api.created_at),
   }
 }
 
@@ -226,7 +218,6 @@ export function apiTaskToTask(api: ApiTask): Task {
     sessionId: api.session_id ?? undefined,
     title,
     status: taskStatusToUI(api.status),
-    timeLabel: formatRelativeTime(ts),
     timeAt: ts,
     summary,
     createdAt: api.created_at,
@@ -242,7 +233,6 @@ export function apiConversationToConversation(api: ApiConversation): Conversatio
     channel: api.channel,
     title: api.title?.trim() ?? "",
     createdAt: api.created_at,
-    timeLabel: formatRelativeTime(api.created_at),
   }
 }
 

@@ -89,9 +89,4 @@ describe("taskStatusLabel", () => {
     expect(runStatusLabel("PENDING", zh)).toBe("排队中")
     expect(runStatusLabel("CANCELED", zh)).toBe("已停止")
   })
-
-  it("defaults to English for callers without a translator", () => {
-    expect(runStatusLabel("PENDING")).toBe("Queued")
-    expect(runStatusLabel("CANCELED")).toBe("Stopped")
-  })
 })

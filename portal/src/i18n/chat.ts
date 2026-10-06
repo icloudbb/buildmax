@@ -68,9 +68,9 @@ export const chatMessages = {
 
     "chat.thread.backgroundTask": "后台 Task",
     "chat.thread.you": "你",
-    "chat.thread.assistant": "助手",
+    "chat.thread.assistant": "Agent",
     "chat.thread.youQueued": "你（排队中）",
-    "chat.thread.assistantStreaming": "助手（生成中）",
+    "chat.thread.assistantStreaming": "Agent（生成中）",
     "chat.thread.thinking": "思考中…",
     "chat.thread.tasksError": "后台 Task：{error}",
     "chat.thread.retryTasks": "重新加载 Task",

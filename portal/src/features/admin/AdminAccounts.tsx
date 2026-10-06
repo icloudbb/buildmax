@@ -1,4 +1,5 @@
-import { Button, type Translate } from "@buildmax/gui"
+import { Button, useLocale, type Locale, type Translate } from "@buildmax/gui"
+import { formatTimestamp } from "../../lib/dateFormat"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import type { ApiAdminSession, ApiAdminUser, ApiAdminUserDetail } from "../../lib/api/types"
@@ -67,8 +68,8 @@ function accountState(user: ApiAdminUser, t: Translate<MessageKey>): { label: st
   return { label: t("admin.accounts.active"), disabled: false }
 }
 
-function whenever(t: Translate<MessageKey>, rfc3339?: string): string {
-  return rfc3339 ? new Date(rfc3339).toLocaleString() : t("admin.accounts.never")
+function whenever(t: Translate<MessageKey>, locale: Locale, rfc3339?: string): string {
+  return rfc3339 ? formatTimestamp(rfc3339, locale) : t("admin.accounts.never")
 }
 
 /** A service account has no email; it is shown by name and marked. */
@@ -92,6 +93,7 @@ export function AdminAccounts({
 }) {
   const t = useT()
   const stableT = useStableT()
+  const { locale } = useLocale()
   const [users, setUsers] = useState<ApiAdminUser[]>([])
   const [total, setTotal] = useState(0)
   const [query, setQuery] = useState("")
@@ -382,7 +384,7 @@ export function AdminAccounts({
                     {state.label}
                   </span>
                   <span className="admin-list__meta">
-                    {t("admin.accounts.lastSignedIn", { when: whenever(t, user.last_login_at) })}
+                    {t("admin.accounts.lastSignedIn", { when: whenever(t, locale, user.last_login_at) })}
                   </span>
                 </li>
               )
@@ -456,7 +458,7 @@ export function AdminAccounts({
               <p className="settings-page__section-copy">
                 {t("admin.accounts.detailMeta", {
                   id: selected.id,
-                  when: whenever(t, selected.created_at),
+                  when: whenever(t, locale, selected.created_at),
                   count: selected.session_count,
                 })}
               </p>
@@ -504,9 +506,9 @@ export function AdminAccounts({
                   </span>
                   <span className="admin-list__meta">
                     {t("admin.accounts.sessionMeta", {
-                      created: whenever(t, session.created_at),
-                      active: whenever(t, session.last_rotated_at),
-                      expires: whenever(t, session.expires_at),
+                      created: whenever(t, locale, session.created_at),
+                      active: whenever(t, locale, session.last_rotated_at),
+                      expires: whenever(t, locale, session.expires_at),
                     })}
                   </span>
                   <Button
@@ -549,7 +551,7 @@ export function AdminAccounts({
                   () => issueAdminLoginCode(token!, selected.id),
                   (res) => {
                     setLoginCode(res.code)
-                    return stableT("admin.accounts.codeIssued", { when: whenever(stableT, res.expires_at) })
+                    return stableT("admin.accounts.codeIssued", { when: whenever(stableT, locale, res.expires_at) })
                   },
                 )
               }}

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react"
-import { Button, ButtonLink, type Translate } from "@buildmax/gui"
+import { Button, ButtonLink, useLocale, type Translate } from "@buildmax/gui"
 import type { Workflow, WorkflowRun, WorkflowNodeRun, WorkflowRequest } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStatusLabel } from "../../lib/statusLabels"
 import { useStableT, useT, type MessageKey } from "../../i18n"
+import { formatRelativeTime, formatTimestamp, intlLocale } from "../../lib/dateFormat"
 import {
   apiWorkflowRunToWorkflowRun,
   apiWorkflowNodeRunToWorkflowNodeRun,
@@ -33,6 +34,7 @@ interface WorkflowRunDetailProps {
 
 export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRunDetailProps) {
   const t = useT()
+  const { locale } = useLocale()
   const stableT = useStableT()
   const statusLabel = useStatusLabel()
   const { setEntityLabel } = useApp()
@@ -145,7 +147,11 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
       ? t(`workflows.nodeType.${nodeType}`)
       : statusLabel(nodeType)
   const refreshedLabel = lastRefreshedAt
-    ? new Date(lastRefreshedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    ? new Date(lastRefreshedAt).toLocaleTimeString(intlLocale(locale), {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
     : null
 
   if (loading) {
@@ -175,7 +181,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
         <div>
           <h1 className="page-activity__title">{workflow?.name ?? t("workflows.run.fallbackTitle")}</h1>
           <p className="page-activity__subtitle">
-            {run ? `${statusLabel(run.status)} · ${run.createdLabel}` : t("workflows.run.fallbackTitle")}
+            {run ? `${statusLabel(run.status)} · ${formatRelativeTime(run.createdAt, locale)}` : t("workflows.run.fallbackTitle")}
           </p>
         </div>
         <div className="page-activity__actions">
@@ -233,10 +239,10 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
               {run.workflowRevision ? (
                 <div><strong>{t("workflows.run.version")}</strong> v{run.workflowRevision}</div>
               ) : null}
-              <div><strong>{t("workflows.run.created")}</strong> {run.createdLabel}</div>
-              {run.startedAt ? <div><strong>{t("workflows.run.started")}</strong> {new Date(run.startedAt).toLocaleString()}</div> : null}
-              {run.endedAt ? <div><strong>{t("workflows.run.ended")}</strong> {new Date(run.endedAt).toLocaleString()}</div> : null}
-              {run.deadlineAt ? <div><strong>{t("workflows.run.deadline")}</strong> {new Date(run.deadlineAt).toLocaleString()}</div> : null}
+              <div><strong>{t("workflows.run.created")}</strong> {formatRelativeTime(run.createdAt, locale)}</div>
+              {run.startedAt ? <div><strong>{t("workflows.run.started")}</strong> {formatTimestamp(run.startedAt, locale)}</div> : null}
+              {run.endedAt ? <div><strong>{t("workflows.run.ended")}</strong> {formatTimestamp(run.endedAt, locale)}</div> : null}
+              {run.deadlineAt ? <div><strong>{t("workflows.run.deadline")}</strong> {formatTimestamp(run.deadlineAt, locale)}</div> : null}
               {run.issueId ? <div><strong>{t("workflows.run.issueId")}</strong> {run.issueId}</div> : null}
               <div>
                 <strong>{t("workflows.run.mode")}</strong> {isLive ? t("workflows.run.live") : t("workflows.run.final")}
@@ -345,16 +351,17 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
  *  step with no timeout, which is most of them. */
 function StepAttempt({ step }: { step: WorkflowNodeRun }) {
   const t = useT()
+  const { locale } = useLocale()
   const parts: string[] = []
   if (step.maxAttempts > 1 && step.attempt > 0) {
     parts.push(t("workflows.run.attempt", { attempt: step.attempt, max: step.maxAttempts }))
   }
   if (step.status === "retry_wait" && step.nextAttemptAt) {
-    parts.push(t("workflows.run.nextAttempt", { time: new Date(step.nextAttemptAt).toLocaleTimeString() }))
+    parts.push(t("workflows.run.nextAttempt", { time: new Date(step.nextAttemptAt).toLocaleTimeString(intlLocale(locale)) }))
   }
   if (step.status === "waiting") parts.push(t("workflows.run.waitingForPerson"))
   if (step.status === "running" && step.deadlineAt) {
-    parts.push(t("workflows.run.timesOut", { time: new Date(step.deadlineAt).toLocaleString() }))
+    parts.push(t("workflows.run.timesOut", { time: formatTimestamp(step.deadlineAt, locale) }))
   }
   if (parts.length === 0) return null
   return <div className="page-activity__meta">{parts.join(" · ")}</div>

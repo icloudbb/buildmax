@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Button, QuestionForm } from "@buildmax/gui"
 import type { WorkflowRequest } from "../../lib/types"
 import { useStableT, useT } from "../../i18n"
+import { useTimestamp } from "../../lib/dateFormat"
 import { WorkflowRunInputForm } from "./RunInputForm"
 import { buildInputValue, type InputFormValues } from "./runInput"
 import { answerMode, formatQuestionAnswers, scalarValue } from "./request"
@@ -23,6 +24,7 @@ interface RequestCardProps {
  */
 export function WorkflowRequestCard({ request, onRespond, keys = false }: RequestCardProps) {
   const t = useT()
+  const formatTimestamp = useTimestamp()
   const stableT = useStableT()
   const mode = answerMode(request.responseSchema)
   const [text, setText] = useState("")
@@ -68,7 +70,7 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
     }
   }
 
-  const expires = request.expiresAt ? new Date(request.expiresAt).toLocaleString() : null
+  const expires = request.expiresAt ? formatTimestamp(request.expiresAt) : null
 
   return (
     <section className="workflow-request" aria-label={t("workflows.request.label", { step: request.nodeId })}>

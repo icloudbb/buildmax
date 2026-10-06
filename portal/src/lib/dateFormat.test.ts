@@ -21,3 +21,11 @@ describe("formatRelativeTime", () => {
     expect(formatRelativeTime(older, "zh-CN", now)).toBe(formatTimestamp(older, "zh-CN"))
   })
 })
+
+describe("formatTimestamp", () => {
+  it("shows a dash rather than the epoch when there is no time", () => {
+    expect(formatTimestamp("", "en")).toBe("—")
+    expect(formatTimestamp(null, "zh-CN")).toBe("—")
+    expect(formatTimestamp("not a time", "en")).toBe("—")
+  })
+})

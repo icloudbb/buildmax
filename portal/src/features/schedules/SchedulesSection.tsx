@@ -10,6 +10,7 @@ import { listAssistants } from "../assistants"
 import { CreateScheduleForm } from "./CreateScheduleForm"
 import { describeDelivery } from "./delivery"
 import { useStableT, useT } from "../../i18n"
+import { useRelativeTime, useTimestamp } from "../../lib/dateFormat"
 import {
   deleteSchedule,
   listScheduleDeliveries,
@@ -33,12 +34,6 @@ interface SchedulesSectionProps {
   canManage: boolean
   // Owners and admins may send results to a person through an Assistant.
   canDeliver?: boolean
-}
-
-function formatWhen(iso: string | null | undefined): string {
-  if (!iso) return "—"
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString()
 }
 
 export function SchedulesSection({
@@ -162,7 +157,9 @@ function ScheduleCard({
   onChanged: () => Promise<void>
 }) {
   const t = useT()
-  const isWorkflow = schedule.executor_kind === "workflow"
+  const formatWhen = useTimestamp()
+  const relativeTime = useRelativeTime()
+  const isWorkflow =schedule.executor_kind === "workflow"
   const [busyAction, setBusyAction] = useState<"toggle" | "delete" | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [tasks, setTasks] = useState<ApiTask[] | null>(null)
@@ -325,7 +322,7 @@ function ScheduleCard({
                   <td className="agent-runs__title">{r.id}</td>
                   <td>
                     <span className={`agent-runs__status agent-runs__status--${runStatusTone(r.status)}`}>
-                      {runStatusLabel(r.status)}
+                      {runStatusLabel(r.status, t)}
                     </span>
                   </td>
                   <td className="agent-runs__when">{formatWhen(r.created_at)}</td>
@@ -359,10 +356,10 @@ function ScheduleCard({
                     <td className="agent-runs__title">{ui.title}</td>
                     <td>
                       <span className={`agent-runs__status agent-runs__status--${runStatusTone(task.status)}`}>
-                        {taskStatusLabel(task)}
+                        {taskStatusLabel(task, t)}
                       </span>
                     </td>
-                    <td className="agent-runs__when">{ui.timeLabel}</td>
+                    <td className="agent-runs__when">{relativeTime(ui.timeAt)}</td>
                     {deliveries ? <td>{describeDelivery(deliveries[task.id], t)}</td> : null}
                   </tr>
                 )

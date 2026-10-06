@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MarkdownMessage } from './MarkdownMessage';
 import { ISSUE_STATUSES, commentAuthorLabel, issueChatPrompt, issueStatusLabel } from '../lib/issues';
+import { useLocale } from '@buildmax/gui';
 import { useT } from '../i18n';
+import { intlLocale } from '../lib/format';
 
-function formatWhen(value) {
+function formatWhen(value, locale) {
   if (!value) return '';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString(intlLocale(locale), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function errorText(err) {
@@ -20,6 +22,7 @@ function errorText(err) {
 // local chat from it. Planning the whole Space stays in Portal.
 export function IssuesView({ app, projects, currentProject, onStartChat }) {
   const t = useT();
+  const { locale } = useLocale();
   const [inbox, setInbox] = useState(null);
   const [inboxError, setInboxError] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -172,7 +175,7 @@ export function IssuesView({ app, projects, currentProject, onStartChat }) {
                         onClick={() => select(item)}
                       >
                         <span className="page-issues__row-title">{item.title}</span>
-                        <span className="page-issues__row-meta">{item.space_name} · {formatWhen(item.updated_at)}</span>
+                        <span className="page-issues__row-meta">{item.space_name} · {formatWhen(item.updated_at, locale)}</span>
                       </button>
                     </li>
                   );
@@ -266,7 +269,7 @@ export function IssuesView({ app, projects, currentProject, onStartChat }) {
               <ul className="page-issues__comments">
                 {detail.comments.map((c, i) => (
                   <li key={`${c.created_at}-${i}`} className="page-issues__comment">
-                    <span className="page-issues__row-meta">{commentAuthorLabel(c, t)} · {formatWhen(c.created_at)}</span>
+                    <span className="page-issues__row-meta">{commentAuthorLabel(c, t)} · {formatWhen(c.created_at, locale)}</span>
                     <div className="page-issues__comment-body"><MarkdownMessage content={c.body} /></div>
                   </li>
                 ))}

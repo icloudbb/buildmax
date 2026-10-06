@@ -5,7 +5,7 @@ import { ApiRequestError } from "../../lib/api/client"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { CopyButton } from "../../components/CopyButton"
 import { createShare, listShares, revokeShare } from "./api"
-import { formatTime } from "./display"
+import { useTimestamp } from "../../lib/dateFormat"
 import { useStableT, useT } from "../../i18n"
 
 interface ArtifactShareDialogProps {
@@ -26,6 +26,7 @@ interface ArtifactShareDialogProps {
  */
 export function ArtifactShareDialog({ artifactId, token, open, onClose }: ArtifactShareDialogProps) {
   const t = useT()
+  const formatTime = useTimestamp()
   const stableT = useStableT()
   const [shares, setShares] = useState<ApiArtifactShare[]>([])
   const [freshLink, setFreshLink] = useState<string | null>(null)

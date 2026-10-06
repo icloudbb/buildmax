@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useStableT, useT } from "../../i18n"
 import type { ApiAdminLLMCall, ApiAdminLLMCallCost } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { formatEventTime } from "../audit/describe"
+import { useTimestamp } from "../../lib/dateFormat"
 import { searchAdminLLMCalls } from "./api"
 
 const PAGE_SIZE = 50
@@ -48,6 +48,7 @@ function formatTokens(call: ApiAdminLLMCall): string | null {
  */
 export function AdminLLMCalls({ token }: { token: string | null }) {
   const t = useT()
+  const formatEventTime = useTimestamp()
   const stableT = useStableT()
   const [calls, setCalls] = useState<ApiAdminLLMCall[]>([])
   const [total, setTotal] = useState(0)

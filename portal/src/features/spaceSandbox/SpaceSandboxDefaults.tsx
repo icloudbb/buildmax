@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT } from "../../i18n"
-import {
-  SPACE_SANDBOX_FILESYSTEM_TIER_OPTIONS,
-  SPACE_SANDBOX_NETWORK_TIER_OPTIONS,
-} from "../../lib/sandboxTiers"
+import { spaceSandboxFilesystemTierOptions, spaceSandboxNetworkTierOptions } from "../../lib/sandboxTiers"
 import { getSandboxDefaults, setSandboxDefaults } from "./api"
 
 /**
@@ -24,6 +21,8 @@ export function SpaceSandboxDefaults({
 }) {
   const t = useT()
   const stableT = useStableT()
+  const networkTierOptions = spaceSandboxNetworkTierOptions(t)
+  const filesystemTierOptions = spaceSandboxFilesystemTierOptions(t)
   const [networkTier, setNetworkTier] = useState("")
   const [filesystemTier, setFilesystemTier] = useState("")
   const [loading, setLoading] = useState(true)
@@ -100,14 +99,14 @@ export function SpaceSandboxDefaults({
               disabled={!canManage || saving}
               onChange={(e) => save({ networkTier: e.target.value, filesystemTier })}
             >
-              {SPACE_SANDBOX_NETWORK_TIER_OPTIONS.map((option) => (
+              {networkTierOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
             </select>
             <p className="modal__hint">
-              {SPACE_SANDBOX_NETWORK_TIER_OPTIONS.find((o) => o.value === networkTier)?.description}
+              {networkTierOptions.find((o) => o.value === networkTier)?.description}
             </p>
           </div>
           <div>
@@ -121,17 +120,14 @@ export function SpaceSandboxDefaults({
               disabled={!canManage || saving}
               onChange={(e) => save({ networkTier, filesystemTier: e.target.value })}
             >
-              {SPACE_SANDBOX_FILESYSTEM_TIER_OPTIONS.map((option) => (
+              {filesystemTierOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
             </select>
             <p className="modal__hint">
-              {
-                SPACE_SANDBOX_FILESYSTEM_TIER_OPTIONS.find((o) => o.value === filesystemTier)
-                  ?.description
-              }
+              {filesystemTierOptions.find((o) => o.value === filesystemTier)?.description}
             </p>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { navigate } from "../router"
 import { useApp } from "../contexts/AppContext"
 import { useSpace } from "../contexts/SpaceContext"
 import { useT } from "../i18n"
+import { useRelativeTime } from "../lib/dateFormat"
 
 export interface Crumb {
   label: string
@@ -21,6 +22,7 @@ interface BreadcrumbsProps {
  */
 export function useBreadcrumbs(route: Route, conversations: Conversation[] = []): Crumb[] {
   const t = useT()
+  const relativeTime = useRelativeTime()
   const { entityLabels, breadcrumbTrails } = useApp()
   // Artifact detail carries no Space id of its own (the one ID-resolved
   // exception) -- by the time its label is published here, ArtifactDetail has
@@ -175,7 +177,7 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
   }
   if (route.name === "chat" && route.conversationId) {
     const conv = conversations.find((c) => c.id === route.conversationId)
-    const convLabel = conv?.title?.trim() || conv?.timeLabel || t("shell.crumbs.conversation")
+    const convLabel = conv?.title?.trim() || (conv ? relativeTime(conv.createdAt) : t("shell.crumbs.conversation"))
     return [
       { label: t("shell.nav.chat"), route: { name: "chat", spaceId: route.spaceId } },
       { label: convLabel, route },

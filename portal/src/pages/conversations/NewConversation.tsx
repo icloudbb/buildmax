@@ -11,6 +11,7 @@ import { EmptyState } from "../../components/state/EmptyState"
 import type { ResourceState } from "../../state/resourceState"
 import type { Conversation } from "../../lib/types"
 import { useStableT, useT } from "../../i18n"
+import { useRelativeTime } from "../../lib/dateFormat"
 
 type NewConversationTab = "conversations" | "files"
 
@@ -30,6 +31,7 @@ export function NewConversation({
   conversationsState,
 }: NewConversationProps) {
   const t = useT()
+  const relativeTime = useRelativeTime()
   const stableT = useStableT()
   const { setPendingConversation } = useApp()
   const [prompt, setPrompt] = useState("")
@@ -182,7 +184,7 @@ export function NewConversation({
                               {conv.title?.trim() || t("chat.new.untitled")}
                             </span>
                             <span className="page-activity__meta">
-                              {conv.timeLabel}
+                              {relativeTime(conv.createdAt)}
                               {source && <span className="page-activity__source">{source}</span>}
                             </span>
                           </span>

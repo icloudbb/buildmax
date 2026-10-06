@@ -17,6 +17,7 @@ import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
 import { useStatusLabel } from "../../lib/statusLabels"
 import { useStableT, useT } from "../../i18n"
+import { useTimestamp } from "../../lib/dateFormat"
 
 interface TaskDetailProps {
   token: string | null
@@ -35,12 +36,6 @@ function fmtDuration(start?: string | null, end?: string | null): string {
   return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
 }
 
-function fmtWhen(ts?: string | null): string {
-  if (!ts) return "—"
-  const d = new Date(ts)
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString()
-}
-
 /** A working indicator shown while a run is still in flight, in place of the
  *  raw pending/scheduled/running status the user does not need to see. */
 function TypingDots() {
@@ -56,6 +51,7 @@ function TypingDots() {
 
 export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   const t = useT()
+  const fmtWhen = useTimestamp()
   const stableT = useStableT()
   const statusLabel = useStatusLabel()
   const { user } = useAuth()

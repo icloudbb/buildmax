@@ -8,6 +8,7 @@ export const helpMessages = {
     "help.back": "Back to the start of the manual",
     "help.title": "Help",
     "help.language": "Language",
+    "help.contents": "Help contents",
   },
   "zh-CN": {
     "help.manifestError": "无法加载帮助手册。",
@@ -16,5 +17,6 @@ export const helpMessages = {
     "help.back": "返回手册首页",
     "help.title": "帮助",
     "help.language": "语言",
+    "help.contents": "帮助目录",
   },
 } satisfies Messages<string>

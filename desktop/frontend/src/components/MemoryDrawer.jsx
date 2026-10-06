@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useLocale } from '@buildmax/gui';
 import { useT } from '../i18n';
+import { intlLocale } from '../lib/format';
 
-function formatWritten(entry, t) {
+function formatWritten(entry, t, locale) {
   if (!entry.updated_at) return '';
   const at = Date.parse(entry.updated_at);
   if (Number.isNaN(at)) return '';
-  const written = new Date(at).toLocaleString();
+  const written = new Date(at).toLocaleString(intlLocale(locale));
   return entry.verified_at ? t('memory.verified', { written, verified: entry.verified_at }) : written;
 }
 
@@ -18,6 +20,7 @@ function formatWritten(entry, t) {
 // digest-checked write can take, which is its own piece of work.
 export function MemoryView({ projectID, app }) {
   const t = useT();
+  const { locale } = useLocale();
   const [payload, setPayload] = useState(null);
   const [error, setError] = useState(null);
   const [selectedName, setSelectedName] = useState('');
@@ -89,8 +92,8 @@ export function MemoryView({ projectID, app }) {
                 <div className="diff-drawer__viewer-header">
                   <span className="diff-drawer__viewer-path">{selected.name}</span>
                   <span className="diff-drawer__viewer-kind">{selected.type}</span>
-                  {formatWritten(selected, t) && (
-                    <span className="diff-drawer__viewer-kind">{formatWritten(selected, t)}</span>
+                  {formatWritten(selected, t, locale) && (
+                    <span className="diff-drawer__viewer-kind">{formatWritten(selected, t, locale)}</span>
                   )}
                 </div>
                 <pre

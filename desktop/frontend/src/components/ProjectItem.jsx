@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocale } from '@buildmax/gui';
 import { formatSessionMeta } from '../lib/format';
 import { Chevron, MoreIcon, PinIcon, PlusIcon } from './icons';
 import { AttentionDot } from './TabBar';
@@ -8,6 +9,7 @@ export const SESSION_PAGE_SIZE = 10;
 
 export function ProjectItem({ project, sessions, isActive, selectedSessionId, onSelectSession, onNewChat, onRename, onDelete, onClearSessions, onRenameSession, onDeleteSession, onPinSession, waitingSessions, waiting = false }) {
   const t = useT();
+  const { locale } = useLocale();
   const [expanded, setExpanded] = useState(isActive);
   const [showMenu, setShowMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -187,7 +189,7 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
                   {s.pinned && <span className="sidebar__row-pin" aria-label={t('home.session.pinned')}><PinIcon /></span>}
                   <span className="sidebar__row-label">{s.title?.trim() || t('chat.untitled')}</span>
                   {waitingSessions?.has(s.id) && <AttentionDot />}
-                  <span className="sidebar__row-meta">{formatSessionMeta(s.created_at, t)}</span>
+                  <span className="sidebar__row-meta">{formatSessionMeta(s.created_at, t, locale)}</span>
                 </button>
               )}
               <div

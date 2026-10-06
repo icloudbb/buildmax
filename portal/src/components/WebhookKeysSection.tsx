@@ -2,6 +2,7 @@ import { Button } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
 import { useStableT, useT } from "../i18n"
+import { useTimestamp } from "../lib/dateFormat"
 import { CopyButton } from "./CopyButton"
 import {
   listWebhookKeys,
@@ -23,6 +24,7 @@ interface WebhookKeysSectionProps {
 
 export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
   const t = useT()
+  const formatTimestamp = useTimestamp()
   const stableT = useStableT()
   const [keys, setKeys] = useState<WebhookKeyMeta[]>([])
   const [loading, setLoading] = useState(true)
@@ -142,7 +144,7 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
             <li key={k.id} className="settings-webhook__key-item">
               <span className="settings-webhook__key-name">{k.name || k.id}</span>
               <span className="settings-webhook__key-meta">
-                {new Date(k.created_at).toLocaleString()}
+                {formatTimestamp(k.created_at)}
               </span>
               <Button
                 variant="danger"

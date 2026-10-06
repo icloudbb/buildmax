@@ -7,7 +7,14 @@ import { translate } from '../i18n';
 
 const english = (key, vars) => translate('en', key, vars);
 
-export function formatSessionMeta(createdAt, t = english) {
+// The Intl locale for an interface language. English keeps the system's
+// regional date format, as the app always has; Chinese uses the Chinese one so
+// the words and numbers agree.
+export function intlLocale(locale) {
+  return !locale || locale === 'en' ? undefined : locale;
+}
+
+export function formatSessionMeta(createdAt, t = english, locale = 'en') {
   if (!createdAt) return '';
   try {
     const d = new Date(createdAt);
@@ -20,7 +27,7 @@ export function formatSessionMeta(createdAt, t = english) {
     if (diffMins < 60) return t('home.age.minutes', { n: diffMins });
     if (diffHours < 24) return t('home.age.hours', { n: diffHours });
     if (diffDays < 7) return t('home.age.days', { n: diffDays });
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString(intlLocale(locale), { month: 'short', day: 'numeric' });
   } catch {
     return '';
   }
@@ -90,15 +97,6 @@ export function statusGlyph(status) {
     case 'deleted': return '-';
     case 'renamed': return '↔';
     default: return '●';
-  }
-}
-
-export function statusTitle(status) {
-  switch (status) {
-    case 'added': return 'Added';
-    case 'deleted': return 'Deleted';
-    case 'renamed': return 'Renamed';
-    default: return 'Modified';
   }
 }
 

@@ -1,8 +1,10 @@
+import { useLocale } from '@buildmax/gui';
 import { folderBaseName, formatSessionMeta } from '../lib/format';
 import { useT } from '../i18n';
 
 export function HomeDashboard({ recentSessions, recentProjects, projectById, onSelectSession, onOpenProject, onCreateProject }) {
   const t = useT();
+  const { locale } = useLocale();
   return (
     <div className="page-home">
       <div className="page-home__header">
@@ -35,7 +37,7 @@ export function HomeDashboard({ recentSessions, recentProjects, projectById, onS
                   >
                     <span className="page-home__item-title">{s.pinned ? '★ ' : ''}{s.title?.trim() || t('chat.untitled')}</span>
                     <span className="page-home__item-meta">
-                      {project?.name || folderBaseName(s.workspace) || t('home.unknownProject')} · {formatSessionMeta(s.created_at, t)}
+                      {project?.name || folderBaseName(s.workspace) || t('home.unknownProject')} · {formatSessionMeta(s.created_at, t, locale)}
                     </span>
                   </button>
                 );

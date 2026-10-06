@@ -18,12 +18,12 @@ import {
   confirmArtifactDeletion,
   deleteArtifact,
   formatSize,
-  formatTime,
   getArtifact,
   mayDelete,
   sourceLabel,
 } from "../../features/artifacts"
 import { useStableT, useT } from "../../i18n"
+import { useTimestamp } from "../../lib/dateFormat"
 
 interface ArtifactDetailProps {
   artifactId: string
@@ -39,6 +39,7 @@ interface ArtifactDetailProps {
  */
 export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
   const t = useT()
+  const formatTime = useTimestamp()
   const stableT = useStableT()
   const { token, user } = useAuth()
   const { setEntityLabel } = useApp()

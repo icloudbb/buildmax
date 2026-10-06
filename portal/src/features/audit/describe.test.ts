@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ApiAuditEvent } from "../../lib/api/types"
 import { translate, type MessageKey } from "../../i18n"
-import { actorLabel, describeEvent, formatEventTime } from "./describe"
+import { actorLabel, describeEvent } from "./describe"
 
 const t = (key: MessageKey, vars?: Record<string, string | number>) => translate("en", key, vars)
 
@@ -169,11 +169,5 @@ describe("actorLabel", () => {
   it("names the reader as themselves", () => {
     expect(actorLabel(event({ actor_id: "u_1" }), t, "u_1")).toBe("You")
     expect(actorLabel(event({ actor_id: "u_2" }), t, "u_1")).toBe("u_2")
-  })
-})
-
-describe("formatEventTime", () => {
-  it("shows a dash rather than the epoch when there is no time", () => {
-    expect(formatEventTime("")).toBe("—")
   })
 })

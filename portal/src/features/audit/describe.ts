@@ -314,8 +314,3 @@ export function actorLabel(event: ApiAuditEvent, t: Translate<MessageKey>, curre
   if (currentUserId && event.actor_id === currentUserId) return t("audit.actor.you")
   return event.actor_id
 }
-
-export function formatEventTime(rfc3339: string): string {
-  if (!rfc3339) return "—"
-  return new Date(rfc3339).toLocaleString()
-}

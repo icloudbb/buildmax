@@ -1,5 +1,5 @@
 import type { FormModalSelectOption, Translate } from "@buildmax/gui"
-import { translate, type MessageKey } from "../i18n"
+import type { MessageKey } from "../i18n"
 
 // Mirrors config.SandboxNetworkTier / config.SandboxFilesystemTier in the Go
 // backend. See docs/design/agent-sandbox-policy.md.
@@ -67,9 +67,3 @@ export function spaceSandboxFilesystemTierOptions(t: T): FormModalSelectOption[]
     ...filesystemTiers(t),
   ]
 }
-
-// English snapshots for the Space sandbox defaults until that page passes its
-// own `t` to the functions above; delete them once it does.
-const english: T = (key, vars) => translate("en", key, vars)
-export const SPACE_SANDBOX_NETWORK_TIER_OPTIONS = spaceSandboxNetworkTierOptions(english)
-export const SPACE_SANDBOX_FILESYSTEM_TIER_OPTIONS = spaceSandboxFilesystemTierOptions(english)

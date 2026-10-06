@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { formatSessionMeta } from '../lib/format';
+import { useLocale } from '@buildmax/gui';
+import { formatSessionMeta, intlLocale } from '../lib/format';
 import { ChangeRow, ExplorerGroup } from './ExplorerRows';
 import { CommitIcon, MergeIcon } from './icons';
 import { useStableT, useT } from '../i18n';
@@ -102,9 +103,10 @@ export function ExplorerCommits({ projectID, sessionID, app, onOpenCommitDiff })
 
 function CommitRow({ commit, open, detail, onToggle, onOpenFile }) {
   const t = useT();
+  const { locale } = useLocale();
   const merge = commit.parents?.length > 1;
   const Icon = merge ? MergeIcon : CommitIcon;
-  const when = commit.authored_at ? new Date(commit.authored_at).toLocaleString() : '';
+  const when = commit.authored_at ? new Date(commit.authored_at).toLocaleString(intlLocale(locale)) : '';
   return (
     <>
       <button
@@ -116,7 +118,7 @@ function CommitRow({ commit, open, detail, onToggle, onOpenFile }) {
       >
         <Icon />
         <span className="explorer__commit-subject">{commit.subject}</span>
-        <span className="explorer__commit-meta">{formatSessionMeta(commit.authored_at, t)}</span>
+        <span className="explorer__commit-meta">{formatSessionMeta(commit.authored_at, t, locale)}</span>
       </button>
       {open && (
         <div className="explorer__commit-files" aria-label={t('explorer.filesIn', { sha: commit.sha.slice(0, 8) })}>

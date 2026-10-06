@@ -22,6 +22,7 @@ import { EmptyState } from "../../components/state/EmptyState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 import { isAllowed } from "../../state/permissionState"
 import { useStableT, useT } from "../../i18n"
+import { useRelativeTime } from "../../lib/dateFormat"
 
 interface AgentListProps {
   token: string | null
@@ -35,6 +36,7 @@ const EMPTY_AGENTS: Agent[] = []
 export function AgentList({ token, spaceId }: AgentListProps) {
   const { currentUserRole } = useSpace()
   const t = useT()
+  const relativeTime = useRelativeTime()
   const stableT = useStableT()
   // null means "not yet successfully fetched", distinct from [] meaning the
   // space genuinely has no agents. See deriveResourceState.
@@ -172,7 +174,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
     return {
       count: ts.length,
       running: ts.some((task) => !taskRunFinished(task.status)),
-      last: ts[0] ? apiTaskToTask(ts[0]).timeLabel : null,
+      last: ts[0] ? relativeTime(apiTaskToTask(ts[0]).timeAt) : null,
     }
   }
 
@@ -378,9 +380,9 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                         <span className="agent-activity__row-sub">{agent.name}</span>
                       </div>
                       <span className={`agent-activity__status agent-activity__status--${runStatusTone(task.status)}`}>
-                        {taskStatusLabel(task)}
+                        {taskStatusLabel(task, t)}
                       </span>
-                      <span className="agent-activity__time">{ui.timeLabel}</span>
+                      <span className="agent-activity__time">{relativeTime(ui.timeAt)}</span>
                     </button>
                   )
                 })}

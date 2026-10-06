@@ -15,13 +15,13 @@ import {
   confirmArtifactDeletion,
   deleteArtifact,
   formatSize,
-  formatTime,
   listArtifacts,
   mayDelete,
   sourceLabel,
   uploadArtifact,
 } from "../../features/artifacts"
 import { useStableT, useT } from "../../i18n"
+import { useTimestamp } from "../../lib/dateFormat"
 
 const PAGE_SIZE = 50
 
@@ -38,6 +38,7 @@ interface ArtifactsProps {
 
 export function Artifacts({ spaceId }: ArtifactsProps) {
   const t = useT()
+  const formatTime = useTimestamp()
   const stableT = useStableT()
   const { token, user } = useAuth()
   const { currentUserRole } = useSpace()

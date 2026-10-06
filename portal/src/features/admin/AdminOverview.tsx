@@ -1,4 +1,5 @@
 import { useLocale, type Translate } from "@buildmax/gui"
+import { formatTimestamp } from "../../lib/dateFormat"
 import { useEffect, useState } from "react"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import type {
@@ -240,7 +241,7 @@ export function AdminOverview({ token }: { token: string | null }) {
             <Fact label={t("admin.overview.grantedBy")} value={grantedBy} />
             <Fact
               label={t("admin.overview.granted")}
-              value={new Date(myGrant.granted_at).toLocaleString()}
+              value={formatTimestamp(myGrant.granted_at, locale)}
             />
           </div>
         </section>
@@ -522,7 +523,7 @@ export function AdminOverview({ token }: { token: string | null }) {
               <li key={migration.id} className="admin-list__row">
                 <span className="admin-list__main">{migration.id}</span>
                 <time className="admin-list__meta">
-                  {new Date(migration.applied_at).toLocaleString()}
+                  {formatTimestamp(migration.applied_at, locale)}
                 </time>
               </li>
             ))}

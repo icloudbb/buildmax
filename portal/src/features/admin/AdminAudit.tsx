@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react"
 import { useStableT, useT } from "../../i18n"
 import type { ApiAuditEvent } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { actorLabel, describeEvent, formatEventTime } from "../audit/describe"
+import { actorLabel, describeEvent } from "../audit/describe"
+import { useTimestamp } from "../../lib/dateFormat"
 import { exportAdminAuditEvents, searchAdminAuditEvents } from "./api"
 
 const PAGE_SIZE = 50
@@ -25,6 +26,7 @@ interface AuditFilters {
  */
 export function AdminAudit({ token, currentUserId }: { token: string | null; currentUserId?: string }) {
   const t = useT()
+  const formatEventTime = useTimestamp()
   const stableT = useStableT()
   const [events, setEvents] = useState<ApiAuditEvent[]>([])
   const [total, setTotal] = useState(0)

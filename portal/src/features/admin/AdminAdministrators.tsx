@@ -3,11 +3,8 @@ import { useCallback, useEffect, useState } from "react"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import type { ApiSystemGrant } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { useTimestamp } from "../../lib/dateFormat"
 import { createAdminGrant, listAdminGrants, listAdminUsers, revokeAdminGrant } from "./api"
-
-function whenever(rfc3339?: string): string {
-  return rfc3339 ? new Date(rfc3339).toLocaleString() : "—"
-}
 
 // The grant's granting actor is a user id, or the operator sentinel when the
 // command line made it. Naming the shell keeps a bootstrap grant from reading as
@@ -27,6 +24,7 @@ function grantedByLabel(grantedBy: string, t: Translate<MessageKey>): string {
  */
 export function AdminAdministrators({ token }: { token: string | null }) {
   const t = useT()
+  const whenever = useTimestamp()
   const stableT = useStableT()
   const [grants, setGrants] = useState<ApiSystemGrant[]>([])
   const [includeRevoked, setIncludeRevoked] = useState(false)

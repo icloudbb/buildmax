@@ -196,7 +196,10 @@ Desktop 改用 gui 的 `Button`、`BaseModal`、`Drawer` 与图标，并删除�
   译为“定时任务”，Plugin 译为“插件”，Marketplace 译为“插件市场”，Secret 译为
   “密钥”，Files 译为“文件”，Assistant 译为“助手”，Remote Control 译为“远程控制”，
   Skill 译为“技能”，Audit 译为“审计”，Service account 译为“服务账号”，
-  Administration 译为“系统管理”。
+  Administration 译为“系统管理”。对话记录里 AI 一方的发言人在两种语言中都标为
+  Agent，因为“助手”只用来指 Space Assistant 功能。
+- **日期与时间。** 日期与时间跟随界面语言。英文沿用系统的地区格式；中文使用中文格式，
+  让文字与数字保持一致。
 
 英文为权威语言。中文缺失的键回退到英文，并有检查报告缺失的键。在 effect 或异步回调中
 组合的文本（例如加载失败时的兜底错误）使用 `useStableT`，它的引用在切换语言后保持

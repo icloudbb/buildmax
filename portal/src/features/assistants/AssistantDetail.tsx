@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, useLocale } from "@buildmax/gui"
 import type { ApiAssistant, ApiAssistantDefinition, ApiAssistantStatement, ApiSpaceMember } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { intlLocale } from "../../lib/dateFormat"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import { buildHash, navigate } from "../../router"
 import { useApp } from "../../contexts/AppContext"
@@ -46,6 +47,7 @@ export function AssistantDetail({
 }) {
   const t = useT()
   const stableT = useStableT()
+  const { locale } = useLocale()
   const { setEntityLabel } = useApp()
   const [assistant, setAssistant] = useState<ApiAssistant | null>(null)
   const [loadError, setLoadError] = useState<RequestError | null>(null)
@@ -275,7 +277,7 @@ export function AssistantDetail({
               {t("assistants.detail.bound", {
                 handle: a.binding.bot_handle,
                 platform: platformName(a.binding.platform),
-                date: new Date(a.binding.created_at).toLocaleDateString(),
+                date: new Date(a.binding.created_at).toLocaleDateString(intlLocale(locale)),
               })}
             </p>
             {canManage ? (

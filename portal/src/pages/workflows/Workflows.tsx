@@ -5,6 +5,7 @@ import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStatusLabel } from "../../lib/statusLabels"
 import { useStableT, useT } from "../../i18n"
+import { useRelativeTime } from "../../lib/dateFormat"
 import {
   apiAgentToAgent,
   apiWorkflowRequestToWorkflowRequest,
@@ -30,6 +31,7 @@ interface WorkflowsProps {
 
 export function Workflows({ token, spaceId }: WorkflowsProps) {
   const t = useT()
+  const relativeTime = useRelativeTime()
   const stableT = useStableT()
   const statusLabel = useStatusLabel()
   const { currentUserRole } = useSpace()
@@ -201,7 +203,7 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
                   </span>
                   <span className="issues-page__row-side">
                     <span className="issues-page__status">{statusLabel(workflow.status)}</span>
-                    <span className="page-activity__meta">{workflow.updatedLabel}</span>
+                    <span className="page-activity__meta">{relativeTime(workflow.updatedAt)}</span>
                   </span>
                 </button>
               </li>

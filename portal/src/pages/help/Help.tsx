@@ -202,7 +202,7 @@ export function Help({ slug }: { slug?: string }) {
   if (manifestError) {
     return (
       <div className="help">
-        <nav className="help__nav" aria-label="Help contents">
+        <nav className="help__nav" aria-label={t("help.contents")}>
           <div className="help__nav-head">
             <p className="help__nav-title">{t("help.title")}</p>
             {langToggle}
@@ -219,7 +219,7 @@ export function Help({ slug }: { slug?: string }) {
 
   return (
     <div className="help">
-      <nav className="help__nav" aria-label="Help contents">
+      <nav className="help__nav" aria-label={t("help.contents")}>
         <div className="help__nav-head">
           <p className="help__nav-title">{manifest?.title ?? t("help.title")}</p>
           {langToggle}

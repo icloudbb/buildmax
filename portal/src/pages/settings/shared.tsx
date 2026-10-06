@@ -36,6 +36,7 @@ import IssueIcon from "../../icons/issue.svg?react"
 import ShieldIcon from "../../icons/shield.svg?react"
 import { Button, BaseModal, type Translate } from "@buildmax/gui"
 import { useStableT, useT, type MessageKey } from "../../i18n"
+import { useTimestamp } from "../../lib/dateFormat"
 
 export type AccountSection = "general" | "usage" | "webhook" | "chat" | "invitations"
 export type SpaceSection =
@@ -551,6 +552,7 @@ export function SpaceMembersSection({
   onIssueLoginCode: (memberUserId: string) => Promise<void>
 }) {
   const t = useT()
+  const formatTimestamp = useTimestamp()
   const canInvite = currentUserIsOwner || currentUserRole === "admin"
 
   return (
@@ -710,7 +712,7 @@ export function SpaceMembersSection({
                     <span className="space-settings-page__member-meta">
                       {t("settings.members.invitedAsExpires", {
                         role: roleLabel(invitation.role, t),
-                        expires: new Date(invitation.expires_at).toLocaleString(),
+                        expires: formatTimestamp(invitation.expires_at),
                       })}
                     </span>
                   </div>
@@ -854,6 +856,7 @@ export function AccountInvitationsSection({
   onAccept: (invitationId: string) => Promise<void>
 }) {
   const t = useT()
+  const formatTimestamp = useTimestamp()
   return (
     <section className="settings-page__section">
       <div className="settings-page__section-head">
@@ -892,7 +895,7 @@ export function AccountInvitationsSection({
                   {t("account.invitations.invitedAs", { role: roleLabel(invitation.role, t) })}
                 </span>
                 <span className="space-settings-page__member-meta">
-                  {t("account.invitations.expires", { date: new Date(invitation.expires_at).toLocaleString() })}
+                  {t("account.invitations.expires", { date: formatTimestamp(invitation.expires_at) })}
                 </span>
               </div>
               <div className="space-settings-page__member-actions">

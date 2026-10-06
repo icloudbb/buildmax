@@ -3,12 +3,14 @@ import { Alert } from "./state/Alert"
 import { EmptyState } from "./state/EmptyState"
 import type { ResourceState } from "../state/resourceState"
 import { useT } from "../i18n"
+import { useRelativeTime } from "../lib/dateFormat"
 
 interface RevisionEntry {
   id: string
   revision: number
   createdBy: string
-  createdLabel: string
+  /** RFC 3339; formatted in the interface language. */
+  createdAt: string
   summary?: string | null
 }
 
@@ -43,6 +45,7 @@ export function RevisionHistory({
   onRestore,
 }: RevisionHistoryProps) {
   const t = useT()
+  const relativeTime = useRelativeTime()
   return (
     <section className="revision-history">
       {title || currentRevision > 0 ? (
@@ -74,7 +77,7 @@ export function RevisionHistory({
               <div className="revision-history__item-head">
                 <strong>v{entry.revision}</strong>
                 <span className="page-activity__meta">
-                  {entry.createdBy} · {entry.createdLabel}
+                  {entry.createdBy} · {relativeTime(entry.createdAt)}
                 </span>
                 {canRestore && entry.revision !== currentRevision ? (
                   <Button

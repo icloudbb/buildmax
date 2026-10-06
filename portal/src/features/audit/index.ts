@@ -1,3 +1,3 @@
 export { getAuditEvents } from "./api"
-export { actorLabel, describeEvent, formatEventTime } from "./describe"
+export { actorLabel, describeEvent } from "./describe"
 export { SpaceAuditSection } from "./SpaceAuditSection"

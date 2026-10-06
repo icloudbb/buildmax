@@ -1,7 +1,8 @@
-import { Button } from "@buildmax/gui"
+import { Button, useLocale } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
 import { useStableT, useT } from "../i18n"
+import { formatTimestamp, intlLocale } from "../lib/dateFormat"
 import { navigate } from "../router"
 import {
   createChannelLink,
@@ -33,6 +34,7 @@ function platformName(platform: string, platforms: ListChannelLinksResponse["pla
  */
 export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
   const t = useT()
+  const { locale } = useLocale()
   const stableT = useStableT()
   const [data, setData] = useState<ListChannelLinksResponse | null>(null)
   // Judged when the list arrives, not on every render, so a render stays pure.
@@ -217,7 +219,7 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
         <p className="settings-section__muted" role="status">
           {activity.state === "lapsed"
             ? t("account.chat.lapsed")
-            : t("account.chat.activeUntil", { until: activity.until.toLocaleString() })}
+            : t("account.chat.activeUntil", { until: activity.until.toLocaleString(intlLocale(locale)) })}
         </p>
       ) : null}
 
@@ -228,7 +230,7 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
               <span className="settings-webhook__key-name">
                 {platformName(l.platform, platforms)} · {l.handle || l.id}
               </span>
-              <span className="settings-webhook__key-meta">{new Date(l.created_at).toLocaleString()}</span>
+              <span className="settings-webhook__key-meta">{formatTimestamp(l.created_at, locale)}</span>
               <Button
                 variant="danger"
                 size="compact"

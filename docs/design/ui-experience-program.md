@@ -228,7 +228,12 @@ Both surfaces ship English and Simplified Chinese.
   Session as 会话, Run as 运行, Schedule as 定时任务, Plugin as 插件,
   Marketplace as 插件市场, Secret as 密钥, Files as 文件, Assistant as 助手,
   Remote Control as 远程控制, Skill as 技能, Audit as 审计, Service account as
-  服务账号, and Administration as 系统管理.
+  服务账号, and Administration as 系统管理. The AI speaker in a chat transcript
+  is labelled Agent in both languages, because 助手 names only the Space
+  Assistant feature.
+- **Dates and times.** Dates and times follow the interface language. English
+  keeps the system's regional format; Chinese uses the Chinese format, so the
+  words and numbers agree.
 
 English stays authoritative. A missing Chinese key falls back to English, and a
 check reports missing keys. Text composed inside an effect or an async callback,

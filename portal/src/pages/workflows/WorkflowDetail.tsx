@@ -38,6 +38,7 @@ import { classifyError, deriveResourceState, type RequestError } from "../../sta
 import { useApp } from "../../contexts/AppContext"
 import { useStatusLabel } from "../../lib/statusLabels"
 import { useStableT, useT } from "../../i18n"
+import { useRelativeTime } from "../../lib/dateFormat"
 
 interface WorkflowDetailProps {
   token: string | null
@@ -49,6 +50,7 @@ type Tab = "overview" | "definition" | "runs" | "schedules" | "revisions"
 
 export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailProps) {
   const t = useT()
+  const relativeTime = useRelativeTime()
   const stableT = useStableT()
   const statusLabel = useStatusLabel()
   const { currentUserRole, currentSpaceMembers } = useSpace()
@@ -183,7 +185,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         id: rev.id,
         revision: rev.revision,
         createdBy: memberName(rev.createdBy),
-        createdLabel: rev.createdLabel,
+        createdAt: rev.createdAt,
         summary: `${rev.name} · ${statusLabel(rev.status)}`,
       })) ?? null,
     [revisionsData, memberName, statusLabel]
@@ -488,7 +490,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
                           <strong>{statusLabel(run.status)}</strong>
                           <span className="page-activity__meta workflow-detail-page__run-id">{run.id}</span>
                         </span>
-                        <span className="page-activity__meta">{run.createdLabel}</span>
+                        <span className="page-activity__meta">{relativeTime(run.createdAt)}</span>
                       </button>
                     </li>
                   ))}
