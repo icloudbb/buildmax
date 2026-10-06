@@ -4,8 +4,7 @@
 > **Audience:** Portal and `@buildmax/gui` contributors, the maintainer · **Status:** pending triage
 
 This is the Portal half of the phase 0 audit in the
-[UI experience program](../../design/ui-experience-program.md)
-([backlog 10](../../backlog/10-ui-journey-audit.md)). The Desktop half is
+[UI experience program](../../design/ui-experience-program.md). The Desktop half is
 [2026-10-06-desktop-ui-journey-audit.md](2026-10-06-desktop-ui-journey-audit.md).
 
 **The operator was an Agent with repository knowledge, not a new person.** It

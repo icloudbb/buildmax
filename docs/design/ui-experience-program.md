@@ -251,7 +251,7 @@ English labels.
 
 | Phase | Outcome | Ready work |
 |---|---|---|
-| 0. Audit | A graded findings report for the Portal and Desktop core journeys, with a visual-language recommendation | [backlog 10](../backlog/10-ui-journey-audit.md) |
+| 0. Audit | A graded findings report for the Portal and Desktop core journeys, with a visual-language recommendation | [Portal](../contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) and [Desktop](../contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) reports |
 | 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails; shared primitives; i18n infrastructure; Desktop on gui primitives | backlog [14](../backlog/14-ui-visual-and-a11y-guardrails.md), [16](../backlog/16-gui-shared-primitives.md), [20](../backlog/20-desktop-gui-convergence.md) |
 | 2. Visual-language decision | The maintainer accepts "refine" or "new language" from the phase 0 report; this record and the page-system record are updated | Decision, not a task |
 | 3. Portal rework | Blocker and Major findings resolved, in journey order | Tasks drafted from the phase 0 report |

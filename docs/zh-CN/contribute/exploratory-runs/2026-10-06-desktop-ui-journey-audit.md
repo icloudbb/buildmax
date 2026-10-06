@@ -3,7 +3,7 @@
 > **翻译说明：** 本文是[英文原文](../../../contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md)的简体中文派生翻译。若中英文存在语义冲突，以英文原文为准。
 > **受众：** Desktop 与 `@buildmax/gui` 贡献者、维护者 · **状态：** 待分诊
 
-本文是 [UI 体验专项](../../design/UI体验专项.md)阶段 0 审查的 Desktop 部分（[backlog 10](../../../backlog/10-ui-journey-audit.md)）。Portal 部分见 [2026-10-06-portal-ui-journey-audit.md](2026-10-06-portal-ui-journey-audit.md)。
+本文是 [UI 体验专项](../../design/UI体验专项.md)阶段 0 审查的 Desktop 部分。Portal 部分见 [2026-10-06-portal-ui-journey-audit.md](2026-10-06-portal-ui-journey-audit.md)。
 
 **操作者是一个了解仓库的 Agent，而不是新用户。** 它知道各个 binding、sandbox 的布局和代码，并用这些知识搭建环境、解释结果；每一步都按屏幕上能看到的内容来判断。本次审查是关于产品的证据，不是“非作者操作者旅程”（Q7）。
 
