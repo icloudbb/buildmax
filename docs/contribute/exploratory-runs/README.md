@@ -54,3 +54,5 @@ before committing.
 
 | Report | Surface | Summary |
 |---|---|---|
+| [2026-10-06-desktop-ui-journey-audit.md](2026-10-06-desktop-ui-journey-audit.md) | desktop | Phase 0 UI audit of six Desktop journeys: 4 Major (lost message echo, misleading approval card, broken Issue Start chat, schedule model switch after sign-in), 11 Minor, 5 Cosmetic |
+| [2026-10-06-portal-ui-journey-audit.md](2026-10-06-portal-ui-journey-audit.md) | portal | Phase 0 UI audit of seven Portal journeys: 4 Major (contradictory Issue result, raw failure cause, no executor path, unnamed invitations), 16 Minor, 6 Cosmetic; recommends refining the visual language |
