@@ -213,7 +213,7 @@ Portal 与 Desktop 的所有页面都已提供两种语言；只有 `/specimen` 
 
 | 阶段 | 结果 | 可执行工作 |
 |---|---|---|
-| 0. 审计 | Portal 与 Desktop 核心流程的分级问题报告，并附视觉语言建议 | [backlog 10](../../backlog/10-ui-journey-audit.md) |
+| 0. 审计 | Portal 与 Desktop 核心流程的分级问题报告，并附视觉语言建议 | [Portal](../contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) 与 [Desktop](../contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) 报告 |
 | 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏；共享基础组件；i18n 基础设施；Desktop 改用 gui 基础组件 | backlog [14](../../backlog/14-ui-visual-and-a11y-guardrails.md)、[16](../../backlog/16-gui-shared-primitives.md)、[20](../../backlog/20-desktop-gui-convergence.md) |
 | 2. 视觉语言决定 | 维护者依据阶段 0 报告选择“打磨”或“新视觉语言”，并更新本记录与页面体系记录 | 决定，不是任务 |
 | 3. Portal 改造 | 按流程顺序解决 Blocker 与 Major 问题 | 依据阶段 0 报告拆分任务 |
