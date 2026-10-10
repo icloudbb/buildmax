@@ -142,3 +142,10 @@
 .page-issues__comment-body p {
   white-space: pre-wrap;
 }
+
+.page-issues__id {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}

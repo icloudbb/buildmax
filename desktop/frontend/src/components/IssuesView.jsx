@@ -198,7 +198,7 @@ export function IssuesView({ app, projects, currentProject, onStartChat }) {
             <article className="page-issues__detail">
               <h2 className="page-issues__title">{detail.issue.title}</h2>
               <p className="page-issues__row-meta">
-                {detail.issue.space_name} · {issueStatusLabel(detail.issue.status, t)} · {detail.issue.id}
+                {detail.issue.space_name} · {issueStatusLabel(detail.issue.status, t)}
               </p>
 
               <div className="page-issues__actions" role="group" aria-label={t('issues.moveGroup')}>
@@ -286,6 +286,9 @@ export function IssuesView({ app, projects, currentProject, onStartChat }) {
                   </button>
                 </div>
               </form>
+              {/* The ID is for finding the same Issue elsewhere, so it closes
+                  the detail rather than labelling it. */}
+              <p className="page-issues__id">{t('issues.id', { id: detail.issue.id })}</p>
             </article>
           )}
         </section>
