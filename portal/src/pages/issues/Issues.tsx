@@ -17,7 +17,6 @@ import { useSpaceCapability } from "../../contexts/SpaceContext"
 import { Alert } from "../../components/state/Alert"
 import { EmptyState } from "../../components/state/EmptyState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
-import { isAllowed } from "../../state/permissionState"
 import { useSpace } from "../../contexts/SpaceContext"
 import type { ApiSpaceMember } from "../../lib/api/types"
 import type { Workflow } from "../../lib/types"
@@ -62,7 +61,6 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
   // while the request is in flight.
   const [children, setChildren] = useState<Record<string, Issue[]>>({})
   const canAssignWorkflowState = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
-  const canAssignWorkflow = isAllowed(canAssignWorkflowState)
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -441,17 +439,20 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
 
       <IssueModal
         open={createOpen}
+        token={token}
+        spaceId={spaceId}
         agents={agents}
         workflows={workflows}
         members={members}
         userId={userId}
         loading={saving}
-        allowWorkflowAssignment={canAssignWorkflow}
+        manage={canAssignWorkflowState}
         error={createOpen ? createError : null}
         onClose={() => {
           setCreateOpen(false)
           setCreateError(null)
         }}
+        onAgentCreated={(agent) => setAgents((prev) => [...prev, agent])}
         onSubmit={handleCreate}
       />
 

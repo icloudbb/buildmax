@@ -8,6 +8,15 @@ export {
 } from "./comments"
 export { OutputCard, OutputsList } from "./IssueOutputs"
 export { IssueDiscussion } from "./IssueDiscussion"
+export { ExecutorField } from "./ExecutorField"
+export {
+  executorHint,
+  issueRunAction,
+  issueRunInFlight,
+  type ExecutorChoices,
+  type ExecutorHint,
+  type IssueRunAction,
+} from "./execution"
 export {
   ISSUE_LANES,
   LANE_PAGE_SIZE,

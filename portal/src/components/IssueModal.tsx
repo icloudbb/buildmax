@@ -2,20 +2,28 @@ import { useState } from "react"
 import { BaseModal, Button } from "@buildmax/gui"
 import type { ApiSpaceMember } from "../lib/api/types"
 import { peopleOnly } from "../features/spaces/api"
+import { ExecutorField } from "../features/issues"
 import type { Agent, Issue, Workflow } from "../lib/types"
+import type { PermissionState } from "../state/permissionState"
 import { useT } from "../i18n"
 import { useStatusLabel } from "../lib/statusLabels"
+import { CreateAgentModal } from "./CreateAgentModal"
 
 interface IssueModalProps {
   open: boolean
+  token: string | null
+  spaceId: string
   agents: Agent[]
   workflows: Workflow[]
   members: ApiSpaceMember[]
   userId?: string
   loading: boolean
-  allowWorkflowAssignment?: boolean
+  /** Whether the reader may create Agents and assign Workflows. */
+  manage: PermissionState
   error: string | null
   onClose: () => void
+  /** An Agent created from this dialog, for the caller's list. */
+  onAgentCreated: (agent: Agent) => void
   onSubmit: (values: {
     title: string
     description: string
@@ -31,14 +39,17 @@ interface IssueModalProps {
  *  the same fields -- there is no reason to fit all of that into one modal. */
 export function IssueModal({
   open,
+  token,
+  spaceId,
   agents,
   workflows,
   members,
   userId,
   loading,
-  allowWorkflowAssignment = true,
+  manage,
   error,
   onClose,
+  onAgentCreated,
   onSubmit,
 }: IssueModalProps) {
   const t = useT()
@@ -48,10 +59,9 @@ export function IssueModal({
   const [status, setStatus] = useState<Issue["status"]>("todo")
   const [ownerValue, setOwnerValue] = useState("")
   const [executorValue, setExecutorValue] = useState("")
-  const selectedWorkflowId = executorValue.startsWith("workflow:") ? executorValue.slice("workflow:".length) : ""
-  const selectableWorkflows = workflows.filter(
-    (workflow) => workflow.status === "published" || workflow.id === selectedWorkflowId,
-  )
+  // Creating an Agent swaps this dialog for the Agent one and back, so the
+  // draft survives and the new Agent becomes its executor.
+  const [creatingAgent, setCreatingAgent] = useState(false)
 
   // Dismissing the dialog (Escape, the close button, the backdrop) keeps the
   // draft, so a stray key does not lose what was typed; Cancel is the explicit
@@ -73,109 +83,107 @@ export function IssueModal({
   }
 
   return (
-    <BaseModal
-      open={open}
-      title={t("issues.new")}
-      titleId="issue-modal-title"
-      onClose={onClose}
-      className="modal--large"
-    >
-      <div className="modal__body">
-        <div className="issues-page__form">
-          <label className="issues-page__field">
-            <span className="issues-page__field-label">{t("issues.field.title")}</span>
-            <input
-              className="issues-page__input"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={t("issues.create.titlePlaceholder")}
-            />
-          </label>
-          <label className="issues-page__field">
-            <span className="issues-page__field-label">{t("issues.field.description")}</span>
-            <textarea
-              className="issues-page__textarea"
-              rows={6}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("issues.create.descriptionPlaceholder")}
-            />
-          </label>
-          <label className="issues-page__field">
-            <span className="issues-page__field-label">{t("issues.field.status")}</span>
-            <select className="issues-page__select" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
-              <option value="todo">{statusLabel("todo")}</option>
-              <option value="in_progress">{statusLabel("in_progress")}</option>
-              <option value="done">{statusLabel("done")}</option>
-            </select>
-          </label>
-          <div className="issue-detail-page__split">
+    <>
+      <BaseModal
+        open={open && !creatingAgent}
+        title={t("issues.new")}
+        titleId="issue-modal-title"
+        onClose={onClose}
+        className="modal--large"
+      >
+        <div className="modal__body">
+          <div className="issues-page__form">
             <label className="issues-page__field">
-              <span className="issues-page__field-label">{t("issues.field.owner")}</span>
-              <select className="issues-page__select" value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
-                <option value="">{t("issues.unassigned")}</option>
-                {peopleOnly(members).map((member) => (
-                  <option key={member.user_id} value={member.user_id}>
-                    {memberLabel(member)}
-                  </option>
-                ))}
-              </select>
-              <span className="issues-page__field-label">{t("issues.field.ownerHint")}</span>
+              <span className="issues-page__field-label">{t("issues.field.title")}</span>
+              <input
+                className="issues-page__input"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t("issues.create.titlePlaceholder")}
+              />
             </label>
             <label className="issues-page__field">
-              <span className="issues-page__field-label">{t("issues.field.executor")}</span>
-              <select className="issues-page__select" value={executorValue} onChange={(e) => setExecutorValue(e.target.value)}>
-                <option value="">{t("issues.none")}</option>
-                {agents.map((agent) => (
-                  <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
-                ))}
-                {allowWorkflowAssignment
-                  ? selectableWorkflows.map((workflow) => (
-                      <option key={workflow.id} value={`workflow:${workflow.id}`}>
-                        {workflow.status !== "published"
-                          ? t("issues.workflowWithStatus", { name: workflow.name, status: statusLabel(workflow.status).toLowerCase() })
-                          : workflow.name}
-                      </option>
-                    ))
-                  : null}
-              </select>
-              <span className="issues-page__field-label">
-                {allowWorkflowAssignment
-                  ? t("issues.field.executorHint")
-                  : t("issues.field.executorHintRestricted")}
-              </span>
+              <span className="issues-page__field-label">{t("issues.field.description")}</span>
+              <textarea
+                className="issues-page__textarea"
+                rows={6}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t("issues.create.descriptionPlaceholder")}
+              />
             </label>
-          </div>
-          {error ? (
-            <p className="modal__error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <div className="modal__actions">
-            <Button variant="secondary" onClick={discard} disabled={loading}>
-              {t("issues.cancel")}
-            </Button>
-            <Button
-              variant="primary"
-              busy={loading}
-              disabled={!title.trim()}
-              onClick={() => {
-                const [executorKind, executorID] = executorValue ? executorValue.split(":") : ["", ""]
-                onSubmit({
-                  title: title.trim(),
-                  description,
-                  status,
-                  owner_id: ownerValue,
-                  executor_kind: (executorKind as "agent" | "workflow" | "") || "",
-                  executor_id: executorID || "",
-                })
-              }}
-            >
-              {t("issues.create.submit")}
-            </Button>
+            <label className="issues-page__field">
+              <span className="issues-page__field-label">{t("issues.field.status")}</span>
+              <select className="issues-page__select" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
+                <option value="todo">{statusLabel("todo")}</option>
+                <option value="in_progress">{statusLabel("in_progress")}</option>
+                <option value="done">{statusLabel("done")}</option>
+              </select>
+            </label>
+            <div className="issue-detail-page__split">
+              <label className="issues-page__field">
+                <span className="issues-page__field-label">{t("issues.field.owner")}</span>
+                <select className="issues-page__select" value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
+                  <option value="">{t("issues.unassigned")}</option>
+                  {peopleOnly(members).map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {memberLabel(member)}
+                    </option>
+                  ))}
+                </select>
+                <span className="issues-page__field-label">{t("issues.field.ownerHint")}</span>
+              </label>
+              <ExecutorField
+                value={executorValue}
+                onChange={setExecutorValue}
+                agents={agents}
+                workflows={workflows}
+                manage={manage}
+                onCreateAgent={() => setCreatingAgent(true)}
+              />
+            </div>
+            {error ? (
+              <p className="modal__error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <div className="modal__actions">
+              <Button variant="secondary" onClick={discard} disabled={loading}>
+                {t("issues.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                busy={loading}
+                disabled={!title.trim()}
+                onClick={() => {
+                  const [executorKind, executorID] = executorValue ? executorValue.split(":") : ["", ""]
+                  onSubmit({
+                    title: title.trim(),
+                    description,
+                    status,
+                    owner_id: ownerValue,
+                    executor_kind: (executorKind as "agent" | "workflow" | "") || "",
+                    executor_id: executorID || "",
+                  })
+                }}
+              >
+                {t("issues.create.submit")}
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
-    </BaseModal>
+      </BaseModal>
+      <CreateAgentModal
+        open={open && creatingAgent}
+        token={token}
+        spaceId={spaceId}
+        onClose={() => setCreatingAgent(false)}
+        onCreated={(agent) => {
+          onAgentCreated(agent)
+          setExecutorValue(`agent:${agent.id}`)
+          setCreatingAgent(false)
+        }}
+      />
+    </>
   )
 }

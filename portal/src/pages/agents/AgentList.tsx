@@ -3,14 +3,11 @@ import { Button } from "@buildmax/gui"
 import type { Agent } from "../../lib/types"
 import type { ApiSecret, ApiTask } from "../../lib/api/types"
 import { listSecrets } from "../../features/spaceSecrets/api"
-import { listActivations } from "../../features/spacePlugins/api"
-import { listPlugins } from "../../features/plugins/api"
-import { nameablePlugins } from "../../features/plugins/nameablePlugins"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiTaskToTask } from "../../lib/api/mappers"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
-import { getAgents, createAgent, listAgentModels } from "../../features/agents"
+import { getAgents } from "../../features/agents"
 import { runStatusTone, taskRunFailed, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
@@ -43,17 +40,14 @@ export function AgentList({ token, spaceId }: AgentListProps) {
   const [agentsData, setAgentsData] = useState<Agent[] | null>(null)
   const agents = agentsData ?? EMPTY_AGENTS
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
-  const [availablePlugins, setAvailablePlugins] = useState<string[]>([])
-  const [availableModels, setAvailableModels] = useState<string[]>([])
   const [tasksByAgent, setTasksByAgent] = useState<Record<string, ApiTask[]>>({})
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<RequestError | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
   const [newTaskAgent, setNewTaskAgent] = useState<Agent | null>(null)
   const [startingTaskAgentId, setStartingTaskAgentId] = useState<string | null>(null)
-  // Distinct from listError: the create-agent / run-agent mutations' own
-  // error, shown inside their respective modals.
+  // Distinct from listError: the run-agent mutation's own error, shown inside
+  // its modal.
   const [error, setError] = useState<string | null>(null)
   const canManageAgentsState = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
   const canManageAgents = isAllowed(canManageAgentsState)
@@ -82,9 +76,9 @@ export function AgentList({ token, spaceId }: AgentListProps) {
     [loading, agentsData, listError]
   )
 
-  // The space's secrets, to populate the create dialog's consumption editor and
-  // flag broken grants on the cards and overview. Owner-or-admin may list them;
-  // a failure leaves the editor with no options rather than blocking the page.
+  // The space's secrets, to flag broken grants on the cards and overview.
+  // Owner-or-admin may list them; a failure hides the warnings rather than
+  // blocking the page.
   useEffect(() => {
     if (!token || !spaceId || !canManageAgents) {
       setSecrets([])
@@ -93,29 +87,6 @@ export function AgentList({ token, spaceId }: AgentListProps) {
     listSecrets(token, spaceId)
       .then((res) => setSecrets(res.secrets ?? []))
       .catch(() => setSecrets([]))
-  }, [token, spaceId, canManageAgents])
-
-  // The plugin names an agent in this space may name, for the create dialog's
-  // plugins picker. A deployment without a Marketplace, or a failed request,
-  // leaves it empty and the picker shows its empty state.
-  useEffect(() => {
-    if (!token || !spaceId || !canManageAgents) {
-      setAvailablePlugins([])
-      return
-    }
-    Promise.all([
-      listActivations(token, spaceId).catch(() => null),
-      listPlugins(token).catch(() => null),
-    ])
-      .then(([activations, catalog]) =>
-        setAvailablePlugins(nameablePlugins(activations, catalog?.plugins ?? null)),
-      )
-      .catch(() => setAvailablePlugins([]))
-    // Deployment-wide catalog, fetched independently of the space-scoped plugin
-    // options; an empty list leaves the picker at just the deployment default.
-    listAgentModels(token)
-      .then(setAvailableModels)
-      .catch(() => setAvailableModels([]))
   }, [token, spaceId, canManageAgents])
 
   useEffect(() => {
@@ -178,30 +149,6 @@ export function AgentList({ token, spaceId }: AgentListProps) {
     }
   }
 
-  function handleCreateAgent(values: {
-    name: string
-    description?: string
-    instructions?: string
-    model?: string
-    plugins?: string[]
-    sandbox_network_tier?: string
-    sandbox_filesystem_tier?: string
-    secret_consumption?: import("../../lib/api/types").ApiSecretConsumption
-  }) {
-    if (!token || !spaceId) return
-    setError(null)
-    setCreating(true)
-    createAgent(spaceId, values, token)
-      .then((created) => {
-        const mapped = apiAgentToAgent(created)
-        setAgentsData((prev) => [...(prev ?? []), mapped])
-        setModalOpen(false)
-        navigate({ name: "agent", spaceId, agentId: mapped.id })
-      })
-      .catch((err) => setError(getErrorMessage(err, t("agents.error.create"))))
-      .finally(() => setCreating(false))
-  }
-
   function handleOpenNewTaskModal(agent: Agent) {
     setError(null)
     setNewTaskAgent(agent)
@@ -242,10 +189,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
             <Button
               variant="primary"
               className="agent-list__create-btn"
-              onClick={() => {
-                setError(null)
-                setModalOpen(true)
-              }}
+              onClick={() => setModalOpen(true)}
               aria-label={t("agents.create")}
             >
               {t("agents.create")}
@@ -390,16 +334,14 @@ export function AgentList({ token, spaceId }: AgentListProps) {
 
       <CreateAgentModal
         open={modalOpen}
-        loading={creating}
-        error={error}
-        secrets={secrets}
-        availablePlugins={availablePlugins}
-        availableModels={availableModels}
-        onClose={() => {
+        token={token}
+        spaceId={spaceId}
+        onClose={() => setModalOpen(false)}
+        onCreated={(created) => {
+          setAgentsData((prev) => [...(prev ?? []), created])
           setModalOpen(false)
-          setError(null)
+          navigate({ name: "agent", spaceId, agentId: created.id })
         }}
-        onCreate={handleCreateAgent}
       />
 
       <RunAgentModal
