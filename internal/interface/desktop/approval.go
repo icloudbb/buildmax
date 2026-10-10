@@ -1,12 +1,20 @@
 package desktop
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/icloudbb/buildmax/internal/core/agent"
+	"github.com/icloudbb/buildmax/internal/tool"
+	"github.com/icloudbb/buildmax/internal/util"
 )
 
 const eventApprovalRequest = "desktop/approval-request"
@@ -23,6 +31,98 @@ type ApprovalRequestPayload struct {
 	// Target is what "Allow session" covers within the tool (an MCP
 	// server/tool, a browser origin); empty when it covers every call.
 	Target string `json:"target,omitempty"`
+	// File is the current state of the file an Edit or Write would change, so
+	// the prompt can show the change itself rather than its raw arguments. It
+	// is read when the prompt is raised, from the root the tool writes under.
+	File *ApprovalFile `json:"file,omitempty"`
+}
+
+// ApprovalFile is the file an Edit or Write approval would change, as it is
+// now. Unavailable says why its content is not included; the frontend then
+// shows the arguments alone.
+type ApprovalFile struct {
+	// Path is slash-separated and relative to the tool root when the file is
+	// inside it.
+	Path    string `json:"path"`
+	Exists  bool   `json:"exists"`
+	Content string `json:"content"`
+	// Unavailable is one of approvalFileOutsideRoot, approvalFileBinary,
+	// approvalFileTooLarge, approvalFileNotAFile, or approvalFileUnreadable.
+	Unavailable string `json:"unavailable,omitempty"`
+}
+
+const (
+	approvalFileOutsideRoot = "outside_root"
+	approvalFileBinary      = "binary"
+	approvalFileTooLarge    = "too_large"
+	approvalFileNotAFile    = "not_a_file"
+	approvalFileUnreadable  = "unreadable"
+)
+
+// approvalFile reads the file an Edit or Write call names, or returns nil for
+// any other tool. It is confined like the file tools themselves, with symlinks
+// followed as well: the prompt sends the bytes to the window, so a link inside
+// the project must not show a file outside it. A partial file is never
+// returned, since a diff against it would misstate what a Write replaces.
+func approvalFile(root, toolName string, args map[string]any) *ApprovalFile {
+	if toolName != tool.ToolNameEdit && toolName != tool.ToolNameWrite {
+		return nil
+	}
+	requested, _ := args["file_path"].(string)
+	if requested == "" {
+		return nil
+	}
+	out := &ApprovalFile{Path: requested}
+	if resolved, err := util.ResolvePath(root, requested); err == nil {
+		if rel, err := filepath.Rel(root, resolved); err == nil {
+			out.Path = filepath.ToSlash(rel)
+		}
+	}
+	real, err := util.ResolveRealPath(root, requested)
+	if errors.Is(err, util.ErrPathOutsideRoot) {
+		out.Unavailable = approvalFileOutsideRoot
+		return out
+	}
+	if err != nil {
+		out.Unavailable = approvalFileUnreadable
+		return out
+	}
+	info, err := os.Stat(real)
+	if os.IsNotExist(err) {
+		return out
+	}
+	if err != nil {
+		out.Unavailable = approvalFileUnreadable
+		return out
+	}
+	out.Exists = true
+	if !info.Mode().IsRegular() {
+		out.Unavailable = approvalFileNotAFile
+		return out
+	}
+	if info.Size() > maxFilePreviewBytes {
+		out.Unavailable = approvalFileTooLarge
+		return out
+	}
+	f, err := os.Open(real)
+	if err != nil {
+		out.Unavailable = approvalFileUnreadable
+		return out
+	}
+	defer f.Close()
+	// Read one byte past the cap: the file may have grown since Stat.
+	data, err := io.ReadAll(io.LimitReader(f, maxFilePreviewBytes+1))
+	switch {
+	case err != nil:
+		out.Unavailable = approvalFileUnreadable
+	case len(data) > maxFilePreviewBytes:
+		out.Unavailable = approvalFileTooLarge
+	case bytes.IndexByte(data, 0) >= 0 || !utf8.Valid(data):
+		out.Unavailable = approvalFileBinary
+	default:
+		out.Content = string(data)
+	}
+	return out
 }
 
 // pendingAnswers holds the prompts awaiting an answer — tool approvals, or
@@ -87,6 +187,13 @@ func (h *runApprover) RequestApproval(ctx context.Context, name string, args map
 		return agent.ApprovalDeny
 	}
 
+	// The run's tools resolve paths against the session's workspace, which is
+	// the root resolveWorkspace returns for it.
+	var file *ApprovalFile
+	if root, err := resolveWorkspace(h.run.projectID, h.run.sessionID); err == nil && root != "" {
+		file = approvalFile(root, name, args)
+	}
+
 	id, answer := h.app.approvals.open()
 	// A new chat's run has adopted its real id in OnStart, before any tool call,
 	// so the prompt is routed to that chat tab and never to another new chat.
@@ -97,6 +204,7 @@ func (h *runApprover) RequestApproval(ctx context.Context, name string, args map
 		ToolName:   name,
 		Args:       args,
 		Target:     target,
+		File:       file,
 	})
 
 	select {

@@ -1,4 +1,4 @@
-import { formatToolArgs, shortToolArgs, toolDisplayName } from './format';
+import { formatToolArgs, toolCallTarget, toolDisplayName } from './format';
 import { buildToolResultMap } from './messages';
 import { MarkdownMessage } from '../components/MarkdownMessage';
 import { translate } from '../i18n';
@@ -22,13 +22,22 @@ export function messageThreadItems(messages, t = english) {
     const toolCallLines = (m.tool_calls || []).map((tc, j) => {
       const result = toolResults.get(tc.id);
       const state = result ? (result.ok ? 'success' : 'error') : 'pending';
-      const args = shortToolArgs(tc.arguments);
+      const target = toolCallTarget(tc.arguments);
       return (
         <details key={tc.id || j} className={`page-chat__tool-call page-chat__tool-call--${state}`}>
           <summary>
             <span className="page-chat__tool-call-dot" aria-hidden />
             <span className="page-chat__tool-call-name">{toolDisplayName(tc.name)}</span>
-            {args && <span className="page-chat__tool-call-args">({args})</span>}
+            {target.text && (
+              // A path ellipsizes at its start (the RTL box) while the text
+              // inside reads left to right (the isolating <bdi>).
+              <span
+                className={`page-chat__tool-call-args${target.isPath ? ' page-chat__tool-call-args--path' : ''}`}
+                title={target.text}
+              >
+                <bdi dir="ltr">({target.text})</bdi>
+              </span>
+            )}
           </summary>
           {tc.arguments && (
             <pre className="page-chat__tool-call-block">{formatToolArgs(tc.arguments)}</pre>

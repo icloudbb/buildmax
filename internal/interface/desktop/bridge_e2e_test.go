@@ -185,6 +185,10 @@ func TestBridgeApprovesAToolCallAndFinishesTheRun(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(workspace, "notes.txt")); !os.IsNotExist(err) {
 		t.Fatalf("the file existed before the approval was answered (stat err = %v)", err)
 	}
+	// The prompt says the Write creates the file, so the frontend can say so.
+	if request.File == nil || request.File.Path != "notes.txt" || request.File.Exists || request.File.Unavailable != "" {
+		t.Fatalf("approval file = %+v, want notes.txt reported as not existing yet", request.File)
+	}
 
 	if err := app.RespondApproval(request.ApprovalID, "once"); err != nil {
 		t.Fatalf("answer the approval: %v", err)
@@ -251,6 +255,10 @@ func TestBridgeDeniesAToolCallAndSaysSo(t *testing.T) {
 	}}
 	app, events, server, projectID := bridge(t, scenario, map[string]string{"Write": "ask"})
 	workspace := app.mustProjectFolder(t, projectID)
+	const before = "first line\n\tindented line\n"
+	if err := os.WriteFile(filepath.Join(workspace, "notes.txt"), []byte(before), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := app.SendMessageStream(projectID, "", "write notes.txt"); err != nil {
 		t.Fatalf("send: %v", err)
@@ -259,13 +267,18 @@ func TestBridgeDeniesAToolCallAndSaysSo(t *testing.T) {
 	if !ok {
 		t.Fatalf("no approval request:\n%s", events.summary())
 	}
+	// The prompt carries the file the Write would overwrite, whitespace intact,
+	// so the frontend can show what it replaces.
+	if request.File == nil || !request.File.Exists || request.File.Content != before {
+		t.Fatalf("approval file = %+v, want the current notes.txt", request.File)
+	}
 	if err := app.RespondApproval(request.ApprovalID, "deny"); err != nil {
 		t.Fatalf("answer the approval: %v", err)
 	}
 
 	events.waitFor(t, eventStreamDone)
-	if _, err := os.Stat(filepath.Join(workspace, "notes.txt")); !os.IsNotExist(err) {
-		t.Fatalf("a denied write must not touch the project folder (stat err = %v)", err)
+	if after, err := os.ReadFile(filepath.Join(workspace, "notes.txt")); err != nil || string(after) != before {
+		t.Fatalf("a denied write must not touch the project folder (content %q, err %v)", after, err)
 	}
 	// The denial has to reach the frontend as a finished tool, or the UI shows a
 	// call that never ends.
