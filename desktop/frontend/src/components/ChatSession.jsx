@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { ChatThread } from '@buildmax/gui';
-import { shortToolArgs } from '../lib/format';
+import { toolCallTarget } from '../lib/format';
 import { addLiveToolCall, addLiveToolResult, appendAssistantForNextLLM, mergeRunStatus } from '../lib/messages';
 import { messageThreadItems } from '../lib/threadItems';
 import { EventsOn } from '../lib/wailsRuntime';
@@ -199,7 +199,7 @@ export function ChatSession({
     const unsubToolStart = EventsOn(EV_TOOL_START, (payload) => {
       if (!ownEvent(payload)) return;
       const name = payload?.tool_name ?? '';
-      const args = payload?.args ? shortToolArgs(payload.args) : '';
+      const args = toolCallTarget(payload?.args).text;
       setToolActivity(args ? `⚙ ${name} (${args})` : `⚙ ${name}`);
       if (payload?.tool_call_id) {
         setMessages((prev) => addLiveToolCall(prev, {

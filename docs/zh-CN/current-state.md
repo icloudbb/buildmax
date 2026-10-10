@@ -95,7 +95,9 @@ Desktop 工作区是一个由异构 tab（聊天、终端、文件、diff）组�
 级 Explorer 侧边栏（Directory 与 Changes 视图）供给。tab 可在 pane 之间拖动，可拆分为
 行列网格，也可收回为单一 tab 条；布局按 project 记住，终端 tab 跨重启恢复其回滚内容。
 文件 tab 可以编辑并保存工作区文件。每个聊天 tab 是独立的 Session，因此不同 Session 的
-聊天可以并发运行，每个 Session 的工具审批都在它自己的聊天 tab 中显示和回答。状态栏的
+聊天可以并发运行，每个 Session 的工具审批都在它自己的聊天 tab 中显示和回答。`Edit` 和
+`Write` 的审批以相对文件当前内容的 diff 展示变更，并说明 `Write` 是新建、覆盖还是清空文件；
+每个审批默认选中“Allow once”。状态栏的
 Launchpad 可打开用户固定的应用与网站。可调整大小的 pane 分隔条尚未构建。
 
 登录服务器后，Desktop 还会显示 **Issues** 入口：跨 Space 列出本人负责的未完成 Issue，显示单个

@@ -157,23 +157,15 @@ func (t *UploadArtifact) Execute(ctx context.Context, args map[string]any) (stri
 // check: containment is decided lexically, so a link inside the workspace can
 // still name /etc/ssh/id_rsa, and publishing sends the target's bytes to a space.
 func (t *UploadArtifact) resolvePublishablePath(path string) (string, error) {
-	resolved, err := t.resolveFilePath(path)
-	if err != nil {
+	if _, err := t.resolveFilePath(path); err != nil {
 		return "", err
 	}
-	real, err := filepath.EvalSymlinks(resolved)
+	real, err := util.ResolveRealPath(t.root(), path)
+	if errors.Is(err, util.ErrPathOutsideRoot) {
+		return "", fmt.Errorf("%s resolves outside the workspace and cannot be published", path)
+	}
 	if err != nil {
 		return "", normalizeOSError(err)
-	}
-	// The root is resolved too. On macOS a temporary or home directory is itself
-	// reached through a link, so comparing a fully resolved file against an
-	// unresolved root would reject every legitimate path.
-	realRoot, err := filepath.EvalSymlinks(t.root())
-	if err != nil {
-		realRoot = t.root()
-	}
-	if _, err := util.ResolvePath(realRoot, real); err != nil {
-		return "", fmt.Errorf("%s resolves outside the workspace and cannot be published", path)
 	}
 	info, err := os.Lstat(real)
 	if err != nil {

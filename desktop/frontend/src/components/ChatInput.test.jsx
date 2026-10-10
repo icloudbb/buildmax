@@ -206,3 +206,30 @@ describe('ChatInput draft', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 });
+
+describe('ChatInput approval shortcuts', () => {
+  const request = { approval_id: '7', session_id: 's1', tool_name: 'Write', args: { file_path: 'a.txt', content: 'a' } };
+
+  // Text typed in the composer is never an answer: Enter or a letter that is
+  // also a shortcut (y, a, n) must not grant or deny the pending tool call.
+  it('does not answer an approval from keys typed in the composer', () => {
+    const onRespond = vi.fn();
+    renderInput({ approvalRequest: request, onRespond });
+    const box = composer();
+    box.focus();
+    expect(document.activeElement).toBe(box);
+    for (const key of ['y', 'a', 'n', 'Escape', 'Enter']) {
+      fireEvent.keyDown(box, { key });
+    }
+    expect(onRespond).not.toHaveBeenCalled();
+    // The prompt did not take focus from the composer either.
+    expect(document.activeElement).toBe(box);
+  });
+
+  it('answers from keys pressed with focus on nothing in particular', () => {
+    const onRespond = vi.fn();
+    renderInput({ approvalRequest: request, onRespond });
+    fireEvent.keyDown(document.body, { key: 'Enter' });
+    expect(onRespond).toHaveBeenCalledWith('once');
+  });
+});

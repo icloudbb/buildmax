@@ -43,6 +43,10 @@ Allow once(y)  Allow session(a)  Deny(n)    ←→ select  enter: confirm
 
 `a` is the one to reach for. It stops asking about that tool for the rest of the session, and it is forgotten when BuildMax exits — nothing is written to disk. For an MCP call it covers that one server and tool, not every MCP tool you have configured; for `BrowserNavigate` it covers one origin, such as `http://localhost:3000`. When a grant is narrowed like this, the prompt says so with an `Allow session covers only:` line.
 
+Enter confirms the highlighted choice, and every new prompt starts on **Allow once**, whatever you answered the last one with. Only the arrow keys move the highlight. In the Desktop app the keys answer only when focus is on the prompt or on nothing in particular: while you are typing in the message box or another field, Enter, `y`, `a`, `n`, and Esc stay part of what you type, so click the prompt or its buttons to answer.
+
+In the Desktop app, an `Edit` or `Write` prompt shows the change itself: a diff against the file as it is now, with every space, tab, and line break as the tool will write it. A `Write` also says whether it creates the file, overwrites it, or empties it, and an `Edit` whose text to replace is missing or appears more than once is marked as one that will fail. When the current file cannot be shown — it is binary, larger than 512 KB, or a link that leads outside the project folder — the prompt says why and shows the requested text alone. Any other tool's arguments are shown as given, line breaks and indentation included.
+
 ## Making it permanent
 
 When a grant is one you would give every session, put it in `<BUILDMAX_HOME>/settings.yaml`:

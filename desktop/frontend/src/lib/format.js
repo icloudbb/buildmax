@@ -57,24 +57,42 @@ export function toolDisplayName(name) {
   return first.slice(0, 1).toUpperCase() + first.slice(1);
 }
 
-export function shortToolArgs(raw) {
-  if (!raw) return '';
-  if (raw.length <= 40) return raw;
+// Arguments that name what a tool call acts on, in the order a card prefers
+// them. A path is truncated from its start so the file name stays readable.
+const TARGET_PATH_KEYS = ['file_path', 'path', 'notebook_path', 'file', 'filename'];
+const TARGET_TEXT_KEYS = ['command', 'url', 'pattern', 'query', 'skill', 'name', 'description', 'prompt'];
+
+// toolCallTarget picks the argument that identifies a tool call's target for
+// its one-line summary: { text, isPath }. It is never the raw argument JSON;
+// a call with no such argument has an empty summary. Width is left to the
+// caller, which truncates with CSS against the space it has.
+export function toolCallTarget(raw) {
+  if (!raw) return { text: '', isPath: false };
+  let args;
   try {
-    const m = JSON.parse(raw);
-    for (const k of ['path', 'file', 'filename', 'command']) {
-      if (typeof m[k] === 'string') {
-        const v = m[k];
-        return v.length > 40 ? v.slice(0, 37) + '…' : v;
-      }
-    }
-    for (const v of Object.values(m)) {
-      if (typeof v === 'string') return v.length > 40 ? v.slice(0, 37) + '…' : v;
-    }
+    args = typeof raw === 'string' ? JSON.parse(raw) : raw;
   } catch {
-    // Not JSON — fall through to the raw truncation below.
+    // Not JSON at all: show its first line, but never half an object.
+    const text = String(raw).trimStart();
+    return { text: text.startsWith('{') || text.startsWith('[') ? '' : firstLine(text), isPath: false };
   }
-  return raw.slice(0, 37) + '…';
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return { text: '', isPath: false };
+  for (const k of TARGET_PATH_KEYS) {
+    if (typeof args[k] === 'string' && args[k]) return { text: args[k], isPath: true };
+  }
+  for (const k of TARGET_TEXT_KEYS) {
+    if (typeof args[k] === 'string' && args[k]) return { text: firstLine(args[k]), isPath: false };
+  }
+  for (const v of Object.values(args)) {
+    if (typeof v === 'string' && v.trim()) return { text: firstLine(v), isPath: false };
+  }
+  return { text: '', isPath: false };
+}
+
+function firstLine(text) {
+  const trimmed = String(text).trim();
+  const end = trimmed.indexOf('\n');
+  return end < 0 ? trimmed : `${trimmed.slice(0, end)} …`;
 }
 
 export function formatTokenCount(n) {

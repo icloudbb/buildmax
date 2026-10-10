@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { buildDiffTree, parsePatchLines } from './format.js'
+import { buildDiffTree, parsePatchLines, toolCallTarget } from './format.js'
+
+describe('toolCallTarget', () => {
+  it('names the file a call acts on, in full', () => {
+    expect(toolCallTarget('{"file_path":"src/main.go"}')).toEqual({ text: 'src/main.go', isPath: true })
+    const long = 'internal/scheduler/lease/renewal/renewal_with_a_long_name_test.go'
+    expect(toolCallTarget(JSON.stringify({ file_path: long, offset: 10 }))).toEqual({ text: long, isPath: true })
+  })
+
+  it('never falls back to the raw JSON', () => {
+    expect(toolCallTarget('{"content":"","file_path":"NOTES.txt"}')).toEqual({ text: 'NOTES.txt', isPath: true })
+    expect(toolCallTarget('{"replace_all":true}').text).toBe('')
+    expect(toolCallTarget('{"content":"').text).toBe('')
+  })
+
+  it('shows the first line of a command', () => {
+    expect(toolCallTarget({ command: 'go test ./...\ngo vet ./...' })).toEqual({ text: 'go test ./... …', isPath: false })
+  })
+})
 
 const TWO_HUNK_PATCH = `diff --git a/a.go b/a.go
 index 111..222 100644
