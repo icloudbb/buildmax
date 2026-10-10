@@ -203,7 +203,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
       // re-run this load, which would reset an open edit form.
       setLoadError(err instanceof Error ? err.message : null)
     } finally {
-      setLoading(false)
+      if (!background) setLoading(false)
     }
   }, [token, spaceId, issueId, resetForm])
 
