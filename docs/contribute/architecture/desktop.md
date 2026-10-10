@@ -273,6 +273,16 @@ focused pane, so one key press never answers two sessions. "Allow for session"
 grants are held per session by `agentapp`, so they never carry to another
 session of the project.
 
+An `Edit` or `Write` request also carries `file`: the target file as it is
+when the prompt is raised, read under the session's workspace root. The read
+uses `util.ResolveRealPath`, which follows symlinks and refuses a path whose
+physical location is outside that root, and it returns no content for a file
+that is binary or larger than the 512 KB preview bound; `file.unavailable`
+names the reason instead. `ApprovalPanel` replays the tool's replacement on
+that content (`lib/toolChange.js`) and renders the result with `LineDiff`, a
+line diff computed in the frontend (`lib/linediff.js`). Every prompt starts
+with "Allow once" selected; only the arrow keys move the selection.
+
 `AskUser` questions follow the same per-run, per-id model. Each project run
 also gets a `runQuestioner`, and `App` holds unanswered questions in the same
 `pendingAnswers` bookkeeping. `desktop/question-request` carries `question_id`,

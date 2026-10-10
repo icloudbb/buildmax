@@ -87,6 +87,8 @@ Project 的中央界面是由 tab 组成的网格。每个 tab 渲染一种类�
 
 工具审批按运行划分。每个 Project 运行都有自己的审批处理器，`App` 以新生成的 `approval_id` 持有每个未回答的请求。`desktop/approval-request` 携带该 ID、Project 以及该运行的 Session ID；此时新聊天已经获得了自己的 ID，因此两个新聊天不会共用同一个提示。前端为每个 Session 保留一个待处理请求，只在该 Session 的聊天 tab 中显示（隐藏的 tab 再次显示时请求仍在），并通过 `RespondApproval(approval_id, decision)` 回答。一个 ID 只能回答一次：未知、已回答或已撤回的 ID 会返回错误且不会到达任何运行。取消一个运行只会撤回它自己的请求，运行结束时前端也会丢弃该 Session 的请求。审批快捷键只在获得焦点的 pane 中生效，因此一次按键不会同时回答两个 Session。“本 Session 内允许”的授权由 `agentapp` 按 Session 保存，不会延续到该 Project 的其他 Session。
 
+`Edit` 或 `Write` 的请求还携带 `file`：提示发出时目标文件的状态，在该 Session 的工作区根目录下读取。读取使用 `util.ResolveRealPath`，它会跟随符号链接，并拒绝物理位置在该根目录之外的路径；对于二进制文件或超过 512 KB 预览上限的文件，它不返回内容，而是由 `file.unavailable` 说明原因。`ApprovalPanel` 在该内容上重放工具的替换（`lib/toolChange.js`），并用 `LineDiff` 渲染结果，行级 diff 在前端计算（`lib/linediff.js`）。每个提示都以选中“Allow once”开始；只有方向键会移动选择。
+
 `AskUser` 问题沿用同样的按运行、按 ID 模型。每个 Project 运行还会得到一个 `runQuestioner`，`App` 用同一套 `pendingAnswers` 记账保存未回答的问题。`desktop/question-request` 携带 `question_id`、Project 与 Session ID 以及 `questions`。前端在该 Session 的输入框上方逐个显示这组问题，并通过 `RespondQuestion(question_id, answers, declined)` 作答，每个问题一个答案。非忽略的空答案会被拒绝。只有 Project app 会设置 `EnableAskUser`；为定时运行和无项目会话按目录托管的 app 从不提供该工具。见[设计记录](../../design/Agent向用户提问.md)。
 
 两个待处理映射还会输入 `waitingOn`（`lib/approvals.js`），它给出正在等待用户的 Session 与 Project。`TabBar` 会标记处于等待状态但未激活的聊天 tab，侧边栏会标记对应的会话行、项目行以及折叠起来的 Projects 标题，这样在屏幕外弹出的提示也能被发现。

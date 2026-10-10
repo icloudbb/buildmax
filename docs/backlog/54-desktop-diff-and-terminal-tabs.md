@@ -56,8 +56,10 @@ English.
   today, so adding one is new capability, which the
   [program's non-goals](../design/ui-experience-program.md#non-goals) exclude.
   Raise it separately if it is wanted.
-- The approval card's diff, which is
-  [task 26](26-desktop-tool-approval-preview.md). Share the renderer with it.
+- The approval card's diff, which already ships. Reuse its renderer,
+  `desktop/frontend/src/components/LineDiff.jsx`, which shows hunks with "+"
+  and "−" markers and keeps whitespace; feed it the patch's rows instead of
+  `lib/linediff.js`'s.
 
 ## Acceptance Criteria
 
