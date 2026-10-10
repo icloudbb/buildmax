@@ -5,7 +5,7 @@ roadmap: R6
 source: docs/design/ui-experience-program.md#phases
 depends_on: []
 verification: ["./make test", "./make check desktop", "./make e2e desktop", "./make e2e desktop-ui"]
-claim:
+claim: gougoujiang 2026-10-10
 pr:
 ---
 
