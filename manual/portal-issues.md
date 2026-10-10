@@ -123,6 +123,8 @@ produced is the files the run published, and its text: the agent's reply, the
 workflow's declared result, or, for a workflow that declares none, the output
 of its last step. A long reply is shortened here; **Results** has all of it.
 While the run is in flight, it says so and updates until the run finishes.
+Runs are ordered by when they started, so retrying an older run does not move
+it to the top: the retry stays in that run's place in **Runs**.
 
 - **Overview** — the owner and executor, status, description, and sub-issues.
 - **Discussion** — the comment thread, where both people and agents leave notes.
