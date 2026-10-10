@@ -29,27 +29,31 @@ test("Issue Detail organizes into Overview, Discussion, Results, and Runs tabs",
   await expect(tabs.getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "true")
   const titleField = page.getByLabel("Title")
   await expect(titleField).toHaveCount(0)
-  await expect(page.getByText("No result yet.")).toBeVisible()
-  await expect(page.getByRole("heading", { name: "Latest Outcome", exact: true })).toBeVisible()
-  await expect(page.getByText("No execution runs recorded for this issue yet.")).toBeVisible()
+  // The latest run is answered once, in the Overview summary every tab shares.
+  const latest = page.getByRole("region", { name: "Latest run" })
+  await expect(latest.getByText("Nothing has run on this Issue yet.")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Sub-issues", exact: true })).toBeVisible()
   await expect(page.getByRole("heading", { name: "Discussion", exact: true })).toHaveCount(0)
   await expect(page.getByRole("heading", { name: "Results", exact: true })).toHaveCount(0)
-  await expect(page.getByRole("heading", { name: "Run History", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "Runs", exact: true })).toHaveCount(0)
 
   // Each tab replaces the page's content rather than adding to it -- the
   // previous tab's section headings are gone, not just scrolled past.
   await tabs.getByRole("button", { name: "Discussion" }).click()
   await expect(page.getByRole("heading", { name: "Discussion", exact: true })).toBeVisible()
   await expect(page.getByLabel("Title")).toHaveCount(0)
-  await expect(page.getByRole("heading", { name: "Latest Outcome", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "Sub-issues", exact: true })).toHaveCount(0)
 
   await tabs.getByRole("button", { name: "Results" }).click()
   await expect(page.getByRole("heading", { name: "Results", exact: true })).toBeVisible()
+  await expect(page.getByText("Nothing has run on this Issue yet, so nothing has been produced.")).toBeVisible()
   await expect(page.getByRole("heading", { name: "Discussion", exact: true })).toHaveCount(0)
 
+  // One list of runs with one count, whatever ran them.
   await tabs.getByRole("button", { name: "Runs" }).click()
-  await expect(page.getByRole("heading", { name: "Run History", exact: true })).toBeVisible()
-  await expect(page.getByRole("heading", { name: "Agent Run Sequence", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Runs", exact: true })).toBeVisible()
+  await expect(page.getByText("0 runs", { exact: true })).toBeVisible()
+  await expect(page.getByText("No runs yet.", { exact: true })).toBeVisible()
   await expect(page.getByRole("heading", { name: "Results", exact: true })).toHaveCount(0)
 
   await tabs.getByRole("button", { name: "Overview" }).click()

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { Button, ButtonLink } from "@buildmax/gui"
-import type { Agent, Issue, IssueFlow, IssueFlowRun, Task, Workflow } from "../../lib/types"
+import type { Agent, Issue, IssueFlow, IssueRun, Task, Workflow } from "../../lib/types"
 import type { ApiIssueComment, ApiIssueFlowResponse, ApiSpaceMember } from "../../lib/api/types"
 import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -29,8 +29,13 @@ import {
   IssueDiscussion,
   issueRunAction,
   issueRunInFlight,
+  issueRunKey,
+  issueRunLive,
+  issueRunProduct,
   OutputsList,
+  RunTextBlock,
   runIssueAgent,
+  textResults,
   updateIssue,
   type IssueRunAction,
 } from "../../features/issues"
@@ -68,20 +73,23 @@ function mapIssueFlow(api: ApiIssueFlowResponse): IssueFlow {
     parent: api.parent ? apiIssueToIssue(api.parent) : null,
     children: (api.children ?? []).map(apiIssueToIssue),
     workflow: api.workflow ? apiWorkflowToWorkflow(api.workflow) : null,
-    runs: api.runs.map((item) => ({
-      run: apiWorkflowRunToWorkflowRun(item.run),
-      steps: item.steps.map(apiWorkflowNodeRunToWorkflowNodeRun),
-    })),
-    agentTasks: api.agent_tasks.map(apiTaskToTask),
-    latestResult: api.latest_result ? apiIssueOutputToIssueOutput(api.latest_result) : null,
+    runs: (api.runs ?? []).map(
+      (item): IssueRun =>
+        item.kind === "agent"
+          ? { kind: "agent", task: apiTaskToTask(item.task), output: item.task.output ?? null }
+          : {
+              kind: "workflow",
+              run: apiWorkflowRunToWorkflowRun(item.run),
+              steps: (item.steps ?? []).map(apiWorkflowNodeRunToWorkflowNodeRun),
+            },
+    ),
     outputs: (api.outputs ?? []).map(apiIssueOutputToIssueOutput),
     total: api.total,
   }
 }
 
-function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
-  return flow?.runs[0] ?? null
-}
+// How much of a run's text the Overview shows; the Results tab has all of it.
+const LATEST_TEXT_LIMIT = 280
 
 function executorValueOf(issue: Issue): string {
   return issue.executorKind && issue.executorId ? `${issue.executorKind}:${issue.executorId}` : ""
@@ -147,6 +155,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   const [focusExecutor, setFocusExecutor] = useState(false)
   const executorSelect = useRef<HTMLSelectElement>(null)
   const runReasonId = useId()
+  const latestHeadingId = useId()
   // Owners and admins create Agents and assign Workflows.
   const manage = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
   const canAssignWorkflow = isAllowed(manage)
@@ -242,17 +251,13 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     }
   }, [token, spaceId, escalatingAssistantId])
 
-  const currentRun = latestRun(flow)
-  const currentRunLatestTaskId =
-    [...(currentRun?.steps ?? [])].reverse().find((step) => step.taskId)?.taskId ?? null
-  const latestAgentTask = flow?.agentTasks[0] ?? null
   const assignedWorkflowStatus =
     flow?.workflow?.status ??
     workflows.find((workflow) => workflow.id === flow?.issue.executorId)?.status
 
   // Running keeps the person on the Issue, so the Overview follows the run
   // until it finishes. Paused while editing, which a reload would disturb.
-  const runInFlight = issueRunInFlight(latestAgentTask, currentRun?.run ?? null)
+  const runInFlight = issueRunInFlight(flow?.runs ?? [])
   useEffect(() => {
     if (!runInFlight || editing) return
     const timer = window.setInterval(() => void load(true), RUN_POLL_MS)
@@ -270,6 +275,56 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   /** A run that stopped on questions finished, but the work is waiting on a person. */
   function agentTaskLabel(task: Task): string {
     return task.awaitingAnswer ? t("issues.detail.needsAnswer") : statusLabel(task.status)
+  }
+
+  function runStatusLabel(run: IssueRun): string {
+    return run.kind === "agent" ? agentTaskLabel(run.task) : statusLabel(run.run.status)
+  }
+
+  function runTitle(run: IssueRun): string {
+    if (run.kind === "agent") return run.task.title
+    const { workflowId } = run.run
+    return (
+      (flow?.workflow?.id === workflowId ? flow.workflow.name : undefined) ??
+      workflows.find((workflow) => workflow.id === workflowId)?.name ??
+      t("issues.workflow")
+    )
+  }
+
+  /** What kind of run it was, who ran it, and when: "Agent run · Reviewer · 2 min ago". */
+  function runMeta(run: IssueRun): string {
+    const agent = run.kind === "agent" && run.task.agentId ? agentNames[run.task.agentId] : undefined
+    return [
+      t(run.kind === "agent" ? "issues.run.kindAgent" : "issues.run.kindWorkflow"),
+      agent,
+      relativeTime(run.kind === "agent" ? run.task.createdAt : run.run.createdAt),
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(" · ")
+  }
+
+  function runHref(run: IssueRun): string {
+    return run.kind === "agent"
+      ? buildHash({ name: "task", spaceId, taskId: run.task.id })
+      : buildHash({ name: "workflowRun", spaceId, workflowRunId: run.run.id })
+  }
+
+  /** Stop and Retry for an Agent run; a Workflow run is stopped from its own page. */
+  function agentRunActions(task: Task, size?: "compact") {
+    return (
+      <>
+        {taskIsStoppable(task.status) ? (
+          <Button variant="danger" size={size} busy={cancelingTaskId === task.id} onClick={() => handleCancelTask(task.id)}>
+            {t("issues.outcome.stopRun")}
+          </Button>
+        ) : null}
+        {taskIsRetryable(task.status) ? (
+          <Button variant="secondary" size={size} busy={retryingTaskId === task.id} onClick={() => handleRetryTask(task.id)}>
+            {t("issues.outcome.retryRun")}
+          </Button>
+        ) : null}
+      </>
+    )
   }
 
   // Owner and Executor are independent: an Issue can have one, the other,
@@ -509,6 +564,13 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     ? t("issues.detail.escalated", { requester: requesterLabel(flow.issue.escalation.requestedBy) }).split("{assistant}")
     : ["", ""]
 
+  // The runs are newest first whatever their kind, so the first is the latest:
+  // the one answer every surface below agrees with.
+  const latest = flow.runs[0] ?? null
+  const latestProduct = latest ? issueRunProduct(latest, flow.outputs) : null
+  const texts = textResults(flow.runs, flow.outputs)
+  const resultCount = flow.outputs.length + texts.length
+
   function cancelEditing() {
     if (!flow) return
     resetForm(flow.issue)
@@ -560,14 +622,56 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
             {t("issues.detail.executorLine", { executor: executorLabel(flow.issue) ?? t("issues.none") })}
           </span>
         </div>
-        <div className="issue-detail-page__outcome">
-          <strong>{t("issues.detail.latestResult")}</strong>
-          {flow.latestResult ? (
-            <Button variant="tertiary" onClick={() => setTab("results")}>{flow.latestResult.title}</Button>
+        <section className="issue-detail-page__outcome" aria-labelledby={latestHeadingId}>
+          <div className="issues-page__toolbar">
+            <h3 id={latestHeadingId} className="issues-page__section-title">{t("issues.latest.heading")}</h3>
+            {latest ? <span className="issues-page__status">{runStatusLabel(latest)}</span> : null}
+          </div>
+          {latest && latestProduct ? (
+            <>
+              <p className="page-activity__meta">
+                <strong>{runTitle(latest)}</strong> · {runMeta(latest)}
+              </p>
+              {latestProduct.files.length > 0 ? (
+                <p className="page-activity__meta">
+                  {t("issues.result.files", { count: latestProduct.files.length })}{" "}
+                  <Button variant="tertiary" size="compact" onClick={() => setTab("results")}>
+                    {t("issues.result.viewResults")}
+                  </Button>
+                </p>
+              ) : null}
+              {latestProduct.text ? <RunTextBlock text={latestProduct.text} limit={LATEST_TEXT_LIMIT} /> : null}
+              {latestProduct.files.length === 0 && !latestProduct.text ? (
+                <p className="page-activity__meta">
+                  {issueRunLive(latest) ? t("issues.result.inFlight") : t("issues.result.nothing")}
+                </p>
+              ) : null}
+              {latest.kind === "agent" && latest.task.awaitingAnswer ? (
+                <p className="page-activity__meta">{t("issues.outcome.agentAsked")}</p>
+              ) : null}
+              {latest.kind === "workflow" && latest.run.errorMessage ? (
+                <p className="modal__error">{latest.run.errorMessage}</p>
+              ) : null}
+              <div className="workflow-run-page__step-actions">
+                <ButtonLink variant="secondary" size="compact" href={runHref(latest)}>
+                  {latest.kind === "workflow"
+                    ? t("issues.outcome.openRun")
+                    : latest.task.awaitingAnswer
+                      ? t("issues.outcome.answerInTask")
+                      : t("issues.outcome.openTask")}
+                </ButtonLink>
+                {latest.kind === "agent" ? agentRunActions(latest.task, "compact") : null}
+                {flow.total > 1 ? (
+                  <Button variant="tertiary" size="compact" onClick={() => setTab("runs")}>
+                    {t("issues.latest.allRuns", { count: flow.total })}
+                  </Button>
+                ) : null}
+              </div>
+            </>
           ) : (
-            <span className="page-activity__meta">{t("issues.detail.noResult")}</span>
+            <p className="page-activity__meta">{t("issues.latest.none")}</p>
           )}
-        </div>
+        </section>
         {!editing ? <div className="issues-page__form-actions">
           <span className="page-activity__action-group">
             <Button
@@ -629,8 +733,11 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
               {item.id === "discussion" && comments.length > 0 ? (
                 <span className="issue-detail-page__tab-count">{comments.length}</span>
               ) : null}
-              {item.id === "results" && flow.outputs.length > 0 ? (
-                <span className="issue-detail-page__tab-count">{flow.outputs.length}</span>
+              {item.id === "results" && resultCount > 0 ? (
+                <span className="issue-detail-page__tab-count">{resultCount}</span>
+              ) : null}
+              {item.id === "runs" && flow.total > 0 ? (
+                <span className="issue-detail-page__tab-count">{flow.total}</span>
               ) : null}
             </button>
           ))}
@@ -728,7 +835,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                 </div>
               </section> : null}
 
-              <section className="issues-page__panel">
+              <section className={editing ? "issues-page__panel" : "issues-page__panel issue-detail-page__wide"}>
                 <div className="issues-page__toolbar">
                   <h2 className="issues-page__section-title">{flow.parent ? t("issues.subIssues.parent") : t("issues.subIssues.heading")}</h2>
                   {flow.parent ? null : (
@@ -794,86 +901,6 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                   </>
                 )}
               </section>
-
-              <section className="issues-page__panel issue-detail-page__wide">
-                <div className="issues-page__toolbar">
-                  <h2 className="issues-page__section-title">{t("issues.outcome.heading")}</h2>
-                  <span className="issues-page__status">
-                    {currentRun ? statusLabel(currentRun.run.status) : latestAgentTask ? agentTaskLabel(latestAgentTask) : statusLabel("no_runs")}
-                  </span>
-                </div>
-                {currentRun ? (
-                  <div className="workflow-run-page__meta">
-                    <div><strong>{t("issues.outcome.latestRun")}</strong> {currentRun.run.id}</div>
-                    <div><strong>{t("issues.outcome.workflow")}</strong> {flow.workflow?.name ?? currentRun.run.workflowId}</div>
-                    <div>
-                      <strong>{t("issues.outcome.started")}</strong>{" "}
-                      {currentRun.run.startedAt ? formatTimestamp(currentRun.run.startedAt) : t("issues.outcome.notStarted")}
-                    </div>
-                    <div>
-                      <strong>{t("issues.outcome.steps")}</strong>{" "}
-                      {t("issues.outcome.stepsValue", {
-                        done: currentRun.steps.filter((step) => step.status === "succeeded").length,
-                        total: currentRun.steps.length,
-                      })}
-                    </div>
-                    {currentRun.run.errorMessage ? <div className="modal__error">{currentRun.run.errorMessage}</div> : null}
-                    <div className="workflow-run-page__step-actions">
-                      <ButtonLink variant="secondary" href={buildHash({ name: "workflowRun", spaceId, workflowRunId: currentRun.run.id })}>
-                        {t("issues.outcome.openRun")}
-                      </ButtonLink>
-                      {currentRunLatestTaskId ? (
-                        <ButtonLink variant="tertiary" href={buildHash({ name: "task", spaceId, taskId: currentRunLatestTaskId })}>
-                          {t("issues.outcome.openTask")}
-                        </ButtonLink>
-                      ) : null}
-                      <Button variant="tertiary" onClick={() => setTab("runs")}>
-                        {t("issues.outcome.viewAllRuns")}
-                      </Button>
-                    </div>
-                  </div>
-                ) : latestAgentTask ? (
-                  <div className="workflow-run-page__meta">
-                    <div><strong>{t("issues.outcome.latestAgentTask")}</strong> {latestAgentTask.id}</div>
-                    <div><strong>{t("issues.outcome.agent")}</strong> {executorLabel(flow.issue) ?? t("issues.agent")}</div>
-                    <div><strong>{t("issues.outcome.created")}</strong> {formatTimestamp(latestAgentTask.createdAt)}</div>
-                    <div><strong>{t("issues.outcome.status")}</strong> {agentTaskLabel(latestAgentTask)}</div>
-                    {latestAgentTask.awaitingAnswer ? (
-                      <p className="page-activity__meta">
-                        {t("issues.outcome.agentAsked")}
-                      </p>
-                    ) : null}
-                    <div className="workflow-run-page__step-actions">
-                      <ButtonLink variant="secondary" href={buildHash({ name: "task", spaceId, taskId: latestAgentTask.id })}>
-                        {latestAgentTask.awaitingAnswer ? t("issues.outcome.answerInTask") : t("issues.outcome.openTask")}
-                      </ButtonLink>
-                      {taskIsStoppable(latestAgentTask.status) ? (
-                        <Button
-                          variant="danger"
-                          busy={cancelingTaskId === latestAgentTask.id}
-                          onClick={() => handleCancelTask(latestAgentTask.id)}
-                        >
-                          {t("issues.outcome.stopRun")}
-                        </Button>
-                      ) : null}
-                      {taskIsRetryable(latestAgentTask.status) ? (
-                        <Button
-                          variant="secondary"
-                          busy={retryingTaskId === latestAgentTask.id}
-                          onClick={() => handleRetryTask(latestAgentTask.id)}
-                        >
-                          {t("issues.outcome.retryRun")}
-                        </Button>
-                      ) : null}
-                      <Button variant="tertiary" onClick={() => setTab("runs")}>
-                        {t("issues.outcome.viewAllRuns")}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="page-activity__empty">{t("issues.outcome.none")}</p>
-                )}
-              </section>
             </div>
           ) : null}
 
@@ -914,107 +941,98 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
               <section className="issues-page__panel issue-detail-page__wide">
                 <div className="issues-page__toolbar">
                   <h2 className="issues-page__section-title">{t("issues.tab.results")}</h2>
-                  <span className="page-activity__meta">
-                    {flow.outputs.length === 0
-                      ? t("issues.results.noOutputs")
-                      : t("issues.results.outputs", { count: flow.outputs.length })}
-                  </span>
+                  {resultCount > 0 ? (
+                    <span className="page-activity__meta">{t("issues.results.count", { count: resultCount })}</span>
+                  ) : null}
                 </div>
-                <OutputsList
-                  outputs={flow.outputs}
-                  token={token}
-                  onOpenConversation={(conversationId) => navigate({ name: "chat", spaceId, conversationId })}
-                  onOpenRun={(workflowRunId) => navigate({ name: "workflowRun", spaceId, workflowRunId })}
-                  onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
-                />
+                {resultCount === 0 ? (
+                  <p className="page-activity__empty">
+                    {flow.runs.length === 0
+                      ? t("issues.results.noRuns")
+                      : runInFlight
+                        ? t("issues.results.inFlight")
+                        : t("issues.results.nothing")}
+                  </p>
+                ) : null}
+                {flow.outputs.length > 0 ? (
+                  <>
+                    <h3 className="issues-page__section-title">{t("issues.results.files")}</h3>
+                    <OutputsList
+                      outputs={flow.outputs}
+                      token={token}
+                      onOpenConversation={(conversationId) => navigate({ name: "chat", spaceId, conversationId })}
+                      onOpenRun={(workflowRunId) => navigate({ name: "workflowRun", spaceId, workflowRunId })}
+                      onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
+                    />
+                  </>
+                ) : null}
+                {texts.length > 0 ? (
+                  <>
+                    <h3 className="issues-page__section-title">{t("issues.results.text")}</h3>
+                    <ul className="issue-results__text-list">
+                      {texts.map(({ run, text }) => (
+                        <li key={issueRunKey(run)} className="issue-outputs__card">
+                          <div className="issue-outputs__card-head">
+                            <div>
+                              <a href={runHref(run)}><strong>{runTitle(run)}</strong></a>
+                              <div className="page-activity__meta">{runMeta(run)}</div>
+                            </div>
+                            <span className="issues-page__status">{runStatusLabel(run)}</span>
+                          </div>
+                          {text.source !== "workflowResult" ? (
+                            <p className="page-activity__meta">{t("issues.results.textOnly")}</p>
+                          ) : null}
+                          <RunTextBlock text={text} />
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
               </section>
             </div>
           ) : null}
 
           {tab === "runs" ? (
-            <div className="issue-detail-page__panel issue-detail-page__grid">
-              <section className="issues-page__panel">
+            <div className="issue-detail-page__panel">
+              <section className="issues-page__panel issue-detail-page__wide">
                 <div className="issues-page__toolbar">
-                  <h2 className="issues-page__section-title">{t("issues.runs.history")}</h2>
-                  <span className="page-activity__meta">{t("issues.runs.total", { count: flow.total })}</span>
+                  <h2 className="issues-page__section-title">{t("issues.tab.runs")}</h2>
+                  <span className="page-activity__meta">{t("issues.runs.count", { count: flow.total })}</span>
                 </div>
-                <p className="page-activity__subtitle">
-                  {t("issues.runs.hint")}
-                </p>
+                <p className="page-activity__subtitle">{t("issues.runs.hint")}</p>
                 {flow.runs.length === 0 ? (
                   <p className="page-activity__empty">{t("issues.runs.empty")}</p>
                 ) : (
                   <ul className="workflow-page__runs">
-                    {flow.runs.map((item) => (
-                      <li key={item.run.id}>
+                    {flow.runs.map((run) => (
+                      <li key={issueRunKey(run)}>
                         <button
                           type="button"
                           className="workflow-page__run-row"
-                          onClick={() => navigate({ name: "workflowRun", spaceId, workflowRunId: item.run.id })}
+                          onClick={() =>
+                            navigate(
+                              run.kind === "agent"
+                                ? { name: "task", spaceId, taskId: run.task.id }
+                                : { name: "workflowRun", spaceId, workflowRunId: run.run.id },
+                            )
+                          }
                         >
                           <span>
-                            <strong>{item.run.id}</strong>
-                            <span className="page-activity__meta workflow-detail-page__run-id">
-                              {relativeTime(item.run.createdAt)}
-                            </span>
+                            <strong>{runTitle(run)}</strong>
+                            <span className="page-activity__meta workflow-detail-page__run-id">{runMeta(run)}</span>
                           </span>
-                          <span className="issues-page__status">{statusLabel(item.run.status)}</span>
+                          <span className="issues-page__status">{runStatusLabel(run)}</span>
                         </button>
+                        {run.kind === "agent" ? agentRunActions(run.task, "compact") : null}
                       </li>
                     ))}
                   </ul>
                 )}
-              </section>
-
-              <section className="issues-page__panel">
-                <div className="issues-page__toolbar">
-                  <h2 className="issues-page__section-title">{t("issues.runs.agentSequence")}</h2>
-                  <span className="page-activity__meta">{t("issues.runs.tasks", { count: flow.agentTasks.length })}</span>
-                </div>
-                {flow.agentTasks.length === 0 ? (
-                  <p className="page-activity__empty">{t("issues.runs.agentEmpty")}</p>
-                ) : (
-                  <ul className="workflow-page__runs">
-                    {flow.agentTasks.map((task) => (
-                      <li key={task.id}>
-                        <button
-                          type="button"
-                          className="workflow-page__run-row"
-                          onClick={() => navigate({ name: "task", spaceId, taskId: task.id })}
-                        >
-                          <span>
-                            <strong>{task.title}</strong>
-                            <span className="page-activity__meta workflow-detail-page__run-id">
-                              {relativeTime(task.timeAt)}
-                            </span>
-                          </span>
-                          <span className="issues-page__status">{agentTaskLabel(task)}</span>
-                        </button>
-                        {taskIsStoppable(task.status) ? (
-                          <Button
-                            variant="danger"
-                            size="compact"
-                            busy={cancelingTaskId === task.id}
-                            onClick={() => handleCancelTask(task.id)}
-                          >
-                            {t("issues.outcome.stopRun")}
-                          </Button>
-                        ) : null}
-                        {taskIsRetryable(task.status) ? (
-                          <Button
-                            variant="secondary"
-                            size="compact"
-                            busy={retryingTaskId === task.id}
-                            onClick={() => handleRetryTask(task.id)}
-                          >
-                            {t("issues.outcome.retryRun")}
-                          </Button>
-                        ) : null}
-                        <pre className="workflow-page__step-output">{task.summary}</pre>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {flow.total > flow.runs.length ? (
+                  <p className="page-activity__meta">
+                    {t("issues.runs.showing", { shown: flow.runs.length, total: flow.total })}
+                  </p>
+                ) : null}
               </section>
             </div>
           ) : null}

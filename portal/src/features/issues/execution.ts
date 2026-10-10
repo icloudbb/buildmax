@@ -1,6 +1,5 @@
-import type { Issue, Task, Workflow, WorkflowRun } from "../../lib/types"
+import type { Issue, Workflow } from "../../lib/types"
 import type { PermissionState } from "../../state/permissionState"
-import { taskIsStoppable } from "../../lib/taskStatus"
 
 /**
  * What can run an Issue in this Space, as far as the reader may assign it.
@@ -64,14 +63,4 @@ export function issueRunAction({ issue, agentExists, workflowStatus, choices }: 
   }
   const hint = executorHint(choices)
   return { kind: "none", next: hint === "agentOrWorkflow" || hint === "agentOnly" ? "chooseExecutor" : hint }
-}
-
-const LIVE_WORKFLOW_RUN: ReadonlySet<WorkflowRun["status"]> = new Set(["pending", "running", "failing", "canceling"])
-
-/**
- * Whether the Issue's latest run is still in flight, so its Overview keeps
- * refreshing after Run instead of showing a start state that never moves.
- */
-export function issueRunInFlight(latestTask: Pick<Task, "status"> | null, latestRun: Pick<WorkflowRun, "status"> | null): boolean {
-  return (latestTask != null && taskIsStoppable(latestTask.status)) || (latestRun != null && LIVE_WORKFLOW_RUN.has(latestRun.status))
 }

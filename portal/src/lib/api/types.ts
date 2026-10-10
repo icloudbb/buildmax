@@ -266,10 +266,10 @@ export interface ApiWorkflowRunDetailResponse {
   requests?: ApiWorkflowRequest[]
 }
 
-export interface ApiIssueFlowRun {
-  run: ApiWorkflowRun
-  steps: ApiWorkflowNodeRun[]
-}
+/** One run of an Issue: an Agent run started on it, or a Workflow run. */
+export type ApiIssueRun =
+  | { kind: "agent"; task: ApiTask }
+  | { kind: "workflow"; run: ApiWorkflowRun; steps?: ApiWorkflowNodeRun[] }
 
 export interface ApiOutputSource {
   source_type: string
@@ -300,9 +300,8 @@ export interface ApiIssueFlowResponse {
   parent?: ApiIssue | null
   children: ApiIssue[]
   workflow?: ApiWorkflow | null
-  runs: ApiIssueFlowRun[]
-  agent_tasks: ApiTask[]
-  latest_result?: ApiIssueOutput | null
+  /** Agent runs and Workflow runs as one list, newest first; total counts it. */
+  runs: ApiIssueRun[]
   outputs: ApiIssueOutput[]
   total: number
 }

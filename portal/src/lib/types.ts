@@ -283,10 +283,14 @@ export interface WorkflowRequest {
   createdAt: string
 }
 
-export interface IssueFlowRun {
-  run: WorkflowRun
-  steps: WorkflowNodeRun[]
-}
+/**
+ * One run of an Issue. An Agent run carries its Task and the Agent's final
+ * answer (null until it has one; a Task's summary falls back to its input,
+ * which is not something the run produced). A Workflow run carries its steps.
+ */
+export type IssueRun =
+  | { kind: "agent"; task: Task; output: string | null }
+  | { kind: "workflow"; run: WorkflowRun; steps: WorkflowNodeRun[] }
 
 export interface OutputSource {
   sourceType: string
@@ -317,10 +321,10 @@ export interface IssueFlow {
   parent: Issue | null
   children: Issue[]
   workflow?: Workflow | null
-  runs: IssueFlowRun[]
-  agentTasks: Task[]
-  latestResult: IssueOutput | null
+  /** Agent runs and Workflow runs as one list, newest first: runs[0] is the latest. */
+  runs: IssueRun[]
   outputs: IssueOutput[]
+  /** How many runs the Issue has, counting the same list. */
   total: number
 }
 
