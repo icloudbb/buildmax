@@ -477,7 +477,11 @@ Marketplace、登录页和共享的不可用提示、复制、修订控件，现
 旧的 Portal 按钮样式规则已删除。操作进行中时按钮保持文案和宽度，并显示忙碌状态。
 Help 的语言切换和外壳导航属于控件而非页面操作，保留各自样式。
 新 Issue 的状态、Owner 和 Executor 随创建请求一次写入，任一取值被拒绝时不会创建任何内容，
-重试也不会产生重复 Issue。Issues 页面提供 List / Board 切换，以及共用的 Owner 和 Executor
+重试也不会产生重复 Issue。Executor 字段会说明 Agent 和已发布的 Workflow 都可以执行 Issue；
+Space 中两者都没有时，所有者或管理员可以就地创建 Agent，其他成员会看到应该联系谁。在保存
+Executor 之前，Issue 详情会以禁用状态显示 Run，并说明原因和下一步；开始运行后页面停留在
+Issue 上，链接到对应的 Task 或 Workflow 运行，并在运行期间刷新 Overview。
+Issues 页面提供 List / Board 切换，以及共用的 Owner 和 Executor
 过滤条件，它们都保存在 URL 中。Board 把顶层 Issue 投影到固定的 To do、In progress、Done 三列，
 每列是独立的过滤查询，各有自己的总数、分页和失败状态；卡片通过具名操作移动，发送的是普通的带版本
 状态更新，因此过期卡片会被拒绝，也不会启动任何运行。Board 没有拖拽、排序值或另存的列状态。组件样张现服务于认证外壳之外的 `/specimen`：它一次性呈现共享操作语法、语义 token、状态词汇与全部资源状态，覆盖明暗两主题，并复用真实组件。非作者操作员对工作旅程的评审尚未完成。每个拉取请求都会把样张、每种模板的一个 Portal 页面以及 Desktop 黄金路径视图在两种主题下的截图与 Linux 渲染的基线比较，并对它们运行 axe 的 WCAG A/AA 规则（包括对比度）；muted 与 subtle 文本 token 以及亮色主题的警告色已调深或调浅以达到 AA。`eslint-plugin-jsx-a11y` 检查 gui、Portal 与 Desktop。

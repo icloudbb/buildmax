@@ -34,7 +34,10 @@ Shift+Enter 换行）。一段对话可以直接回答你，或者，当工作�
 - **Business Status** —— `todo`、`in progress` 或 `done`。由你自己设置；
   它不会因一次运行而自动改变。
 - **Owner** —— 对该 Issue 负责的人（见下文）。
-- **Executor** —— 被选定来完成这项工作的 Agent 或 Workflow（见下文）。
+- **Executor** —— 被选定来完成这项工作的 Agent 或已发布的 Workflow（见下文）。
+  如果 space 中两者都还没有，该字段会明确说明，并提供 **Create an Agent**：
+  无需离开弹窗即可创建 Agent，它会成为新 Issue 的 Executor。不能创建 Agent 的成员
+  会被提示去联系 space 所有者或管理员。
 
 Issue 可以嵌套：你可以从一个 Issue 添加**子 Issue**来分解工作。
 子 Issue 的状态独立跟踪——在子 Issue 仍未关闭时关闭父 Issue 是允许的，
@@ -66,17 +69,24 @@ Owner 与 Executor 是两个相互独立的选择，可以同时都设置、只�
 - **Owner** —— 负责该 Issue 的人，包括 *Me*。设置 Owner 绝不会启动一次运行，
   它只记录谁对此负责。
 - **Executor** —— 实际执行工作的对象，为以下之一：
-  - **Unassigned** —— 尚未选定。
+  - **None** —— 尚未选定。
   - **An agent** —— 一个已保存的 [Agent](Agent与工作流.md) 可以在后台运行该 Issue。
   - **A workflow** —— 一个已发布的 [Workflow](Agent与工作流.md) 可以为该 Issue 运行其步骤。
+    只有 space 所有者和管理员可以分配 Workflow。
 
 选择 **Edit issue** 修改字段，再点 **Save changes**。保存只会记录你选择的字段，绝不会启动一次运行，
 也不会消耗你 space 的执行配额——在把 Issue 准备好之前，你可以随意更改两者。
 
 一旦 Executor 被保存为某个 Agent 或 Workflow，阅读视图就会显示
-**Run workflow** 或 **Run agent** 按钮。只有这个按钮才会在 worker 上安排一次
+**Run agent** 或 **Run workflow** 按钮。只有这个按钮才会在 worker 上启动一次
 后台运行：它会物化 space 的文件、运行 Agent、写入任何输出，并汇报结果——
-而不会占用你的浏览器。成功发起的 Run 会直接把你带到它启动的那次运行。
+而不会占用你的浏览器。成功发起的 Run 会让你留在该 Issue 上：页面会说明运行已开始，
+并链接到它的 Task 或 Workflow 运行，Overview 会持续跟进这次运行直到结束。
+开始运行不会改变 Issue 的业务状态。
+
+在保存 Executor 之前，**Run** 会以禁用状态显示，并说明原因和下一步：**Choose executor**
+会打开编辑表单并定位到 Executor 字段；如果 space 中还没有 Agent 或已发布的 Workflow，
+**Create an Agent** 会就地创建一个 Agent，并把它选为 Executor，等待你保存。
 
 ## Issue 详情
 
