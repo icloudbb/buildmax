@@ -198,13 +198,11 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
   const step = steps.locator(".workflow-page__step").first()
   await expect(step.getByText("only", { exact: true })).toBeVisible()
   await expect(step.locator(".issues-page__status")).toHaveText("Succeeded")
-  // The direct child, not any descendant: the agent's instructions are drawn in
-  // the same kind of block inside a disclosure, and they say what was asked
-  // rather than what came back. Matching both would pass on a step that
-  // produced nothing.
-  await expect(step.locator(".workflow-page__step-body > .workflow-page__step-output")).toContainText(
-    "deployment smoke ok"
-  )
+  // The labelled Output, not any output-styled block: the agent's instructions
+  // and the step's resolved input are drawn the same way inside disclosures,
+  // and they say what was asked rather than what came back. Matching them
+  // would pass on a step that produced nothing.
+  await expect(step.getByRole("figure", { name: "Output" })).toContainText("deployment smoke ok")
 })
 
 test("a workflow with an input_schema runs from its generated input form", async ({ page }) => {

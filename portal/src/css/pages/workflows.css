@@ -195,6 +195,13 @@
   margin-top: 0.4rem;
 }
 
+.workflow-run-page__step-output {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  margin: 0;
+}
+
 .workflow-run-page__step-actions {
   display: flex;
   flex-wrap: wrap;
