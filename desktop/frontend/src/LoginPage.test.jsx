@@ -28,14 +28,18 @@ function renderPage(props = {}) {
 }
 
 describe('LoginPage', () => {
-  it('leads with the login code and keeps a password one step away', () => {
+  it('leads with a password, as Portal does, and offers a login code for a new account or a lost password', () => {
     renderPage();
-    expect(screen.getByLabelText('Login code')).toBeTruthy();
-    expect(screen.queryByLabelText('Password')).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in with a password instead' }));
     expect(screen.getByLabelText('Password')).toBeTruthy();
     expect(screen.queryByLabelText('Login code')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot your password, or have a login code?' }));
+    expect(screen.getByLabelText('Login code')).toBeTruthy();
+    expect(screen.getByText(/claims a new account or recovers a forgotten password/)).toBeTruthy();
+    expect(screen.queryByLabelText('Password')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with a password' }));
+    expect(screen.getByLabelText('Password')).toBeTruthy();
   });
 
   it('describes the server in a person\'s terms and does not guess an address', async () => {
@@ -56,8 +60,8 @@ describe('LoginPage', () => {
     renderPage();
     fireEvent.click(screen.getByRole('button', { name: '简体中文' }));
     expect(screen.getByLabelText('服务器地址')).toBeTruthy();
-    expect(screen.getByLabelText('登录码')).toBeTruthy();
-    expect(screen.getByRole('button', { name: '改用密码登录' })).toBeTruthy();
+    expect(screen.getByLabelText('密码')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '忘记密码，或已有登录码？' })).toBeTruthy();
 
     const before = document.documentElement.dataset.theme;
     fireEvent.click(screen.getByRole('button', { name: /切换到(深色|浅色)模式/ }));
@@ -86,12 +90,12 @@ describe('LoginPage in Chinese', () => {
     renderPage({ expiredDetail: 'account is disabled', accountDisabled: true, knownServerURL: 'https://buildmax.example.com' });
     expect(screen.getByRole('alert').textContent).toMatch(/管理员停用了你的账户/);
     expect(screen.getByLabelText('服务器地址')).toBeTruthy();
-    expect(screen.getByLabelText('登录码')).toBeTruthy();
+    expect(screen.getByLabelText('密码')).toBeTruthy();
     expect(screen.getByRole('button', { name: '登录' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '退出登录，仅在本机使用' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: '改用密码登录' }));
-    expect(screen.getByLabelText('密码')).toBeTruthy();
-    expect(screen.getByText('使用你的邮箱和密码，登录团队的 BuildMax。')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '忘记密码，或已有登录码？' }));
+    expect(screen.getByLabelText('登录码')).toBeTruthy();
+    expect(screen.getByText('使用管理员提供的登录码登录。')).toBeTruthy();
   });
 });

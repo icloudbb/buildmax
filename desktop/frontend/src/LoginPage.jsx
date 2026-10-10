@@ -15,10 +15,10 @@ const SERVER_URL_EXAMPLE = 'https://buildmax.example.com';
  * that deployment's models and connects the account to a space's work, and
  * signing out switches back. See docs/design/client-modes.md.
  *
- * A login code leads: it is how every account is first claimed and how a
- * forgotten password is recovered, and an account need not ever set a
- * password. BuildMax has no mail channel, so an operator issues that code by
- * hand. Password sign-in stays one step away for accounts that have one.
+ * As in Portal, a password is the everyday way in. A login code is how a new
+ * account is claimed and how a forgotten password is recovered — BuildMax has
+ * no mail channel, so an operator issues that code by hand, and there is no
+ * "send me a code".
  *
  * The page replaces the whole workbench, so it carries its own theme and
  * language controls.
@@ -26,7 +26,7 @@ const SERVER_URL_EXAMPLE = 'https://buildmax.example.com';
 export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accountDisabled = false, knownServerURL = '' }) {
   const t = useT();
   const { locale, setLocale } = useLocale();
-  const [mode, setMode] = useState('code');
+  const [mode, setMode] = useState('password');
   const [serverURL, setServerURL] = useState(knownServerURL);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -146,6 +146,7 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
                 required
                 disabled={loading}
               />
+              <p className="login-page__field-hint">{t('login.codeHint')}</p>
             </>
           ) : (
             <>
@@ -177,7 +178,7 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
             onClick={switchMode}
             disabled={loading}
           >
-            {mode === 'code' ? t('login.toPassword') : t('login.toCode')}
+            {mode === 'password' ? t('login.toCode') : t('login.toPassword')}
           </button>
         </form>
         <div className="login-page__divider"><span>{t('login.or')}</span></div>

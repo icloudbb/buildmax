@@ -46,8 +46,10 @@ kept, the workbench stays open under a banner, and the status is re-read every
 removes the credentials, and that removal is the whole switch back to local. See
 [client modes](../../design/client-modes.md) sections 3 and 8.
 
-The sign-in page (`LoginPage.jsx`) leads with a login code and offers password
-sign-in as the alternative. Its server address starts from
+The sign-in page (`LoginPage.jsx`) matches Portal's: a password is the everyday
+way in, and a login code, issued by an operator, claims a new account or
+recovers a forgotten password. Unlike Portal it does not read
+`GET /api/auth/methods`, so it always shows the local form. Its server address starts from
 `GetDefaultServerURL`, which is `settings.yaml`'s `server_url` (or
 `BUILDMAX_SERVER_URL`) and empty otherwise; unlike `buildmax login`, Desktop
 offers no local-server fallback. The page replaces the whole shell, so it

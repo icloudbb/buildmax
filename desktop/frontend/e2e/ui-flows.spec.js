@@ -92,18 +92,19 @@ test('opening the server sign-in and cancelling returns to local mode', async ({
   await expect(page.locator('.page-home__title')).toHaveText('Continue your work')
 })
 
-test('the sign-in page leads with a login code and switches language in place', async ({ page }) => {
+test('the sign-in page leads with a password and switches language in place', async ({ page }) => {
   await page.locator('.sidebar__user-trigger').click()
   await page.getByText('Sign in to a server', { exact: true }).click()
 
   const login = page.locator('.login-page')
-  await expect(login.getByLabel('Login code')).toBeVisible()
-  await expect(login.getByLabel('Password')).toHaveCount(0)
+  await expect(login.getByLabel('Password')).toBeVisible()
+  await expect(login.getByLabel('Login code')).toHaveCount(0)
   await expect(login).not.toContainText('settings.yaml')
 
   await login.getByRole('button', { name: '简体中文' }).click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
   await expect(login.getByLabel('服务器地址')).toBeVisible()
+  await login.getByRole('button', { name: '忘记密码，或已有登录码？' }).click()
   await expect(login.getByLabel('登录码')).toBeVisible()
 
   await login.getByRole('button', { name: 'English' }).click()
