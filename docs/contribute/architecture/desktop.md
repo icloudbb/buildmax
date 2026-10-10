@@ -46,6 +46,13 @@ kept, the workbench stays open under a banner, and the status is re-read every
 removes the credentials, and that removal is the whole switch back to local. See
 [client modes](../../design/client-modes.md) sections 3 and 8.
 
+The sign-in page (`LoginPage.jsx`) leads with a login code and offers password
+sign-in as the alternative. Its server address starts from
+`GetDefaultServerURL`, which is `settings.yaml`'s `server_url` (or
+`BUILDMAX_SERVER_URL`) and empty otherwise; unlike `buildmax login`, Desktop
+offers no local-server fallback. The page replaces the whole shell, so it
+renders its own language and theme controls.
+
 ## Layers
 
 | Path | Responsibility |
@@ -341,11 +348,14 @@ status it was given and reports a 409 as `conflict`, which the view answers by
 reloading. `CommentOnIssue` posts without `author_kind`, so the comment is the
 person's, not a `local_agent` report.
 
-**Start chat** is a hand-off, not a link: App holds a one-shot draft keyed by
-project, opens that project's new chat, and `ChatInput` fills its composer from
-the draft once. Nothing is saved with the tab layout and no session records the
-Issue; the draft becomes the conversation's first message only when the person
-sends it.
+**Start chat** is a hand-off, not a link. `src/lib/useChatStart.js` owns
+starting a new chat in a project, for the sidebar's "+", a newly opened project,
+and an Issue: it holds a one-shot draft keyed by project and, when the project
+is not current, records the start until App's project-switch effect seeds that
+project's restored layout, which then focuses a new chat instead of whatever
+tab was last in front. `ChatInput` fills its composer from the draft once.
+Nothing is saved with the tab layout and no session records the Issue; the
+draft becomes the conversation's first message only when the person sends it.
 
 ## Build Boundary
 

@@ -88,8 +88,8 @@ code. Then set a password from account settings — after that you sign in with 
 normally.
 
 The Desktop app and `buildmax login` sign in to the same account, but they call
-the API directly: their **Server URL** is <http://localhost:5678>, not the
-Portal's port.
+the API directly: the server address to enter is <http://localhost:5678>, not
+the Portal's port.
 
 ## Add a Model
 

@@ -59,10 +59,10 @@ Open <http://localhost:8080>. Portal and API share that origin, so no
 `/etc/hosts` entries or CORS pairing are needed. The command prints a fresh
 single-use code for `deployment-smoke@buildmax.local` after verification.
 
-That origin is also the **Server URL** for the Desktop app and `buildmax login`.
-The default both offer, `http://localhost:5678`, is the port a server started on
-this machine listens on; nothing publishes it here, because the ingress is the
-only way in.
+That origin is also the server address for the Desktop app and `buildmax login`.
+The default `buildmax login` offers, `http://localhost:5678`, is the port a
+server started on this machine listens on; nothing publishes it here, because
+the ingress is the only way in.
 
 That code is spent the first time it is used, and is printed once. When it is
 gone, `./make kind info` issues another one — it does not, and cannot, show the

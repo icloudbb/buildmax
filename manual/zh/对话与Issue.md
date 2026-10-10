@@ -135,10 +135,10 @@ space 之外的某人）。它的 **Discussion** 在 **Comment** 旁提供 **Rep
 
 - **CLI** —— `buildmax issue list` 显示你未完成的 Issue，`buildmax issue start <id>`
   打开一个由 Agent 限定到该 Issue 的会话；见 [`buildmax issue` 命令](命令行.md#buildmax-issue)。
-- **Desktop** —— 登录服务器后，侧边栏会显示 **Issues**：跨 Space 列出你未完成的 Issue，以及每个
-  Issue 的描述、子 Issue 和讨论。**Start chat** 会在你选择的 Project 中新开聊天，并把 Issue 预先
-  放进输入框，你可以在发送前修改。在同一视图中还可以改变 Issue 的状态并发表评论。Desktop 未登录时
-  不会出现 Issues 入口。
+- **Desktop** —— 登录服务器后，侧边栏会显示 **Issues**：跨 Space 列出你负责的未完成 Issue，以及
+  每个 Issue 的描述、子 Issue 和讨论。**开始对话**（Start chat）会切换到你选择的 Project，在其中
+  新开聊天，并把 Issue 预先放进输入框，你可以在发送前修改。在同一视图中还可以改变 Issue 的状态并
+  发表评论。Desktop 未登录时不会出现 Issues 入口。
 
 无论哪种方式，交回工作都由你决定：评论说明做了什么，状态变更说明是否完成。规划和指派工作仍在
 Portal 中进行。

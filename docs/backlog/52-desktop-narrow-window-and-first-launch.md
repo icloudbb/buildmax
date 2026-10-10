@@ -54,8 +54,7 @@ carries Desktop audit findings D9 and D17.
 ## Out Of Scope
 
 - Decomposing `App.jsx` beyond the sidebar-width logic this task touches.
-- Desktop's Issues behavior, which is
-  [task 30](30-desktop-issue-start-chat-and-sign-in.md).
+- Desktop's Issues behavior.
 
 ## Acceptance Criteria
 

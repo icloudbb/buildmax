@@ -35,7 +35,7 @@ Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的
 
 打开 <http://localhost:8080>。Portal 与 API 同源，无需修改 `/etc/hosts` 或配置 CORS 配对。验证后，命令为 `deployment-smoke@buildmax.local` 输出新的单次使用验证码。
 
-该源也是 Desktop 应用和 `buildmax login` 的 **Server URL**。两者提供的默认地址 `http://localhost:5678` 是本机直接启动服务器时监听的端口；这里不发布该端口，因为入口是唯一访问途径。
+该源也是 Desktop 应用和 `buildmax login` 的服务器地址。`buildmax login` 提供的默认地址 `http://localhost:5678` 是本机直接启动服务器时监听的端口；这里不发布该端口，因为入口是唯一访问途径。
 
 验证码首次使用即消耗，并且只打印一次。丢失后，`./make kind info` 会签发新的验证码，不会也无法显示旧验证码。
 
