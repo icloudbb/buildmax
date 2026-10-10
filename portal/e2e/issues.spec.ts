@@ -91,5 +91,5 @@ test("saving an Issue never starts a run", async ({ page }) => {
   const tabs = page.getByRole("navigation", { name: "Issue sections" })
   await tabs.getByRole("button", { name: "Runs" }).click()
   await expect(page.getByText("No runs yet.")).toBeVisible()
-  await expect(page.getByText("No agent runs recorded for this issue yet.")).toBeVisible()
+  await expect(page.getByText("0 runs", { exact: true })).toBeVisible()
 })
