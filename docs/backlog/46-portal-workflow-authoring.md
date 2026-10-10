@@ -50,8 +50,8 @@ yet. This task carries Portal audit finding P10.
 ## Out Of Scope
 
 - New step types or runtime capability.
-- The run page's result and output presentation, which is
-  [task 28](28-portal-issue-result.md).
+- The run page's result and output presentation, which already labels each
+  step's output and says when a Workflow declares no result.
 
 ## Acceptance Criteria
 

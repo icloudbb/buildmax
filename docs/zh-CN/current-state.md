@@ -483,6 +483,11 @@ Help 的语言切换和外壳导航属于控件而非页面操作，保留各自
 Space 中两者都没有时，所有者或管理员可以就地创建 Agent，其他成员会看到应该联系谁。在保存
 Executor 之前，Issue 详情会以禁用状态显示 Run，并说明原因和下一步；开始运行后页面停留在
 Issue 上，链接到对应的 Task 或 Workflow 运行，并在运行期间刷新 Overview。
+Issue flow API 把一个 Issue 的 Agent 运行和 Workflow 运行列为按时间倒序的单一列表，只有一个计数，
+并排除由 Workflow 步骤派发的 Task，因此 Issue 详情中唯一的 **Latest run**（最近一次运行）元素就是
+任一类型中最新的那次运行：它的状态、发布的文件和文本（Agent 的回复、Workflow 声明的结果，
+或其最后一个步骤的输出），以及指向它的链接。Results 列出已发布的文件和只有文本的产出；Runs 就是那一个列表。
+没有声明结果的 Workflow 运行会说明这一点并指向其步骤，每个步骤的输出都标为 **Output**，位于折叠的输入之上。
 Issues 页面提供 List / Board 切换，以及共用的 Owner 和 Executor
 过滤条件，它们都保存在 URL 中。Board 把顶层 Issue 投影到固定的 To do、In progress、Done 三列，
 每列是独立的过滤查询，各有自己的总数、分页和失败状态；卡片通过具名操作移动，发送的是普通的带版本

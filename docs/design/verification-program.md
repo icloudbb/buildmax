@@ -334,7 +334,7 @@ A deployment journey never stops at HTTP success. V08, for example, asserts:
 - one successful claim and one reporter identity;
 - the expected model and tool transcript;
 - exact artifact bytes and downloadable authorization;
-- Issue `latest_result` and output projection;
+- the Issue flow's latest run and output projection;
 - trace, audit, and managed-call linkage when the mode supplies them;
 - absence of duplicate TaskRuns, outputs, Artifacts, and usage rows.
 

@@ -46,6 +46,9 @@ Portal 负责云端/Space 使用场景：
   它的 Run 操作会停留在 Issue 上：开始运行的提示行链接到新的 Task 或 Workflow 运行，
   页面会在该运行进行期间持续刷新。没有 Executor 时，Run 以禁用状态显示原因和下一步，
   这一判断与 Executor 字段的提示都由 `features/issues/execution.ts` 决定。
+  Issue flow 响应把 Agent 运行和 Workflow 运行列为按时间倒序的单一列表，因此 Overview 的
+  **Latest run** 就是其第一项；任一运行产出了什么（文件与文本）由 `features/issues/result.ts`
+  为 **Latest run** 和 Results 标签页共同判断，两者因此不会不一致。
   `CreateAgentModal` 自行加载选项并创建 Agent，因此 Agents 页面、New Issue 弹窗和
   Issue 详情打开的是同一个对话框。
   Task 详情和对话 Task 卡片使用相同操作层级；Chat 起始页负责自己的标题与可用键盘操作的标签页。
@@ -78,7 +81,7 @@ Portal 负责云端/Space 使用场景：
 
 ## 测试
 
-单元测试通过 Vitest 测试纯模块，`vite.config.ts` 将 `e2e/` 排除在外。Portal 没有 DOM 测试环境，因此显示决策放在纯模块中：`features/runs/summary.ts`、`features/runs/spend.ts`、`features/audit/describe.ts`、`features/usage/pressure.ts`、`features/conversations/thread.ts`、`features/runs/origin.ts`、`features/artifacts/display.ts`、`features/issues/execution.ts`，无需 DOM 即可断言。Artifact 模块镜像服务器的授权规则，以决定是否显示删除按钮，因此要固定两个方向的行为：镜像发生偏差时，要么显示会被拒绝的按钮，要么隐藏本可成功操作的按钮。
+单元测试通过 Vitest 测试纯模块，`vite.config.ts` 将 `e2e/` 排除在外。Portal 没有 DOM 测试环境，因此显示决策放在纯模块中：`features/runs/summary.ts`、`features/runs/spend.ts`、`features/audit/describe.ts`、`features/usage/pressure.ts`、`features/conversations/thread.ts`、`features/runs/origin.ts`、`features/artifacts/display.ts`、`features/issues/execution.ts`、`features/issues/result.ts`，无需 DOM 即可断言。Artifact 模块镜像服务器的授权规则，以决定是否显示删除按钮，因此要固定两个方向的行为：镜像发生偏差时，要么显示会被拒绝的按钮，要么隐藏本可成功操作的按钮。
 
 `portal/e2e/` 存放 Playwright 测试规格，由 `./make e2e` 针对一个部署运行。它们只覆盖浏览器能够展示的内容：发布后的 bundle 能否与真实服务器配合工作。API 级流程属于 `./make kind smoke`，在这里重复只会更慢，不会带来更多信息。
 

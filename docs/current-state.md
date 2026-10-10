@@ -849,7 +849,15 @@ field names Agents and published Workflows, and in a Space with neither it
 creates an Agent in place for an owner or admin, or names whom to ask. Issue
 Detail shows Run disabled with its reason and next step until an executor is
 saved; a started run keeps the person on the Issue, links to its Task or
-workflow run, and refreshes the Overview while it is in flight. The Issues
+workflow run, and refreshes the Overview while it is in flight. The Issue flow
+API lists an Issue's Agent runs and Workflow runs as one newest-first list with
+one count, leaving out Tasks a Workflow step dispatched, so Issue Detail's
+single **Latest run** element is the newest run of either kind: its status,
+the files it published and its text (the Agent's reply, the Workflow's declared
+result, or its last step's output), and a link to it. Results lists published
+files and text-only outputs; Runs is that one list. A Workflow run without a
+declared result says so and points to its steps, and each step's output is
+labelled **Output** above its collapsed input. The Issues
 page offers a List / Board switch and shared Owner and Executor filters, carried
 in the URL. Board projects top-level Issues into fixed To do, In progress, and
 Done lanes, each its own filtered query with its own total, paging, and failure

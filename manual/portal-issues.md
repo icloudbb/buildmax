@@ -111,20 +111,30 @@ in place and selects it as the executor for you to save.
 
 Open an issue to see its detail view, split into four tabs:
 
-The title, status, owner, executor, and latest result appear before the tabs and
+The title, status, owner, executor, and **Latest run** appear before the tabs and
 the edit form. Select **Edit issue** when you need to change fields. Run is
 available from the read view, so an unsaved executor change cannot start the
 wrong work.
 
-- **Overview** — the owner and executor, status, description, sub-issues, and
-  a summary of the most recent run.
-- **Discussion** — the comment thread, where both people and agents leave notes.
-- **Results** — the latest result and every saved [artifact](portal-overview.md)
-  a run produced. Larger outputs are stored as artifacts you can open or
-  download.
-- **Runs** — the full execution history for the issue.
+**Latest run** is the issue's one answer to "did it work, and what did it
+produce?". It is the newest run of either kind — an Agent run or a Workflow
+run — and shows its status, what it produced, and a link to open it. What it
+produced is the files the run published, and its text: the agent's reply, the
+workflow's declared result, or, for a workflow that declares none, the output
+of its last step. A long reply is shortened here; **Results** has all of it.
+While the run is in flight, it says so and updates until the run finishes.
 
-From the Overview or Runs tab, a run in progress offers:
+- **Overview** — the owner and executor, status, description, and sub-issues.
+- **Discussion** — the comment thread, where both people and agents leave notes.
+- **Results** — what the runs produced: every [artifact](portal-overview.md) a
+  run published, which you can open or download, and, for a run whose only
+  output was text, that text, marked as text only. A workflow's declared result
+  is listed here too.
+- **Runs** — one list of every run on the issue, Agent runs and Workflow runs
+  together, newest first, with one count. Open a run for its steps, trace, and
+  diagnostics.
+
+From **Latest run** or the Runs tab, an Agent run offers:
 
 - **Stop Run** — while a run is pending or running, you can stop it. A run nobody
   has picked up yet ends immediately; a run a worker is executing is asked to stop

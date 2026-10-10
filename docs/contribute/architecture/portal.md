@@ -60,7 +60,11 @@ Portal owns the cloud/space lane:
   workflow run, and the page refreshes while that run is in flight. With no
   executor, Run is disabled with the reason and the next step, and
   `features/issues/execution.ts` decides both that and the Executor field's
-  hint. `CreateAgentModal` loads its own options and creates the Agent, so the
+  hint. The Issue flow response lists Agent runs and Workflow runs as one
+  newest-first list, so the Overview's **Latest run** is its first entry, and
+  `features/issues/result.ts` decides what any run produced — its files and its
+  text — for both **Latest run** and the Results tab, so they cannot disagree.
+  `CreateAgentModal` loads its own options and creates the Agent, so the
   Agents page, the New Issue dialog, and Issue Detail open the same dialog.
   Task Detail and conversation task cards use the same action roles; the Chat
   start page owns its heading and keyboard-operated tabs.
@@ -129,7 +133,8 @@ them. Portal has no DOM test environment, so display decisions live in pure
 modules — `features/runs/summary.ts`, `features/runs/spend.ts`,
 `features/audit/describe.ts`, `features/usage/pressure.ts`,
 `features/conversations/thread.ts`, `features/runs/origin.ts`,
-`features/artifacts/display.ts`, `features/issues/execution.ts` — where they
+`features/artifacts/display.ts`, `features/issues/execution.ts`,
+`features/issues/result.ts` — where they
 can be asserted without one. The
 artifact one mirrors a server authorization rule to decide whether to offer a
 delete button, so it is pinned in both directions: a mirror that drifts either

@@ -85,6 +85,10 @@ Workflow 一经发布，就可用 **Run Workflow** 运行它。你会被带到�
 使其作为该 Issue 的工作来运行——见
 [对话与 Issue](对话与Issue.md)。
 
+运行成功后，运行的 **Result** 会显示 Workflow 声明的 `result`。没有声明结果的 Workflow
+会说明这一点并指向各个步骤：每个步骤在 **Output** 下显示它的产出，位于该步骤收到的、
+默认折叠的输入之上。
+
 和 Agent 一样，Workflow 也保留一份带编号的历史，一次运行会记录它所展开的
 Workflow 版本，从而使过去运行的记录保持准确。
 
