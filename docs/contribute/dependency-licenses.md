@@ -113,6 +113,6 @@ itself. If `go env GOROOT` shows a `golang.org/toolchain@...` path, install the
 matching Go release normally, or generate the file in a container:
 
 ```bash
-docker run --rm -v "$PWD:/repo" -w /repo golang:1.26.6 bash -c \
+docker run --rm -v "$PWD:/repo" -w /repo golang:1.26.9 bash -c \
   'go install github.com/google/go-licenses@v1.6.0 && PATH=$PATH:$(go env GOPATH)/bin go run ./tools/mk release notices'
 ```

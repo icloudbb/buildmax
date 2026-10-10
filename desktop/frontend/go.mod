@@ -8,4 +8,4 @@
 // embeds a directory inside its own module. See vite.config.js.
 module desktopfrontend
 
-go 1.26.6
+go 1.26.9

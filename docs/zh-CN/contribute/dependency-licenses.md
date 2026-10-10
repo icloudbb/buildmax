@@ -76,6 +76,6 @@ go install github.com/google/go-licenses@v1.6.0
 当 `GOROOT` 指向模块缓存内部时，`go-licenses` v1.6.0 无法解析标准库，而 Go 自动下载的工具链正放在那里。如果 `go env GOROOT` 显示 `golang.org/toolchain@...` 路径，请正常安装对应 Go 版本，或在容器中生成文件：
 
 ```bash
-docker run --rm -v "$PWD:/repo" -w /repo golang:1.26.6 bash -c \
+docker run --rm -v "$PWD:/repo" -w /repo golang:1.26.9 bash -c \
   'go install github.com/google/go-licenses@v1.6.0 && PATH=$PATH:$(go env GOPATH)/bin go run ./tools/mk release notices'
 ```

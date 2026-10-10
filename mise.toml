@@ -10,5 +10,5 @@
 # frontend package.json, which is Corepack's mechanism — run `corepack enable`
 # once and npm matches the pin on its own.
 [tools]
-go = "1.26.6"
+go = "1.26.9"
 node = "24.19.0"
