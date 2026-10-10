@@ -9,4 +9,4 @@
 // Any directory that runs `npm install` needs one of these.
 module portal
 
-go 1.26.6
+go 1.26.9
