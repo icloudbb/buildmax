@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { diffLines } from '../lib/linediff';
 import { proposedChange } from '../lib/toolChange';
@@ -44,9 +44,19 @@ export function ApprovalPanel({ request, onRespond, keys = true }) {
   // Enter grant the session.
   const [selected, setSelected] = useState(DEFAULT_CHOICE);
 
+  const panelRef = useRef(null);
+
   useEffect(() => {
     if (!keys) return undefined;
     function onKey(e) {
+      // Shortcuts answer only when focus is on this panel or on nothing in
+      // particular. Text typed in the composer, or any other field, must never
+      // grant a tool call, and a key meant for another control is not ours.
+      const target = e.target;
+      const onNothing = !(target instanceof Node) || target === document.body || target === document.documentElement;
+      if (!onNothing && !panelRef.current?.contains(target)) return;
+      // A focused choice answers with its own native click on Enter.
+      if (e.key === 'Enter' && target?.tagName === 'BUTTON') return;
       switch (e.key) {
         case 'ArrowLeft':  setSelected((i) => Math.max(0, i - 1)); break;
         case 'ArrowRight': setSelected((i) => Math.min(APPROVAL_CHOICES.length - 1, i + 1)); break;
@@ -63,7 +73,7 @@ export function ApprovalPanel({ request, onRespond, keys = true }) {
   const change = useMemo(() => proposedChange(request), [request]);
 
   return (
-    <div className="approval-panel">
+    <div className="approval-panel" ref={panelRef}>
       <div className="approval-panel__header">
         <span className="approval-panel__title">{t('chat.approval.title')}</span>
         <span className="approval-panel__tool">{request.tool_name}</span>

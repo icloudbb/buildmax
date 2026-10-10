@@ -281,7 +281,10 @@ that is binary or larger than the 512 KB preview bound; `file.unavailable`
 names the reason instead. `ApprovalPanel` replays the tool's replacement on
 that content (`lib/toolChange.js`) and renders the result with `LineDiff`, a
 line diff computed in the frontend (`lib/linediff.js`). Every prompt starts
-with "Allow once" selected; only the arrow keys move the selection.
+with "Allow once" selected; only the arrow keys move the selection. The
+shortcuts listen on the window but act only when the key event's target is
+the panel or the document body, so keys typed in the composer or any other
+field never answer a prompt, and the prompt never takes focus.
 
 `AskUser` questions follow the same per-run, per-id model. Each project run
 also gets a `runQuestioner`, and `App` holds unanswered questions in the same
