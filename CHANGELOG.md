@@ -14,6 +14,112 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.23] - 2026-10-10
+
+### Added
+
+- Space owners and admins can create service accounts in Space settings:
+  Space-owned identities that cannot sign in, each with an owner or admin as
+  its accountable sponsor, which they can rename, disable, re-enable, and
+  re-sponsor; the admin account list marks them and people pickers leave them
+  out
+  ([Portal overview](https://github.com/icloudbb/buildmax/blob/main/manual/portal-overview.md#space-settings)).
+
+- Space owners and admins can define Space Assistants under Space settings: a
+  service front door with its own instructions, a roster of Agents and published
+  Workflows with release contracts, readable files, an audience, and a service
+  account it runs as; publishing one requires confirming exactly what it
+  discloses, and each can be bound to its own Telegram bot, whose token is stored
+  encrypted. Linked people in its audience can then ask it in a private chat; it
+  starts only roster Agents and Workflows as its service account, records who
+  asked on each Task, answers from its readable text files directly, and passes
+  on only the result fields the Space marked releasable, including in the
+  message sent when an Agent's task or a Workflow run finishes. A request it cannot answer becomes an
+  Issue in the Space, from which a member replies to the requester's chat, and
+  a Schedule can send each result's releasable fields to one person through it.
+  The publish statement also names the space's Files its Agents and Workflow
+  steps can read, and each of those is told the name and email of the person
+  asking from their account, never from a name claimed in the chat
+  ([Portal overview](https://github.com/icloudbb/buildmax/blob/main/manual/portal-overview.md#space-settings)).
+
+- Portal and Desktop offer a complete Simplified Chinese interface, chosen from
+  the user menu and remembered on the device; Help and dates follow the chosen
+  language
+  ([Portal overview](https://github.com/icloudbb/buildmax/blob/main/manual/portal-overview.md)).
+
+### Changed
+
+- The chat Gateway now tells bots apart, so one platform can serve several and
+  any of them can start a link; after upgrading, a Telegram chat's next message
+  starts a new conversation instead of continuing the previous one
+  ([instant-messaging channels](https://github.com/icloudbb/buildmax/blob/main/docs/design/instant-messaging-channels.md#4-concepts)).
+
+- A linked Telegram account now acts only while its user has signed in to
+  BuildMax within `channels.sign_in_window` (default `session_absolute_ttl`);
+  past it the bot asks them to sign in again, so a chat link no longer outlives
+  a login or an identity-provider offboarding
+  ([chat apps](https://github.com/icloudbb/buildmax/blob/main/manual/chat-apps.md#stay-signed-in)).
+
+### Fixed
+
+- Deleting a Space Agent no longer fails with a server error; the delete
+  filtered on a column the `agent` table does not have.
+
+- Portal shows a Space Assistant's bound bot as `@name` instead of `@@name` on
+  the Assistants list and the Assistant's page.
+
+- A Workflow on a Space Assistant's roster now releases its result fields: its
+  result must select the result node's structured output (`"pointer":
+  "/structured"`), where before the whole-output selection the roster required
+  held none of the releasable fields, so the requester learned nothing.
+
+- After the coordination Redis restarted, two server replicas could both keep a
+  chat bot's receive lease and answer each message twice, so the first link
+  code a chat app sent no longer worked; and a conversation could refuse its
+  next few turns. Leases and their fencing tokens now survive Redis losing its data.
+
+- Desktop shows the first message of a new chat as soon as it is sent instead
+  of only after the turn ends, a turn that ends without text no longer leaves a
+  blank bubble, and the composer gives its "/ for commands" hint once.
+
+- Desktop tool approvals show an Edit or Write as a diff against the file's
+  current content, whitespace intact, and say when a Write creates,
+  overwrites, or empties a file; every approval now starts on Allow once,
+  keys typed in the message box no longer answer one, and tool cards name
+  their target path instead of raw JSON.
+
+- A new Portal Issue now says that an Agent or a published Workflow runs it,
+  creates an Agent in place in a Space that has none, explains why Run is
+  disabled until an executor is saved, and stays on the Issue after **Run
+  agent** or **Run workflow** with a link to the run it started.
+
+- A Portal Issue now answers "did its run work, and what did it produce" once:
+  **Latest run** shows the newest Agent or Workflow run, its status, the files
+  it published and its reply or result, and a link to it; Results shows text
+  output instead of claiming nothing was produced; and Runs is one list with one
+  count. The Issue flow API returns `runs` as that one list in place of
+  `agent_tasks` and `latest_result`. A Workflow run without a declared result
+  says so and points to its steps, whose output is labelled **Output**.
+
+- Secondary text and warning labels in Portal and Desktop now meet WCAG AA
+  contrast in both themes, and Desktop's sidebar splitters and file tree work
+  from the keyboard.
+
+- Portal and Desktop borders, panels, and warning, error, and success colors
+  that silently did not render now appear, and they follow the dark theme
+  instead of staying light-theme colors.
+
+### Security
+
+- Go 1.26.9 and `golang.org/x/net` 0.60.0, closing 16 vulnerabilities in the
+  standard library and HTTP/2 code reachable from BuildMax.
+
+- Kubernetes worker Jobs no longer carry the object-storage keys or the direct
+  provider key as plain values: each is a reference to the Secret named by
+  `worker.k8s.credential_secret` (default `buildmax-secret`), so reading a Job
+  or Pod no longer reveals them
+  ([configuration](https://github.com/icloudbb/buildmax/blob/main/docs/reference/configuration.md)).
+
 ## [0.2.0-alpha.22] - 2026-10-03
 
 ### Added
@@ -3892,7 +3998,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.22...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.23...HEAD
+[0.2.0-alpha.23]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.22...v0.2.0-alpha.23
 [0.2.0-alpha.22]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.21...v0.2.0-alpha.22
 [0.2.0-alpha.21]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.20...v0.2.0-alpha.21
 [0.2.0-alpha.20]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.19...v0.2.0-alpha.20
