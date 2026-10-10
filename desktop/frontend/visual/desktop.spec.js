@@ -55,7 +55,8 @@ const views = [
   },
   {
     name: 'sign-in',
-    bridge: { ...fresh, GetDefaultServerURL: 'https://buildmax.example.com' },
+    // No server configured on this machine, so the address field is empty.
+    bridge: { ...fresh, GetDefaultServerURL: '' },
     open: async (page) => {
       await page.locator('.sidebar__user-trigger').click()
       await page.getByText('Sign in to a server', { exact: true }).click()
