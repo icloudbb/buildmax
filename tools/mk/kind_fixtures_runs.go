@@ -231,20 +231,33 @@ func seedFixtureIssueRuns(ctx context.Context, client *http.Client, base, token 
 			ID     string `json:"id"`
 			Status string `json:"status"`
 		}
+		// The flow lists the Issue's Agent runs and Workflow runs as one list,
+		// newest first; an earlier seed's run of the right kind is reused.
 		var flow struct {
-			Tasks []fxTask `json:"agent_tasks"`
-			Runs  []struct {
-				Run run `json:"run"`
+			Runs []struct {
+				Kind string  `json:"kind"`
+				Task *fxTask `json:"task"`
+				Run  *run    `json:"run"`
 			} `json:"runs"`
 		}
 		if err := requestJSON(ctx, client, http.MethodGet, issueURL+"/flow", token, nil, &flow, http.StatusOK); err != nil {
 			return err
 		}
+		var existingTask *fxTask
+		var existingRun *run
+		for _, item := range flow.Runs {
+			if item.Kind == "agent" && item.Task != nil && existingTask == nil {
+				existingTask = item.Task
+			}
+			if item.Kind == "workflow" && item.Run != nil && existingRun == nil {
+				existingRun = item.Run
+			}
+		}
 		switch issue.ExecutorKind {
 		case "agent":
 			var task fxTask
-			if len(flow.Tasks) > 0 {
-				task = flow.Tasks[0]
+			if existingTask != nil {
+				task = *existingTask
 			} else {
 				if err := requestJSON(ctx, client, http.MethodPost, issueURL+"/agent-runs", token, map[string]string{"input": "[kind fixture] Draft release notes from the synthetic QA brief."}, &task, http.StatusCreated); err != nil {
 					return err
@@ -257,8 +270,8 @@ func seedFixtureIssueRuns(ctx context.Context, client *http.Client, base, token 
 			var current struct {
 				Run run `json:"run"`
 			}
-			if len(flow.Runs) > 0 {
-				current.Run = flow.Runs[0].Run
+			if existingRun != nil {
+				current.Run = *existingRun
 			} else {
 				if err := requestJSON(ctx, client, http.MethodPost, issueURL+"/workflow-runs", token, nil, &current, http.StatusCreated); err != nil {
 					return err

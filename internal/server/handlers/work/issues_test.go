@@ -219,8 +219,8 @@ func TestIssueHandlers(t *testing.T) {
 		if err := json.Unmarshal(flowRec.Body.Bytes(), &flow); err != nil {
 			t.Fatalf("decode flow: %v", err)
 		}
-		if len(flow.AgentTasks) == 0 {
-			t.Fatal("expected issue flow to include created agent task")
+		if len(flow.Runs) == 0 || flow.Runs[0].Kind != issueRunKindAgent || flow.Runs[0].Task == nil || flow.Runs[0].Task.ID != out.ID {
+			t.Fatalf("issue flow runs = %+v, want the created Agent run first", flow.Runs)
 		}
 	})
 

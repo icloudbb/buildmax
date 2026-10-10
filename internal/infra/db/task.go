@@ -205,7 +205,11 @@ func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversati
 	return toTasks(list), int(total), err
 }
 
-func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]coretask.Task, int, error) {
+// ListIssueAgentTasks returns the Agent runs started on an Issue itself,
+// newest first. A Task a Workflow step dispatched with the Issue attached also
+// carries issue_id, but it is part of that Workflow run, which the Issue lists
+// on its own; counting it here too would show the same work twice.
+func (s *Store) ListIssueAgentTasks(ctx context.Context, issueID string, limit, offset int) ([]coretask.Task, int, error) {
 	limit, offset = capPage(limit, offset)
 	issueKey, err := lookupKey(ctx, s.db, "issue", issueID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -214,11 +218,12 @@ func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, off
 	if err != nil {
 		return nil, 0, err
 	}
+	const notWorkflowStep = "NOT EXISTS (SELECT 1 FROM workflow_node_run WHERE workflow_node_run.task_id = task.id)"
 	var total int64
-	if err := s.db.WithContext(ctx).Model(&taskRow{}).Where("issue_id = ?", issueKey).Count(&total).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&taskRow{}).Where("task.issue_id = ?", issueKey).Where(notWorkflowStep).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	q := s.taskSelect(ctx).Where("task.issue_id = ?", issueKey).Order("task.created_at DESC")
+	q := s.taskSelect(ctx).Where("task.issue_id = ?", issueKey).Where(notWorkflowStep).Order("task.created_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
