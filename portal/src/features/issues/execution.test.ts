@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { executorHint, issueRunAction, issueRunInFlight, type ExecutorChoices } from "./execution"
+import { executorHint, issueRunAction, type ExecutorChoices } from "./execution"
 
 const empty: ExecutorChoices = { agentCount: 0, publishedWorkflowCount: 0, manage: "allowed" }
 
@@ -68,19 +68,5 @@ describe("issueRunAction", () => {
       kind: "none",
       next: "createAgent",
     })
-  })
-})
-
-describe("issueRunInFlight", () => {
-  it("is true while the latest Agent task or Workflow run can still change", () => {
-    expect(issueRunInFlight({ status: "pending" }, null)).toBe(true)
-    expect(issueRunInFlight({ status: "running" }, null)).toBe(true)
-    expect(issueRunInFlight(null, { status: "canceling" })).toBe(true)
-  })
-
-  it("is false once both have finished, or when nothing has run", () => {
-    expect(issueRunInFlight(null, null)).toBe(false)
-    expect(issueRunInFlight({ status: "success" }, { status: "failed" })).toBe(false)
-    expect(issueRunInFlight({ status: "canceled" }, { status: "succeeded" })).toBe(false)
   })
 })

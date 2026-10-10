@@ -12,11 +12,20 @@ export { ExecutorField } from "./ExecutorField"
 export {
   executorHint,
   issueRunAction,
-  issueRunInFlight,
   type ExecutorChoices,
   type ExecutorHint,
   type IssueRunAction,
 } from "./execution"
+export {
+  issueRunInFlight,
+  issueRunKey,
+  issueRunLive,
+  issueRunProduct,
+  textResults,
+  type RunProduct,
+  type RunText,
+} from "./result"
+export { RunTextBlock } from "./RunTextBlock"
 export {
   ISSUE_LANES,
   LANE_PAGE_SIZE,

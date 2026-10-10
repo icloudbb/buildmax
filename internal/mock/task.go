@@ -20,6 +20,9 @@ type MockTaskStore struct {
 	// admissions records the task and payload fingerprint each admission key
 	// resolved to, so AdmitTask replays the same idempotency the store does.
 	admissions map[string]mockAdmission
+	// workflowSteps holds the tasks a Workflow step admitted, which the store
+	// leaves out of an Issue's own Agent runs.
+	workflowSteps map[string]bool
 }
 
 type mockAdmission struct {
@@ -71,13 +74,13 @@ func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conv
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limit, offset int) ([]coretask.Task, int, error) {
+func (m *MockTaskStore) ListIssueAgentTasks(_ context.Context, issueID string, limit, offset int) ([]coretask.Task, int, error) {
 	if m.ListErr != nil {
 		return nil, 0, m.ListErr
 	}
 	var filtered []coretask.Task
 	for _, task := range m.List {
-		if task.IssueID != nil && *task.IssueID == issueID {
+		if task.IssueID != nil && *task.IssueID == issueID && !m.workflowSteps[task.ID] {
 			filtered = append(filtered, task)
 		}
 	}
@@ -198,6 +201,12 @@ func (m *MockTaskStore) AdmitTask(ctx context.Context, in *coretask.CreateInput)
 		m.admissions = map[string]mockAdmission{}
 	}
 	m.admissions[key] = mockAdmission{taskID: task.ID, fingerprint: fingerprint}
+	if in.WorkflowNodeRunID != "" {
+		if m.workflowSteps == nil {
+			m.workflowSteps = map[string]bool{}
+		}
+		m.workflowSteps[task.ID] = true
+	}
 	return task, nil
 }
 

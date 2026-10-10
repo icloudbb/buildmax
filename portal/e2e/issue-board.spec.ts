@@ -53,14 +53,14 @@ test("a card moves between lanes through its named action, keeps focus, and neve
   await expect(lane(page, "To do").getByRole("link", { name: title, exact: true })).toHaveCount(0)
 
   // The server holds the new status, and the move started nothing.
-  const flow = await getJSON<{ issue: { status: string }; runs: unknown[] | null; agent_tasks: unknown[] | null }>(
+  const flow = await getJSON<{ issue: { status: string }; runs: unknown[] | null; total: number }>(
     page,
     `${current.space}/issues/${issue.id}/flow`,
     current,
   )
   expect(flow.issue.status).toBe("in_progress")
   expect(flow.runs ?? []).toHaveLength(0)
-  expect(flow.agent_tasks ?? []).toHaveLength(0)
+  expect(flow.total).toBe(0)
 
   // The view is navigation state, so a reload reproduces it.
   await page.reload()

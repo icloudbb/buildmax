@@ -230,7 +230,17 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                   {typeof run.result === "string" ? run.result : JSON.stringify(run.result, null, 2)}
                 </pre>
               </div>
-            ) : <p className="page-activity__meta">{isLive ? t("workflows.run.inProgress") : t("workflows.run.noResult")}</p>}
+            ) : (
+              // No declared result is not "nothing produced": the steps'
+              // outputs are what the run produced, so the page says where they are.
+              <p className="page-activity__meta">
+                {isLive
+                  ? t("workflows.run.inProgress")
+                  : steps.some((step) => step.output)
+                    ? t("workflows.run.noDeclaredResult")
+                    : t("workflows.run.noOutput")}
+              </p>
+            )}
             {run.errorMessage ? <p className="modal__error" role="alert">{run.errorMessage}</p> : null}
             <details className="workflow-run-page__diagnostics">
               <summary>{t("workflows.run.details")}</summary>
@@ -326,13 +336,20 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                           </Button>
                         </div>
                       ) : null}
+                      {/* Output first and labelled, so it never reads as the
+                          collapsed input that follows it. */}
+                      {step.output ? (
+                        <figure className="workflow-run-page__step-output">
+                          <figcaption className="page-activity__meta">{t("workflows.run.output")}</figcaption>
+                          <pre className="workflow-page__step-output">{step.output}</pre>
+                        </figure>
+                      ) : null}
                       {step.resolvedInput ? (
                         <details className="workflow-run-page__step-agent">
                           <summary className="page-activity__meta">{t("workflows.run.resolvedInput")}</summary>
                           <pre className="workflow-page__step-output">{step.resolvedInput}</pre>
                         </details>
                       ) : null}
-                      {step.output ? <pre className="workflow-page__step-output">{step.output}</pre> : null}
                       {step.errorMessage ? <p className="modal__error">{step.errorMessage}</p> : null}
                     </div>
                   </li>

@@ -128,9 +128,6 @@ func TestIssueFlowOutputs_EmptyWhenNoRuns(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
-	if flow.LatestResult != nil {
-		t.Fatalf("latest_result should be nil, got %+v", flow.LatestResult)
-	}
 	if flow.Outputs == nil {
 		t.Fatalf("outputs should be empty slice, not nil")
 	}
@@ -182,10 +179,6 @@ func TestIssueFlowOutputs_ArtifactsPublishedByARun(t *testing.T) {
 	if found.Source.TaskRunID != runID || found.Source.TaskID != taskID {
 		t.Errorf("provenance lost: %+v", found.Source)
 	}
-	// The latest (and only) output is what a reader lands on.
-	if flow.LatestResult == nil || flow.LatestResult.ArtifactID != "tsyt7at6cjfr33d73mta" {
-		t.Errorf("latest_result = %+v, want the published artifact", flow.LatestResult)
-	}
 	// The storage key must not reach a client here either.
 	if strings.Contains(rec.Body.String(), "storage_key") {
 		t.Error("the flow response serialized a storage key")
@@ -217,9 +210,10 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 		Status: string(coreworkflow.NodeRunStatusSucceeded),
 		TaskID: &taskID, TaskRunID: &runID, CreatedAt: time.Unix(305, 0).UTC(),
 	}}
+	// The step's Task does not carry the Issue (its node has no Issue access),
+	// so only the Workflow run leads to it: the artifact is still the Issue's.
 	fx.tasks.List = []coretask.Task{{
-		ID: taskID, ConversationID: "c_1", SpaceID: fx.personalID,
-		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED",
+		ID: taskID, SpaceID: fx.personalID, Status: "SUCCEEDED",
 		CreatedBy: "u1", CreatedAt: time.Unix(305, 0).UTC(), LastRunID: &runID,
 	}}
 	fx.taskRuns.Runs = []coretask.Run{{ID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(305, 0).UTC()}}
@@ -235,10 +229,10 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
-	if flow.LatestResult == nil {
-		t.Fatalf("latest_result is nil")
+	if len(flow.Outputs) != 1 {
+		t.Fatalf("outputs = %+v, want the step's artifact", flow.Outputs)
 	}
-	src := flow.LatestResult.Source
+	src := flow.Outputs[0].Source
 	if src.WorkflowRunID == nil || *src.WorkflowRunID != workflowRunID {
 		t.Fatalf("workflow_run_id = %v", src.WorkflowRunID)
 	}

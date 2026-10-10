@@ -5,7 +5,6 @@ import (
 	"sort"
 	"time"
 
-	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	"github.com/icloudbb/buildmax/internal/util"
 )
@@ -35,30 +34,25 @@ type issueOutputResponse struct {
 }
 
 // aggregateIssueOutputs collects an issue's produced outputs: the artifacts its
-// runs published through UploadArtifact. Workflow step provenance is attached
-// via stepsByTaskID (built from all workflow step runs across the issue's
-// workflow runs). Returns outputs sorted by created_at DESC, plus the
-// latest pointer. Missing or unreadable artifacts are silently skipped — they
-// must not fail the overall issue flow response. The agent's reply text is not
-// an output here; it lives on the task thread.
+// runs published through UploadArtifact. tasks maps each task whose artifacts
+// count to the conversation it reports into; workflow step provenance is
+// attached via stepsByTaskID. Returns outputs sorted by created_at DESC.
+// Missing or unreadable artifacts are silently skipped — they must not fail
+// the overall issue flow response. A run's reply text is not an output here:
+// it is the run's own answer, carried by the run itself.
 func (h *Handler) aggregateIssueOutputs(
 	ctx context.Context,
-	agentTasks []coretask.Task,
+	tasks map[string]string,
 	stepsByTaskID map[string]coreworkflow.NodeRun,
-) ([]issueOutputResponse, *issueOutputResponse) {
+) []issueOutputResponse {
 	// Never nil: the flow response serializes this as a JSON array, and a reader
 	// distinguishes "no outputs" from a missing field.
 	outputs := []issueOutputResponse{}
-	outputs = append(outputs, h.artifactOutputs(ctx, agentTasks, stepsByTaskID)...)
+	outputs = append(outputs, h.artifactOutputs(ctx, tasks, stepsByTaskID)...)
 	sort.SliceStable(outputs, func(i, j int) bool {
 		return outputs[i].CreatedAt.After(outputs[j].CreatedAt)
 	})
-	var latest *issueOutputResponse
-	if len(outputs) > 0 {
-		l := outputs[0]
-		latest = &l
-	}
-	return outputs, latest
+	return outputs
 }
 
 // artifactOutputs lists what the issue's runs published as artifacts.
@@ -69,32 +63,30 @@ func (h *Handler) aggregateIssueOutputs(
 // returns none, which is the same shape as runs that published nothing.
 func (h *Handler) artifactOutputs(
 	ctx context.Context,
-	agentTasks []coretask.Task,
+	tasks map[string]string,
 	stepsByTaskID map[string]coreworkflow.NodeRun,
 ) []issueOutputResponse {
-	if h.cfg.Artifacts == nil || !h.cfg.Artifacts.Available() {
+	if h.cfg.Artifacts == nil || !h.cfg.Artifacts.Available() || len(tasks) == 0 {
 		return nil
 	}
 	// Every run of every task, not each task's last one. A retried task has
 	// earlier runs, and an artifact one of them published is still a thing the
 	// space keeps — it does not stop being this issue's output because the task
 	// was run again.
-	taskIDs := make([]string, 0, len(agentTasks))
-	tasksByID := make(map[string]coretask.Task, len(agentTasks))
-	for _, t := range agentTasks {
-		taskIDs = append(taskIDs, t.ID)
-		tasksByID[t.ID] = t
+	taskIDs := make([]string, 0, len(tasks))
+	for taskID := range tasks {
+		taskIDs = append(taskIDs, taskID)
 	}
 	runsByTask, err := h.runIDsByTask(ctx, taskIDs)
 	if err != nil {
 		return nil
 	}
 	runIDs := make([]string, 0, len(taskIDs))
-	runToTask := make(map[string]coretask.Task, len(taskIDs))
+	runToTask := make(map[string]string, len(taskIDs))
 	for taskID, runs := range runsByTask {
 		for _, runID := range runs {
 			runIDs = append(runIDs, runID)
-			runToTask[runID] = tasksByID[taskID]
+			runToTask[runID] = taskID
 		}
 	}
 	bySource, err := h.cfg.Artifacts.ListBySource(ctx, runIDs)
@@ -105,14 +97,14 @@ func (h *Handler) artifactOutputs(
 	}
 	var out []issueOutputResponse
 	for runID, artifacts := range bySource {
-		t := runToTask[runID]
+		taskID := runToTask[runID]
 		source := outputSourceResponse{
 			SourceType:     "task_run",
-			TaskID:         t.ID,
+			TaskID:         taskID,
 			TaskRunID:      runID,
-			ConversationID: t.ConversationID,
+			ConversationID: tasks[taskID],
 		}
-		if step, ok := stepsByTaskID[t.ID]; ok {
+		if step, ok := stepsByTaskID[taskID]; ok {
 			source.WorkflowRunID = util.Ptr(step.WorkflowRunID)
 			source.WorkflowNodeRunID = util.Ptr(step.ID)
 			source.WorkflowNodeID = util.Ptr(step.NodeID)

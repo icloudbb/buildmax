@@ -184,9 +184,8 @@ export const fixtures: Fixtures = {
       issue(6, "Draft the operator summary", "todo", { parent_issue_id: "iss_1" }),
     ],
     workflow: null,
-    runs: [],
-    agent_tasks: [task],
-    latest_result: null,
+    // The server's task status spelling: the Issue shows this run as succeeded.
+    runs: [{ kind: "agent", task: { ...task, status: "SUCCEEDED" } }],
     outputs: [],
     total: 1,
   },

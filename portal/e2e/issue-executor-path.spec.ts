@@ -69,9 +69,9 @@ test("a new person goes from New Issue to a started run without leaving the Issu
   const taskHref = await startedLink.getAttribute("href")
   const taskId = taskHref?.split("/tasks/")[1] ?? ""
 
-  // The Overview's latest outcome is that run, with the same link.
-  const outcome = page.locator("section").filter({ has: page.getByRole("heading", { name: "Latest Outcome" }) })
-  await expect(outcome.getByText(taskId)).toBeVisible()
+  // The Overview's latest run is that run, with the same link.
+  const outcome = page.getByRole("region", { name: "Latest run" })
+  await expect(outcome).toContainText(`Agent run · ${agentName}`)
   await expect(outcome.getByRole("link", { name: "Open Task" })).toHaveAttribute("href", taskHref ?? "")
 
   await startedLink.click()

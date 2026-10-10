@@ -701,9 +701,37 @@
           },
           "runs": {
             "type": "array",
+            "description": "The issue's Agent runs and Workflow runs as one list, newest first; total counts this list, so the first run of the first page is the issue's latest. A Task a Workflow step dispatched is part of its Workflow run, not listed separately.",
             "items": {
               "type": "object",
               "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["agent", "workflow"],
+                  "description": "\"agent\" is an Agent run started on the issue and carries task; \"workflow\" is a Workflow run and carries run and steps."
+                },
+                "task": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type": "string"},
+                    "conversation_id": {"type": "string"},
+                    "session_id": {"type": "string"},
+                    "status": {"type": "string"},
+                    "input": {"type": "string"},
+                    "title": {"type": "string"},
+                    "output": {"type": "string", "description": "The Agent's final answer, once the run has one."},
+                    "created_by": {"type": "string"},
+                    "created_at": {"type": "string", "format": "date-time"},
+                    "started_at": {"type": "string", "format": "date-time"},
+                    "ended_at": {"type": "string", "format": "date-time"},
+                    "error_message": {"type": "string"},
+                    "agent_id": {"type": "string"},
+                    "issue_id": {"type": "string"},
+                    "last_run_id": {"type": "string"},
+                    "awaiting_answer": {"type": "boolean"}
+                  },
+                  "required": ["id", "status", "input", "created_by", "created_at"]
+                },
                 "run": {
                   "type": "object",
                   "properties": {
@@ -764,59 +792,8 @@
                   }
                 }
               },
-              "required": ["run", "steps"]
+              "required": ["kind"]
             }
-          },
-          "agent_tasks": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {"type": "string"},
-                "conversation_id": {"type": "string"},
-                "session_id": {"type": "string"},
-                "status": {"type": "string"},
-                "input": {"type": "string"},
-                "title": {"type": "string"},
-                "output": {"type": "string"},
-                "created_by": {"type": "string"},
-                "created_at": {"type": "string", "format": "date-time"},
-                "started_at": {"type": "string", "format": "date-time"},
-                "ended_at": {"type": "string", "format": "date-time"},
-                "error_message": {"type": "string"},
-                "agent_id": {"type": "string"},
-                "issue_id": {"type": "string"},
-                "last_run_id": {"type": "string"}
-              },
-              "required": ["id", "conversation_id", "status", "input", "created_by", "created_at"]
-            }
-          },
-          "latest_result": {
-            "type": "object",
-            "properties": {
-              "id": {"type": "string"},
-              "title": {"type": "string"},
-              "kind": {"type": "string"},
-              "artifact_id": {"type": "string"},
-              "filename": {"type": "string"},
-              "media_type": {"type": "string"},
-              "size_bytes": {"type": "integer"},
-              "source": {
-                "type": "object",
-                "properties": {
-                  "source_type": {"type": "string"},
-                  "task_id": {"type": "string"},
-                  "task_run_id": {"type": "string"},
-                  "conversation_id": {"type": "string"},
-                  "workflow_run_id": {"type": "string"},
-                  "workflow_node_run_id": {"type": "string"},
-                  "workflow_node_id": {"type": "string"}
-                },
-                "required": ["source_type"]
-              },
-              "created_at": {"type": "string", "format": "date-time"}
-            },
-            "required": ["id", "title", "kind", "artifact_id", "source", "created_at"]
           },
           "outputs": {
             "type": "array",
@@ -850,7 +827,7 @@
           },
           "total": {"type": "integer"}
         },
-        "required": ["issue", "children", "runs", "agent_tasks", "outputs", "total"]
+        "required": ["issue", "children", "runs", "outputs", "total"]
       },
       "Workflow": {
         "type": "object",
@@ -4620,7 +4597,7 @@
     "/api/spaces/{space_id}/issues/{issue_id}/flow": {
       "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "Show an issue's work: its conversation, task runs, and workflow runs",
+        "summary": "Show an issue's work: its place in the hierarchy, its Agent and Workflow runs as one list, and what they published",
         "security": [{"bearerAuth": []}],
         "parameters": [
           {"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}},

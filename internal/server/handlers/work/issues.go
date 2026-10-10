@@ -51,24 +51,35 @@ type issueListResponse struct {
 	Total  int             `json:"total"`
 }
 
-type issueFlowRunResponse struct {
-	Run   workflowRunResponse       `json:"run"`
-	Steps []workflowNodeRunResponse `json:"steps"`
+// issueRunResponse is one run of an issue. Kind "agent" is an Agent run
+// started on the issue and carries its Task; kind "workflow" is a Workflow run
+// and carries the run and its steps.
+type issueRunResponse struct {
+	Kind  string                    `json:"kind"`
+	Task  *TaskResponse             `json:"task,omitempty"`
+	Run   *workflowRunResponse      `json:"run,omitempty"`
+	Steps []workflowNodeRunResponse `json:"steps,omitempty"`
 }
+
+const (
+	issueRunKindAgent    = "agent"
+	issueRunKindWorkflow = "workflow"
+)
 
 type issueFlowResponse struct {
 	Issue IssueResponse `json:"issue"`
-	// Parent is set on a sub-issue; Children on a parent. Runs, agent tasks,
-	// and outputs stay scoped to Issue — a parent's Results panel must keep
-	// meaning "what this issue produced".
-	Parent       *IssueResponse         `json:"parent,omitempty"`
-	Children     []IssueResponse        `json:"children"`
-	Workflow     *workflowResponse      `json:"workflow,omitempty"`
-	Runs         []issueFlowRunResponse `json:"runs"`
-	AgentTasks   []TaskResponse         `json:"agent_tasks"`
-	LatestResult *issueOutputResponse   `json:"latest_result,omitempty"`
-	Outputs      []issueOutputResponse  `json:"outputs"`
-	Total        int                    `json:"total"`
+	// Parent is set on a sub-issue; Children on a parent. Runs and outputs
+	// stay scoped to Issue — a parent's Results panel must keep meaning "what
+	// this issue produced".
+	Parent   *IssueResponse    `json:"parent,omitempty"`
+	Children []IssueResponse   `json:"children"`
+	Workflow *workflowResponse `json:"workflow,omitempty"`
+	// Runs is one list of the issue's Agent runs and Workflow runs, newest
+	// first, and Total counts that same list: the first run of the first page
+	// is the issue's latest run.
+	Runs    []issueRunResponse    `json:"runs"`
+	Outputs []issueOutputResponse `json:"outputs"`
+	Total   int                   `json:"total"`
 }
 
 type createIssueAgentRunRequest struct {
@@ -319,31 +330,37 @@ func (h *Handler) issueFlowToResponse(ctx context.Context, flow *issueFlow) issu
 		workflowOut = &out
 	}
 
-	runOut := make([]issueFlowRunResponse, len(flow.Runs))
-	for i := range flow.Runs {
-		steps := make([]workflowNodeRunResponse, len(flow.Runs[i].Steps))
-		for j := range flow.Runs[i].Steps {
-			steps[j] = workflowNodeRunToResponse(flow.Runs[i].Steps[j])
+	// The tasks whose published artifacts are this page's outputs, with the
+	// conversation each reports into: the Agent runs, and every step task of
+	// the Workflow runs.
+	outputTasks := map[string]string{}
+	runOut := make([]issueRunResponse, len(flow.Runs))
+	for i, run := range flow.Runs {
+		if run.Task != nil {
+			task := taskToResponse(*run.Task)
+			runOut[i] = issueRunResponse{Kind: issueRunKindAgent, Task: &task}
+			outputTasks[run.Task.ID] = run.Task.ConversationID
+			continue
 		}
-		runOut[i] = issueFlowRunResponse{Run: workflowRunToResponse(flow.Runs[i].Run), Steps: steps}
+		steps := make([]workflowNodeRunResponse, len(run.Steps))
+		for j := range run.Steps {
+			steps[j] = workflowNodeRunToResponse(run.Steps[j])
+		}
+		wr := workflowRunToResponse(*run.WorkflowRun)
+		runOut[i] = issueRunResponse{Kind: issueRunKindWorkflow, Run: &wr, Steps: steps}
+	}
+	for taskID := range flow.StepsByTaskID {
+		outputTasks[taskID] = ""
 	}
 
-	agentTasks := make([]TaskResponse, len(flow.AgentTasks))
-	for i := range flow.AgentTasks {
-		agentTasks[i] = taskToResponse(flow.AgentTasks[i])
-	}
-
-	outputs, latest := h.aggregateIssueOutputs(ctx, flow.AgentTasks, flow.StepsByTaskID)
 	return issueFlowResponse{
-		Issue:        self[0],
-		Parent:       parentOut,
-		Children:     childrenOut,
-		Workflow:     workflowOut,
-		Runs:         runOut,
-		AgentTasks:   agentTasks,
-		LatestResult: latest,
-		Outputs:      outputs,
-		Total:        flow.TotalRuns,
+		Issue:    self[0],
+		Parent:   parentOut,
+		Children: childrenOut,
+		Workflow: workflowOut,
+		Runs:     runOut,
+		Outputs:  h.aggregateIssueOutputs(ctx, outputTasks, flow.StepsByTaskID),
+		Total:    flow.Total,
 	}
 }
 

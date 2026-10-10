@@ -92,16 +92,24 @@ Owner 与 Executor 是两个相互独立的选择，可以同时都设置、只�
 
 打开一个 Issue 查看它的详情视图，其中分为四个标签页：
 
-标题、状态、Owner、Executor 和最近结果先于标签页与编辑表单显示。需要修改时选择
-**Edit issue**。Run 位于阅读视图，未保存的 Executor 更改不会启动错误的工作。
+标题、状态、Owner、Executor 和 **Latest run**（中文界面为“最近一次运行”）先于标签页与编辑表单显示。
+需要修改时选择 **Edit issue**。Run 位于阅读视图，未保存的 Executor 更改不会启动错误的工作。
 
-- **Overview** —— Owner 与 Executor、状态、描述、子 Issue，以及最近一次运行的摘要。
+**Latest run** 是这个 Issue 对“它成功了吗、产出了什么”的唯一回答。它是最新的一次运行，
+不论是 Agent 运行还是 Workflow 运行，显示其状态、产出以及打开它的链接。产出包括这次运行发布的文件，
+以及它的文本：Agent 的回复、Workflow 声明的结果，或者在 Workflow 没有声明结果时，
+其最后一个步骤的输出。较长的回复在这里会被截短，**Results** 中有完整内容。
+运行进行期间，它会注明仍在运行，并持续更新直到运行结束。
+运行按开始的时间排序，因此重试一次较早的运行不会把它移到最前：重试仍留在该运行在 **Runs** 中的位置。
+
+- **Overview** —— Owner 与 Executor、状态、描述和子 Issue。
 - **Discussion** —— 评论线程，人和 Agent 都会在那里留下笔记。
-- **Results** —— 最新结果，以及一次运行产出的所有已保存
-  [Artifact](Portal概览.md)。较大的输出会作为 Artifact 存储，你可以打开或下载。
-- **Runs** —— 该 Issue 的完整执行历史。
+- **Results** —— 各次运行的产出：运行发布的每个 [Artifact](Portal概览.md)（可以打开或下载），
+  以及只产出了文本的运行的那段文本，并注明只产出了文本。Workflow 声明的结果也列在这里。
+- **Runs** —— 该 Issue 上所有运行的单一列表，Agent 运行与 Workflow 运行放在一起，
+  按时间倒序排列，只有一个计数。打开某次运行可以查看其步骤、轨迹和诊断信息。
 
-在 Overview 或 Runs 标签页中，一次正在进行的运行会提供：
+在 **Latest run** 或 Runs 标签页中，一次 Agent 运行会提供：
 
 - **Stop Run** —— 当一次运行处于 pending 或 running 状态时，你可以停止它。
   尚无人接管的运行会立即结束；正在被某个 worker 执行的运行会被请求停止，

@@ -57,11 +57,21 @@ test("the Issue journey reads in Chinese", async ({ page }) => {
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible()
   const tabs = page.getByRole("navigation", { name: "Issue 分区" })
   await expect(tabs.getByRole("button", { name: "概览" })).toHaveAttribute("aria-current", "true")
-  await expect(page.getByRole("heading", { name: "最新结果", exact: true })).toBeVisible()
+  // The latest run and the Results tab carry distinct labels: the audit found
+  // two sections both called 最新结果 that disagreed.
+  await expect(page.getByRole("heading", { name: "最近一次运行", exact: true })).toBeVisible()
+  await expect(page.getByText("此 Issue 还没有运行过。", { exact: true })).toBeVisible()
+  await expect(page.getByText("最新结果")).toHaveCount(0)
   // With no executor, Run stays disabled and explains itself in Chinese.
   const run = page.getByRole("button", { name: "开始运行" })
   await expect(run).toBeDisabled()
   await expect(run).toHaveAccessibleDescription(/^此 Issue 还没有执行者/)
   await tabs.getByRole("button", { name: "讨论" }).click()
   await expect(page.getByRole("heading", { name: "讨论", exact: true })).toBeVisible()
+  await tabs.getByRole("button", { name: "结果" }).click()
+  await expect(page.getByRole("heading", { name: "结果", exact: true })).toBeVisible()
+  await expect(page.getByText("此 Issue 还没有运行过，因此还没有产出。", { exact: true })).toBeVisible()
+  await tabs.getByRole("button", { name: "运行" }).click()
+  await expect(page.getByRole("heading", { name: "运行", exact: true })).toBeVisible()
+  await expect(page.getByText("共 0 次运行", { exact: true })).toBeVisible()
 })

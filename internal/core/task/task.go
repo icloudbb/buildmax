@@ -542,7 +542,10 @@ type Store interface {
 	ListTasksByConversation(ctx context.Context, conversationID string, order string) ([]Task, error)
 	// ListTasksByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
 	ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]Task, int, error)
-	ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]Task, int, error)
+	// ListIssueAgentTasks returns the Agent runs started on an Issue, newest
+	// first, leaving out Tasks a Workflow step dispatched: those belong to
+	// their Workflow run. total is the count ignoring limit and offset.
+	ListIssueAgentTasks(ctx context.Context, issueID string, limit, offset int) ([]Task, int, error)
 	ListTasksByAgent(ctx context.Context, spaceID, agentID string, limit, offset int) ([]Task, int, error)
 	// ListTasksBySchedule returns the tasks a recurring schedule created, newest
 	// first, scoped to the space so a schedule id cannot read another space's

@@ -96,6 +96,11 @@ the run's detail view, where each step shows its own status as it executes. You 
 also assign the workflow to an issue so it runs as that issue's work — see
 [Conversations & issues](portal-issues.md).
 
+The run's **Result** shows the workflow's declared `result` once the run
+succeeds. A workflow that declares no result says so and points to its steps:
+each step shows what it produced under **Output**, above the collapsed input
+the step received.
+
 Like agents, workflows keep a numbered history, and a run records the workflow
 version it expanded so the record of a past run stays accurate.
 

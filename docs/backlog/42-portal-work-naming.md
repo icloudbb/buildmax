@@ -68,8 +68,8 @@ P18, and P25.
 ## Out Of Scope
 
 - How title generation itself works for the real model.
-- The Issue result layout, which is [task 28](28-portal-issue-result.md). Both
-  tasks touch the Issue Overview, so coordinate if both are in flight.
+- The Issue result layout, which shipped with the Overview's **Latest run**
+  element; keep its one-answer structure when renaming what it shows.
 
 ## Acceptance Criteria
 

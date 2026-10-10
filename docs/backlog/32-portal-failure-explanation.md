@@ -31,7 +31,7 @@ and offers a retry that cannot succeed.**
   - The run fails in about 0 s.
   - The transcript shows an italic message in the Agent's bubble:
     `secret grant unavailable: worker API GET /api/worker/task-runs/<id>/secrets: secret is disabled (409)`.
-  - The Issue's Latest Outcome says only "Failed".
+  - The Issue's Latest Outcome (now **Latest run**) says only "Failed".
   - **Details** (Task details) lists the Agent, the status, and a 0 s
     duration, but no cause.
   - **Run details** says "no trace was recorded for this run", and the
