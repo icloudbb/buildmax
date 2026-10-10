@@ -254,7 +254,10 @@ transcript and run state and handles only events tagged with its
 `session_id`. A new chat has no id until its run starts; the run emits
 `desktop/session-adopted` with the created id once, before any of its stream
 events, and only runs that began as a new chat emit it, so the pending tab
-adopts the right id while other sessions stream.
+adopts the right id while other sessions stream. Adopting does not reload the
+session: the run has not written the prompt yet, so the tab keeps the
+transcript it built from the send and reads the session back when the turn
+ends. An assistant message with no text and no tool call renders nothing.
 
 Tool approvals are per run. Each project run gets its own approval handler, and
 `App` holds every unanswered request under a fresh `approval_id`.

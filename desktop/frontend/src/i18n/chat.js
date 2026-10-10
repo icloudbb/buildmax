@@ -62,7 +62,7 @@ export const chatMessages = {
     'chat.context.windowLabel': 'Window',
     'chat.context.noReading': 'No context reading yet.',
 
-    'chat.composer.placeholder': 'Type a message… (/ for commands, Enter to send)',
+    'chat.composer.placeholder': 'Type a message… (Enter to send)',
     'chat.composer.queuePlaceholder': 'Type a message… (Enter to queue it for the next turn)',
     'chat.composer.label': 'Message',
     'chat.model.none': 'No model',
@@ -221,7 +221,7 @@ export const chatMessages = {
     'chat.context.windowLabel': '窗口',
     'chat.context.noReading': '还没有上下文读数。',
 
-    'chat.composer.placeholder': '输入消息…（/ 打开命令，Enter 发送）',
+    'chat.composer.placeholder': '输入消息…（Enter 发送）',
     'chat.composer.queuePlaceholder': '输入消息…（Enter 排入下一轮）',
     'chat.composer.label': '消息',
     'chat.model.none': '无模型',
