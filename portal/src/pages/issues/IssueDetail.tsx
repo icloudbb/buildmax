@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { Button, ButtonLink } from "@buildmax/gui"
 import type { Agent, Issue, IssueFlow, IssueFlowRun, Task, Workflow } from "../../lib/types"
 import type { ApiIssueComment, ApiIssueFlowResponse, ApiSpaceMember } from "../../lib/api/types"
@@ -24,17 +24,23 @@ import { getAssistant } from "../../features/assistants"
 import { cancelTask, retryTask } from "../../features/tasks"
 import {
   createIssue,
+  ExecutorField,
   getIssueFlow,
   IssueDiscussion,
+  issueRunAction,
+  issueRunInFlight,
   OutputsList,
   runIssueAgent,
   updateIssue,
+  type IssueRunAction,
 } from "../../features/issues"
 import { RunTraceModal } from "../../features/runs"
 import { getSpaceMembers, peopleOnly } from "../../features/spaces/api"
 import { getWorkflows, runIssueWorkflow } from "../../features/workflows"
-import { useSpace } from "../../contexts/SpaceContext"
+import { CreateAgentModal } from "../../components/CreateAgentModal"
+import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { useApp } from "../../contexts/AppContext"
+import { isAllowed } from "../../state/permissionState"
 
 interface IssueDetailProps {
   token: string | null
@@ -76,6 +82,23 @@ function mapIssueFlow(api: ApiIssueFlowResponse): IssueFlow {
 function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
   return flow?.runs[0] ?? null
 }
+
+function executorValueOf(issue: Issue): string {
+  return issue.executorKind && issue.executorId ? `${issue.executorKind}:${issue.executorId}` : ""
+}
+
+const NO_EXECUTOR_REASON: Record<Extract<IssueRunAction, { kind: "none" }>["next"], MessageKey> = {
+  chooseExecutor: "issues.run.chooseExecutor",
+  createAgent: "issues.run.createAgent",
+  askForAgent: "issues.run.askForAgent",
+  nothingYet: "issues.run.nothingYet",
+}
+
+/** What a successful Run started, so the Issue can link to it without leaving. */
+type StartedRun = { kind: "agent"; taskId: string } | { kind: "workflow"; workflowRunId: string }
+
+// How often the Overview refreshes while the Issue's latest run is in flight.
+const RUN_POLL_MS = 3000
 
 export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProps) {
   const t = useT()
@@ -119,9 +142,27 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   const [comments, setComments] = useState<ApiIssueComment[]>([])
   // The escalating Assistant's name; null until loaded or when it is gone.
   const [assistantName, setAssistantName] = useState<string | null>(null)
-  const canAssignWorkflow = currentUserRole === "owner" || currentUserRole === "admin"
+  const [startedRun, setStartedRun] = useState<StartedRun | null>(null)
+  const [creatingAgent, setCreatingAgent] = useState(false)
+  const [focusExecutor, setFocusExecutor] = useState(false)
+  const executorSelect = useRef<HTMLSelectElement>(null)
+  const runReasonId = useId()
+  // Owners and admins create Agents and assign Workflows.
+  const manage = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
+  const canAssignWorkflow = isAllowed(manage)
 
-  const load = useCallback(async () => {
+  const resetForm = useCallback((issue: Issue) => {
+    setTitle(issue.title)
+    setDescription(issue.description)
+    setStatus(issue.status)
+    setOwnerValue(issue.ownerId ?? "")
+    setExecutorValue(executorValueOf(issue))
+  }, [])
+
+  // A background load refreshes the page while a run is in flight: it never
+  // blanks the page, touches the edit form, or turns a passing network error
+  // into an unavailable Issue.
+  const load = useCallback(async (background = false) => {
     if (!token || !spaceId) {
       setFlow(null)
       setAgents([])
@@ -130,9 +171,11 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
       setLoading(false)
       return
     }
-    setLoading(true)
-    setLoadError(null)
-    setUnavailable(null)
+    if (!background) {
+      setLoading(true)
+      setLoadError(null)
+      setUnavailable(null)
+    }
     try {
       const [flowApi, agentsApi, membersApi, workflowsApi] = await Promise.all([
         getIssueFlow(spaceId, issueId, token),
@@ -145,16 +188,9 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
       setAgents(agentsApi.map(apiAgentToAgent))
       setMembers(membersApi)
       setWorkflows(workflowsApi.workflows.map(apiWorkflowToWorkflow))
-      setTitle(mapped.issue.title)
-      setDescription(mapped.issue.description)
-      setStatus(mapped.issue.status)
-      setOwnerValue(mapped.issue.ownerId ?? "")
-      setExecutorValue(
-        mapped.issue.executorKind && mapped.issue.executorId
-          ? `${mapped.issue.executorKind}:${mapped.issue.executorId}`
-          : "",
-      )
+      if (!background) resetForm(mapped.issue)
     } catch (err) {
+      if (background) return
       if (err instanceof ApiRequestError && err.status === 404) {
         setUnavailable("notFound")
       } else if (err instanceof ApiRequestError && err.status === 403) {
@@ -167,13 +203,21 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
       // re-run this load, which would reset an open edit form.
       setLoadError(err instanceof Error ? err.message : null)
     } finally {
-      setLoading(false)
+      if (!background) setLoading(false)
     }
-  }, [token, spaceId, issueId])
+  }, [token, spaceId, issueId, resetForm])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  // Reached from "Choose executor" or a just-created Agent: the person's next
+  // step is the executor, so focus lands there once the form is open.
+  useEffect(() => {
+    if (!editing || !focusExecutor) return
+    executorSelect.current?.focus()
+    setFocusExecutor(false)
+  }, [editing, focusExecutor])
 
   // Publish the loaded title so the breadcrumb reads "Issues / <title>"
   // instead of the opaque id, and updates in place after a rename.
@@ -202,14 +246,18 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   const currentRunLatestTaskId =
     [...(currentRun?.steps ?? [])].reverse().find((step) => step.taskId)?.taskId ?? null
   const latestAgentTask = flow?.agentTasks[0] ?? null
-  const isWorkflowAssigned = flow?.issue.executorKind === "workflow" && Boolean(flow.issue.executorId)
-  const isAgentAssigned = flow?.issue.executorKind === "agent" && Boolean(flow.issue.executorId)
   const assignedWorkflowStatus =
     flow?.workflow?.status ??
     workflows.find((workflow) => workflow.id === flow?.issue.executorId)?.status
-  const publishedAssignableWorkflows = workflows.filter(
-    (workflow) => workflow.status === "published" || workflow.id === flow?.issue.executorId,
-  )
+
+  // Running keeps the person on the Issue, so the Overview follows the run
+  // until it finishes. Paused while editing, which a reload would disturb.
+  const runInFlight = issueRunInFlight(latestAgentTask, currentRun?.run ?? null)
+  useEffect(() => {
+    if (!runInFlight || editing) return
+    const timer = window.setInterval(() => void load(true), RUN_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [runInFlight, editing, load])
 
   const openChildCount = (flow?.issue.childCount ?? 0) - (flow?.issue.doneChildCount ?? 0)
 
@@ -281,6 +329,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     setSaving(true)
     setSaveError(null)
     setSaveMessage(null)
+    setStartedRun(null)
     updateIssue(
       spaceId,
       flow.issue.id,
@@ -297,9 +346,12 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     )
       .then(() => {
         setEditing(false)
+        // Naming the button the person will press, not a generic "Run".
         setSaveMessage(
           executorKind === "agent" || executorKind === "workflow"
-            ? t("issues.detail.savedNoRun")
+            ? t("issues.detail.savedNoRun", {
+                action: t(executorKind === "agent" ? "issues.detail.runAgent" : "issues.detail.runWorkflow"),
+              })
             : t("issues.detail.saved"),
         )
         return load()
@@ -333,16 +385,18 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
       .finally(() => setAddingSubIssue(false))
   }
 
+  // Run keeps the person on the Issue, the work hub: the Overview follows the
+  // run, and the started line links straight to what Run created -- that link
+  // is the confirmation Run succeeded.
   function handleRunWorkflow() {
     if (!token || !spaceId || !flow || editing) return
     setRunningWorkflow(true)
     setRunError(null)
+    setSaveMessage(null)
     runIssueWorkflow(spaceId, flow.issue.id, token)
       .then((detail) => {
-        void load()
-        // A successful schedule links straight to what it started, not back to
-        // this form -- that link is the confirmation Run succeeded.
-        navigate({ name: "workflowRun", spaceId, workflowRunId: detail.run.id })
+        setStartedRun({ kind: "workflow", workflowRunId: detail.run.id })
+        void load(true)
       })
       .catch((err) => setRunError(getErrorMessage(err, t("issues.detail.error.runWorkflow"))))
       .finally(() => setRunningWorkflow(false))
@@ -372,15 +426,35 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
     if (!token || !spaceId || !flow || editing) return
     setRunningAgent(true)
     setRunError(null)
+    setSaveMessage(null)
     runIssueAgent(spaceId, flow.issue.id, token)
       .then((created) => {
-        void load()
-        // Same contract as Run Workflow: land on the run this started, not on
-        // a form that just quietly reloaded.
-        navigate({ name: "task", spaceId, taskId: created.id })
+        setStartedRun({ kind: "agent", taskId: created.id })
+        void load(true)
       })
       .catch((err) => setRunError(getErrorMessage(err, t("issues.detail.error.runAgent"))))
       .finally(() => setRunningAgent(false))
+  }
+
+  function startEditing(focus: boolean) {
+    if (!flow) return
+    // From the loaded Issue, which a background refresh may have moved past
+    // the last form reset.
+    resetForm(flow.issue)
+    setSaveError(null)
+    setTab("overview")
+    setEditing(true)
+    setFocusExecutor(focus)
+  }
+
+  function handleAgentCreated(agent: Agent) {
+    setAgents((prev) => [...prev, agent])
+    setCreatingAgent(false)
+    if (!editing) startEditing(true)
+    else setFocusExecutor(true)
+    // Preselected, not saved: assigning the executor stays the person's Save.
+    setExecutorValue(`agent:${agent.id}`)
+    setSaveMessage(t("issues.detail.agentCreated", { name: agent.name }))
   }
 
   if (loading) {
@@ -409,37 +483,37 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   // directly instead of threading `flow?.` through every field access below.
   if (!flow) return null
 
-  // Run is disabled until its executor is actually runnable; these name the
-  // specific reason rather than leaving a disabled button unexplained.
-  const workflowRunDisabledReason = !isWorkflowAssigned
-    ? null
-    : assignedWorkflowStatus !== "published"
-      ? t("issues.detail.workflowUnpublished")
-      : null
+  // Run is disabled until its executor is actually runnable, and the reason is
+  // specific; with no executor, the reason comes with the next step.
+  const runAction = issueRunAction({
+    issue: flow.issue,
+    agentExists: agents.some((agent) => agent.id === flow.issue.executorId),
+    workflowStatus: assignedWorkflowStatus,
+    choices: {
+      agentCount: agents.length,
+      publishedWorkflowCount: workflows.filter((workflow) => workflow.status === "published").length,
+      manage,
+    },
+  })
+  const runBlockedReason =
+    runAction.kind === "none"
+      ? t(NO_EXECUTOR_REASON[runAction.next])
+      : runAction.blocked === "agentMissing"
+        ? t("issues.detail.agentMissing")
+        : runAction.blocked === "workflowUnpublished"
+          ? t("issues.detail.workflowUnpublished")
+          : null
   // The Assistant's name is a link inside the sentence, so the translated
   // sentence is split at its placeholder rather than assembled from fragments.
   const [escalatedBefore, escalatedAfter] = flow.issue.escalation
     ? t("issues.detail.escalated", { requester: requesterLabel(flow.issue.escalation.requestedBy) }).split("{assistant}")
     : ["", ""]
-  const agentStillExists = agents.some((agent) => agent.id === flow?.issue.executorId)
-  const agentRunDisabledReason = !isAgentAssigned
-    ? null
-    : !agentStillExists
-      ? t("issues.detail.agentMissing")
-      : null
 
   function cancelEditing() {
     if (!flow) return
-    setTitle(flow.issue.title)
-    setDescription(flow.issue.description)
-    setStatus(flow.issue.status)
-    setOwnerValue(flow.issue.ownerId ?? "")
-    setExecutorValue(
-      flow.issue.executorKind && flow.issue.executorId
-        ? `${flow.issue.executorKind}:${flow.issue.executorId}`
-        : "",
-    )
+    resetForm(flow.issue)
     setSaveError(null)
+    setSaveMessage(null)
     setEditing(false)
   }
 
@@ -459,10 +533,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
           <Button variant="tertiary" disabled={loading || editing} onClick={() => void load()}>
             {t("issues.detail.refresh")}
           </Button>
-          {!editing ? <Button variant="secondary" onClick={() => {
-            setTab("overview")
-            setEditing(true)
-          }}>{t("issues.detail.edit")}</Button> : null}
+          {!editing ? <Button variant="secondary" onClick={() => startEditing(false)}>{t("issues.detail.edit")}</Button> : null}
         </div>
       </div>
 
@@ -498,19 +569,45 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
           )}
         </div>
         {!editing ? <div className="issues-page__form-actions">
-          {isWorkflowAssigned ? <span className="page-activity__action-group">
-            <Button variant="primary" busy={runningWorkflow} disabled={loading || workflowRunDisabledReason != null} title={workflowRunDisabledReason ?? undefined} onClick={handleRunWorkflow}>
-              {t("issues.detail.runWorkflow")}
+          <span className="page-activity__action-group">
+            <Button
+              variant="primary"
+              busy={runAction.kind === "agent" ? runningAgent : runAction.kind === "workflow" ? runningWorkflow : false}
+              disabled={loading || runBlockedReason != null}
+              aria-describedby={runBlockedReason ? runReasonId : undefined}
+              onClick={runAction.kind === "agent" ? handleRunAgent : handleRunWorkflow}
+            >
+              {runAction.kind === "agent"
+                ? t("issues.detail.runAgent")
+                : runAction.kind === "workflow"
+                  ? t("issues.detail.runWorkflow")
+                  : t("issues.detail.run")}
             </Button>
-            {workflowRunDisabledReason ? <span className="page-activity__meta">{workflowRunDisabledReason}</span> : null}
-          </span> : null}
-          {isAgentAssigned ? <span className="page-activity__action-group">
-            <Button variant="primary" busy={runningAgent} disabled={loading || agentRunDisabledReason != null} title={agentRunDisabledReason ?? undefined} onClick={handleRunAgent}>
-              {t("issues.detail.runAgent")}
-            </Button>
-            {agentRunDisabledReason ? <span className="page-activity__meta">{agentRunDisabledReason}</span> : null}
-          </span> : null}
+            {runBlockedReason ? <span id={runReasonId} className="page-activity__meta">{runBlockedReason}</span> : null}
+            {runAction.kind === "none" && runAction.next === "chooseExecutor" ? (
+              <Button variant="secondary" size="compact" onClick={() => startEditing(true)}>
+                {t("issues.run.chooseExecutorAction")}
+              </Button>
+            ) : null}
+            {runAction.kind === "none" && runAction.next === "createAgent" ? (
+              <Button variant="secondary" size="compact" onClick={() => setCreatingAgent(true)}>
+                {t("issues.executor.createAgent")}
+              </Button>
+            ) : null}
+          </span>
           {runError ? <p className="modal__error" role="alert">{runError}</p> : null}
+          {startedRun ? (
+            <p className="page-activity__meta" role="status">
+              {t("issues.detail.runStarted")}{" "}
+              {startedRun.kind === "agent" ? (
+                <a href={buildHash({ name: "task", spaceId, taskId: startedRun.taskId })}>{t("issues.outcome.openTask")}</a>
+              ) : (
+                <a href={buildHash({ name: "workflowRun", spaceId, workflowRunId: startedRun.workflowRunId })}>
+                  {t("issues.outcome.openRun")}
+                </a>
+              )}
+            </p>
+          ) : null}
           {saveMessage ? <p className="page-activity__meta" role="status">{saveMessage}</p> : null}
         </div> : null}
       </section>
@@ -583,32 +680,16 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                       <span className="issues-page__field-label">{t("issues.field.ownerHint")}</span>
                     </label>
                   </div>
-                  <label className="issues-page__field">
-                    <span className="issues-page__field-label">{t("issues.field.executor")}</span>
-                    <select className="issues-page__select" value={executorValue} onChange={(e) => setExecutorValue(e.target.value)}>
-                      <option value="">{t("issues.none")}</option>
-                      {agents.map((agent) => (
-                        <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
-                      ))}
-                      {canAssignWorkflow
-                        ? publishedAssignableWorkflows.map((workflow) => (
-                            <option key={workflow.id} value={`workflow:${workflow.id}`}>
-                              {workflow.status !== "published"
-                                ? t("issues.workflowWithStatus", {
-                                    name: workflow.name,
-                                    status: statusLabel(workflow.status).toLowerCase(),
-                                  })
-                                : workflow.name}
-                            </option>
-                          ))
-                        : null}
-                    </select>
-                    <span className="issues-page__field-label">
-                      {canAssignWorkflow
-                        ? t("issues.field.executorHintReassign")
-                        : t("issues.field.executorHintRestricted")}
-                    </span>
-                  </label>
+                  <ExecutorField
+                    value={executorValue}
+                    savedValue={executorValueOf(flow.issue)}
+                    onChange={setExecutorValue}
+                    agents={agents}
+                    workflows={workflows}
+                    manage={manage}
+                    onCreateAgent={() => setCreatingAgent(true)}
+                    selectRef={executorSelect}
+                  />
                   {status === "done" && openChildCount > 0 ? (
                     <p className="page-activity__meta">
                       {t("issues.detail.openChildren", { count: openChildCount })}
@@ -642,7 +723,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                   {saveError ? (
                     <p className="page-activity__empty">{saveError}</p>
                   ) : saveMessage ? (
-                    <p className="page-activity__meta">{saveMessage}</p>
+                    <p className="page-activity__meta" role="status">{saveMessage}</p>
                   ) : null}
                 </div>
               </section> : null}
@@ -938,6 +1019,13 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
             </div>
           ) : null}
         </>
+      <CreateAgentModal
+        open={creatingAgent}
+        token={token}
+        spaceId={spaceId}
+        onClose={() => setCreatingAgent(false)}
+        onCreated={handleAgentCreated}
+      />
       <RunTraceModal
         open={traceRunId != null}
         spaceId={spaceId}

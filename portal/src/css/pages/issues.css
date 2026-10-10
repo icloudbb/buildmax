@@ -42,6 +42,10 @@
   color: var(--color-text-subtle);
 }
 
+.issues-page__field-action {
+  justify-self: start;
+}
+
 .issues-page__input,
 .issues-page__textarea,
 .issues-page__select {

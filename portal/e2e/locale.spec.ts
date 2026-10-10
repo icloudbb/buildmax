@@ -58,6 +58,10 @@ test("the Issue journey reads in Chinese", async ({ page }) => {
   const tabs = page.getByRole("navigation", { name: "Issue 分区" })
   await expect(tabs.getByRole("button", { name: "概览" })).toHaveAttribute("aria-current", "true")
   await expect(page.getByRole("heading", { name: "最新结果", exact: true })).toBeVisible()
+  // With no executor, Run stays disabled and explains itself in Chinese.
+  const run = page.getByRole("button", { name: "开始运行" })
+  await expect(run).toBeDisabled()
+  await expect(run).toHaveAccessibleDescription(/^此 Issue 还没有执行者/)
   await tabs.getByRole("button", { name: "讨论" }).click()
   await expect(page.getByRole("heading", { name: "讨论", exact: true })).toBeVisible()
 })

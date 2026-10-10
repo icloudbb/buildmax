@@ -82,7 +82,8 @@ export const agentsMessages = {
     "agents.runModal.start": "Start",
 
     "agents.createModal.title": "New Agent",
-    "agents.createModal.hint": "Agents are personas or task templates you can use across your account.",
+    "agents.createModal.hint":
+      "Agents are reusable personas or task templates that belong to this Space. Its members can run them; owners and admins manage them.",
 
     "agents.config.sections": "Configuration sections",
     "agents.config.optional": " (optional)",
@@ -227,7 +228,7 @@ export const agentsMessages = {
     "agents.runModal.start": "开始",
 
     "agents.createModal.title": "新建 Agent",
-    "agents.createModal.hint": "Agent 是可在你的账户中复用的角色或任务模板。",
+    "agents.createModal.hint": "Agent 是属于此 Space 的可复用角色或任务模板。Space 成员都可以运行它们，所有者和管理员负责管理。",
 
     "agents.config.sections": "配置分区",
     "agents.config.optional": "（可选）",

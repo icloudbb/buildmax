@@ -56,6 +56,12 @@ Portal owns the cloud/space lane:
   and busy state. Portal owns placement and permission decisions. Collection
   creation stays in the header, while an empty state explains what is missing.
   Issue Detail opens in read mode with its result and next action before editing.
+  Its Run action stays on the Issue: the started line links to the new Task or
+  workflow run, and the page refreshes while that run is in flight. With no
+  executor, Run is disabled with the reason and the next step, and
+  `features/issues/execution.ts` decides both that and the Executor field's
+  hint. `CreateAgentModal` loads its own options and creates the Agent, so the
+  Agents page, the New Issue dialog, and Issue Detail open the same dialog.
   Task Detail and conversation task cards use the same action roles; the Chat
   start page owns its heading and keyboard-operated tabs.
   Workflow Detail drives lifecycle through explicit actions rather than a status
@@ -123,7 +129,8 @@ them. Portal has no DOM test environment, so display decisions live in pure
 modules — `features/runs/summary.ts`, `features/runs/spend.ts`,
 `features/audit/describe.ts`, `features/usage/pressure.ts`,
 `features/conversations/thread.ts`, `features/runs/origin.ts`,
-`features/artifacts/display.ts` — where they can be asserted without one. The
+`features/artifacts/display.ts`, `features/issues/execution.ts` — where they
+can be asserted without one. The
 artifact one mirrors a server authorization rule to decide whether to offer a
 delete button, so it is pinned in both directions: a mirror that drifts either
 shows a button that is refused or hides one that would have worked.

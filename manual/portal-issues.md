@@ -40,7 +40,11 @@ Open **Issues** in the sidebar and choose **New Issue**. An issue has:
 - **Business Status** — `todo`, `in progress`, or `done`. You set this yourself;
   it is not changed automatically by a run.
 - **Owner** — the person accountable for the issue (see below).
-- **Executor** — the agent or workflow selected to do the work (see below).
+- **Executor** — the agent or published workflow selected to do the work (see
+  below). In a space that has neither yet, the field says so and offers
+  **Create an Agent**: the agent is created without leaving the dialog, and it
+  becomes the new issue's executor. A member who cannot create agents is told
+  to ask a space owner or admin.
 
 Issues can be nested: from an issue you can add **sub-issues** to break the work
 down. Sub-issue status is tracked independently — closing a parent while
@@ -79,22 +83,29 @@ be set at once:
 - **Owner** — the accountable person, including *Me*. Setting an owner never
   starts a run; it only records who is responsible.
 - **Executor** — what performs the work, one of:
-  - **Unassigned** — nothing selected yet.
+  - **None** — nothing selected yet.
   - **An agent** — a saved [agent](portal-agents-workflows.md) can run the
     issue in the background.
   - **A workflow** — a published [workflow](portal-agents-workflows.md) can
-    run its steps for the issue.
+    run its steps for the issue. Only space owners and admins assign one.
 
 Choose **Edit issue** to change fields, then **Save changes**. Saving only records
 the fields you chose. It never starts a run
 and never spends your space's execution quota — you can change either as often
 as you like while you get the issue ready.
 
-Once an agent or workflow executor is saved, **Run workflow** or **Run agent**
-appears on the read view. That button is the only thing that schedules a
+Once an agent or workflow executor is saved, **Run agent** or **Run workflow**
+appears on the read view. That button is the only thing that starts a
 background run on a worker: it materializes the space's files, runs the agent,
 writes any outputs, and reports back — without tying up your browser. A
-successful Run takes you straight to the run it started.
+successful Run keeps you on the issue: it says the run started and links to its
+task or workflow run, and the Overview follows the run until it finishes.
+Starting a run does not change the issue's business status.
+
+Until an executor is saved, **Run** is shown disabled with the reason and the
+next step: **Choose executor** opens the edit form at the Executor field, and
+in a space with no agent or published workflow, **Create an Agent** creates one
+in place and selects it as the executor for you to save.
 
 ## Issue Detail
 
