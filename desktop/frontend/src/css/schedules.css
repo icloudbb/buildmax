@@ -270,6 +270,12 @@
   color: var(--color-text-muted);
 }
 
+.page-schedules__card-warn {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-danger);
+}
+
 .page-schedules__link {
   border: none;
   background: none;

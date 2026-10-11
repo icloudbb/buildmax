@@ -26,6 +26,40 @@ function runStatusText(status, t) {
   return status || '—';
 }
 
+// whereText names where a task runs: this machine, or a deployment's host.
+function whereText(destination, t) {
+  return !destination || destination === 'local' ? t('schedules.where.local') : destination;
+}
+
+// modelText is the card's model line: the pinned model and where it runs.
+function modelText(task, t) {
+  if (!task.model) return t('schedules.noModel');
+  if (!task.destination) return t('schedules.model', { model: task.model });
+  return t('schedules.modelOn', { model: task.model, where: whereText(task.destination, t) });
+}
+
+// modelProblemText says why a task cannot run in the current mode, before its
+// next fire does. Empty when it can run.
+function modelProblemText(task, t) {
+  switch (task.model_problem) {
+    case 'unpinned':
+      return t('schedules.modelProblem.unpinned');
+    case 'other_mode':
+      return t('schedules.modelProblem.other_mode', {
+        saved: whereText(task.destination, t),
+        current: whereText(task.model_server, t),
+      });
+    case 'not_offered':
+      return task.model_server
+        ? t('schedules.modelProblem.not_offered_server', { model: task.model, server: task.model_server })
+        : t('schedules.modelProblem.not_offered', { model: task.model });
+    case 'unchecked':
+      return t('schedules.modelProblem.unchecked', { model: task.model });
+    default:
+      return '';
+  }
+}
+
 // ScheduleRunDetail shows one fired run's conversation in the full chat UI — the
 // same ChatSession the project chat uses, so it carries the model picker, context
 // gauge, and slash commands — and a reply continues the session. Scheduled runs
@@ -39,6 +73,7 @@ function ScheduleRunDetail({ app, run, onClose }) {
     <InfoModal title={run?.schedule_name || t('schedules.run')} onClose={onClose} className="info-modal-panel--wide">
       <p className="info-modal__muted">
         {formatWhen(run?.fired_at, locale)} · {runStatusText(run?.status, t)}
+        {run?.model && <> · {run.model}</>}
       </p>
       {run?.error && <p className="info-modal__error">{run.error}</p>}
       <div className="schedule-run-chat">
@@ -107,7 +142,8 @@ export function SchedulesView({ app }) {
   }, [refresh]);
 
   // Load the available models when the form opens, for the model picker. The
-  // list is the same one the chat offers; an empty choice means the default.
+  // list is the same one the chat offers. An empty choice means "Default", which
+  // the backend saves as the model it names now, the one in its label.
   useEffect(() => {
     if (!formOpen || !app?.GetSlashModels) return;
     app.GetSlashModels('', '')
@@ -179,10 +215,8 @@ export function SchedulesView({ app }) {
     setSaving(true);
     try {
       if (editingID) {
-        const cur = (tasks ?? []).find((task) => task.id === editingID);
         await app.UpdateScheduledTask(
           editingID, form.workingDir, form.name, form.prompt, form.cronExpr, form.timezone, form.model,
-          cur ? cur.enabled : true,
         );
       } else {
         await app.CreateScheduledTask(form.workingDir, form.name, form.prompt, form.cronExpr, form.timezone, form.model);
@@ -198,9 +232,7 @@ export function SchedulesView({ app }) {
 
   const toggle = async (task) => {
     try {
-      await app.UpdateScheduledTask(
-        task.id, task.working_dir, task.name, task.prompt, task.cron_expr, task.timezone, task.model, !task.enabled,
-      );
+      await app.SetScheduledTaskEnabled(task.id, !task.enabled);
       refresh();
     } catch (err) {
       setError(err?.message ?? String(err));
@@ -290,7 +322,7 @@ export function SchedulesView({ app }) {
                 >
                   <span className="page-schedules__run-title">{run.schedule_name || t('schedules.task')}</span>
                   <span className="page-schedules__run-meta">
-                    <span>{formatWhen(run.fired_at, locale)}</span>
+                    <span>{formatWhen(run.fired_at, locale)}{run.model && ` · ${run.model}`}</span>
                     <span className={`page-schedules__run-status page-schedules__run-status--${run.status}`}>
                       {runStatusText(run.status, t)}
                     </span>
@@ -331,12 +363,25 @@ export function SchedulesView({ app }) {
                     <span><code>{task.cron_expr}</code> {task.timezone}</span>
                   </div>
                   <div className="page-schedules__card-meta">
+                    <span>{modelText(task, t)}</span>
+                  </div>
+                  {modelProblemText(task, t) && (
+                    <p className="page-schedules__card-warn" role="note">{modelProblemText(task, t)}</p>
+                  )}
+                  <div className="page-schedules__card-meta">
                     <span>{t('schedules.next', { when: formatWhen(task.next_fire_at, locale) })}</span>
                     <span>·</span>
                     <span>{t('schedules.last', { when: formatWhen(task.last_fire_at, locale) })}</span>
                   </div>
                   <div className="page-schedules__card-actions">
-                    <button type="button" className="page-schedules__ghost" onClick={() => toggle(task)}>
+                    {/* A task saved before pinning resumes only once saved with a model. */}
+                    <button
+                      type="button"
+                      className="page-schedules__ghost"
+                      onClick={() => toggle(task)}
+                      disabled={!task.enabled && task.model_problem === 'unpinned'}
+                      title={!task.enabled && task.model_problem === 'unpinned' ? t('schedules.resumeUnpinned') : undefined}
+                    >
                       {task.enabled ? t('schedules.pause') : t('schedules.resume')}
                     </button>
                     <button type="button" className="page-schedules__ghost" onClick={() => openEdit(task)}>
@@ -386,12 +431,18 @@ export function SchedulesView({ app }) {
                 onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
               >
                 <option value="">{defaultModel ? t('schedules.form.defaultModel', { model: defaultModel }) : t('schedules.form.default')}</option>
+                {/* A pinned model this mode does not offer stays selectable, so the
+                    dialog shows what the task holds rather than another model. */}
+                {form.model && !models.some((m) => m.name === form.model) && (
+                  <option value={form.model}>{t('schedules.form.modelUnavailable', { model: form.model })}</option>
+                )}
                 {models.map((m) => (
                   <option key={m.name} value={m.name}>
                     {m.provider_model && m.provider_model !== m.name ? `${m.name} — ${m.provider_model}` : m.name}
                   </option>
                 ))}
               </select>
+              <em>{t('schedules.form.modelHint')}</em>
             </label>
             <label className="page-schedules__field">
               <span>{t('schedules.form.prompt')}</span>

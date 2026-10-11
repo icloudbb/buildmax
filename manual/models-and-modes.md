@@ -108,6 +108,16 @@ only `settings.yaml`. Neither covers for the other:
 - **A conversation stays in the mode it began in.** Its first turn records where
   its prompts go. Resuming it after signing in or out is refused rather than
   replaying its history somewhere else; start a new session in the new mode.
+- **A Desktop schedule keeps the model and the mode it was saved in.**
+  Choosing **Default** in its form saves the model the default names at that
+  moment, and saving records where it runs: this machine, or the deployment
+  you are signed in to. The card shows both. A model of the same name in the
+  other mode is a different provider, so after you sign in or out the card
+  says the schedule does not run here, and its next fire fails with that
+  reason rather than running there. Edit and save the schedule to run it in
+  the new mode. A schedule saved before schedules kept their model stays paused
+  until you edit and save it. **Recent runs** and each run's chat show the model
+  that run used.
 
 Working offline is therefore `buildmax logout` — one command, and an explicit
 decision about where your prompts go.

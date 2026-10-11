@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/icloudbb/buildmax/internal/agentapp"
 	"github.com/icloudbb/buildmax/internal/config"
+	"github.com/icloudbb/buildmax/internal/core/session"
 	histstore "github.com/icloudbb/buildmax/internal/infra/localschedulehistorystore"
 	schedstore "github.com/icloudbb/buildmax/internal/infra/localschedulestore"
 	"github.com/icloudbb/buildmax/internal/service/schedule"
@@ -51,6 +53,139 @@ type ScheduledTaskPayload struct {
 	ConsecutiveFailures int    `json:"consecutive_failures"`
 	CreatedAt           string `json:"created_at"`
 	UpdatedAt           string `json:"updated_at"`
+	// Destination is where the task's model runs: "local", or the host of the
+	// deployment it was saved against. Empty for a task saved before pinning.
+	Destination string `json:"destination,omitempty"`
+	// ModelProblem says why the task cannot run in the app's current mode, so
+	// the card can say so before the next fire: one of the modelProblem codes,
+	// empty when it can run. ModelServer is the host of the deployment the app
+	// is signed in to now, empty in local mode.
+	ModelProblem string `json:"model_problem,omitempty"`
+	ModelServer  string `json:"model_server,omitempty"`
+}
+
+// Why a task's model cannot run now. The view words each one; the fire's own
+// error says the same in English for the run history.
+const (
+	// modelProblemUnpinned is a task saved before tasks kept their model and
+	// mode. It is paused and stays so until it is saved again.
+	modelProblemUnpinned = "unpinned"
+	// modelProblemOtherMode is a task saved in another mode than the app is in
+	// now: local versus signed in, or signed in to another deployment.
+	modelProblemOtherMode = "other_mode"
+	// modelProblemNotOffered is a model the current mode does not offer, such as
+	// a settings.yaml model after signing in.
+	modelProblemNotOffered = "not_offered"
+	// modelProblemUnchecked means the current mode's models could not be listed.
+	modelProblemUnchecked = "unchecked"
+)
+
+// scheduleModels is what a task's model is checked against: a runtime of the
+// mode the app is in now.
+type scheduleModels interface {
+	DefaultModelName() string
+	OffersModel(name string) bool
+	ManagedServerURL() string
+}
+
+// errUnpinned is why a task saved before pinning does not run.
+var errUnpinned = errors.New("this schedule was saved before schedules kept their model, so it is paused. Edit and save it to choose one")
+
+// unpinned reports a task saved before tasks kept their model and mode. It
+// never fires: it is paused when found and cannot resume until saved again.
+func unpinned(r schedstore.Record) bool { return r.Model == "" || r.Destination == "" }
+
+// scheduleDestination is where a run on models sends its prompts, as a task
+// stores it: session.DestinationLocal, or the signed-in deployment's URL, the
+// value managed mode is already keyed by.
+func scheduleDestination(models scheduleModels) string {
+	if url := models.ManagedServerURL(); url != "" {
+		return url
+	}
+	return session.DestinationLocal
+}
+
+func describeScheduleDestination(dest string) string {
+	if dest == session.DestinationLocal {
+		return "this machine's settings.yaml providers"
+	}
+	return dest
+}
+
+// displayDestination is dest as the view names it: "local" or a host.
+func displayDestination(dest string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(dest, "https://"), "http://")
+}
+
+// checkScheduleModel reports whether a task can run under models, as a
+// modelProblem code and the error a fire fails with. It never substitutes: a
+// task runs its pinned model where it was pinned, or fails and says why. A
+// same-named model in another mode is a different provider, so it is refused.
+func checkScheduleModel(r schedstore.Record, models scheduleModels) (string, error) {
+	if unpinned(r) {
+		return modelProblemUnpinned, errUnpinned
+	}
+	if cur := scheduleDestination(models); cur != r.Destination {
+		return modelProblemOtherMode, fmt.Errorf("this schedule was saved to run model %q on %s, and this app now sends prompts to %s, so it does not run here. Edit and save it to run here, or switch back",
+			r.Model, describeScheduleDestination(r.Destination), describeScheduleDestination(cur))
+	}
+	if models.OffersModel(r.Model) {
+		return "", nil
+	}
+	if url := models.ManagedServerURL(); url != "" {
+		return modelProblemNotOffered, fmt.Errorf("model %q is not offered by %s, which this app is signed in to. Edit the schedule to choose one of its models", r.Model, url)
+	}
+	return modelProblemNotOffered, fmt.Errorf("model %q is not in this machine's settings.yaml. Edit the schedule to choose a configured model", r.Model)
+}
+
+// scheduleModelHost is the runtime the Schedules view reads the current mode's
+// models from. It is the one GetSlashModels("", "") resolves, so the form's
+// "Default (X)" is X when the task is saved.
+func (a *App) scheduleModelHost() (*agentapp.AgentApp, error) {
+	return a.resolveSessionApp("", "")
+}
+
+// pinScheduleModel is the model and destination a task is saved with: the
+// model chosen, or for "Default" (empty) the default of this moment, and the
+// mode the app is in now. The task keeps running what the person saw, where
+// they saw it, rather than whatever the default or the mode later becomes.
+func (a *App) pinScheduleModel(model string) (string, string, error) {
+	host, err := a.scheduleModelHost()
+	if err != nil {
+		return "", "", fmt.Errorf("resolve this mode's models: %w", err)
+	}
+	if model == "" {
+		model = host.DefaultModelName()
+	}
+	if model == "" {
+		return "", "", errors.New("no model is configured to run this schedule on")
+	}
+	return model, scheduleDestination(host), nil
+}
+
+// pauseUnpinned pauses every enabled task saved before pinning, so it never
+// fires on a model nobody chose for it, and reports whether it paused any. It
+// updates rows in place to what is stored.
+func (a *App) pauseUnpinned(rows []schedstore.Record) bool {
+	store := a.ensureScheduleStore()
+	now := time.Now().UTC()
+	changed := false
+	for i, r := range rows {
+		if !r.Enabled || !unpinned(r) {
+			continue
+		}
+		updated, err := store.Update(r.ID, func(rec *schedstore.Record) {
+			rec.Enabled = false
+			rec.UpdatedAt = now
+		})
+		if err != nil {
+			slog.Warn("pause unpinned scheduled task failed", "task", r.ID, "err", err)
+			continue
+		}
+		rows[i] = updated
+		changed = true
+	}
+	return changed
 }
 
 func scheduledTaskPayload(r schedstore.Record) ScheduledTaskPayload {
@@ -66,6 +201,7 @@ func scheduledTaskPayload(r schedstore.Record) ScheduledTaskPayload {
 		ConsecutiveFailures: r.ConsecutiveFailures,
 		CreatedAt:           r.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:           r.UpdatedAt.UTC().Format(time.RFC3339),
+		Destination:         displayDestination(r.Destination),
 	}
 	if !r.NextFireAt.IsZero() {
 		p.NextFireAt = r.NextFireAt.UTC().Format(time.RFC3339)
@@ -86,6 +222,7 @@ type ScheduleRunPayload struct {
 	// (ContinueScheduleRun) can reach the same AgentApp without another lookup.
 	WorkingDir string `json:"working_dir"`
 	SessionID  string `json:"session_id,omitempty"`
+	Model      string `json:"model,omitempty"`
 	FiredAt    string `json:"fired_at"`
 	Status     string `json:"status"`
 	Error      string `json:"error,omitempty"`
@@ -114,15 +251,34 @@ func (a *App) ensureScheduleRunStore() *histstore.FileStore {
 	return a.scheduleRuns
 }
 
-// ListScheduledTasks returns every local scheduled task, oldest first.
+// ListScheduledTasks returns every local scheduled task, oldest first, each
+// saying whether it can run in the current mode. A task saved before pinning
+// is paused here, as it is by the tick loop.
 func (a *App) ListScheduledTasks() ([]ScheduledTaskPayload, error) {
 	rows, err := a.ensureScheduleStore().List()
 	if err != nil {
 		return nil, err
 	}
 	out := make([]ScheduledTaskPayload, len(rows))
+	if len(rows) == 0 {
+		return out, nil
+	}
+	a.pauseUnpinned(rows)
+	host, hostErr := a.scheduleModelHost()
 	for i, r := range rows {
-		out[i] = scheduledTaskPayload(r)
+		p := scheduledTaskPayload(r)
+		switch {
+		case unpinned(r):
+			p.ModelProblem = modelProblemUnpinned
+		case hostErr != nil:
+			p.ModelProblem = modelProblemUnchecked
+		default:
+			p.ModelProblem, _ = checkScheduleModel(r, host)
+			if p.ModelProblem != "" {
+				p.ModelServer = displayDestination(host.ManagedServerURL())
+			}
+		}
+		out[i] = p
 	}
 	return out, nil
 }
@@ -157,22 +313,27 @@ func (a *App) CreateScheduledTask(workingDir, name, prompt, cronExpr, timezone, 
 	if err != nil {
 		return ScheduledTaskPayload{}, err
 	}
+	model, dest, err := a.pinScheduleModel(model)
+	if err != nil {
+		return ScheduledTaskPayload{}, err
+	}
 	id, err := util.NewPublicID()
 	if err != nil {
 		return ScheduledTaskPayload{}, err
 	}
 	r := schedstore.Record{
-		ID:         id,
-		Name:       strings.TrimSpace(name),
-		WorkingDir: dir,
-		Prompt:     prompt,
-		Model:      model,
-		CronExpr:   cronExpr,
-		Timezone:   timezone,
-		Enabled:    true,
-		NextFireAt: next,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		ID:          id,
+		Name:        strings.TrimSpace(name),
+		WorkingDir:  dir,
+		Prompt:      prompt,
+		Model:       model,
+		Destination: dest,
+		CronExpr:    cronExpr,
+		Timezone:    timezone,
+		Enabled:     true,
+		NextFireAt:  next,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 	if err := a.ensureScheduleStore().Add(r); err != nil {
 		return ScheduledTaskPayload{}, err
@@ -181,10 +342,12 @@ func (a *App) CreateScheduledTask(workingDir, name, prompt, cronExpr, timezone, 
 	return scheduledTaskPayload(r), nil
 }
 
-// UpdateScheduledTask edits a task and enables or pauses it. Re-enabling or
-// changing the cron/timezone recomputes the next fire from now; re-enabling also
-// clears the failure count so a previously paused task gets a fresh runway.
-func (a *App) UpdateScheduledTask(id, workingDir, name, prompt, cronExpr, timezone, model string, enabled bool) (ScheduledTaskPayload, error) {
+// UpdateScheduledTask edits a task's fields and re-pins its model and mode as
+// create does: an empty model is "Default", pinned to the default of this
+// moment, and the task runs in the mode the app is in now. Changing the
+// cron or timezone of an enabled task recomputes its next fire from now.
+// Pausing and resuming is SetScheduledTaskEnabled, so it never touches the model.
+func (a *App) UpdateScheduledTask(id, workingDir, name, prompt, cronExpr, timezone, model string) (ScheduledTaskPayload, error) {
 	prompt = strings.TrimSpace(prompt)
 	cronExpr = strings.TrimSpace(cronExpr)
 	timezone = strings.TrimSpace(timezone)
@@ -210,20 +373,20 @@ func (a *App) UpdateScheduledTask(id, workingDir, name, prompt, cronExpr, timezo
 	if err != nil {
 		return ScheduledTaskPayload{}, err
 	}
+	model, dest, err := a.pinScheduleModel(model)
+	if err != nil {
+		return ScheduledTaskPayload{}, err
+	}
 	updated, err := a.ensureScheduleStore().Update(id, func(rec *schedstore.Record) {
 		cronChanged := rec.CronExpr != cronExpr || rec.Timezone != timezone
-		reEnabled := enabled && !rec.Enabled
 		rec.Name = strings.TrimSpace(name)
 		rec.WorkingDir = dir
 		rec.Prompt = prompt
 		rec.Model = model
+		rec.Destination = dest
 		rec.CronExpr = cronExpr
 		rec.Timezone = timezone
-		rec.Enabled = enabled
-		if reEnabled {
-			rec.ConsecutiveFailures = 0
-		}
-		if enabled && (cronChanged || reEnabled) {
+		if rec.Enabled && cronChanged {
 			rec.NextFireAt = next
 		}
 		rec.UpdatedAt = now
@@ -235,11 +398,51 @@ func (a *App) UpdateScheduledTask(id, workingDir, name, prompt, cronExpr, timezo
 	return scheduledTaskPayload(updated), nil
 }
 
+// setScheduleEnabled enables or pauses one task. Enabling recomputes its next
+// fire from now and clears its failure count, so a paused task gets a fresh
+// runway; pausing just stops it.
+func setScheduleEnabled(rec *schedstore.Record, enabled bool, now time.Time) {
+	rec.Enabled = enabled
+	if enabled {
+		rec.ConsecutiveFailures = 0
+		if next, err := schedule.Next(rec.CronExpr, rec.Timezone, now); err == nil {
+			rec.NextFireAt = next
+		}
+	}
+	rec.UpdatedAt = now
+}
+
+// SetScheduledTaskEnabled pauses or resumes one task without touching anything
+// else about it, its model included. A task saved before pinning cannot
+// resume: saving it is what chooses its model.
+func (a *App) SetScheduledTaskEnabled(id string, enabled bool) (ScheduledTaskPayload, error) {
+	store := a.ensureScheduleStore()
+	if enabled {
+		rec, err := store.Get(id)
+		if err != nil {
+			return ScheduledTaskPayload{}, err
+		}
+		if unpinned(rec) {
+			return ScheduledTaskPayload{}, errUnpinned
+		}
+	}
+	now := time.Now().UTC()
+	updated, err := store.Update(id, func(rec *schedstore.Record) {
+		if rec.Enabled != enabled {
+			setScheduleEnabled(rec, enabled, now)
+		}
+	})
+	if err != nil {
+		return ScheduledTaskPayload{}, err
+	}
+	a.emitScheduleUpdate()
+	return scheduledTaskPayload(updated), nil
+}
+
 // SetAllScheduledTasksEnabled enables or pauses every task in one call, for the
-// Schedules view's one-click toggle. Enabling recomputes each task's next fire
-// from now and clears its failure count (like re-enabling one); pausing just
-// stops it. Tasks already in the target state are left untouched. Returns the
-// updated list.
+// Schedules view's one-click toggle, each as SetScheduledTaskEnabled would.
+// Tasks already in the target state, and tasks saved before pinning when
+// enabling, are left untouched. Returns the updated list.
 func (a *App) SetAllScheduledTasksEnabled(enabled bool) ([]ScheduledTaskPayload, error) {
 	store := a.ensureScheduleStore()
 	rows, err := store.List()
@@ -249,18 +452,11 @@ func (a *App) SetAllScheduledTasksEnabled(enabled bool) ([]ScheduledTaskPayload,
 	now := time.Now().UTC()
 	changed := false
 	for _, r := range rows {
-		if r.Enabled == enabled {
+		if r.Enabled == enabled || (enabled && unpinned(r)) {
 			continue
 		}
 		if _, err := store.Update(r.ID, func(rec *schedstore.Record) {
-			rec.Enabled = enabled
-			if enabled {
-				rec.ConsecutiveFailures = 0
-				if next, nerr := schedule.Next(rec.CronExpr, rec.Timezone, now); nerr == nil {
-					rec.NextFireAt = next
-				}
-			}
-			rec.UpdatedAt = now
+			setScheduleEnabled(rec, enabled, now)
 		}); err != nil {
 			return nil, err
 		}
@@ -359,6 +555,7 @@ func (a *App) ListScheduleRuns() ([]ScheduleRunPayload, error) {
 			ScheduleName: names[r.ScheduleID],
 			WorkingDir:   dirs[r.ScheduleID],
 			SessionID:    r.SessionID,
+			Model:        r.Model,
 			FiredAt:      r.FiredAt.UTC().Format(time.RFC3339),
 			Status:       r.Status,
 			Error:        r.Error,
@@ -477,9 +674,11 @@ func (a *App) sweepSchedules() {
 		return
 	}
 	now := time.Now().UTC()
-	fired := false
+	// A task saved before pinning is paused rather than fired, and leaves no
+	// failed run: it never had a model to fail on.
+	fired := a.pauseUnpinned(rows)
 	for _, r := range rows {
-		if !r.Enabled || r.NextFireAt.After(now) {
+		if !r.Enabled || unpinned(r) || r.NextFireAt.After(now) {
 			continue
 		}
 		key := scheduleRunKey(r.ID)
@@ -514,7 +713,10 @@ func scheduleRunKey(id string) string { return "schedule\x00" + id }
 // fireScheduled starts one run of a task in a new, projectless session in the
 // task's working directory, as a background turn: it does not touch project
 // recency and records the fire in the task's run history — a row at start with
-// the created session, stamped with how the run ended. The returned error is a
+// the created session, stamped with how the run ended. The run uses the task's
+// pinned model in its pinned mode; when the app is in another mode or no longer
+// offers the model, the fire fails with that reason rather than running another
+// model. The returned error is a
 // failure to start the run (directory or model unavailable), which the runaway
 // guard counts; that failure is recorded too, so an attempt always leaves a row.
 func (a *App) fireScheduled(ctx context.Context, r schedstore.Record, key string) error {
@@ -525,11 +727,34 @@ func (a *App) fireScheduled(ctx context.Context, r schedstore.Record, key string
 	if err != nil {
 		return err
 	}
+	// The run never started, so onStart never recorded it; leave a failed row so
+	// the attempt still shows in history.
+	failed := func(err error) error {
+		if addErr := runs.Add(histstore.Run{
+			ID:         runID,
+			ScheduleID: id,
+			Model:      r.Model,
+			FiredAt:    firedAt,
+			Status:     histstore.StatusFailed,
+			Error:      err.Error(),
+		}); addErr != nil {
+			slog.Warn("record failed scheduled run failed", "task", id, "err", addErr)
+		}
+		a.emitScheduleUpdate()
+		return err
+	}
 	dir := strings.TrimSpace(r.WorkingDir)
 	if dir == "" {
 		if home, herr := os.UserHomeDir(); herr == nil {
 			dir = home
 		}
+	}
+	host, err := a.agentAppForDir(dir)
+	if err != nil {
+		return failed(err)
+	}
+	if _, err := checkScheduleModel(r, host); err != nil {
+		return failed(err)
 	}
 	lc := &desktopRun{
 		app:           a,
@@ -540,14 +765,13 @@ func (a *App) fireScheduled(ctx context.Context, r schedstore.Record, key string
 		onStart: func(sess *agentapp.SessionContext) {
 			// OnStart runs before the turn reads the model (resolveRunContext), so
 			// setting it on the open session here makes this fire use the task's
-			// chosen model; empty leaves the app default.
-			if r.Model != "" {
-				sess.SetModel(r.Model)
-			}
+			// pinned model, never the app default.
+			sess.SetModel(r.Model)
 			if err := runs.Add(histstore.Run{
 				ID:         runID,
 				ScheduleID: id,
 				SessionID:  sess.ID(),
+				Model:      r.Model,
 				FiredAt:    firedAt,
 				Status:     histstore.StatusRunning,
 			}); err != nil {
@@ -569,22 +793,10 @@ func (a *App) fireScheduled(ctx context.Context, r schedstore.Record, key string
 			a.emitScheduleUpdate()
 		},
 	}
-	_, err = a.scheduler.Submit(ctx, key, "", r.Prompt, a.hostForDir(dir), lc)
-	if err != nil {
-		// The run never started, so onStart never recorded it; leave a failed row
-		// so the attempt still shows in history.
-		if addErr := runs.Add(histstore.Run{
-			ID:         runID,
-			ScheduleID: id,
-			FiredAt:    firedAt,
-			Status:     histstore.StatusFailed,
-			Error:      err.Error(),
-		}); addErr != nil {
-			slog.Warn("record failed scheduled run failed", "task", id, "err", addErr)
-		}
-		a.emitScheduleUpdate()
+	if _, err := a.scheduler.Submit(ctx, key, "", r.Prompt, a.hostForDir(dir), lc); err != nil {
+		return failed(err)
 	}
-	return err
+	return nil
 }
 
 // recomputeNext advances a task to its next fire after `after`, or pauses it if

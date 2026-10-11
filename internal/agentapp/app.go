@@ -823,6 +823,17 @@ func (a *AgentApp) DefaultModelName() string {
 	return DefaultModelName(a.settings)
 }
 
+// OffersModel reports whether a turn naming this model would find it in this
+// app's mode: settings.yaml locally, the deployment's catalog when signed in. An
+// empty name is never offered, because it would silently mean the default.
+func (a *AgentApp) OffersModel(name string) bool {
+	if a == nil || name == "" {
+		return false
+	}
+	_, ok := FindModelConfig(a.settings, name)
+	return ok
+}
+
 // SetDefaultModel overrides the model used for new turns in this AgentApp.
 func (a *AgentApp) SetDefaultModel(name string) {
 	if a == nil {

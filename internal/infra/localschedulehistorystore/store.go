@@ -43,9 +43,12 @@ type Run struct {
 	ScheduleID string `json:"schedule_id"`
 	// SessionID is the chat session this fire created, for the UI to open. Empty
 	// when the run failed to start before a session existed.
-	SessionID string    `json:"session_id,omitempty"`
-	FiredAt   time.Time `json:"fired_at"`
-	Status    string    `json:"status"`
+	SessionID string `json:"session_id,omitempty"`
+	// Model is the model this fire ran, or was refused, under: the task's pinned
+	// model at the time, so history agrees with the task card.
+	Model   string    `json:"model,omitempty"`
+	FiredAt time.Time `json:"fired_at"`
+	Status  string    `json:"status"`
 	// Error is the failure message when Status is Failed.
 	Error string `json:"error,omitempty"`
 }

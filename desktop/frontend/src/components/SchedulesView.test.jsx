@@ -23,6 +23,7 @@ function baseApp(tasks = [], runs = []) {
     ListScheduleRuns: vi.fn(() => Promise.resolve(runs)),
     CreateScheduledTask: vi.fn(() => Promise.resolve({})),
     UpdateScheduledTask: vi.fn(() => Promise.resolve({})),
+    SetScheduledTaskEnabled: vi.fn(() => Promise.resolve({})),
     DeleteScheduledTask: vi.fn(() => Promise.resolve()),
     PreviewScheduledTask: vi.fn(() => Promise.resolve(['2026-01-02T09:00:00Z', '2026-01-03T09:00:00Z'])),
     GetSlashModels: vi.fn(() => Promise.resolve({ current: 'Fast', models: [{ name: 'Fast' }, { name: 'Deep' }] })),
@@ -35,7 +36,8 @@ const sampleTask = {
   name: 'Morning',
   working_dir: '/home/me/work',
   prompt: 'summarize',
-  model: '',
+  model: 'Fast',
+  destination: 'local',
   cron_expr: '0 9 * * *',
   timezone: 'UTC',
   enabled: true,
@@ -49,6 +51,7 @@ const sampleRun = {
   schedule_id: 't1',
   schedule_name: 'Morning',
   session_id: 'sess1',
+  model: 'Fast',
   fired_at: '2026-01-01T09:00:00Z',
   status: 'ok',
 };
@@ -60,6 +63,47 @@ describe('SchedulesView', () => {
     expect(screen.getByText('/home/me/work')).toBeTruthy();
     expect(screen.getByText('0 9 * * *')).toBeTruthy();
     expect(screen.getByText('Enabled')).toBeTruthy();
+    expect(screen.getByText('Model: Fast on this machine')).toBeTruthy();
+  });
+
+  it('says before the next fire that a local task does not run after sign-in', async () => {
+    const task = { ...sampleTask, model: 'Luna', model_problem: 'other_mode', model_server: 'deploy.example.com' };
+    render(<SchedulesView app={baseApp([task])} />);
+    expect(await screen.findByText('Model: Luna on this machine')).toBeTruthy();
+    expect(screen.getByRole('note').textContent).toBe(
+      'Saved to run on this machine, but this app now sends prompts to deploy.example.com, so the next run will fail. Edit and save it to run here, or switch back.',
+    );
+  });
+
+  it('says when the deployment no longer offers the pinned model', async () => {
+    const task = {
+      ...sampleTask, model: 'Deep', destination: 'deploy.example.com', model_problem: 'not_offered', model_server: 'deploy.example.com',
+    };
+    render(<SchedulesView app={baseApp([task])} />);
+    expect(await screen.findByText('Model: Deep on deploy.example.com')).toBeTruthy();
+    expect(screen.getByRole('note').textContent).toMatch(/no longer offers Deep/);
+  });
+
+  it('keeps a task saved before pinning paused until it is saved', async () => {
+    const task = { ...sampleTask, model: '', destination: '', enabled: false, model_problem: 'unpinned' };
+    render(<SchedulesView app={baseApp([task])} />);
+    expect(await screen.findByText('Model: none chosen')).toBeTruthy();
+    expect(screen.getByRole('note').textContent).toMatch(/so it is paused/);
+    expect(screen.getByRole('button', { name: 'Resume' }).disabled).toBe(true);
+  });
+
+  it('shows a pinned model the current mode lacks in the edit dialog, not another', async () => {
+    const task = { ...sampleTask, model: 'Luna', model_problem: 'other_mode', model_server: 'deploy.example.com' };
+    render(<SchedulesView app={baseApp([task])} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    expect(await screen.findByRole('option', { name: 'Luna (not available here)' })).toBeTruthy();
+    expect(screen.getByRole('combobox').value).toBe('Luna');
+  });
+
+  it('shows the model each run used in Recent runs', async () => {
+    render(<SchedulesView app={baseApp([sampleTask], [sampleRun])} />);
+    const run = await screen.findByRole('button', { name: /Morning/ });
+    expect(run.textContent).toMatch(/· Fast/);
   });
 
   it('lists recent runs and opens one in the chat view', async () => {
@@ -126,15 +170,12 @@ describe('SchedulesView', () => {
     await waitFor(() => expect(app.SetAllScheduledTasksEnabled).toHaveBeenCalledWith(true));
   });
 
-  it('pauses a task through UpdateScheduledTask', async () => {
+  it('pauses a task without resaving its fields or model', async () => {
     const app = baseApp([sampleTask]);
     render(<SchedulesView app={app} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
-    await waitFor(() =>
-      expect(app.UpdateScheduledTask).toHaveBeenCalledWith(
-        't1', '/home/me/work', 'Morning', 'summarize', '0 9 * * *', 'UTC', '', false,
-      ),
-    );
+    await waitFor(() => expect(app.SetScheduledTaskEnabled).toHaveBeenCalledWith('t1', false));
+    expect(app.UpdateScheduledTask).not.toHaveBeenCalled();
   });
 
   it('deletes a task only after confirming in the in-app dialog', async () => {
@@ -174,6 +215,7 @@ describe('SchedulesView in Chinese', () => {
     expect(screen.getByText('2 次失败')).toBeTruthy();
     expect(await screen.findByText('已完成')).toBeTruthy();
     expect(screen.getByRole('button', { name: '暂停' })).toBeTruthy();
+    expect(screen.getByText('模型：Fast（本机）')).toBeTruthy();
   });
 
   it('renders the form and the delete confirmation in the chosen locale', async () => {

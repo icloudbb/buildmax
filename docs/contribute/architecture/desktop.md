@@ -65,8 +65,14 @@ renders its own language and theme controls.
 | `desktop/assets_embed.go` | Production frontend embed under the `desktop` build tag |
 | `cmd/buildmax-desktop/wails.json` | Wails build configuration |
 
-`App` creates one `agentapp.AgentApp` lazily per project folder and caches it
-for the process lifetime. Runs are scheduled per session: the scheduler key is `runKey`, the
+`App` creates one `agentapp.AgentApp` lazily per project folder, and one per
+working directory for scheduled and projectless runs, and caches them until a
+plugin action, signing in, or signing out drops them all (`rebuildRuntimes`), so
+the next request is assembled from the current plugin inventory and mode. A
+local scheduled task stores its model with the destination it was saved in
+(`local` or the deployment URL); `checkScheduleModel` refuses a fire in another
+mode or on a model the mode no longer offers, and a task missing either is
+paused until saved. Runs are scheduled per session: the scheduler key is `runKey`, the
 project plus the session id, so at most one run per session is in flight while
 different sessions of one project run concurrently. Shutdown reaps every
 terminal shell, cancels active runs, and closes all cached runtimes.

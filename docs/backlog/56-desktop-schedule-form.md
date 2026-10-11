@@ -69,8 +69,9 @@ carries Desktop audit findings D10, D11, D12, and D13.
 
 ## Out Of Scope
 
-- Which model a schedule runs, which is
-  [task 34](34-desktop-schedule-model.md).
+- Which model a schedule runs. A schedule already keeps the model it was saved
+  with and its card shows it, as
+  [current state](../current-state.md) describes; keep that line on the card.
 - Portal's schedule form, which is [task 48](48-portal-schedule-form.md).
   Keep the same timezone and error rules on both surfaces.
 
