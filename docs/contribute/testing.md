@@ -270,6 +270,16 @@ double's control routes. [Local Kubernetes Deployment](../deploy/local-kind.md)
 describes both doubles. A green `e2e compose` run says nothing about either
 path; only `e2e kind` exercises them.
 
+`native-sign-in.spec.ts` starts CLI and Desktop sign-in requests through the
+API, as a client would, and confirms or denies them in the page; its SSO case
+also needs the mock OIDC provider. On kind, `./make e2e kind` forwards each
+server replica to a local port and passes them as
+`BUILDMAX_E2E_SERVER_REPLICAS` (`pod=http://localhost:port`, comma-separated).
+The spec then places start, confirmation, and redemption on named replicas,
+reaching the page's calls with `page.route`. That is routing, not fault
+injection: every answer is the real server's. Elsewhere the variable is empty
+and every step uses the deployment's one API.
+
 ### Running A Second Deployment Alongside The First
 
 `./make kind up` and `./make compose up` keep the fixed name and ports every

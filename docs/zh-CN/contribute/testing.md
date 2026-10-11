@@ -225,6 +225,13 @@ npm --prefix portal exec -- playwright install chromium # the browser itself
 路由扮演聊天中的那个人。两个替身见 [本地 Kubernetes 部署](../deploy/local-kind.md)。
 `e2e compose` 通过并不能说明这两条路径;只有 `e2e kind` 会覆盖它们。
 
+`native-sign-in.spec.ts` 像客户端一样通过 API 发起 CLI 与 Desktop 登录请求,并在页面中
+确认或拒绝它们;其中 SSO 用例同样需要模拟 OIDC 提供方。在 kind 上,`./make e2e kind` 会把
+每个服务器副本转发到一个本地端口,并以 `BUILDMAX_E2E_SERVER_REPLICAS`
+(`pod=http://localhost:port`,逗号分隔)传入。该 spec 随后把发起、确认与兑换分别放到指定
+副本上,页面的调用借 `page.route` 转过去。这是路由而非故障注入:每个响应都来自真实服务器。
+在其他部署上该变量为空,每一步都使用部署唯一的 API。
+
 ### 在第一个部署旁边再运行一个部署
 
 `./make kind up` 和 `./make compose up` 会保留每份文档都假定的固定名字
