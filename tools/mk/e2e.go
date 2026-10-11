@@ -274,7 +274,7 @@ func e2ePortal(target smokeTarget, invocation string) error {
 		return err
 	}
 
-	replicas := ""
+	replicas, cli := "", ""
 	if invocation == "kind" {
 		var stop func()
 		replicas, stop, err = forwardServerReplicas(ctx)
@@ -282,6 +282,14 @@ func e2ePortal(target smokeTarget, invocation string) error {
 			return err
 		}
 		defer stop()
+		// The CLI from this checkout, for the spec that signs `buildmax login`
+		// in through the mock IdP only kind deploys.
+		if err := buildGo("e2e", cliBinary, "./cmd/buildmax"); err != nil {
+			return fmt.Errorf("build the CLI for the native sign-in spec: %w", err)
+		}
+		if cli, err = filepath.Abs(filepath.Join(binDir, exe(cliBinary))); err != nil {
+			return err
+		}
 	}
 
 	fmt.Printf("[e2e] running Portal browser tests against %s\n", baseURL)
@@ -293,6 +301,8 @@ func e2ePortal(target smokeTarget, invocation string) error {
 		// Each kind server replica on its own port, for the specs that must
 		// prove a step lands on a given replica; empty elsewhere.
 		"BUILDMAX_E2E_SERVER_REPLICAS=" + replicas,
+		// The CLI binary the native sign-in spec runs; empty elsewhere.
+		"BUILDMAX_E2E_CLI=" + cli,
 		"BUILDMAX_E2E_BASE_URL=" + baseURL,
 		"BUILDMAX_E2E_API_BASE=" + target.portalRuntimeAPIBase,
 		"BUILDMAX_E2E_EMAIL=" + smokeEmail,

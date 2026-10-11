@@ -1,3 +1,7 @@
+import { spawn } from "node:child_process"
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { expect, request, test, type APIRequestContext, type Browser, type Page } from "@playwright/test"
 import { session } from "./fixtures"
 import { ADMIN_STATE } from "./global-setup"
@@ -18,6 +22,10 @@ import { ADMIN_STATE } from "./global-setup"
 // each placed on a named replica, both ways round, which is the deployed
 // evidence that the request's state is shared rather than held by the process
 // that started it. Elsewhere every step goes to the deployment's one API.
+//
+// It also builds the released CLI and passes it in BUILDMAX_E2E_CLI, so one
+// case runs `buildmax login` itself: the client half is the binary, not this
+// file's imitation of it.
 
 const MOCK_IDP_HOST = "buildmax-smoke-oidc.buildmax.svc.cluster.local"
 const MOCK_IDP_DOMAIN = "buildmax.local"
@@ -147,6 +155,24 @@ function describeReplicas(...steps: Array<[string, Replica | undefined]>): strin
   return steps.map(([step, replica]) => `${step} on ${replica?.name ?? "the deployment API"}`).join(", ")
 }
 
+/** Skip unless this deployment's SSO goes to the mock provider kind deploys. */
+async function requireMockSSO(api: APIRequestContext, baseURL: string) {
+  const methods = await (await api.get(`${new URL(baseURL).origin}/api/auth/methods`)).json()
+  test.skip(methods.oidc?.enabled !== true, "this deployment does not offer SSO")
+  const ssoStart = await api.get(`${new URL(baseURL).origin}/api/auth/oidc/start`, { maxRedirects: 0 })
+  const idp = new URL(ssoStart.headers()["location"] ?? "", baseURL)
+  test.skip(idp.hostname !== MOCK_IDP_HOST, `SSO goes to ${idp.hostname}, not the mock provider`)
+}
+
+/** Sign in to the Portal through the mock provider as a new account. */
+async function signInWithMockSSO(page: Page, email: string) {
+  await page.getByRole("button", { name: "Sign in with Mock IdP" }).click()
+  await expect(page.getByRole("heading", { name: "Mock IdP" })).toBeVisible()
+  await page.getByLabel("Email", { exact: true }).fill(email)
+  await page.getByLabel("Name").fill("Native SSO E2E")
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
+}
+
 test("a CLI sign-in confirmed through SSO returns to the request, and each step works on either replica", async ({
   page,
   baseURL,
@@ -154,11 +180,7 @@ test("a CLI sign-in confirmed through SSO returns to the request, and each step 
   test.setTimeout(180_000)
   const api = await request.newContext({ ignoreHTTPSErrors: true })
   try {
-    const methods = await (await api.get(`${new URL(baseURL!).origin}/api/auth/methods`)).json()
-    test.skip(methods.oidc?.enabled !== true, "this deployment does not offer SSO")
-    const ssoStart = await api.get(`${new URL(baseURL!).origin}/api/auth/oidc/start`, { maxRedirects: 0 })
-    const idp = new URL(ssoStart.headers()["location"] ?? "", baseURL)
-    test.skip(idp.hostname !== MOCK_IDP_HOST, `SSO goes to ${idp.hostname}, not the mock provider`)
+    await requireMockSSO(api, baseURL!)
 
     const [a, b] = replicas
     const email = uniqueEmail("native-sso", MOCK_IDP_DOMAIN)
@@ -170,11 +192,7 @@ test("a CLI sign-in confirmed through SSO returns to the request, and each step 
 
     // Signed out, the Portal asks for a sign-in first; SSO carries the request's
     // address through the IdP and back.
-    await page.getByRole("button", { name: "Sign in with Mock IdP" }).click()
-    await expect(page.getByRole("heading", { name: "Mock IdP" })).toBeVisible()
-    await page.getByLabel("Email", { exact: true }).fill(email)
-    await page.getByLabel("Name").fill("Native SSO E2E")
-    await page.getByRole("button", { name: "Sign in", exact: true }).click()
+    await signInWithMockSSO(page, email)
     await page.waitForURL((url) => url.origin === new URL(baseURL!).origin && url.hash === `#/sign-in/${first.user_code}`)
 
     await expectRequestCard(page, first, "BuildMax CLI", "e2e-runner · Linux", email)
@@ -216,6 +234,90 @@ test("a CLI sign-in confirmed through SSO returns to the request, and each step 
     await expectCodeCleared(page, second)
     console.log(`[e2e] native sign-in round two: ${describeReplicas(["start", b], ["confirm", a], ["redeem", b])}`)
   } finally {
+    await api.dispose()
+  }
+})
+
+/** The released CLI this run built, or "" when it built none. */
+const CLI = process.env.BUILDMAX_E2E_CLI ?? ""
+
+interface CLIRun {
+  stdout: () => string
+  stderr: () => string
+  exited: Promise<number>
+}
+
+/**
+ * Run the CLI against its own home. Every run here passes --no-browser or
+ * needs no browser: nothing in a suite may open one.
+ */
+function runCLI(home: string, args: string[], input = ""): CLIRun {
+  const child = spawn(CLI, args, {
+    env: { ...process.env, BUILDMAX_HOME: home, BUILDMAX_CREDENTIAL_STORE: "file" },
+    stdio: ["pipe", "pipe", "pipe"],
+  })
+  let out = ""
+  let err = ""
+  child.stdout.on("data", (chunk) => (out += chunk))
+  child.stderr.on("data", (chunk) => (err += chunk))
+  const exited = new Promise<number>((resolve) => child.on("close", (code) => resolve(code ?? -1)))
+  child.stdin.end(input)
+  return { stdout: () => out, stderr: () => err, exited }
+}
+
+test("buildmax login signs the CLI in through a Portal SSO confirmation", async ({ page, baseURL }) => {
+  test.skip(!CLI, "no CLI was built for this run; `./make e2e kind` builds one")
+  test.setTimeout(180_000)
+  const api = await request.newContext({ ignoreHTTPSErrors: true })
+  const home = mkdtempSync(join(tmpdir(), "buildmax-cli-sign-in-"))
+  try {
+    await requireMockSSO(api, baseURL!)
+    const origin = new URL(baseURL!).origin
+    const email = uniqueEmail("native-cli", MOCK_IDP_DOMAIN)
+
+    // The server URL prompt answered as a person would, then the code read off
+    // the terminal.
+    const login = runCLI(home, ["login", "--no-browser"], `${origin}\n`)
+    let code = ""
+    await expect
+      .poll(() => (code = /this code: (\S+)/.exec(login.stdout())?.[1] ?? ""), { timeout: 30_000 })
+      .not.toBe("")
+    expect(login.stdout()).toContain(`confirm the request:\n\n  ${origin}/#/sign-in\n`)
+    expect(login.stdout()).not.toContain("Opened your browser")
+
+    // The person opens the printed page, types the code, signs in through SSO,
+    // and confirms.
+    await page.goto("/#/sign-in")
+    await signInWithMockSSO(page, email)
+    await page.waitForURL((url) => url.origin === origin && url.hash.startsWith("#/sign-in"))
+    await page.getByLabel("Code").fill(code)
+    await page.getByLabel("Code").press("Enter")
+    await expect(page.getByText("BuildMax CLI is asking to sign in to your account")).toBeVisible()
+    await expect(page.getByText(code, { exact: true })).toBeVisible()
+    await page.getByRole("button", { name: "Confirm sign-in" }).click()
+    await expect(page.getByText("Sign-in confirmed. Return to BuildMax CLI")).toBeVisible()
+
+    expect(await login.exited, `stdout:\n${login.stdout()}\nstderr:\n${login.stderr()}`).toBe(0)
+    expect(login.stdout()).toContain(`Signed in to ${origin} as ${email}.`)
+
+    // The stored login is the deployment's session for that account...
+    const stored = JSON.parse(readFileSync(join(home, "auth.json"), "utf8")) as { email: string; token: string; server_url: string }
+    expect(stored.email).toBe(email)
+    expect(stored.server_url).toBe(origin)
+    const asStored = { Authorization: `Bearer ${stored.token}` }
+    expect((await api.get(`${origin}/api/spaces`, { headers: asStored })).status()).toBe(200)
+    const me = runCLI(home, ["me"])
+    await me.exited
+    expect(me.stdout()).toContain(`as ${email} on ${origin}`)
+
+    // ...and logging out ends it on the server, as a password login's does.
+    const logout = runCLI(home, ["logout"])
+    expect(await logout.exited).toBe(0)
+    expect(logout.stderr()).toBe("")
+    expect((await api.get(`${origin}/api/spaces`, { headers: asStored })).status()).toBe(401)
+    console.log(`[e2e] native sign-in, CLI binary: ${email} confirmed through the mock IdP and logged out`)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
     await api.dispose()
   }
 })
