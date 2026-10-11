@@ -179,11 +179,19 @@ var testOnlyImportTrees = []string{"internal", "cmd", "tools", "deployment", "ev
 // deployment/smoke exists only to make a smoke deterministic and is never
 // released, so it is where a test-only import is the point rather than a
 // mistake: its mock model is a packaging of internal/testsupport/mockllm.
-//
-// internal/testsupport is test-only itself, so what it imports cannot ship
-// unless it does, which this same rule refuses. A helper there may assemble
-// the in-memory stores into a server several suites share, as authserver does.
-var testOnlyImportExempt = []string{"deployment/smoke", "internal/testsupport"}
+var testOnlyImportExempt = []string{"deployment/smoke"}
+
+// testSupportTree may import the in-memory stores and its own packages from
+// non-test files, and nothing else is relaxed. It is test-only itself: this
+// rule refuses it to every shipped file, so nothing it imports can reach a
+// binary through it. That lets one helper assemble the stores into a server
+// several suites share, as authserver does, instead of each suite copying it.
+const testSupportTree = "internal/testsupport"
+
+var testSupportMayImport = []string{
+	"github.com/icloudbb/buildmax/internal/mock",
+	"github.com/icloudbb/buildmax/internal/testsupport",
+}
 
 func TestTestOnlyPackagesStayInTests(t *testing.T) {
 	root := moduleRoot(t)
@@ -198,15 +206,26 @@ func TestTestOnlyPackagesStayInTests(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unquote import in %s: %v", path, err)
 				}
-				for _, pkg := range testOnlyPackages {
-					if importPath == pkg || strings.HasPrefix(importPath, pkg+"/") {
-						t.Errorf("%s is not a test file but imports test-only package %s",
-							rel(root, path), importPath)
-					}
+				if excluded(rel(root, path), []string{testSupportTree}) && importsAny(importPath, testSupportMayImport) {
+					continue
+				}
+				if importsAny(importPath, testOnlyPackages) {
+					t.Errorf("%s is not a test file but imports test-only package %s",
+						rel(root, path), importPath)
 				}
 			}
 		}
 	}
+}
+
+// importsAny reports whether importPath is one of pkgs or below one of them.
+func importsAny(importPath string, pkgs []string) bool {
+	for _, pkg := range pkgs {
+		if importPath == pkg || strings.HasPrefix(importPath, pkg+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // TestShippedCodeDoesNotImportTools holds the cmd//tools split. tools/ is
