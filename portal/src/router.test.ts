@@ -20,6 +20,7 @@ describe("hash router", () => {
     // The address a chat bot sends carries its link code.
     ["#/account/chat/ABCD-EFGH", { name: "account", section: "chat", code: "ABCD-EFGH" }],
     ["#/account/invitations", { name: "account", section: "invitations" }],
+    ["#/account/sessions", { name: "account", section: "sessions" }],
     [`#/spaces/${SPACE}/settings`, { name: "space", spaceId: SPACE, section: "overview" }],
     [`#/spaces/${SPACE}/settings/members`, { name: "space", spaceId: SPACE, section: "members" }],
     [`#/spaces/${SPACE}/settings/members/new`, { name: "space", spaceId: SPACE, section: "memberNew" }],
@@ -90,6 +91,7 @@ describe("hash router", () => {
     [{ name: "account", section: "chat" }, "#/account/chat"],
     [{ name: "account", section: "chat", code: "ABCD-EFGH" }, "#/account/chat/ABCD-EFGH"],
     [{ name: "account", section: "invitations" }, "#/account/invitations"],
+    [{ name: "account", section: "sessions" }, "#/account/sessions"],
     [{ name: "space", spaceId: SPACE, section: "overview" }, `#/spaces/${SPACE}/settings`],
     [{ name: "space", spaceId: SPACE, section: "audit" }, `#/spaces/${SPACE}/settings/audit`],
     [{ name: "space", spaceId: SPACE, section: "security" }, `#/spaces/${SPACE}/settings/security`],

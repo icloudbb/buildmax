@@ -136,6 +136,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/portal/logout", h.portalLogoutHandler)
 	// Authenticated; sets or changes the caller's own password.
 	mux.HandleFunc("POST /api/auth/password", h.setPasswordHandler)
+	// Authenticated; the caller's own live sessions. See sessions.go.
+	mux.HandleFunc("GET /api/auth/sessions", h.listSessionsHandler)
+	mux.HandleFunc("DELETE /api/auth/sessions/{session_id}", h.revokeSessionHandler)
 	// Native sign-in confirmed in the Portal. Start and poll are anonymous: the
 	// poll secret is the proof. Look-up, confirm, and deny take a Portal
 	// session. The code travels in a query parameter the request log redacts,

@@ -137,6 +137,32 @@
   margin-bottom: 1rem;
 }
 
+.account-sessions__name,
+.account-sessions__label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.account-sessions__label {
+  overflow-wrap: anywhere;
+}
+
+/* The label is the client's own claim; say so beside it. */
+.account-sessions__unverified {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-meta);
+  color: var(--color-warning);
+}
+
+/* Four facts wrap rather than truncate: the expiry is what someone checks. */
+.account-sessions__meta {
+  white-space: normal;
+}
+
 @media (max-width: 640px) {
   /* Wrap rather than scroll: a scrolling pill hid five of the eight Space
      tabs at 390px with nothing to say they were there. */

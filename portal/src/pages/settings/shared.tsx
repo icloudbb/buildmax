@@ -40,7 +40,7 @@ import { Button, BaseModal, type Translate } from "@buildmax/gui"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import { useTimestamp } from "../../lib/dateFormat"
 
-export type AccountSection = "general" | "usage" | "webhook" | "chat" | "invitations"
+export type AccountSection = "general" | "usage" | "webhook" | "chat" | "invitations" | "sessions"
 export type SpaceSection =
   | "overview"
   | "members"
@@ -68,6 +68,9 @@ export const ACCOUNT_NAV: SettingsNavItem<Exclude<AccountSection, never>>[] = [
   // Not space-scoped: what is pending for this account, across every space it
   // was invited to. See docs/design/space-membership-lifecycle.md §5.1, §9.
   { id: "invitations", labelKey: "account.nav.invitations", icon: AgentsIcon },
+  // Every browser, CLI, and Desktop signed in to this account, each revocable.
+  // See docs/design/enterprise-identity-and-access.md §14.5.
+  { id: "sessions", labelKey: "account.nav.sessions", icon: ShieldIcon },
 ]
 
 export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = [

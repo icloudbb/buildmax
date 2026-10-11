@@ -2012,6 +2012,65 @@
         }
       }
     },
+    "/api/auth/sessions": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "List the caller's own live sessions",
+        "description": "Every live session of the acting account (browsers, CLIs, and Desktops), newest first, with `current` marking the session that made the request. Carries no token material.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "session_id": { "type": "string" },
+                          "platform": { "type": "string" },
+                          "auth_method": { "type": "string" },
+                          "client_label": { "type": "string", "description": "What a native client said it is when it signed in; not verified" },
+                          "created_at": { "type": "string", "format": "date-time" },
+                          "last_seen_at": { "type": "string", "format": "date-time" },
+                          "expires_at": { "type": "string", "format": "date-time" },
+                          "current": { "type": "boolean", "description": "True for the session that made this request" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Not authenticated, or the session is revoked or expired" },
+          "503": { "description": "Deployment has no session store" }
+        }
+      }
+    },
+    "/api/auth/sessions/{session_id}": {
+      "parameters": [{ "name": "session_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "delete": {
+        "tags": ["auth"],
+        "summary": "Revoke one of the caller's own sessions",
+        "description": "Ends the session and its refresh tokens; its access token is refused on its next request. Revoking the current session signs the caller out. Another account's session answers 404, exactly like an unknown one.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "session_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "204": { "description": "Session revoked" },
+          "401": { "description": "Not authenticated, or the session is revoked or expired" },
+          "404": {
+            "description": "No live session with that id for this account",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "503": { "description": "Deployment has no session store" }
+        }
+      }
+    },
     "/api/auth/token/refresh": {
       "post": {
         "tags": ["auth"],

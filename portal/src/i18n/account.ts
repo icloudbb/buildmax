@@ -1,7 +1,7 @@
 import type { Messages } from "@buildmax/gui"
 
 // Account settings: profile, password, personal usage, Webhook keys, linked
-// chat accounts, and invitations received.
+// chat accounts, invitations received, and signed-in sessions.
 export const accountMessages = {
   en: {
     "account.title": "Account",
@@ -12,6 +12,7 @@ export const accountMessages = {
     "account.nav.webhook": "Webhook",
     "account.nav.chat": "Chat accounts",
     "account.nav.invitations": "Invitations",
+    "account.nav.sessions": "Sessions",
 
     "account.general.title": "General",
     "account.general.copy": "Account details for the currently signed-in user.",
@@ -98,6 +99,34 @@ export const accountMessages = {
     "account.invitations.acceptFor": "Accept the invitation to {space}",
     "account.invitations.joined": "You joined {space} as {role}. It is now your current Space.",
     "account.invitations.open": "Open {space}",
+
+    "account.sessions.title": "Sessions",
+    "account.sessions.copy":
+      "Every browser, CLI, and Desktop signed in to your account. Sign out any you do not recognise; it stops working on its next request.",
+    "account.sessions.listLabel": "Signed-in sessions",
+    "account.sessions.loading": "Loading sessions…",
+    "account.sessions.empty": "No signed-in sessions.",
+    "account.sessions.loadError": "Could not load your sessions",
+    "account.sessions.platform.portal": "Browser",
+    "account.sessions.platform.cli": "BuildMax CLI",
+    "account.sessions.platform.desktop": "BuildMax Desktop",
+    "account.sessions.platform.unknown": "Unknown client",
+    "account.sessions.method.password": "Password",
+    "account.sessions.method.loginCode": "Login code",
+    "account.sessions.method.oidc": "SSO",
+    "account.sessions.current": "This browser",
+    "account.sessions.unverified": "Reported by the client, not verified",
+    "account.sessions.created": "signed in {date}",
+    "account.sessions.lastSeen": "last active {date}",
+    "account.sessions.notSeen": "not used since signing in",
+    "account.sessions.expires": "ends {date}",
+    "account.sessions.revoke": "Sign out",
+    "account.sessions.revokeFor": "Sign out {name}",
+    "account.sessions.revokeConfirm": "Sign out {name}? It stops working on its next request.",
+    "account.sessions.signOut": "Sign out of this browser",
+    "account.sessions.signOutConfirm": "Sign out of this browser? You will need to sign in again.",
+    "account.sessions.revoked": "Signed out {name}.",
+    "account.sessions.revokeError": "Could not sign that session out",
   },
   "zh-CN": {
     "account.title": "账户",
@@ -108,6 +137,7 @@ export const accountMessages = {
     "account.nav.webhook": "Webhook",
     "account.nav.chat": "聊天账户",
     "account.nav.invitations": "邀请",
+    "account.nav.sessions": "会话",
 
     "account.general.title": "通用",
     "account.general.copy": "当前登录用户的账户详情。",
@@ -190,5 +220,32 @@ export const accountMessages = {
     "account.invitations.acceptFor": "接受加入 {space} 的邀请",
     "account.invitations.joined": "你已以{role}身份加入 {space}，它现在是你的当前 Space。",
     "account.invitations.open": "打开 {space}",
+
+    "account.sessions.title": "会话",
+    "account.sessions.copy": "登录到你账号的每个浏览器、CLI 和 Desktop。退出任何你不认识的会话；它在下一次请求时即失效。",
+    "account.sessions.listLabel": "已登录的会话",
+    "account.sessions.loading": "正在加载会话…",
+    "account.sessions.empty": "没有已登录的会话。",
+    "account.sessions.loadError": "无法加载你的会话",
+    "account.sessions.platform.portal": "浏览器",
+    "account.sessions.platform.cli": "BuildMax CLI",
+    "account.sessions.platform.desktop": "BuildMax Desktop",
+    "account.sessions.platform.unknown": "未知客户端",
+    "account.sessions.method.password": "密码",
+    "account.sessions.method.loginCode": "登录码",
+    "account.sessions.method.oidc": "单点登录",
+    "account.sessions.current": "当前浏览器",
+    "account.sessions.unverified": "由客户端自行报告，未经验证",
+    "account.sessions.created": "登录于 {date}",
+    "account.sessions.lastSeen": "最近活跃 {date}",
+    "account.sessions.notSeen": "登录后尚未使用",
+    "account.sessions.expires": "{date} 结束",
+    "account.sessions.revoke": "退出",
+    "account.sessions.revokeFor": "退出 {name}",
+    "account.sessions.revokeConfirm": "退出 {name}？它在下一次请求时即失效。",
+    "account.sessions.signOut": "退出此浏览器",
+    "account.sessions.signOutConfirm": "退出此浏览器？之后需要重新登录。",
+    "account.sessions.revoked": "已退出 {name}。",
+    "account.sessions.revokeError": "无法退出该会话",
   },
 } satisfies Messages<string>
