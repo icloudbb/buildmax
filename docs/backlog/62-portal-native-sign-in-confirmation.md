@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/enterprise-identity-and-access.md#14-cli-and-desktop-sign-in
 depends_on: []
 verification: ["./make test", "./make check portal", "./make e2e visual", "./make e2e kind"]
-claim:
+claim: gougoujiang 2026-10-11
 pr:
 ---
 
