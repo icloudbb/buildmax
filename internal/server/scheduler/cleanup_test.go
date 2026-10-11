@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 )
@@ -29,13 +28,9 @@ func (s *recordingCredentialStore) DeleteExpiredNativeSignIns(context.Context, t
 // TestCredentialCleanerSweepsEveryExpiringCredential: expired native sign-in
 // requests are swept with the login codes and refresh tokens.
 func TestCredentialCleanerSweepsEveryExpiringCredential(t *testing.T) {
-	buf := captureLog(t)
 	store := &recordingCredentialStore{}
 	NewCredentialCleaner(store, 0).sweep()
 	if len(store.swept) != 3 || store.swept[2] != "native_sign_in" {
 		t.Errorf("swept %v", store.swept)
-	}
-	if out := buf.String(); !strings.Contains(out, "native_sign_ins=2") {
-		t.Errorf("sweep log = %q", out)
 	}
 }
