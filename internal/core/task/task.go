@@ -220,8 +220,11 @@ func NormalizeFailureClass(s string) FailureClass {
 // retry that fails the same way.
 //
 // Unlike the class, a cause names Space resources, so it is served only on
-// Space-scoped reads, never in administration aggregates. Nil when the refusal
-// recorded none: a plugin refusal and a spent usage quota carry only the class.
+// Space-scoped reads, never in administration aggregates. It names only what
+// every Space member may already read: a Secret by its ID, as the Agent's
+// consumption does; a plugin by the name the Agent lists; a quota by the
+// limits the Space's usage shows. Nil when the refusal recorded none: a
+// backend that could not be read is not something the Space can fix.
 type FailureCause struct {
 	Kind FailureCauseKind `json:"kind"`
 	// SecretID names the Space Secret a required grant of the run's Agent
@@ -231,14 +234,45 @@ type FailureCause struct {
 	SecretProblem SecretProblem `json:"secret_problem,omitempty"`
 	// SecretItem is the item a SecretItemMissing grant asked for.
 	SecretItem string `json:"secret_item,omitempty"`
+	// PluginName is the plugin the run's Agent names that the Space could not
+	// give it. Set for FailureCausePlugin.
+	PluginName string `json:"plugin_name,omitempty"`
+	// PluginProblem says why. Set for FailureCausePlugin.
+	PluginProblem PluginProblem `json:"plugin_problem,omitempty"`
+	// QuotaLimit is the Space's usage limit that refused the run's model call:
+	// "runs" or "tokens". Set for FailureCauseUsageQuota.
+	QuotaLimit string `json:"quota_limit,omitempty"`
+	// QuotaMax and QuotaPeriodDays are that limit as the Space's quota tier
+	// set it when it refused: at most QuotaMax over a rolling window of
+	// QuotaPeriodDays days.
+	QuotaMax        int64 `json:"quota_max,omitempty"`
+	QuotaPeriodDays int   `json:"quota_period_days,omitempty"`
 }
 
 // FailureCauseKind says which configuration a FailureCause points at.
 type FailureCauseKind string
 
-// FailureCauseSecretGrant is a required Space Secret grant of the run's Agent
-// that the server would not release.
-const FailureCauseSecretGrant FailureCauseKind = "secret_grant"
+const (
+	// FailureCauseSecretGrant is a required Space Secret grant of the run's
+	// Agent that the server would not release.
+	FailureCauseSecretGrant FailureCauseKind = "secret_grant"
+	// FailureCausePlugin is a plugin the run's Agent names that the Space has
+	// not activated or has suspended.
+	FailureCausePlugin FailureCauseKind = "plugin"
+	// FailureCauseUsageQuota is the Space's usage quota refusing the run's
+	// model call. A System Administrator assigns the quota tier.
+	FailureCauseUsageQuota FailureCauseKind = "usage_quota"
+)
+
+// PluginProblem is why a plugin an Agent names could not be given to its run.
+type PluginProblem string
+
+const (
+	// PluginNotActivated is a plugin the Space has no activation of.
+	PluginNotActivated PluginProblem = "not_activated"
+	// PluginSuspended is a plugin whose Space activation is suspended.
+	PluginSuspended PluginProblem = "suspended"
+)
 
 // SecretProblem is why a required Secret grant could not be released.
 type SecretProblem string

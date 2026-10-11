@@ -89,10 +89,21 @@ Server 从不自己终结一次已经开始的运行：只有运行自身的进�
 - 回收器记录 `worker_lost` 或 `abandoned`；
 - worker 上报自己的类别，Server 把未知或缺失的类别存为 `unclassified`。
 
-worker 密钥路由拒绝一项必需授权时（密钥被禁用、已不存在或缺少被授权的条目），还会记录指明该密钥的
-`task_run.failure_cause`，随后 worker 以 `space_configuration` 把运行上报为 `FAILED`。类别仍是供系统管理读取的
+Server 组件因 Space 的配置拒绝一次运行时，还会记录 `task_run.failure_cause`（以首次写入为准），随后 worker
+以 `space_configuration` 把运行上报为 `FAILED`：
+
+- worker 密钥路由：必需授权的密钥被禁用、已不存在或缺少被授权的条目时，指明该密钥；
+- worker 获取运行时：`SCHEDULED` 运行的 Agent 使用了 Space 尚未启用或已暂停的插件时，指明该插件；
+- worker 模型路由：调用被 Space 的用量配额拒绝时，指明限额（`runs` 或 `tokens`）、上限以及以天计的滚动窗口。
+
+Space 无法修复的拒绝——部署没有插件启用机制，或存储无法读取——不记录原因。类别仍是供系统管理读取的
 运维元数据；原因会指明 Space 资源，因此只由 Space 范围的读取返回：TaskRun 列表、运行来源（它还说明是否记录了
-轨迹），以及 Task——Task 的类别与原因来自其最近一次运行，经 last-run 连接读取。
+轨迹），以及 Task——Task 的类别与原因来自其最近一次运行，经 last-run 连接读取。原因只指明每个 Space 成员本就能读到的
+内容：用 Agent 消费配置展示的 ID 指明密钥，用 Agent 列出的名称指明插件，用 Space 用量路由展示的限额指明配额。
+
+Agent 的读取（列表、单个读取，以及创建、更新和恢复的响应）携带 `secret_grant_problems`：当前无法解析的每一项授权，
+按 worker 密钥路由的同一规则依据密钥元数据判断，对所有角色返回。该判断由 `agent.Service.SecretGrantProblems` 负责，
+每个响应对每个密钥只读取一次。见 [Space 密钥 §10](../../design/Space密钥.md#10-授权)。
 
 worker 在认领运行之前就拒绝它时，会让运行从 `SCHEDULED` 直接结束。拒绝的原因可能是 Server 无法给它某个插件，也可能是先到达了一次取消。成功仍然需要先认领。
 

@@ -9,6 +9,7 @@ import (
 
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 )
 
 // Service-level failures, in addition to the resolution errors in resolve.go.
@@ -42,20 +43,21 @@ func (e *DuplicateCallError) Error() string {
 // Is reports whether the error matches the ErrDuplicateCall sentinel.
 func (e *DuplicateCallError) Is(target error) bool { return target == ErrDuplicateCall }
 
-// QuotaError reports why a space was refused. It satisfies
+// QuotaError reports which of the space's limits refused a call. It satisfies
 // errors.Is(err, ErrQuotaExceeded).
 type QuotaError struct {
-	Reason string
+	Refusal corequota.Refusal
 }
 
-func (e *QuotaError) Error() string { return e.Reason }
+func (e *QuotaError) Error() string { return e.Refusal.Reason() }
 
 // Is reports whether the error matches the ErrQuotaExceeded sentinel.
 func (e *QuotaError) Is(target error) bool { return target == ErrQuotaExceeded }
 
 // QuotaChecker is the narrow quota surface the gateway needs.
 type QuotaChecker interface {
-	Check(ctx context.Context, spaceID string, addRuns, addTokens int) (allowed bool, reason string, err error)
+	// Check returns the limit the addition would exceed, or nil when admitted.
+	Check(ctx context.Context, spaceID string, addRuns, addTokens int) (*corequota.Refusal, error)
 }
 
 // Service runs one managed call: resolve, authorize, meter, dispatch, record.
@@ -216,14 +218,14 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	// Only a call that belongs to a space is metered against one; a foreground
 	// call names no space and passes.
 	if s.Quota != nil && req.SpaceID != "" {
-		allowed, reason, err := s.Quota.Check(ctx, req.SpaceID, 0, 0)
+		refusal, err := s.Quota.Check(ctx, req.SpaceID, 0, 0)
 		if err != nil {
 			// Refusing here costs one call; admitting serves unmetered
 			// inference on a deployment that cannot see its own limits.
 			return CompleteResult{}, fmt.Errorf("check quota for space %s: %w", req.SpaceID, err)
 		}
-		if !allowed {
-			return CompleteResult{}, &QuotaError{Reason: reason}
+		if refusal != nil {
+			return CompleteResult{}, &QuotaError{Refusal: *refusal}
 		}
 	}
 

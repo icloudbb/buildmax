@@ -118,7 +118,9 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if req.Stream {
-		llmhttp.Stream(w, r, h.cfg.LLMGateway, cmd, userID)
+		// The error is already the client's answer; a foreground call has no
+		// run to record it against.
+		_ = llmhttp.Stream(w, r, h.cfg.LLMGateway, cmd, userID)
 		return
 	}
 

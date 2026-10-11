@@ -6,6 +6,7 @@ import (
 	"time"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	"github.com/icloudbb/buildmax/internal/service/agent"
 	"github.com/icloudbb/buildmax/internal/service/workflow"
@@ -28,8 +29,22 @@ type AgentResponse struct {
 	SandboxNetworkTier    string                     `json:"sandbox_network_tier,omitempty"`
 	SandboxFilesystemTier string                     `json:"sandbox_filesystem_tier,omitempty"`
 	SecretConsumption     agentdef.SecretConsumption `json:"secret_consumption,omitempty"`
-	Revision              int                        `json:"revision"`
-	CreatedAt             time.Time                  `json:"created_at"`
+	// SecretGrantProblems are the grants a run started now would not be
+	// given, so whoever can run the Agent is warned before a run fails on one.
+	SecretGrantProblems []secretGrantProblemResponse `json:"secret_grant_problems,omitempty"`
+	Revision            int                          `json:"revision"`
+	CreatedAt           time.Time                    `json:"created_at"`
+}
+
+// secretGrantProblemResponse names a grant by what secret_consumption already
+// shows and says why it would not resolve. It carries nothing else about the
+// Secret -- no name, state, or item list -- because members, who may not read
+// Secret metadata, read it too. See docs/design/space-secrets.md §10.
+type secretGrantProblemResponse struct {
+	SecretID string                 `json:"secret_id"`
+	Item     string                 `json:"item,omitempty"`
+	Problem  coretask.SecretProblem `json:"problem"`
+	Optional bool                   `json:"optional,omitempty"`
 }
 
 type agentRevisionResponse struct {
@@ -86,6 +101,22 @@ type patchAgentRequest struct {
 	SandboxNetworkTier    string                     `json:"sandbox_network_tier,omitempty"`
 	SandboxFilesystemTier string                     `json:"sandbox_filesystem_tier,omitempty"`
 	SecretConsumption     agentdef.SecretConsumption `json:"secret_consumption,omitempty"`
+}
+
+// agentResponses renders agents with the health of their Secret grants, read
+// once for the whole set.
+func (h *Handler) agentResponses(r *http.Request, agents ...agentdef.Agent) []AgentResponse {
+	problems := h.agentService().SecretGrantProblems(r.Context(), agents)
+	out := make([]AgentResponse, len(agents))
+	for i, a := range agents {
+		out[i] = agentToResponse(a)
+		for _, p := range problems[a.ID] {
+			out[i].SecretGrantProblems = append(out[i].SecretGrantProblems, secretGrantProblemResponse{
+				SecretID: p.SecretID, Item: p.Item, Problem: p.Problem, Optional: p.Optional,
+			})
+		}
+	}
+	return out
 }
 
 func agentToResponse(a agentdef.Agent) AgentResponse {
@@ -171,11 +202,7 @@ func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_agents", "user_id", userID, "space_id", spaceID)
 		return
 	}
-	out := make([]AgentResponse, len(list))
-	for i := range list {
-		out[i] = agentToResponse(list[i])
-	}
-	httputil.WriteJSON(w, http.StatusOK, out)
+	httputil.WriteJSON(w, http.StatusOK, h.agentResponses(r, list...))
 }
 
 func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -209,7 +236,7 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_agent", "user_id", userID, "space_id", spaceID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusCreated, agentToResponse(*created))
+	httputil.WriteJSON(w, http.StatusCreated, h.agentResponses(r, *created)[0])
 }
 
 func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -229,7 +256,7 @@ func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_agent", "agent_id", agentID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, agentToResponse(*found))
+	httputil.WriteJSON(w, http.StatusOK, h.agentResponses(r, *found)[0])
 }
 
 func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -268,7 +295,7 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "patch_agent", "agent_id", agentID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, agentToResponse(*updated))
+	httputil.WriteJSON(w, http.StatusOK, h.agentResponses(r, *updated)[0])
 }
 
 // listAgentRevisionsHandler returns an agent's recorded definitions, newest
@@ -328,7 +355,7 @@ func (h *Handler) restoreAgentRevisionHandler(w http.ResponseWriter, r *http.Req
 		httputil.WriteInternalError(w, err, "handler error", "handler", "restore_agent_revision", "agent_id", agentID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, agentToResponse(*updated))
+	httputil.WriteJSON(w, http.StatusOK, h.agentResponses(r, *updated)[0])
 }
 
 func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {

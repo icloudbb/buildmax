@@ -23,8 +23,8 @@ import {
 import { cacheSaving, callElapsed, describeSpend, formatAmount, summarizeSpend } from "./spend"
 import { describeBoundary, describeMCP, formatDuration, runElapsed } from "./summary"
 import { explainRunFailure } from "./failure"
-import { FailureFixLink, RunFailureNotice } from "./RunFailureNotice"
-import { useSecretName } from "./useSecretName"
+import { FailureFixLink, failureFixLink, RunFailureNotice } from "./RunFailureNotice"
+import { useCanManageSpace, useSecretName } from "./useSecretName"
 
 interface RunTraceModalProps {
   open: boolean
@@ -577,6 +577,7 @@ function FailureSection({
   onClose: () => void
 }) {
   const t = useT()
+  const canManage = useCanManageSpace()
   const secretName = useSecretName(spaceId, token, provenance.failure_cause?.secret_id)
   const explanation = explainRunFailure(
     {
@@ -586,16 +587,16 @@ function FailureSection({
       agentId: provenance.agent?.id,
       errorMessage: provenance.error_message,
     },
-    { agent: provenance.agent?.name, secret: secretName },
+    { agent: provenance.agent?.name, secret: secretName, canManage },
   )
   if (!explanation) return null
   return (
     <section className="run-trace__section">
       <h3 className="run-trace__heading">{t("runs.failure.heading")}</h3>
       <RunFailureNotice explanation={explanation} />
-      {explanation.leadsWithFix && provenance.agent?.id ? (
+      {failureFixLink(explanation.primary, spaceId, provenance.agent?.id) ? (
         <div className="run-trace__failure-actions">
-          <FailureFixLink explanation={explanation} spaceId={spaceId} agentId={provenance.agent.id} size="compact" onNavigate={onClose} />
+          <FailureFixLink explanation={explanation} spaceId={spaceId} agentId={provenance.agent?.id} size="compact" onNavigate={onClose} />
         </div>
       ) : null}
     </section>

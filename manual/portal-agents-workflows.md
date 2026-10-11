@@ -31,6 +31,12 @@ its runs that succeeded among those that succeeded or failed. A stopped run is
 left out, because someone chose to end it. An agent with no succeeded or failed
 run shows **—**.
 
+When a Secret an agent is granted has been disabled or destroyed, or no longer
+has the item the grant names, the agent's card and its Overview warn that the
+grant no longer resolves, for everyone who can run it. On the Overview, owners
+and admins get **Fix in config**; other members are told to ask a Space owner
+or admin, and see neither the Secret's name nor its ID.
+
 ### Versions
 
 Every time you save an agent, BuildMax records a new numbered version along with

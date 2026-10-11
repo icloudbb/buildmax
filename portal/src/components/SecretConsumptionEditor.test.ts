@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { Translate } from "@buildmax/gui"
 import type { ApiSecret } from "../lib/api/types"
 import { translate, type MessageKey } from "../i18n"
-import { consumptionHealthCount, grantHealth } from "./SecretConsumptionEditor"
+import { grantHealth } from "./SecretConsumptionEditor"
 
 const t: Translate<MessageKey> = (key, vars) => translate("en", key, vars)
 
@@ -53,23 +53,5 @@ describe("grantHealth", () => {
     expect(grantHealth({ secret: "sec_gh", item: "gone", env_name: "X" }, secrets, t)).toMatch(
       /no longer has an item/,
     )
-  })
-})
-
-describe("consumptionHealthCount", () => {
-  const secrets = [secret({ id: "sec_gh", item_names: ["token"] })]
-  it("counts only unresolvable grants", () => {
-    const consumption = {
-      env: [
-        { secret: "sec_gh", item: "token", env_name: "OK" }, // fine
-        { secret: "sec_gh", item: "gone", env_name: "BAD" }, // missing item
-        { secret: "sec_missing", item: "x", env_name: "GONE" }, // missing secret
-      ],
-    }
-    expect(consumptionHealthCount(consumption, secrets)).toBe(2)
-  })
-  it("is zero for empty consumption", () => {
-    expect(consumptionHealthCount(undefined, secrets)).toBe(0)
-    expect(consumptionHealthCount({ env: [] }, secrets)).toBe(0)
   })
 })

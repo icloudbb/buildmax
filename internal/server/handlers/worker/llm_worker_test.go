@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/infra/llmwire"
 	"github.com/icloudbb/buildmax/internal/mock"
@@ -43,14 +44,18 @@ func validWorkerRunToken(t *testing.T) string {
 }
 
 func workerLLMHandler(gateway *llmgateway.Service, runStatus string) http.Handler {
-	h := New(Config{
-		JWTSecret: workerTestSecret,
-		Gateway:   gateway,
-		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: runStatus, CreatedAt: time.Unix(1, 0).UTC()}},
-			TaskList: []coretask.Task{{ID: "t_1", ConversationID: "c_1", SpaceID: llmTestSpace, Status: runStatus, Input: "in", CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
-		},
-	})
+	return workerLLMHandlerOver(gateway, workerLLMRuns(runStatus))
+}
+
+func workerLLMRuns(runStatus string) *mock.MockTaskRunStore {
+	return &mock.MockTaskRunStore{
+		Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: runStatus, CreatedAt: time.Unix(1, 0).UTC()}},
+		TaskList: []coretask.Task{{ID: "t_1", ConversationID: "c_1", SpaceID: llmTestSpace, Status: runStatus, Input: "in", CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
+	}
+}
+
+func workerLLMHandlerOver(gateway *llmgateway.Service, runs *mock.MockTaskRunStore) http.Handler {
+	h := New(Config{JWTSecret: workerTestSecret, Gateway: gateway, TaskRuns: runs})
 	mux := http.NewServeMux()
 	h.Register(mux)
 	return mux
@@ -224,8 +229,8 @@ func TestWorkerLLMCompletions(t *testing.T) {
 // workerDenyQuota refuses every space.
 type workerDenyQuota struct{}
 
-func (workerDenyQuota) Check(context.Context, string, int, int) (bool, string, error) {
-	return false, "quota exceeded: token limit", nil
+func (workerDenyQuota) Check(context.Context, string, int, int) (*corequota.Refusal, error) {
+	return &corequota.Refusal{Limit: corequota.LimitTokens, Max: 5000, PeriodDays: 30}, nil
 }
 
 // TestWorkerLLMCompletionRespectsQuota is where quota is enforced now that a
@@ -240,6 +245,47 @@ func TestWorkerLLMCompletionRespectsQuota(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), llmgateway.ErrorClassQuotaExceeded) {
 		t.Errorf("body does not carry the quota code: %s", rec.Body.String())
+	}
+}
+
+// The worker fails the run on the quota code; the run itself records which
+// limit refused it, so the failure can say which allowance ran out and who
+// can change it. Streaming and non-streaming calls both reach the gateway.
+func TestWorkerLLMQuotaRefusalRecordsTheLimitAsTheCause(t *testing.T) {
+	for _, body := range []string{workerLLMBody, `{"model":"Fast","stream":true,"messages":[{"role":"user","content":"hi"}]}`} {
+		runs := workerLLMRuns(string(coretask.RunStatusRunning))
+		gateway := llmTestService(t, &llmStubClient{content: "answer"}, workerDenyQuota{})
+		req := httptest.NewRequest(http.MethodPost, "/api/worker/task-runs/r_1/llm/completions", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+validWorkerRunToken(t))
+		rec := httptest.NewRecorder()
+		workerLLMHandlerOver(gateway, runs).ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusTooManyRequests {
+			t.Fatalf("status = %d, want 429: %s", rec.Code, rec.Body.String())
+		}
+		want := coretask.FailureCause{Kind: coretask.FailureCauseUsageQuota, QuotaLimit: "tokens", QuotaMax: 5000, QuotaPeriodDays: 30}
+		if got := runs.Runs[0].FailureCause; got == nil || *got != want {
+			t.Errorf("body %s: cause = %+v, want %+v", body, got, want)
+		}
+	}
+}
+
+// A call that fails for any other reason is not the Space's quota and names
+// no cause.
+func TestWorkerLLMOtherFailureRecordsNoCause(t *testing.T) {
+	runs := workerLLMRuns(string(coretask.RunStatusRunning))
+	gateway := llmTestService(t, &llmStubClient{content: "answer"}, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/worker/task-runs/r_1/llm/completions",
+		strings.NewReader(`{"model":"Unknown","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Authorization", "Bearer "+validWorkerRunToken(t))
+	rec := httptest.NewRecorder()
+	workerLLMHandlerOver(gateway, runs).ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("an unknown model was served: %s", rec.Body.String())
+	}
+	if got := runs.Runs[0].FailureCause; got != nil {
+		t.Errorf("cause = %+v, want none", got)
 	}
 }
 

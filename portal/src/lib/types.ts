@@ -132,6 +132,8 @@ export interface Agent {
   sandboxNetworkTier?: string
   sandboxFilesystemTier?: string
   secretConsumption?: import("./api/types").ApiSecretConsumption
+  /** Grants a run started now would not be given, for every role. */
+  secretGrantProblems?: import("./api/types").ApiSecretGrantProblem[]
   revision: number
   createdAt: string
 }

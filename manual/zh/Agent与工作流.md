@@ -26,6 +26,10 @@ Agent 和 Workflow 是你分派工作的可复用构建块。Agent 是关于*一
 Agents 列表和 Agent 的 Overview 会显示 **Success rate**：在成功或失败的运行中，成功所占的比例。
 已停止的运行不计入，因为那是有人主动结束的。没有任何成功或失败运行的 Agent 显示 **—**。
 
+当 Agent 被授予的密钥已被禁用或销毁，或已没有授权所指的条目时，Agent 卡片和它的 Overview 会向所有能运行它的人
+提示该授权已无法解析。在 Overview 中，Owner 和 admin 会看到 **Fix in config**；其他成员会被告知请 Space 所有者或管理员修复，
+且既看不到密钥的名称，也看不到它的 ID。
+
 ### 版本
 
 每次你保存一个 Agent，BuildMax 都会记录一个新的带编号版本以及编写者是谁。

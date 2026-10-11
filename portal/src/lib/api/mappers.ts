@@ -59,6 +59,7 @@ export function apiAgentToAgent(api: ApiAgent): Agent {
     sandboxNetworkTier: api.sandbox_network_tier,
     sandboxFilesystemTier: api.sandbox_filesystem_tier,
     secretConsumption: api.secret_consumption,
+    secretGrantProblems: api.secret_grant_problems,
     revision: api.revision,
     createdAt: api.created_at,
   }

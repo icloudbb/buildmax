@@ -9,6 +9,7 @@ import (
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	"github.com/icloudbb/buildmax/internal/core/llm"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	"github.com/icloudbb/buildmax/internal/util"
@@ -51,7 +52,8 @@ type WorkflowStepLookup interface {
 
 // QuotaChecker is the narrow quota surface needed by task workflows.
 type QuotaChecker interface {
-	Check(ctx context.Context, spaceID string, runsToAdd, tokensToAdd int) (allowed bool, reason string, err error)
+	// Check returns the limit the addition would exceed, or nil when admitted.
+	Check(ctx context.Context, spaceID string, runsToAdd, tokensToAdd int) (*corequota.Refusal, error)
 }
 
 // Service owns task-related application workflows.
@@ -540,19 +542,19 @@ func (s *Service) checkQuota(ctx context.Context, spaceID string, tokens int) er
 	if spaceID == "" {
 		return nil
 	}
-	allowed, reason, err := s.QuotaChecker.Check(ctx, spaceID, 1, tokens)
+	refusal, err := s.QuotaChecker.Check(ctx, spaceID, 1, tokens)
 	if err != nil {
 		// A limit that could not be read is not a limit that passed. Admitting
 		// the run would spend a space's allowance without metering it.
 		return fmt.Errorf("check quota for space %s: %w", spaceID, err)
 	}
-	if allowed {
+	if refusal == nil {
 		return nil
 	}
-	// The quota service's reason is already the whole sentence a caller should
-	// read, so it is the message rather than a detail appended to one. The Kind
-	// is what carries the 429; no transport needs to know this package's types.
-	return apierr.New(apierr.KindQuotaExceeded, reason)
+	// The refusal's reason is already the whole sentence a caller should read,
+	// so it is the message rather than a detail appended to one. The Kind is
+	// what carries the 429; no transport needs to know this package's types.
+	return apierr.New(apierr.KindQuotaExceeded, refusal.Reason())
 }
 
 func buildTaskInputFromAgent(agent *agentdef.Agent, userInput string) string {

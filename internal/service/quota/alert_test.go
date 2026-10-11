@@ -42,7 +42,7 @@ func actions(audits *mock.MockAuditStore) []string {
 func TestCheckRecordsCrossingTheThreshold(t *testing.T) {
 	c, audits := alertingService(7, 0, 10, 100_000)
 
-	if allowed, _, _ := c.Check(context.Background(), "tm_1", 1, 0); !allowed {
+	if refusal, _ := c.Check(context.Background(), "tm_1", 1, 0); refusal != nil {
 		t.Fatal("Check refused a run inside the limit")
 	}
 	if len(audits.Events) != 1 {
@@ -68,7 +68,7 @@ func TestCheckRecordsCrossingTheThreshold(t *testing.T) {
 func TestCheckRecordsNothingWellInsideTheLimit(t *testing.T) {
 	c, audits := alertingService(1, 0, 10, 100_000)
 
-	if allowed, _, _ := c.Check(context.Background(), "tm_1", 1, 0); !allowed {
+	if refusal, _ := c.Check(context.Background(), "tm_1", 1, 0); refusal != nil {
 		t.Fatal("Check refused a run inside the limit")
 	}
 	if len(audits.Events) != 0 {
@@ -82,7 +82,7 @@ func TestCheckRecordsOneWarningPerLimitPerPeriod(t *testing.T) {
 	c, audits := alertingService(9, 0, 10, 100_000)
 
 	for range 5 {
-		if _, _, err := c.Check(context.Background(), "tm_1", 0, 0); err != nil {
+		if _, err := c.Check(context.Background(), "tm_1", 0, 0); err != nil {
 			t.Fatalf("Check: %v", err)
 		}
 	}
@@ -96,7 +96,7 @@ func TestCheckRecordsOneWarningPerLimitPerPeriod(t *testing.T) {
 func TestCheckRecordsEachLimitSeparately(t *testing.T) {
 	c, audits := alertingService(9, 95_000, 10, 100_000)
 
-	if _, _, err := c.Check(context.Background(), "tm_1", 0, 0); err != nil {
+	if _, err := c.Check(context.Background(), "tm_1", 0, 0); err != nil {
 		t.Fatalf("Check: %v", err)
 	}
 	if len(audits.Events) != 2 {
@@ -113,12 +113,12 @@ func TestCheckRecordsEachLimitSeparately(t *testing.T) {
 func TestCheckRecordsTheRefusal(t *testing.T) {
 	c, audits := alertingService(10, 0, 10, 100_000)
 
-	allowed, reason, _ := c.Check(context.Background(), "tm_1", 1, 0)
-	if allowed {
+	refusal, _ := c.Check(context.Background(), "tm_1", 1, 0)
+	if refusal == nil {
 		t.Fatal("Check allowed a run past the limit")
 	}
-	if reason != "quota exceeded: run limit" {
-		t.Errorf("reason = %q", reason)
+	if refusal.Reason() != "quota exceeded: run limit" {
+		t.Errorf("reason = %q", refusal.Reason())
 	}
 	if len(audits.Events) != 1 || audits.Events[0].Action != coreaudit.QuotaExceeded {
 		t.Fatalf("recorded %v, want one %q", actions(audits), coreaudit.QuotaExceeded)
@@ -132,7 +132,7 @@ func TestCheckEnforcesWithoutAnAuditStore(t *testing.T) {
 	c, _ := alertingService(10, 0, 10, 100_000)
 	c.Audit = nil
 
-	if allowed, _, _ := c.Check(context.Background(), "tm_1", 1, 0); allowed {
+	if refusal, _ := c.Check(context.Background(), "tm_1", 1, 0); refusal == nil {
 		t.Error("Check allowed a run past the limit when auditing was off")
 	}
 }

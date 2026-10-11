@@ -55,12 +55,14 @@ func (s *sseWriter) send(event string, payload any) error {
 // before any output — an unknown model, quota, a duplicate call ID — is still a
 // plain HTTP error with a status the client can act on; only a failure after
 // the stream has started becomes an error event.
-// Stream runs one managed call and frames it as server-sent events.
-func Stream(w http.ResponseWriter, r *http.Request, gateway *llmgateway.Service, cmd llmgateway.CompleteRequest, spaceID string) {
+// Stream runs one managed call and frames it as server-sent events. It returns
+// the call's error, already written to the client, so a caller can record what
+// a refusal means for its own resource.
+func Stream(w http.ResponseWriter, r *http.Request, gateway *llmgateway.Service, cmd llmgateway.CompleteRequest, spaceID string) error {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		httputil.WriteJSONError(w, http.StatusInternalServerError, "streaming is not supported by this server")
-		return
+		return nil
 	}
 
 	stream := &sseWriter{w: w, flusher: flusher}
@@ -74,7 +76,7 @@ func Stream(w http.ResponseWriter, r *http.Request, gateway *llmgateway.Service,
 	if err != nil {
 		if !stream.started {
 			WriteError(w, err, "llm_completions_stream", spaceID)
-			return
+			return err
 		}
 		class := llmgateway.ErrorClassFor(err)
 		_, message := statusFor(class, err)
@@ -83,10 +85,11 @@ func Stream(w http.ResponseWriter, r *http.Request, gateway *llmgateway.Service,
 			Error:     message,
 			Retryable: llmgateway.RetryableClass(class),
 		})
-		return
+		return err
 	}
 
 	_ = stream.send(llmwire.EventResult, WireCompletion(result))
+	return nil
 }
 
 // WireCompletion is a finished managed call in the wire contract: the body of a

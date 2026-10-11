@@ -14,6 +14,7 @@ import (
 
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 )
 
@@ -139,26 +140,26 @@ func (l *fakeLedger) only(t *testing.T) (coregw.Call, coregw.CallOutcome) {
 	return call, l.outcomes[call.ID]
 }
 
-// denyQuota refuses every space.
-type denyQuota struct{ reason string }
+// denyQuota refuses every space with its refusal.
+type denyQuota struct{ refusal corequota.Refusal }
 
-func (q denyQuota) Check(context.Context, string, int, int) (bool, string, error) {
-	return false, q.reason, nil
+func (q denyQuota) Check(context.Context, string, int, int) (*corequota.Refusal, error) {
+	return &q.refusal, nil
 }
 
 // allowQuota accepts every space and records that it was asked.
 type allowQuota struct{ calls int }
 
-func (q *allowQuota) Check(context.Context, string, int, int) (bool, string, error) {
+func (q *allowQuota) Check(context.Context, string, int, int) (*corequota.Refusal, error) {
 	q.calls++
-	return true, "", nil
+	return nil, nil
 }
 
 // unreadableQuota cannot answer: the limit exists but the store is unreachable.
 type unreadableQuota struct{ err error }
 
-func (q unreadableQuota) Check(context.Context, string, int, int) (bool, string, error) {
-	return false, "", q.err
+func (q unreadableQuota) Check(context.Context, string, int, int) (*corequota.Refusal, error) {
+	return nil, q.err
 }
 
 func serviceWith(t *testing.T, client cllm.LLMClient, ledger coregw.CallStore, quota llmgateway.QuotaChecker) *llmgateway.Service {
@@ -446,15 +447,15 @@ func (timeoutErr) Temporary() bool { return true }
 
 func TestCompleteRefusesOverQuota(t *testing.T) {
 	ledger := newFakeLedger()
-	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, denyQuota{reason: "quota exceeded: token limit"})
+	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, denyQuota{refusal: corequota.Refusal{Limit: corequota.LimitTokens, Max: 100, PeriodDays: 30}})
 
 	_, err := svc.Complete(context.Background(), userRequest())
 	if !errors.Is(err, llmgateway.ErrQuotaExceeded) {
 		t.Fatalf("want ErrQuotaExceeded, got %v", err)
 	}
 	var quotaErr *llmgateway.QuotaError
-	if !errors.As(err, &quotaErr) || quotaErr.Reason == "" {
-		t.Errorf("want a QuotaError with a reason, got %v", err)
+	if !errors.As(err, &quotaErr) || quotaErr.Refusal.Limit != corequota.LimitTokens {
+		t.Errorf("want a QuotaError naming the token limit, got %v", err)
 	}
 	// A refused call is not a call: nothing is opened in the ledger.
 	if len(ledger.opened) != 0 {
@@ -759,7 +760,7 @@ func TestErrorClassFor(t *testing.T) {
 		{err: llmgateway.ErrTargetNotFound, want: llmgateway.ErrorClassTargetNotFound},
 		{err: llmgateway.ErrTargetDisabled, want: llmgateway.ErrorClassTargetDisabled},
 		{err: &llmgateway.CapabilityError{Model: "Deep"}, want: llmgateway.ErrorClassCapability},
-		{err: &llmgateway.QuotaError{Reason: "over"}, want: llmgateway.ErrorClassQuotaExceeded},
+		{err: &llmgateway.QuotaError{Refusal: corequota.Refusal{Limit: corequota.LimitRuns}}, want: llmgateway.ErrorClassQuotaExceeded},
 		{err: llmgateway.ErrMessagesRequired, want: llmgateway.ErrorClassInvalidRequest},
 		{err: llmgateway.ErrCatalogNotConfigured, want: llmgateway.ErrorClassNotConfigured},
 		{err: llmgateway.ErrFactoryNotConfigured, want: llmgateway.ErrorClassNotConfigured},

@@ -488,12 +488,16 @@ Issue flow API 把一个 Issue 的 Agent 运行和 Workflow 运行列为按时�
 任一类型中最新的那次运行：它的状态、发布的文件和文本（Agent 的回复、Workflow 声明的结果，
 或其最后一个步骤的输出），以及指向它的链接。Results 列出已发布的文件和只有文本的产出；Runs 就是那一个列表。
 失败的运行由 Portal 中唯一的一处映射用使用者能理解的话加以说明，依据是运行的失败类别，以及服务器记录了的
-失败原因：worker 的密钥路由会把被拒绝的必需授权（哪个密钥，以及它是被禁用、已不存在还是缺少条目）记录在
-TaskRun 上，Space 范围的 Task、TaskRun 与运行来源响应都携带该类别与原因。使用者能修复的失败以修复操作
-（**Open the Agent to fix its Secret grant**）为先，重试退居次要，这适用于 Issue 详情的最近一次运行、Task 页面、
-Discussion 中 Agent 的失败报告以及 Run Details；服务器原文保留在折叠区内。对于密钥授权已无法解析的 Agent，
-Run agent 会在启动运行前给出警告，仅面向可读取密钥元数据的 owner 和 admin。Run Details 先读取是否记录了轨迹
-再去请求，因此在 Agent 启动前就结束的运行不会发出必然失败的请求。插件拒绝和用量配额耗尽不记录原因，只凭类别说明。
+失败原因。原因由拒绝运行的组件记录在 TaskRun 上，以首次写入为准：worker 的密钥路由记录被拒绝的必需授权
+（哪个密钥，以及它是被禁用、已不存在还是缺少条目）；worker 获取运行时记录 Agent 使用了 Space 尚未启用或已暂停的插件；
+worker 的模型路由记录用量配额耗尽（哪项限额、上限及其滚动窗口）。Space 范围的 Task、TaskRun 与运行来源响应都携带该类别与原因。
+读者能修复的失败以修复操作为先（owner 和 admin 看到 **Open the Agent to fix its Secret grant** 或
+**Open plugin settings**），重试退居次要，这适用于 Issue 详情的最近一次运行、Task 页面、Discussion 中 Agent 的失败报告以及
+Run Details；成员看到的是请 Space 所有者或管理员处理的说明而不是链接；配额耗尽需由系统管理员提高配额，
+自被拒绝起已过去整整一个窗口时则以再次运行为先。服务器原文保留在折叠区内。Agent 的读取结果会向所有角色给出当前无法解析的
+每一项密钥授权，用其消费配置本就展示的 Secret ID 和条目以及问题来指明，因此 Issue 上的 Run agent 以及 Agent 卡片和 Overview
+对成员同样给出警告；成员看到的是“授予它的某个密钥”，而不是密钥的名称或 ID。Run Details 先读取是否记录了轨迹
+再去请求，因此在 Agent 启动前就结束的运行不会发出必然失败的请求。
 Agent 成功率不计入已停止的运行，在没有任何成功或失败运行时显示“—”。
 没有声明结果的 Workflow 运行会说明这一点并指向其步骤，每个步骤的输出都标为 **Output**，位于折叠的输入之上。
 Issues 页面提供 List / Board 切换，以及共用的 Owner 和 Executor

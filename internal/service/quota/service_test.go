@@ -84,8 +84,8 @@ func TestCheck_NoSpace_Allows(t *testing.T) {
 		TierStore:   &mockTierStore{},
 		DefaultTier: "free_trial",
 	}
-	allowed, _, _ := c.Check(context.Background(), "tm_any", 1, 0)
-	if !allowed {
+	refusal, _ := c.Check(context.Background(), "tm_any", 1, 0)
+	if refusal != nil {
 		t.Error("Check: expected allow when space is nil")
 	}
 }
@@ -97,8 +97,8 @@ func TestCheck_UnknownTier_Allows(t *testing.T) {
 		TierStore:   &mockTierStore{tier: nil},
 		DefaultTier: "free_trial",
 	}
-	allowed, _, _ := c.Check(context.Background(), "tm_1", 1, 0)
-	if !allowed {
+	refusal, _ := c.Check(context.Background(), "tm_1", 1, 0)
+	if refusal != nil {
 		t.Error("Check: expected allow when tier not found")
 	}
 }
@@ -110,12 +110,12 @@ func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
-	allowed, reason, _ := c.Check(context.Background(), "tm_1", 1, 0)
-	if allowed {
+	refusal, _ := c.Check(context.Background(), "tm_1", 1, 0)
+	if refusal == nil {
 		t.Error("Check: expected deny when run count would exceed limit")
 	}
-	if reason != "quota exceeded: run limit" {
-		t.Errorf("Check: reason = %q, want quota exceeded: run limit", reason)
+	if want := (corequota.Refusal{Limit: corequota.LimitRuns, Max: 10, PeriodDays: 30}); refusal == nil || *refusal != want || refusal.Reason() != "quota exceeded: run limit" {
+		t.Errorf("Check: refusal = %+v, want the run limit of 10 per 30 days", refusal)
 	}
 }
 
@@ -126,12 +126,12 @@ func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
-	allowed, reason, _ := c.Check(context.Background(), "tm_1", 0, 1)
-	if allowed {
+	refusal, _ := c.Check(context.Background(), "tm_1", 0, 1)
+	if refusal == nil {
 		t.Error("Check: expected deny when token count would exceed limit")
 	}
-	if reason != "quota exceeded: token limit" {
-		t.Errorf("Check: reason = %q, want quota exceeded: token limit", reason)
+	if want := (corequota.Refusal{Limit: corequota.LimitTokens, Max: 100000, PeriodDays: 30}); refusal == nil || *refusal != want || refusal.Reason() != "quota exceeded: token limit" {
+		t.Errorf("Check: refusal = %+v, want the token limit of 100000 per 30 days", refusal)
 	}
 }
 
@@ -142,12 +142,9 @@ func TestCheck_UnderLimit_Allows(t *testing.T) {
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
-	allowed, reason, _ := c.Check(context.Background(), "tm_1", 1, 10000)
-	if !allowed {
-		t.Errorf("Check: expected allow; reason = %q", reason)
-	}
-	if reason != "" {
-		t.Errorf("Check: reason = %q, want empty", reason)
+	refusal, _ := c.Check(context.Background(), "tm_1", 1, 10000)
+	if refusal != nil {
+		t.Errorf("Check: expected allow; refusal = %+v", refusal)
 	}
 }
 
@@ -158,8 +155,8 @@ func TestCheck_EmptySpaceTier_UsesDefault(t *testing.T) {
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
-	allowed, _, _ := c.Check(context.Background(), "tm_1", 1, 0)
-	if allowed {
+	refusal, _ := c.Check(context.Background(), "tm_1", 1, 0)
+	if refusal == nil {
 		t.Error("Check: expected deny when default tier limit reached")
 	}
 }
@@ -239,12 +236,11 @@ func TestCheckReportsAReadItCouldNotMake(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			allowed, _, err := c.svc.Check(context.Background(), "tm_1", 1, 0)
+			_, err := c.svc.Check(context.Background(), "tm_1", 1, 0)
+			// The error is the refusal: every caller refuses on it before it
+			// reads a limit.
 			if !errors.Is(err, boom) {
 				t.Fatalf("Check err = %v, want %v", err, boom)
-			}
-			if allowed {
-				t.Error("Check admitted a run whose limit it could not read")
 			}
 		})
 	}

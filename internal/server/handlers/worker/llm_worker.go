@@ -2,10 +2,12 @@ package worker
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/icloudbb/buildmax/internal/server/handlers/llmhttp"
 	"net/http"
 
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/infra/llmwire"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
@@ -111,15 +113,36 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	if req.Stream {
-		llmhttp.Stream(w, r, h.cfg.Gateway, cmd, claims.SpaceID)
+		h.recordQuotaRefusal(r, run.ID, llmhttp.Stream(w, r, h.cfg.Gateway, cmd, claims.SpaceID))
 		return
 	}
 
 	result, err := h.cfg.Gateway.Complete(r.Context(), cmd)
 	if err != nil {
+		h.recordQuotaRefusal(r, run.ID, err)
 		llmhttp.WriteError(w, err, "worker_llm_completions", claims.SpaceID)
 		return
 	}
 
 	httputil.WriteJSON(w, http.StatusOK, llmhttp.WireCompletion(result))
+}
+
+// recordQuotaRefusal records which of the Space's limits refused this run's
+// model call, so the failed run says which allowance ran out and who can
+// change it. The worker fails the run on the refusal's code; this only names
+// its cause, first write winning, and fail-open like the other refusals.
+func (h *Handler) recordQuotaRefusal(r *http.Request, taskRunID string, err error) {
+	var refused *llmgateway.QuotaError
+	if !errors.As(err, &refused) {
+		return
+	}
+	cause := coretask.FailureCause{
+		Kind:            coretask.FailureCauseUsageQuota,
+		QuotaLimit:      string(refused.Refusal.Limit),
+		QuotaMax:        refused.Refusal.Max,
+		QuotaPeriodDays: refused.Refusal.PeriodDays,
+	}
+	if recErr := h.cfg.TaskRuns.RecordTaskRunFailureCause(r.Context(), taskRunID, cause); recErr != nil {
+		componentLog().Warn("worker handler: could not record a quota refusal", "task_run_id", taskRunID, "err", recErr)
+	}
 }

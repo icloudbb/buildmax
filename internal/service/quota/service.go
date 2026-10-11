@@ -162,68 +162,68 @@ func (c *Service) CheckStorage(ctx context.Context, spaceID string, addBytes int
 	now := c.now().UTC()
 	since := now.Add(-time.Duration(tier.PeriodDays) * 24 * time.Hour)
 	if held+addBytes > tier.MaxStorageBytes {
-		c.noteUsage(ctx, spaceID, limitStorage, held, tier.MaxStorageBytes, since, true)
+		c.noteUsage(ctx, spaceID, corequota.LimitStorage, held, tier.MaxStorageBytes, since, true)
 		return false, fmt.Sprintf("quota exceeded: storage limit, %d of %d bytes used", held, tier.MaxStorageBytes), nil
 	}
-	c.warnIfNear(ctx, spaceID, limitStorage, held+addBytes, tier.MaxStorageBytes, since)
+	c.warnIfNear(ctx, spaceID, corequota.LimitStorage, held+addBytes, tier.MaxStorageBytes, since)
 	return true, "", nil
 }
 
-// Check returns whether the space is allowed to add addRuns and addTokens. If not
-// allowed, reason is the 429 message.
+// Check returns the limit adding addRuns and addTokens would exceed, or nil
+// when the space may add them. A refusal's Reason is the 429 message.
 //
 // A configured limit that cannot be read is an error, not an allowance. The two
 // look the same to a caller that only asks "allowed?", and answering yes means a
 // deployment whose database is unreachable serves unmetered work and records
 // nothing about having done so. Absence of a limit still means no limit: a space
 // with no record, no tier, or a tier that names nothing is admitted.
-func (c *Service) Check(ctx context.Context, spaceID string, addRuns, addTokens int) (allowed bool, reason string, err error) {
+func (c *Service) Check(ctx context.Context, spaceID string, addRuns, addTokens int) (*corequota.Refusal, error) {
 	space, err := c.SpaceStore.GetSpace(ctx, spaceID)
 	if err != nil {
-		return false, "", fmt.Errorf("read space %s: %w", spaceID, err)
+		return nil, fmt.Errorf("read space %s: %w", spaceID, err)
 	}
 	if space == nil {
-		return true, "", nil // no space => no tier => no limit
+		return nil, nil // no space => no tier => no limit
 	}
 	tierName := space.QuotaTier
 	if tierName == "" {
 		tierName = c.DefaultTier
 	}
 	if tierName == "" {
-		return true, "", nil // no tier => allow
+		return nil, nil // no tier => allow
 	}
 	tier, err := c.TierStore.GetQuotaTier(ctx, tierName)
 	if err != nil {
-		return false, "", fmt.Errorf("read quota tier %s: %w", tierName, err)
+		return nil, fmt.Errorf("read quota tier %s: %w", tierName, err)
 	}
 	if tier == nil {
-		return true, "", nil // the tier names nothing => no limit
+		return nil, nil // the tier names nothing => no limit
 	}
 	now := c.now().UTC()
 	since := now.Add(-time.Duration(tier.PeriodDays) * 24 * time.Hour)
 	runCount, totalTokens, err := c.UsageReader.SpaceUsageInWindow(ctx, spaceID, since, now)
 	if err != nil {
-		return false, "", fmt.Errorf("read space %s usage: %w", spaceID, err)
+		return nil, fmt.Errorf("read space %s usage: %w", spaceID, err)
 	}
 	if runCount+addRuns > tier.MaxRunsPerPeriod {
-		c.noteUsage(ctx, spaceID, limitRuns, int64(runCount), int64(tier.MaxRunsPerPeriod), since, true)
-		return false, "quota exceeded: run limit", nil
+		c.noteUsage(ctx, spaceID, corequota.LimitRuns, int64(runCount), int64(tier.MaxRunsPerPeriod), since, true)
+		return &corequota.Refusal{Limit: corequota.LimitRuns, Max: int64(tier.MaxRunsPerPeriod), PeriodDays: tier.PeriodDays}, nil
 	}
 	if totalTokens+addTokens > tier.MaxTokensPerPeriod {
-		c.noteUsage(ctx, spaceID, limitTokens, int64(totalTokens), int64(tier.MaxTokensPerPeriod), since, true)
-		return false, "quota exceeded: token limit", nil
+		c.noteUsage(ctx, spaceID, corequota.LimitTokens, int64(totalTokens), int64(tier.MaxTokensPerPeriod), since, true)
+		return &corequota.Refusal{Limit: corequota.LimitTokens, Max: int64(tier.MaxTokensPerPeriod), PeriodDays: tier.PeriodDays}, nil
 	}
 
 	// Warn on the way past the threshold, on an admission that was allowed.
 	// This is the only moment the crossing is visible: usage is a rolling
 	// window with no period boundary for a sweep to notice it at.
-	c.warnIfNear(ctx, spaceID, limitRuns, int64(runCount+addRuns), int64(tier.MaxRunsPerPeriod), since)
-	c.warnIfNear(ctx, spaceID, limitTokens, int64(totalTokens+addTokens), int64(tier.MaxTokensPerPeriod), since)
-	return true, "", nil
+	c.warnIfNear(ctx, spaceID, corequota.LimitRuns, int64(runCount+addRuns), int64(tier.MaxRunsPerPeriod), since)
+	c.warnIfNear(ctx, spaceID, corequota.LimitTokens, int64(totalTokens+addTokens), int64(tier.MaxTokensPerPeriod), since)
+	return nil, nil
 }
 
 // warnIfNear records a threshold crossing, and does nothing below it.
-func (c *Service) warnIfNear(ctx context.Context, spaceID string, limit quotaLimit, used, max int64, windowStart time.Time) {
+func (c *Service) warnIfNear(ctx context.Context, spaceID string, limit corequota.Limit, used, max int64, windowStart time.Time) {
 	if c.Audit == nil || max <= 0 {
 		return
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 	"github.com/icloudbb/buildmax/internal/service/llmgateway"
 )
 
@@ -18,12 +19,12 @@ type spaceQuota struct {
 	spaces []string
 }
 
-func (q *spaceQuota) Check(_ context.Context, spaceID string, addRuns, addTokens int) (bool, string, error) {
+func (q *spaceQuota) Check(_ context.Context, spaceID string, addRuns, addTokens int) (*corequota.Refusal, error) {
 	q.spaces = append(q.spaces, spaceID)
 	if q.allow {
-		return true, "", nil
+		return nil, nil
 	}
-	return false, "quota exceeded: token limit", nil
+	return &corequota.Refusal{Limit: corequota.LimitTokens, Max: 100, PeriodDays: 30}, nil
 }
 
 func conversationClient(t *testing.T, svc *llmgateway.Service, targetID string) cllm.LLMClient {

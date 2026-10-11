@@ -155,18 +155,30 @@ fix is yours to make, the fix comes first and **Retry Run** steps back, because
 a retry would fail the same way. For example, a run refused because a Secret
 its Agent is granted was disabled reads **This Agent's Secret grant is
 disabled**, names the Agent and the Secret, and offers **Open the Agent to fix
-its Secret grant**. Owners and admins see the Secret's name; other members see
-its ID, because only they may read Secret details. A failure that is not yours
-to fix, such as a model that timed out or a worker that stopped, leads with a
-retry. The server's own message stays under **Server message**. The same
-explanation appears on the Task page, in **Task details** under **Cause**, in
-**Run details** under **Why it failed**, and in place of the Agent's failure
-report in **Discussion**. A run that ended before its Agent started has no
-trace, and **Run details** says so.
+its Secret grant**. Owners and admins see the Secret's name. Other members read
+"a Secret granted to it" instead, because only owners and admins may read
+Secret details, and are told to ask a Space owner or admin to fix it.
 
-When the Issue's Agent has a Secret grant that no longer resolves, **Run agent**
-shows the same warning as the Agent page before you start a run, and the fix
-leads. Owners and admins see this warning.
+A run refused because its Agent names a plugin the Space has not activated, or
+whose activation is suspended, names the plugin and offers owners and admins
+**Open plugin settings**; other members are told to ask a Space owner or admin.
+A run refused because the Space's usage quota is spent says which allowance ran
+out, such as 100,000 tokens in a rolling 30-day window. Only a System
+Administrator can change a Space's quota, so the explanation says to ask one,
+or to run again once usage over that window falls below the limit. Once a whole
+window has passed since the refusal, running again leads instead.
+
+A failure that is not yours to fix, such as a model that timed out or a worker
+that stopped, leads with a retry. The server's own message stays under
+**Server message**. The same explanation appears on the Task page, in **Task
+details** under **Cause**, in **Run details** under **Why it failed**, and in
+place of the Agent's failure report in **Discussion**. A run that ended before
+its Agent started has no trace, and **Run details** says so.
+
+When the Issue's Agent has a required Secret grant that no longer resolves,
+**Run agent** warns you before you start a run, for every role. Owners and
+admins get the fix as the lead action; other members are told to ask a Space
+owner or admin, and see neither the Secret's name nor its ID.
 
 The agent's final reply is posted to **Discussion** as its report, with an
 **Open Task** link to the run's task. Comments render Markdown. When the agent

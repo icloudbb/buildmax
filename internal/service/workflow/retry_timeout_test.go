@@ -8,6 +8,7 @@ import (
 	"time"
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	"github.com/icloudbb/buildmax/internal/mock"
@@ -302,8 +303,8 @@ func TestReconcile_UnsatisfiedOutputSchemaFailsTheRunAsOutputSchema(t *testing.T
 
 type refuseQuota struct{}
 
-func (refuseQuota) Check(context.Context, string, int, int) (bool, string, error) {
-	return false, "quota exhausted", nil
+func (refuseQuota) Check(context.Context, string, int, int) (*corequota.Refusal, error) {
+	return &corequota.Refusal{Limit: corequota.LimitRuns, Max: 1, PeriodDays: 30}, nil
 }
 
 func TestParseDefinition_RetryAndTimeoutPolicyBounds(t *testing.T) {

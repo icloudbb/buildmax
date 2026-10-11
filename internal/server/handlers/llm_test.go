@@ -12,6 +12,7 @@ import (
 
 	cllm "github.com/icloudbb/buildmax/internal/core/llm"
 	coregw "github.com/icloudbb/buildmax/internal/core/llmgateway"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	"github.com/icloudbb/buildmax/internal/infra/llmwire"
 	"github.com/icloudbb/buildmax/internal/mock"
@@ -103,8 +104,8 @@ func (l *llmStubLedger) SearchLLMCalls(context.Context, coregw.CallFilter, int, 
 // llmDenyQuota refuses every space.
 type llmDenyQuota struct{}
 
-func (llmDenyQuota) Check(context.Context, string, int, int) (bool, string, error) {
-	return false, "quota exceeded: token limit", nil
+func (llmDenyQuota) Check(context.Context, string, int, int) (*corequota.Refusal, error) {
+	return &corequota.Refusal{Limit: corequota.LimitTokens, Max: 5000, PeriodDays: 30}, nil
 }
 
 func llmTestSpaceStore() *mock.MockSpaceStore {

@@ -34,18 +34,23 @@ import (
 // space has no enabled activation is not skipped: an agent that names a plugin
 // has declared it needs one, and a background run that quietly does less than
 // its definition says is acted on by somebody who was not watching it.
-func (h *Handler) resolvePluginPins(r *http.Request, run *coretask.Run, task *coretask.Task, agent *agentdef.Agent) (pins []coreplugin.Pin, refusal string) {
+//
+// The third is the refusal's cause when the Space's activations are what
+// refused, so the failed run leads to plugin settings. A deployment without
+// activations, or one that could not read them, is not the Space's to fix and
+// has none.
+func (h *Handler) resolvePluginPins(r *http.Request, run *coretask.Run, task *coretask.Task, agent *agentdef.Agent) (pins []coreplugin.Pin, refusal string, cause *coretask.FailureCause) {
 	// Already resolved. A worker polls this route while it runs, and a space
 	// moving a pin mid-run must not change what the run was given — the same
 	// rule, and the same reason, as the agent revision's first-write-wins.
 	if len(run.PluginPins) > 0 {
-		return run.PluginPins, ""
+		return run.PluginPins, "", nil
 	}
 	if agent == nil || len(agent.Plugins) == 0 {
-		return nil, ""
+		return nil, "", nil
 	}
 	if h.cfg.Activations == nil {
-		return nil, "this deployment cannot resolve plugin activations, and this agent names plugins"
+		return nil, "this deployment cannot resolve plugin activations, and this agent names plugins", nil
 	}
 	out := make([]coreplugin.Pin, 0, len(agent.Plugins))
 	for _, name := range agent.Plugins {
@@ -53,13 +58,15 @@ func (h *Handler) resolvePluginPins(r *http.Request, run *coretask.Run, task *co
 		if err != nil {
 			componentLog().Error("worker handler: activation lookup failed",
 				"task_id", task.ID, "plugin_name", name, "err", err)
-			return nil, fmt.Sprintf("could not read this space's activation of plugin %q", name)
+			return nil, fmt.Sprintf("could not read this space's activation of plugin %q", name), nil
 		}
 		if activation == nil {
-			return nil, fmt.Sprintf("this agent names plugin %q, which this space has not activated", name)
+			return nil, fmt.Sprintf("this agent names plugin %q, which this space has not activated", name),
+				pluginCause(name, coretask.PluginNotActivated)
 		}
 		if !activation.Enabled {
-			return nil, fmt.Sprintf("this agent names plugin %q, whose activation is suspended", name)
+			return nil, fmt.Sprintf("this agent names plugin %q, whose activation is suspended", name),
+				pluginCause(name, coretask.PluginSuspended)
 		}
 		out = append(out, coreplugin.Pin{
 			PluginName: activation.PluginName,
@@ -67,7 +74,27 @@ func (h *Handler) resolvePluginPins(r *http.Request, run *coretask.Run, task *co
 			Digest:     activation.Digest,
 		})
 	}
-	return out, ""
+	return out, "", nil
+}
+
+func pluginCause(name string, problem coretask.PluginProblem) *coretask.FailureCause {
+	return &coretask.FailureCause{Kind: coretask.FailureCausePlugin, PluginName: name, PluginProblem: problem}
+}
+
+// recordPluginRefusal records which plugin a refused run needed, the same
+// first-write-wins way as a refused Secret grant. Only a SCHEDULED run is
+// recorded, because only a worker starting one acts on the refusal: a run
+// already under way polls this route against its Agent's current plugins, and
+// a cancel ends a run before it reads them. Fail-open: the worker fails the
+// run either way.
+func (h *Handler) recordPluginRefusal(r *http.Request, run *coretask.Run, cancelRequested bool, cause *coretask.FailureCause) {
+	if cause == nil || cancelRequested || run.Status != string(coretask.RunStatusScheduled) || h.cfg.TaskRuns == nil {
+		return
+	}
+	if err := h.cfg.TaskRuns.RecordTaskRunFailureCause(r.Context(), run.ID, *cause); err != nil {
+		componentLog().Warn("worker handler: could not record a refused plugin",
+			"task_run_id", run.ID, "plugin_name", cause.PluginName, "err", err)
+	}
 }
 
 // recordPluginPins stores what the run was given, so that afterwards something

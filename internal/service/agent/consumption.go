@@ -2,11 +2,14 @@ package agent
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"slices"
 
 	"github.com/icloudbb/buildmax/internal/core/agentdef"
 	"github.com/icloudbb/buildmax/internal/core/apierr"
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
+	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
 // SecretLookup answers what Secret consumption validation needs: a space's
@@ -98,4 +101,68 @@ func resolveGrantEnvNames(g agentdef.SecretEnvGrant, sec *coresecret.Secret) ([]
 		return nil, apierr.New(apierr.KindInvalid, "secret consumption: secret "+g.Secret+" has no item "+g.Item)
 	}
 	return []string{g.EnvName}, nil
+}
+
+// GrantProblem is one Secret grant of an Agent that a run started now would
+// not be given. It names the grant only by what the Agent's own consumption
+// already shows -- the Secret's ID and item -- plus the problem, and nothing
+// else about the Secret, so every member who can read and run the Agent may
+// read it. See docs/design/space-secrets.md §10.
+type GrantProblem struct {
+	SecretID string
+	Item     string
+	Problem  coretask.SecretProblem
+	// Optional is a grant a run skips rather than fails on.
+	Optional bool
+}
+
+// SecretGrantProblems reports, per agent ID, the grants that would not resolve
+// now, by the rules the worker route applies when it materializes them, read
+// from metadata rather than values. A Secret that cannot be read is left out:
+// the answer is advisory, and the run itself still decides.
+func (s *Service) SecretGrantProblems(ctx context.Context, agents []agentdef.Agent) map[string][]GrantProblem {
+	if s.Secrets == nil {
+		return nil
+	}
+	out := map[string][]GrantProblem{}
+	read := map[string]*coresecret.Secret{}
+	failed := map[string]bool{}
+	for _, a := range agents {
+		for _, g := range a.SecretConsumption.Env {
+			if g.Secret == "" || failed[g.Secret] {
+				continue
+			}
+			sec, ok := read[g.Secret]
+			if !ok {
+				got, err := s.Secrets.GetSecret(ctx, g.Secret)
+				if err != nil && !errors.Is(err, apierr.ErrNotFound) {
+					slog.Warn("agent service: secret unreadable for grant health", "agent_id", a.ID, "secret_id", g.Secret, "err", err)
+					failed[g.Secret] = true
+					continue
+				}
+				sec = got
+				read[g.Secret] = sec
+			}
+			if problem := grantProblem(g, sec, a.SpaceID); problem != "" {
+				out[a.ID] = append(out[a.ID], GrantProblem{SecretID: g.Secret, Item: g.Item, Problem: problem, Optional: g.Optional})
+			}
+		}
+	}
+	return out
+}
+
+// grantProblem is why one grant would not resolve, or "" when it would. Another
+// Space's Secret reads as unavailable, the same as a missing one, so the answer
+// confirms nothing outside the Agent's Space.
+func grantProblem(g agentdef.SecretEnvGrant, sec *coresecret.Secret, spaceID string) coretask.SecretProblem {
+	switch {
+	case sec == nil || sec.SpaceID != spaceID || sec.State == coresecret.StateDestroyed:
+		return coretask.SecretUnavailable
+	case sec.State != coresecret.StateActive:
+		return coretask.SecretDisabled
+	case !g.WholeGroup() && !slices.Contains(sec.ItemNames, g.Item):
+		return coretask.SecretItemMissing
+	default:
+		return ""
+	}
 }
