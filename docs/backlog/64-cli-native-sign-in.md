@@ -45,8 +45,8 @@ any device. It never asks for an IdP password.
 
 ## Out Of Scope
 
-- Server routes: already shipped under `/api/auth/native-sign-ins`. Portal page:
-  [62](62-portal-native-sign-in-confirmation.md).
+- Server routes and the Portal confirmation page: already shipped
+  ([deploy/authentication.md](../deploy/authentication.md#cli-and-desktop-sign-in-through-the-portal)).
 - Localizing CLI output: the CLI stays English (design §14.7).
 - A non-interactive or unattended credential (design §7.4, §18).
 

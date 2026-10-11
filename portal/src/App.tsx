@@ -12,6 +12,7 @@ import { CreateSpaceDialog } from "./components/CreateSpaceDialog"
 import { useConversations } from "./hooks/useConversations"
 import { deriveResourceState } from "./state/resourceState"
 import { Login } from "./pages/auth/Login"
+import { NativeSignIn } from "./pages/signIn/NativeSignIn"
 import { navigate } from "./router"
 import { useT } from "./i18n"
 
@@ -65,6 +66,12 @@ function AppContent() {
 
   if (!token) {
     return <Login />
+  }
+
+  // Before the Space gate: confirming a CLI or Desktop sign-in needs a Portal
+  // session, not a Space, and an account with none must still be able to.
+  if (route.name === "signIn") {
+    return <NativeSignIn code={route.code} />
   }
 
   if (!currentSpaceId) {

@@ -10,6 +10,7 @@ Portal 是 `portal/` 下的 Space 协作界面。它是一个 React 19、Vite �
 Portal 负责云端/Space 使用场景：
 
 - 登录/注册
+- 确认或拒绝 CLI 或 Desktop 登录
 - Space、Space 切换与设置
 - Conversation
 - Issue
@@ -29,6 +30,7 @@ Portal 负责云端/Space 使用场景：
 - 路由位于 `portal/src/router.ts`。少数无需登录或 Space 的独立页面，在
   `portal/src/main.tsx` 中按真实路径匹配，并仅包裹 `ThemeProvider` 与根部的 `LocaleProvider` 渲染：公共分享
   链接 `/shared/artifacts/<token>` 与组件样张 `/specimen`。
+- `portal/src/App.tsx` 依次设关：会话恢复、登录（未登录时任何路由都渲染登录页，并保留地址）、`#/sign-in[/<code>]` 原生登录确认页，然后是 Space 关卡与 Space 外壳。确认页位于 Space 关卡之前，使没有可用 Space 的账号也能确认；其状态是 `portal/src/features/nativeSignIn/model.ts` 中的纯函数。SSO 按钮把当前 hash 路由作为 `return_to` 传入，使 OIDC 回调回到该路由。
 - 页面位于 `portal/src/pages/*`。
 - `/specimen` 是设计与评审产物，而非产品页面：它一次性呈现共享操作语法、语义 token、
   状态词汇与全部资源状态，复用真实组件，使评审者在信任已迁移页面之前，能跨主题与宽度

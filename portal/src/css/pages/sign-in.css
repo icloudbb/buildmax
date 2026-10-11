@@ -1,0 +1,136 @@
+/* Confirming a CLI or Desktop sign-in: the sign-in page's frame, a wider card */
+
+.sign-in-page__card {
+  max-width: 34rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sign-in-page__card .login-page__title,
+.sign-in-page__intro {
+  margin: 0;
+}
+
+.sign-in-page__request,
+.sign-in-page__state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.sign-in-page__request {
+  align-items: stretch;
+}
+
+.sign-in-page__lead {
+  margin: 0;
+  font-size: var(--font-size-section);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.sign-in-page__facts {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.sign-in-page__facts > div {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: var(--space-2);
+}
+
+.sign-in-page__facts dt {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.sign-in-page__facts dd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  min-width: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.sign-in-page__label {
+  font-weight: 600;
+}
+
+.sign-in-page__unverified {
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-meta);
+  color: var(--color-warning);
+}
+
+.sign-in-page__muted {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.sign-in-page__code {
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.sign-in-page__code-input {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sign-in-page__notice,
+.sign-in-page__warning {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-body);
+}
+
+.sign-in-page__notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.sign-in-page__notice p {
+  margin: 0;
+}
+
+.sign-in-page__warning {
+  border: 1px solid var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.sign-in-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sign-in-page__outcome {
+  margin: 0;
+  color: var(--color-text);
+}
+
+@media (max-width: 30rem) {
+  .sign-in-page__facts > div {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}

@@ -388,8 +388,12 @@ Portal 会话的认证方式和完全相同的绝对到期时间。只有 `porta
 执行准入规则，以第一个决定为准，且只保存代码与轮询密钥的哈希；轮询节奏、500 个请求的上限与按
 账号的未知代码限流有 handler 与 service 测试，存储的唯一性、并发兑换与清理有真实 MySQL 测试。
 会话带有可选的 `client_label`，`POST /api/auth/login` 也接受它，管理员会话列表会显示它。Portal
-确认页面以及 CLI 与 Desktop 客户端尚未构建，因此目前没有已发布的客户端使用这一流程，它也尚未在
-已部署的集群中运行过。
+确认页面（`#/sign-in`、`#/sign-in/<code>`）在 Space 关卡之前渲染，显示客户端类型、标注为未经验证的
+标签、代码、时间、账号与会话结束时间，只有在明确点击**确认登录**或**拒绝**后才作出决定，之后代码
+会从地址中移除。未登录的人在登录后会回到该请求：SSO 把页面作为经过校验的相对 hash 路由放在已签名
+的 OIDC 事务 cookie 中带回，回调重定向到该路由。kind 上的 Portal 浏览器测试通过 SSO 与密码登录
+发起、确认或拒绝并兑换请求，每一步都分别落在两个服务器副本上。CLI 与 Desktop 客户端尚未构建，
+因此目前没有已发布的客户端会发起请求。
 参见[身份服务](../../internal/service/identity/account.go)、
 [OIDC provider](../../internal/infra/oidc/provider.go)与
 [Space 服务](../../internal/service/space/service.go)。

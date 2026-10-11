@@ -6,7 +6,7 @@ import { getApiBase } from "../../lib/api/client"
 import type { AuthMethods } from "../../lib/api/types"
 import { useAuth } from "../../contexts/AuthContext"
 import { useStableT, useT } from "../../i18n"
-import { signInOptions, ssoErrorMessage } from "./loginView"
+import { signInOptions, ssoErrorMessage, ssoStartURL } from "./loginView"
 
 /**
  * Two ways in, for two different jobs.
@@ -114,8 +114,9 @@ export function Login() {
                 variant="secondary"
                 onClick={() => {
                   // Full-page navigation: the callback sets the refresh cookie and
-                  // redirects back, and AuthContext hydrates from it on load.
-                  window.location.href = `${getApiBase()}/api/auth/oidc/start`
+                  // redirects back to this address, and AuthContext hydrates from
+                  // it on load.
+                  window.location.href = ssoStartURL(getApiBase(), window.location.hash)
                 }}
                 disabled={loading}
               >

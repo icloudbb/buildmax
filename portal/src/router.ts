@@ -31,6 +31,7 @@ export const SEGMENT = {
   marketplace: "marketplace",
   remoteControl: "remote-control",
   help: "help",
+  signIn: "sign-in",
 } as const
 
 /**
@@ -152,6 +153,11 @@ export function parseHash(hash: string, currentSpaceId: string): Route {
   // #/help opens the manual's first page; #/help/<slug> opens one page.
   if (parts[0] === SEGMENT.help) {
     return { name: "help", slug: parts[1] }
+  }
+  // The page a CLI or Desktop sends a person to: #/sign-in/<code> from its
+  // link, #/sign-in to type the code.
+  if (parts[0] === SEGMENT.signIn) {
+    return parts[1] ? { name: "signIn", code: parts[1] } : { name: "signIn" }
   }
   // An artifact's address is its id alone -- no space in the path, matching the
   // API. See docs/design/unified-artifacts.md section 6.1.
@@ -282,6 +288,8 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.remoteControl}/${route.sessionId}`
     case "help":
       return route.slug ? `#/${SEGMENT.help}/${route.slug}` : `#/${SEGMENT.help}`
+    case "signIn":
+      return route.code ? `#/${SEGMENT.signIn}/${encodeURIComponent(route.code)}` : `#/${SEGMENT.signIn}`
     case "notFound":
       // No canonical address of its own -- Portal never links here, it only
       // ever arrives by the hash already being unrecognized. This marker
@@ -294,6 +302,17 @@ export function buildHash(route: Route): string {
 /** Navigate to a Route by setting the hash. */
 export function navigate(route: Route): void {
   window.location.hash = buildHash(route)
+}
+
+/**
+ * Show a Route in place of the current history entry, so Back and a reload no
+ * longer reach the address it replaces -- for an address that carries a code
+ * that has been used. replaceState fires no hashchange, so this sends one for
+ * useHashRoute.
+ */
+export function replaceRoute(route: Route): void {
+  window.history.replaceState(window.history.state, "", buildHash(route))
+  window.dispatchEvent(new HashChangeEvent("hashchange"))
 }
 
 /**

@@ -2,8 +2,10 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -271,6 +273,131 @@ func assertSSOError(t *testing.T, rec *httptest.ResponseRecorder, class string) 
 	}
 	want := oidcTestBase + "/login?sso_error=" + class
 	if loc := rec.Header().Get("Location"); loc != want {
+		t.Errorf("redirected to %q, want %q", loc, want)
+	}
+}
+
+// TestPortalReturnRoute is the whole accept list for where a callback may send a
+// browser: a plain Portal hash route, or nothing.
+func TestPortalReturnRoute(t *testing.T) {
+	accepted := []string{
+		"#/",
+		"#/sign-in",
+		"#/sign-in/WDJB-MJHT",
+		"#/spaces/sp_123/issues?view=board&owner=u_1",
+		"#/help/getting-started",
+		"#/" + strings.Repeat("a", oidcReturnMaxLen-2),
+	}
+	for _, route := range accepted {
+		if got := portalReturnRoute(route); got != route {
+			t.Errorf("portalReturnRoute(%q) = %q, want it accepted", route, got)
+		}
+	}
+	refused := []string{
+		"",
+		"#",
+		"/",
+		"#sign-in",
+		"sign-in",
+		"/#/sign-in",
+		"https://evil.example/#/sign-in",
+		"//evil.example",
+		"#//evil.example",
+		"#/sign-in//x",
+		"#/\\evil.example",
+		"#/sign-in\\..\\x",
+		"#/%2F%2Fevil.example",
+		"#/sign-in/%2e%2e",
+		"#/javascript:alert(1)",
+		"#/a/../b",
+		"#/./sign-in",
+		"#/..",
+		"#/sign-in#again",
+		"#/sign in",
+		"#/sign-in\r\nLocation: https://evil.example",
+		"#/sign-in\x00",
+		"#/ｓｉｇｎ",
+		"#/@evil.example",
+		"#/" + strings.Repeat("a", oidcReturnMaxLen-1),
+	}
+	for _, route := range refused {
+		if got := portalReturnRoute(route); got != "" {
+			t.Errorf("portalReturnRoute(%q) = %q, want it refused", route, got)
+		}
+	}
+}
+
+func (f *oidcFixture) startWithReturn(t *testing.T, route string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	target := oidcTestBase + "/api/auth/oidc/start?" + url.Values{oidcReturnParam: {route}}.Encode()
+	f.h.oidcStartHandler(rec, httptest.NewRequest(http.MethodGet, target, nil))
+	return rec
+}
+
+func signedInFlow() *fakeFlow {
+	return &fakeFlow{
+		authURL: "https://idp/authorize",
+		txn:     infraoidc.Transaction{State: "state-1", Nonce: "nonce-1", Verifier: "verifier-1"},
+		claims:  &infraoidc.Claims{Issuer: "https://idp", Subject: "okta|r", Email: "back@example.com", EmailVerified: true},
+	}
+}
+
+// TestOIDCCallbackReturnsToTheSignedRoute is the Portal confirmation page's
+// round trip: the route given at start comes back from the callback, and only
+// through the signed cookie.
+func TestOIDCCallbackReturnsToTheSignedRoute(t *testing.T) {
+	f := newOIDCFixture(t, signedInFlow(), []string{"example.com"})
+	cookie := txnCookieFrom(t, f.startWithReturn(t, "#/sign-in/WDJB-MJHT"))
+
+	rec := f.callback(t, "state=state-1&code=abc&"+oidcReturnParam+"=%23%2Fadmin", cookie)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302; body %s", rec.Code, rec.Body.String())
+	}
+	if loc, want := rec.Header().Get("Location"), oidcTestBase+"/#/sign-in/WDJB-MJHT"; loc != want {
+		t.Errorf("redirected to %q, want %q: the route comes from the signed cookie, never the callback query", loc, want)
+	}
+}
+
+func TestOIDCStartDropsAnUnsafeReturnRoute(t *testing.T) {
+	for _, route := range []string{"https://evil.example/", "//evil.example", "#/%2F%2Fevil", "#/a\\b"} {
+		f := newOIDCFixture(t, signedInFlow(), []string{"example.com"})
+		cookie := txnCookieFrom(t, f.startWithReturn(t, route))
+		rec := f.callback(t, "state=state-1&code=abc", cookie)
+		if loc := rec.Header().Get("Location"); loc != oidcTestBase+"/" {
+			t.Errorf("start with return %q: callback redirected to %q, want the Portal root", route, loc)
+		}
+	}
+}
+
+// TestOIDCCallbackRefusesAReturnRouteSwappedIntoTheCookie: a browser that edits
+// the route in its cookie breaks the MAC, so it gets neither a session nor the
+// route.
+func TestOIDCCallbackRefusesAReturnRouteSwappedIntoTheCookie(t *testing.T) {
+	f := newOIDCFixture(t, signedInFlow(), []string{"example.com"})
+	cookie := txnCookieFrom(t, f.startWithReturn(t, "#/sign-in"))
+	body, mac, _ := strings.Cut(cookie.Value, ".")
+	raw, err := base64.RawURLEncoding.DecodeString(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	swapped := strings.Replace(string(raw), `"#/sign-in"`, `"#/admin"`, 1)
+	if swapped == string(raw) {
+		t.Fatalf("cookie payload does not carry the route: %s", raw)
+	}
+	cookie.Value = base64.RawURLEncoding.EncodeToString([]byte(swapped)) + "." + mac
+
+	assertSSOError(t, f.callback(t, "state=state-1&code=abc", cookie), ssoErrExpired)
+}
+
+// TestOIDCCallbackErrorKeepsTheReturnRoute: a refused SSO sign-in lands on the
+// sign-in page still holding the route, so a password sign-in returns to it.
+func TestOIDCCallbackErrorKeepsTheReturnRoute(t *testing.T) {
+	f := newOIDCFixture(t, signedInFlow(), []string{"example.com"})
+	cookie := txnCookieFrom(t, f.startWithReturn(t, "#/sign-in/WDJB-MJHT"))
+
+	rec := f.callback(t, "error=access_denied&state=state-1", cookie)
+	if loc, want := rec.Header().Get("Location"), oidcTestBase+"/login?sso_error="+ssoErrNotAuthorized+"#/sign-in/WDJB-MJHT"; loc != want {
 		t.Errorf("redirected to %q, want %q", loc, want)
 	}
 }

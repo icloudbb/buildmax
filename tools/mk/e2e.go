@@ -274,12 +274,25 @@ func e2ePortal(target smokeTarget, invocation string) error {
 		return err
 	}
 
+	replicas := ""
+	if invocation == "kind" {
+		var stop func()
+		replicas, stop, err = forwardServerReplicas(ctx)
+		if err != nil {
+			return err
+		}
+		defer stop()
+	}
+
 	fmt.Printf("[e2e] running Portal browser tests against %s\n", baseURL)
 	fmt.Printf("[e2e] artifacts from this run: %s\n", artifacts)
 	// npm run rather than npx: npx will happily resolve Playwright from a
 	// global cache, where it cannot see the config's own @playwright/test
 	// import. The local bin is the only one that works.
 	return runWith("portal", []string{
+		// Each kind server replica on its own port, for the specs that must
+		// prove a step lands on a given replica; empty elsewhere.
+		"BUILDMAX_E2E_SERVER_REPLICAS=" + replicas,
 		"BUILDMAX_E2E_BASE_URL=" + baseURL,
 		"BUILDMAX_E2E_API_BASE=" + target.portalRuntimeAPIBase,
 		"BUILDMAX_E2E_EMAIL=" + smokeEmail,
@@ -294,6 +307,44 @@ func e2ePortal(target smokeTarget, invocation string) error {
 		// there.
 		"BUILDMAX_E2E_ARTIFACTS=" + filepath.Join(artifacts, "results"),
 	}, "npm", "run", "e2e")
+}
+
+// forwardServerReplicas forwards every kind server pod to a local port and
+// returns them as `pod=http://localhost:port`, comma-separated. The ingress
+// load-balances and hides which replica answered, so a spec that must place a
+// step on a given replica, as native sign-in does for start, confirmation, and
+// redemption, calls the replica directly.
+func forwardServerReplicas(ctx context.Context) (string, func(), error) {
+	pods, err := serverPodNames()
+	if err != nil {
+		return "", nil, err
+	}
+	if len(pods) < 2 {
+		return "", nil, fmt.Errorf("the kind suite needs the deployment's two buildmax-server replicas, found %d: %v", len(pods), pods)
+	}
+	var stops []func()
+	stopAll := func() {
+		for _, stop := range stops {
+			stop()
+		}
+	}
+	var entries []string
+	for _, pod := range pods {
+		port, err := freeTCPPort()
+		if err != nil {
+			stopAll()
+			return "", nil, fmt.Errorf("choose a port to forward %s: %w", pod, err)
+		}
+		stop, base, err := startPodForward(ctx, pod, strconv.Itoa(port))
+		if err != nil {
+			stopAll()
+			return "", nil, err
+		}
+		stops = append(stops, stop)
+		entries = append(entries, pod+"="+base)
+	}
+	fmt.Printf("[e2e] server replicas forwarded for the specs that pin one: %s\n", strings.Join(entries, ", "))
+	return strings.Join(entries, ","), stopAll, nil
 }
 
 // issueLoginCode mints a single-use code for one account. The browser cannot

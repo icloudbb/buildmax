@@ -61,6 +61,9 @@ describe("hash router", () => {
     // API. See docs/design/unified-artifacts.md section 6.1.
     ["#/artifact/gsyt7at6cjfr33d73mta", { name: "artifact", artifactId: "gsyt7at6cjfr33d73mta" }],
     ["#/marketplace", { name: "marketplace" }],
+    // The pages a CLI or Desktop sends a person to, with and without its code.
+    ["#/sign-in", { name: "signIn" }],
+    ["#/sign-in/WDJB-MJHT", { name: "signIn", code: "WDJB-MJHT" }],
   ] satisfies Array<[string, Route]>)("parses %s", (hash, route) => {
     expect(parseHash(hash, SPACE)).toEqual(route)
   })
@@ -110,6 +113,8 @@ describe("hash router", () => {
     [{ name: "artifacts", spaceId: SPACE }, `#/spaces/${SPACE}/artifacts`],
     [{ name: "artifact", artifactId: "gsyt7at6cjfr33d73mta" }, "#/artifact/gsyt7at6cjfr33d73mta"],
     [{ name: "marketplace" }, "#/marketplace"],
+    [{ name: "signIn" }, "#/sign-in"],
+    [{ name: "signIn", code: "WDJB-MJHT" }, "#/sign-in/WDJB-MJHT"],
   ] satisfies Array<[Route, string]>)("builds %s", (route, hash) => {
     expect(buildHash(route)).toBe(hash)
   })

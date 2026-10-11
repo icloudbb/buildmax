@@ -291,6 +291,18 @@ authorization server sends the email without the flag. A person whose email the
 IdP has not verified is refused; in Okta that is someone who has not completed
 the activation email.
 
+**Returning to the page the person was on.** The Portal's SSO button passes the
+page being signed in for, such as a CLI sign-in waiting at `#/sign-in/<code>`,
+to `GET /api/auth/oidc/start?return_to=<hash route>`. The server keeps it only
+inside the signed, HttpOnly transaction cookie, and the callback redirects to
+`<public_base_url>/<route>` instead of the Portal root, or keeps it after the
+`?sso_error=` sign-in page when the sign-in is refused. Only a plain Portal hash
+route is accepted: `#/`, then letters, digits, and `-._~/?=&`, with no empty,
+`.`, or `..` segment, no percent-encoding, and at most 256 characters. Anything
+else, such as a URL with a scheme, `//`, or a backslash, is ignored and the
+callback lands on the Portal root; the callback never redirects to a value a
+request handed it unsigned.
+
 A refused sign-in shows the person only a coarse reason, so it reveals nothing
 about which addresses have accounts. The server log carries the specific one, as
 an `oidc sign-in refused` warning: an unverified email, a domain outside
@@ -334,9 +346,9 @@ completed. To try a provider against a local cluster, see
 Under `local_login: system_admins` or `off`, ordinary accounts cannot use
 `POST /api/auth/login`, the native client's password and login-code path. The
 server therefore also serves native sign-in requests that a signed-in Portal
-session confirms, shaped after OAuth 2.0 Device Authorization. **Only the server
-half ships so far:** the Portal confirmation page and the CLI and Desktop
-clients that use it are still being built, so today the flow is reachable only
+session confirms, shaped after OAuth 2.0 Device Authorization. The server routes
+and the Portal confirmation page ship; **the CLI and Desktop clients that start
+these requests are still being built**, so today a request is started only
 through the API.
 
 The routes, all under `/api/auth/native-sign-ins`:
@@ -349,9 +361,16 @@ The routes, all under `/api/auth/native-sign-ins`:
 | `POST /api/auth/native-sign-ins/confirm`, `/deny` | a Portal session | Records the decision; the first one on a code wins |
 
 The confirmation page is `<base>/#/sign-in/<code>`, where `<base>` is
-`public_base_url`, or the origin the client called when it is unset. Set
-`public_base_url` when clients reach the server through a different host than
-browsers do.
+`public_base_url`, or the origin the client called when it is unset; `#/sign-in`
+alone asks for the code. Set `public_base_url` when clients reach the server
+through a different host than browsers do. The page looks the request up and
+shows the client kind, its claimed label marked as not verified, the code, the
+start and expiry, and the account and session end a confirmation would give.
+Nothing is decided until the person clicks **Confirm sign-in** or **Deny**;
+after either, the code is removed from the page's address. A person who is not
+signed in to the Portal signs in first and returns to the request: a password
+or login-code sign-in keeps the address, and SSO carries it as the OIDC return
+route described under [Single Sign-On](#single-sign-on-oidc).
 
 **Who can confirm.** Only a session signed in at the Portal; a CLI or Desktop
 session is refused, so a stolen native token cannot mint more sessions. For the

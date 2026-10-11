@@ -45,8 +45,8 @@ a password form that will refuse them.
 
 ## Out Of Scope
 
-- Server routes: already shipped under `/api/auth/native-sign-ins`. Portal page:
-  [62](62-portal-native-sign-in-confirmation.md).
+- Server routes and the Portal confirmation page: already shipped
+  ([deploy/authentication.md](../deploy/authentication.md#cli-and-desktop-sign-in-through-the-portal)).
 - Desktop Remote Control opt-in (see the Remote Control design).
 - A deep-link or custom URL scheme back into Desktop. Polling completes the
   sign-in, so none is needed.

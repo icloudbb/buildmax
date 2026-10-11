@@ -165,6 +165,14 @@ Space）。空的域名列表意味着*不为任何人*预配，而非所有人�
 UserInfo 端点读取——Okta 的 org 授权服务器只给邮箱、不带该标志。IdP 未验证其邮箱的人会被拒绝；
 在 Okta 中，这指尚未完成激活邮件的用户。
 
+**回到登录前所在的页面。** Portal 的 SSO 按钮会把正在为之登录的页面（例如等待在
+`#/sign-in/<code>` 的 CLI 登录）传给 `GET /api/auth/oidc/start?return_to=<hash 路由>`。服务器只把它
+保存在已签名、HttpOnly 的事务 cookie 中；回调会重定向到 `<public_base_url>/<路由>` 而不是 Portal
+根路径，登录被拒绝时则把它保留在 `?sso_error=` 登录页之后。只接受普通的 Portal hash 路由：`#/`
+之后只能是字母、数字和 `-._~/?=&`，不能有空段、`.` 或 `..` 段，不能有百分号编码，最长 256 个字符。
+其他任何值，例如带协议的 URL、`//` 或反斜杠，都会被忽略，回调落到 Portal 根路径；回调绝不会
+重定向到请求未经签名交给它的值。
+
 被拒绝的登录只向当事人显示笼统原因，不泄露哪些地址已有账号。具体原因写入服务器日志，即
 `oidc sign-in refused` 警告：邮箱未验证、域名不在 `allowed_email_domains` 中、`existing_only`
 下没有账号，或需要运维处理的身份冲突。
@@ -194,8 +202,8 @@ Logout 的全局 token 撤销端点：BuildMax 未实现它，因此在 Okta 中
 
 在 `local_login: system_admins` 或 `off` 下，普通账号无法使用原生客户端的密码与登录码通道
 `POST /api/auth/login`。因此服务器还提供原生登录请求：由已登录的 Portal 会话确认，形式参照
-OAuth 2.0 设备授权。**目前只交付了服务器这一半：** Portal 确认页面以及使用它的 CLI 与
-Desktop 客户端仍在开发中，所以现在只能通过 API 走完这一流程。
+OAuth 2.0 设备授权。服务器路由和 Portal 确认页面均已交付；**发起这些请求的 CLI 与 Desktop
+客户端仍在开发中**，所以目前只能通过 API 发起请求。
 
 路由都位于 `/api/auth/native-sign-ins` 之下：
 
@@ -207,7 +215,12 @@ Desktop 客户端仍在开发中，所以现在只能通过 API 走完这一流�
 | `POST /api/auth/native-sign-ins/confirm`、`/deny` | Portal 会话 | 记录决定；同一代码以第一个决定为准 |
 
 确认页面是 `<base>/#/sign-in/<code>`，其中 `<base>` 为 `public_base_url`；未设置时为客户端
-所调用的源。若客户端访问服务器所用的主机与浏览器不同，请设置 `public_base_url`。
+所调用的源；仅用 `#/sign-in` 时页面会要求输入代码。若客户端访问服务器所用的主机与浏览器不同，
+请设置 `public_base_url`。页面会查询该请求，并显示客户端类型、标注为未经验证的声称标签、代码、
+发起与到期时间，以及确认后将登录的账号与会话结束时间。在此人点击**确认登录**或**拒绝**之前，
+不会作出任何决定；无论哪种决定，之后代码都会从页面地址中移除。尚未登录 Portal 的人会先登录，
+然后回到该请求：密码或登录码登录会保留地址，SSO 则把它作为[单点登录](#单点登录oidc)中所述的
+OIDC 返回路由带回。
 
 **谁可以确认。** 只有在 Portal 登录的会话；CLI 或 Desktop 会话会被拒绝，因此被盗的原生
 token 无法再签发更多会话。出于同样的原因，`POST /api/auth/login` 拒绝 `platform: portal`：

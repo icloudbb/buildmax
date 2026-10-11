@@ -11,6 +11,7 @@ Vite, and TypeScript app that talks to the Go server over HTTP and WebSocket.
 Portal owns the cloud/space lane:
 
 - login/signup
+- confirming or denying a CLI or Desktop sign-in
 - space/space switching and settings
 - conversations
 - issues
@@ -37,6 +38,13 @@ Portal owns the cloud/space lane:
   sign-in or Space are matched on the real path in `portal/src/main.tsx` and
   render inside only `ThemeProvider` and the root `LocaleProvider`: the public share link
   `/shared/artifacts/<token>` and the component specimen at `/specimen`.
+- `portal/src/App.tsx` gates in order: session restore, sign-in (any route
+  renders the sign-in page while signed out, keeping the address), the
+  `#/sign-in[/<code>]` native sign-in confirmation page, then the Space gate and
+  the Space shell. The confirmation page sits before the Space gate so an
+  account with no usable Space can still confirm; its states are pure functions
+  in `portal/src/features/nativeSignIn/model.ts`. The SSO button passes the
+  current hash route as `return_to` so the OIDC callback lands back on it.
 - Pages live under `portal/src/pages/*`.
 - `/specimen` is a design and review artifact, not a product page: it renders the
   shared action grammar, semantic tokens, status vocabulary, and every resource

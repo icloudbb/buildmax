@@ -28,6 +28,17 @@ export function signInOptions(methods: AuthMethods, t: Translate<MessageKey>): S
 }
 
 /**
+ * Where the SSO button sends the browser. The page being signed in for, such
+ * as a CLI sign-in waiting at `#/sign-in/<code>`, goes along as `return_to`;
+ * the server keeps it in its signed transaction cookie, accepts only a plain
+ * Portal hash route, and lands on the Portal root for anything else.
+ */
+export function ssoStartURL(apiBase: string, hash: string): string {
+  const start = `${apiBase}/api/auth/oidc/start`
+  return hash.startsWith("#/") && hash.length > 2 ? `${start}?return_to=${encodeURIComponent(hash)}` : start
+}
+
+/**
  * Turn the ?sso_error= code the OIDC callback may redirect back with into a
  * message. The code is a coarse, non-sensitive class; the raw provider error
  * never leaves the server log.

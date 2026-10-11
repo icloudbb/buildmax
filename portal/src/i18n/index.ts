@@ -22,6 +22,7 @@ import { settingsMessages } from "./settings"
 import { accountMessages } from "./account"
 import { adminMessages } from "./admin"
 import { remoteMessages } from "./remote"
+import { signInMessages } from "./signIn"
 
 // One file per area, each holding both languages, so a string and its
 // translation change together. Terms follow the glossary in
@@ -50,6 +51,7 @@ export const portalMessages = mergeMessages(
   accountMessages,
   adminMessages,
   remoteMessages,
+  signInMessages,
 )
 
 export type MessageKey = keyof typeof portalMessages.en
