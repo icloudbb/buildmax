@@ -81,19 +81,19 @@ test("a member is warned before Run agent about a broken Secret grant, never sho
     const withheld = [secretName, "withheld from members"]
     const leaks: string[] = []
     const reads: Promise<void>[] = []
-    // JSON bodies only: a Task's event stream stays open while the page does,
-    // so awaiting its text would hang the test, and it carries run output, not
-    // Secret metadata.
+    // JSON bodies only: a Task's event stream stays open while the page does
+    // and carries run output, not Secret metadata. Each read is bounded: a body
+    // the browser dropped across a reload can leave text() pending forever, and
+    // the direct reads below cover the routes that matter either way.
     member.on("response", (response) => {
       if (!response.url().includes("/api/")) return
       if (!(response.headers()["content-type"] ?? "").includes("application/json")) return
+      const body = response.text().catch(() => "")
+      const bounded = new Promise<string>((resolve) => setTimeout(() => resolve(""), 10_000))
       reads.push(
-        response
-          .text()
-          .then((body) => {
-            for (const value of withheld) if (body.includes(value)) leaks.push(`${response.url()} carried ${value}`)
-          })
-          .catch(() => {}),
+        Promise.race([body, bounded]).then((text) => {
+          for (const value of withheld) if (text.includes(value)) leaks.push(`${response.url()} carried ${value}`)
+        }),
       )
     })
 
@@ -124,6 +124,19 @@ test("a member is warned before Run agent about a broken Secret grant, never sho
       "⚠ 1 secret grant no longer resolves. Ask a Space owner or admin to fix it before you run this Agent.",
     )
     await expect(member.getByRole("button", { name: "Fix in config" })).toHaveCount(0)
+
+    // The reads the member's pages make for this Agent and Issue, made
+    // directly, so the assertion does not depend on what the browser kept.
+    const memberSession = await session(member)
+    const memberBase = `${memberSession.apiBase}/api/spaces/${space.id}`
+    for (const path of [`/agents`, `/agents/${agent.id}`, `/issues/${issue.id}`, `/issues/${issue.id}/flow`]) {
+      const response = await member.request.get(`${memberBase}${path}`, {
+        headers: { Authorization: `Bearer ${memberSession.token}` },
+      })
+      expect(response.ok(), `GET ${path} as the member → ${response.status()}`).toBeTruthy()
+      const text = await response.text()
+      for (const value of withheld) if (text.includes(value)) leaks.push(`GET ${path} carried ${value}`)
+    }
 
     await Promise.all(reads)
     expect(leaks).toEqual([])
