@@ -194,22 +194,41 @@ test("accepting an invitation makes the joined Space current, with its own role,
   const owner = await session(page)
   const teamName = tagged("Joined in place")
   const team = await createSpace(page, owner, teamName)
-  reportLeftovers(team.id, [`space ${team.id}`])
+  const otherName = tagged("Still pending")
+  const other = await createSpace(page, owner, otherName)
+  reportLeftovers(team.id, [`space ${team.id}`, `space ${other.id}`])
 
-  // The member's app lists its Spaces before the invitation exists.
+  // The member's app lists its Spaces before either invitation exists.
   const member = await openMember(page, browser)
+  const otherInvitation = await postJSON<{ id: string }>(page, `${owner.apiBase}/api/spaces/${other.id}/invitations`, owner, {
+    email: memberEmail(),
+    role: "member",
+  })
   try {
     await postJSON(page, `${owner.apiBase}/api/spaces/${team.id}/invitations`, owner, { email: memberEmail(), role: "member" })
+    const received = await getJSON<{ space_id: string; invited_by_name?: string }[]>(
+      member.page,
+      `${member.session.apiBase}/api/invitations`,
+      member.session,
+    )
+    const inviter = received.find((inv) => inv.space_id === team.id)?.invited_by_name
+    expect(inviter, "the invitee reads who invited them").toBeTruthy()
+
+    // Two pending invitations, told apart by the Space each is for.
     await member.page.goto("/#/account/invitations")
     const rows = member.page.locator(".space-settings-page__member")
-    // A pending row does not name its Space, so a leftover from an earlier run
-    // on an attached deployment would make the choice ambiguous.
-    await expect(rows, "the member account has exactly this one pending invitation").toHaveCount(1)
-    await rows.getByRole("button", { name: "Accept" }).click()
+    const teamRow = rows.filter({ hasText: teamName })
+    const otherRow = rows.filter({ hasText: otherName })
+    await expect(teamRow).toContainText(`invited by ${inviter} · member · expires `)
+    await expect(otherRow).toContainText(`invited by ${inviter} · member · expires `)
+    await teamRow.getByRole("button", { name: `Accept the invitation to ${teamName}` }).click()
 
     await expect(member.page.getByText(`You joined ${teamName} as member. It is now your current Space.`)).toBeVisible()
     const switcher = member.page.getByLabel("Sidebar", { exact: true }).getByLabel("Space", { exact: true })
     await expect(switcher).toHaveValue(team.id)
+    // Only the chosen one was accepted.
+    await expect(teamRow).toHaveCount(0)
+    await expect(otherRow).toBeVisible()
 
     await member.page.getByRole("button", { name: `Open ${teamName}` }).click()
     await expect(member.page).toHaveURL(new RegExp(`#/spaces/${team.id}/chat$`))
@@ -219,8 +238,21 @@ test("accepting an invitation makes the joined Space current, with its own role,
     await member.page.goto(`/#/spaces/${team.id}/agents`)
     await expect(member.page.getByText("only space owners and admins can create or edit them")).toBeVisible()
     await expect(member.page.getByRole("button", { name: "Create agent" })).toHaveCount(0)
+
+    // The remaining row in Chinese. The language is read when the app loads.
+    await member.page.evaluate(() => localStorage.setItem("buildmax_locale", "zh-CN"))
+    await member.page.goto("/#/account/invitations")
+    await member.page.reload()
+    const zhRow = member.page.locator(".space-settings-page__member").filter({ hasText: otherName })
+    await expect(zhRow).toContainText(`由 ${inviter} 邀请 · 成员 · `)
+    await expect(zhRow).toContainText(" 过期")
+    await expect(zhRow.getByRole("button", { name: `接受加入 ${otherName} 的邀请` })).toBeVisible()
   } finally {
     await member.page.context().close()
+    // Leave no pending invitation behind for a later run to trip over.
+    await page.request.delete(`${owner.apiBase}/api/spaces/${other.id}/invitations/${otherInvitation.id}`, {
+      headers: { Authorization: `Bearer ${owner.token}` },
+    })
   }
 })
 

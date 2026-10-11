@@ -70,8 +70,9 @@ Open **Space** from the user menu (owners and admins can change these):
   system administrator to create one, then invite it. Each pending invitation
   shows whom it is for, with **Revoke**. Only the owner changes roles: raising
   someone to Admin asks you to confirm first, and every change says what was
-  saved. When you accept an invitation under your account's **Invitations**,
-  the space you joined becomes your current space.
+  saved. Invitations you receive are under your account's **Invitations**,
+  each naming the space, who invited you, the role, and when it expires; when
+  you accept one, the space you joined becomes your current space.
 - **Sandbox defaults** — the default confinement for `Bash` in this space's runs.
   See [Sandbox](sandbox.md).
 - **Secrets** — values runs can use, managed by the owner.

@@ -919,15 +919,24 @@ export function AccountInvitationsSection({
             <li key={invitation.id} className="space-settings-page__member">
               <div className="space-settings-page__member-main">
                 <span className="space-settings-page__member-name">
-                  {t("account.invitations.invitedAs", { role: roleLabel(invitation.role, t) })}
+                  {invitation.space_name ?? invitation.space_id}
                 </span>
                 <span className="space-settings-page__member-meta">
-                  {t("account.invitations.expires", { date: formatTimestamp(invitation.expires_at) })}
+                  {[
+                    invitation.invited_by_name
+                      ? t("account.invitations.invitedBy", { name: invitation.invited_by_name })
+                      : null,
+                    roleLabel(invitation.role, t),
+                    t("account.invitations.expires", { date: formatTimestamp(invitation.expires_at) }),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               </div>
               <div className="space-settings-page__member-actions">
                 <Button
                   variant="primary" size="compact" busy={acceptingInvitationId === invitation.id}
+                  aria-label={t("account.invitations.acceptFor", { space: invitation.space_name ?? invitation.space_id })}
                   onClick={() => void onAccept(invitation.id)}
                 >
                   {t("account.invitations.accept")}
