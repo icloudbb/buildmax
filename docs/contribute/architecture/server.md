@@ -387,6 +387,9 @@ quota applies to it identically.
   `auth_session` and its first refresh token through the same row helpers every
   login uses, and deletes the request. `internal/server/handlers/auth` owns the
   five routes, the verification URI, and the in-process unknown-code throttle;
-  `access.Guard.ActiveUserSession` hands it the caller's `sid`. See
+  `access.Guard.ActiveUserSession` hands it the caller's `sid`. Its OIDC start
+  keeps a validated `return_to` Portal hash route (`portalReturnRoute`) in the
+  signed transaction cookie, so an SSO sign-in lands back on the confirmation
+  page. See
   [design §14](../../design/enterprise-identity-and-access.md#14-cli-and-desktop-sign-in).
 - See also: [Store](store.md), [Portal](portal.md), [Boundaries](packages.md).

@@ -297,8 +297,8 @@ per-deployment offboarding, rotation, outage, and break-glass inputs named by
 that record. Native CLI/Desktop sign-in was decided on 2026-10-11. A client
 starts a short-lived sign-in request that the person confirms in Portal,
 shaped after RFC 8628 device authorization, with no loopback redirect. Its
-server half is built; the Portal confirmation page, the CLI and Desktop
-clients, and self-service sessions are [backlog](backlog/README.md) 62–68.
+server half and the Portal confirmation page are built; the CLI and Desktop
+clients and self-service sessions are [backlog](backlog/README.md) 64–68.
 
 The local Issue work bridge is decided and shipped at its narrow scope: the
 CLI's `buildmax issue` commands and, while signed in, a Desktop Issues view that

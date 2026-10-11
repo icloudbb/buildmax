@@ -387,9 +387,12 @@ login.
 
 BuildMax uses only Authorization Code Flow with a confidential Server client:
 
-1. Portal navigates to `GET /api/auth/oidc/start` with a relative return path.
-   The return path is not built yet: the shipped callback always lands on `/`.
-   The Portal confirmation page (§14.4) is the first route that needs it.
+1. Portal navigates to `GET /api/auth/oidc/start` with the Portal hash route it
+   is signing in for as `return_to`, such as the confirmation page of §14.4.
+   The Server accepts only a plain relative hash route: `#/`, then unreserved
+   characters, `/`, and a query, with no empty, `.`, or `..` segment and no
+   percent-encoding. Anything else, a scheme, `//`, or a backslash included,
+   is dropped and the sign-in lands on the Portal root.
 2. Server generates transaction-specific `state`, `nonce`, and PKCE verifier,
    sends `S256`, and binds the values plus the return path to the browser in a
    short-lived, Secure, HttpOnly, SameSite=Lax, integrity-protected cookie.
@@ -401,11 +404,14 @@ BuildMax uses only Authorization Code Flow with a confidential Server client:
    described in §5.1.
 5. The association transaction and session creation run. Provider access and
    ID tokens are then discarded; BuildMax does not request `offline_access`.
-6. Server sets the BuildMax refresh cookie and redirects to a fixed Portal
-   completion route. No provider token, BuildMax token, email, or error detail
-   appears in the URL.
-7. Portal exchanges the cookie for an in-memory access token and current user,
-   then applies the validated relative return path.
+6. Server sets the BuildMax refresh cookie and redirects to the Portal at the
+   return route read back from the signed cookie, validated again, or at the
+   Portal root without one. A refused sign-in goes to the sign-in page with the
+   same route after it. The route never comes from the callback request
+   itself. No provider token, BuildMax token, email, or error detail appears in
+   the URL.
+7. Portal exchanges the cookie for an in-memory access token and current user;
+   the return route is already its address.
 
 The temporary cookie is self-contained and integrity-protected with a key
 derived and domain-separated from the required deployment JWT secret. It may
@@ -919,9 +925,8 @@ seconds) and stops at `expires_in`. It never polls after the request expires.
 Portal shows the confirmation page to a signed-in Portal session. The page
 renders before the Space gate, so an account with no usable Space can still
 confirm. If no session exists, Portal's sign-in gate runs first and the person
-returns to the page afterwards. For local sign-in the hash route already
-survives the gate. SSO needs the validated relative return path §8 describes:
-the shipped callback always lands on `/` and would drop the code.
+returns to the page afterwards. For local sign-in the hash route survives the
+gate; SSO carries it as the validated relative return path §8 describes.
 
 The page looks the request up with `GET /api/auth/native-sign-ins?code=`. The
 request log already redacts query keys named `code`. The page then shows:
@@ -1262,11 +1267,10 @@ decomposed into backlog tasks:
   OpenAPI, deployment manifests, examples, and the Beta/support boundary only
   to the level the evidence proves.
 
-### Phase 4 — native sign-in through Portal confirmation (server half built)
+### Phase 4 — native sign-in through Portal confirmation (server and Portal built)
 
-The server half, the first item below, is built. The
-[backlog](../backlog/README.md) tasks
-[62](../backlog/62-portal-native-sign-in-confirmation.md),
+The server half and the Portal confirmation page, the first two items below,
+are built. The [backlog](../backlog/README.md) tasks
 [64](../backlog/64-cli-native-sign-in.md),
 [66](../backlog/66-desktop-native-sign-in.md), and
 [68](../backlog/68-self-service-sessions.md) carry the rest. The work is:
@@ -1407,8 +1411,10 @@ exist yet.
 Phase 4, native CLI/Desktop sign-in through Portal confirmation (§14), was
 decided on 2026-10-11. Its server half is built: the `native_sign_in` table and
 redemption transaction, the five routes, the abuse bounds, the audit actions,
-and the `client_label` session column. The Portal confirmation page, the CLI and
-Desktop clients, and self-service sessions are not. Until the clients ship, a
+and the `client_label` session column. So is the Portal confirmation page with
+the OIDC return route it needs, verified on kind across both server replicas.
+The CLI and Desktop clients and self-service sessions are not. Until the clients
+ship, a
 native client signs in only through `POST /api/auth/login`, which `local_login`
 governs.
 

@@ -7,13 +7,46 @@ two pages after it walk through the day-to-day tasks.
 
 ## Signing in
 
-Open the Portal URL your deployment gives you and sign in. BuildMax issues a
-single-use login code rather than a permanent password; your operator's setup
-decides whether new sign-ups are allowed. If you can't get in, that is an operator
-question, not something you can change from the browser.
+Open the Portal URL your deployment gives you and sign in with your password, a
+single-use login code from an operator, or your organization's single sign-on
+when the deployment offers it. Your operator's setup decides which of these you
+see and whether new sign-ups are allowed. If you can't get in, that is an
+operator question, not something you can change from the browser.
 
 Once you are in, everything you see belongs to a **space** (below), and the app
 remembers where you were.
+
+### Confirming a CLI or Desktop sign-in
+
+A BuildMax CLI or Desktop can sign in through the Portal, so it never handles
+your password or your organization's sign-in. It shows you a link and a code
+such as `WDJB-MJHT`. Open the link, or go to `#/sign-in` on the Portal and type
+the code. If you are not signed in to the Portal yet, sign in first; you come
+back to the same request afterwards, single sign-on included.
+
+The page shows what you are deciding:
+
+- which client is asking (**BuildMax CLI** or **BuildMax Desktop**) and the
+  name it gives itself, such as `alice-mbp · macOS`. That name is **reported by
+  the client, not verified**: anyone can make a client claim any name;
+- the code, large. Check that it matches the code your CLI or Desktop shows;
+- when the request started and when it expires, ten minutes later; and
+- the account it signs in as, which is the one you are signed in to the Portal
+  with, and when that session ends. It never outlasts your Portal session.
+
+Choose **Confirm sign-in** only if you started this sign-in yourself, just now.
+If someone sent you the link or the code, choose **Deny**: a confirmed request
+signs *their* client in as *you*. Opening the page decides nothing; only one of
+the two buttons does. Afterwards return to your client, which finishes on its
+own, and the code is gone from the page's address.
+
+A code that is mistyped, expired, or already confirmed or denied shows one
+message, "This code is not valid any more"; start the sign-in again from the
+client. If less than an hour of your Portal session is left, the page offers
+**Sign in again** first, so the client gets a full-length session.
+
+The CLI and Desktop do not use this page yet: `buildmax login` still signs in
+with a password or login code.
 
 ## The layout
 

@@ -635,9 +635,17 @@ poll secret are stored; the pacing, the 500-request cap, and the per-account
 unknown-code throttle have handler and service tests, and the store's
 uniqueness, concurrent redemption, and cleanup have real-MySQL tests. Sessions
 carry an optional `client_label`, which `POST /api/auth/login` also accepts and
-the admin session list shows. The Portal confirmation page and the CLI and
-Desktop clients are not built, so no shipped client uses the flow yet, and it
-has not run in a deployed cluster.
+the admin session list shows. The Portal confirmation page (`#/sign-in`,
+`#/sign-in/<code>`) renders before the Space gate, shows the client kind, its
+label marked as not verified, the code, the timing, the account, and the
+session's end, and decides only on an explicit **Confirm sign-in** or **Deny**,
+after which the code leaves the address. A signed-out person returns to the
+request after signing in: SSO carries the page as a validated relative hash
+route inside the signed OIDC transaction cookie, and the callback redirects to
+it. The Portal browser suite on kind starts, confirms or denies, and redeems
+requests through SSO and password sign-in with each step placed on each of the
+two server replicas. The CLI and Desktop clients are not built, so no shipped
+client starts a request yet.
 See the [identity service](../internal/service/identity/account.go), the
 [OIDC provider](../internal/infra/oidc/provider.go), and the
 [Space service](../internal/service/space/service.go).
