@@ -115,9 +115,18 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
     if (waitingRef.current) getApp()?.CancelBrowserSignIn?.();
   }, []);
 
+  // Nothing is offered until the server says how its accounts sign in, so an
+  // SSO account is never shown a password form that will refuse it.
   const answered = methods?.server === server ? methods : null;
-  const layout = signInLayout(answered?.status === 'ready' ? answered.methods : null);
+  const ready = answered?.status === 'ready';
   const unreachable = answered?.status === 'failed';
+  const checking = answered?.status === 'loading';
+  const layout = signInLayout(ready ? answered.methods : null);
+
+  function checkServer(e) {
+    e?.preventDefault();
+    if (server && methods?.server !== server) loadMethods(server);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -299,10 +308,19 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
   );
 
   let subtitle = mode === 'password' ? t('login.subtitle.password') : t('login.subtitle.code');
-  if (layout.password !== 'first' && !adminPassword) subtitle = t('login.subtitle.browser');
+  if (!ready) subtitle = t('login.subtitle.server');
+  else if (layout.password !== 'first' && !adminPassword) subtitle = t('login.subtitle.browser');
 
   let methodsSection;
-  if (unreachable) {
+  if (!ready && !unreachable) {
+    methodsSection = (
+      <div className="login-page__form">
+        <button type="submit" form="login-server-form" className="login-page__submit" disabled={checking || busy || !server}>
+          {checking ? t('login.checking') : t('login.continue')}
+        </button>
+      </div>
+    );
+  } else if (unreachable) {
     methodsSection = (
       <div className="login-page__form">
         <p className="login-page__error" role="alert">
@@ -348,7 +366,7 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
           </p>
         ) : null}
         <p className="login-page__subtitle">{subtitle}</p>
-        <div className="login-page__form login-page__server">
+        <form id="login-server-form" className="login-page__form login-page__server" onSubmit={checkServer}>
           <label className="login-page__label" htmlFor="login-server">{t('login.serverURL')}</label>
           <input
             id="login-server"
@@ -356,7 +374,7 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
             className="login-page__input"
             value={serverURL}
             onChange={(e) => setServerURL(e.target.value)}
-            onBlur={() => { if (server && methods?.server !== server) loadMethods(server); }}
+            onBlur={() => checkServer()}
             placeholder={SERVER_URL_EXAMPLE}
             autoComplete="url"
             required
@@ -365,13 +383,13 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
           <p className="login-page__field-hint">
             {t('login.serverHint')}
           </p>
-        </div>
+        </form>
         {endedMessage ? <p className="login-page__error login-page__ended" role="alert">{endedMessage}</p> : null}
 
         {methodsSection}
 
         <div className="login-page__divider"><span>{t('login.or')}</span></div>
-        {!unreachable && layout.password === 'first' ? (
+        {ready && layout.password === 'first' ? (
           <div className="login-page__form login-page__alternative">{browserButton(false)}</div>
         ) : null}
         <button

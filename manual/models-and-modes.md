@@ -82,8 +82,9 @@ where the deployment lets your account sign in with a password, which an SSO
 deployment often keeps for administrators.
 
 In Desktop, open the user menu at the foot of the sidebar and choose **Sign in
-to a server**, then enter the address you open Portal at. The page asks that
-server how its accounts sign in and lays itself out to match:
+to a server**, then enter the address you open Portal at and choose
+**Continue**. The page asks that server how its accounts sign in and lays
+itself out to match:
 
 - Where everyone may use a password, the email and password form comes first,
   with **Sign in with your browser** below it.

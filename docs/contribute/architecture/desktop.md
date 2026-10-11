@@ -54,7 +54,9 @@ and `lib/signInLayout.js` lays the page out by `local_login`: the password form
 first with the browser below under `all`, the browser first with the password
 form behind "Administrator sign-in with a password" under `system_admins`, and
 the browser only under `off`. A configured SSO provider names the browser
-button. Until a server answers, the page shows the `all` layout; when the
+button. Until the server answers, the page offers no way in, only the
+address with **Continue** (the field's submit, also run when it loses focus),
+so an SSO account is never shown a password form that will refuse it. When the
 methods request fails it shows the server as unreachable and offers neither.
 In the password form a login code, issued by an operator, claims a new account
 or recovers a forgotten password.
