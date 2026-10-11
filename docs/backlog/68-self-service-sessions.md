@@ -3,7 +3,7 @@ id: self-service-sessions
 title: List and revoke your own sessions in Portal
 roadmap: R5
 source: docs/design/enterprise-identity-and-access.md#145-the-resulting-session
-depends_on: [60-native-sign-in-server.md]
+depends_on: []
 verification: ["./make test", "./make test mysql", "./make check portal", "./make e2e visual", "./make e2e kind"]
 claim:
 pr:
@@ -38,8 +38,8 @@ self-service (design §14.5, §15).
 ## Out Of Scope
 
 - Revoking every session at once, and an admin CLI session verb.
-- Any change to administrator session routes beyond what
-  [60](60-native-sign-in-server.md) adds.
+- Any change to administrator session routes beyond the `client_label` they
+  already show.
 
 ## Acceptance Criteria
 

@@ -3,7 +3,7 @@ id: cli-native-sign-in
 title: Sign the CLI in through Portal confirmation by default
 roadmap: R5
 source: docs/design/enterprise-identity-and-access.md#147-client-experience
-depends_on: [60-native-sign-in-server.md]
+depends_on: []
 verification: ["./make test", "./make e2e cli", "./make e2e kind", "./make check docs"]
 claim:
 pr:
@@ -45,7 +45,7 @@ any device. It never asks for an IdP password.
 
 ## Out Of Scope
 
-- Server routes: [60](60-native-sign-in-server.md). Portal page:
+- Server routes: already shipped under `/api/auth/native-sign-ins`. Portal page:
   [62](62-portal-native-sign-in-confirmation.md).
 - Localizing CLI output: the CLI stays English (design §14.7).
 - A non-interactive or unattended credential (design §7.4, §18).

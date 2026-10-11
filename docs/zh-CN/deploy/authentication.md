@@ -190,6 +190,52 @@ Logout 的全局 token 撤销端点：BuildMax 未实现它，因此在 Okta 中
 密钥与密钥轮换演练、RP 发起的登出——仍在完成中。要在本地集群上试用某个提供方，参见
 [kind 指南中的单点登录](local-kind.md#单点登录)。
 
+## 通过 Portal 确认 CLI 与 Desktop 登录
+
+在 `local_login: system_admins` 或 `off` 下，普通账号无法使用原生客户端的密码与登录码通道
+`POST /api/auth/login`。因此服务器还提供原生登录请求：由已登录的 Portal 会话确认，形式参照
+OAuth 2.0 设备授权。**目前只交付了服务器这一半：** Portal 确认页面以及使用它的 CLI 与
+Desktop 客户端仍在开发中，所以现在只能通过 API 走完这一流程。
+
+路由都位于 `/api/auth/native-sign-ins` 之下：
+
+| 路由 | 调用方 | 作用 |
+|---|---|---|
+| `POST /api/auth/native-sign-ins` | 匿名 | 以 `platform`（`cli` 或 `desktop`）和可选的 `client_label` 发起请求。返回 `user_code`（`XXXX-XXXX`）、`poll_secret`、`expires_in`（600）、`interval`（5），以及用于确认的 Portal 页面 |
+| `POST /api/auth/native-sign-ins/poll` | 持有轮询密钥的客户端 | 以 400 返回 `authorization_pending`、`slow_down`、`access_denied` 或 `expired_token`；确认之后则创建会话，并返回与 `POST /api/auth/login` 相同的响应体 |
+| `GET /api/auth/native-sign-ins?code=` | Portal 会话 | 显示待处理的请求：客户端类型、其声称的标签、发起与到期时间，以及所生成会话的结束时间 |
+| `POST /api/auth/native-sign-ins/confirm`、`/deny` | Portal 会话 | 记录决定；同一代码以第一个决定为准 |
+
+确认页面是 `<base>/#/sign-in/<code>`，其中 `<base>` 为 `public_base_url`；未设置时为客户端
+所调用的源。若客户端访问服务器所用的主机与浏览器不同，请设置 `public_base_url`。
+
+**谁可以确认。** 只有在 Portal 登录的会话；CLI 或 Desktop 会话会被拒绝，因此被盗的原生
+token 无法再签发更多会话。确认时还会按该 Portal 会话的登录方式重新执行当下的准入规则：
+密码或登录码会话要求 `local_login` 仍然准入该账号，SSO 会话要求 OIDC 仍处于启用状态。
+否则会提示此人重新登录 Portal。
+
+**由此创建的会话。** 取请求的平台和标签，以及确认它的 Portal 会话的认证方式和绝对到期时间，
+二者完全一致。因此由 SSO 会话确认的原生会话随该会话一同结束，不超过 `session_max_age`；
+`local_login` 也通过确认它的那次登录发挥作用。此后该会话独立存在：退出 Portal 不会结束它，
+它与其他会话一样被列出和撤销。兑换时会重新检查账号与确认会话，因此在客户端下一次轮询之前
+禁用账号或撤销该会话，会得到 `access_denied` 且不会创建会话。一个请求只会被一次轮询兑换。
+
+**限制。** 请求有效期为十分钟。早于间隔的轮询返回 `slow_down`，并把间隔增加 5 秒，最多到
+30 秒。整个部署最多同时存在 500 个未过期的待处理请求；再次发起会返回带 `Retry-After` 的
+`503`，已有会话与 Portal 登录不受影响。每个账号在十分钟内、每个服务器副本上最多尝试 10 个
+未知代码，之后查询、确认与拒绝都返回 `429`。这些都是常量。发起路由是匿名的，因此针对
+`/api/auth/*` 的外部按 IP 限流仍是部署要求。
+
+**存储与日志。** `native_sign_in` 表只保存代码与轮询密钥的 SHA-256 哈希、平台、声称的标签、
+轮询节奏状态和决定；不保存任何 token、邮箱或地址。凭证清理任务每小时删除过期请求。代码只会
+出现在请求体或请求日志会脱敏的 `code` 查询参数中，轮询密钥只会出现在请求体中。决定被记录为
+`auth.native_sign_in_confirmed` 或 `auth.native_sign_in_denied`，目标为作出决定的 Portal
+会话，详情为客户端类型与声称的标签；兑换记为一条 `user.login`，详情为 `portal_confirmation`。
+发起、轮询与过期不记入审计。
+
+客户端报告的标签从不经过验证。`POST /api/auth/login` 也接受可选的 `client_label`（最多 64 个
+可打印字符），使通过原生方式登录的会话同样能在会话列表中被识别。
+
 ## 尚未具备的能力
 
 没有第二认证因素，也没有自助恢复：忘记密码需要向运维人员索取登录码，或在已配置 SSO 时通过 SSO 登录。系统不验证原生邮件地址是否属于使用者；地址在这里是标识，不是证明——这也是面向组织外部人员的部署需要在前方使用上述 OIDC 提供方的原因之一。
@@ -200,7 +246,7 @@ System Administrator 可在 Portal 的账户详情页或通过
 `GET /api/admin/users/{user_id}/sessions` 查看有效登录 Session，并通过
 `DELETE /api/admin/users/{user_id}/sessions/{session_id}` 撤销单个 Session，
 或通过集合的 DELETE 路由撤销全部 Session。列表包含 Session ID、平台、认证
-方式、创建时间、最近可见时间与绝对到期时间；最近可见时间经过节流，并非持续
+方式、原生客户端报告的标签、创建时间、最近可见时间与绝对到期时间；最近可见时间经过节流，并非持续
 的设备在线信号。目前没有用户自助 Session 管理页，也没有专门的管理 CLI
 Session 命令。撤销一个 Session 会停用它的 refresh token 并将 `auth_session`
 记录标记为已撤销，因此该 Session 下已签发的 access token 会在其下一个请求时

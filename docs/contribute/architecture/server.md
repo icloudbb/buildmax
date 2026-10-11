@@ -47,7 +47,9 @@ it for every call back, managed inference included. See
 ## Main Route Groups
 
 - Health and API description: `/healthz`, `/openapi.json`, `/swagger/`
-- Auth: `/api/auth/otp`, `/api/auth/login`, `/api/auth/token/refresh`, `/api/auth/logout`
+- Auth: `/api/auth/otp`, `/api/auth/login`, `/api/auth/token/refresh`, `/api/auth/logout`,
+  the Portal cookie routes under `/api/auth/portal/`, the OIDC flow under
+  `/api/auth/oidc/`, and native sign-in under `/api/auth/native-sign-ins`
 - Liveness and readiness: `/healthz`, `/readyz`
 - Spaces and members: `/api/spaces...`
 - Agents: `/api/spaces/{space_id}/agents...`
@@ -374,4 +376,17 @@ quota applies to it identically.
   code. The latter is the account-claim and recovery path because BuildMax has
   no mail channel — see
   [deploy/authentication.md](../../deploy/authentication.md).
+- Native sign-in lets a CLI or Desktop obtain a session that a Portal session
+  confirms. `internal/core/identity` owns the `NativeSignIn` request, its
+  pacing (`Poll`), redemption rules (`RedeemableBy`, `SessionFor`), the user-code
+  format shared with chat-account pairing, and the store contract.
+  `internal/service/identity` owns start, poll, look-up, confirm, and deny,
+  including the Portal-only and admission checks on the confirming session.
+  `internal/infra/db` owns the `native_sign_in` table and the redemption
+  transaction, which locks the request and the confirming session, creates the
+  `auth_session` and its first refresh token through the same row helpers every
+  login uses, and deletes the request. `internal/server/handlers/auth` owns the
+  five routes, the verification URI, and the in-process unknown-code throttle;
+  `access.Guard.ActiveUserSession` hands it the caller's `sid`. See
+  [design §14](../../design/enterprise-identity-and-access.md#14-cli-and-desktop-sign-in).
 - See also: [Store](store.md), [Portal](portal.md), [Boundaries](packages.md).

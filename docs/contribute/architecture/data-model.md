@@ -155,6 +155,7 @@ erDiagram
     user ||--o{ external_identity : "links to"
     user ||--o{ channel_identity : "is reached through"
     auth_session ||--o{ user_refresh_token : "rotates tokens in"
+    auth_session ||--o{ native_sign_in : "confirms"
     user ||--o{ system_grant : "holds deployment authority via"
     llm_model ||--o{ llm_call : serves
     task_run ||--o{ llm_call : attributes
@@ -397,13 +398,43 @@ issued access tokens.
 | `public_id` | `char(20) ascii_bin` | no | Public session handle, unique |
 | `user_id` | `bigint unsigned` | no | `user.id` |
 | `platform` | `varchar(32)` | yes | Surface that opened the session |
-| `auth_method` | `varchar(32)` | yes | Proof used to open the session |
+| `auth_method` | `varchar(32)` | yes | Proof used to open the session; a native sign-in carries its confirming session's |
+| `client_label` | `varchar(64) utf8mb4_bin` | yes | What a native client said it is, such as `alice-mbp · macOS`; never trusted |
 | `absolute_expires_at` | `datetime(6)` | no | Hard lifetime ceiling |
 | `last_seen_at` | `datetime(6)` | yes | Best-effort activity time |
 | `revoked_at` | `datetime(6)` | yes | Non-`NULL` after revocation |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `public_id`; index `user_id`; index `absolute_expires_at`.
+
+### `native_sign_in`
+
+A CLI or Desktop sign-in request that a Portal session confirms or denies. It
+has no public ID: nothing addresses a request except its user code or its poll
+secret, and only their hashes are stored. Redemption deletes the row in the
+transaction that creates the session; the credential cleaner deletes expired
+rows. See
+[design §9.3](../../design/enterprise-identity-and-access.md#93-native_sign_in).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `user_code_hash` | `char(64) ascii_bin` | no | SHA-256 of the normalized user code; unique |
+| `poll_secret_hash` | `char(64) ascii_bin` | no | SHA-256 of the poll secret; unique |
+| `platform` | `varchar(32) ascii_bin` | no | `cli` or `desktop` |
+| `client_label` | `varchar(64) utf8mb4_bin` | no | The claimed label; empty when none |
+| `state` | `varchar(16) ascii_bin` | no | `pending`, `confirmed`, or `denied` |
+| `interval_seconds` | `int` | no | Current poll interval, from 5 up to 30 |
+| `last_polled_at` | `datetime(6)` | yes | The poll the next one is paced from |
+| `decided_by_user_id` | `bigint unsigned` | yes | `user.id` of the deciding account |
+| `decided_session_id` | `bigint unsigned` | yes | `auth_session.id` of the deciding Portal session, whose method and absolute expiry the native session inherits |
+| `decided_at` | `datetime(6)` | yes | |
+| `expires_at` | `datetime(6)` | no | Ten minutes after creation |
+| `created_at` | `datetime(6)` | no | |
+
+Indexes: PK `id`; unique `uq_native_sign_in_user_code_hash`; unique
+`uq_native_sign_in_poll_secret_hash`; `idx_native_sign_in_state_expires` on
+(`state`, `expires_at`) for the pending cap; index `expires_at`.
 
 ### `user_refresh_token`
 
