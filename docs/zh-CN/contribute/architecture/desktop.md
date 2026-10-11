@@ -36,7 +36,7 @@ Desktop 与 CLI 一样，使用以下两种模式之一：
 | `desktop/assets_embed.go` | 在 `desktop` 构建标签下嵌入生产前端 |
 | `cmd/buildmax-desktop/wails.json` | Wails 构建配置 |
 
-`App` 按 Project 文件夹惰性创建一个 `agentapp.AgentApp`，并在进程生命周期内缓存。运行按 Session 调度：调度键是 `runKey`，即 Project 加 Session ID，因此每个 Session 最多一个进行中的运行，而同一 Project 的不同 Session 可以并发运行。关闭时回收全部终端 shell、取消活动运行并关闭全部缓存运行时。
+`App` 按 Project 文件夹惰性创建一个 `agentapp.AgentApp`，并为定时与无 Project 的运行按工作目录各创建一个；它们一直缓存，直到插件操作、登录或退出登录时全部丢弃（`rebuildRuntimes`），使下一个请求按当前插件清单与模式重新组装。运行按 Session 调度：调度键是 `runKey`，即 Project 加 Session ID，因此每个 Session 最多一个进行中的运行，而同一 Project 的不同 Session 可以并发运行。关闭时回收全部终端 shell、取消活动运行并关闭全部缓存运行时。
 
 ## 数据与运行时流程
 
