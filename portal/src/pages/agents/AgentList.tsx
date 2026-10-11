@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@buildmax/gui"
 import type { Agent } from "../../lib/types"
-import type { ApiSecret, ApiTask } from "../../lib/api/types"
-import { listSecrets } from "../../features/spaceSecrets/api"
+import type { ApiTask } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiTaskToTask } from "../../lib/api/mappers"
@@ -11,7 +10,6 @@ import { formatSuccessRate, getAgents, successRate as rateOf } from "../../featu
 import { runStatusTone, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
-import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { RunAgentModal } from "../../components/RunAgentModal"
 import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { Alert } from "../../components/state/Alert"
@@ -39,7 +37,6 @@ export function AgentList({ token, spaceId }: AgentListProps) {
   // space genuinely has no agents. See deriveResourceState.
   const [agentsData, setAgentsData] = useState<Agent[] | null>(null)
   const agents = agentsData ?? EMPTY_AGENTS
-  const [secrets, setSecrets] = useState<ApiSecret[]>([])
   const [tasksByAgent, setTasksByAgent] = useState<Record<string, ApiTask[]>>({})
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<RequestError | null>(null)
@@ -75,19 +72,6 @@ export function AgentList({ token, spaceId }: AgentListProps) {
     () => deriveResourceState({ loading, data: agentsData, error: listError, isEmpty: (data) => data.length === 0 }),
     [loading, agentsData, listError]
   )
-
-  // The space's secrets, to flag broken grants on the cards and overview.
-  // Owner-or-admin may list them; a failure hides the warnings rather than
-  // blocking the page.
-  useEffect(() => {
-    if (!token || !spaceId || !canManageAgents) {
-      setSecrets([])
-      return
-    }
-    listSecrets(token, spaceId)
-      .then((res) => setSecrets(res.secrets ?? []))
-      .catch(() => setSecrets([]))
-  }, [token, spaceId, canManageAgents])
 
   useEffect(() => {
     fetchAgents()
@@ -127,10 +111,10 @@ export function AgentList({ token, spaceId }: AgentListProps) {
     const running = tasks.filter((task) => !taskRunFinished(task.status)).length
     const successRate = formatSuccessRate(rateOf(tasks.map((task) => task.status)))
     const warnings = canManageAgents
-      ? agents.reduce((n, a) => n + consumptionHealthCount(a.secretConsumption, secrets), 0)
+      ? agents.reduce((n, a) => n + (a.secretGrantProblems?.length ?? 0), 0)
       : 0
     return { total: tasks.length, running, successRate, warnings }
-  }, [allTasks, agents, secrets, canManageAgents])
+  }, [allTasks, agents, canManageAgents])
 
   const recent = useMemo(
     () => [...allTasks].sort((a, b) => b.task.created_at.localeCompare(a.task.created_at)).slice(0, 6),
@@ -270,9 +254,9 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                     {a.description ? (
                       <p className="agent-card__description">{a.description}</p>
                     ) : null}
-                    {canManageAgents && consumptionHealthCount(a.secretConsumption, secrets) > 0 ? (
+                    {a.secretGrantProblems?.length ? (
                       <p className="agent-card__secret-warning" role="alert">
-                        ⚠ {t("agents.card.secretWarning", { count: consumptionHealthCount(a.secretConsumption, secrets) })}
+                        ⚠ {t(canManageAgents ? "agents.card.secretWarning" : "agents.card.secretWarningMember", { count: a.secretGrantProblems.length })}
                       </p>
                     ) : null}
                     <div className="agent-card__foot">

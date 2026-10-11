@@ -78,6 +78,8 @@ export interface ApiAgent {
   sandbox_filesystem_tier?: string
   /** How this agent consumes Space Secrets. See docs/design/space-secrets.md §6. */
   secret_consumption?: ApiSecretConsumption
+  /** The grants a run started now would not be given. See §10. */
+  secret_grant_problems?: ApiSecretGrantProblem[]
   revision: number
   created_at: string
 }
@@ -422,10 +424,33 @@ export type ApiFailureClass =
 
 /** What a space_configuration failure needs fixed, when the server recorded it. */
 export interface ApiFailureCause {
-  kind: "secret_grant"
+  kind: "secret_grant" | "plugin" | "usage_quota"
   secret_id?: string
-  secret_problem?: "disabled" | "unavailable" | "item_missing"
+  secret_problem?: ApiSecretProblem
   secret_item?: string
+  /** The plugin the run's Agent names that the Space could not give it. */
+  plugin_name?: string
+  plugin_problem?: "not_activated" | "suspended"
+  /** The Space's usage limit that refused the run, as its tier set it. */
+  quota_limit?: "runs" | "tokens"
+  quota_max?: number
+  quota_period_days?: number
+}
+
+/** Why a Secret grant cannot be given to a run. */
+export type ApiSecretProblem = "disabled" | "unavailable" | "item_missing"
+
+/**
+ * A Secret grant of an Agent a run started now would not be given. Every
+ * member who can run the Agent reads it; it names the grant only by what
+ * secret_consumption already shows.
+ */
+export interface ApiSecretGrantProblem {
+  secret_id: string
+  item?: string
+  problem: ApiSecretProblem
+  /** A run skips an optional grant rather than failing on it. */
+  optional?: boolean
 }
 
 export interface ApiTaskRun {

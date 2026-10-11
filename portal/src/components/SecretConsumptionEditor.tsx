@@ -39,14 +39,6 @@ export function grantHealth(grant: ApiSecretEnvGrant, secrets: ApiSecret[], t: T
   return problem ? t(...problem) : null
 }
 
-/** consumptionHealthCount reports how many grants will not resolve. */
-export function consumptionHealthCount(
-  consumption: ApiSecretConsumption | undefined,
-  secrets: ApiSecret[],
-): number {
-  return (consumption?.env ?? []).filter((g) => grantProblem(g, secrets) != null).length
-}
-
 export function SecretConsumptionEditor({
   value,
   onChange,

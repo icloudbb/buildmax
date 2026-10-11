@@ -3,14 +3,23 @@ import { useSpace } from "../../contexts/SpaceContext"
 import { listSecrets } from "../spaceSecrets/api"
 
 /**
+ * Whether the reader is a Space owner or admin: who can change an Agent, its
+ * Secret grants, and the Space's plugin activations. A failure explanation
+ * leads them to the fix and tells anyone else who can make it.
+ */
+export function useCanManageSpace(): boolean {
+  const { currentUserRole } = useSpace()
+  return currentUserRole === "owner" || currentUserRole === "admin"
+}
+
+/**
  * The name of the Secret a failure names, for a viewer who may read Secret
  * metadata. Only owners and admins may, so nothing is requested for anyone
- * else -- the explanation then names the Secret by its id rather than a
- * request failing in the background.
+ * else -- the explanation then describes the Secret rather than a request
+ * failing in the background.
  */
 export function useSecretName(spaceId: string | null, token: string | null, secretId: string | null | undefined): string | null {
-  const { currentUserRole } = useSpace()
-  const canRead = currentUserRole === "owner" || currentUserRole === "admin"
+  const canRead = useCanManageSpace()
   const [names, setNames] = useState<Record<string, string>>({})
 
   useEffect(() => {

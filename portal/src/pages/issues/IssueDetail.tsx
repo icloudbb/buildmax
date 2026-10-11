@@ -19,7 +19,7 @@ import {
   apiWorkflowNodeRunToWorkflowNodeRun,
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
-import { getAgents } from "../../features/agents"
+import { blockingGrantCount, getAgents } from "../../features/agents"
 import { getAssistant } from "../../features/assistants"
 import { cancelTask, retryTask } from "../../features/tasks"
 import {
@@ -47,7 +47,6 @@ import {
   type RunFailureExplanation,
 } from "../../features/runs"
 import { listSecrets } from "../../features/spaceSecrets/api"
-import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { getSpaceMembers, peopleOnly } from "../../features/spaces/api"
 import { getWorkflows, runIssueWorkflow } from "../../features/workflows"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
@@ -168,9 +167,9 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   // Owners and admins create Agents and assign Workflows.
   const manage = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
   const canAssignWorkflow = isAllowed(manage)
-  // Owners and admins may read Secret metadata: it names the Secret a failed
-  // run needed, and warns before Run agent starts a run known to fail. A
-  // failure hides both rather than blocking the page.
+  // Owners and admins may read Secret metadata, which names the Secret a
+  // failed run needed. A failure leaves it described rather than blocking the
+  // page; anyone else reads the description.
   const canReadSecrets = canAssignWorkflow
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
   useEffect(() => {
@@ -350,10 +349,12 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         failureCause: task.failureCause,
         agentId: task.agentId,
         errorMessage: task.errorMessage,
+        endedAt: task.timeAt,
       },
       {
         agent: task.agentId ? agentNames[task.agentId] : null,
         secret: secretId ? secrets.find((secret) => secret.id === secretId)?.name : null,
+        canManage: canAssignWorkflow,
       },
     )
   }
@@ -623,10 +624,10 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   const latest = flow.runs[0] ?? null
   const latestProduct = latest ? issueRunProduct(latest, flow.outputs) : null
   const latestFailure = latest?.kind === "agent" ? agentRunFailure(latest.task) : null
-  // The same check the Agent page makes: a grant that no longer resolves fails
-  // the run, so Run agent says so before it starts one.
+  // A required grant that no longer resolves fails the run, so Run agent says
+  // so before it starts one. The server reports it to every role.
   const executorAgent = runAction.kind === "agent" ? agents.find((agent) => agent.id === flow.issue.executorId) : undefined
-  const grantWarnings = executorAgent ? consumptionHealthCount(executorAgent.secretConsumption, secrets) : 0
+  const grantWarnings = executorAgent ? blockingGrantCount(executorAgent.secretGrantProblems) : 0
   // One primary action: a fix the person can make outranks starting a run that
   // is known to fail.
   const fixFirst = Boolean(latestFailure?.leadsWithFix) || grantWarnings > 0
@@ -756,8 +757,9 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
             <span className="page-activity__action-group" data-testid="issue-run-grant-warning">
               <span id={grantWarningId} className="run-warning">
                 ⚠ {t("issues.run.grantWarning", { count: grantWarnings })}
+                {canAssignWorkflow ? null : `${t("runs.sentenceSeparator")}${t("issues.run.grantWarningAsk")}`}
               </span>
-              {!latestFailure?.leadsWithFix ? (
+              {canAssignWorkflow && !latestFailure?.leadsWithFix ? (
                 <ButtonLink variant="primary" size="compact" href={buildHash({ name: "agent", spaceId, agentId: executorAgent.id })}>
                   {t("runs.failure.fixAgent")}
                 </ButtonLink>

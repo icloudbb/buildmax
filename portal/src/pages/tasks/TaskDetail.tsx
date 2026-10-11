@@ -14,6 +14,7 @@ import {
   RunFailureNotice,
   RunTraceModal,
   runInputLabel,
+  useCanManageSpace,
   useSecretName,
 } from "../../features/runs"
 import { runStatusLabel, taskStatusLabel } from "../../features/conversations/thread"
@@ -219,6 +220,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   // the header's lead: a fix the person can make outranks a retry that would
   // fail the same way.
   const lastRun = runs[runs.length - 1] ?? null
+  const canManage = useCanManageSpace()
   const secretName = useSecretName(spaceId, token, lastRun?.failure_cause?.secret_id)
   const explainRun = useCallback(
     (run: ApiTaskRun) =>
@@ -229,13 +231,15 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
           failureCause: run.failure_cause,
           agentId: task?.agent_id,
           errorMessage: run.error_message,
+          endedAt: run.ended_at,
         },
         {
           agent: agentName,
           secret: run.failure_cause?.secret_id === lastRun?.failure_cause?.secret_id ? secretName : null,
+          canManage,
         },
       ),
-    [task?.agent_id, agentName, secretName, lastRun?.failure_cause?.secret_id],
+    [task?.agent_id, agentName, secretName, lastRun?.failure_cause?.secret_id, canManage],
   )
   const lastFailure = lastRun ? explainRun(lastRun) : null
 
@@ -392,7 +396,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
           <Button variant="tertiary" aria-haspopup="dialog" onClick={() => setDetailsOpen(true)}>
             {t("tasks.details")}
           </Button>
-          {task?.agent_id && !lastFailure?.leadsWithFix ? (
+          {task?.agent_id && lastFailure?.primary !== "fixAgent" && lastFailure?.primary !== "openAgent" ? (
             <ButtonLink variant="tertiary" href={buildHash({ name: "agent", spaceId, agentId: task.agent_id })}>
               {t("tasks.openAgent")}
             </ButtonLink>

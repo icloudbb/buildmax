@@ -30,7 +30,6 @@ import { AgentConfigForm } from "../../components/AgentConfigForm"
 import { RevisionHistory } from "../../components/RevisionHistory"
 import { DetailTabs } from "../../components/DetailTabs"
 import { RunAgentModal } from "../../components/RunAgentModal"
-import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { useApp } from "../../contexts/AppContext"
 import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { isAllowed } from "../../state/permissionState"
@@ -255,7 +254,9 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
     return { total: tasks.length, successRate, running, lastRunAt: tasks[0] ? apiTaskToTask(tasks[0]).timeAt : null }
   }, [tasks])
 
-  const secretWarnings = agent ? consumptionHealthCount(agent.secretConsumption, secrets) : 0
+  // The server reports broken grants to every role; only owners and admins
+  // can fix them, so anyone else is told who can.
+  const secretWarnings = agent?.secretGrantProblems?.length ?? 0
 
   function renderRunsTable(rows: ApiTask[]) {
     if (rows.length === 0) return <p className="page-activity__empty">{t("agents.runs.empty")}</p>
@@ -365,6 +366,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
                 <div className="agent-detail__banner" role="alert">
                   <span>
                     ⚠ {t("agents.detail.secretWarning", { count: secretWarnings })}
+                    {canManage ? null : `${t("runs.sentenceSeparator")}${t("agents.detail.secretWarningAsk")}`}
                   </span>
                   {canManage ? (
                     <Button variant="secondary" onClick={() => setTab("config")}>

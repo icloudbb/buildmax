@@ -17,3 +17,4 @@ export {
 } from "./definition"
 export { agentGroupMeta, buildAgentGroups } from "./groups"
 export { formatSuccessRate, successRate } from "./successRate"
+export { blockingGrantCount } from "./grantProblems"
