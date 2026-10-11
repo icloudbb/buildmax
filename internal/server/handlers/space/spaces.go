@@ -54,18 +54,21 @@ type createSpaceRequest struct {
 // space-scoped invitation only ever targets an account that already exists.
 //
 // UserName and UserEmail name the invitee on the Space-scoped routes, whose
-// callers manage the Space and need to tell pending rows apart. The invitee's
-// own routes leave them out: the invitee is the caller.
+// callers manage the Space and need to tell pending rows apart. SpaceName and
+// InvitedByName are the invitee's side: their own routes name the Space they
+// were invited to and who invited them, and nothing else about it.
 type invitationResponse struct {
-	ID        string    `json:"id"`
-	SpaceID   string    `json:"space_id"`
-	UserID    string    `json:"user_id"`
-	UserName  *string   `json:"user_name,omitempty"`
-	UserEmail *string   `json:"user_email,omitempty"`
-	Role      string    `json:"role"`
-	InvitedBy string    `json:"invited_by"`
-	ExpiresAt time.Time `json:"expires_at"`
-	CreatedAt time.Time `json:"created_at"`
+	ID            string    `json:"id"`
+	SpaceID       string    `json:"space_id"`
+	SpaceName     *string   `json:"space_name,omitempty"`
+	UserID        string    `json:"user_id"`
+	UserName      *string   `json:"user_name,omitempty"`
+	UserEmail     *string   `json:"user_email,omitempty"`
+	Role          string    `json:"role"`
+	InvitedBy     string    `json:"invited_by"`
+	InvitedByName *string   `json:"invited_by_name,omitempty"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // invitationToResponse renders inv; invitee is nil where the caller is the
@@ -91,10 +94,21 @@ func invitationToResponse(inv corespace.Invitation, invitee *coreidentity.User) 
 	return resp
 }
 
-func invitationsToResponse(list []corespace.Invitation) []invitationResponse {
+func receivedInvitationToResponse(r spacesvc.ReceivedInvitation) invitationResponse {
+	resp := invitationToResponse(r.Invitation, nil)
+	if r.SpaceName != "" {
+		resp.SpaceName = &r.SpaceName
+	}
+	if r.InviterName != "" {
+		resp.InvitedByName = &r.InviterName
+	}
+	return resp
+}
+
+func receivedInvitationsToResponse(list []spacesvc.ReceivedInvitation) []invitationResponse {
 	out := make([]invitationResponse, len(list))
 	for i := range list {
-		out[i] = invitationToResponse(list[i], nil)
+		out[i] = receivedInvitationToResponse(list[i])
 	}
 	return out
 }
@@ -340,7 +354,7 @@ func (h *Handler) listMyInvitationsHandler(w http.ResponseWriter, r *http.Reques
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_my_invitations", "user_id", userID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, invitationsToResponse(invitations))
+	httputil.WriteJSON(w, http.StatusOK, receivedInvitationsToResponse(invitations))
 }
 
 // acceptInvitationHandler serves POST /api/invitations/{invitation_id}/accept.
@@ -376,8 +390,8 @@ func (h *Handler) acceptInvitationHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteInternalError(w, err, "handler error", "handler", "accept_invitation", "user_id", userID)
 		return
 	}
-	h.cfg.Audit.UserAction(r.Context(), userID, accepted.SpaceID, coreaudit.InvitationAccepted, "space", accepted.SpaceID, accepted.Role)
-	httputil.WriteJSON(w, http.StatusOK, invitationToResponse(*accepted, nil))
+	h.cfg.Audit.UserAction(r.Context(), userID, accepted.Invitation.SpaceID, coreaudit.InvitationAccepted, "space", accepted.Invitation.SpaceID, accepted.Invitation.Role)
+	httputil.WriteJSON(w, http.StatusOK, receivedInvitationToResponse(*accepted))
 }
 
 func (h *Handler) removeSpaceMemberHandler(w http.ResponseWriter, r *http.Request) {

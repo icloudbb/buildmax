@@ -370,6 +370,60 @@ func TestSpaceHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("the invitee reads the Space's name and the inviter's, and nothing else", func(t *testing.T) {
+		// u4's invitation to Ops from the previous subtest is still pending.
+		listReq := httptest.NewRequest(http.MethodGet, "/api/invitations", nil)
+		listReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u4", spaceTestSecret))
+		listRec := httptest.NewRecorder()
+		mux.ServeHTTP(listRec, listReq)
+		if listRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", listRec.Code, listRec.Body.String())
+		}
+		var mine []invitationResponse
+		if err := json.Unmarshal(listRec.Body.Bytes(), &mine); err != nil {
+			t.Fatalf("decode invitations: %v", err)
+		}
+		if len(mine) != 1 {
+			t.Fatalf("u4's invitations = %+v, want one", mine)
+		}
+		inv := mine[0]
+		if inv.SpaceName == nil || *inv.SpaceName != "Ops" || inv.InvitedByName == nil || *inv.InvitedByName != "Alice" {
+			t.Fatalf("invitation names Space %v, inviter %v; want Ops, Alice", inv.SpaceName, inv.InvitedByName)
+		}
+		// Not a member yet: no roster, no other account's address, and not
+		// their own identity echoed back as if read from the Space.
+		body := listRec.Body.String()
+		for _, withheld := range []string{"u1@example.com", "u2@example.com", "Bob", "user_email", "user_name"} {
+			if strings.Contains(body, withheld) {
+				t.Fatalf("GET /api/invitations carried %q: %s", withheld, body)
+			}
+		}
+
+		acceptReq := httptest.NewRequest(http.MethodPost, "/api/invitations/"+inv.ID+"/accept", nil)
+		acceptReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u4", spaceTestSecret))
+		acceptRec := httptest.NewRecorder()
+		mux.ServeHTTP(acceptRec, acceptReq)
+		if acceptRec.Code != http.StatusOK {
+			t.Fatalf("accept status = %d body=%s", acceptRec.Code, acceptRec.Body.String())
+		}
+		var accepted invitationResponse
+		if err := json.Unmarshal(acceptRec.Body.Bytes(), &accepted); err != nil {
+			t.Fatalf("decode accepted: %v", err)
+		}
+		if accepted.SpaceName == nil || *accepted.SpaceName != "Ops" || accepted.InvitedByName == nil || *accepted.InvitedByName != "Alice" {
+			t.Fatalf("accepted names Space %v, inviter %v; want Ops, Alice", accepted.SpaceName, accepted.InvitedByName)
+		}
+
+		// Later subtests rely on u4 being a stranger to Ops.
+		removeReq := httptest.NewRequest(http.MethodDelete, "/api/spaces/"+sharedSpaceID+"/members/u4", nil)
+		removeReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", spaceTestSecret))
+		removeRec := httptest.NewRecorder()
+		mux.ServeHTTP(removeRec, removeReq)
+		if removeRec.Code != http.StatusNoContent {
+			t.Fatalf("remove u4 status = %d body=%s", removeRec.Code, removeRec.Body.String())
+		}
+	})
+
 	t.Run("PATCH promote then demote a member", func(t *testing.T) {
 		var createdAt time.Time
 		for _, m := range mustListSpaceMembers(t, spaceStore, sharedSpaceID) {

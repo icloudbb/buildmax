@@ -330,7 +330,7 @@ func TestInviteThenAcceptCreatesMembership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AcceptInvitation: %v", err)
 	}
-	if accepted.AcceptedAt == nil {
+	if accepted.Invitation.AcceptedAt == nil {
 		t.Fatal("accepted invitation has no AcceptedAt")
 	}
 
