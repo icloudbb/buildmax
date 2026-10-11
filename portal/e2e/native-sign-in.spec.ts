@@ -51,43 +51,45 @@ interface Started {
   poll_secret: string
   interval: number
   verification_uri_complete: string
+  /** Client-side pacing: when this client last spoke to the server about it. */
+  lastPollAt: number
 }
 
 async function start(api: APIRequestContext, base: string, platform: string, label: string): Promise<Started> {
   const res = await api.post(`${base}/api/auth/native-sign-ins`, { data: { platform, client_label: label } })
   expect(res.status(), `start on ${base}: ${await res.text()}`).toBe(200)
-  return (await res.json()) as Started
-}
-
-async function poll(api: APIRequestContext, base: string, secret: string): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await api.post(`${base}/api/auth/native-sign-ins/poll`, { data: { poll_secret: secret } })
-  return { status: res.status(), body: (await res.json()) as Record<string, unknown> }
+  return { ...((await res.json()) as Omit<Started, "lastPollAt">), lastPollAt: Date.now() }
 }
 
 /**
- * Poll as a client does until the request is no longer pending: wait the
- * interval, and five seconds more after each slow_down.
+ * One poll, paced as a client paces it: no sooner than the interval after the
+ * previous one, and five seconds slower after each slow_down.
  */
+async function poll(api: APIRequestContext, base: string, started: Started): Promise<{ status: number; body: Record<string, unknown> }> {
+  const due = started.lastPollAt + started.interval * 1000 + 250
+  if (Date.now() < due) await new Promise((resolve) => setTimeout(resolve, due - Date.now()))
+  const res = await api.post(`${base}/api/auth/native-sign-ins/poll`, { data: { poll_secret: started.poll_secret } })
+  started.lastPollAt = Date.now()
+  const answer = { status: res.status(), body: (await res.json()) as Record<string, unknown> }
+  if (answer.body.error === "slow_down") started.interval += 5
+  return answer
+}
+
+/** Poll until the request is no longer pending, and return that answer. */
 async function pollUntilDecided(api: APIRequestContext, base: string, started: Started) {
-  let wait = started.interval
-  const deadline = Date.now() + 90_000
+  const deadline = Date.now() + 60_000
   for (;;) {
-    await new Promise((resolve) => setTimeout(resolve, wait * 1000))
-    const answer = await poll(api, base, started.poll_secret)
-    if (answer.status === 400 && answer.body.error === "authorization_pending" && Date.now() < deadline) continue
-    if (answer.status === 400 && answer.body.error === "slow_down" && Date.now() < deadline) {
-      wait += 5
-      continue
-    }
-    return answer
+    const answer = await poll(api, base, started)
+    const waiting = answer.body.error === "authorization_pending" || answer.body.error === "slow_down"
+    if (!waiting || Date.now() > deadline) return answer
   }
 }
 
 /** Nothing is decided by opening the page: the client still hears "pending". */
 async function expectStillPending(api: APIRequestContext, base: string, started: Started) {
-  const answer = await poll(api, base, started.poll_secret)
+  const answer = await poll(api, base, started)
   expect(answer.status).toBe(400)
-  expect(["authorization_pending", "slow_down"]).toContain(answer.body.error)
+  expect(answer.body.error).toBe("authorization_pending")
 }
 
 /**
@@ -191,7 +193,7 @@ test("a CLI sign-in confirmed through SSO returns to the request, and each step 
     })
     expect(spaces.status()).toBe(200)
     // Exactly one poll redeems a request.
-    expect((await poll(api, apiOf(baseURL!, a), first.poll_secret)).body.error).toBe("expired_token")
+    expect((await poll(api, apiOf(baseURL!, a), first)).body.error).toBe("expired_token")
     await expectCodeCleared(page, first)
     console.log(`[e2e] native sign-in round one: ${describeReplicas(["start", a], ["confirm", b], ["redeem", a])}`)
 
@@ -257,7 +259,7 @@ test("a sign-in opened signed out returns to the request after a password sign-i
   browser,
   baseURL,
 }) => {
-  test.setTimeout(120_000)
+  test.setTimeout(180_000)
   const { email, password } = await passwordAccount(browser, baseURL!)
   const api = await request.newContext({ ignoreHTTPSErrors: true })
   try {
