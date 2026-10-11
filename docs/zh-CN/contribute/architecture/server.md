@@ -89,6 +89,11 @@ Server 从不自己终结一次已经开始的运行：只有运行自身的进�
 - 回收器记录 `worker_lost` 或 `abandoned`；
 - worker 上报自己的类别，Server 把未知或缺失的类别存为 `unclassified`。
 
+worker 密钥路由拒绝一项必需授权时（密钥被禁用、已不存在或缺少被授权的条目），还会记录指明该密钥的
+`task_run.failure_cause`，随后 worker 以 `space_configuration` 把运行上报为 `FAILED`。类别仍是供系统管理读取的
+运维元数据；原因会指明 Space 资源，因此只由 Space 范围的读取返回：TaskRun 列表、运行来源（它还说明是否记录了
+轨迹），以及 Task——Task 的类别与原因来自其最近一次运行，经 last-run 连接读取。
+
 worker 在认领运行之前就拒绝它时，会让运行从 `SCHEDULED` 直接结束。拒绝的原因可能是 Server 无法给它某个插件，也可能是先到达了一次取消。成功仍然需要先认领。
 
 调度器、runner 和回收器的日志行在 `task_run_id` 旁都带有 `space_id`，运维可以从一行日志找到所属 Space。见[系统管理 §13 M7](../../design/系统管理.md)。

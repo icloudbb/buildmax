@@ -57,8 +57,8 @@ underline**, unlike every other link in Portal.
 - Any new access from Administration to Space content.
   [System administration](../design/system-administration.md) keeps it
   metadata-only.
-- The Space-side explanation of the same failure, which is
-  [task 32](32-portal-failure-explanation.md).
+- The Space-side explanation of the same failure, which shipped with task 32
+  and is owned by `portal/src/features/runs/failure.ts`.
 
 ## Acceptance Criteria
 

@@ -855,7 +855,22 @@ one count, leaving out Tasks a Workflow step dispatched, so Issue Detail's
 single **Latest run** element is the newest run of either kind: its status,
 the files it published and its text (the Agent's reply, the Workflow's declared
 result, or its last step's output), and a link to it. Results lists published
-files and text-only outputs; Runs is that one list. A Workflow run without a
+files and text-only outputs; Runs is that one list. A failed run is explained
+in the person's terms by one Portal mapping from the run's failure class and,
+where the server recorded one, its failure cause: the worker Secret route
+records a refused required grant (which Secret, and whether it was disabled,
+gone, or missing the item) on the TaskRun, and Space-scoped Task, TaskRun, and
+run provenance responses carry the class and cause. A failure the person can
+fix leads with the fix (**Open the Agent to fix its Secret grant**) and steps
+retry back on Issue Detail's latest run, the Task page, the Agent's failure
+report in Discussion, and Run Details; the server text stays under a
+disclosure. Run agent warns before starting a run on an Agent whose Secret
+grant no longer resolves, for owners and admins, who may read Secret metadata.
+Run Details reads whether a trace was recorded before asking for one, so a run
+that ended before its Agent started requests nothing that fails. Plugin
+refusals and a spent usage quota record no cause and are explained by their
+class alone. Agent success rates leave stopped runs out and show "—" when no
+run succeeded or failed. A Workflow run without a
 declared result says so and points to its steps, and each step's output is
 labelled **Output** above its collapsed input. The Issues
 page offers a List / Board switch and shared Owner and Executor filters, carried

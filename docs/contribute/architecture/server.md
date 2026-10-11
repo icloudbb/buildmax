@@ -277,6 +277,15 @@ failed the run and never parsed from `error_message`:
 - a worker reports its own class, and the server stores an unknown or missing
   one as `unclassified`.
 
+When the worker Secret route refuses a required grant -- a Secret disabled,
+gone, or missing the granted item -- it also records `task_run.failure_cause`,
+naming the Secret, before the worker reports the run `FAILED` as
+`space_configuration`. The class stays operational metadata for
+administration; the cause names Space resources, so only Space-scoped reads
+serve it: the TaskRun list, run provenance (which also says whether a trace was
+recorded), and the Task, whose class and cause are its latest run's, read
+through the last-run join.
+
 A worker that refuses a run before claiming it ends the run from `SCHEDULED`.
 It does this for a plugin the server could not give it, or for a cancel that
 landed first. Success still requires the claim.

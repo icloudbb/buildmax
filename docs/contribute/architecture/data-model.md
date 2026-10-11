@@ -947,6 +947,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `cancel_requested_by` | `bigint unsigned` | yes | `user.id` of whoever asked |
 | `cancel_reason` | `varchar(32)` | no | Bounded cause of cancellation; empty when none was recorded |
 | `failure_class` | `varchar(32)` | no | Why a `FAILED` run failed: `dispatch`, `worker_lost`, `abandoned`, `interrupted`, `infrastructure`, `space_configuration`, `model`, `run`, or `unclassified`; set by the component that failed the run, never parsed from `error_message`; empty on a run that did not fail |
+| `failure_cause` | `text` | yes | JSON `{kind, secret_id, secret_problem, secret_item}`: the configuration a refused run needed fixed, recorded by the worker Secret route when it refuses a required grant; the first write wins; `NULL` when no refusal recorded one |
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |

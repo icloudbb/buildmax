@@ -34,6 +34,11 @@ conversation and TaskRun creation, scheduler execution, model response,
 artifact retrieval, and cancelling a run that is executing. It requires no provider key. Inspect failures with
 `./make compose logs`, then stop the stack with `./make compose down`. On
 success it prints a fresh single-use Portal login code for the smoke account.
+The smoke stack also turns Space Secrets on: its server generates a throwaway
+KEK on its data volume the first time it starts, so the browser suite can grant
+and refuse Secrets. The KEK lives and goes with that volume. The plain
+`docker compose up` stack keeps Space Secrets off until you configure
+`secret.kek_file`.
 
 The same flow runs with task-run inference going through the managed gateway
 instead of a provider:
