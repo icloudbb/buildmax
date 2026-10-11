@@ -294,8 +294,10 @@ against an Okta developer tenant has succeeded, and kind exercises the flow
 against a mock provider on every run. Phase 3 remains an R5 qualification slice
 and waits on a pinned, reproducible real-Okta tenant plus the
 per-deployment offboarding, rotation, outage, and break-glass inputs named by
-that record. Native CLI/Desktop OIDC and device authorization are still outside
-the shipped browser flow.
+that record. Native CLI/Desktop sign-in was decided on 2026-10-11. A client
+starts a short-lived sign-in request that the person confirms in Portal,
+shaped after RFC 8628 device authorization, with no loopback redirect. It is
+not built; its tasks are [backlog](backlog/README.md) 60–68.
 
 The local Issue work bridge is decided and shipped at its narrow scope: the
 CLI's `buildmax issue` commands and, while signed in, a Desktop Issues view that
