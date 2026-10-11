@@ -524,10 +524,12 @@ POST   /api/invitations/{id}/accept          authenticated, no code — §5.1 ex
 ### M1. Invite Flow
 
 In space settings member list, replace the current instant "Add member" form
-with "Invite": same email-and-role input, but a failed lookup now shows the
-`ErrInviteeAccountRequired` message in place rather than a bare validation
-error — telling the owner or admin exactly who to ask
-(a `system_admin`) rather than leaving them to guess why nothing happened.
+with "Invite": same email-and-role input, but a failed lookup now explains
+itself in place rather than as a bare validation error — telling the owner or
+admin exactly who to ask (a `system_admin`) rather than leaving them to guess
+why nothing happened. Portal words that for a person from the refusal's stable
+code, `invitee_account_required`, because the server's message names the
+operator's API route and command, which suit an API caller but not a person.
 There is nothing to copy or deliver on success; the row simply moves to a
 pending-invitations section with revoke.
 

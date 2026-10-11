@@ -15,9 +15,6 @@ async function openNewSpace(page: Page, name: string): Promise<Session> {
   const current = await session(page)
   const created = await createSpace(page, current, tagged(name))
   reportLeftovers(current.spaceId, [`space ${created.id} (no delete route)`])
-  // The Space list loads once when the app mounts; one created through the API
-  // is unknown to the running session until it remounts.
-  await page.reload()
   return { ...current, spaceId: created.id, space: `${current.apiBase}/api/spaces/${encodeURIComponent(created.id)}` }
 }
 

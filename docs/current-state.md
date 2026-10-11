@@ -575,7 +575,16 @@ recorded owners are all disabled is recovered by a System Administrator with
 `PUT /api/admin/spaces/{space_id}/owner` (or `buildmax-server space
 recover-owner` for break glass): it promotes an enabled member to owner, refuses
 a personal Space or a still-signable owner, creates no membership, and records
-`space.ownership_recovered`. Signup defaults off;
+`space.ownership_recovered`. In Portal, a pending invitation names its invitee:
+the Space-scoped invitation responses, which only owners and admins read, carry
+the invitee's name and email; the invitee's own invitation list and accept
+response name the Space and the inviter, and nothing else about the Space, so
+Account → Invitations tells pending invitations apart. An invite to an email with no account is refused
+with the stable code `invitee_account_required`, which Portal words for a
+person. Raising a member's role asks for confirmation, and every role change
+says what was saved. Accepting an invitation, or following a link into a Space
+joined since the app loaded, makes that Space current with the role it grants
+there, without a reload. Signup defaults off;
 creating an account does not itself issue a credential. Each login opens a
 durable session (`auth_session`) that the request guard checks every call, so
 logout, administrator revocation, and disablement stop an already-issued access

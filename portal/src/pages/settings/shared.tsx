@@ -18,7 +18,9 @@ import {
   revokeInvitation,
   setMemberRole,
 } from "../../features/spaces/api"
+import { inviteeLabel, raisesAuthority } from "../../features/spaces/members"
 import { setPassword } from "../../features/auth"
+import { ApiRequestError } from "../../lib/api/client"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { navigate } from "../../router"
 import { Alert } from "../../components/state/Alert"
@@ -491,13 +493,6 @@ export function SpaceOverviewSection({
   )
 }
 
-function memberDisplayLabel(invitation: ApiInvitation): string {
-  // The list this backs (GET .../invitations) resolves no email or name --
-  // only the two things a pending offer is defined by. Resolving one would
-  // mean a second round trip this section has no other reason to make.
-  return invitation.user_id
-}
-
 export function SpaceMembersSection({
   spaceId,
   currentSpaceName,
@@ -518,6 +513,7 @@ export function SpaceMembersSection({
   onRevokeInvitation,
   changingRoleUserId,
   roleError,
+  roleSaved,
   onChangeRole,
   onTransferOwnership,
   issuingLoginCodeUserId,
@@ -544,6 +540,7 @@ export function SpaceMembersSection({
   onRevokeInvitation: (invitationId: string) => Promise<void>
   changingRoleUserId: string | null
   roleError: { userId: string; message: string } | null
+  roleSaved: { userId: string; role: string } | null
   onChangeRole: (memberUserId: string, role: string) => Promise<void>
   onTransferOwnership: (memberUserId: string) => Promise<void>
   issuingLoginCodeUserId: string | null
@@ -668,12 +665,19 @@ export function SpaceMembersSection({
                 {roleError?.userId === member.user_id ||
                 loginCodeError?.userId === member.user_id ||
                 removeError?.userId === member.user_id ? (
-                  <p className="settings-section__error" role="alert">
+                  <p className="settings-section__error space-settings-page__member-feedback" role="alert">
                     {roleError?.userId === member.user_id
                       ? roleError.message
                       : loginCodeError?.userId === member.user_id
                         ? loginCodeError.message
                         : removeError?.message}
+                  </p>
+                ) : roleSaved?.userId === member.user_id ? (
+                  <p className="settings-section__muted space-settings-page__member-feedback" role="status">
+                    {t("settings.members.roleSaved", {
+                      name: memberDisplayName(member, t, userId),
+                      role: roleLabel(roleSaved.role, t),
+                    })}
                   </p>
                 ) : null}
               </li>
@@ -707,25 +711,32 @@ export function SpaceMembersSection({
                 <li key={invitation.id} className="space-settings-page__member">
                   <div className="space-settings-page__member-main">
                     <span className="space-settings-page__member-name">
-                      {memberDisplayLabel(invitation)}
+                      {inviteeLabel(invitation)}
                     </span>
+                    {invitation.user_name && invitation.user_email ? (
+                      <span className="space-settings-page__member-meta">{invitation.user_email}</span>
+                    ) : null}
                     <span className="space-settings-page__member-meta">
                       {t("settings.members.invitedAsExpires", {
                         role: roleLabel(invitation.role, t),
                         expires: formatTimestamp(invitation.expires_at),
                       })}
                     </span>
+                    <span className="space-settings-page__member-id">
+                      {t("settings.members.invitationId", { id: invitation.id })}
+                    </span>
                   </div>
                   <div className="space-settings-page__member-actions">
                     <Button
                       variant="danger" size="compact" busy={revokingInvitationId === invitation.id}
+                      aria-label={t("settings.members.revokeFor", { name: inviteeLabel(invitation) })}
                       onClick={() => void onRevokeInvitation(invitation.id)}
                     >
                       {t("settings.members.revoke")}
                     </Button>
                   </div>
                   {revokeError?.invitationId === invitation.id ? (
-                    <p className="settings-section__error" role="alert">
+                    <p className="settings-section__error space-settings-page__member-feedback" role="alert">
                       {revokeError.message}
                     </p>
                   ) : null}
@@ -846,6 +857,7 @@ export function AccountInvitationsSection({
   onRetry,
   acceptingInvitationId,
   acceptError,
+  joinedSpace,
   onAccept,
 }: {
   invitationsState: ResourceState<ApiInvitation[]>
@@ -853,6 +865,7 @@ export function AccountInvitationsSection({
   onRetry: () => void
   acceptingInvitationId: string | null
   acceptError: string | null
+  joinedSpace: { spaceId: string; role: string; name: string | null } | null
   onAccept: (invitationId: string) => Promise<void>
 }) {
   const t = useT()
@@ -880,6 +893,20 @@ export function AccountInvitationsSection({
           {acceptError}
         </p>
       ) : null}
+      {joinedSpace?.name ? (
+        <div className="account-invitations__joined" role="status">
+          <p className="settings-section__muted">
+            {t("account.invitations.joined", { space: joinedSpace.name, role: roleLabel(joinedSpace.role, t) })}
+          </p>
+          <Button
+            variant="secondary"
+            size="compact"
+            onClick={() => navigate({ name: "chat", spaceId: joinedSpace.spaceId })}
+          >
+            {t("account.invitations.open", { space: joinedSpace.name })}
+          </Button>
+        </div>
+      ) : null}
       {invitationsState.kind === "loading" ? (
         <p className="page-activity__empty">{t("settings.members.loadingInvitations")}</p>
       ) : invitationsState.kind === "readyEmpty" ? (
@@ -892,15 +919,24 @@ export function AccountInvitationsSection({
             <li key={invitation.id} className="space-settings-page__member">
               <div className="space-settings-page__member-main">
                 <span className="space-settings-page__member-name">
-                  {t("account.invitations.invitedAs", { role: roleLabel(invitation.role, t) })}
+                  {invitation.space_name ?? invitation.space_id}
                 </span>
                 <span className="space-settings-page__member-meta">
-                  {t("account.invitations.expires", { date: formatTimestamp(invitation.expires_at) })}
+                  {[
+                    invitation.invited_by_name
+                      ? t("account.invitations.invitedBy", { name: invitation.invited_by_name })
+                      : null,
+                    roleLabel(invitation.role, t),
+                    t("account.invitations.expires", { date: formatTimestamp(invitation.expires_at) }),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               </div>
               <div className="space-settings-page__member-actions">
                 <Button
                   variant="primary" size="compact" busy={acceptingInvitationId === invitation.id}
+                  aria-label={t("account.invitations.acceptFor", { space: invitation.space_name ?? invitation.space_id })}
                   onClick={() => void onAccept(invitation.id)}
                 >
                   {t("account.invitations.accept")}
@@ -960,6 +996,8 @@ export function useSettingsData(spaceId?: string) {
 
   const [changingRoleUserId, setChangingRoleUserId] = useState<string | null>(null)
   const [roleError, setRoleError] = useState<{ userId: string; message: string } | null>(null)
+  // The last role change that took effect, shown on that member's row.
+  const [roleSaved, setRoleSaved] = useState<{ userId: string; role: string } | null>(null)
 
   const [issuingLoginCodeUserId, setIssuingLoginCodeUserId] = useState<string | null>(null)
   const [issuedLoginCode, setIssuedLoginCode] = useState<
@@ -973,6 +1011,11 @@ export function useSettingsData(spaceId?: string) {
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null)
   // Distinct from myInvitationsError: the accept-invitation mutation's own error.
   const [acceptInvitationError, setAcceptInvitationError] = useState<string | null>(null)
+  // The Space the last accepted invitation joined, for its success line.
+  const [joined, setJoined] = useState<{ spaceId: string; role: string } | null>(null)
+  const joinedSpace = joined
+    ? { ...joined, name: spaces.find((s) => s.id === joined.spaceId)?.name ?? null }
+    : null
 
   const loadMembers = useCallback(async () => {
     if (!token || !currentSpaceId) {
@@ -1158,7 +1201,13 @@ export function useSettingsData(spaceId?: string) {
       navigate({ name: "space", spaceId: currentSpaceId, section: "members" })
       return true
     } catch (err) {
-      setInviteError(getErrorMessage(err, stableT("settings.error.invite")))
+      // The server's own sentence for this one names admin routes and CLI
+      // commands, which is right for an API caller and wrong for a person.
+      setInviteError(
+        err instanceof ApiRequestError && err.code === "invitee_account_required"
+          ? stableT("settings.invite.noAccount")
+          : getErrorMessage(err, stableT("settings.error.invite")),
+      )
       return false
     } finally {
       setSavingInvite(false)
@@ -1197,8 +1246,10 @@ export function useSettingsData(spaceId?: string) {
     if (!token || !currentSpaceId || changingRoleUserId) return
     setChangingRoleUserId(memberUserId)
     setRoleError(null)
+    setRoleSaved(null)
     try {
       await setMemberRole(currentSpaceId, memberUserId, { role }, token)
+      setRoleSaved({ userId: memberUserId, role })
       await loadMembers()
     } catch (err) {
       setRoleError({ userId: memberUserId, message: getErrorMessage(err, stableT("settings.error.changeRole")) })
@@ -1207,7 +1258,23 @@ export function useSettingsData(spaceId?: string) {
     }
   }
 
+  /**
+   * A role select applies on change, so a slip of the pointer would otherwise
+   * grant authority silently. Raising a role asks first; lowering one does
+   * not, since it takes nothing the owner cannot give back the same way.
+   */
   async function handleChangeRole(memberUserId: string, role: string) {
+    const target = members.find((m) => m.user_id === memberUserId)
+    if (target && raisesAuthority(target.role, role)) {
+      const confirmed = window.confirm(
+        stableT("settings.members.raiseConfirm", {
+          name: memberDisplayName(target, stableT, user?.id),
+          role: roleLabel(role, stableT),
+          space: currentSpaceName,
+        }),
+      )
+      if (!confirmed) return
+    }
     await changeRole(memberUserId, role)
   }
 
@@ -1251,12 +1318,15 @@ export function useSettingsData(spaceId?: string) {
     if (!token || acceptingInvitationId) return
     setAcceptingInvitationId(invitationId)
     setAcceptInvitationError(null)
+    setJoined(null)
     try {
-      await acceptInvitation(invitationId, token)
+      const accepted = await acceptInvitation(invitationId, token)
+      setJoined({ spaceId: accepted.space_id, role: accepted.role })
       await loadMyInvitations()
-      // The accepted space is now in the switcher's list, keeping the
-      // current selection where it was.
-      await refetchSpaces(currentSpaceId)
+      // Accepting is choosing to work there: list the Spaces again and make
+      // the joined one current, so the shell names it and reads its role
+      // from its own roster rather than the previous Space's.
+      await refetchSpaces(accepted.space_id)
     } catch (err) {
       setAcceptInvitationError(getErrorMessage(err, stableT("settings.error.acceptInvitation")))
     } finally {
@@ -1290,6 +1360,7 @@ export function useSettingsData(spaceId?: string) {
     revokeError,
     changingRoleUserId,
     roleError,
+    roleSaved,
     issuingLoginCodeUserId,
     issuedLoginCode,
     loginCodeError,
@@ -1300,6 +1371,7 @@ export function useSettingsData(spaceId?: string) {
     myInvitationsError,
     acceptInvitationError,
     acceptingInvitationId,
+    joinedSpace,
     currentUserMember,
     currentUserIsOwner,
     currentUserIsOwnerState,

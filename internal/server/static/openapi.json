@@ -410,7 +410,14 @@
           "complete": { "type": "boolean", "description": "False means the run wrote no terminal record — do not read as success" }
         }
       },
-      "Error": {"type": "object", "properties": {"error": {"type": "string"}}, "required": ["error"]},
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {"type": "string"},
+          "code": {"type": "string", "description": "Stable code for a refusal a client must tell apart from others with the same status, such as invitee_account_required. Absent on most refusals; the message may change, the code does not."}
+        },
+        "required": ["error"]
+      },
       "Space": {
         "type": "object",
         "properties": {
@@ -529,9 +536,13 @@
         "properties": {
           "id": {"type": "string"},
           "space_id": {"type": "string"},
+          "space_name": {"type": "string", "description": "The Space's name. Set only on the invitee's routes (GET /api/invitations and accept), which name the Space and the inviter and nothing else about it."},
           "user_id": {"type": "string"},
+          "user_name": {"type": "string", "description": "The invitee's display name. Set only on the Space-scoped routes, whose owner or admin caller needs to tell pending invitations apart."},
+          "user_email": {"type": "string", "description": "The invitee's email. Set only on the Space-scoped routes, like user_name."},
           "role": {"type": "string"},
           "invited_by": {"type": "string"},
+          "invited_by_name": {"type": "string", "description": "The inviter's name, or their email when they set none. Set only on the invitee's routes, like space_name."},
           "expires_at": {"type": "string", "format": "date-time"},
           "created_at": {"type": "string", "format": "date-time"}
         },
@@ -1876,7 +1887,7 @@
     "/api/invitations": {
       "get": {
         "summary": "List the caller's own pending invitations, across every space",
-        "description": "Not space-scoped: it answers what is pending for the signed-in caller. See docs/design/space-membership-lifecycle.md.",
+        "description": "Not space-scoped: it answers what is pending for the signed-in caller. Each names its Space and inviter (space_name, invited_by_name) and nothing else about the Space. See docs/design/space-membership-lifecycle.md.",
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
@@ -4129,7 +4140,7 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Invitation"}}}
           },
           "400": {
-            "description": "Invalid email or role, or no account exists for this email",
+            "description": "Invalid email or role, or no account exists for this email (code invitee_account_required)",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "403": {

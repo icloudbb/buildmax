@@ -52,6 +52,7 @@ export function SpaceSettings({
     revokeError,
     changingRoleUserId,
     roleError,
+    roleSaved,
     issuingLoginCodeUserId,
     issuedLoginCode,
     loginCodeError,
@@ -230,6 +231,7 @@ export function SpaceSettings({
             onRevokeInvitation={handleRevokeInvitation}
             changingRoleUserId={changingRoleUserId}
             roleError={roleError}
+            roleSaved={roleSaved}
             onChangeRole={handleChangeRole}
             onTransferOwnership={handleTransferOwnership}
             issuingLoginCodeUserId={issuingLoginCodeUserId}

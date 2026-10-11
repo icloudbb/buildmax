@@ -129,9 +129,22 @@
   gap: 0.75rem;
 }
 
+.account-invitations__joined {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
 @media (max-width: 640px) {
+  /* Wrap rather than scroll: a scrolling pill hid five of the eight Space
+     tabs at 390px with nothing to say they were there. */
   .settings-page__tabs {
     width: 100%;
+    flex-wrap: wrap;
+    border-radius: 1.25rem;
+    overflow-x: visible;
   }
 
   .settings-page__section-head {

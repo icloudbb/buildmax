@@ -33,8 +33,10 @@ var (
 
 	// ErrInviteeAccountRequired refuses an invitation to an email with no
 	// account. Creating one is system_admin's job, never a space-scoped call's
-	// -- see docs/design/space-membership-lifecycle.md §1.
-	ErrInviteeAccountRequired = apierr.New(apierr.KindInvalid,
+	// -- see docs/design/space-membership-lifecycle.md §1. The message names
+	// the operator's tools for API callers; the code lets Portal say the same
+	// thing to a person without them.
+	ErrInviteeAccountRequired = apierr.NewCoded(apierr.KindInvalid, InviteeAccountRequiredCode,
 		"no account exists for this email; ask a system administrator to create one "+
 			"(POST /api/admin/users or buildmax-server user create), then invite it")
 	// ErrOnlyOwnerOrAdminCanInvite covers creating, listing, and revoking
@@ -127,9 +129,31 @@ func (s *Service) now() time.Time {
 
 // Member pairs a membership with the account behind it. User is nil when the
 // deployment has no user store to resolve it against.
+// InviteeAccountRequiredCode is ErrInviteeAccountRequired's stable code on
+// the wire.
+const InviteeAccountRequiredCode = "invitee_account_required"
+
 type Member struct {
 	Membership corespace.Member
 	User       *coreidentity.User
+}
+
+// PendingInvitation is an invitation with the account it names, so whoever
+// manages the Space can tell pending rows apart. User is nil when the account
+// no longer resolves.
+type PendingInvitation struct {
+	Invitation corespace.Invitation
+	User       *coreidentity.User
+}
+
+// ReceivedInvitation is an invitation as its invitee reads it: the Space's
+// name and the inviter's name, which the invitation already offers them, and
+// nothing else about a Space they have not joined. Either is empty when it no
+// longer resolves.
+type ReceivedInvitation struct {
+	Invitation  corespace.Invitation
+	SpaceName   string
+	InviterName string
 }
 
 type InviteMemberCmd struct {
@@ -290,7 +314,11 @@ func (s *Service) InviteMember(ctx context.Context, cmd InviteMemberCmd) (*cores
 
 // ListSpaceInvitations returns a space's pending invitations. Reading who has
 // been invited is the same authority as sending or revoking one.
-func (s *Service) ListSpaceInvitations(ctx context.Context, spaceID, actorID string) ([]corespace.Invitation, error) {
+//
+// Each invitation carries the invitee's account. The inviter typed that email
+// to send it, so naming it back discloses nothing the same authority could not
+// learn by inviting.
+func (s *Service) ListSpaceInvitations(ctx context.Context, spaceID, actorID string) ([]PendingInvitation, error) {
 	if s.Spaces == nil {
 		return nil, ErrSpacesNotConfigured
 	}
@@ -301,16 +329,71 @@ func (s *Service) ListSpaceInvitations(ctx context.Context, spaceID, actorID str
 	if !allows(members, actorID, corespace.ActionInviteSpaceMember) {
 		return nil, ErrOnlyOwnerOrAdminCanInvite
 	}
-	return s.Spaces.ListPendingInvitationsBySpace(ctx, spaceID, s.now())
+	invitations, err := s.Spaces.ListPendingInvitationsBySpace(ctx, spaceID, s.now())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PendingInvitation, len(invitations))
+	for i := range invitations {
+		out[i] = PendingInvitation{Invitation: invitations[i]}
+		if s.Users == nil {
+			continue
+		}
+		user, err := s.Users.GetUser(ctx, invitations[i].UserID)
+		if err != nil {
+			return nil, err
+		}
+		out[i].User = user
+	}
+	return out, nil
 }
 
 // ListMyInvitations answers GET /api/invitations: what is pending for the
 // signed-in caller, across every space.
-func (s *Service) ListMyInvitations(ctx context.Context, userID string) ([]corespace.Invitation, error) {
+func (s *Service) ListMyInvitations(ctx context.Context, userID string) ([]ReceivedInvitation, error) {
 	if s.Spaces == nil {
 		return nil, ErrSpacesNotConfigured
 	}
-	return s.Spaces.ListPendingInvitationsByUser(ctx, userID, s.now())
+	invitations, err := s.Spaces.ListPendingInvitationsByUser(ctx, userID, s.now())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ReceivedInvitation, len(invitations))
+	for i := range invitations {
+		if out[i], err = s.received(ctx, invitations[i]); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// received names an invitation's Space and inviter for its invitee. The
+// invitee is not a member yet, so nothing else about the Space is read.
+func (s *Service) received(ctx context.Context, inv corespace.Invitation) (ReceivedInvitation, error) {
+	out := ReceivedInvitation{Invitation: inv}
+	space, err := s.Spaces.GetSpace(ctx, inv.SpaceID)
+	if err != nil {
+		return out, err
+	}
+	if space != nil {
+		out.SpaceName = space.Name
+	}
+	if s.Users == nil {
+		return out, nil
+	}
+	inviter, err := s.Users.GetUser(ctx, inv.InvitedBy)
+	if err != nil {
+		return out, err
+	}
+	if inviter != nil {
+		// Portal names a member the same way: their name, or their email when
+		// they set none.
+		out.InviterName = inviter.Name
+		if out.InviterName == "" {
+			out.InviterName = inviter.Email
+		}
+	}
+	return out, nil
 }
 
 // RevokeInvitation withdraws a pending invitation before it is accepted.
@@ -352,7 +435,7 @@ func (s *Service) RevokeInvitation(ctx context.Context, cmd RevokeInvitationCmd)
 // It takes no code: the caller already reached a session on their own, so
 // this is authorized by "this is my own pending row," not by proving
 // anything a second time. See docs/design/space-membership-lifecycle.md §5.1.
-func (s *Service) AcceptInvitation(ctx context.Context, cmd AcceptInvitationCmd) (*corespace.Invitation, error) {
+func (s *Service) AcceptInvitation(ctx context.Context, cmd AcceptInvitationCmd) (*ReceivedInvitation, error) {
 	if s.Spaces == nil {
 		return nil, ErrSpacesNotConfigured
 	}
@@ -379,7 +462,13 @@ func (s *Service) AcceptInvitation(ctx context.Context, cmd AcceptInvitationCmd)
 	if accepted == nil {
 		return nil, ErrInvitationNotPending
 	}
-	return accepted, nil
+	// The membership is already granted; failing to name it must not report
+	// the acceptance as failed.
+	out, err := s.received(ctx, *accepted)
+	if err != nil {
+		out = ReceivedInvitation{Invitation: *accepted}
+	}
+	return &out, nil
 }
 
 func (s *Service) RemoveMember(ctx context.Context, cmd RemoveMemberCmd) error {

@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -17,6 +18,7 @@ import {
 } from "../lib/storage/currentSpaceStorage"
 import { classifyError, deriveResourceState, type RequestError, type ResourceState } from "../state/resourceState"
 import { derivePermissionState, type PermissionState } from "../state/permissionState"
+import { currentMembership, planSpaceSelection, type MembershipLookup } from "../state/spaceSelection"
 import { useAuth } from "./AuthContext"
 import { useStableT } from "../i18n"
 
@@ -70,18 +72,21 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
   // account genuinely has no Spaces. See deriveResourceState.
   const [spacesData, setSpacesData] = useState<SpaceSummary[] | null>(null)
   const [currentSpaceId, setCurrentSpaceIdState] = useState<string | null>(getStoredCurrentSpaceId)
-  const [currentSpaceMembers, setCurrentSpaceMembers] = useState<ApiSpaceMember[]>([])
+  // Tagged with the Space it was fetched for, so a switch never reads the
+  // previous Space's role while the new roster loads.
+  const [membership, setMembership] = useState<MembershipLookup<ApiSpaceMember> | null>(null)
   const [loading, setLoading] = useState(false)
   const [spacesError, setSpacesError] = useState<RequestError | null>(null)
-  const [roleLoading, setRoleLoading] = useState(false)
-  const [roleError, setRoleError] = useState<RequestError | null>(null)
+  // The Space last listed again because the list lacked it; see
+  // planSpaceSelection.
+  const relistedFor = useRef<string | null>(null)
 
   const refetchSpaces = useCallback(async (preferredSpaceId?: string | null) => {
     if (!token) {
       setSpacesData(null)
       setSpacesError(null)
       setCurrentSpaceIdState(null)
-      setCurrentSpaceMembers([])
+      setMembership(null)
       clearStoredCurrentSpaceId()
       return
     }
@@ -124,25 +129,32 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!token || !currentSpaceId) {
-      setCurrentSpaceMembers([])
-      setRoleError(null)
-      setRoleLoading(false)
+      setMembership(null)
       return
     }
+    const spaceId = currentSpaceId
     let cancelled = false
-    setRoleLoading(true)
-    setRoleError(null)
-    getSpaceMembers(currentSpaceId, token)
+    // A refresh of the same Space keeps its roster while it reloads.
+    setMembership((prev) => ({
+      spaceId,
+      members: prev?.spaceId === spaceId ? prev.members : null,
+      loading: true,
+      error: null,
+    }))
+    getSpaceMembers(spaceId, token)
       .then((members) => {
-        if (!cancelled) setCurrentSpaceMembers(members)
+        if (!cancelled) setMembership({ spaceId, members, loading: false, error: null })
       })
       .catch((err) => {
-        // Members (and so currentUserRole) are left as-is on failure: a lookup
-        // failure must not read the same as "confirmed not a member".
-        if (!cancelled) setRoleError(classifyError(err, stableT("common.space.membershipFailed")))
-      })
-      .finally(() => {
-        if (!cancelled) setRoleLoading(false)
+        // A lookup failure must not read the same as "confirmed not a member".
+        if (cancelled) return
+        const error = classifyError(err, stableT("common.space.membershipFailed"))
+        setMembership((prev) => ({
+          spaceId,
+          members: prev?.spaceId === spaceId ? prev.members : null,
+          loading: false,
+          error,
+        }))
       })
     return () => {
       cancelled = true
@@ -151,19 +163,42 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
 
   const spaces = spacesData ?? EMPTY_SPACES
 
+  // The URL is authoritative for Space context, so a Space the list does not
+  // hold yet -- joined or created since it loaded -- is adopted at once, its
+  // role read from its own roster, and the list fetched again to name it. If
+  // the fresh list still lacks it, refetchSpaces falls back to the stored
+  // selection, which the adoption deliberately did not overwrite.
   const setCurrentSpaceId = useCallback(
     (spaceId: string) => {
-      if (!spaces.some((space) => space.id === spaceId)) return
-      setCurrentSpaceIdState(spaceId)
-      setStoredCurrentSpaceId(spaceId)
+      const known = spacesData ? spacesData.map((space) => space.id) : null
+      switch (planSpaceSelection(known, spaceId, relistedFor.current)) {
+        case "select":
+          relistedFor.current = null
+          setCurrentSpaceIdState(spaceId)
+          setStoredCurrentSpaceId(spaceId)
+          return
+        case "relist":
+          relistedFor.current = spaceId
+          setCurrentSpaceIdState(spaceId)
+          void refetchSpaces(spaceId)
+          return
+        case "ignore":
+          return
+      }
     },
-    [spaces]
+    [spacesData, refetchSpaces]
   )
 
   const currentSpace = useMemo(
     () => spaces.find((space) => space.id === currentSpaceId) ?? null,
     [spaces, currentSpaceId]
   )
+
+  const {
+    members: currentSpaceMembers,
+    loading: roleLoading,
+    error: roleError,
+  } = useMemo(() => currentMembership(membership, token ? currentSpaceId : null), [membership, token, currentSpaceId])
 
   const currentUserRole = useMemo(
     () => currentSpaceMembers.find((member) => member.user_id === user?.id)?.role ?? null,

@@ -61,8 +61,13 @@ export const settingsMessages = {
     "settings.members.noInvitations": "No pending invitations.",
     "settings.members.invitedAsExpires": "Invited as {role}, expires {expires}",
     "settings.members.revoke": "Revoke",
+    "settings.members.revokeFor": "Revoke the invitation for {name}",
+    "settings.members.invitationId": "Invitation {id}",
     "settings.members.transferConfirm":
       "Make {name} the owner of {space}?\n\nThis takes effect immediately, without their confirmation. You become an admin. You can transfer ownership back the same way.",
+    "settings.members.raiseConfirm":
+      "Change {name}'s role in {space} to {role}?\n\nThis gives them more authority, immediately.",
+    "settings.members.roleSaved": "Saved. {name} is now {role}.",
 
     "settings.invite.title": "Invite",
     "settings.invite.copy":
@@ -71,6 +76,7 @@ export const settingsMessages = {
     "settings.invite.role": "Role",
     "settings.invite.cancel": "Cancel",
     "settings.invite.send": "Send Invite",
+    "settings.invite.noAccount": "No account uses this email. Ask a system administrator to create one, then invite it.",
 
     "settings.error.loadMembers": "Failed to load space members",
     "settings.error.loadSpaceUsage": "Failed to load space usage",
@@ -237,8 +243,12 @@ export const settingsMessages = {
     "settings.members.noInvitations": "没有待接受的邀请。",
     "settings.members.invitedAsExpires": "以{role}身份受邀，{expires} 过期",
     "settings.members.revoke": "撤销",
+    "settings.members.revokeFor": "撤销对 {name} 的邀请",
+    "settings.members.invitationId": "邀请 {id}",
     "settings.members.transferConfirm":
       "将 {name} 设为 {space} 的所有者？\n\n此操作立即生效，无需对方确认。你将成为管理员。之后可用同样方式转回所有权。",
+    "settings.members.raiseConfirm": "将 {name} 在 {space} 中的角色改为{role}？\n\n这会立即授予对方更多权限。",
+    "settings.members.roleSaved": "已保存。{name} 现在是{role}。",
 
     "settings.invite.title": "邀请",
     "settings.invite.copy":
@@ -247,6 +257,7 @@ export const settingsMessages = {
     "settings.invite.role": "角色",
     "settings.invite.cancel": "取消",
     "settings.invite.send": "发送邀请",
+    "settings.invite.noAccount": "没有账户使用此邮箱。请让系统管理员先创建账户，然后再邀请。",
 
     "settings.error.loadMembers": "无法加载 Space 成员",
     "settings.error.loadSpaceUsage": "无法加载 Space 用量",

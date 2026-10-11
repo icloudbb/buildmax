@@ -128,7 +128,8 @@ internal/
 ├── core/               纯领域层——不导入 infra
 │   ├── appconnect/     connector.yaml 的格式与固定操作校验
 │   ├── apierr/         一个 service 为什么拒绝：一个 Kind，传输层据此映射出
-│   │                   一个状态码，加上 ErrNotFound——调用者指名的行或
+│   │                   一个状态码；一个可选的稳定错误码，由客户端自行措辞；
+│   │                   加上 ErrNotFound——调用者指名的行或
 │   │                   对象不存在时，一个 store 会怎么说
 │   ├── llm/            LLM 契约（Message、ToolDef、ToolCall、Usage、LLMClient）、
 │   │                   Tool 契约、ToolRegistry，以及工具策略

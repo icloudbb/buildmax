@@ -65,7 +65,14 @@ Open **Space** from the user menu (owners and admins can change these):
   Text you put here is sent to *every* background agent run in the space, before
   the selected agent's own instructions. Keep it short, and never put passwords,
   API keys, or other secrets in it, because it is sent with every model call.
-- **Members** — invite and manage people and their roles.
+- **Members** — invite and manage people and their roles. You invite by email,
+  and the address must already have a BuildMax account; when none does, ask a
+  system administrator to create one, then invite it. Each pending invitation
+  shows whom it is for, with **Revoke**. Only the owner changes roles: raising
+  someone to Admin asks you to confirm first, and every change says what was
+  saved. Invitations you receive are under your account's **Invitations**,
+  each naming the space, who invited you, the role, and when it expires; when
+  you accept one, the space you joined becomes your current space.
 - **Sandbox defaults** — the default confinement for `Bash` in this space's runs.
   See [Sandbox](sandbox.md).
 - **Secrets** — values runs can use, managed by the owner.

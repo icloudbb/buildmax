@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { getApiBase } from "./client"
+import { getApiBase, parseErrorBody, throwIfNotOk, ApiRequestError } from "./client"
 
 // The published image ships one bundle for every deployment, so this precedence
 // is what makes the image usable at all. A regression here is invisible in dev
@@ -41,5 +41,28 @@ describe("getApiBase", () => {
   it('turns "/" into a same-origin base, for a reverse proxy in front of both', () => {
     vi.stubGlobal("window", { __BUILDMAX_CONFIG__: { apiBase: "/" } })
     expect(getApiBase()).toBe("")
+  })
+})
+
+// A coded refusal is worded by Portal from its code, so the code has to reach
+// the thrown error; the message stays the server's for every other caller.
+describe("error bodies", () => {
+  it("reads the message and, when present, the code", () => {
+    expect(parseErrorBody('{"error":"no account","code":"invitee_account_required"}', "x")).toEqual({
+      message: "no account",
+      code: "invitee_account_required",
+    })
+    expect(parseErrorBody('{"error":"nope"}', "x")).toEqual({ message: "nope", code: undefined })
+    expect(parseErrorBody("plain text", "x")).toEqual({ message: "plain text" })
+    expect(parseErrorBody("", "fallback")).toEqual({ message: "fallback" })
+  })
+
+  it("throws an ApiRequestError carrying status and code", async () => {
+    const res = new Response('{"error":"no account","code":"invitee_account_required"}', { status: 400 })
+    const err = await throwIfNotOk(res).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ApiRequestError)
+    expect((err as ApiRequestError).status).toBe(400)
+    expect((err as ApiRequestError).code).toBe("invitee_account_required")
+    expect((err as ApiRequestError).message).toBe("no account")
   })
 })

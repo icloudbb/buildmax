@@ -1519,7 +1519,13 @@ export interface ApiAssistant {
 export interface ApiInvitation {
   id: string
   space_id: string
+  /** The Space's name and the inviter's, on the invitee's own routes only. */
+  space_name?: string
+  invited_by_name?: string
   user_id: string
+  /** The invitee's name and email, on the Space-scoped routes only. */
+  user_name?: string
+  user_email?: string
   role: string
   invited_by: string
   expires_at: string

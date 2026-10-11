@@ -75,11 +75,10 @@ test("the space members section names the signed-in account", async ({ page }) =
 
 test("a space owner creates and disables a service account", async ({ page }) => {
   // A service account belongs to a team space, never a personal one, so the
-  // spec makes its own. The page is reloaded so the switcher knows the Space.
+  // spec makes its own. Navigating to it is enough for the app to list it.
   const current = await session(page)
   const team = await createSpace(page, current, tagged("Service account probe"))
   reportLeftovers(team.id, [`space ${team.id}`])
-  await page.reload()
   await page.goto(`/#/spaces/${team.id}/settings/service-accounts`)
 
   const section = page.getByRole("region", { name: "Service accounts" })

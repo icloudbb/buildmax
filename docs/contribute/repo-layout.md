@@ -132,7 +132,8 @@ internal/
 ├── core/               Pure domain layer — no infra imports
 │   ├── appconnect/     Validated connector.yaml shape and fixed operation rules
 │   ├── apierr/         Why a service refused: a Kind a transport maps to a
-│   │                   status, plus ErrNotFound, what a store says when the
+│   │                   status, an optional stable code a client words itself,
+│   │                   plus ErrNotFound, what a store says when the
 │   │                   row or object a caller named is not there
 │   ├── llm/            LLM contracts (Message, ToolDef, ToolCall, Usage, LLMClient),
 │   │                   the Tool contract, ToolRegistry, and tool policy

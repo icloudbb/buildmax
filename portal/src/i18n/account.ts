@@ -92,9 +92,12 @@ export const accountMessages = {
     "account.invitations.title": "Invitations",
     "account.invitations.copy":
       "Spaces that have invited you. Accepting joins the space immediately; a pending invitation you ignore simply expires.",
-    "account.invitations.invitedAs": "Invited as {role}",
-    "account.invitations.expires": "Expires {date}",
+    "account.invitations.invitedBy": "invited by {name}",
+    "account.invitations.expires": "expires {date}",
     "account.invitations.accept": "Accept",
+    "account.invitations.acceptFor": "Accept the invitation to {space}",
+    "account.invitations.joined": "You joined {space} as {role}. It is now your current Space.",
+    "account.invitations.open": "Open {space}",
   },
   "zh-CN": {
     "account.title": "账户",
@@ -181,8 +184,11 @@ export const accountMessages = {
 
     "account.invitations.title": "邀请",
     "account.invitations.copy": "邀请你加入的 Space。接受后立即加入；忽略的邀请会自动过期。",
-    "account.invitations.invitedAs": "以{role}身份受邀",
+    "account.invitations.invitedBy": "由 {name} 邀请",
     "account.invitations.expires": "{date} 过期",
     "account.invitations.accept": "接受",
+    "account.invitations.acceptFor": "接受加入 {space} 的邀请",
+    "account.invitations.joined": "你已以{role}身份加入 {space}，它现在是你的当前 Space。",
+    "account.invitations.open": "打开 {space}",
   },
 } satisfies Messages<string>

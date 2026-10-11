@@ -348,7 +348,14 @@ Server 自有的小时级清理会删除结束时间早于截止点的 Run 轨�
 被停用时,由 System Administrator 通过 `PUT /api/admin/spaces/{space_id}/owner`
 (或 break-glass 命令 `buildmax-server space recover-owner`)恢复:把一名已启用成员
 提升为 owner,拒绝个人 Space 或仍能登录的 owner,不创建成员资格,并记录
-`space.ownership_recovered`。注册默认关闭；创建账号本身不发放凭证。
+`space.ownership_recovered`。在 Portal 中,待接受的邀请会注明邀请对象:只有 owner
+和 admin 能读取的 Space 级邀请响应带有被邀请人的姓名和邮箱;被邀请人自己的邀请
+列表和接受响应会注明 Space 名称和邀请人,但不包含该 Space 的其他信息,因此账户的
+邀请页能区分多条待接受的邀请。邀请一个没有账号的邮箱
+会被拒绝,并带有稳定错误码 `invitee_account_required`,Portal 据此给出面向用户的
+说明。提升成员角色前会先请求确认,每次角色变更后都会说明保存了什么。接受邀请,或打开
+指向应用加载后才加入的 Space 的链接,都会让该 Space 成为当前 Space,并使用该 Space
+授予的角色,无需重新加载。注册默认关闭；创建账号本身不发放凭证。
 每次登录都会开启一个持久 Session（`auth_session`），请求守卫在每次调用时都会检查它，
 因此登出、管理员撤销和禁用会让已签发的访问令牌在下一次请求立即停止；Session 还带有一个
 绝对寿命。禁用账户由 `internal/service/accountlifecycle` 编排:提交账户闸门、撤销 Session、

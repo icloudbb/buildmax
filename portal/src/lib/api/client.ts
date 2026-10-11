@@ -164,15 +164,19 @@ export async function apiFetch(url: string, init?: RequestInit): Promise<Respons
   return retried
 }
 
+/** An error body: the server's `error` sentence and, on a few refusals, a stable `code`. */
+export function parseErrorBody(text: string, defaultMessage: string): { message: string; code?: string } {
+  try {
+    const j = JSON.parse(text) as { error?: string; code?: string }
+    return { message: j.error ?? (text || defaultMessage), code: typeof j.code === "string" ? j.code : undefined }
+  } catch {
+    return { message: text || defaultMessage }
+  }
+}
+
 /** Parse response body to an error message. Uses JSON .error if present, else body text or default. */
 export async function parseErrorResponse(res: Response, defaultMessage: string): Promise<string> {
-  const text = await res.text()
-  try {
-    const j = JSON.parse(text) as { error?: string }
-    return j.error ?? (text || defaultMessage)
-  } catch {
-    return text || defaultMessage
-  }
+  return parseErrorBody(await res.text(), defaultMessage).message
 }
 
 /**
@@ -180,23 +184,26 @@ export async function parseErrorResponse(res: Response, defaultMessage: string):
  *
  * Still an Error, so every existing `getErrorMessage(err, ...)` caller is
  * unaffected; the status is there for the few cases where the response code
- * changes what the UI should do rather than only what it says.
+ * changes what the UI should do rather than only what it says. `code` is the
+ * server's stable code for a refusal Portal words itself, when it sent one.
  */
 export class ApiRequestError extends Error {
   readonly status: number
+  readonly code?: string
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message)
     this.name = "ApiRequestError"
     this.status = status
+    this.code = code
   }
 }
 
 /** If res is not ok, read body, parse error message, and throw. Call after checkUnauthorized. */
 export async function throwIfNotOk(res: Response): Promise<void> {
   if (res.ok) return
-  const msg = await parseErrorResponse(res, res.statusText)
-  throw new ApiRequestError(msg, res.status)
+  const { message, code } = parseErrorBody(await res.text(), res.statusText)
+  throw new ApiRequestError(message, res.status, code)
 }
 
 /** Fetch URL, refresh and retry on 401, throw if not ok, return JSON. Use for standard API calls. */
