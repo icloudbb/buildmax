@@ -543,9 +543,6 @@ func (s *Store) RecordTaskRunSandboxTiers(ctx context.Context, taskRunID string,
 		}).Error
 }
 
-// decodePluginPins reads the column. A document that will not decode costs the
-// record of what a run had, not the run: the pins it actually used were sent to
-// it at claim time.
 // RecordTaskRunFailureCause stores what a refused run needed fixed.
 //
 // The `failure_cause IS NULL` guard makes the first write win: the cause that
@@ -577,6 +574,9 @@ func decodeFailureCause(raw *string) *coretask.FailureCause {
 	return &out
 }
 
+// decodePluginPins reads the column. A document that will not decode costs the
+// record of what a run had, not the run: the pins it actually used were sent to
+// it at claim time.
 func decodePluginPins(raw string) []coreplugin.Pin {
 	if raw == "" {
 		return nil
