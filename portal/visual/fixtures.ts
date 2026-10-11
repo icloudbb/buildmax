@@ -147,6 +147,14 @@ const usage = { run_count: 42, total_tokens: 1_284_000, tier: "standard", period
 
 export const fixtures: Fixtures = {
   "POST /api/auth/portal/session": { access_token: "visual-token", expires_in: 3600, user: USER },
+  // A CLI waiting at the sign-in confirmation page, started four minutes ago.
+  "GET /api/auth/native-sign-ins": {
+    platform: "cli",
+    client_label: "ada-mbp · macOS",
+    created_at: "2026-03-04T15:26:00Z",
+    expires_at: "2026-03-04T15:36:00Z",
+    session_expires_at: "2026-03-05T03:30:00Z",
+  },
   "GET /api/admin/me": { user_id: USER.id, roles: [], grants: [] },
   "GET /api/spaces": [{ id: SPACE, name: "Analytical Engine", created_at: "2026-01-12T09:00:00Z" }],
   "GET /api/invitations": [],

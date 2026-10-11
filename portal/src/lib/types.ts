@@ -107,6 +107,10 @@ export type Route =
   | { name: "remoteControl" }
   | { name: "remoteControlSession"; sessionId: string }
   | { name: "help"; slug?: string }
+  // Confirming a CLI or Desktop sign-in. Account-scoped and rendered before the
+  // Space gate, so an account with no usable Space can still confirm. `code` is
+  // the one the client's link carries; without it the page asks for one.
+  | { name: "signIn"; code?: string }
   // An unrecognized hash, or a route name AppRouter has no case for -- never
   // silently falls through to Chat (docs/design/portal-navigation-and-space-context.md).
   | { name: "notFound" }

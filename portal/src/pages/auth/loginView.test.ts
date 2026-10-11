@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { translate, type MessageKey } from "../../i18n"
-import { signInOptions, ssoErrorMessage } from "./loginView"
+import { signInOptions, ssoErrorMessage, ssoStartURL } from "./loginView"
 
 const t = (key: MessageKey) => translate("en", key)
 
@@ -46,5 +46,20 @@ describe("ssoErrorMessage", () => {
   it("is null for no code or an unknown one, so the page shows no error", () => {
     expect(ssoErrorMessage(null, t)).toBeNull()
     expect(ssoErrorMessage("something-else", t)).toBeNull()
+  })
+})
+
+describe("ssoStartURL", () => {
+  it("carries the page being signed in for, so SSO returns to it", () => {
+    expect(ssoStartURL("", "#/sign-in/WDJB-MJHT")).toBe("/api/auth/oidc/start?return_to=%23%2Fsign-in%2FWDJB-MJHT")
+    expect(ssoStartURL("https://api.example", "#/sign-in")).toBe(
+      "https://api.example/api/auth/oidc/start?return_to=%23%2Fsign-in"
+    )
+  })
+
+  it("carries nothing from the bare root or a non-route hash", () => {
+    expect(ssoStartURL("", "")).toBe("/api/auth/oidc/start")
+    expect(ssoStartURL("", "#/")).toBe("/api/auth/oidc/start")
+    expect(ssoStartURL("", "#section")).toBe("/api/auth/oidc/start")
   })
 })

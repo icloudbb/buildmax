@@ -24,6 +24,8 @@ const widths = [
 interface View {
   name: string
   path: string
+  /** The interface language, when the view is about its wording too. */
+  locale?: "en" | "zh-CN"
   /** What is on screen only once the page has its data. */
   ready: (page: Page) => Promise<void>
 }
@@ -79,6 +81,26 @@ const views: View[] = [
       await expect(page.getByText("1,284,000")).toBeVisible()
     },
   },
+  // Confirming a CLI sign-in, in both languages: the unverified-label marker
+  // and the warning are the page's defense, so their wording is reviewed too.
+  {
+    name: "sign-in",
+    path: "/#/sign-in/WDJB-MJHT",
+    locale: "en",
+    ready: async (page) => {
+      await expect(page.getByText("Reported by the client, not verified")).toBeVisible()
+      await expect(page.getByRole("button", { name: "Confirm sign-in" })).toBeVisible()
+    },
+  },
+  {
+    name: "sign-in-zh",
+    path: "/#/sign-in/WDJB-MJHT",
+    locale: "zh-CN",
+    ready: async (page) => {
+      await expect(page.getByText("由客户端自行报告，未经验证")).toBeVisible()
+      await expect(page.getByRole("button", { name: "确认登录" })).toBeVisible()
+    },
+  },
 ]
 
 for (const theme of themes) {
@@ -89,6 +111,9 @@ for (const theme of themes) {
       for (const view of views) {
         test(view.name, async ({ page }) => {
           const unanswered = await serve(page, theme, fixtures)
+          if (view.locale) {
+            await page.addInitScript((locale) => localStorage.setItem("buildmax_locale", locale), view.locale)
+          }
           await page.goto(`${ORIGIN}${view.path}`)
           await view.ready(page)
           await settle(page)
