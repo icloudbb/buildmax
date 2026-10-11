@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/enterprise-identity-and-access.md#14-cli-and-desktop-sign-in
 depends_on: []
 verification: ["./make test", "./make test mysql", "./make kind smoke", "./make check docs"]
-claim:
+claim: gougoujiang 2026-10-11
 pr:
 ---
 
