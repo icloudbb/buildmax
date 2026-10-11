@@ -45,8 +45,8 @@ message, "This code is not valid any more"; start the sign-in again from the
 client. If less than an hour of your Portal session is left, the page offers
 **Sign in again** first, so the client gets a full-length session.
 
-The CLI and Desktop do not use this page yet: `buildmax login` still signs in
-with a password or login code.
+`buildmax login` and the Desktop sign-in page bring you here; see
+[Models & modes](models-and-modes.md#managed-mode).
 
 ## The layout
 

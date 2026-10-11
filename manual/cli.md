@@ -16,7 +16,7 @@ buildmax <command> [flags]
 | `buildmax init` | Write a starter `settings.yaml` under `BUILDMAX_HOME` |
 | `buildmax doctor` | Check local setup before the first run |
 | `buildmax version` | Print the version |
-| `buildmax login` | Log in to a BuildMax server and store credentials |
+| `buildmax login` | Sign in to a BuildMax server by confirming in Portal, or with `--password`, and store the login; see [`buildmax login`](#buildmax-login) |
 | `buildmax logout` | Clear stored credentials |
 | `buildmax me` | Show current login status, checked against the deployment |
 | `buildmax models` | List the models the current mode uses and their prompt destination; `--local` also lists what a local Ollama daemon holds |
@@ -169,6 +169,29 @@ The file is written with mode `600` because it holds an API key. Without
 is already pulled and reads that model's context window; when it is not, the
 file is still written and the output names what to start and what to pull. See
 [Models & modes](models-and-modes.md).
+
+### `buildmax login`
+
+`buildmax login` asks for the server URL, then signs in through a request you
+confirm in Portal. That works for every account the deployment admits,
+including single sign-on, and no password passes through the terminal. The
+command prints the Portal page and a code, opens the browser at the page with
+the code filled in, and waits. Confirm in Portal after checking that the codes
+match; the command then saves the login and names the account and server.
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--no-browser` | off | Print the page and code without opening a browser |
+| `--password` | off | Ask for an email and a password or login code instead, against `POST /api/auth/login` |
+
+No browser opens when `SSH_CONNECTION` or `SSH_TTY` is set, or on a Linux or
+BSD host with neither `DISPLAY` nor `WAYLAND_DISPLAY`: open the printed page on
+any device. A request lasts 10 minutes. A denied, expired, or refused request
+prints one sentence and exits `1`, and `Ctrl+C` stops waiting and exits `6`;
+none of them saves anything. The session is listed with this machine's host name
+and operating system, as `alice-mbp · macOS`, which `--password` sends too. A
+login made either way refreshes and logs out the same way. See
+[Models & modes](models-and-modes.md#managed-mode).
 
 ### `buildmax plugin`
 

@@ -315,6 +315,7 @@ internal/
 │   └── cli/            CLI 黄金路径：真实二进制文件、临时 home、脚本化模型
 ├── mock/               仅供测试的内存态 store
 ├── testsupport/        仅供测试、绝不随产品发布的辅助工具（JWT 签发）
+│   ├── authserver/     内存存储之上的真实登录路由，供 CLI 与 Desktop 登录套件使用
 │   ├── mockllm/        在三种 LLM 线上协议上给出脚本化的模型回复
 │   ├── mockoidc/       用于端到端登录测试的 OpenID Connect 提供方
 │   └── mocktelegram/   服务任意多个机器人的 Telegram Bot API，用于聊天测试
@@ -391,8 +392,8 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
   组装它的界面都位于它之上。
 - `gorm.io` 只被 `infra/db` 导入。在这条边界之上，"没有这一行"就是
   `apierr.ErrNotFound`，由 Store 负责转译成它。
-- `mock` 和 `testsupport` 只从 `_test.go` 文件中被导入。两者都不能被
-  随产品发布的代码触达。
+- `mock` 和 `testsupport` 只从 `_test.go` 文件以及本身仅供测试的 `testsupport`
+  内部被导入。两者都不能被随产品发布的代码触达。
 - `internal/tool` 不是纯粹的——它按需导入 infra（MCP、git）。
 
 这些规则由 `internal/architecture` 中的测试强制执行。如果某次变更触发了

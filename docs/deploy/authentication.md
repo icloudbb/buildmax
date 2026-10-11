@@ -346,10 +346,12 @@ completed. To try a provider against a local cluster, see
 Under `local_login: system_admins` or `off`, ordinary accounts cannot use
 `POST /api/auth/login`, the native client's password and login-code path. The
 server therefore also serves native sign-in requests that a signed-in Portal
-session confirms, shaped after OAuth 2.0 Device Authorization. The server routes
-and the Portal confirmation page ship; **the CLI and Desktop clients that start
-these requests are still being built**, so today a request is started only
-through the API.
+session confirms, shaped after OAuth 2.0 Device Authorization. `buildmax login`
+and the Desktop sign-in page start these requests by default, so an SSO account
+can sign the CLI and Desktop in wherever it can use the Portal; see
+[Models & modes](../../manual/models-and-modes.md#managed-mode).
+`buildmax login --password` and the Desktop password form remain the
+`POST /api/auth/login` path for operators and scripts.
 
 The routes, all under `/api/auth/native-sign-ins`:
 

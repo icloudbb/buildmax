@@ -24,7 +24,10 @@ Desktop 与 CLI 一样，使用以下两种模式之一：
 
 `GetAuthStatus` 返回已登录账户，不提供模式字段：凭据本身就是模式。`<BUILDMAX_HOME>/auth.json` 中存有登录信息时报告 `server`，没有时报告 `local`；不会再保存一个并行状态，因为同一事实的第二份记录就是第二个权威来源。服务器不再认可的登录会报告过期：应用保留托管模式并拒绝运行，不会悄悄使用本地模型；用户可以重新登录或退出。`Logout` 撤销会话并删除凭据，删除凭据本身就完成了向本地模式的切换。参见[客户端模式](../../design/客户端模式.md)第 3 和第 8 节。
 
-登录页（`LoginPage.jsx`）与 Portal 一致：密码是日常登录方式，由运维人员签发的登录码用于认领新账户或找回忘记的密码。与 Portal 不同，它不读取 `GET /api/auth/methods`，因此始终显示本地登录表单。服务器地址的初始值来自 `GetDefaultServerURL`：即 `settings.yaml` 的 `server_url`（或 `BUILDMAX_SERVER_URL`），否则为空；与 `buildmax login` 不同，Desktop 不提供本机服务器的兜底地址。该页面会替换整个外壳，因此自带语言和主题切换。
+登录页（`LoginPage.jsx`）提供 Portal 确认为原生客户端带来的两种登录方式（设计
+[企业身份 §14.7](../../design/企业身份与访问.md)）。`GetAuthMethods` 为输入框中的地址读取 `GET /api/auth/methods`，`lib/signInLayout.js` 按 `local_login` 布局：`all` 时密码表单在前、浏览器在下；`system_admins` 时浏览器在前，密码表单收在“管理员使用密码登录”之后；`off` 时只有浏览器。配置了 SSO 提供方时，浏览器按钮写出其名称。服务器应答之前页面显示 `all` 布局；读取方法失败时显示服务器不可达，两种方式都不提供。密码表单中，由运维人员签发的登录码用于认领新账户或找回忘记的密码。
+
+`StartBrowserSignIn` 发起请求，通过 Wails 的 `BrowserOpenURL` 运行时调用在完整 URI 打开系统浏览器，并在 Go 中用 `internal/interface/client` 里与 CLI 共用的循环轮询（`sign_in.go`）。轮询密钥不会进入 webview。确认后的登录经由与密码登录相同的 `saveLogin` 路径保存，结果（`signed_in`、`denied`、`expired` 或 `failed`）以一个 `desktop/browser-sign-in` 事件送达。等待面板的**重新打开浏览器**、**复制链接**与**取消**分别调用 `OpenBrowserSignInAgain`、`CopyBrowserSignInLink`（Wails 剪贴板）与 `CancelBrowserSignIn`。取消或离开页面会停止轮询，请求随后在服务器上未兑换而过期。两种登录方式都会把主机名与操作系统作为会话的客户端标签发送。服务器地址的初始值来自 `GetDefaultServerURL`：即 `settings.yaml` 的 `server_url`（或 `BUILDMAX_SERVER_URL`），否则为空；与 `buildmax login` 不同，Desktop 不提供本机服务器的兜底地址。该页面会替换整个外壳，因此自带语言和主题切换。
 
 ## 层次
 

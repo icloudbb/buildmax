@@ -49,17 +49,59 @@ buildmax login
 
 ```text
 Server URL [http://localhost:5678]: https://buildmax.example.com
-Email: you@example.com
-Password (leave blank to use a login code): ********
-Logged in as you@example.com on https://buildmax.example.com
+To sign in, open this page in a browser and confirm the request:
+
+  https://buildmax.example.com/#/sign-in
+
+Check that the page shows this code: WDJB-MJHT
+(The request expires in 10 minutes. Press Ctrl-C to cancel.)
+
+Opened your browser at https://buildmax.example.com/#/sign-in/WDJB-MJHT
+Waiting for confirmation…
+Signed in to https://buildmax.example.com as you@example.com.
+Credentials: OS credential store
 ```
 
+You confirm the sign-in in Portal, signed in there however your account signs
+in: with your company's single sign-on, or with a password. Portal shows the
+request and its code. Check that the code matches the one your terminal shows,
+then choose **Confirm sign-in**. If you did not start a sign-in just now, or
+someone sent you the link, choose **Deny**. The terminal names the account it
+signed in as, so a confirmation from the wrong account is plain to see; run
+`buildmax logout` to undo it.
+
+Over SSH, or on a Linux host without a display, the command opens no browser.
+Open the printed page on any device where you can use Portal and type the
+code there. `--no-browser` does the same anywhere. A request lasts 10 minutes;
+denied and expired requests end with a message and a non-zero exit, and save
+nothing.
+
+`buildmax login --password` asks for your email and a password, or a login
+code from your administrator, as `buildmax login` did before. It works only
+where the deployment lets your account sign in with a password, which an SSO
+deployment often keeps for administrators.
+
 In Desktop, open the user menu at the foot of the sidebar and choose **Sign in
-to a server**. Enter the address you open Portal at, your email, and your
-password. For a new account or a forgotten password, choose **Forgot your
-password, or have a login code?** and enter the login code your administrator
-gave you. The address starts empty unless `server_url` is set. The page has its
-own language and theme controls.
+to a server**, then enter the address you open Portal at. The page asks that
+server how its accounts sign in and lays itself out to match:
+
+- Where everyone may use a password, the email and password form comes first,
+  with **Sign in with your browser** below it.
+- Where only administrators use passwords, the browser button comes first, and
+  the password form waits behind **Administrator sign-in with a password**.
+- Where passwords are off, there is only the browser button.
+
+With single sign-on set up, the button names it, as in **Continue with Okta in
+your browser**. Choosing it opens Portal in your browser and shows the code to
+compare, with **Open browser again**, **Copy link** for a browser on another
+device, and **Cancel**. Desktop signs in as soon as you confirm. If the server
+cannot be reached, the page says so rather than guessing.
+
+For a new account or a forgotten password, choose **Forgot your password, or
+have a login code?** under the password form and enter the login code your
+administrator gave you. The address starts empty unless `server_url` is set. The
+page has its own language and theme controls. The CLI and Desktop on one
+machine share one login, so signing in either signs in both.
 
 Every model that deployment offers is available to you — a space is who you
 collaborate with, not what gates a model. `buildmax models` lists them and says

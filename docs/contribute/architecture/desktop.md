@@ -46,10 +46,31 @@ kept, the workbench stays open under a banner, and the status is re-read every
 removes the credentials, and that removal is the whole switch back to local. See
 [client modes](../../design/client-modes.md) sections 3 and 8.
 
-The sign-in page (`LoginPage.jsx`) matches Portal's: a password is the everyday
-way in, and a login code, issued by an operator, claims a new account or
-recovers a forgotten password. Unlike Portal it does not read
-`GET /api/auth/methods`, so it always shows the local form. Its server address starts from
+The sign-in page (`LoginPage.jsx`) offers the two ways in that Portal
+confirmation gives a native client (design
+[enterprise identity §14.7](../../design/enterprise-identity-and-access.md#147-client-experience)).
+`GetAuthMethods` reads `GET /api/auth/methods` for the address in the field,
+and `lib/signInLayout.js` lays the page out by `local_login`: the password form
+first with the browser below under `all`, the browser first with the password
+form behind "Administrator sign-in with a password" under `system_admins`, and
+the browser only under `off`. A configured SSO provider names the browser
+button. Until a server answers, the page shows the `all` layout; when the
+methods request fails it shows the server as unreachable and offers neither.
+In the password form a login code, issued by an operator, claims a new account
+or recovers a forgotten password.
+
+`StartBrowserSignIn` starts a request, opens the system browser at its complete
+URI through the Wails `BrowserOpenURL` runtime call, and polls in Go with the
+loop in `internal/interface/client` that the CLI also uses
+(`sign_in.go`). The poll secret never reaches the webview. A confirmation is
+saved through the same `saveLogin` path as a password sign-in, and the outcome
+(`signed_in`, `denied`, `expired`, or `failed`) arrives as one
+`desktop/browser-sign-in` event. The waiting panel's **Open browser again**,
+**Copy link**, and **Cancel** call `OpenBrowserSignInAgain`,
+`CopyBrowserSignInLink` (Wails clipboard), and `CancelBrowserSignIn`. Cancel,
+or leaving the page, stops polling; the request then expires on the server
+unredeemed. Both sign-in paths send the host name and operating system as the
+session's client label. Its server address starts from
 `GetDefaultServerURL`, which is `settings.yaml`'s `server_url` (or
 `BUILDMAX_SERVER_URL`) and empty otherwise; unlike `buildmax login`, Desktop
 offers no local-server fallback. The page replaces the whole shell, so it
