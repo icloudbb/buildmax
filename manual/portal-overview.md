@@ -76,6 +76,19 @@ browser's own language; Help follows it. Desktop has the same choice in its user
 menu. Text the server returns, such as an error's detail, and Agent output are
 shown as they arrive.
 
+## Your signed-in sessions
+
+**Account → Sessions** lists every browser, CLI, and Desktop signed in to your
+account: what it is, the name a CLI or Desktop gave itself (marked **reported by
+the client, not verified**), how it signed in, when it signed in and was last
+active, and when it ends. The browser you are using is marked **This browser**.
+
+**Sign out** beside any other session ends it: that client is refused on its
+next request and has to sign in again. Use it for a CLI or Desktop you no longer
+use, or one you confirmed by mistake. **Sign out of this browser** ends the
+session you are using and returns you to the sign-in page. Signing out of the
+Portal never ends your CLI or Desktop sessions; this list is where you do that.
+
 ## Spaces and roles
 
 A **space** is the ownership boundary: issues, conversations, agents, workflows,

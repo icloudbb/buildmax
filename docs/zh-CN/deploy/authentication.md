@@ -116,7 +116,7 @@ buildmax admin quota-tier set <space_id> pro   # 在下一次配额检查时生�
 
 修改密码需要当前密码。设置*第一个*密码不需要，因为刚兑换登录码的人尚无密码，这是恢复流程的最后一步。仅有会话有意不足以修改已有密码：被盗的访问令牌在其 Session 被撤销或它过期之前仍然有效，因此若允许仅凭会话就修改密码，就会让这段时间窗口变成一次持久的账户接管。
 
-修改密码**不会**登出已有会话。如需登出，请另行撤销会话。
+修改密码**不会**登出已有会话。如需登出，请在 **Account → Sessions** 中另行撤销会话。
 
 > **登录没有速率限制。** 密码尝试不会被限流，因此任何人可访问的服务器可能遭受在线暴力破解。12 字符的最短长度和内存密集型哈希提高了每次猜测的成本，但不能替代限流。对不可信网络开放的部署，应在前方设置速率限制器。统一限流能力已规划但尚未实现。
 
@@ -261,8 +261,17 @@ System Administrator 可在 Portal 的账户详情页或通过
 `DELETE /api/admin/users/{user_id}/sessions/{session_id}` 撤销单个 Session，
 或通过集合的 DELETE 路由撤销全部 Session。列表包含 Session ID、平台、认证
 方式、原生客户端报告的标签、创建时间、最近可见时间与绝对到期时间；最近可见时间经过节流，并非持续
-的设备在线信号。目前没有用户自助 Session 管理页，也没有专门的管理 CLI
-Session 命令。撤销一个 Session 会停用它的 refresh token 并将 `auth_session`
+的设备在线信号。目前没有专门的管理 CLI Session 命令。
+
+用户可以在 Portal 的 **Account → Sessions** 中以同样方式管理自己的 Session，
+或使用 `GET /api/auth/sessions` 与 `DELETE /api/auth/sessions/{session_id}`。
+列表字段相同，标签标注为由客户端报告，发起请求的 Session 标为当前 Session。
+撤销只作用于调用者本人账户的有效 Session；其他账户的 Session ID 返回 `404`，
+与不存在的 ID 完全相同。撤销当前 Session 会让该浏览器退出登录。两种撤销都
+记录为 `user.session_revoked`，执行者分别为用户本人或管理员。用户没有自助的
+“全部退出”操作。
+
+撤销一个 Session 会停用它的 refresh token 并将 `auth_session`
 记录标记为已撤销，因此该 Session 下已签发的 access token 会在其下一个请求时
 停止，而不是等到过期。
 

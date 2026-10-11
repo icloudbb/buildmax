@@ -646,6 +646,10 @@ it. The Portal browser suite on kind starts, confirms or denies, and redeems
 requests through SSO and password sign-in with each step placed on each of the
 two server replicas. The CLI and Desktop clients are not built, so no shipped
 client starts a request yet.
+A person lists and revokes their own sessions in Portal's **Account → Sessions**
+(`GET /api/auth/sessions`, `DELETE /api/auth/sessions/{session_id}`), with each
+client's label marked as not verified and this browser marked; another account's
+session ID answers `404`, and revoking the current session signs the browser out.
 See the [identity service](../internal/service/identity/account.go), the
 [OIDC provider](../internal/infra/oidc/provider.go), and the
 [Space service](../internal/service/space/service.go).
