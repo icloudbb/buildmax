@@ -42,6 +42,10 @@ type TaskResponse struct {
 	// the user has not answered by continuing the task. The questions are on
 	// that run.
 	AwaitingAnswer bool `json:"awaiting_answer,omitempty"`
+	// FailureClass and FailureCause explain a FAILED latest run: whose problem
+	// it was, and the configuration that needs fixing when the server knew.
+	FailureClass string                 `json:"failure_class,omitempty"`
+	FailureCause *coretask.FailureCause `json:"failure_cause,omitempty"`
 	// WorkflowRunID names the workflow run that dispatched this task, when the
 	// task carries neither an IssueID nor a ConversationID of its own. A
 	// workflow step task's only origin is its step run, so without this a
@@ -78,6 +82,8 @@ func taskToResponse(task coretask.Task) TaskResponse {
 		IssueID:           task.IssueID,
 		LastRunID:         task.LastRunID,
 		AwaitingAnswer:    task.AwaitingAnswer,
+		FailureClass:      task.FailureClass,
+		FailureCause:      task.FailureCause,
 	}
 }
 

@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	coresecret "github.com/icloudbb/buildmax/internal/core/secret"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/mock"
+	secretsvc "github.com/icloudbb/buildmax/internal/service/secret"
 	"github.com/icloudbb/buildmax/internal/util"
 )
 
@@ -20,11 +22,15 @@ import (
 type fakeMaterializer struct {
 	items    map[string]coresecret.Items // secretID -> items
 	disabled map[string]bool
+	broken   map[string]bool // the backend fails, which is not a refusal
 }
 
 func (f fakeMaterializer) Materialize(_ context.Context, _, id string) (coresecret.Items, error) {
 	if f.disabled[id] {
-		return nil, apierr.New(apierr.KindConflict, "secret is disabled")
+		return nil, secretsvc.ErrDisabled
+	}
+	if f.broken[id] {
+		return nil, errors.New("decrypt: key unavailable")
 	}
 	if it, ok := f.items[id]; ok {
 		return it, nil
@@ -33,6 +39,12 @@ func (f fakeMaterializer) Materialize(_ context.Context, _, id string) (coresecr
 }
 
 func secretsHandler(t *testing.T, cons agentdef.SecretConsumption, mat SecretMaterializer) (*http.ServeMux, string) {
+	t.Helper()
+	mux, id, _ := secretsHandlerWithRuns(t, cons, mat)
+	return mux, id
+}
+
+func secretsHandlerWithRuns(t *testing.T, cons agentdef.SecretConsumption, mat SecretMaterializer) (*http.ServeMux, string, *mock.MockTaskRunStore) {
 	t.Helper()
 	const taskRunID, taskID, spaceID = "run-1", "task-1", "tm_1"
 	agentID := "a_1"
@@ -49,7 +61,7 @@ func secretsHandler(t *testing.T, cons agentdef.SecretConsumption, mat SecretMat
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Agents: agents, Secrets: mat})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	return mux, taskRunID
+	return mux, taskRunID, runs
 }
 
 func getSecrets(t *testing.T, mux *http.ServeMux, taskRunID string) *httptest.ResponseRecorder {
@@ -162,6 +174,65 @@ func TestGetTaskRunSecrets_RequiredDisabledFails(t *testing.T) {
 	rec := getSecrets(t, mux, id)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// A refused grant names its Secret on the run, so the person reading the
+// failure is led to the grant to fix instead of a retry that fails the same way.
+func TestGetTaskRunSecrets_RecordsTheRefusedGrantAsTheCause(t *testing.T) {
+	cases := []struct {
+		name  string
+		grant agentdef.SecretEnvGrant
+		mat   fakeMaterializer
+		want  coretask.FailureCause
+	}{
+		{
+			name:  "disabled",
+			grant: agentdef.SecretEnvGrant{Secret: "sec_gh", Item: "token", EnvName: "GH_TOKEN"},
+			mat:   fakeMaterializer{disabled: map[string]bool{"sec_gh": true}},
+			want:  coretask.FailureCause{Kind: coretask.FailureCauseSecretGrant, SecretID: "sec_gh", SecretProblem: coretask.SecretDisabled},
+		},
+		{
+			name:  "gone",
+			grant: agentdef.SecretEnvGrant{Secret: "sec_gone", Prefix: "GONE_"},
+			mat:   fakeMaterializer{},
+			want:  coretask.FailureCause{Kind: coretask.FailureCauseSecretGrant, SecretID: "sec_gone", SecretProblem: coretask.SecretUnavailable},
+		},
+		{
+			name:  "item missing",
+			grant: agentdef.SecretEnvGrant{Secret: "sec_gh", Item: "token", EnvName: "GH_TOKEN"},
+			mat:   fakeMaterializer{items: map[string]coresecret.Items{"sec_gh": {"other": "v"}}},
+			want: coretask.FailureCause{
+				Kind: coretask.FailureCauseSecretGrant, SecretID: "sec_gh",
+				SecretProblem: coretask.SecretItemMissing, SecretItem: "token",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cons := agentdef.SecretConsumption{Env: []agentdef.SecretEnvGrant{tc.grant}}
+			mux, id, runs := secretsHandlerWithRuns(t, cons, tc.mat)
+			if rec := getSecrets(t, mux, id); rec.Code == http.StatusOK {
+				t.Fatalf("status = 200, want a refusal")
+			}
+			got := runs.Runs[0].FailureCause
+			if got == nil || *got != tc.want {
+				t.Fatalf("failure_cause = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// A backend failure is not the Space's configuration: nothing names a Secret
+// to fix, so the run's class alone explains it.
+func TestGetTaskRunSecrets_BackendFailureRecordsNoCause(t *testing.T) {
+	cons := agentdef.SecretConsumption{Env: []agentdef.SecretEnvGrant{{Secret: "sec_gh", Item: "token", EnvName: "GH_TOKEN"}}}
+	mux, id, runs := secretsHandlerWithRuns(t, cons, fakeMaterializer{broken: map[string]bool{"sec_gh": true}})
+	if rec := getSecrets(t, mux, id); rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if got := runs.Runs[0].FailureCause; got != nil {
+		t.Fatalf("failure_cause = %+v, want none", got)
 	}
 }
 

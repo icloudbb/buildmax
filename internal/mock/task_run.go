@@ -487,6 +487,20 @@ func (m *MockTaskRunStore) RecordTaskRunPluginPins(_ context.Context, taskRunID 
 	return nil
 }
 
+func (m *MockTaskRunStore) RecordTaskRunFailureCause(_ context.Context, taskRunID string, cause coretask.FailureCause) error {
+	for i := range m.Runs {
+		if m.Runs[i].ID != taskRunID {
+			continue
+		}
+		// First write wins, as in the store.
+		if m.Runs[i].FailureCause == nil {
+			m.Runs[i].FailureCause = &cause
+		}
+		return nil
+	}
+	return nil
+}
+
 func (m *MockTaskRunStore) RecordTaskRunSandboxTiers(_ context.Context, taskRunID string, networkTier, filesystemTier string) error {
 	for i := range m.Runs {
 		if m.Runs[i].ID != taskRunID {

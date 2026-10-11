@@ -12,6 +12,7 @@ import (
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/infra/workerclient"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
+	secretsvc "github.com/icloudbb/buildmax/internal/service/secret"
 )
 
 // SecretMaterializer decrypts a space's Secret for a runtime consumer. The
@@ -81,6 +82,7 @@ func (h *Handler) getTaskRunSecrets(w http.ResponseWriter, r *http.Request) {
 
 	grants, err := resolveEnvGrants(r.Context(), h.cfg.Secrets, task.SpaceID, cons)
 	if err != nil {
+		h.recordGrantRefusal(r.Context(), taskRunID, err)
 		if httputil.WriteServiceError(w, err) {
 			return
 		}
@@ -119,6 +121,46 @@ func (h *Handler) recordGrants(ctx context.Context, taskRunID, agentID string, r
 			slog.Warn("worker handler: could not record a secret materialization",
 				"task_run_id", taskRunID, "secret_id", g.secretID, "err", err)
 		}
+	}
+}
+
+// recordGrantRefusal records which Secret a refused run needed, so the person
+// reading the failed run is led to the grant rather than to a retry. The worker
+// reports the failure itself; this only names its cause. A backend error is
+// not a refusal and records nothing. Fail-open, like the grant audit: the run
+// fails either way.
+func (h *Handler) recordGrantRefusal(ctx context.Context, taskRunID string, err error) {
+	var refused *grantRefusal
+	if !errors.As(err, &refused) {
+		return
+	}
+	if recErr := h.cfg.TaskRuns.RecordTaskRunFailureCause(ctx, taskRunID, refused.cause); recErr != nil {
+		slog.Warn("worker handler: could not record a refused secret grant",
+			"task_run_id", taskRunID, "secret_id", refused.cause.SecretID, "err", recErr)
+	}
+}
+
+// grantRefusal is a required grant the Space's Secret configuration does not
+// let this run have. It carries the server's text unchanged and the cause a
+// person can act on.
+type grantRefusal struct {
+	cause coretask.FailureCause
+	err   error
+}
+
+func (e *grantRefusal) Error() string { return e.err.Error() }
+func (e *grantRefusal) Unwrap() error { return e.err }
+
+// secretProblem says why a Secret refused materialization, or "" for an error
+// that is not the Secret's configuration -- a storage or decryption failure.
+func secretProblem(err error) coretask.SecretProblem {
+	switch {
+	case errors.Is(err, secretsvc.ErrDisabled):
+		return coretask.SecretDisabled
+	case errors.Is(err, secretsvc.ErrNotFound), errors.Is(err, apierr.ErrNotFound):
+		return coretask.SecretUnavailable
+	default:
+		return ""
 	}
 }
 
@@ -180,6 +222,11 @@ func resolveEnvGrants(ctx context.Context, mat SecretMaterializer, spaceID strin
 			if g.Optional && isSkippable(err) {
 				continue
 			}
+			if problem := secretProblem(err); problem != "" {
+				return nil, &grantRefusal{err: err, cause: coretask.FailureCause{
+					Kind: coretask.FailureCauseSecretGrant, SecretID: g.Secret, SecretProblem: problem,
+				}}
+			}
 			return nil, err
 		}
 		if g.WholeGroup() {
@@ -193,7 +240,13 @@ func resolveEnvGrants(ctx context.Context, mat SecretMaterializer, spaceID strin
 			if g.Optional {
 				continue
 			}
-			return nil, apierr.New(apierr.KindInvalid, "secret grant: item "+g.Item+" is gone from secret "+g.Secret)
+			return nil, &grantRefusal{
+				err: apierr.New(apierr.KindInvalid, "secret grant: item "+g.Item+" is gone from secret "+g.Secret),
+				cause: coretask.FailureCause{
+					Kind: coretask.FailureCauseSecretGrant, SecretID: g.Secret,
+					SecretProblem: coretask.SecretItemMissing, SecretItem: g.Item,
+				},
+			}
 		}
 		out = append(out, resolvedGrant{secretID: g.Secret, itemName: g.Item, envName: g.EnvName, value: val})
 	}

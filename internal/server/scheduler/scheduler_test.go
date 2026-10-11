@@ -176,6 +176,10 @@ func (s *spyTaskRunStore) RecordTaskRunSandboxTiers(_ context.Context, _ string,
 	return nil
 }
 
+func (s *spyTaskRunStore) RecordTaskRunFailureCause(_ context.Context, _ string, _ coretask.FailureCause) error {
+	return nil
+}
+
 func (s *spyTaskRunStore) ListTaskRunsWithExpiredTrace(_ context.Context, _ time.Time, _ int) ([]coretask.RunTraceRef, error) {
 	return nil, nil
 }

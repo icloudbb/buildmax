@@ -62,6 +62,10 @@ type taskRunRow struct {
 	// FailureClass is the coretask.FailureClass of a FAILED run, and empty
 	// otherwise. Indexed with ended_at for the administration failure window.
 	FailureClass string `gorm:"column:failure_class;type:varchar(32);not null;default:'';index:idx_task_run_failure_ended,priority:1"`
+	// FailureCause is the JSON coretask.FailureCause a refusing component
+	// recorded, NULL when none did. JSON for the reason plugin_pins is: written
+	// once, read whole, and nothing queries inside it.
+	FailureCause *string `gorm:"column:failure_cause;type:text"`
 	// RetryOfTaskRunID names the run this one repeats. A nullable column rather
 	// than a trigger_source detail because the question a reader asks is which
 	// run this repeated, and a source string cannot answer it.
@@ -189,6 +193,7 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		CancelRequestedAt:              row.Row.CancelRequestedAt,
 		CancelReason:                   row.Row.CancelReason,
 		FailureClass:                   row.Row.FailureClass,
+		FailureCause:                   decodeFailureCause(row.Row.FailureCause),
 		SpaceID:                        row.SpacePublicID,
 		LastSeenAt:                     row.Row.LastSeenAt,
 		CreatedAt:                      row.Row.CreatedAt,
@@ -541,6 +546,37 @@ func (s *Store) RecordTaskRunSandboxTiers(ctx context.Context, taskRunID string,
 // decodePluginPins reads the column. A document that will not decode costs the
 // record of what a run had, not the run: the pins it actually used were sent to
 // it at claim time.
+// RecordTaskRunFailureCause stores what a refused run needed fixed.
+//
+// The `failure_cause IS NULL` guard makes the first write win: the cause that
+// stopped the run is the one that explains it.
+func (s *Store) RecordTaskRunFailureCause(ctx context.Context, taskRunID string, cause coretask.FailureCause) error {
+	id, ok := util.CanonicalPublicID(taskRunID)
+	if !ok {
+		return apierr.ErrNotFound
+	}
+	encoded, err := json.Marshal(cause)
+	if err != nil {
+		return fmt.Errorf("encode failure cause: %w", err)
+	}
+	return s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Where("public_id = ? AND failure_cause IS NULL", id).
+		Update("failure_cause", string(encoded)).Error
+}
+
+// decodeFailureCause reads a stored cause, or nil when there is none or it no
+// longer parses: an unreadable cause leaves the class to explain the failure.
+func decodeFailureCause(raw *string) *coretask.FailureCause {
+	if raw == nil || *raw == "" {
+		return nil
+	}
+	var out coretask.FailureCause
+	if err := json.Unmarshal([]byte(*raw), &out); err != nil || out.Kind == "" {
+		return nil
+	}
+	return &out
+}
+
 func decodePluginPins(raw string) []coreplugin.Pin {
 	if raw == "" {
 		return nil

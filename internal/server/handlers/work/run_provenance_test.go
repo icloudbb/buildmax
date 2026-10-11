@@ -343,3 +343,55 @@ func TestRunProvenanceOmitsArtifactsWhenNonePublished(t *testing.T) {
 		t.Errorf("artifacts = %+v, want none", out.Artifacts)
 	}
 }
+
+// A reader opens a failed run asking why it ended. The answer is the class and
+// the cause the server recorded, with the server's own text beside them, and
+// whether a trace exists so the reader is not sent to fetch one that does not.
+func TestRunProvenanceExplainsAFailedRun(t *testing.T) {
+	run := coretask.Run{
+		ID: "tr_1", TaskID: "tk_1", Input: "deploy", Status: "FAILED", CreatedAt: time.Unix(1000, 0).UTC(),
+		ErrorMessage: util.Ptr("secret grant unavailable: secret is disabled (409)"),
+		FailureClass: string(coretask.FailureSpaceConfiguration),
+		FailureCause: &coretask.FailureCause{Kind: coretask.FailureCauseSecretGrant, SecretID: "sec_gh", SecretProblem: coretask.SecretDisabled},
+	}
+	f := newProvenanceFixture(t, run, provenanceTask())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/tm_1/task-runs/tr_1", nil)
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", provenanceSecret))
+	rec := httptest.NewRecorder()
+	f.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(raw["failure_class"]); got != `"space_configuration"` {
+		t.Errorf("failure_class = %s", got)
+	}
+	if got := string(raw["failure_cause"]); got != `{"kind":"secret_grant","secret_id":"sec_gh","secret_problem":"disabled"}` {
+		t.Errorf("failure_cause = %s", got)
+	}
+	if got := string(raw["error_message"]); !strings.Contains(got, "secret is disabled") {
+		t.Errorf("error_message = %s", got)
+	}
+	if got := string(raw["trace_recorded"]); got != "false" {
+		t.Errorf("trace_recorded = %s, want false for a run with no trace", got)
+	}
+}
+
+func TestRunProvenanceSaysATraceWasRecorded(t *testing.T) {
+	run := coretask.Run{
+		ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC(),
+		TracePath: util.Ptr("traces/s/rt_1.jsonl"),
+	}
+	f := newProvenanceFixture(t, run, provenanceTask())
+	_, out := f.get(t, "tr_1")
+	if !out.TraceRecorded {
+		t.Error("trace_recorded = false, want true")
+	}
+	if out.FailureClass != "" || out.FailureCause != nil || out.ErrorMessage != nil {
+		t.Errorf("a succeeded run carries a failure: %+v", out)
+	}
+}

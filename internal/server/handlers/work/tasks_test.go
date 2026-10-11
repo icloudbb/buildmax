@@ -407,3 +407,72 @@ func TestListConversationTasksCarriesTheRunBehindEachStatus(t *testing.T) {
 		t.Errorf("a task with no run has last_run_id = %v, want nil", got.LastRunID)
 	}
 }
+
+// A Task list explains its failed rows: the latest run's class and cause ride
+// the Task, so the Issue's latest run can lead with the fix without a run read.
+func TestTaskResponseCarriesTheLatestRunFailure(t *testing.T) {
+	failed := coretask.Task{
+		ID: "tk_1", SpaceID: "tm_1", Status: "FAILED", CreatedBy: "u1",
+		FailureClass: string(coretask.FailureSpaceConfiguration),
+		FailureCause: &coretask.FailureCause{Kind: coretask.FailureCauseSecretGrant, SecretID: "sec_gh", SecretProblem: coretask.SecretDisabled},
+	}
+	raw, err := json.Marshal(taskToResponse(failed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	for _, want := range []string{
+		`"failure_class":"space_configuration"`,
+		`"failure_cause":{"kind":"secret_grant","secret_id":"sec_gh","secret_problem":"disabled"}`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("task response %s lacks %s", body, want)
+		}
+	}
+
+	ok, err := json.Marshal(taskToResponse(coretask.Task{ID: "tk_2", SpaceID: "tm_1", Status: "SUCCEEDED", CreatedBy: "u1"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(ok), "failure_") {
+		t.Errorf("a succeeded task carries a failure: %s", ok)
+	}
+}
+
+// The Task page reads each run's failure from the runs list.
+func TestListTaskRunsCarriesEachRunFailure(t *testing.T) {
+	secret := "test-task-runs-failure-secret"
+	task := coretask.Task{ID: "tk_1", SpaceID: "tm_1", Status: "FAILED", Input: "x", CreatedBy: "u1"}
+	run := coretask.Run{
+		ID: "tr_1", TaskID: "tk_1", Status: "FAILED", CreatedAt: time.Unix(1000, 0).UTC(),
+		FailureClass: string(coretask.FailureSpaceConfiguration),
+		FailureCause: &coretask.FailureCause{Kind: coretask.FailureCauseSecretGrant, SecretID: "sec_gh", SecretProblem: coretask.SecretDisabled},
+	}
+	h := New(Config{
+		JWTSecret: secret,
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: "tm_1", Name: "Team", CreatedBy: "u1"}},
+			Members: []corespace.Member{{SpaceID: "tm_1", UserID: "u1", Role: corespace.RoleMember}},
+		},
+		Tasks:    &mock.MockTaskStore{List: []coretask.Task{task}},
+		TaskRuns: &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}},
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/tm_1/tasks/tk_1/runs", nil)
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`"failure_class":"space_configuration"`,
+		`"failure_cause":{"kind":"secret_grant","secret_id":"sec_gh","secret_problem":"disabled"}`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("runs response %s lacks %s", body, want)
+		}
+	}
+}

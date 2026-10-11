@@ -213,6 +213,45 @@ func NormalizeFailureClass(s string) FailureClass {
 	return FailureUnclassified
 }
 
+// FailureCause names what has to change for a FailureSpaceConfiguration run
+// to succeed, recorded by the server component that refused the run at the
+// moment it refused. The class says whose problem a failure is; the cause says
+// which configuration to open, so a person is led to the fix rather than to a
+// retry that fails the same way.
+//
+// Unlike the class, a cause names Space resources, so it is served only on
+// Space-scoped reads, never in administration aggregates. Nil when the refusal
+// recorded none: a plugin refusal and a spent usage quota carry only the class.
+type FailureCause struct {
+	Kind FailureCauseKind `json:"kind"`
+	// SecretID names the Space Secret a required grant of the run's Agent
+	// could not be resolved from. Set for FailureCauseSecretGrant.
+	SecretID string `json:"secret_id,omitempty"`
+	// SecretProblem says why that grant failed. Set for FailureCauseSecretGrant.
+	SecretProblem SecretProblem `json:"secret_problem,omitempty"`
+	// SecretItem is the item a SecretItemMissing grant asked for.
+	SecretItem string `json:"secret_item,omitempty"`
+}
+
+// FailureCauseKind says which configuration a FailureCause points at.
+type FailureCauseKind string
+
+// FailureCauseSecretGrant is a required Space Secret grant of the run's Agent
+// that the server would not release.
+const FailureCauseSecretGrant FailureCauseKind = "secret_grant"
+
+// SecretProblem is why a required Secret grant could not be released.
+type SecretProblem string
+
+const (
+	// SecretDisabled is a Secret an owner disabled.
+	SecretDisabled SecretProblem = "disabled"
+	// SecretUnavailable is a Secret that was destroyed or no longer exists.
+	SecretUnavailable SecretProblem = "unavailable"
+	// SecretItemMissing is a Secret that no longer has the item a grant names.
+	SecretItemMissing SecretProblem = "item_missing"
+)
+
 // Task holds the user-visible state for a background task.
 type Task struct {
 	ID string `json:"id"`
@@ -255,8 +294,12 @@ type Task struct {
 	// AwaitingAnswer projects the latest run ending on AskUser questions: the
 	// Task is waiting for the user to answer them by continuing it. See
 	// docs/design/agent-user-questions.md.
-	AwaitingAnswer bool    `json:"awaiting_answer,omitempty"`
-	AgentID        *string `json:"agent_id,omitempty"`
+	AwaitingAnswer bool `json:"awaiting_answer,omitempty"`
+	// FailureClass and FailureCause are the latest run's, read with it, so a
+	// list of Tasks can explain a failure without one run read per row.
+	FailureClass string        `json:"failure_class,omitempty"`
+	FailureCause *FailureCause `json:"failure_cause,omitempty"`
+	AgentID      *string       `json:"agent_id,omitempty"`
 	// WorkspaceHeadCheckpointID points at the latest checkpoint accepted as this
 	// Task's recoverable workspace: its initial seed, then each successful
 	// result. It is a database pointer among immutable checkpoints, never a
@@ -328,6 +371,9 @@ type Run struct {
 	// FailureClass says why a FAILED run failed. Empty on a run that did not
 	// fail and on runs that predate the column.
 	FailureClass string `json:"failure_class,omitempty"`
+	// FailureCause is what a FAILED run needed fixed, when the component that
+	// refused it knew. See FailureCause.
+	FailureCause *FailureCause `json:"failure_cause,omitempty"`
 	// RetryOfTaskRunID names the run this one repeats. Nil for every run that
 	// carries its own instructions. The lineage is one level deep by record but
 	// unbounded by use: retrying a retry points at the run it repeated, not at
@@ -677,6 +723,9 @@ type RunStore interface {
 	// was given. Like the agent revision, the first write wins, and it is
 	// written even when both tiers are empty -- see Run.SandboxNetworkTier.
 	RecordTaskRunSandboxTiers(ctx context.Context, taskRunID string, networkTier, filesystemTier string) error
+	// RecordTaskRunFailureCause stores what a refused run needed fixed. The
+	// first write wins: the cause is the one that stopped the run.
+	RecordTaskRunFailureCause(ctx context.Context, taskRunID string, cause FailureCause) error
 	// ListTaskRunsWithExpiredTrace returns runs that ended on or before cutoff
 	// and still point at a trace, oldest first, up to limit. It drives trace
 	// retention: a run with no EndedAt or no TracePath is never returned, so an
