@@ -217,7 +217,7 @@ func TestNativeSignInStartValidates(t *testing.T) {
 		}
 	}
 	if _, err := f.svc.StartNativeSignIn(ctx, identity.StartNativeSignInCmd{
-		Platform: coreidentity.PlatformDesktop, ClientLabel: "evil‮label",
+		Platform: coreidentity.PlatformDesktop, ClientLabel: "evil\u202elabel",
 	}); !errors.Is(err, identity.ErrClientLabelInvalid) {
 		t.Errorf("bidi label: %v, want ErrClientLabelInvalid", err)
 	}

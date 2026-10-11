@@ -171,8 +171,8 @@ func TestNormalizeClientLabel(t *testing.T) {
 		strings.Repeat("a", 65),
 		"alice\nmallory",
 		"alice\x00",
-		"alice‮mallory", // a bidi override reorders what the person reads
-		"alice​mallory", // a zero-width space hides a difference
+		"alice\u202emallory", // a bidi override reorders what the person reads
+		"alice\u200bmallory", // a zero-width space hides a difference
 		"\xff\xfe",
 	} {
 		if _, err := NormalizeClientLabel(bad); !errors.Is(err, ErrClientLabelInvalid) {
