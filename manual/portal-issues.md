@@ -170,12 +170,12 @@ Issues you own can also be worked locally, where your files and tools are.
 - **CLI** — `buildmax issue list` shows your open issues, and
   `buildmax issue start <id>` opens a session the agent scopes to that issue; see
   [the `buildmax issue` commands](cli.md#buildmax-issue).
-- **Desktop** — while signed in to a server, the sidebar shows **Issues**: your
-  open issues across spaces, with each one's description, sub-issues, and
-  discussion. **Start chat** opens a new chat in the project you pick with the
-  issue already in the message box, so you can edit it before sending. From the
-  same view you can move the issue's status and post a comment. The Issues
-  entry does not appear when Desktop is not signed in.
+- **Desktop** — while signed in to a server, the sidebar shows **Issues**: the
+  open issues you own across spaces, with each one's description, sub-issues,
+  and discussion. **Start chat** switches to the project you pick and opens a
+  new chat there with the issue already in the message box, so you can edit it
+  before sending. From the same view you can move the issue's status and post a
+  comment. The Issues entry does not appear when Desktop is not signed in.
 
 Either way, returning the work is up to you: a comment says what was done, and
 a status change says whether it is finished. Planning and assigning work stays

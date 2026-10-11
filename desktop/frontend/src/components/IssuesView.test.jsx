@@ -44,7 +44,7 @@ describe('IssuesView', () => {
     renderView(makeApp({
       ListMyIssues: vi.fn(() => Promise.resolve({ issues: [newer, older], warnings: ['space Gamma: boom'] })),
     }));
-    const list = await screen.findByRole('region', { name: 'Your issues' });
+    const list = await screen.findByRole('region', { name: 'Issues you own' });
     expect(within(list).getByRole('heading', { name: /In progress/ })).toBeTruthy();
     expect(within(list).getByRole('heading', { name: /To do/ })).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain('space Gamma');
@@ -82,9 +82,22 @@ describe('IssuesView', () => {
     expect(text).toContain('Quoted CSV rows break.');
   });
 
+  it('speaks of owned issues throughout and keeps the ID out of the heading line', async () => {
+    renderView(makeApp({ ListMyIssues: vi.fn(() => Promise.resolve({ issues: [], warnings: [] })) }));
+    expect(await screen.findByText(/You own no open issues/)).toBeTruthy();
+    expect(screen.getByText(/Open issues you own/)).toBeTruthy();
+
+    cleanup();
+    renderView();
+    await openNewer();
+    const heading = screen.getByRole('heading', { name: 'Fix importer' });
+    expect(heading.nextElementSibling.textContent).not.toContain('i_new');
+    expect(screen.getByText('Issue ID i_new')).toBeTruthy();
+  });
+
   it('reports an inbox that could not load rather than an empty one', async () => {
     renderView(makeApp({ ListMyIssues: vi.fn(() => Promise.reject(new Error('server down'))) }));
     expect((await screen.findByRole('alert')).textContent).toContain('server down');
-    expect(screen.queryByText('No open issues are assigned to you.')).toBeNull();
+    expect(screen.queryByText(/You own no open issues/)).toBeNull();
   });
 });

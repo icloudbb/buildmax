@@ -54,6 +54,13 @@ Password (leave blank to use a login code): ********
 Logged in as you@example.com on https://buildmax.example.com
 ```
 
+In Desktop, open the user menu at the foot of the sidebar and choose **Sign in
+to a server**. Enter the address you open Portal at, your email, and your
+password. For a new account or a forgotten password, choose **Forgot your
+password, or have a login code?** and enter the login code your administrator
+gave you. The address starts empty unless `server_url` is set. The page has its
+own language and theme controls.
+
 Every model that deployment offers is available to you — a space is who you
 collaborate with, not what gates a model. `buildmax models` lists them and says
 where prompts go:

@@ -1,28 +1,33 @@
 import { useEffect, useState } from 'react';
+import { LOCALES, LOCALE_NAMES, ThemeToggle, useLocale } from '@buildmax/gui';
 import { getApp } from './lib/app';
 import { useT } from './i18n';
 
-// Where a server nobody has named listens on this machine. The Go side answers
-// with settings.yaml's server_url when there is one; this is the fallback for
-// the moment before that answer arrives, and for a browser with no bindings.
-const DEFAULT_SERVER_URL = 'http://localhost:5678';
+// The shape of an address, never a value: someone signing in to a deployment
+// has its address from whoever runs it.
+const SERVER_URL_EXAMPLE = 'https://buildmax.example.com';
 
 /**
  * Sign in to a server.
  *
  * This is an action, not a gate: the app already works without it, running the
- * agent here against the models in settings.yaml. Signing in switches to that
- * deployment's models and connects the account to a space's work, and signing
- * out switches back. See docs/design/client-modes.md.
+ * agent here against the models set up on this machine. Signing in switches to
+ * that deployment's models and connects the account to a space's work, and
+ * signing out switches back. See docs/design/client-modes.md.
  *
- * Of the two ways in, a password is the everyday one. A login code is how a new
+ * As in Portal, a password is the everyday way in. A login code is how a new
  * account is claimed and how a forgotten password is recovered — BuildMax has
- * no mail channel, so an operator issues that code by hand.
+ * no mail channel, so an operator issues that code by hand, and there is no
+ * "send me a code".
+ *
+ * The page replaces the whole workbench, so it carries its own theme and
+ * language controls.
  */
 export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accountDisabled = false, knownServerURL = '' }) {
   const t = useT();
+  const { locale, setLocale } = useLocale();
   const [mode, setMode] = useState('password');
-  const [serverURL, setServerURL] = useState(knownServerURL || DEFAULT_SERVER_URL);
+  const [serverURL, setServerURL] = useState(knownServerURL);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
@@ -32,14 +37,14 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
   const app = getApp();
   const credential = mode === 'password' ? password : otp.trim();
 
-  // The default is a starting point, not an assumption: a deployment behind an
-  // ingress publishes one origin for Portal and API, and it is not this one.
-  // An ended login already names its server; signing in again means that one.
+  // A server this machine was configured with fills the field; with none it
+  // stays empty rather than guessing. An ended login already names its
+  // server, and signing in again means that one.
   useEffect(() => {
     if (knownServerURL || !app?.GetDefaultServerURL) return;
     let cancelled = false;
     app.GetDefaultServerURL().then((url) => {
-      if (!cancelled && url) setServerURL(url);
+      if (!cancelled && url) setServerURL((current) => current || url);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [app, knownServerURL]);
@@ -71,6 +76,23 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
 
   return (
     <div className="login-page">
+      <div className="login-page__prefs">
+        <div className="login-page__locales" role="group" aria-label={t('shell.language')}>
+          {LOCALES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className="login-page__locale"
+              aria-pressed={locale === option}
+              lang={option}
+              onClick={() => setLocale(option)}
+            >
+              {LOCALE_NAMES[option]}
+            </button>
+          ))}
+        </div>
+        <ThemeToggle />
+      </div>
       <div className="login-page__card">
         <h1 className="login-page__title">BuildMax</h1>
         {expiredDetail ? (
@@ -89,7 +111,8 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
             className="login-page__input"
             value={serverURL}
             onChange={(e) => setServerURL(e.target.value)}
-            placeholder={DEFAULT_SERVER_URL}
+            placeholder={SERVER_URL_EXAMPLE}
+            autoComplete="url"
             required
             disabled={loading}
           />
@@ -109,21 +132,7 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
             disabled={loading}
           />
 
-          {mode === 'password' ? (
-            <>
-              <label className="login-page__label" htmlFor="login-password">{t('login.password')}</label>
-              <input
-                id="login-password"
-                type="password"
-                className="login-page__input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                disabled={loading}
-              />
-            </>
-          ) : (
+          {mode === 'code' ? (
             <>
               <label className="login-page__label" htmlFor="login-otp">{t('login.code')}</label>
               <input
@@ -135,6 +144,21 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
                 placeholder="bmxlogin_…"
                 autoComplete="one-time-code"
                 required
+                disabled={loading}
+              />
+              <p className="login-page__field-hint">{t('login.codeHint')}</p>
+            </>
+          ) : (
+            <>
+              <label className="login-page__label" htmlFor="login-password">{t('login.password')}</label>
+              <input
+                id="login-password"
+                type="password"
+                className="login-page__input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
                 disabled={loading}
               />
             </>

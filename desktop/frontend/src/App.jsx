@@ -14,6 +14,7 @@ import { IssuesView } from './components/IssuesView';
 import { LaunchpadButton } from './components/LaunchpadButton';
 import { GridIcon, MoonIcon, SidebarIcon, SplitRightIcon, SunIcon } from './components/icons';
 import { readStored, writeStored } from './lib/storage';
+import { openChatTabInto, useChatStart } from './lib/useChatStart';
 import { activeTab, tabIdentity } from './lib/tabs';
 import { waitingOn, withApproval, withoutApproval, withQuestion, withoutQuestion } from './lib/approvals';
 import {
@@ -105,10 +106,6 @@ export default function App() {
   // The primary center view. 'workbench' is Home or a project workspace;
   // 'schedules' and 'issues' are first-class surfaces reached from the sidebar.
   const [view, setView] = useState('workbench');
-  // A message an Issue hands to the next new chat in one project, filled into
-  // its composer once. It lives here rather than on the tab so nothing about
-  // the Issue is saved with the layout or outlives the hand-off.
-  const [chatDraft, setChatDraft] = useState(null);
   const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
   const [workspace, setWorkspace] = useState(emptyWorkspace);
   // The pane currently under a tab being dragged, highlighted as the drop target.
@@ -281,7 +278,6 @@ export default function App() {
   // its `ref` is the session id, or `new-N` for a new chat that keeps its identity
   // across adoption so the ChatSession is not remounted.
   const termSeqRef = useRef(0);
-  const newChatSeqRef = useRef(0);
   // Which project the current `workspace` belongs to, so the save effect writes
   // it under the right key even across the switch that swaps it out.
   const workspaceProjectRef = useRef(null);
@@ -317,28 +313,23 @@ export default function App() {
     return () => unsub?.();
   }, []);
 
-  // openChatTabInto focuses an existing chat tab for a session, else opens one.
-  const openChatTabInto = (ws, sessionId, title) => {
-    for (const row of ws.rows) {
-      for (const pane of row.panes) {
-        const t = pane.tabs.find((x) => x.kind === 'chat' && (x.sessionId ?? '') === sessionId);
-        if (t) return focusPaneTab(ws, pane.id, t.key);
-      }
-    }
-    return openInFocused(ws, { kind: 'chat', ref: sessionId, sessionId, title: title || 'Chat' });
-  };
-  // openNewChatInto keeps at most one not-yet-sent new chat per project (new chats
-  // serialize on the same run key), focusing it if present.
-  const openNewChatInto = (ws) => {
-    for (const row of ws.rows) {
-      for (const pane of row.panes) {
-        const t = pane.tabs.find((x) => x.kind === 'chat' && (x.sessionId ?? '') === '');
-        if (t) return focusPaneTab(ws, pane.id, t.key);
-      }
-    }
-    newChatSeqRef.current += 1;
-    return openInFocused(ws, { kind: 'chat', ref: `new-${newChatSeqRef.current}`, sessionId: '', title: 'New Chat' });
-  };
+  // Entering a project makes it current with no session selected; the reseed
+  // effect below then shows its layout. Starting a chat (see useChatStart)
+  // enters the project and lands on a new chat in it.
+  const enterProject = useCallback((project) => {
+    setView('workbench');
+    setProjectNotices([]);
+    getApp()?.ProjectNotices?.(project.id)
+      .then((lines) => setProjectNotices(lines ?? []))
+      .catch(() => {});
+    setNewChatProject(project);
+    setSelectedId(null);
+  }, []);
+  const { startChat, seedWorkspace, newChatInto, draftFor, consumeDraft } = useChatStart({
+    currentProjectId: currentProject?.id ?? null,
+    enterProject,
+    setWorkspace,
+  });
   // updateTabField patches one tab (matched by key) across the grid.
   const updateTabField = (ws, key, patch) => ({
     ...ws,
@@ -415,12 +406,10 @@ export default function App() {
 
     const withChat = (ws) => {
       if (!currentProject) return ws;
-      if (selectedId) {
-        const title = sessions.find((s) => s.id === selectedId)?.title?.trim() || 'Chat';
-        return openChatTabInto(ws, selectedId, title);
-      }
-      if (!allTabs(ws).some((t) => t.kind === 'chat')) return openNewChatInto(ws);
-      return ws;
+      const selected = selectedId
+        ? { id: selectedId, title: sessions.find((s) => s.id === selectedId)?.title?.trim() || 'Chat' }
+        : null;
+      return seedWorkspace(ws, pid, selected);
     };
     // Every stashed (inactive) project's terminals stay mounted but parked.
     const computeParked = () => {
@@ -780,23 +769,6 @@ export default function App() {
     setSelectedId(null);
   }
 
-  function handleStartIssueChat(project, text) {
-    setChatDraft({ projectId: project.id, text, seq: Date.now() });
-    handleNewChatInProject(project);
-  }
-
-  function handleNewChatInProject(project) {
-    setView('workbench');
-    setProjectNotices([]);
-    app?.ProjectNotices?.(project.id)
-      .then((lines) => setProjectNotices(lines ?? []))
-      .catch(() => {});
-    const sameProject = project.id === currentProject?.id;
-    setNewChatProject(project);
-    setSelectedId(null);
-    if (sameProject) setWorkspace((s) => openNewChatInto(s));
-  }
-
   async function handleOpenProjectFolder(name, folderPath) {
     try {
       // A folder already known -- a worktree of a repository in the list, or
@@ -807,7 +779,7 @@ export default function App() {
         const without = prev.filter((p) => p.id !== project.id);
         return [...without, project];
       });
-      handleNewChatInProject(project);
+      startChat(project);
       setShowCreateModal(false);
     } catch (err) {
       setError(err?.message ?? String(err));
@@ -880,10 +852,10 @@ export default function App() {
         if (t.kind === 'chat' && drop.has(t.sessionId ?? '')) matches.push([p.id, t.key]);
       })));
       let ws = matches.reduce((acc, [pid, key]) => closePaneTab(acc, pid, key), s);
-      if (!allTabs(ws).some((t) => t.kind === 'chat')) ws = openNewChatInto(ws);
+      if (!allTabs(ws).some((t) => t.kind === 'chat')) ws = newChatInto(ws);
       return ws;
     });
-  }, []);
+  }, [newChatInto]);
 
   async function handleRenameSession(id, title) {
     try {
@@ -1097,8 +1069,8 @@ export default function App() {
             onTitle={handleTabTitle}
             onOpenSession={openSessionTab}
             onShowChanges={() => setExplorerMode('changes')}
-            draft={!active.sessionId && chatDraft?.projectId === currentProject.id ? chatDraft : null}
-            onDraftConsumed={() => setChatDraft(null)}
+            draft={draftFor(active, currentProject.id)}
+            onDraftConsumed={consumeDraft}
           />
         )}
         {active?.kind === 'file' && (
@@ -1175,7 +1147,7 @@ export default function App() {
           onClose={(key) => closeCenterTab(pane.id, key)}
           onPin={(key) => pinCenterTab(pane.id, key)}
           onRename={renameCenterTab}
-          onNewTab={currentProject ? () => setWorkspace((s) => openNewChatInto(focusPane(s, pane.id))) : undefined}
+          onNewTab={currentProject ? () => setWorkspace((s) => newChatInto(focusPane(s, pane.id))) : undefined}
           onSplitRight={maximizedPane ? undefined : () => splitCenterRight(pane.id)}
           onSplitDown={maximizedPane ? undefined : () => splitCenterDown(pane.id)}
           onToggleMaximize={canMaximize ? () => toggleMaximizePane(pane.id) : undefined}
@@ -1237,7 +1209,7 @@ export default function App() {
             onCreateProject={() => setShowCreateModal(true)}
             projectActions={{
               onSelectSession: handleSelectSession,
-              onNewChat: handleNewChatInProject,
+              onNewChat: startChat,
               onRename: handleRenameProject,
               onDelete: handleDeleteProject,
               onClearSessions: handleClearProjectSessions,
@@ -1300,7 +1272,7 @@ export default function App() {
                   app={app}
                   projects={projects}
                   currentProject={currentProject}
-                  onStartChat={handleStartIssueChat}
+                  onStartChat={startChat}
                 />
               ) : !currentProject ? (
                 <HomeDashboard
@@ -1308,7 +1280,7 @@ export default function App() {
                   recentProjects={recentProjects}
                   projectById={projectById}
                   onSelectSession={handleSelectSession}
-                  onOpenProject={handleNewChatInProject}
+                  onOpenProject={enterProject}
                   onCreateProject={() => setShowCreateModal(true)}
                 />
               ) : (

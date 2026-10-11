@@ -1,6 +1,7 @@
 /* Login page — matches portal login-page styles, uses theme.css variables */
 
 .login-page {
+  position: relative;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -8,6 +9,43 @@
   justify-content: center;
   gap: 1rem;
   background: var(--color-bg-muted);
+}
+
+/* The page replaces the workbench and its status bar, so the theme and
+   language controls a person may need before signing in live here. */
+.login-page__prefs {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.login-page__locales {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.login-page__locale {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.55rem;
+  background: none;
+  color: var(--color-text-muted);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.login-page__locale:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover);
+}
+
+.login-page__locale[aria-pressed="true"] {
+  color: var(--color-text);
+  border-color: var(--color-border);
 }
 
 .login-page__card {

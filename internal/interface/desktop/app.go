@@ -884,16 +884,18 @@ func (a *App) GetAuthStatus() (*AuthStatus, error) {
 	return status, nil
 }
 
-// GetDefaultServerURL is what the sign-in form starts with. It reads the same
-// settings.yaml key `buildmax login` does, so the two entry points offer the
-// same address instead of the Desktop insisting on a local server someone has
-// already configured away from.
+// GetDefaultServerURL is what the sign-in form starts with: the server this
+// machine was configured with (settings.yaml's server_url, or
+// BUILDMAX_SERVER_URL), the same one `buildmax login` offers. With none it is
+// empty. The CLI's local-server fallback is a developer's default; a person
+// signing in from Desktop has their deployment's address from whoever runs it,
+// so the form asks for that rather than presenting a guess as the answer.
 func (a *App) GetDefaultServerURL() string {
 	s, err := config.LoadSettings()
-	if err == nil && s.ServerURL != "" {
-		return s.ServerURL
+	if err != nil {
+		return ""
 	}
-	return client.DefaultServerURL
+	return s.ServerURL
 }
 
 // RequestOTP calls the server's OTP endpoint.

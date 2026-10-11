@@ -24,6 +24,8 @@ Desktop 与 CLI 一样，使用以下两种模式之一：
 
 `GetAuthStatus` 返回已登录账户，不提供模式字段：凭据本身就是模式。`<BUILDMAX_HOME>/auth.json` 中存有登录信息时报告 `server`，没有时报告 `local`；不会再保存一个并行状态，因为同一事实的第二份记录就是第二个权威来源。服务器不再认可的登录会报告过期：应用保留托管模式并拒绝运行，不会悄悄使用本地模型；用户可以重新登录或退出。`Logout` 撤销会话并删除凭据，删除凭据本身就完成了向本地模式的切换。参见[客户端模式](../../design/客户端模式.md)第 3 和第 8 节。
 
+登录页（`LoginPage.jsx`）与 Portal 一致：密码是日常登录方式，由运维人员签发的登录码用于认领新账户或找回忘记的密码。与 Portal 不同，它不读取 `GET /api/auth/methods`，因此始终显示本地登录表单。服务器地址的初始值来自 `GetDefaultServerURL`：即 `settings.yaml` 的 `server_url`（或 `BUILDMAX_SERVER_URL`），否则为空；与 `buildmax login` 不同，Desktop 不提供本机服务器的兜底地址。该页面会替换整个外壳，因此自带语言和主题切换。
+
 ## 层次
 
 | 路径 | 职责 |
@@ -115,9 +117,11 @@ Issue，显示单个 Issue 的描述、子 Issue 和最近讨论，可以改变�
 `SetIssueStatus` 只发送给定的版本号和状态，并把 409 报告为 `conflict`，视图据此重新加载。
 `CommentOnIssue` 发送时不带 `author_kind`，因此评论属于本人，而不是一条 `local_agent` 汇报。
 
-**Start chat** 是一次交接，而不是关联：App 按 Project 保存一份一次性草稿，打开该 Project 的新聊天，
-`ChatInput` 用草稿填充输入框一次。它不随 tab 布局保存，也没有会话记录这个 Issue；只有本人发送后，
-草稿才成为对话的第一条消息。
+**Start chat** 是一次交接，而不是关联。`src/lib/useChatStart.js` 负责在 Project 中新开聊天，供侧边栏的
+“+”、新打开的 Project 和 Issue 使用：它按 Project 保存一份一次性草稿；当该 Project 不是当前 Project 时，
+它记下这次新开，等 App 的 Project 切换 effect 恢复该 Project 的布局时，聚焦一个新聊天，而不是上次位于
+前台的 tab。`ChatInput` 用草稿填充输入框一次。它不随 tab 布局保存，也没有会话记录这个 Issue；只有本人
+发送后，草稿才成为对话的第一条消息。
 
 ## 构建边界
 

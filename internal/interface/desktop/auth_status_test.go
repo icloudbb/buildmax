@@ -3,6 +3,7 @@ package desktop
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -61,5 +62,29 @@ func TestAuthStatusReportsARejectedLoginAsExpired(t *testing.T) {
 	}
 	if !status.Expired || status.Unavailable {
 		t.Errorf("status = %+v, want expired and not unavailable", status)
+	}
+}
+
+// The sign-in form starts from the server this machine was configured with,
+// and from nothing when there is none: a local developer's address is not an
+// answer for someone signing in to their team's deployment.
+func TestDefaultServerURLIsOnlyAConfiguredServer(t *testing.T) {
+	t.Setenv(config.EnvKeyBuildmaxHome, t.TempDir())
+	t.Setenv(config.EnvKeyBuildmaxServerURL, "")
+
+	if got := NewApp().GetDefaultServerURL(); got != "" {
+		t.Errorf("unconfigured default = %q, want empty", got)
+	}
+
+	if err := os.WriteFile(config.SettingsPath(), []byte("server_url: https://buildmax.corp.example\n"), 0o600); err != nil {
+		t.Fatalf("write settings: %v", err)
+	}
+	if got := NewApp().GetDefaultServerURL(); got != "https://buildmax.corp.example" {
+		t.Errorf("configured default = %q, want the settings server_url", got)
+	}
+
+	t.Setenv(config.EnvKeyBuildmaxServerURL, "https://stage.buildmax.example")
+	if got := NewApp().GetDefaultServerURL(); got != "https://stage.buildmax.example" {
+		t.Errorf("default = %q, want the BUILDMAX_SERVER_URL override", got)
 	}
 }
