@@ -3,3 +3,7 @@
 
 # generic-api-key on the Export row of the lifecycle table: prose, no credential.
 08efc8e62690643669e3367230016a22cabdb8ab:docs/reference/agent-sandbox-research.md:generic-api-key:170
+
+# generic-api-key on the made-up poll secret the request-log redaction test
+# feeds in to prove it never reaches the log: no credential.
+320145eca2c8baa252a62096dfacb86f481f9e3e:internal/server/middleware_test.go:generic-api-key:112
