@@ -197,6 +197,9 @@ type App struct {
 	// with EnableLocalProject off: sessions are stamped with no project (invisible
 	// in the project session list) and no project catalog row is created.
 	scheduleApps map[string]*agentapp.AgentApp
+	// modelSource resolves the current mode's models; nil means
+	// auth.ResolveModelSource. A test sets it to change mode without a server.
+	modelSource func(context.Context) (auth.ModelSource, error)
 	// scheduler serializes runs per session (see runKey): one run per session in
 	// flight at a time, prompts submitted meanwhile queued and drained as their
 	// own turns, the session held for a run's life, and cancellation that
@@ -302,7 +305,7 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		return nil, err
 	}
 
-	source, err := auth.ResolveModelSource(context.Background())
+	source, err := a.resolveModelSource(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -368,7 +371,7 @@ func (a *App) agentAppForDir(dir string) (*agentapp.AgentApp, error) {
 		return ag, nil
 	}
 
-	source, err := auth.ResolveModelSource(context.Background())
+	source, err := a.resolveModelSource(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -403,6 +406,36 @@ func (a *App) agentAppForDir(dir string) (*agentapp.AgentApp, error) {
 	a.scheduleApps[dir] = ag
 	a.mu.Unlock()
 	return ag, nil
+}
+
+// rebuildRuntimes drops the assembled runtimes, project and directory alike, so
+// the next request picks up what changed.
+//
+// A runtime keeps the plugin inventory and the mode's model list it was
+// assembled with, which is what stops an install or a sign-in from changing a
+// run already in flight. Desktop is the surface where the same person does both,
+// so it rebuilds after a plugin action, signing in, or signing out rather than
+// leaving a runtime of the other mode to answer the next prompt.
+func (a *App) rebuildRuntimes() {
+	a.mu.Lock()
+	apps := a.agentApps
+	dirApps := a.scheduleApps
+	a.agentApps = make(map[string]*agentapp.AgentApp)
+	a.scheduleApps = make(map[string]*agentapp.AgentApp)
+	a.mu.Unlock()
+	for _, ag := range apps {
+		_ = ag.Close()
+	}
+	for _, ag := range dirApps {
+		_ = ag.Close()
+	}
+}
+
+func (a *App) resolveModelSource(ctx context.Context) (auth.ModelSource, error) {
+	if a.modelSource != nil {
+		return a.modelSource(ctx)
+	}
+	return auth.ResolveModelSource(ctx)
 }
 
 // hostForDir resolves the AgentApp a scheduled fire runs in. A scheduled run is
@@ -939,6 +972,7 @@ func (a *App) saveLogin(serverURL string, lr *client.LoginResponse) (*AuthStatus
 	if err := auth.SaveCredentials(creds); err != nil {
 		return nil, fmt.Errorf("save credentials: %w", err)
 	}
+	a.rebuildRuntimes()
 	return &AuthStatus{
 		LoggedIn:  true,
 		ServerURL: serverURL,
@@ -959,6 +993,7 @@ func (a *App) Logout() error {
 	if err := auth.LogoutAndRevoke(); err != nil {
 		slog.Warn("logout could not revoke the session on the server", "err", err)
 	}
+	a.rebuildRuntimes()
 	return nil
 }
 

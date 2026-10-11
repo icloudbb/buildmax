@@ -33,7 +33,10 @@ type Record struct {
 	// user's home directory (resolved at fire time), so a task needs no project.
 	WorkingDir string `json:"working_dir"`
 	Prompt     string `json:"prompt"`
-	// Model is the model each fire runs under. Empty means the app's default.
+	// Model is the model each fire runs under, pinned when the task is saved:
+	// choosing "Default" stores the default of that moment, so a later sign-in or
+	// default change never moves the task. Empty is a task saved before pinning,
+	// which does not fire until it is edited.
 	Model    string `json:"model,omitempty"`
 	CronExpr string `json:"cron_expr"`
 	Timezone string `json:"timezone"`

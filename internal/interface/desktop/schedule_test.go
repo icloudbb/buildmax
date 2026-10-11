@@ -141,7 +141,7 @@ func TestResolveWorkingDir(t *testing.T) {
 }
 
 func TestSetAllScheduledTasksEnabled(t *testing.T) {
-	a := &App{schedules: schedstore.NewFileStore(filepath.Join(t.TempDir(), "tasks.json"))}
+	a, _ := scheduleApp(t)
 	now := time.Now().UTC()
 	store := a.ensureScheduleStore()
 	for _, r := range []schedstore.Record{

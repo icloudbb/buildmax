@@ -201,7 +201,7 @@ func (a *App) InstallPlugin(name, version string, update bool) (InstallPluginPla
 	}
 	// The runtime keeps the snapshot it was assembled with, so the caller has
 	// to rebuild before a run sees this.
-	a.rebuildProjectRuntimes()
+	a.rebuildRuntimes()
 	return installPlan(name, plan), nil
 }
 
@@ -210,7 +210,7 @@ func (a *App) UninstallPlugin(name string, force bool) error {
 	if _, err := pluginmgr.Uninstall(name, force); err != nil {
 		return err
 	}
-	a.rebuildProjectRuntimes()
+	a.rebuildRuntimes()
 	return nil
 }
 
@@ -219,7 +219,7 @@ func (a *App) SetPluginDisabled(name string, disabled bool) error {
 	if _, err := pluginmgr.SetDisabled(name, disabled); err != nil {
 		return err
 	}
-	a.rebuildProjectRuntimes()
+	a.rebuildRuntimes()
 	return nil
 }
 
@@ -250,21 +250,4 @@ func installPlan(name string, plan pluginmgr.Plan) InstallPluginPlan {
 		}
 	}
 	return out
-}
-
-// rebuildProjectRuntimes drops the assembled runtimes so the next request picks
-// up what changed on disk.
-//
-// A runtime keeps the plugin inventory it was assembled with, which is what
-// stops an install from changing a run already in flight. Desktop is the
-// surface where the same person does both, so it rebuilds after a plugin action
-// rather than leaving them looking at a stale answer.
-func (a *App) rebuildProjectRuntimes() {
-	a.mu.Lock()
-	apps := a.agentApps
-	a.agentApps = make(map[string]*agentapp.AgentApp)
-	a.mu.Unlock()
-	for _, ag := range apps {
-		_ = ag.Close()
-	}
 }
