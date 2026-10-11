@@ -52,17 +52,25 @@ type Guard struct {
 // already does. Waiting out the token instead would make "disable" and "log out"
 // mean "in about fifteen minutes", which is not the feature.
 func (g *Guard) ActiveUser(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID, _, ok := g.ActiveUserSession(w, r)
+	return userID, ok
+}
+
+// ActiveUserSession is ActiveUser that also names the session the caller's
+// token belongs to, for a route whose decision depends on that session — such
+// as confirming a native sign-in, which only a Portal session may do.
+func (g *Guard) ActiveUserSession(w http.ResponseWriter, r *http.Request) (userID, sid string, ok bool) {
 	claims, ok := ClaimsFromRequest(r, g.JWTSecret)
 	if !ok {
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "unauthorized")
-		return "", false
+		return "", "", false
 	}
-	userID := claims.Sub
+	userID = claims.Sub
 	if g.Users != nil {
 		user, err := g.Users.GetUser(r.Context(), userID)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "auth handler error", "handler", "require_active_user", "user_id", userID)
-			return "", false
+			return "", "", false
 		}
 		// A token naming an account the store does not have is allowed through
 		// unchanged. Nothing deletes accounts, so this is not a state a deployment
@@ -71,19 +79,19 @@ func (g *Guard) ActiveUser(w http.ResponseWriter, r *http.Request) (string, bool
 		// at once.
 		if user != nil && user.Disabled() {
 			httputil.WriteJSONError(w, http.StatusForbidden, DisabledMessage)
-			return "", false
+			return "", "", false
 		}
 		// A service account never holds a session; a token naming one was not
 		// issued by a sign-in, so it is refused as unauthenticated.
 		if user != nil && user.IsService() {
 			httputil.WriteJSONError(w, http.StatusUnauthorized, "unauthorized")
-			return "", false
+			return "", "", false
 		}
 	}
 	if !g.activeSession(w, r, claims) {
-		return "", false
+		return "", "", false
 	}
-	return userID, true
+	return userID, claims.Sid, true
 }
 
 // activeSession refuses a token whose session has been revoked or has passed its

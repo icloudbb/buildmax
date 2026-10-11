@@ -79,7 +79,17 @@ func (s *Store) CreateRefreshToken(ctx context.Context, in coreidentity.NewRefre
 	if in.SessionID == "" {
 		return "", time.Time{}, errors.New("refresh token: session id required")
 	}
-	ttl := in.TTL
+	userKey, err := lookupKey(ctx, s.db, "user", in.UserID)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return createRefreshTokenTx(s.db.WithContext(ctx), userKey, in.SessionID, in.Platform, in.TTL, time.Now().UTC())
+}
+
+// createRefreshTokenTx issues the first token of a session. Every session
+// opens through it, whether from a login or from a native sign-in redemption
+// inside that redemption's transaction.
+func createRefreshTokenTx(tx *gorm.DB, userKey uint64, sessionID, platform string, ttl time.Duration, now time.Time) (string, time.Time, error) {
 	if ttl <= 0 {
 		ttl = coreidentity.RefreshTokenTTLDefault
 	}
@@ -87,19 +97,15 @@ func (s *Store) CreateRefreshToken(ctx context.Context, in coreidentity.NewRefre
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	userKey, err := lookupKey(ctx, s.db, "user", in.UserID)
-	if err != nil {
-		return "", time.Time{}, err
-	}
-	expiresAt := time.Now().UTC().Add(ttl)
+	expiresAt := now.Add(ttl)
 	row := userRefreshTokenRow{
 		TokenHash: hashRefreshToken(plaintext),
 		UserID:    userKey,
-		SessionID: in.SessionID,
-		Platform:  in.Platform,
+		SessionID: sessionID,
+		Platform:  platform,
 		ExpiresAt: expiresAt,
 	}
-	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
+	if err := tx.Create(&row).Error; err != nil {
 		return "", time.Time{}, err
 	}
 	return plaintext, expiresAt, nil

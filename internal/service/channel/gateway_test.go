@@ -99,7 +99,7 @@ func TestUnlinkedSenderIsOfferedAPairingCode(t *testing.T) {
 		t.Fatal("no pairing was stored")
 	}
 	reply := h.conn.last()
-	if !strings.Contains(reply, portalURL+"/#/account/chat/"+displayCode(code)) {
+	if !strings.Contains(reply, portalURL+"/#/account/chat/"+coreidentity.DisplayUserCode(code)) {
 		t.Errorf("reply lacks the confirm link: %q", reply)
 	}
 	if len(h.turns.seen()) != 0 {
@@ -118,11 +118,11 @@ func TestConfirmPairingLinksAndTellsTheChat(t *testing.T) {
 	h.send(dm("hello"))
 	code := h.ids.onlyCode()
 
-	preview, err := h.g.PreviewPairing(context.Background(), strings.ToLower(displayCode(code)))
+	preview, err := h.g.PreviewPairing(context.Background(), strings.ToLower(coreidentity.DisplayUserCode(code)))
 	if err != nil || preview.Handle != "@ada" {
 		t.Fatalf("PreviewPairing = %+v, %v; want the chat account's handle", preview, err)
 	}
-	link, err := h.g.ConfirmPairing(context.Background(), adaID, displayCode(code))
+	link, err := h.g.ConfirmPairing(context.Background(), adaID, coreidentity.DisplayUserCode(code))
 	if err != nil {
 		t.Fatalf("ConfirmPairing: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestConfirmPairingRefusesWithoutARecentSignIn(t *testing.T) {
 	code := h.ids.onlyCode()
 	h.users.signedIn(adaID, time.Now().Add(-coreidentity.SessionAbsoluteTTLDefault-time.Hour))
 
-	if _, err := h.g.ConfirmPairing(context.Background(), adaID, displayCode(code)); !errors.Is(err, corechannel.ErrSignInRequired) {
+	if _, err := h.g.ConfirmPairing(context.Background(), adaID, coreidentity.DisplayUserCode(code)); !errors.Is(err, corechannel.ErrSignInRequired) {
 		t.Fatalf("ConfirmPairing = %v, want ErrSignInRequired", err)
 	}
 	if links, _ := h.ids.ListIdentitiesByUser(context.Background(), adaID); len(links) != 0 {
@@ -435,15 +435,5 @@ func TestConnectorReceivesOnlyWhileHoldingTheLease(t *testing.T) {
 	case <-lease.released:
 	case <-time.After(5 * time.Second):
 		t.Fatal("receiving did not stop after the lease was lost")
-	}
-}
-
-func TestNormalizePairingCode(t *testing.T) {
-	if got := NormalizePairingCode(" abcd-efgh "); got != "ABCDEFGH" {
-		t.Errorf("NormalizePairingCode = %q", got)
-	}
-	code, err := newPairingCode()
-	if err != nil || len(code) != pairingLength || strings.ContainsAny(code, "01OIL") {
-		t.Errorf("newPairingCode = %q, %v", code, err)
 	}
 }

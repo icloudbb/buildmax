@@ -28,7 +28,7 @@ func TestConfirmPairingRefusesAServiceAccount(t *testing.T) {
 	code := h.ids.onlyCode()
 	h.g.users = serviceUsers{}
 
-	if _, err := h.g.ConfirmPairing(context.Background(), adaID, displayCode(code)); !errors.Is(err, corechannel.ErrSignInRequired) {
+	if _, err := h.g.ConfirmPairing(context.Background(), adaID, coreidentity.DisplayUserCode(code)); !errors.Is(err, corechannel.ErrSignInRequired) {
 		t.Fatalf("ConfirmPairing = %v, want ErrSignInRequired", err)
 	}
 	if links, _ := h.ids.ListIdentitiesByUser(context.Background(), adaID); len(links) != 0 {

@@ -418,6 +418,24 @@
         },
         "required": ["error"]
       },
+      "LoginResponse": {
+        "type": "object",
+        "description": "The token pair a native client stores, whether it signed in with a credential or through a Portal-confirmed sign-in request.",
+        "properties": {
+          "token": {"type": "string", "description": "`access_token` under its earlier name"},
+          "access_token": {"type": "string"},
+          "refresh_token": {"type": "string", "description": "Absent when the deployment stores no refresh tokens"},
+          "expires_in": {"type": "integer", "description": "Access token lifetime in seconds"},
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "email": {"type": "string"},
+              "name": {"type": "string"}
+            }
+          }
+        }
+      },
       "Space": {
         "type": "object",
         "properties": {
@@ -1793,9 +1811,187 @@
       "post": {
         "tags": ["auth"],
         "summary": "Login",
-        "description": "Accepts either a `password` (the everyday credential) or a single-use `otp` login code (the recovery path, issued by an operator). Returns an access token and, when the deployment stores them, a refresh token. `token` repeats `access_token` under the name it had before the two were split.",
+        "description": "Accepts either a `password` (the everyday credential) or a single-use `otp` login code (the recovery path, issued by an operator). Returns an access token and, when the deployment stores them, a refresh token. `token` repeats `access_token` under the name it had before the two were split. An optional `client_label` is what a native client says it is, shown beside the session in session lists and never trusted.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": {"type": "string"},
+                  "password": {"type": "string"},
+                  "otp": {"type": "string"},
+                  "platform": {"type": "string"},
+                  "client_label": {"type": "string", "maxLength": 64, "description": "At most 64 printable characters, such as `alice-mbp · macOS`."}
+                }
+              }
+            }
+          }
+        },
         "responses": {
-          "200": { "description": "OK" }
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginResponse" } } }
+          },
+          "400": { "description": "Email or credential missing, client_label invalid, or body invalid", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "401": { "description": "Invalid credential", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "403": { "description": "Account disabled, or local_login does not admit this account", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} }
+        }
+      }
+    },
+    "/api/auth/native-sign-ins": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Start a native sign-in request",
+        "description": "Anonymous. A CLI or Desktop starts a request a person then confirms in the Portal. Returns the `user_code` to show (XXXX-XXXX), the `poll_secret` only this client holds, `expires_in` (600) and `interval` (5) in seconds, and the Portal page to open: `verification_uri` (`<base>/#/sign-in`) and `verification_uri_complete` (`<base>/#/sign-in/<code>`), where `<base>` is `public_base_url`, or the origin the client called when that is unset. Only SHA-256 hashes of the code and the secret are stored.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["platform"],
+                "properties": {
+                  "platform": {"type": "string", "enum": ["cli", "desktop"]},
+                  "client_label": {"type": "string", "maxLength": 64, "description": "What the client says it is, such as `alice-mbp · macOS`. At most 64 printable characters; shown in the Portal as not verified."}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_code": {"type": "string"},
+                    "poll_secret": {"type": "string"},
+                    "expires_in": {"type": "integer"},
+                    "interval": {"type": "integer"},
+                    "verification_uri": {"type": "string"},
+                    "verification_uri_complete": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Platform not cli or desktop, client_label invalid, or body invalid", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "503": { "description": "500 pending requests already exist (`Retry-After` set), or native sign-in is not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} }
+        }
+      },
+      "get": {
+        "tags": ["auth"],
+        "summary": "Look up a pending native sign-in request",
+        "description": "For the Portal confirmation page. Requires a Portal session. Shows the client kind, its unverified label, when the request started and expires, and when the resulting session would end (the confirming session's own absolute expiry). The code is a query parameter so request logs redact it. A wrong, expired, or already-decided code is one 404; ten of them per account in ten minutes answer 429.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "code", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "platform": {"type": "string", "enum": ["cli", "desktop"]},
+                    "client_label": {"type": "string"},
+                    "created_at": {"type": "string", "format": "date-time"},
+                    "expires_at": {"type": "string", "format": "date-time"},
+                    "session_expires_at": {"type": "string", "format": "date-time"}
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Not authenticated", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "403": { "description": "Not a Portal session, or account disabled", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "404": { "description": "Code not valid", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "429": { "description": "Too many unknown codes from this account", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "503": { "description": "Native sign-in is not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} }
+        }
+      }
+    },
+    "/api/auth/native-sign-ins/poll": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Poll a native sign-in request",
+        "description": "Anonymous: the poll secret is the proof. After a confirmation, the next poll creates the session and returns the same body as `/api/auth/login`; the session takes the request's platform and label and the confirming Portal session's method and absolute expiry. Otherwise 400 with an RFC 8628 code: `authorization_pending` (not decided yet), `slow_down` (polled before `interval`; the interval grows by 5 seconds, up to 30), `access_denied` (denied, or the confirming account was disabled or its session ended), or `expired_token` (expired, already redeemed, or unknown).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["poll_secret"],
+                "properties": { "poll_secret": {"type": "string"} }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Redeemed",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginResponse" } } }
+          },
+          "400": { "description": "`authorization_pending`, `slow_down`, `access_denied`, `expired_token`, or `poll_secret required`", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "503": { "description": "Native sign-in is not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} }
+        }
+      }
+    },
+    "/api/auth/native-sign-ins/confirm": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Confirm a native sign-in request",
+        "description": "Requires a Portal session whose sign-in method this deployment still admits: `local_login` for a password or login-code session, OIDC enabled for an SSO one. The first decision on a code wins; a later one finds the code not valid. Recorded as `auth.native_sign_in_confirmed`.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "required": ["code"], "properties": { "code": {"type": "string"} } }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Confirmed" },
+          "400": { "description": "Body invalid", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "401": { "description": "Not authenticated", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "403": { "description": "Not a Portal session, its sign-in method is no longer admitted (sign in again), or account disabled", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "404": { "description": "Code not valid", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "429": { "description": "Too many unknown codes from this account", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "503": { "description": "Native sign-in is not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} }
+        }
+      }
+    },
+    "/api/auth/native-sign-ins/deny": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Deny a native sign-in request",
+        "description": "Requires a Portal session. The first decision on a code wins; a later one finds the code not valid. The polling client is answered `access_denied`. Recorded as `auth.native_sign_in_denied`.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "required": ["code"], "properties": { "code": {"type": "string"} } }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Denied" },
+          "400": { "description": "Body invalid", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "401": { "description": "Not authenticated", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "403": { "description": "Not a Portal session, or account disabled", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "404": { "description": "Code not valid", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "429": { "description": "Too many unknown codes from this account", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "503": { "description": "Native sign-in is not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} }
         }
       }
     },
@@ -3003,6 +3199,7 @@
                           "session_id": {"type": "string"},
                           "platform": {"type": "string"},
                           "auth_method": {"type": "string"},
+                          "client_label": {"type": "string", "description": "What a native client said it is when it signed in; not verified"},
                           "created_at": {"type": "string", "format": "date-time"},
                           "last_seen_at": {"type": "string", "format": "date-time"},
                           "expires_at": {"type": "string", "format": "date-time"}

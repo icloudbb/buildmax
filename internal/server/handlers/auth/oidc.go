@@ -13,6 +13,7 @@ import (
 	"time"
 
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	infraoidc "github.com/icloudbb/buildmax/internal/infra/oidc"
 	identitysvc "github.com/icloudbb/buildmax/internal/service/identity"
 )
@@ -124,7 +125,7 @@ func (h *Handler) oidcCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := svc.StartSSOSession(r.Context(), assoc.User, "portal", h.cfg.OIDCSessionMaxAge)
+	result, err := svc.StartSSOSession(r.Context(), assoc.User, coreidentity.PlatformPortal, h.cfg.OIDCSessionMaxAge)
 	if err != nil {
 		if errors.Is(err, identitysvc.ErrDisabled) {
 			h.redirectSSOError(w, r, ssoErrDisabled)

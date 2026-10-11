@@ -21,6 +21,9 @@ type authSessionRow struct {
 	// Platform and AuthMethod are the surface and proof that opened the session.
 	Platform   string `gorm:"type:varchar(32)"`
 	AuthMethod string `gorm:"column:auth_method;type:varchar(32)"`
+	// ClientLabel is what a native client said it is; NULL when it said
+	// nothing. Shown to people, never trusted.
+	ClientLabel *string `gorm:"column:client_label;type:varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"`
 	// AbsoluteExpiresAt is the hard ceiling; LastSeenAt is best-effort activity.
 	AbsoluteExpiresAt time.Time  `gorm:"column:absolute_expires_at;not null;index"`
 	LastSeenAt        *time.Time `gorm:"column:last_seen_at"`
@@ -58,6 +61,9 @@ func (r authSessionReadRow) toSession() coreidentity.AuthSession {
 		CreatedAt:         r.Row.CreatedAt,
 		AbsoluteExpiresAt: r.Row.AbsoluteExpiresAt,
 	}
+	if r.Row.ClientLabel != nil {
+		s.ClientLabel = *r.Row.ClientLabel
+	}
 	if r.Row.LastSeenAt != nil {
 		s.LastSeenAt = *r.Row.LastSeenAt
 	}
@@ -73,13 +79,23 @@ func (s *Store) CreateSession(ctx context.Context, in coreidentity.NewAuthSessio
 	if err != nil {
 		return "", err
 	}
+	return createSessionTx(ctx, s.db.WithContext(ctx), userKey, in)
+}
+
+// createSessionTx writes one session row. Every login and every native sign-in
+// redemption opens its session through it.
+func createSessionTx(ctx context.Context, tx *gorm.DB, userKey uint64, in coreidentity.NewAuthSession) (string, error) {
 	row := authSessionRow{
 		UserID:            userKey,
 		Platform:          in.Platform,
 		AuthMethod:        in.AuthMethod,
 		AbsoluteExpiresAt: in.AbsoluteExpiresAt,
 	}
-	if err := createWithPublicID(ctx, s.db.WithContext(ctx), "uq_auth_session_public_id",
+	if in.ClientLabel != "" {
+		label := in.ClientLabel
+		row.ClientLabel = &label
+	}
+	if err := createWithPublicID(ctx, tx, "uq_auth_session_public_id",
 		func(id string) { row.PublicID = id }, &row); err != nil {
 		return "", err
 	}

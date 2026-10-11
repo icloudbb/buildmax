@@ -102,6 +102,28 @@ func TestRequestLogRedactsCredentialQueryParams(t *testing.T) {
 	}
 }
 
+// The Portal looks a native sign-in request up by its user code in ?code=,
+// which signs a CLI or Desktop in once confirmed. The code must not reach the
+// request line, and neither may a poll secret in a request body.
+func TestRequestLogRedactsNativeSignInCode(t *testing.T) {
+	buf := captureLog(t)
+	h := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
+	const code = "WDJB-MJHT"
+	const secret = "bmxsignin_c2VjcmV0LXRoYXQtbXVzdC1ub3QtbGVhaw"
+
+	serve(h, httptest.NewRequest(http.MethodGet, "/api/auth/native-sign-ins?code="+code, nil))
+	serve(h, httptest.NewRequest(http.MethodPost, "/api/auth/native-sign-ins/poll",
+		strings.NewReader(`{"poll_secret":"`+secret+`"}`)))
+
+	out := buf.String()
+	if strings.Contains(out, code) || strings.Contains(out, "WDJB") || strings.Contains(out, secret) {
+		t.Errorf("a sign-in code or poll secret leaked into the log: %q", out)
+	}
+	if !strings.Contains(out, "code=REDACTED") {
+		t.Errorf("want the code redacted in place, got %q", out)
+	}
+}
+
 // A malformed escape cannot be parsed into keys, so a credential could hide in
 // it. The whole query is dropped rather than logged raw.
 func TestRequestLogDropsUnparseableQuery(t *testing.T) {

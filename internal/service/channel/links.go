@@ -2,49 +2,13 @@ package channel
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 )
-
-// pairingAlphabet leaves out characters people confuse when retyping a code
-// (0/O, 1/I/L), so a code read off a phone screen survives being typed.
-const pairingAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-
-// pairingLength gives about 40 bits: far beyond guessing within the code's
-// ten-minute life, and still short enough to type.
-const pairingLength = 8
-
-func newPairingCode() (string, error) {
-	size := big.NewInt(int64(len(pairingAlphabet)))
-	var b strings.Builder
-	for range pairingLength {
-		n, err := rand.Int(rand.Reader, size)
-		if err != nil {
-			return "", err
-		}
-		b.WriteByte(pairingAlphabet[n.Int64()])
-	}
-	return b.String(), nil
-}
-
-// NormalizePairingCode accepts a code the way people retype one: any case, with
-// or without the separator the bot prints.
-func NormalizePairingCode(code string) string {
-	code = strings.ToUpper(code)
-	return strings.NewReplacer("-", "", " ", "").Replace(code)
-}
-
-func displayCode(code string) string {
-	if len(code) != pairingLength {
-		return code
-	}
-	return code[:4] + "-" + code[4:]
-}
 
 // offerPairing answers an unlinked sender with a link code. The link is
 // confirmed in the Portal by a signed-in person who sees which chat account
@@ -56,7 +20,7 @@ func (g *Gateway) offerPairing(ctx context.Context, c bot, in corechannel.Inboun
 	if !g.mayOffer(c, in.Tenant, in.SenderID) {
 		return
 	}
-	code, err := newPairingCode()
+	code, err := coreidentity.NewUserCode()
 	if err != nil {
 		g.log.Error("pairing code not generated", "err", err)
 		return
@@ -75,7 +39,7 @@ func (g *Gateway) offerPairing(ctx context.Context, c bot, in corechannel.Inboun
 		g.reply(ctx, c, in.ChatID, genericFailure)
 		return
 	}
-	shown := displayCode(code)
+	shown := coreidentity.DisplayUserCode(code)
 	var b strings.Builder
 	b.WriteString("This chat account is not linked to BuildMax yet.\n\n")
 	if link := g.link("/#/account/chat/" + shown); link != "" {
@@ -132,7 +96,7 @@ func (g *Gateway) Platforms(ctx context.Context) []corechannel.Info {
 // PreviewPairing shows what a code would link, so the person confirming sees
 // the chat account's name before its messages start acting as them.
 func (g *Gateway) PreviewPairing(ctx context.Context, code string) (*corechannel.Pairing, error) {
-	p, err := g.identities.PairingByCode(ctx, NormalizePairingCode(code), g.now())
+	p, err := g.identities.PairingByCode(ctx, coreidentity.NormalizeUserCode(code), g.now())
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +117,7 @@ func (g *Gateway) ConfirmPairing(ctx context.Context, userID, code string) (*cor
 	if !active {
 		return nil, corechannel.ErrSignInRequired
 	}
-	ident, pairing, err := g.identities.ConsumePairing(ctx, NormalizePairingCode(code), userID, g.now())
+	ident, pairing, err := g.identities.ConsumePairing(ctx, coreidentity.NormalizeUserCode(code), userID, g.now())
 	if err != nil {
 		return nil, err
 	}

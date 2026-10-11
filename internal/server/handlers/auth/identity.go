@@ -37,6 +37,8 @@ func (h *Handler) identityService() *identitysvc.Service {
 		Sessions:            h.cfg.Sessions,
 		ExternalIdentities:  h.cfg.ExternalIdentities,
 		Grants:              h.cfg.Grants,
+		OIDCEnabled:         h.cfg.OIDCEnabled && h.cfg.OIDC != nil,
+		NativeSignIns:       h.cfg.NativeSignIns,
 		LocalLogin:          h.cfg.LocalLogin,
 		Provisioning:        h.cfg.Provisioning,
 		AllowedEmailDomains: h.cfg.AllowedEmailDomains,
@@ -46,5 +48,6 @@ func (h *Handler) identityService() *identitysvc.Service {
 		RotationGrace:       h.refreshRotationGrace(),
 		SessionAbsoluteTTL:  h.sessionAbsoluteTTL(),
 		Audit:               h.cfg.Audit,
+		Now:                 h.cfg.Now,
 	}
 }
