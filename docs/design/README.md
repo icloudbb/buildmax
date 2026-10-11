@@ -134,7 +134,7 @@ remaining list. Update this snapshot when either changes.
 | [Tool permissions](tool-permissions.md) | Active plan | Complete | Runtime tool allow, deny, and approval policy |
 | [Sandbox boundaries](sandbox-boundaries.md) | Specification | Complete | Local and worker command containment boundaries |
 | [Worker run token](worker-run-token.md) | Specification | Complete | The run-scoped credential accepted by worker routes |
-| [Enterprise identity and access](enterprise-identity-and-access.md) | Direction | Partial | Durable sessions, Portal cookie auth, OIDC sign-in and external-identity linking ship; real-provider rotation, outage, offboarding, and break-glass qualification remain |
+| [Enterprise identity and access](enterprise-identity-and-access.md) | Direction | Partial | Durable sessions, Portal cookie auth, OIDC sign-in and external-identity linking ship; real-provider rotation, outage, offboarding, and break-glass qualification remain; native CLI/Desktop sign-in through Portal confirmation is decided, not built |
 
 ## Operations and Deployment
 
