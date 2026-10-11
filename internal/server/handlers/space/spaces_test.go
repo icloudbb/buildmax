@@ -215,6 +215,90 @@ func TestSpaceHandlers(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
 		}
+		// Portal words this condition for a person from the code, so the code
+		// is the contract, not the message.
+		var out struct {
+			Code string `json:"code"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode error: %v", err)
+		}
+		if out.Code != "invitee_account_required" {
+			t.Fatalf("code = %q, want invitee_account_required", out.Code)
+		}
+	})
+
+	t.Run("pending invitations name the invitee to the Space's managers only", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"email":"u4@example.com"}`)
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+sharedSpaceID+"/invitations", body)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", spaceTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("invite status = %d body=%s", rec.Code, rec.Body.String())
+		}
+		var created invitationResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+			t.Fatalf("decode invitation: %v", err)
+		}
+		if created.UserEmail == nil || *created.UserEmail != "u4@example.com" || created.UserName == nil || *created.UserName != "Dana" {
+			t.Fatalf("created invitation names %v / %v, want Dana <u4@example.com>", created.UserName, created.UserEmail)
+		}
+
+		listReq := httptest.NewRequest(http.MethodGet, "/api/spaces/"+sharedSpaceID+"/invitations", nil)
+		listReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", spaceTestSecret))
+		listRec := httptest.NewRecorder()
+		mux.ServeHTTP(listRec, listReq)
+		if listRec.Code != http.StatusOK {
+			t.Fatalf("list status = %d body=%s", listRec.Code, listRec.Body.String())
+		}
+		var pending []invitationResponse
+		if err := json.Unmarshal(listRec.Body.Bytes(), &pending); err != nil {
+			t.Fatalf("decode invitations: %v", err)
+		}
+		var found bool
+		for _, inv := range pending {
+			if inv.ID != created.ID {
+				continue
+			}
+			found = true
+			if inv.UserEmail == nil || *inv.UserEmail != "u4@example.com" || inv.UserName == nil || *inv.UserName != "Dana" {
+				t.Fatalf("listed invitation names %v / %v, want Dana <u4@example.com>", inv.UserName, inv.UserEmail)
+			}
+		}
+		if !found {
+			t.Fatalf("invitation %s missing from %+v", created.ID, pending)
+		}
+
+		// A member may still not read who has been invited.
+		memberReq := httptest.NewRequest(http.MethodGet, "/api/spaces/"+sharedSpaceID+"/invitations", nil)
+		memberReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", spaceTestSecret))
+		memberRec := httptest.NewRecorder()
+		mux.ServeHTTP(memberRec, memberReq)
+		if memberRec.Code != http.StatusForbidden {
+			t.Fatalf("member list status = %d, want 403", memberRec.Code)
+		}
+		if strings.Contains(memberRec.Body.String(), "u4@example.com") {
+			t.Fatalf("a member's refusal disclosed the invitee: %s", memberRec.Body.String())
+		}
+
+		// The invitee's own view leaves the identity out: they are the caller.
+		mineReq := httptest.NewRequest(http.MethodGet, "/api/invitations", nil)
+		mineReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u4", spaceTestSecret))
+		mineRec := httptest.NewRecorder()
+		mux.ServeHTTP(mineRec, mineReq)
+		if strings.Contains(mineRec.Body.String(), "user_email") {
+			t.Fatalf("GET /api/invitations carries user_email: %s", mineRec.Body.String())
+		}
+
+		delReq := httptest.NewRequest(http.MethodDelete, "/api/spaces/"+sharedSpaceID+"/invitations/"+created.ID, nil)
+		delReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", spaceTestSecret))
+		delRec := httptest.NewRecorder()
+		mux.ServeHTTP(delRec, delReq)
+		if delRec.Code != http.StatusNoContent {
+			t.Fatalf("revoke status = %d body=%s", delRec.Code, delRec.Body.String())
+		}
 	})
 
 	t.Run("DELETE revoke a pending invitation", func(t *testing.T) {

@@ -50,6 +50,7 @@ const (
 // adds to it only where the extra text is deliberately public.
 type Error struct {
 	kind    Kind
+	code    string
 	message string
 	base    error
 }
@@ -66,6 +67,14 @@ func New(kind Kind, message string) *Error {
 	return &Error{kind: kind, message: message}
 }
 
+// NewCoded declares a sentinel a client must tell apart from others of its
+// Kind. The code is part of the API contract: a client keys its own wording
+// on it, so the message stays free to change and to address API callers.
+// Most refusals need none -- the status and the message already say enough.
+func NewCoded(kind Kind, code, message string) *Error {
+	return &Error{kind: kind, code: code, message: message}
+}
+
 // Detail returns a copy of base whose message carries extra text and which
 // still matches errors.Is(base).
 //
@@ -74,6 +83,7 @@ func New(kind Kind, message string) *Error {
 func Detail(base *Error, format string, args ...any) *Error {
 	return &Error{
 		kind:    base.kind,
+		code:    base.code,
 		message: base.message + ": " + fmt.Sprintf(format, args...),
 		base:    base,
 	}
@@ -95,4 +105,14 @@ func Message(err error) (string, bool) {
 		return e.message, true
 	}
 	return "", false
+}
+
+// CodeOf reports the stable code carried in err's chain, or "" when the
+// refusal has none.
+func CodeOf(err error) string {
+	var e *Error
+	if errors.As(err, &e) {
+		return e.code
+	}
+	return ""
 }

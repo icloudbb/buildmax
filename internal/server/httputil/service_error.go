@@ -18,9 +18,13 @@ func WriteServiceError(w http.ResponseWriter, err error) bool {
 		return false
 	}
 	message, _ := apierr.Message(err)
-	// Deliberately the same body as every other refusal, {"error": ...}. The
-	// Kind is a code this could also report, but adding one is an API decision,
-	// not a side effect of moving the switch.
+	// The body is {"error": ...} like every other refusal. A code is added only
+	// where the service declared one (apierr.NewCoded): the Kind is already the
+	// status, so repeating it as a code would tell a client nothing new.
+	if code := apierr.CodeOf(err); code != "" {
+		WriteJSON(w, statusForKind(kind), map[string]string{"error": message, "code": code})
+		return true
+	}
 	WriteJSONError(w, statusForKind(kind), message)
 	return true
 }

@@ -81,3 +81,22 @@ func TestSentinelsAreDistinct(t *testing.T) {
 		t.Error("separately declared sentinels must not match each other")
 	}
 }
+
+// A coded sentinel keeps its code through wrapping and Detail, because the
+// client's wording depends on it, not on the message.
+func TestCodeSurvivesWrappingAndDetail(t *testing.T) {
+	base := NewCoded(KindInvalid, "invitee_account_required", "no account exists for this email")
+
+	if got := CodeOf(fmt.Errorf("invite: %w", base)); got != "invitee_account_required" {
+		t.Errorf("CodeOf through a wrap = %q", got)
+	}
+	if got := CodeOf(Detail(base, "%s", "extra")); got != "invitee_account_required" {
+		t.Errorf("CodeOf through Detail = %q", got)
+	}
+	if got := CodeOf(errNotFound); got != "" {
+		t.Errorf("an uncoded sentinel reports code %q", got)
+	}
+	if got := CodeOf(errors.New("boom")); got != "" {
+		t.Errorf("a plain error reports code %q", got)
+	}
+}

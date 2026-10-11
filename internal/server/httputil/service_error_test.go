@@ -118,3 +118,27 @@ func TestRetryRefusalsAreConflicts(t *testing.T) {
 		}
 	}
 }
+
+// A coded refusal carries its code beside the message, so a client can word
+// it for its own audience; an uncoded one gains no code field at all.
+func TestCodedErrorReportsItsCode(t *testing.T) {
+	coded := apierr.NewCoded(apierr.KindInvalid, "some_condition", "the condition holds")
+
+	w, _ := write(t, fmt.Errorf("context: %w", coded))
+	var out map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("body %q: %v", w.Body.String(), err)
+	}
+	if w.Code != http.StatusBadRequest || out["code"] != "some_condition" || out["error"] != "the condition holds" {
+		t.Errorf("status=%d body=%v, want 400 with code and message", w.Code, out)
+	}
+
+	w, _ = write(t, workflow.ErrWorkflowNotFound)
+	out = nil
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("body %q: %v", w.Body.String(), err)
+	}
+	if _, ok := out["code"]; ok {
+		t.Errorf("an uncoded refusal reported a code: %v", out)
+	}
+}

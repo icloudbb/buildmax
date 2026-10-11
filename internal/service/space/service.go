@@ -33,8 +33,10 @@ var (
 
 	// ErrInviteeAccountRequired refuses an invitation to an email with no
 	// account. Creating one is system_admin's job, never a space-scoped call's
-	// -- see docs/design/space-membership-lifecycle.md §1.
-	ErrInviteeAccountRequired = apierr.New(apierr.KindInvalid,
+	// -- see docs/design/space-membership-lifecycle.md §1. The message names
+	// the operator's tools for API callers; the code lets Portal say the same
+	// thing to a person without them.
+	ErrInviteeAccountRequired = apierr.NewCoded(apierr.KindInvalid, InviteeAccountRequiredCode,
 		"no account exists for this email; ask a system administrator to create one "+
 			"(POST /api/admin/users or buildmax-server user create), then invite it")
 	// ErrOnlyOwnerOrAdminCanInvite covers creating, listing, and revoking
@@ -127,8 +129,20 @@ func (s *Service) now() time.Time {
 
 // Member pairs a membership with the account behind it. User is nil when the
 // deployment has no user store to resolve it against.
+// InviteeAccountRequiredCode is ErrInviteeAccountRequired's stable code on
+// the wire.
+const InviteeAccountRequiredCode = "invitee_account_required"
+
 type Member struct {
 	Membership corespace.Member
+	User       *coreidentity.User
+}
+
+// PendingInvitation is an invitation with the account it names, so whoever
+// manages the Space can tell pending rows apart. User is nil when the account
+// no longer resolves.
+type PendingInvitation struct {
+	Invitation corespace.Invitation
 	User       *coreidentity.User
 }
 
@@ -290,7 +304,11 @@ func (s *Service) InviteMember(ctx context.Context, cmd InviteMemberCmd) (*cores
 
 // ListSpaceInvitations returns a space's pending invitations. Reading who has
 // been invited is the same authority as sending or revoking one.
-func (s *Service) ListSpaceInvitations(ctx context.Context, spaceID, actorID string) ([]corespace.Invitation, error) {
+//
+// Each invitation carries the invitee's account. The inviter typed that email
+// to send it, so naming it back discloses nothing the same authority could not
+// learn by inviting.
+func (s *Service) ListSpaceInvitations(ctx context.Context, spaceID, actorID string) ([]PendingInvitation, error) {
 	if s.Spaces == nil {
 		return nil, ErrSpacesNotConfigured
 	}
@@ -301,7 +319,23 @@ func (s *Service) ListSpaceInvitations(ctx context.Context, spaceID, actorID str
 	if !allows(members, actorID, corespace.ActionInviteSpaceMember) {
 		return nil, ErrOnlyOwnerOrAdminCanInvite
 	}
-	return s.Spaces.ListPendingInvitationsBySpace(ctx, spaceID, s.now())
+	invitations, err := s.Spaces.ListPendingInvitationsBySpace(ctx, spaceID, s.now())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PendingInvitation, len(invitations))
+	for i := range invitations {
+		out[i] = PendingInvitation{Invitation: invitations[i]}
+		if s.Users == nil {
+			continue
+		}
+		user, err := s.Users.GetUser(ctx, invitations[i].UserID)
+		if err != nil {
+			return nil, err
+		}
+		out[i].User = user
+	}
+	return out, nil
 }
 
 // ListMyInvitations answers GET /api/invitations: what is pending for the

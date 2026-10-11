@@ -410,7 +410,14 @@
           "complete": { "type": "boolean", "description": "False means the run wrote no terminal record — do not read as success" }
         }
       },
-      "Error": {"type": "object", "properties": {"error": {"type": "string"}}, "required": ["error"]},
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {"type": "string"},
+          "code": {"type": "string", "description": "Stable code for a refusal a client must tell apart from others with the same status, such as invitee_account_required. Absent on most refusals; the message may change, the code does not."}
+        },
+        "required": ["error"]
+      },
       "Space": {
         "type": "object",
         "properties": {
@@ -530,6 +537,8 @@
           "id": {"type": "string"},
           "space_id": {"type": "string"},
           "user_id": {"type": "string"},
+          "user_name": {"type": "string", "description": "The invitee's display name. Set only on the Space-scoped routes, whose owner or admin caller needs to tell pending invitations apart."},
+          "user_email": {"type": "string", "description": "The invitee's email. Set only on the Space-scoped routes, like user_name."},
           "role": {"type": "string"},
           "invited_by": {"type": "string"},
           "expires_at": {"type": "string", "format": "date-time"},
@@ -4129,7 +4138,7 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Invitation"}}}
           },
           "400": {
-            "description": "Invalid email or role, or no account exists for this email",
+            "description": "Invalid email or role, or no account exists for this email (code invitee_account_required)",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "403": {
