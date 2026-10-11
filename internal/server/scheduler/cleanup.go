@@ -11,16 +11,17 @@ import (
 const defaultCleanupInterval = time.Hour
 
 // ExpiredCredentialStore deletes credential rows that can no longer be
-// redeemed. Both methods return how many rows they removed.
+// redeemed. Each method returns how many rows it removed.
 type ExpiredCredentialStore interface {
 	DeleteExpiredLoginCodes(ctx context.Context, before time.Time) (int64, error)
 	DeleteExpiredRefreshTokens(ctx context.Context, before time.Time) (int64, error)
+	DeleteExpiredNativeSignIns(ctx context.Context, before time.Time) (int64, error)
 }
 
-// CredentialCleaner periodically removes expired login codes and refresh
-// tokens.
+// CredentialCleaner periodically removes expired login codes, refresh tokens,
+// and native sign-in requests.
 //
-// Neither table is correctness-critical to sweep — expiry is enforced on read,
+// No table is correctness-critical to sweep — expiry is enforced on read,
 // not by absence — so a failed sweep is logged and retried on the next tick
 // rather than stopping the server.
 type CredentialCleaner struct {
@@ -97,7 +98,12 @@ func (c *CredentialCleaner) sweep() {
 	if err != nil {
 		c.log().Warn("delete expired refresh tokens failed", "err", err)
 	}
-	if codes > 0 || tokens > 0 {
-		c.log().Info("expired credentials removed", "login_codes", codes, "refresh_tokens", tokens)
+	signIns, err := c.store.DeleteExpiredNativeSignIns(ctx, now)
+	if err != nil {
+		c.log().Warn("delete expired native sign-in requests failed", "err", err)
+	}
+	if codes > 0 || tokens > 0 || signIns > 0 {
+		c.log().Info("expired credentials removed",
+			"login_codes", codes, "refresh_tokens", tokens, "native_sign_ins", signIns)
 	}
 }

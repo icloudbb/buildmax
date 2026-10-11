@@ -39,6 +39,8 @@ var (
 	// ErrEmailRequired and ErrCredentialRequired are malformed requests.
 	ErrEmailRequired      = apierr.New(apierr.KindInvalid, "email required")
 	ErrCredentialRequired = apierr.New(apierr.KindInvalid, "password or otp required")
+	// ErrClientLabelInvalid refuses a label a person could not read as given.
+	ErrClientLabelInvalid = apierr.New(apierr.KindInvalid, coreidentity.ErrClientLabelInvalid.Error())
 	// ErrDisabled means the credential was right and the account is switched
 	// off. Checked after the credential verifies, never before: refusing
 	// earlier tells an unauthenticated caller the address is registered.
@@ -130,6 +132,12 @@ type Service struct {
 	// system_admins local-login mode. Nil makes system_admins refuse everyone,
 	// which is the safe reading of "restricted but I cannot check".
 	Grants coreidentity.SystemGrantStore
+	// OIDCEnabled says whether SSO sign-in is available now. Confirming a
+	// native sign-in from an OIDC Portal session requires it.
+	OIDCEnabled bool
+	// NativeSignIns holds CLI and Desktop sign-in requests a Portal session
+	// confirms. Nil leaves the flow unavailable.
+	NativeSignIns coreidentity.NativeSignInStore
 
 	Tokens     TokenIssuer
 	RefreshTTL time.Duration
@@ -161,6 +169,9 @@ type LoginCmd struct {
 	Password string
 	Otp      string
 	Platform string
+	// ClientLabel is what a native client says it is, shown in session lists.
+	// Optional.
+	ClientLabel string
 }
 
 // LoginResult is a session that now exists.
@@ -200,11 +211,14 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (*LoginResult, error)
 	if cmd.Password == "" && otp == "" {
 		return nil, ErrCredentialRequired
 	}
+	label, err := coreidentity.NormalizeClientLabel(cmd.ClientLabel)
+	if err != nil {
+		return nil, ErrClientLabelInvalid
+	}
 
 	var (
 		user   *coreidentity.User
 		method string
-		err    error
 	)
 	if cmd.Password != "" {
 		method = MethodPassword
@@ -235,22 +249,23 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (*LoginResult, error)
 	if absoluteTTL <= 0 {
 		absoluteTTL = coreidentity.SessionAbsoluteTTLDefault
 	}
-	return s.openSession(ctx, user, method, cmd.Platform, absoluteTTL)
+	now := s.now()
+	return s.openSession(ctx, user, method, cmd.Platform, label, now, now.Add(absoluteTTL))
 }
 
 // openSession mints a session, access token, and refresh token for an account
 // whose right to sign in has already been decided. Login and SSO share it: the
 // difference between them is what proves the account, not what a session is.
+// The absolute expiry is a timestamp the caller decides, not a duration.
 //
 // With a session store the session is a durable record the guard checks and an
 // absolute expiry caps; without one (a deployment with no database) the id is
 // minted inline so the access token still carries a sid, and the guard, which
 // has no session store either, simply does not check it.
-func (s *Service) openSession(ctx context.Context, user *coreidentity.User, method, platform string, absoluteTTL time.Duration) (*LoginResult, error) {
+func (s *Service) openSession(ctx context.Context, user *coreidentity.User, method, platform, clientLabel string, now, absoluteExpiresAt time.Time) (*LoginResult, error) {
 	if platform == "" {
 		platform = "unknown"
 	}
-	now := s.now()
 	var sessionID string
 	var err error
 	if s.Sessions != nil {
@@ -258,7 +273,8 @@ func (s *Service) openSession(ctx context.Context, user *coreidentity.User, meth
 			UserID:            user.ID,
 			Platform:          platform,
 			AuthMethod:        method,
-			AbsoluteExpiresAt: now.Add(absoluteTTL),
+			ClientLabel:       clientLabel,
+			AbsoluteExpiresAt: absoluteExpiresAt,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("create session: %w", err)
@@ -268,10 +284,6 @@ func (s *Service) openSession(ctx context.Context, user *coreidentity.User, meth
 		if err != nil {
 			return nil, fmt.Errorf("mint session id: %w", err)
 		}
-	}
-	accessToken, ttl, err := s.Tokens.Mint(user.ID, sessionID, now)
-	if err != nil {
-		return nil, fmt.Errorf("mint access token: %w", err)
 	}
 	var refreshToken string
 	if s.RefreshTokens != nil {
@@ -284,6 +296,18 @@ func (s *Service) openSession(ctx context.Context, user *coreidentity.User, meth
 		if err != nil {
 			return nil, fmt.Errorf("create refresh token: %w", err)
 		}
+	}
+	return s.issueAccess(ctx, user, method, platform, sessionID, refreshToken, now)
+}
+
+// issueAccess completes a session whose records exist: it mints the access
+// token and records when and where the account last signed in. Every login
+// shares it, including a native sign-in, whose records its redemption
+// transaction wrote.
+func (s *Service) issueAccess(ctx context.Context, user *coreidentity.User, method, platform, sessionID, refreshToken string, now time.Time) (*LoginResult, error) {
+	accessToken, ttl, err := s.Tokens.Mint(user.ID, sessionID, now)
+	if err != nil {
+		return nil, fmt.Errorf("mint access token: %w", err)
 	}
 	result := &LoginResult{
 		User: *user, Method: method, Platform: platform, SessionID: sessionID,
@@ -398,5 +422,6 @@ func (s *Service) StartSSOSession(ctx context.Context, user coreidentity.User, p
 	if sessionMaxAge <= 0 {
 		sessionMaxAge = coreidentity.SessionAbsoluteTTLDefault
 	}
-	return s.openSession(ctx, &user, MethodOIDC, platform, sessionMaxAge)
+	now := s.now()
+	return s.openSession(ctx, &user, MethodOIDC, platform, "", now, now.Add(sessionMaxAge))
 }

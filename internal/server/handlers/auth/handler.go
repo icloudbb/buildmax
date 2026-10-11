@@ -83,17 +83,36 @@ type Config struct {
 	// Grants resolves an account's system roles, for the system_admins
 	// local-login mode. Nil makes that mode refuse everyone.
 	Grants coreidentity.SystemGrantStore
+	// NativeSignIns holds CLI and Desktop sign-in requests a Portal session
+	// confirms. Nil makes the /api/auth/native-sign-ins routes answer 503.
+	NativeSignIns coreidentity.NativeSignInStore
 
 	// Audit records logins and credential changes. Nil discards them.
 	Audit *audit.Recorder
+
+	// Now is the clock. Nil means time.Now; tests set it to step through poll
+	// pacing and expiry.
+	Now func() time.Time
 }
 
-type Handler struct{ cfg Config }
+type Handler struct {
+	cfg Config
+	// codeAttempts bounds how many unknown sign-in codes one account may try.
+	// It lives on the handler because it is per process by design (§14.6).
+	codeAttempts *codeAttempts
+}
 
-func New(cfg Config) *Handler { return &Handler{cfg: cfg} }
+func New(cfg Config) *Handler { return &Handler{cfg: cfg, codeAttempts: newCodeAttempts()} }
+
+func (h *Handler) now() time.Time {
+	if h.cfg.Now != nil {
+		return h.cfg.Now()
+	}
+	return time.Now()
+}
 
 func (h *Handler) guard() *access.Guard {
-	return &access.Guard{JWTSecret: h.cfg.JWTSecret, Users: h.cfg.Users, Sessions: h.cfg.Sessions, Audit: h.cfg.Audit}
+	return &access.Guard{JWTSecret: h.cfg.JWTSecret, Users: h.cfg.Users, Sessions: h.cfg.Sessions, Audit: h.cfg.Audit, Now: h.cfg.Now}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -117,4 +136,13 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/portal/logout", h.portalLogoutHandler)
 	// Authenticated; sets or changes the caller's own password.
 	mux.HandleFunc("POST /api/auth/password", h.setPasswordHandler)
+	// Native sign-in confirmed in the Portal. Start and poll are anonymous: the
+	// poll secret is the proof. Look-up, confirm, and deny take a Portal
+	// session. The code travels in a query parameter the request log redacts,
+	// or in a body, never in a path. See native_sign_in.go.
+	mux.HandleFunc("POST /api/auth/native-sign-ins", h.startNativeSignInHandler)
+	mux.HandleFunc("POST /api/auth/native-sign-ins/poll", h.pollNativeSignInHandler)
+	mux.HandleFunc("GET /api/auth/native-sign-ins", h.lookUpNativeSignInHandler)
+	mux.HandleFunc("POST /api/auth/native-sign-ins/confirm", h.confirmNativeSignInHandler)
+	mux.HandleFunc("POST /api/auth/native-sign-ins/deny", h.denyNativeSignInHandler)
 }

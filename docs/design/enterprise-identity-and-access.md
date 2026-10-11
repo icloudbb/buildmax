@@ -299,7 +299,7 @@ Every password, login-code, and OIDC authentication creates one
 - external identity when the method is OIDC (not built: the shipped row has no
   such column, so the link is found through the user);
 - the client label a native client reports, such as `alice-mbp · macOS`
-  (planned with §14);
+  (added with the server half of §14);
 - creation, last activity, absolute expiry, and revocation time.
 
 Refresh-token rows belong to this session instead of being the session. Access
@@ -497,7 +497,7 @@ Space ID.
 | `user_id` | Account whose authority the session exercises |
 | `external_identity_id` | Nullable; set only for OIDC authentication. Not built: the shipped row has no such column. |
 | `platform`, `auth_method` | Client and proof used |
-| `client_label` | Planned with §14: nullable, at most 64 printable characters, as the native client reported it; never trusted |
+| `client_label` | Nullable, at most 64 printable characters, as the native client reported it; never trusted |
 | `created_at`, `last_seen_at` | Session lifecycle metadata |
 | `absolute_expires_at`, `revoked_at` | Authoritative validity |
 
@@ -507,7 +507,8 @@ authoritative state the already-issued `sid` currently lacks.
 
 ### 9.3 `native_sign_in`
 
-Planned with §14. One row per pending or decided native sign-in request:
+Added with the server half of §14. One row per pending or decided native
+sign-in request:
 
 | Field | Requirement |
 |---|---|
@@ -592,8 +593,8 @@ of hydrating bearer credentials from `localStorage`. The UI distinguishes:
 Detailed provider errors and claims stay in redacted Server logs with a request
 correlation ID, not in the browser response.
 
-Planned routes for native sign-in (§14). They are not built and not yet in
-`openapi.json`:
+Routes for native sign-in (§14). The five `native-sign-ins` routes are built
+and in `openapi.json`; the two self-service `sessions` routes are not built:
 
 ```text
 POST   /api/auth/native-sign-ins            anonymous: start a request
@@ -1261,14 +1262,14 @@ decomposed into backlog tasks:
   OpenAPI, deployment manifests, examples, and the Beta/support boundary only
   to the level the evidence proves.
 
-### Phase 4 — native sign-in through Portal confirmation (decided, not built)
+### Phase 4 — native sign-in through Portal confirmation (server half built)
 
-The [backlog](../backlog/README.md) tasks
-[60](../backlog/60-native-sign-in-server.md),
+The server half, the first item below, is built. The
+[backlog](../backlog/README.md) tasks
 [62](../backlog/62-portal-native-sign-in-confirmation.md),
 [64](../backlog/64-cli-native-sign-in.md),
 [66](../backlog/66-desktop-native-sign-in.md), and
-[68](../backlog/68-self-service-sessions.md) carry it. The work is:
+[68](../backlog/68-self-service-sessions.md) carry the rest. The work is:
 
 - the `native_sign_in` request, its routes, the redemption transaction,
   abuse bounds, audit, OpenAPI, and the `client_label` session column;
@@ -1404,8 +1405,12 @@ break-glass and IdP-outage continuity, and RP-initiated logout. It does not
 exist yet.
 
 Phase 4, native CLI/Desktop sign-in through Portal confirmation (§14), was
-decided on 2026-10-11 and is not built. Until it ships, a native client signs
-in only through `POST /api/auth/login`, which `local_login` governs.
+decided on 2026-10-11. Its server half is built: the `native_sign_in` table and
+redemption transaction, the five routes, the abuse bounds, the audit actions,
+and the `client_label` session column. The Portal confirmation page, the CLI and
+Desktop clients, and self-service sessions are not. Until the clients ship, a
+native client signs in only through `POST /api/auth/login`, which `local_login`
+governs.
 
 `docs/current-state.md`, `docs/deploy/authentication.md`,
 `docs/reference/configuration.md`, and OpenAPI describe the shipped behavior;

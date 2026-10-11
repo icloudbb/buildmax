@@ -329,6 +329,72 @@ key and secret rotation drills, and RP-initiated logout — is still being
 completed. To try a provider against a local cluster, see
 [Single Sign-On in the kind guide](local-kind.md#single-sign-on).
 
+## CLI And Desktop Sign-In Through The Portal
+
+Under `local_login: system_admins` or `off`, ordinary accounts cannot use
+`POST /api/auth/login`, the native client's password and login-code path. The
+server therefore also serves native sign-in requests that a signed-in Portal
+session confirms, shaped after OAuth 2.0 Device Authorization. **Only the server
+half ships so far:** the Portal confirmation page and the CLI and Desktop
+clients that use it are still being built, so today the flow is reachable only
+through the API.
+
+The routes, all under `/api/auth/native-sign-ins`:
+
+| Route | Caller | Does |
+|---|---|---|
+| `POST /api/auth/native-sign-ins` | anonymous | Starts a request from `platform` (`cli` or `desktop`) and an optional `client_label`. Returns a `user_code` (`XXXX-XXXX`), a `poll_secret`, `expires_in` (600), `interval` (5), and the Portal page to confirm on |
+| `POST /api/auth/native-sign-ins/poll` | the client, with the poll secret | Answers `authorization_pending`, `slow_down`, `access_denied`, or `expired_token` as a 400, or, after a confirmation, creates the session and returns the same body as `POST /api/auth/login` |
+| `GET /api/auth/native-sign-ins?code=` | a Portal session | Shows the pending request: client kind, claimed label, start, expiry, and when the resulting session would end |
+| `POST /api/auth/native-sign-ins/confirm`, `/deny` | a Portal session | Records the decision; the first one on a code wins |
+
+The confirmation page is `<base>/#/sign-in/<code>`, where `<base>` is
+`public_base_url`, or the origin the client called when it is unset. Set
+`public_base_url` when clients reach the server through a different host than
+browsers do.
+
+**Who can confirm.** Only a session signed in at the Portal; a CLI or Desktop
+session is refused, so a stolen native token cannot mint more sessions. For the
+same reason `POST /api/auth/login` refuses `platform: portal`: only the Portal's
+cookie route opens a Portal session. The
+confirmation also re-applies today's admission rule for the way that Portal
+session signed in: `local_login` must still admit a password or login-code
+session, and OIDC must still be enabled for an SSO one. Otherwise the person is
+told to sign in to the Portal again.
+
+**The session it creates.** The request's platform and label, and the
+confirming Portal session's authentication method and absolute expiry, exactly.
+A native session confirmed from an SSO session therefore ends with that session,
+within `session_max_age`, and `local_login` applies through the sign-in that
+confirmed it. After that the session is independent: signing out of the Portal
+does not end it, and it is listed and revoked like any other. Redemption
+re-checks the account and the confirming session, so disabling the account or
+revoking that session before the client's next poll yields `access_denied` and
+no session. Exactly one poll redeems a request.
+
+**Bounds.** A request lives ten minutes. Polls earlier than the interval answer
+`slow_down` and add 5 seconds, up to 30. At most 500 unexpired pending requests
+exist deployment-wide; the next start answers `503` with `Retry-After`, and
+existing sessions and Portal sign-in are unaffected. An account may try at most
+10 unknown codes in ten minutes, per server replica, before look-up, confirm,
+and deny answer `429`. These are constants. The start route is anonymous, so the
+external per-IP rate limit on `/api/auth/*` remains a deployment requirement.
+
+**What is stored and logged.** The `native_sign_in` table holds only SHA-256
+hashes of the code and the poll secret, the platform, the claimed label, the
+pacing state, and the decision; no token, email, or address. The credential
+cleaner deletes expired requests hourly. The code reaches the server only in a
+request body or the `code` query key, which the request log redacts, and the
+poll secret only in a body. A decision is recorded as
+`auth.native_sign_in_confirmed` or `auth.native_sign_in_denied`, with the
+deciding Portal session as target and the client kind and claimed label as
+detail; the redemption is a `user.login` with detail `portal_confirmation`.
+Starts, polls, and expiries are not audited.
+
+The label a client reports is never verified. `POST /api/auth/login` also accepts
+an optional `client_label`, at most 64 printable characters, so a natively
+signed-in session is recognizable in the session list too.
+
 ## What Is Still Missing
 
 There is no second factor and no self-service recovery: a forgotten password
@@ -344,7 +410,8 @@ A System Administrator can list live login sessions in Portal's account detail
 or `GET /api/admin/users/{user_id}/sessions`, and revoke one through
 `DELETE /api/admin/users/{user_id}/sessions/{session_id}` or all through the
 collection DELETE route. The list shows session ID, platform, authentication
-method, creation, last-seen, and absolute expiry; last-seen is throttled, not a
+method, the label a native client reported, creation, last-seen, and absolute
+expiry; last-seen is throttled, not a
 continuous device-presence signal. There is no self-service session-management
 page or dedicated admin CLI session verb. Revoking a session retires its refresh
 tokens and marks the `auth_session` row revoked, so an already-issued access

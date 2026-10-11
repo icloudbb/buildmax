@@ -21,6 +21,11 @@ type LoginRequest struct {
 	Password string `json:"password"`
 	Otp      string `json:"otp"`
 	Platform string `json:"platform"`
+	// ClientLabel is what a native client says it is, such as
+	// "alice-mbp · macOS", shown beside the session in session lists. Optional,
+	// at most 64 printable characters, never trusted. The Portal routes ignore
+	// it: a browser session is the browser.
+	ClientLabel string `json:"client_label"`
 }
 
 // POST /api/auth/login accepts two credentials, for two different jobs.
@@ -128,11 +133,19 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
+	// A portal session is one the Portal's cookie route opened in a browser,
+	// and only such a session may confirm a native sign-in. A JSON login
+	// claiming it would hand a script a refresh token labelled as the browser.
+	if req.Platform == coreidentity.PlatformPortal {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "platform portal signs in through /api/auth/portal/login")
+		return
+	}
 	result, err := h.identityService().Login(r.Context(), identitysvc.LoginCmd{
-		Email:    req.Email,
-		Password: req.Password,
-		Otp:      req.Otp,
-		Platform: req.Platform,
+		Email:       req.Email,
+		Password:    req.Password,
+		Otp:         req.Otp,
+		Platform:    req.Platform,
+		ClientLabel: req.ClientLabel,
 	})
 	if err != nil {
 		h.writeLoginError(w, r, req, err)
@@ -155,13 +168,19 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		// say.
 		Detail: result.Method,
 	})
-	httputil.WriteJSON(w, http.StatusOK, LoginResponse{
+	httputil.WriteJSON(w, http.StatusOK, loginResponse(result))
+}
+
+// loginResponse is the token pair a native client stores, whichever way it
+// signed in.
+func loginResponse(result *identitysvc.LoginResult) LoginResponse {
+	return LoginResponse{
 		Token:        result.AccessToken,
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
 		ExpiresIn:    result.ExpiresIn,
 		User:         LoginUser{ID: result.User.ID, Email: result.User.Email, Name: result.User.Name},
-	})
+	}
 }
 
 // writeLoginError answers a refused login exactly as the handler used to.

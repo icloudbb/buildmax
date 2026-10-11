@@ -11,6 +11,7 @@ import (
 
 	corechannel "github.com/icloudbb/buildmax/internal/core/channel"
 	coreconv "github.com/icloudbb/buildmax/internal/core/conversation"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 )
 
@@ -62,7 +63,7 @@ func TestAnyBotCanStartAPairingAndConfirmsIt(t *testing.T) {
 
 	h.g.handle(context.Background(), b, dm("hello"))
 	code := h.ids.onlyCode()
-	if code == "" || !strings.Contains(asst.last(), displayCode(code)) {
+	if code == "" || !strings.Contains(asst.last(), coreidentity.DisplayUserCode(code)) {
 		t.Fatalf("the assistant bot offered no code: %q", asst.last())
 	}
 	if p, _ := h.ids.PairingByCode(context.Background(), code, time.Now()); p == nil || p.Connector != assistantKey {

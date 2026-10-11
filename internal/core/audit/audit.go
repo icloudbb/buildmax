@@ -22,6 +22,14 @@ const (
 	// session was revoked in response. Unlike the actions above this is not a
 	// user's intent — it is the server reporting what it saw.
 	RefreshReuse = "auth.refresh_reuse"
+	// NativeSignInConfirmed and NativeSignInDenied record a person deciding a
+	// CLI or Desktop sign-in request from the Portal. The actor is the
+	// deciding account, the target its Portal session, and the detail the
+	// client kind and the label the client claimed — never the code. The
+	// session a confirmation leads to is recorded as user.login with detail
+	// portal_confirmation when the client redeems it.
+	NativeSignInConfirmed = "auth.native_sign_in_confirmed"
+	NativeSignInDenied    = "auth.native_sign_in_denied"
 	// PasswordSet records an account's password being set or changed. The
 	// event says that it happened, never what it became.
 	PasswordSet = "user.password_set"

@@ -88,6 +88,7 @@ erDiagram
     user ||--o{ external_identity : "links to"
     user ||--o{ channel_identity : "is reached through"
     auth_session ||--o{ user_refresh_token : "rotates tokens in"
+    auth_session ||--o{ native_sign_in : "confirms"
     user ||--o{ system_grant : "holds deployment authority via"
     llm_model ||--o{ llm_call : serves
     task_run ||--o{ llm_call : attributes
@@ -261,13 +262,36 @@ Space 是授权边界：一个请求被允许，是因为调用者对该资源�
 | `public_id` | `char(20) ascii_bin` | 否 | 公开会话句柄，唯一 |
 | `user_id` | `bigint unsigned` | 否 | `user.id` |
 | `platform` | `varchar(32)` | 是 | 发起登录的界面 |
-| `auth_method` | `varchar(32)` | 是 | 登录时使用的凭据方式 |
+| `auth_method` | `varchar(32)` | 是 | 登录时使用的凭据方式；原生登录沿用确认它的会话的方式 |
+| `client_label` | `varchar(64) utf8mb4_bin` | 是 | 原生客户端自称的标签，例如 `alice-mbp · macOS`；从不信任 |
 | `absolute_expires_at` | `datetime(6)` | 否 | 会话生命周期上限 |
 | `last_seen_at` | `datetime(6)` | 是 | 尽力记录的最近活动时间 |
 | `revoked_at` | `datetime(6)` | 是 | 撤销后非 `NULL` |
 | `created_at` | `datetime(6)` | 是 | `autoCreateTime` |
 
 索引：主键 `id`；唯一索引 `public_id`；索引 `user_id`；索引 `absolute_expires_at`。
+
+### `native_sign_in`
+
+由 Portal 会话确认或拒绝的 CLI 或 Desktop 登录请求。它没有公开 ID：除用户代码或轮询密钥外，没有任何东西指向一个请求，而这两者只保存哈希。兑换在创建会话的同一事务中删除该行；凭证清理任务删除过期的行。见[设计 §9.3](../../design/企业身份与访问.md#93-native_sign_in)。
+
+| 列 | 类型 | 可空 | 说明 |
+|---|---|---|---|
+| `id` | `bigint unsigned` | 否 | 内部主键 |
+| `user_code_hash` | `char(64) ascii_bin` | 否 | 规范化用户代码的 SHA-256；唯一 |
+| `poll_secret_hash` | `char(64) ascii_bin` | 否 | 轮询密钥的 SHA-256；唯一 |
+| `platform` | `varchar(32) ascii_bin` | 否 | `cli` 或 `desktop` |
+| `client_label` | `varchar(64) utf8mb4_bin` | 否 | 客户端声称的标签；没有时为空 |
+| `state` | `varchar(16) ascii_bin` | 否 | `pending`、`confirmed` 或 `denied` |
+| `interval_seconds` | `int` | 否 | 当前轮询间隔，从 5 增加到最多 30 |
+| `last_polled_at` | `datetime(6)` | 是 | 下一次轮询据以计时的那次轮询 |
+| `decided_by_user_id` | `bigint unsigned` | 是 | 作出决定的账号的 `user.id` |
+| `decided_session_id` | `bigint unsigned` | 是 | 作出决定的 Portal 会话的 `auth_session.id`；原生会话沿用其认证方式与绝对到期时间 |
+| `decided_at` | `datetime(6)` | 是 | |
+| `expires_at` | `datetime(6)` | 否 | 创建后十分钟 |
+| `created_at` | `datetime(6)` | 否 | |
+
+索引：主键 `id`；唯一索引 `uq_native_sign_in_user_code_hash`；唯一索引 `uq_native_sign_in_poll_secret_hash`；用于待处理上限的 `idx_native_sign_in_state_expires`（`state`、`expires_at`）；索引 `expires_at`。
 
 ### `user_refresh_token`
 

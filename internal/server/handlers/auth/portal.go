@@ -7,6 +7,7 @@ import (
 	"time"
 
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	identitysvc "github.com/icloudbb/buildmax/internal/service/identity"
 )
@@ -44,7 +45,7 @@ func (h *Handler) portalLoginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:    req.Email,
 		Password: req.Password,
 		Otp:      req.Otp,
-		Platform: "portal",
+		Platform: coreidentity.PlatformPortal,
 	})
 	if err != nil {
 		h.writeLoginError(w, r, req, err)

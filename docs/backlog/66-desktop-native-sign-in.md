@@ -3,7 +3,7 @@ id: desktop-native-sign-in
 title: Offer browser sign-in on the Desktop sign-in page
 roadmap: R5
 source: docs/design/enterprise-identity-and-access.md#147-client-experience
-depends_on: [60-native-sign-in-server.md]
+depends_on: []
 verification: ["./make test", "./make e2e desktop", "./make check desktop", "./make e2e desktop-ui", "./make e2e visual", "./make build desktop"]
 claim:
 pr:
@@ -45,7 +45,7 @@ a password form that will refuse them.
 
 ## Out Of Scope
 
-- Server routes: [60](60-native-sign-in-server.md). Portal page:
+- Server routes: already shipped under `/api/auth/native-sign-ins`. Portal page:
   [62](62-portal-native-sign-in-confirmation.md).
 - Desktop Remote Control opt-in (see the Remote Control design).
 - A deep-link or custom URL scheme back into Desktop. Polling completes the

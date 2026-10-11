@@ -104,6 +104,7 @@ type StoresConfig struct {
 	RefreshTokenStore     coreidentity.RefreshTokenStore
 	AuthSessionStore      coreidentity.AuthSessionStore
 	ExternalIdentityStore coreidentity.ExternalIdentityStore
+	NativeSignInStore     coreidentity.NativeSignInStore
 	RemoteSessionStore    coreremote.Store
 	SpaceStore            corespace.Store
 	WorkflowStore         coreworkflow.Store
@@ -405,6 +406,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		RefreshTokenStore:        cfg.Stores.RefreshTokenStore,
 		AuthSessionStore:         cfg.Stores.AuthSessionStore,
 		ExternalIdentityStore:    cfg.Stores.ExternalIdentityStore,
+		NativeSignInStore:        cfg.Stores.NativeSignInStore,
 		RemoteSessionStore:       cfg.Stores.RemoteSessionStore,
 		SpaceStore:               cfg.Stores.SpaceStore,
 		WorkflowStore:            cfg.Stores.WorkflowStore,

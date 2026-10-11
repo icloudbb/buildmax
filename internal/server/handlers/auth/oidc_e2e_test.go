@@ -40,7 +40,7 @@ type ssoDeployment struct {
 	users  *mock.MockUserStore
 }
 
-func newSSODeployment(t *testing.T, idpCfg mockoidc.Config) *ssoDeployment {
+func newSSODeployment(t *testing.T, idpCfg mockoidc.Config, options ...func(*Config)) *ssoDeployment {
 	t.Helper()
 	// The IdP's URL is only known once it listens, and the provider needs it as
 	// its issuer, so the handler is attached after the listener starts.
@@ -64,7 +64,7 @@ func newSSODeployment(t *testing.T, idpCfg mockoidc.Config) *ssoDeployment {
 	mux := http.NewServeMux()
 	bmx := httptest.NewServer(mux)
 	t.Cleanup(bmx.Close)
-	New(Config{
+	cfg := Config{
 		JWTSecret:       "oidc-e2e-secret",
 		LocalLogin:      "all",
 		OIDCEnabled:     true,
@@ -84,7 +84,11 @@ func newSSODeployment(t *testing.T, idpCfg mockoidc.Config) *ssoDeployment {
 		Sessions:      &mock.MockAuthSessionStore{Refresh: refresh},
 		RefreshTokens: refresh,
 		Audit:         audit.NewRecorder(&mock.MockAuditStore{}),
-	}).Register(mux)
+	}
+	for _, option := range options {
+		option(&cfg)
+	}
+	New(cfg).Register(mux)
 
 	return &ssoDeployment{t: t, server: bmx, users: users, client: newBrowser(t, idp)}
 }

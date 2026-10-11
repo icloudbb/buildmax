@@ -103,12 +103,15 @@ type AdminSessionsRevokedResponse struct {
 // response struct, not the store's row: it carries safe metadata to recognise a
 // device by, and never a token or its hash.
 type AdminSession struct {
-	SessionID  string    `json:"session_id"`
-	Platform   string    `json:"platform,omitempty"`
-	AuthMethod string    `json:"auth_method,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
-	LastSeenAt time.Time `json:"last_seen_at"`
-	ExpiresAt  time.Time `json:"expires_at"`
+	SessionID  string `json:"session_id"`
+	Platform   string `json:"platform,omitempty"`
+	AuthMethod string `json:"auth_method,omitempty"`
+	// ClientLabel is what a native client said it is when it signed in. It is
+	// the client's claim, not verified.
+	ClientLabel string    `json:"client_label,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	LastSeenAt  time.Time `json:"last_seen_at"`
+	ExpiresAt   time.Time `json:"expires_at"`
 }
 
 // AdminSessionsResponse is the list of an account's live sessions.
@@ -475,12 +478,13 @@ func (h *Handler) listAdminUserSessionsHandler(w http.ResponseWriter, r *http.Re
 	out := make([]AdminSession, 0, len(sessions))
 	for _, s := range sessions {
 		out = append(out, AdminSession{
-			SessionID:  s.SID,
-			Platform:   s.Platform,
-			AuthMethod: s.AuthMethod,
-			CreatedAt:  s.CreatedAt,
-			LastSeenAt: s.LastSeenAt,
-			ExpiresAt:  s.AbsoluteExpiresAt,
+			SessionID:   s.SID,
+			Platform:    s.Platform,
+			AuthMethod:  s.AuthMethod,
+			ClientLabel: s.ClientLabel,
+			CreatedAt:   s.CreatedAt,
+			LastSeenAt:  s.LastSeenAt,
+			ExpiresAt:   s.AbsoluteExpiresAt,
 		})
 	}
 	httputil.WriteJSON(w, http.StatusOK, AdminSessionsResponse{Sessions: out})

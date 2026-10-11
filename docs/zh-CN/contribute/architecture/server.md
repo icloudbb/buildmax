@@ -27,7 +27,7 @@
 ## 主要路由分组
 
 - 健康检查与 API 描述：`/healthz`、`/openapi.json`、`/swagger/`
-- 鉴权：`/api/auth/otp`、`/api/auth/login`、`/api/auth/token/refresh`、`/api/auth/logout`
+- 鉴权：`/api/auth/otp`、`/api/auth/login`、`/api/auth/token/refresh`、`/api/auth/logout`，`/api/auth/portal/` 下的 Portal cookie 路由，`/api/auth/oidc/` 下的 OIDC 流程，以及 `/api/auth/native-sign-ins` 下的原生登录
 - 存活与就绪探针：`/healthz`、`/readyz`
 - Space 与成员：`/api/spaces...`
 - Agent：`/api/spaces/{space_id}/agents...`
@@ -141,4 +141,5 @@ handler 与 Workflow 协调都会调用它。一个 Workflow 节点失败或被�
 - 登录会返回两份凭证。access token 是一个 Server 不会存储的签名 JWT；refresh token 则是一行 `user_refresh_token` 记录，这正是让一个 Session 可被撤销的原因。`internal/service/identity` 拥有这套流程，`internal/server/handlers/auth` 拥有它的路由，每一次轮换都停留在 access token 的 `sid` 声明所指名的那个 Session 之内。
 - 调用者是谁、请求关于哪个 Space，以及是否可以放行，这些问题都由 `internal/server/access` 回答。它的 `Guard` 会自己写出拒绝响应，因此一条路由读起来就像一份关卡清单；它所依据的角色/动作判定，是 `internal/core/space/policy.go` 中的 `space.Allows`——这是 Space 服务与它共用的唯一实现。
 - `POST /api/auth/login` 接受密码，或是一个由运维人员签发的一次性登录码。后者是账号认领与找回的路径，因为 BuildMax 没有邮件通道——见 [deploy/authentication.md](../../deploy/authentication.md)。
+- 原生登录让 CLI 或 Desktop 获得一个由 Portal 会话确认的会话。`internal/core/identity` 拥有 `NativeSignIn` 请求、其轮询节奏（`Poll`）、兑换规则（`RedeemableBy`、`SessionFor`）、与聊天账号配对共用的用户代码格式，以及存储契约。`internal/service/identity` 拥有发起、轮询、查询、确认与拒绝，包括对确认会话的仅限 Portal 检查与准入检查。`internal/infra/db` 拥有 `native_sign_in` 表与兑换事务：该事务锁定请求和确认会话，通过每次登录都使用的同一组行辅助函数创建 `auth_session` 及其第一个 refresh token，并删除请求。`internal/server/handlers/auth` 拥有五个路由、验证 URI 和进程内的未知代码限流；`access.Guard.ActiveUserSession` 向它提供调用方的 `sid`。见[设计 §14](../../design/企业身份与访问.md#14-cli-与-desktop-登录)。
 - 另见：[Store](store.md)、[Portal](portal.md)、[边界](packages.md)。

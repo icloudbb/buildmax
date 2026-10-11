@@ -95,6 +95,9 @@ type Config struct {
 	RefreshTokenStore     coreidentity.RefreshTokenStore
 	AuthSessionStore      coreidentity.AuthSessionStore
 	ExternalIdentityStore coreidentity.ExternalIdentityStore
+	// NativeSignInStore holds CLI and Desktop sign-in requests a Portal session
+	// confirms. Nil leaves the /api/auth/native-sign-ins routes answering 503.
+	NativeSignInStore coreidentity.NativeSignInStore
 	// RemoteSessionStore is the account-scoped registry of live Remote Control
 	// sessions. Nil leaves the /api/remote-control routes answering 503.
 	RemoteSessionStore coreremote.Store

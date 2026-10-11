@@ -228,6 +228,7 @@ func (h *Handler) buildAuthHandler() *authroutes.Handler {
 		Sessions:             h.cfg.AuthSessionStore,
 		ExternalIdentities:   h.cfg.ExternalIdentityStore,
 		Grants:               h.cfg.SystemGrantStore,
+		NativeSignIns:        h.cfg.NativeSignInStore,
 		Audit:                h.cfg.Audit,
 	}
 	// Assign the provider only when one exists, so a nil *oidc.Provider is not

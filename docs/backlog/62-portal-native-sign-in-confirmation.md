@@ -3,7 +3,7 @@ id: portal-native-sign-in-confirmation
 title: Confirm or deny a CLI or Desktop sign-in from Portal
 roadmap: R5
 source: docs/design/enterprise-identity-and-access.md#14-cli-and-desktop-sign-in
-depends_on: [60-native-sign-in-server.md]
+depends_on: []
 verification: ["./make test", "./make check portal", "./make e2e visual", "./make e2e kind"]
 claim:
 pr:
@@ -50,7 +50,8 @@ and it carries the flow's anti-phishing defenses (design §14.4).
 
 ## Out Of Scope
 
-- The server routes: [60](60-native-sign-in-server.md).
+- The server routes, which already ship under `/api/auth/native-sign-ins`
+  ([deploy/authentication.md](../deploy/authentication.md#cli-and-desktop-sign-in-through-the-portal)).
 - A list of the person's own sessions: [68](68-self-service-sessions.md).
 - Showing the requester's network address (design §19 item 9).
 
@@ -64,7 +65,7 @@ and it carries the flow's anti-phishing defenses (design §14.4).
 - A confirmed or denied request shows the return-to-client state, and
   reloading the page does not show the code again.
 - A non-Portal session cannot reach a confirm call from this page; the server
-  refusal is covered in task 60.
+  refusal is already covered by the auth handler tests.
 
 ## Verification
 
@@ -75,7 +76,9 @@ and it carries the flow's anti-phishing defenses (design §14.4).
   intentionally.
 - `./make e2e kind` on an ephemeral cluster with a browser case: start a
   request through the API, open the complete URI, sign in through the mock
-  OIDC provider, confirm, and redeem with a poll.
+  OIDC provider, confirm, and redeem with a poll. Run start, confirmation, and
+  redemption against both server replicas: this is also the deployed evidence
+  for the server half, whose own kind run was deferred to this task.
 
 ## Notes
 

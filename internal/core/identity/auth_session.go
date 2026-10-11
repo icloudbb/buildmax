@@ -40,8 +40,13 @@ type AuthSession struct {
 	// label for the operator reading the session list rather than something the
 	// server enforces.
 	Platform string
-	// AuthMethod is the proof that opened the session ("password", "login_code").
+	// AuthMethod is the proof that opened the session ("password",
+	// "login_code", "oidc"). A native session confirmed in the Portal carries
+	// the confirming session's method.
 	AuthMethod string
+	// ClientLabel is what a native client said it is, such as
+	// "alice-mbp · macOS". Empty when none was reported. Never trusted.
+	ClientLabel string
 	// CreatedAt is when the login happened.
 	CreatedAt time.Time
 	// LastSeenAt is the most recent time a request or refresh used the session.
@@ -57,6 +62,7 @@ type NewAuthSession struct {
 	UserID            string
 	Platform          string
 	AuthMethod        string
+	ClientLabel       string
 	AbsoluteExpiresAt time.Time
 }
 

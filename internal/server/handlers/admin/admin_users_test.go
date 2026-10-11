@@ -266,6 +266,28 @@ func TestDisablingTheLastAdministratorIsRefused(t *testing.T) {
 	}
 }
 
+// TestAdminSessionsShowClientLabel: a native session is recognizable by the
+// label its client reported, beside platform and method.
+func TestAdminSessionsShowClientLabel(t *testing.T) {
+	f := newDisableFixture(t)
+	sid, err := f.sessions.CreateSession(t.Context(), coreidentity.NewAuthSession{
+		UserID: f.target.ID, Platform: "cli", AuthMethod: "oidc", ClientLabel: "alice-mbp · macOS",
+		AbsoluteExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := f.do(t, "GET", "/api/admin/users/"+f.target.ID+"/sessions", adminUser, "")
+	var list AdminSessionsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(list.Sessions) != 1 || list.Sessions[0].SessionID != sid || list.Sessions[0].ClientLabel != "alice-mbp · macOS" ||
+		list.Sessions[0].Platform != "cli" || list.Sessions[0].AuthMethod != "oidc" {
+		t.Errorf("sessions = %+v", list.Sessions)
+	}
+}
+
 // TestAdminSessionsListAndSingleRevoke is the "revoke one device" journey: an
 // operator lists an account's sessions, retires one, and the other stays live.
 func TestAdminSessionsListAndSingleRevoke(t *testing.T) {

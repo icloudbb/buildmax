@@ -16,6 +16,7 @@ type MockAuthSession struct {
 	UserID            string
 	Platform          string
 	AuthMethod        string
+	ClientLabel       string
 	CreatedAt         time.Time
 	LastSeenAt        time.Time
 	AbsoluteExpiresAt time.Time
@@ -54,6 +55,7 @@ func (m *MockAuthSessionStore) CreateSession(_ context.Context, in coreidentity.
 		UserID:            in.UserID,
 		Platform:          in.Platform,
 		AuthMethod:        in.AuthMethod,
+		ClientLabel:       in.ClientLabel,
 		CreatedAt:         time.Now().UTC(),
 		AbsoluteExpiresAt: in.AbsoluteExpiresAt,
 	}
@@ -148,6 +150,7 @@ func (s *MockAuthSession) toCore() coreidentity.AuthSession {
 		UserID:            s.UserID,
 		Platform:          s.Platform,
 		AuthMethod:        s.AuthMethod,
+		ClientLabel:       s.ClientLabel,
 		CreatedAt:         s.CreatedAt,
 		LastSeenAt:        s.LastSeenAt,
 		AbsoluteExpiresAt: s.AbsoluteExpiresAt,

@@ -382,6 +382,14 @@ ID Token；token 未携带时（Okta 的 org 授权服务器即如此）改从 U
 Portal 浏览器套件走浏览器。2026-10-03 针对 Okta 开发者租户的一次手动登录完成了账号开户与
 关联。固定且可复现的 Okta 租户与密钥轮换演练尚未完成，Okta Universal Logout（全局 token
 撤销）与 RP 发起的登出尚未实现。
+通过 Portal 确认 CLI 与 Desktop 登录的服务器部分已经实现：`/api/auth/native-sign-ins` 下的匿名
+发起与轮询路由，Portal 会话的查询、确认与拒绝，以及一个兑换事务——它创建的会话沿用确认它的
+Portal 会话的认证方式和完全相同的绝对到期时间。只有 `portal` 会话可以确认，会按其认证方式重新
+执行准入规则，以第一个决定为准，且只保存代码与轮询密钥的哈希；轮询节奏、500 个请求的上限与按
+账号的未知代码限流有 handler 与 service 测试，存储的唯一性、并发兑换与清理有真实 MySQL 测试。
+会话带有可选的 `client_label`，`POST /api/auth/login` 也接受它，管理员会话列表会显示它。Portal
+确认页面以及 CLI 与 Desktop 客户端尚未构建，因此目前没有已发布的客户端使用这一流程，它也尚未在
+已部署的集群中运行过。
 参见[身份服务](../../internal/service/identity/account.go)、
 [OIDC provider](../../internal/infra/oidc/provider.go)与
 [Space 服务](../../internal/service/space/service.go)。
