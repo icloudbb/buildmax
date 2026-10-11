@@ -222,7 +222,7 @@ export const accountMessages = {
     "account.invitations.open": "打开 {space}",
 
     "account.sessions.title": "会话",
-    "account.sessions.copy": "登录到你账号的每个浏览器、CLI 和 Desktop。退出任何你不认识的会话；它在下一次请求时即失效。",
+    "account.sessions.copy": "登录到你账户的每个浏览器、CLI 和 Desktop。退出任何你不认识的会话；它在下一次请求时即失效。",
     "account.sessions.listLabel": "已登录的会话",
     "account.sessions.loading": "正在加载会话…",
     "account.sessions.empty": "没有已登录的会话。",

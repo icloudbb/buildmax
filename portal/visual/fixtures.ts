@@ -155,6 +155,40 @@ export const fixtures: Fixtures = {
     expires_at: "2026-03-04T15:36:00Z",
     session_expires_at: "2026-03-05T03:30:00Z",
   },
+  // Account → Sessions: this browser, the CLI confirmed above, and a Desktop
+  // that signed in with a password and has not been used since.
+  "GET /api/auth/sessions": {
+    sessions: [
+      {
+        session_id: "ses_portal",
+        platform: "portal",
+        auth_method: "oidc",
+        created_at: "2026-03-04T09:12:00Z",
+        last_seen_at: "2026-03-04T15:29:00Z",
+        expires_at: "2026-03-04T21:12:00Z",
+        current: true,
+      },
+      {
+        session_id: "ses_cli",
+        platform: "cli",
+        auth_method: "oidc",
+        client_label: "ada-mbp · macOS",
+        created_at: "2026-03-04T10:02:00Z",
+        last_seen_at: "2026-03-04T14:47:00Z",
+        expires_at: "2026-03-04T21:12:00Z",
+        current: false,
+      },
+      {
+        session_id: "ses_desktop",
+        platform: "desktop",
+        auth_method: "password",
+        created_at: "2026-02-27T08:40:00Z",
+        last_seen_at: "0001-01-01T00:00:00Z",
+        expires_at: "2026-05-28T08:40:00Z",
+        current: false,
+      },
+    ],
+  },
   "GET /api/admin/me": { user_id: USER.id, roles: [], grants: [] },
   "GET /api/spaces": [{ id: SPACE, name: "Analytical Engine", created_at: "2026-01-12T09:00:00Z" }],
   "GET /api/invitations": [],

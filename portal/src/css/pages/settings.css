@@ -159,7 +159,7 @@
 }
 
 /* Four facts wrap rather than truncate: the expiry is what someone checks. */
-.account-sessions__meta {
+.space-settings-page__member-meta.account-sessions__meta {
   white-space: normal;
 }
 
