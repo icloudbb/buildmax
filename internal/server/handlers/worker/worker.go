@@ -117,8 +117,9 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	// Resolved here, beside the agent revision, and against the run's space
 	// rather than the agent's: an agent that failed the space check above is
 	// treated as no agent, plugins included.
-	pins, pluginRefusal := h.resolvePluginPins(r, run, task, runAgent)
+	pins, pluginRefusal, pluginRefusalCause := h.resolvePluginPins(r, run, task, runAgent)
 	h.recordPluginPins(r, run, pins)
+	h.recordPluginRefusal(r, run, cancelRequested, pluginRefusalCause)
 
 	networkTier, filesystemTier := h.resolveSandboxTiers(r, run, task, runAgent)
 	h.recordSandboxTiers(r, run, runAgent, networkTier, filesystemTier)

@@ -118,7 +118,7 @@ func completionOf(result CompleteResult) cllm.Completion {
 func serverModelError(err error) error {
 	var quota *QuotaError
 	if errors.As(err, &quota) {
-		return apierr.New(apierr.KindQuotaExceeded, quota.Reason)
+		return apierr.New(apierr.KindQuotaExceeded, quota.Error())
 	}
 	return err
 }

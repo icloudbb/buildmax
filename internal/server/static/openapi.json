@@ -113,6 +113,20 @@
           "description": { "type": "string" },
           "instructions": { "type": "string" },
           "model": { "type": "string" },
+          "secret_grant_problems": {
+            "type": "array",
+            "description": "The Agent's Secret grants a run started now would not be given, read by every Space member who can run the Agent. A grant is named only by the Secret ID and item its secret_consumption already shows; nothing else about the Secret is included.",
+            "items": {
+              "type": "object",
+              "required": ["secret_id", "problem"],
+              "properties": {
+                "secret_id": { "type": "string" },
+                "item": { "type": "string", "description": "The item the grant selects; absent for a whole-group grant." },
+                "problem": { "type": "string", "enum": ["disabled", "unavailable", "item_missing"] },
+                "optional": { "type": "boolean", "description": "A run skips an optional grant rather than failing on it." }
+              }
+            }
+          },
           "created_at": { "type": "string", "format": "date-time" }
         }
       },
@@ -239,10 +253,15 @@
         "description": "What a space_configuration failure needs fixed, recorded by the server when it refused the run; absent when it recorded none.",
         "required": ["kind"],
         "properties": {
-          "kind": { "type": "string", "enum": ["secret_grant"], "description": "secret_grant: a required Space Secret grant of the run's Agent that the server would not release." },
+          "kind": { "type": "string", "enum": ["secret_grant", "plugin", "usage_quota"], "description": "secret_grant: a required Space Secret grant of the run's Agent that the server would not release. plugin: a plugin the run's Agent names that the Space has not activated or has suspended. usage_quota: the Space's usage quota refused the run's model call; a System Administrator assigns the quota tier." },
           "secret_id": { "type": "string", "description": "The Space Secret the grant names." },
           "secret_problem": { "type": "string", "enum": ["disabled", "unavailable", "item_missing"], "description": "disabled by an owner; unavailable because destroyed or gone; or no longer holding the item the grant names." },
-          "secret_item": { "type": "string", "description": "The item an item_missing grant asked for." }
+          "secret_item": { "type": "string", "description": "The item an item_missing grant asked for." },
+          "plugin_name": { "type": "string", "description": "The plugin a plugin cause names, as the Agent lists it." },
+          "plugin_problem": { "type": "string", "enum": ["not_activated", "suspended"], "description": "The Space has no activation of the plugin, or its activation is suspended." },
+          "quota_limit": { "type": "string", "enum": ["runs", "tokens"], "description": "The Space's usage limit that refused the run." },
+          "quota_max": { "type": "integer", "format": "int64", "description": "That limit as the Space's quota tier set it when it refused." },
+          "quota_period_days": { "type": "integer", "description": "The rolling window, in days, the limit counts over." }
         }
       },
       "TaskRunProvenance": {

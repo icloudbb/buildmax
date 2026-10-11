@@ -33,8 +33,8 @@ func TestAssignTierTakesEffectAtTheNextCheck(t *testing.T) {
 	svc, _, _ := tierService(10)
 	ctx := context.Background()
 
-	if allowed, _, err := svc.Check(ctx, "tm_1", 1, 0); err != nil || allowed {
-		t.Fatalf("setup: Check on free_trial = %v, %v; want a refusal at the run limit", allowed, err)
+	if refusal, err := svc.Check(ctx, "tm_1", 1, 0); err != nil || refusal == nil {
+		t.Fatalf("setup: Check on free_trial = %v, %v; want a refusal at the run limit", refusal, err)
 	}
 	previous, err := svc.AssignTier(ctx, "u_admin", "tm_1", "pro")
 	if err != nil {
@@ -43,8 +43,8 @@ func TestAssignTierTakesEffectAtTheNextCheck(t *testing.T) {
 	if previous != "free_trial" {
 		t.Errorf("previous = %q, want free_trial", previous)
 	}
-	if allowed, reason, err := svc.Check(ctx, "tm_1", 1, 0); err != nil || !allowed {
-		t.Errorf("Check on pro = %v (%q), %v; want admitted", allowed, reason, err)
+	if refusal, err := svc.Check(ctx, "tm_1", 1, 0); err != nil || refusal != nil {
+		t.Errorf("Check on pro = %+v, %v; want admitted", refusal, err)
 	}
 }
 

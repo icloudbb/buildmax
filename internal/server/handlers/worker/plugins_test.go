@@ -166,6 +166,48 @@ func TestClaimRefusesASuspendedActivation(t *testing.T) {
 	}
 }
 
+// The worker fails a run it is refused, and the failure names the plugin and
+// why, so the person reading it is led to the Space's plugin settings.
+func TestClaimRecordsTheRefusedPluginAsTheCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		activate func(f *pinFixture)
+		want     coretask.PluginProblem
+	}{
+		{"not activated", func(*pinFixture) {}, coretask.PluginNotActivated},
+		{"suspended", func(f *pinFixture) { f.activate(t, "code-review", "1.0.0", "sha256:abc", false) }, coretask.PluginSuspended},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newPinFixture(t, []string{"code-review"})
+			f.runs.Runs[0].Status = string(coretask.RunStatusScheduled)
+			c.activate(f)
+
+			if got := f.claim(t); got.PluginError == "" {
+				t.Fatal("want a refusal")
+			}
+			want := coretask.FailureCause{Kind: coretask.FailureCausePlugin, PluginName: "code-review", PluginProblem: c.want}
+			if got := f.runs.Runs[0].FailureCause; got == nil || *got != want {
+				t.Errorf("cause = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
+// Only a worker starting the run acts on a refusal. A run already under way
+// polls this route against its Agent's current plugins, and naming a plugin
+// there must not become the cause of whatever ends the run later.
+func TestClaimRecordsNoPluginCauseForARunUnderWay(t *testing.T) {
+	f := newPinFixture(t, []string{"code-review"})
+
+	if got := f.claim(t); got.PluginError == "" {
+		t.Fatal("want a refusal")
+	}
+	if got := f.runs.Runs[0].FailureCause; got != nil {
+		t.Errorf("a RUNNING run recorded cause %+v", got)
+	}
+}
+
 // An agent that names nothing loads nothing, and needs no activation.
 func TestClaimWithNoNamedPluginsResolvesNothing(t *testing.T) {
 	f := newPinFixture(t, nil)

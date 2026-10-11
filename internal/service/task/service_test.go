@@ -9,6 +9,7 @@ import (
 
 	agentdef "github.com/icloudbb/buildmax/internal/core/agentdef"
 	"github.com/icloudbb/buildmax/internal/core/apierr"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
 	"github.com/icloudbb/buildmax/internal/mock"
 )
@@ -204,13 +205,12 @@ func TestCreateRunRefusesWhenTheTasksAgentWasDeleted(t *testing.T) {
 
 // quotaStub answers Check with whatever it was given.
 type quotaStub struct {
-	allowed bool
-	reason  string
+	refusal *corequota.Refusal
 	err     error
 }
 
-func (q quotaStub) Check(context.Context, string, int, int) (bool, string, error) {
-	return q.allowed, q.reason, q.err
+func (q quotaStub) Check(context.Context, string, int, int) (*corequota.Refusal, error) {
+	return q.refusal, q.err
 }
 
 // A limit that cannot be read is not a limit that passed. Admitting the run
@@ -232,7 +232,7 @@ func TestAdmitsRefusesWhenQuotaCannotBeRead(t *testing.T) {
 }
 
 func TestAdmitsRefusesAnOverQuotaSpaceWithTheQuotaKind(t *testing.T) {
-	svc := &Service{QuotaChecker: quotaStub{allowed: false, reason: "quota exceeded: run limit"}}
+	svc := &Service{QuotaChecker: quotaStub{refusal: &corequota.Refusal{Limit: corequota.LimitRuns, Max: 10, PeriodDays: 30}}}
 
 	err := svc.Admits(context.Background(), "tm_1")
 	if kind, _ := apierr.KindOf(err); kind != apierr.KindQuotaExceeded {
@@ -248,12 +248,12 @@ type recordingQuota struct {
 	refuseOnAny bool // refuse every Check, whatever the counts
 }
 
-func (q *recordingQuota) Check(_ context.Context, _ string, _ int, tokensToAdd int) (bool, string, error) {
+func (q *recordingQuota) Check(_ context.Context, _ string, _ int, tokensToAdd int) (*corequota.Refusal, error) {
 	q.lastTokens = tokensToAdd
 	if q.refuseOnAny {
-		return false, "quota exceeded: run limit", nil
+		return &corequota.Refusal{Limit: corequota.LimitRuns, Max: 10, PeriodDays: 30}, nil
 	}
-	return true, "", nil
+	return nil, nil
 }
 
 // bigTitleGenerator records whether it ran and returns a title whose token count

@@ -48,3 +48,34 @@ type StorageReader interface {
 	// SpaceArtifactBytes returns the bytes the space's live artifacts hold.
 	SpaceArtifactBytes(ctx context.Context, spaceID string) (int64, error)
 }
+
+// Limit names one of a tier's limits. The strings are persisted in audit event
+// details and in a refused run's failure cause, so they are permanent.
+type Limit string
+
+const (
+	LimitRuns   Limit = "runs"
+	LimitTokens Limit = "tokens"
+	// LimitStorage is a stock rather than a rate: what the space holds now,
+	// not what it spent in a window.
+	LimitStorage Limit = "storage"
+)
+
+// Refusal is the rate limit an admission would exceed, as the Space's quota
+// tier sets it. A run the gateway refused records it, so the person reading
+// the failure is told which allowance ran out rather than only that one did.
+type Refusal struct {
+	Limit Limit
+	// Max is the tier's limit for Limit.
+	Max int64
+	// PeriodDays is the rolling window the limit counts over.
+	PeriodDays int
+}
+
+// Reason is the sentence a refused caller reads.
+func (r Refusal) Reason() string {
+	if r.Limit == LimitRuns {
+		return "quota exceeded: run limit"
+	}
+	return "quota exceeded: token limit"
+}

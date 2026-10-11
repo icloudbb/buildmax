@@ -8,6 +8,7 @@ import (
 	"time"
 
 	coreaudit "github.com/icloudbb/buildmax/internal/core/audit"
+	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 )
 
 // quotaWarnThreshold is the share of a limit that turns into a recorded
@@ -24,19 +25,9 @@ const quotaWarnThreshold = 0.8
 // existing one only requires looking at that period's events for this action.
 const alertLookback = 50
 
-// quotaLimit names which of a tier's two limits an event is about. The strings
-// are persisted in an audit event's detail, so they are permanent.
-type quotaLimit string
-
-const (
-	limitRuns   quotaLimit = "runs"
-	limitTokens quotaLimit = "tokens"
-	// limitStorage is a stock rather than a rate, so its events say what the
-	// space holds now rather than what it spent in a window. The dedupe still
-	// uses the tier's period, which bounds how often a space sitting at its
-	// storage limit writes the same row.
-	limitStorage quotaLimit = "storage"
-)
+// A storage limit's events say what the space holds now rather than what it
+// spent in a window. The dedupe still uses the tier's period, which bounds how
+// often a space sitting at its storage limit writes the same row.
 
 // noteUsage records that a space crossed a share of its quota, or was refused by
 // it, at most once per limit per period.
@@ -47,7 +38,7 @@ const (
 // The cost is a read and a write on an admission that is already at the
 // threshold, and neither is allowed to change the admission decision — a
 // deployment whose audit table is unreachable must still run work.
-func (c *Service) noteUsage(ctx context.Context, spaceID string, limit quotaLimit, used, max int64, windowStart time.Time, denied bool) {
+func (c *Service) noteUsage(ctx context.Context, spaceID string, limit corequota.Limit, used, max int64, windowStart time.Time, denied bool) {
 	if c.Audit == nil || max <= 0 {
 		return
 	}
