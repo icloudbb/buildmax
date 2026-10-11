@@ -97,6 +97,10 @@ services:
       # against this, though, and the default is a dev origin — so it must name the
       # gateway's origin (the port that publishes it) or the /ws upgrade is refused.
       BUILDMAX_CORS_ORIGIN: http://localhost:${BUILDMAX_PORTAL_PORT:-8080}
+      # Links the server hands out point at the gateway, where Portal is: the
+      # page a CLI or Desktop sign-in is confirmed on, whichever address the
+      # client called, and artifact share links, which this also enables.
+      BUILDMAX_PUBLIC_BASE_URL: http://localhost:${BUILDMAX_PORTAL_PORT:-8080}
       # Optional: without it the Portal loads but conversations cannot run.
       BUILDMAX_CONVERSATION_MODEL_API_KEY: ${BUILDMAX_CONVERSATION_MODEL_API_KEY:-}
     volumes:

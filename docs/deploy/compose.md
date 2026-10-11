@@ -92,12 +92,12 @@ choose "Forgot your password, or have a login code?", and enter that email and
 code. Then set a password from account settings — after that you sign in with it
 normally.
 
-The Desktop app and `buildmax login` sign in to the same account at the
-gateway's address, <http://localhost:8080>, which serves the API on the same
-paths as the kind ingress. Signing in through the browser sends you to the
-Portal page on the address you entered, and only the gateway serves that page,
-so the server's own port, 5678, suits `buildmax login --password` alone unless
-`BUILDMAX_PUBLIC_BASE_URL` names the gateway.
+The Desktop app and `buildmax login` sign in to the same account, at the
+gateway's address <http://localhost:8080> or the server's own port 5678. The
+stack sets `BUILDMAX_PUBLIC_BASE_URL` to the gateway, so a browser sign-in
+always sends you to the Portal page there, whichever address the client
+called. The same setting turns on artifact share links, which point at the
+gateway too.
 
 ## Add a Model
 
