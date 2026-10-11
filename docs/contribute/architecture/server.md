@@ -277,14 +277,33 @@ failed the run and never parsed from `error_message`:
 - a worker reports its own class, and the server stores an unknown or missing
   one as `unclassified`.
 
-When the worker Secret route refuses a required grant -- a Secret disabled,
-gone, or missing the granted item -- it also records `task_run.failure_cause`,
-naming the Secret, before the worker reports the run `FAILED` as
-`space_configuration`. The class stays operational metadata for
-administration; the cause names Space resources, so only Space-scoped reads
-serve it: the TaskRun list, run provenance (which also says whether a trace was
-recorded), and the Task, whose class and cause are its latest run's, read
-through the last-run join.
+A server component that refuses a run for the Space's configuration also
+records `task_run.failure_cause`, first write winning, before the worker
+reports the run `FAILED` as `space_configuration`:
+
+- the worker Secret route, for a required grant whose Secret is disabled,
+  gone, or missing the granted item, naming the Secret;
+- the worker run fetch, for a `SCHEDULED` run whose Agent names a plugin the
+  Space has not activated or has suspended, naming the plugin;
+- the worker model route, for a call the Space's usage quota refused, naming
+  the limit (`runs` or `tokens`), its maximum, and its rolling window in days.
+
+A refusal the Space cannot fix -- a deployment without plugin activations, or
+a store that could not be read -- records no cause. The class stays
+operational metadata for administration; the cause names Space resources, so
+only Space-scoped reads serve it: the TaskRun list, run provenance (which also
+says whether a trace was recorded), and the Task, whose class and cause are its
+latest run's, read through the last-run join. A cause names only what every
+Space member may already read: a Secret by the ID the Agent's consumption
+shows, a plugin by the name the Agent lists, a quota by the limits the Space's
+usage route shows.
+
+The Agent read (list, get, and the create, update, and restore responses)
+carries `secret_grant_problems`: each grant that would not resolve now, judged
+from Secret metadata by the rules the worker Secret route applies, for every
+role. `agent.Service.SecretGrantProblems` owns that judgement; it reads each
+Secret once per response. See
+[space-secrets.md §10](../../design/space-secrets.md#10-authorization).
 
 A worker that refuses a run before claiming it ends the run from `SCHEDULED`.
 It does this for a plugin the server could not give it, or for a cancel that

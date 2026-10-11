@@ -649,6 +649,7 @@ The roles are `owner`, `admin`, and `member`, per
 | Action | Owner | Admin | Member |
 |---|---:|---:|---:|
 | List Secret metadata and consumption health | yes | yes | no |
+| Read which grants of an Agent they can read would not resolve, and why | yes | yes | yes |
 | Create a Secret, edit its items, disable, or destroy it | yes | no | no |
 | Configure an Agent revision's Secret consumption | yes | yes | no |
 | Save an Agent revision consuming a Secret that does not exist | no | no | no |
@@ -660,6 +661,17 @@ Members may indirectly use a credential by running an Agent whose owner
 authorized it. That is necessary for shared automation, and under §3 it also
 means the member can read the value. Both facts belong in the Portal surface;
 neither may be implied away.
+
+A member who can run an Agent must also be able to tell that the run will
+fail on a grant before starting it. The Agent read therefore carries, for
+every role, each grant that would not resolve now — named by the Secret ID and
+item the Agent's consumption config already shows — and its problem:
+disabled, unavailable (destroyed, missing, or not in the Space), or missing
+the item. That is the same fact a member's failed run would report, learned
+before the run instead of after it. A member still reads no Secret name,
+description, state, or item list, so Portal describes the Secret ("a Secret
+granted to it") rather than showing its ID, and names the fix as a Space owner's
+or admin's.
 
 Value authority stays with the owner until BuildMax has finer Space grants;
 consumption sits with `admin` because it edits an Agent, which `admin` already

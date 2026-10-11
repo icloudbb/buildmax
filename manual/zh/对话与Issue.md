@@ -123,14 +123,23 @@ Owner 与 Executor 是两个相互独立的选择，可以同时都设置、只�
 失败的运行会用通俗的话说明原因，并把下一步该做的事放在最前。需要由你修复时，修复操作在前，
 **Retry Run** 退居次要，因为重试只会以同样的方式失败。例如，一次因 Agent 被授予的密钥已被禁用而被拒绝的运行
 会显示 **This Agent's Secret grant is disabled**，指明是哪个 Agent 和哪个密钥，并提供
-**Open the Agent to fix its Secret grant**。Owner 和 admin 能看到密钥的名称；其他成员只能看到它的 ID，
-因为只有前者可以读取密钥详情。不需要由你修复的失败，例如模型超时或 worker 停止响应，则以重试为先。
+**Open the Agent to fix its Secret grant**。Owner 和 admin 能看到密钥的名称；其他成员看到的是
+“授予它的某个密钥”，因为只有 owner 和 admin 可以读取密钥详情，并会被告知请 Space 所有者或管理员修复。
+
+因 Agent 使用了 Space 尚未启用、或启用已被暂停的插件而被拒绝的运行，会指明该插件，并向 owner 和 admin
+提供 **Open plugin settings**；其他成员会被告知请 Space 所有者或管理员处理。因 Space 的用量配额耗尽而被拒绝的
+运行会说明用完的是哪项额度，例如滚动 30 天内 100,000 个 token。只有系统管理员能修改 Space 的配额，
+因此说明会建议联系系统管理员，或等该时间窗口内的用量回落到限额以下后再运行。自被拒绝起已过去整整一个窗口时，
+则改为以再次运行为先。
+
+不需要由你修复的失败，例如模型超时或 worker 停止响应，则以重试为先。
 服务器的原始消息保留在 **Server message** 之下。同样的说明也会出现在 Task 页面、**Task details** 的
 **Cause** 一栏、**Run details** 的 **Why it failed** 部分，并在 **Discussion** 中取代 Agent 的失败报告。
 在 Agent 启动前就结束的运行没有轨迹，**Run details** 会直接说明这一点。
 
-当 Issue 的 Agent 有无法解析的密钥授权时，**Run agent** 会在你启动运行前显示与 Agent 页面相同的警告，
-并把修复操作放在最前。Owner 和 admin 会看到这条警告。
+当 Issue 的 Agent 有无法解析的必需密钥授权时，**Run agent** 会在你启动运行前向所有角色给出警告。
+Owner 和 admin 会把修复操作作为首要操作；其他成员会被告知请 Space 所有者或管理员修复，
+且既看不到密钥的名称，也看不到它的 ID。
 
 Agent 的最终回复会作为报告贴到 **Discussion**，并附有指向该次运行 Task 的 **Open Task** 链接。
 评论按 Markdown 渲染。当 Agent 停下来向你提问时，这次运行显示为 **Needs your answer**，报告里也会说明。
