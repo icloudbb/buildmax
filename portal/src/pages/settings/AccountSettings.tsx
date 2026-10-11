@@ -25,6 +25,7 @@ export function AccountSettings({ section, code }: { section: AccountSection; co
     loadMyInvitations,
     acceptInvitationError,
     acceptingInvitationId,
+    joinedSpace,
     handleAcceptInvitation,
   } = useSettingsData()
 
@@ -84,6 +85,7 @@ export function AccountSettings({ section, code }: { section: AccountSection; co
             onRetry={() => void loadMyInvitations()}
             acceptingInvitationId={acceptingInvitationId}
             acceptError={acceptInvitationError}
+            joinedSpace={joinedSpace}
             onAccept={handleAcceptInvitation}
           />
         ) : null}

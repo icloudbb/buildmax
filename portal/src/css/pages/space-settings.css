@@ -103,6 +103,7 @@
 
 .space-settings-page__member {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -114,6 +115,7 @@
 
 .space-settings-page__member-main {
   display: grid;
+  flex: 1 1 0;
   gap: 0.2rem;
   min-width: 0;
 }
@@ -129,6 +131,18 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Secondary: the ID tells two invitations apart only when no name resolves. */
+.space-settings-page__member-id {
+  color: var(--color-text-subtle);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+/* A row's own result sits under it, across the full row. */
+.space-settings-page__member-feedback {
+  flex-basis: 100%;
 }
 
 .space-settings-page__member-actions {

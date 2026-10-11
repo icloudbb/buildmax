@@ -32,16 +32,6 @@ async function joinAsMember(page: Page, browser: Browser, owner: Session, spaceI
   return memberPage
 }
 
-/**
- * Open a page of the Space the member just joined. The app listed its Spaces
- * before the invitation was accepted, and a hash change does not list them
- * again, so the page is reloaded to read the new Space and the member's role.
- */
-async function openAsMember(memberPage: Page, path: string): Promise<void> {
-  await memberPage.goto(path)
-  await memberPage.reload()
-}
-
 test("a member is warned before Run agent about a broken Secret grant, never shown the Secret, and told who can fix it", async ({
   page,
   browser,
@@ -93,7 +83,7 @@ test("a member is warned before Run agent about a broken Secret grant, never sho
       )
     })
 
-    await openAsMember(member, `/#/spaces/${space.id}/issues/${issue.id}`)
+    await member.goto(`/#/spaces/${space.id}/issues/${issue.id}`)
     const warning = member.getByTestId("issue-run-grant-warning")
     await expect(warning).toHaveText(
       "⚠ 1 secret grant of this Agent no longer resolves, so a run fails until it is fixed. Ask a Space owner or admin to fix it.",
@@ -115,7 +105,7 @@ test("a member is warned before Run agent about a broken Secret grant, never sho
     await expect(member.locator("main")).not.toContainText(secret.id)
 
     // The Agent page warns the member the same way before its own Run agent.
-    await openAsMember(member, `/#/spaces/${space.id}/agents/${agent.id}`)
+    await member.goto(`/#/spaces/${space.id}/agents/${agent.id}`)
     await expect(member.locator(".agent-detail__banner")).toHaveText(
       "⚠ 1 secret grant no longer resolves. Ask a Space owner or admin to fix it before you run this Agent.",
     )
@@ -171,7 +161,7 @@ test("a run refused for a suspended plugin names it and leads an owner to the Sp
   // A member reads the same plugin, and who can resume it.
   const member = await joinAsMember(page, browser, owner, space.id)
   try {
-    await openAsMember(member, issueUrl)
+    await member.goto(issueUrl)
     const memberLatest = member.getByRole("region", { name: "Latest run" })
     await expect(memberLatest).toContainText(
       `${agentName} names the plugin “${name}”, whose activation in this Space is suspended. Only a Space owner or admin can fix this; ask one to, then run again.`,

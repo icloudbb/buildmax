@@ -1520,6 +1520,9 @@ export interface ApiInvitation {
   id: string
   space_id: string
   user_id: string
+  /** The invitee's name and email, on the Space-scoped routes only. */
+  user_name?: string
+  user_email?: string
   role: string
   invited_by: string
   expires_at: string

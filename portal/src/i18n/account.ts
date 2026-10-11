@@ -95,6 +95,8 @@ export const accountMessages = {
     "account.invitations.invitedAs": "Invited as {role}",
     "account.invitations.expires": "Expires {date}",
     "account.invitations.accept": "Accept",
+    "account.invitations.joined": "You joined {space} as {role}. It is now your current Space.",
+    "account.invitations.open": "Open {space}",
   },
   "zh-CN": {
     "account.title": "账户",
@@ -184,5 +186,7 @@ export const accountMessages = {
     "account.invitations.invitedAs": "以{role}身份受邀",
     "account.invitations.expires": "{date} 过期",
     "account.invitations.accept": "接受",
+    "account.invitations.joined": "你已以{role}身份加入 {space}，它现在是你的当前 Space。",
+    "account.invitations.open": "打开 {space}",
   },
 } satisfies Messages<string>
