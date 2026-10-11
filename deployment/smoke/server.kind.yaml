@@ -89,8 +89,9 @@ worker_api:
     key_file: /buildmax/tls/worker-api/tls.key
 
 # Space Secret encryption key, mounted from the buildmax-kek Secret that
-# `./make kind up` generates (tools/mk/kind.go). Present only in kind, so the
-# Secrets feature is on here and stays off in the committed baseline config.
+# `./make kind up` generates (tools/mk/kind.go). Present only in the smoke
+# deployments (kind here, Compose in compose.smoke.yaml), so the Secrets feature
+# is on in them and stays off in the committed baseline config.
 secret:
   kek_file: /etc/buildmax/kek/kek.json
 

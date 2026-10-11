@@ -23,6 +23,9 @@ Agent 和 Workflow 是你分派工作的可复用构建块。Agent 是关于*一
 **Save changes** 和 **Delete agent**；标签页也支持左右方向键。窄屏时可横向滚动
 标签栏以进入后面的区块。
 
+Agents 列表和 Agent 的 Overview 会显示 **Success rate**：在成功或失败的运行中，成功所占的比例。
+已停止的运行不计入，因为那是有人主动结束的。没有任何成功或失败运行的 Agent 显示 **—**。
+
 ### 版本
 
 每次你保存一个 Agent，BuildMax 都会记录一个新的带编号版本以及编写者是谁。

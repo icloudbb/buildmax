@@ -25,7 +25,9 @@ load, Chat shows a warning and **Retry tasks** without hiding the conversation.
 When you run an agent directly, its Task page keeps the input and output for
 each turn together. **Continue** sends new instructions; **Retry last run**
 repeats the previous turn. **Details** holds the run's origin, timing, ID, and
-trace, while the page header uses readable status words such as **Done**. When
+trace, while the page header uses readable status words such as **Done**. A
+failed turn explains why, and when the fix is yours to make the header leads
+with it instead of **Retry last run** (see [Issue Detail](#issue-detail)). When
 the agent stopped to ask you something, the status reads **Needs your answer**
 and the questions close its output; answer them with **Continue**, in your own
 words.
@@ -147,6 +149,24 @@ From **Latest run** or the Runs tab, an Agent run offers:
   timed out without retyping anything. A retry counts against your space's quota
   and leaves the original run's record intact. A run that is a workflow step is
   retried by re-running its workflow, not from here.
+
+A failed run says why in plain words and leads with what to do next. When the
+fix is yours to make, the fix comes first and **Retry Run** steps back, because
+a retry would fail the same way. For example, a run refused because a Secret
+its Agent is granted was disabled reads **This Agent's Secret grant is
+disabled**, names the Agent and the Secret, and offers **Open the Agent to fix
+its Secret grant**. Owners and admins see the Secret's name; other members see
+its ID, because only they may read Secret details. A failure that is not yours
+to fix, such as a model that timed out or a worker that stopped, leads with a
+retry. The server's own message stays under **Server message**. The same
+explanation appears on the Task page, in **Task details** under **Cause**, in
+**Run details** under **Why it failed**, and in place of the Agent's failure
+report in **Discussion**. A run that ended before its Agent started has no
+trace, and **Run details** says so.
+
+When the Issue's Agent has a Secret grant that no longer resolves, **Run agent**
+shows the same warning as the Agent page before you start a run, and the fix
+leads. Owners and admins see this warning.
 
 The agent's final reply is posted to **Discussion** as its report, with an
 **Open Task** link to the run's task. Comments render Markdown. When the agent

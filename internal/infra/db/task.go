@@ -82,6 +82,10 @@ type taskReadRow struct {
 	AgentPublicID        *string `gorm:"column:agent_public_id"`
 	RequestedByPublicID  *string `gorm:"column:requested_by_public_id"`
 	AssistantPublicID    *string `gorm:"column:assistant_public_id"`
+	// The latest run's failure, read through the last-run join so a Task list
+	// explains a failure without a run read per row.
+	LastRunFailureClass *string `gorm:"column:last_run_failure_class"`
+	LastRunFailureCause *string `gorm:"column:last_run_failure_cause"`
 }
 
 // taskSelect is the one place the join set for a task read is written down, so
@@ -93,7 +97,8 @@ func (s *Store) taskSelect(ctx context.Context) *gorm.DB {
 			"cb.public_id AS created_by_public_id, lr.public_id AS last_run_public_id, " +
 			"i.public_id AS issue_public_id, sc.public_id AS schedule_public_id, " +
 			"a.public_id AS agent_public_id, rb.public_id AS requested_by_public_id, " +
-			"asst.public_id AS assistant_public_id").
+			"asst.public_id AS assistant_public_id, " +
+			"lr.failure_class AS last_run_failure_class, lr.failure_cause AS last_run_failure_cause").
 		Joins("LEFT JOIN conversation c ON c.id = task.conversation_id").
 		Joins("INNER JOIN space t ON t.id = task.space_id").
 		Joins("INNER JOIN `user` cb ON cb.id = task.created_by").
@@ -130,6 +135,10 @@ func toTask(row *taskReadRow) *coretask.Task {
 		ErrorMessage:          row.Row.ErrorMessage,
 		SessionID:             row.Row.SessionID,
 		AwaitingAnswer:        row.Row.AwaitingAnswer,
+		FailureCause:          decodeFailureCause(row.LastRunFailureCause),
+	}
+	if row.LastRunFailureClass != nil {
+		out.FailureClass = *row.LastRunFailureClass
 	}
 	if row.Row.LastRunID != nil {
 		lastRun := derefPublicID(row.LastRunPublicID)

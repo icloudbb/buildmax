@@ -21,7 +21,8 @@ Shift+Enter 换行）。一段对话可以直接回答你，或者，当工作�
 
 直接运行 Agent 时，Task 页面按轮次展示输入与输出。**Continue** 发送新指令；
 **Retry last run** 重复上一轮。**Details** 收纳来源、时间、ID 和轨迹；
-页头使用 **Done** 等可读状态词。当 Agent 停下来向你提问时，状态显示为 **Needs your answer**，
+页头使用 **Done** 等可读状态词。失败的一轮会说明原因；需要由你修复时，页头以修复操作代替
+**Retry last run** 作为首要操作（见 [Issue 详情](#issue-详情)）。当 Agent 停下来向你提问时，状态显示为 **Needs your answer**，
 问题列在输出末尾；用 **Continue** 以自己的话回答即可。
 
 ## 创建一个 Issue
@@ -118,6 +119,18 @@ Owner 与 Executor 是两个相互独立的选择，可以同时都设置、只�
   这样你就能从死掉的 worker 或超时的模型中恢复，而无需重新输入任何内容。
   一次重试会计入你 space 的配额，并保留原始运行的记录不变。
   作为 Workflow 步骤的运行是通过重新运行其 Workflow 来重试的，而不是从这里。
+
+失败的运行会用通俗的话说明原因，并把下一步该做的事放在最前。需要由你修复时，修复操作在前，
+**Retry Run** 退居次要，因为重试只会以同样的方式失败。例如，一次因 Agent 被授予的密钥已被禁用而被拒绝的运行
+会显示 **This Agent's Secret grant is disabled**，指明是哪个 Agent 和哪个密钥，并提供
+**Open the Agent to fix its Secret grant**。Owner 和 admin 能看到密钥的名称；其他成员只能看到它的 ID，
+因为只有前者可以读取密钥详情。不需要由你修复的失败，例如模型超时或 worker 停止响应，则以重试为先。
+服务器的原始消息保留在 **Server message** 之下。同样的说明也会出现在 Task 页面、**Task details** 的
+**Cause** 一栏、**Run details** 的 **Why it failed** 部分，并在 **Discussion** 中取代 Agent 的失败报告。
+在 Agent 启动前就结束的运行没有轨迹，**Run details** 会直接说明这一点。
+
+当 Issue 的 Agent 有无法解析的密钥授权时，**Run agent** 会在你启动运行前显示与 Agent 页面相同的警告，
+并把修复操作放在最前。Owner 和 admin 会看到这条警告。
 
 Agent 的最终回复会作为报告贴到 **Discussion**，并附有指向该次运行 Task 的 **Open Task** 链接。
 评论按 Markdown 渲染。当 Agent 停下来向你提问时，这次运行显示为 **Needs your answer**，报告里也会说明。

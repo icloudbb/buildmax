@@ -14,13 +14,13 @@ import (
 // transcript: the conversation route serves the full text.
 const sourceMessageMaxLen = 2000
 
-// RunProvenanceResponse answers where one run came from.
+// RunProvenanceResponse answers where one run came from, and why it failed.
 //
 // It is deliberately not the run record. What a reader needs here is the chain
 // of responsibility — who or what asked, through which path, repeating which
 // earlier attempt, and in which message — next to the instruction that reached
-// the worker. Output, tokens, and worker placement answer different questions
-// and have their own routes.
+// the worker, and for a failed run, what stopped it. Output, tokens, and worker
+// placement answer different questions and have their own routes.
 type RunProvenanceResponse struct {
 	TaskRunID string `json:"task_run_id"`
 	TaskID    string `json:"task_id"`
@@ -45,6 +45,16 @@ type RunProvenanceResponse struct {
 	// a Portal-only record of what a run produced. See
 	// docs/design/unified-artifacts.md section 5.2.
 	Artifacts []RunArtifactResponse `json:"artifacts,omitempty"`
+	// ErrorMessage, FailureClass, and FailureCause say why a run ended in
+	// failure: the server's text, whose problem it was, and the configuration
+	// to fix when the server knew. A reader opens a failed run asking why.
+	ErrorMessage *string                `json:"error_message,omitempty"`
+	FailureClass string                 `json:"failure_class,omitempty"`
+	FailureCause *coretask.FailureCause `json:"failure_cause,omitempty"`
+	// TraceRecorded says whether the trace route has a trace to serve, so a
+	// reader of a run that ended before its Agent started, or whose trace
+	// expired, is told so without asking for one that is not there.
+	TraceRecorded bool `json:"trace_recorded"`
 }
 
 // RunArtifactResponse is the summary a reader needs to recognise and open an
@@ -117,6 +127,10 @@ func (h *Handler) getTaskRunProvenanceHandler(w http.ResponseWriter, r *http.Req
 		SpaceInstructions: h.resolveRunSpaceInstructions(r, task, run),
 		PluginPins:        run.PluginPins,
 		Artifacts:         h.resolveRunArtifacts(r, run),
+		ErrorMessage:      run.ErrorMessage,
+		FailureClass:      run.FailureClass,
+		FailureCause:      run.FailureCause,
+		TraceRecorded:     run.TracePath != nil && *run.TracePath != "",
 	}
 	httputil.WriteJSON(w, http.StatusOK, out)
 }

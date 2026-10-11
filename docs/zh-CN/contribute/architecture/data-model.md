@@ -671,6 +671,7 @@ Space 拥有的重复时间触发器。每次到期触发由 `executor_kind` 与
 | `cancel_requested_by` | `bigint unsigned` | 是 | 请求者的 `user.id` |
 | `cancel_reason` | `varchar(32)` | 否 | 长度受限的取消原因；未记录时为空 |
 | `failure_class` | `varchar(32)` | 否 | `FAILED` run 的失败原因：`dispatch`、`worker_lost`、`abandoned`、`interrupted`、`infrastructure`、`space_configuration`、`model`、`run` 或 `unclassified`；由让 run 失败的组件设置，从不解析 `error_message`；未失败的 run 为空 |
+| `failure_cause` | `text` | 是 | JSON `{kind, secret_id, secret_problem, secret_item}`：被拒绝的 run 需要修复的配置，由 worker 的密钥路由在拒绝必需授权时记录；首次写入为准；没有拒绝记录时为 `NULL` |
 | `retry_of_task_run_id` | `bigint unsigned` | 是 | 本次重复执行的运行；携带自身指令的运行为 `NULL` |
 | `source_message_id` | `bigint unsigned` | 是 | 请求本次运行的 `conversation_message.id`；没有消息发起请求时为 `NULL` |
 | `agent_revision` | `int` | 是 | 本次运行收到的 `task.agent_id` 修订号；没有 Agent 或从未到达 worker 的运行为 `NULL` |

@@ -185,6 +185,8 @@
           "issue_id": { "type": "string", "nullable": true },
           "last_run_id": { "type": "string", "nullable": true },
           "awaiting_answer": { "type": "boolean", "description": "True while the latest run ended on AskUser questions that continuing the task has not yet answered." },
+          "failure_class": { "$ref": "#/components/schemas/FailureClass" },
+          "failure_cause": { "$ref": "#/components/schemas/FailureCause" },
           "workflow_run_id": {
             "type": "string",
             "nullable": true,
@@ -216,6 +218,8 @@
             }
           },
           "cancel_reason": { "type": "string" },
+          "failure_class": { "$ref": "#/components/schemas/FailureClass" },
+          "failure_cause": { "$ref": "#/components/schemas/FailureCause" },
           "created_by": { "type": "string" },
           "trigger_source": { "type": "string" },
           "created_at": { "type": "string", "format": "date-time" },
@@ -223,6 +227,46 @@
           "ended_at": { "type": "string", "format": "date-time", "nullable": true },
           "agent_revision": { "type": "integer", "nullable": true },
           "space_agent_instructions_revision": { "type": "integer", "nullable": true }
+        }
+      },
+      "FailureClass": {
+        "type": "string",
+        "enum": ["dispatch", "worker_lost", "abandoned", "interrupted", "infrastructure", "space_configuration", "model", "run", "unclassified"],
+        "description": "Why a FAILED run failed, by whose problem it was; absent when the (latest) run did not fail."
+      },
+      "FailureCause": {
+        "type": "object",
+        "description": "What a space_configuration failure needs fixed, recorded by the server when it refused the run; absent when it recorded none.",
+        "required": ["kind"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["secret_grant"], "description": "secret_grant: a required Space Secret grant of the run's Agent that the server would not release." },
+          "secret_id": { "type": "string", "description": "The Space Secret the grant names." },
+          "secret_problem": { "type": "string", "enum": ["disabled", "unavailable", "item_missing"], "description": "disabled by an owner; unavailable because destroyed or gone; or no longer holding the item the grant names." },
+          "secret_item": { "type": "string", "description": "The item an item_missing grant asked for." }
+        }
+      },
+      "TaskRunProvenance": {
+        "type": "object",
+        "description": "Where one run came from, and why it ended when it failed.",
+        "properties": {
+          "task_run_id": { "type": "string" },
+          "task_id": { "type": "string" },
+          "status": { "type": "string" },
+          "input": { "type": "string", "description": "What the worker was given." },
+          "created_by": { "type": "string" },
+          "created_by_type": { "type": "string" },
+          "trigger_source": { "type": "string" },
+          "retry_of_task_run_id": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "source_message": { "type": "object", "description": "The message the run was asked for in, quoted and bounded." },
+          "agent": { "type": "object", "description": "The Agent and revision the run executed under." },
+          "space_instructions": { "type": "object", "description": "The Space instruction revision the run received." },
+          "plugin_pins": { "type": "array", "items": { "type": "object" }, "description": "The plugin releases the run resolved." },
+          "artifacts": { "type": "array", "items": { "type": "object" }, "description": "What the run published." },
+          "error_message": { "type": "string", "nullable": true, "description": "The server's text for a failed run." },
+          "failure_class": { "$ref": "#/components/schemas/FailureClass" },
+          "failure_cause": { "$ref": "#/components/schemas/FailureCause" },
+          "trace_recorded": { "type": "boolean", "description": "Whether the trace route has a trace for this run. False for a run that ended before its Agent started, ran untraced, or whose trace expired." }
         }
       },
       "Conversation": {
@@ -5088,11 +5132,11 @@
     "/api/spaces/{space_id}/task-runs/{task_run_id}": {
       "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {
-        "summary": "Show what produced a task run, including its Space and Agent instruction revisions",
+        "summary": "Show what produced a task run, including its Space and Agent instruction revisions, and why it failed",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
-          "200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}},
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TaskRunProvenance"}}}},
           "404": {
             "description": "No such run for this space",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}

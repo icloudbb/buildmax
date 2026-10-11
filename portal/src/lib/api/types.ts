@@ -400,9 +400,32 @@ export interface ApiTask {
   /** True while the latest run ended on AskUser questions that continuing the
    *  task has not answered yet. */
   awaiting_answer?: boolean
+  /** Why the latest run failed, and what to fix when the server knew. */
+  failure_class?: ApiFailureClass
+  failure_cause?: ApiFailureCause | null
   /** Set only when the task has neither issue_id nor conversation_id: the
    *  workflow run that dispatched it. */
   workflow_run_id?: string | null
+}
+
+/** Why a FAILED run failed, by whose problem it was. */
+export type ApiFailureClass =
+  | "dispatch"
+  | "worker_lost"
+  | "abandoned"
+  | "interrupted"
+  | "infrastructure"
+  | "space_configuration"
+  | "model"
+  | "run"
+  | "unclassified"
+
+/** What a space_configuration failure needs fixed, when the server recorded it. */
+export interface ApiFailureCause {
+  kind: "secret_grant"
+  secret_id?: string
+  secret_problem?: "disabled" | "unavailable" | "item_missing"
+  secret_item?: string
 }
 
 export interface ApiTaskRun {
@@ -419,6 +442,8 @@ export interface ApiTaskRun {
   /** The AskUser question set the run ended on; the output also lists them. */
   questions?: Question[] | null
   error_message?: string | null
+  failure_class?: ApiFailureClass
+  failure_cause?: ApiFailureCause | null
   created_at: string
   started_at?: string | null
   ended_at?: string | null
@@ -450,6 +475,12 @@ export interface ApiRunProvenance {
   plugin_pins?: ApiRunPluginPin[]
   /** What this run published, looked up by its own id, not owned by it. */
   artifacts?: ApiRunArtifact[]
+  /** Why a failed run ended: the server's text, class, and cause. */
+  error_message?: string | null
+  failure_class?: ApiFailureClass
+  failure_cause?: ApiFailureCause | null
+  /** Whether the trace route has a trace to serve for this run. */
+  trace_recorded?: boolean
 }
 
 /** One release a run was given. Not what the agent currently names — see

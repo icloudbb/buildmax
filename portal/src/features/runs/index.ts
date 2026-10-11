@@ -1,5 +1,8 @@
 export { getTaskRunProvenance, getTaskRunTrace, listTaskRunLLMCalls } from "./api"
 export { RunTraceModal } from "./RunTraceModal"
+export { explainRunFailure, failureText, type RunFailureExplanation } from "./failure"
+export { FailureFixLink, RunFailureNotice } from "./RunFailureNotice"
+export { useSecretName } from "./useSecretName"
 export { callElapsed, describeSpend, summarizeSpend } from "./spend"
 export { describeAgent, describeOrigin, inputMatchesMessage, runInputLabel } from "./origin"
 export { describeBoundary, formatDuration, runElapsed } from "./summary"

@@ -68,7 +68,8 @@ const views: View[] = [
     path: `${space}/tasks/tsk_notes`,
     ready: async (page) => {
       await expect(page.getByRole("heading", { level: 1, name: "Draft the 0.3 release note" })).toBeVisible()
-      await expect(page.getByText("model provider returned 503")).toBeVisible()
+      // The failure in the person's terms; the server's text is under its disclosure.
+      await expect(page.getByText("The model failed this run")).toBeVisible()
     },
   },
   {

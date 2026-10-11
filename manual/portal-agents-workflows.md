@@ -26,6 +26,11 @@ On the agent page, **Run agent** starts a task. The **Configuration** tab has
 Right Arrow keys. On narrow screens, scroll the tab row sideways to reach
 later sections.
 
+The Agents list and an agent's Overview show a **Success rate**: the share of
+its runs that succeeded among those that succeeded or failed. A stopped run is
+left out, because someone chose to end it. An agent with no succeeded or failed
+run shows **—**.
+
 ### Versions
 
 Every time you save an agent, BuildMax records a new numbered version along with

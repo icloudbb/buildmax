@@ -7,7 +7,15 @@ import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
 import { cancelTask, continueTask, getTask, getTaskRuns, retryTask, streamTaskOutput } from "../../features/tasks"
 import { getAgent } from "../../features/agents"
-import { RunTraceModal, runInputLabel } from "../../features/runs"
+import {
+  explainRunFailure,
+  failureText,
+  FailureFixLink,
+  RunFailureNotice,
+  RunTraceModal,
+  runInputLabel,
+  useSecretName,
+} from "../../features/runs"
 import { runStatusLabel, taskStatusLabel } from "../../features/conversations/thread"
 import { buildHash, navigate } from "../../router"
 import type { ApiTask, ApiTaskRun } from "../../lib/api/types"
@@ -207,12 +215,37 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
     setBreadcrumbTrail(taskId, trail)
   }, [task, taskId, spaceId, entityLabels, setBreadcrumbTrail, t])
 
+  // A failed run is explained in the person's terms, and the latest one decides
+  // the header's lead: a fix the person can make outranks a retry that would
+  // fail the same way.
+  const lastRun = runs[runs.length - 1] ?? null
+  const secretName = useSecretName(spaceId, token, lastRun?.failure_cause?.secret_id)
+  const explainRun = useCallback(
+    (run: ApiTaskRun) =>
+      explainRunFailure(
+        {
+          status: run.status,
+          failureClass: run.failure_class,
+          failureCause: run.failure_cause,
+          agentId: task?.agent_id,
+          errorMessage: run.error_message,
+        },
+        {
+          agent: agentName,
+          secret: run.failure_cause?.secret_id === lastRun?.failure_cause?.secret_id ? secretName : null,
+        },
+      ),
+    [task?.agent_id, agentName, secretName, lastRun?.failure_cause?.secret_id],
+  )
+  const lastFailure = lastRun ? explainRun(lastRun) : null
+
   // The task rendered as a conversation: each run is one user turn (its input)
   // and one agent turn (its output). Run-level technical detail lives in the
   // task Details panel, not under every message.
   const items = useMemo<ChatThreadItem[]>(() => {
     return runs.flatMap((run) => {
       const active = activeStatuses.has(run.status)
+      const failure = explainRun(run)
       const inputLabel = runInputLabel(run, t)
       return [
         {
@@ -252,6 +285,8 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
             ) : (
               <TypingDots />
             )
+          ) : failure ? (
+            <RunFailureNotice explanation={failure} />
           ) : run.error_message ? (
             <p className="bm-chat-thread__text bm-chat-thread__text--muted">{run.error_message}</p>
           ) : run.status === "SUCCEEDED" ? (
@@ -269,7 +304,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
         },
       ]
     })
-  }, [runs, user, streamingText, t])
+  }, [runs, user, streamingText, t, explainRun])
 
   async function handleContinue() {
     const message = input.trim()
@@ -345,13 +380,19 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
         <div className="task-thread__header-actions">
           {running ? (
             <Button variant="danger" busy={stopping} onClick={handleStop}>{t("tasks.stop")}</Button>
-          ) : runs.length > 0 ? (
-            <Button variant="secondary" busy={retrying} onClick={handleRetry}>{t("tasks.retryLast")}</Button>
+          ) : null}
+          {!running && lastFailure?.leadsWithFix ? (
+            <FailureFixLink explanation={lastFailure} spaceId={spaceId} agentId={task?.agent_id} />
+          ) : null}
+          {!running && runs.length > 0 ? (
+            <Button variant={lastFailure?.leadsWithFix ? "tertiary" : "secondary"} busy={retrying} onClick={handleRetry}>
+              {t("tasks.retryLast")}
+            </Button>
           ) : null}
           <Button variant="tertiary" aria-haspopup="dialog" onClick={() => setDetailsOpen(true)}>
             {t("tasks.details")}
           </Button>
-          {task?.agent_id ? (
+          {task?.agent_id && !lastFailure?.leadsWithFix ? (
             <ButtonLink variant="tertiary" href={buildHash({ name: "agent", spaceId, agentId: task.agent_id })}>
               {t("tasks.openAgent")}
             </ButtonLink>
@@ -380,6 +421,12 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
             </dd>
             <dt>{t("tasks.details.status")}</dt>
             <dd>{taskStatusLabel(task, t)}</dd>
+            {lastFailure ? (
+              <>
+                <dt>{t("tasks.details.cause")}</dt>
+                <dd>{failureText(lastFailure, t).title}</dd>
+              </>
+            ) : null}
             <dt>{t("tasks.details.trigger")}</dt>
             <dd>{runs[0]?.trigger_source ? statusLabel(runs[0].trigger_source) : "—"}</dd>
             <dt>{t("tasks.details.started")}</dt>

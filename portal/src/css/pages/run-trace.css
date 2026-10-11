@@ -326,3 +326,9 @@
   border-left: 2px solid var(--color-text-subtle);
   padding-left: 0.6rem;
 }
+
+.run-trace__failure-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}

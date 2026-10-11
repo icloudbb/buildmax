@@ -19,7 +19,7 @@
 ./make compose smoke
 ```
 
-该检查覆盖 Portal 可访问性、账户引导、Space 存储、Conversation 和 TaskRun 创建、调度执行、模型响应、Artifact 获取，以及取消正在执行的运行。无需提供商密钥。失败时使用 `./make compose logs` 检查，再用 `./make compose down` 停止栈。成功时会为冒烟测试账户输出一个新的单次使用 Portal 登录码。
+该检查覆盖 Portal 可访问性、账户引导、Space 存储、Conversation 和 TaskRun 创建、调度执行、模型响应、Artifact 获取，以及取消正在执行的运行。无需提供商密钥。失败时使用 `./make compose logs` 检查，再用 `./make compose down` 停止栈。成功时会为冒烟测试账户输出一个新的单次使用 Portal 登录码。冒烟栈还会开启 Space 密钥：它的 Server 首次启动时在数据卷上生成一个一次性 KEK，使浏览器测试能够授予并拒绝密钥。该 KEK 随数据卷一起保留和删除。普通的 `docker compose up` 栈在你配置 `secret.kek_file` 之前不开启 Space 密钥。
 
 同一流程也可让 TaskRun 推理经过托管网关，而非直接调用提供商：
 

@@ -18,6 +18,12 @@ export interface Task {
   issueId?: string
   /** The latest run ended on questions the user answers by continuing it. */
   awaitingAnswer?: boolean
+  /** The run behind the current status. */
+  lastRunId?: string
+  /** Why the latest run failed: the server's text, class, and cause. */
+  errorMessage?: string
+  failureClass?: import("./api/types").ApiFailureClass
+  failureCause?: import("./api/types").ApiFailureCause
 }
 
 /** Tier 1 conversation (user-facing dialogue). */
