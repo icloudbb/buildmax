@@ -81,8 +81,12 @@ test("a member is warned before Run agent about a broken Secret grant, never sho
     const withheld = [secretName, "withheld from members"]
     const leaks: string[] = []
     const reads: Promise<void>[] = []
+    // JSON bodies only: a Task's event stream stays open while the page does,
+    // so awaiting its text would hang the test, and it carries run output, not
+    // Secret metadata.
     member.on("response", (response) => {
       if (!response.url().includes("/api/")) return
+      if (!(response.headers()["content-type"] ?? "").includes("application/json")) return
       reads.push(
         response
           .text()
