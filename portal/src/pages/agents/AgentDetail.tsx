@@ -14,6 +14,8 @@ import {
   getAgentRevisions,
   restoreAgentRevision,
   listAgentModels,
+  formatSuccessRate,
+  successRate as rateOf,
   type AgentDefinitionInput,
 } from "../../features/agents"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
@@ -22,7 +24,7 @@ import { listSecrets } from "../../features/spaceSecrets/api"
 import { listActivations } from "../../features/spacePlugins/api"
 import { listPlugins } from "../../features/plugins/api"
 import { nameablePlugins } from "../../features/plugins/nameablePlugins"
-import { runStatusTone, taskRunFailed, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
+import { runStatusTone, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { AgentConfigForm } from "../../components/AgentConfigForm"
 import { RevisionHistory } from "../../components/RevisionHistory"
@@ -248,11 +250,8 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   }
 
   const stats = useMemo(() => {
-    const finished = tasks.filter((task) => taskRunFinished(task.status))
-    const failed = finished.filter((task) => taskRunFailed(task.status)).length
-    const succeeded = finished.length - failed
     const running = tasks.some((task) => !taskRunFinished(task.status))
-    const successRate = finished.length > 0 ? `${Math.round((succeeded / finished.length) * 100)}%` : "—"
+    const successRate = formatSuccessRate(rateOf(tasks.map((task) => task.status)))
     return { total: tasks.length, successRate, running, lastRunAt: tasks[0] ? apiTaskToTask(tasks[0]).timeAt : null }
   }, [tasks])
 

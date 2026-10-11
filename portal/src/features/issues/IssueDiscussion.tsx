@@ -8,6 +8,7 @@ import { createIssueComment, deleteIssueComment, getIssueComments, replyToReques
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT } from "../../i18n"
 import { useTimestamp } from "../../lib/dateFormat"
+import { FailureFixLink, RunFailureNotice, type RunFailureExplanation } from "../runs"
 
 /** Matches CommentBodyLimit in internal/service/issue. */
 const BODY_LIMIT = 16 * 1024
@@ -33,6 +34,12 @@ interface IssueDiscussionProps {
   agentNames: Record<string, string>
   onOpenTrace?: (taskRunId: string) => void
   /**
+   * Failed runs explained, by task run id. An Agent's report of such a run is
+   * shown as the explanation and its fix instead of the server's raw text,
+   * which stays under the explanation's disclosure.
+   */
+  runFailures?: Record<string, { explanation: RunFailureExplanation; agentId?: string }>
+  /**
    * Reports the current thread whenever it changes. This component owns the
    * fetch — the page reads the result rather than requesting it a second time.
    * The callback must be stable, or it will re-fire on every render.
@@ -54,6 +61,7 @@ export function IssueDiscussion({
   members,
   agentNames,
   onOpenTrace,
+  runFailures,
   onCommentsChanged,
   requesterReply,
 }: IssueDiscussionProps) {
@@ -217,7 +225,12 @@ export function IssueDiscussion({
         <p className="page-activity__empty">{t("issues.comment.empty")}</p>
       ) : (
         <ol className="issue-discussion__list">
-          {comments.map((comment) => (
+          {comments.map((comment) => {
+            const failure =
+              comment.author_kind === "agent" && comment.source_task_run_id
+                ? runFailures?.[comment.source_task_run_id]
+                : undefined
+            return (
             <li key={comment.id} className="issue-discussion__item">
               <div className="issue-discussion__head">
                 <span className={`issue-discussion__author issue-discussion__author--${comment.author_kind}`}>
@@ -250,6 +263,8 @@ export function IssueDiscussion({
                     </Button>
                   </div>
                 </div>
+              ) : failure ? (
+                <RunFailureNotice explanation={failure.explanation} />
               ) : (
                 // Agents report in Markdown and people write it too; react-markdown
                 // renders no raw HTML, so a comment cannot inject markup.
@@ -258,6 +273,15 @@ export function IssueDiscussion({
                 </div>
               )}
               <div className="issue-discussion__actions">
+                {failure && spaceId ? (
+                  <FailureFixLink
+                    explanation={failure.explanation}
+                    spaceId={spaceId}
+                    agentId={failure.agentId}
+                    size="compact"
+                    variant="secondary"
+                  />
+                ) : null}
                 {comment.source_task_id && spaceId ? (
                   <ButtonLink
                     variant="tertiary" size="compact"
@@ -295,7 +319,8 @@ export function IssueDiscussion({
                 ) : null}
               </div>
             </li>
-          ))}
+            )
+          })}
         </ol>
       )}
       <div className="issue-discussion__composer">

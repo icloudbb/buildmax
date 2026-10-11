@@ -124,6 +124,54 @@ export const runsMessages = {
     "runs.plugins.heading": "Plugins",
     "runs.plugins.open": "Open Space Plugins",
     "runs.artifacts.heading": "Artifacts published",
+
+    "runs.trace.notRecorded":
+      "This run has no trace. A run that ends before its Agent starts records none, and older traces expire.",
+
+    // A failed run explained in the person's terms. One mapping decides the
+    // text and the first action: features/runs/failure.ts.
+    "runs.failure.heading": "Why it failed",
+    "runs.failure.thisAgent": "This Agent",
+    "runs.failure.serverMessage": "Server message",
+    "runs.failure.fixAgent": "Open the Agent to fix its Secret grant",
+    "runs.failure.openAgent": "Open the Agent",
+    "runs.failure.runDetails": "Run details",
+    "runs.failure.secret.disabled.title": "This Agent's Secret grant is disabled",
+    "runs.failure.secret.disabled.body":
+      "{agent} needs the Secret “{secret}”, which is disabled. Re-enable the Secret or change the Agent's grant, then run again.",
+    "runs.failure.secret.unavailable.title": "This Agent's Secret grant no longer resolves",
+    "runs.failure.secret.unavailable.body":
+      "{agent} needs the Secret “{secret}”, which was destroyed or no longer exists. Grant the Agent another Secret, then run again.",
+    "runs.failure.secret.itemMissing.title": "This Agent's Secret grant names a missing item",
+    "runs.failure.secret.itemMissing.body":
+      "{agent} needs the item “{item}” of the Secret “{secret}”, which no longer has it. Change the grant or add the item, then run again.",
+    "runs.failure.space.title": "The Space's setup blocked this run",
+    "runs.failure.space.body":
+      "A Secret or plugin {agent} needs, or the Space's usage quota, was not available. The server message says which.",
+    "runs.failure.space.bodyNoAgent":
+      "A Secret or plugin the run needs, or the Space's usage quota, was not available. The server message says which.",
+    "runs.failure.model.title": "The model failed this run",
+    "runs.failure.model.body":
+      "The model provider refused, throttled, or timed out, or the model assigned to this run is unavailable. Running it again often works; if it keeps failing, ask an administrator to check the model.",
+    "runs.failure.run.title": "The run failed while it worked",
+    "runs.failure.run.body": "Something went wrong inside the run. Its details show what it did before it stopped.",
+    "runs.failure.dispatch.title": "BuildMax could not start this run",
+    "runs.failure.dispatch.body":
+      "Its worker could not be started. Run it again; if it keeps failing, tell your administrator.",
+    "runs.failure.workerLost.title": "This run's worker stopped responding",
+    "runs.failure.workerLost.body":
+      "The worker running it stopped reporting, so the run was ended. Run it again; if it keeps happening, tell your administrator.",
+    "runs.failure.abandoned.title": "This run did not finish in time",
+    "runs.failure.abandoned.body":
+      "No worker finished it within the run time limit. Run it again; if it keeps happening, tell your administrator.",
+    "runs.failure.interrupted.title": "This run was interrupted",
+    "runs.failure.interrupted.body":
+      "Its worker was shut down while it ran, for example during a deployment. Run it again.",
+    "runs.failure.infrastructure.title": "BuildMax could not finish this run",
+    "runs.failure.infrastructure.body":
+      "Storage or the worker's connection to the server failed. Run it again; if it keeps failing, tell your administrator.",
+    "runs.failure.unknown.title": "This run failed",
+    "runs.failure.unknown.body": "BuildMax did not record why. The server message may say more.",
   },
   "zh-CN": {
     "runs.title": "运行详情",
@@ -242,5 +290,41 @@ export const runsMessages = {
     "runs.plugins.heading": "插件",
     "runs.plugins.open": "打开 Space 插件",
     "runs.artifacts.heading": "已发布的 Artifact",
+
+    "runs.trace.notRecorded": "此运行没有追踪记录。在 Agent 启动前结束的运行不会记录追踪，较早的追踪记录也会过期。",
+
+    "runs.failure.heading": "失败原因",
+    "runs.failure.thisAgent": "该 Agent",
+    "runs.failure.serverMessage": "服务器消息",
+    "runs.failure.fixAgent": "打开 Agent 修复密钥授权",
+    "runs.failure.openAgent": "打开 Agent",
+    "runs.failure.runDetails": "运行详情",
+    "runs.failure.secret.disabled.title": "该 Agent 的密钥授权已被禁用",
+    "runs.failure.secret.disabled.body": "{agent} 需要密钥“{secret}”，但该密钥已被禁用。请重新启用该密钥或修改 Agent 的授权，然后再次运行。",
+    "runs.failure.secret.unavailable.title": "该 Agent 的密钥授权已无法解析",
+    "runs.failure.secret.unavailable.body": "{agent} 需要密钥“{secret}”，但该密钥已被销毁或不存在。请为 Agent 授权其他密钥，然后再次运行。",
+    "runs.failure.secret.itemMissing.title": "该 Agent 的密钥授权引用了缺失的条目",
+    "runs.failure.secret.itemMissing.body":
+      "{agent} 需要密钥“{secret}”中的条目“{item}”，但该密钥已没有此条目。请修改授权或补充该条目，然后再次运行。",
+    "runs.failure.space.title": "Space 的配置阻止了此运行",
+    "runs.failure.space.body": "{agent} 需要的密钥或插件，或 Space 的用量配额不可用。服务器消息说明了具体原因。",
+    "runs.failure.space.bodyNoAgent": "此运行需要的密钥或插件，或 Space 的用量配额不可用。服务器消息说明了具体原因。",
+    "runs.failure.model.title": "模型导致此运行失败",
+    "runs.failure.model.body":
+      "模型服务商拒绝、限流或超时，或分配给此运行的模型不可用。再次运行通常可以成功；如果持续失败，请联系管理员检查模型。",
+    "runs.failure.run.title": "运行过程中出错",
+    "runs.failure.run.body": "运行内部出现了问题。运行详情会显示它停止前做了什么。",
+    "runs.failure.dispatch.title": "BuildMax 无法启动此运行",
+    "runs.failure.dispatch.body": "无法启动运行所需的 Worker。请再次运行；如果持续失败，请联系管理员。",
+    "runs.failure.workerLost.title": "此运行的 Worker 已停止响应",
+    "runs.failure.workerLost.body": "执行此运行的 Worker 停止了报到，因此运行被结束。请再次运行；如果反复出现，请联系管理员。",
+    "runs.failure.abandoned.title": "此运行未在时限内完成",
+    "runs.failure.abandoned.body": "没有 Worker 在运行时限内完成它。请再次运行；如果反复出现，请联系管理员。",
+    "runs.failure.interrupted.title": "此运行被中断",
+    "runs.failure.interrupted.body": "运行期间其 Worker 被关闭，例如正在进行部署。请再次运行。",
+    "runs.failure.infrastructure.title": "BuildMax 无法完成此运行",
+    "runs.failure.infrastructure.body": "存储或 Worker 与服务器的连接出现故障。请再次运行；如果持续失败，请联系管理员。",
+    "runs.failure.unknown.title": "此运行失败",
+    "runs.failure.unknown.body": "BuildMax 没有记录失败原因。服务器消息可能有更多信息。",
   },
 } satisfies Messages<string>

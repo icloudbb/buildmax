@@ -22,6 +22,9 @@ import {
 } from "./origin"
 import { cacheSaving, callElapsed, describeSpend, formatAmount, summarizeSpend } from "./spend"
 import { describeBoundary, describeMCP, formatDuration, runElapsed } from "./summary"
+import { explainRunFailure } from "./failure"
+import { FailureFixLink, RunFailureNotice } from "./RunFailureNotice"
+import { useSecretName } from "./useSecretName"
 
 interface RunTraceModalProps {
   open: boolean
@@ -557,6 +560,48 @@ function PluginsSection({
   )
 }
 
+/**
+ * Why a failed run ended, in the person's terms, with the fix it leads with.
+ * Placed right after the origin: it is the question a reader of a failed run
+ * opens this dialog to answer.
+ */
+function FailureSection({
+  provenance,
+  spaceId,
+  token,
+  onClose,
+}: {
+  provenance: ApiRunProvenance
+  spaceId: string
+  token: string | null
+  onClose: () => void
+}) {
+  const t = useT()
+  const secretName = useSecretName(spaceId, token, provenance.failure_cause?.secret_id)
+  const explanation = explainRunFailure(
+    {
+      status: provenance.status,
+      failureClass: provenance.failure_class,
+      failureCause: provenance.failure_cause,
+      agentId: provenance.agent?.id,
+      errorMessage: provenance.error_message,
+    },
+    { agent: provenance.agent?.name, secret: secretName },
+  )
+  if (!explanation) return null
+  return (
+    <section className="run-trace__section">
+      <h3 className="run-trace__heading">{t("runs.failure.heading")}</h3>
+      <RunFailureNotice explanation={explanation} />
+      {explanation.leadsWithFix && provenance.agent?.id ? (
+        <div className="run-trace__failure-actions">
+          <FailureFixLink explanation={explanation} spaceId={spaceId} agentId={provenance.agent.id} size="compact" onNavigate={onClose} />
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 /** What this run published, addressed by the artifact's own id. */
 function ArtifactsSection({
   artifacts,
@@ -621,19 +666,19 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
     setProvenance(null)
     setProvenanceError(null)
 
-    // The two records are fetched together and fail apart. A run whose trace
+    // The records are fetched together and fail apart. A run whose trace
     // expired from storage still has a ledger, and a deployment that accounts
     // no managed calls still has a trace — neither absence may hide the other.
-    const traceRequest = getTaskRunTrace(spaceId, taskRunId, token)
-      .then((result) => {
-        if (!cancelled) setTrace(result)
-      })
-      .catch((err) => {
-        // The server explains a missing trace precisely — never recorded, or
-        // gone from storage. Those mean different things to an operator, so
-        // pass its message through instead of substituting a generic failure.
-        if (!cancelled) setError(getErrorMessage(err, stableT("runs.error.trace")))
-      })
+    const fetchTrace = () =>
+      getTaskRunTrace(spaceId, taskRunId, token)
+        .then((result) => {
+          if (!cancelled) setTrace(result)
+        })
+        .catch((err) => {
+          // The server explains a missing trace precisely — never recorded, or
+          // gone from storage. Pass its message through.
+          if (!cancelled) setError(getErrorMessage(err, stableT("runs.error.trace")))
+        })
     const callsRequest = listTaskRunLLMCalls(spaceId, taskRunId, token)
       .then((result) => {
         if (!cancelled) setCalls(result)
@@ -644,17 +689,22 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
         }
       })
 
-    const provenanceRequest = getTaskRunProvenance(spaceId, taskRunId, token)
-      .then((result) => {
-        if (!cancelled) setProvenance(result)
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setProvenanceError(getErrorMessage(err, stableT("runs.error.origin")))
-        }
-      })
+    // The run record says whether a trace exists, so a run that has none is
+    // told so here rather than by a request that can only fail.
+    const provenanceAndTrace = getTaskRunProvenance(spaceId, taskRunId, token).then(
+      (result) => {
+        if (cancelled) return
+        setProvenance(result)
+        if (result.trace_recorded) return fetchTrace()
+      },
+      (err) => {
+        if (cancelled) return
+        setProvenanceError(getErrorMessage(err, stableT("runs.error.origin")))
+        return fetchTrace()
+      },
+    )
 
-    void Promise.all([traceRequest, callsRequest, provenanceRequest]).finally(() => {
+    void Promise.all([provenanceAndTrace, callsRequest]).finally(() => {
       if (!cancelled) setLoading(false)
     })
     return () => {
@@ -679,11 +729,16 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
             {/* First and unconditional: a run that wrote no trace still came
                 from somewhere, and that is the question a reader opens with. */}
             <OriginSection provenance={provenance} error={provenanceError} />
+            {provenance && spaceId ? (
+              <FailureSection provenance={provenance} spaceId={spaceId} token={token} onClose={onClose} />
+            ) : null}
             <PluginsSection pins={provenance?.plugin_pins} spaceId={spaceId} onClose={onClose} />
             {error ? (
               <p className="modal__error" role="alert">{error}</p>
             ) : trace ? (
               <TraceBody trace={trace} />
+            ) : provenance && !provenance.trace_recorded ? (
+              <p className="run-trace__spend-note">{t("runs.trace.notRecorded")}</p>
             ) : null}
             {/* What became of the run's workspace — restore and checkpoint — which
                 the run records separately from its trace, so it shows whenever the

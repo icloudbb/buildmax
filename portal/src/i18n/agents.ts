@@ -43,7 +43,7 @@ export const agentsMessages = {
     "agents.empty.member":
       "No agents are available in this space yet. Space owners and admins can add one when you're ready to share a reusable agent.",
     "agents.card.secretWarning": {
-      one: "{count} secret grant no longer resolve. Open the agent to fix.",
+      one: "{count} secret grant no longer resolves. Open the agent to fix.",
       other: "{count} secret grants no longer resolve. Open the agent to fix.",
     },
     "agents.card.runs": { one: "{count} run", other: "{count} runs" },
@@ -58,7 +58,7 @@ export const agentsMessages = {
     "agents.tab.schedules": "Schedules",
     "agents.tab.revisions": "Revisions",
     "agents.detail.secretWarning": {
-      one: "{count} secret grant no longer resolve.",
+      one: "{count} secret grant no longer resolves.",
       other: "{count} secret grants no longer resolve.",
     },
     "agents.detail.fixInConfig": "Fix in config",

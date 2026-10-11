@@ -124,6 +124,10 @@ export const issuesMessages = {
     "issues.run.askForAgent":
       "This Issue has no executor, and nothing in this Space can run it yet. Ask a Space owner or admin to add an Agent.",
     "issues.run.nothingYet": "This Issue has no executor yet. An Agent or a published Workflow runs it.",
+    "issues.run.grantWarning": {
+      one: "{count} secret grant of this Agent no longer resolves, so a run fails until it is fixed.",
+      other: "{count} secret grants of this Agent no longer resolve, so a run fails until they are fixed.",
+    },
     "issues.run.chooseExecutorAction": "Choose executor",
     "issues.detail.workflowUnpublished": "This workflow is not published, so it cannot be run yet.",
     "issues.detail.agentMissing": "The assigned agent no longer exists.",
@@ -335,6 +339,7 @@ export const issuesMessages = {
     "issues.run.askForAgent":
       "此 Issue 还没有执行者，此 Space 中也还没有可以运行它的对象。请联系 Space 所有者或管理员添加 Agent。",
     "issues.run.nothingYet": "此 Issue 还没有执行者。Issue 由 Agent 或已发布的 Workflow 运行。",
+    "issues.run.grantWarning": "该 Agent 有 {count} 项密钥授权已无法解析，修复之前运行都会失败。",
     "issues.run.chooseExecutorAction": "选择执行者",
     "issues.detail.workflowUnpublished": "此 Workflow 尚未发布，暂时无法运行。",
     "issues.detail.agentMissing": "分配的 Agent 已不存在。",

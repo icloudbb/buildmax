@@ -224,6 +224,10 @@ export function apiTaskToTask(api: ApiTask): Task {
     agentId: api.agent_id ?? undefined,
     issueId: api.issue_id ?? undefined,
     awaitingAnswer: api.awaiting_answer ?? false,
+    lastRunId: api.last_run_id ?? undefined,
+    errorMessage: api.error_message ?? undefined,
+    failureClass: api.failure_class,
+    failureCause: api.failure_cause ?? undefined,
   }
 }
 

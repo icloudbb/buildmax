@@ -7,8 +7,8 @@ import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiTaskToTask } from "../../lib/api/mappers"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
-import { getAgents } from "../../features/agents"
-import { runStatusTone, taskRunFailed, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
+import { formatSuccessRate, getAgents, successRate as rateOf } from "../../features/agents"
+import { runStatusTone, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
 import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
@@ -124,11 +124,8 @@ export function AgentList({ token, spaceId }: AgentListProps) {
 
   const stats = useMemo(() => {
     const tasks = allTasks.map((x) => x.task)
-    const finished = tasks.filter((task) => taskRunFinished(task.status))
-    const failed = finished.filter((task) => taskRunFailed(task.status)).length
-    const succeeded = finished.length - failed
     const running = tasks.filter((task) => !taskRunFinished(task.status)).length
-    const successRate = finished.length > 0 ? `${Math.round((succeeded / finished.length) * 100)}%` : "—"
+    const successRate = formatSuccessRate(rateOf(tasks.map((task) => task.status)))
     const warnings = canManageAgents
       ? agents.reduce((n, a) => n + consumptionHealthCount(a.secretConsumption, secrets), 0)
       : 0

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { Button, ButtonLink } from "@buildmax/gui"
 import type { Agent, Issue, IssueFlow, IssueRun, Task, Workflow } from "../../lib/types"
-import type { ApiIssueComment, ApiIssueFlowResponse, ApiSpaceMember } from "../../lib/api/types"
+import type { ApiIssueComment, ApiIssueFlowResponse, ApiSecret, ApiSpaceMember } from "../../lib/api/types"
 import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStatusLabel } from "../../lib/statusLabels"
@@ -39,7 +39,15 @@ import {
   updateIssue,
   type IssueRunAction,
 } from "../../features/issues"
-import { RunTraceModal } from "../../features/runs"
+import {
+  explainRunFailure,
+  FailureFixLink,
+  RunFailureNotice,
+  RunTraceModal,
+  type RunFailureExplanation,
+} from "../../features/runs"
+import { listSecrets } from "../../features/spaceSecrets/api"
+import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { getSpaceMembers, peopleOnly } from "../../features/spaces/api"
 import { getWorkflows, runIssueWorkflow } from "../../features/workflows"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
@@ -155,10 +163,33 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   const [focusExecutor, setFocusExecutor] = useState(false)
   const executorSelect = useRef<HTMLSelectElement>(null)
   const runReasonId = useId()
+  const grantWarningId = useId()
   const latestHeadingId = useId()
   // Owners and admins create Agents and assign Workflows.
   const manage = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
   const canAssignWorkflow = isAllowed(manage)
+  // Owners and admins may read Secret metadata: it names the Secret a failed
+  // run needed, and warns before Run agent starts a run known to fail. A
+  // failure hides both rather than blocking the page.
+  const canReadSecrets = canAssignWorkflow
+  const [secrets, setSecrets] = useState<ApiSecret[]>([])
+  useEffect(() => {
+    if (!token || !spaceId || !canReadSecrets) {
+      setSecrets([])
+      return
+    }
+    let cancelled = false
+    listSecrets(token, spaceId)
+      .then((res) => {
+        if (!cancelled) setSecrets(res.secrets ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setSecrets([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [token, spaceId, canReadSecrets])
 
   const resetForm = useCallback((issue: Issue) => {
     setTitle(issue.title)
@@ -309,8 +340,31 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
       : buildHash({ name: "workflowRun", spaceId, workflowRunId: run.run.id })
   }
 
-  /** Stop and Retry for an Agent run; a Workflow run is stopped from its own page. */
+  /** Why an Agent run failed, in the person's terms; null when it did not. */
+  function agentRunFailure(task: Task) {
+    const secretId = task.failureCause?.secret_id
+    return explainRunFailure(
+      {
+        status: task.status,
+        failureClass: task.failureClass,
+        failureCause: task.failureCause,
+        agentId: task.agentId,
+        errorMessage: task.errorMessage,
+      },
+      {
+        agent: task.agentId ? agentNames[task.agentId] : null,
+        secret: secretId ? secrets.find((secret) => secret.id === secretId)?.name : null,
+      },
+    )
+  }
+
+  /**
+   * Stop and Retry for an Agent run; a Workflow run is stopped from its own
+   * page. Retry steps back when the run's failure leads with a fix, because
+   * running it again would fail the same way.
+   */
   function agentRunActions(task: Task, size?: "compact") {
+    const retryVariant = agentRunFailure(task)?.leadsWithFix ? "tertiary" : "secondary"
     return (
       <>
         {taskIsStoppable(task.status) ? (
@@ -319,7 +373,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
           </Button>
         ) : null}
         {taskIsRetryable(task.status) ? (
-          <Button variant="secondary" size={size} busy={retryingTaskId === task.id} onClick={() => handleRetryTask(task.id)}>
+          <Button variant={retryVariant} size={size} busy={retryingTaskId === task.id} onClick={() => handleRetryTask(task.id)}>
             {t("issues.outcome.retryRun")}
           </Button>
         ) : null}
@@ -568,6 +622,22 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   // the one answer every surface below agrees with.
   const latest = flow.runs[0] ?? null
   const latestProduct = latest ? issueRunProduct(latest, flow.outputs) : null
+  const latestFailure = latest?.kind === "agent" ? agentRunFailure(latest.task) : null
+  // The same check the Agent page makes: a grant that no longer resolves fails
+  // the run, so Run agent says so before it starts one.
+  const executorAgent = runAction.kind === "agent" ? agents.find((agent) => agent.id === flow.issue.executorId) : undefined
+  const grantWarnings = executorAgent ? consumptionHealthCount(executorAgent.secretConsumption, secrets) : 0
+  // One primary action: a fix the person can make outranks starting a run that
+  // is known to fail.
+  const fixFirst = Boolean(latestFailure?.leadsWithFix) || grantWarnings > 0
+  // Each Agent run's latest failure, for the Discussion to explain the Agent's
+  // report of it rather than repeat the server's text.
+  const runFailures: Record<string, { explanation: RunFailureExplanation; agentId?: string }> = {}
+  for (const run of flow.runs) {
+    if (run.kind !== "agent" || !run.task.lastRunId) continue
+    const explanation = agentRunFailure(run.task)
+    if (explanation) runFailures[run.task.lastRunId] = { explanation, agentId: run.task.agentId }
+  }
   const texts = textResults(flow.runs, flow.outputs)
   const resultCount = flow.outputs.length + texts.length
 
@@ -649,10 +719,19 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
               {latest.kind === "agent" && latest.task.awaitingAnswer ? (
                 <p className="page-activity__meta">{t("issues.outcome.agentAsked")}</p>
               ) : null}
+              {latestFailure ? <RunFailureNotice explanation={latestFailure} /> : null}
               {latest.kind === "workflow" && latest.run.errorMessage ? (
                 <p className="modal__error">{latest.run.errorMessage}</p>
               ) : null}
               <div className="workflow-run-page__step-actions">
+                {latest.kind === "agent" ? (
+                  <FailureFixLink explanation={latestFailure} spaceId={spaceId} agentId={latest.task.agentId} size="compact" />
+                ) : null}
+                {latest.kind === "agent" && latestFailure?.primary === "runDetails" && latest.task.lastRunId ? (
+                  <Button variant="secondary" size="compact" onClick={() => setTraceRunId(latest.task.lastRunId ?? null)}>
+                    {t("runs.failure.runDetails")}
+                  </Button>
+                ) : null}
                 <ButtonLink variant="secondary" size="compact" href={runHref(latest)}>
                   {latest.kind === "workflow"
                     ? t("issues.outcome.openRun")
@@ -673,12 +752,27 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
           )}
         </section>
         {!editing ? <div className="issues-page__form-actions">
+          {grantWarnings > 0 && executorAgent ? (
+            <span className="page-activity__action-group" data-testid="issue-run-grant-warning">
+              <span id={grantWarningId} className="run-warning">
+                ⚠ {t("issues.run.grantWarning", { count: grantWarnings })}
+              </span>
+              {!latestFailure?.leadsWithFix ? (
+                <ButtonLink variant="primary" size="compact" href={buildHash({ name: "agent", spaceId, agentId: executorAgent.id })}>
+                  {t("runs.failure.fixAgent")}
+                </ButtonLink>
+              ) : null}
+            </span>
+          ) : null}
           <span className="page-activity__action-group">
             <Button
-              variant="primary"
+              variant={fixFirst ? "secondary" : "primary"}
               busy={runAction.kind === "agent" ? runningAgent : runAction.kind === "workflow" ? runningWorkflow : false}
               disabled={loading || runBlockedReason != null}
-              aria-describedby={runBlockedReason ? runReasonId : undefined}
+              aria-describedby={
+                [runBlockedReason ? runReasonId : null, grantWarnings > 0 ? grantWarningId : null].filter(Boolean).join(" ") ||
+                undefined
+              }
               onClick={runAction.kind === "agent" ? handleRunAgent : handleRunWorkflow}
             >
               {runAction.kind === "agent"
@@ -929,6 +1023,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                   members={members}
                   agentNames={agentNames}
                   onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
+                  runFailures={runFailures}
                   onCommentsChanged={setComments}
                   requesterReply={flow.issue.escalation ? { assistantName: assistantName ?? t("issues.detail.theAssistant") } : undefined}
                 />
