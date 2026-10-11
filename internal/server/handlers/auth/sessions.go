@@ -64,9 +64,9 @@ func (h *Handler) listSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, SessionsResponse{Sessions: out})
 }
 
-// revokeSessionHandler serves DELETE /api/auth/sessions/{session_id}. The
-// current session may be revoked too; the caller is then signed out, and a
-// browser clears its cookie with POST /api/auth/portal/logout.
+// revokeSessionHandler serves DELETE /api/auth/sessions/{session_id}. Naming
+// the caller's own session signs it out; the Portal does not, because its
+// ordinary sign-out ends that session and clears the cookie in one action.
 func (h *Handler) revokeSessionHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.guard().ActiveUser(w, r)
 	if !ok {

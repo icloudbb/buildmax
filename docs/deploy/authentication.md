@@ -439,9 +439,10 @@ Sessions**, or through `GET /api/auth/sessions` and
 the label marked as reported by the client and the session making the request
 marked as current. A revoke acts only on a live session of the caller's own
 account; another account's session ID answers `404`, exactly like an unknown
-one. Revoking the current session signs that browser out. Either revoke is
-audited as `user.session_revoked`, with the person or the administrator as
-actor. There is no self-service "sign out everywhere".
+one. Either revoke is audited as `user.session_revoked`, with the person or the
+administrator as actor. The list's **Sign out of this browser** is the ordinary
+sign-out, audited as `user.logout`. There is no self-service "sign out
+everywhere".
 
 Revoking a session retires its refresh
 tokens and marks the `auth_session` row revoked, so an already-issued access

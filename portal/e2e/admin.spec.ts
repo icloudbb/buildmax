@@ -112,6 +112,9 @@ test("an account's detail lists its live sessions", async ({ page }) => {
   await page.getByRole("button", { name: email! }).first().click()
   await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
   await expect(page.getByText("No live sessions")).toHaveCount(0)
+  // This browser's session has been used, so at least one row has a real
+  // last-active time rather than "never".
+  await expect(page.locator(".admin-list__meta").filter({ hasText: /last active \d/ }).first()).toBeVisible()
   await expect(page.getByRole("button", { name: "Revoke" }).first()).toBeVisible()
   await expect(page.locator(".settings-section__error")).toHaveCount(0)
 })

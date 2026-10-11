@@ -875,8 +875,12 @@ export interface ApiAdminUsersResponse {
 export interface ApiAdminSession {
   session_id: string
   platform?: string
+  auth_method?: string
+  /** What a native client said it is. Never verified. */
+  client_label?: string
   created_at: string
-  last_rotated_at: string
+  /** The zero time until the session is used after signing in. */
+  last_seen_at: string
   expires_at: string
 }
 

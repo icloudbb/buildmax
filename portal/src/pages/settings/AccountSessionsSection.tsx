@@ -43,21 +43,18 @@ export function AccountSessionsSection() {
 
   function handleRevoke(session: AccountSession) {
     if (!token) return
-    const question = session.current
-      ? t("account.sessions.signOutConfirm")
-      : t("account.sessions.revokeConfirm", { name: nameOf(session) })
-    if (!window.confirm(question)) return
+    if (session.current) {
+      // This browser's own session is ended by the ordinary sign-out, which
+      // revokes it and clears the cookie in one action and one audit event.
+      if (window.confirm(t("account.sessions.signOutConfirm"))) logout()
+      return
+    }
+    if (!window.confirm(t("account.sessions.revokeConfirm", { name: nameOf(session) }))) return
     setRevokeError(null)
     setRevokedName(null)
     setRevokingId(session.session_id)
     revokeAccountSession(token, session.session_id)
       .then(() => {
-        if (session.current) {
-          // The session is already gone on the server; logging out clears the
-          // refresh cookie and this page's token so nothing tries to reuse it.
-          logout()
-          return
-        }
         setRevokedName(nameOf(session))
         load()
       })
@@ -106,9 +103,9 @@ export function AccountSessionsSection() {
                     ) : null}
                   </span>
                   {label ? (
-                    <span className="account-sessions__label">
+                    <span className="session-label">
                       {label}
-                      <span className="account-sessions__unverified">{t("account.sessions.unverified")}</span>
+                      <span className="session-label__unverified">{t("account.sessions.unverified")}</span>
                     </span>
                   ) : null}
                   <span className="space-settings-page__member-meta account-sessions__meta">

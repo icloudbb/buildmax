@@ -372,11 +372,19 @@ test("a native session is listed in Account → Sessions and revoking it there s
     })
     expect(refresh.status(), await refresh.text()).toBe(401)
 
-    // Signing this browser out from the same list returns it to sign-in, and a
-    // reload does not bring the session back.
+    // Signing this browser out from the same list is the ordinary sign-out, not
+    // a DELETE of its own session; it returns to sign-in, and a reload does not
+    // bring the session back.
+    const deletes: string[] = []
+    page.on("request", (req) => {
+      if (req.method() === "DELETE" && new URL(req.url()).pathname.startsWith("/api/auth/sessions/")) deletes.push(req.url())
+    })
     page.once("dialog", (dialog) => void dialog.accept())
+    const logout = page.waitForRequest((req) => req.method() === "POST" && new URL(req.url()).pathname === "/api/auth/portal/logout")
     await page.getByRole("button", { name: "Sign out of this browser" }).click()
+    await logout
     await expect(page.getByLabel("Password")).toBeVisible()
+    expect(deletes).toEqual([])
     await page.reload()
     await expect(page.getByLabel("Password")).toBeVisible()
     console.log(

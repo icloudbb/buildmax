@@ -267,9 +267,9 @@ System Administrator 可在 Portal 的账户详情页或通过
 或使用 `GET /api/auth/sessions` 与 `DELETE /api/auth/sessions/{session_id}`。
 列表字段相同，标签标注为由客户端报告，发起请求的 Session 标为当前 Session。
 撤销只作用于调用者本人账户的有效 Session；其他账户的 Session ID 返回 `404`，
-与不存在的 ID 完全相同。撤销当前 Session 会让该浏览器退出登录。两种撤销都
-记录为 `user.session_revoked`，执行者分别为用户本人或管理员。用户没有自助的
-“全部退出”操作。
+与不存在的 ID 完全相同。两种撤销都记录为 `user.session_revoked`，执行者分别为
+用户本人或管理员。列表中的**退出此浏览器**就是普通的退出登录，记录为
+`user.logout`。用户没有自助的“全部退出”操作。
 
 撤销一个 Session 会停用它的 refresh token 并将 `auth_session`
 记录标记为已撤销，因此该 Session 下已签发的 access token 会在其下一个请求时

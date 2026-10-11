@@ -193,6 +193,7 @@ export const adminMessages = {
     "admin.accounts.sessions": "Sessions",
     "admin.accounts.noSessions": "No live sessions.",
     "admin.accounts.unknownPlatform": "unknown platform",
+    "admin.accounts.labelUnverified": "Reported by the client, not verified",
     "admin.accounts.sessionMeta": "signed in {created} · last active {active} · expires {expires}",
     "admin.accounts.revokeSessionConfirm":
       "Sign this {platform} session out?\n\nOnly this device is revoked; the account's other sessions stay signed in. An access token it already holds keeps working until it expires.",
@@ -598,6 +599,7 @@ export const adminMessages = {
     "admin.accounts.sessions": "会话",
     "admin.accounts.noSessions": "没有活跃会话。",
     "admin.accounts.unknownPlatform": "未知平台",
+    "admin.accounts.labelUnverified": "由客户端自行报告，未经验证",
     "admin.accounts.sessionMeta": "登录于 {created} · 最近活跃 {active} · 过期于 {expires}",
     "admin.accounts.revokeSessionConfirm":
       "让这个 {platform} 会话退出登录？\n\n只撤销这台设备；该账户的其他会话保持登录。它已持有的访问 Token 在过期前仍然有效。",

@@ -36,6 +36,9 @@ describe("lastSeenAt", () => {
   it("treats the zero time as never used", () => {
     expect(lastSeenAt(session("a"))).toBeNull()
     expect(lastSeenAt(session("a", false, "2026-10-11T09:00:00Z"))).toBe("2026-10-11T09:00:00Z")
+    // An administrator's session row has the same field.
+    expect(lastSeenAt({ last_seen_at: "0001-01-01T00:00:00Z" })).toBeNull()
+    expect(lastSeenAt({})).toBeNull()
   })
 })
 

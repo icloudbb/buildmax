@@ -31,9 +31,11 @@ export function sessionMethodKey(method: string | undefined): MessageKey | null 
 
 /**
  * When the session was last used, or null before its first use. The server
- * sends Go's zero time for "never" rather than omitting the field.
+ * sends Go's zero time for "never" rather than omitting the field, on both the
+ * self-service and the administrator session lists.
  */
-export function lastSeenAt(session: AccountSession): string | null {
+export function lastSeenAt(session: { last_seen_at?: string }): string | null {
+  if (!session.last_seen_at) return null
   const at = new Date(session.last_seen_at)
   return Number.isNaN(at.getTime()) || at.getUTCFullYear() <= 1 ? null : session.last_seen_at
 }

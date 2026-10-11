@@ -29,7 +29,7 @@ export async function listAccountSessions(token: string): Promise<AccountSession
   return res.sessions
 }
 
-/** End one of the account's sessions. Revoking the current one signs this browser out. */
+/** End another of the account's sessions. This browser's own ends with the ordinary sign-out. */
 export async function revokeAccountSession(token: string, sessionId: string): Promise<void> {
   const res = await apiFetch(`${getApiBase()}/api/auth/sessions/${encodeURIComponent(sessionId)}`, {
     method: "DELETE",

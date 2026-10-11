@@ -396,7 +396,7 @@ Portal 会话的认证方式和完全相同的绝对到期时间。只有 `porta
 因此目前没有已发布的客户端会发起请求。
 用户在 Portal 的 **Account → Sessions** 中列出并撤销自己的会话（`GET /api/auth/sessions`、
 `DELETE /api/auth/sessions/{session_id}`），客户端标签标注为未经验证，当前浏览器另有标记；其他账户的
-会话 ID 返回 `404`，撤销当前会话会让该浏览器退出登录。
+会话 ID 返回 `404`，当前浏览器通过普通的退出登录结束会话。管理员的账户详情显示相同的标签与最近活跃时间。
 参见[身份服务](../../internal/service/identity/account.go)、
 [OIDC provider](../../internal/infra/oidc/provider.go)与
 [Space 服务](../../internal/service/space/service.go)。
