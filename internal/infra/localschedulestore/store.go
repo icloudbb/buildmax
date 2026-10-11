@@ -35,12 +35,17 @@ type Record struct {
 	Prompt     string `json:"prompt"`
 	// Model is the model each fire runs under, pinned when the task is saved:
 	// choosing "Default" stores the default of that moment, so a later sign-in or
-	// default change never moves the task. Empty is a task saved before pinning,
-	// which does not fire until it is edited.
-	Model    string `json:"model,omitempty"`
-	CronExpr string `json:"cron_expr"`
-	Timezone string `json:"timezone"`
-	Enabled  bool   `json:"enabled"`
+	// default change never moves the task.
+	Model string `json:"model,omitempty"`
+	// Destination is where Model was offered when the task was saved:
+	// session.DestinationLocal, or the URL of the deployment the app was signed
+	// in to. A model of the same name elsewhere is a different provider, so a
+	// fire in another mode is refused rather than sent there. A task missing
+	// Model or Destination predates pinning; it stays paused until saved again.
+	Destination string `json:"destination,omitempty"`
+	CronExpr    string `json:"cron_expr"`
+	Timezone    string `json:"timezone"`
+	Enabled     bool   `json:"enabled"`
 	// NextFireAt is the next UTC instant the task is due. The tick loop fires a
 	// task when this is not after now.
 	NextFireAt time.Time `json:"next_fire_at"`

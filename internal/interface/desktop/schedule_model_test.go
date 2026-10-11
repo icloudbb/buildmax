@@ -47,16 +47,16 @@ func scheduleApp(t *testing.T) (*App, *mockllm.Server) {
 	return app, server
 }
 
-// signIn switches the app to managed mode against a deployment that offers only
-// its own model, the way a sign-in does: the next runtime is built from the
-// deployment's catalog.
-func signIn(app *App) {
+// signIn switches the app to managed mode against a deployment offering the
+// named models (the first is its default), the way a sign-in does: the next
+// runtime is built from the deployment's catalog.
+func signIn(app *App, models ...string) {
+	entries := make([]config.ModelEntry, len(models))
+	for i, m := range models {
+		entries[i] = config.ModelEntry{Name: m, Model: m}
+	}
 	app.modelSource = func(context.Context) (auth.ModelSource, error) {
-		return auth.ModelSource{
-			ServerURL: "https://deploy.example.test",
-			Entries:   []config.ModelEntry{{Name: "BuildMax smoke", Model: "BuildMax smoke"}},
-			Default:   "BuildMax smoke",
-		}, nil
+		return auth.ModelSource{ServerURL: "https://deploy.example.test", Entries: entries, Default: models[0]}, nil
 	}
 	app.rebuildRuntimes()
 }
@@ -120,9 +120,9 @@ func modelCalls(server *mockllm.Server, providerModel string) int {
 }
 
 // D4: a task saved with "Default" keeps the model that was the default when it
-// was saved — through a later default change and through a sign-in — and after
-// sign-in it says, before firing, that the deployment does not offer that
-// model, then fails with that reason instead of running the deployment's.
+// was saved, and the mode it was saved in — through a later default change and
+// through a sign-in — and after sign-in it says, before firing, that it does not
+// run here, then fails with that reason instead of running the deployment's.
 func TestScheduleKeepsItsModelAcrossSignIn(t *testing.T) {
 	app, server := scheduleApp(t)
 	ctx := context.Background()
@@ -131,8 +131,8 @@ func TestScheduleKeepsItsModelAcrossSignIn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if created.Model != "Luna" {
-		t.Fatalf("Default saved as %q, want it pinned to the default of the moment, Luna", created.Model)
+	if created.Model != "Luna" || created.Destination != session.DestinationLocal {
+		t.Fatalf("Default saved as %q on %q, want it pinned to the default of the moment, Luna, locally", created.Model, created.Destination)
 	}
 	if got := listedTask(t, app, created.ID); got.Model != "Luna" || got.ModelProblem != "" {
 		t.Fatalf("card before sign-in: model %q problem %q, want Luna and none", got.Model, got.ModelProblem)
@@ -164,101 +164,154 @@ func TestScheduleKeepsItsModelAcrossSignIn(t *testing.T) {
 			modelCalls(server, "mock-luna"), modelCalls(server, "mock-other"))
 	}
 
-	signIn(app)
+	signIn(app, "BuildMax smoke")
+	assertRefusedHere(t, app, server, created.ID, 2)
 
-	card := listedTask(t, app, created.ID)
-	if card.Model != "Luna" || card.ModelProblem != modelProblemNotOffered || card.ModelServer != "deploy.example.test" {
-		t.Fatalf("card after sign-in: model %q problem %q server %q, want Luna not offered by deploy.example.test",
-			card.Model, card.ModelProblem, card.ModelServer)
-	}
-
-	calls := len(server.Requests())
-	fireErr := app.fireScheduled(ctx, storedTask(t, app, created.ID), scheduleRunKey(created.ID))
-	if fireErr == nil || !strings.Contains(fireErr.Error(), `"Luna"`) || !strings.Contains(fireErr.Error(), "deploy.example.test") {
-		t.Fatalf("signed-in fire error = %v, want it to say Luna is not offered by the deployment", fireErr)
-	}
-	refused := finishedRun(t, app, created.ID, 2)
-	if refused.Status != "failed" || refused.Model != "Luna" || refused.SessionID != "" || refused.Error != fireErr.Error() {
-		t.Fatalf("refused run = %+v, want a failed Luna row with the reason and no session", refused)
-	}
-	if got := len(server.Requests()); got != calls {
-		t.Fatalf("a refused fire called a model: %d calls, want %d", got, calls)
-	}
-	if storedTask(t, app, created.ID).Model != "Luna" {
-		t.Fatal("a refused fire changed the task's model")
-	}
-
-	// Saving "Default" while signed in pins the deployment's default instead.
+	// Saving "Default" while signed in pins the deployment's default and mode.
 	edited, err := app.UpdateScheduledTask(created.ID, created.WorkingDir, "nightly", "summarize", "0 9 * * *", "UTC", "")
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
-	if edited.Model != "BuildMax smoke" {
-		t.Fatalf("Default re-saved signed in as %q, want BuildMax smoke", edited.Model)
+	if edited.Model != "BuildMax smoke" || edited.Destination != "deploy.example.test" {
+		t.Fatalf("Default re-saved signed in as %q on %q, want BuildMax smoke on deploy.example.test", edited.Model, edited.Destination)
 	}
 	if got := listedTask(t, app, created.ID); got.ModelProblem != "" {
 		t.Fatalf("re-pinned card problem = %q, want none", got.ModelProblem)
 	}
 }
 
-// A task stored before schedules pinned their model has none. It is never run
-// on whichever model happens to be the default: its card says so, its fire
-// fails saying so, and pausing or resuming it does not choose one for it.
-func TestScheduleWithoutAModelDoesNotRun(t *testing.T) {
+// A deployment offering a model of the same name is still another provider:
+// a task saved locally on Luna does not run on the deployment's Luna.
+func TestScheduleDoesNotRunASameNamedModelInAnotherMode(t *testing.T) {
 	app, server := scheduleApp(t)
+	created, err := app.CreateScheduledTask(t.TempDir(), "nightly", "summarize", "0 9 * * *", "UTC", "Luna")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	signIn(app, "Luna")
+	assertRefusedHere(t, app, server, created.ID, 1)
+
+	// Saving it signed in is the choice to run it there.
+	edited, err := app.UpdateScheduledTask(created.ID, created.WorkingDir, "nightly", "summarize", "0 9 * * *", "UTC", "Luna")
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if edited.Destination != "deploy.example.test" {
+		t.Fatalf("re-saved destination = %q, want deploy.example.test", edited.Destination)
+	}
+	if got := listedTask(t, app, created.ID); got.ModelProblem != "" {
+		t.Fatalf("re-pinned card problem = %q, want none", got.ModelProblem)
+	}
+}
+
+// assertRefusedHere checks that a task saved locally on Luna, after sign-in,
+// says on its card that it does not run in this mode, and that its fire fails
+// with that reason without calling any model or changing the task.
+func assertRefusedHere(t *testing.T, app *App, server *mockllm.Server, id string, runs int) {
+	t.Helper()
+	card := listedTask(t, app, id)
+	if card.Model != "Luna" || card.Destination != session.DestinationLocal ||
+		card.ModelProblem != modelProblemOtherMode || card.ModelServer != "deploy.example.test" {
+		t.Fatalf("card after sign-in = %+v, want Luna saved locally, refused while signed in to deploy.example.test", card)
+	}
+	calls := len(server.Requests())
+	fireErr := app.fireScheduled(context.Background(), storedTask(t, app, id), scheduleRunKey(id))
+	if fireErr == nil || !strings.Contains(fireErr.Error(), `"Luna"`) || !strings.Contains(fireErr.Error(), "deploy.example.test") {
+		t.Fatalf("signed-in fire error = %v, want it to say Luna was saved for another mode", fireErr)
+	}
+	refused := finishedRun(t, app, id, runs)
+	if refused.Status != "failed" || refused.Model != "Luna" || refused.SessionID != "" || refused.Error != fireErr.Error() {
+		t.Fatalf("refused run = %+v, want a failed Luna row with the reason and no session", refused)
+	}
+	if got := len(server.Requests()); got != calls {
+		t.Fatalf("a refused fire called a model: %d calls, want %d", got, calls)
+	}
+	if rec := storedTask(t, app, id); rec.Model != "Luna" || rec.Destination != session.DestinationLocal {
+		t.Fatalf("a refused fire changed the task to %q on %q", rec.Model, rec.Destination)
+	}
+}
+
+// A task stored before schedules pinned their model and mode is never run on
+// whichever model happens to be the default: the tick loop pauses it without
+// recording a run, its card says why, and it cannot resume until it is saved.
+func TestScheduleSavedBeforePinningIsPausedUntilSaved(t *testing.T) {
+	app, server := scheduleApp(t)
+	app.ctx = context.Background()
 	now := time.Now().UTC()
-	legacy := schedstore.Record{
-		ID: "legacy", WorkingDir: t.TempDir(), Prompt: "summarize", CronExpr: "0 9 * * *",
-		Timezone: "UTC", Enabled: true, NextFireAt: now, CreatedAt: now, UpdatedAt: now,
-	}
-	if err := app.ensureScheduleStore().Add(legacy); err != nil {
-		t.Fatalf("add: %v", err)
-	}
-	if got := listedTask(t, app, legacy.ID); got.ModelProblem != modelProblemMissing {
-		t.Fatalf("card problem = %q, want %q", got.ModelProblem, modelProblemMissing)
+	for _, r := range []schedstore.Record{
+		{ID: "nomodel"},
+		{ID: "nomode", Model: "Luna"},
+	} {
+		r.WorkingDir, r.Prompt, r.CronExpr, r.Timezone = t.TempDir(), "summarize", "0 9 * * *", "UTC"
+		r.Enabled, r.NextFireAt, r.CreatedAt, r.UpdatedAt = true, now.Add(-time.Minute), now, now
+		if err := app.ensureScheduleStore().Add(r); err != nil {
+			t.Fatalf("add: %v", err)
+		}
 	}
 
-	err := app.fireScheduled(context.Background(), legacy, scheduleRunKey(legacy.ID))
-	if err == nil || !strings.Contains(err.Error(), "no model") {
-		t.Fatalf("fire error = %v, want it to say the schedule has no model", err)
+	app.sweepSchedules()
+
+	for _, id := range []string{"nomodel", "nomode"} {
+		if got := listedTask(t, app, id); got.Enabled || got.ModelProblem != modelProblemUnpinned {
+			t.Fatalf("%s after a sweep: enabled %v problem %q, want paused and unpinned", id, got.Enabled, got.ModelProblem)
+		}
+		if _, err := app.SetScheduledTaskEnabled(id, true); err == nil {
+			t.Fatalf("%s resumed without being saved", id)
+		}
 	}
-	if run := finishedRun(t, app, legacy.ID, 1); run.Status != "failed" || run.SessionID != "" {
-		t.Fatalf("run = %+v, want a failed row with no session", run)
+	if _, err := app.SetAllScheduledTasksEnabled(true); err != nil {
+		t.Fatalf("enable all: %v", err)
+	}
+	for _, id := range []string{"nomodel", "nomode"} {
+		if storedTask(t, app, id).Enabled {
+			t.Fatalf("%s enabled by Enable all without being saved", id)
+		}
+	}
+	if runs, err := app.ListScheduleRuns(); err != nil || len(runs) != 0 {
+		t.Fatalf("runs = %v (%v), want none recorded for a task that never had a model", runs, err)
 	}
 	if n := len(server.Requests()); n != 0 {
-		t.Fatalf("a task without a model called a model %d times", n)
+		t.Fatalf("an unpinned task called a model %d times", n)
 	}
 
-	for _, enabled := range []bool{false, true} {
-		if _, err := app.SetScheduledTaskEnabled(legacy.ID, enabled); err != nil {
-			t.Fatalf("set enabled %v: %v", enabled, err)
-		}
-		if rec := storedTask(t, app, legacy.ID); rec.Model != "" || rec.Enabled != enabled {
-			t.Fatalf("after set enabled %v: model %q enabled %v, want no model chosen", enabled, rec.Model, rec.Enabled)
-		}
+	saved, err := app.UpdateScheduledTask("nomodel", storedTask(t, app, "nomodel").WorkingDir, "", "summarize", "0 9 * * *", "UTC", "")
+	if err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if saved.Model != "Luna" || saved.Destination != session.DestinationLocal {
+		t.Fatalf("saved as %q on %q, want Luna locally", saved.Model, saved.Destination)
+	}
+	if resumed, err := app.SetScheduledTaskEnabled("nomodel", true); err != nil || !resumed.Enabled {
+		t.Fatalf("resume after saving = (%v, %v), want enabled", resumed.Enabled, err)
 	}
 }
 
 func TestCheckScheduleModel(t *testing.T) {
+	const deploy = "https://deploy.example.test"
 	local := fakeModels{offered: "Luna"}
-	managed := fakeModels{offered: "Deep", server: "https://deploy.example.test"}
+	managed := fakeModels{offered: "Luna", server: deploy}
+	other := fakeModels{offered: "Luna", server: "https://other.example.test"}
 	cases := []struct {
-		name   string
-		model  string
-		models fakeModels
-		want   string
+		name        string
+		model, dest string
+		models      fakeModels
+		want        string
 	}{
-		{"offered locally", "Luna", local, ""},
-		{"offered by the deployment", "Deep", managed, ""},
-		{"no model", "", local, modelProblemMissing},
-		{"local model after sign-in", "Luna", managed, modelProblemNotOffered},
-		{"deployment model after sign-out", "Deep", local, modelProblemNotOffered},
+		{"offered locally", "Luna", session.DestinationLocal, local, ""},
+		{"offered by its deployment", "Luna", deploy, managed, ""},
+		{"no model", "", session.DestinationLocal, local, modelProblemUnpinned},
+		{"no mode", "Luna", "", local, modelProblemUnpinned},
+		{"local task after sign-in", "Luna", session.DestinationLocal, managed, modelProblemOtherMode},
+		{"deployment task after sign-out", "Luna", deploy, local, modelProblemOtherMode},
+		{"another deployment", "Luna", deploy, other, modelProblemOtherMode},
+		{"no longer configured locally", "Deep", session.DestinationLocal, local, modelProblemNotOffered},
+		{"no longer offered by its deployment", "Deep", deploy, managed, modelProblemNotOffered},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := checkScheduleModel(tc.model, tc.models)
+			got, err := checkScheduleModel(schedstore.Record{Model: tc.model, Destination: tc.dest}, tc.models)
 			if got != tc.want || (err == nil) != (tc.want == "") {
-				t.Fatalf("checkScheduleModel(%q) = (%q, %v), want %q", tc.model, got, err, tc.want)
+				t.Fatalf("checkScheduleModel(%q on %q) = (%q, %v), want %q", tc.model, tc.dest, got, err, tc.want)
 			}
 		})
 	}

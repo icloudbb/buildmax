@@ -206,14 +206,17 @@ Desktop also has local scheduled tasks: a Schedules view (a first-class sidebar
 entry) where a user schedules a fixed prompt to run in a working directory —
 their home directory by default, so a task needs no project — under a model they
 pick, on a standard cron expression and timezone, with a live
-preview of the expression's next fires. Choosing "Default" saves the model the
-default names at that moment, so neither a later default change nor signing in
-moves the task; the card shows the model. When the current mode does not offer
-it (for example after signing in), or a task stored before models were pinned
-has none, the card says so and the fire fails with that reason instead of
-running another model. Each run records the model it ran under, which Recent
-runs and the run's chat show. Signing in or out rebuilds Desktop's cached
-runtimes, so the next run is assembled from the new mode's models. A
+preview of the expression's next fires. Saving pins the model and the mode it
+runs in (this machine, or the signed-in deployment's URL); choosing "Default"
+saves the model the default names at that moment, so neither a later default
+change nor signing in moves the task, and the card shows both. When the app is
+in another mode (a same-named model elsewhere is another provider) or the mode
+no longer offers the model, the card says so and the fire fails with that
+reason instead of running another model. A task stored before pinning is paused
+without recording a run and cannot resume until it is saved. Each run records
+the model it ran under, which Recent runs and the run's chat show. Signing in
+or out rebuilds Desktop's cached runtimes, so the next run is assembled from
+the new mode's models. A
 resident tick loop fires due tasks in-process while the app is open — coalescing
 one missed fire on launch and pausing a task after repeated failures to start a
 run — and stores the tasks in `scheduled-tasks.json` under `BUILDMAX_HOME`. Each

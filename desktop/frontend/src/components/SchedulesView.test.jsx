@@ -37,6 +37,7 @@ const sampleTask = {
   working_dir: '/home/me/work',
   prompt: 'summarize',
   model: 'Fast',
+  destination: 'local',
   cron_expr: '0 9 * * *',
   timezone: 'UTC',
   enabled: true,
@@ -62,26 +63,37 @@ describe('SchedulesView', () => {
     expect(screen.getByText('/home/me/work')).toBeTruthy();
     expect(screen.getByText('0 9 * * *')).toBeTruthy();
     expect(screen.getByText('Enabled')).toBeTruthy();
-    expect(screen.getByText('Model: Fast')).toBeTruthy();
+    expect(screen.getByText('Model: Fast on this machine')).toBeTruthy();
   });
 
-  it('says before the next fire that the pinned model cannot run after sign-in', async () => {
-    const task = { ...sampleTask, model: 'Luna', model_problem: 'not_offered', model_server: 'deploy.example.com' };
+  it('says before the next fire that a local task does not run after sign-in', async () => {
+    const task = { ...sampleTask, model: 'Luna', model_problem: 'other_mode', model_server: 'deploy.example.com' };
     render(<SchedulesView app={baseApp([task])} />);
-    expect(await screen.findByText('Model: Luna')).toBeTruthy();
+    expect(await screen.findByText('Model: Luna on this machine')).toBeTruthy();
     expect(screen.getByRole('note').textContent).toBe(
-      'deploy.example.com, which you are signed in to, does not offer Luna, so the next run will fail. Edit the schedule to choose one of its models, or sign out.',
+      'Saved to run on this machine, but this app now sends prompts to deploy.example.com, so the next run will fail. Edit and save it to run here, or switch back.',
     );
   });
 
-  it('says a task saved before pinning has no model and does not run', async () => {
-    render(<SchedulesView app={baseApp([{ ...sampleTask, model: '', model_problem: 'no_model' }])} />);
+  it('says when the deployment no longer offers the pinned model', async () => {
+    const task = {
+      ...sampleTask, model: 'Deep', destination: 'deploy.example.com', model_problem: 'not_offered', model_server: 'deploy.example.com',
+    };
+    render(<SchedulesView app={baseApp([task])} />);
+    expect(await screen.findByText('Model: Deep on deploy.example.com')).toBeTruthy();
+    expect(screen.getByRole('note').textContent).toMatch(/no longer offers Deep/);
+  });
+
+  it('keeps a task saved before pinning paused until it is saved', async () => {
+    const task = { ...sampleTask, model: '', destination: '', enabled: false, model_problem: 'unpinned' };
+    render(<SchedulesView app={baseApp([task])} />);
     expect(await screen.findByText('Model: none chosen')).toBeTruthy();
-    expect(screen.getByRole('note').textContent).toMatch(/does not run/);
+    expect(screen.getByRole('note').textContent).toMatch(/so it is paused/);
+    expect(screen.getByRole('button', { name: 'Resume' }).disabled).toBe(true);
   });
 
   it('shows a pinned model the current mode lacks in the edit dialog, not another', async () => {
-    const task = { ...sampleTask, model: 'Luna', model_problem: 'not_offered', model_server: 'deploy.example.com' };
+    const task = { ...sampleTask, model: 'Luna', model_problem: 'other_mode', model_server: 'deploy.example.com' };
     render(<SchedulesView app={baseApp([task])} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
     expect(await screen.findByRole('option', { name: 'Luna (not available here)' })).toBeTruthy();
@@ -203,7 +215,7 @@ describe('SchedulesView in Chinese', () => {
     expect(screen.getByText('2 次失败')).toBeTruthy();
     expect(await screen.findByText('已完成')).toBeTruthy();
     expect(screen.getByRole('button', { name: '暂停' })).toBeTruthy();
-    expect(screen.getByText('模型：Fast')).toBeTruthy();
+    expect(screen.getByText('模型：Fast（本机）')).toBeTruthy();
   });
 
   it('renders the form and the delete confirmation in the chosen locale', async () => {

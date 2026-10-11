@@ -145,8 +145,8 @@ func TestSetAllScheduledTasksEnabled(t *testing.T) {
 	now := time.Now().UTC()
 	store := a.ensureScheduleStore()
 	for _, r := range []schedstore.Record{
-		{ID: "a", CronExpr: "0 9 * * *", Timezone: "UTC", Enabled: true, CreatedAt: now},
-		{ID: "b", CronExpr: "0 9 * * *", Timezone: "UTC", Enabled: false, CreatedAt: now},
+		{ID: "a", Model: "Luna", Destination: "local", CronExpr: "0 9 * * *", Timezone: "UTC", Enabled: true, CreatedAt: now},
+		{ID: "b", Model: "Luna", Destination: "local", CronExpr: "0 9 * * *", Timezone: "UTC", Enabled: false, CreatedAt: now},
 	} {
 		if err := store.Add(r); err != nil {
 			t.Fatalf("Add %s: %v", r.ID, err)

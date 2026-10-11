@@ -26,12 +26,29 @@ function runStatusText(status, t) {
   return status || '—';
 }
 
-// modelProblemText says why a task's pinned model cannot run in the current
-// mode, before its next fire does. Empty when it can run.
+// whereText names where a task runs: this machine, or a deployment's host.
+function whereText(destination, t) {
+  return !destination || destination === 'local' ? t('schedules.where.local') : destination;
+}
+
+// modelText is the card's model line: the pinned model and where it runs.
+function modelText(task, t) {
+  if (!task.model) return t('schedules.noModel');
+  if (!task.destination) return t('schedules.model', { model: task.model });
+  return t('schedules.modelOn', { model: task.model, where: whereText(task.destination, t) });
+}
+
+// modelProblemText says why a task cannot run in the current mode, before its
+// next fire does. Empty when it can run.
 function modelProblemText(task, t) {
   switch (task.model_problem) {
-    case 'no_model':
-      return t('schedules.modelProblem.no_model');
+    case 'unpinned':
+      return t('schedules.modelProblem.unpinned');
+    case 'other_mode':
+      return t('schedules.modelProblem.other_mode', {
+        saved: whereText(task.destination, t),
+        current: whereText(task.model_server, t),
+      });
     case 'not_offered':
       return task.model_server
         ? t('schedules.modelProblem.not_offered_server', { model: task.model, server: task.model_server })
@@ -346,7 +363,7 @@ export function SchedulesView({ app }) {
                     <span><code>{task.cron_expr}</code> {task.timezone}</span>
                   </div>
                   <div className="page-schedules__card-meta">
-                    <span>{task.model ? t('schedules.model', { model: task.model }) : t('schedules.noModel')}</span>
+                    <span>{modelText(task, t)}</span>
                   </div>
                   {modelProblemText(task, t) && (
                     <p className="page-schedules__card-warn" role="note">{modelProblemText(task, t)}</p>
@@ -357,7 +374,14 @@ export function SchedulesView({ app }) {
                     <span>{t('schedules.last', { when: formatWhen(task.last_fire_at, locale) })}</span>
                   </div>
                   <div className="page-schedules__card-actions">
-                    <button type="button" className="page-schedules__ghost" onClick={() => toggle(task)}>
+                    {/* A task saved before pinning resumes only once saved with a model. */}
+                    <button
+                      type="button"
+                      className="page-schedules__ghost"
+                      onClick={() => toggle(task)}
+                      disabled={!task.enabled && task.model_problem === 'unpinned'}
+                      title={!task.enabled && task.model_problem === 'unpinned' ? t('schedules.resumeUnpinned') : undefined}
+                    >
                       {task.enabled ? t('schedules.pause') : t('schedules.resume')}
                     </button>
                     <button type="button" className="page-schedules__ghost" onClick={() => openEdit(task)}>
