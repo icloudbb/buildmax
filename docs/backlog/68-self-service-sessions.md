@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/enterprise-identity-and-access.md#145-the-resulting-session
 depends_on: []
 verification: ["./make test", "./make test mysql", "./make check portal", "./make e2e visual", "./make e2e kind"]
-claim:
+claim: gougoujiang 2026-10-11
 pr:
 ---
 
