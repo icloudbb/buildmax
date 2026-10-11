@@ -120,6 +120,7 @@ const taskRuns = [
     trigger_source: "manual",
     status: "failed",
     error_message: "model provider returned 503",
+    failure_class: "model",
     created_at: "2026-03-04T13:50:00Z",
     started_at: "2026-03-04T13:50:02Z",
     ended_at: "2026-03-04T13:51:10Z",
@@ -164,6 +165,9 @@ export const fixtures: Fixtures = {
   [`GET ${space}/agents`]: [agent],
   [`GET ${space}/agents/${agent.id}`]: agent,
   [`GET ${space}/invitations`]: [],
+  // An owner's Issue page reads Secret metadata to warn before a run whose
+  // grant no longer resolves; none here, so no warning.
+  [`GET ${space}/secrets`]: { secrets: [] },
   [`GET ${space}/workflows`]: { workflows: [workflow] },
   [`GET ${space}/agent-instructions`]: {
     instructions: "Write for operators. Prefer the exact command over a description of it.",
