@@ -3,8 +3,12 @@ package cli
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/signal"
+	"runtime"
 	"strings"
 
 	"github.com/icloudbb/buildmax/internal/config"
@@ -16,11 +20,32 @@ import (
 )
 
 func newLoginCommand() *cobra.Command {
-	return &cobra.Command{
+	var password, noBrowser bool
+	cmd := &cobra.Command{
 		Use:   "login",
-		Short: "Log in to a BuildMax server",
-		RunE:  runLogin,
+		Short: "Sign in to a BuildMax server",
+		Long: `Sign in to a BuildMax server.
+
+By default you confirm the sign-in in a browser, signed in to the server's
+Portal however your account signs in there, including single sign-on. The
+command opens the browser when this machine has a screen to open it on, and
+always prints the link and the code, so you can confirm from another device.
+
+--password asks for your email and a password or login code instead.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			reader := bufio.NewReader(os.Stdin)
+			serverURL := promptServerURL(reader)
+			if password {
+				return passwordLogin(cmd.Context(), reader, serverURL)
+			}
+			open := !noBrowser && browserOnThisScreen(os.Getenv, runtime.GOOS)
+			return browserLogin(cmd.Context(), os.Stdout, serverURL, open)
+		},
 	}
+	cmd.Flags().BoolVar(&password, "password", false, "sign in with your email and a password or login code instead of a browser")
+	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "print the sign-in link and code without opening a browser")
+	return cmd
 }
 
 func newLogoutCommand() *cobra.Command {
@@ -39,33 +64,89 @@ func newMeCommand() *cobra.Command {
 	}
 }
 
-func runLogin(_ *cobra.Command, _ []string) error {
-	return interactiveLogin()
-}
-
-// interactiveLogin prompts for server URL, email, and OTP, then saves
-// credentials on success. Used by both the login subcommand and the TUI
-// startup gate.
-func interactiveLogin() error {
-	reader := bufio.NewReader(os.Stdin)
+// promptServerURL asks which server to sign in to, offering the configured one.
+func promptServerURL(reader *bufio.Reader) string {
 	s, _ := config.LoadSettings()
 	serverDefault := s.ServerURL
 	if serverDefault == "" {
 		serverDefault = client.DefaultServerURL
 	}
 	fmt.Fprintf(os.Stdout, "Server URL [%s]: ", serverDefault)
-	serverURL := readLine(reader)
-	if serverURL == "" {
-		serverURL = serverDefault
+	if serverURL := readLine(reader); serverURL != "" {
+		return serverURL
 	}
+	return serverDefault
+}
 
+// browserLogin signs in through a request confirmed in the Portal (design
+// enterprise-identity-and-access §14.7). It works for every account the
+// deployment admits, SSO included, and no password passes through the
+// terminal. Ctrl-C stops waiting and leaves the request to expire.
+func browserLogin(ctx context.Context, w io.Writer, serverURL string, openBrowser bool) error {
+	c := client.NewClient(serverURL)
+	started, err := c.StartNativeSignIn(ctx, "cli", client.ClientLabel())
+	if err != nil {
+		return fmt.Errorf("start the sign-in at %s: %w", serverURL, err)
+	}
+	fmt.Fprintf(w, "To sign in, open this page in a browser and confirm the request:\n\n  %s\n\n", started.VerificationURI)
+	fmt.Fprintf(w, "Check that the page shows this code: %s\n", started.UserCode)
+	fmt.Fprintf(w, "(The request expires in %s. Press Ctrl-C to cancel.)\n\n", expiryPhrase(started.ExpiresIn))
+	if openBrowser {
+		if err := openExternalURL(started.VerificationURIComplete); err != nil {
+			fmt.Fprintf(w, "Could not open a browser (%v); open the page above instead.\n", err)
+		} else {
+			fmt.Fprintf(w, "Opened your browser at %s\n", started.VerificationURIComplete)
+		}
+	}
+	fmt.Fprintln(w, "Waiting for confirmation…")
+
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+	defer stop()
+	lr, err := c.WaitForNativeSignIn(ctx, started)
+	switch {
+	case err == nil:
+	case ctx.Err() != nil:
+		fmt.Fprintln(os.Stderr, "Sign-in cancelled.")
+		return &ExitError{Code: ExitUserCancelled}
+	case errors.Is(err, client.ErrSignInDenied):
+		return errors.New("sign-in was not allowed: it was denied in the browser, or the account that confirmed it can no longer sign in")
+	case errors.Is(err, client.ErrSignInExpired):
+		return errors.New("the sign-in request expired before it was confirmed; run `buildmax login` to start again")
+	default:
+		return fmt.Errorf("the server refused the sign-in: %w", err)
+	}
+	creds, err := saveLogin(serverURL, lr)
+	if err != nil {
+		return err
+	}
+	// Naming the account is how a person notices a code confirmed by the wrong
+	// one (design §15).
+	fmt.Fprintf(w, "Signed in to %s as %s.\n", serverURL, lr.User.Email)
+	fmt.Fprintf(w, "Credentials: %s\n", auth.StorageDescription(creds.Storage))
+	return nil
+}
+
+// expiryPhrase is the request's lifetime as a person would say it.
+func expiryPhrase(seconds int64) string {
+	if seconds >= 60 && seconds%60 == 0 {
+		if seconds == 60 {
+			return "1 minute"
+		}
+		return fmt.Sprintf("%d minutes", seconds/60)
+	}
+	return fmt.Sprintf("%d seconds", seconds)
+}
+
+// passwordLogin prompts for an email, then a password or a login code, against
+// POST /api/auth/login. It is the path that does not depend on the Portal:
+// operator break-glass, and scripted sign-in where local_login allows it.
+func passwordLogin(ctx context.Context, reader *bufio.Reader, serverURL string) error {
 	fmt.Fprint(os.Stdout, "Email: ")
 	email := readLine(reader)
 	if email == "" {
 		return fmt.Errorf("email is required")
 	}
 
-	ctx := context.Background()
 	c := client.NewClient(serverURL)
 
 	// Password first, since that is the everyday way in. An empty one falls
@@ -79,7 +160,7 @@ func interactiveLogin() error {
 
 	var lr *client.LoginResponse
 	if password != "" {
-		lr, err = c.LoginWithPassword(ctx, email, password, "cli")
+		lr, err = c.LoginWithPassword(ctx, email, password, "cli", client.ClientLabel())
 		if err != nil {
 			return fmt.Errorf("login: %w", err)
 		}
@@ -90,12 +171,26 @@ func interactiveLogin() error {
 		if otp == "" {
 			return fmt.Errorf("a password or a login code is required")
 		}
-		lr, err = c.Login(ctx, email, otp, "cli")
+		lr, err = c.Login(ctx, email, otp, "cli", client.ClientLabel())
 		if err != nil {
 			return fmt.Errorf("login: %w", err)
 		}
 	}
 
+	creds, err := saveLogin(serverURL, lr)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stdout, "Logged in as %s on %s\n", lr.User.Email, serverURL)
+	// Said at login rather than only on request: this is the moment someone
+	// decides whether signing in on this machine is acceptable.
+	fmt.Fprintf(os.Stdout, "Credentials: %s\n", auth.StorageDescription(creds.Storage))
+	return nil
+}
+
+// saveLogin stores a login the same way whichever path produced it, so the
+// credentials refresh and log out alike.
+func saveLogin(serverURL string, lr *client.LoginResponse) (*auth.Credentials, error) {
 	creds := &auth.Credentials{
 		ServerURL:    serverURL,
 		Token:        lr.Access(),
@@ -105,13 +200,9 @@ func interactiveLogin() error {
 		Name:         lr.User.Name,
 	}
 	if err := auth.SaveCredentials(creds); err != nil {
-		return fmt.Errorf("save credentials: %w", err)
+		return nil, fmt.Errorf("save credentials: %w", err)
 	}
-	fmt.Fprintf(os.Stdout, "Logged in as %s on %s\n", lr.User.Email, serverURL)
-	// Said at login rather than only on request: this is the moment someone
-	// decides whether signing in on this machine is acceptable.
-	fmt.Fprintf(os.Stdout, "Credentials: %s\n", auth.StorageDescription(creds.Storage))
-	return nil
+	return creds, nil
 }
 
 func runLogout(_ *cobra.Command, _ []string) error {

@@ -102,21 +102,24 @@ func (c *Client) RequestOTP(ctx context.Context, email, intent string) error {
 
 // Login calls POST /api/auth/login with a single-use login code — the recovery
 // path, used to claim a new account or replace a forgotten password.
-// platform identifies the calling client ("cli", "desktop", "portal").
-func (c *Client) Login(ctx context.Context, email, otp, platform string) (*LoginResponse, error) {
+// platform identifies the calling client ("cli" or "desktop"), and clientLabel
+// is how the session is listed (see ClientLabel).
+func (c *Client) Login(ctx context.Context, email, otp, platform, clientLabel string) (*LoginResponse, error) {
 	return c.login(ctx, map[string]string{
-		"email":    email,
-		"otp":      otp,
-		"platform": platform,
+		"email":        email,
+		"otp":          otp,
+		"platform":     platform,
+		"client_label": clientLabel,
 	})
 }
 
 // LoginWithPassword calls POST /api/auth/login with a password, the everyday way in.
-func (c *Client) LoginWithPassword(ctx context.Context, email, password, platform string) (*LoginResponse, error) {
+func (c *Client) LoginWithPassword(ctx context.Context, email, password, platform, clientLabel string) (*LoginResponse, error) {
 	return c.login(ctx, map[string]string{
-		"email":    email,
-		"password": password,
-		"platform": platform,
+		"email":        email,
+		"password":     password,
+		"platform":     platform,
+		"client_label": clientLabel,
 	})
 }
 

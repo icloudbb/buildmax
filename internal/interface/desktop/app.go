@@ -229,6 +229,8 @@ type App struct {
 	// terminalSnapshots stores each terminal tab's last serialized buffer so a
 	// restart can restore its visible contents. Lazily opened.
 	terminalSnapshots *snapstore.FileStore
+	// signIns is the browser sign-in this window is waiting on. See sign_in.go.
+	signIns browserSignIns
 }
 
 // NewApp returns a new App instance.
@@ -238,6 +240,7 @@ func NewApp() *App {
 		scheduleApps: make(map[string]*agentapp.AgentApp),
 		scheduler:    agentapp.NewRunScheduler(),
 		emit:         wailsEmit,
+		signIns:      newBrowserSignIns(),
 	}
 	// The terminal manager is Wails-agnostic; bind it to the app's emitter, which
 	// resolves the live context at call time (nil before Startup).
@@ -941,7 +944,7 @@ func (a *App) RequestOTP(serverURL, email, intent string) error {
 // success. This is the everyday path.
 func (a *App) DoLoginWithPassword(serverURL, email, password string) (*AuthStatus, error) {
 	c := client.NewClient(serverURL)
-	lr, err := c.LoginWithPassword(context.Background(), email, password, "desktop")
+	lr, err := c.LoginWithPassword(context.Background(), email, password, "desktop", client.ClientLabel())
 	if err != nil {
 		return nil, err
 	}
@@ -953,7 +956,7 @@ func (a *App) DoLoginWithPassword(serverURL, email, password string) (*AuthStatu
 // after a forgotten password.
 func (a *App) DoLogin(serverURL, email, otp string) (*AuthStatus, error) {
 	c := client.NewClient(serverURL)
-	lr, err := c.Login(context.Background(), email, otp, "desktop")
+	lr, err := c.Login(context.Background(), email, otp, "desktop", client.ClientLabel())
 	if err != nil {
 		return nil, err
 	}

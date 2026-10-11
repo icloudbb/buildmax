@@ -179,7 +179,11 @@ var testOnlyImportTrees = []string{"internal", "cmd", "tools", "deployment", "ev
 // deployment/smoke exists only to make a smoke deterministic and is never
 // released, so it is where a test-only import is the point rather than a
 // mistake: its mock model is a packaging of internal/testsupport/mockllm.
-var testOnlyImportExempt = []string{"deployment/smoke"}
+//
+// internal/testsupport is test-only itself, so what it imports cannot ship
+// unless it does, which this same rule refuses. A helper there may assemble
+// the in-memory stores into a server several suites share, as authserver does.
+var testOnlyImportExempt = []string{"deployment/smoke", "internal/testsupport"}
 
 func TestTestOnlyPackagesStayInTests(t *testing.T) {
 	root := moduleRoot(t)
