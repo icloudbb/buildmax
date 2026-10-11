@@ -59,3 +59,8 @@ worker:
 storage:
   persist_backend: local_fs
   artifact_backend: local_fs
+
+# Space Secret encryption key, generated on the data volume by the smoke
+# overlay's entrypoint (compose.smoke.yaml). Present only in the smoke stack.
+secret:
+  kek_file: /data/smoke-kek.json

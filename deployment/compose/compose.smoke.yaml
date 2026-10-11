@@ -23,3 +23,17 @@ services:
       BUILDMAX_CONVERSATION_MODEL_API_KEY: smoke-key
     volumes:
       - ../smoke/server.compose.yaml:/buildmax/server.yaml:ro
+    # Space Secrets need a KEK, which the browser suite needs to reach the
+    # Secret paths (a run refused for a disabled grant). A throwaway one is
+    # generated on the data volume the first time the stack starts, so it
+    # lives exactly as long as the Secrets it seals and `down -v` removes both.
+    # Like kind's, it exists only in this smoke stack; the baseline stays off.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ ! -f /data/smoke-kek.json ]; then
+          key=$$(head -c 32 /dev/urandom | base64)
+          printf '{"current":"smoke","keys":{"smoke":"%s"}}' "$$key" > /data/smoke-kek.json
+        fi
+        exec /usr/local/bin/buildmax-server
