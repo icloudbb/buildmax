@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/enterprise-identity-and-access.md#147-client-experience
 depends_on: []
 verification: ["./make test", "./make e2e cli", "./make e2e kind", "./make check docs"]
-claim:
+claim: gougoujiang 2026-10-11
 pr:
 ---
 

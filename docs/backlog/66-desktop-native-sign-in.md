@@ -5,7 +5,7 @@ roadmap: R5
 source: docs/design/enterprise-identity-and-access.md#147-client-experience
 depends_on: []
 verification: ["./make test", "./make e2e desktop", "./make check desktop", "./make e2e desktop-ui", "./make e2e visual", "./make build desktop"]
-claim:
+claim: gougoujiang 2026-10-11
 pr:
 ---
 
