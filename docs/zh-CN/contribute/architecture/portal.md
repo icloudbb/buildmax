@@ -74,8 +74,8 @@ Portal 负责云端/Space 使用场景：
   `useTimestamp`）按界面语言格式化，而不是写进映射字段。每个区域都有一个
   `portal/e2e/locale-*.spec.ts` 浏览器检查，用中文渲染该区域。术语表见
   [UI 体验专项](../../design/UI体验专项.md)。
-- 横切状态位于 `portal/src/contexts/`：`AppContext`、`AuthContext`、`SpaceContext`，以及承载 Conversation 流式传输的 `WebSocketContext`。
-- HTTP 层是 `portal/src/lib/api/`（`client`、`mappers`、`types`，以及用于流式传输的 `sse` 和 `ws`）。
+- 横切状态位于 `portal/src/contexts/`：`AppContext`、`AuthContext`、`SpaceContext`，以及承载 Conversation 流式传输的 `WebSocketContext`。`SpaceContext` 只从为当前 Space 获取的成员列表读取当前角色；路由指向的 Space 若不在其列表中（列表加载后才加入或创建的 Space），它会采用该 Space 并重新列出一次。两条规则都是 `state/spaceSelection.ts` 中的纯函数。
+- HTTP 层是 `portal/src/lib/api/`（`client`、`mappers`、`types`，以及用于流式传输的 `sse` 和 `ws`）。`ApiRequestError` 携带状态码，以及少数带稳定 `code` 的拒绝所给出的 `code`；页面据此给出自己的措辞，而不是显示服务端的句子。
 - `portal/src/features/conversations/` 绘制对话记录，并在同一线程中为 Conversation 启动的每个后台 Task 显示一张卡片。卡片从 tasks 路由读取，socket 每次报告失效通知时都会重新加载，因此运行产出了什么不依赖 Tier 1 对它撰写的摘要。`thread.ts` 决定顺序。
 - `portal/src/features/runs/` 读取 TaskRun 的轨迹摘要、运行来源，以及部署为它服务的托管模型调用；`portal/src/features/audit/` 读取 Space 审计记录。两者都将显示决策放在纯模块中——`summary.ts`、`spend.ts` 和 `describe.ts`——而非组件内部，因为 Portal 没有 DOM 测试环境，而值得固定下来的判断恰恰是否则会缺乏测试的内容：未使用沙箱的运行必须明确说明；未记录的边界不等于没有约束；空的模型调用账本不等于运行没有花费；当前 Portal 不认识的审计动作必须原样显示，不能隐藏。
 

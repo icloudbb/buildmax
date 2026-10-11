@@ -230,7 +230,7 @@ POST   /api/invitations/{id}/accept          authenticated, no code — §5.1 ex
 
 ### M1. 邀请流程
 
-在 Space 设置的成员列表中，把目前即时生效的"Add member"表单替换为"Invite"：仍然是邮箱加角色的输入，但查找失败时会原地显示 `ErrInviteeAccountRequired` 的提示，而不是一条普通的校验错误——明确告诉所有者或管理员该去找谁（`system_admin`），而不是让他们自己去猜为什么什么都没发生。成功后没有任何内容需要复制或投递；该行会直接移动到带有"撤回"操作的待处理邀请区域。
+在 Space 设置的成员列表中，把目前即时生效的"Add member"表单替换为"Invite"：仍然是邮箱加角色的输入，但查找失败时会原地说明原因，而不是一条普通的校验错误——明确告诉所有者或管理员该去找谁（`system_admin`），而不是让他们自己去猜为什么什么都没发生。Portal 根据该拒绝的稳定错误码 `invitee_account_required` 给出面向用户的措辞，因为服务端的错误信息写有运维用的 API 路由和命令，适合 API 调用方，而不适合普通用户。成功后没有任何内容需要复制或投递；该行会直接移动到带有"撤回"操作的待处理邀请区域。
 
 另有一个独立的"Invitations"页面（数据来自 `GET /api/invitations`），展示当前登录用户被邀请加入的所有 Space，并允许对每一条分别接受或忽略。
 

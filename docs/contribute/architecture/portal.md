@@ -105,9 +105,14 @@ Portal owns the cloud/space lane:
   [UI experience program](../../design/ui-experience-program.md).
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
   `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
-  conversation streaming.
+  conversation streaming. `SpaceContext` reads the current role only from the
+  roster fetched for the current Space, and adopts a Space a route names that
+  its list lacks — one joined or created since the list loaded — by listing
+  again once. Both rules are pure functions in `state/spaceSelection.ts`.
 - The HTTP layer is `portal/src/lib/api/` (`client`, `mappers`, `types`, plus
-  `sse` and `ws` for streaming transports).
+  `sse` and `ws` for streaming transports). `ApiRequestError` carries the
+  status and, on the few refusals that have one, the server's stable `code`,
+  which a page keys its own wording on instead of showing the server's sentence.
 - `portal/src/features/conversations/` draws the transcript and, in the same
   thread, one card per background task the conversation started. The cards are
   read from the tasks route and reloaded on every invalidation the socket
