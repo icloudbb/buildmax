@@ -52,7 +52,7 @@ func newPasswordMux(t *testing.T, cfg Config) (*http.ServeMux, *mock.MockPasswor
 func TestPasswordLoginIssuesASession(t *testing.T) {
 	mux, _ := newPasswordMux(t, Config{})
 	rec := postJSON(t, mux, "/api/auth/login",
-		`{"email":"a@b.c","password":"`+testPassword+`","platform":"portal"}`, nil)
+		`{"email":"a@b.c","password":"`+testPassword+`","platform":"cli"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
 	}

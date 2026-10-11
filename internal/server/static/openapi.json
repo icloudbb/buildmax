@@ -1835,7 +1835,7 @@
             "description": "OK",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginResponse" } } }
           },
-          "400": { "description": "Email or credential missing, client_label invalid, or body invalid", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
+          "400": { "description": "Email or credential missing, client_label invalid, platform `portal` (only `/api/auth/portal/login` opens a Portal session), or body invalid", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
           "401": { "description": "Invalid credential", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} },
           "403": { "description": "Account disabled, or local_login does not admit this account", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}} }
         }

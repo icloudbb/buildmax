@@ -371,6 +371,11 @@ func TestNativeSignInConfirmRefusals(t *testing.T) {
 	if rec := call(open, http.MethodPost, "/api/auth/native-sign-ins/confirm", code, "", nil); rec.Code != http.StatusUnauthorized {
 		t.Errorf("anonymous confirm = %d, want 401", rec.Code)
 	}
+	// A JSON login cannot label itself a Portal session to get around that.
+	forged := call(open, http.MethodPost, "/api/auth/login", `{"email":"alice@example.com","password":"`+testPassword+`","platform":"portal"}`, "", nil)
+	if forged.Code != http.StatusBadRequest {
+		t.Errorf("JSON login as platform portal = %d %s, want 400", forged.Code, forged.Body.String())
+	}
 
 	// A password Portal session from before the operator restricted local login
 	// to System Administrators no longer confirms.

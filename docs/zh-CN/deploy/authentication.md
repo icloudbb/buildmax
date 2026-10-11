@@ -210,7 +210,8 @@ Desktop 客户端仍在开发中，所以现在只能通过 API 走完这一流�
 所调用的源。若客户端访问服务器所用的主机与浏览器不同，请设置 `public_base_url`。
 
 **谁可以确认。** 只有在 Portal 登录的会话；CLI 或 Desktop 会话会被拒绝，因此被盗的原生
-token 无法再签发更多会话。确认时还会按该 Portal 会话的登录方式重新执行当下的准入规则：
+token 无法再签发更多会话。出于同样的原因，`POST /api/auth/login` 拒绝 `platform: portal`：
+只有 Portal 的 cookie 路由才能开启 Portal 会话。确认时还会按该 Portal 会话的登录方式重新执行当下的准入规则：
 密码或登录码会话要求 `local_login` 仍然准入该账号，SSO 会话要求 OIDC 仍处于启用状态。
 否则会提示此人重新登录 Portal。
 

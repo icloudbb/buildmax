@@ -227,7 +227,7 @@ func TestEachLoginOpensItsOwnSession(t *testing.T) {
 	})
 	firstAccess, firstRefresh := login(t, mux)
 
-	rec := postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","otp":"code-2","platform":"portal"}`, nil)
+	rec := postJSON(t, mux, "/api/auth/login", `{"email":"a@b.c","otp":"code-2","platform":"desktop"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("second login status = %d, body %s", rec.Code, rec.Body.String())
 	}

@@ -133,6 +133,13 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
+	// A portal session is one the Portal's cookie route opened in a browser,
+	// and only such a session may confirm a native sign-in. A JSON login
+	// claiming it would hand a script a refresh token labelled as the browser.
+	if req.Platform == coreidentity.PlatformPortal {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "platform portal signs in through /api/auth/portal/login")
+		return
+	}
 	result, err := h.identityService().Login(r.Context(), identitysvc.LoginCmd{
 		Email:       req.Email,
 		Password:    req.Password,

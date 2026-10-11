@@ -354,7 +354,9 @@ The confirmation page is `<base>/#/sign-in/<code>`, where `<base>` is
 browsers do.
 
 **Who can confirm.** Only a session signed in at the Portal; a CLI or Desktop
-session is refused, so a stolen native token cannot mint more sessions. The
+session is refused, so a stolen native token cannot mint more sessions. For the
+same reason `POST /api/auth/login` refuses `platform: portal`: only the Portal's
+cookie route opens a Portal session. The
 confirmation also re-applies today's admission rule for the way that Portal
 session signed in: `local_login` must still admit a password or login-code
 session, and OIDC must still be enabled for an SSO one. Otherwise the person is
