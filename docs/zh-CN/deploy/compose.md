@@ -58,7 +58,7 @@ docker compose exec server buildmax-server user login-code you@example.com
 
 第二条命令输出单次使用验证码。打开 <http://localhost:8080>，选择“Forgot your password, or have a login code?”（忘记密码或已有登录码？），输入邮件地址和验证码。随后在账户设置中设置密码，此后即可正常使用密码登录。
 
-Desktop 应用和 `buildmax login` 登录同一账户，但直接调用 API，因此要填写的服务器地址为 <http://localhost:5678>，不是 Portal 的端口。
+Desktop 应用和 `buildmax login` 登录同一账户，可使用网关地址 <http://localhost:8080> 或服务器自身的端口 5678。该栈把 `BUILDMAX_PUBLIC_BASE_URL` 设为网关，因此无论客户端调用哪个地址，通过浏览器登录总会把你带到网关上的 Portal 页面。同一设置也开启了制品分享链接，它们同样指向网关。
 
 ## 添加模型
 

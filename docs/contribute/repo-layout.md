@@ -339,6 +339,8 @@ internal/
 │   └── cli/            CLI golden paths: real binary, temporary home, scripted model
 ├── mock/               Test-only in-memory stores
 ├── testsupport/        Test-only helpers that must not ship (JWT signing)
+│   ├── authserver/     The real sign-in routes over in-memory stores, for CLI
+│   │                   and Desktop sign-in suites
 │   ├── mockllm/        Scripted model replies over the three LLM wire protocols
 │   ├── mockoidc/       An OpenID Connect provider for end-to-end sign-in tests
 │   └── mocktelegram/   A Telegram Bot API for any number of bots, for chat tests
@@ -421,8 +423,9 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
   surface that assembles it sits above it.
 - `gorm.io` is imported only by `infra/db`. Above that boundary, "no such row"
   is `apierr.ErrNotFound`, which the store translates to.
-- `mock` and `testsupport` are imported only from `_test.go` files. Neither may
-  be reached from code that ships.
+- `mock` and `testsupport` are imported only from `_test.go` files and from
+  inside `testsupport`, which is test-only itself. Neither may be reached from
+  code that ships.
 - `internal/tool` is not pure — it imports infra (MCP, git) as needed.
 
 These rules are enforced by tests in `internal/architecture`. If a change trips

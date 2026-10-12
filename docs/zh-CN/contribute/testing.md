@@ -230,7 +230,14 @@ npm --prefix portal exec -- playwright install chromium # the browser itself
 每个服务器副本转发到一个本地端口,并以 `BUILDMAX_E2E_SERVER_REPLICAS`
 (`pod=http://localhost:port`,逗号分隔)传入。该 spec 随后把发起、确认与兑换分别放到指定
 副本上,页面的调用借 `page.route` 转过去。这是路由而非故障注入:每个响应都来自真实服务器。
-在其他部署上该变量为空,每一步都使用部署唯一的 API。
+在其他部署上该变量为空,每一步都使用部署唯一的 API。在 kind 上它还会从当前检出构建 CLI,
+并以 `BUILDMAX_E2E_CLI` 传入其路径;其中一个用例直接运行 `buildmax login --no-browser`,
+通过模拟 IdP 的 Portal 会话确认打印出的代码,再让该二进制退出登录;没有该变量时此用例跳过。
+
+CLI 自己的登录套件 `internal/e2e/cli/login_test.go`(属于 `./make e2e cli`)让二进制对接
+内存存储之上的真实登录路由(`internal/testsupport/authserver`),并通过 API 确认或拒绝。
+Desktop 桥接套件经由 Go 绑定驱动同一服务器。二者都不会打开浏览器:CLI 运行时传入
+`--no-browser` 或设置 `SSH_CONNECTION`,Desktop 测试替换窗口的浏览器与剪贴板调用。
 
 ### 在第一个部署旁边再运行一个部署
 

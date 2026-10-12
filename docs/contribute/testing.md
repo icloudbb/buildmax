@@ -278,7 +278,18 @@ server replica to a local port and passes them as
 The spec then places start, confirmation, and redemption on named replicas,
 reaching the page's calls with `page.route`. That is routing, not fault
 injection: every answer is the real server's. Elsewhere the variable is empty
-and every step uses the deployment's one API.
+and every step uses the deployment's one API. On kind it also builds the CLI
+from the checkout and passes its path as `BUILDMAX_E2E_CLI`, and one case runs
+`buildmax login --no-browser` itself, confirms the printed code through a
+mock-IdP Portal session, and logs the binary out again; without the variable
+that case skips.
+
+The CLI's own login suite, `internal/e2e/cli/login_test.go` in `./make e2e cli`,
+runs the binary against the real sign-in routes over in-memory stores
+(`internal/testsupport/authserver`) and confirms or denies through the API. The
+Desktop bridge suite drives the same server through the Go bindings. Neither
+opens a browser: the CLI runs pass `--no-browser` or set `SSH_CONNECTION`, and
+the Desktop tests replace the window's browser and clipboard calls.
 
 ### Running A Second Deployment Alongside The First
 

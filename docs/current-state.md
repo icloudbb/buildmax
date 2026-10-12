@@ -644,8 +644,29 @@ request after signing in: SSO carries the page as a validated relative hash
 route inside the signed OIDC transaction cookie, and the callback redirects to
 it. The Portal browser suite on kind starts, confirms or denies, and redeems
 requests through SSO and password sign-in with each step placed on each of the
-two server replicas. The CLI and Desktop clients are not built, so no shipped
-client starts a request yet.
+two server replicas.
+
+Both native clients start these requests. `buildmax login` keeps its server-URL
+prompt, then prints the confirmation page, the code, and the expiry, opens the
+system browser at the page with the code filled in unless `--no-browser` is set
+or the host is headless (`SSH_CONNECTION` or `SSH_TTY` set, or a Linux/BSD host
+with neither `DISPLAY` nor `WAYLAND_DISPLAY`), and polls until the request is
+redeemed, denied, or expired; `--password` keeps the email, password, and
+login-code prompts. Desktop's sign-in page reads `GET /api/auth/methods` for the
+address entered and lays itself out by `local_login`: the password form first
+under `all`, the browser first with the password form behind "Administrator
+sign-in with a password" under `system_admins`, and the browser only under
+`off`, naming the SSO provider when one is configured. Its Go bindings open the
+browser through Wails, poll, save the login as a password sign-in does, and
+report the outcome as one event; the waiting panel shows the code with **Open
+browser again**, **Copy link**, and **Cancel**. Both clients send a client label
+(host name and operating system) on browser and password sign-in, and share one
+poll loop that keeps the server's interval, adds 5 seconds on `slow_down`, backs
+off on network errors and `5xx` up to 30 seconds, and never polls past expiry.
+The CLI binary and the Desktop bridge are tested against the real sign-in
+routes in process, and on kind the CLI binary signs in through a mock-IdP Portal
+session and logs out again.
+
 A person lists and revokes their own sessions in Portal's **Account → Sessions**
 (`GET /api/auth/sessions`, `DELETE /api/auth/sessions/{session_id}`), with each
 client's label marked as not verified and this browser marked; another account's

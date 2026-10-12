@@ -202,8 +202,9 @@ Logout 的全局 token 撤销端点：BuildMax 未实现它，因此在 Okta 中
 
 在 `local_login: system_admins` 或 `off` 下，普通账号无法使用原生客户端的密码与登录码通道
 `POST /api/auth/login`。因此服务器还提供原生登录请求：由已登录的 Portal 会话确认，形式参照
-OAuth 2.0 设备授权。服务器路由和 Portal 确认页面均已交付；**发起这些请求的 CLI 与 Desktop
-客户端仍在开发中**，所以目前只能通过 API 发起请求。
+OAuth 2.0 设备授权。`buildmax login` 与 Desktop 登录页默认发起这些请求，因此 SSO 账号凡能
+使用 Portal 之处，也能让 CLI 与 Desktop 登录；参见[模型与模式](../../../manual/zh/模型与模式.md#托管模式)。
+`buildmax login --password` 与 Desktop 的密码表单仍是供运维与脚本使用的 `POST /api/auth/login` 通道。
 
 路由都位于 `/api/auth/native-sign-ins` 之下：
 

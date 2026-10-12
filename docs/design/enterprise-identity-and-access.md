@@ -4,7 +4,7 @@
 >
 > **Audience:** contributors, operators, product reviewers, and security reviewers
 >
-> **Lifecycle:** Accepted 2026-09-13; amended 2026-10-11 with native CLI/Desktop sign-in through Portal confirmation (§14). Built so far: Phase 1 (durable sessions and the Portal cookie credential) and Phase 2 (OIDC login and association, with Okta the named provider). Phase 3 qualification is open; the native sign-in amendment (Phase 4) is decided and not built.
+> **Lifecycle:** Accepted 2026-09-13; amended 2026-10-11 with native CLI/Desktop sign-in through Portal confirmation (§14). Built so far: Phase 1 (durable sessions and the Portal cookie credential) and Phase 2 (OIDC login and association, with Okta the named provider). Phase 3 qualification is open. Of the native sign-in amendment (Phase 4), the server routes, the Portal confirmation page, the CLI and Desktop clients, and the self-service session list and revoke are all built.
 >
 > **Primary domain:** Trust and Security
 
@@ -1227,8 +1227,7 @@ deployment limit even when local login is restricted.
 
 Phases 1 and 2 are implemented. The remaining Phase 3 qualification becomes
 independently reviewable tasks only when the relevant deployment inputs and
-acceptance criteria in §19 are settled. Phase 4, native sign-in, is decided and
-decomposed into backlog tasks:
+acceptance criteria in §19 are settled. Phase 4, native sign-in, is built:
 
 ### Phase 0 — evidence and decision (partly settled)
 
@@ -1267,13 +1266,9 @@ decomposed into backlog tasks:
   OpenAPI, deployment manifests, examples, and the Beta/support boundary only
   to the level the evidence proves.
 
-### Phase 4 — native sign-in through Portal confirmation (server and Portal built)
+### Phase 4 — native sign-in through Portal confirmation (built)
 
-The server half, the Portal confirmation page, and self-service sessions, the
-first two items below and the last, are built. The
-[backlog](../backlog/README.md) tasks
-[64](../backlog/64-cli-native-sign-in.md) and
-[66](../backlog/66-desktop-native-sign-in.md) carry the rest. The work is:
+All five items below are built. The work was:
 
 - the `native_sign_in` request, its routes, the redemption transaction,
   abuse bounds, audit, OpenAPI, and the `client_label` session column;
@@ -1413,11 +1408,13 @@ decided on 2026-10-11. Its server half is built: the `native_sign_in` table and
 redemption transaction, the five routes, the abuse bounds, the audit actions,
 and the `client_label` session column. So is the Portal confirmation page with
 the OIDC return route it needs, verified on kind across both server replicas.
-So are self-service sessions in **Account → Sessions**. The CLI and Desktop
-clients are not. Until the clients
-ship, a
-native client signs in only through `POST /api/auth/login`, which `local_login`
-governs.
+So are both clients: `buildmax login` signs in through confirmation by default,
+with `--password` for `POST /api/auth/login` and `--no-browser` for print-only,
+and the Desktop sign-in page reads `GET /api/auth/methods` and offers the
+browser path laid out by `local_login`. Both share one poll loop in
+`internal/interface/client`. The CLI binary signs in through a mock-IdP Portal
+session on kind.
+So are self-service sessions in **Account → Sessions**.
 
 `docs/current-state.md`, `docs/deploy/authentication.md`,
 `docs/reference/configuration.md`, and OpenAPI describe the shipped behavior;

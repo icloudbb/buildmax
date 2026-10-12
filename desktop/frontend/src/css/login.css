@@ -194,3 +194,64 @@
   line-height: 1.4;
   color: var(--color-text-subtle);
 }
+
+/* The server address sits above whichever way in the server offers, so it is
+   its own block rather than a row of the password form. */
+.login-page__server {
+  margin-bottom: 0.75rem;
+}
+
+/* A way in that is offered but not the lead one: the browser below the
+   password form, or the password form behind the browser. */
+.login-page__secondary {
+  font: inherit;
+  font-size: 0.95rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background: none;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.login-page__secondary:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.login-page__secondary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-page__alternative {
+  margin-bottom: 0.75rem;
+}
+
+.login-page__ended {
+  margin-bottom: 0.75rem;
+}
+
+.login-page__error-detail {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-text-subtle);
+  overflow-wrap: anywhere;
+}
+
+/* The code the person compares with the one Portal shows: large, and in a
+   face where every character is unambiguous. */
+.login-page__code {
+  margin: 0.25rem 0 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--color-text);
+}
+
+.login-page__waiting {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}

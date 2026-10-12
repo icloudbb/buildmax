@@ -53,8 +53,8 @@ func TestClientLogin(t *testing.T) {
 		}
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		if body["platform"] != "cli" {
-			t.Errorf("expected platform=cli, got %q", body["platform"])
+		if body["platform"] != "cli" || body["client_label"] != "alice-mbp · macOS" {
+			t.Errorf("expected platform=cli and the client label, got %v", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"token":"jwt123","user":{"id":"u_1","email":"a@b.com","name":"Alice"}}`))
@@ -62,7 +62,7 @@ func TestClientLogin(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(srv.URL)
-	lr, err := c.Login(context.Background(), "a@b.com", "123456", "cli")
+	lr, err := c.Login(context.Background(), "a@b.com", "123456", "cli", "alice-mbp · macOS")
 	if err != nil {
 		t.Fatalf("Login: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestClientLoginError(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(srv.URL)
-	_, err := c.Login(context.Background(), "a@b.com", "wrong", "cli")
+	_, err := c.Login(context.Background(), "a@b.com", "wrong", "cli", "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
