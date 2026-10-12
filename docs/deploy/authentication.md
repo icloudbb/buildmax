@@ -226,7 +226,7 @@ is revoked or it expires, so allowing a password change on the session alone
 would let that window become a lasting takeover.
 
 Changing a password does **not** sign existing sessions out. Revoke those
-separately if that is the intent.
+separately, from **Account → Sessions**, if that is the intent.
 
 > **Login is not rate limited.** Nothing throttles password attempts, so a
 > server anyone can reach can be brute-forced online. The 12-character minimum
@@ -431,8 +431,20 @@ or `GET /api/admin/users/{user_id}/sessions`, and revoke one through
 collection DELETE route. The list shows session ID, platform, authentication
 method, the label a native client reported, creation, last-seen, and absolute
 expiry; last-seen is throttled, not a
-continuous device-presence signal. There is no self-service session-management
-page or dedicated admin CLI session verb. Revoking a session retires its refresh
+continuous device-presence signal. There is no dedicated admin CLI session verb.
+
+A person manages their own sessions the same way in Portal's **Account →
+Sessions**, or through `GET /api/auth/sessions` and
+`DELETE /api/auth/sessions/{session_id}`. The list has the same fields, with
+the label marked as reported by the client and the session making the request
+marked as current. A revoke acts only on a live session of the caller's own
+account; another account's session ID answers `404`, exactly like an unknown
+one. Either revoke is audited as `user.session_revoked`, with the person or the
+administrator as actor. The list's **Sign out of this browser** is the ordinary
+sign-out, audited as `user.logout`. There is no self-service "sign out
+everywhere".
+
+Revoking a session retires its refresh
 tokens and marks the `auth_session` row revoked, so an already-issued access
 token under it stops on its next request rather than at expiry.
 

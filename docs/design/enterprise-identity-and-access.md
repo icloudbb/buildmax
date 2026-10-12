@@ -372,9 +372,9 @@ deletes an automation credential created for a different purpose.
 BuildMax logout always revokes `auth_session`, refresh tokens, and the Portal
 cookie before reporting success. The central guard then refuses an already
 issued access token for that `sid`. An administrator can list and revoke a
-user's sessions. Self-service session list and revoke routes are not built yet.
-The native sign-in amendment adds them (§14.5), because it lets a person create
-sessions for other machines.
+user's sessions, and a person can list and revoke their own in Portal's
+**Account → Sessions**. The native sign-in amendment added the self-service
+routes (§14.5), because it lets a person create sessions for other machines.
 
 The first slice means “sign out of BuildMax,” not “sign out of every application
 at the provider.” If Discovery advertises `end_session_endpoint`, RP-Initiated
@@ -600,7 +600,7 @@ Detailed provider errors and claims stay in redacted Server logs with a request
 correlation ID, not in the browser response.
 
 Routes for native sign-in (§14). The five `native-sign-ins` routes are built
-and in `openapi.json`; the two self-service `sessions` routes are not built:
+and in `openapi.json`, and so are the two self-service `sessions` routes:
 
 ```text
 POST   /api/auth/native-sign-ins            anonymous: start a request
@@ -1269,11 +1269,11 @@ decomposed into backlog tasks:
 
 ### Phase 4 — native sign-in through Portal confirmation (server and Portal built)
 
-The server half and the Portal confirmation page, the first two items below,
-are built. The [backlog](../backlog/README.md) tasks
-[64](../backlog/64-cli-native-sign-in.md),
-[66](../backlog/66-desktop-native-sign-in.md), and
-[68](../backlog/68-self-service-sessions.md) carry the rest. The work is:
+The server half, the Portal confirmation page, and self-service sessions, the
+first two items below and the last, are built. The
+[backlog](../backlog/README.md) tasks
+[64](../backlog/64-cli-native-sign-in.md) and
+[66](../backlog/66-desktop-native-sign-in.md) carry the rest. The work is:
 
 - the `native_sign_in` request, its routes, the redemption transaction,
   abuse bounds, audit, OpenAPI, and the `client_label` session column;
@@ -1413,7 +1413,8 @@ decided on 2026-10-11. Its server half is built: the `native_sign_in` table and
 redemption transaction, the five routes, the abuse bounds, the audit actions,
 and the `client_label` session column. So is the Portal confirmation page with
 the OIDC return route it needs, verified on kind across both server replicas.
-The CLI and Desktop clients and self-service sessions are not. Until the clients
+So are self-service sessions in **Account → Sessions**. The CLI and Desktop
+clients are not. Until the clients
 ship, a
 native client signs in only through `POST /api/auth/login`, which `local_login`
 governs.

@@ -9,6 +9,7 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { navigate } from "../../router"
 import { pageWindow } from "./pagination"
 import { roleLabel } from "./roles"
+import { lastSeenAt } from "../sessions/model"
 import {
   createAdminUser,
   getAdminUser,
@@ -504,10 +505,16 @@ export function AdminAccounts({
                     {session.platform || t("admin.accounts.unknownPlatform")}
                     <span className="admin-list__id"> · {session.session_id}</span>
                   </span>
+                  {session.client_label?.trim() ? (
+                    <span className="session-label">
+                      {session.client_label.trim()}
+                      <span className="session-label__unverified">{t("admin.accounts.labelUnverified")}</span>
+                    </span>
+                  ) : null}
                   <span className="admin-list__meta">
                     {t("admin.accounts.sessionMeta", {
                       created: whenever(t, locale, session.created_at),
-                      active: whenever(t, locale, session.last_rotated_at),
+                      active: whenever(t, locale, lastSeenAt(session) ?? undefined),
                       expires: whenever(t, locale, session.expires_at),
                     })}
                   </span>

@@ -311,3 +311,86 @@ test("a sign-in opened signed out returns to the request after a password sign-i
     await api.dispose()
   }
 })
+
+test("a native session is listed in Account → Sessions and revoking it there stops its token", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(180_000)
+  const { email, password } = await passwordAccount(browser, baseURL!)
+  const api = await request.newContext({ ignoreHTTPSErrors: true })
+  try {
+    const [a, b] = replicas
+    const label = `e2e-sessions-${Date.now().toString(36)} · Linux`
+    const started = await start(api, apiOf(baseURL!, a), "cli", label)
+    await openLink(page, baseURL!, started)
+    await page.getByLabel("Email").fill(email)
+    await page.getByLabel("Password").fill(password)
+    await page.getByRole("button", { name: "Sign in", exact: true }).click()
+    await expectRequestCard(page, started, "BuildMax CLI", label, email)
+    await page.getByRole("button", { name: "Confirm sign-in" }).click()
+    await expect(page.getByText("Sign-in confirmed. Return to BuildMax CLI")).toBeVisible()
+    const redeemed = await pollUntilDecided(api, apiOf(baseURL!, a), started)
+    expect(redeemed.status, JSON.stringify(redeemed.body)).toBe(200)
+    const cliToken = redeemed.body.access_token as string
+    const cliRefresh = redeemed.body.refresh_token as string
+    const asCLI = { Authorization: `Bearer ${cliToken}` }
+
+    // The CLI sees itself in the same list, as platform cli with its label, and
+    // nothing in it is a token.
+    const listed = await api.get(`${apiOf(baseURL!, b)}/api/auth/sessions`, { headers: asCLI })
+    const listedText = await listed.text()
+    expect(listed.status(), listedText).toBe(200)
+    expect(listedText).not.toContain(cliToken)
+    expect(listedText).not.toContain(cliRefresh)
+    const own = (JSON.parse(listedText) as { sessions: Array<Record<string, unknown>> }).sessions.find((s) => s.current)
+    expect(own).toMatchObject({ platform: "cli", client_label: label, auth_method: "password" })
+
+    // The person sees it in the Portal, marked as the client's own claim, beside
+    // this browser.
+    await page.goto("/#/account/sessions")
+    const list = page.getByRole("list", { name: "Signed-in sessions" })
+    const row = list.getByRole("listitem").filter({ hasText: label })
+    await expect(row).toContainText("BuildMax CLI")
+    await expect(row).toContainText("Reported by the client, not verified")
+    await expect(list.getByRole("listitem").filter({ hasText: "This browser" })).toHaveCount(1)
+
+    page.once("dialog", (dialog) => void dialog.accept())
+    await row.getByRole("button", { name: `Sign out ${label}` }).click()
+    await expect(page.getByText(`Signed out ${label}.`)).toBeVisible()
+    await expect(row).toHaveCount(0)
+
+    // The CLI's next request is refused on every replica, and its refresh token
+    // is retired with it: the CLI can only report that its login expired.
+    for (const replica of replicas.length > 0 ? replicas : [undefined]) {
+      const refused = await api.get(`${apiOf(baseURL!, replica)}/api/spaces`, { headers: asCLI })
+      expect(refused.status(), `revoked token on ${replica?.name ?? "the deployment API"}`).toBe(401)
+    }
+    const refresh = await api.post(`${apiOf(baseURL!, a)}/api/auth/token/refresh`, {
+      data: { refresh_token: cliRefresh },
+    })
+    expect(refresh.status(), await refresh.text()).toBe(401)
+
+    // Signing this browser out from the same list is the ordinary sign-out, not
+    // a DELETE of its own session; it returns to sign-in, and a reload does not
+    // bring the session back.
+    const deletes: string[] = []
+    page.on("request", (req) => {
+      if (req.method() === "DELETE" && new URL(req.url()).pathname.startsWith("/api/auth/sessions/")) deletes.push(req.url())
+    })
+    page.once("dialog", (dialog) => void dialog.accept())
+    const logout = page.waitForRequest((req) => req.method() === "POST" && new URL(req.url()).pathname === "/api/auth/portal/logout")
+    await page.getByRole("button", { name: "Sign out of this browser" }).click()
+    await logout
+    await expect(page.getByLabel("Password")).toBeVisible()
+    expect(deletes).toEqual([])
+    await page.reload()
+    await expect(page.getByLabel("Password")).toBeVisible()
+    console.log(
+      `[e2e] self-service sessions: ${describeReplicas(["start", a], ["list", b], ["refresh", a])}, revoked token refused on every replica`
+    )
+  } finally {
+    await api.dispose()
+  }
+})

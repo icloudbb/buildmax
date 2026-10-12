@@ -53,6 +53,8 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
           return t("shell.crumbs.chatAccounts")
         case "invitations":
           return t("shell.crumbs.invitations")
+        case "sessions":
+          return t("shell.crumbs.sessions")
         case "general":
         default:
           return t("shell.crumbs.general")

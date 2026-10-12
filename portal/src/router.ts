@@ -128,6 +128,7 @@ export function parseHash(hash: string, currentSpaceId: string): Route {
     // any saved link points at. See docs/design/portal-data-and-plugin-surfaces.md.
     if (parts[1] === "plugins") return { name: "marketplace" }
     if (parts[1] === "invitations") return { name: "account", section: "invitations" }
+    if (parts[1] === "sessions") return { name: "account", section: "sessions" }
     return { name: "account", section: "general" }
   }
   if (parts[0] === SEGMENT.admin) {
@@ -210,6 +211,8 @@ export function buildHash(route: Route): string {
             : `#/${SEGMENT.account}/chat`
         case "invitations":
           return `#/${SEGMENT.account}/invitations`
+        case "sessions":
+          return `#/${SEGMENT.account}/sessions`
         case "general":
         default:
           return `#/${SEGMENT.account}`

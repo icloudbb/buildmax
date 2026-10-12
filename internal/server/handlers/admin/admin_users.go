@@ -11,6 +11,7 @@ import (
 	coreidentity "github.com/icloudbb/buildmax/internal/core/identity"
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 	"github.com/icloudbb/buildmax/internal/service/accountlifecycle"
+	identitysvc "github.com/icloudbb/buildmax/internal/service/identity"
 )
 
 // AdminUser is one account as an administrator sees it.
@@ -509,34 +510,17 @@ func (h *Handler) revokeAdminUserSessionHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	// A session id names one chain for one account, so revoking by id alone
-	// would work — but the URL claims this account, and the audit event will be
-	// recorded against it, so confirm the session is really one of theirs and is
-	// live. An id that is not returns 404 rather than a revoke recorded against
-	// the wrong person.
-	now := time.Now().UTC()
-	sessions, err := h.cfg.Sessions.ListUserSessions(r.Context(), user.ID, now)
+	svc := &identitysvc.Service{Sessions: h.cfg.Sessions, Audit: h.cfg.Audit}
+	n, err := svc.RevokeUserSession(r.Context(), identitysvc.RevokeUserSessionCmd{
+		ActorID: actorID, UserID: user.ID, SessionID: sessionID,
+	})
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_revoke_session", "user_id", user.ID)
-		return
-	}
-	found := false
-	for _, s := range sessions {
-		if s.SID == sessionID {
-			found = true
-			break
+		if httputil.WriteServiceError(w, err) {
+			return
 		}
-	}
-	if !found {
-		httputil.WriteJSONError(w, http.StatusNotFound, "no live session with that id for this account")
-		return
-	}
-	n, err := h.cfg.Sessions.RevokeSession(r.Context(), sessionID, now)
-	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_revoke_session", "user_id", user.ID)
 		return
 	}
-	h.recordAdminUserAction(r, actorID, coreaudit.SessionRevoked, user.ID, sessionID)
 	httputil.WriteJSON(w, http.StatusOK, AdminSessionsRevokedResponse{Revoked: n})
 }
 

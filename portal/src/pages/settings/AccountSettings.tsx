@@ -9,6 +9,7 @@ import {
   type AccountSection,
   useSettingsData,
 } from "./shared"
+import { AccountSessionsSection } from "./AccountSessionsSection"
 import { navigate } from "../../router"
 import { useT } from "../../i18n"
 
@@ -89,6 +90,7 @@ export function AccountSettings({ section, code }: { section: AccountSection; co
             onAccept={handleAcceptInvitation}
           />
         ) : null}
+        {section === "sessions" ? <AccountSessionsSection /> : null}
       </div>
     </div>
   )

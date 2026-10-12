@@ -92,6 +92,26 @@ const views: View[] = [
       await expect(page.getByRole("button", { name: "Confirm sign-in" })).toBeVisible()
     },
   },
+  // Account → Sessions, in both languages: the unverified-label marker and the
+  // current-browser mark are what someone recognising a stray session reads.
+  {
+    name: "sessions",
+    path: "/#/account/sessions",
+    locale: "en",
+    ready: async (page) => {
+      await expect(page.getByText("ada-mbp · macOS")).toBeVisible()
+      await expect(page.getByText("This browser", { exact: true })).toBeVisible()
+    },
+  },
+  {
+    name: "sessions-zh",
+    path: "/#/account/sessions",
+    locale: "zh-CN",
+    ready: async (page) => {
+      await expect(page.getByText("ada-mbp · macOS")).toBeVisible()
+      await expect(page.getByText("当前浏览器")).toBeVisible()
+    },
+  },
   {
     name: "sign-in-zh",
     path: "/#/sign-in/WDJB-MJHT",
