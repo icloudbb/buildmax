@@ -30,21 +30,16 @@ updates:
         patterns: ["*"]
         update-types: [minor, patch]
 
+  # One entry so a group spans both packages: the visual suite renders both
+  # in one Playwright image and refuses lockfiles that pin different versions.
   - package-ecosystem: npm
-    directory: "/portal"
+    directories: ["/portal", "/desktop/frontend"]
     schedule:
       interval: weekly
     groups:
-      minor-and-patch:
+      playwright:
         applies-to: version-updates
-        patterns: ["*"]
-        update-types: [minor, patch]
-
-  - package-ecosystem: npm
-    directory: "/desktop/frontend"
-    schedule:
-      interval: weekly
-    groups:
+        patterns: ["@playwright/test"]
       minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
