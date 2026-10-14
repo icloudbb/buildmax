@@ -32,6 +32,12 @@ Portal 负责云端/Space 使用场景：
   链接 `/shared/artifacts/<token>` 与组件样张 `/specimen`。
 - `portal/src/App.tsx` 依次设关：会话恢复、登录（未登录时任何路由都渲染登录页，并保留地址）、`#/sign-in[/<code>]` 原生登录确认页，然后是 Space 关卡与 Space 外壳。确认页位于 Space 关卡之前，使没有可用 Space 的账号也能确认；其状态是 `portal/src/features/nativeSignIn/model.ts` 中的纯函数。SSO 按钮把当前 hash 路由作为 `return_to` 传入，使 OIDC 回调回到该路由。
 - 页面位于 `portal/src/pages/*`。
+- Issues 是默认的 Space 目的地：裸 `#/`、登录后的第一个页面、未找到页面的返回
+  入口以及 Administration 返回 Space 的入口都解析到它。它的第一个区块
+  **等待你处理**（`features/needsMe/`）把 `GET /api/spaces/{space_id}/needs-me`
+  呈现为四组，每一项都链接到其解决之处：Issue、Task 页面，或承载该请求的
+  Workflow 运行。`internal/service/needsme` 决定哪些内容计入；Portal 只负责呈现，
+  加载中绝不显示为没有待处理的工作。
 - `/specimen` 是设计与评审产物，而非产品页面：它一次性呈现共享操作语法、语义 token、
   状态词汇与全部资源状态，复用真实组件，使评审者在信任已迁移页面之前，能跨主题与宽度
   逐一确认每种角色与状态。`portal/visual/` 中的截图套件把它以及每种模板的一个页面
