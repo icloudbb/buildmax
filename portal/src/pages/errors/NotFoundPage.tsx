@@ -26,7 +26,7 @@ export function NotFoundPage() {
       <div className="page-activity__actions">
         <Button
           variant="primary"
-          onClick={() => currentSpaceId && navigate({ name: "chat", spaceId: currentSpaceId })}
+          onClick={() => currentSpaceId && navigate({ name: "issues", spaceId: currentSpaceId })}
         >
           {t("common.notFound.back")}
         </Button>

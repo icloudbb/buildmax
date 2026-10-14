@@ -222,6 +222,50 @@ export const fixtures: Fixtures = {
     }
     return { issues, total: issues.length }
   },
+  // The Issues page leads with what waits on Ada: one of each group, and a
+  // failed-run total above what is listed.
+  [`GET ${space}/needs-me`]: {
+    attention_issues: {
+      items: [{ issue: issues[1], reason: "run_failed" }],
+      total: 1,
+    },
+    failed_tasks: {
+      items: [
+        {
+          ...task,
+          id: "tsk_rotate",
+          title: "Rotate the staging object-storage key",
+          status: "FAILED",
+          issue_id: "iss_2",
+          output: null,
+          error_message: "model provider returned 503",
+          failure_class: "model",
+          ended_at: "2026-03-04T13:10:00Z",
+        },
+      ],
+      total: 3,
+    },
+    awaiting_answer_tasks: {
+      items: [{ ...task, id: "tsk_ask", title: "Summarize the sandbox tiers", status: "SUCCEEDED", awaiting_answer: true }],
+      total: 1,
+    },
+    workflow_requests: {
+      items: [
+        {
+          id: "wrq_signoff",
+          workflow_run_id: "wfr_signoff",
+          workflow_id: workflow.id,
+          node_run_id: "wnr_signoff",
+          node_id: "approve",
+          kind: "input",
+          prompt: "Approve the draft release note before it is published.",
+          status: "pending",
+          created_at: "2026-03-04T12:00:00Z",
+        },
+      ],
+      total: 1,
+    },
+  },
   [`GET ${space}/issues/iss_1/flow`]: {
     issue: issues[0],
     parent: null,

@@ -156,6 +156,7 @@ export function apiWorkflowRequestToWorkflowRequest(api: ApiWorkflowRequest): Wo
   return {
     id: api.id,
     workflowRunId: api.workflow_run_id,
+    workflowId: api.workflow_id,
     nodeRunId: api.node_run_id,
     nodeId: api.node_id,
     kind: api.kind,

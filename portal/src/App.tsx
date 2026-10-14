@@ -43,7 +43,7 @@ function AppContent() {
   useEffect(() => {
     if (!token || !currentSpaceId) return
     if (route.name !== "login") return
-    navigate({ name: "chat", spaceId: currentSpaceId })
+    navigate({ name: "issues", spaceId: currentSpaceId })
   }, [token, route, currentSpaceId])
 
   // The URL is authoritative for Space context (docs/design/portal-navigation

@@ -49,7 +49,7 @@ export function AdminSettings({
     )
   }
   if (!isAdmin) {
-    if (currentSpaceId) navigate({ name: "chat", spaceId: currentSpaceId })
+    if (currentSpaceId) navigate({ name: "issues", spaceId: currentSpaceId })
     return null
   }
 

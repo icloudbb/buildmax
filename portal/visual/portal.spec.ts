@@ -41,10 +41,21 @@ const views: View[] = [
     },
   },
   {
+    // The landing page: what waits on the person, then the collection.
     name: "collection",
     path: `${space}/issues`,
     ready: async (page) => {
-      await expect(page.getByText("Rotate the staging object-storage key")).toBeVisible()
+      await expect(page.getByText("Document the sandbox network tiers")).toBeVisible()
+      await expect(page.getByText("Approve the draft release note before it is published.")).toBeVisible()
+    },
+  },
+  {
+    name: "collection-zh",
+    path: `${space}/issues`,
+    locale: "zh-CN",
+    ready: async (page) => {
+      await expect(page.getByRole("heading", { level: 2, name: "等待你处理" })).toBeVisible()
+      await expect(page.getByText("Document the sandbox network tiers")).toBeVisible()
     },
   },
   {

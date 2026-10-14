@@ -237,6 +237,8 @@ export interface ApiWorkflowNodeRun {
 export interface ApiWorkflowRequest {
   id: string
   workflow_run_id: string
+  /** The Workflow whose run asks. */
+  workflow_id: string
   node_run_id: string
   node_id: string
   kind: "input" | "question" | string
@@ -250,6 +252,23 @@ export interface ApiWorkflowRequest {
   responded_by?: string | null
   responded_at?: string | null
   created_at: string
+}
+
+/** Up to ten items of one group, and how many matched in all. */
+export interface ApiNeedsMeGroup<T> {
+  items: T[]
+  total: number
+}
+
+/** Why an owned Issue needs its owner. */
+export type ApiAttentionReason = "run_failed" | "awaiting_answer" | "workflow_request"
+
+/** What in one Space is waiting on the caller: GET /api/spaces/{id}/needs-me. */
+export interface ApiNeedsMeResponse {
+  attention_issues: ApiNeedsMeGroup<{ issue: ApiIssue; reason: ApiAttentionReason }>
+  failed_tasks: ApiNeedsMeGroup<ApiTask>
+  awaiting_answer_tasks: ApiNeedsMeGroup<ApiTask>
+  workflow_requests: ApiNeedsMeGroup<ApiWorkflowRequest>
 }
 
 export interface ApiWorkflowRequestListResponse {

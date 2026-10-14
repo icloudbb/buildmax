@@ -6,7 +6,7 @@ const SPACE = "s_test123"
 
 describe("hash router", () => {
   it.each([
-    ["#/", { name: "chat", spaceId: SPACE }],
+    ["#/", { name: "issues", spaceId: SPACE }],
     ["#/login", { name: "login" }],
     [`#/spaces/${SPACE}/chat`, { name: "chat", spaceId: SPACE }],
     [`#/spaces/${SPACE}/chat/c_123`, { name: "chat", spaceId: SPACE, conversationId: "c_123" }],
@@ -121,9 +121,9 @@ describe("hash router", () => {
     expect(buildHash(route)).toBe(hash)
   })
 
-  it("resolves the bare root to the current Space's Chat", () => {
-    expect(parseHash("#/", SPACE)).toEqual({ name: "chat", spaceId: SPACE })
-    expect(parseHash("#", SPACE)).toEqual({ name: "chat", spaceId: SPACE })
+  it("resolves the bare root to the current Space's Issues, the default destination", () => {
+    expect(parseHash("#/", SPACE)).toEqual({ name: "issues", spaceId: SPACE })
+    expect(parseHash("#", SPACE)).toEqual({ name: "issues", spaceId: SPACE })
   })
 
   it("renders not-found for an unrecognized hash, never silently falling through to Chat", () => {

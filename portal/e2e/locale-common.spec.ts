@@ -15,8 +15,8 @@ test("the not-found page reads in Chinese", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "未找到页面", level: 1 })).toBeVisible()
   await expect(page.getByText("没有与此地址匹配的内容。地址可能有误，或是重命名之前的链接。")).toBeVisible()
 
-  await page.getByRole("button", { name: "返回对话" }).click()
-  await expect(page).toHaveURL(/#\/spaces\/[^/]+\/chat$/)
+  await page.getByRole("button", { name: "返回 Issue" }).click()
+  await expect(page).toHaveURL(/#\/spaces\/[^/]+\/issues$/)
 })
 
 test("a Chinese browser signs in in Chinese", async ({ browser }) => {

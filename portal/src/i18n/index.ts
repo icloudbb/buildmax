@@ -3,6 +3,7 @@ import { shellMessages } from "./shell"
 import { statusMessages } from "./status"
 import { helpMessages } from "./help"
 import { issuesMessages } from "./issues"
+import { needsMeMessages } from "./needsMe"
 import { runsMessages } from "./runs"
 import { filesMessages } from "./files"
 import { artifactsMessages } from "./artifacts"
@@ -33,6 +34,7 @@ export const portalMessages = mergeMessages(
   helpMessages,
   chatMessages,
   issuesMessages,
+  needsMeMessages,
   runsMessages,
   filesMessages,
   artifactsMessages,
