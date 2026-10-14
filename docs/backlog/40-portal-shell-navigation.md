@@ -73,7 +73,9 @@ preference.**
 
 ## Out Of Scope
 
-- The landing page's content, which is [task 38](38-portal-needs-me-landing.md).
+- The landing page's content, which already ships: Issues, led by **Waiting on
+  you** (see the
+  [navigation record](../design/portal-navigation-and-space-context.md#landing-on-the-work-that-needs-you)).
 - Visual restyling of the sidebar.
 
 ## Acceptance Criteria
