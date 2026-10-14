@@ -197,9 +197,10 @@ test("the work waiting on a person is listed, and each item opens where it is re
   }
   await page.evaluate(() => localStorage.setItem("buildmax_locale", "en"))
   await page.setViewportSize({ width: 1280, height: 900 })
+  // The language is read when the app loads; a hash change alone keeps Chinese.
+  await page.reload()
 
   // Each item opens where it is resolved.
-  await page.goto(issues)
   await issueLink.click()
   await expect(page).toHaveURL(new RegExp(`/issues/${seeded.issueId}$`))
   await page.goto(issues)
