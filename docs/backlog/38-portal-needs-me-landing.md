@@ -5,7 +5,7 @@ roadmap: R6
 source: docs/design/ui-experience-program.md#d6-the-landing-page-shows-the-work-that-needs-the-person
 depends_on: []
 verification: ["./make check docs", "./make test", "./make check portal", "./make e2e visual", "./make e2e kind"]
-claim:
+claim: claude/feat-portal-needs-me-landing 2026-10-15
 pr:
 ---
 
