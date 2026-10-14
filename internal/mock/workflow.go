@@ -498,6 +498,11 @@ func (m *MockWorkflowStore) OpenWorkflowRequest(_ context.Context, in coreworkfl
 			ResponseSchema: in.ResponseSchema, TaskRunID: in.TaskRunID, Status: coreworkflow.RequestStatusPending,
 			ExpiresAt: in.ExpiresAt, CreatedAt: in.Now,
 		}
+		for _, run := range m.Runs {
+			if run.ID == in.WorkflowRunID {
+				req.WorkflowID = run.WorkflowID
+			}
+		}
 		m.Requests = append(m.Requests, req)
 		if m.requestKeys == nil {
 			m.requestKeys = map[string]string{}

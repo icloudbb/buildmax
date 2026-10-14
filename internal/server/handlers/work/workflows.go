@@ -118,6 +118,7 @@ type workflowRunDetailResponse struct {
 type workflowRequestResponse struct {
 	ID             string          `json:"id"`
 	WorkflowRunID  string          `json:"workflow_run_id"`
+	WorkflowID     string          `json:"workflow_id"`
 	NodeRunID      string          `json:"node_run_id"`
 	NodeID         string          `json:"node_id"`
 	Kind           string          `json:"kind"`
@@ -148,6 +149,7 @@ func workflowRequestToResponse(req coreworkflow.Request) workflowRequestResponse
 	return workflowRequestResponse{
 		ID:             req.ID,
 		WorkflowRunID:  req.WorkflowRunID,
+		WorkflowID:     req.WorkflowID,
 		NodeRunID:      req.NodeRunID,
 		NodeID:         req.NodeID,
 		Kind:           req.Kind,

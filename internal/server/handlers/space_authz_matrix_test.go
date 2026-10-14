@@ -153,6 +153,8 @@ var spaceRoutes = []authzCase{
 	{"GET", "/api/spaces/{space_id}/schedules/{schedule_id}/tasks", corespace.RoleMember, false},
 	{"GET", "/api/spaces/{space_id}/schedules/{schedule_id}/runs", corespace.RoleMember, false},
 
+	// What waits on the caller: every member asks it of their own work.
+	{"GET", "/api/spaces/{space_id}/needs-me", corespace.RoleMember, false},
 	{"GET", "/api/spaces/{space_id}/issues", corespace.RoleMember, false},
 	{"POST", "/api/spaces/{space_id}/issues", corespace.RoleMember, false},
 	{"GET", "/api/spaces/{space_id}/issues/{issue_id}", corespace.RoleMember, false},

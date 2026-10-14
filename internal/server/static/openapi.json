@@ -1046,6 +1046,7 @@
         "properties": {
           "id": {"type": "string"},
           "workflow_run_id": {"type": "string"},
+          "workflow_id": {"type": "string", "description": "The Workflow whose run asks."},
           "node_run_id": {"type": "string"},
           "node_id": {"type": "string"},
           "kind": {"type": "string", "enum": ["input", "question"]},
@@ -1060,7 +1061,7 @@
           "responded_at": {"type": "string", "format": "date-time"},
           "created_at": {"type": "string", "format": "date-time"}
         },
-        "required": ["id", "workflow_run_id", "node_run_id", "node_id", "kind", "status", "created_at"]
+        "required": ["id", "workflow_run_id", "workflow_id", "node_run_id", "node_id", "kind", "status", "created_at"]
       },
       "AgentRevision": {
         "type": "object",
@@ -4787,6 +4788,44 @@
           },
           "403": {
             "description": "Only a space owner or admin may set Agent instructions",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/spaces/{space_id}/needs-me": {
+      "parameters": [{"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List what in the space is waiting on the caller",
+        "description": "Four groups, each at most 10 items with the total that matched: open issues the caller owns whose latest run failed or awaits an answer, or that have a pending workflow request; the caller's tasks whose latest run failed; the caller's tasks whose latest run ended on questions; and every pending workflow request in the space, oldest first. A task is the caller's when they created it, asked for it through a Space Assistant, or own the issue it was started on. Tasks a workflow step dispatched are left out of both task groups; their workflow run resolves them.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"type": "object", "properties": {
+              "attention_issues": {"type": "object", "properties": {
+                "items": {"type": "array", "items": {"type": "object", "properties": {
+                  "issue": {"$ref": "#/components/schemas/Issue"},
+                  "reason": {"type": "string", "enum": ["run_failed", "awaiting_answer", "workflow_request"]}
+                }, "required": ["issue", "reason"]}},
+                "total": {"type": "integer"}
+              }, "required": ["items", "total"]},
+              "failed_tasks": {"type": "object", "properties": {
+                "items": {"type": "array", "items": {"$ref": "#/components/schemas/Task"}},
+                "total": {"type": "integer"}
+              }, "required": ["items", "total"]},
+              "awaiting_answer_tasks": {"type": "object", "properties": {
+                "items": {"type": "array", "items": {"$ref": "#/components/schemas/Task"}},
+                "total": {"type": "integer"}
+              }, "required": ["items", "total"]},
+              "workflow_requests": {"type": "object", "properties": {
+                "items": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowRequest"}},
+                "total": {"type": "integer"}
+              }, "required": ["items", "total"]}
+            }, "required": ["attention_issues", "failed_tasks", "awaiting_answer_tasks", "workflow_requests"]}}}
+          },
+          "403": {
+            "description": "The caller is not a member of the space",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }

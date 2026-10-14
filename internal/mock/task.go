@@ -124,6 +124,26 @@ func (m *MockTaskStore) ListTasksBySchedule(_ context.Context, spaceID, schedule
 	return pageTasksNewestFirst(filtered, limit, offset)
 }
 
+// ListTasksWaitingOn matches the store on what the mock can know: a Task the
+// person created or requested. The mock holds no Issues, so origin-Issue
+// ownership is the store test's to prove.
+func (m *MockTaskStore) ListTasksWaitingOn(_ context.Context, spaceID, userID string, wait coretask.Wait, limit int) ([]coretask.Task, int, error) {
+	if m.ListErr != nil {
+		return nil, 0, m.ListErr
+	}
+	var filtered []coretask.Task
+	for _, task := range m.List {
+		if task.SpaceID != spaceID || m.workflowSteps[task.ID] || (task.CreatedBy != userID && task.RequestedBy != userID) {
+			continue
+		}
+		if (wait == coretask.WaitFailed && task.Status == string(coretask.RunStatusFailed)) ||
+			(wait == coretask.WaitAnswer && task.AwaitingAnswer) {
+			filtered = append(filtered, task)
+		}
+	}
+	return pageTasksNewestFirst(filtered, limit, 0)
+}
+
 // pageTasksNewestFirst reverses insertion order (newest first) and applies the
 // limit/offset window, matching the store's DESC-by-created_at listings.
 func pageTasksNewestFirst(filtered []coretask.Task, limit, offset int) ([]coretask.Task, int, error) {

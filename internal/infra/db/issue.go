@@ -61,12 +61,15 @@ func (s *Store) issueSelect(ctx context.Context) *gorm.DB {
 	return issueSelectTx(s.db.WithContext(ctx))
 }
 
+// issueColumns is what an issue read selects, for the reads that add to it.
+const issueColumns = "issue.*, u.public_id AS user_public_id, t.public_id AS space_public_id, " +
+	"p.public_id AS parent_public_id, cb.public_id AS created_by_public_id, " +
+	"o.public_id AS owner_public_id, cv.public_id AS conversation_public_id, " +
+	"rq.public_id AS requester_public_id, asst.public_id AS assistant_public_id"
+
 func issueSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&issueRow{}).
-		Select("issue.*, u.public_id AS user_public_id, t.public_id AS space_public_id, " +
-			"p.public_id AS parent_public_id, cb.public_id AS created_by_public_id, " +
-			"o.public_id AS owner_public_id, cv.public_id AS conversation_public_id, " +
-			"rq.public_id AS requester_public_id, asst.public_id AS assistant_public_id").
+		Select(issueColumns).
 		Joins("INNER JOIN `user` u ON u.id = issue.user_id").
 		Joins("LEFT JOIN space t ON t.id = issue.space_id").
 		Joins("LEFT JOIN issue p ON p.id = issue.parent_issue_id").

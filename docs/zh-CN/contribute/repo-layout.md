@@ -210,6 +210,8 @@ internal/
 │   ├── identity/       什么能证明调用者是谁：验证一个凭证并开启它
 │   │                   换来的 session
 │   ├── issue/          Issue service
+│   ├── needsme/        某个 Space 中等待某人处理的工作：需要关注的 Issue、
+│   │                   失败与提问的运行、待处理的 Workflow 请求
 │   ├── task/           Task 与 task_run service
 │   ├── workspace/      Task 工作区检查点的跨存储提交：校验一个载荷
 │   │                   描述符、确认其字节已持久化，然后记录权威指针

@@ -211,9 +211,12 @@ const (
 type Request struct {
 	ID            string `json:"id"`
 	WorkflowRunID string `json:"workflow_run_id"`
-	NodeRunID     string `json:"node_run_id"`
-	NodeID        string `json:"node_id"`
-	Kind          string `json:"kind"`
+	// WorkflowID names the Workflow whose run asks, so a list of requests
+	// can say which Workflow is waiting without a run read per row.
+	WorkflowID string `json:"workflow_id"`
+	NodeRunID  string `json:"node_run_id"`
+	NodeID     string `json:"node_id"`
+	Kind       string `json:"kind"`
 	// Prompt is what the responder is asked: a human_input node's instruction
 	// with its bound values. Empty for a question, which carries Questions.
 	Prompt string `json:"prompt,omitempty"`

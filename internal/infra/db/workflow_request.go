@@ -38,6 +38,7 @@ func (workflowRequestRow) TableName() string { return "workflow_request" }
 type workflowRequestReadRow struct {
 	Row                 workflowRequestRow `gorm:"embedded"`
 	WorkflowRunPublicID string             `gorm:"column:workflow_run_public_id"`
+	WorkflowPublicID    string             `gorm:"column:workflow_public_id"`
 	NodeRunPublicID     string             `gorm:"column:node_run_public_id"`
 	NodeID              string             `gorm:"column:node_id"`
 	TaskRunPublicID     *string            `gorm:"column:task_run_public_id"`
@@ -46,9 +47,11 @@ type workflowRequestReadRow struct {
 
 func workflowRequestSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&workflowRequestRow{}).
-		Select("workflow_request.*, wr.public_id AS workflow_run_public_id, nr.public_id AS node_run_public_id, " +
-			"nr.node_id AS node_id, r.public_id AS task_run_public_id, u.public_id AS responded_by_public_id").
+		Select("workflow_request.*, wr.public_id AS workflow_run_public_id, w.public_id AS workflow_public_id, " +
+			"nr.public_id AS node_run_public_id, nr.node_id AS node_id, r.public_id AS task_run_public_id, " +
+			"u.public_id AS responded_by_public_id").
 		Joins("INNER JOIN workflow_run wr ON wr.id = workflow_request.workflow_run_id").
+		Joins("INNER JOIN workflow w ON w.id = wr.workflow_id").
 		Joins("INNER JOIN workflow_node_run nr ON nr.id = workflow_request.node_run_id").
 		Joins("LEFT JOIN task_run r ON r.id = workflow_request.task_run_id").
 		Joins("LEFT JOIN `user` u ON u.id = workflow_request.responded_by")
@@ -58,6 +61,7 @@ func toWorkflowRequest(row *workflowRequestReadRow) *coreworkflow.Request {
 	out := &coreworkflow.Request{
 		ID:             row.Row.PublicID,
 		WorkflowRunID:  row.WorkflowRunPublicID,
+		WorkflowID:     row.WorkflowPublicID,
 		NodeRunID:      row.NodeRunPublicID,
 		NodeID:         row.NodeID,
 		Kind:           row.Row.Kind,
@@ -235,13 +239,13 @@ func (s *Store) ListPendingWorkflowRequestsBySpace(ctx context.Context, spaceID 
 		return nil, 0, nil
 	}
 	scope := func(q *gorm.DB) *gorm.DB {
-		return q.Joins("INNER JOIN workflow w ON w.id = wr.workflow_id").
-			Joins("INNER JOIN space sp ON sp.id = w.space_id").
+		return q.Joins("INNER JOIN space sp ON sp.id = w.space_id").
 			Where("sp.public_id = ? AND workflow_request.status = ?", id, coreworkflow.RequestStatusPending)
 	}
 	var total int64
 	if err := scope(s.db.WithContext(ctx).Model(&workflowRequestRow{}).
-		Joins("INNER JOIN workflow_run wr ON wr.id = workflow_request.workflow_run_id")).Count(&total).Error; err != nil {
+		Joins("INNER JOIN workflow_run wr ON wr.id = workflow_request.workflow_run_id").
+		Joins("INNER JOIN workflow w ON w.id = wr.workflow_id")).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	base := func() *gorm.DB { return scope(workflowRequestSelectTx(s.db.WithContext(ctx))) }
