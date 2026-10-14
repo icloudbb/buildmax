@@ -18,7 +18,9 @@
 > breadcrumbs carry the same Space/type/location cues as the desktop sidebar;
 > the migration-bounded redirects for the pre-Space-prefix hashes are removed
 > — an old flat hash is now an ordinary not-found, not a silent alias) have
-> all shipped.
+> all shipped, and so has slice 6 (approved 2026-10-12: Issues is the default
+> Space destination, topped by the section that shows the work that needs the
+> person).
 
 This record defines how Portal navigation communicates scope and how URLs keep
 Space-owned resources in the correct Space. It is an independently deliverable
@@ -31,6 +33,7 @@ priority.
 - [Evidence and constraints](#evidence-and-constraints)
 - [Decision](#decision)
 - [Route and navigation model](#route-and-navigation-model)
+- [Landing on the work that needs you](#landing-on-the-work-that-needs-you)
 - [Implementation slices](#implementation-slices)
 - [Acceptance criteria](#acceptance-criteria)
 - [Alternatives rejected](#alternatives-rejected)
@@ -82,6 +85,10 @@ The primary Space navigation is grouped by user intent:
 “Home” becomes “Chat.” A true Overview is not added until a Space-wide query
 and operator-journey evidence establish which outcomes belong there. Portal
 must not implement an overview by fanning out across every collection API.
+The default Space destination is Issues, topped by the one bounded query
+[below](#landing-on-the-work-that-needs-you) that answers what is waiting on
+the signed-in person; that is the evidence-backed part of an overview, and
+nothing more.
 
 Deployment administration is visually and structurally outside Space scope.
 Its pages do not show an active Space switcher as if the selected Space changed
@@ -130,6 +137,68 @@ Route handling follows these rules:
 - Breadcrumbs use human-readable labels when loaded and stable type labels while
   loading; raw public IDs are secondary metadata, not the main orientation cue.
 
+## Landing on the work that needs you
+
+*Approved by the maintainer on 2026-10-12, from the
+[UI experience program's D6](ui-experience-program.md#d6-the-landing-page-shows-the-work-that-needs-the-person).*
+
+**Outcome.** A Space member who opens Portal sees the work waiting on them
+without going looking for it, and each item opens where it is resolved.
+
+**Evidence.** The 2026-10-06 Portal audit signed in as a team member who owned
+an Issue in a Space with a failed run, two runs at "Needs your answer", and a
+pending Workflow input request. Her landing page, Chat, showed none of it, and
+neither did Issues; the work was reachable only through one Agent's run list or
+Administration's counts. A new person's empty personal Space landed on Chat,
+which was also the only page that offered an immediate action.
+
+**Constraints.** The Issue list carries no run state. Tasks were listed only per
+Agent, Conversation, or Schedule. Pending Workflow requests were listed for the
+whole Space, and any member who may run the Space's Workflows may answer one,
+first answer wins. Space is the authorization boundary.
+
+**Decisions.**
+
+1. **Attention.** An Issue the caller owns needs attention when its latest run —
+   the newest of its Agent runs and Workflow runs, as the Issue's own run list
+   orders them — failed or ended waiting for an answer, or when one of its
+   Workflow runs has a pending request. There is no staleness rule and no
+   dismissal state: the condition clears when the work moves.
+2. **Mine.** A Task is the caller's when they created it, asked for it through a
+   Space Assistant (its `requested_by`), or own the Issue it was started on.
+3. **Failed runs.** A Task is listed while its latest run failed. A retry or a
+   continue creates a newer run and clears the entry, so nothing is stored to
+   acknowledge it.
+4. **Workflow requests.** Every pending request in the Space is listed for a
+   caller who may run the Space's Workflows, oldest first, because no request
+   names a responder and the first answer wins.
+5. **Scope.** The current Space only. A cross-Space view (Desktop's Home) fans
+   out per Space, as Desktop already does for owned Issues.
+6. **Query shape.** One service read, `needsme.Service.NeedsMe`, served as
+   `GET /api/spaces/{space_id}/needs-me`, returns four groups — attention
+   Issues, failed runs, runs awaiting an answer, and pending Workflow requests.
+   Each group holds at most ten items and the total that matched, so a client
+   can say that more exist. The route admits Space members like every Space
+   route; the service decides what the caller sees, including whether they may
+   answer Workflow requests. Portal and Desktop read the same definition rather
+   than each recombining list filters.
+7. **Host page.** The Issues page shows the section above its collection and is
+   the default Space destination: a bare `#/`, the first page after sign-in,
+   and the "back to Space" action all land there. Space switching still keeps
+   the current section. While nothing waits, the section says so calmly and
+   offers the immediate next action, creating an Issue. Loading never reads as
+   zero, and a failed read says it failed.
+
+A Task a Workflow step dispatched is left out of both run groups. Its retry and
+its questions belong to its Workflow run — Portal refuses to continue or retry a
+step's Task on its own — so a step that asks appears once, as the pending
+Workflow request it opened, and a step that fails surfaces through its Workflow
+run and the Issue it serves.
+
+Each item links to its resolution: an Issue to its page, a run to its Task page
+(answer by continuing, or read the failure and its fix), and a Workflow request
+to its Workflow run, where the request card answers or declines it.
+
 ## Implementation slices
 
 Each slice can merge independently in order:
@@ -144,6 +213,8 @@ Each slice can merge independently in order:
    fallback-to-Home behavior.
 5. **Orientation polish.** Standardize breadcrumbs, page titles, and responsive
    collapse behavior.
+6. **The work that needs you.** Add the needs-me read and its route, host its
+   section on the Issues page, and make Issues the default destination.
 
 During migration, internal links must only emit canonical routes. Any temporary
 redirect for an old hash is bounded to the migration change and removed before
@@ -172,7 +243,16 @@ the record is marked implemented; it is not a compatibility contract.
   boundary and makes authorization behavior harder to reason about.
 - **Create a dashboard immediately.** Without an authoritative aggregate query
   and validated operator questions, it adds a label and network fan-out rather
-  than a useful product concept.
+  than a useful product concept. The needs-me section is not that dashboard:
+  the audit validated its four questions, and one caller-relative query
+  answers them.
+- **Answer "needs me" with filters on the existing lists** — a Space Task list
+  by creator and state, and latest-run state on Issues. It reuses more, but
+  every client would have to repeat the definition, and the definitions would
+  drift.
+- **Keep Chat as the landing page and add the section there.** Issue is the
+  primary work object, and the audit found Issues the better default once it
+  shows what is waiting; Chat stays one click away.
 - **Preserve every legacy hash indefinitely.** Alpha has no external contract
   requiring that state, and permanent aliases multiply routing behavior.
 

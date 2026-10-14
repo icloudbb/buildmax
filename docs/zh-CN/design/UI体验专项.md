@@ -243,10 +243,12 @@ Portal 与 Desktop 的所有页面都已提供两种语言；只有 `/specimen` 
 - 待处理的 Workflow 请求按整个 Space 列出，任何可以运行 Workflow 的成员都可以回答。
 
 [导航记录](Portal导航与Space上下文.md#被否决的替代方案)否决了没有权威聚合查询的
-仪表盘，这个理由仍然成立。审计现在提供了运维问题，但查询还不存在。因此，查询本身、
-怎样算“我的”运行，以及由哪个页面承载结果，都要先设计再实现。
-[任务 38](../../backlog/38-portal-needs-me-landing.md) 负责这份设计与 Portal 实现，
-[任务 58](../../backlog/58-desktop-needs-me-home.md) 把同样的结果带到 Desktop 主页。
+仪表盘，这个理由仍然成立。审计提供了运维问题，因此查询本身、怎样算“我的”运行，以及
+由哪个页面承载结果，都先设计再实现。*2026-10-12 获批并已上线：* 导航记录的
+[needs-me 一节](Portal导航与Space上下文.md#落地到等待你处理的工作)定义了一个 Space
+范围的读取 `GET /api/spaces/{space_id}/needs-me`，并让以该区块开头的 Issues 页面成为
+Portal 的默认 Space 目的地。[任务 58](../../backlog/58-desktop-needs-me-home.md)
+把同样的结果带到 Desktop 主页。
 
 ## 阶段
 
@@ -255,7 +257,7 @@ Portal 与 Desktop 的所有页面都已提供两种语言；只有 `/specimen` 
 | 0. 审计 | Portal 与 Desktop 核心流程的分级问题报告，并附视觉语言建议（2026-10-06 完成） | [Portal](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/zh-CN/contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) 与 [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/zh-CN/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) 报告，保存在提交 `718a6ab3` 的历史中；每个问题都由阶段 3–4 的某个任务承接 |
 | 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏（已交付）；共享基础组件；i18n 基础设施；Desktop 改用 gui 基础组件 | backlog [16](../../backlog/16-gui-shared-primitives.md)、[20](../../backlog/20-desktop-gui-convergence.md) |
 | 2. 视觉语言决定 | 2026-10-07 已决定：打磨当前的中性风格（[D1](#d1-先审计再重新设计)），落地页展示需要本人处理的工作（[D6](#d6-落地页展示需要本人处理的工作)）。本记录与页面体系记录已更新 | 决定，不是任务 |
-| 3. Portal 改造 | 先解决 Blocker 与 Major 问题，与 Desktop 交替进行（任务 22–36），再处理其余问题 | backlog [38](../../backlog/38-portal-needs-me-landing.md)、[40](../../backlog/40-portal-shell-navigation.md)、[42](../../backlog/42-portal-work-naming.md)、[44](../../backlog/44-portal-administration-labels.md)、[46](../../backlog/46-portal-workflow-authoring.md)、[48](../../backlog/48-portal-schedule-form.md)、[50](../../backlog/50-portal-files-and-artifacts.md) |
+| 3. Portal 改造 | 先解决 Blocker 与 Major 问题，与 Desktop 交替进行（任务 22–36），再处理其余问题 | needs-me 落地页（已上线）、backlog [40](../../backlog/40-portal-shell-navigation.md)、[42](../../backlog/42-portal-work-naming.md)、[44](../../backlog/44-portal-administration-labels.md)、[46](../../backlog/46-portal-workflow-authoring.md)、[48](../../backlog/48-portal-schedule-form.md)、[50](../../backlog/50-portal-files-and-artifacts.md) |
 | 4. Desktop 改造 | Desktop 同样处理；问题涉及 `App.jsx` 的地方顺带拆分 | backlog [52](../../backlog/52-desktop-narrow-window-and-first-launch.md)、[54](../../backlog/54-desktop-diff-and-terminal-tabs.md)、[56](../../backlog/56-desktop-schedule-form.md)、[58](../../backlog/58-desktop-needs-me-home.md) |
 | 5. 中文与复审 | 完整的 `zh-CN` 目录（已交付）；用两种语言重跑阶段 0 的流程，并与基线对比：提交 `718a6ab3` 中的 [Portal](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/zh-CN/contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) 与 [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/zh-CN/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) 报告 | 复审在阶段 3–4 之后拆分 |
 
@@ -311,4 +313,6 @@ P22（单个 1.3 MB 脚本未压缩传输）没有阻碍任何流程，按照[�
   [测试指南](../contribute/testing.md#截图基线)说明了如何运行、更新与评审基线。
 - **Space 默认落地页。** *已在阶段 2 解决：* 问题不在于 Chat 还是 Issues，而在于
   落地页展示什么。已登录用户落地的无论是哪个页面，都要展示需要他处理的工作，见
-  [D6](#d6-落地页展示需要本人处理的工作)。由哪个页面承载，是任务 38 设计的一部分。
+  [D6](#d6-落地页展示需要本人处理的工作)。按照
+  [导航记录](Portal导航与Space上下文.md#落地到等待你处理的工作)的决定，由 Issues
+  承载并作为默认目的地。

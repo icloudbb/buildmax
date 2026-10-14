@@ -288,9 +288,9 @@ The first complete slice is accepted only when:
    operator journey?~~ *Resolved 2026-10-07* by the UI experience program
    ([D6](ui-experience-program.md#d6-the-landing-page-shows-the-work-that-needs-the-person)):
    whatever page a signed-in person lands on shows the work that needs them.
-   The audit found that neither Chat nor Issues does today. Which page hosts it
-   is designed in
-   [backlog task 38](../backlog/38-portal-needs-me-landing.md).
+   The audit found that neither Chat nor Issues did. *Approved 2026-10-12:*
+   Issues hosts that section and is the default destination; see the
+   [navigation record](portal-navigation-and-space-context.md#landing-on-the-work-that-needs-you).
 2. Which real Issue results and failure states should seed the specimen and
    operator review? Existing QA data did not complete an Issue-to-result run
    during this inspection.
