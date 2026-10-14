@@ -14,6 +14,80 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.24] - 2026-10-14
+
+### Added
+
+- `buildmax login` and the Desktop sign-in page sign in through a request you
+  confirm in Portal, so single sign-on accounts can use the CLI and Desktop
+  even where `local_login` is `system_admins` or `off`; the CLI opens the
+  browser unless `--no-browser` is set or the host is headless,
+  `buildmax login --password` keeps the password and login-code prompts, and
+  Desktop lays its page out by the server's sign-in methods.
+
+- The server API for signing the CLI and Desktop in through the Portal:
+  `/api/auth/native-sign-ins` starts a request, a signed-in Portal session
+  confirms or denies it, and the client's poll redeems it for a session that
+  inherits the confirming session's sign-in method and expiry. It is
+  groundwork: the Portal page and the CLI and Desktop sign-in that use it come
+  in later releases. `POST /api/auth/login` accepts an optional
+  `client_label`, which the admin session list shows, and refuses
+  `platform: portal`, which only the Portal's own sign-in route opens.
+
+- A Portal page, `#/sign-in/<code>`, where a person confirms or denies a CLI
+  or Desktop sign-in after checking the client, its unverified label, and the
+  code, in English and Simplified Chinese; opening it signed out returns to
+  the request after any sign-in, as SSO now honors a validated relative hash
+  route passed to `GET /api/auth/oidc/start` as `return_to`.
+
+- Portal's **Account → Sessions** lists every browser, CLI, and Desktop signed
+  in to your account, with each client's reported name and this browser
+  marked, and signs any of them out without an operator; the same is
+  available at `GET /api/auth/sessions` and
+  `DELETE /api/auth/sessions/{session_id}`.
+
+### Changed
+
+- The Compose stack sets `BUILDMAX_PUBLIC_BASE_URL` to its gateway, so a CLI
+  or Desktop browser sign-in reaches the Portal page whether the client called
+  port 8080 or 5678; this also turns on artifact share links on Compose.
+
+### Fixed
+
+- Desktop's **Start chat** on an Issue, and a project's "+", now open a new chat
+  with the Issue in the message box even when that project was not open; the
+  sign-in page leaves the server address empty unless one is configured,
+  explains when to use a login code as Portal does, and has its own language
+  and theme controls.
+
+- A Desktop schedule now keeps the model and the mode it was saved in
+  ("Default" is saved as the model it named then) and shows both on its card;
+  after signing in or out its card says it does not run here and its fire
+  fails with that reason, even when the other mode offers a model of the same
+  name, and each run records the model it used. A schedule saved before this
+  change is paused until you edit and save it.
+
+- Portal names the plugin behind a run refused for a plugin the Space has not
+  activated or has suspended, leading owners and admins to plugin settings,
+  and says which usage quota a refused run spent and that a System
+  Administrator changes it; members are told to ask a Space owner or admin
+  instead of offered a link, and are now warned before **Run agent** about a
+  broken Secret grant without being shown the Secret's name or ID.
+
+- Portal explains a failed run in plain words and leads with the fix: a run
+  refused for a disabled Secret grant names the Agent and the Secret and offers
+  **Open the Agent to fix its Secret grant** instead of a retry that fails the
+  same way; **Run agent** warns first when the Agent's grant no longer
+  resolves, Run details no longer requests a trace that was never recorded,
+  and Agent success rates no longer count stopped runs as failures.
+
+- Portal's Space members page names whom each pending invitation is for, says
+  plainly when an invited email has no account, asks before raising a member's
+  role and confirms every role change, and keeps all settings tabs visible on
+  a phone; an invitation you receive names its Space and who invited you, and
+  accepting one, or opening a link into a newly joined Space, now switches to
+  it with its own role without a page reload.
+
 ## [0.2.0-alpha.23] - 2026-10-10
 
 ### Added
@@ -3998,7 +4072,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.23...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.24...HEAD
+[0.2.0-alpha.24]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.23...v0.2.0-alpha.24
 [0.2.0-alpha.23]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.22...v0.2.0-alpha.23
 [0.2.0-alpha.22]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.21...v0.2.0-alpha.22
 [0.2.0-alpha.21]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.20...v0.2.0-alpha.21
