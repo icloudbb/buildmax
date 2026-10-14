@@ -41,10 +41,10 @@ var (
 )
 
 type issueAttentionRow struct {
-	issueReadRow   `gorm:"embedded"`
-	RunFailed      bool `gorm:"column:attention_run_failed"`
-	RunAwaiting    bool `gorm:"column:attention_run_awaiting"`
-	PendingRequest bool `gorm:"column:attention_pending_request"`
+	Read           issueReadRow `gorm:"embedded"`
+	RunFailed      bool         `gorm:"column:attention_run_failed"`
+	RunAwaiting    bool         `gorm:"column:attention_run_awaiting"`
+	PendingRequest bool         `gorm:"column:attention_pending_request"`
 }
 
 // ListIssuesNeedingOwner returns the Space's open Issues one person owns whose
@@ -86,7 +86,7 @@ func (s *Store) ListIssuesNeedingOwner(ctx context.Context, spaceID, ownerID str
 	}
 	out := make([]coreissue.Attention, len(rows))
 	for i := range rows {
-		out[i] = coreissue.Attention{Issue: *toIssue(&rows[i].issueReadRow), Reason: attentionReason(rows[i])}
+		out[i] = coreissue.Attention{Issue: *toIssue(&rows[i].Read), Reason: attentionReason(rows[i])}
 	}
 	return out, int(total), nil
 }

@@ -220,7 +220,16 @@ func TestListTasksWaitingOn(t *testing.T) {
 	f.end(*created.LastRunID, coretask.RunStatusFailed, nil)
 	onOwnedIssue := f.task(coretask.CreateInput{CreatedBy: f.bob, IssueID: &owned})
 	f.end(*onOwnedIssue.LastRunID, coretask.RunStatusFailed, nil)
-	requested := f.task(coretask.CreateInput{CreatedBy: f.bob, RequestedBy: f.alice})
+	// A Space Assistant's dispatch records its requester; set it directly
+	// rather than standing up an Assistant for one column.
+	requested := f.task(coretask.CreateInput{CreatedBy: f.bob})
+	aliceKey, err := lookupKey(f.ctx, f.s.db, "user", f.alice)
+	if err != nil {
+		t.Fatalf("lookupKey: %v", err)
+	}
+	if err := f.s.db.Model(&taskRow{}).Where("public_id = ?", requested.ID).Update("requested_by", aliceKey).Error; err != nil {
+		t.Fatalf("set requested_by: %v", err)
+	}
 	f.end(*requested.LastRunID, coretask.RunStatusFailed, nil)
 
 	unrelated := f.task(coretask.CreateInput{CreatedBy: f.bob})
