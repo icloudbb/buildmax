@@ -157,7 +157,7 @@ test("an empty Space says nothing is waiting and offers a first Issue", async ({
 
   const section = page.getByRole("region", { name: "Waiting on you" })
   await expect(section.getByText("Nothing in this Space is waiting on you.", { exact: false })).toBeVisible()
-  await section.getByRole("button", { name: "New Issue" }).click()
+  await section.getByRole("button", { name: "Create an Issue" }).click()
   await expect(page.getByRole("dialog")).toBeVisible()
 })
 
@@ -190,8 +190,8 @@ test("the work waiting on a person is listed, and each item opens where it is re
     for (const width of [390, 768, 1280]) {
       await page.setViewportSize({ width, height: 900 })
       await page.reload()
-      await expect(page.getByRole("region", { name: locale === "en" ? "Waiting on you" : "等待你处理" })).toBeVisible()
-      await expect(page.getByText(seeded.issueTitle)).toBeVisible()
+      const region = page.getByRole("region", { name: locale === "en" ? "Waiting on you" : "等待你处理" })
+      await expect(region.getByText(seeded.issueTitle)).toBeVisible()
       await expectNoHorizontalOverflow(page)
     }
   }

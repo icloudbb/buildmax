@@ -7,6 +7,7 @@ export const needsMeMessages = {
     "needsMe.title": "Waiting on you",
     "needsMe.count": { one: "{count} item", other: "{count} items" },
     "needsMe.empty": "Nothing in this Space is waiting on you. New work starts as an Issue.",
+    "needsMe.empty.action": "Create an Issue",
     "needsMe.error": "Failed to load what is waiting on you",
     "needsMe.more": "Showing {shown} of {total}",
 
@@ -31,6 +32,7 @@ export const needsMeMessages = {
     "needsMe.title": "等待你处理",
     "needsMe.count": "{count} 项",
     "needsMe.empty": "此 Space 中没有等待你处理的工作。新的工作从 Issue 开始。",
+    "needsMe.empty.action": "创建一个 Issue",
     "needsMe.error": "加载等待你处理的工作失败",
     "needsMe.more": "显示 {total} 项中的 {shown} 项",
 

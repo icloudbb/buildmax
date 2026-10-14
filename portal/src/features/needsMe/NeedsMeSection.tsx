@@ -92,7 +92,7 @@ export function NeedsMeSection({ token, spaceId, agents, workflows, onCreateIssu
       ) : count === 0 ? (
         <EmptyState
           message={t("needsMe.empty")}
-          action={{ label: t("issues.new"), onClick: onCreateIssue, variant: "secondary" }}
+          action={{ label: t("needsMe.empty.action"), onClick: onCreateIssue, variant: "secondary" }}
         />
       ) : (
         <div className="needs-me__groups">

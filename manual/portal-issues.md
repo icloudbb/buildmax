@@ -57,7 +57,7 @@ group shows up to ten items and how many there are in all.
 Nothing here needs dismissing. An item leaves the list when the work moves on:
 answering, retrying, or continuing a run, or answering a request. Marking an
 issue done also removes it. When nothing is waiting, the section says so and
-offers **New Issue**. It lists the current space only; switch spaces to see
+offers **Create an Issue**. It lists the current space only; switch spaces to see
 another.
 
 ## Create an issue
