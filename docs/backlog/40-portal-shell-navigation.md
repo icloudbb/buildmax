@@ -6,7 +6,7 @@ source: docs/design/ui-experience-program.md#phases
 depends_on: []
 verification: ["./make check gui", "./make check portal", "./make check desktop", "./make e2e visual", "./make e2e local"]
 claim: gougoujiang 2026-10-17
-pr:
+pr: 892
 ---
 
 ## Outcome
