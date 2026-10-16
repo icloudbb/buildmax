@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { BaseModal, Button, ButtonLink, getInitials, Input, PageHeader, type Translate } from "@buildmax/gui"
+import {
+  BaseModal,
+  Button,
+  ButtonLink,
+  getInitials,
+  Input,
+  PageHeader,
+  SearchIcon,
+  StorefrontIcon,
+  type Translate,
+} from "@buildmax/gui"
 import type { ApiPlugin, ApiPluginRelease } from "../../lib/api/types"
 import { getPlugin, listPlugins } from "../../features/plugins/api"
 import { newestInstallable } from "../../features/plugins/releaseSelection"
@@ -98,7 +108,7 @@ export function Marketplace({ token }: { token: string | null }) {
 
       {plugins.length > 0 ? (
         <div className="marketplace__search">
-          <SearchIcon />
+          <SearchIcon className="marketplace__search-icon" />
           <Input
             type="search"
             placeholder={t("marketplace.searchPlaceholder")}
@@ -128,7 +138,7 @@ export function Marketplace({ token }: { token: string | null }) {
         </div>
       ) : pluginsState.kind === "error" || pluginsState.kind === "forbidden" || pluginsState.kind === "notFound" ? null : plugins.length === 0 ? (
         <div className="marketplace__empty">
-          <StorefrontGlyph />
+          <StorefrontIcon className="marketplace__empty-icon" />
           <p className="marketplace__empty-title">{t("marketplace.empty.title")}</p>
           <p className="marketplace__empty-copy">{t("marketplace.empty.copy")}</p>
         </div>
@@ -385,44 +395,4 @@ function contributionChips(release: ApiPluginRelease | null, t: Translate<Messag
   if (insp.mcp?.length) chips.push(t("marketplace.chip.mcp", { count: insp.mcp.length }))
   if (insp.hooks?.length) chips.push(t("marketplace.chip.hooks", { count: insp.hooks.length }))
   return chips
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      className="marketplace__search-icon"
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
-  )
-}
-
-function StorefrontGlyph() {
-  return (
-    <svg
-      className="marketplace__empty-icon"
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M3 9.5 4.5 4h15L21 9.5" />
-      <path d="M3 9.5a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 3 0" />
-      <path d="M5 11v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8" />
-      <path d="M9 20v-5h6v5" />
-    </svg>
-  )
 }

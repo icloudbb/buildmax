@@ -29,14 +29,23 @@ import { derivePermissionState } from "../../state/permissionState"
 import { UserAvatar } from "../../components/UserAvatar"
 import { WebhookKeysSection } from "../../components/WebhookKeysSection"
 import { ChatAccountsSection } from "../../components/ChatAccountsSection"
-import SettingsIcon from "../../icons/settings.svg?react"
-import UsageIcon from "../../icons/usage.svg?react"
-import ToolboxIcon from "../../icons/toolbox.svg?react"
-import AgentsIcon from "../../icons/agents.svg?react"
-import NewChatIcon from "../../icons/new-chat.svg?react"
-import IssueIcon from "../../icons/issue.svg?react"
-import ShieldIcon from "../../icons/shield.svg?react"
-import { Button, BaseModal, Field, Input, Select, Spinner, useToast, type Translate } from "@buildmax/gui"
+import {
+  AgentsIcon,
+  BaseModal,
+  Button,
+  Field,
+  Input,
+  IssueIcon,
+  NewChatIcon,
+  Select,
+  SettingsIcon,
+  ShieldIcon,
+  Spinner,
+  ToolboxIcon,
+  UsageIcon,
+  useToast,
+  type Translate,
+} from "@buildmax/gui"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import { useTimestamp } from "../../lib/dateFormat"
 

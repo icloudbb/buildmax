@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, Field, IconButton, Input, Skeleton, Textarea, getInitials } from "@buildmax/gui"
+import { Button, Field, IconButton, Input, KeyIcon, Skeleton, Textarea, getInitials } from "@buildmax/gui"
 import type { ApiSecret } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT, type MessageKey } from "../../i18n"
@@ -116,7 +116,7 @@ export function SpaceSecrets({
       </div>
 
       <div className="sec-callout" role="note">
-        <KeyIcon />
+        <KeyIcon className="sec-icon" />
         <div>
           <strong>{t("secrets.warning.lead")}</strong>
           {t("secrets.warning.body")}
@@ -150,7 +150,7 @@ export function SpaceSecrets({
         <Skeleton lines={2} />
       ) : secretsState.kind === "error" || secretsState.kind === "forbidden" || secretsState.kind === "notFound" ? null : live.length === 0 && !creating ? (
         <div className="sec-empty">
-          <KeyIcon />
+          <KeyIcon className="sec-icon" />
           <p className="sec-empty__title">{t("secrets.empty.title")}</p>
           <p className="sec-empty__copy">{t("secrets.empty.copy")}</p>
         </div>
@@ -512,26 +512,5 @@ function EditItemsForm({
         </Button>
       </div>
     </div>
-  )
-}
-
-function KeyIcon() {
-  return (
-    <svg
-      className="sec-icon"
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <circle cx="7.5" cy="15.5" r="4.5" />
-      <path d="m10.7 12.3 8.3-8.3" />
-      <path d="m16 5 3 3" />
-      <path d="m13 8 2.5 2.5" />
-    </svg>
   )
 }

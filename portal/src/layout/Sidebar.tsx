@@ -4,19 +4,6 @@ import type { Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
 import { UserAvatar } from "../components/UserAvatar"
-import SidebarExpandIcon from "../icons/sidebar-expand.svg?react"
-import SidebarCollapseIcon from "../icons/sidebar-collapse.svg?react"
-import NewChatIcon from "../icons/new-chat.svg?react"
-import SettingsIcon from "../icons/settings.svg?react"
-import HelpIcon from "../icons/help.svg?react"
-import SignOutIcon from "../icons/sign-out.svg?react"
-import IssueIcon from "../icons/issue.svg?react"
-import WorkflowIcon from "../icons/workflow.svg?react"
-import ScheduleIcon from "../icons/schedule.svg?react"
-import AgentsIcon from "../icons/agents.svg?react"
-import ArtifactIcon from "../icons/artifact.svg?react"
-import FilesIcon from "../icons/files.svg?react"
-import ShieldIcon from "../icons/shield.svg?react"
 import { CreateSpaceDialog } from "../components/CreateSpaceDialog"
 import { useSpace } from "../contexts/SpaceContext"
 import { useApp } from "../contexts/AppContext"
@@ -25,6 +12,19 @@ import { ADMIN_NAV } from "../features/admin/nav"
 import { spaceSwitchTarget } from "../lib/spaceSwitch"
 import type { ResourceState } from "../state/resourceState"
 import {
+  AgentsIcon,
+  ArtifactIcon,
+  FolderIcon,
+  HelpIcon,
+  IssueIcon,
+  NewChatIcon,
+  ScheduleIcon,
+  SettingsIcon,
+  ShieldIcon,
+  SidebarCollapseIcon,
+  SidebarExpandIcon,
+  SignOutIcon,
+  WorkflowIcon,
   LOCALES,
   LOCALE_NAMES,
   Menu,
@@ -319,7 +319,7 @@ export function SidebarNavContent({
             className={cn("sidebar__nav-item", isFilesActive(route) && "sidebar__nav-item--active")}
             onClick={() => go({ name: "explore", spaceId: currentSpaceId! })}
           >
-            <FilesIcon className="sidebar__nav-icon" aria-hidden />
+            <FolderIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">{t("shell.nav.files")}</span>
           </button>
           <button
