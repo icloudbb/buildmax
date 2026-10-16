@@ -65,7 +65,7 @@ carries Desktop audit findings D10, D11, D12, and D13.
   authoritative, and map its conditions to catalog messages.
 - **D13.** Truncate paths from the start, so the folder name stays. Show the
   next run, or "Paused", beside the cron. Show run status through a translated
-  label, using task 16's `StatusLabel` if it has landed.
+  label, using gui's `StatusLabel`.
 
 ## Out Of Scope
 

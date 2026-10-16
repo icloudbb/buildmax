@@ -141,8 +141,8 @@ named, and what an approval or a schedule tells the person. A new visual
 language would leave every one of them in place. The visual gaps that remain
 are consistency gaps: raw status words beside styled labels, default-blue
 links, an emoji icon among line icons, a dialog footer below the fold, and
-color-only diff marks. The shared primitives
-([task 16](../backlog/16-gui-shared-primitives.md)), Desktop convergence
+color-only diff marks. The shared primitives (shipped: fields, menus,
+toasts, loading, one status vocabulary, and the page anatomy), Desktop convergence
 ([task 20](../backlog/20-desktop-gui-convergence.md)), and the screenshot,
 contrast, and jsx-a11y guardrails from phase 1 address them. Phases 3 and 4
 therefore change information, copy, and behavior inside the existing style.
@@ -303,7 +303,7 @@ Desktop's Home.
 | Phase | Outcome | Ready work |
 |---|---|---|
 | 0. Audit | A graded findings report for the Portal and Desktop core journeys, with a visual-language recommendation (done 2026-10-06) | [Portal](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) and [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) reports, kept in history at commit `718a6ab3`; every finding is carried by a phase 3–4 task |
-| 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails (shipped); shared primitives; i18n infrastructure; Desktop on gui primitives | backlog [16](../backlog/16-gui-shared-primitives.md), [20](../backlog/20-desktop-gui-convergence.md) |
+| 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails (shipped); shared primitives, used by every Portal page (shipped; no Portal surface needed a popover, so none was added); i18n infrastructure; Desktop on gui primitives | backlog [20](../backlog/20-desktop-gui-convergence.md) |
 | 2. Visual-language decision | Decided 2026-10-07: refine the current neutral style ([D1](#d1-audit-before-redesign)), and the landing page shows the work that needs the person ([D6](#d6-the-landing-page-shows-the-work-that-needs-the-person)). This record and the page-system record are updated | Decision, not a task |
 | 3. Portal rework | Blocker and Major findings resolved first, alternating with Desktop (tasks 22–36), then the rest | the needs-me landing (shipped), backlog [40](../backlog/40-portal-shell-navigation.md), [42](../backlog/42-portal-work-naming.md), [44](../backlog/44-portal-administration-labels.md), [46](../backlog/46-portal-workflow-authoring.md), [48](../backlog/48-portal-schedule-form.md), [50](../backlog/50-portal-files-and-artifacts.md) |
 | 4. Desktop rework | Same for Desktop; `App.jsx` decomposed where the findings touch it | backlog [52](../backlog/52-desktop-narrow-window-and-first-launch.md), [54](../backlog/54-desktop-diff-and-terminal-tabs.md), [56](../backlog/56-desktop-schedule-form.md), [58](../backlog/58-desktop-needs-me-home.md) |

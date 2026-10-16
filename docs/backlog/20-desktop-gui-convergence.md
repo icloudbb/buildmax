@@ -37,8 +37,8 @@ overlay CSS.
 - Desktop's data layer and Wails bindings.
 - Decomposing `App.jsx` beyond what the overlay migration requires. Phase 4
   rework does that, driven by the audit.
-- Menus, fields, and toasts. Desktop adopts them after
-  [task 16](16-gui-shared-primitives.md) lands, as part of phase 4.
+- Menus, fields, and toasts. They ship in `@buildmax/gui`; Desktop adopts
+  them as part of phase 4.
 
 ## Acceptance Criteria
 

@@ -3,7 +3,7 @@ id: portal-shell-navigation
 title: Make Portal's sidebar real navigation, say each page title once, and follow the OS theme
 roadmap: R6
 source: docs/design/ui-experience-program.md#phases
-depends_on: [16-gui-shared-primitives.md]
+depends_on: []
 verification: ["./make check gui", "./make check portal", "./make check desktop", "./make e2e visual", "./make e2e local"]
 claim:
 pr:
@@ -37,7 +37,7 @@ P27, and Desktop finding D20, which shares P27's cause.
   - **Back to Issues** duplicates the breadcrumb.
   - The Chat placeholder is clipped mid-line at 390 px.
 - Expected: the page-system rule that the shell states scope once and the page
-  owns one real H1, through task 16's `PageHeader` and `DetailHeader`.
+  owns one real H1, through gui's `PageHeader` and `DetailHeader`.
 
 **P23 (Cosmetic). Expected failures are logged as errors.**
 
@@ -65,8 +65,8 @@ preference.**
 
 - Render sidebar destinations as links with `aria-current`, keeping their
   current look.
-- Adopt task 16's anatomy components in the shell and in the Chat and Issue
-  Detail headers. Remove the duplicate back link and the narrow-header
+- Adopt gui's anatomy components in the shell and in the Chat header; Issue
+  Detail already uses `DetailHeader`. Remove the duplicate back link and the narrow-header
   repetition, and fix the placeholder clipping.
 - Remove the expected 401 and 403 requests.
 - Make the theme default follow the OS.
@@ -105,5 +105,5 @@ an Agent with repository knowledge. The full reports are kept in history:
 and
 [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md).
 
-This task depends on task 16 only for P21. If task 16 stalls, P16, P23, and
-P27 can ship as their own change.
+The anatomy components P21 needs ship in `@buildmax/gui`; P16, P23, and P27
+can still ship as their own change.
