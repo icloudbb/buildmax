@@ -1,9 +1,26 @@
-import { type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import {
   Button,
   ButtonLink,
+  CollectionFrame,
+  DetailHeader,
+  EditorActions,
+  Field,
   IconButton,
+  Input,
+  Menu,
+  MenuGroup,
+  MenuItem,
+  MenuItemRadio,
+  MenuSeparator,
+  PageHeader,
+  Select,
+  Skeleton,
+  Spinner,
+  StatusLabel,
+  Textarea,
   ThemeToggle,
+  useToast,
   type ButtonSize,
   type ButtonVariant,
 } from "@buildmax/gui"
@@ -12,9 +29,6 @@ import { CopyButton } from "../../components/CopyButton"
 import { EmptyState } from "../../components/state/EmptyState"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
 import { RevisionHistory } from "../../components/RevisionHistory"
-import { runStatusLabel, runStatusTone } from "../../features/conversations/thread"
-import { statusLabel } from "../../lib/statusLabels"
-import { useT } from "../../i18n"
 import "./Specimen.css"
 
 // The specimen is a design artifact, not part of the app: it renders the shared
@@ -52,25 +66,18 @@ const COLOR_TOKENS = [
 const SPACE_TOKENS = ["--space-1", "--space-2", "--space-3", "--space-4", "--space-6", "--space-8"]
 const RADIUS_TOKENS = ["--radius-control", "--radius-panel"]
 
-// Business status values the collections and details actually persist, and the
-// run status words the execution plane stores. The specimen proves no raw enum
-// reaches a user: every one is passed through the shared label helpers.
-const STATUS_VALUES = [
-  "todo",
-  "in_progress",
-  "done",
-  "blocked",
-  "draft",
-  "published",
-  "archived",
-  "succeeded",
-  "failed",
-  "canceled",
-  "no_runs",
-  "agent_task",
-  "workflow_step",
+// Business, lifecycle, and run status as the server stores them, in either
+// case. The specimen proves no raw enum reaches a user: every one goes through
+// the one status vocabulary, and an unknown value is humanized.
+const STATUS_GROUPS: { title: string; values: string[] }[] = [
+  { title: "Business status", values: ["todo", "in_progress", "done"] },
+  { title: "Lifecycle", values: ["draft", "published", "archived", "no_runs"] },
+  {
+    title: "Run status",
+    values: ["PENDING", "SCHEDULED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELED", "needs_answer"],
+  },
+  { title: "Workflow steps", values: ["retry_wait", "waiting", "blocked", "failing", "canceling", "workflow_step"] },
 ]
-const RUN_STATUSES = ["PENDING", "SCHEDULED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELED"]
 
 const ALERT_TONES: AlertTone[] = ["error", "forbidden", "notFound", "stale"]
 const UNAVAILABLE_KINDS: ResourceUnavailableKind[] = ["notFound", "forbidden", "error"]
@@ -110,8 +117,43 @@ function ButtonRow({ variant, size }: { variant: ButtonVariant; size: ButtonSize
   )
 }
 
+function SpecimenMenu() {
+  const [language, setLanguage] = useState("en")
+  return (
+    <Menu
+      trigger={(props) => (
+        <Button {...props} variant="secondary">
+          Ada Lovelace
+        </Button>
+      )}
+    >
+      <MenuItem onSelect={noop}>Account</MenuItem>
+      <MenuItem onSelect={noop}>Help</MenuItem>
+      <MenuSeparator />
+      <MenuGroup label="Language">
+        <MenuItemRadio checked={language === "en"} onSelect={() => setLanguage("en")}>
+          English
+        </MenuItemRadio>
+        <MenuItemRadio checked={language === "zh-CN"} lang="zh-CN" onSelect={() => setLanguage("zh-CN")}>
+          简体中文
+        </MenuItemRadio>
+      </MenuGroup>
+      <MenuSeparator />
+      <MenuItem onSelect={noop}>Sign out</MenuItem>
+    </Menu>
+  )
+}
+
+function SpecimenToast() {
+  const toast = useToast()
+  return (
+    <Button variant="secondary" onClick={() => toast("Added Release model. It is available to signed-in users now.")}>
+      Show a toast
+    </Button>
+  )
+}
+
 export function Specimen() {
-  const t = useT()
   return (
     <div className="spec-page">
       <header className="spec-head">
@@ -218,26 +260,160 @@ export function Specimen() {
       <Section
         id="status"
         title="Status vocabulary"
-        note="No raw machine enum is ever a user-facing label. Business status uses statusLabel; run status uses runStatusLabel with a coarse tone."
+        note="One function maps a status to its label, whichever case the server stored it in; StatusLabel adds a mark for its tone. The text carries the meaning, never the color."
       >
-        <h3 className="spec-subhead">Business status (statusLabel)</h3>
-        <div className="spec-chips">
-          {STATUS_VALUES.map((value) => (
-            <span className="spec-chip" key={value}>
-              {statusLabel(value)}
-              <code className="spec-chip__raw">{value}</code>
-            </span>
-          ))}
+        {STATUS_GROUPS.map((group) => (
+          <div key={group.title}>
+            <h3 className="spec-subhead">{group.title}</h3>
+            <div className="spec-chips">
+              {group.values.map((value) => (
+                <span className="spec-chip" key={value}>
+                  <StatusLabel status={value} />
+                  <code className="spec-chip__raw">{value}</code>
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </Section>
+
+      <Section
+        id="fields"
+        title="Form fields"
+        note="Field pairs a label with its control and reads its hint and error with it. Input, Select, and Textarea share one geometry, focus, disabled, and invalid look."
+      >
+        <div className="spec-form">
+          <Field label="Title" hint="Shown in the Issue list.">
+            <Input defaultValue="Write the 0.3 release notes" />
+          </Field>
+          <Field label="Name" error="A name is required.">
+            <Input defaultValue="" />
+          </Field>
+          <Field label="Description" optional>
+            <Textarea rows={3} defaultValue="Collect merged pull requests and group them by area." />
+          </Field>
+          <Field label="Status">
+            <Select defaultValue="in_progress">
+              <option value="todo">To do</option>
+              <option value="in_progress">In progress</option>
+              <option value="done">Done</option>
+            </Select>
+          </Field>
+          <Field label="Executor" hint="Only an administrator can change it.">
+            <Input defaultValue="Release writer" disabled />
+          </Field>
+          <Field group label="Notify" hint="Choose any.">
+            <label className="spec-check">
+              <input type="checkbox" defaultChecked /> When a run fails
+            </label>
+            <label className="spec-check">
+              <input type="checkbox" /> When a run succeeds
+            </label>
+          </Field>
+        </div>
+      </Section>
+
+      <Section
+        id="menus"
+        title="Menu"
+        note="Arrow keys move between items, Home and End jump to the ends, Escape closes and returns focus to the button, and Tab or a click outside closes it."
+      >
+        <SpecimenMenu />
+      </Section>
+
+      <Section
+        id="feedback"
+        title="Progress and confirmation"
+        note="Spinner stands in for a section still loading and Skeleton for the shape of rows or a detail; neither claims a count. A toast confirms an effect the page already shows, and is never the only evidence."
+      >
+        <h3 className="spec-subhead">Spinner</h3>
+        <div className="spec-stack">
+          <Spinner />
+          <Spinner label="Loading members…" />
+        </div>
+        <h3 className="spec-subhead">Skeleton</h3>
+        <Skeleton lines={3} />
+        <h3 className="spec-subhead">Toast</h3>
+        <SpecimenToast />
+      </Section>
+
+      <Section
+        id="anatomy"
+        title="Page anatomy"
+        note="A collection leads with its heading and one primary action, a detail with its object's name and status, and an editor keeps Save and Cancel in reach — a sticky bar on narrow screens."
+      >
+        <h3 className="spec-subhead">Collection: PageHeader and CollectionFrame</h3>
+        <div className="spec-stack">
+          <div className="spec-frame">
+            <span className="spec-frame__label">Loading</span>
+            <div className="spec-frame__body">
+              <CollectionFrame label="Issues list (loading)" loading toolbar={<span>0 issues</span>} />
+            </div>
+          </div>
+          <div className="spec-frame">
+            <span className="spec-frame__label">Empty</span>
+            <div className="spec-frame__body">
+              <CollectionFrame
+                label="Issues list (empty)"
+                loading={false}
+                empty={<EmptyState message="No issues yet. Create the first one to start tracking work." />}
+              />
+            </div>
+          </div>
+          <div className="spec-frame">
+            <span className="spec-frame__label">Rows</span>
+            <div className="spec-frame__body">
+              <CollectionFrame
+                label="Issues list"
+                loading={false}
+                toolbar={<span className="spec-muted">2 issues</span>}
+                footer={<span className="spec-muted">Page 1 of 1</span>}
+              >
+                <ul className="spec-rows">
+                  <li>
+                    Write the 0.3 release notes <StatusLabel status="in_progress" />
+                  </li>
+                  <li>
+                    Document the sandbox network tiers <StatusLabel status="todo" />
+                  </li>
+                </ul>
+              </CollectionFrame>
+            </div>
+          </div>
         </div>
 
-        <h3 className="spec-subhead">Run status (runStatusLabel · tone)</h3>
-        <div className="spec-chips">
-          {RUN_STATUSES.map((value) => (
-            <span className={`spec-chip spec-chip--${runStatusTone(value)}`} key={value}>
-              {runStatusLabel(value, t)}
-              <code className="spec-chip__raw">{value}</code>
-            </span>
-          ))}
+        <h3 className="spec-subhead">Object detail: DetailHeader</h3>
+        <div className="spec-frame">
+          <div className="spec-frame__body">
+            <DetailHeader
+              title="Write the 0.3 release notes"
+              status={<StatusLabel status="in_progress" />}
+              meta="Owner: Ada · Executor: Release writer"
+              actions={
+                <>
+                  <ButtonLink variant="tertiary" href="#anatomy">
+                    Back to Issues
+                  </ButtonLink>
+                  <Button variant="secondary">Edit</Button>
+                </>
+              }
+            />
+          </div>
+        </div>
+
+        <h3 className="spec-subhead">Editor: EditorActions</h3>
+        <div className="spec-frame">
+          <div className="spec-frame__body">
+            <div className="spec-form">
+              <Field label="Title">
+                <Input defaultValue="Write the 0.3 release notes" />
+              </Field>
+            </div>
+            <EditorActions>
+              <Button variant="secondary">Cancel</Button>
+              <Button variant="primary">Save changes</Button>
+            </EditorActions>
+          </div>
         </div>
       </Section>
 
@@ -247,7 +423,7 @@ export function Specimen() {
         note="Every remote boundary resolves to exactly one of these. Each carries its own next action, never color alone."
       >
         <h3 className="spec-subhead">Loading</h3>
-        <p className="page-activity__empty">Loading…</p>
+        <Spinner />
 
         <h3 className="spec-subhead">Ready empty</h3>
         <EmptyState message="No schedules yet. Schedule an Agent to run at a set time." />
@@ -360,12 +536,14 @@ export function Specimen() {
             <div className="spec-frame" key={width} style={{ width }}>
               <span className="spec-frame__label">{width}px</span>
               <div className="spec-frame__body">
-                <div className="spec-frame__header">
-                  <h3 className="spec-frame__h1">Issues</h3>
-                  <Button variant="primary" size="compact">
-                    New issue
-                  </Button>
-                </div>
+                <PageHeader
+                  title="Issues"
+                  actions={
+                    <Button variant="primary" size="compact">
+                      New issue
+                    </Button>
+                  }
+                />
                 <EmptyState message="No issues yet. Create the first one to start tracking work." />
               </div>
             </div>

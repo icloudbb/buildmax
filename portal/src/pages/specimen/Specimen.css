@@ -146,19 +146,32 @@
   font-size: 0.7rem;
 }
 
-.spec-chip--running {
-  color: var(--color-status-running);
-  border-color: var(--color-status-running);
+.spec-form {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 32rem;
+  margin-bottom: var(--space-4);
 }
 
-.spec-chip--done {
-  color: var(--color-status-success);
-  border-color: var(--color-status-success);
+.spec-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9rem;
 }
 
-.spec-chip--failed {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
+.spec-rows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spec-rows li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 /* Narrow reflow frames */
@@ -186,19 +199,6 @@
 
 .spec-frame__body {
   padding: var(--space-4);
-}
-
-.spec-frame__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-
-.spec-frame__h1 {
-  margin: 0;
-  font-size: var(--font-size-page);
 }
 
 @media (max-width: 640px) {
