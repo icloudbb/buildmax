@@ -9,22 +9,12 @@
   margin-right: 5rem;
 }
 
+/* The DetailHeader's place in the thread layout; the header lays out itself. */
 .task-thread__header {
   flex-shrink: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
   padding: 0 1rem 1rem;
   border-bottom: 1px solid var(--color-border);
   margin-bottom: 1rem;
-}
-
-.task-thread__header-actions {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
 }
 
 /* Chat history — scrollable message list, takes remaining space */
@@ -317,15 +307,16 @@
   gap: 0.5rem;
 }
 
-.task-card--running {
+/* The card's edge carries the status tone from gui's statusTone. */
+.task-card--active {
   border-left-color: var(--color-status-running);
 }
 
-.task-card--done {
+.task-card--success {
   border-left-color: var(--color-status-success);
 }
 
-.task-card--failed {
+.task-card--danger {
   border-left-color: var(--color-danger);
 }
 
@@ -334,25 +325,6 @@
   align-items: baseline;
   gap: 0.6rem;
   flex-wrap: wrap;
-}
-
-.task-card__status {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-}
-
-.task-card__status--running {
-  color: var(--color-status-running);
-}
-
-.task-card__status--done {
-  color: var(--color-status-success);
-}
-
-.task-card__status--failed {
-  color: var(--color-danger);
 }
 
 .task-card__title {

@@ -1,5 +1,5 @@
-import { useId, type Ref } from "react"
-import { Button, useStatusLabel } from "@buildmax/gui"
+import type { Ref } from "react"
+import { Button, Field, Select, useStatusLabel } from "@buildmax/gui"
 import type { Agent, Workflow } from "../../lib/types"
 import type { PermissionState } from "../../state/permissionState"
 import { useT, type MessageKey } from "../../i18n"
@@ -35,7 +35,6 @@ interface ExecutorFieldProps {
 export function ExecutorField({ value, savedValue, onChange, agents, workflows, manage, onCreateAgent, selectRef }: ExecutorFieldProps) {
   const t = useT()
   const statusLabel = useStatusLabel()
-  const id = useId()
   const allowWorkflows = manage === "allowed"
   // A Workflow already assigned stays listed, labelled with its status, so
   // editing an Issue does not silently drop it; only published ones are new
@@ -52,18 +51,8 @@ export function ExecutorField({ value, savedValue, onChange, agents, workflows, 
   })
 
   return (
-    <div className="issues-page__field">
-      <label className="issues-page__field-label" htmlFor={`${id}-select`}>
-        {t("issues.field.executor")}
-      </label>
-      <select
-        id={`${id}-select`}
-        ref={selectRef}
-        className="issues-page__select"
-        aria-describedby={`${id}-hint`}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
+    <Field label={t("issues.field.executor")} hint={t(HINT_TEXT[hint])}>
+      <Select ref={selectRef} value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">{t("issues.none")}</option>
         {agents.map((agent) => (
           <option key={agent.id} value={`agent:${agent.id}`}>
@@ -77,15 +66,15 @@ export function ExecutorField({ value, savedValue, onChange, agents, workflows, 
               : workflow.name}
           </option>
         ))}
-      </select>
-      <span id={`${id}-hint`} className="issues-page__field-label">
-        {t(HINT_TEXT[hint])}
-      </span>
+      </Select>
+      {/* A block of its own, so the button keeps its width in the field's column. */}
       {hint === "createAgent" ? (
-        <Button variant="secondary" size="compact" className="issues-page__field-action" onClick={onCreateAgent}>
-          {t("issues.executor.createAgent")}
-        </Button>
+        <div>
+          <Button variant="secondary" size="compact" onClick={onCreateAgent}>
+            {t("issues.executor.createAgent")}
+          </Button>
+        </div>
       ) : null}
-    </div>
+    </Field>
   )
 }

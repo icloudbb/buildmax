@@ -72,7 +72,7 @@ test("an Agent run's outcome agrees across Overview, Results, and Runs", async (
   // finished state, not one the poll happened to catch.
   await page.reload()
   const latest = page.getByRole("region", { name: "Latest run" })
-  await expect(latest.locator(".issues-page__status")).toHaveText("Succeeded")
+  await expect(latest.locator(".bm-status")).toHaveText("Succeeded")
   await expect(latest.getByRole("figure", { name: "Agent reply" })).toContainText(REPLY)
   await expect(latest.getByRole("link", { name: "Open Task" })).toHaveAttribute(
     "href",
@@ -93,7 +93,7 @@ test("an Agent run's outcome agrees across Overview, Results, and Runs", async (
   const rows = runs.locator(".workflow-page__run-row")
   await expect(rows).toHaveCount(1)
   await expect(rows.first()).toContainText("Agent run")
-  await expect(rows.first().locator(".issues-page__status")).toHaveText("Succeeded")
+  await expect(rows.first().locator(".bm-status")).toHaveText("Succeeded")
 })
 
 test("a published Workflow run reports its outcome and labelled step output, and a newer Agent run becomes the latest", async ({
@@ -131,18 +131,18 @@ test("a published Workflow run reports its outcome and labelled step output, and
   ).toBeVisible()
   await expect(page.getByText("No result was produced.")).toHaveCount(0)
   const step = page
-    .locator(".issues-page__panel")
+    .locator("section")
     .filter({ has: page.getByRole("heading", { name: "Steps" }) })
     .locator(".workflow-page__step")
     .first()
-  await expect(step.locator(".issues-page__status")).toHaveText("Succeeded")
+  await expect(step.locator(".bm-status")).toHaveText("Succeeded")
   await expect(step.getByRole("figure", { name: "Output" })).toContainText(REPLY)
 
   // The Issue answers with the same run and the same output.
   await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
   const latest = page.getByRole("region", { name: "Latest run" })
   await expect(latest).toContainText("Workflow run")
-  await expect(latest.locator(".issues-page__status")).toHaveText("Succeeded")
+  await expect(latest.locator(".bm-status")).toHaveText("Succeeded")
   await expect(latest.getByRole("figure", { name: "Output of the last step, only" })).toContainText(REPLY)
   await expect(latest.getByRole("link", { name: "Open Run Detail" })).toHaveAttribute(
     "href",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from "react"
-import { useStatusLabel } from "@buildmax/gui"
+import { Spinner, useStatusLabel } from "@buildmax/gui"
 import { buildHash } from "../../router"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import { useRelativeTime } from "../../lib/dateFormat"
@@ -90,7 +90,7 @@ export function NeedsMeSection({ token, spaceId, agents, workflows, onCreateIssu
           retry={error.kind === "forbidden" ? undefined : { label: t("shell.retry"), onClick: load }}
         />
       ) : needs === null ? (
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Spinner />
       ) : count === 0 ? (
         <EmptyState
           message={t("needsMe.empty")}

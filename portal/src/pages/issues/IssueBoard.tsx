@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Button, useStatusLabel } from "@buildmax/gui"
+import { Button, Spinner, statusLabel as statusLabelIn, useLocale, useStatusLabel } from "@buildmax/gui"
 import type { Issue } from "../../lib/types"
 import { buildHash } from "../../router"
 import { ApiRequestError } from "../../lib/api/client"
 import { apiIssueToIssue } from "../../lib/api/mappers"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useRelativeTime } from "../../lib/dateFormat"
-import { useStableT, useT, type MessageKey } from "../../i18n"
+import { useStableT, useT } from "../../i18n"
 import {
   ISSUE_LANES,
   LANE_PAGE_SIZE,
@@ -60,6 +60,13 @@ export function IssueBoard({ token, spaceId, filter, ownerLabel, executorLabel }
   const t = useT()
   const stableT = useStableT()
   const statusLabel = useStatusLabel()
+  // The lane name inside a load error follows the language like stableT does,
+  // without making a language switch reload every lane.
+  const { locale } = useLocale()
+  const localeRef = useRef(locale)
+  useEffect(() => {
+    localeRef.current = locale
+  }, [locale])
   const [lanes, setLanes] = useState<Record<IssueLane, LaneState>>(initialLanes)
   const [moving, setMoving] = useState<Record<string, IssueLane>>({})
   const [announcement, setAnnouncement] = useState<Announcement | null>(null)
@@ -89,7 +96,7 @@ export function IssueBoard({ token, spaceId, filter, ownerLabel, executorLabel }
         })
         .catch((err) => {
           if (seq !== laneSeq.current[lane]) return
-          patchLane(lane, { error: classifyError(err, stableT("issues.board.loadLane", { lane: stableT(`status.${lane}` as MessageKey) })), loading: false })
+          patchLane(lane, { error: classifyError(err, stableT("issues.board.loadLane", { lane: statusLabelIn(lane, localeRef.current) })), loading: false })
         })
     },
     [token, spaceId, stableFilter, patchLane, stableT],
@@ -265,7 +272,7 @@ function BoardLane({ lane, state, spaceId, moving, ownerLabel, executorLabel, on
       </header>
 
       {resource.kind === "loading" ? (
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Spinner />
       ) : resource.kind === "error" || resource.kind === "forbidden" || resource.kind === "notFound" ? (
         <Alert
           tone={resource.kind}

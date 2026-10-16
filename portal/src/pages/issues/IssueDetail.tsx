@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
-import { Button, ButtonLink, useStatusLabel, StatusLabel } from "@buildmax/gui"
+import {
+  Button,
+  ButtonLink,
+  DetailHeader,
+  EditorActions,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+  StatusLabel,
+  Textarea,
+  useStatusLabel,
+} from "@buildmax/gui"
 import type { Agent, Issue, IssueFlow, IssueRun, Task, Workflow } from "../../lib/types"
 import type { ApiIssueComment, ApiIssueFlowResponse, ApiSecret, ApiSpaceMember } from "../../lib/api/types"
 import { buildHash, navigate } from "../../router"
@@ -567,7 +579,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Skeleton />
       </div>
     )
   }
@@ -649,28 +661,27 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{flow.issue.title}</h1>
-          <p className="page-activity__subtitle">
-            {statusLabel(flow.issue.status)} · {ownerLabel(flow.issue) ?? t("issues.detail.unassignedOwner")}
-          </p>
-        </div>
-        <div className="page-activity__actions">
-          <ButtonLink variant="tertiary" href={buildHash({ name: "issues", spaceId })}>
-            {t("issues.detail.back")}
-          </ButtonLink>
-          <Button variant="tertiary" disabled={loading || editing} onClick={() => void load()}>
-            {t("issues.detail.refresh")}
-          </Button>
-          {!editing ? <Button variant="secondary" onClick={() => startEditing(false)}>{t("issues.detail.edit")}</Button> : null}
-        </div>
-      </div>
+      <DetailHeader
+        title={flow.issue.title}
+        status={<StatusLabel status={flow.issue.status} />}
+        meta={ownerLabel(flow.issue) ?? t("issues.detail.unassignedOwner")}
+        actions={
+          <>
+            <ButtonLink variant="tertiary" href={buildHash({ name: "issues", spaceId })}>
+              {t("issues.detail.back")}
+            </ButtonLink>
+            <Button variant="tertiary" disabled={loading || editing} onClick={() => void load()}>
+              {t("issues.detail.refresh")}
+            </Button>
+            {!editing ? <Button variant="secondary" onClick={() => startEditing(false)}>{t("issues.detail.edit")}</Button> : null}
+          </>
+        }
+      />
 
       <section className="issues-page__panel issue-detail-page__summary" aria-label={t("issues.detail.summary")}>
         <div className="issues-page__toolbar">
           <h2 className="issues-page__section-title">{t("issues.tab.overview")}</h2>
-          <span className="issues-page__status">{statusLabel(flow.issue.status)}</span>
+          <StatusLabel status={flow.issue.status} />
         </div>
         <p className="issue-detail-page__description">{flow.issue.description || t("issues.detail.noDescription")}</p>
         {flow.issue.escalation ? (
@@ -719,7 +730,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
               ) : null}
               {latestFailure ? <RunFailureNotice explanation={latestFailure} /> : null}
               {latest.kind === "workflow" && latest.run.errorMessage ? (
-                <p className="modal__error">{latest.run.errorMessage}</p>
+                <p className="run-error">{latest.run.errorMessage}</p>
               ) : null}
               <div className="workflow-run-page__step-actions">
                 {latest.kind === "agent" ? (
@@ -792,7 +803,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
               </Button>
             ) : null}
           </span>
-          {runError ? <p className="modal__error" role="alert">{runError}</p> : null}
+          {runError ? <p className="run-error" role="alert">{runError}</p> : null}
           {startedRun ? (
             <p className="page-activity__meta" role="status">
               {t("issues.detail.runStarted")}{" "}
@@ -842,43 +853,33 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
               {editing ? <section className="issues-page__panel">
                 <div className="issues-page__toolbar">
                   <h2 className="issues-page__section-title">{t("issues.detail.edit")}</h2>
-                  <span className="issues-page__status">{statusLabel(flow.issue.status)}</span>
+                  <StatusLabel status={flow.issue.status} />
                 </div>
                 <div className="issues-page__form">
-                  <label className="issues-page__field">
-                    <span className="issues-page__field-label">{t("issues.field.title")}</span>
-                    <input className="issues-page__input" value={title} onChange={(e) => setTitle(e.target.value)} />
-                  </label>
-                  <label className="issues-page__field">
-                    <span className="issues-page__field-label">{t("issues.field.description")}</span>
-                    <textarea
-                      className="issues-page__textarea"
-                      rows={8}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                    />
-                  </label>
+                  <Field label={t("issues.field.title")}>
+                    <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+                  </Field>
+                  <Field label={t("issues.field.description")}>
+                    <Textarea rows={8} value={description} onChange={(e) => setDescription(e.target.value)} />
+                  </Field>
                   <div className="issue-detail-page__split">
-                    <label className="issues-page__field">
-                      <span className="issues-page__field-label">{t("issues.field.businessStatus")}</span>
-                      <select className="issues-page__select" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
+                    <Field label={t("issues.field.businessStatus")}>
+                      <Select value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
                         <option value="todo">{statusLabel("todo")}</option>
                         <option value="in_progress">{statusLabel("in_progress")}</option>
                         <option value="done">{statusLabel("done")}</option>
-                      </select>
-                    </label>
-                    <label className="issues-page__field">
-                      <span className="issues-page__field-label">{t("issues.field.owner")}</span>
-                      <select className="issues-page__select" value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
+                      </Select>
+                    </Field>
+                    <Field label={t("issues.field.owner")} hint={t("issues.field.ownerHint")}>
+                      <Select value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
                         <option value="">{t("issues.unassigned")}</option>
                         {peopleOnly(members).map((member) => (
                           <option key={member.user_id} value={member.user_id}>
                             {memberLabel(member)}
                           </option>
                         ))}
-                      </select>
-                      <span className="issues-page__field-label">{t("issues.field.ownerHint")}</span>
-                    </label>
+                      </Select>
+                    </Field>
                   </div>
                   <ExecutorField
                     value={executorValue}
@@ -909,7 +910,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                       {t("issues.detail.updatedLine", { time: formatTimestamp(flow.issue.updatedAt) })}
                     </div>
                   </div>
-                  <div className="issues-page__form-actions">
+                  <EditorActions>
                     <Button variant="secondary" disabled={saving} onClick={cancelEditing}>{t("issues.cancel")}</Button>
                     <Button
                       variant="primary"
@@ -919,7 +920,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                     >
                       {t("issues.detail.saveChanges")}
                     </Button>
-                  </div>
+                  </EditorActions>
                   {saveError ? (
                     <p className="page-activity__empty">{saveError}</p>
                   ) : saveMessage ? (
@@ -959,7 +960,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                             <ButtonLink variant="tertiary" href={buildHash({ name: "issue", spaceId, issueId: child.id })}>
                               {child.title}
                             </ButtonLink>
-                            <span className="issues-page__status">{statusLabel(child.status)}</span>
+                            <StatusLabel status={child.status} />
                             <span className="page-activity__meta">{summaryLabel(child)}</span>
                           </li>
                         ))}
@@ -969,8 +970,9 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                         on its own page, so decomposing an issue stays one keystroke
                         per piece. */}
                     <div className="issue-detail-page__child-actions">
-                      <input
-                        className="issues-page__input"
+                      {/* Named by its placeholder: a label saying "title" would be
+                          ambiguous with the edit form's Title field. */}
+                      <Input
                         value={subIssueTitle}
                         placeholder={t("issues.subIssues.placeholder")}
                         onChange={(e) => setSubIssueTitle(e.target.value)}

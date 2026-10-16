@@ -1,4 +1,4 @@
-import { Button, ButtonLink } from "@buildmax/gui"
+import { Button, ButtonLink, Spinner, Textarea } from "@buildmax/gui"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -220,7 +220,7 @@ export function IssueDiscussion({
         </p>
       ) : null}
       {loading ? (
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Spinner />
       ) : comments.length === 0 ? (
         <p className="page-activity__empty">{t("issues.comment.empty")}</p>
       ) : (
@@ -243,8 +243,8 @@ export function IssueDiscussion({
               </div>
               {editingId === comment.id ? (
                 <div className="issue-discussion__composer">
-                  <textarea
-                    className="issues-page__input"
+                  <Textarea
+                    aria-label={t("issues.comment.editLabel")}
                     value={editDraft}
                     maxLength={BODY_LIMIT}
                     rows={4}
@@ -324,8 +324,8 @@ export function IssueDiscussion({
         </ol>
       )}
       <div className="issue-discussion__composer">
-        <textarea
-          className="issues-page__input"
+        <Textarea
+          aria-label={t("issues.comment.placeholder")}
           value={draft}
           maxLength={BODY_LIMIT}
           rows={3}

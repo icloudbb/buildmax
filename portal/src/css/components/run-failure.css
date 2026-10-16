@@ -46,3 +46,11 @@
   color: var(--color-warning);
   font-size: 0.85rem;
 }
+
+/* A run that could not be started, stopped, or retried, or a Workflow run's
+   own error text: not a form field's error, so not a Field's. */
+.run-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+}

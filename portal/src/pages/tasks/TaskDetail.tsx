@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Avatar, BaseModal, Button, ButtonLink, ChatComposer, ChatThread, type ChatThreadItem, useStatusLabel, StatusLabel } from "@buildmax/gui"
+import {
+  Avatar,
+  BaseModal,
+  Button,
+  ButtonLink,
+  ChatComposer,
+  ChatThread,
+  type ChatThreadItem,
+  DetailHeader,
+  Skeleton,
+  Spinner,
+  StatusLabel,
+  useStatusLabel,
+} from "@buildmax/gui"
 import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
@@ -352,7 +365,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Skeleton />
       </div>
     )
   }
@@ -372,36 +385,35 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
 
   return (
     <div className="page-chat task-thread">
-      <header className="task-thread__header">
-        <div>
-          <h1 className="page-activity__title">{task?.title || t("tasks.untitled")}</h1>
-          <p className="page-activity__subtitle">
-            {agentName ? `${agentName} · ` : ""}
-            {task ? statusLabel(taskStatus(task)) : t("tasks.loading")}
-          </p>
-        </div>
-        <div className="task-thread__header-actions">
-          {running ? (
-            <Button variant="danger" busy={stopping} onClick={handleStop}>{t("tasks.stop")}</Button>
-          ) : null}
-          {!running && lastFailure?.leadsWithFix ? (
-            <FailureFixLink explanation={lastFailure} spaceId={spaceId} agentId={task?.agent_id} />
-          ) : null}
-          {!running && runs.length > 0 ? (
-            <Button variant={lastFailure?.leadsWithFix ? "tertiary" : "secondary"} busy={retrying} onClick={handleRetry}>
-              {t("tasks.retryLast")}
+      <DetailHeader
+        className="task-thread__header"
+        title={task?.title || t("tasks.untitled")}
+        status={task ? <StatusLabel status={taskStatus(task)} /> : <Spinner />}
+        meta={agentName}
+        actions={
+          <>
+            {running ? (
+              <Button variant="danger" busy={stopping} onClick={handleStop}>{t("tasks.stop")}</Button>
+            ) : null}
+            {!running && lastFailure?.leadsWithFix ? (
+              <FailureFixLink explanation={lastFailure} spaceId={spaceId} agentId={task?.agent_id} />
+            ) : null}
+            {!running && runs.length > 0 ? (
+              <Button variant={lastFailure?.leadsWithFix ? "tertiary" : "secondary"} busy={retrying} onClick={handleRetry}>
+                {t("tasks.retryLast")}
+              </Button>
+            ) : null}
+            <Button variant="tertiary" aria-haspopup="dialog" onClick={() => setDetailsOpen(true)}>
+              {t("tasks.details")}
             </Button>
-          ) : null}
-          <Button variant="tertiary" aria-haspopup="dialog" onClick={() => setDetailsOpen(true)}>
-            {t("tasks.details")}
-          </Button>
-          {task?.agent_id && lastFailure?.primary !== "fixAgent" && lastFailure?.primary !== "openAgent" ? (
-            <ButtonLink variant="tertiary" href={buildHash({ name: "agent", spaceId, agentId: task.agent_id })}>
-              {t("tasks.openAgent")}
-            </ButtonLink>
-          ) : null}
-        </div>
-      </header>
+            {task?.agent_id && lastFailure?.primary !== "fixAgent" && lastFailure?.primary !== "openAgent" ? (
+              <ButtonLink variant="tertiary" href={buildHash({ name: "agent", spaceId, agentId: task.agent_id })}>
+                {t("tasks.openAgent")}
+              </ButtonLink>
+            ) : null}
+          </>
+        }
+      />
 
       {task ? (
         <BaseModal

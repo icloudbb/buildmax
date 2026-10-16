@@ -151,8 +151,6 @@
 }
 
 .issues-page__filter {
-  display: grid;
-  gap: 0.35rem;
   flex: 0 1 16rem;
   min-width: 10rem;
 }

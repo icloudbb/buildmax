@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { BaseModal, Button, type Translate } from "@buildmax/gui"
+import { BaseModal, Button, Spinner, type Translate } from "@buildmax/gui"
 import type {
   ApiRunProvenance,
   ApiTaskRunLLMCall,
@@ -724,7 +724,7 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
       <div className="modal__body">
         <p className="modal__hint">{taskRunId ?? ""}</p>
         {loading ? (
-          <p className="page-activity__empty">{t("shell.loading")}</p>
+          <Spinner />
         ) : (
           <>
             {/* First and unconditional: a run that wrote no trace still came
