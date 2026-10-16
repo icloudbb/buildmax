@@ -88,7 +88,7 @@ Cilium 在内核中执行 NetworkPolicy，包括 Worker API 边界。kindnet 的
 | 定时任务 | 具有不同 cron 表达式与时区的循环 Agent 定时任务，部分处于暂停状态（位于 BuildMax QA Pagination）；一个带类型化输入的每周 Workflow 定时任务和一个无输入的已暂停 Workflow 定时任务（位于 BuildMax QA）；QA Retired Check 在被调度后归档，其定时任务每分钟启动失败，初始化几分钟后以 `consecutive_failures` 暂停 |
 | 分页与规模 | 独立 Space 中有 105 个 Issue（每种状态 35 个）并有 25 条评论的线程，另有可翻页/滚动的长列表：12 个 Agent、覆盖三种状态的 9 个 Workflow、60 个 Artifact（超过“加载更多”阈值）、8 个额外 Secret 与 8 个定时任务 |
 | 管理规模 | 60 个合成账户（约每八个禁用一个），使管理员 Accounts 页面跨多页且其状态筛选有对应分组；每个账户也会获得个人 Space |
-| 执行（`--runs`） | Conversation 对话、含 Continue/Retry 的 Task、Issue Agent 结果、两步骤 Workflow 结果、worker trace 与 workspace checkpoint；QA Release Readiness 的一次成功运行与一次取消运行；FAILED 的 QA Blocked Agent Task；CANCELED 的对话 Task；Alice 个人 Space 中一个 webhook 渠道的对话；QA Release Sign-off 的审批分别被回答、被拒绝、仍在等待、以及随整个运行被取消的运行；QA Clarify Scope 一个已回答、一个等待中的提问运行；一个等待回答的 QA Writer 直接 Task 和一个通过 Continue 回答的 Task；请求过期、运行截止、关卡重试与步骤超时的 Workflow 运行，均为 `failed`；Carol 的一个 Task 保持 `RUNNING` 约十分钟，供管理员运行时视图和她的停用影响查看 |
+| 执行（`--runs`） | Conversation 对话、含 Continue/Retry 的 Task、Issue Agent 结果、两步骤 Workflow 结果、worker trace 与 workspace checkpoint；QA Release Readiness 的一次成功运行与一次取消运行；FAILED 的 QA Blocked Agent Task，以及 Alice 负责的 Issue Unblock the QA endpoint report，其 Agent 运行被 blocked Agent 失败，因此她的 **等待你处理** 区块会列出需要关注的工作；CANCELED 的对话 Task；Alice 个人 Space 中一个 webhook 渠道的对话；QA Release Sign-off 的审批分别被回答、被拒绝、仍在等待、以及随整个运行被取消的运行；QA Clarify Scope 一个已回答、一个等待中的提问运行；一个等待回答的 QA Writer 直接 Task 和一个通过 Continue 回答的 Task；请求过期、运行截止、关卡重试与步骤超时的 Workflow 运行，均为 `failed`；Carol 的一个 Task 保持 `RUNNING` 约十分钟，供管理员运行时视图和她的停用影响查看 |
 
 ```bash
 ./make kind fixtures --runs

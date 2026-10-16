@@ -42,9 +42,10 @@ BuildMax CLI 或 Desktop 可以通过 Portal 登录，因此它从不经手你�
 
 - 顶部的 **space 切换器**。你的个人 space 列在 *Personal* 下
   （在你重命名之前它叫 *My Space*）；共享 space 列在 *Spaces* 下。**+** 按钮可创建一个新 space。
-- **Home** —— 入口。在这里描述你想完成的工作来开始一段对话。见
+- **Chat** —— 描述你想完成的工作来开始一段对话。见
   [对话与 Issue](对话与Issue.md)。
-- **Issues** —— 当前 space 中工作项的列表。
+- **Issues** —— Portal 打开时所在的页面：先是当前 space 中
+  [等待你处理](对话与Issue.md#等待你处理)的工作，然后是该 space 的工作项。
 - **Workflows** —— 可复用的分步计划。见
   [Agent 与 Workflow](Agent与工作流.md)。
 - **Agents** —— 已保存、可复用的 Agent 定义。

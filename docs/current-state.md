@@ -952,7 +952,17 @@ in the URL. Board projects top-level Issues into fixed To do, In progress, and
 Done lanes, each its own filtered query with its own total, paging, and failure
 state; a card moves through a named action that sends the ordinary versioned
 status update, so a stale card is refused and nothing is run. Board has no drag,
-rank, or stored lane. A component
+rank, or stored lane. Issues is Portal's default Space destination: sign-in, the
+bare `#/`, and the way back from not-found and Administration land on it. It
+opens with **Waiting on you**, one read of `GET /api/spaces/{space_id}/needs-me`
+(`internal/service/needsme`): open Issues the caller owns whose latest run
+failed or awaits an answer, or that have a pending Workflow request; the
+caller's Tasks — created, requested through a Space Assistant, or started on an
+Issue they own — whose latest run failed or ended on questions; and every
+pending Workflow request in the Space. Each group holds up to ten items and its
+total, nothing is stored to dismiss an item, and a Workflow step's Task is left
+to its Workflow run. It is Space-scoped; Desktop's Home does not use it yet. A
+component
 specimen is now served at `/specimen`, outside the authenticated shell: it
 renders the shared action grammar, semantic tokens, status vocabulary, and every
 resource state once, in both themes, reusing the real components. A non-author

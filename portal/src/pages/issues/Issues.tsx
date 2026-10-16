@@ -9,6 +9,7 @@ import { useStableT, useT } from "../../i18n"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../lib/api/mappers"
 import { collectionFilter, createIssue, getIssues } from "../../features/issues"
 import { IssueBoard } from "./IssueBoard"
+import { NeedsMeSection } from "../../features/needsMe"
 import { getAgents } from "../../features/agents"
 import { getSpaceMembers, peopleOnly } from "../../features/spaces/api"
 import { getWorkflows } from "../../features/workflows"
@@ -224,6 +225,19 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
           </Button>
         </div>
       </div>
+
+      {/* The page a person lands on leads with what waits on them; see
+          docs/design/portal-navigation-and-space-context.md. */}
+      <NeedsMeSection
+        token={token}
+        spaceId={spaceId}
+        agents={agents}
+        workflows={workflows}
+        onCreateIssue={() => {
+          setCreateError(null)
+          setCreateOpen(true)
+        }}
+      />
 
       {(issuesState.kind === "error" ||
         issuesState.kind === "forbidden" ||

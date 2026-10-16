@@ -231,7 +231,7 @@ test("accepting an invitation makes the joined Space current, with its own role,
     await expect(otherRow).toBeVisible()
 
     await member.page.getByRole("button", { name: `Open ${teamName}` }).click()
-    await expect(member.page).toHaveURL(new RegExp(`#/spaces/${team.id}/chat$`))
+    await expect(member.page).toHaveURL(new RegExp(`#/spaces/${team.id}/issues$`))
 
     // The role is the one granted here, not the owner role the member holds in
     // their own Space: no Agent management is offered.

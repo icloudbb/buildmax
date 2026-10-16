@@ -22,16 +22,16 @@ const NO_SUCH_ISSUE = "bbbbbbbbbbbbbbbbbbbb"
 
 test("an unrecognized hash renders not-found, never Chat", async ({ page }) => {
   // Ensures the account's Spaces are resolved before navigating to the bad
-  // hash, so "Back to Chat" below has a real Space id to land on rather than
+  // hash, so "Back to Issues" below has a real Space id to land on rather than
   // racing SpaceContext's own first load.
   await session(page)
   await page.goto("/#/this/does/not/exist")
   await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible()
   await expect(page.getByRole("textbox", { name: "What would you like to do?" })).toHaveCount(0)
 
-  // The one safe action works and lands on a real Space's Chat.
-  await page.getByRole("button", { name: "Back to Chat" }).click()
-  await expect(page).toHaveURL(/#\/spaces\/[^/]+\/chat$/)
+  // The one safe action works and lands on a real Space's default destination.
+  await page.getByRole("button", { name: "Back to Issues" }).click()
+  await expect(page).toHaveURL(/#\/spaces\/[^/]+\/issues$/)
 })
 
 test("an incomplete Space-scoped path renders not-found", async ({ page }) => {

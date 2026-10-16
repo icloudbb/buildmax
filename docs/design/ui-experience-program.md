@@ -289,12 +289,14 @@ the question in one request:
 
 The [navigation record](portal-navigation-and-space-context.md#alternatives-rejected)
 rejected a dashboard built without an authoritative aggregate query, and that
-reason still holds. The audit now supplies the operator questions; the query
-does not exist yet. So the query, what makes a run "mine", and which page hosts
-the result are designed before they are built.
-[Task 38](../backlog/38-portal-needs-me-landing.md) carries that design and the
-Portal build. [Task 58](../backlog/58-desktop-needs-me-home.md) brings the same
-answer to Desktop's Home.
+reason still holds. The audit supplied the operator questions, so the query,
+what makes a run "mine", and the host page were designed before they were
+built. *Approved 2026-10-12 and shipped:* the navigation record's
+[needs-me section](portal-navigation-and-space-context.md#landing-on-the-work-that-needs-you)
+defines one Space-scoped read, `GET /api/spaces/{space_id}/needs-me`, and makes
+the Issues page, topped by that section, Portal's default Space destination.
+[Task 58](../backlog/58-desktop-needs-me-home.md) brings the same answer to
+Desktop's Home.
 
 ## Phases
 
@@ -303,7 +305,7 @@ answer to Desktop's Home.
 | 0. Audit | A graded findings report for the Portal and Desktop core journeys, with a visual-language recommendation (done 2026-10-06) | [Portal](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) and [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) reports, kept in history at commit `718a6ab3`; every finding is carried by a phase 3–4 task |
 | 1. Foundation | Defined tokens with lint enforcement; visual-regression and contrast guardrails (shipped); shared primitives; i18n infrastructure; Desktop on gui primitives | backlog [16](../backlog/16-gui-shared-primitives.md), [20](../backlog/20-desktop-gui-convergence.md) |
 | 2. Visual-language decision | Decided 2026-10-07: refine the current neutral style ([D1](#d1-audit-before-redesign)), and the landing page shows the work that needs the person ([D6](#d6-the-landing-page-shows-the-work-that-needs-the-person)). This record and the page-system record are updated | Decision, not a task |
-| 3. Portal rework | Blocker and Major findings resolved first, alternating with Desktop (tasks 22–36), then the rest | backlog [38](../backlog/38-portal-needs-me-landing.md), [40](../backlog/40-portal-shell-navigation.md), [42](../backlog/42-portal-work-naming.md), [44](../backlog/44-portal-administration-labels.md), [46](../backlog/46-portal-workflow-authoring.md), [48](../backlog/48-portal-schedule-form.md), [50](../backlog/50-portal-files-and-artifacts.md) |
+| 3. Portal rework | Blocker and Major findings resolved first, alternating with Desktop (tasks 22–36), then the rest | the needs-me landing (shipped), backlog [40](../backlog/40-portal-shell-navigation.md), [42](../backlog/42-portal-work-naming.md), [44](../backlog/44-portal-administration-labels.md), [46](../backlog/46-portal-workflow-authoring.md), [48](../backlog/48-portal-schedule-form.md), [50](../backlog/50-portal-files-and-artifacts.md) |
 | 4. Desktop rework | Same for Desktop; `App.jsx` decomposed where the findings touch it | backlog [52](../backlog/52-desktop-narrow-window-and-first-launch.md), [54](../backlog/54-desktop-diff-and-terminal-tabs.md), [56](../backlog/56-desktop-schedule-form.md), [58](../backlog/58-desktop-needs-me-home.md) |
 | 5. Chinese and re-audit | Complete `zh-CN` catalogs (shipped); the phase 0 journeys re-run in both locales and compared with the baseline: the [Portal](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) and [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) reports at commit `718a6ab3` | The re-audit is drafted after phases 3–4 |
 
@@ -379,5 +381,7 @@ shipped in that record as they land.
 - **Default Space landing page.** *Resolved in phase 2:* the question is not
   Chat or Issues but what the landing shows. Whatever page a signed-in person
   lands on shows the work that needs them; see
-  [D6](#d6-the-landing-page-shows-the-work-that-needs-the-person). Which page
-  hosts it is part of task 38's design.
+  [D6](#d6-the-landing-page-shows-the-work-that-needs-the-person). Issues
+  hosts it and is the default destination, as the
+  [navigation record](portal-navigation-and-space-context.md#landing-on-the-work-that-needs-you)
+  decides.

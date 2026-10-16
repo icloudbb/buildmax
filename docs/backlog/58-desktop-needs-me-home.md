@@ -3,7 +3,7 @@ id: desktop-needs-me-home
 title: Show the work that needs the signed-in person on Desktop's Home
 roadmap: R6
 source: docs/design/ui-experience-program.md#d6-the-landing-page-shows-the-work-that-needs-the-person
-depends_on: [38-portal-needs-me-landing.md]
+depends_on: []
 verification: ["./make test", "./make e2e desktop", "./make check desktop", "./make e2e desktop-ui"]
 claim:
 pr:
@@ -12,7 +12,8 @@ pr:
 ## Outcome
 
 When Desktop is signed in to a server, its Home shows what is waiting on the
-person: the same four groups that task 38 defines, across their Spaces. Each
+person: the same four groups `GET /api/spaces/{space_id}/needs-me` returns,
+across their Spaces. Each
 item opens where it is resolved. This applies the program's D6 decision to
 the first screen Desktop shows.
 
@@ -30,7 +31,8 @@ over every Space the person belongs to, using `owner=me` and the
 
 ## Scope
 
-- Bind a method that calls task 38's query for each of the person's Spaces,
+- Bind a method that calls `GET /api/spaces/{space_id}/needs-me` for each of
+  the person's Spaces,
   the same way `ListMyIssues` fans out. Report a Space that fails as a
   warning, not as an empty result.
 - On Home, while signed in, show the groups with counts. Each item opens where
@@ -41,8 +43,9 @@ over every Space the person belongs to, using `owner=me` and the
 
 ## Out Of Scope
 
-- Defining "needs me", which task 38's design owns. This task reuses it
-  unchanged.
+- Defining "needs me", which the
+  [navigation record](../design/portal-navigation-and-space-context.md#landing-on-the-work-that-needs-you)
+  and `internal/service/needsme` own. This task reuses it unchanged.
 - Notifications or background polling beyond Home's existing refresh.
 
 ## Acceptance Criteria
@@ -63,7 +66,9 @@ over every Space the person belongs to, using `owner=me` and the
 
 ## Notes
 
-This task depends on task 38, which designs and ships the server query.
+The server query ships in `internal/service/needsme`; Portal's Issues page
+is its first reader. A Workflow step's question is listed as the pending
+Workflow request it opened, not as a run.
 
 Audit context: the phase 0 Desktop audit ran on 2026-10-06 against `main` at
 `e98efc7a`. It drove `./make run desktop-dev` through the browser bridge on

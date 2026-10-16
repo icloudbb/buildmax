@@ -356,7 +356,8 @@ shared overlays proceed in parallel. The audit of the core journeys found no
 Blocker and eight Major findings across the two surfaces. On 2026-10-07 the
 maintainer chose to refine the current visual language rather than replace it,
 and decided that whatever page a signed-in person lands on shows the work that
-needs them; no page does that today. Token integrity is done: every referenced
+needs them. Portal now does: it lands on Issues, which opens with what is
+waiting on the person in that Space; Desktop's Home does not yet. Token integrity is done: every referenced
 token is defined for both themes, and Stylelint rejects raw colors and
 undefined custom properties in all three packages. The visual and
 accessibility guardrails are done too: every pull request compares Portal and

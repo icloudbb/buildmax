@@ -123,8 +123,79 @@ func seedFixtureOutcomes(ctx context.Context, client *http.Client, target smokeT
 	if err := waitForTaskStatus(ctx, client, base+"/tasks/"+task.ID, token, "FAILED", 2*time.Minute); err != nil {
 		return fmt.Errorf("%s task: %w", fixtureBlockedAgent, err)
 	}
+	if err := seedFixtureAttentionIssue(ctx, client, base, token, blockedID); err != nil {
+		return err
+	}
 
 	return seedFixtureCancellations(ctx, target, base, token, conversationTasks, runsURL, !seen["canceled"])
+}
+
+// fixtureAttentionIssue is an Issue Alice owns whose Agent run the blocked
+// Agent's disabled Secret refuses, so her landing page has owned work that
+// needs attention. See docs/design/portal-navigation-and-space-context.md.
+const fixtureAttentionIssue = "Unblock the QA endpoint report"
+
+// seedFixtureAttentionIssue creates that Issue, assigned to Alice and run by
+// the blocked Agent, and leaves its one Agent run FAILED. It is matched by
+// title, and an existing run is reused.
+func seedFixtureAttentionIssue(ctx context.Context, client *http.Client, base, token, blockedID string) error {
+	var members []struct {
+		UserID    string `json:"user_id"`
+		UserEmail string `json:"user_email"`
+	}
+	if err := requestJSON(ctx, client, http.MethodGet, base+"/members", token, nil, &members, http.StatusOK); err != nil {
+		return err
+	}
+	alice := ""
+	for _, m := range members {
+		if m.UserEmail == "alice@buildmax.local" {
+			alice = m.UserID
+		}
+	}
+	if alice == "" {
+		return fmt.Errorf("the attention Issue fixture needs Alice in the QA space")
+	}
+	issues, err := fixturePage[fxIssue](ctx, client, base+"/issues", token, "issues")
+	if err != nil {
+		return err
+	}
+	var issue fxIssue
+	for _, existing := range issues {
+		if existing.Title == fixtureAttentionIssue {
+			issue = existing
+		}
+	}
+	if issue.ID == "" {
+		body := map[string]string{
+			"title":         fixtureAttentionIssue,
+			"description":   "The blocked Agent's run fails until its Secret grant is fixed.",
+			"owner_id":      alice,
+			"executor_kind": "agent",
+			"executor_id":   blockedID,
+		}
+		if err := requestJSON(ctx, client, http.MethodPost, base+"/issues", token, body, &issue, http.StatusCreated); err != nil {
+			return err
+		}
+	}
+	issueURL := base + "/issues/" + url.PathEscape(issue.ID)
+	var flow struct {
+		Runs []struct {
+			Task *fxTask `json:"task"`
+		} `json:"runs"`
+	}
+	if err := requestJSON(ctx, client, http.MethodGet, issueURL+"/flow", token, nil, &flow, http.StatusOK); err != nil {
+		return err
+	}
+	var task fxTask
+	if len(flow.Runs) > 0 && flow.Runs[0].Task != nil {
+		task = *flow.Runs[0].Task
+	} else if err := requestJSON(ctx, client, http.MethodPost, issueURL+"/agent-runs", token, map[string]string{"input": fixtureFailedInput}, &task, http.StatusCreated); err != nil {
+		return err
+	}
+	if err := waitForTaskStatus(ctx, client, base+"/tasks/"+task.ID, token, "FAILED", 2*time.Minute); err != nil {
+		return fmt.Errorf("%s run: %w", fixtureAttentionIssue, err)
+	}
+	return nil
 }
 
 // seedFixtureCancellations cancels a conversation Task and a WorkflowRun while

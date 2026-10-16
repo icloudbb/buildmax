@@ -5,7 +5,7 @@ tracked and handed to an agent. This page walks through both.
 
 ## Start a conversation
 
-**Chat** is the front door. Type what you want done in the composer — for example,
+Open **Chat** in the sidebar to start one. Type what you want done in the composer — for example,
 *"Help me analyze last month's sales data"* — and send it (Enter to send,
 Shift+Enter for a new line). A conversation can answer you directly, or, when the
 work is bigger, start background work and show you the result when it's ready.
@@ -31,6 +31,34 @@ with it instead of **Retry last run** (see [Issue Detail](#issue-detail)). When
 the agent stopped to ask you something, the status reads **Needs your answer**
 and the questions close its output; answer them with **Continue**, in your own
 words.
+
+## Waiting on you
+
+The Portal opens on **Issues**: signing in, the bare Portal address, and
+**Back to space** all land there. The top of the page, **Waiting on you**, lists
+what in the current space needs you, in up to four groups:
+
+- **Your Issues that need attention** — open issues you own whose latest run
+  failed or is waiting for an answer, or whose workflow is waiting on a request.
+- **Runs waiting for your answer** — runs that stopped to ask you something.
+  **Answer** opens the run, where you reply with **Continue**.
+- **Workflow requests to answer** — every pending workflow request in the
+  space, oldest first. Any member may answer one; the first answer counts.
+  **Respond** opens the workflow run, where the request is answered or
+  declined.
+- **Failed runs** — runs whose latest turn failed, with the reason. **Open run**
+  shows the failure and its fix.
+
+A run counts as yours when you started it, asked for it through a Space
+Assistant, or own the issue it was started on. A workflow step's run is not
+listed on its own: its question or failure belongs to its workflow run. Each
+group shows up to ten items and how many there are in all.
+
+Nothing here needs dismissing. An item leaves the list when the work moves on:
+answering, retrying, or continuing a run, or answering a request. Marking an
+issue done also removes it. When nothing is waiting, the section says so and
+offers **Create an Issue**. It lists the current space only; switch spaces to see
+another.
 
 ## Create an issue
 

@@ -224,6 +224,8 @@ internal/
 │   ├── identity/       What proves who a caller is: verifying a credential and
 │   │                   opening the session it earns
 │   ├── issue/          Issue service
+│   ├── needsme/        What in a Space waits on one person: attention Issues,
+│   │                   failed and asking runs, pending Workflow requests
 │   ├── task/           Task and task_run service
 │   ├── schedule/       Cron parsing and timezone handling for recurring
 │   │                   schedules — the library and DST logic core excludes

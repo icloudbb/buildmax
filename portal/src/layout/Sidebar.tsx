@@ -384,7 +384,7 @@ export function SidebarNavContent({
         </div>
         <div className="sidebar__group">
           <button type="button" className="sidebar__nav-item" disabled={!currentSpaceId} onClick={() => {
-            if (currentSpaceId) go({ name: "chat", spaceId: currentSpaceId })
+            if (currentSpaceId) go({ name: "issues", spaceId: currentSpaceId })
           }}>
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">{t("shell.nav.backToSpace")}</span>

@@ -17,7 +17,9 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 test("the New Chat page has no horizontal overflow and its composer and tabs are reachable", async ({ page }) => {
-  await session(page)
+  const current = await session(page)
+  // Issues is the landing page; Chat is one click away.
+  await page.goto(`/#/spaces/${current.spaceId}/chat`)
 
   await expect(page.getByRole("heading", { name: "Chat", level: 1 })).toBeVisible()
   await expect(page.getByRole("textbox", { name: "What would you like to do?" })).toBeVisible()

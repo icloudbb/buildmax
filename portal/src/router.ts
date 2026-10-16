@@ -171,13 +171,13 @@ export function parseHash(hash: string, currentSpaceId: string): Route {
     return parseSpaceScopedRoute(parts[1], parts.slice(2), new URLSearchParams(search))
   }
 
-  // Bare `#/` is the one legitimate empty path: the Space's Chat. Anything
-  // else here matched no route at all -- a genuinely unknown address, not a
-  // fallback to guess from. The pre-Space-prefix hash shapes this used to
-  // redirect were bounded to the migration and are gone now that
-  // docs/design/portal-navigation-and-space-context.md is fully implemented.
+  // Bare `#/` is the one legitimate empty path: the Space's default
+  // destination, Issues, which leads with the work waiting on the person.
+  // Anything else here matched no route at all -- a genuinely unknown address,
+  // not a fallback to guess from. See
+  // docs/design/portal-navigation-and-space-context.md.
   if (parts.length === 0) {
-    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.chat])
+    return parseSpaceScopedRoute(currentSpaceId, [SEGMENT.issues])
   }
   return { name: "notFound" }
 }

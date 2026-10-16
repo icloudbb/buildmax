@@ -144,6 +144,30 @@ type ChildStats struct {
 	Done  int `json:"done"`
 }
 
+// AttentionReason says why an Issue is waiting on its owner. It is derived
+// from the Issue's runs on every read, never stored, so it clears the moment
+// the work moves on: there is nothing to dismiss.
+type AttentionReason string
+
+const (
+	// AttentionRunFailed is an Issue whose latest run failed.
+	AttentionRunFailed AttentionReason = "run_failed"
+	// AttentionAwaitingAnswer is an Issue whose latest run is an Agent run
+	// that ended on questions for the person to answer.
+	AttentionAwaitingAnswer AttentionReason = "awaiting_answer"
+	// AttentionWorkflowRequest is an Issue one of whose Workflow runs waits on
+	// a pending request.
+	AttentionWorkflowRequest AttentionReason = "workflow_request"
+)
+
+// Attention is an Issue that needs its owner, and why. See
+// docs/design/portal-navigation-and-space-context.md, "Landing on the work
+// that needs you".
+type Attention struct {
+	Issue  Issue
+	Reason AttentionReason
+}
+
 // ErrVersionConflict means the issue moved on between the read and the write.
 // Both update methods return it rather than applying a change built from a
 // version of the issue that no longer exists.
@@ -160,6 +184,12 @@ type Store interface {
 	// Parents with no children are absent from the map rather than present with
 	// a zero value, so callers must treat a miss as "no sub-issues".
 	ChildStatsForIssues(ctx context.Context, issueIDs []string) (map[string]ChildStats, error)
+	// ListIssuesNeedingOwner returns the Space's Issues ownerID owns that need
+	// attention: the latest of an Issue's Agent runs and Workflow runs (in the
+	// order its run list uses, leaving out Tasks a Workflow step dispatched)
+	// failed or awaits an answer, or one of its Workflow runs has a pending
+	// request. Most recently updated first, at most limit, with the total.
+	ListIssuesNeedingOwner(ctx context.Context, spaceID, ownerID string, limit int) ([]Attention, int, error)
 	GetIssue(ctx context.Context, issueID string) (*Issue, error)
 	UpdateIssue(ctx context.Context, issueID, userID string, in UpdateInput) (*Issue, error)
 	UpdateIssueInSpace(ctx context.Context, issueID, spaceID string, in UpdateInput) (*Issue, error)

@@ -25,7 +25,7 @@ export const commonMessages = {
 
     "common.notFound.title": "Page not found",
     "common.notFound.body": "Nothing here matches this address. It may be mistyped, or a link from before a rename.",
-    "common.notFound.back": "Back to Chat",
+    "common.notFound.back": "Back to Issues",
 
     "common.space.createIntro": "Create a new shared space for agents, workflows, issues, and conversations.",
     "common.space.namePlaceholder": "e.g. Design, Ops, Research",
@@ -63,7 +63,7 @@ export const commonMessages = {
 
     "common.notFound.title": "未找到页面",
     "common.notFound.body": "没有与此地址匹配的内容。地址可能有误，或是重命名之前的链接。",
-    "common.notFound.back": "返回对话",
+    "common.notFound.back": "返回 Issue",
 
     "common.space.createIntro": "创建一个新的共享 Space，用于管理 Agent、Workflow、Issue 和对话。",
     "common.space.namePlaceholder": "例如：设计、运维、研究",

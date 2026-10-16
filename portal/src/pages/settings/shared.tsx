@@ -904,7 +904,7 @@ export function AccountInvitationsSection({
           <Button
             variant="secondary"
             size="compact"
-            onClick={() => navigate({ name: "chat", spaceId: joinedSpace.spaceId })}
+            onClick={() => navigate({ name: "issues", spaceId: joinedSpace.spaceId })}
           >
             {t("account.invitations.open", { space: joinedSpace.name })}
           </Button>

@@ -11,6 +11,25 @@ import (
 // MockIssueStore is an in-memory IssueStore for tests.
 type MockIssueStore struct {
 	Issues []coreissue.Issue
+	// Attention says which Issues need their owner and why. The mock holds no
+	// runs to derive it from, so a test states it.
+	Attention map[string]coreissue.AttentionReason
+}
+
+func (m *MockIssueStore) ListIssuesNeedingOwner(_ context.Context, spaceID, ownerID string, limit int) ([]coreissue.Attention, int, error) {
+	var out []coreissue.Attention
+	for _, issue := range m.Issues {
+		reason, ok := m.Attention[issue.ID]
+		if !ok || issue.SpaceID != spaceID || issue.OwnerID == nil || *issue.OwnerID != ownerID || issue.Status == coreissue.StatusDone {
+			continue
+		}
+		out = append(out, coreissue.Attention{Issue: issue, Reason: reason})
+	}
+	total := len(out)
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, total, nil
 }
 
 func (m *MockIssueStore) CreateIssue(_ context.Context, userID string, in coreissue.CreateInput) (*coreissue.Issue, error) {

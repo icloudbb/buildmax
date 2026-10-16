@@ -55,9 +55,11 @@ client. If less than an hour of your Portal session is left, the page offers
 - **Space switcher** at the top. Your personal space is listed under *Personal*
   (it is called *My Space* until you rename it); shared spaces are listed under
   *Spaces*. The **+** button creates a new space.
-- **Home** — the front door. Start a conversation here by describing what you
-  want done. See [Conversations & issues](portal-issues.md).
-- **Issues** — the list of work items in the current space.
+- **Chat** — start a conversation by describing what you want done. See
+  [Conversations & issues](portal-issues.md).
+- **Issues** — where the Portal opens: what is
+  [waiting on you](portal-issues.md#waiting-on-you) in the current space, then
+  the space's work items.
 - **Workflows** — reusable, step-by-step plans. See
   [Agents & workflows](portal-agents-workflows.md).
 - **Agents** — saved, reusable agent definitions.

@@ -46,6 +46,14 @@ Portal owns the cloud/space lane:
   in `portal/src/features/nativeSignIn/model.ts`. The SSO button passes the
   current hash route as `return_to` so the OIDC callback lands back on it.
 - Pages live under `portal/src/pages/*`.
+- Issues is the default Space destination: the bare `#/`, the first page after
+  sign-in, the not-found page's way back, and Administration's return to a
+  Space all resolve to it. Its first section, **Waiting on you**
+  (`features/needsMe/`), renders `GET /api/spaces/{space_id}/needs-me` as four
+  groups whose items link to where each is resolved: the Issue, the Task page,
+  or the Workflow run that holds the request. `internal/service/needsme` owns
+  what counts; Portal only presents it, and loading never reads as nothing
+  waiting.
 - `/specimen` is a design and review artifact, not a product page: it renders the
   shared action grammar, semantic tokens, status vocabulary, and every resource
   state once, reusing the real components so a reviewer can confirm each role and

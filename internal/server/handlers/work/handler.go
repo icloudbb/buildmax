@@ -33,6 +33,7 @@ import (
 	"github.com/icloudbb/buildmax/internal/service/audit"
 	"github.com/icloudbb/buildmax/internal/service/conversation"
 	"github.com/icloudbb/buildmax/internal/service/issue"
+	"github.com/icloudbb/buildmax/internal/service/needsme"
 	"github.com/icloudbb/buildmax/internal/service/quota"
 	"github.com/icloudbb/buildmax/internal/service/task"
 	"github.com/icloudbb/buildmax/internal/service/workflow"
@@ -106,6 +107,7 @@ type Handler struct {
 	issues        *issue.Service
 	agents        *agentsvc.Service
 	workflows     *workflow.Service
+	needsMe       *needsme.Service
 }
 
 // New builds the work surface. A nil Hub or Turns gets one of its own, which
@@ -124,6 +126,8 @@ func New(cfg Config) *Handler {
 	h.conversations = newConversationService(cfg, h.tasks, h.workflows)
 	h.issues = newIssueService(cfg)
 	h.agents = newWorkAgentService(cfg)
+	// A nil store converts to a nil reader, which leaves its group empty.
+	h.needsMe = &needsme.Service{Issues: cfg.Issues, Tasks: cfg.Tasks, Requests: cfg.Workflows, Members: cfg.Spaces}
 	return h
 }
 
@@ -151,6 +155,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/spaces/{space_id}/issues/{issue_id}/comments/{comment_id}", h.deleteIssueCommentHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/issues/{issue_id}/agent-runs", h.createIssueAgentRunHandler)
 	mux.HandleFunc("POST /api/spaces/{space_id}/issues/{issue_id}/workflow-runs", h.createIssueWorkflowRunHandler)
+
+	// What in the Space is waiting on the caller
+	mux.HandleFunc("GET /api/spaces/{space_id}/needs-me", h.needsMeHandler)
 
 	// Workflows
 	mux.HandleFunc("GET /api/spaces/{space_id}/workflows", h.listWorkflowsHandler)

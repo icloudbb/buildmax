@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/icloudbb/buildmax/internal/core/apierr"
@@ -227,7 +228,6 @@ func (s *Store) ListIssueAgentTasks(ctx context.Context, issueID string, limit, 
 	if err != nil {
 		return nil, 0, err
 	}
-	const notWorkflowStep = "NOT EXISTS (SELECT 1 FROM workflow_node_run WHERE workflow_node_run.task_id = task.id)"
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&taskRow{}).Where("task.issue_id = ?", issueKey).Where(notWorkflowStep).Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -296,6 +296,53 @@ func (s *Store) ListTasksBySchedule(ctx context.Context, spaceID, scheduleID str
 	err = s.taskSelect(ctx).
 		Where("task.space_id = ? AND task.schedule_id = ?", spaceKey, scheduleKey).
 		Order("task.created_at DESC").Limit(limit).Offset(offset).Find(&list).Error
+	return toTasks(list), int(total), err
+}
+
+// notWorkflowStep leaves out a Task a Workflow step dispatched: that Task
+// belongs to its Workflow run, which owns its retry and its questions.
+const notWorkflowStep = "NOT EXISTS (SELECT 1 FROM workflow_node_run WHERE workflow_node_run.task_id = task.id)"
+
+// ListTasksWaitingOn returns a Space's Tasks in wait that belong to one
+// person, most recently ended first. "Belongs" is the creator, the person
+// behind a Space Assistant dispatch, or the owner of the origin Issue.
+func (s *Store) ListTasksWaitingOn(ctx context.Context, spaceID, userID string, wait coretask.Wait, limit int) ([]coretask.Task, int, error) {
+	limit, _ = clampPage(limit, 0)
+	var state string
+	switch wait {
+	case coretask.WaitFailed:
+		state = "task.status = '" + string(coretask.RunStatusFailed) + "'"
+	case coretask.WaitAnswer:
+		state = "task.awaiting_answer = TRUE"
+	default:
+		return nil, 0, fmt.Errorf("unknown task wait %q", wait)
+	}
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	scope := func(q *gorm.DB) *gorm.DB {
+		return q.Where("task.space_id = ?", spaceKey).Where(state).Where(notWorkflowStep).
+			Where("(task.created_by = ? OR task.requested_by = ? OR EXISTS "+
+				"(SELECT 1 FROM issue owned WHERE owned.id = task.issue_id AND owned.owner_id = ?))",
+				userKey, userKey, userKey)
+	}
+	var total int64
+	if err := scope(s.db.WithContext(ctx).Model(&taskRow{})).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []taskReadRow
+	err = scope(s.taskSelect(ctx)).Order("task.ended_at DESC, task.id DESC").Limit(limit).Find(&list).Error
 	return toTasks(list), int(total), err
 }
 

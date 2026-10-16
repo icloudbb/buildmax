@@ -280,6 +280,8 @@ export interface WorkflowNodeRun {
 export interface WorkflowRequest {
   id: string
   workflowRunId: string
+  /** The Workflow whose run asks. */
+  workflowId: string
   nodeRunId: string
   nodeId: string
   kind: string

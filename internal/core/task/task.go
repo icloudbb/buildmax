@@ -286,6 +286,17 @@ const (
 	SecretItemMissing SecretProblem = "item_missing"
 )
 
+// Wait is what a Task's latest run leaves for a person to do.
+type Wait string
+
+const (
+	// WaitFailed is a Task whose latest run failed. A retry or a continue
+	// creates a newer run, which clears it.
+	WaitFailed Wait = "failed"
+	// WaitAnswer is a Task whose latest run ended on AskUser questions.
+	WaitAnswer Wait = "answer"
+)
+
 // Task holds the user-visible state for a background task.
 type Task struct {
 	ID string `json:"id"`
@@ -631,6 +642,12 @@ type Store interface {
 	// first, scoped to the space so a schedule id cannot read another space's
 	// tasks. total is the count ignoring limit and offset.
 	ListTasksBySchedule(ctx context.Context, spaceID, scheduleID string, limit, offset int) ([]Task, int, error)
+	// ListTasksWaitingOn returns the Space's Tasks in wait that are userID's:
+	// they created it, asked for it through a Space Assistant (RequestedBy),
+	// or own the Issue it was started on. Tasks a Workflow step dispatched are
+	// left out, because their retry and their questions belong to the Workflow
+	// run. Most recently ended first, at most limit, with the total.
+	ListTasksWaitingOn(ctx context.Context, spaceID, userID string, wait Wait, limit int) ([]Task, int, error)
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
 	// CreateTask creates a new task and its first Run (input, title, PENDING). Returns the task with last_run_id set.
