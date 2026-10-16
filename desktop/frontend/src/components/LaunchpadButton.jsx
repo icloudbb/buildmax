@@ -1,18 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { CloseIcon, RocketIcon } from '@buildmax/gui';
 import { getApp } from '../lib/app';
 import { useT } from '../i18n';
-
-// RocketIcon — the launchpad glyph.
-function RocketIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2" />
-      <path d="M13.5 4.5C16 2 20 2 22 2s0 4-2.5 6.5L14 14l-4-4 3.5-5.5Z" />
-      <path d="M10 10l-4 1 3 3 1-4Z" />
-      <circle cx="15.5" cy="8.5" r="1.2" />
-    </svg>
-  );
-}
 
 // LaunchpadButton is a global status-bar control: a popover of user-defined
 // quick-launch applications. Clicking an entry hands its target to the OS via the
@@ -162,7 +151,7 @@ export function LaunchpadButton() {
                   aria-label={t('launchpad.removeEntry', { name: e.name })}
                   onClick={() => remove(e.id)}
                 >
-                  ×
+                  <CloseIcon />
                 </button>
               </div>
             ))

@@ -95,23 +95,6 @@
   color: var(--color-text-muted);
 }
 
-.page-home__primary {
-  flex-shrink: 0;
-  padding: 0.5rem 1.25rem;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-text);
-  color: var(--color-bg);
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.page-home__primary:hover {
-  opacity: 0.85;
-}
-
 .page-home__grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
@@ -204,101 +187,13 @@
   }
 }
 
-/* Create project modal */
+/* The New Project dialog's folder picker: a field that shows the chosen path. */
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-panel {
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  width: 26rem;
-  max-width: calc(100vw - 2rem);
-  box-shadow: var(--shadow-modal);
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem 0.75rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.modal-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border: none;
-  border-radius: 5px;
-  background: none;
-  font-size: 1.1rem;
-  color: var(--color-text-subtle);
-  cursor: pointer;
-  padding: 0;
-}
-
-.modal-close:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text);
-}
-
-.modal-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 1rem 1.25rem;
-}
-
-.modal-label {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--color-text-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.modal-input {
+.folder-picker {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-input-border);
-  border-radius: 6px;
-  background: var(--color-input-bg);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.9rem;
-  box-sizing: border-box;
-}
-
-.modal-input:focus {
-  outline: none;
-  border-color: var(--color-text-muted);
-}
-
-.modal-browse-btn {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px dashed var(--color-border);
-  border-radius: 6px;
+  border: 1px dashed var(--color-input-border);
+  border-radius: var(--radius-control);
   background: none;
   text-align: left;
   font: inherit;
@@ -306,92 +201,25 @@
   color: var(--color-text-subtle);
   cursor: pointer;
   overflow: hidden;
-  box-sizing: border-box;
 }
 
-.modal-browse-btn:hover {
+.folder-picker:hover {
   border-color: var(--color-text-muted);
   color: var(--color-text);
 }
 
-.modal-browse-path {
+.folder-picker:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.folder-picker__path {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--color-text);
   font-weight: 500;
-}
-
-.modal-browse-placeholder {
-  color: var(--color-text-subtle);
-}
-
-.modal-field-error {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--color-danger);
-}
-
-.modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem 1rem;
-  border-top: 1px solid var(--color-border);
-}
-
-.modal-btn {
-  padding: 0.45rem 1rem;
-  border-radius: 6px;
-  font: inherit;
-  font-size: 0.88rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.modal-btn--cancel {
-  border: 1px solid var(--color-border);
-  background: none;
-  color: var(--color-text-muted);
-}
-
-.modal-btn--cancel:hover {
-  color: var(--color-text);
-  border-color: var(--color-text-muted);
-}
-
-.modal-btn--primary {
-  border: none;
-  background: var(--color-text);
-  color: var(--color-bg);
-}
-
-.modal-btn--primary:not(:disabled):hover {
-  opacity: 0.85;
-}
-
-.modal-btn--primary:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* Solid red for an irreversible confirm, so the destructive click is
-   unmistakable next to the neutral Cancel. */
-.modal-btn--danger {
-  border: none;
-  background: var(--color-danger);
-  color: var(--color-danger-text);
-}
-
-.modal-btn--danger:not(:disabled):hover {
-  filter: brightness(1.08);
-}
-
-.modal-btn--danger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* Confirmation dialog body: the sentence(s) explaining what is about to happen. */
@@ -401,7 +229,7 @@
   line-height: 1.45;
 }
 
-/* A danger info modal accents its header red (used by ConfirmModal). */
-.info-modal-panel--danger .modal-title {
+/* A destructive confirmation titles itself in red. */
+.confirm-modal .modal__title {
   color: var(--color-danger);
 }

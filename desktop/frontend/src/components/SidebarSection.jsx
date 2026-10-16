@@ -1,4 +1,4 @@
-import { Chevron } from './icons';
+import { ChevronDownIcon, ChevronRightIcon } from '@buildmax/gui';
 import { AttentionDot } from './TabBar';
 
 // SidebarSectionHeader is the one header every sidebar section uses: a
@@ -14,7 +14,7 @@ export function SidebarSectionHeader({ label, open, onToggle, title, children, a
         aria-expanded={open}
         title={title}
       >
-        <Chevron open={open} />
+        {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
         <span className="sidebar__section-label">{label}</span>
         {attention && !open && <AttentionDot />}
       </button>

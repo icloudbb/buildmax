@@ -7,14 +7,24 @@
 // tabs, copying the path.
 
 import { useState } from 'react';
+import {
+  ChatIcon, CloseIcon, DiffIcon, FileIcon, GlobeIcon, MaximizeIcon, PlusIcon, RestoreIcon, SplitDownIcon, SplitRightIcon,
+  TerminalIcon,
+} from '@buildmax/gui';
 import { useT } from '../i18n';
 
 const KIND_ICON = {
-  chat: '💬',
-  terminal: '>_',
-  file: '📄',
-  diff: '±',
+  chat: ChatIcon,
+  terminal: TerminalIcon,
+  file: FileIcon,
+  diff: DiffIcon,
+  browser: GlobeIcon,
 };
+
+function KindIcon({ kind }) {
+  const Icon = KIND_ICON[kind];
+  return Icon ? <Icon /> : null;
+}
 
 // dropBeforeKey turns a drop on a tab into the key to insert in front of: the
 // tab itself when the pointer is on its left half, the next tab (or null, the
@@ -44,24 +54,6 @@ function tabTitle(tab, t) {
 function tabTooltip(tab, t) {
   if (tab.kind === 'diff' && tab.commit) return t('chat.tabs.atCommit', { path: tab.path, commit: tab.commit.slice(0, 8) });
   return (tab.kind === 'file' || tab.kind === 'diff') ? (tab.ref || tab.title) : tabTitle(tab, t);
-}
-
-// The familiar four-corner glyphs: arrows out to the corners for maximize,
-// arrows in to the centre for restore.
-function MaximizeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 9V4h5M4 4l6 6M20 9V4h-5M20 4l-6 6M4 15v5h5M4 20l6-6M20 15v5h-5M20 20l-6-6" />
-    </svg>
-  );
-}
-
-function RestoreIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M10 4v6H4M10 10L4 4M14 4v6h6M14 10l6-6M10 20v-6H4M10 14l-6 6M14 20v-6h6M14 14l6 6" />
-    </svg>
-  );
 }
 
 export function AttentionDot() {
@@ -169,7 +161,7 @@ export function TabBar({
               // file/diff tab it pins it (there is nothing to rename).
               onDoubleClick={() => (isRenamable(tab) ? startRename(tab) : onPin?.(tab.key))}
             >
-              <span className="workspace-tabs__tab-icon" aria-hidden>{KIND_ICON[tab.kind] ?? ''}</span>
+              <span className="workspace-tabs__tab-icon" aria-hidden><KindIcon kind={tab.kind} /></span>
               <span className="workspace-tabs__tab-title">{tabTitle(tab, t)}</span>
               {/* The active tab shows its own prompt; a tab behind it has no
                   other way to say its run is stopped on the user. */}
@@ -185,7 +177,7 @@ export function TabBar({
               aria-label={t('chat.tabs.close', { title: tabTitle(tab, t) })}
               onClick={() => onClose(tab.key)}
             >
-              ×
+              <CloseIcon />
             </button>
           )}
         </div>
@@ -198,7 +190,7 @@ export function TabBar({
           aria-label={t('chat.tabs.newChat')}
           onClick={onNewTab}
         >
-          +
+          <PlusIcon />
         </button>
       )}
       {(onSplitRight || onSplitDown || onToggleMaximize) && (
@@ -222,7 +214,7 @@ export function TabBar({
               aria-label={t('chat.tabs.splitRightLabel')}
               onClick={onSplitRight}
             >
-              ◫
+              <SplitRightIcon />
             </button>
           )}
           {onSplitDown && (
@@ -233,7 +225,7 @@ export function TabBar({
               aria-label={t('chat.tabs.splitDownLabel')}
               onClick={onSplitDown}
             >
-              ⊟
+              <SplitDownIcon />
             </button>
           )}
         </div>

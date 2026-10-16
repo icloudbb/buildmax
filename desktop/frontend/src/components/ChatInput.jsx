@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChatComposer } from '@buildmax/gui';
+import { ChatComposer, InfoIcon } from '@buildmax/gui';
 import { formatTokenCount } from '../lib/format';
 import { ApprovalPanel } from './ApprovalPanel';
 import { QuestionPanel } from './QuestionPanel';
@@ -494,11 +494,7 @@ export function ChatInput({ draft = null, onDraftConsumed, onSend, onCancel, loa
             title={t('chat.sessionInfo')}
             aria-label={t('chat.sessionInfo')}
           >
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 11v5" />
-              <circle cx="12" cy="7.75" r="0.6" fill="currentColor" stroke="none" />
-            </svg>
+            <InfoIcon width={15} height={15} />
           </button>
         )}
 

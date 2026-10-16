@@ -1,7 +1,7 @@
 import { ExplorerTree } from './ExplorerTree';
 import { ExplorerChanges } from './ExplorerChanges';
 import { SidebarSectionHeader } from './SidebarSection';
-import { FilesIcon, SourceControlIcon } from './icons';
+import { FilesIcon, SourceControlIcon } from '@buildmax/gui';
 import { useT } from '../i18n';
 
 const MODES = [

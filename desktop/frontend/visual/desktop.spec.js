@@ -50,8 +50,8 @@ const views = [
     name: 'new-project',
     bridge: fresh,
     open: async (page) => {
-      await page.locator('.page-home__primary').click()
-      await expect(page.locator('.modal-panel').getByRole('heading', { name: 'New Project' })).toBeVisible()
+      await page.locator('.page-home__header').getByRole('button', { name: 'New Project' }).click()
+      await expect(page.getByRole('dialog', { name: 'New Project' }).getByRole('heading', { name: 'New Project' })).toBeVisible()
     },
   },
   {

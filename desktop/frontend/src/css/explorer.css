@@ -55,8 +55,8 @@
   color: var(--color-text-subtle);
 }
 
-.explorer .file-tree__caret .icon,
-.explorer .file-tree__icon .icon {
+.explorer .file-tree__caret .bm-icon,
+.explorer .file-tree__icon .bm-icon {
   width: 14px;
   height: 14px;
 }
@@ -145,7 +145,7 @@
   color: var(--color-text);
 }
 
-.explorer__group .icon {
+.explorer__group .bm-icon {
   width: 13px;
   height: 13px;
 }
@@ -221,7 +221,7 @@
   color: var(--color-text);
 }
 
-.explorer__commit .icon {
+.explorer__commit .bm-icon {
   width: 14px;
   height: 14px;
   flex-shrink: 0;

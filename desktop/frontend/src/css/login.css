@@ -103,44 +103,6 @@
   color: var(--color-danger);
 }
 
-.login-page__submit {
-  font: inherit;
-  font-size: 0.95rem;
-  padding: 0.5rem 1rem;
-  margin-top: 0.25rem;
-  background: var(--color-primary);
-  color: var(--color-primary-text);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.login-page__submit:hover:not(:disabled) {
-  opacity: 0.9;
-  filter: brightness(1.1);
-}
-
-.login-page__submit:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.login-page__link {
-  font: inherit;
-  font-size: 0.85rem;
-  padding: 0;
-  margin-top: 0.25rem;
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.login-page__link:hover {
-  color: var(--color-text);
-}
-
 /* Sits right under the field it explains, so the negative margin pulls it out
    of the form's own row gap. */
 .login-page__field-hint {
@@ -168,24 +130,7 @@
 }
 
 .login-page__local {
-  font: inherit;
-  font-size: 0.95rem;
   width: 100%;
-  padding: 0.5rem 1rem;
-  background: none;
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.login-page__local:hover:not(:disabled) {
-  border-color: var(--color-primary);
-}
-
-.login-page__local:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 
 .login-page__local-hint {
@@ -203,26 +148,6 @@
 
 /* A way in that is offered but not the lead one: the browser below the
    password form, or the password form behind the browser. */
-.login-page__secondary {
-  font: inherit;
-  font-size: 0.95rem;
-  width: 100%;
-  padding: 0.5rem 1rem;
-  background: none;
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.login-page__secondary:hover:not(:disabled) {
-  border-color: var(--color-primary);
-}
-
-.login-page__secondary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
 
 .login-page__alternative {
   margin-bottom: 0.75rem;

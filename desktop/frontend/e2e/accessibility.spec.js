@@ -32,8 +32,8 @@ for (const theme of ['light', 'dark']) {
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     await expectAccessible(page)
 
-    await page.locator('.page-home__primary').click()
-    await expect(page.locator('.modal-panel')).toBeVisible()
+    await page.locator('.page-home__header').getByRole('button', { name: 'New Project' }).click()
+    await expect(page.getByRole('dialog', { name: 'New Project' })).toBeVisible()
     await expectAccessible(page)
   })
 }

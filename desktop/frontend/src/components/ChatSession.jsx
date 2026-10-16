@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ChatThread } from '@buildmax/gui';
+import { ChatThread, CloseIcon } from '@buildmax/gui';
 import { toolCallTarget } from '../lib/format';
 import { addLiveToolCall, addLiveToolResult, appendAssistantForNextLLM, mergeRunStatus } from '../lib/messages';
 import { messageThreadItems } from '../lib/threadItems';
@@ -426,7 +426,7 @@ export function ChatSession({
               title={t('shell.close')}
               aria-label={t('chat.closeSessionInfo')}
             >
-              ✕
+              <CloseIcon />
             </button>
           </div>
           <div className="chat-info__body">

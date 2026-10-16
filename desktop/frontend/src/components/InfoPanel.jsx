@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatTokenCount, formatBytes } from '../lib/format';
-import { MemoryView } from './MemoryDrawer';
+import { MemoryView } from './MemoryView';
 import { useT } from '../i18n';
 
 // buildStatRows turns the /info session payload into labelled lines, matching

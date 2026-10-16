@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LOCALES, LOCALE_NAMES, ThemeToggle, useLocale } from '@buildmax/gui';
+import { Button, LOCALES, LOCALE_NAMES, ThemeToggle, useLocale } from '@buildmax/gui';
 import { getApp } from './lib/app';
 import { signInLayout } from './lib/signInLayout';
 import { EventsOn } from './lib/wailsRuntime';
@@ -210,16 +210,16 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
           <p className="login-page__code" aria-labelledby="login-code-label">{waiting.user_code}</p>
           <p className="login-page__waiting" role="status">{t('login.waiting.status')}</p>
           <div className="login-page__form">
-            <button type="button" className="login-page__secondary" onClick={() => app?.OpenBrowserSignInAgain?.()}>
+            <Button onClick={() => app?.OpenBrowserSignInAgain?.()}>
               {t('login.waiting.reopen')}
-            </button>
-            <button type="button" className="login-page__secondary" onClick={copyLink}>
+            </Button>
+            <Button onClick={copyLink}>
               {t('login.waiting.copy')}
-            </button>
+            </Button>
             {copied ? <p className="login-page__field-hint" role="status">{t('login.waiting.copied')}</p> : null}
-            <button type="button" className="login-page__link" onClick={cancelBrowserSignIn}>
+            <Button variant="tertiary" onClick={cancelBrowserSignIn}>
               {t('login.waiting.cancel')}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -230,14 +230,13 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
   const browserLabel = layout.provider ? t('login.browser.provider', { provider: layout.provider }) : t('login.browser');
   const browserButton = (primary) => (
     <>
-      <button
-        type="button"
-        className={primary ? 'login-page__submit' : 'login-page__secondary'}
+      <Button
+        variant={primary ? 'primary' : 'secondary'}
         onClick={startBrowserSignIn}
         disabled={busy || !server}
       >
         {starting ? t('login.browser.starting') : browserLabel}
-      </button>
+      </Button>
       {browserError ? <p className="login-page__error" role="alert">{browserError}</p> : null}
     </>
   );
@@ -289,21 +288,16 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
       )}
 
       {error && <p className="login-page__error" role="alert">{error}</p>}
-      <button
+      <Button
         type="submit"
-        className={layout.password === 'first' ? 'login-page__submit' : 'login-page__secondary'}
+        variant={layout.password === 'first' ? 'primary' : 'secondary'}
         disabled={busy || !server || !email.trim() || !credential}
       >
         {loading ? t('login.signingIn') : t('login.signIn')}
-      </button>
-      <button
-        type="button"
-        className="login-page__link"
-        onClick={switchMode}
-        disabled={busy}
-      >
+      </Button>
+      <Button variant="tertiary" onClick={switchMode} disabled={busy}>
         {mode === 'password' ? t('login.toCode') : t('login.toPassword')}
-      </button>
+      </Button>
     </form>
   );
 
@@ -315,9 +309,9 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
   if (!ready && !unreachable) {
     methodsSection = (
       <div className="login-page__form">
-        <button type="submit" form="login-server-form" className="login-page__submit" disabled={checking || busy || !server}>
+        <Button type="submit" form="login-server-form" variant="primary" disabled={checking || busy || !server}>
           {checking ? t('login.checking') : t('login.continue')}
-        </button>
+        </Button>
       </div>
     );
   } else if (unreachable) {
@@ -327,9 +321,9 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
           {t('login.unreachable', { server: answered.server })}
           <span className="login-page__error-detail">{answered.error}</span>
         </p>
-        <button type="button" className="login-page__secondary" onClick={() => loadMethods(server)}>
+        <Button onClick={() => loadMethods(server)}>
           {t('login.retry')}
-        </button>
+        </Button>
       </div>
     );
   } else if (layout.password === 'first') {
@@ -340,9 +334,9 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
         {browserButton(true)}
         {layout.password === 'behind' ? (
           adminPassword ? passwordForm : (
-            <button type="button" className="login-page__link" onClick={() => setAdminPassword(true)} disabled={busy}>
+            <Button variant="tertiary" onClick={() => setAdminPassword(true)} disabled={busy}>
               {t('login.adminPassword')}
-            </button>
+            </Button>
           )
         ) : null}
       </div>
@@ -392,14 +386,9 @@ export default function LoginPage({ onLogin, onCancel, expiredDetail = '', accou
         {ready && layout.password === 'first' ? (
           <div className="login-page__form login-page__alternative">{browserButton(false)}</div>
         ) : null}
-        <button
-          type="button"
-          className="login-page__local"
-          onClick={onCancel}
-          disabled={busy}
-        >
+        <Button className="login-page__local" onClick={onCancel} disabled={busy}>
           {expiredDetail ? t('login.signOutLocal') : t('login.keepLocal')}
-        </button>
+        </Button>
         <p className="login-page__local-hint">
           {t('login.localHint')}
           {expiredDetail ? t('login.localHint.expired') : t('login.localHint.stay')}

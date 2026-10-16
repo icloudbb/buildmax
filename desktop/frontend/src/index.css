@@ -1,4 +1,8 @@
 @import '@buildmax/gui/theme.css';
+@import '@buildmax/gui/button.css';
+@import '@buildmax/gui/modal.css';
+@import '@buildmax/gui/drawer.css';
+@import '@buildmax/gui/field.css';
 @import '@buildmax/gui/widgets.css';
 @import './css/layout.css';
 @import './css/sidebar.css';

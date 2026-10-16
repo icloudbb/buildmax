@@ -54,14 +54,6 @@
   color: var(--color-danger);
 }
 
-.page-schedules__banner button {
-  border: none;
-  background: none;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-}
-
 .page-schedules__grid {
   display: grid;
   grid-template-columns: minmax(18rem, 0.8fr) minmax(0, 1.2fr);
@@ -133,56 +125,8 @@
   align-items: center;
 }
 
-.page-schedules__primary {
-  padding: 0.5rem 1.1rem;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-text);
-  color: var(--color-bg);
-  font: inherit;
-  font-size: 0.88rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.page-schedules__primary:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.page-schedules__ghost {
-  padding: 0.4rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: none;
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.82rem;
-  cursor: pointer;
-}
-
-.page-schedules__ghost:hover {
-  border-color: var(--color-text-muted);
-}
-
 /* Delete is destructive, so it reads as danger at rest, not only on hover: a
    red outline and red text set it apart from the neutral Pause/Edit ghosts. */
-.page-schedules__danger {
-  padding: 0.4rem 0.75rem;
-  border: 1px solid var(--color-danger);
-  border-radius: 6px;
-  background: none;
-  color: var(--color-danger);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.page-schedules__danger:hover {
-  background: var(--color-danger);
-  color: var(--color-danger-text);
-}
 
 /* The delete-confirm dialog's warning line, in danger red. */
 .page-schedules__confirm-warn {
@@ -410,12 +354,10 @@
 /* Run-detail modal: the fired run's conversation in the full chat UI. The
    embedded ChatSession (.page-chat) fills a fixed height so its thread scrolls
    and its composer, model picker, and context gauge stay pinned below. */
-/* The run-detail modal holds a full chat, so it opts into a wide, tall panel
-   rather than the default 34rem info modal. */
-.info-modal-panel--wide {
-  width: 60rem;
-  max-width: calc(100vw - 3rem);
-  max-height: 88vh;
+/* The run-detail modal holds a full chat, so it opts into a wide panel rather
+   than the default large modal. */
+.modal.schedule-run-modal {
+  max-width: min(60rem, calc(100vw - 3rem));
 }
 
 .schedule-run-chat {

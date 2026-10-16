@@ -1,4 +1,4 @@
-import { useLocale } from '@buildmax/gui';
+import { Button, useLocale } from '@buildmax/gui';
 import { folderBaseName, formatSessionMeta } from '../lib/format';
 import { useT } from '../i18n';
 
@@ -12,9 +12,9 @@ export function HomeDashboard({ recentSessions, recentProjects, projectById, onS
           <h1 className="page-home__title">{t('home.title')}</h1>
           <p className="page-home__subtitle">{t('home.subtitle')}</p>
         </div>
-        <button type="button" className="page-home__primary" onClick={onCreateProject}>
+        <Button variant="primary" onClick={onCreateProject}>
           {t('shell.newProject')}
-        </button>
+        </Button>
       </div>
 
       <div className="page-home__grid">

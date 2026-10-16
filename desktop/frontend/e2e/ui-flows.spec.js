@@ -10,12 +10,11 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('opens and closes the New Project modal', async ({ page }) => {
-  // Not getByRole('button', { name: 'New Project' }): the sidebar has its own
-  // "New Project" entry point (icon-only when the list is non-empty, a
-  // labeled button in the empty state this fresh sandbox always shows), so
-  // that name is not unique. This is the "Continue your work" header button.
-  await page.locator('.page-home__primary').click()
-  const modal = page.locator('.modal-panel')
+  // Scoped to the page header: the sidebar has its own "New Project" entry
+  // point (icon-only when the list is non-empty, a labeled button in the empty
+  // state this fresh sandbox always shows), so that name is not unique.
+  await page.locator('.page-home__header').getByRole('button', { name: 'New Project' }).click()
+  const modal = page.getByRole('dialog', { name: 'New Project' })
   await expect(modal).toBeVisible()
   await expect(modal.getByRole('heading', { name: 'New Project' })).toBeVisible()
 
@@ -39,20 +38,20 @@ test('toggles the theme from the status bar', async ({ page }) => {
 })
 
 test('the New Project form keeps Create disabled until a folder is chosen', async ({ page }) => {
-  await page.locator('.page-home__primary').click()
-  const modal = page.locator('.modal-panel')
+  await page.locator('.page-home__header').getByRole('button', { name: 'New Project' }).click()
+  const modal = page.getByRole('dialog', { name: 'New Project' })
   await expect(modal).toBeVisible()
 
   // A name alone is not enough: the folder comes only from the native picker
   // (OpenFolderDialog), which this suite never opens, so Create stays disabled.
   // fill, not a keypress: pressing Enter with an empty name opens that picker.
-  const create = modal.locator('.modal-btn--primary')
+  const create = modal.getByRole('button', { name: 'Create Project' })
   await expect(create).toBeDisabled()
   await modal.locator('#proj-name').fill('probe project')
   await expect(create).toBeDisabled()
 
   // The × closes it, a mouse path the Escape test does not cover.
-  await modal.locator('.modal-close').click()
+  await modal.getByRole('button', { name: 'Close' }).click()
   await expect(modal).toBeHidden()
 })
 
@@ -85,7 +84,7 @@ test('opening the server sign-in and cancelling returns to local mode', async ({
   await expect(login).toBeVisible()
   // Sign in stays disabled with no credentials, and the submit is never clicked
   // here: it calls the Go Login binding. Cancel is pure in-app state.
-  await expect(login.locator('.login-page__submit')).toBeDisabled()
+  await expect(login.locator('.bm-button--primary')).toBeDisabled()
 
   await login.locator('.login-page__local').click()
   await expect(login).toBeHidden()
