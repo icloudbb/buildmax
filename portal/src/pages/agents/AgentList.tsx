@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, StatusLabel } from "@buildmax/gui"
 import type { Agent } from "../../lib/types"
 import type { ApiTask } from "../../lib/api/types"
 import { navigate } from "../../router"
@@ -7,7 +7,7 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiTaskToTask } from "../../lib/api/mappers"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
 import { formatSuccessRate, getAgents, successRate as rateOf } from "../../features/agents"
-import { runStatusTone, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
+import { taskRunFinished, taskStatus } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
 import { RunAgentModal } from "../../components/RunAgentModal"
@@ -300,9 +300,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                         <span className="agent-activity__row-title">{ui.title}</span>
                         <span className="agent-activity__row-sub">{agent.name}</span>
                       </div>
-                      <span className={`agent-activity__status agent-activity__status--${runStatusTone(task.status)}`}>
-                        {taskStatusLabel(task, t)}
-                      </span>
+                      <StatusLabel status={taskStatus(task)} />
                       <span className="agent-activity__time">{relativeTime(ui.timeAt)}</span>
                     </button>
                   )

@@ -1,8 +1,7 @@
 import { useId, type Ref } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, useStatusLabel } from "@buildmax/gui"
 import type { Agent, Workflow } from "../../lib/types"
 import type { PermissionState } from "../../state/permissionState"
-import { useStatusLabel } from "../../lib/statusLabels"
 import { useT, type MessageKey } from "../../i18n"
 import { executorHint, type ExecutorHint } from "./execution"
 

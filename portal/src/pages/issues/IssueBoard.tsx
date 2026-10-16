@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, useStatusLabel } from "@buildmax/gui"
 import type { Issue } from "../../lib/types"
 import { buildHash } from "../../router"
 import { ApiRequestError } from "../../lib/api/client"
 import { apiIssueToIssue } from "../../lib/api/mappers"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { useStatusLabel } from "../../lib/statusLabels"
 import { useRelativeTime } from "../../lib/dateFormat"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import {

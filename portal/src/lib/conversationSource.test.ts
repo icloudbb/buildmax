@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { conversationSourceLabel } from "./statusLabels"
+import { conversationSourceLabel } from "./conversationSource"
 
 describe("conversationSourceLabel", () => {
   it.each([

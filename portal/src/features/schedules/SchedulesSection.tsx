@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, StatusLabel } from "@buildmax/gui"
 import type { ApiAssistant, ApiSchedule, ApiScheduleDelivery, ApiTask, ApiWorkflowRun } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { Alert } from "../../components/state/Alert"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiTaskToTask } from "../../lib/api/mappers"
-import { runStatusLabel, runStatusTone, taskStatusLabel } from "../conversations/thread"
+import { taskStatus } from "../conversations/thread"
 import { listAssistants } from "../assistants"
 import { CreateScheduleForm } from "./CreateScheduleForm"
 import { describeDelivery } from "./delivery"
@@ -321,9 +321,7 @@ function ScheduleCard({
                 >
                   <td className="agent-runs__title">{r.id}</td>
                   <td>
-                    <span className={`agent-runs__status agent-runs__status--${runStatusTone(r.status)}`}>
-                      {runStatusLabel(r.status, t)}
-                    </span>
+                    <StatusLabel status={r.status} />
                   </td>
                   <td className="agent-runs__when">{formatWhen(r.created_at)}</td>
                   {deliveries ? <td>{describeDelivery(deliveries[r.id], t)}</td> : null}
@@ -355,9 +353,7 @@ function ScheduleCard({
                   >
                     <td className="agent-runs__title">{ui.title}</td>
                     <td>
-                      <span className={`agent-runs__status agent-runs__status--${runStatusTone(task.status)}`}>
-                        {taskStatusLabel(task, t)}
-                      </span>
+                      <StatusLabel status={taskStatus(task)} />
                     </td>
                     <td className="agent-runs__when">{relativeTime(ui.timeAt)}</td>
                     {deliveries ? <td>{describeDelivery(deliveries[task.id], t)}</td> : null}

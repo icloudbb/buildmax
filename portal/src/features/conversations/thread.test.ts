@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ApiConversationMessage, ApiTask } from "../../lib/api/types"
-import { translate, type MessageKey } from "../../i18n"
-import { buildConversationThread, runStatusLabel, taskRunFailed, taskRunFinished, taskStatusLabel } from "./thread"
-
-const en = (key: MessageKey) => translate("en", key)
-const zh = (key: MessageKey) => translate("zh-CN", key)
+import { statusLabel } from "@buildmax/gui"
+import { buildConversationThread, taskRunFailed, taskRunFinished, taskStatus } from "./thread"
 
 // The tests order entries by a small seed; the wire carries RFC 3339, whose
 // lexicographic order over UTC instants is chronological order.
@@ -77,16 +74,16 @@ describe("taskRunFinished", () => {
   })
 })
 
-describe("taskStatusLabel", () => {
-  it("names a task waiting on the user's answer instead of calling it done", () => {
-    expect(taskStatusLabel({ status: "SUCCEEDED", awaiting_answer: true }, en)).toBe("Needs your answer")
-    expect(taskStatusLabel({ status: "SUCCEEDED" }, en)).toBe("Done")
-    expect(taskStatusLabel({ status: "RUNNING" }, en)).toBe("Running")
+describe("taskStatus", () => {
+  it("presents a task waiting on the user's answer instead of its finished run", () => {
+    expect(statusLabel(taskStatus({ status: "SUCCEEDED", awaiting_answer: true }))).toBe("Needs your answer")
+    expect(statusLabel(taskStatus({ status: "SUCCEEDED" }))).toBe("Succeeded")
+    expect(statusLabel(taskStatus({ status: "RUNNING" }))).toBe("Running")
   })
 
-  it("reads in the interface language it is given", () => {
-    expect(taskStatusLabel({ status: "SUCCEEDED", awaiting_answer: true }, zh)).toBe("等待你的回答")
-    expect(runStatusLabel("PENDING", zh)).toBe("排队中")
-    expect(runStatusLabel("CANCELED", zh)).toBe("已停止")
+  it("reads in the interface language", () => {
+    expect(statusLabel(taskStatus({ status: "SUCCEEDED", awaiting_answer: true }), "zh-CN")).toBe("等待你的回答")
+    expect(statusLabel("PENDING", "zh-CN")).toBe("等待中")
+    expect(statusLabel("CANCELED", "zh-CN")).toBe("已取消")
   })
 })

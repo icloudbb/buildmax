@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, ButtonLink } from "@buildmax/gui"
+import { Button, ButtonLink, StatusLabel } from "@buildmax/gui"
 import type { Agent, AgentRevision } from "../../lib/types"
 import type { ApiSecret, ApiTask } from "../../lib/api/types"
 import { buildHash, navigate } from "../../router"
@@ -24,7 +24,7 @@ import { listSecrets } from "../../features/spaceSecrets/api"
 import { listActivations } from "../../features/spacePlugins/api"
 import { listPlugins } from "../../features/plugins/api"
 import { nameablePlugins } from "../../features/plugins/nameablePlugins"
-import { runStatusTone, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
+import { taskRunFinished, taskStatus } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { AgentConfigForm } from "../../components/AgentConfigForm"
 import { RevisionHistory } from "../../components/RevisionHistory"
@@ -272,7 +272,6 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
         <tbody>
           {rows.map((task) => {
             const ui = apiTaskToTask(task)
-            const tone = runStatusTone(task.status)
             return (
               <tr key={task.id} onClick={() => navigate({ name: "task", spaceId, taskId: task.id })} tabIndex={0}
                 onKeyDown={(e) => {
@@ -280,7 +279,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
                 }}>
                 <td className="agent-runs__title">{ui.title}</td>
                 <td>
-                  <span className={`agent-runs__status agent-runs__status--${tone}`}>{taskStatusLabel(task, t)}</span>
+                  <StatusLabel status={taskStatus(task)} />
                 </td>
                 <td className="agent-runs__when">{relativeTime(ui.timeAt)}</td>
               </tr>

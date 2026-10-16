@@ -40,10 +40,6 @@ export const chatMessages = {
     "chat.card.runDetails": "Run details",
     "chat.card.openIssue": "Open issue",
 
-    "chat.runStatus.queued": "Queued",
-    "chat.runStatus.starting": "Starting",
-    "chat.runStatus.stopped": "Stopped",
-    "chat.needsAnswer": "Needs your answer",
 
     "chat.error.startConversation": "Failed to start conversation",
     "chat.error.loadMessages": "Failed to load messages",
@@ -88,10 +84,6 @@ export const chatMessages = {
     "chat.card.runDetails": "运行详情",
     "chat.card.openIssue": "打开 Issue",
 
-    "chat.runStatus.queued": "排队中",
-    "chat.runStatus.starting": "启动中",
-    "chat.runStatus.stopped": "已停止",
-    "chat.needsAnswer": "等待你的回答",
 
     "chat.error.startConversation": "开始对话失败",
     "chat.error.loadMessages": "加载消息失败",

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
-import { Button, ButtonLink, useLocale, type Translate } from "@buildmax/gui"
+import { Button, ButtonLink, useLocale, type Translate, useStatusLabel } from "@buildmax/gui"
 import type { Workflow, WorkflowRun, WorkflowNodeRun, WorkflowRequest } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { useStatusLabel } from "../../lib/statusLabels"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import { formatRelativeTime, formatTimestamp, intlLocale } from "../../lib/dateFormat"
 import {

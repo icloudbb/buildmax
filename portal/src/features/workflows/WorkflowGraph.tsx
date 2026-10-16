@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { useStatusLabel } from "../../lib/statusLabels"
+import { useStatusLabel } from "@buildmax/gui"
 import { useT } from "../../i18n"
 
 /** One node to draw. `needs` are the ids this node depends on (its inbound

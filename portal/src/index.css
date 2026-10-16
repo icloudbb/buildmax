@@ -4,6 +4,10 @@
 @import '@buildmax/gui/button.css';
 @import '@buildmax/gui/widgets.css';
 @import '@buildmax/gui/drawer.css';
+@import '@buildmax/gui/field.css';
+@import '@buildmax/gui/menu.css';
+@import '@buildmax/gui/feedback.css';
+@import '@buildmax/gui/page.css';
 @import './css/base.css';
 @import './css/layout.css';
 @import './css/login.css';

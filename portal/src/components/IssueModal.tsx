@@ -1,12 +1,11 @@
 import { useState } from "react"
-import { BaseModal, Button } from "@buildmax/gui"
+import { BaseModal, Button, useStatusLabel } from "@buildmax/gui"
 import type { ApiSpaceMember } from "../lib/api/types"
 import { peopleOnly } from "../features/spaces/api"
 import { ExecutorField } from "../features/issues"
 import type { Agent, Issue, Workflow } from "../lib/types"
 import type { PermissionState } from "../state/permissionState"
 import { useT } from "../i18n"
-import { useStatusLabel } from "../lib/statusLabels"
 import { CreateAgentModal } from "./CreateAgentModal"
 
 interface IssueModalProps {

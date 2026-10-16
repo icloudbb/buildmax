@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, useStatusLabel } from "@buildmax/gui"
 import type { Agent, Workflow, WorkflowRequest } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { useStatusLabel } from "../../lib/statusLabels"
 import { useStableT, useT } from "../../i18n"
 import { useRelativeTime } from "../../lib/dateFormat"
 import {

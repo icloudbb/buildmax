@@ -1,6 +1,5 @@
 import { createTranslator, mergeMessages } from "@buildmax/gui"
 import { shellMessages } from "./shell"
-import { statusMessages } from "./status"
 import { helpMessages } from "./help"
 import { issuesMessages } from "./issues"
 import { needsMeMessages } from "./needsMe"
@@ -30,7 +29,6 @@ import { signInMessages } from "./signIn"
 // docs/design/ui-experience-program.md (D5).
 export const portalMessages = mergeMessages(
   shellMessages,
-  statusMessages,
   helpMessages,
   chatMessages,
   issuesMessages,

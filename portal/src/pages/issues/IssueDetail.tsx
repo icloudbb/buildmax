@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
-import { Button, ButtonLink } from "@buildmax/gui"
+import { Button, ButtonLink, useStatusLabel, StatusLabel } from "@buildmax/gui"
 import type { Agent, Issue, IssueFlow, IssueRun, Task, Workflow } from "../../lib/types"
 import type { ApiIssueComment, ApiIssueFlowResponse, ApiSecret, ApiSpaceMember } from "../../lib/api/types"
 import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { useStatusLabel } from "../../lib/statusLabels"
 import { useRelativeTime, useTimestamp } from "../../lib/dateFormat"
 import { useT, type MessageKey } from "../../i18n"
 import { ApiRequestError } from "../../lib/api/client"
@@ -303,12 +302,10 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
   }, [agents])
 
   /** A run that stopped on questions finished, but the work is waiting on a person. */
-  function agentTaskLabel(task: Task): string {
-    return task.awaitingAnswer ? t("issues.detail.needsAnswer") : statusLabel(task.status)
-  }
-
-  function runStatusLabel(run: IssueRun): string {
-    return run.kind === "agent" ? agentTaskLabel(run.task) : statusLabel(run.run.status)
+  // An Agent run waiting on its questions presents that, not its finished run.
+  function runStatus(run: IssueRun): string {
+    if (run.kind === "workflow") return run.run.status
+    return run.task.awaitingAnswer ? "needs_answer" : run.task.status
   }
 
   function runTitle(run: IssueRun): string {
@@ -696,7 +693,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         <section className="issue-detail-page__outcome" aria-labelledby={latestHeadingId}>
           <div className="issues-page__toolbar">
             <h3 id={latestHeadingId} className="issues-page__section-title">{t("issues.latest.heading")}</h3>
-            {latest ? <span className="issues-page__status">{runStatusLabel(latest)}</span> : null}
+            {latest ? <StatusLabel status={runStatus(latest)} /> : null}
           </div>
           {latest && latestProduct ? (
             <>
@@ -1074,7 +1071,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                               <a href={runHref(run)}><strong>{runTitle(run)}</strong></a>
                               <div className="page-activity__meta">{runMeta(run)}</div>
                             </div>
-                            <span className="issues-page__status">{runStatusLabel(run)}</span>
+                            <StatusLabel status={runStatus(run)} />
                           </div>
                           {text.source !== "workflowResult" ? (
                             <p className="page-activity__meta">{t("issues.results.textOnly")}</p>
@@ -1118,7 +1115,7 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
                             <strong>{runTitle(run)}</strong>
                             <span className="page-activity__meta workflow-detail-page__run-id">{runMeta(run)}</span>
                           </span>
-                          <span className="issues-page__status">{runStatusLabel(run)}</span>
+                          <StatusLabel status={runStatus(run)} />
                         </button>
                         {run.kind === "agent" ? agentRunActions(run.task, "compact") : null}
                       </li>

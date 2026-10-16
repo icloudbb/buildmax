@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from "react"
+import { useStatusLabel } from "@buildmax/gui"
 import { buildHash } from "../../router"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import { useRelativeTime } from "../../lib/dateFormat"
@@ -35,6 +36,7 @@ export function NeedsMeSection({ token, spaceId, agents, workflows, onCreateIssu
   const t = useT()
   const stableT = useStableT()
   const relativeTime = useRelativeTime()
+  const statusLabel = useStatusLabel()
   const canManage = useCanManageSpace()
   const headingId = useId()
   // null until the first answer: loading never reads as "nothing waiting".
@@ -118,7 +120,7 @@ export function NeedsMeSection({ token, spaceId, agents, workflows, onCreateIssu
               <NeedsMeItem
                 href={buildHash({ name: "task", spaceId, taskId: task.id })}
                 title={task.title}
-                detail={`${agentName(task)} · ${t("chat.needsAnswer")}`}
+                detail={`${agentName(task)} · ${statusLabel("needs_answer")}`}
                 action={t("needsMe.open.answer")}
                 time={relativeTime(task.timeAt)}
               />
