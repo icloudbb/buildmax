@@ -3,7 +3,6 @@ import type { Messages } from "@buildmax/gui"
 // The app chrome: sidebar, header, breadcrumbs, and the bootstrap screens.
 export const shellMessages = {
   en: {
-    "shell.loading": "Loading…",
     "shell.retry": "Retry",
     "shell.noSpaceYet": "You don't belong to a Space yet.",
     "shell.createSpace": "Create Space",
@@ -83,7 +82,6 @@ export const shellMessages = {
     "shell.crumbs.notFound": "Page not found",
   },
   "zh-CN": {
-    "shell.loading": "加载中…",
     "shell.retry": "重试",
     "shell.noSpaceYet": "你还不属于任何 Space。",
     "shell.createSpace": "创建 Space",

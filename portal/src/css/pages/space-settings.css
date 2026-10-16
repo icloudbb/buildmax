@@ -83,10 +83,6 @@
   margin-top: 0.85rem;
 }
 
-.space-settings-page__inline-form .issues-page__input {
-  flex: 1;
-}
-
 .space-settings-page__member-head-actions {
   display: flex;
   align-items: center;

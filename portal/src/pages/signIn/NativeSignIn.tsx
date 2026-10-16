@@ -1,4 +1,4 @@
-import { Button, useLocale, Spinner } from "@buildmax/gui"
+import { Button, Field, Input, useLocale, Spinner } from "@buildmax/gui"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useAuth } from "../../contexts/AuthContext"
 import { useStableT, useT } from "../../i18n"
@@ -148,20 +148,18 @@ function PhaseBody({ phase, email, onLookUp, onConfirm, onDeny, onSignInAgain, o
           }}
         >
           <p className="login-page__subtitle sign-in-page__intro">{t("signIn.entry.intro")}</p>
-          <label className="login-page__label" htmlFor="sign-in-code">
-            {t("signIn.entry.label")}
-          </label>
-          <input
-            id="sign-in-code"
-            type="text"
-            className="login-page__input sign-in-page__code-input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="XXXX-XXXX"
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-          />
+          <Field id="sign-in-code" label={t("signIn.entry.label")}>
+            <Input
+              type="text"
+              className="sign-in-page__code-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="XXXX-XXXX"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+            />
+          </Field>
           <Button type="submit" variant="primary" disabled={!input.trim()}>
             {t("signIn.entry.submit")}
           </Button>
