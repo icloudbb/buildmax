@@ -4,8 +4,8 @@
   margin-top: 0.75rem;
 }
 
+/* The raw definition is code. */
 .workflow-page__definition {
-  min-height: 220px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.9rem;
 }
@@ -73,8 +73,6 @@
 }
 
 .workflow-page__step-bindings {
-  display: grid;
-  gap: 0.4rem;
   margin-top: 0.5rem;
 }
 
@@ -84,12 +82,19 @@
   gap: 0.5rem;
 }
 
-.workflow-page__binding > .issues-page__input:first-child {
+.workflow-page__binding-name,
+.workflow-page__binding-source {
   flex: 1 1 0;
 }
 
-.workflow-page__binding > select.issues-page__input {
-  flex: 1 1 0;
+/* Validation problems listed under the editor they concern. */
+.workflow-page__errors {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  color: var(--color-danger);
 }
 
 .workflow-page__step-output {
@@ -202,6 +207,13 @@
   margin: 0;
 }
 
+.workflow-run-page__error,
+.workflow-request__error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-danger);
+}
+
 .workflow-run-page__step-actions {
   display: flex;
   flex-wrap: wrap;
@@ -230,30 +242,15 @@
   font-size: 0.95rem;
 }
 
-.workflow-run-input__field {
+.workflow-run-input__boolean {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.85rem;
-}
-
-.workflow-run-input__field--boolean {
-  flex-direction: row;
   align-items: center;
   gap: 0.5rem;
-}
-
-.workflow-run-input__label {
-  font-weight: 600;
+  font-size: 0.85rem;
 }
 
 .workflow-run-input__required {
   color: var(--color-danger);
-}
-
-.workflow-run-input__description {
-  font-weight: 400;
-  color: var(--color-text-muted);
 }
 
 /* Read-only workflow DAG (WorkflowGraph). Node boxes are laid out left-to-right
@@ -320,13 +317,6 @@ button.wf-graph__node:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.wf-graph__node-status {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--color-text-muted);
-}
-
 .wf-graph__node--succeeded {
   border-left-color: var(--color-status-success);
 }
@@ -352,33 +342,7 @@ button.wf-graph__node:focus-visible {
   border-left-color: var(--color-border);
 }
 
-/* State-driven detail page: status pill, header meta chip, banners, topology. */
-.workflow-status-pill {
-  display: inline-block;
-  margin-left: 0.6rem;
-  padding: 0.1rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-muted);
-  color: var(--color-text-muted);
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: capitalize;
-  vertical-align: middle;
-}
-
-.workflow-status-pill--published {
-  border-color: color-mix(in srgb, var(--color-status-success) 30%, transparent);
-  background: color-mix(in srgb, var(--color-status-success) 10%, transparent);
-  color: var(--color-status-success);
-}
-
-.workflow-status-pill--draft {
-  border-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
-  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
-  color: var(--color-warning);
-}
-
+/* State-driven detail page: banners, topology. */
 .workflow-detail__banner {
   margin: 0 0 1rem;
   padding: 0.6rem 0.85rem;
@@ -432,7 +396,12 @@ button.wf-graph__node:focus-visible {
   margin-left: auto;
 }
 
-.wf-visual__parallel input {
+.wf-visual__parallel-label {
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+}
+
+.wf-visual__parallel-input {
   width: 6rem;
 }
 

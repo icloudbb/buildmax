@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, useStatusLabel } from "@buildmax/gui"
+import { Button, CollectionFrame, PageHeader, StatusLabel } from "@buildmax/gui"
 import type { Agent, Workflow, WorkflowRequest } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -32,7 +32,6 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
   const t = useT()
   const relativeTime = useRelativeTime()
   const stableT = useStableT()
-  const statusLabel = useStatusLabel()
   const { currentUserRole } = useSpace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [pendingRequests, setPendingRequests] = useState<WorkflowRequest[]>([])
@@ -104,13 +103,11 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{t("workflows.title")}</h1>
-          <p className="page-activity__subtitle">{t("workflows.subtitle")}</p>
-        </div>
-        <div className="page-activity__actions">
-          {canManageWorkflows ? (
+      <PageHeader
+        title={t("workflows.title")}
+        subtitle={t("workflows.subtitle")}
+        actions={
+          canManageWorkflows ? (
             <Button
               variant="primary"
               onClick={() => {
@@ -120,9 +117,9 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
             >
               {t("workflows.new")}
             </Button>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {(workflowsState.kind === "error" ||
         workflowsState.kind === "forbidden" ||
@@ -143,13 +140,18 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
       ) : null}
 
       {pendingRequests.length > 0 ? (
-        <section className="issues-page__panel" aria-label={t("workflows.pending.title")}>
-          <div className="issues-page__toolbar">
-            <h2 className="issues-page__section-title">{t("workflows.pending.title")}</h2>
-            <span className="page-activity__meta">
-              {t("workflows.pending.count", { count: pendingRequests.length })}
-            </span>
-          </div>
+        <CollectionFrame
+          label={t("workflows.pending.title")}
+          loading={false}
+          toolbar={
+            <>
+              <h2 className="issues-page__section-title">{t("workflows.pending.title")}</h2>
+              <span className="page-activity__meta">
+                {t("workflows.pending.count", { count: pendingRequests.length })}
+              </span>
+            </>
+          }
+        >
           <ul className="workflow-page__pending">
             {pendingRequests.map((request) => (
               <li key={request.id}>
@@ -167,25 +169,20 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
               </li>
             ))}
           </ul>
-        </section>
+        </CollectionFrame>
       ) : null}
 
-      <section className="issues-page__panel" aria-label={t("workflows.list.label")}>
-        <div className="issues-page__toolbar">
-          {workflowsData !== null ? <span className="page-activity__meta">{workflowCountLabel}</span> : null}
-        </div>
-
-        {workflowsState.kind === "loading" ? (
-          <p className="page-activity__empty">{t("shell.loading")}</p>
-        ) : workflowsState.kind === "readyEmpty" ? (
-          <EmptyState
-            message={
-              canManageWorkflows
-                ? t("workflows.list.empty")
-                : t("workflows.list.emptyViewer")
-            }
-          />
-        ) : workflowsState.kind === "error" || workflowsState.kind === "forbidden" || workflowsState.kind === "notFound" ? null : (
+      <CollectionFrame
+        label={t("workflows.list.label")}
+        loading={workflowsState.kind === "loading"}
+        toolbar={workflowsData !== null ? <span className="page-activity__meta">{workflowCountLabel}</span> : null}
+        empty={
+          workflowsState.kind === "readyEmpty" ? (
+            <EmptyState message={canManageWorkflows ? t("workflows.list.empty") : t("workflows.list.emptyViewer")} />
+          ) : null
+        }
+      >
+        {workflowsState.kind === "error" || workflowsState.kind === "forbidden" || workflowsState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
             {(workflowsData ?? []).map((workflow) => (
               <li key={workflow.id} className="issues-page__list-item">
@@ -201,7 +198,7 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
                     </span>
                   </span>
                   <span className="issues-page__row-side">
-                    <span className="issues-page__status">{statusLabel(workflow.status)}</span>
+                    <StatusLabel status={workflow.status} />
                     <span className="page-activity__meta">{relativeTime(workflow.updatedAt)}</span>
                   </span>
                 </button>
@@ -209,7 +206,7 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
             ))}
           </ul>
         )}
-      </section>
+      </CollectionFrame>
 
       <WorkflowModal
         open={createOpen}

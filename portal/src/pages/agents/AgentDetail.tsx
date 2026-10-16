@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, ButtonLink, StatusLabel } from "@buildmax/gui"
+import { Button, ButtonLink, DetailHeader, Skeleton, StatusLabel } from "@buildmax/gui"
 import type { Agent, AgentRevision } from "../../lib/types"
 import type { ApiSecret, ApiTask } from "../../lib/api/types"
 import { buildHash, navigate } from "../../router"
@@ -293,7 +293,7 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Skeleton />
       </div>
     )
   }
@@ -313,34 +313,32 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div className="agent-detail__ident">
-          <AgentAvatar size="md" className="agent-detail__avatar" />
-          <div>
-            <h1 className="page-activity__title">
-              {agent?.name ?? t("agents.resource")}
-              {stats.running ? <span className="agent-detail__running">{t("agents.runningBadge")}</span> : null}
-            </h1>
-            {agent?.description ? <p className="agent-detail__desc">{agent.description}</p> : null}
-          </div>
-        </div>
-        <div className="page-activity__actions">
-          <ButtonLink variant="tertiary" href={buildHash({ name: "agents", spaceId })}>
-            {t("agents.backToAgents")}
-          </ButtonLink>
-          {tab !== "config" || !canManage ? (
-            <Button
-              variant={tab === "schedules" && canManageSchedules ? "secondary" : "primary"}
-              disabled={!agent}
-              onClick={() => {
-                setRunError(null)
-                setRunOpen(true)
-              }}
-            >
-              {t("agents.runAgent")}
-            </Button>
-          ) : null}
-        </div>
+      <div className="agent-detail__ident">
+        <AgentAvatar size="md" className="agent-detail__avatar" />
+        <DetailHeader
+          title={agent?.name ?? t("agents.resource")}
+          status={stats.running ? <StatusLabel status="running" /> : undefined}
+          meta={agent?.description || undefined}
+          actions={
+            <>
+              <ButtonLink variant="tertiary" href={buildHash({ name: "agents", spaceId })}>
+                {t("agents.backToAgents")}
+              </ButtonLink>
+              {tab !== "config" || !canManage ? (
+                <Button
+                  variant={tab === "schedules" && canManageSchedules ? "secondary" : "primary"}
+                  disabled={!agent}
+                  onClick={() => {
+                    setRunError(null)
+                    setRunOpen(true)
+                  }}
+                >
+                  {t("agents.runAgent")}
+                </Button>
+              ) : null}
+            </>
+          }
+        />
       </div>
 
       {agent && (

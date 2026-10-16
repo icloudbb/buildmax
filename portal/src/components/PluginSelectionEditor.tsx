@@ -37,7 +37,7 @@ export function PluginSelectionEditor({ value, onChange, available }: PluginSele
 
   if (names.length === 0) {
     return (
-      <p className="modal__hint">
+      <p className="agent-plugins__empty">
         {t("agents.plugins.emptyBefore")}
         <button
           type="button"

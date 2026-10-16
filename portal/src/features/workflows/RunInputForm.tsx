@@ -1,3 +1,4 @@
+import { Field, Input, Select, Textarea } from "@buildmax/gui"
 import { useT } from "../../i18n"
 import type { InputField, InputFormValues } from "./runInput"
 
@@ -26,14 +27,14 @@ export function WorkflowRunInputForm({ fields, values, disabled, onChange, title
       {fields.map((field) => {
         const value = values[field.name]
         const label = (
-          <span className="workflow-run-input__label">
+          <>
             {field.name}
             {field.required ? <span className="workflow-run-input__required"> *</span> : null}
-          </span>
+          </>
         )
         if (field.type === "boolean") {
           return (
-            <label key={field.name} className="workflow-run-input__field workflow-run-input__field--boolean">
+            <label key={field.name} className="workflow-run-input__boolean">
               <input
                 type="checkbox"
                 checked={value === true}
@@ -45,13 +46,9 @@ export function WorkflowRunInputForm({ fields, values, disabled, onChange, title
           )
         }
         return (
-          <label key={field.name} className="workflow-run-input__field">
-            {label}
-            {field.description ? (
-              <span className="workflow-run-input__description">{field.description}</span>
-            ) : null}
+          <Field key={field.name} label={label} hint={field.description || undefined}>
             {field.type === "enum" ? (
-              <select
+              <Select
                 value={typeof value === "string" ? value : ""}
                 disabled={disabled}
                 onChange={(e) => onChange(field.name, e.target.value)}
@@ -62,9 +59,9 @@ export function WorkflowRunInputForm({ fields, values, disabled, onChange, title
                     {option}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : field.type === "json" ? (
-              <textarea
+              <Textarea
                 rows={3}
                 value={typeof value === "string" ? value : ""}
                 disabled={disabled}
@@ -72,14 +69,14 @@ export function WorkflowRunInputForm({ fields, values, disabled, onChange, title
                 onChange={(e) => onChange(field.name, e.target.value)}
               />
             ) : (
-              <input
+              <Input
                 type={field.type === "number" || field.type === "integer" ? "number" : "text"}
                 value={typeof value === "string" ? value : ""}
                 disabled={disabled}
                 onChange={(e) => onChange(field.name, e.target.value)}
               />
             )}
-          </label>
+          </Field>
         )
       })}
     </div>

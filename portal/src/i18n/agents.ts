@@ -16,7 +16,7 @@ export const agentsMessages = {
     "agents.openNamed": "Open agent {name}",
     "agents.open": "Open",
     "agents.running": "running",
-    "agents.runningBadge": "Running",
+    "agents.list.label": "Agent list",
 
     "agents.error.load": "Failed to load agents",
     "agents.error.loadOne": "Failed to load agent",
@@ -91,7 +91,6 @@ export const agentsMessages = {
       "Agents are reusable personas or task templates that belong to this Space. Its members can run them; owners and admins manage them.",
 
     "agents.config.sections": "Configuration sections",
-    "agents.config.optional": " (optional)",
     "agents.config.save": "Save changes",
     "agents.config.delete": "Delete agent",
     "agents.config.readOnly": "This agent is read-only for your role.",
@@ -177,7 +176,7 @@ export const agentsMessages = {
     "agents.openNamed": "打开 Agent {name}",
     "agents.open": "打开",
     "agents.running": "运行中",
-    "agents.runningBadge": "运行中",
+    "agents.list.label": "Agent 列表",
 
     "agents.error.load": "加载 Agent 失败",
     "agents.error.loadOne": "加载 Agent 失败",
@@ -238,7 +237,6 @@ export const agentsMessages = {
     "agents.createModal.hint": "Agent 是属于此 Space 的可复用角色或任务模板。Space 成员都可以运行它们，所有者和管理员负责管理。",
 
     "agents.config.sections": "配置分区",
-    "agents.config.optional": "（可选）",
     "agents.config.save": "保存更改",
     "agents.config.delete": "删除 Agent",
     "agents.config.readOnly": "以你的角色，此 Agent 为只读。",

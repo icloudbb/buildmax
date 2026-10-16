@@ -7,29 +7,14 @@
   min-width: 0;
 }
 
+.agent-detail__ident > .bm-detail-header {
+  flex: 1;
+}
+
 .agent-detail__avatar {
   flex-shrink: 0;
   background: var(--color-text-muted) !important;
   color: var(--color-bg-elevated) !important;
-}
-
-.agent-detail__running {
-  margin-left: 0.6rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  vertical-align: middle;
-  padding: 0.15rem 0.55rem;
-  border: 1px solid var(--color-text-subtle);
-  border-radius: 999px;
-  color: var(--color-text-muted);
-}
-
-.agent-detail__desc {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  line-height: 1.5;
-  max-width: 68ch;
 }
 
 /* Tabs */
@@ -156,29 +141,6 @@
   white-space: nowrap;
 }
 
-.agent-runs__status {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-muted);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.agent-runs__status--running {
-  color: var(--color-text);
-  border-color: var(--color-text-subtle);
-}
-
-.agent-runs__status--failed {
-  color: var(--color-text);
-  border-color: var(--color-text);
-  background: var(--color-bg-hover);
-}
-
 /* Inline configuration form: a left sidebar of sections + one panel at a time,
    matching the create dialog's FormModal tabs so the two surfaces feel identical. */
 .agent-config {
@@ -240,27 +202,25 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 1rem;
   padding: 1.1rem 1.25rem;
 }
 
-.agent-config__field {
-  margin-bottom: 0.85rem;
+.agent-config__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-text-subtle);
 }
 
-.agent-config__field:last-child {
-  margin-bottom: 0;
+.agent-config__error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-danger);
 }
 
-.agent-config__actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.agent-config__actions .bm-button:last-child {
-  margin-left: auto;
+.agent-config__delete {
+  margin-right: auto;
 }
 
 @media (max-width: 640px) {
@@ -304,28 +264,11 @@
   background: var(--color-bg-muted);
 }
 
-.agent-schedules__label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
+/* A note in place of a field, when there is nothing to choose. */
+.agent-schedules__note {
+  margin: 0;
   font-size: 0.85rem;
-  font-weight: 600;
   color: var(--color-text-muted);
-}
-
-.agent-schedules__input {
-  font: inherit;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--color-input-border);
-  border-radius: 6px;
-  background: var(--color-input-bg);
-  color: var(--color-text);
-}
-
-.agent-schedules__hint {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--color-text-subtle);
 }
 
 .agent-schedules__form-actions {
@@ -377,15 +320,6 @@
   border-radius: 999px;
   border: 1px solid var(--color-border);
   color: var(--color-text-muted);
-}
-
-.agent-schedules__badge--on {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-}
-
-.agent-schedules__badge--off {
-  color: var(--color-text-subtle);
 }
 
 .agent-schedules__badge--warn {

@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useState } from "react"
-import { Button, ButtonLink, useLocale, type Translate, useStatusLabel } from "@buildmax/gui"
+import {
+  Button,
+  ButtonLink,
+  DetailHeader,
+  Skeleton,
+  StatusLabel,
+  useLocale,
+  useStatusLabel,
+  type Translate,
+} from "@buildmax/gui"
 import type { Workflow, WorkflowRun, WorkflowNodeRun, WorkflowRequest } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT, type MessageKey } from "../../i18n"
@@ -156,7 +165,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Skeleton />
       </div>
     )
   }
@@ -176,38 +185,37 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{workflow?.name ?? t("workflows.run.fallbackTitle")}</h1>
-          <p className="page-activity__subtitle">
-            {run ? `${statusLabel(run.status)} · ${formatRelativeTime(run.createdAt, locale)}` : t("workflows.run.fallbackTitle")}
-          </p>
-        </div>
-        <div className="page-activity__actions">
-          <Button
-            variant="tertiary"
-            busy={refreshing}
-            disabled={loading || refreshing}
-            onClick={() => {
-              void load(true)
-            }}
-          >
-            {t("workflows.refresh")}
-          </Button>
-          {run && ["pending", "running"].includes(run.status) ? (
-            <Button variant="danger" busy={canceling} disabled={canceling} onClick={() => void cancelRun()}>
-              {t("workflows.run.cancel")}
+      <DetailHeader
+        title={workflow?.name ?? t("workflows.run.fallbackTitle")}
+        status={run ? <StatusLabel status={run.status} /> : undefined}
+        meta={run ? formatRelativeTime(run.createdAt, locale) : t("workflows.run.fallbackTitle")}
+        actions={
+          <>
+            <Button
+              variant="tertiary"
+              busy={refreshing}
+              disabled={loading || refreshing}
+              onClick={() => {
+                void load(true)
+              }}
+            >
+              {t("workflows.refresh")}
             </Button>
-          ) : null}
-          {workflow ? (
-            <ButtonLink variant="tertiary" href={buildHash({ name: "workflow", spaceId, workflowId: workflow.id })}>
-              {t("workflows.run.back")}
-            </ButtonLink>
-          ) : null}
-        </div>
-      </div>
+            {run && ["pending", "running"].includes(run.status) ? (
+              <Button variant="danger" busy={canceling} disabled={canceling} onClick={() => void cancelRun()}>
+                {t("workflows.run.cancel")}
+              </Button>
+            ) : null}
+            {workflow ? (
+              <ButtonLink variant="tertiary" href={buildHash({ name: "workflow", spaceId, workflowId: workflow.id })}>
+                {t("workflows.run.back")}
+              </ButtonLink>
+            ) : null}
+          </>
+        }
+      />
 
-      {actionError ? <p className="modal__error" role="alert">{actionError}</p> : null}
+      {actionError ? <p className="workflow-run-page__error" role="alert">{actionError}</p> : null}
       {pendingRequests.length > 0 ? (
         <div className="workflow-run-page__requests">
           {pendingRequests.map((request, i) => (
@@ -221,7 +229,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
           <section className="issues-page__panel">
             <div className="issues-page__toolbar">
               <h2 className="issues-page__section-title">{t("workflows.run.result")}</h2>
-              <span className="issues-page__status">{statusLabel(run.status)}</span>
+              <StatusLabel status={run.status} />
             </div>
             {run.result != null ? (
               <div className="workflow-run-page__result">
@@ -240,7 +248,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                     : t("workflows.run.noOutput")}
               </p>
             )}
-            {run.errorMessage ? <p className="modal__error" role="alert">{run.errorMessage}</p> : null}
+            {run.errorMessage ? <p className="workflow-run-page__error" role="alert">{run.errorMessage}</p> : null}
             <details className="workflow-run-page__diagnostics">
               <summary>{t("workflows.run.details")}</summary>
             <div className="workflow-run-page__meta">
@@ -292,7 +300,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                   <li key={step.id} className="workflow-page__step">
                     <div className="workflow-page__step-head">
                       <strong>{step.nodeId}</strong>
-                      <span className="issues-page__status">{statusLabel(step.status)}</span>
+                      <StatusLabel status={step.status} />
                     </div>
                     <div className="workflow-page__step-body">
                       <div className="page-activity__meta">{nodeTypeLabel(step.nodeType)}</div>
@@ -349,7 +357,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                           <pre className="workflow-page__step-output">{step.resolvedInput}</pre>
                         </details>
                       ) : null}
-                      {step.errorMessage ? <p className="modal__error">{step.errorMessage}</p> : null}
+                      {step.errorMessage ? <p className="workflow-run-page__error">{step.errorMessage}</p> : null}
                     </div>
                   </li>
                 ))}
