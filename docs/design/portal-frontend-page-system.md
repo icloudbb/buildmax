@@ -151,7 +151,12 @@ current Space and resource navigation. On a global Administration route it
 shows a deployment context instead of an active Space switcher. On narrow
 screens it shows Space plus a menu control; the page owns one real H1. Detail
 pages show a back/parent breadcrumb, without repeating the current title in
-three stacked places.
+three stacked places. *Shipped:* the breadcrumb lists a page's parents and
+leaves the page out, so its name appears once, in its H1; Account, Space
+settings, and Administration keep the open section as the last crumb, because
+their H1 names the whole area. The narrow header shows only the Space, a
+`DetailHeader`'s actions hold no "Back to" link that repeats the breadcrumb,
+and sidebar destinations are real links marked with `aria-current="page"`.
 
 | Template | Anatomy | Portal examples |
 |---|---|---|

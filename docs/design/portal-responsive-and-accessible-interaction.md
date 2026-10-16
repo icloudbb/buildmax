@@ -64,7 +64,9 @@ are owned by layouts and components rather than copied page by page.
 ## Interaction decisions
 
 At narrow widths the shell presents a compact header containing the current
-Space, page title, and a menu control. The menu opens an accessible overlay
+Space and a menu control; the page's own H1 names the page, so the header does
+not repeat it ([page system](portal-frontend-page-system.md#page-anatomy-and-templates)).
+The menu opens an accessible overlay
 drawer containing the complete scoped navigation and account actions. Selecting
 a destination closes it and restores focus predictably. The persistent desktop
 sidebar is not squeezed into the document flow.

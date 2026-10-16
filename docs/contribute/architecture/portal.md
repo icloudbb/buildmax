@@ -45,7 +45,20 @@ Portal owns the cloud/space lane:
   account with no usable Space can still confirm; its states are pure functions
   in `portal/src/features/nativeSignIn/model.ts`. The SSO button passes the
   current hash route as `return_to` so the OIDC callback lands back on it.
+  Session restore is `POST /api/auth/portal/session`; with no refresh cookie it
+  answers 204, so a signed-out page load logs no 401.
 - Pages live under `portal/src/pages/*`.
+- The shell in `portal/src/layout/` states scope once. Sidebar destinations are
+  links to their hash routes, so they open in a new tab and can be copied, and
+  the current one carries `aria-current="page"`. Administration appears when
+  the session's `system_roles` include `system_admin`: the session routes
+  return them at sign-in, on load, and on every refresh, so Portal never asks
+  `GET /api/admin/me`, which refuses almost everyone, to decide. The breadcrumb
+  is the way back to a page's parents and leaves the page itself out, because
+  the page names itself once in its H1 through gui's `PageHeader` or
+  `DetailHeader`; Account, Space settings, and Administration keep their open
+  section as the last crumb. Detail headers carry no "Back to" link beside it,
+  and the narrow compact header shows only the Space and the menu control.
 - Issues is the default Space destination: the bare `#/`, the first page after
   sign-in, the not-found page's way back, and Administration's return to a
   Space all resolve to it. Its first section, **Waiting on you**
@@ -79,7 +92,10 @@ Portal owns the cloud/space lane:
   Desktop draws; Portal keeps no SVG files of its own.
 - Colors, shadows, the overlay, and the monospace stack come from the semantic
   tokens in `gui/src/theme.css`, which defines each one for the light and the
-  dark theme. Portal CSS holds no color literal and references no custom
+  dark theme. gui's `ThemeProvider` follows the operating system's
+  `prefers-color-scheme` until the person picks a theme with the toggle; only
+  that pick is stored, under `buildmax_theme`, and `index.html` applies the
+  same rule before the bundle loads. Portal CSS holds no color literal and references no custom
   property that no stylesheet defines; Stylelint enforces both (see
   [conventions](../conventions.md#colors-come-from-theme-tokens)).
 - The shared `Button` and `IconButton` own action appearance, target size, focus,

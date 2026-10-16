@@ -53,7 +53,8 @@
 
 ## 交互决策
 
-窄屏下，shell 显示包含当前 Space、页面标题与菜单控件的紧凑 header。菜单打开无障碍
+窄屏下，shell 显示包含当前 Space 与菜单控件的紧凑 header；页面自己的 H1 说明页面名称，
+因此 header 不再重复（见[页面体系](portal-frontend-page-system.md#页面结构与模板)）。菜单打开无障碍
 overlay drawer，内含完整的作用域导航与账号动作。选择目的地后 drawer 关闭，并以可预测
 方式恢复焦点。持久桌面侧栏不会被挤进文档流。
 

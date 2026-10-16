@@ -31,7 +31,17 @@ Portal 负责云端/Space 使用场景：
   `portal/src/main.tsx` 中按真实路径匹配，并仅包裹 `ThemeProvider` 与根部的 `LocaleProvider` 和 `ToastProvider` 渲染：公共分享
   链接 `/shared/artifacts/<token>` 与组件样张 `/specimen`。
 - `portal/src/App.tsx` 依次设关：会话恢复、登录（未登录时任何路由都渲染登录页，并保留地址）、`#/sign-in[/<code>]` 原生登录确认页，然后是 Space 关卡与 Space 外壳。确认页位于 Space 关卡之前，使没有可用 Space 的账号也能确认；其状态是 `portal/src/features/nativeSignIn/model.ts` 中的纯函数。SSO 按钮把当前 hash 路由作为 `return_to` 传入，使 OIDC 回调回到该路由。
+  会话恢复调用 `POST /api/auth/portal/session`；没有刷新 cookie 时它返回 204，因此
+  未登录的页面加载不会记录 401。
 - 页面位于 `portal/src/pages/*`。
+- `portal/src/layout/` 中的外壳只说明一次范围。侧边栏的各个目的地是指向其 hash 路由的
+  链接，因此可以在新标签页打开、可以复制地址，当前项带有 `aria-current="page"`。会话的
+  `system_roles` 包含 `system_admin` 时才显示 Administration：会话路由在登录、加载和
+  每次刷新时返回它，因此 Portal 不再为此请求对几乎所有人都拒绝的 `GET /api/admin/me`。
+  面包屑是返回页面上级的路径，不包含页面本身，因为页面通过 gui 的 `PageHeader` 或
+  `DetailHeader` 在唯一的 H1 中说明自己；Account、Space 设置和 Administration 仍把当前
+  打开的分区作为最后一项。详情页头不再在面包屑旁另放“返回”链接，窄屏紧凑页头只显示
+  Space 和菜单按钮。
 - Issues 是默认的 Space 目的地：裸 `#/`、登录后的第一个页面、未找到页面的返回
   入口以及 Administration 返回 Space 的入口都解析到它。它的第一个区块
   **等待你处理**（`features/needsMe/`）把 `GET /api/spaces/{space_id}/needs-me`
@@ -56,7 +66,9 @@ Portal 负责云端/Space 使用场景：
   对应对象旁。图标来自 gui 的图标集，与 Desktop 使用同一套；Portal 不再保留自己的 SVG
   文件。
 - 颜色、阴影、遮罩层和等宽字体栈来自 `gui/src/theme.css` 中的语义 token，该文件为浅色和
-  深色主题分别定义每一个 token。Portal CSS 不包含颜色字面量，也不引用任何样式表都未定义的
+  深色主题分别定义每一个 token。gui 的 `ThemeProvider` 在用户用切换按钮选择主题之前跟随
+  操作系统的 `prefers-color-scheme`；只保存用户的选择（键为 `buildmax_theme`），
+  `index.html` 在脚本包加载前按同样规则应用主题。Portal CSS 不包含颜色字面量，也不引用任何样式表都未定义的
   自定义属性；两条规则均由 Stylelint 强制执行（见[约定](../conventions.md)）。
 - 共享 `Button` 和 `IconButton` 负责操作的外观、点击区域、焦点和忙碌状态。
   Portal 负责位置与权限判断。集合页在页头提供创建入口，空状态说明当前缺少什么。
