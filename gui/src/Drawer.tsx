@@ -8,11 +8,15 @@ export interface DrawerProps {
   title: string
   titleId: string
   onClose: () => void
+  /** The edge it slides in from: "start" (left) for navigation, "end" (right) for a side panel. */
+  side?: "start" | "end"
+  /** Optional class name(s) on the drawer panel, e.g. to set a wider width. */
+  className?: string
   children: ReactNode
 }
 
-/** An accessible, left-edge slide-in overlay for narrow-width navigation. */
-export function Drawer({ id, open, title, titleId, onClose, children }: DrawerProps) {
+/** An accessible slide-in overlay: navigation from the start edge, a side panel from the end. */
+export function Drawer({ id, open, title, titleId, onClose, side = "start", className, children }: DrawerProps) {
   const t = useGuiT()
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -24,7 +28,7 @@ export function Drawer({ id, open, title, titleId, onClose, children }: DrawerPr
     // Presentational backdrop, as in BaseModal: Escape is the keyboard close,
     // and clicks inside the drawer stop here.
     <div
-      className="drawer-overlay"
+      className={side === "end" ? "drawer-overlay drawer-overlay--end" : "drawer-overlay"}
       role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
@@ -34,7 +38,7 @@ export function Drawer({ id, open, title, titleId, onClose, children }: DrawerPr
       <div
         id={id}
         ref={containerRef}
-        className="drawer"
+        className={["drawer", side === "end" ? "drawer--end" : "", className].filter(Boolean).join(" ")}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

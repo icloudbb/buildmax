@@ -70,4 +70,15 @@ describe("Drawer", () => {
     fireEvent.click(screen.getByText("nav item"))
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it("slides in from the end edge for a side panel and keeps its class", () => {
+    render(
+      <Drawer open title="Jobs" titleId="jobs-title" onClose={() => {}} side="end" className="jobs-panel">
+        <p>job</p>
+      </Drawer>
+    )
+    const dialog = screen.getByRole("dialog", { name: "Jobs" })
+    expect(dialog.className).toBe("drawer drawer--end jobs-panel")
+    expect((dialog.parentElement as HTMLElement).className).toBe("drawer-overlay drawer-overlay--end")
+  })
 })
