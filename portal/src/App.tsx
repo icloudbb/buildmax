@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
-import { ThemeProvider } from "@buildmax/gui"
+import { Spinner, ThemeProvider } from "@buildmax/gui"
 import { AppProvider, useApp } from "./contexts/AppContext"
 import { WebSocketProvider } from "./contexts/WebSocketContext"
 import { SpaceProvider, useSpace } from "./contexts/SpaceContext"
@@ -61,7 +61,11 @@ function AppContent() {
     // Restoring the session from the refresh cookie. Render a bare loader
     // rather than the login form, which would otherwise flash on every reload
     // for an already-signed-in user.
-    return <div className="app-loading">{t("shell.loading")}</div>
+    return (
+      <div className="app-loading">
+        <Spinner />
+      </div>
+    )
   }
 
   if (!token) {
@@ -95,7 +99,7 @@ function AppContent() {
             retry={{ label: t("shell.retry"), onClick: () => void refetchSpaces() }}
           />
         ) : (
-          t("shell.loading")
+          <Spinner />
         )}
         <CreateSpaceDialog open={createSpaceOpen} onClose={() => setCreateSpaceOpen(false)} />
       </div>

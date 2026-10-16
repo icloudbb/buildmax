@@ -38,26 +38,8 @@
   gap: 0.75rem;
 }
 
-.login-page__label {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-text);
-}
 
-.login-page__input {
-  font: inherit;
-  font-size: 0.95rem;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--color-input-border);
-  border-radius: 4px;
-  background: var(--color-input-bg);
-  color: var(--color-text);
-}
 
-.login-page__input:focus {
-  outline: none;
-  border-color: var(--color-text);
-}
 
 .login-page__error {
   margin: 0;

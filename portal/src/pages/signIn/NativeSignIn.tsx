@@ -1,4 +1,4 @@
-import { Button, useLocale } from "@buildmax/gui"
+import { Button, useLocale, Spinner } from "@buildmax/gui"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useAuth } from "../../contexts/AuthContext"
 import { useStableT, useT } from "../../i18n"
@@ -169,7 +169,7 @@ function PhaseBody({ phase, email, onLookUp, onConfirm, onDeny, onSignInAgain, o
       )
 
     case "loading":
-      return <p className="login-page__subtitle">{t("signIn.loading")}</p>
+      return <Spinner label={t("signIn.loading")} />
 
     case "invalid":
     case "throttled":
