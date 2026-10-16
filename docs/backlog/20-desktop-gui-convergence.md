@@ -5,7 +5,7 @@ roadmap: R6
 source: docs/design/ui-experience-program.md#d4-one-presentation-layer-for-both-surfaces
 depends_on: []
 verification: ["./make check gui", "./make e2e desktop-ui", "./make build desktop", "./make e2e desktop-launch"]
-claim:
+claim: claude/feat-desktop-gui-convergence
 pr:
 ---
 
