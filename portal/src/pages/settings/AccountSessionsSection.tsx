@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, Spinner } from "@buildmax/gui"
 import { useAuth } from "../../contexts/AuthContext"
 import { Alert } from "../../components/state/Alert"
 import { listAccountSessions, revokeAccountSession, type AccountSession } from "../../features/sessions/api"
@@ -84,7 +84,7 @@ export function AccountSessionsSection() {
         </p>
       ) : null}
       {sessions === null ? (
-        loadError ? null : <p className="page-activity__empty">{t("account.sessions.loading")}</p>
+        loadError ? null : <Spinner label={t("account.sessions.loading")} />
       ) : sessions.length === 0 ? (
         <p className="page-activity__empty">{t("account.sessions.empty")}</p>
       ) : (

@@ -1,4 +1,4 @@
-import type { Translate } from "@buildmax/gui"
+import { PageHeader, type Translate } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { useT, type MessageKey } from "../../i18n"
 import { navigate } from "../../router"
@@ -55,14 +55,16 @@ export function RemoteControlList({ token }: RemoteControlListProps) {
 
   return (
     <div className="rc-page">
-      <header className="rc-page__header">
-        <h1 className="rc-page__title">{t("remote.title")}</h1>
-        <p className="rc-page__subtitle">
-          {t("remote.subtitleBefore")}
-          <code>buildmax --remote-control</code>
-          {t("remote.subtitleAfter")}
-        </p>
-      </header>
+      <PageHeader
+        title={t("remote.title")}
+        subtitle={
+          <>
+            {t("remote.subtitleBefore")}
+            <code>buildmax --remote-control</code>
+            {t("remote.subtitleAfter")}
+          </>
+        }
+      />
 
       {error ? <div className="rc-alert">{error}</div> : null}
 

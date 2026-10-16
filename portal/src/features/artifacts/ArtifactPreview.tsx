@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, Spinner } from "@buildmax/gui"
 import type { ApiArtifact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { artifactLabel } from "./display"
@@ -81,7 +81,7 @@ export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewPro
         </div>
       ) : null}
       <div className="artifact-preview__body">
-        {loading ? <p className="page-activity__empty">{t("shell.loading")}</p> : null}
+        {loading ? <Spinner /> : null}
         {error ? (
           <div className="artifact-preview__error" role="alert">
             <p className="settings-section__error">{error}</p>

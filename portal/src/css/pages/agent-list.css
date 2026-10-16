@@ -10,10 +10,6 @@
   gap: 1.25rem;
 }
 
-.agent-list__empty {
-  margin-top: 0.5rem;
-}
-
 .agent-list__create-btn {
   flex-shrink: 0;
 }
@@ -142,41 +138,6 @@
   overflow: hidden;
 }
 
-.agent-card__instructions-wrap {
-  margin: 0;
-  padding: 0.625rem 0.75rem;
-  background: var(--color-bg-muted);
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-}
-
-.agent-card__instructions-label {
-  display: block;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 0.35rem;
-}
-
-.agent-card__instructions {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--color-text-muted);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.agent-card__actions {
-  margin-top: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--color-border);
-}
-
 /* Plugin picker inside the agent dialog's Plugins group: a compact checklist of
    the plugins this space can name. */
 .agent-plugins {
@@ -201,6 +162,31 @@
 .agent-plugins__note {
   font-size: 0.78rem;
   color: var(--color-text-subtle);
+}
+
+.agent-plugins__empty {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-text-subtle);
+}
+
+/* Secret consumption editor (create dialog and config form). Its card and row
+   rules are shared with Space secrets in space-secrets.css. */
+.secret-consumption__group {
+  gap: 0.5rem;
+}
+
+.secret-consumption__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-text-subtle);
+}
+
+.secret-consumption__control {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 /* Inline text link inside the "nothing available" hint, styled flat so it
@@ -357,29 +343,6 @@
 .agent-activity__row-sub {
   font-size: 0.72rem;
   color: var(--color-text-subtle);
-}
-
-.agent-activity__status {
-  flex-shrink: 0;
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-muted);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.agent-activity__status--running {
-  color: var(--color-text);
-  border-color: var(--color-text-subtle);
-}
-
-.agent-activity__status--failed {
-  color: var(--color-text);
-  border-color: var(--color-text);
-  background: var(--color-bg-hover);
 }
 
 .agent-activity__time {

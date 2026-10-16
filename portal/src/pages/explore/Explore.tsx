@@ -1,3 +1,4 @@
+import { PageHeader } from "@buildmax/gui"
 import { FilesPanel } from "../../components/FilesPanel"
 import { useT } from "../../i18n"
 
@@ -9,8 +10,7 @@ export function Explore({ spaceId }: ExploreProps) {
   const t = useT()
   return (
     <div className="page-explore">
-      <h1 className="page-explore__title">{t("files.title")}</h1>
-      <p className="page-explore__subtitle">{t("files.subtitle")}</p>
+      <PageHeader title={t("files.title")} subtitle={t("files.subtitle")} />
       <FilesPanel spaceId={spaceId} />
     </div>
   )

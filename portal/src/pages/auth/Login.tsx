@@ -1,4 +1,4 @@
-import { Button } from "@buildmax/gui"
+import { Button, Field, Input, Spinner } from "@buildmax/gui"
 import { useEffect, useState } from "react"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getAuthMethods, login, loginWithPassword } from "../../features/auth"
@@ -92,7 +92,7 @@ export function Login() {
       <div className="login-page__card">
         <h1 className="login-page__title">BuildMax</h1>
         {methods === null ? (
-          <p className="login-page__subtitle">{t("auth.loading")}</p>
+          <Spinner />
         ) : (
           <>
             <p className="login-page__subtitle">
@@ -128,45 +128,32 @@ export function Login() {
 
             {showLocal && (
               <form onSubmit={handleSubmit} className="login-page__form">
-                <label className="login-page__label" htmlFor="login-email">
-                  {t("auth.email")}
-                </label>
-                <input
-                  id="login-email"
-                  type="email"
-                  className="login-page__input"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                  disabled={loading}
-                />
+                <Field id="login-email" label={t("auth.email")}>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    disabled={loading}
+                  />
+                </Field>
 
                 {mode === "password" ? (
-                  <>
-                    <label className="login-page__label" htmlFor="login-password">
-                      {t("auth.password")}
-                    </label>
-                    <input
-                      id="login-password"
+                  <Field id="login-password" label={t("auth.password")}>
+                    <Input
                       type="password"
-                      className="login-page__input"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       autoComplete="current-password"
                       disabled={loading}
                     />
-                  </>
+                  </Field>
                 ) : (
-                  <>
-                    <label className="login-page__label" htmlFor="login-otp">
-                      {t("auth.loginCode")}
-                    </label>
-                    <input
-                      id="login-otp"
+                  <Field id="login-otp" label={t("auth.loginCode")}>
+                    <Input
                       type="text"
-                      className="login-page__input"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value)}
                       placeholder="bmxlogin_…"
@@ -174,7 +161,7 @@ export function Login() {
                       required
                       disabled={loading}
                     />
-                  </>
+                  </Field>
                 )}
 
                 <Button

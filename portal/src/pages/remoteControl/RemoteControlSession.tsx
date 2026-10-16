@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { QuestionForm, type QuestionAnswer, type Translate } from "@buildmax/gui"
+import { QuestionForm, type QuestionAnswer, type Translate, Button, DetailHeader } from "@buildmax/gui"
 import { useT, type MessageKey } from "../../i18n"
 import { navigate } from "../../router"
 import {
@@ -250,28 +250,22 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
 
   return (
     <div className="rc-page rc-session">
-      <header className="rc-page__header">
-        <button type="button" className="rc-back" onClick={() => navigate({ name: "remoteControl" })}>
-          {t("remote.back")}
-        </button>
-        <div className="rc-session__heading">
-          <span
-            className={`rc-status-dot rc-status-dot--${online ? "online" : "offline"}`}
-            aria-label={online ? t("remote.online") : t("remote.offline")}
-          />
-          <h1 className="rc-page__title">{title}</h1>
-          {online && status === "streaming" ? (
-            <button type="button" className="rc-stop" onClick={() => void stopRun()}>
-              {t("remote.stop")}
-            </button>
-          ) : null}
-        </div>
-        <p className="rc-page__subtitle">
-          {meta ? [meta.platform, meta.host].filter(Boolean).join(" · ") : ""}
-          {meta ? " · " : ""}
-          {statusLabel(status, online, t)}
-        </p>
-      </header>
+      <DetailHeader
+        title={title}
+        meta={[meta?.platform, meta?.host, connectionLabel(status, online, t)].filter(Boolean).join(" · ")}
+        actions={
+          <>
+            <Button variant="tertiary" onClick={() => navigate({ name: "remoteControl" })}>
+              {t("remote.back")}
+            </Button>
+            {online && status === "streaming" ? (
+              <Button variant="danger" onClick={() => void stopRun()}>
+                {t("remote.stop")}
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
       <div className="rc-stream" ref={bodyRef}>
         {text ? (
@@ -345,7 +339,9 @@ export function RemoteControlSession({ token, sessionId }: RemoteControlSessionP
   )
 }
 
-function statusLabel(status: StreamStatus, online: boolean, t: Translate<MessageKey>): string {
+// The live stream's connection, not a work status: it has no place in the
+// shared status vocabulary.
+function connectionLabel(status: StreamStatus, online: boolean, t: Translate<MessageKey>): string {
   if (!online) return t("remote.status.offline")
   return status === "streaming" ? t("remote.status.live") : t("remote.status.connecting")
 }

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { Menu, MenuItem } from "@buildmax/gui"
 import type { Route, Conversation } from "../lib/types"
 import { navigate } from "../router"
 import { useApp } from "../contexts/AppContext"
@@ -200,7 +200,6 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
 export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
   const t = useT()
   const crumbs = useBreadcrumbs(route, conversations)
-  const [overflowOpen, setOverflowOpen] = useState(false)
 
   // Keep the current object and its nearest parent inline; earlier ancestors
   // collapse behind an overflow disclosure rather than crowding or wrapping.
@@ -211,34 +210,25 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
     <nav className="breadcrumbs" aria-label={t("shell.crumbs.label")}>
       {collapsedAncestors.length > 0 && (
         <span className="breadcrumbs__segment breadcrumbs__segment--overflow">
-          <button
-            type="button"
-            className="breadcrumbs__link breadcrumbs__overflow-toggle"
-            aria-expanded={overflowOpen}
-            aria-haspopup="menu"
-            aria-label={t("shell.crumbs.earlier")}
-            onClick={() => setOverflowOpen((open) => !open)}
+          <Menu
+            label={t("shell.crumbs.earlier")}
+            trigger={(props) => (
+              <button
+                {...props}
+                type="button"
+                className="breadcrumbs__link breadcrumbs__overflow-toggle"
+                aria-label={t("shell.crumbs.earlier")}
+              >
+                …
+              </button>
+            )}
           >
-            …
-          </button>
-          {overflowOpen && (
-            <div className="breadcrumbs__overflow-menu" role="menu">
-              {collapsedAncestors.map((crumb, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  role="menuitem"
-                  className="breadcrumbs__overflow-item"
-                  onClick={() => {
-                    setOverflowOpen(false)
-                    navigate(crumb.route)
-                  }}
-                >
-                  {crumb.label}
-                </button>
-              ))}
-            </div>
-          )}
+            {collapsedAncestors.map((crumb, i) => (
+              <MenuItem key={i} onSelect={() => navigate(crumb.route)}>
+                {crumb.label}
+              </MenuItem>
+            ))}
+          </Menu>
           <span className="breadcrumbs__separator">/</span>
         </span>
       )}

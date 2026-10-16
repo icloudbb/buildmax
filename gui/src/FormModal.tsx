@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react"
 import { BaseModal } from "./BaseModal"
 import { Button } from "./Button"
+import { Field, Input, Select, Textarea } from "./Field"
 import { useGuiT } from "./messages"
 
 export interface FormModalSelectOption {
@@ -147,58 +148,45 @@ export function FormModal({
   }
 
   function renderField(field: FormModalFieldConfig) {
+    const value = values[field.key] ?? ""
+    const setValue = (next: string) => setValues((prev) => ({ ...prev, [field.key]: next }))
     return (
-      <div key={field.key}>
-        <label className="modal__label" htmlFor={field.key}>
-          {field.label}
-          {field.optional ? <span className="modal__optional"> (optional)</span> : null}
-        </label>
+      <Field
+        key={field.key}
+        id={field.key}
+        label={field.label}
+        optional={field.optional}
+        hint={field.type === "select" ? field.options?.find((option) => option.value === value)?.description : undefined}
+      >
         {field.type === "textarea" ? (
-          <textarea
-            id={field.key}
-            className="modal__textarea"
+          <Textarea
             placeholder={field.placeholder}
-            value={values[field.key] ?? ""}
-            onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
             disabled={loading}
             rows={field.rows ?? 3}
             maxLength={field.maxLength}
           />
         ) : field.type === "select" ? (
-          <>
-            <select
-              id={field.key}
-              className="modal__input"
-              value={values[field.key] ?? ""}
-              onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-              disabled={loading}
-            >
-              {(field.options ?? []).map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {field.options?.find((option) => option.value === (values[field.key] ?? ""))?.description ? (
-              <p className="modal__hint">
-                {field.options.find((option) => option.value === (values[field.key] ?? ""))?.description}
-              </p>
-            ) : null}
-          </>
+          <Select value={value} onChange={(e) => setValue(e.target.value)} disabled={loading}>
+            {(field.options ?? []).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
         ) : (
-          <input
-            id={field.key}
+          <Input
             type="text"
-            className="modal__input"
             placeholder={field.placeholder}
-            value={values[field.key] ?? ""}
-            onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
             disabled={loading}
             autoComplete="off"
             maxLength={field.maxLength}
           />
         )}
-      </div>
+      </Field>
     )
   }
 

@@ -1,30 +1,9 @@
 /* Page: Activity (user-level) */
 
-.page-activity__title {
-  margin: 0 0 0.25rem;
-  font-size: var(--font-size-page);
-  color: var(--color-text);
-}
-
 .page-activity__subtitle {
   margin: 0 0 1.25rem;
   font-size: 0.95rem;
   color: var(--color-text-muted);
-}
-
-.page-activity__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.page-activity__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
 }
 
 .page-activity__list {

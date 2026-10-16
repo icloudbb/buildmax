@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import type { Agent } from "../lib/types"
-import { BaseModal, Button } from "@buildmax/gui"
+import { BaseModal, Button, Field, Textarea } from "@buildmax/gui"
 import { useT } from "../i18n"
 
 interface RunAgentModalProps {
@@ -47,19 +47,16 @@ export function RunAgentModal({
         <p className="modal__hint" id="run-agent-modal-hint">
           {t("agents.runModal.hint")}
         </p>
-        <label className="modal__label" htmlFor="run-agent-modal-input">
-          {t("agents.runModal.task")}
-        </label>
-        <textarea
-          id="run-agent-modal-input"
-          className="modal__textarea run-agent-modal__textarea"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          rows={10}
-          disabled={loading}
-          placeholder={t("agents.runModal.placeholder")}
-          aria-describedby="run-agent-modal-hint"
-        />
+        <Field id="run-agent-modal-input" label={t("agents.runModal.task")}>
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            rows={10}
+            disabled={loading}
+            placeholder={t("agents.runModal.placeholder")}
+            aria-describedby="run-agent-modal-hint"
+          />
+        </Field>
         {error ? (
           <p className="modal__error" id="run-agent-modal-error" role="alert">
             {error}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from "react"
+import { Spinner, useStatusLabel } from "@buildmax/gui"
 import { buildHash } from "../../router"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import { useRelativeTime } from "../../lib/dateFormat"
@@ -35,6 +36,7 @@ export function NeedsMeSection({ token, spaceId, agents, workflows, onCreateIssu
   const t = useT()
   const stableT = useStableT()
   const relativeTime = useRelativeTime()
+  const statusLabel = useStatusLabel()
   const canManage = useCanManageSpace()
   const headingId = useId()
   // null until the first answer: loading never reads as "nothing waiting".
@@ -88,7 +90,7 @@ export function NeedsMeSection({ token, spaceId, agents, workflows, onCreateIssu
           retry={error.kind === "forbidden" ? undefined : { label: t("shell.retry"), onClick: load }}
         />
       ) : needs === null ? (
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Spinner />
       ) : count === 0 ? (
         <EmptyState
           message={t("needsMe.empty")}
@@ -118,7 +120,7 @@ export function NeedsMeSection({ token, spaceId, agents, workflows, onCreateIssu
               <NeedsMeItem
                 href={buildHash({ name: "task", spaceId, taskId: task.id })}
                 title={task.title}
-                detail={`${agentName(task)} · ${t("chat.needsAnswer")}`}
+                detail={`${agentName(task)} · ${statusLabel("needs_answer")}`}
                 action={t("needsMe.open.answer")}
                 time={relativeTime(task.timeAt)}
               />

@@ -299,27 +299,8 @@
 }
 
 .help__skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
   max-width: 76ch;
-  padding-top: 4px;
-}
-
-.help__skeleton-line {
-  height: 14px;
-  border-radius: 6px;
-  background: var(--color-bg-muted);
-}
-
-.help__skeleton-line--title {
-  height: 28px;
-  width: 55%;
-  margin-bottom: 10px;
-}
-
-.help__skeleton-line--short {
-  width: 40%;
+  margin-top: 4px;
 }
 
 /* Narrow screens: stack the table of contents above the article. */

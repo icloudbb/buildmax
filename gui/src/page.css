@@ -1,0 +1,87 @@
+/* PageHeader, DetailHeader, CollectionFrame, and EditorActions: the page
+   anatomy of docs/design/portal-frontend-page-system.md. Import after theme.css. */
+
+.bm-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.bm-page-header__text {
+  min-width: 0;
+}
+
+.bm-page-header__title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-page);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.bm-page-header__subtitle,
+.bm-detail-header__meta {
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+}
+
+.bm-detail-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.bm-page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.bm-collection {
+  padding: var(--space-4);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+}
+
+.bm-collection__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.bm-collection__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.bm-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* Narrow editors keep Save and Cancel in reach while the fields scroll. */
+@media (max-width: 767px) {
+  .bm-editor-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    padding: var(--space-3) 0;
+    background: var(--color-bg-elevated);
+    border-top: 1px solid var(--color-border);
+  }
+}

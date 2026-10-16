@@ -1,4 +1,4 @@
-import { Button } from "@buildmax/gui"
+import { Button, Input } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { useStableT, useT } from "../../i18n"
 import type { ApiAdminLLMCall, ApiAdminLLMCallCost } from "../../lib/api/types"
@@ -105,29 +105,29 @@ export function AdminLLMCalls({ token }: { token: string | null }) {
             apply(filters)
           }}
         >
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             value={filters.userId}
             placeholder={t("admin.calls.userPlaceholder")}
             aria-label={t("admin.calls.userLabel")}
             onChange={(e) => setFilters({ ...filters, userId: e.target.value })}
           />
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             value={filters.model}
             placeholder={t("admin.calls.modelPlaceholder")}
             aria-label={t("admin.calls.modelLabel")}
             onChange={(e) => setFilters({ ...filters, model: e.target.value })}
           />
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             value={filters.status}
             placeholder={t("admin.calls.statusPlaceholder")}
             aria-label={t("admin.filterByStatus")}
             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
           />
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             value={filters.surface}
             placeholder={t("admin.calls.surfacePlaceholder")}
             aria-label={t("admin.calls.surfaceLabel")}

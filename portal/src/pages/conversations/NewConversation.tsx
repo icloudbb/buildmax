@@ -1,9 +1,9 @@
 import { useRef, useState, type KeyboardEvent } from "react"
-import { ButtonLink, ChatComposer } from "@buildmax/gui"
+import { ButtonLink, ChatComposer, Spinner } from "@buildmax/gui"
 import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { cn } from "../../lib/cn"
-import { conversationSourceLabel } from "../../lib/statusLabels"
+import { conversationSourceLabel } from "../../lib/conversationSource"
 import { createConversation } from "../../features/conversations"
 import { useApp } from "../../contexts/AppContext"
 import { Alert } from "../../components/state/Alert"
@@ -157,7 +157,7 @@ export function NewConversation({
                 />
               )}
               {conversationsState.kind === "loading" ? (
-                <p className="page-activity__empty">{t("shell.loading")}</p>
+                <Spinner />
               ) : conversationsState.kind === "readyEmpty" ? (
                 <EmptyState message={t("chat.new.empty")} />
               ) : conversationsState.kind === "error" ||

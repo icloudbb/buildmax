@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Button, BaseModal } from "@buildmax/gui"
+import { Button, BaseModal, Spinner } from "@buildmax/gui"
 import { useStableT, useT } from "../../i18n"
 import type { ApiAdminUser, ApiDeactivationImpact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -72,7 +72,7 @@ export function DeactivationImpactModal({ open, user, token, busy, onCancel, onC
       <div className="modal__body">
         <p className="admin-detail__muted">{t("admin.impact.intro")}</p>
 
-        {loading ? <p className="admin-detail__muted">{t("admin.impact.loading")}</p> : null}
+        {loading ? <Spinner label={t("admin.impact.loading")} /> : null}
         {error ? (
           <p className="settings-section__error" role="alert">
             {error}

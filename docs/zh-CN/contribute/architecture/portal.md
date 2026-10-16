@@ -28,7 +28,7 @@ Portal 负责云端/Space 使用场景：
 ## 当前结构
 
 - 路由位于 `portal/src/router.ts`。少数无需登录或 Space 的独立页面，在
-  `portal/src/main.tsx` 中按真实路径匹配，并仅包裹 `ThemeProvider` 与根部的 `LocaleProvider` 渲染：公共分享
+  `portal/src/main.tsx` 中按真实路径匹配，并仅包裹 `ThemeProvider` 与根部的 `LocaleProvider` 和 `ToastProvider` 渲染：公共分享
   链接 `/shared/artifacts/<token>` 与组件样张 `/specimen`。
 - `portal/src/App.tsx` 依次设关：会话恢复、登录（未登录时任何路由都渲染登录页，并保留地址）、`#/sign-in[/<code>]` 原生登录确认页，然后是 Space 关卡与 Space 外壳。确认页位于 Space 关卡之前，使没有可用 Space 的账号也能确认；其状态是 `portal/src/features/nativeSignIn/model.ts` 中的纯函数。SSO 按钮把当前 hash 路由作为 `return_to` 传入，使 OIDC 回调回到该路由。
 - 页面位于 `portal/src/pages/*`。
@@ -44,7 +44,16 @@ Portal 负责云端/Space 使用场景：
   对照已提交的基线，并对它们运行包含对比度的 axe 检查（见
   [测试](../testing.md#截图基线)）。
 - API 调用位于 `portal/src/features/*/api.ts` 和 `portal/src/lib/api`。
-- 共享展示组件来自 `@buildmax/gui`。
+- 共享展示组件来自 `@buildmax/gui`。页面用它组合页面结构：集合页、设置页和
+  Administration 使用 `PageHeader`，单个对象的页面使用 `DetailHeader`，集合的列表行
+  外层使用 `CollectionFrame`，编辑器的 Save 与 Cancel 使用 `EditorActions`，在窄屏上
+  固定在底部。所有表单控件都是 gui 的 `Input`、`Select` 或 `Textarea`，由同时承载提示
+  与错误的 `Field` 提供标签；页面 CSS 只负责摆放字段，从不重新定义其样式。菜单（用户
+  菜单与面包屑溢出菜单）使用 gui 的 `Menu`。区块加载用 `Spinner`，整个详情页加载用
+  `Skeleton`；集合的加载经由 `CollectionFrame`，在得到响应前不显示数量或分页。效果已
+  显示在页面上的短暂成功确认（添加模型、更改 Space 的所有者或等级、授予或撤销管理员、
+  修改密码）通过 `useToast()` 以 toast 显示；失败以及需要处理的内容留在页面上、附在
+  对应对象旁。
 - 颜色、阴影、遮罩层和等宽字体栈来自 `gui/src/theme.css` 中的语义 token，该文件为浅色和
   深色主题分别定义每一个 token。Portal CSS 不包含颜色字面量，也不引用任何样式表都未定义的
   自定义属性；两条规则均由 Stylelint 强制执行（见[约定](../conventions.md)）。
@@ -77,7 +86,10 @@ Portal 负责云端/Space 使用场景：
   `index.ts` 合并。组件调用 `useT()`；`MessageKey` 为每个键提供类型，`catalog.test.ts`
   会在某个键缺少中文或占位符不一致时失败。`@buildmax/gui` 的 `LocaleProvider` 在
   `main.tsx` 中包裹每个根；语言在用户菜单中选择，按浏览器保存，默认取浏览器语言。
-  Help 跟随界面语言，因此手册与界面不会不一致。状态标签通过 `useStatusLabel()` 翻译。
+  Help 跟随界面语言，因此手册与界面不会不一致。所有状态标签都来自 gui 的唯一状态词汇——
+  `StatusLabel`，或只能放文字时使用 `useStatusLabel()`——无论服务端以何种大小写存储该值；
+  `features/conversations/thread.ts` 中的 `taskStatus()` 把等待回答的 Task 表示为
+  `needs_answer`。
   服务器返回的文本按原样显示。日期在渲染时通过 `lib/dateFormat.ts`（`useRelativeTime`、
   `useTimestamp`）按界面语言格式化，而不是写进映射字段。每个区域都有一个
   `portal/e2e/locale-*.spec.ts` 浏览器检查，用中文渲染该区域。术语表见

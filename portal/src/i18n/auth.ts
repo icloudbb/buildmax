@@ -3,7 +3,6 @@ import type { Messages } from "@buildmax/gui"
 // The sign-in page, which renders before any Space or account exists.
 export const authMessages = {
   en: {
-    "auth.loading": "Loading…",
     "auth.genericProvider": "single sign-on",
     "auth.signInWith": "Sign in with {provider}",
     "auth.signInToContinue": "Sign in to continue",
@@ -24,7 +23,6 @@ export const authMessages = {
     "auth.sso.disabled": "This account is disabled. Contact your administrator.",
   },
   "zh-CN": {
-    "auth.loading": "加载中…",
     "auth.genericProvider": "SSO",
     "auth.signInWith": "使用 {provider} 登录",
     "auth.signInToContinue": "登录以继续",

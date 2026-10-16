@@ -158,15 +158,23 @@ three stacked places.
 | Collection | Scope and H1 → one primary creation action → optional filters/count → rows or a specific empty/error state → pagination. Do not add “All X” when the page contains only one collection. | Issues, Agents, Workflows, Schedules, Artifacts |
 | Object detail | Object title/status → owner/executor and next action → latest outcome or useful summary → related content → history/diagnostics. Read mode precedes edit mode. | Issue, Agent, Workflow, Artifact |
 | Work/run detail | Result and artifacts → current state/recovery action → execution steps → provenance and trace. IDs are secondary copyable metadata. | Task, Workflow Run, Issue Runs |
-| Editor | Named object and dirty state → grouped fields with local help/errors → sticky Save/Cancel on narrow screens. Save success identifies the object and effect. | Issue edit, Workflow edit, Agent config, settings |
+| Editor | Named object and dirty state → grouped fields with local help/errors → sticky Save/Cancel on narrow screens (*shipped* as `EditorActions`). Save success identifies the object and effect. | Issue edit, Workflow edit, Agent config, settings |
 | Administration | Deployment scope cue → section navigation → status summary → task-specific tables/forms. Security-sensitive controls keep explicit authority and feedback. | Administration, Space settings (Space scope) |
 
 These are compositional templates, not new persistent entities. Prefer a small
-Portal `PageHeader`, `CollectionFrame`, `DetailHeader`, `StatusLabel`, and
+`PageHeader`, `CollectionFrame`, `DetailHeader`, `StatusLabel`, and Portal's
 existing `EmptyState`/`Alert` over a universal page component with dozens of
 flags. Tabs and disclosure patterns have one semantic implementation. Shared
 presentation primitives belong in `@buildmax/gui` only when they are neutral
 enough for Desktop; Portal owns object vocabulary and page composition.
+*Shipped:* the four anatomy components live in `@buildmax/gui`, beside the
+form `Field` with `Input`, `Select`, and `Textarea`, `Menu`, `Toast`, `Spinner`,
+and `Skeleton`, because none holds Portal routing, data, or policy and the
+[UI experience program](ui-experience-program.md#d4-one-presentation-layer-for-both-surfaces)
+moves Desktop onto them next. Every Portal page uses them; no page keeps its
+own header, collection panel, menu, or input styling. `CollectionFrame` hides
+the count and pagination while loading and shows rows or the empty state, never
+both.
 
 ## States, responsive behavior, and accessibility
 
@@ -177,6 +185,11 @@ enough for Desktop; Portal owns object vocabulary and page composition.
 - Use one presentation vocabulary for business status, run status, and
   lifecycle status. Each has text plus shape/icon where useful; color alone
   never carries meaning. Technical enum values remain available in details.
+  *Shipped:* `statusLabel` in `@buildmax/gui` is the one function that maps a
+  status to its label, whichever case the server stored it in, and
+  `StatusLabel` adds a tone mark beside the text. A finished run reads
+  Succeeded, never Done, which is an Issue's own business status; a run waiting
+  on its questions reads Needs your answer.
 - At 390, 768, and 1280 CSS pixels, the same action hierarchy survives reflow.
   Header actions may move below the title or into a named menu but keep their
   priority and accessible name. A page must not introduce horizontal document

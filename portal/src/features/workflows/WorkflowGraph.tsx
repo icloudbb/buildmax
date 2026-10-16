@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { useStatusLabel } from "../../lib/statusLabels"
+import { StatusLabel } from "@buildmax/gui"
 import { useT } from "../../i18n"
 
 /** One node to draw. `needs` are the ids this node depends on (its inbound
@@ -81,7 +81,6 @@ export function computeGraphLayout(nodes: GraphNode[]): { positioned: Positioned
  */
 export function WorkflowGraph({ nodes, emptyLabel }: { nodes: GraphNode[]; emptyLabel?: string }) {
   const t = useT()
-  const statusLabel = useStatusLabel()
   const { positioned, width, height } = useMemo(() => computeGraphLayout(nodes), [nodes])
   const posById = useMemo(() => new Map(positioned.map((p) => [p.id, p])), [positioned])
 
@@ -117,7 +116,7 @@ export function WorkflowGraph({ nodes, emptyLabel }: { nodes: GraphNode[]; empty
             <>
               <span className="wf-graph__node-id">{node.label ?? node.id}</span>
               {node.sublabel ? <span className="wf-graph__node-sub">{node.sublabel}</span> : null}
-              {node.status ? <span className="wf-graph__node-status">{statusLabel(node.status)}</span> : null}
+              {node.status ? <StatusLabel status={node.status} /> : null}
             </>
           )
           return node.onOpen ? (

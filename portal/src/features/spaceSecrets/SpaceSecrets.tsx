@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, IconButton, getInitials } from "@buildmax/gui"
+import { Button, Field, IconButton, Input, Skeleton, Textarea, getInitials } from "@buildmax/gui"
 import type { ApiSecret } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT, type MessageKey } from "../../i18n"
@@ -147,11 +147,7 @@ export function SpaceSecrets({
       ) : null}
 
       {secretsState.kind === "loading" ? (
-        <div className="sec-list" aria-hidden>
-          {[0, 1].map((i) => (
-            <div key={i} className="sec-card sec-card--skeleton" />
-          ))}
-        </div>
+        <Skeleton lines={2} />
       ) : secretsState.kind === "error" || secretsState.kind === "forbidden" || secretsState.kind === "notFound" ? null : live.length === 0 && !creating ? (
         <div className="sec-empty">
           <KeyIcon />
@@ -242,43 +238,26 @@ function CreateSecretForm({
         <h3 className="sec-form__title">{t("secrets.new")}</h3>
       </div>
 
-      <div className="sec-field">
-        <label className="modal__label" htmlFor="secret-name">
-          {t("secrets.field.name")}
-        </label>
-        <input
-          id="secret-name"
-          className="modal__input"
-          value={name}
-          placeholder="aws-prod"
-          onChange={(e) => setName(e.target.value)}
-        />
-      </div>
+      <Field label={t("secrets.field.name")} id="secret-name">
+        <Input value={name} placeholder="aws-prod" onChange={(e) => setName(e.target.value)} />
+      </Field>
 
-      <div className="sec-field">
-        <label className="modal__label" htmlFor="secret-description">
-          {t("secrets.field.description")}{" "}
-          <span className="sec-field__optional">{t("secrets.field.optional")}</span>
-        </label>
-        <input
-          id="secret-description"
-          className="modal__input"
+      <Field label={t("secrets.field.description")} id="secret-description" optional>
+        <Input
           value={description}
           placeholder={t("secrets.field.descriptionPlaceholder")}
           onChange={(e) => setDescription(e.target.value)}
         />
-      </div>
+      </Field>
 
-      <div className="sec-field">
-        <div className="sec-field__row">
-          <span className="modal__label">{t("secrets.field.items")}</span>
-          <Button variant="tertiary" size="compact" onClick={() => setRaw(!raw)}>
-            {raw ? t("secrets.rowEditor") : t("secrets.pasteJson")}
-          </Button>
-        </div>
+      <Field group label={t("secrets.field.items")}>
+        <Button variant="tertiary" size="compact" className="sec-items__mode" onClick={() => setRaw(!raw)}>
+          {raw ? t("secrets.rowEditor") : t("secrets.pasteJson")}
+        </Button>
         {raw ? (
-          <textarea
-            className="modal__input sec-json"
+          <Textarea
+            className="sec-json"
+            aria-label={t("secrets.field.items")}
             rows={6}
             value={rawText}
             spellCheck={false}
@@ -287,7 +266,7 @@ function CreateSecretForm({
         ) : (
           <ItemRowsEditor rows={rows} setRows={setRows} />
         )}
-      </div>
+      </Field>
 
       {error ? (
         <p className="sec__error" role="alert">
@@ -319,8 +298,8 @@ function ItemRowsEditor({
     <div className="sec-items">
       {rows.map((row, i) => (
         <div key={i} className="sec-item">
-          <input
-            className="modal__input sec-item__key"
+          <Input
+            className="sec-item__key"
             aria-label={t("secrets.item.name")}
             placeholder="ITEM_NAME"
             value={row.key}
@@ -330,8 +309,8 @@ function ItemRowsEditor({
               setRows(next)
             }}
           />
-          <input
-            className="modal__input sec-item__val"
+          <Input
+            className="sec-item__val"
             aria-label={t("secrets.item.value")}
             placeholder={t("secrets.item.valuePlaceholder")}
             type="password"
@@ -517,8 +496,9 @@ function EditItemsForm({
         </div>
       ) : null}
 
-      <span className="modal__label">{t("secrets.edit.setOrAdd")}</span>
-      <ItemRowsEditor rows={rows} setRows={setRows} />
+      <Field group label={t("secrets.edit.setOrAdd")}>
+        <ItemRowsEditor rows={rows} setRows={setRows} />
+      </Field>
 
       {error ? (
         <p className="sec__error" role="alert">

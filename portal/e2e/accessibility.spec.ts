@@ -76,7 +76,7 @@ test("the narrow Issue Board and its filters have no WCAG A/AA violations", asyn
   const current = await session(page)
   await page.goto(`/#/spaces/${current.spaceId}/issues?view=board`)
   await expect(page.getByRole("region", { name: /^Done\b/ })).toBeVisible()
-  await expect(page.locator(".issue-board .page-activity__empty", { hasText: "Loading…" })).toHaveCount(0)
+  await expect(page.locator(".issue-board [role=status]", { hasText: "Loading…" })).toHaveCount(0)
 
   const results = await scan(page, ".issues-page__controls, .issue-board")
   expect(results.violations, describeViolations(results.violations)).toEqual([])

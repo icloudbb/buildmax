@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, CollectionFrame, PageHeader, StatusLabel } from "@buildmax/gui"
 import type { Agent } from "../../lib/types"
 import type { ApiTask } from "../../lib/api/types"
 import { navigate } from "../../router"
@@ -7,7 +7,7 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiTaskToTask } from "../../lib/api/mappers"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
 import { formatSuccessRate, getAgents, successRate as rateOf } from "../../features/agents"
-import { runStatusTone, taskRunFinished, taskStatusLabel } from "../../features/conversations/thread"
+import { taskRunFinished, taskStatus } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
 import { RunAgentModal } from "../../components/RunAgentModal"
@@ -160,13 +160,11 @@ export function AgentList({ token, spaceId }: AgentListProps) {
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{t("agents.title")}</h1>
-          <p className="page-activity__subtitle">{t("agents.subtitle")}</p>
-        </div>
-        <div className="page-activity__actions">
-          {canManageAgents ? (
+      <PageHeader
+        title={t("agents.title")}
+        subtitle={t("agents.subtitle")}
+        actions={
+          canManageAgents ? (
             <Button
               variant="primary"
               className="agent-list__create-btn"
@@ -175,9 +173,9 @@ export function AgentList({ token, spaceId }: AgentListProps) {
             >
               {t("agents.create")}
             </Button>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {(agentsState.kind === "error" ||
         agentsState.kind === "forbidden" ||
@@ -213,16 +211,17 @@ export function AgentList({ token, spaceId }: AgentListProps) {
       ) : null}
 
       <div className="agent-home">
-        <section className="agent-list">
-          {agentsState.kind === "loading" ? (
-            <p className="page-activity__empty">{t("shell.loading")}</p>
-          ) : agentsState.kind === "readyEmpty" ? (
-            <EmptyState
-              message={
-                canManageAgents ? t("agents.empty.manager") : t("agents.empty.member")
-              }
-            />
-          ) : agentsState.kind === "error" || agentsState.kind === "forbidden" || agentsState.kind === "notFound" ? null : (
+        <CollectionFrame
+          className="agent-list"
+          label={t("agents.list.label")}
+          loading={agentsState.kind === "loading"}
+          empty={
+            agentsState.kind === "readyEmpty" ? (
+              <EmptyState message={canManageAgents ? t("agents.empty.manager") : t("agents.empty.member")} />
+            ) : null
+          }
+        >
+          {agentsState.kind === "error" || agentsState.kind === "forbidden" || agentsState.kind === "notFound" ? null : (
             <div className="agent-list__grid">
               {agents.map((a) => {
                 const meta = agentMeta(a)
@@ -278,7 +277,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
               })}
             </div>
           )}
-        </section>
+        </CollectionFrame>
 
         {!loading && agents.length > 0 ? (
           <aside className="agent-activity">
@@ -300,9 +299,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                         <span className="agent-activity__row-title">{ui.title}</span>
                         <span className="agent-activity__row-sub">{agent.name}</span>
                       </div>
-                      <span className={`agent-activity__status agent-activity__status--${runStatusTone(task.status)}`}>
-                        {taskStatusLabel(task, t)}
-                      </span>
+                      <StatusLabel status={taskStatus(task)} />
                       <span className="agent-activity__time">{relativeTime(ui.timeAt)}</span>
                     </button>
                   )

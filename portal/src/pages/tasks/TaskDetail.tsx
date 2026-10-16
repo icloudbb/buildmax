@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Avatar, BaseModal, Button, ButtonLink, ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
+import {
+  Avatar,
+  BaseModal,
+  Button,
+  ButtonLink,
+  ChatComposer,
+  ChatThread,
+  type ChatThreadItem,
+  DetailHeader,
+  Skeleton,
+  Spinner,
+  StatusLabel,
+  useStatusLabel,
+} from "@buildmax/gui"
 import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
@@ -17,14 +30,13 @@ import {
   useCanManageSpace,
   useSecretName,
 } from "../../features/runs"
-import { runStatusLabel, taskStatusLabel } from "../../features/conversations/thread"
+import { taskStatus } from "../../features/conversations/thread"
 import { buildHash, navigate } from "../../router"
 import type { ApiTask, ApiTaskRun } from "../../lib/api/types"
 import type { BreadcrumbCrumb } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
-import { useStatusLabel } from "../../lib/statusLabels"
 import { useStableT, useT } from "../../i18n"
 import { useTimestamp } from "../../lib/dateFormat"
 
@@ -272,10 +284,10 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
           id: `${run.id}-output`,
           role: "assistant",
           // While a run is in flight the label stays "Agent" — the working dots
-          // carry the state; only a finished run shows Done / Failed / Stopped.
+          // carry the state; only a finished run shows its status.
           label: active
             ? t("tasks.agent")
-            : `${t("tasks.agent")} · ${run.questions?.length ? t("chat.needsAnswer") : runStatusLabel(run.status, t)}`,
+            : `${t("tasks.agent")} · ${statusLabel(run.questions?.length ? "needs_answer" : run.status)}`,
           avatar: <AgentAvatar size="sm" />,
           body: run.output ? (
             <div className="page-chat__msg-content page-chat__markdown">
@@ -308,7 +320,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
         },
       ]
     })
-  }, [runs, user, streamingText, t, explainRun])
+  }, [runs, user, streamingText, t, statusLabel, explainRun])
 
   async function handleContinue() {
     const message = input.trim()
@@ -353,7 +365,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Skeleton />
       </div>
     )
   }
@@ -373,36 +385,35 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
 
   return (
     <div className="page-chat task-thread">
-      <header className="task-thread__header">
-        <div>
-          <h1 className="page-activity__title">{task?.title || t("tasks.untitled")}</h1>
-          <p className="page-activity__subtitle">
-            {agentName ? `${agentName} · ` : ""}
-            {task ? taskStatusLabel(task, t) : t("tasks.loading")}
-          </p>
-        </div>
-        <div className="task-thread__header-actions">
-          {running ? (
-            <Button variant="danger" busy={stopping} onClick={handleStop}>{t("tasks.stop")}</Button>
-          ) : null}
-          {!running && lastFailure?.leadsWithFix ? (
-            <FailureFixLink explanation={lastFailure} spaceId={spaceId} agentId={task?.agent_id} />
-          ) : null}
-          {!running && runs.length > 0 ? (
-            <Button variant={lastFailure?.leadsWithFix ? "tertiary" : "secondary"} busy={retrying} onClick={handleRetry}>
-              {t("tasks.retryLast")}
+      <DetailHeader
+        className="task-thread__header"
+        title={task?.title || t("tasks.untitled")}
+        status={task ? <StatusLabel status={taskStatus(task)} /> : <Spinner />}
+        meta={agentName}
+        actions={
+          <>
+            {running ? (
+              <Button variant="danger" busy={stopping} onClick={handleStop}>{t("tasks.stop")}</Button>
+            ) : null}
+            {!running && lastFailure?.leadsWithFix ? (
+              <FailureFixLink explanation={lastFailure} spaceId={spaceId} agentId={task?.agent_id} />
+            ) : null}
+            {!running && runs.length > 0 ? (
+              <Button variant={lastFailure?.leadsWithFix ? "tertiary" : "secondary"} busy={retrying} onClick={handleRetry}>
+                {t("tasks.retryLast")}
+              </Button>
+            ) : null}
+            <Button variant="tertiary" aria-haspopup="dialog" onClick={() => setDetailsOpen(true)}>
+              {t("tasks.details")}
             </Button>
-          ) : null}
-          <Button variant="tertiary" aria-haspopup="dialog" onClick={() => setDetailsOpen(true)}>
-            {t("tasks.details")}
-          </Button>
-          {task?.agent_id && lastFailure?.primary !== "fixAgent" && lastFailure?.primary !== "openAgent" ? (
-            <ButtonLink variant="tertiary" href={buildHash({ name: "agent", spaceId, agentId: task.agent_id })}>
-              {t("tasks.openAgent")}
-            </ButtonLink>
-          ) : null}
-        </div>
-      </header>
+            {task?.agent_id && lastFailure?.primary !== "fixAgent" && lastFailure?.primary !== "openAgent" ? (
+              <ButtonLink variant="tertiary" href={buildHash({ name: "agent", spaceId, agentId: task.agent_id })}>
+                {t("tasks.openAgent")}
+              </ButtonLink>
+            ) : null}
+          </>
+        }
+      />
 
       {task ? (
         <BaseModal
@@ -424,7 +435,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
               )}
             </dd>
             <dt>{t("tasks.details.status")}</dt>
-            <dd>{taskStatusLabel(task, t)}</dd>
+            <dd><StatusLabel status={taskStatus(task)} /></dd>
             {lastFailure ? (
               <>
                 <dt>{t("tasks.details.cause")}</dt>

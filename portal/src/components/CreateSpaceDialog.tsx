@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Button, BaseModal } from "@buildmax/gui"
+import { Button, BaseModal, Input } from "@buildmax/gui"
 import { useAuth } from "../contexts/AuthContext"
 import { useSpace } from "../contexts/SpaceContext"
 import { createSpace } from "../features/spaces/api"
@@ -53,8 +53,7 @@ export function CreateSpaceDialog({ open, onClose }: CreateSpaceDialogProps) {
           <p className="space-settings-page__muted">
             {t("common.space.createIntro")}
           </p>
-          <input
-            className="issues-page__input"
+          <Input
             type="text"
             value={spaceName}
             onChange={(e) => setSpaceName(e.target.value)}

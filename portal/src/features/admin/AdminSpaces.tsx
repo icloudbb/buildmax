@@ -1,4 +1,4 @@
-import { Button } from "@buildmax/gui"
+import { Button, Field, Input, Select, Spinner, useToast } from "@buildmax/gui"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useStableT, useT } from "../../i18n"
 import type {
@@ -55,7 +55,7 @@ export function AdminSpaces({
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ApiAdminSpaceDetail | null>(null)
   const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
   const [tiers, setTiers] = useState<ApiQuotaTier[]>([])
   const [tierChoice, setTierChoice] = useState("")
   const detailRef = useRef<HTMLElement | null>(null)
@@ -89,10 +89,9 @@ export function AdminSpaces({
     }
     setBusy(true)
     setError(null)
-    setNotice(null)
     try {
       await recoverSpaceOwner(token, space.id, member.user_id)
-      setNotice(stableT("admin.spaces.nowOwner", { who, space: space.name }))
+      toast(stableT("admin.spaces.nowOwner", { who, space: space.name }))
       setSelected(await getAdminSpace(token, space.id))
     } catch (err) {
       setError(getErrorMessage(err, stableT("admin.spaces.recoveryFailed")))
@@ -135,10 +134,9 @@ export function AdminSpaces({
     }
     setBusy(true)
     setError(null)
-    setNotice(null)
     try {
       await setSpaceQuotaTier(token, space.id, tier)
-      setNotice(stableT("admin.spaces.tierChanged", { space: space.name, tier }))
+      toast(stableT("admin.spaces.tierChanged", { space: space.name, tier }))
       setSelected(await getAdminSpace(token, space.id))
       load(query, offset)
     } catch (err) {
@@ -172,8 +170,8 @@ export function AdminSpaces({
             load(query, 0)
           }}
         >
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             type="search"
             value={query}
             placeholder={t("admin.spaces.searchPlaceholder")}
@@ -192,7 +190,7 @@ export function AdminSpaces({
         ) : null}
 
         {loading ? (
-          <p className="admin-empty">{t("shell.loading")}</p>
+          <Spinner />
         ) : spaces.length === 0 ? (
           <p className="admin-empty">{t("admin.spaces.noMatch")}</p>
         ) : (
@@ -312,10 +310,8 @@ export function AdminSpaces({
                 void changeTier(selected, tierChoice)
               }}
             >
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.spaces.quotaTier")}</span>
-                <select
-                  className="admin-input"
+              <Field label={t("admin.spaces.quotaTier")} className="admin-item">
+                <Select
                   value={tierChoice}
                   disabled={busy}
                   onChange={(e) => setTierChoice(e.target.value)}
@@ -325,8 +321,8 @@ export function AdminSpaces({
                       {tier.tier_name} — {describeTierLimits(tier, t)}
                     </option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </Field>
               <Button
                 type="submit"
                 variant="secondary"
@@ -337,7 +333,6 @@ export function AdminSpaces({
             </form>
           ) : null}
 
-          {notice ? <p className="admin-notice">{notice}</p> : null}
           <ul className="admin-list">
             {selected.members.map((member) => (
               <li key={member.user_id} className="admin-list__row">

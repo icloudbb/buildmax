@@ -197,7 +197,7 @@ test("a workflow runs, and the run view reports each step's outcome", async ({ p
   })
   const step = steps.locator(".workflow-page__step").first()
   await expect(step.getByText("only", { exact: true })).toBeVisible()
-  await expect(step.locator(".issues-page__status")).toHaveText("Succeeded")
+  await expect(step.locator(".bm-status")).toHaveText("Succeeded")
   // The labelled Output, not any output-styled block: the agent's instructions
   // and the step's resolved input are drawn the same way inside disclosures,
   // and they say what was asked rather than what came back. Matching them
@@ -337,7 +337,7 @@ test("a workflow binds one step's output into the next step's input", async ({ p
   const steps = page.locator(".issues-page__panel").filter({
     has: page.getByRole("heading", { name: "Steps" }),
   })
-  const stepStatuses = steps.locator(".workflow-page__step .issues-page__status")
+  const stepStatuses = steps.locator(".workflow-page__step .bm-status")
   await expect(stepStatuses).toHaveText(["Succeeded", "Succeeded"])
 })
 
@@ -427,7 +427,7 @@ test("a waiting run is canceled from its run view", async ({ page }) => {
   await expect(page.getByRole("region", { name: "Request from step brief" })).toBeVisible()
   await page.getByRole("button", { name: "Cancel run" }).click()
   // Nothing was running, so the run is canceled at once and its request closes.
-  await expect(page.locator(".page-activity__subtitle")).toContainText("Canceled")
+  await expect(page.locator(".bm-detail-header__meta")).toContainText("Canceled")
   await expect(page.getByRole("region", { name: "Request from step brief" })).toHaveCount(0)
   await expect(page.getByText("Input canceled")).toBeVisible()
 })

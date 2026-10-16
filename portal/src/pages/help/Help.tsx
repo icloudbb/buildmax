@@ -3,7 +3,7 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { Components } from "react-markdown"
 import { navigate } from "../../router"
-import { useLocale } from "@buildmax/gui"
+import { Skeleton, useLocale } from "@buildmax/gui"
 import { useT } from "../../i18n"
 
 /**
@@ -264,12 +264,7 @@ export function Help({ slug }: { slug?: string }) {
             {t("help.pageError")}
           </p>
         ) : loading || content === null ? (
-          <div className="help__skeleton" aria-hidden>
-            <div className="help__skeleton-line help__skeleton-line--title" />
-            <div className="help__skeleton-line" />
-            <div className="help__skeleton-line" />
-            <div className="help__skeleton-line help__skeleton-line--short" />
-          </div>
+          <Skeleton lines={4} className="help__skeleton" />
         ) : (
           <article className="help__article markdown">
             <Markdown remarkPlugins={[remarkGfm]} components={components}>

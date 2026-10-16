@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { BaseModal, Button } from "@buildmax/gui"
+import { BaseModal, Button, Field, Input, Textarea } from "@buildmax/gui"
 import type { Agent } from "../lib/types"
 import { useStableT, useT } from "../i18n"
 import { newStep, stepsToDefinition, useWorkflowSteps, WorkflowStepsEditor } from "../features/workflows"
@@ -47,14 +47,12 @@ export function WorkflowModal({ open, agents = [], loading, error, onClose, onSu
     <BaseModal open={open} title={t("workflows.new")} titleId="workflow-modal-title" onClose={onClose} className="modal--large">
       <div className="modal__body">
         <div className="workflow-page__form">
-          <label className="issues-page__field">
-            <span className="issues-page__field-label">{t("workflows.field.name")}</span>
-            <input className="issues-page__input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("workflows.modal.namePlaceholder")} />
-          </label>
-          <label className="issues-page__field">
-            <span className="issues-page__field-label">{t("workflows.field.description")}</span>
-            <textarea className="issues-page__textarea" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("workflows.modal.descriptionPlaceholder")} />
-          </label>
+          <Field label={t("workflows.field.name")}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("workflows.modal.namePlaceholder")} />
+          </Field>
+          <Field label={t("workflows.field.description")}>
+            <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("workflows.modal.descriptionPlaceholder")} />
+          </Field>
 
           <WorkflowStepsEditor state={stepsState} agents={agents} />
           {agents.length === 0 ? (

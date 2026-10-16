@@ -6,7 +6,6 @@ export const tasksMessages = {
   en: {
     "tasks.working": "Agent is working",
     "tasks.untitled": "Task",
-    "tasks.loading": "Loading",
     "tasks.agent": "Agent",
     "tasks.workflowRun": "Workflow run",
     "tasks.noReply": "Finished without a written reply.",
@@ -55,7 +54,6 @@ export const tasksMessages = {
   "zh-CN": {
     "tasks.working": "Agent 正在处理",
     "tasks.untitled": "Task",
-    "tasks.loading": "加载中",
     "tasks.agent": "Agent",
     "tasks.workflowRun": "Workflow 运行",
     "tasks.noReply": "已结束，没有文字回复。",

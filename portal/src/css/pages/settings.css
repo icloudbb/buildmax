@@ -66,20 +66,14 @@
   gap: 1rem;
 }
 
-.space-agent-instructions__textarea {
-  width: 100%;
-  resize: vertical;
-}
-
-.space-agent-instructions__footer {
+.space-agent-instructions {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: baseline;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .space-agent-instructions__count {
-  flex: none;
+  align-self: flex-end;
   color: var(--color-text-muted);
   font-size: 0.75rem;
 }
@@ -118,9 +112,8 @@
   max-width: 34rem;
 }
 
-.settings-page__field-label {
-  font-size: 0.92rem;
-  font-weight: 600;
+.settings-page__form-card > .bm-button {
+  align-self: flex-start;
 }
 
 .settings-page__form-actions {

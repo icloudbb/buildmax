@@ -1,4 +1,4 @@
-import { Button, useLocale, type Locale, type Translate } from "@buildmax/gui"
+import { Button, Field, Input, Select, Spinner, useLocale, type Locale, type Translate } from "@buildmax/gui"
 import { formatTimestamp } from "../../lib/dateFormat"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useStableT, useT, type MessageKey } from "../../i18n"
@@ -261,8 +261,8 @@ export function AdminAccounts({
             load(query, 0, filters)
           }}
         >
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             type="search"
             value={query}
             placeholder={t("admin.accounts.searchPlaceholder")}
@@ -275,8 +275,8 @@ export function AdminAccounts({
         </form>
 
         <div className="admin-toolbar" role="group" aria-label={t("admin.accounts.filters")}>
-          <select
-            className="admin-input"
+          <Select
+            className="admin-item"
             aria-label={t("admin.filterByStatus")}
             value={filters.status}
             onChange={(e) => applyFilter({ status: e.target.value })}
@@ -284,9 +284,9 @@ export function AdminAccounts({
             <option value="">{t("admin.accounts.anyStatus")}</option>
             <option value="enabled">{t("admin.accounts.enabled")}</option>
             <option value="disabled">{t("admin.accounts.disabled")}</option>
-          </select>
-          <select
-            className="admin-input"
+          </Select>
+          <Select
+            className="admin-item"
             aria-label={t("admin.accounts.filterPassword")}
             value={filters.hasPassword}
             onChange={(e) => applyFilter({ hasPassword: e.target.value })}
@@ -294,18 +294,18 @@ export function AdminAccounts({
             <option value="">{t("admin.accounts.anyPassword")}</option>
             <option value="true">{t("admin.accounts.hasPassword")}</option>
             <option value="false">{t("admin.accounts.noPassword")}</option>
-          </select>
-          <select
-            className="admin-input"
+          </Select>
+          <Select
+            className="admin-item"
             aria-label={t("admin.accounts.filterRole")}
             value={filters.systemRole}
             onChange={(e) => applyFilter({ systemRole: e.target.value })}
           >
             <option value="">{t("admin.accounts.anyRole")}</option>
             <option value="system_admin">{t("admin.accounts.administrators")}</option>
-          </select>
-          <select
-            className="admin-input"
+          </Select>
+          <Select
+            className="admin-item"
             aria-label={t("admin.accounts.filterPlatform")}
             value={filters.platform}
             onChange={(e) => applyFilter({ platform: e.target.value })}
@@ -314,27 +314,23 @@ export function AdminAccounts({
             <option value="portal">Portal</option>
             <option value="cli">CLI</option>
             <option value="desktop">Desktop</option>
-          </select>
-          <label className="admin-field">
-            <span className="admin-field__label">{t("admin.accounts.signedInAfter")}</span>
-            <input
-              className="admin-input"
+          </Select>
+          <Field label={t("admin.accounts.signedInAfter")} className="admin-item">
+            <Input
               type="date"
               value={filters.lastLoginAfter}
               max={filters.lastLoginBefore || undefined}
               onChange={(e) => applyFilter({ lastLoginAfter: e.target.value })}
             />
-          </label>
-          <label className="admin-field">
-            <span className="admin-field__label">{t("admin.accounts.signedInBefore")}</span>
-            <input
-              className="admin-input"
+          </Field>
+          <Field label={t("admin.accounts.signedInBefore")} className="admin-item">
+            <Input
               type="date"
               value={filters.lastLoginBefore}
               min={filters.lastLoginAfter || undefined}
               onChange={(e) => applyFilter({ lastLoginBefore: e.target.value })}
             />
-          </label>
+          </Field>
         </div>
 
         {error ? (
@@ -358,7 +354,7 @@ export function AdminAccounts({
         ) : null}
 
         {loading ? (
-          <p className="admin-empty">{t("shell.loading")}</p>
+          <Spinner />
         ) : users.length === 0 ? (
           <p className="admin-empty">{t("admin.accounts.noMatch")}</p>
         ) : (
@@ -437,8 +433,8 @@ export function AdminAccounts({
             createJoiner(email)
           }}
         >
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             type="email"
             value={newEmail}
             placeholder="name@example.com"

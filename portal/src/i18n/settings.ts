@@ -16,7 +16,6 @@ export const settingsMessages = {
     "settings.nav.assistants": "Assistants",
     "settings.nav.audit": "Audit",
 
-    "settings.loading": "Loading...",
     "settings.unavailable": "Unavailable",
     "settings.currentSpace": "Current Space",
     // Joins names in a sentence; Chinese uses the enumeration comma.
@@ -201,7 +200,6 @@ export const settingsMessages = {
     "settings.nav.assistants": "助手",
     "settings.nav.audit": "审计",
 
-    "settings.loading": "加载中…",
     "settings.unavailable": "不可用",
     "settings.currentSpace": "当前 Space",
     "settings.listSeparator": "、",

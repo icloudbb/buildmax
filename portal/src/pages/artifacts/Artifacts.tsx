@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, CollectionFrame, PageHeader, Spinner } from "@buildmax/gui"
 import type { ApiArtifact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { downloadAuthenticated } from "../../lib/download"
@@ -46,7 +46,8 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
   // space genuinely has no artifacts. See deriveResourceState.
   const [itemsData, setItemsData] = useState<ApiArtifact[] | null>(null)
   const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
+  // Starts true so the first paint shows the frame loading, not an empty list.
+  const [loading, setLoading] = useState(true)
   const [busyAction, setBusyAction] = useState<{ id: string; kind: "download" | "delete" } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [listError, setListError] = useState<RequestError | null>(null)
@@ -60,7 +61,10 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
 
   const load = useCallback(
     (offset: number) => {
-      if (!spaceId || !token) return
+      if (!spaceId || !token) {
+        setLoading(false)
+        return
+      }
       setLoading(true)
       setListError(null)
       listArtifacts(spaceId, token, { limit: PAGE_SIZE, offset })
@@ -136,29 +140,29 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{t("artifacts.title")}</h1>
-          <p className="page-activity__subtitle">{t("artifacts.subtitle")}</p>
-        </div>
-        <div className="page-activity__actions">
-          <Button
-            variant="primary"
-            onClick={() => fileInput.current?.click()}
-            busy={uploading}
-            disabled={!spaceId}
-          >
-            {t("artifacts.upload")}
-          </Button>
-          <input
-            ref={fileInput}
-            type="file"
-            className="artifact-list__file-input"
-            onChange={onFileChosen}
-            hidden
-          />
-        </div>
-      </div>
+      <PageHeader
+        title={t("artifacts.title")}
+        subtitle={t("artifacts.subtitle")}
+        actions={
+          <>
+            <Button
+              variant="primary"
+              onClick={() => fileInput.current?.click()}
+              busy={uploading}
+              disabled={!spaceId}
+            >
+              {t("artifacts.upload")}
+            </Button>
+            <input
+              ref={fileInput}
+              type="file"
+              className="artifact-list__file-input"
+              onChange={onFileChosen}
+              hidden
+            />
+          </>
+        }
+      />
 
       {(itemsState.kind === "error" ||
         itemsState.kind === "forbidden" ||
@@ -176,13 +180,22 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
         </p>
       ) : null}
 
-      <section className="issues-page__panel" aria-label={t("artifacts.list")}>
-        {countLabel ? <p className="page-activity__meta">{countLabel}</p> : null}
-
-        {itemsState.kind === "readyEmpty" ? (
-          <EmptyState message={t("artifacts.empty")} />
-        ) : null}
-
+      <CollectionFrame
+        label={t("artifacts.list")}
+        loading={itemsState.kind === "loading"}
+        toolbar={countLabel ? <span className="page-activity__meta">{countLabel}</span> : null}
+        empty={itemsState.kind === "readyEmpty" ? <EmptyState message={t("artifacts.empty")} /> : null}
+        footer={
+          // Loading an older page keeps the rows already shown.
+          loading ? (
+            <Spinner />
+          ) : itemsState.kind !== "forbidden" && itemsState.kind !== "notFound" && items.length < total ? (
+            <Button variant="tertiary" onClick={() => load(items.length)}>
+              {t("artifacts.showOlder", { count: total - items.length })}
+            </Button>
+          ) : null
+        }
+      >
         {itemsState.kind !== "forbidden" && itemsState.kind !== "notFound" && items.length > 0 ? (
           <ul className="artifact-list">
             {items.map((artifact) => (
@@ -232,19 +245,7 @@ export function Artifacts({ spaceId }: ArtifactsProps) {
             ))}
           </ul>
         ) : null}
-
-        {loading ? <p className="page-activity__empty">{t("shell.loading")}</p> : null}
-
-        {itemsState.kind !== "forbidden" && itemsState.kind !== "notFound" && items.length < total ? (
-          <Button
-            variant="tertiary"
-            onClick={() => load(items.length)}
-            disabled={loading}
-          >
-            {t("artifacts.showOlder", { count: total - items.length })}
-          </Button>
-        ) : null}
-      </section>
+      </CollectionFrame>
     </div>
   )
 }

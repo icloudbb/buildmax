@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Button, QuestionForm } from "@buildmax/gui"
+import { Button, Field, Input, QuestionForm, Textarea } from "@buildmax/gui"
 import type { WorkflowRequest } from "../../lib/types"
 import { useStableT, useT } from "../../i18n"
 import { useTimestamp } from "../../lib/dateFormat"
@@ -113,14 +113,13 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
               onChange={(name, value) => setValues((prev) => ({ ...prev, [name]: value }))}
             />
           ) : (
-            <label className="issues-page__field">
-              <span className="issues-page__field-label">{mode.kind === "json" ? t("workflows.request.yourAnswerJson") : t("workflows.request.yourAnswer")}</span>
+            <Field label={mode.kind === "json" ? t("workflows.request.yourAnswerJson") : t("workflows.request.yourAnswer")}>
               {mode.kind === "scalar" && mode.type !== "string" ? (
-                <input className="issues-page__input" type="number" value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
+                <Input type="number" value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
               ) : (
-                <textarea className="issues-page__textarea" rows={3} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
+                <Textarea rows={3} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
               )}
-            </label>
+            </Field>
           )}
           <div className="workflow-request__actions">
             <Button busy={busy} disabled={busy} onClick={submitAnswer}>
@@ -133,10 +132,9 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
       {request.kind !== "question" ? (
         declining ? (
           <div className="workflow-request__decline">
-            <label className="issues-page__field">
-              <span className="issues-page__field-label">{t("workflows.request.whyDecline")}</span>
-              <input className="issues-page__input" value={reason} disabled={busy} onChange={(e) => setReason(e.target.value)} />
-            </label>
+            <Field label={t("workflows.request.whyDecline")}>
+              <Input value={reason} disabled={busy} onChange={(e) => setReason(e.target.value)} />
+            </Field>
             <div className="workflow-request__actions">
               <Button variant="danger" disabled={busy} onClick={() => void send({ action: "decline", reason })}>
                 {t("workflows.request.declineAndStop")}
@@ -153,7 +151,7 @@ export function WorkflowRequestCard({ request, onRespond, keys = false }: Reques
         )
       ) : null}
       {error ? (
-        <p className="modal__error" role="alert">
+        <p className="workflow-request__error" role="alert">
           {error}
         </p>
       ) : null}

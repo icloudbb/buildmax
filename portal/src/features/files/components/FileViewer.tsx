@@ -1,3 +1,4 @@
+import { Spinner } from "@buildmax/gui"
 import { useT } from "../../../i18n"
 
 interface FileViewerProps {
@@ -21,7 +22,7 @@ export function FileViewer({
   return (
     <section className="page-explore__viewer" aria-label={t("files.fileContent")}>
       <h3 className="page-explore__viewer-title">{selectedFileName ?? selectedFileId}</h3>
-      {fileLoading && <p className="page-explore__viewer-loading">{t("shell.loading")}</p>}
+      {fileLoading && <Spinner />}
       {fileError && (
         <p className="page-explore__viewer-error" role="alert">
           {t("files.viewerError", { message: fileError })}

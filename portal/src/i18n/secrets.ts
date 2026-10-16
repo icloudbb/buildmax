@@ -22,7 +22,6 @@ export const secretsMessages = {
 
     "secrets.field.name": "Name",
     "secrets.field.description": "Description",
-    "secrets.field.optional": "optional",
     "secrets.field.descriptionPlaceholder": "What it is for — never the value itself",
     "secrets.field.items": "Items",
     "secrets.rowEditor": "Row editor",
@@ -75,7 +74,6 @@ export const secretsMessages = {
 
     "secrets.field.name": "名称",
     "secrets.field.description": "描述",
-    "secrets.field.optional": "可选",
     "secrets.field.descriptionPlaceholder": "说明用途，切勿填写值本身",
     "secrets.field.items": "条目",
     "secrets.rowEditor": "逐行编辑",

@@ -1,4 +1,4 @@
-import { Button } from "@buildmax/gui"
+import { Button, Field, Input, Spinner, useToast } from "@buildmax/gui"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useStableT, useT } from "../../i18n"
 import type { ApiAdminModel } from "../../lib/api/types"
@@ -105,7 +105,7 @@ export function AdminModels({ token }: { token: string | null }) {
   const [busyId, setBusyId] = useState<string | null>(null)
   // Toggle's own error, tagged with which model it was.
   const [toggleError, setToggleError] = useState<{ id: string; message: string } | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
   const [form, setForm] = useState<ModelForm>(emptyForm)
   const [creating, setCreating] = useState(false)
   // The create-model form's own error: a page-level message, since the form
@@ -161,13 +161,12 @@ export function AdminModels({ token }: { token: string | null }) {
     if (!token || creating) return
     setCreating(true)
     setFormError(null)
-    setNotice(null)
     createAdminModel(token, buildInput(form))
       .then((created) => {
         // Clear the whole form, which is what drops the key from the page — it
         // was never persisted anywhere else.
         setForm(emptyForm)
-        setNotice(stableT("admin.models.added", { name: created.name }))
+        toast(stableT("admin.models.added", { name: created.name }))
         load()
       })
       .catch((err) => setFormError(getErrorMessage(err, stableT("admin.models.notAdded"))))
@@ -197,10 +196,9 @@ export function AdminModels({ token }: { token: string | null }) {
             retry={{ label: t("shell.retry"), onClick: load }}
           />
         )}
-        {notice ? <p className="admin-notice">{notice}</p> : null}
 
         {modelsState.kind === "loading" ? (
-          <p className="admin-empty">{t("shell.loading")}</p>
+          <Spinner />
         ) : modelsState.kind === "readyEmpty" ? (
           <EmptyState message={t("admin.models.empty")} />
         ) : modelsState.kind === "error" || modelsState.kind === "forbidden" || modelsState.kind === "notFound" ? null : (
@@ -258,115 +256,92 @@ export function AdminModels({ token }: { token: string | null }) {
 
         <form className="admin-form" onSubmit={submit}>
           <div className="admin-form__grid">
-            <label className="admin-field">
-              <span className="admin-field__label">{t("admin.models.name")}</span>
-              <input
-                className="admin-input"
+            <Field label={t("admin.models.name")} className="admin-item">
+              <Input
                 value={form.name}
                 onChange={(e) => set("name", e.target.value)}
                 placeholder="Claude Sonnet 5"
               />
-            </label>
-            <label className="admin-field">
-              <span className="admin-field__label">{t("admin.models.provider")}</span>
-              <input
-                className="admin-input"
+            </Field>
+            <Field label={t("admin.models.provider")} className="admin-item">
+              <Input
                 value={form.providerType}
                 onChange={(e) => set("providerType", e.target.value)}
                 placeholder="openai_compatible"
               />
-            </label>
-            <label className="admin-field">
-              <span className="admin-field__label">{t("admin.models.apiURL")}</span>
-              <input
-                className="admin-input"
+            </Field>
+            <Field label={t("admin.models.apiURL")} className="admin-item">
+              <Input
                 value={form.apiURL}
                 onChange={(e) => set("apiURL", e.target.value)}
                 placeholder="https://api.example.com/v1"
               />
-            </label>
-            <label className="admin-field">
-              <span className="admin-field__label">{t("admin.models.providerModel")}</span>
-              <input
-                className="admin-input"
+            </Field>
+            <Field label={t("admin.models.providerModel")} className="admin-item">
+              <Input
                 value={form.model}
                 onChange={(e) => set("model", e.target.value)}
                 placeholder="vendor/model-name"
               />
-            </label>
-            <label className="admin-field">
-              <span className="admin-field__label">{t("admin.models.apiKey")}</span>
-              <input
-                className="admin-input"
+            </Field>
+            <Field label={t("admin.models.apiKey")} className="admin-item">
+              <Input
                 type="password"
                 autoComplete="off"
                 value={form.apiKey}
                 onChange={(e) => set("apiKey", e.target.value)}
                 placeholder="sk-…"
               />
-            </label>
-            <label className="admin-field">
-              <span className="admin-field__label">{t("admin.models.contextWindow")}</span>
-              <input
-                className="admin-input"
+            </Field>
+            <Field label={t("admin.models.contextWindow")} className="admin-item">
+              <Input
                 type="number"
                 value={form.contextWindow}
                 onChange={(e) => set("contextWindow", e.target.value)}
                 placeholder="128000"
               />
-            </label>
+            </Field>
           </div>
 
           <details className="admin-advanced">
             <summary>{t("admin.models.advanced")}</summary>
             <div className="admin-form__grid">
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.callTimeout")}</span>
-                <input className="admin-input" type="number" value={form.callTimeout} onChange={(e) => set("callTimeout", e.target.value)} />
-              </label>
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.maxTokens")}</span>
-                <input className="admin-input" type="number" value={form.maxTokens} onChange={(e) => set("maxTokens", e.target.value)} />
-              </label>
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.reasoning")}</span>
-                <input className="admin-input" value={form.reasoning} onChange={(e) => set("reasoning", e.target.value)} placeholder="off, low, medium, high" />
-              </label>
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.cacheMode")}</span>
-                <input className="admin-input" value={form.cacheMode} onChange={(e) => set("cacheMode", e.target.value)} placeholder="auto, off, force" />
-              </label>
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.cacheTTL")}</span>
-                <input className="admin-input" value={form.cacheTTL} onChange={(e) => set("cacheTTL", e.target.value)} placeholder="provider_default, 5m, 1h" />
-              </label>
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.currency")}</span>
-                <input className="admin-input" value={form.currency} onChange={(e) => set("currency", e.target.value)} placeholder="USD" />
-              </label>
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.inputPrice")}</span>
-                <input className="admin-input" value={form.inputPrice} onChange={(e) => set("inputPrice", e.target.value)} />
-              </label>
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.outputPrice")}</span>
-                <input className="admin-input" value={form.outputPrice} onChange={(e) => set("outputPrice", e.target.value)} />
-              </label>
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.cacheReadPrice")}</span>
-                <input className="admin-input" value={form.cacheReadPrice} onChange={(e) => set("cacheReadPrice", e.target.value)} />
-              </label>
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.cacheWritePrice")}</span>
-                <input className="admin-input" value={form.cacheWritePrice} onChange={(e) => set("cacheWritePrice", e.target.value)} />
-              </label>
-              <label className="admin-field">
-                <span className="admin-field__label">{t("admin.models.capabilities")}</span>
-                <input className="admin-input" value={form.capabilities} onChange={(e) => set("capabilities", e.target.value)} placeholder="text_chat, tool_calls" />
-              </label>
-              <label className="admin-field admin-field--checkbox">
+              <Field label={t("admin.models.callTimeout")} className="admin-item">
+                <Input type="number" value={form.callTimeout} onChange={(e) => set("callTimeout", e.target.value)} />
+              </Field>
+              <Field label={t("admin.models.maxTokens")} className="admin-item">
+                <Input type="number" value={form.maxTokens} onChange={(e) => set("maxTokens", e.target.value)} />
+              </Field>
+              <Field label={t("admin.models.reasoning")} className="admin-item">
+                <Input value={form.reasoning} onChange={(e) => set("reasoning", e.target.value)} placeholder="off, low, medium, high" />
+              </Field>
+              <Field label={t("admin.models.cacheMode")} className="admin-item">
+                <Input value={form.cacheMode} onChange={(e) => set("cacheMode", e.target.value)} placeholder="auto, off, force" />
+              </Field>
+              <Field label={t("admin.models.cacheTTL")} className="admin-item">
+                <Input value={form.cacheTTL} onChange={(e) => set("cacheTTL", e.target.value)} placeholder="provider_default, 5m, 1h" />
+              </Field>
+              <Field label={t("admin.models.currency")} className="admin-item">
+                <Input value={form.currency} onChange={(e) => set("currency", e.target.value)} placeholder="USD" />
+              </Field>
+              <Field label={t("admin.models.inputPrice")} className="admin-item">
+                <Input value={form.inputPrice} onChange={(e) => set("inputPrice", e.target.value)} />
+              </Field>
+              <Field label={t("admin.models.outputPrice")} className="admin-item">
+                <Input value={form.outputPrice} onChange={(e) => set("outputPrice", e.target.value)} />
+              </Field>
+              <Field label={t("admin.models.cacheReadPrice")} className="admin-item">
+                <Input value={form.cacheReadPrice} onChange={(e) => set("cacheReadPrice", e.target.value)} />
+              </Field>
+              <Field label={t("admin.models.cacheWritePrice")} className="admin-item">
+                <Input value={form.cacheWritePrice} onChange={(e) => set("cacheWritePrice", e.target.value)} />
+              </Field>
+              <Field label={t("admin.models.capabilities")} className="admin-item">
+                <Input value={form.capabilities} onChange={(e) => set("capabilities", e.target.value)} placeholder="text_chat, tool_calls" />
+              </Field>
+              <label className="admin-check">
                 <input type="checkbox" checked={form.vision} onChange={(e) => set("vision", e.target.checked)} />
-                <span className="admin-field__label">{t("admin.models.vision")}</span>
+                {t("admin.models.vision")}
               </label>
             </div>
           </details>

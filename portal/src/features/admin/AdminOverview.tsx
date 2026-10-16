@@ -1,4 +1,4 @@
-import { useLocale, type Translate } from "@buildmax/gui"
+import { Spinner, useLocale, type Translate, statusLabel } from "@buildmax/gui"
 import { formatTimestamp } from "../../lib/dateFormat"
 import { useEffect, useState } from "react"
 import { useStableT, useT, type MessageKey } from "../../i18n"
@@ -9,7 +9,6 @@ import type {
   ApiAdminSystem,
 } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { statusLabel } from "../../lib/statusLabels"
 import { buildHash } from "../../router"
 import { getAdminConfig, getAdminMe, getAdminSystem, listAdminRuntimeSpaces } from "./api"
 import {
@@ -199,7 +198,7 @@ export function AdminOverview({ token }: { token: string | null }) {
     }
   }, [token, stableT])
 
-  if (loading) return <p className="admin-empty">{t("admin.overview.loading")}</p>
+  if (loading) return <Spinner label={t("admin.overview.loading")} />
   if (error) {
     return (
       <p className="settings-section__error" role="alert">

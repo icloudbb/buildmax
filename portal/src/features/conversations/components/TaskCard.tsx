@@ -1,7 +1,7 @@
-import { Button } from "@buildmax/gui"
+import { Button, StatusLabel, statusTone } from "@buildmax/gui"
 import type { ApiTask } from "../../../lib/api/types"
 import { useT } from "../../../i18n"
-import { taskRunFailed, taskRunFinished, taskStatusLabel } from "../thread"
+import { taskRunFinished, taskStatus } from "../thread"
 
 const previewMaxLen = 600
 
@@ -14,11 +14,6 @@ interface TaskCardProps {
   onOpenTrace: (taskRunId: string) => void
   onOpenIssue?: (issueId: string) => void
   error?: string | null
-}
-
-function statusTone(status: string): "running" | "failed" | "done" {
-  if (!taskRunFinished(status)) return "running"
-  return taskRunFailed(status) ? "failed" : "done"
 }
 
 function preview(output: string | null | undefined): string | null {
@@ -47,14 +42,14 @@ export function TaskCard({
   error,
 }: TaskCardProps) {
   const t = useT()
-  const tone = statusTone(task.status)
+  const tone = statusTone(taskStatus(task))
   const finished = taskRunFinished(task.status)
   const body = preview(task.output)
 
   return (
     <article className={`task-card task-card--${tone}`}>
       <header className="task-card__head">
-        <span className={`task-card__status task-card__status--${tone}`}>{taskStatusLabel(task, t)}</span>
+        <StatusLabel status={taskStatus(task)} />
         <span className="task-card__title">{task.title || task.input}</span>
       </header>
       {task.error_message ? <p className="task-card__error">{task.error_message}</p> : null}

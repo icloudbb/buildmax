@@ -36,7 +36,7 @@ Portal owns the cloud/space lane:
 
 - Routes are in `portal/src/router.ts`. A few standalone pages that need no
   sign-in or Space are matched on the real path in `portal/src/main.tsx` and
-  render inside only `ThemeProvider` and the root `LocaleProvider`: the public share link
+  render inside only `ThemeProvider` and the root `LocaleProvider` and `ToastProvider`: the public share link
   `/shared/artifacts/<token>` and the component specimen at `/specimen`.
 - `portal/src/App.tsx` gates in order: session restore, sign-in (any route
   renders the sign-in page while signed out, keeping the address), the
@@ -62,7 +62,20 @@ Portal owns the cloud/space lane:
   committed baselines and runs axe with contrast on them (see
   [testing](../testing.md#screenshot-baselines)).
 - API calls live under `portal/src/features/*/api.ts` and `portal/src/lib/api`.
-- Shared presentation components come from `@buildmax/gui`.
+- Shared presentation components come from `@buildmax/gui`. Pages compose the
+  page anatomy from it — `PageHeader` on collections, settings, and
+  Administration, `DetailHeader` on one object's page, `CollectionFrame` around a
+  collection's rows, and `EditorActions` for an editor's Save and Cancel, which
+  stays at the bottom of a narrow screen. Every form control is gui's `Input`,
+  `Select`, or `Textarea`, labelled by a `Field` that also carries its hint and
+  error; page CSS places a field but never restyles one. Menus (the user menu and
+  the breadcrumb overflow) are gui's `Menu`. Loading is a `Spinner` for a section
+  and a `Skeleton` for a whole detail; a collection's loading goes through
+  `CollectionFrame`, which shows no count or pagination before the answer.
+  Transient success confirmations whose effect is already on the page (a model
+  added, a Space's owner or tier changed, an administrator granted or revoked, a
+  password changed) are toasts from `useToast()`; failures and anything to act
+  on stay inline, on their object.
 - Colors, shadows, the overlay, and the monospace stack come from the semantic
   tokens in `gui/src/theme.css`, which defines each one for the light and the
   dark theme. Portal CSS holds no color literal and references no custom
@@ -113,7 +126,10 @@ Portal owns the cloud/space lane:
   `LocaleProvider` from `@buildmax/gui` wraps every root in `main.tsx`; the
   language is chosen in the user menu, stored per browser, and defaults from
   the browser language. Help follows it, so the manual and the interface never
-  disagree. Status labels translate through `useStatusLabel()`. Text the server
+  disagree. Every status label comes from gui's one status vocabulary —
+  `StatusLabel`, or `useStatusLabel()` where only text fits — whichever case the
+  server stored the value in; `taskStatus()` in `features/conversations/thread.ts`
+  presents a Task awaiting an answer as `needs_answer`. Text the server
   returns is shown as received. Dates render in the interface language through
   `lib/dateFormat.ts` (`useRelativeTime`, `useTimestamp`) at render time, never
   in a mapped field. Each area has a `portal/e2e/locale-*.spec.ts` browser check

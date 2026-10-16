@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ButtonLink } from "@buildmax/gui"
+import { ButtonLink, Spinner } from "@buildmax/gui"
 import type { ApiSharedMeta } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import {
@@ -64,7 +64,7 @@ export function SharedArtifact({ token }: { token: string }) {
   if (loading) {
     return (
       <div className="shared-page">
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Spinner />
       </div>
     )
   }

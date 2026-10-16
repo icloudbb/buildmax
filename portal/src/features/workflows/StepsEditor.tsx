@@ -1,5 +1,5 @@
 import type { Agent } from "../../lib/types"
-import { Button } from "@buildmax/gui"
+import { Button, Field, Textarea } from "@buildmax/gui"
 import { useT } from "../../i18n"
 import { WorkflowVisualEditor } from "./VisualEditor"
 import type { WorkflowStepsState } from "./useWorkflowSteps"
@@ -41,25 +41,29 @@ export function WorkflowStepsEditor({ state, agents, disabled = false, fill = fa
       {listError ? <p className="page-activity__empty">{listError.message}</p> : null}
 
       {advanced ? (
-        <label className="issues-page__field">
-          <span className="issues-page__field-label">{t("workflows.editor.definitionLabel")}</span>
-          <textarea
-            className="issues-page__textarea workflow-page__definition"
-            rows={16}
-            value={definitionText}
-            disabled={disabled}
-            onChange={(e) => state.setDefinitionText(e.target.value)}
-          />
-          {definitionParseError ? (
-            <span className="issues-page__field-label">{t(definitionParseError)}</span>
-          ) : (
-            errors.map((e, i) => (
-              <p key={i} className="modal__error">
-                {e.index === -1 ? e.message : t("workflows.editor.stepError", { step: e.index + 1, message: e.message })}
-              </p>
-            ))
-          )}
-        </label>
+        <>
+          <Field
+            label={t("workflows.editor.definitionLabel")}
+            error={definitionParseError ? t(definitionParseError) : undefined}
+          >
+            <Textarea
+              className="workflow-page__definition"
+              rows={16}
+              value={definitionText}
+              disabled={disabled}
+              onChange={(e) => state.setDefinitionText(e.target.value)}
+            />
+          </Field>
+          {!definitionParseError && errors.length > 0 ? (
+            <ul className="workflow-page__errors">
+              {errors.map((e, i) => (
+                <li key={i}>
+                  {e.index === -1 ? e.message : t("workflows.editor.stepError", { step: e.index + 1, message: e.message })}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
       ) : (
         <WorkflowVisualEditor state={state} agents={agents} disabled={disabled} fill={fill} />
       )}

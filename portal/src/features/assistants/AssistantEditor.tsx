@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, EditorActions, Field, Input, Select, Textarea } from "@buildmax/gui"
 import type {
   ApiAgent,
   ApiArtifact,
@@ -150,93 +150,59 @@ export function AssistantEditor({
       ) : null}
 
       <fieldset className="asst-editor__fields" disabled={readOnly || busy}>
-        <div className="sec-field">
-          <label className="modal__label" htmlFor={field("name")}>
-            {t("assistants.editor.name")}
-          </label>
-          <input
-            id={field("name")}
-            className="modal__input"
+        <Field label={t("assistants.editor.name")} id={field("name")}>
+          <Input
             value={draft.name}
             maxLength={255}
             placeholder={t("assistants.editor.namePlaceholder")}
             onChange={(e) => set("name", e.target.value)}
           />
-        </div>
-        <div className="sec-field">
-          <label className="modal__label" htmlFor={field("description")}>
-            {t("assistants.editor.description")}{" "}
-            <span className="sec-field__optional">{t("assistants.editor.optional")}</span>
-          </label>
-          <textarea
-            id={field("description")}
-            className="modal__textarea"
+        </Field>
+        <Field label={t("assistants.editor.description")} id={field("description")} optional>
+          <Textarea
             rows={2}
             maxLength={2000}
             value={draft.description}
             placeholder={t("assistants.editor.descriptionPlaceholder")}
             onChange={(e) => set("description", e.target.value)}
           />
-        </div>
-        <div className="sec-field">
-          <label className="modal__label" htmlFor={field("instructions")}>
-            {t("assistants.editor.instructions")}{" "}
-            <span className="sec-field__optional">{t("assistants.editor.optional")}</span>
-          </label>
-          <textarea
-            id={field("instructions")}
-            className="modal__textarea"
+        </Field>
+        <Field label={t("assistants.editor.instructions")} id={field("instructions")} optional>
+          <Textarea
             rows={5}
             maxLength={32000}
             value={draft.instructions}
             onChange={(e) => set("instructions", e.target.value)}
           />
-        </div>
+        </Field>
         <div className="asst-editor__row">
-          <div className="sec-field">
-            <label className="modal__label" htmlFor={field("model")}>
-              {t("assistants.editor.model")}
-            </label>
-            <select
-              id={field("model")}
-              className="modal__input"
-              value={draft.model}
-              onChange={(e) => set("model", e.target.value)}
-            >
+          <Field label={t("assistants.editor.model")} id={field("model")} className="asst-editor__cell">
+            <Select value={draft.model} onChange={(e) => set("model", e.target.value)}>
               <option value="">{t("assistants.editor.modelDefault")}</option>
               {modelOptions.map((m) => (
                 <option key={m} value={m}>
                   {m}
                 </option>
               ))}
-            </select>
-          </div>
-          <div className="sec-field">
-            <label className="modal__label" htmlFor={field("audience")}>
-              {t("assistants.editor.whoCanAsk")}
-            </label>
-            <select
-              id={field("audience")}
-              className="modal__input"
+            </Select>
+          </Field>
+          <Field label={t("assistants.editor.whoCanAsk")} id={field("audience")} className="asst-editor__cell">
+            <Select
               value={draft.audience}
               onChange={(e) => set("audience", e.target.value as AssistantDraft["audience"])}
             >
               <option value="space_members">{t("assistants.audience.spaceMembers")}</option>
               <option value="all_users">{t("assistants.audience.allUsers")}</option>
-            </select>
-          </div>
+            </Select>
+          </Field>
         </div>
 
-        <div className="sec-field">
-          <label className="modal__label" htmlFor={field("service-account")}>
-            {t("assistants.editor.serviceAccount")}
-          </label>
-          <select
-            id={field("service-account")}
-            className="modal__input"
-            value={draft.serviceAccountId}
-            onChange={(e) => set("serviceAccountId", e.target.value)}
-          >
+        <Field
+          label={t("assistants.editor.serviceAccount")}
+          id={field("service-account")}
+          hint={t("assistants.editor.serviceAccountHint")}
+        >
+          <Select value={draft.serviceAccountId} onChange={(e) => set("serviceAccountId", e.target.value)}>
             {mode === "create" ? <option value="">{t("assistants.editor.serviceAccountNew")}</option> : null}
             {draft.serviceAccountId && !options?.serviceAccounts.some((sa) => sa.id === draft.serviceAccountId) ? (
               <option value={draft.serviceAccountId}>{draft.serviceAccountId}</option>
@@ -247,57 +213,56 @@ export function AssistantEditor({
                 {sa.disabled_at ? t("assistants.editor.serviceAccountDisabled") : ""}
               </option>
             ))}
-          </select>
-          <p className="sec-edit__hint">{t("assistants.editor.serviceAccountHint")}</p>
+          </Select>
+        </Field>
+
+        <div className="asst-editor__group">
+          <Field group label={t("assistants.editor.roster")} hint={t("assistants.editor.rosterHint")}>
+            {draft.roster.length === 0 ? <p className="sec-card__noitems">{t("assistants.editor.rosterEmpty")}</p> : null}
+            <ul className="asst-roster">
+              {draft.roster.map((entry, index) => (
+                <li key={entry.key ?? index}>
+                  <RosterEntryEditor
+                    entry={entry}
+                    fieldId={field(`roster-${index}`)}
+                    agents={options?.agents ?? []}
+                    workflows={options?.workflows ?? []}
+                    readOnly={readOnly}
+                    onChange={(next) => setEntry(index, next)}
+                    onRemove={() => set("roster", draft.roster.filter((_, i) => i !== index))}
+                  />
+                </li>
+              ))}
+            </ul>
+            {!readOnly ? (
+              <div className="sec-card__actions">
+                <Button
+                  size="compact"
+                  onClick={() => set("roster", [...draft.roster, newRosterEntry("agent")])}
+                >
+                  {t("assistants.editor.addAgent")}
+                </Button>
+                <Button
+                  size="compact"
+                  onClick={() => set("roster", [...draft.roster, newRosterEntry("workflow")])}
+                >
+                  {t("assistants.editor.addWorkflow")}
+                </Button>
+              </div>
+            ) : null}
+          </Field>
         </div>
 
-        <fieldset className="asst-editor__group">
-          <legend className="modal__label">{t("assistants.editor.roster")}</legend>
-          <p className="sec-edit__hint">{t("assistants.editor.rosterHint")}</p>
-          {draft.roster.length === 0 ? <p className="sec-card__noitems">{t("assistants.editor.rosterEmpty")}</p> : null}
-          <ul className="asst-roster">
-            {draft.roster.map((entry, index) => (
-              <li key={entry.key ?? index}>
-                <RosterEntryEditor
-                  entry={entry}
-                  fieldId={field(`roster-${index}`)}
-                  agents={options?.agents ?? []}
-                  workflows={options?.workflows ?? []}
-                  readOnly={readOnly}
-                  onChange={(next) => setEntry(index, next)}
-                  onRemove={() => set("roster", draft.roster.filter((_, i) => i !== index))}
-                />
-              </li>
-            ))}
-          </ul>
-          {!readOnly ? (
-            <div className="sec-card__actions">
-              <Button
-                size="compact"
-                onClick={() => set("roster", [...draft.roster, newRosterEntry("agent")])}
-              >
-                {t("assistants.editor.addAgent")}
-              </Button>
-              <Button
-                size="compact"
-                onClick={() => set("roster", [...draft.roster, newRosterEntry("workflow")])}
-              >
-                {t("assistants.editor.addWorkflow")}
-              </Button>
-            </div>
-          ) : null}
-        </fieldset>
-
-        <fieldset className="asst-editor__group">
-          <legend className="modal__label">{t("assistants.editor.readableFiles")}</legend>
-          <p className="sec-edit__hint">{t("assistants.editor.readableFilesHint")}</p>
-          <ReadableFilesPicker
-            artifacts={options?.artifacts ?? []}
-            total={options?.artifactsTotal ?? 0}
-            selected={draft.readableFiles}
-            onChange={(next) => set("readableFiles", next)}
-          />
-        </fieldset>
+        <div className="asst-editor__group">
+          <Field group label={t("assistants.editor.readableFiles")} hint={t("assistants.editor.readableFilesHint")}>
+            <ReadableFilesPicker
+              artifacts={options?.artifacts ?? []}
+              total={options?.artifactsTotal ?? 0}
+              selected={draft.readableFiles}
+              onChange={(next) => set("readableFiles", next)}
+            />
+          </Field>
+        </div>
       </fieldset>
 
       {localError || error ? (
@@ -306,7 +271,7 @@ export function AssistantEditor({
         </p>
       ) : null}
       {!readOnly ? (
-        <div className="sec-form__actions">
+        <EditorActions>
           {onCancel ? (
             <Button variant="secondary" onClick={onCancel} disabled={busy}>
               {t("assistants.editor.cancel")}
@@ -315,7 +280,7 @@ export function AssistantEditor({
           <Button type="submit" variant="primary" busy={busy}>
             {mode === "create" ? t("assistants.editor.create") : t("assistants.editor.save")}
           </Button>
-        </div>
+        </EditorActions>
       ) : null}
     </form>
   )
@@ -365,16 +330,8 @@ function RosterEntryEditor({
   return (
     <div className="asst-roster__entry">
       <div className="asst-editor__row">
-        <div className="sec-field">
-          <label className="modal__label" htmlFor={`${fieldId}-id`}>
-            {kindLabel}
-          </label>
-          <select
-            id={`${fieldId}-id`}
-            className="modal__input"
-            value={entry.id}
-            onChange={(e) => onChange({ id: e.target.value, releasable: [] })}
-          >
+        <Field label={kindLabel} id={`${fieldId}-id`} className="asst-editor__cell">
+          <Select value={entry.id} onChange={(e) => onChange({ id: e.target.value, releasable: [] })}>
             <option value="">{isAgent ? t("assistants.roster.chooseAgent") : t("assistants.roster.chooseWorkflow")}</option>
             {entry.id && !choices.some((c) => c.id === entry.id) ? <option value={entry.id}>{entry.id}</option> : null}
             {choices.map((c) => (
@@ -382,8 +339,8 @@ function RosterEntryEditor({
                 {c.name}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
         {!readOnly ? (
           <Button size="compact" variant="tertiary" className="asst-roster__remove" onClick={onRemove}>
             {isAgent ? t("assistants.roster.removeAgent") : t("assistants.roster.removeWorkflow")}
@@ -392,56 +349,50 @@ function RosterEntryEditor({
       </div>
 
       {isAgent ? (
-        <div className="sec-field">
-          <label className="modal__label" htmlFor={`${fieldId}-schema`}>
-            {t("assistants.roster.outputSchema")}
-          </label>
-          <textarea
-            id={`${fieldId}-schema`}
-            className="modal__textarea sec-json"
+        <Field label={t("assistants.roster.outputSchema")} id={`${fieldId}-schema`} error={candidates.error}>
+          <Textarea
+            className="sec-json"
             rows={5}
             value={entry.schemaText}
             placeholder={'{"type": "object", "properties": {"answer": {"type": "string"}}}'}
             onChange={(e) => onChange({ schemaText: e.target.value })}
           />
-          {candidates.error ? <p className="sec__error">{candidates.error}</p> : null}
-        </div>
+        </Field>
       ) : null}
 
       {candidates.fields ? (
-        <fieldset className="asst-editor__checks">
-          <legend className="modal__label">{t("assistants.roster.releasable")}</legend>
+        <Field group label={t("assistants.roster.releasable")}>
           {candidates.fields.length === 0 ? (
             <p className="sec-card__noitems">{t("assistants.roster.noProperties")}</p>
           ) : (
-            candidates.fields.map((name) => (
-              <label key={name} className="asst-check">
-                <input
-                  type="checkbox"
-                  checked={entry.releasable.includes(name)}
-                  onChange={(e) => toggle(name, e.target.checked)}
-                />
-                <code>{name}</code>
-              </label>
-            ))
+            <div className="asst-editor__checks">
+              {candidates.fields.map((name) => (
+                <label key={name} className="asst-check">
+                  <input
+                    type="checkbox"
+                    checked={entry.releasable.includes(name)}
+                    onChange={(e) => toggle(name, e.target.checked)}
+                  />
+                  <code>{name}</code>
+                </label>
+              ))}
+            </div>
           )}
-        </fieldset>
+        </Field>
       ) : !isAgent && entry.id ? (
-        <div className="sec-field">
-          <label className="modal__label" htmlFor={`${fieldId}-fields`}>
-            {t("assistants.roster.releasableTyped")}
-          </label>
-          <input
-            id={`${fieldId}-fields`}
-            className="modal__input"
+        <Field
+          label={t("assistants.roster.releasableTyped")}
+          id={`${fieldId}-fields`}
+          hint={t("assistants.roster.releasableTypedHint")}
+        >
+          <Input
             value={fieldText}
             onChange={(e) => {
               setFieldText(e.target.value)
               onChange({ releasable: parseFieldList(e.target.value) })
             }}
           />
-          <p className="sec-edit__hint">{t("assistants.roster.releasableTypedHint")}</p>
-        </div>
+        </Field>
       ) : null}
     </div>
   )

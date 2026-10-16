@@ -1,12 +1,11 @@
 import { useState } from "react"
-import { BaseModal, Button } from "@buildmax/gui"
+import { BaseModal, Button, Field, Input, Select, Textarea, useStatusLabel } from "@buildmax/gui"
 import type { ApiSpaceMember } from "../lib/api/types"
 import { peopleOnly } from "../features/spaces/api"
 import { ExecutorField } from "../features/issues"
 import type { Agent, Issue, Workflow } from "../lib/types"
 import type { PermissionState } from "../state/permissionState"
 import { useT } from "../i18n"
-import { useStatusLabel } from "../lib/statusLabels"
 import { CreateAgentModal } from "./CreateAgentModal"
 
 interface IssueModalProps {
@@ -93,46 +92,35 @@ export function IssueModal({
       >
         <div className="modal__body">
           <div className="issues-page__form">
-            <label className="issues-page__field">
-              <span className="issues-page__field-label">{t("issues.field.title")}</span>
-              <input
-                className="issues-page__input"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={t("issues.create.titlePlaceholder")}
-              />
-            </label>
-            <label className="issues-page__field">
-              <span className="issues-page__field-label">{t("issues.field.description")}</span>
-              <textarea
-                className="issues-page__textarea"
+            <Field label={t("issues.field.title")}>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("issues.create.titlePlaceholder")} />
+            </Field>
+            <Field label={t("issues.field.description")}>
+              <Textarea
                 rows={6}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={t("issues.create.descriptionPlaceholder")}
               />
-            </label>
-            <label className="issues-page__field">
-              <span className="issues-page__field-label">{t("issues.field.status")}</span>
-              <select className="issues-page__select" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
+            </Field>
+            <Field label={t("issues.field.status")}>
+              <Select value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}>
                 <option value="todo">{statusLabel("todo")}</option>
                 <option value="in_progress">{statusLabel("in_progress")}</option>
                 <option value="done">{statusLabel("done")}</option>
-              </select>
-            </label>
+              </Select>
+            </Field>
             <div className="issue-detail-page__split">
-              <label className="issues-page__field">
-                <span className="issues-page__field-label">{t("issues.field.owner")}</span>
-                <select className="issues-page__select" value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
+              <Field label={t("issues.field.owner")} hint={t("issues.field.ownerHint")}>
+                <Select value={ownerValue} onChange={(e) => setOwnerValue(e.target.value)}>
                   <option value="">{t("issues.unassigned")}</option>
                   {peopleOnly(members).map((member) => (
                     <option key={member.user_id} value={member.user_id}>
                       {memberLabel(member)}
                     </option>
                   ))}
-                </select>
-                <span className="issues-page__field-label">{t("issues.field.ownerHint")}</span>
-              </label>
+                </Select>
+              </Field>
               <ExecutorField
                 value={executorValue}
                 onChange={setExecutorValue}

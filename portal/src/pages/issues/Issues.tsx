@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, CollectionFrame, Field, PageHeader, Select, Spinner, StatusLabel } from "@buildmax/gui"
 import type { Agent, Issue, IssueCollectionQuery } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { useStatusLabel } from "../../lib/statusLabels"
 import { useRelativeTime } from "../../lib/dateFormat"
 import { useStableT, useT } from "../../i18n"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../lib/api/mappers"
@@ -34,7 +33,6 @@ interface IssuesProps {
 export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
   const t = useT()
   const stableT = useStableT()
-  const statusLabel = useStatusLabel()
   const relativeTime = useRelativeTime()
   const { view, owner, executor } = query
   const isBoard = view === "board"
@@ -208,12 +206,10 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{t("issues.title")}</h1>
-          <p className="page-activity__subtitle">{t("issues.subtitle")}</p>
-        </div>
-        <div className="page-activity__actions">
+      <PageHeader
+        title={t("issues.title")}
+        subtitle={t("issues.subtitle")}
+        actions={
           <Button
             variant="primary"
             onClick={() => {
@@ -223,8 +219,8 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
           >
             {t("issues.new")}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* The page a person lands on leads with what waits on them; see
           docs/design/portal-navigation-and-space-context.md. */}
@@ -261,7 +257,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
       ) : canAssignWorkflowState === "failed" ? (
         <p className="page-activity__empty">{t("issues.access.workflowUnverified")}</p>
       ) : canAssignWorkflowState === "unknown" ? (
-        <p className="page-activity__empty">{t("issues.access.workflowChecking")}</p>
+        <Spinner label={t("issues.access.workflowChecking")} />
       ) : null}
 
       {/* List and Board share one filter vocabulary, carried in the URL so a
@@ -275,9 +271,8 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
             {t("issues.view.board")}
           </Button>
         </div>
-        <label className="issues-page__filter">
-          <span className="issues-page__field-label">{t("issues.field.owner")}</span>
-          <select className="issues-page__select" value={owner ?? ""} onChange={(e) => setQuery({ owner: e.target.value || undefined })}>
+        <Field label={t("issues.field.owner")} className="issues-page__filter">
+          <Select value={owner ?? ""} onChange={(e) => setQuery({ owner: e.target.value || undefined })}>
             <option value="">{t("issues.filter.anyone")}</option>
             <option value="me">{t("issues.me")}</option>
             {peopleOnly(members)
@@ -290,11 +285,10 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
             {owner && owner !== "me" && !members.some((member) => member.user_id === owner) ? (
               <option value={owner}>{owner === userId ? t("issues.me") : t("issues.filter.selectedMember")}</option>
             ) : null}
-          </select>
-        </label>
-        <label className="issues-page__filter">
-          <span className="issues-page__field-label">{t("issues.field.executor")}</span>
-          <select className="issues-page__select" value={executor ?? ""} onChange={(e) => setQuery({ executor: e.target.value || undefined })}>
+          </Select>
+        </Field>
+        <Field label={t("issues.field.executor")} className="issues-page__filter">
+          <Select value={executor ?? ""} onChange={(e) => setQuery({ executor: e.target.value || undefined })}>
             <option value="">{t("issues.filter.anyExecutor")}</option>
             {agents.length > 0 ? (
               <optgroup label={t("issues.filter.agents")}>
@@ -319,8 +313,8 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
                 {executor.startsWith("workflow:") ? t("issues.filter.selectedWorkflow") : t("issues.filter.selectedAgent")}
               </option>
             ) : null}
-          </select>
-        </label>
+          </Select>
+        </Field>
         {owner || executor ? (
           <Button variant="tertiary" size="compact" onClick={() => setQuery({ owner: undefined, executor: undefined })}>
             {t("issues.filter.clear")}
@@ -337,118 +331,108 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
           executorLabel={executorLabel}
         />
       ) : (
-      <section className="issues-page__panel" aria-label={t("issues.list.label")}>
-        <div className="issues-page__toolbar">
-          {issuesData !== null ? <span className="page-activity__meta">{pageLabel}</span> : null}
-        </div>
-
-        {issuesState.kind === "loading" ? (
-          <p className="page-activity__empty">{t("shell.loading")}</p>
-        ) : issuesState.kind === "readyEmpty" ? (
-          owner || executor ? (
-            <EmptyState message={t("issues.list.emptyFiltered")} />
-          ) : (
-            <EmptyState message={t("issues.list.empty")} />
-          )
-        ) : issuesState.kind === "error" || issuesState.kind === "forbidden" || issuesState.kind === "notFound" ? null : (
-          <ul className="issues-page__list">
-            {(issuesData ?? []).map((issue) => (
-              <li key={issue.id} className="issues-page__list-item">
-                <button
-                  type="button"
-                  className="issues-page__row"
-                  onClick={() => {
-                    navigate({ name: "issue", spaceId, issueId: issue.id })
-                  }}
-                >
-                  <span className="issues-page__row-main">
-                    <span className="issues-page__row-title">{issue.title}</span>
-                    <span className="issues-page__row-desc">
-                      {issue.description?.trim() || t("issues.noDescription")}
-                    </span>
-                  </span>
-                  <span className="issues-page__row-side">
-                    {issue.childCount > 0 ? (
-                      <span className="page-activity__meta">
-                        {t("issues.list.subIssues", { done: issue.doneChildCount, total: issue.childCount })}
+        <CollectionFrame
+          label={t("issues.list.label")}
+          loading={issuesState.kind === "loading"}
+          toolbar={issuesData !== null ? <span className="page-activity__meta">{pageLabel}</span> : null}
+          empty={
+            issuesState.kind === "readyEmpty" ? (
+              <EmptyState message={owner || executor ? t("issues.list.emptyFiltered") : t("issues.list.empty")} />
+            ) : null
+          }
+          footer={
+            issuesData !== null && totalPages > 1 ? (
+              <>
+                <Button variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                  {t("issues.list.previous")}
+                </Button>
+                <span className="page-activity__meta">{t("issues.list.page", { page, total: totalPages })}</span>
+                <Button variant="secondary" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+                  {t("issues.list.next")}
+                </Button>
+              </>
+            ) : null
+          }
+        >
+          {issuesState.kind === "error" || issuesState.kind === "forbidden" || issuesState.kind === "notFound" ? null : (
+            <ul className="issues-page__list">
+              {(issuesData ?? []).map((issue) => (
+                <li key={issue.id} className="issues-page__list-item">
+                  <button
+                    type="button"
+                    className="issues-page__row"
+                    onClick={() => {
+                      navigate({ name: "issue", spaceId, issueId: issue.id })
+                    }}
+                  >
+                    <span className="issues-page__row-main">
+                      <span className="issues-page__row-title">{issue.title}</span>
+                      <span className="issues-page__row-desc">
+                        {issue.description?.trim() || t("issues.noDescription")}
                       </span>
-                    ) : null}
-                    {issue.commentCount > 0 ? (
-                      <span className="page-activity__meta">
-                        {t("issues.comments", { count: issue.commentCount })}
-                      </span>
-                    ) : null}
-                    <span className="issues-page__status">{statusLabel(issue.status)}</span>
-                    <span className="page-activity__meta">
-                      {assigneeLabel(issue)}
                     </span>
-                    <span className="page-activity__meta">{relativeTime(issue.updatedAt)}</span>
-                  </span>
-                </button>
-                {issue.childCount > 0 ? (
-                  <div className="issues-page__children">
-                    {/* Children load on expand rather than with the page: a
-                        board of parents would otherwise pay for every
-                        breakdown nobody opened. */}
-                    <Button
-                      variant="tertiary"
-                      size="compact"
-                      onClick={() => toggleChildren(issue.id)}
-                    >
-                      {expanded[issue.id] ? t("issues.list.hideSubIssues") : t("issues.list.showSubIssues")}
-                    </Button>
-                    {expanded[issue.id] ? (
-                      children[issue.id] === undefined ? (
-                        <p className="page-activity__empty">{t("shell.loading")}</p>
-                      ) : (
-                        <ul className="issues-page__child-list">
-                          {children[issue.id].map((child) => (
-                            <li key={child.id} className="issues-page__child">
-                              <button
-                                type="button"
-                                className="issues-page__row"
-                                onClick={() => navigate({ name: "issue", spaceId, issueId: child.id })}
-                              >
-                                <span className="issues-page__row-main">
-                                  <span className="issues-page__row-title">{child.title}</span>
-                                </span>
-                                <span className="issues-page__row-side">
-                                  <span className="issues-page__status">{statusLabel(child.status)}</span>
-                                  <span className="page-activity__meta">{assigneeLabel(child)}</span>
-                                </span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )
-                    ) : null}
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {issuesData !== null && totalPages > 1 ? <div className="issues-page__pagination">
-          <Button
-            variant="secondary"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            {t("issues.list.previous")}
-          </Button>
-          <span className="page-activity__meta">
-            {t("issues.list.page", { page, total: totalPages })}
-          </span>
-          <Button
-            variant="secondary"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            {t("issues.list.next")}
-          </Button>
-        </div> : null}
-      </section>
+                    <span className="issues-page__row-side">
+                      {issue.childCount > 0 ? (
+                        <span className="page-activity__meta">
+                          {t("issues.list.subIssues", { done: issue.doneChildCount, total: issue.childCount })}
+                        </span>
+                      ) : null}
+                      {issue.commentCount > 0 ? (
+                        <span className="page-activity__meta">
+                          {t("issues.comments", { count: issue.commentCount })}
+                        </span>
+                      ) : null}
+                      <StatusLabel status={issue.status} />
+                      <span className="page-activity__meta">
+                        {assigneeLabel(issue)}
+                      </span>
+                      <span className="page-activity__meta">{relativeTime(issue.updatedAt)}</span>
+                    </span>
+                  </button>
+                  {issue.childCount > 0 ? (
+                    <div className="issues-page__children">
+                      {/* Children load on expand rather than with the page: a
+                          board of parents would otherwise pay for every
+                          breakdown nobody opened. */}
+                      <Button
+                        variant="tertiary"
+                        size="compact"
+                        onClick={() => toggleChildren(issue.id)}
+                      >
+                        {expanded[issue.id] ? t("issues.list.hideSubIssues") : t("issues.list.showSubIssues")}
+                      </Button>
+                      {expanded[issue.id] ? (
+                        children[issue.id] === undefined ? (
+                          <Spinner />
+                        ) : (
+                          <ul className="issues-page__child-list">
+                            {children[issue.id].map((child) => (
+                              <li key={child.id} className="issues-page__child">
+                                <button
+                                  type="button"
+                                  className="issues-page__row"
+                                  onClick={() => navigate({ name: "issue", spaceId, issueId: child.id })}
+                                >
+                                  <span className="issues-page__row-main">
+                                    <span className="issues-page__row-title">{child.title}</span>
+                                  </span>
+                                  <span className="issues-page__row-side">
+                                    <StatusLabel status={child.status} />
+                                    <span className="page-activity__meta">{assigneeLabel(child)}</span>
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CollectionFrame>
       )}
 
       <IssueModal

@@ -3,7 +3,7 @@ id: portal-administration-labels
 title: Show Administration in human labels, with a next step for each failure class
 roadmap: R6
 source: docs/design/ui-experience-program.md#phases
-depends_on: [16-gui-shared-primitives.md]
+depends_on: []
 verification: ["./make check portal", "./make e2e visual", "./make e2e local"]
 claim:
 pr:
@@ -40,7 +40,7 @@ underline**, unlike every other link in Portal.
 ## Scope
 
 - Map health, run status, role, worker mode, transport, and tier values to
-  catalog labels in both locales. Run statuses use task 16's `StatusLabel`
+  catalog labels in both locales. Run statuses use gui's `StatusLabel`
   over the shared vocabulary. Raw values may stay as secondary technical
   detail.
 - Format quota numbers for the locale, and stop the count cells from wrapping
@@ -77,8 +77,8 @@ underline**, unlike every other link in Portal.
 
 ## Notes
 
-This task depends on task 16 for `StatusLabel` and the single status
-vocabulary.
+`StatusLabel` and the single status vocabulary ship in `@buildmax/gui`; add a
+status word there, in both languages, rather than labelling it in Portal.
 
 Audit context: the phase 0 Portal audit ran on 2026-10-06 against `main` at
 `e98efc7a`, on an ephemeral kind cluster with the mock model. The operator was

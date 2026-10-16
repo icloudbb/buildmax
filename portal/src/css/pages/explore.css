@@ -1,17 +1,5 @@
 /* Page: Explore (user files) */
 
-.page-explore__title {
-  margin: 0 0 0.25rem;
-  font-size: 1.5rem;
-  color: var(--color-text);
-}
-
-.page-explore__subtitle {
-  margin: 0 0 1rem;
-  font-size: 0.95rem;
-  color: var(--color-text-muted);
-}
-
 .page-explore__upload-bar {
   display: flex;
   align-items: center;
@@ -105,16 +93,8 @@
   color: inherit;
 }
 
-.explore-tree__loading,
-.explore-tree__error {
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-}
-
-.explore-tree__error {
-  color: var(--color-danger);
+.explore-tree__loading {
+  margin: 0.5rem 0.75rem;
 }
 
 .page-explore__content-panel {
@@ -258,13 +238,8 @@
   word-break: break-word;
 }
 
-.page-explore__viewer-loading,
 .page-explore__viewer-error {
   margin: 0;
   font-size: 0.9rem;
-  color: var(--color-text-muted);
-}
-
-.page-explore__viewer-error {
   color: var(--color-danger);
 }

@@ -14,15 +14,13 @@
 
 .asst-editor__fields { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .asst-editor__row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-.asst-editor__row > .sec-field { flex: 1 1 220px; min-width: 0; }
+.asst-editor__cell { flex: 1 1 220px; }
 .asst-editor__group {
   border: 1px solid var(--color-border-subtle); border-radius: 10px;
-  margin: 0; padding: 12px 14px; min-width: 0;
-  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px 14px; min-width: 0;
 }
-.asst-editor__group > legend { padding: 0 4px; }
-.asst-editor__checks { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
-.asst-editor__checks > legend { width: 100%; padding: 0; margin-bottom: 4px; }
+.asst-editor__group > .bm-field { gap: 10px; }
+.asst-editor__checks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
 
 .asst-roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .asst-roster__entry {

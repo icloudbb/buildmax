@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Button, type FormModalFieldConfig } from "@buildmax/gui"
+import { Button, EditorActions, Field, Input, Select, Textarea, type FormModalFieldConfig } from "@buildmax/gui"
 import type { Agent } from "../lib/types"
 import type { ApiSecret, ApiSecretConsumption } from "../lib/api/types"
 import { agentFields, agentGroupMeta, buildAgentDefinition, type AgentDefinitionInput } from "../features/agents"
@@ -88,15 +88,16 @@ export function AgentConfigForm({
   function renderField(field: FormModalFieldConfig) {
     const value = values[field.key] ?? ""
     return (
-      <div key={field.key} className="agent-config__field">
-        <label className="modal__label" htmlFor={`agent-cfg-${field.key}`}>
-          {field.label}
-          {field.optional ? <span className="modal__optional">{t("agents.config.optional")}</span> : null}
-        </label>
+      <Field
+        key={field.key}
+        id={`agent-cfg-${field.key}`}
+        label={field.label}
+        optional={field.optional}
+        // The chosen option explains itself, e.g. what a sandbox tier allows.
+        hint={field.type === "select" ? field.options?.find((o) => o.value === value)?.description : undefined}
+      >
         {field.type === "textarea" ? (
-          <textarea
-            id={`agent-cfg-${field.key}`}
-            className="modal__textarea"
+          <Textarea
             placeholder={field.placeholder}
             value={value}
             rows={field.rows ?? 4}
@@ -105,29 +106,16 @@ export function AgentConfigForm({
             onChange={(e) => setField(field.key, e.target.value)}
           />
         ) : field.type === "select" ? (
-          <>
-            <select
-              id={`agent-cfg-${field.key}`}
-              className="modal__input"
-              value={value}
-              disabled={disabled}
-              onChange={(e) => setField(field.key, e.target.value)}
-            >
-              {(field.options ?? []).map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {field.options?.find((o) => o.value === value)?.description ? (
-              <p className="modal__hint">{field.options.find((o) => o.value === value)?.description}</p>
-            ) : null}
-          </>
+          <Select value={value} disabled={disabled} onChange={(e) => setField(field.key, e.target.value)}>
+            {(field.options ?? []).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
         ) : (
-          <input
-            id={`agent-cfg-${field.key}`}
+          <Input
             type="text"
-            className="modal__input"
             placeholder={field.placeholder}
             value={value}
             maxLength={field.maxLength}
@@ -136,7 +124,7 @@ export function AgentConfigForm({
             onChange={(e) => setField(field.key, e.target.value)}
           />
         )}
-      </div>
+      </Field>
     )
   }
 
@@ -179,22 +167,23 @@ export function AgentConfigForm({
           ))}
         </nav>
         <div className="agent-config__panel">
-          {group?.description ? <p className="modal__hint">{group.description}</p> : null}
+          {group?.description ? <p className="agent-config__hint">{group.description}</p> : null}
           {renderPanel()}
         </div>
       </div>
 
       {error ? (
-        <p className="modal__error" role="alert">
+        <p className="agent-config__error" role="alert">
           {error}
         </p>
       ) : null}
 
       {canManage ? (
-        <div className="agent-config__actions">
+        <EditorActions>
+          {/* Delete sits apart, at the far side from Save. */}
+          <Button variant="danger" className="agent-config__delete" busy={deleting} disabled={saving} onClick={handleDelete}>{t("agents.config.delete")}</Button>
           <Button variant="primary" busy={saving} disabled={disabled || deleting || nameEmpty} onClick={handleSubmit}>{t("agents.config.save")}</Button>
-          <Button variant="danger" busy={deleting} disabled={saving} onClick={handleDelete}>{t("agents.config.delete")}</Button>
-        </div>
+        </EditorActions>
       ) : (
         <p className="page-activity__empty">{t("agents.config.readOnly")}</p>
       )}

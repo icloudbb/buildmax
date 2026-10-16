@@ -21,7 +21,11 @@
     "./button.css": "./dist/button.css",
     "./modal.css": "./dist/modal.css",
     "./drawer.css": "./dist/drawer.css",
-    "./widgets.css": "./dist/widgets.css"
+    "./widgets.css": "./dist/widgets.css",
+    "./field.css": "./dist/field.css",
+    "./menu.css": "./dist/menu.css",
+    "./feedback.css": "./dist/feedback.css",
+    "./page.css": "./dist/page.css"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -43,7 +47,7 @@
     "vitest": "^5.0.3"
   },
   "scripts": {
-    "build": "vite build && cp src/theme.css dist/theme.css && cp src/button.css dist/button.css && cp src/modal.css dist/modal.css && cp src/drawer.css dist/drawer.css && cp src/widgets.css dist/widgets.css && npm run build:types",
+    "build": "vite build && cp src/theme.css dist/theme.css && cp src/button.css dist/button.css && cp src/modal.css dist/modal.css && cp src/drawer.css dist/drawer.css && cp src/widgets.css dist/widgets.css && cp src/field.css dist/field.css && cp src/menu.css dist/menu.css && cp src/feedback.css dist/feedback.css && cp src/page.css dist/page.css && npm run build:types",
     "build:types": "tsc --emitDeclarationOnly --outDir dist --rootDir src",
     "dev": "vite build --watch",
     "lint": "eslint . --max-warnings 0 && npm run lint:css",

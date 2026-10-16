@@ -1,4 +1,4 @@
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react"
+import type { AnchorHTMLAttributes, ComponentPropsWithRef, ReactNode } from "react"
 
 export type ButtonVariant = "primary" | "secondary" | "tertiary" | "danger"
 export type ButtonSize = "default" | "compact"
@@ -9,7 +9,7 @@ function buttonClasses(variant: ButtonVariant, size: ButtonSize, className?: str
     .join(" ")
 }
 
-export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
+export interface ButtonProps extends Omit<ComponentPropsWithRef<"button">, "children"> {
   children: ReactNode
   variant?: ButtonVariant
   size?: ButtonSize

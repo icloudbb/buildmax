@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, getInitials, type Translate } from "@buildmax/gui"
+import { Button, Skeleton, getInitials, type Translate } from "@buildmax/gui"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import type {
   ApiAgent,
@@ -161,11 +161,7 @@ export function SpacePlugins({
       />
 
       {rowsState.kind === "loading" ? (
-        <div className="tp-list" aria-hidden>
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="tp-card tp-card--skeleton" />
-          ))}
-        </div>
+        <Skeleton />
       ) : rowsState.kind === "error" || rowsState.kind === "forbidden" || rowsState.kind === "notFound" ? null : rows.length === 0 ? (
         <p className="tp-empty">{t("settings.plugins.empty")}</p>
       ) : (

@@ -1,3 +1,4 @@
+import { PageHeader, Spinner } from "@buildmax/gui"
 import {
   AdminAccounts,
   AdminAdministrators,
@@ -44,7 +45,7 @@ export function AdminSettings({
   if (loading) {
     return (
       <div className="settings-page">
-        <p className="admin-empty">{t("admin.checkingAccess")}</p>
+        <Spinner label={t("admin.checkingAccess")} />
       </div>
     )
   }
@@ -55,12 +56,7 @@ export function AdminSettings({
 
   return (
     <div className="settings-page">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{t("admin.title")}</h1>
-          <p className="page-activity__subtitle">{t("admin.subtitle")}</p>
-        </div>
-      </div>
+      <PageHeader title={t("admin.title")} subtitle={t("admin.subtitle")} />
 
       <div className="settings-page__content">
         {section === "overview" ? <AdminOverview token={token} /> : null}

@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { BaseModal, Button, ButtonLink } from "@buildmax/gui"
+import {
+  BaseModal,
+  Button,
+  ButtonLink,
+  DetailHeader,
+  EditorActions,
+  Field,
+  Input,
+  Skeleton,
+  StatusLabel,
+  Textarea,
+  useStatusLabel,
+} from "@buildmax/gui"
 import type { Agent, Workflow, WorkflowRevision, WorkflowRun } from "../../lib/types"
 import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -36,7 +48,6 @@ import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { isAllowed } from "../../state/permissionState"
 import { classifyError, deriveResourceState, type RequestError } from "../../state/resourceState"
 import { useApp } from "../../contexts/AppContext"
-import { useStatusLabel } from "../../lib/statusLabels"
 import { useStableT, useT } from "../../i18n"
 import { useRelativeTime } from "../../lib/dateFormat"
 
@@ -313,7 +324,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Skeleton />
       </div>
     )
   }
@@ -342,37 +353,29 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">
-            {workflow ? workflow.name : t("workflows.detail.fallbackTitle")}
-            {workflow ? (
-              <span className={`workflow-status-pill workflow-status-pill--${workflow.status}`}>
-                {statusLabel(workflow.status)}
-              </span>
-            ) : null}
-          </h1>
-          <p className="page-activity__subtitle">
-            {workflow?.description || t("workflows.detail.subtitle")}
-          </p>
-        </div>
-        <div className="page-activity__actions">
-          <ButtonLink variant="tertiary" href={buildHash({ name: "workflows", spaceId })}>
-            {t("workflows.backToList")}
-          </ButtonLink>
-          <Button variant="tertiary" disabled={loading} onClick={() => void load()}>
-            {t("workflows.refresh")}
-          </Button>
-          <Button
-            variant="primary"
-            busy={running}
-            disabled={loading || workflow == null || !published}
-            onClick={handleRunClick}
-          >
-            {t("workflows.detail.run")}
-          </Button>
-        </div>
-      </div>
+      <DetailHeader
+        title={workflow ? workflow.name : t("workflows.detail.fallbackTitle")}
+        status={workflow ? <StatusLabel status={workflow.status} /> : undefined}
+        meta={workflow?.description || t("workflows.detail.subtitle")}
+        actions={
+          <>
+            <ButtonLink variant="tertiary" href={buildHash({ name: "workflows", spaceId })}>
+              {t("workflows.backToList")}
+            </ButtonLink>
+            <Button variant="tertiary" disabled={loading} onClick={() => void load()}>
+              {t("workflows.refresh")}
+            </Button>
+            <Button
+              variant="primary"
+              busy={running}
+              disabled={loading || workflow == null || !published}
+              onClick={handleRunClick}
+            >
+              {t("workflows.detail.run")}
+            </Button>
+          </>
+        }
+      />
 
       {error ? <p className="page-activity__empty">{error}</p> : null}
 
@@ -429,42 +432,40 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
               <details className="workflow-editor__settings">
                 <summary className="workflow-editor__settings-summary">{t("workflows.detail.settings")}</summary>
                 <div className="workflow-editor__settings-fields">
-                  <label className="issues-page__field">
-                    <span className="issues-page__field-label">{t("workflows.field.name")}</span>
-                    <input className="issues-page__input" value={name} disabled={!canManageWorkflows} onChange={(e) => setName(e.target.value)} />
-                  </label>
-                  <label className="issues-page__field">
-                    <span className="issues-page__field-label">{t("workflows.field.description")}</span>
-                    <textarea
-                      className="issues-page__textarea"
+                  <Field label={t("workflows.field.name")}>
+                    <Input value={name} disabled={!canManageWorkflows} onChange={(e) => setName(e.target.value)} />
+                  </Field>
+                  <Field label={t("workflows.field.description")}>
+                    <Textarea
                       rows={3}
                       value={description}
                       disabled={!canManageWorkflows}
                       onChange={(e) => setDescription(e.target.value)}
                     />
-                  </label>
+                  </Field>
                 </div>
               </details>
 
               <WorkflowStepsEditor state={stepsState} agents={agents} disabled={!canManageWorkflows} fill />
 
               {canManageWorkflows ? (
-                <div className="workflow-page__inline-actions">
+                // Lesser actions first and Publish last, in the editor's Save place.
+                <EditorActions>
+                  {workflow.status !== "archived" ? (
+                    <Button variant="tertiary" disabled={saving} onClick={handleArchive}>
+                      {t("workflows.detail.archive")}
+                    </Button>
+                  ) : null}
+                  <Button variant="tertiary" disabled={saving} onClick={discardEdits}>
+                    {t("workflows.detail.discard")}
+                  </Button>
                   <Button variant="secondary" busy={saving} disabled={saveDisabled} onClick={handleSaveDraft}>
                     {t("workflows.detail.saveDraft")}
                   </Button>
                   <Button variant="primary" busy={saving} disabled={saveDisabled} onClick={handlePublish}>
                     {t("workflows.detail.publish")}
                   </Button>
-                  <Button variant="tertiary" disabled={saving} onClick={discardEdits}>
-                    {t("workflows.detail.discard")}
-                  </Button>
-                  {workflow.status !== "archived" ? (
-                    <Button variant="tertiary" disabled={saving} onClick={handleArchive}>
-                      {t("workflows.detail.archive")}
-                    </Button>
-                  ) : null}
-                </div>
+                </EditorActions>
               ) : null}
             </section>
           ) : null}
@@ -487,7 +488,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
                         onClick={() => navigate({ name: "workflowRun", spaceId, workflowRunId: run.id })}
                       >
                         <span>
-                          <strong>{statusLabel(run.status)}</strong>
+                          <StatusLabel status={run.status} />
                           <span className="page-activity__meta workflow-detail-page__run-id">{run.id}</span>
                         </span>
                         <span className="page-activity__meta">{relativeTime(run.createdAt)}</span>

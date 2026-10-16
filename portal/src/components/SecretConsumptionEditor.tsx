@@ -1,4 +1,4 @@
-import { Button, IconButton, type MessageVars, type Translate } from "@buildmax/gui"
+import { Button, Field, IconButton, Input, Select, type MessageVars, type Translate } from "@buildmax/gui"
 import type { ApiSecret, ApiSecretConsumption, ApiSecretEnvGrant } from "../lib/api/types"
 import { useT, type MessageKey } from "../i18n"
 
@@ -63,110 +63,110 @@ export function SecretConsumptionEditor({
 
   return (
     <div className="secret-consumption">
-      <div className="modal__label">{t("agents.secrets.title")}</div>
-      <p className="modal__hint">{t("agents.secrets.hint")}</p>
+      <Field group label={t("agents.secrets.title")} className="secret-consumption__group">
+        {/* Read before the grants: every granted secret is readable by the agent. */}
+        <p className="secret-consumption__hint">{t("agents.secrets.hint")}</p>
 
-      {secrets.length === 0 ? (
-        <p className="modal__hint">{t("agents.secrets.none")}</p>
-      ) : null}
+        {secrets.length === 0 ? (
+          <p className="secret-consumption__hint">{t("agents.secrets.none")}</p>
+        ) : null}
 
-      {grants.map((grant, i) => {
-        const chosen = secrets.find((s) => s.id === grant.secret)
-        const wholeGroup = !grant.item
-        const health = grantHealth(grant, secrets, t)
-        return (
-          <div key={i} className="admin-card">
-            {health ? (
-              <p className="settings-section__error" role="alert">
-                {health}
-              </p>
-            ) : null}
-            <div className="secret-item-row">
-              <select
-                className="modal__input"
-                value={grant.secret}
-                onChange={(e) => setGrant(i, { secret: e.target.value, item: "", env_name: "" })}
-              >
-                <option value="">{t("agents.secrets.chooseSecret")}</option>
-                {active.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-                {chosen && chosen.state !== "active" ? (
-                  <option value={chosen.id}>{t("agents.secrets.disabledOption", { name: chosen.name })}</option>
-                ) : null}
-              </select>
-              <IconButton
-                variant="tertiary"
-                onClick={() => update(grants.filter((_, j) => j !== i))}
-                aria-label={t("agents.secrets.removeGrant")}
-              >
-                ✕
-              </IconButton>
-            </div>
-
-            <label className="secret-remove-row">
-              <input
-                type="checkbox"
-                checked={wholeGroup}
-                onChange={(e) => setGrant(i, e.target.checked ? { item: "" } : { item: "", prefix: "" })}
-              />
-              {t("agents.secrets.wholeGroup")}
-            </label>
-
-            {wholeGroup ? (
-              <div>
-                <label className="modal__label">{t("agents.secrets.prefix")}</label>
-                <input
-                  className="modal__input"
-                  placeholder={t("agents.secrets.prefixPlaceholder")}
-                  value={grant.prefix ?? ""}
-                  onChange={(e) => setGrant(i, { prefix: e.target.value })}
-                />
-              </div>
-            ) : (
+        {grants.map((grant, i) => {
+          const chosen = secrets.find((s) => s.id === grant.secret)
+          const wholeGroup = !grant.item
+          const health = grantHealth(grant, secrets, t)
+          return (
+            <div key={i} className="admin-card">
+              {health ? (
+                <p className="settings-section__error" role="alert">
+                  {health}
+                </p>
+              ) : null}
               <div className="secret-item-row">
-                <select
-                  className="modal__input"
-                  value={grant.item ?? ""}
-                  onChange={(e) => setGrant(i, { item: e.target.value })}
+                <Select
+                  className="secret-consumption__control"
+                  value={grant.secret}
+                  onChange={(e) => setGrant(i, { secret: e.target.value, item: "", env_name: "" })}
                 >
-                  <option value="">{t("agents.secrets.chooseItem")}</option>
-                  {(chosen?.item_names ?? []).map((name) => (
-                    <option key={name} value={name}>
-                      {name}
+                  <option value="">{t("agents.secrets.chooseSecret")}</option>
+                  {active.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
                     </option>
                   ))}
-                </select>
-                <input
-                  className="modal__input"
-                  placeholder={t("agents.secrets.envPlaceholder")}
-                  value={grant.env_name ?? ""}
-                  onChange={(e) => setGrant(i, { env_name: e.target.value })}
-                />
+                  {chosen && chosen.state !== "active" ? (
+                    <option value={chosen.id}>{t("agents.secrets.disabledOption", { name: chosen.name })}</option>
+                  ) : null}
+                </Select>
+                <IconButton
+                  variant="tertiary"
+                  onClick={() => update(grants.filter((_, j) => j !== i))}
+                  aria-label={t("agents.secrets.removeGrant")}
+                >
+                  ✕
+                </IconButton>
               </div>
-            )}
 
-            <label className="secret-remove-row">
-              <input
-                type="checkbox"
-                checked={grant.optional ?? false}
-                onChange={(e) => setGrant(i, { optional: e.target.checked })}
-              />
-              {t("agents.secrets.optional")}
-            </label>
-          </div>
-        )
-      })}
+              <label className="secret-remove-row">
+                <input
+                  type="checkbox"
+                  checked={wholeGroup}
+                  onChange={(e) => setGrant(i, e.target.checked ? { item: "" } : { item: "", prefix: "" })}
+                />
+                {t("agents.secrets.wholeGroup")}
+              </label>
 
-      <Button
-        variant="secondary"
-        disabled={secrets.length === 0}
-        onClick={() => update([...grants, { secret: "", item: "", env_name: "" }])}
-      >
-        {t("agents.secrets.add")}
-      </Button>
+              {wholeGroup ? (
+                <Field label={t("agents.secrets.prefix")}>
+                  <Input
+                    placeholder={t("agents.secrets.prefixPlaceholder")}
+                    value={grant.prefix ?? ""}
+                    onChange={(e) => setGrant(i, { prefix: e.target.value })}
+                  />
+                </Field>
+              ) : (
+                <div className="secret-item-row">
+                  <Select
+                    className="secret-consumption__control"
+                    value={grant.item ?? ""}
+                    onChange={(e) => setGrant(i, { item: e.target.value })}
+                  >
+                    <option value="">{t("agents.secrets.chooseItem")}</option>
+                    {(chosen?.item_names ?? []).map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </Select>
+                  <Input
+                    className="secret-consumption__control"
+                    placeholder={t("agents.secrets.envPlaceholder")}
+                    value={grant.env_name ?? ""}
+                    onChange={(e) => setGrant(i, { env_name: e.target.value })}
+                  />
+                </div>
+              )}
+
+              <label className="secret-remove-row">
+                <input
+                  type="checkbox"
+                  checked={grant.optional ?? false}
+                  onChange={(e) => setGrant(i, { optional: e.target.checked })}
+                />
+                {t("agents.secrets.optional")}
+              </label>
+            </div>
+          )
+        })}
+
+        <Button
+          variant="secondary"
+          disabled={secrets.length === 0}
+          onClick={() => update([...grants, { secret: "", item: "", env_name: "" }])}
+        >
+          {t("agents.secrets.add")}
+        </Button>
+      </Field>
     </div>
   )
 }

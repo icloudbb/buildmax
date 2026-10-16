@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { PageHeader } from "@buildmax/gui"
 import {
   SPACE_NAV,
   SpaceInviteMemberDialog,
@@ -100,12 +101,7 @@ export function SpaceSettings({
 
   return (
     <div className="settings-page">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{t("settings.title")}</h1>
-          <p className="page-activity__subtitle">{t("settings.subtitle")}</p>
-        </div>
-      </div>
+      <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
       {pageError ? (
         <p className="settings-section__error" role="alert">

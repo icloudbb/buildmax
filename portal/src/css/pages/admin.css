@@ -73,42 +73,11 @@
   margin: 0.75rem 0;
 }
 
-.admin-input {
+/* A control, or a labelled Field, sharing a toolbar or form row: as many fit
+   side by side as the panel allows. */
+.admin-item {
   flex: 1 1 12rem;
   min-width: 0;
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: var(--color-bg-elevated);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.9rem;
-}
-
-/* A labelled control in the toolbar. A bare date input reads as a blank box;
-   the caption says which end of the range it bounds. */
-.admin-field {
-  display: flex;
-  flex: 1 1 12rem;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.admin-field__label {
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
-}
-
-.admin-field .admin-input {
-  flex: 1 1 auto;
-}
-
-/* A checkbox field reads left-to-right, unlike the stacked text fields. */
-.admin-field--checkbox {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .admin-form {

@@ -15,7 +15,14 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    // The type-level twin of vite.config.ts's `dedupe`: @buildmax/gui's
+    // declarations import "react" from gui's own node_modules, and a second
+    // copy of React's types makes a ref typed by gui unassignable from Portal.
+    "paths": {
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"]
+    }
   },
   "include": ["src"]
 }

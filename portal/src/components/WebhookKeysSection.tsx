@@ -1,4 +1,4 @@
-import { Button } from "@buildmax/gui"
+import { Button, Input, Spinner } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
 import { useStableT, useT } from "../i18n"
@@ -118,9 +118,10 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
       )}
 
       <div className="settings-webhook__create">
-        <input
+        <Input
           type="text"
-          className="settings-webhook__input"
+          className="settings-webhook__control"
+          aria-label={t("account.webhook.namePlaceholder")}
           placeholder={t("account.webhook.namePlaceholder")}
           value={keyName}
           onChange={(e) => setKeyName(e.target.value)}
@@ -135,7 +136,7 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
       </div>
 
       {loading ? (
-        <p className="settings-section__muted">{t("account.webhook.loading")}</p>
+        <Spinner label={t("account.webhook.loading")} />
       ) : keys.length === 0 ? (
         <p className="settings-section__muted">{t("account.webhook.empty")}</p>
       ) : (

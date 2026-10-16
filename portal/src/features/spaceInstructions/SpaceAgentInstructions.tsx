@@ -1,4 +1,4 @@
-import { Button } from "@buildmax/gui"
+import { Button, EditorActions, Field, Spinner, Textarea } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT } from "../../i18n"
@@ -72,41 +72,43 @@ export function SpaceAgentInstructions({
       {error ? <p className="settings-section__error" role="alert">{error}</p> : null}
 
       {loading ? (
-        <p className="admin-empty">{t("shell.loading")}</p>
+        <Spinner />
       ) : (
-        <div>
-          <label className="modal__label" htmlFor="space-agent-instructions">
-            {t("settings.instructions.label")}
-          </label>
-          <textarea
+        <div className="space-agent-instructions">
+          <Field
+            label={t("settings.instructions.label")}
             id="space-agent-instructions"
-            className="modal__textarea space-agent-instructions__textarea"
-            rows={10}
-            maxLength={MAX_INSTRUCTIONS_CHARS}
-            value={draft}
-            disabled={!canManage || saving}
-            placeholder={t("settings.instructions.placeholder")}
-            onChange={(event) => setDraft(event.target.value)}
-          />
-          <div className="space-agent-instructions__footer">
-            <p className="modal__hint">
-              {t("settings.instructions.hint")}
-              {revision > 0 ? t("settings.instructions.revision", { revision }) : ""}
-            </p>
-            <span className="space-agent-instructions__count">
-              {draft.length.toLocaleString()} / {MAX_INSTRUCTIONS_CHARS.toLocaleString()}
-            </span>
-          </div>
+            hint={
+              <>
+                {t("settings.instructions.hint")}
+                {revision > 0 ? t("settings.instructions.revision", { revision }) : ""}
+              </>
+            }
+          >
+            <Textarea
+              rows={10}
+              maxLength={MAX_INSTRUCTIONS_CHARS}
+              value={draft}
+              disabled={!canManage || saving}
+              placeholder={t("settings.instructions.placeholder")}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+          </Field>
+          <span className="space-agent-instructions__count">
+            {draft.length.toLocaleString()} / {MAX_INSTRUCTIONS_CHARS.toLocaleString()}
+          </span>
           {canManage ? (
-            <Button
-              variant="primary" busy={saving}
-              disabled={draft === saved}
-              onClick={() => void save()}
-            >
-              {t("settings.instructions.save")}
-            </Button>
+            <EditorActions>
+              <Button
+                variant="primary" busy={saving}
+                disabled={draft === saved}
+                onClick={() => void save()}
+              >
+                {t("settings.instructions.save")}
+              </Button>
+            </EditorActions>
           ) : (
-            <p className="modal__hint">{t("settings.instructions.readOnly")}</p>
+            <p className="settings-section__muted">{t("settings.instructions.readOnly")}</p>
           )}
         </div>
       )}
