@@ -1,4 +1,4 @@
-import { useId, useState, useRef, useEffect } from "react"
+import { useId, useState } from "react"
 import { cn } from "../lib/cn"
 import type { Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
@@ -24,7 +24,18 @@ import { useAdminAccess } from "../features/admin"
 import { ADMIN_NAV } from "../features/admin/nav"
 import { spaceSwitchTarget } from "../lib/spaceSwitch"
 import type { ResourceState } from "../state/resourceState"
-import { LOCALES, LOCALE_NAMES, useLocale, type Translate } from "@buildmax/gui"
+import {
+  LOCALES,
+  LOCALE_NAMES,
+  Menu,
+  MenuGroup,
+  MenuItem,
+  MenuItemRadio,
+  MenuSection,
+  MenuSeparator,
+  useLocale,
+  type Translate,
+} from "@buildmax/gui"
 import { useT, type MessageKey } from "../i18n"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
@@ -170,20 +181,7 @@ export function SidebarNavContent({
   const spaceSelectId = useId()
   const personalSpaces = spaces.filter((space) => Boolean(space.personalForUserId))
   const sharedSpaces = spaces.filter((space) => !space.personalForUserId)
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
-  const userMenuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!userMenuOpen) return
-    function handleClickOutside(e: MouseEvent) {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [userMenuOpen])
 
   function go(target: Route) {
     navigate(target)
@@ -391,124 +389,68 @@ export function SidebarNavContent({
           </button>
         </div></>}
       </nav>
-      <div className="sidebar__footer" aria-label={t("shell.user")} ref={userMenuRef}>
-        <button
-          type="button"
-          className="sidebar__user-trigger"
-          onClick={() => setUserMenuOpen((open) => !open)}
-          aria-expanded={userMenuOpen}
-          aria-haspopup="menu"
-          aria-label={t("shell.userMenu")}
+      <div className="sidebar__footer" aria-label={t("shell.user")}>
+        <Menu
+          className="sidebar__user-menu"
+          placement="above"
+          trigger={(props) => (
+            <button {...props} type="button" className="sidebar__user-trigger" aria-label={t("shell.userMenu")}>
+              <UserAvatar user={user} size="sm" />
+              <span className="sidebar__user-name">
+                {user.name?.trim() || (user.email ? user.email.split("@")[0] : "")}
+              </span>
+            </button>
+          )}
         >
-          <UserAvatar user={user} size="sm" />
-          <span className="sidebar__user-name">
-            {user.name?.trim() || (user.email ? user.email.split("@")[0] : "")}
-          </span>
-        </button>
-        {userMenuOpen && (
-          <div className="sidebar__user-menu" role="menu">
-            <div className="sidebar__user-menu-header" role="none">
+          <MenuSection>
+            <div className="sidebar__user-menu-header">
               <UserAvatar user={user} size="md" />
               <div className="sidebar__user-menu-header-text">
-                {user.name ? (
-                  <span className="sidebar__user-menu-name">{user.name}</span>
-                ) : null}
+                {user.name ? <span className="sidebar__user-menu-name">{user.name}</span> : null}
                 <span className="sidebar__user-menu-email">{user.email}</span>
               </div>
             </div>
-            <div className="sidebar__user-menu-divider" role="separator" />
-            {!collapsed && currentSpace && route.name !== "admin" ? (
-              <>
-                <div className="sidebar__user-menu-space" role="none">
+          </MenuSection>
+          <MenuSeparator />
+          {!collapsed && currentSpace && route.name !== "admin" ? (
+            <>
+              <MenuSection>
+                <div className="sidebar__user-menu-space">
                   <span className="sidebar__user-menu-space-label">{t("shell.currentSpace")}</span>
                   <span className="sidebar__user-menu-space-name">{currentSpace.name}</span>
                 </div>
-                <div className="sidebar__user-menu-divider" role="separator" />
-              </>
-            ) : null}
-            <button
-              type="button"
-              className="sidebar__user-menu-item"
-              role="menuitem"
-              onClick={() => {
-                setUserMenuOpen(false)
-                go({ name: "account", section: "general" })
-              }}
-            >
-              <span className="sidebar__user-menu-item-icon" aria-hidden>
-                <SettingsIcon />
-              </span>
-              {t("shell.menu.account")}
-            </button>
-            <button
-              type="button"
-              className="sidebar__user-menu-item"
-              role="menuitem"
-              onClick={() => {
-                setUserMenuOpen(false)
-                go({ name: "remoteControl" })
-              }}
-            >
-              <span className="sidebar__user-menu-item-icon" aria-hidden>
-                <AgentsIcon />
-              </span>
-              {t("shell.menu.remoteControl")}
-            </button>
-            <button
-              type="button"
-              className="sidebar__user-menu-item"
-              role="menuitem"
-              onClick={() => {
-                setUserMenuOpen(false)
-                go({ name: "help" })
-              }}
-            >
-              <span className="sidebar__user-menu-item-icon" aria-hidden>
-                <HelpIcon />
-              </span>
-              {t("shell.menu.help")}
-            </button>
-            <div className="sidebar__user-menu-divider" role="separator" />
-            <div className="sidebar__user-menu-space" role="none">
-              <span className="sidebar__user-menu-space-label">{t("shell.menu.language")}</span>
-            </div>
+              </MenuSection>
+              <MenuSeparator />
+            </>
+          ) : null}
+          <MenuItem icon={<SettingsIcon />} onSelect={() => go({ name: "account", section: "general" })}>
+            {t("shell.menu.account")}
+          </MenuItem>
+          <MenuItem icon={<AgentsIcon />} onSelect={() => go({ name: "remoteControl" })}>
+            {t("shell.menu.remoteControl")}
+          </MenuItem>
+          <MenuItem icon={<HelpIcon />} onSelect={() => go({ name: "help" })}>
+            {t("shell.menu.help")}
+          </MenuItem>
+          <MenuSeparator />
+          <MenuGroup label={t("shell.menu.language")}>
             {LOCALES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className="sidebar__user-menu-item"
-                role="menuitemradio"
-                aria-checked={locale === option}
-                lang={option}
-                onClick={() => {
-                  setUserMenuOpen(false)
-                  setLocale(option)
-                }}
-              >
-                <span className="sidebar__user-menu-item-icon" aria-hidden>
-                  {locale === option ? "✓" : ""}
-                </span>
+              <MenuItemRadio key={option} checked={locale === option} lang={option} onSelect={() => setLocale(option)}>
                 {LOCALE_NAMES[option]}
-              </button>
+              </MenuItemRadio>
             ))}
-            <div className="sidebar__user-menu-divider" role="separator" />
-            <button
-              type="button"
-              className="sidebar__user-menu-item"
-              role="menuitem"
-              onClick={() => {
-                setUserMenuOpen(false)
-                onNavigate?.()
-                onLogout()
-              }}
-            >
-              <span className="sidebar__user-menu-item-icon" aria-hidden>
-                <SignOutIcon />
-              </span>
-              {t("shell.menu.signOut")}
-            </button>
-          </div>
-        )}
+          </MenuGroup>
+          <MenuSeparator />
+          <MenuItem
+            icon={<SignOutIcon />}
+            onSelect={() => {
+              onNavigate?.()
+              onLogout()
+            }}
+          >
+            {t("shell.menu.signOut")}
+          </MenuItem>
+        </Menu>
       </div>
       <CreateSpaceDialog open={createSpaceOpen} onClose={() => setCreateSpaceOpen(false)} />
     </>
