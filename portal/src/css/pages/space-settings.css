@@ -170,14 +170,9 @@
   gap: 0.65rem;
 }
 
+/* A row control sits beside the row's buttons rather than across the row. */
 .space-settings-page__role-select {
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-bg-elevated);
-  color: var(--color-text);
-  padding: 0.3rem 0.6rem;
-  font: inherit;
-  font-size: 0.8rem;
+  width: auto;
 }
 
 .space-settings-page__subheading {

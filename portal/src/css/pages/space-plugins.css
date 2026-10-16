@@ -48,12 +48,6 @@
   border-radius: 10px;
 }
 .tp-card--open { border-color: var(--color-text-subtle); }
-.tp-card--skeleton {
-  min-height: 96px; background: var(--color-bg-muted); border-style: dashed;
-  animation: tp-pulse 1.4s ease-in-out infinite;
-}
-@keyframes tp-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.85; } }
-@media (prefers-reduced-motion: reduce) { .tp-card--skeleton { animation: none; } }
 
 .tp-card__head { display: flex; align-items: center; flex-wrap: wrap; gap: 11px; }
 .tp-card__logo {

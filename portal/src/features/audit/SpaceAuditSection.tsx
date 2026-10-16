@@ -1,4 +1,4 @@
-import { Button } from "@buildmax/gui"
+import { Button, Spinner } from "@buildmax/gui"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { ApiAuditEvent } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -178,7 +178,7 @@ export function SpaceAuditSection({
         </ul>
       ) : null}
 
-      {loading ? <p className="page-activity__empty">{t("shell.loading")}</p> : null}
+      {loading ? <Spinner /> : null}
 
       {eventsState.kind !== "forbidden" && eventsState.kind !== "notFound" && events.length < total ? (
         <Button

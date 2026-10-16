@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { Field, Select, Spinner } from "@buildmax/gui"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT } from "../../i18n"
 import { spaceSandboxFilesystemTierOptions, spaceSandboxNetworkTierOptions } from "../../lib/sandboxTiers"
@@ -85,16 +86,15 @@ export function SpaceSandboxDefaults({
       ) : null}
 
       {loading ? (
-        <p className="admin-empty">{t("shell.loading")}</p>
+        <Spinner />
       ) : (
         <div className="admin-sections">
-          <div>
-            <label className="modal__label" htmlFor="space-sandbox-network-tier">
-              {t("settings.sandbox.network")}
-            </label>
-            <select
-              id="space-sandbox-network-tier"
-              className="modal__input"
+          <Field
+            label={t("settings.sandbox.network")}
+            id="space-sandbox-network-tier"
+            hint={networkTierOptions.find((o) => o.value === networkTier)?.description}
+          >
+            <Select
               value={networkTier}
               disabled={!canManage || saving}
               onChange={(e) => save({ networkTier: e.target.value, filesystemTier })}
@@ -104,18 +104,14 @@ export function SpaceSandboxDefaults({
                   {option.label}
                 </option>
               ))}
-            </select>
-            <p className="modal__hint">
-              {networkTierOptions.find((o) => o.value === networkTier)?.description}
-            </p>
-          </div>
-          <div>
-            <label className="modal__label" htmlFor="space-sandbox-filesystem-tier">
-              {t("settings.sandbox.filesystem")}
-            </label>
-            <select
-              id="space-sandbox-filesystem-tier"
-              className="modal__input"
+            </Select>
+          </Field>
+          <Field
+            label={t("settings.sandbox.filesystem")}
+            id="space-sandbox-filesystem-tier"
+            hint={filesystemTierOptions.find((o) => o.value === filesystemTier)?.description}
+          >
+            <Select
               value={filesystemTier}
               disabled={!canManage || saving}
               onChange={(e) => save({ networkTier, filesystemTier: e.target.value })}
@@ -125,11 +121,8 @@ export function SpaceSandboxDefaults({
                   {option.label}
                 </option>
               ))}
-            </select>
-            <p className="modal__hint">
-              {filesystemTierOptions.find((o) => o.value === filesystemTier)?.description}
-            </p>
-          </div>
+            </Select>
+          </Field>
         </div>
       )}
     </section>

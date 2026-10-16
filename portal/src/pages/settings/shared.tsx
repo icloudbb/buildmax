@@ -36,7 +36,7 @@ import AgentsIcon from "../../icons/agents.svg?react"
 import NewChatIcon from "../../icons/new-chat.svg?react"
 import IssueIcon from "../../icons/issue.svg?react"
 import ShieldIcon from "../../icons/shield.svg?react"
-import { Button, BaseModal, type Translate } from "@buildmax/gui"
+import { Button, BaseModal, Field, Input, Select, Spinner, useToast, type Translate } from "@buildmax/gui"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import { useTimestamp } from "../../lib/dateFormat"
 
@@ -176,7 +176,7 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [status, setStatus] = useState<string | null>(null)
+  const toast = useToast()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -184,7 +184,6 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
     e.preventDefault()
     if (!token) return
     setError(null)
-    setStatus(null)
     if (newPassword !== confirmPassword) {
       setError(stableT("account.password.mismatch"))
       return
@@ -192,7 +191,7 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
     setSaving(true)
     try {
       await setPassword(token, newPassword, currentPassword || undefined)
-      setStatus(stableT("account.password.updated"))
+      toast(stableT("account.password.updated"))
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
@@ -211,51 +210,41 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
           <p className="settings-page__section-copy">{t("account.password.copy")}</p>
         </div>
       </div>
-      <form className="settings-general" onSubmit={handleSubmit}>
-        <label className="settings-general__label" htmlFor="current-password">
-          {t("account.password.current")}
-        </label>
-        <input
-          id="current-password"
-          type="password"
-          className="login-page__input"
-          autoComplete="current-password"
-          value={currentPassword}
-          onChange={(e) => setCurrentPassword(e.target.value)}
-          disabled={saving}
-        />
-        <label className="settings-general__label" htmlFor="new-password">
-          {t("account.password.new")}
-        </label>
-        <input
-          id="new-password"
-          type="password"
-          className="login-page__input"
-          autoComplete="new-password"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          required
-          disabled={saving}
-        />
-        <label className="settings-general__label" htmlFor="confirm-password">
-          {t("account.password.confirm")}
-        </label>
-        <input
-          id="confirm-password"
-          type="password"
-          className="login-page__input"
-          autoComplete="new-password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-          disabled={saving}
-        />
+      <form className="settings-page__form-card" onSubmit={handleSubmit}>
+        <Field label={t("account.password.current")} id="current-password">
+          <Input
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            disabled={saving}
+          />
+        </Field>
+        <Field label={t("account.password.new")} id="new-password">
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+            disabled={saving}
+          />
+        </Field>
+        <Field label={t("account.password.confirm")} id="confirm-password">
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            disabled={saving}
+          />
+        </Field>
         {error ? (
           <p className="settings-section__error" role="alert">
             {error}
           </p>
         ) : null}
-        {status ? <p className="settings-section__muted">{status}</p> : null}
         <Button
           type="submit"
           variant="primary" busy={saving}
@@ -327,7 +316,7 @@ export function SettingsUsageSection({
           <p className="settings-page__section-copy">{t("account.usage.copy")}</p>
         </div>
       </div>
-      {loading && <p className="settings-section__muted">{t("account.usage.loading")}</p>}
+      {loading && <Spinner label={t("account.usage.loading")} />}
       {error ? (
         <p className="settings-section__error" role="alert">
           {error === "usage not available" ? t("account.usage.unavailable") : error}
@@ -436,7 +425,7 @@ export function SpaceOverviewSection({
   currentUserRole: string | null
 }) {
   const t = useT()
-  const loading = t("settings.loading")
+  const loading = <Spinner />
   const unavailable = t("settings.unavailable")
   return (
     <section className="settings-page__section">
@@ -591,7 +580,7 @@ export function SpaceMembersSection({
       )}
 
       {membersState.kind === "loading" ? (
-        <p className="page-activity__empty">{t("settings.members.loading")}</p>
+        <Spinner label={t("settings.members.loading")} />
       ) : membersState.kind === "readyEmpty" ? (
         <p className="page-activity__empty">{t("settings.members.empty")}</p>
       ) : membersState.kind === "error" || membersState.kind === "forbidden" || membersState.kind === "notFound" ? null : (
@@ -618,7 +607,7 @@ export function SpaceMembersSection({
                 </div>
                 <div className="space-settings-page__member-actions">
                   {canManageThisRow ? (
-                    <select
+                    <Select
                       className="space-settings-page__role-select"
                       value={member.role === "owner" ? "owner" : member.role}
                       disabled={changingRoleUserId === member.user_id}
@@ -627,7 +616,7 @@ export function SpaceMembersSection({
                     >
                       <option value="member">{t("settings.roleOption.member")}</option>
                       <option value="admin">{t("settings.roleOption.admin")}</option>
-                    </select>
+                    </Select>
                   ) : (
                     <span className="space-settings-page__role">{roleLabel(member.role, t)}</span>
                   )}
@@ -703,7 +692,7 @@ export function SpaceMembersSection({
             />
           )}
           {invitationsState.kind === "loading" ? (
-            <p className="page-activity__empty">{t("settings.members.loadingInvitations")}</p>
+            <Spinner label={t("settings.members.loadingInvitations")} />
           ) : invitationsState.kind === "readyEmpty" ? (
             <p className="page-activity__empty">{t("settings.members.noInvitations")}</p>
           ) : invitationsState.kind === "error" ||
@@ -799,33 +788,22 @@ export function SpaceInviteMemberDialog({
           <p className="space-settings-page__muted">
             {t("settings.invite.copy", { space: currentSpaceName })}
           </p>
-          <label className="settings-page__field-label" htmlFor="settings-member-email">
-            {t("settings.invite.email")}
-          </label>
-          <input
-            id="settings-member-email"
-            className="issues-page__input"
-            type="email"
-            value={email}
-            onChange={(e) => onEmailChange(e.target.value)}
-            placeholder="spacemate@example.com"
-            data-autofocus
-          />
+          <Field label={t("settings.invite.email")} id="settings-member-email">
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => onEmailChange(e.target.value)}
+              placeholder="spacemate@example.com"
+              data-autofocus
+            />
+          </Field>
           {canInviteAsAdmin ? (
-            <>
-              <label className="settings-page__field-label" htmlFor="settings-member-role">
-                {t("settings.invite.role")}
-              </label>
-              <select
-                id="settings-member-role"
-                className="issues-page__input"
-                value={role}
-                onChange={(e) => onRoleChange(e.target.value)}
-              >
+            <Field label={t("settings.invite.role")} id="settings-member-role">
+              <Select value={role} onChange={(e) => onRoleChange(e.target.value)}>
                 <option value="member">{t("settings.roleOption.member")}</option>
                 <option value="admin">{t("settings.roleOption.admin")}</option>
-              </select>
-            </>
+              </Select>
+            </Field>
           ) : null}
           {error ? (
             <p className="modal__error" role="alert">
@@ -911,7 +889,7 @@ export function AccountInvitationsSection({
         </div>
       ) : null}
       {invitationsState.kind === "loading" ? (
-        <p className="page-activity__empty">{t("settings.members.loadingInvitations")}</p>
+        <Spinner label={t("settings.members.loadingInvitations")} />
       ) : invitationsState.kind === "readyEmpty" ? (
         <p className="page-activity__empty">{t("settings.members.noInvitations")}</p>
       ) : invitationsState.kind === "error" ||

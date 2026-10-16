@@ -1,4 +1,4 @@
-import { Button, type Translate } from "@buildmax/gui"
+import { Button, Spinner, type Translate } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import type { ApiPlugin, ApiPluginRelease } from "../../lib/api/types"
@@ -72,7 +72,7 @@ export function AdminPlugins({ token }: { token: string | null }) {
         ) : null}
 
         {loading ? (
-          <p className="admin-empty">{t("shell.loading")}</p>
+          <Spinner />
         ) : plugins.length === 0 ? (
           <p className="admin-empty">{t("admin.plugins.empty")}</p>
         ) : (
@@ -166,7 +166,7 @@ function PluginReleases({
       .finally(() => setBusyVersion(null))
   }
 
-  if (loading) return <p className="admin-empty">{t("admin.plugins.loadingReleases")}</p>
+  if (loading) return <Spinner label={t("admin.plugins.loadingReleases")} />
 
   return (
     <div className="admin-sections">

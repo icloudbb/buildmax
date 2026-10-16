@@ -1,4 +1,4 @@
-import { Button } from "@buildmax/gui"
+import { Button, Input } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { useStableT, useT } from "../../i18n"
 import type { ApiAuditEvent } from "../../lib/api/types"
@@ -99,22 +99,22 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
             apply(filters)
           }}
         >
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             value={filters.spaceId}
             placeholder={t("admin.audit.spacePlaceholder")}
             aria-label={t("admin.audit.spaceLabel")}
             onChange={(e) => setFilters({ ...filters, spaceId: e.target.value })}
           />
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             value={filters.actorId}
             placeholder={t("admin.audit.actorPlaceholder")}
             aria-label={t("admin.audit.actorLabel")}
             onChange={(e) => setFilters({ ...filters, actorId: e.target.value })}
           />
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             value={filters.action}
             placeholder={t("admin.audit.actionPlaceholder")}
             aria-label={t("admin.audit.actionLabel")}

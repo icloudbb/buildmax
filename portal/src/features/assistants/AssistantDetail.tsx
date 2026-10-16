@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, useLocale } from "@buildmax/gui"
+import { Button, Field, Input, Skeleton, useLocale } from "@buildmax/gui"
 import type { ApiAssistant, ApiAssistantDefinition, ApiAssistantStatement, ApiSpaceMember } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { intlLocale } from "../../lib/dateFormat"
@@ -151,7 +151,7 @@ export function AssistantDetail({
     return (
       <section className="sec asst" aria-label={t("assistants.assistant")}>
         <BackLink spaceId={spaceId} />
-        <p className="page-activity__empty">{t("assistants.loading")}</p>
+        <Skeleton label={t("assistants.loading")} />
       </section>
     )
   }
@@ -307,18 +307,15 @@ export function AssistantDetail({
             }}
           >
             <p className="sec__copy">{t("assistants.detail.bindHint")}</p>
-            <label className="modal__label" htmlFor="assistant-bot-token">
-              {t("assistants.detail.botToken")}
-            </label>
-            <div className="sec-item">
-              <input
-                id="assistant-bot-token"
-                type="password"
-                autoComplete="off"
-                className="modal__input sec-item__val"
-                value={botToken}
-                onChange={(e) => setBotToken(e.target.value)}
-              />
+            <div className="sec-item sec-item--field">
+              <Field label={t("assistants.detail.botToken")} id="assistant-bot-token" className="sec-item__val">
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={botToken}
+                  onChange={(e) => setBotToken(e.target.value)}
+                />
+              </Field>
               <Button type="submit" variant="primary" busy={busy === "bind"} disabled={!botToken.trim()}>
                 {t("assistants.detail.bind")}
               </Button>

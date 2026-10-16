@@ -1,4 +1,4 @@
-import { Button, useLocale } from "@buildmax/gui"
+import { Button, Input, Spinner, useLocale } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
 import { useStableT, useT } from "../i18n"
@@ -141,7 +141,7 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
       <div className="settings-panel__heading-divider" role="separator" />
 
       {loading && !data ? (
-        <p className="settings-section__muted">{t("account.chat.loading")}</p>
+        <Spinner label={t("account.chat.loading")} />
       ) : platforms.length === 0 ? (
         <p className="settings-section__muted">{t("account.chat.noPlatform")}</p>
       ) : (
@@ -183,9 +183,9 @@ export function ChatAccountsSection({ token, code }: ChatAccountsSectionProps) {
             </div>
           ) : (
             <div className="settings-webhook__create">
-              <input
+              <Input
                 type="text"
-                className="settings-webhook__input"
+                className="settings-webhook__control"
                 placeholder="ABCD-EFGH"
                 aria-label={t("account.chat.codeLabel")}
                 value={codeInput}

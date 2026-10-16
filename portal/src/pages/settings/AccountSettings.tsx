@@ -1,3 +1,4 @@
+import { PageHeader } from "@buildmax/gui"
 import {
   ACCOUNT_NAV,
   AccountChatSection,
@@ -32,12 +33,7 @@ export function AccountSettings({ section, code }: { section: AccountSection; co
 
   return (
     <div className="settings-page">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{t("account.title")}</h1>
-          <p className="page-activity__subtitle">{t("account.subtitle")}</p>
-        </div>
-      </div>
+      <PageHeader title={t("account.title")} subtitle={t("account.subtitle")} />
 
       {pageError ? (
         <p className="settings-section__error" role="alert">

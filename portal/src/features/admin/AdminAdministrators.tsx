@@ -1,4 +1,4 @@
-import { Button, type Translate } from "@buildmax/gui"
+import { Button, Input, Spinner, useToast, type Translate } from "@buildmax/gui"
 import { useCallback, useEffect, useState } from "react"
 import { useStableT, useT, type MessageKey } from "../../i18n"
 import type { ApiSystemGrant } from "../../lib/api/types"
@@ -32,7 +32,7 @@ export function AdminAdministrators({ token }: { token: string | null }) {
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
 
   const load = useCallback(
     (withRevoked: boolean) => {
@@ -55,10 +55,9 @@ export function AdminAdministrators({ token }: { token: string | null }) {
     if (!token) return
     setBusy(true)
     setError(null)
-    setNotice(null)
     try {
       await run()
-      setNotice(done)
+      toast(done)
       load(includeRevoked)
     } catch (err) {
       setError(getErrorMessage(err, stableT("admin.actionFailed")))
@@ -74,7 +73,6 @@ export function AdminAdministrators({ token }: { token: string | null }) {
     if (wanted === "") return
     setBusy(true)
     setError(null)
-    setNotice(null)
     try {
       // The grant route takes an id, and an operator thinks in emails. Resolve
       // it here to exactly one account rather than acting on a substring guess.
@@ -90,7 +88,7 @@ export function AdminAdministrators({ token }: { token: string | null }) {
       }
       await createAdminGrant(token, matches[0].id)
       setEmail("")
-      setNotice(stableT("admin.administrators.granted", { email: matches[0].email }))
+      toast(stableT("admin.administrators.granted", { email: matches[0].email }))
       load(includeRevoked)
     } catch (err) {
       setError(getErrorMessage(err, stableT("admin.administrators.grantFailed")))
@@ -120,8 +118,8 @@ export function AdminAdministrators({ token }: { token: string | null }) {
         </div>
 
         <form className="admin-toolbar" onSubmit={grant}>
-          <input
-            className="admin-input"
+          <Input
+            className="admin-item"
             type="email"
             value={email}
             placeholder={t("admin.administrators.emailPlaceholder")}
@@ -147,10 +145,9 @@ export function AdminAdministrators({ token }: { token: string | null }) {
             {error}
           </p>
         ) : null}
-        {notice ? <p className="admin-notice">{notice}</p> : null}
 
         {loading ? (
-          <p className="admin-empty">{t("admin.administrators.loading")}</p>
+          <Spinner label={t("admin.administrators.loading")} />
         ) : grants.length === 0 ? (
           <p className="admin-empty">{t("admin.administrators.none")}</p>
         ) : (

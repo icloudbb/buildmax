@@ -236,8 +236,13 @@ test("a model's API key never appears on the page", async ({ page }) => {
   // Whether the deployment accepted the model (it has an encryption key) or
   // refused it (it does not), the outcome is shown and the key is rendered
   // nowhere: on success the form is cleared, and a refusal names the missing key
-  // config, never the credential.
-  await expect(page.locator(".admin-notice, .settings-section__error")).toBeVisible()
+  // config, never the credential. Success is confirmed by a toast.
+  await expect(
+    page
+      .getByRole("status", { name: "Notifications" })
+      .getByText(/^Added /)
+      .or(page.locator(".settings-section__error")),
+  ).toBeVisible()
   await expect(page.locator("body")).not.toContainText(secret)
 })
 

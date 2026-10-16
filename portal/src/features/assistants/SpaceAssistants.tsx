@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, getInitials } from "@buildmax/gui"
+import { Button, Spinner, getInitials } from "@buildmax/gui"
 import type { ApiAssistant, ApiAssistantDefinition, ApiSpaceMember } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT } from "../../i18n"
@@ -162,7 +162,7 @@ function AssistantList({ token, spaceId, canManage }: { token: string | null; sp
       ) : null}
 
       {state.kind === "loading" ? (
-        <p className="page-activity__empty">{t("assistants.loadingList")}</p>
+        <Spinner label={t("assistants.loadingList")} />
       ) : state.kind === "error" || state.kind === "forbidden" || state.kind === "notFound" ? null : assistants.length === 0 ? (
         <p className="page-activity__empty">
           {canManage ? t("assistants.emptyManage") : t("assistants.empty")}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, getInitials } from "@buildmax/gui"
+import { Button, Field, Input, Spinner, getInitials } from "@buildmax/gui"
 import type { ApiServiceAccount, ApiSpaceMember } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT } from "../../i18n"
@@ -136,7 +136,7 @@ export function SpaceServiceAccounts({
       ) : null}
 
       {state.kind === "loading" ? (
-        <p className="page-activity__empty">{t("serviceAccounts.loading")}</p>
+        <Spinner label={t("serviceAccounts.loading")} />
       ) : state.kind === "error" || state.kind === "forbidden" || state.kind === "notFound" ? null : accounts.length === 0 ? (
         isPersonalSpace ? null : <p className="page-activity__empty">{t("serviceAccounts.empty")}</p>
       ) : (
@@ -209,18 +209,13 @@ function CreateServiceAccountForm({
       <div className="sec-form__head">
         <h3 className="sec-form__title">{t("serviceAccounts.new")}</h3>
       </div>
-      <div className="sec-field">
-        <label className="modal__label" htmlFor="service-account-name">
-          {t("serviceAccounts.field.name")}
-        </label>
-        <input
-          id="service-account-name"
-          className="modal__input"
+      <Field label={t("serviceAccounts.field.name")} id="service-account-name">
+        <Input
           value={name}
           placeholder={t("serviceAccounts.field.namePlaceholder")}
           onChange={(e) => setName(e.target.value)}
         />
-      </div>
+      </Field>
       <p className="sec__copy">{t("serviceAccounts.createHint")}</p>
       {error ? (
         <p className="sec__error" role="alert">
@@ -291,15 +286,9 @@ function ServiceAccountCard({
 
       {renaming ? (
         <div className="sec-field">
-          <label className="modal__label" htmlFor={`rename-${account.id}`}>
-            {t("serviceAccounts.field.newName")}
-          </label>
-          <input
-            id={`rename-${account.id}`}
-            className="modal__input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
+          <Field label={t("serviceAccounts.field.newName")} id={`rename-${account.id}`}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
           <div className="sec-form__actions">
             <Button variant="secondary" size="compact" onClick={() => setRenaming(false)} disabled={busy}>
               {t("serviceAccounts.cancel")}
