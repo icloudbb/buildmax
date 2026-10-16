@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, CollectionFrame, PageHeader, StatusLabel } from "@buildmax/gui"
 import type { ApiSchedule } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -145,39 +145,39 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{t("schedules.title")}</h1>
-          <p className="page-activity__subtitle">{t("schedules.subtitle")}</p>
-        </div>
-        <div className="page-activity__actions">
-          {canManage && (schedulesData?.length ?? 0) > 0 ? (
-            <>
-              <Button
-                variant="secondary"
-                busy={bulkBusy === "pause"}
-                disabled={bulkBusy !== null || busyId !== null || enabledCount === 0}
-                onClick={() => void setAllEnabled(false)}
-              >
-                {t("schedules.pauseAll")}
+      <PageHeader
+        title={t("schedules.title")}
+        subtitle={t("schedules.subtitle")}
+        actions={
+          <>
+            {canManage && (schedulesData?.length ?? 0) > 0 ? (
+              <>
+                <Button
+                  variant="secondary"
+                  busy={bulkBusy === "pause"}
+                  disabled={bulkBusy !== null || busyId !== null || enabledCount === 0}
+                  onClick={() => void setAllEnabled(false)}
+                >
+                  {t("schedules.pauseAll")}
+                </Button>
+                <Button
+                  variant="secondary"
+                  busy={bulkBusy === "enable"}
+                  disabled={bulkBusy !== null || busyId !== null || pausedCount === 0}
+                  onClick={() => void setAllEnabled(true)}
+                >
+                  {t("schedules.resumeAll")}
+                </Button>
+              </>
+            ) : null}
+            {canCreate && !creating ? (
+              <Button variant="primary" onClick={() => setCreating(true)}>
+                {t("schedules.new")}
               </Button>
-              <Button
-                variant="secondary"
-                busy={bulkBusy === "enable"}
-                disabled={bulkBusy !== null || busyId !== null || pausedCount === 0}
-                onClick={() => void setAllEnabled(true)}
-              >
-                {t("schedules.resumeAll")}
-              </Button>
-            </>
-          ) : null}
-          {canCreate && !creating ? (
-            <Button variant="primary" onClick={() => setCreating(true)}>
-              {t("schedules.new")}
-            </Button>
-          ) : null}
-        </div>
-      </div>
+            ) : null}
+          </>
+        }
+      />
 
       {canCreate && creating ? (
         <CreateScheduleForm
@@ -205,16 +205,14 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
       )}
       {actionError ? <Alert tone="error" message={actionError} /> : null}
 
-      <section className="issues-page__panel" aria-label={t("schedules.list")}>
-        <div className="issues-page__toolbar">
-          {schedulesData !== null ? <span className="page-activity__meta">{countLabel}</span> : null}
-        </div>
-
-        {schedulesState.kind === "loading" ? (
-          <p className="page-activity__empty">{t("shell.loading")}</p>
-        ) : schedulesState.kind === "readyEmpty" ? (
-          <EmptyState message={t("schedules.empty")} />
-        ) : schedulesState.kind === "error" || schedulesState.kind === "forbidden" || schedulesState.kind === "notFound" ? null : (
+      <CollectionFrame
+        label={t("schedules.list")}
+        loading={schedulesState.kind === "loading"}
+        toolbar={schedulesData !== null ? <span className="page-activity__meta">{countLabel}</span> : null}
+        // The header owns the one creation control, so the empty state has none.
+        empty={schedulesState.kind === "readyEmpty" ? <EmptyState message={t("schedules.empty")} /> : null}
+      >
+        {schedulesState.kind === "error" || schedulesState.kind === "forbidden" || schedulesState.kind === "notFound" ? null : (
           <ul className="issues-page__list">
             {(schedulesData ?? []).map((s) => {
               const executorName = executorNames[`${s.executor_kind}:${s.executor_id}`] ?? s.executor_id
@@ -240,13 +238,7 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
                     </span>
                   </div>
                   <div className="schedules-page__side">
-                    <span
-                      className={
-                        s.enabled ? "issues-page__status" : "issues-page__status schedules-page__status--off"
-                      }
-                    >
-                      {s.enabled ? t("schedules.enabled") : t("schedules.paused")}
-                    </span>
+                    <StatusLabel status={s.enabled ? "enabled" : "paused"} />
                     {s.consecutive_failures > 0 ? (
                       <span className="schedules-page__failures">
                         {t("schedules.failures", { count: s.consecutive_failures })}
@@ -268,7 +260,7 @@ export function SchedulesPage({ token, spaceId }: SchedulesPageProps) {
             })}
           </ul>
         )}
-      </section>
+      </CollectionFrame>
     </div>
   )
 }

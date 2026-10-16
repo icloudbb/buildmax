@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { Button, ButtonLink } from "@buildmax/gui"
+import { Button, ButtonLink, DetailHeader, PageHeader, Skeleton } from "@buildmax/gui"
 import type { ApiArtifact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
@@ -120,7 +120,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
   if (loading) {
     return (
       <div className="page-activity">
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Skeleton />
       </div>
     )
   }
@@ -133,27 +133,25 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
     // retry, because that one is worth trying again.
     return (
       <div className="page-activity">
-        <div className="page-activity__head">
-          <div>
-            <h1 className="page-activity__title">{t("artifacts.detail.heading")}</h1>
-            <p className="page-activity__subtitle">
-              {notFound ? t("artifacts.detail.notFound") : t("artifacts.detail.loadFailed")}
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title={t("artifacts.detail.heading")}
+          subtitle={notFound ? t("artifacts.detail.notFound") : t("artifacts.detail.loadFailed")}
+          actions={
+            <>
+              {!notFound ? (
+                <Button variant="secondary" onClick={load}>
+                  {t("artifacts.detail.tryAgain")}
+                </Button>
+              ) : null}
+              {currentSpaceId ? <ButtonLink variant="tertiary" href={buildHash({ name: "artifacts", spaceId: currentSpaceId })}>{t("artifacts.detail.back")}</ButtonLink> : null}
+            </>
+          }
+        />
         {error ? (
           <p className="settings-section__error" role="alert">
             {error}
           </p>
         ) : null}
-        <div className="page-activity__actions">
-          {!notFound ? (
-            <Button variant="secondary" onClick={load}>
-              {t("artifacts.detail.tryAgain")}
-            </Button>
-          ) : null}
-          {currentSpaceId ? <ButtonLink variant="tertiary" href={buildHash({ name: "artifacts", spaceId: currentSpaceId })}>{t("artifacts.detail.back")}</ButtonLink> : null}
-        </div>
       </div>
     )
   }
@@ -162,37 +160,35 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{artifactLabel(artifact)}</h1>
-          <p className="page-activity__subtitle">
-            {artifact.filename} · {formatSize(artifact.size_bytes)} · {sourceLabel(artifact, t)}
-          </p>
-        </div>
-        <div className="page-activity__actions">
-          <Button
-            variant={artifact.preview === "none" ? "primary" : "secondary"}
-            onClick={() => void onDownload()}
-            busy={busyAction === "download"}
-            disabled={busyAction !== null}
-          >
-            {t("artifacts.download")}
-          </Button>
-          <Button variant="secondary" onClick={() => setShareOpen(true)}>
-            {t("artifacts.share")}
-          </Button>
-          {canDelete ? (
+      <DetailHeader
+        title={artifactLabel(artifact)}
+        meta={`${artifact.filename} · ${formatSize(artifact.size_bytes)} · ${sourceLabel(artifact, t)}`}
+        actions={
+          <>
             <Button
-              variant="danger"
-              onClick={() => void onDelete()}
-              busy={busyAction === "delete"}
+              variant={artifact.preview === "none" ? "primary" : "secondary"}
+              onClick={() => void onDownload()}
+              busy={busyAction === "download"}
               disabled={busyAction !== null}
             >
-              {t("artifacts.delete")}
+              {t("artifacts.download")}
             </Button>
-          ) : null}
-        </div>
-      </div>
+            <Button variant="secondary" onClick={() => setShareOpen(true)}>
+              {t("artifacts.share")}
+            </Button>
+            {canDelete ? (
+              <Button
+                variant="danger"
+                onClick={() => void onDelete()}
+                busy={busyAction === "delete"}
+                disabled={busyAction !== null}
+              >
+                {t("artifacts.delete")}
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
       {error ? (
         <p className="settings-section__error" role="alert">

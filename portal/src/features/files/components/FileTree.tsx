@@ -1,3 +1,4 @@
+import { Spinner } from "@buildmax/gui"
 import { TreePanel } from "../../../components/TreePanel"
 import { Alert } from "../../../components/state/Alert"
 import type { RequestErrorKind } from "../../../state/resourceState"
@@ -31,7 +32,7 @@ export function FileTree({
   return (
     <aside className="page-explore__tree-panel" aria-label={t("files.directoryTree")}>
       <div className="explore-tree">
-        {treeLoading && <p className="explore-tree__loading">{t("shell.loading")}</p>}
+        {treeLoading && <Spinner className="explore-tree__loading" />}
         {treeError && (
           <Alert
             tone={treeErrorKind === "forbidden" || treeErrorKind === "notFound" ? treeErrorKind : "error"}

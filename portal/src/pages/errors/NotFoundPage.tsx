@@ -1,4 +1,4 @@
-import { Button } from "@buildmax/gui"
+import { Button, PageHeader } from "@buildmax/gui"
 import { navigate } from "../../router"
 import { useSpace } from "../../contexts/SpaceContext"
 import { useT } from "../../i18n"
@@ -17,20 +17,18 @@ export function NotFoundPage() {
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{t("common.notFound.title")}</h1>
-          <p className="page-activity__subtitle">{t("common.notFound.body")}</p>
-        </div>
-      </div>
-      <div className="page-activity__actions">
-        <Button
-          variant="primary"
-          onClick={() => currentSpaceId && navigate({ name: "issues", spaceId: currentSpaceId })}
-        >
-          {t("common.notFound.back")}
-        </Button>
-      </div>
+      <PageHeader
+        title={t("common.notFound.title")}
+        subtitle={t("common.notFound.body")}
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => currentSpaceId && navigate({ name: "issues", spaceId: currentSpaceId })}
+          >
+            {t("common.notFound.back")}
+          </Button>
+        }
+      />
     </div>
   )
 }

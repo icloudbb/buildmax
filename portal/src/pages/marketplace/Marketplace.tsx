@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { BaseModal, Button, ButtonLink, getInitials, type Translate } from "@buildmax/gui"
+import { BaseModal, Button, ButtonLink, getInitials, Input, PageHeader, type Translate } from "@buildmax/gui"
 import type { ApiPlugin, ApiPluginRelease } from "../../lib/api/types"
 import { getPlugin, listPlugins } from "../../features/plugins/api"
 import { newestInstallable } from "../../features/plugins/releaseSelection"
@@ -86,22 +86,21 @@ export function Marketplace({ token }: { token: string | null }) {
 
   return (
     <div className="marketplace">
-      <div className="marketplace__head">
-        <div>
-          <h1 className="marketplace__title">{t("marketplace.title")}</h1>
-          <p className="marketplace__subtitle">{t("marketplace.subtitle")}</p>
-        </div>
-        {!loading && plugins.length > 0 ? (
-          <span className="marketplace__count">{t("marketplace.count", { count: plugins.length })}</span>
-        ) : null}
-      </div>
+      <PageHeader
+        title={t("marketplace.title")}
+        subtitle={t("marketplace.subtitle")}
+        actions={
+          !loading && plugins.length > 0 ? (
+            <span className="marketplace__count">{t("marketplace.count", { count: plugins.length })}</span>
+          ) : null
+        }
+      />
 
       {plugins.length > 0 ? (
         <div className="marketplace__search">
           <SearchIcon />
-          <input
+          <Input
             type="search"
-            className="marketplace__search-input"
             placeholder={t("marketplace.searchPlaceholder")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}

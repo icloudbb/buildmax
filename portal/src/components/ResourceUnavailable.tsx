@@ -1,4 +1,4 @@
-import { Button, useLocale } from "@buildmax/gui"
+import { Button, PageHeader, useLocale } from "@buildmax/gui"
 import { useT } from "../i18n"
 
 export type ResourceUnavailableKind = "notFound" | "forbidden" | "error"
@@ -50,27 +50,27 @@ export function ResourceUnavailable({
 
   return (
     <div className="page-activity">
-      <div className="page-activity__head">
-        <div>
-          <h1 className="page-activity__title">{resourceLabel}</h1>
-          <p className="page-activity__subtitle">{subtitle}</p>
-        </div>
-      </div>
+      <PageHeader
+        title={resourceLabel}
+        subtitle={subtitle}
+        actions={
+          <>
+            {kind === "error" ? (
+              <Button variant="primary" onClick={onRetry}>
+                {t("common.tryAgain")}
+              </Button>
+            ) : null}
+            <Button variant="secondary" onClick={onBack}>
+              {backLabel}
+            </Button>
+          </>
+        }
+      />
       {kind === "error" && errorMessage ? (
         <p className="settings-section__error" role="alert">
           {errorMessage}
         </p>
       ) : null}
-      <div className="page-activity__actions">
-        {kind === "error" ? (
-          <Button variant="primary" onClick={onRetry}>
-            {t("common.tryAgain")}
-          </Button>
-        ) : null}
-        <Button variant="secondary" onClick={onBack}>
-          {backLabel}
-        </Button>
-      </div>
     </div>
   )
 }

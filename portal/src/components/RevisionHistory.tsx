@@ -1,4 +1,4 @@
-import { Button } from "@buildmax/gui"
+import { Button, Spinner } from "@buildmax/gui"
 import { Alert } from "./state/Alert"
 import { EmptyState } from "./state/EmptyState"
 import type { ResourceState } from "../state/resourceState"
@@ -67,7 +67,7 @@ export function RevisionHistory({
         />
       )}
       {state.kind === "loading" ? (
-        <p className="page-activity__empty">{t("common.history.loading")}</p>
+        <Spinner label={t("common.history.loading")} />
       ) : state.kind === "readyEmpty" ? (
         <EmptyState message={t("common.history.empty")} />
       ) : state.kind === "error" || state.kind === "forbidden" || state.kind === "notFound" ? null : (
@@ -93,7 +93,10 @@ export function RevisionHistory({
                 <pre className="revision-history__summary">{entry.summary}</pre>
               ) : null}
               {restoreError?.revision === entry.revision ? (
-                <p className="modal__error">{restoreError.message}</p>
+                // History renders on pages too, so not the modal's error style.
+                <p className="settings-section__error" role="alert">
+                  {restoreError.message}
+                </p>
               ) : null}
             </li>
           ))}

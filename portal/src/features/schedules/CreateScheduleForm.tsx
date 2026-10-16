@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Button } from "@buildmax/gui"
+import { Button, Field, Input, Select, Spinner, Textarea } from "@buildmax/gui"
 import type { ApiAssistant, ApiAssistantRequester } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { listAssistantRequesters, listAssistants } from "../assistants"
@@ -168,25 +168,23 @@ export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliv
       }}
     >
       {executors ? (
-        <label className="agent-schedules__label">
-          {t("schedules.form.runs")}
-          {nothingToSchedule ? (
-            <span className="agent-schedules__hint">{t("schedules.form.nothing")}</span>
-          ) : (
-            <select className="agent-schedules__input" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+        nothingToSchedule ? (
+          <p className="agent-schedules__note">{t("schedules.form.nothing")}</p>
+        ) : (
+          <Field label={t("schedules.form.runs")}>
+            <Select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
               {executors.map((e) => (
                 <option key={`${e.kind}:${e.id}`} value={e.id}>
                   {t("schedules.form.executorOption", { name: e.name, kind: t(`schedules.kind.${e.kind}`) })}
                 </option>
               ))}
-            </select>
-          )}
-        </label>
+            </Select>
+          </Field>
+        )
       ) : null}
-      <label className="agent-schedules__label">
-        {t("schedules.form.name")}
-        <input className="agent-schedules__input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("schedules.form.namePlaceholder")} />
-      </label>
+      <Field label={t("schedules.form.name")} optional>
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("schedules.form.namePlaceholder")} />
+      </Field>
       {executor?.kind === "workflow" ? (
         inputSchema && inputSchema.fields.length > 0 ? (
           <WorkflowRunInputForm
@@ -196,62 +194,49 @@ export function CreateScheduleForm({ token, spaceId, pinned, executors, canDeliv
             onChange={(fieldName, value) => setInputValues((prev) => ({ ...prev, [fieldName]: value }))}
           />
         ) : (
-          <p className="agent-schedules__hint">{t("schedules.form.noInput")}</p>
+          <p className="agent-schedules__note">{t("schedules.form.noInput")}</p>
         )
       ) : (
-        <label className="agent-schedules__label">
-          {t("schedules.form.prompt")}
-          <textarea className="agent-schedules__input" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} placeholder={t("schedules.form.promptPlaceholder")} />
-        </label>
+        <Field label={t("schedules.form.prompt")}>
+          <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} placeholder={t("schedules.form.promptPlaceholder")} />
+        </Field>
       )}
-      <label className="agent-schedules__label">
-        {t("schedules.form.cron")}
-        <input className="agent-schedules__input" value={cronExpr} onChange={(e) => setCronExpr(e.target.value)} placeholder="0 9 * * *" />
-        <span className="agent-schedules__hint">{t("schedules.form.cronHint")}</span>
-      </label>
-      <label className="agent-schedules__label">
-        {t("schedules.form.timezone")}
-        <input className="agent-schedules__input" value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="Asia/Shanghai" />
-        <span className="agent-schedules__hint">{t("schedules.form.timezoneHint")}</span>
-      </label>
+      <Field label={t("schedules.form.cron")} hint={t("schedules.form.cronHint")}>
+        <Input value={cronExpr} onChange={(e) => setCronExpr(e.target.value)} placeholder="0 9 * * *" />
+      </Field>
+      <Field label={t("schedules.form.timezone")} hint={t("schedules.form.timezoneHint")}>
+        <Input value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="Asia/Shanghai" />
+      </Field>
       {canDeliver && deliveryOptions.length > 0 ? (
-        <fieldset className="agent-schedules__label">
-          <legend>{t("schedules.form.deliver")}</legend>
-          <label className="agent-schedules__label">
-            {t("schedules.form.through")}
-            <select
-              className="agent-schedules__input"
-              value={deliveryVia}
-              onChange={(e) => setDeliveryAssistantId(e.target.value)}
-            >
+        <Field group label={t("schedules.form.deliver")} optional hint={t("schedules.form.deliverHint")}>
+          <Field label={t("schedules.form.through")}>
+            <Select value={deliveryVia} onChange={(e) => setDeliveryAssistantId(e.target.value)}>
               <option value="">{t("schedules.form.dontSend")}</option>
               {deliveryOptions.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
           {deliveryVia ? (
             requesters === null ? (
-              <span className="agent-schedules__hint">{t("shell.loading")}</span>
+              <Spinner />
             ) : requesters.length === 0 ? (
-              <span className="agent-schedules__hint">{t("schedules.form.noRequesters")}</span>
+              <p className="agent-schedules__note">{t("schedules.form.noRequesters")}</p>
             ) : (
-              <label className="agent-schedules__label">
-                {t("schedules.form.to")}
-                <select className="agent-schedules__input" value={requesterId} onChange={(e) => setRequesterId(e.target.value)}>
+              <Field label={t("schedules.form.to")}>
+                <Select value={requesterId} onChange={(e) => setRequesterId(e.target.value)}>
                   {requesters.map((r) => (
                     <option key={r.user_id} value={r.user_id}>
                       {r.name || t("schedules.form.user", { id: r.user_id.slice(0, 8) })}
                     </option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </Field>
             )
           ) : null}
-          <span className="agent-schedules__hint">{t("schedules.form.deliverHint")}</span>
-        </fieldset>
+        </Field>
       ) : null}
       {err ? <p className="agent-schedules__error" role="alert">{err}</p> : null}
       <div className="agent-schedules__form-actions">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { Button, StatusLabel } from "@buildmax/gui"
+import { Button, Spinner, StatusLabel } from "@buildmax/gui"
 import type { ApiAssistant, ApiSchedule, ApiScheduleDelivery, ApiTask, ApiWorkflowRun } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { Alert } from "../../components/state/Alert"
@@ -119,7 +119,7 @@ export function SchedulesSection({
       ) : null}
 
       {schedules === null ? (
-        <p className="page-activity__empty">{t("shell.loading")}</p>
+        <Spinner />
       ) : schedules.length === 0 ? (
         <p className="page-activity__empty">{t("schedules.section.empty")}</p>
       ) : (
@@ -159,7 +159,7 @@ function ScheduleCard({
   const t = useT()
   const formatWhen = useTimestamp()
   const relativeTime = useRelativeTime()
-  const isWorkflow =schedule.executor_kind === "workflow"
+  const isWorkflow = schedule.executor_kind === "workflow"
   const [busyAction, setBusyAction] = useState<"toggle" | "delete" | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [tasks, setTasks] = useState<ApiTask[] | null>(null)
@@ -231,15 +231,7 @@ function ScheduleCard({
     <li className="agent-schedules__card">
       <div className="agent-schedules__card-head">
         <span className="agent-schedules__name">{schedule.name || t("schedules.card.unnamed")}</span>
-        <span
-          className={
-            schedule.enabled
-              ? "agent-schedules__badge agent-schedules__badge--on"
-              : "agent-schedules__badge agent-schedules__badge--off"
-          }
-        >
-          {schedule.enabled ? t("schedules.enabled") : t("schedules.paused")}
-        </span>
+        <StatusLabel status={schedule.enabled ? "enabled" : "paused"} />
         {schedule.consecutive_failures > 0 ? (
           <span className="agent-schedules__badge agent-schedules__badge--warn">
             {t("schedules.card.consecutiveFailures", { count: schedule.consecutive_failures })}
@@ -292,7 +284,7 @@ function ScheduleCard({
 
       {historyOpen ? (
         historyLoading ? (
-          <p className="page-activity__empty">{t("shell.loading")}</p>
+          <Spinner />
         ) : !loaded ? (
           <Button variant="secondary" size="compact" onClick={() => void loadHistory()}>
             {isWorkflow ? t("schedules.card.retryRuns") : t("schedules.card.retryTasks")}
