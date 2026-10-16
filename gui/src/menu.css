@@ -1,0 +1,105 @@
+/* Menu. Import after theme.css. A surface places a particular menu with the
+   Menu's className; this file owns how every menu looks. */
+
+.bm-menu-anchor {
+  position: relative;
+}
+
+.bm-menu {
+  position: absolute;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 10rem;
+  padding: var(--space-1) 0;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-popover);
+}
+
+.bm-menu:focus {
+  outline: none;
+}
+
+.bm-menu--below {
+  top: 100%;
+  margin-top: var(--space-1);
+}
+
+.bm-menu--above {
+  bottom: 100%;
+  margin-bottom: var(--space-1);
+}
+
+.bm-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.bm-menu__item:hover,
+.bm-menu__item:focus {
+  background: var(--color-bg-hover);
+  outline: none;
+}
+
+.bm-menu__item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.bm-menu__item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bm-menu__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--color-text-muted);
+}
+
+.bm-menu__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.bm-menu__group {
+  display: flex;
+  flex-direction: column;
+}
+
+.bm-menu__group-label {
+  padding: var(--space-2) var(--space-4) var(--space-1);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.bm-menu__separator {
+  height: 1px;
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-border);
+}
+
+.bm-menu__section {
+  min-width: 0;
+  padding: var(--space-2) var(--space-4);
+}

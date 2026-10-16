@@ -1,0 +1,77 @@
+/* Field, Input, Select, and Textarea. Import after theme.css. */
+
+.bm-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.bm-field--group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.bm-field__label {
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.bm-field__optional {
+  font-weight: 400;
+  color: var(--color-text-subtle);
+}
+
+.bm-field__hint {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  line-height: 1.4;
+  color: var(--color-text-subtle);
+}
+
+.bm-field__error {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--color-danger);
+}
+
+.bm-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-control);
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.bm-input:focus {
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+
+.bm-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bm-input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.bm-textarea {
+  min-height: 3.5rem;
+  resize: vertical;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bm-input { transition: none; }
+}
