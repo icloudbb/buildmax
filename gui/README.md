@@ -9,11 +9,17 @@ Shared React UI components and styles for BuildMax portal and desktop app. Imple
 - **Stylelint config**: `stylelint/tokens.mjs` — shared by the `stylelint.config.mjs` of gui, Portal, and Desktop; rejects color literals outside `theme.css` and `var()` references to undefined custom properties. Run with `npm run lint`.
 - **Button, ButtonLink, and IconButton**: Presentational controls with primary, secondary, tertiary, and danger roles; `Button` also supports busy and compact states. Use `ButtonLink` for navigation. Import `button.css` after `theme.css`.
 - **BaseModal**: Presentational modal component; props: `open`, `title`, `titleId`, `onClose`, optional `className`, optional `hideHeader`, `children`. Type `BaseModalProps` is exported for TypeScript.
-- **FormModal**: Form-oriented modal shell and its field/select configuration types.
+- **FormModal**: Form-oriented modal shell and its field/select configuration types; its fields render through `Field`.
+- **Field, Input, Select, and Textarea**: `Field` pairs a label with one control and wires its hint and error (`aria-describedby`, `aria-invalid`); give an explicit id to `Field`, not the control. `group` renders a fieldset and legend for a set of checkboxes or radios. The three controls share one geometry, focus, disabled, and invalid look, and are ordinary named controls outside a `Field`. Import `field.css`.
+- **Menu**: A menu button. `trigger` renders the button from the props it is given; `MenuItem`, `MenuItemRadio`, `MenuGroup`, `MenuSeparator`, and `MenuSection` build the panel. Arrow keys, Home, and End move between items; Escape closes and returns focus to the button without closing an enclosing dialog; Tab or a click outside closes it. Import `menu.css`; a surface positions a particular menu with `className`.
+- **ToastProvider and useToast**: Transient confirmation of an effect the page already shows, in a live region that waits while hovered or focused. Never the only evidence of a result: failures stay inline.
+- **Spinner and Skeleton**: `role="status"` progress for a section still loading, and placeholder rows for content whose shape is known. Neither claims a count.
+- **statusLabel, useStatusLabel, statusTone, and StatusLabel**: The one status vocabulary. `statusLabel` maps a business, run, or lifecycle status to its label in either case the server stores it; `StatusLabel` renders the label with a tone mark. Import `feedback.css` for these and the toast and progress styles.
+- **PageHeader, DetailHeader, CollectionFrame, and EditorActions**: The page anatomy of [the page-system record](../docs/design/portal-frontend-page-system.md#page-anatomy-and-templates). `CollectionFrame` shows rows or the empty state, never both, and no count or pagination while loading; `EditorActions` becomes a sticky Save/Cancel bar on narrow screens. Import `page.css`.
 - **Avatar**: Shared avatar presentation and `getInitials` helper.
 - **ChatComposer**: Shared chat input and submission presentation.
 - **ChatThread**: Shared transcript presentation and item types.
-- **Modal styles**: `modal.css` — base modal layout (overlay, `.modal`, `.modal--large`, `.modal__header`, `.modal__title`, `.modal__close`, `.modal__body`). Uses theme variables; import `theme.css` first, then `@buildmax/gui/modal.css`.
+- **Modal styles**: `modal.css` — base modal layout (overlay, `.modal`, `.modal--large`, `.modal__header`, `.modal__title`, `.modal__close`, `.modal__body`, `.modal__actions`). Uses theme variables; import `theme.css` first, then `@buildmax/gui/modal.css`. It holds no input styling: form controls come from `field.css`.
 - **Widget styles**: `widgets.css` — styles for the shared avatar and chat components.
 
 ## Local dependency (portal & desktop)
@@ -31,7 +37,7 @@ From `desktop/frontend/` the path is `file:../../gui`.
 1. Use Node 24 and npm 11 (see the root `.node-version`).
 2. Build the package: `cd gui && npm ci && npm run build`
 3. In the app: `npm ci`
-4. Import: `import { ThemeProvider, useTheme, ThemeToggle, BaseModal, Button } from '@buildmax/gui'`, `import '@buildmax/gui/theme.css'`, `import '@buildmax/gui/button.css'`, and (if using modals) `import '@buildmax/gui/modal.css'`
+4. Import: `import { ThemeProvider, useTheme, ThemeToggle, BaseModal, Button } from '@buildmax/gui'`, `import '@buildmax/gui/theme.css'`, `import '@buildmax/gui/button.css'`, and the stylesheets of the components you use (`modal.css`, `drawer.css`, `field.css`, `menu.css`, `feedback.css`, `page.css`, `widgets.css`)
 
 Consumers keep their own layout/sidebar and any `.theme-toggle` button styles; the package provides the component and theme variables.
 

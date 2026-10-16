@@ -967,6 +967,15 @@ specimen is now served at `/specimen`, outside the authenticated shell: it
 renders the shared action grammar, semantic tokens, status vocabulary, and every
 resource state once, in both themes, reusing the real components. A non-author
 operator review of the work journeys has not been produced.
+`@buildmax/gui` now carries the form `Field` with `Input`, `Select`, and
+`Textarea`, a keyboard-operated `Menu`, toasts, `Spinner` and `Skeleton`, one
+status vocabulary with `StatusLabel`, and the page anatomy (`PageHeader`,
+`DetailHeader`, `CollectionFrame`, and a Save/Cancel bar that stays at the bottom
+of a narrow editor). Every Portal page uses them: a collection shows no count or
+pagination before it loads, every status reads from the one vocabulary (a
+finished run reads Succeeded in chat as on the Issue), and success confirmations
+for model, Space-owner, tier, administrator, and password changes are toasts.
+Desktop does not use them yet.
 Every pull request compares screenshots of the specimen, one Portal page per
 template, and Desktop's golden-path views, in both themes, with baselines
 rendered on Linux, and runs axe's WCAG A/AA rules, contrast included, on them;

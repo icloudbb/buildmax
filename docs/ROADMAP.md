@@ -351,8 +351,9 @@ contrast guardrail, a Desktop that reuses almost none of `@buildmax/gui`, and an
 English-only interface.
 
 **Next:** Portal and Desktop rework, drafted as backlog tasks from the
-Agent-driven phase 0 audit, while shared primitives and Desktop's move onto
-shared overlays proceed in parallel. The audit of the core journeys found no
+Agent-driven phase 0 audit, while Desktop moves onto the shared overlays. The
+shared primitives are done: Portal composes its fields, menus, toasts, loading,
+status, and page anatomy from `@buildmax/gui`. The audit of the core journeys found no
 Blocker and eight Major findings across the two surfaces. On 2026-10-07 the
 maintainer chose to refine the current visual language rather than replace it,
 and decided that whatever page a signed-in person lands on shows the work that
