@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useLocale } from '@buildmax/gui';
+import { CommitIcon, MergeIcon, useLocale } from '@buildmax/gui';
 import { formatSessionMeta, intlLocale } from '../lib/format';
 import { ChangeRow, ExplorerGroup } from './ExplorerRows';
-import { CommitIcon, MergeIcon } from './icons';
 import { useStableT, useT } from '../i18n';
 
 const PAGE_SIZE = 50;

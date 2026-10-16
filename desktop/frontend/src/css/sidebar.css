@@ -23,7 +23,7 @@
   display: none;
 }
 
-.sidebar .icon {
+.sidebar .bm-icon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
@@ -89,7 +89,7 @@
   color: var(--color-text);
 }
 
-.sidebar__section-toggle .icon {
+.sidebar__section-toggle .bm-icon {
   width: 13px;
   height: 13px;
 }
@@ -248,7 +248,7 @@
   color: var(--color-text-subtle);
 }
 
-.sidebar__row-pin .icon {
+.sidebar__row-pin .bm-icon {
   width: 13px;
   height: 13px;
 }
@@ -309,7 +309,7 @@
   cursor: pointer;
 }
 
-.sidebar__icon-btn .icon {
+.sidebar__icon-btn .bm-icon {
   width: 14px;
   height: 14px;
 }

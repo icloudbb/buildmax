@@ -1,5 +1,5 @@
 import { splitPathForDisplay, statusGlyph, truncateMiddleText } from '../lib/format';
-import { Chevron } from './icons';
+import { ChevronDownIcon, ChevronRightIcon } from '@buildmax/gui';
 
 // ChangeRow is one changed file: a single click previews its diff, a
 // double-click pins it. Both the workspace changes (depth 1, under their group)
@@ -30,7 +30,7 @@ export function ExplorerGroup({ label, open, onToggle, badge, children }) {
   return (
     <>
       <button type="button" className="explorer__group" onClick={onToggle} aria-expanded={open}>
-        <Chevron open={open} />
+        {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
         <span className="explorer__group-label">{label}</span>
         {badge}
       </button>

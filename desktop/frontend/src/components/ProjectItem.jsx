@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocale } from '@buildmax/gui';
+import { ChevronDownIcon, ChevronRightIcon, MoreIcon, PinIcon, PlusIcon, useLocale } from '@buildmax/gui';
 import { formatSessionMeta } from '../lib/format';
-import { Chevron, MoreIcon, PinIcon, PlusIcon } from './icons';
 import { AttentionDot } from './TabBar';
 import { useT } from '../i18n';
 
@@ -109,7 +108,7 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
           aria-expanded={expanded}
           title={project.default_workspace}
         >
-          <span className="sidebar__row-icon"><Chevron open={expanded} /></span>
+          <span className="sidebar__row-icon">{expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}</span>
           {renaming ? (
             <input
               className="sidebar__rename-input"

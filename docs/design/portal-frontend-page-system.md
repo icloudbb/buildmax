@@ -171,7 +171,8 @@ enough for Desktop; Portal owns object vocabulary and page composition.
 form `Field` with `Input`, `Select`, and `Textarea`, `Menu`, `Toast`, `Spinner`,
 and `Skeleton`, because none holds Portal routing, data, or policy and the
 [UI experience program](ui-experience-program.md#d4-one-presentation-layer-for-both-surfaces)
-moves Desktop onto them next. Every Portal page uses them; no page keeps its
+moves Desktop onto them; Desktop already takes its dialogs, drawer, buttons, and
+icons from there. Every Portal page uses them; no page keeps its
 own header, collection panel, menu, or input styling. `CollectionFrame` hides
 the count and pagination while loading and shows rows or the empty state, never
 both.

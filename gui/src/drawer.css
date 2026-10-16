@@ -1,5 +1,5 @@
-/* Drawer: an accessible, left-edge slide-in overlay for narrow-width
-   navigation — requires theme.css (CSS variables) to be loaded first. Sits
+/* Drawer: an accessible slide-in overlay, from the left edge for narrow-width
+   navigation or from the right for a side panel — requires theme.css (CSS variables) to be loaded first. Sits
    just below the modal overlay's z-index so a dialog opened from within the
    drawer (e.g. "create a Space") layers on top of it. */
 
@@ -22,6 +22,15 @@
   to   { transform: translateX(0); }
 }
 
+@keyframes drawer-slide-in-end {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+.drawer-overlay--end {
+  justify-content: flex-end;
+}
+
 .drawer {
   display: flex;
   flex-direction: column;
@@ -30,6 +39,10 @@
   background: var(--color-bg-elevated);
   box-shadow: var(--shadow-modal);
   animation: drawer-slide-in 0.2s ease-out;
+}
+
+.drawer--end {
+  animation-name: drawer-slide-in-end;
 }
 
 .drawer__header {

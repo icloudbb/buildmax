@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
+import { BaseModal, Button, Field, Input } from '@buildmax/gui';
 import { folderBaseName } from '../lib/format';
 import { translate, useT } from '../i18n';
 
@@ -6,16 +7,11 @@ const english = (key, vars) => translate('en', key, vars);
 
 export function CreateProjectModal({ app, onCreate, onClose }) {
   const t = useT();
+  const titleId = useId();
   const [name, setName] = useState('');
   const [folderPath, setFolderPath] = useState('');
   const [creating, setCreating] = useState(false);
   const [browseError, setBrowseError] = useState(false);
-
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   async function handleBrowse() {
     setBrowseError(false);
@@ -45,83 +41,69 @@ export function CreateProjectModal({ app, onCreate, onClose }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="presentation">
-      <div className="modal-panel" role="dialog" aria-modal="true" aria-label={t('shell.newProject')}>
-        <div className="modal-header">
-          <h2 className="modal-title">{t('shell.newProject')}</h2>
-          <button type="button" className="modal-close" onClick={onClose} aria-label={t('shell.close')}>×</button>
-        </div>
-        <div className="modal-body">
-          <label className="modal-label" htmlFor="proj-name">{t('home.create.name')}</label>
-          <input
-            id="proj-name"
-            className="modal-input"
+    <BaseModal open title={t('shell.newProject')} titleId={titleId} onClose={onClose}>
+      <div className="modal__body">
+        <Field id="proj-name" label={t('home.create.name')}>
+          <Input
             placeholder={t('home.create.namePlaceholder')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') folderPath ? handleCreate() : handleBrowse(); }}
-            // A dialog moves focus to its first field when it opens.
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
+            data-autofocus
           />
-          <label className="modal-label">{t('home.create.folder')}</label>
-          <button type="button" className="modal-browse-btn" onClick={handleBrowse}>
+        </Field>
+        <Field group label={t('home.create.folder')} error={browseError ? t('home.create.browseFailed') : undefined}>
+          {/* A folder picker, not an action: it shows the chosen path in place. */}
+          <button type="button" className="folder-picker" onClick={handleBrowse}>
             {folderPath
-              ? <span className="modal-browse-path" title={folderPath}>{folderPath}</span>
-              : <span className="modal-browse-placeholder">{t('home.create.chooseFolder')}</span>}
+              ? <span className="folder-picker__path" title={folderPath}>{folderPath}</span>
+              : <span className="folder-picker__placeholder">{t('home.create.chooseFolder')}</span>}
           </button>
-          {browseError && <p className="modal-field-error">{t('home.create.browseFailed')}</p>}
-        </div>
-        <div className="modal-footer">
-          <button type="button" className="modal-btn modal-btn--cancel" onClick={onClose}>{t('shell.cancel')}</button>
-          <button
-            type="button"
-            className="modal-btn modal-btn--primary"
+        </Field>
+        <div className="modal__actions">
+          <Button onClick={onClose}>{t('shell.cancel')}</Button>
+          <Button
+            variant="primary"
             onClick={handleCreate}
-            disabled={!name.trim() || !folderPath || creating}
+            busy={creating}
+            disabled={!name.trim() || !folderPath}
           >
             {creating ? t('home.create.creating') : t('home.create.submit')}
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </BaseModal>
   );
 }
 
 // --- Shared info modal ---
 
+// InfoModal is gui's BaseModal in its large, scrolling form, for the lists and
+// panels the slash commands open. Callers mount it to open it.
 export function InfoModal({ title, onClose, children, className }) {
-  const t = useT();
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const titleId = useId();
   return (
-    <div
-      className="modal-overlay"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      role="presentation"
+    <BaseModal
+      open
+      title={title}
+      titleId={titleId}
+      onClose={onClose}
+      className={className ? `modal--large ${className}` : 'modal--large'}
     >
-      <div className={`modal-panel info-modal-panel${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title}>
-        <div className="modal-header">
-          <h2 className="modal-title">{title}</h2>
-          <button type="button" className="modal-close" onClick={onClose} aria-label={t('shell.close')}>×</button>
-        </div>
-        <div className="info-modal-body">{children}</div>
-      </div>
-    </div>
+      <div className="modal__body">{children}</div>
+    </BaseModal>
   );
 }
 
 // ConfirmModal is the one destructive-confirmation dialog for the desktop. It
 // replaces window.confirm, which the webview can silently drop (returning
-// undefined), and reads as danger: a red header and a solid-red confirm button.
+// undefined), and reads as danger: a red title and the danger button.
 // It owns its own busy state, awaiting onConfirm so the button shows progress
 // and cannot be double-clicked; the caller closes the dialog on success (and
 // surfaces any error). `message` may be a string or arbitrary nodes.
 export function ConfirmModal({ title, message, confirmLabel, cancelLabel, onConfirm, onCancel }) {
   const t = useT();
+  const titleId = useId();
   const [busy, setBusy] = useState(false);
   const confirm = async () => {
     setBusy(true);
@@ -132,21 +114,27 @@ export function ConfirmModal({ title, message, confirmLabel, cancelLabel, onConf
     }
   };
   return (
-    <InfoModal title={title} onClose={() => { if (!busy) onCancel(); }} className="info-modal-panel--danger">
-      <div className="confirm-modal">
+    <BaseModal
+      open
+      title={title}
+      titleId={titleId}
+      onClose={() => { if (!busy) onCancel(); }}
+      className="confirm-modal"
+    >
+      <div className="modal__body">
         {typeof message === 'string'
           ? <p className="confirm-modal__message">{message}</p>
           : message}
-        <div className="modal-footer">
-          <button type="button" className="modal-btn modal-btn--cancel" onClick={onCancel} disabled={busy}>
+        <div className="modal__actions">
+          <Button onClick={onCancel} disabled={busy}>
             {cancelLabel ?? t('shell.cancel')}
-          </button>
-          <button type="button" className="modal-btn modal-btn--danger" onClick={confirm} disabled={busy}>
+          </Button>
+          <Button variant="danger" onClick={confirm} busy={busy}>
             {busy ? t('shell.working') : (confirmLabel ?? t('shell.delete'))}
-          </button>
+          </Button>
         </div>
       </div>
-    </InfoModal>
+    </BaseModal>
   );
 }
 
@@ -314,8 +302,6 @@ export function WorktreeModal({ projectID, app, onClose }) {
   );
 }
 
-// --- Diff drawer ---
-
 // --- Plugins modal ---
 
 /**
@@ -394,17 +380,15 @@ export function PluginsModal({ projectID, app, onClose }) {
       {(result?.plugins ?? []).map((p) => (
         <div key={`actions-${p.name}`} className="info-modal__item-row">
           <span className="info-modal__item-sub">{p.name}</span>
-          <button
-            type="button"
-            className="chat-status-bar__btn"
+          <Button
+            size="compact"
             disabled={busy === p.name}
             onClick={() => act(p.name, () => app.SetPluginDisabled(p.name, p.state !== 'disabled'))}
           >
             {p.state === 'disabled' ? t('chat.plugins.enable') : t('chat.plugins.disable')}
-          </button>
-          <button
-            type="button"
-            className="chat-status-bar__btn"
+          </Button>
+          <Button
+            size="compact"
             disabled={busy === p.name}
             onClick={() => {
               // A checkout may hold work that exists nowhere else, so the Go
@@ -414,7 +398,7 @@ export function PluginsModal({ projectID, app, onClose }) {
             }}
           >
             {t('shell.remove')}
-          </button>
+          </Button>
         </div>
       ))}
 
@@ -429,9 +413,9 @@ export function PluginsModal({ projectID, app, onClose }) {
           placeholder={t('chat.plugins.namePlaceholder')}
           onChange={(e) => { setInstallName(e.target.value); setPlan(null); }}
         />
-        <button type="button" className="chat-status-bar__btn" disabled={!installName.trim()} onClick={preview}>
+        <Button size="compact" disabled={!installName.trim()} onClick={preview}>
           {t('chat.plugins.find')}
-        </button>
+        </Button>
       </div>
 
       {plan && (
@@ -451,14 +435,14 @@ export function PluginsModal({ projectID, app, onClose }) {
             <span className="info-modal__item-sub">{t('chat.plugins.dirtySource')}</span>
           ) : null}
           {!plan.already_installed && (
-            <button
-              type="button"
-              className="chat-status-bar__btn"
+            <Button
+              size="compact"
+              variant="primary"
               disabled={busy === plan.name}
               onClick={() => act(plan.name, () => app.InstallPlugin(plan.name, plan.version, false))}
             >
               {t('chat.plugins.install')}
-            </button>
+            </Button>
           )}
         </div>
       )}

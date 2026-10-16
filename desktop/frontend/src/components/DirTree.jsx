@@ -1,4 +1,4 @@
-import { Chevron, FileIcon, FolderIcon } from './icons';
+import { ChevronDownIcon, ChevronRightIcon, FileIcon, FolderIcon } from '@buildmax/gui';
 import { useT } from '../i18n';
 
 // DirTree renders a lazily-expanded workspace directory tree from the state a
@@ -33,7 +33,7 @@ export function DirTree({ byDir, expanded, toggleDir, onFileClick, onFileOpen, a
             aria-expanded={e.is_dir ? open : undefined}
             title={e.path}
           >
-            <span className="file-tree__caret" aria-hidden>{e.is_dir && <Chevron open={open} />}</span>
+            <span className="file-tree__caret" aria-hidden>{e.is_dir && (open ? <ChevronDownIcon /> : <ChevronRightIcon />)}</span>
             <span className="file-tree__icon" aria-hidden>{e.is_dir ? <FolderIcon /> : <FileIcon />}</span>
             <span className="file-tree__name">{e.name}</span>
           </button>

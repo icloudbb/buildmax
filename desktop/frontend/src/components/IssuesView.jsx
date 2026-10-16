@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MarkdownMessage } from './MarkdownMessage';
 import { ISSUE_STATUSES, commentAuthorLabel, issueChatPrompt, issueStatusLabel } from '../lib/issues';
-import { useLocale } from '@buildmax/gui';
+import { Button, useLocale } from '@buildmax/gui';
 import { useT } from '../i18n';
 import { intlLocale } from '../lib/format';
 
@@ -137,7 +137,7 @@ export function IssuesView({ app, projects, currentProject, onStartChat }) {
           <p className="page-schedules__subtitle">{t('issues.subtitle')}</p>
         </div>
         <div className="page-schedules__header-actions">
-          <button type="button" className="page-schedules__ghost" onClick={loadInbox}>{t('issues.refresh')}</button>
+          <Button onClick={loadInbox}>{t('issues.refresh')}</Button>
         </div>
       </div>
 
@@ -190,7 +190,7 @@ export function IssuesView({ app, projects, currentProject, onStartChat }) {
           {selected && detailError && (
             <div className="page-schedules__banner page-schedules__banner--error" role="alert">
               <span>{t('issues.detailFailed', { error: detailError })}</span>
-              <button type="button" onClick={reloadDetail}>{t('shell.retry')}</button>
+              <Button size="compact" onClick={reloadDetail}>{t('shell.retry')}</Button>
             </div>
           )}
           {selected && !detail && !detailError && <p className="page-schedules__empty">{t('shell.loading')}</p>}
@@ -204,15 +204,14 @@ export function IssuesView({ app, projects, currentProject, onStartChat }) {
               <div className="page-issues__actions" role="group" aria-label={t('issues.moveGroup')}>
                 <span className="page-issues__label">{t('issues.moveTo')}</span>
                 {ISSUE_STATUSES.filter((s) => s !== detail.issue.status).map((status) => (
-                  <button
+                  <Button
                     key={status}
-                    type="button"
-                    className="page-schedules__ghost"
+                    size="compact"
                     disabled={statusBusy}
                     onClick={() => moveTo(status)}
                   >
                     {issueStatusLabel(status, t)}
-                  </button>
+                  </Button>
                 ))}
               </div>
               {notice && (
@@ -232,9 +231,9 @@ export function IssuesView({ app, projects, currentProject, onStartChat }) {
                         {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </label>
-                    <button type="button" className="page-schedules__primary" onClick={startChat}>
+                    <Button variant="primary" onClick={startChat}>
                       {t('issues.startChat')}
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -281,9 +280,9 @@ export function IssuesView({ app, projects, currentProject, onStartChat }) {
                 </label>
                 {commentError && <p className="page-schedules__form-error" role="alert">{commentError}</p>}
                 <div className="page-schedules__form-actions">
-                  <button type="submit" className="page-schedules__primary" disabled={commentBusy || !comment.trim()}>
+                  <Button type="submit" variant="primary" busy={commentBusy} disabled={!comment.trim()}>
                     {commentBusy ? t('issues.posting') : t('issues.postComment')}
-                  </button>
+                  </Button>
                 </div>
               </form>
               {/* The ID is for finding the same Issue elsewhere, so it closes

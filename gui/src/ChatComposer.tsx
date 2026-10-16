@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from "react"
 import { useGuiT } from "./messages"
+import { SendIcon, SpinnerIcon, StopIcon } from "./icons"
 
 export interface ChatComposerProps {
   value: string
@@ -38,52 +39,8 @@ export interface ChatComposerProps {
   onAcceptGhost?: () => void
 }
 
-
 // The action buttons are icon-only to keep the composer compact; the state's
 // text still rides on aria-label and title, so screen readers and hover keep it.
-function SendIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 19V5M12 5l-6 6M12 5l6 6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function StopIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
-    </svg>
-  )
-}
-
-function SpinnerIcon() {
-  return (
-    <svg
-      className="bm-chat-composer__spinner"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" opacity="0.25" />
-      <path
-        d="M21 12a9 9 0 0 0-9-9"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
 export function ChatComposer({
   value,
   onChange,
@@ -167,7 +124,7 @@ export function ChatComposer({
             aria-label={cancelLabel}
             title={cancelLabel}
           >
-            <StopIcon />
+            <StopIcon width={14} height={14} />
           </button>
         ) : (
           <button
@@ -178,7 +135,7 @@ export function ChatComposer({
             aria-label={queueing ? queueLabel : loading ? loadingLabel : submitLabel}
             title={queueing ? queueLabel : loading ? loadingLabel : submitLabel}
           >
-            {loading && !queueing ? <SpinnerIcon /> : <SendIcon />}
+            {loading && !queueing ? <SpinnerIcon className="bm-chat-composer__spinner" width={16} height={16} /> : <SendIcon width={16} height={16} />}
           </button>
         )}
       </div>

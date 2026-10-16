@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EventsOn } from '../lib/wailsRuntime';
 import { InfoModal, ConfirmModal } from './Modals';
 import { ChatSession } from './ChatSession';
-import { useLocale } from '@buildmax/gui';
+import { Button, CloseIcon, IconButton, useLocale } from '@buildmax/gui';
 import { useT } from '../i18n';
 import { intlLocale } from '../lib/format';
 
@@ -70,7 +70,7 @@ function ScheduleRunDetail({ app, run, onClose }) {
   const { locale } = useLocale();
   const sessionId = run?.session_id || '';
   return (
-    <InfoModal title={run?.schedule_name || t('schedules.run')} onClose={onClose} className="info-modal-panel--wide">
+    <InfoModal title={run?.schedule_name || t('schedules.run')} onClose={onClose} className="schedule-run-modal">
       <p className="info-modal__muted">
         {formatWhen(run?.fired_at, locale)} · {runStatusText(run?.status, t)}
         {run?.model && <> · {run.model}</>}
@@ -283,20 +283,22 @@ export function SchedulesView({ app }) {
         </div>
         <div className="page-schedules__header-actions">
           {list.length > 0 && app?.SetAllScheduledTasksEnabled && (
-            <button type="button" className="page-schedules__ghost" onClick={toggleAll}>
+            <Button onClick={toggleAll}>
               {list.some((task) => task.enabled) ? t('schedules.pauseAll') : t('schedules.enableAll')}
-            </button>
+            </Button>
           )}
-          <button type="button" className="page-schedules__primary" onClick={openCreate}>
+          <Button variant="primary" onClick={openCreate}>
             {t('schedules.new')}
-          </button>
+          </Button>
         </div>
       </div>
 
       {error && (
         <div className="page-schedules__banner page-schedules__banner--error">
           <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} aria-label={t('shell.dismiss')}>✕</button>
+          <IconButton variant="tertiary" size="compact" onClick={() => setError(null)} aria-label={t('shell.dismiss')}>
+            <CloseIcon />
+          </IconButton>
         </div>
       )}
 
@@ -375,21 +377,20 @@ export function SchedulesView({ app }) {
                   </div>
                   <div className="page-schedules__card-actions">
                     {/* A task saved before pinning resumes only once saved with a model. */}
-                    <button
-                      type="button"
-                      className="page-schedules__ghost"
+                    <Button
+                      size="compact"
                       onClick={() => toggle(task)}
                       disabled={!task.enabled && task.model_problem === 'unpinned'}
                       title={!task.enabled && task.model_problem === 'unpinned' ? t('schedules.resumeUnpinned') : undefined}
                     >
                       {task.enabled ? t('schedules.pause') : t('schedules.resume')}
-                    </button>
-                    <button type="button" className="page-schedules__ghost" onClick={() => openEdit(task)}>
+                    </Button>
+                    <Button size="compact" onClick={() => openEdit(task)}>
                       {t('schedules.edit')}
-                    </button>
-                    <button type="button" className="page-schedules__danger" onClick={() => setPendingDelete(task)}>
+                    </Button>
+                    <Button size="compact" variant="danger" onClick={() => setPendingDelete(task)}>
                       {t('schedules.delete')}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -411,7 +412,7 @@ export function SchedulesView({ app }) {
                   onChange={(e) => setForm((f) => ({ ...f, workingDir: e.target.value }))}
                 />
                 {app?.PickScheduleDir && (
-                  <button type="button" className="page-schedules__ghost" onClick={browse}>{t('schedules.form.browse')}</button>
+                  <Button size="compact" onClick={browse}>{t('schedules.form.browse')}</Button>
                 )}
               </div>
             </label>
@@ -490,13 +491,13 @@ export function SchedulesView({ app }) {
               )}
             </div>
             {formError && <p className="page-schedules__form-error">{formError}</p>}
-            <div className="modal-footer">
-              <button type="button" className="modal-btn modal-btn--cancel" onClick={closeForm} disabled={saving}>
+            <div className="modal__actions">
+              <Button onClick={closeForm} disabled={saving}>
                 {t('shell.cancel')}
-              </button>
-              <button type="submit" className="modal-btn modal-btn--primary" disabled={saving}>
+              </Button>
+              <Button type="submit" variant="primary" busy={saving}>
                 {editingID ? t('schedules.form.save') : t('schedules.form.create')}
-              </button>
+              </Button>
             </div>
           </form>
         </InfoModal>

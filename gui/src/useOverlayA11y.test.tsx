@@ -119,4 +119,53 @@ describe("useOverlayA11y", () => {
     fireEvent.click(screen.getByText("close"))
     expect(document.activeElement).toBe(screen.getByText("opener"))
   })
+
+  it("lets only the innermost of two stacked overlays answer Escape and Tab", async () => {
+    function Stacked() {
+      const [outer, setOuter] = useState(false)
+      const [inner, setInner] = useState(false)
+      const outerRef = useRef<HTMLDivElement>(null)
+      const innerRef = useRef<HTMLDivElement>(null)
+      useOverlayA11y({ open: outer, onClose: () => setOuter(false), containerRef: outerRef })
+      useOverlayA11y({ open: inner, onClose: () => setInner(false), containerRef: innerRef })
+      return (
+        <div>
+          <button type="button" onClick={() => setOuter(true)}>
+            opener
+          </button>
+          {outer && (
+            <div ref={outerRef} tabIndex={-1}>
+              <button type="button" onClick={() => setInner(true)}>
+                open inner
+              </button>
+            </div>
+          )}
+          {inner && (
+            <div ref={innerRef} tabIndex={-1}>
+              <button type="button">inner first</button>
+              <button type="button">inner last</button>
+            </div>
+          )}
+        </div>
+      )
+    }
+    render(<Stacked />)
+    screen.getByText("opener").focus()
+    fireEvent.click(screen.getByText("opener"))
+    screen.getByText("open inner").focus()
+    fireEvent.click(screen.getByText("open inner"))
+    expect(document.activeElement).toBe(screen.getByText("inner first"))
+
+    screen.getByText("inner last").focus()
+    fireEvent.keyDown(document, { key: "Tab" })
+    expect(document.activeElement).toBe(screen.getByText("inner first"))
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByText("inner first")).toBeNull()
+    expect(document.activeElement).toBe(screen.getByText("open inner"))
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByText("open inner")).toBeNull()
+    expect(document.activeElement).toBe(screen.getByText("opener"))
+  })
 })

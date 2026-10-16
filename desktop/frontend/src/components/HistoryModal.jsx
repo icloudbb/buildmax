@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@buildmax/gui';
 import { InfoModal } from './Modals';
 import { useStableT, useT } from '../i18n';
 
@@ -196,16 +197,11 @@ export function HistoryModal({ projectID, sessionID, app, draft, onRewound, onFo
         <p className="history-modal__consequence">{consequenceText(current, mode, t)}</p>
       )}
 
-      <div className="modal-footer">
-        <button type="button" className="modal-btn modal-btn--cancel" onClick={onClose}>{t('shell.cancel')}</button>
-        <button
-          type="button"
-          className="modal-btn modal-btn--primary"
-          onClick={act}
-          disabled={!current || busy}
-        >
+      <div className="modal__actions">
+        <Button onClick={onClose}>{t('shell.cancel')}</Button>
+        <Button variant="primary" onClick={act} busy={busy} disabled={!current}>
           {mode === FORK ? t('history.forkHere') : t('history.takeBack')}
-        </button>
+        </Button>
       </div>
     </InfoModal>
   );

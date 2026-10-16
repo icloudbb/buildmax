@@ -12,7 +12,7 @@ import BrowserView from './components/BrowserView';
 import { SchedulesView } from './components/SchedulesView';
 import { IssuesView } from './components/IssuesView';
 import { LaunchpadButton } from './components/LaunchpadButton';
-import { GridIcon, MoonIcon, SidebarIcon, SplitRightIcon, SunIcon } from './components/icons';
+import { Button, CloseIcon, GlobeIcon, GridIcon, IconButton, MoonIcon, SidebarExpandIcon, SplitRightIcon, SunIcon, TerminalIcon, ThemeProvider, useTheme } from '@buildmax/gui';
 import { readStored, writeStored } from './lib/storage';
 import { openChatTabInto, useChatStart } from './lib/useChatStart';
 import { activeTab, tabIdentity } from './lib/tabs';
@@ -25,7 +25,6 @@ import {
 } from './lib/panes';
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
-import { ThemeProvider, useTheme } from '@buildmax/gui';
 import { EventsOn } from './lib/wailsRuntime';
 import LoginPage from './LoginPage';
 import { useT } from './i18n';
@@ -1186,9 +1185,9 @@ export default function App() {
               {t('shell.unreachable', { server: authStatus.server_url })}
             </span>
             <span className="deployment-banner__detail">{authStatus.unavailable_detail}</span>
-            <button type="button" className="deployment-banner__retry" onClick={refreshAuthStatus}>
+            <Button size="compact" className="deployment-banner__retry" onClick={refreshAuthStatus}>
               {t('shell.retry')}
-            </button>
+            </Button>
           </div>
         )}
         <div className="shell__body">
@@ -1260,7 +1259,9 @@ export default function App() {
                   {error && (
                     <div className="workspace-banner workspace-banner--error">
                       <span>{error}</span>
-                      <button type="button" onClick={() => setError(null)} aria-label={t('shell.dismiss')}>✕</button>
+                      <IconButton variant="tertiary" size="compact" onClick={() => setError(null)} aria-label={t('shell.dismiss')}>
+                        <CloseIcon />
+                      </IconButton>
                     </div>
                   )}
                 </div>
@@ -1327,7 +1328,7 @@ export default function App() {
                 title={leftCollapsed ? t('shell.showSidebar') : t('shell.hideSidebar')}
                 aria-label={leftCollapsed ? t('shell.showSidebar') : t('shell.hideSidebar')}
               >
-                <span aria-hidden><SidebarIcon /></span>
+                <span aria-hidden><SidebarExpandIcon /></span>
               </button>
               <span className="workspace-statusbar__status">
                 {view === 'schedules'
@@ -1348,7 +1349,7 @@ export default function App() {
                   title={t('shell.newTerminal')}
                   aria-label={t('shell.newTerminal')}
                 >
-                  <span aria-hidden>{'>_'}</span>
+                  <span aria-hidden><TerminalIcon /></span>
                 </button>
               )}
               {currentProject && view === 'workbench' && canToggleGrid && (
@@ -1369,7 +1370,7 @@ export default function App() {
                   title={`${t('shell.openBrowser')}\n${browserList.map((b) => b.url).filter(Boolean).join('\n')}`}
                   onClick={() => openBrowserTab(browserList[0].id)}
                 >
-                  <span aria-hidden>🌐</span>{' '}
+                  <GlobeIcon />
                   {browserList.length === 1
                     ? (browserList[0].title || browserList[0].url || t('shell.browser'))
                     : t('shell.browserPages', { count: browserList.length })}

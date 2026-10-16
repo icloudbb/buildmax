@@ -2,7 +2,6 @@
 // Stop reasons and job errors come from the Go side and are shown as given.
 export const jobsMessages = {
   en: {
-    'jobs.dialog': 'Background jobs',
     'jobs.title': 'Background Jobs',
     'jobs.meta': {
       one: '{count} job · shared workspace · jobs stop when the app quits',
@@ -24,7 +23,6 @@ export const jobsMessages = {
     'jobs.state.failedWith': 'failed ({error})',
   },
   'zh-CN': {
-    'jobs.dialog': '后台作业',
     'jobs.title': '后台作业',
     'jobs.meta': '{count} 个作业 · 共享工作区 · 应用退出时作业会停止',
     'jobs.empty': '没有后台作业。以 run_in_background 运行命令即可启动一个。',

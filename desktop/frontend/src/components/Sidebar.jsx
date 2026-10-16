@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Avatar } from '@buildmax/gui';
+import { Avatar, HomeIcon, IssueIcon, LOCALE_NAMES, LOCALES, PlusIcon, ScheduleIcon, SearchIcon, useLocale } from '@buildmax/gui';
 import { ProjectItem } from './ProjectItem';
 import { Explorer } from './Explorer';
 import { SidebarSectionHeader } from './SidebarSection';
-import { ClockIcon, HomeIcon, IssueIcon, PlusIcon, SearchIcon } from './icons';
 import { readStored, writeStored } from '../lib/storage';
-import { LOCALES, LOCALE_NAMES, useLocale } from '@buildmax/gui';
 import { useT } from '../i18n';
 
 const PROJECT_PAGE_SIZE = 10;
@@ -161,7 +159,7 @@ export function Sidebar({
           onClick={onSchedules}
           aria-current={view === 'schedules' ? 'page' : undefined}
         >
-          <span className="sidebar__row-icon"><ClockIcon /></span>
+          <span className="sidebar__row-icon"><ScheduleIcon /></span>
           <span className="sidebar__row-label">{t('shell.nav.schedules')}</span>
         </button>
         {/* Space Issues exist only on a server, so the destination does too:

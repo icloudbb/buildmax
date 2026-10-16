@@ -361,6 +361,22 @@ theme. `catalog.test.js` fails when a key lacks Chinese or its placeholders
 differ. Components rendered without the provider, as in component tests, render
 English.
 
+Dialogs, the drawer, actions, and icons come from `@buildmax/gui`. Every dialog
+is gui's `BaseModal`: `components/Modals.jsx` holds New Project, `InfoModal` (the
+large, scrolling form the slash-command lists, the History picker, and the
+schedule dialogs use), and `ConfirmModal` for a destructive confirmation. The
+background-jobs drawer is gui's `Drawer` from the end edge. Each moves focus
+inside when it opens, keeps Tab inside, closes on Escape, and returns focus to
+what opened it; a confirmation opened over a dialog answers Escape alone.
+`Overlays.test.jsx` checks each kind. Page, dialog, and banner actions are
+gui's `Button` and `IconButton`. A raw `<button>` remains only in specialized
+controls: tab strips and segmented toggles, tree and list rows, the status bar
+and the panel and tab chrome, the composer and its model picker, the context
+menus and the Launchpad popover (until Desktop adopts gui's `Menu`), the
+approval choices, and the file view's toolbar. Icons are gui's icon set; the
+tab strip shows a line icon per tab kind. A maximized pane floats over the grid
+behind a scrim, but it is a layout of the workbench, not a dialog.
+
 ## Space Issues
 
 In server mode the sidebar gains an **Issues** destination
@@ -410,7 +426,8 @@ the frontend build and invokes the Wails version pinned by `go.mod`.
 - Keep Wails bindings in `internal/interface/desktop`; do not assemble another
   agent runtime in the frontend or command package.
 - Keep shared presentation in `gui` and Desktop-specific state in
-  `desktop/frontend`.
+  `desktop/frontend`. Take dialogs, drawers, action buttons, and icons from
+  `gui`; Desktop CSS may place and size them but does not restyle them.
 - Take colors from the `gui/src/theme.css` tokens; Desktop CSS holds no color
   literal and no undefined custom property, which `./make check desktop`
   enforces. The xterm palette in `desktop/frontend/src/lib/terminalTheme.js` is

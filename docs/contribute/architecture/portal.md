@@ -75,7 +75,8 @@ Portal owns the cloud/space lane:
   Transient success confirmations whose effect is already on the page (a model
   added, a Space's owner or tier changed, an administrator granted or revoked, a
   password changed) are toasts from `useToast()`; failures and anything to act
-  on stay inline, on their object.
+  on stay inline, on their object. Icons come from gui's icon set, the same one
+  Desktop draws; Portal keeps no SVG files of its own.
 - Colors, shadows, the overlay, and the monospace stack come from the semantic
   tokens in `gui/src/theme.css`, which defines each one for the light and the
   dark theme. Portal CSS holds no color literal and references no custom

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
+import { Button, Drawer } from '@buildmax/gui';
 import { EventsOn } from '../lib/wailsRuntime';
 import { useT } from '../i18n';
 
@@ -30,15 +31,16 @@ function stateLabel(job, t) {
   return STATE_KEY[job.state] ? t(STATE_KEY[job.state]) : job.state;
 }
 
-// JobsDrawer lists the project's background jobs and shows one job's output.
-// It reuses the diff-drawer layout: same shell, list pane, and content pane.
+// JobsDrawer lists the project's background jobs and shows one job's output,
+// in gui's Drawer from the end edge, with the list-and-viewer panes the
+// inspector uses.
 export function JobsDrawer({ projectID, app, onClose }) {
   const t = useT();
   const [jobs, setJobs] = useState(null);
   const [error, setError] = useState(null);
   const [selectedID, setSelectedID] = useState('');
   const [output, setOutput] = useState('');
-  const drawerRef = useRef(null);
+  const titleId = useId();
 
   const refresh = useCallback(() => {
     app.ListJobs(projectID)
@@ -75,35 +77,14 @@ export function JobsDrawer({ projectID, app, onClose }) {
     return () => { cancelled = true; if (timer) clearInterval(timer); };
   }, [projectID, app, selectedJobID, selectedRunning]);
 
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  useEffect(() => { drawerRef.current?.focus(); }, []);
-
   const list = jobs ?? [];
   return (
-    <div
-      ref={drawerRef}
-      className="diff-drawer"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('jobs.dialog')}
-      tabIndex={-1}
-    >
-      <div className="diff-drawer__header">
-        <div>
-          <h2 className="diff-drawer__title">{t('jobs.title')}</h2>
-          <p className="diff-drawer__meta">
-            {jobs
-              ? t('jobs.meta', { count: list.length })
-              : t('shell.loading')}
-          </p>
-        </div>
-        <button type="button" className="diff-drawer__close" onClick={onClose} aria-label={t('shell.close')}>×</button>
-      </div>
+    <Drawer open side="end" className="jobs-drawer" title={t('jobs.title')} titleId={titleId} onClose={onClose}>
+      <p className="diff-drawer__meta jobs-drawer__meta">
+        {jobs
+          ? t('jobs.meta', { count: list.length })
+          : t('shell.loading')}
+      </p>
 
       {error ? (
         <p className="diff-drawer__error">{error}</p>
@@ -135,14 +116,13 @@ export function JobsDrawer({ projectID, app, onClose }) {
                   <span className="diff-drawer__viewer-path">{selected.id}</span>
                   <span className="diff-drawer__viewer-kind">{stateLabel(selected, t)}</span>
                   {selected.running && (
-                    <button
-                      type="button"
-                      className="diff-drawer__close"
+                    <Button
+                      size="compact"
                       onClick={() => app.StopJob(projectID, selected.id).catch(() => {})}
                       title={t('jobs.stopTitle')}
                     >
                       {t('jobs.stop')}
-                    </button>
+                    </Button>
                   )}
                 </div>
                 {output ? (
@@ -157,6 +137,6 @@ export function JobsDrawer({ projectID, app, onClose }) {
           </section>
         </div>
       )}
-    </div>
+    </Drawer>
   );
 }

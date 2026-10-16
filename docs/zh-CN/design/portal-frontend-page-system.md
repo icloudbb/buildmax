@@ -103,7 +103,7 @@ Portal 是否应采用一套小而可执行的页面与组件系统，让相同�
 | 编辑器 | 对象名称与未保存状态 → 分组字段和就近说明／错误 → 窄屏固定的 Save／Cancel（*已交付*，即 `EditorActions`）。保存成功说明对象及具体效果。 | Issue 编辑、Workflow 编辑、Agent 配置、设置 |
 | 管理 | 部署作用域标识 → 分区导航 → 状态概览 → 面向任务的表格与表单。敏感操作保留明确权限和反馈。 | Administration；Space settings 属于 Space 范围 |
 
-这些是组合式页面模板，不是新的持久化实体。建议只保留少量 `PageHeader`、`CollectionFrame`、`DetailHeader`、`StatusLabel`，并复用 Portal 已有的 `EmptyState`／`Alert`；避免带几十个开关的万能页面组件。Tabs 与折叠交互应有一种语义实现。只有足够中立、适合 Desktop 的展示组件才进入 `@buildmax/gui`；Portal 自己负责对象词汇与页面组合。*已交付：*这四个页面结构组件位于 `@buildmax/gui`，与表单 `Field`（含 `Input`、`Select`、`Textarea`）、`Menu`、`Toast`、`Spinner` 和 `Skeleton` 并列，因为它们都不含 Portal 的路由、数据或策略，而且 [UI 体验专项](UI体验专项.md#d4-两端共用一个展示层)接下来会让 Desktop 也改用它们。所有 Portal 页面都使用这些组件，没有页面再保留自己的页头、列表面板、菜单或输入框样式。`CollectionFrame` 在加载期间隐藏数量和分页，只显示列表行或空状态之一，绝不同时显示。
+这些是组合式页面模板，不是新的持久化实体。建议只保留少量 `PageHeader`、`CollectionFrame`、`DetailHeader`、`StatusLabel`，并复用 Portal 已有的 `EmptyState`／`Alert`；避免带几十个开关的万能页面组件。Tabs 与折叠交互应有一种语义实现。只有足够中立、适合 Desktop 的展示组件才进入 `@buildmax/gui`；Portal 自己负责对象词汇与页面组合。*已交付：*这四个页面结构组件位于 `@buildmax/gui`，与表单 `Field`（含 `Input`、`Select`、`Textarea`）、`Menu`、`Toast`、`Spinner` 和 `Skeleton` 并列，因为它们都不含 Portal 的路由、数据或策略，而且 [UI 体验专项](UI体验专项.md#d4-两端共用一个展示层)会让 Desktop 也改用它们；Desktop 已从那里取用对话框、抽屉、按钮与图标。所有 Portal 页面都使用这些组件，没有页面再保留自己的页头、列表面板、菜单或输入框样式。`CollectionFrame` 在加载期间隐藏数量和分页，只显示列表行或空状态之一，绝不同时显示。
 
 ## 状态、响应式与无障碍
 

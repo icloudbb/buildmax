@@ -174,7 +174,7 @@ describe('LoginPage laid out by the server\'s methods', () => {
     serverWith({ local_login: 'system_admins', oidc: sso });
     renderPage();
     const browser = await screen.findByRole('button', { name: 'Continue with Okta in your browser' });
-    expect(browser.className).toBe('login-page__submit');
+    expect(browser.className).toContain('bm-button--primary');
     expect(screen.queryByLabelText('Password')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Administrator sign-in with a password' }));

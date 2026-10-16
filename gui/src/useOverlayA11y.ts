@@ -4,6 +4,11 @@ import { lockBodyScroll, unlockBodyScroll } from "./bodyScrollLock"
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+// Open overlays, innermost last. A dialog opened from inside another (a confirm
+// over a list, a modal over the navigation drawer) is the only one that answers
+// Escape and Tab; the one beneath resumes when it closes.
+const openOverlays: object[] = []
+
 function focusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
 }
@@ -20,6 +25,8 @@ export interface UseOverlayA11yOptions {
  * while open, and closes on Escape. Used by BaseModal and Drawer so both get
  * the same accessible overlay contract from one implementation.
  *
+ * Overlays stack: only the innermost open one handles keys.
+ *
  * Focus moves to the element marked `data-autofocus`, else the first focusable
  * one. The overlay owns initial focus: an `autoFocus` prop on a child runs
  * first and is overridden here.
@@ -34,6 +41,8 @@ export function useOverlayA11y({ open, onClose, containerRef }: UseOverlayA11yOp
     if (!open) return
 
     const opener = document.activeElement as HTMLElement | null
+    const token = {}
+    openOverlays.push(token)
     lockBodyScroll()
 
     // The effect runs after the dialog has committed to the DOM. Focus now so
@@ -50,6 +59,7 @@ export function useOverlayA11y({ open, onClose, containerRef }: UseOverlayA11yOp
     }
 
     function handleKey(e: KeyboardEvent) {
+      if (openOverlays[openOverlays.length - 1] !== token) return
       if (e.key === "Escape") {
         onCloseRef.current()
         return
@@ -82,6 +92,7 @@ export function useOverlayA11y({ open, onClose, containerRef }: UseOverlayA11yOp
 
     return () => {
       document.removeEventListener("keydown", handleKey)
+      openOverlays.splice(openOverlays.indexOf(token), 1)
       unlockBodyScroll()
       opener?.focus?.()
     }

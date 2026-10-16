@@ -3,7 +3,7 @@ import type { Conversation, Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { Sidebar, SidebarNavContent, unresolvedSpaceLabel } from "./Sidebar"
 import { Breadcrumbs, useBreadcrumbs } from "./Breadcrumbs"
-import { Drawer, ThemeToggle } from "@buildmax/gui"
+import { Drawer, HelpIcon, MenuIcon, StorefrontIcon, ThemeToggle } from "@buildmax/gui"
 import { navigate } from "../router"
 import { useMediaQuery } from "../hooks/useMediaQuery"
 import { useSpace } from "../contexts/SpaceContext"
@@ -109,26 +109,6 @@ export function Layout({
   )
 }
 
-function MenuIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M4 6h16" />
-      <path d="M4 12h16" />
-      <path d="M4 18h16" />
-    </svg>
-  )
-}
-
 /** HelpButton opens the end-user help manual served from the portal image. */
 function HelpButton({ active }: { active: boolean }) {
   const t = useT()
@@ -146,26 +126,6 @@ function HelpButton({ active }: { active: boolean }) {
   )
 }
 
-function HelpIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M9.5 9.2a2.5 2.5 0 0 1 4.9.8c0 1.7-2.4 2-2.4 3.6" />
-      <path d="M12 17.2h.01" />
-    </svg>
-  )
-}
-
 /** MarketplaceButton opens the deployment-wide plugin catalog. */
 function MarketplaceButton({ active }: { active: boolean }) {
   const t = useT()
@@ -180,26 +140,5 @@ function MarketplaceButton({ active }: { active: boolean }) {
     >
       <StorefrontIcon className="theme-toggle__icon" />
     </button>
-  )
-}
-
-function StorefrontIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M3 9.5 4.5 4h15L21 9.5" />
-      <path d="M3 9.5a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 3 0" />
-      <path d="M5 11v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8" />
-      <path d="M9 20v-5h6v5" />
-    </svg>
   )
 }
