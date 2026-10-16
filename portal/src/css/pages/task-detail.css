@@ -197,6 +197,7 @@
 }
 
 /* Chat input — pinned to bottom of chat area */
+.page-chat__header,
 .page-chat__input {
   flex-shrink: 0;
 }

@@ -47,9 +47,10 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
   // organized into tabs like the agent detail page; a freshly created workflow is
   // a draft, so it opens on its Definition tab.
   await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible()
-  // The breadcrumb is the reader's orientation cue, so once the workflow has
-  // loaded it names the workflow rather than its opaque id.
-  await expect(page.getByLabel("Breadcrumb").getByText(name, { exact: true })).toBeVisible()
+  // The page names the workflow once, in that heading; the breadcrumb is the
+  // way back to the collection rather than a second copy of the name.
+  await expect(page.getByLabel("Breadcrumb").getByRole("link", { name: "Workflows" })).toBeVisible()
+  await expect(page.getByLabel("Breadcrumb").getByText(name, { exact: true })).toHaveCount(0)
   await expect(
     page.locator(".detail-tabs").getByRole("tab", { name: "Definition" }),
   ).toHaveAttribute("aria-selected", "true")

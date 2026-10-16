@@ -68,10 +68,9 @@ export function Layout({
         >
           <MenuIcon className="shell__menu-icon" />
         </button>
-        <div className="shell__compact-title">
-          <span className="shell__compact-space">{route.name === "admin" ? t("shell.deployment") : currentSpace?.name ?? unresolvedSpaceLabel(spacesState, t)}</span>
-          <span className="shell__compact-page">{pageTitle}</span>
-        </div>
+        {/* Scope only: the page's own H1 names the page, so the header does
+            not repeat it (docs/design/portal-frontend-page-system.md). */}
+        <span className="shell__compact-space">{route.name === "admin" ? t("shell.deployment") : currentSpace?.name ?? unresolvedSpaceLabel(spacesState, t)}</span>
       </header>
       <Drawer
         id="nav-drawer"

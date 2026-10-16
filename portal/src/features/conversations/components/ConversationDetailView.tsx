@@ -1,6 +1,6 @@
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
+import { ChatComposer, ChatThread, PageHeader, type ChatThreadItem } from "@buildmax/gui"
 import { AgentAvatar, UserAvatar } from "../../../components/UserAvatar"
 import type { ApiConversationMessage, LoginUser } from "../../../lib/api"
 import type { ConversationTaskCards } from "../hooks/useConversationTasks"
@@ -10,6 +10,8 @@ import { Alert } from "../../../components/state/Alert"
 import { useT } from "../../../i18n"
 
 interface ConversationDetailViewProps {
+  /** The conversation's name, the page's one heading. */
+  title: string
   historyRef: React.RefObject<HTMLElement | null>
   messages: ApiConversationMessage[]
   messagesLoading: boolean
@@ -31,6 +33,7 @@ interface ConversationDetailViewProps {
 }
 
 export function ConversationDetailView({
+  title,
   historyRef,
   messages,
   messagesLoading,
@@ -142,6 +145,7 @@ export function ConversationDetailView({
 
   return (
     <div className="page-chat">
+      <PageHeader className="page-chat__header" title={title} />
       {taskCards.tasksError ? (
         <Alert
           tone={taskCards.tasksErrorKind === "error" && taskCards.tasks.length > 0 ? "stale" : taskCards.tasksErrorKind ?? "error"}

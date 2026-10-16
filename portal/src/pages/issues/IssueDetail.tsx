@@ -667,9 +667,6 @@ export function IssueDetail({ token, spaceId, issueId, userId }: IssueDetailProp
         meta={ownerLabel(flow.issue) ?? t("issues.detail.unassignedOwner")}
         actions={
           <>
-            <ButtonLink variant="tertiary" href={buildHash({ name: "issues", spaceId })}>
-              {t("issues.detail.back")}
-            </ButtonLink>
             <Button variant="tertiary" disabled={loading || editing} onClick={() => void load()}>
               {t("issues.detail.refresh")}
             </Button>

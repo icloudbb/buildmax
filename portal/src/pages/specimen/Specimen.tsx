@@ -391,9 +391,7 @@ export function Specimen() {
               meta="Owner: Ada · Executor: Release writer"
               actions={
                 <>
-                  <ButtonLink variant="tertiary" href="#anatomy">
-                    Back to Issues
-                  </ButtonLink>
+                  <Button variant="tertiary">Refresh</Button>
                   <Button variant="secondary">Edit</Button>
                 </>
               }

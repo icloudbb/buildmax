@@ -6,7 +6,7 @@ export const chatMessages = {
   en: {
     "chat.new.title": "Chat",
     "chat.new.subtitle": "Start a new conversation. Describe what you want to accomplish and the agent will work on it.",
-    "chat.new.placeholder": "e.g. Help me analyze last month's sales data (Enter to send, Shift+Enter for new line)",
+    "chat.new.placeholder": "e.g. Help me analyze last month's sales data",
     "chat.new.prompt": "What would you like to do?",
     "chat.new.tabs": "Recent conversations and files",
     "chat.new.tabConversations": "Recent Conversations",
@@ -52,7 +52,7 @@ export const chatMessages = {
   "zh-CN": {
     "chat.new.title": "对话",
     "chat.new.subtitle": "开始新对话。描述你想完成的事情，Agent 会着手处理。",
-    "chat.new.placeholder": "例如：帮我分析上个月的销售数据（Enter 发送，Shift+Enter 换行）",
+    "chat.new.placeholder": "例如：帮我分析上个月的销售数据",
     "chat.new.prompt": "你想做什么？",
     "chat.new.tabs": "最近的对话和文件",
     "chat.new.tabConversations": "最近的对话",

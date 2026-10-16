@@ -1,6 +1,6 @@
 import { Menu, MenuItem } from "@buildmax/gui"
 import type { Route, Conversation } from "../lib/types"
-import { navigate } from "../router"
+import { buildHash, navigate } from "../router"
 import { useApp } from "../contexts/AppContext"
 import { useSpace } from "../contexts/SpaceContext"
 import { useT } from "../i18n"
@@ -17,12 +17,25 @@ interface BreadcrumbsProps {
 }
 
 /**
- * Builds the crumb trail for a route. Shared by the inline Breadcrumbs nav
- * and the compact header, which needs only the current page's label.
+ * A conversation's name: its title, else when it started, and a generic word
+ * until the list has it. The breadcrumb and the conversation's own heading say
+ * the same thing.
+ */
+export function useConversationLabel(): (conversation: Conversation | undefined) => string {
+  const t = useT()
+  const relativeTime = useRelativeTime()
+  return (conversation) =>
+    conversation?.title?.trim() || (conversation ? relativeTime(conversation.createdAt) : t("shell.crumbs.conversation"))
+}
+
+/**
+ * Builds the crumb trail for a route, ending at the current page. The
+ * breadcrumb shows the part before it (see breadcrumbTrail); the browser tab
+ * title uses the current page's label.
  */
 export function useBreadcrumbs(route: Route, conversations: Conversation[] = []): Crumb[] {
   const t = useT()
-  const relativeTime = useRelativeTime()
+  const conversationLabel = useConversationLabel()
   const { entityLabels, breadcrumbTrails } = useApp()
   // Artifact detail carries no Space id of its own (the one ID-resolved
   // exception) -- by the time its label is published here, ArtifactDetail has
@@ -178,11 +191,9 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
     )
   }
   if (route.name === "chat" && route.conversationId) {
-    const conv = conversations.find((c) => c.id === route.conversationId)
-    const convLabel = conv?.title?.trim() || (conv ? relativeTime(conv.createdAt) : t("shell.crumbs.conversation"))
     return [
       { label: t("shell.nav.chat"), route: { name: "chat", spaceId: route.spaceId } },
-      { label: convLabel, route },
+      { label: conversationLabel(conversations.find((c) => c.id === route.conversationId)), route },
     ]
   }
   if (route.name === "chat") {
@@ -197,14 +208,29 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
   return []
 }
 
+/**
+ * What the breadcrumb shows of a route's crumbs. The page names itself once, in
+ * its own H1, so the breadcrumb is the way back to its parents and leaves the
+ * page's own crumb out (docs/design/portal-frontend-page-system.md). In
+ * Account, Space settings, and Administration the last crumb is the open
+ * section, not the page the H1 names, so it stays as the current position.
+ */
+export function breadcrumbTrail(route: Route, crumbs: Crumb[]): { trail: Crumb[]; endsAtCurrent: boolean } {
+  if (route.name === "account" || route.name === "space" || route.name === "admin") {
+    return { trail: crumbs, endsAtCurrent: true }
+  }
+  return { trail: crumbs.slice(0, -1), endsAtCurrent: false }
+}
+
 export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
   const t = useT()
-  const crumbs = useBreadcrumbs(route, conversations)
+  const { trail, endsAtCurrent } = breadcrumbTrail(route, useBreadcrumbs(route, conversations))
+  if (trail.length === 0) return null
 
-  // Keep the current object and its nearest parent inline; earlier ancestors
-  // collapse behind an overflow disclosure rather than crowding or wrapping.
-  const collapsedAncestors = crumbs.length > 2 ? crumbs.slice(0, -2) : []
-  const visibleCrumbs = collapsedAncestors.length > 0 ? crumbs.slice(-2) : crumbs
+  // Keep the last two crumbs inline; earlier ancestors collapse behind an
+  // overflow disclosure rather than crowding or wrapping.
+  const collapsedAncestors = trail.length > 2 ? trail.slice(0, -2) : []
+  const visibleCrumbs = collapsedAncestors.length > 0 ? trail.slice(-2) : trail
 
   return (
     <nav className="breadcrumbs" aria-label={t("shell.crumbs.label")}>
@@ -236,18 +262,16 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
         const isLast = i === visibleCrumbs.length - 1
         return (
           <span key={i} className="breadcrumbs__segment">
-            {isLast ? (
-              <span className="breadcrumbs__current">{crumb.label}</span>
+            {isLast && endsAtCurrent ? (
+              <span className="breadcrumbs__current" aria-current="location">
+                {crumb.label}
+              </span>
             ) : (
               <>
-                <button
-                  type="button"
-                  className="breadcrumbs__link"
-                  onClick={() => navigate(crumb.route)}
-                >
+                <a className="breadcrumbs__link" href={buildHash(crumb.route)}>
                   {crumb.label}
-                </button>
-                <span className="breadcrumbs__separator">/</span>
+                </a>
+                {isLast ? null : <span className="breadcrumbs__separator">/</span>}
               </>
             )}
           </span>

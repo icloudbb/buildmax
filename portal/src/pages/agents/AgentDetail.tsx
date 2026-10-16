@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Button, ButtonLink, DetailHeader, Skeleton, StatusLabel } from "@buildmax/gui"
+import { Button, DetailHeader, Skeleton, StatusLabel } from "@buildmax/gui"
 import type { Agent, AgentRevision } from "../../lib/types"
 import type { ApiSecret, ApiTask } from "../../lib/api/types"
-import { buildHash, navigate } from "../../router"
+import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
@@ -321,9 +321,6 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
           meta={agent?.description || undefined}
           actions={
             <>
-              <ButtonLink variant="tertiary" href={buildHash({ name: "agents", spaceId })}>
-                {t("agents.backToAgents")}
-              </ButtonLink>
               {tab !== "config" || !canManage ? (
                 <Button
                   variant={tab === "schedules" && canManageSchedules ? "secondary" : "primary"}
