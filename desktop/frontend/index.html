@@ -7,7 +7,7 @@
   </head>
   <body>
     <script>
-      (function(){ var t = localStorage.getItem('buildmax_theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); })();
+      (function(){ var t = localStorage.getItem('buildmax_theme'); if (t !== 'dark' && t !== 'light') t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; document.documentElement.setAttribute('data-theme', t); })();
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

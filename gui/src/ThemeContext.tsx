@@ -8,6 +8,7 @@ import {
 } from "react"
 
 const THEME_KEY = "buildmax_theme"
+const DARK_QUERY = "(prefers-color-scheme: dark)"
 
 export type Theme = "light" | "dark"
 
@@ -19,35 +20,61 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-function loadStoredTheme(): Theme {
+/** The person's own choice on this device, or null when they have not made one. */
+function loadStoredTheme(): Theme | null {
   try {
     const stored = localStorage.getItem(THEME_KEY)
     if (stored === "dark" || stored === "light") return stored
   } catch {
     /* ignore */
   }
-  return "light"
+  return null
 }
 
+function darkQuery(): MediaQueryList | null {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia(DARK_QUERY)
+    : null
+}
+
+function systemTheme(): Theme {
+  return darkQuery()?.matches ? "dark" : "light"
+}
+
+/**
+ * The theme is the operating system's until the person picks one. Only a pick
+ * is stored: storing the OS value on first load would freeze it, and the app
+ * would stop following a later OS switch the person never overrode.
+ */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(loadStoredTheme)
+  const [choice, setChoice] = useState<Theme | null>(loadStoredTheme)
+  const [system, setSystem] = useState<Theme>(systemTheme)
+  const theme = choice ?? system
+
+  useEffect(() => {
+    const query = darkQuery()
+    if (!query) return
+    const onChange = () => setSystem(query.matches ? "dark" : "light")
+    query.addEventListener("change", onChange)
+    return () => query.removeEventListener("change", onChange)
+  }, [])
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme)
-    try {
-      localStorage.setItem(THEME_KEY, theme)
-    } catch {
-      /* ignore */
-    }
   }, [theme])
 
   const setTheme = useCallback((next: Theme) => {
-    setThemeState(next)
+    setChoice(next)
+    try {
+      localStorage.setItem(THEME_KEY, next)
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   const toggleTheme = useCallback(() => {
-    setThemeState((prev) => (prev === "light" ? "dark" : "light"))
-  }, [])
+    setTheme(theme === "light" ? "dark" : "light")
+  }, [theme, setTheme])
 
   const value: ThemeContextValue = { theme, setTheme, toggleTheme }
 
