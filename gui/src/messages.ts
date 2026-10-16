@@ -48,6 +48,8 @@ export const guiMessages = {
     "gui.status.published": "Published",
     "gui.status.archived": "Archived",
     "gui.status.no_runs": "No runs yet",
+    "gui.status.enabled": "Enabled",
+    "gui.status.paused": "Paused",
   },
   "zh-CN": {
     "gui.close": "关闭",
@@ -94,6 +96,8 @@ export const guiMessages = {
     "gui.status.published": "已发布",
     "gui.status.archived": "已归档",
     "gui.status.no_runs": "尚无运行",
+    "gui.status.enabled": "已启用",
+    "gui.status.paused": "已暂停",
   },
 } satisfies Messages<string>
 

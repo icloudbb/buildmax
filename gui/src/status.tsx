@@ -34,6 +34,8 @@ const STATUS_TONES: Record<string, StatusTone> = {
   published: "success",
   archived: "neutral",
   no_runs: "neutral",
+  enabled: "success",
+  paused: "neutral",
 }
 
 function normalize(status: string): string {
