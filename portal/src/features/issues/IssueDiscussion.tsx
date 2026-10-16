@@ -215,7 +215,7 @@ export function IssueDiscussion({
   return (
     <div className="issue-discussion">
       {error ? (
-        <p className="modal__error" role="alert">
+        <p className="settings-section__error" role="alert">
           {error}
         </p>
       ) : null}

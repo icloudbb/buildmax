@@ -1,4 +1,5 @@
 import type { ReactNode, RefObject } from "react"
+import { Spinner } from "./Spinner"
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ")
@@ -38,7 +39,9 @@ export function ChatThread({
     // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
     <section ref={historyRef} className="bm-chat-thread" aria-label={ariaLabel} tabIndex={0}>
       {loadingText ? (
-        <p className="bm-chat-thread__text bm-chat-thread__text--muted">{loadingText}</p>
+        <p className="bm-chat-thread__text bm-chat-thread__text--muted">
+          <Spinner label={loadingText} />
+        </p>
       ) : null}
       {errorText ? (
         <p className="bm-chat-thread__text bm-chat-thread__text--error" role="alert">
