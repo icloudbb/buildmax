@@ -29,6 +29,41 @@ type PortalSessionResponse struct {
 	AccessToken string    `json:"access_token"`
 	ExpiresIn   int64     `json:"expires_in"`
 	User        LoginUser `json:"user"`
+	// SystemRoles is the account's deployment authority, so the Portal can show
+	// or hide Administration without asking a route that refuses almost everyone.
+	// It is presentation only: every /api/admin route still checks the grant.
+	// Every exchange carries it again, so a grant or revocation shows by the
+	// next access-token refresh at the latest.
+	SystemRoles []string `json:"system_roles"`
+}
+
+// portalSession is the response for an account that just signed in or
+// exchanged its cookie.
+func (h *Handler) portalSession(r *http.Request, accessToken string, expiresIn int64, user coreidentity.User) PortalSessionResponse {
+	return PortalSessionResponse{
+		AccessToken: accessToken,
+		ExpiresIn:   expiresIn,
+		User:        LoginUser{ID: user.ID, Email: user.Email, Name: user.Name},
+		SystemRoles: h.systemRoles(r, user.ID),
+	}
+}
+
+// systemRoles answers with no roles when they cannot be read: the session is
+// valid either way, and hiding Administration is the safe direction, since the
+// admin routes refuse without the grant regardless.
+func (h *Handler) systemRoles(r *http.Request, userID string) []string {
+	if h.cfg.Grants == nil {
+		return []string{}
+	}
+	roles, err := h.cfg.Grants.ActiveSystemRoles(r.Context(), userID)
+	if err != nil {
+		slog.Error("read system roles failed", "err", err, "handler", "portal_session", "user_id", userID)
+		return []string{}
+	}
+	if roles == nil {
+		return []string{}
+	}
+	return roles
 }
 
 // portalLoginHandler serves POST /api/auth/portal/login: verify a credential,
@@ -64,24 +99,26 @@ func (h *Handler) portalLoginHandler(w http.ResponseWriter, r *http.Request) {
 		Detail:     result.Method,
 	})
 	h.setPortalRefreshCookie(w, r, result.RefreshToken)
-	httputil.WriteJSON(w, http.StatusOK, PortalSessionResponse{
-		AccessToken: result.AccessToken,
-		ExpiresIn:   result.ExpiresIn,
-		User:        LoginUser{ID: result.User.ID, Email: result.User.Email, Name: result.User.Name},
-	})
+	httputil.WriteJSON(w, http.StatusOK, h.portalSession(r, result.AccessToken, result.ExpiresIn, result.User))
 }
 
 // portalSessionHandler serves POST /api/auth/portal/session: exchange the
 // refresh cookie for a fresh access token, rotating the cookie. The Portal calls
 // it on load, on reload, and whenever a request meets a 401. It is how the Portal
 // gets an access token without ever holding a refresh token in script.
+//
+// No cookie is an answer, not a refusal: the Portal cannot read the HttpOnly
+// cookie to check first, so asking is how a signed-out browser learns it has
+// no session, and a 401 would be logged as an error on every signed-out page
+// load. A cookie that no longer names a live session is still a 401; that
+// response clears the cookie, so it happens once.
 func (h *Handler) portalSessionHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.requirePortalOrigin(w, r) {
 		return
 	}
 	cookie, err := r.Cookie(portalRefreshCookie)
 	if err != nil || cookie.Value == "" {
-		httputil.WriteJSONError(w, http.StatusUnauthorized, "no session")
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	result, err := h.identityService().Refresh(r.Context(), cookie.Value)
@@ -93,11 +130,7 @@ func (h *Handler) portalSessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.setPortalRefreshCookie(w, r, result.RefreshToken)
-	httputil.WriteJSON(w, http.StatusOK, PortalSessionResponse{
-		AccessToken: result.AccessToken,
-		ExpiresIn:   result.ExpiresIn,
-		User:        LoginUser{ID: result.User.ID, Email: result.User.Email, Name: result.User.Name},
-	})
+	httputil.WriteJSON(w, http.StatusOK, h.portalSession(r, result.AccessToken, result.ExpiresIn, result.User))
 }
 
 // portalLogoutHandler serves POST /api/auth/portal/logout: revoke the session the

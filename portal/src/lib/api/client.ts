@@ -28,8 +28,18 @@ declare global {
 /** Event dispatched when a call is unauthorized and refreshing did not help. Listeners should clear auth and show login. */
 export const UNAUTHORIZED_EVENT = "buildmax:unauthorized"
 
-/** Event dispatched after a successful refresh, carrying the new access token. */
+/** Event dispatched after a successful refresh, carrying a TokenRefreshedDetail. */
 export const TOKEN_REFRESHED_EVENT = "buildmax:token-refreshed"
+
+/**
+ * What a refresh learned: the new access token, and the account's system roles
+ * as of this exchange, so a grant or revocation reaches the shell without a
+ * reload.
+ */
+export interface TokenRefreshedDetail {
+  accessToken: string
+  systemRoles: string[]
+}
 
 export function checkUnauthorized(res: Response): void {
   if (res.status === 401) {
@@ -78,24 +88,24 @@ async function exchangePortalSession(): Promise<string | null> {
     return null
   }
 
-  if (!res.ok) {
+  if (res.status !== 200) {
     // 401 is the server saying the session is dead — spent, revoked, or gone —
-    // and it has already cleared the cookie. Any other status is the server's
-    // problem, not the session's, but there is no token to hand back either
-    // way.
-    if (res.status === 401) clearAccessToken()
+    // and it has already cleared the cookie; 204 is that there is no cookie at
+    // all. Any other status is the server's problem, not the session's, but
+    // there is no token to hand back either way.
+    if (res.status === 401 || res.status === 204) clearAccessToken()
     return null
   }
 
   const body = (await res.json()) as {
     access_token?: string
     expires_in?: number
+    system_roles?: string[]
   }
   if (!body.access_token) return null
   setAccessToken(body.access_token, expiresAtFrom(body.expires_in))
-  window.dispatchEvent(
-    new CustomEvent(TOKEN_REFRESHED_EVENT, { detail: { accessToken: body.access_token } })
-  )
+  const detail: TokenRefreshedDetail = { accessToken: body.access_token, systemRoles: body.system_roles ?? [] }
+  window.dispatchEvent(new CustomEvent(TOKEN_REFRESHED_EVENT, { detail }))
   return body.access_token
 }
 

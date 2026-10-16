@@ -1,48 +1,18 @@
-import { useEffect, useState } from "react"
 import { useAuth } from "../../contexts/AuthContext"
-import { getAdminMe } from "./api"
 
-export interface AdminAccess {
-  isAdmin: boolean
-  /** True until the first answer arrives, so nothing flashes into view. */
-  loading: boolean
-}
+/** The system role that opens deployment administration. */
+const SYSTEM_ROLE_ADMIN = "system_admin"
 
 /**
- * useAdminAccess asks the server whether this person may operate the deployment.
+ * useAdminAccess says whether this person may operate the deployment, from the
+ * system roles their session carries.
  *
- * Any rejection means no. A 403 is the expected answer for almost everyone and
- * is not an error worth surfacing — and treating a network failure as "not an
- * administrator" is the safe direction: it hides an entry, it never opens one.
- * The server refuses regardless of what this returns.
+ * Asking GET /api/admin/me instead would answer almost everyone with a 403, an
+ * expected refusal logged as an error on every page load. The session answers
+ * every signed-in account. This is presentation, not enforcement: the server
+ * refuses an ungranted account regardless of what this returns.
  */
-export function useAdminAccess(): AdminAccess {
-  const { token } = useAuth()
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!token) {
-      setIsAdmin(false)
-      setLoading(false)
-      return
-    }
-    let cancelled = false
-    setLoading(true)
-    getAdminMe(token)
-      .then(() => {
-        if (!cancelled) setIsAdmin(true)
-      })
-      .catch(() => {
-        if (!cancelled) setIsAdmin(false)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [token])
-
-  return { isAdmin, loading }
+export function useAdminAccess(): boolean {
+  const { systemRoles } = useAuth()
+  return systemRoles.includes(SYSTEM_ROLE_ADMIN)
 }

@@ -59,9 +59,10 @@ export async function loginWithPassword(
 }
 
 /**
- * Trade the refresh cookie for a fresh session on load. Returns null on any
- * non-200 — no cookie, a dead session, or any error — rather than throwing, so
- * a cold start with no session simply lands on the login form.
+ * Trade the refresh cookie for a fresh session on load. Returns null on
+ * anything but a 200 — the server's 204 for no cookie, a 401 for a dead
+ * session, or any error — rather than throwing, so a cold start with no session
+ * simply lands on the login form.
  */
 export async function restoreSession(): Promise<PortalSessionResponse | null> {
   let res: Response
@@ -73,7 +74,7 @@ export async function restoreSession(): Promise<PortalSessionResponse | null> {
   } catch {
     return null
   }
-  if (!res.ok) return null
+  if (res.status !== 200) return null
   try {
     return (await res.json()) as PortalSessionResponse
   } catch {

@@ -146,7 +146,8 @@ const taskRuns = [
 const usage = { run_count: 42, total_tokens: 1_284_000, tier: "standard", period_days: 30, max_runs_per_period: 500 }
 
 export const fixtures: Fixtures = {
-  "POST /api/auth/portal/session": { access_token: "visual-token", expires_in: 3600, user: USER },
+  // Ada administers the deployment, so the shell shows Administration.
+  "POST /api/auth/portal/session": { access_token: "visual-token", expires_in: 3600, user: USER, system_roles: ["system_admin"] },
   // A CLI waiting at the sign-in confirmation page, started four minutes ago.
   "GET /api/auth/native-sign-ins": {
     platform: "cli",
@@ -189,7 +190,6 @@ export const fixtures: Fixtures = {
       },
     ],
   },
-  "GET /api/admin/me": { user_id: USER.id, roles: [], grants: [] },
   "GET /api/spaces": [{ id: SPACE, name: "Analytical Engine", created_at: "2026-01-12T09:00:00Z" }],
   "GET /api/invitations": [],
   "GET /api/usage": usage,

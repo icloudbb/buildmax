@@ -7,7 +7,6 @@ export const adminMessages = {
     "admin.title": "Administration",
     "admin.subtitle":
       "This deployment: its health, its accounts, and what has been done to it. Space contents are not here and are not reachable from here.",
-    "admin.checkingAccess": "Checking your access…",
 
     "admin.search": "Search",
     "admin.clear": "Clear",
@@ -423,7 +422,6 @@ export const adminMessages = {
   "zh-CN": {
     "admin.title": "系统管理",
     "admin.subtitle": "本部署的健康状况、账户及对其执行过的操作。Space 内容不在这里，也无法从这里访问。",
-    "admin.checkingAccess": "正在检查你的权限…",
 
     "admin.search": "搜索",
     "admin.clear": "清除",

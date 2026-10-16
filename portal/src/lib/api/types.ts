@@ -16,13 +16,16 @@ export interface LoginUser {
  *
  * The renewable credential never appears here: the server keeps it in an
  * HttpOnly refresh cookie the script cannot read. Only the short-lived access
- * token, its lifetime, and the account come back in the body.
+ * token, its lifetime, the account, and its deployment authority come back in
+ * the body.
  */
 export interface PortalSessionResponse {
   access_token: string
   /** Access token lifetime in seconds. */
   expires_in?: number
   user: LoginUser
+  /** The account's active system roles; empty for almost everyone. */
+  system_roles: string[]
 }
 
 export interface OtpRequestResponse {
