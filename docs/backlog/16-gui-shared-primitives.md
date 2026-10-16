@@ -6,7 +6,7 @@ source: docs/design/ui-experience-program.md#d4-one-presentation-layer-for-both-
 depends_on: []
 verification: ["./make check gui", "./make check portal", "./make e2e local"]
 claim: claude/feat-gui-shared-primitives 2026-10-16
-pr:
+pr: 890
 ---
 
 ## Outcome
