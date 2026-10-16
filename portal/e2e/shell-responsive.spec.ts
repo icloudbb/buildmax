@@ -45,7 +45,7 @@ test("choosing a destination in the drawer navigates and closes it", async ({ pa
   await session(page)
 
   await page.getByRole("button", { name: "Open navigation" }).click()
-  await page.getByRole("dialog", { name: "Navigation" }).getByRole("button", { name: "Agents" }).click()
+  await page.getByRole("dialog", { name: "Navigation" }).getByRole("link", { name: "Agents" }).click()
 
   await expect(page).toHaveURL(/#\/spaces\/[^/]+\/agents$/)
   await expect(page.getByRole("dialog")).toBeHidden()

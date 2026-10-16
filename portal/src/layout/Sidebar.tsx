@@ -1,8 +1,8 @@
-import { useId, useState } from "react"
+import { useId, useState, type ComponentType, type MouseEvent } from "react"
 import { cn } from "../lib/cn"
 import type { Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
-import { navigate } from "../router"
+import { buildHash, navigate } from "../router"
 import { UserAvatar } from "../components/UserAvatar"
 import { CreateSpaceDialog } from "../components/CreateSpaceDialog"
 import { useSpace } from "../contexts/SpaceContext"
@@ -103,6 +103,38 @@ export function unresolvedSpaceLabel(spacesState: ResourceState<unknown>, t: Tra
   }
 }
 
+interface SidebarLinkProps {
+  to: Route
+  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>
+  label: string
+  active: boolean
+  onNavigate?: () => void
+}
+
+/**
+ * One destination: a real link to its hash route, so it opens in a new tab and
+ * its address can be copied, and the current one says so to assistive
+ * technology rather than only by its look.
+ */
+function SidebarLink({ to, icon: Icon, label, active, onNavigate }: SidebarLinkProps) {
+  function handleClick(event: MouseEvent<HTMLAnchorElement>) {
+    // A modified click opens elsewhere, so the drawer stays open on this page.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    onNavigate?.()
+  }
+  return (
+    <a
+      href={buildHash(to)}
+      className={cn("sidebar__nav-item", active && "sidebar__nav-item--active")}
+      aria-current={active ? "page" : undefined}
+      onClick={handleClick}
+    >
+      <Icon className="sidebar__nav-icon" aria-hidden />
+      <span className="sidebar__nav-item-text">{label}</span>
+    </a>
+  )
+}
+
 /** The persistent desktop/compact sidebar: a collapsible icon rail, the app's chrome. */
 export function Sidebar({ route, user, onLogout }: SidebarProps) {
   const t = useT()
@@ -172,7 +204,9 @@ export function SidebarNavContent({
   const { locale, setLocale } = useLocale()
   const { spaces, spacesState, currentSpace, currentSpaceId, loading: spacesLoading, setCurrentSpaceId } = useSpace()
   const { setPendingConversation } = useApp()
-  const { isAdmin: isSystemAdmin } = useAdminAccess()
+  const isSystemAdmin = useAdminAccess()
+  // The shell mounts only once a Space is resolved (see App.tsx).
+  const spaceId = currentSpaceId ?? ""
   const showSpaceSwitcher = spaces.length > 1
   // The persistent sidebar and the narrow drawer can both mount this
   // component at once (the drawer over the CSS-hidden persistent aside), so a
@@ -271,76 +305,26 @@ export function SidebarNavContent({
         </div>
         {route.name !== "admin" ? <><div className="sidebar__group">
           <span className="sidebar__group-label">{t("shell.group.work")}</span>
-          <button
-            type="button"
-            className={cn("sidebar__nav-item", route.name === "chat" && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "chat", spaceId: currentSpaceId! })}
-          >
-            <NewChatIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">{t("shell.nav.chat")}</span>
-          </button>
-          <button
-            type="button"
-            className={cn("sidebar__nav-item", isIssuesActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "issues", spaceId: currentSpaceId! })}
-          >
-            <IssueIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">{t("shell.nav.issues")}</span>
-          </button>
-          <button
-            type="button"
-            className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "agents", spaceId: currentSpaceId! })}
-          >
-            <AgentsIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">{t("shell.nav.agents")}</span>
-          </button>
-          <button
-            type="button"
-            className={cn("sidebar__nav-item", isWorkflowsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "workflows", spaceId: currentSpaceId! })}
-          >
-            <WorkflowIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">{t("shell.nav.workflows")}</span>
-          </button>
-          <button
-            type="button"
-            className={cn("sidebar__nav-item", isSchedulesActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "schedules", spaceId: currentSpaceId! })}
-          >
-            <ScheduleIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">{t("shell.nav.schedules")}</span>
-          </button>
+          <SidebarLink to={{ name: "chat", spaceId }} icon={NewChatIcon} label={t("shell.nav.chat")} active={route.name === "chat"} onNavigate={onNavigate} />
+          <SidebarLink to={{ name: "issues", spaceId }} icon={IssueIcon} label={t("shell.nav.issues")} active={isIssuesActive(route)} onNavigate={onNavigate} />
+          <SidebarLink to={{ name: "agents", spaceId }} icon={AgentsIcon} label={t("shell.nav.agents")} active={isAgentsActive(route)} onNavigate={onNavigate} />
+          <SidebarLink to={{ name: "workflows", spaceId }} icon={WorkflowIcon} label={t("shell.nav.workflows")} active={isWorkflowsActive(route)} onNavigate={onNavigate} />
+          <SidebarLink to={{ name: "schedules", spaceId }} icon={ScheduleIcon} label={t("shell.nav.schedules")} active={isSchedulesActive(route)} onNavigate={onNavigate} />
         </div>
         <div className="sidebar__group">
           <span className="sidebar__group-label">{t("shell.group.resources")}</span>
-          <button
-            type="button"
-            className={cn("sidebar__nav-item", isFilesActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "explore", spaceId: currentSpaceId! })}
-          >
-            <FolderIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">{t("shell.nav.files")}</span>
-          </button>
-          <button
-            type="button"
-            className={cn("sidebar__nav-item", isArtifactsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "artifacts", spaceId: currentSpaceId! })}
-          >
-            <ArtifactIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">{t("shell.nav.artifacts")}</span>
-          </button>
+          <SidebarLink to={{ name: "explore", spaceId }} icon={FolderIcon} label={t("shell.nav.files")} active={isFilesActive(route)} onNavigate={onNavigate} />
+          <SidebarLink to={{ name: "artifacts", spaceId }} icon={ArtifactIcon} label={t("shell.nav.artifacts")} active={isArtifactsActive(route)} onNavigate={onNavigate} />
         </div>
         <div className="sidebar__group">
           <span className="sidebar__group-label">{t("shell.group.manage")}</span>
-          <button
-            type="button"
-            className={cn("sidebar__nav-item", isSpaceSettingsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => go({ name: "space", spaceId: currentSpaceId!, section: "overview" })}
-          >
-            <SettingsIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">{t("shell.nav.spaceSettings")}</span>
-          </button>
+          <SidebarLink
+            to={{ name: "space", spaceId, section: "overview" }}
+            icon={SettingsIcon}
+            label={t("shell.nav.spaceSettings")}
+            active={isSpaceSettingsActive(route)}
+            onNavigate={onNavigate}
+          />
         </div>
         {isSystemAdmin && (
           // Deployment administration is a global-scope destination, not a Space
@@ -348,14 +332,13 @@ export function SidebarNavContent({
           // outside the Space-grouped nav above, so it never reads as if the
           // selected Space changed its authority.
           <div className="sidebar__group sidebar__group--global">
-            <button
-              type="button"
-              className={cn("sidebar__nav-item", isAdminActive(route) && "sidebar__nav-item--active")}
-              onClick={() => go({ name: "admin", section: "overview" })}
-            >
-              <ShieldIcon className="sidebar__nav-icon" aria-hidden />
-              <span className="sidebar__nav-item-text">{t("shell.nav.administration")}</span>
-            </button>
+            <SidebarLink
+              to={{ name: "admin", section: "overview" }}
+              icon={ShieldIcon}
+              label={t("shell.nav.administration")}
+              active={isAdminActive(route)}
+              onNavigate={onNavigate}
+            />
           </div>
         )}</> : <>
         {/* On the Deployment scope the sidebar lists the Administration
@@ -364,29 +347,25 @@ export function SidebarNavContent({
             hatch back to a Space. */}
         <div className="sidebar__group sidebar__group--global">
           <span className="sidebar__group-label">{t("shell.nav.administration")}</span>
-          {ADMIN_NAV.map((item) => {
-            const Icon = item.icon
-            const active = (route.section ?? "overview") === item.id
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={cn("sidebar__nav-item", active && "sidebar__nav-item--active")}
-                onClick={() => go({ name: "admin", section: item.id })}
-              >
-                <Icon className="sidebar__nav-icon" aria-hidden />
-                <span className="sidebar__nav-item-text">{t(item.labelKey)}</span>
-              </button>
-            )
-          })}
+          {ADMIN_NAV.map((item) => (
+            <SidebarLink
+              key={item.id}
+              to={{ name: "admin", section: item.id }}
+              icon={item.icon}
+              label={t(item.labelKey)}
+              active={(route.section ?? "overview") === item.id}
+              onNavigate={onNavigate}
+            />
+          ))}
         </div>
         <div className="sidebar__group">
-          <button type="button" className="sidebar__nav-item" disabled={!currentSpaceId} onClick={() => {
-            if (currentSpaceId) go({ name: "issues", spaceId: currentSpaceId })
-          }}>
-            <NewChatIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">{t("shell.nav.backToSpace")}</span>
-          </button>
+          <SidebarLink
+            to={{ name: "issues", spaceId }}
+            icon={NewChatIcon}
+            label={t("shell.nav.backToSpace")}
+            active={false}
+            onNavigate={onNavigate}
+          />
         </div></>}
       </nav>
       <div className="sidebar__footer" aria-label={t("shell.user")}>

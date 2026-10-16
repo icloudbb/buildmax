@@ -15,8 +15,27 @@ test("the signed-in shell renders against a real deployment", async ({ page }) =
   // The other half: the shell actually rendered. Navigation is asserted rather
   // than the wordmark, which is ASCII art and carries no text to match.
   for (const item of ["Issues", "Workflows", "Agents", "Artifacts"]) {
-    await expect(page.getByRole("link", { name: item }).or(page.getByRole("button", { name: item })).first()).toBeVisible()
+    await expect(page.getByRole("link", { name: item }).first()).toBeVisible()
   }
+})
+
+// The sidebar behaves like web navigation: each destination is an address that
+// opens in a new tab or can be copied, and the current one is announced, not
+// only drawn.
+test("the sidebar is links to the hash routes, with exactly one current", async ({ page }) => {
+  await page.goto("/")
+  const nav = page.getByLabel("Sidebar", { exact: true }).getByRole("navigation", { name: "Primary" })
+  const issues = nav.getByRole("link", { name: "Issues" })
+  await expect(issues).toHaveAttribute("aria-current", "page")
+  await expect(nav.locator('[aria-current="page"]')).toHaveCount(1)
+
+  const href = await nav.getByRole("link", { name: "Workflows" }).getAttribute("href")
+  expect(href).toMatch(/^#\/spaces\/[^/]+\/workflows$/)
+  await nav.getByRole("link", { name: "Workflows" }).click()
+  await expect(page).toHaveURL(new RegExp(`${href}$`))
+  await expect(nav.getByRole("link", { name: "Workflows" })).toHaveAttribute("aria-current", "page")
+  await expect(issues).not.toHaveAttribute("aria-current", "page")
+  await expect(nav.locator('[aria-current="page"]')).toHaveCount(1)
 })
 
 test("the runtime API base is the one this deployment serves", async ({ page }) => {
