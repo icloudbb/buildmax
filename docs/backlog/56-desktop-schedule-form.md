@@ -52,11 +52,21 @@ carries Desktop audit findings D10, D11, D12, and D13.
 
 ## Scope
 
-- **D10.** The dialog is an `InfoModal` from `components/Modals.jsx`, which
-  [task 20](20-desktop-gui-convergence.md) replaces with gui's `FormModal`.
-  gui's large modal keeps the footer outside the scrolling body. After task
-  20, confirm that the footer and the validation message are visible at an
-  800 px window height, and fix any remaining gap here.
+- **D10.** The dialog is `InfoModal` from `components/Modals.jsx`, which task
+  20 rebuilt on gui's `BaseModal` in its large form (`modal--large`) with gui
+  `Button`s in a `modal__actions` row. It is not a `FormModal`: the browse
+  button, the model list that keeps an unavailable pinned model, and the live
+  cron preview are more than `FormModal`'s text, select, and textarea fields.
+  The large modal grows to the window height less 2 rem and then scrolls the
+  whole form, the action row included; gui pins the action row to the bottom
+  only below 768 px. Checked after task 20 (macOS Chromium through the visual
+  harness, five next runs shown, no error): at 1280×860 **Create schedule**
+  ends 99 px above the window's bottom edge, and at 1280×800 it is visible
+  with 9 px of the dialog's height to spare, so one line of validation
+  message pushes the footer into the scrolling region there. Make the footer
+  and the message visible together at 800 px, for example by keeping the
+  large modal's action row stuck to the bottom of its scrolling body, which
+  would also serve Portal's large forms.
 - **D11.** Default the timezone to the system zone, and label "Next runs" with
   the schedule's zone. Default the working directory to the open project when
   there is one. A paused schedule shows "Paused", not a next time.

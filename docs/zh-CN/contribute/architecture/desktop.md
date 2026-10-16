@@ -108,6 +108,17 @@ provider 包裹整个应用，因此 `App` 自身也能翻译其横幅与状态�
 与主题一样保存在 webview 的本地存储中。`catalog.test.js` 会在某个键缺少中文或占位符
 不一致时失败。未包裹 provider 渲染的组件（例如组件测试中）显示英文。
 
+对话框、抽屉、操作按钮和图标都来自 `@buildmax/gui`。每个对话框都是 gui 的 `BaseModal`：
+`components/Modals.jsx` 包含新建 Project、`InfoModal`（大尺寸、可滚动的形式，供斜杠命令的列表、
+History 选择器和定时任务对话框使用）以及用于破坏性确认的 `ConfirmModal`。后台作业抽屉是从末端边缘
+滑入的 gui `Drawer`。它们打开时把焦点移入，Tab 不会离开，Escape 关闭，并把焦点还给打开它的元素；
+在对话框之上打开的确认框会独自响应 Escape。`Overlays.test.jsx` 逐类检查这些行为。页面、对话框和
+横幅中的操作使用 gui 的 `Button` 与 `IconButton`。原生 `<button>` 只保留在专门控件中：tab 条与分段
+切换、树和列表行、状态栏以及面板和 tab 的边框控件、输入框及其模型选择器、上下文菜单与 Launchpad
+弹出层（直到 Desktop 采用 gui 的 `Menu`）、审批选项，以及文件视图的工具栏。图标来自 gui 的图标集；
+tab 条为每种 tab 显示一个线条图标。最大化的窗格在遮罩之上浮于网格前方，但它是工作台的一种布局，
+不是对话框。
+
 ## Space Issues
 
 服务器模式下，侧边栏会多出 **Issues** 入口（`components/IssuesView.jsx`）；本地模式和登录过期时它不存在，
@@ -137,7 +148,7 @@ Issue，显示单个 Issue 的描述、子 Issue 和最近讨论，可以改变�
 ## 修改检查清单
 
 - 将 Wails 绑定保留在 `internal/interface/desktop`；不要在前端或命令包中组装另一套 Agent 运行时。
-- 共享展示保留在 `gui`，Desktop 专属状态保留在 `desktop/frontend`。
+- 共享展示保留在 `gui`，Desktop 专属状态保留在 `desktop/frontend`。对话框、抽屉、操作按钮和图标取自 `gui`；Desktop CSS 可以安排它们的位置和尺寸，但不重新定义其样式。
 - 颜色取自 `gui/src/theme.css` 的 token；Desktop CSS 不包含颜色字面量，也不引用未定义的自定义属性，由 `./make check desktop` 强制执行。`desktop/frontend/src/lib/terminalTheme.js` 中的 xterm 配色是唯一例外。
 - 修改持久化 Desktop 状态时保留 JSON 字段名和 Project 文件格式。
 - Go 桥接变更用 `./make test` 测试；前端变更用 `./make check desktop`；原生打包边界用 `./make build`。

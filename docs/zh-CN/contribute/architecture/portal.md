@@ -53,7 +53,8 @@ Portal 负责云端/Space 使用场景：
   `Skeleton`；集合的加载经由 `CollectionFrame`，在得到响应前不显示数量或分页。效果已
   显示在页面上的短暂成功确认（添加模型、更改 Space 的所有者或等级、授予或撤销管理员、
   修改密码）通过 `useToast()` 以 toast 显示；失败以及需要处理的内容留在页面上、附在
-  对应对象旁。
+  对应对象旁。图标来自 gui 的图标集，与 Desktop 使用同一套；Portal 不再保留自己的 SVG
+  文件。
 - 颜色、阴影、遮罩层和等宽字体栈来自 `gui/src/theme.css` 中的语义 token，该文件为浅色和
   深色主题分别定义每一个 token。Portal CSS 不包含颜色字面量，也不引用任何样式表都未定义的
   自定义属性；两条规则均由 Stylelint 强制执行（见[约定](../conventions.md)）。

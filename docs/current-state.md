@@ -975,7 +975,12 @@ of a narrow editor). Every Portal page uses them: a collection shows no count or
 pagination before it loads, every status reads from the one vocabulary (a
 finished run reads Succeeded in chat as on the Issue), and success confirmations
 for model, Space-owner, tier, administrator, and password changes are toasts.
-Desktop does not use them yet.
+Desktop uses only the field, in its New Project dialog. Desktop's dialogs are
+gui's `BaseModal` and its background-jobs drawer gui's `Drawer`, so each traps
+focus and returns it to what opened it, and a confirmation over a dialog closes
+alone on Escape. Its page, dialog, and banner actions are gui's `Button`, and
+Portal, Desktop, and gui draw one icon set from gui: Desktop's tab strip shows
+line icons where it showed emoji and text glyphs.
 Every pull request compares screenshots of the specimen, one Portal page per
 template, and Desktop's golden-path views, in both themes, with baselines
 rendered on Linux, and runs axe's WCAG A/AA rules, contrast included, on them;

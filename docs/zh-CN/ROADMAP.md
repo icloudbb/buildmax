@@ -259,8 +259,9 @@ Workflow `output_schema`、图执行和 JSON Pointer 绑定已经实现。类型
 回归或对比度护栏、Desktop 几乎没有复用 `@buildmax/gui`，界面也只有英文。
 
 **下一步：** 依据由 Agent 驱动的阶段 0 审计拆分出的 backlog 任务改造 Portal 与
-Desktop，同时 Desktop 迁移到共享浮层。共享基础组件已完成：Portal 的字段、菜单、
-toast、加载、状态与页面结构都由 `@buildmax/gui` 组合而成。核心流程审计在两端
+Desktop。共享基础组件已完成：Portal 的字段、菜单、toast、加载、状态与页面结构都由
+`@buildmax/gui` 组合而成，Desktop 的对话框、抽屉、按钮与图标也取自它，Portal、Desktop
+与 gui 共用一套图标。核心流程审计在两端
 共发现 0 个 Blocker、8 个 Major 问题。2026-10-07 维护者决定打磨现有视觉语言而不是
 替换它，并决定已登录用户落地的无论是哪个页面，都要展示需要他处理的工作。Portal 现已
 做到：它落地到 Issues，页面开头即是该 Space 中等待此人处理的工作；Desktop 的 Home

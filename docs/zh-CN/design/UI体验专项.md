@@ -125,7 +125,7 @@ Major 问题没有一个来自颜色、字体或布局风格。它们来自结�
 的原始状态词、默认蓝色链接、线条图标中混入的 emoji 图标、落在折叠线以下的对话框底栏，
 以及只靠颜色区分的 diff 标记。共享基础组件（已交付：字段、菜单、toast、加载、唯一状态
 词汇与页面结构）、Desktop 收敛
-（[任务 20](../../backlog/20-desktop-gui-convergence.md)），以及阶段 1 的截图、对比度
+（已交付：gui 的对话框、抽屉、按钮与唯一图标集），以及阶段 1 的截图、对比度
 与 jsx-a11y 护栏会处理它们。因此阶段 3 与阶段 4 在现有风格之内改变信息、文案与行为。
 
 ### D2. 由 Agent 驱动验证，并如实记录
@@ -181,7 +181,10 @@ vitest 一次性证明共享组件的行为。
 只有当两端都会用到某个基础组件，或者 Portal 在不止一种模板中用到它时，它才进入
 gui；否则留在本地。
 
-Desktop 改用 gui 的 `Button`、`BaseModal`、`Drawer` 与图标，并删除自己的浮层 CSS。
+Desktop 改用 gui 的 `Button`、`BaseModal`、`Drawer` 与图标，并删除自己的浮层 CSS。*已交付：*
+Desktop 的每个对话框和抽屉都来自 gui，因此都会困住焦点并在关闭后把焦点还给触发它的元素；页面、
+对话框和横幅中的操作使用 gui 的 `Button`；Portal、Desktop 与 gui 使用来自 gui 的同一套图标。
+原生按钮只保留在 tab 条、树形行和状态栏等专门控件中。Desktop 在阶段 4 采用菜单、字段和 toast。
 这只涉及展示层。Desktop 的数据层仍然使用 Wails 绑定；共享数据接口仍是
 [客户端界面收敛提案](../proposals/client-surface-convergence.md)中的开放问题。
 
@@ -255,7 +258,7 @@ Portal 的默认 Space 目的地。[任务 58](../../backlog/58-desktop-needs-me
 | 阶段 | 结果 | 可执行工作 |
 |---|---|---|
 | 0. 审计 | Portal 与 Desktop 核心流程的分级问题报告，并附视觉语言建议（2026-10-06 完成） | [Portal](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/zh-CN/contribute/exploratory-runs/2026-10-06-portal-ui-journey-audit.md) 与 [Desktop](https://github.com/icloudbb/buildmax/blob/718a6ab3969d35bdba7f66013d8ccfefe7549af8/docs/zh-CN/contribute/exploratory-runs/2026-10-06-desktop-ui-journey-audit.md) 报告，保存在提交 `718a6ab3` 的历史中；每个问题都由阶段 3–4 的某个任务承接 |
-| 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏（已交付）；共享基础组件，所有 Portal 页面均已使用（已交付；没有 Portal 界面需要弹出层，因此未添加）；i18n 基础设施；Desktop 改用 gui 基础组件 | backlog [20](../../backlog/20-desktop-gui-convergence.md) |
+| 1. 基础 | 有 lint 强制的完整 token；视觉回归与对比度护栏（已交付）；共享基础组件，所有 Portal 页面均已使用（已交付；没有 Portal 界面需要弹出层，因此未添加）；i18n 基础设施；Desktop 改用 gui 的对话框、抽屉、按钮与图标，Portal、Desktop 与 gui 共用一套图标（已交付） | 均已交付 |
 | 2. 视觉语言决定 | 2026-10-07 已决定：打磨当前的中性风格（[D1](#d1-先审计再重新设计)），落地页展示需要本人处理的工作（[D6](#d6-落地页展示需要本人处理的工作)）。本记录与页面体系记录已更新 | 决定，不是任务 |
 | 3. Portal 改造 | 先解决 Blocker 与 Major 问题，与 Desktop 交替进行（任务 22–36），再处理其余问题 | needs-me 落地页（已上线）、backlog [40](../../backlog/40-portal-shell-navigation.md)、[42](../../backlog/42-portal-work-naming.md)、[44](../../backlog/44-portal-administration-labels.md)、[46](../../backlog/46-portal-workflow-authoring.md)、[48](../../backlog/48-portal-schedule-form.md)、[50](../../backlog/50-portal-files-and-artifacts.md) |
 | 4. Desktop 改造 | Desktop 同样处理；问题涉及 `App.jsx` 的地方顺带拆分 | backlog [52](../../backlog/52-desktop-narrow-window-and-first-launch.md)、[54](../../backlog/54-desktop-diff-and-terminal-tabs.md)、[56](../../backlog/56-desktop-schedule-form.md)、[58](../../backlog/58-desktop-needs-me-home.md) |
