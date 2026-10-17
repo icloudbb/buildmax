@@ -80,7 +80,8 @@ const views: View[] = [
     name: "diagnostics",
     path: `${space}/tasks/tsk_notes`,
     ready: async (page) => {
-      await expect(page.getByRole("heading", { level: 1, name: "Draft the 0.3 release note" })).toBeVisible()
+      // Named by the Issue it serves; its own generated title is secondary.
+      await expect(page.getByRole("heading", { level: 1, name: "Write the 0.3 release notes" })).toBeVisible()
       // The failure in the person's terms; the server's text is under its disclosure.
       await expect(page.getByText("The model failed this run")).toBeVisible()
     },

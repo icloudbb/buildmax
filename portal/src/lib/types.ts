@@ -24,6 +24,8 @@ export interface Task {
   errorMessage?: string
   failureClass?: import("./api/types").ApiFailureClass
   failureCause?: import("./api/types").ApiFailureCause
+  /** What the task serves, named; see taskLabel. */
+  origin?: import("./api/types").ApiTaskOrigin
 }
 
 /** Tier 1 conversation (user-facing dialogue). */

@@ -427,9 +427,21 @@ export interface ApiTask {
   /** Why the latest run failed, and what to fix when the server knew. */
   failure_class?: ApiFailureClass
   failure_cause?: ApiFailureCause | null
-  /** Set only when the task has neither issue_id nor conversation_id: the
-   *  workflow run that dispatched it. */
-  workflow_run_id?: string | null
+  /** What the task serves, named; absent for a direct Agent run. */
+  origin?: ApiTaskOrigin | null
+}
+
+/**
+ * What a task serves, as the server read it with the task. A Workflow step
+ * outranks the Issue its task may carry; `id` is then the Workflow run.
+ */
+export interface ApiTaskOrigin {
+  kind: "workflow" | "issue" | "conversation" | "schedule"
+  id: string
+  /** The Workflow name, Issue title, Conversation title, or Schedule name. */
+  name?: string
+  /** A Workflow step's 1-based position in its run. */
+  step?: number
 }
 
 /** Why a FAILED run failed, by whose problem it was. */

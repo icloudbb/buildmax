@@ -8,6 +8,9 @@ interface CopyButtonProps {
   value: string
   /** Button label before copying. Defaults to "Copy". */
   label?: string
+  /** What the button copies, for a page with several: "Copy Task ID". It
+   *  names the button until a copy reports its outcome. */
+  accessibleLabel?: string
 }
 
 /**
@@ -15,7 +18,7 @@ interface CopyButtonProps {
  * "Copy failed" when even the fallback could not — so a click always tells the
  * user what happened instead of appearing to do nothing.
  */
-export function CopyButton({ value, label }: CopyButtonProps) {
+export function CopyButton({ value, label, accessibleLabel }: CopyButtonProps) {
   const t = useT()
   const [state, setState] = useState<"idle" | "ok" | "fail">("idle")
 
@@ -29,6 +32,7 @@ export function CopyButton({ value, label }: CopyButtonProps) {
     <Button
       variant="secondary"
       size="compact"
+      aria-label={state === "idle" ? accessibleLabel : undefined}
       onClick={() => {
         void copyText(value).then((ok) => setState(ok ? "ok" : "fail"))
       }}

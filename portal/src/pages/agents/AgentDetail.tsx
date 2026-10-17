@@ -18,7 +18,7 @@ import {
   successRate as rateOf,
   type AgentDefinitionInput,
 } from "../../features/agents"
-import { createAgentTask, listAgentTasks } from "../../features/tasks"
+import { createAgentTask, listAgentTasks, taskLabel } from "../../features/tasks"
 import { SchedulesSection } from "../../features/schedules/SchedulesSection"
 import { listSecrets } from "../../features/spaceSecrets/api"
 import { listActivations } from "../../features/spacePlugins/api"
@@ -272,12 +272,16 @@ export function AgentDetail({ token, spaceId, agentId }: AgentDetailProps) {
         <tbody>
           {rows.map((task) => {
             const ui = apiTaskToTask(task)
+            const label = taskLabel(ui, t)
             return (
               <tr key={task.id} onClick={() => navigate({ name: "task", spaceId, taskId: task.id })} tabIndex={0}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") navigate({ name: "task", spaceId, taskId: task.id })
                 }}>
-                <td className="agent-runs__title">{ui.title}</td>
+                <td className="agent-runs__title">
+                  {label.primary}
+                  {label.secondary ? <span className="agent-runs__sub">{label.secondary}</span> : null}
+                </td>
                 <td>
                   <StatusLabel status={taskStatus(task)} />
                 </td>

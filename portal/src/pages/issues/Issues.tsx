@@ -20,6 +20,7 @@ import { classifyError, deriveResourceState, type RequestError } from "../../sta
 import { useSpace } from "../../contexts/SpaceContext"
 import type { ApiSpaceMember } from "../../lib/api/types"
 import type { Workflow } from "../../lib/types"
+import { markdownToPlainText } from "../../lib/markdownText"
 
 const PAGE_SIZE = 10
 
@@ -368,7 +369,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
                     <span className="issues-page__row-main">
                       <span className="issues-page__row-title">{issue.title}</span>
                       <span className="issues-page__row-desc">
-                        {issue.description?.trim() || t("issues.noDescription")}
+                        {markdownToPlainText(issue.description ?? "") || t("issues.noDescription")}
                       </span>
                     </span>
                     <span className="issues-page__row-side">

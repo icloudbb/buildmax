@@ -107,6 +107,7 @@ const task = {
   error_message: null,
   agent_id: agent.id,
   issue_id: "iss_1",
+  origin: { kind: "issue", id: "iss_1", name: "Write the 0.3 release notes" },
   last_run_id: "trn_notes_2",
 }
 
@@ -237,6 +238,7 @@ export const fixtures: Fixtures = {
           title: "Rotate the staging object-storage key",
           status: "FAILED",
           issue_id: "iss_2",
+          origin: { kind: "issue", id: "iss_2", name: "Rotate the staging object-storage key" },
           output: null,
           error_message: "model provider returned 503",
           failure_class: "model",
@@ -246,7 +248,8 @@ export const fixtures: Fixtures = {
       total: 3,
     },
     awaiting_answer_tasks: {
-      items: [{ ...task, id: "tsk_ask", title: "Summarize the sandbox tiers", status: "SUCCEEDED", awaiting_answer: true }],
+      // A direct Agent run: no origin, so its own title names it.
+      items: [{ ...task, id: "tsk_ask", title: "Summarize the sandbox tiers", status: "SUCCEEDED", awaiting_answer: true, issue_id: null, origin: null }],
       total: 1,
     },
     workflow_requests: {

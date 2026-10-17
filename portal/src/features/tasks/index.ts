@@ -13,3 +13,5 @@ export {
 export type {
   GetTasksPaginatedOptions,
 } from "./api"
+export { originKindLabel, originLabel, originName, originRoute, taskLabel } from "./label"
+export type { TaskLabel } from "./label"
