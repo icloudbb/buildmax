@@ -47,9 +47,7 @@ test("the node inspector has an editable step id and no free-form Type field, an
   await submit.click()
 
   await expect(dialog).toBeHidden()
-  // Creating a workflow navigates to its detail page (Workflows.tsx handleCreate),
-  // where the name appears in both the breadcrumb and the narrow compact header;
-  // assert the landing route rather than a name that now resolves to two elements.
+  // Creating a workflow navigates to its detail page (Workflows.tsx handleCreate).
   await expect(page).toHaveURL(new RegExp(`#/spaces/${current.spaceId}/workflows/[^/]+$`))
 })
 

@@ -8,6 +8,7 @@ import {
 } from "react"
 import type { PortalSessionResponse, LoginUser } from "../lib/api"
 import { TOKEN_REFRESHED_EVENT, UNAUTHORIZED_EVENT } from "../lib/api"
+import type { TokenRefreshedDetail } from "../lib/api/client"
 import { restoreSession, revokeSession } from "../features/auth/api"
 import { clearAccessToken, expiresAtFrom, setAccessToken } from "../lib/api/session"
 import { clearStoredCurrentSpaceId } from "../lib/storage/currentSpaceStorage"
@@ -18,6 +19,11 @@ type AuthStatus = "loading" | "ready"
 interface AuthState {
   token: string | null
   user: LoginUser | null
+  /**
+   * The account's deployment authority, as its session last reported it.
+   * Presentation only: the admin routes check the grant themselves.
+   */
+  systemRoles: string[]
   status: AuthStatus
 }
 
@@ -26,18 +32,24 @@ interface AuthContextValue extends AuthState {
   logout: () => void
 }
 
+const SIGNED_OUT: AuthState = { token: null, user: null, systemRoles: [], status: "ready" }
+
+function signedIn(res: PortalSessionResponse): AuthState {
+  return { token: res.access_token, user: res.user, systemRoles: res.system_roles ?? [], status: "ready" }
+}
+
+function sameRoles(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((role, i) => role === b[i])
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    token: null,
-    user: null,
-    status: "loading",
-  })
+  const [state, setState] = useState<AuthState>({ ...SIGNED_OUT, status: "loading" })
 
   const login = useCallback((res: PortalSessionResponse) => {
     setAccessToken(res.access_token, expiresAtFrom(res.expires_in))
-    setState({ token: res.access_token, user: res.user, status: "ready" })
+    setState(signedIn(res))
   }, [])
 
   const logout = useCallback(() => {
@@ -48,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void revokeSession()
     clearAccessToken()
     clearStoredCurrentSpaceId()
-    setState({ token: null, user: null, status: "ready" })
+    setState(SIGNED_OUT)
   }, [])
 
   useEffect(() => {
@@ -61,9 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       if (res) {
         setAccessToken(res.access_token, expiresAtFrom(res.expires_in))
-        setState({ token: res.access_token, user: res.user, status: "ready" })
+        setState(signedIn(res))
       } else {
-        setState({ token: null, user: null, status: "ready" })
+        setState(SIGNED_OUT)
       }
     })()
     return () => {
@@ -83,11 +95,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // A refresh can happen inside any request. Without this the context would
     // keep handing out the replaced token, and every consumer that reconnects
     // on a token change — the WebSocket above all — would keep using the old
-    // one until the next reload.
+    // one until the next reload. The exchange also reports the account's
+    // current system roles, which is how a grant or revocation reaches the
+    // shell without a reload.
     function onRefreshed(event: Event) {
-      const accessToken = (event as CustomEvent<{ accessToken?: string }>).detail?.accessToken
+      const detail = (event as CustomEvent<Partial<TokenRefreshedDetail>>).detail
+      const accessToken = detail?.accessToken
       if (!accessToken) return
-      setState((prev) => (prev.token === accessToken ? prev : { ...prev, token: accessToken }))
+      const systemRoles = detail.systemRoles ?? []
+      setState((prev) =>
+        prev.token === accessToken && sameRoles(prev.systemRoles, systemRoles)
+          ? prev
+          : { ...prev, token: accessToken, systemRoles }
+      )
     }
     window.addEventListener(TOKEN_REFRESHED_EVENT, onRefreshed)
     return () => window.removeEventListener(TOKEN_REFRESHED_EVENT, onRefreshed)

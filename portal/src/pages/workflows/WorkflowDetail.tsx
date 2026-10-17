@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   BaseModal,
   Button,
-  ButtonLink,
   DetailHeader,
   EditorActions,
   Field,
@@ -13,7 +12,7 @@ import {
   useStatusLabel,
 } from "@buildmax/gui"
 import type { Agent, Workflow, WorkflowRevision, WorkflowRun } from "../../lib/types"
-import { buildHash, navigate } from "../../router"
+import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
@@ -359,9 +358,6 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
         meta={workflow?.description || t("workflows.detail.subtitle")}
         actions={
           <>
-            <ButtonLink variant="tertiary" href={buildHash({ name: "workflows", spaceId })}>
-              {t("workflows.backToList")}
-            </ButtonLink>
             <Button variant="tertiary" disabled={loading} onClick={() => void load()}>
               {t("workflows.refresh")}
             </Button>

@@ -12,7 +12,7 @@ test("an administrator can open the deployment overview by URL", async ({ page }
   await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible()
   await expect(page.getByLabel("Sidebar").getByLabel("Current scope")).toHaveText("Deployment")
   await expect(page.getByLabel("Sidebar").getByRole("combobox")).toHaveCount(0)
-  await expect(page.getByLabel("Sidebar").getByRole("button", { name: "Back to space" })).toBeVisible()
+  await expect(page.getByLabel("Sidebar").getByRole("link", { name: "Back to space" })).toBeVisible()
   await expect(page.getByRole("heading", { name: "Health" })).toBeVisible()
 
   // The status is answered rather than falling into the error branch. Whether
@@ -65,14 +65,14 @@ test("each administration section is linkable and survives a reload", async ({ p
 
 test("an administrator reaches administration from the first-level sidebar", async ({ page }) => {
   await page.goto("/")
-  await page.getByRole("button", { name: "Administration" }).click()
+  await page.getByRole("link", { name: "Administration" }).click()
   await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible()
 
   // On the Deployment scope the sidebar lists the Administration sections
   // themselves, and choosing one moves between them without leaving the scope
   // or reintroducing a Space switcher.
   const sidebar = page.getByLabel("Sidebar")
-  await sidebar.getByRole("button", { name: "Accounts" }).click()
+  await sidebar.getByRole("link", { name: "Accounts" }).click()
   await expect(page).toHaveURL(/#\/admin\/accounts$/)
   await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible()
   await expect(sidebar.getByLabel("Current scope")).toHaveText("Deployment")

@@ -133,6 +133,38 @@ describe("token refresh", () => {
     expect(events.seen).toContain(UNAUTHORIZED_EVENT)
   })
 
+  it("ends the session when there is no cookie left to exchange", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("", { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const res = await apiFetch("https://api.test/api/spaces", {
+      headers: { Authorization: "Bearer access-1" },
+    })
+
+    expect(res.status).toBe(401)
+    expect(currentAccessToken()).toBeNull()
+    expect(events.seen).toContain(UNAUTHORIZED_EVENT)
+    expect(events.seen).not.toContain(TOKEN_REFRESHED_EVENT)
+  })
+
+  it("hands the account's system roles to the shell with the new token", async () => {
+    const details: unknown[] = []
+    events.target.addEventListener(TOKEN_REFRESHED_EVENT, (e) => details.push((e as CustomEvent).detail))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        jsonResponse(200, { access_token: "access-2", expires_in: 900, system_roles: ["system_admin"] })
+      )
+    )
+
+    await refreshAccessToken()
+
+    expect(details).toEqual([{ accessToken: "access-2", systemRoles: ["system_admin"] }])
+  })
+
   // Being offline is not the same as being signed out. On a deployment where
   // signing back in means asking an operator for a login code, discarding a
   // usable session because the network blipped is an expensive mistake.

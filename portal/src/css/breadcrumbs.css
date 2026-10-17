@@ -16,6 +16,7 @@
   background: none;
   font: inherit;
   color: var(--color-link);
+  text-decoration: none;
   cursor: pointer;
   padding: 0;
 }

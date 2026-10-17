@@ -1,4 +1,4 @@
-import { PageHeader, Spinner } from "@buildmax/gui"
+import { PageHeader } from "@buildmax/gui"
 import {
   AdminAccounts,
   AdminAdministrators,
@@ -39,16 +39,9 @@ export function AdminSettings({
 }) {
   const t = useT()
   const { token, user } = useAuth()
-  const { isAdmin, loading } = useAdminAccess()
+  const isAdmin = useAdminAccess()
   const { currentSpaceId } = useSpace()
 
-  if (loading) {
-    return (
-      <div className="settings-page">
-        <Spinner label={t("admin.checkingAccess")} />
-      </div>
-    )
-  }
   if (!isAdmin) {
     if (currentSpaceId) navigate({ name: "issues", spaceId: currentSpaceId })
     return null

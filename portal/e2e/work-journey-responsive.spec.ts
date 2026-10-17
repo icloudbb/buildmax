@@ -60,7 +60,7 @@ test("Issues and Issue Detail reflow to one column with reachable actions", asyn
   await expectNoHorizontalOverflow(page)
 
   await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
-  await expect(page.getByRole("link", { name: "Back to Issues" })).toBeVisible()
+  await expect(page.getByLabel("Breadcrumb").getByRole("link", { name: "Issues" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Edit issue" })).toBeVisible()
   await page.getByRole("button", { name: "Edit issue" }).click()
   await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible()

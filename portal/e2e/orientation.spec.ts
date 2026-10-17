@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { getJSON, session, type Session } from "./fixtures"
+import { getJSON, postJSON, reportLeftovers, session, tagged, type Session } from "./fixtures"
 
 /**
  * docs/design/portal-navigation-and-space-context.md's Slice 5 (orientation
@@ -54,7 +54,7 @@ test("browser back and forward restore the route and the title", async ({ page }
   await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible()
 })
 
-test("the narrow compact header shows the Space name and the page label together", async ({ page }) => {
+test("the narrow compact header names the Space and leaves the page's name to its heading", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   const current = await session(page)
   const space = await currentSpace(page, current)
@@ -62,5 +62,36 @@ test("the narrow compact header shows the Space name and the page label together
   await page.goto(`/#/spaces/${current.spaceId}/issues`)
   const header = page.locator(".shell__compact-header")
   await expect(header.locator(".shell__compact-space")).toHaveText(space.name)
-  await expect(header.locator(".shell__compact-page")).toHaveText("Issues")
+  await expect(page.getByRole("heading", { name: "Issues", level: 1 })).toBeVisible()
+  await expect(page.getByText("Issues", { exact: true }).filter({ visible: true })).toHaveCount(1)
+})
+
+// docs/design/portal-frontend-page-system.md: the shell states scope once and
+// the page owns one real H1. The breadcrumb is the way back to the parent, so a
+// detail page carries no second back link beside it.
+test("Chat and Issue Detail state their title once at every width", async ({ page }) => {
+  const current = await session(page)
+  const title = tagged("Title stated once probe")
+  const issue = await postJSON<{ id: string }>(page, `${current.space}/issues`, current, {
+    title,
+    description: "Created by the Portal browser tests to check page headings.",
+  })
+  reportLeftovers(current.spaceId, [`issue ${issue.id}`])
+  // The sidebar names destinations, not the page; everything else that could
+  // repeat the title is the compact header or the main column.
+  const orientation = page.locator(".shell__compact-header, .shell__main")
+
+  for (const width of [390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 })
+
+    await page.goto(`/#/spaces/${current.spaceId}/chat`)
+    await expect(page.getByRole("heading", { name: "Chat", level: 1 })).toBeVisible()
+    await expect(orientation.getByText("Chat", { exact: true }).filter({ visible: true }), `Chat at ${width}px`).toHaveCount(1)
+
+    await page.goto(`/#/spaces/${current.spaceId}/issues/${issue.id}`)
+    await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible()
+    await expect(orientation.getByText(title, { exact: true }).filter({ visible: true }), `Issue at ${width}px`).toHaveCount(1)
+    await expect(page.getByLabel("Breadcrumb").getByRole("link", { name: "Issues" })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Back to Issues" })).toHaveCount(0)
+  }
 })

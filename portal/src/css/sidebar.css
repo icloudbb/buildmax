@@ -385,6 +385,7 @@
   font: inherit;
   font-size: 0.9rem;
   color: var(--color-text);
+  text-decoration: none;
   cursor: pointer;
   border-radius: 6px;
   border-left: 3px solid transparent;

@@ -89,12 +89,11 @@ test("switching Space from Issue, Agent, Workflow, Workflow Run, and Task detail
   await expect(page).toHaveURL(new RegExp(`#/spaces/${second.id}/workflows$`))
   await expect(page.getByRole("heading", { name: "Workflows", exact: true })).toBeVisible()
 
-  // Task detail has no collection page of its own -- it lands on Chat. The
-  // composer has no page heading, so the breadcrumb is the marker.
+  // Task detail has no collection page of its own -- it lands on Chat.
   await page.goto(`/#/spaces/${current.spaceId}/tasks/${task.id}`)
   await switchSpace(page, second.id)
   await expect(page).toHaveURL(new RegExp(`#/spaces/${second.id}/chat$`))
-  await expect(page.getByLabel("Breadcrumb").getByText("Chat", { exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Chat", exact: true, level: 1 })).toBeVisible()
 })
 
 test("switching Space from a global route changes nothing", async ({ page }) => {

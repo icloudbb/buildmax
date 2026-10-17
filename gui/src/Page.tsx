@@ -39,7 +39,7 @@ export interface DetailHeaderProps {
   status?: ReactNode
   /** Who owns or executes it, and when; one line. */
   meta?: ReactNode
-  /** The way back to the parent collection, and the object's next action. */
+  /** The object's next action. The way back to its parent is the shell's breadcrumb, not a header action. */
   actions?: ReactNode
   className?: string
 }

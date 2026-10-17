@@ -88,7 +88,7 @@ buildmax admin quota-tier set <space_id> pro   # 在下一次配额检查时生�
 
 每次登录都会开启自己的 Session，并带有一个绝对寿命（`session_absolute_ttl`，默认 90 天）：越过该上限后，无论其刷新令牌轮换多频繁，该 Session 都会失效，用户需要重新登录。在笔记本上登录不会影响手机上的 Session，退出其中一个也不影响另一个。
 
-**刷新令牌存放在哪里取决于客户端。** 原生 CLI 与 Desktop 客户端把它保存在操作系统凭证库中，并使用上文的 JSON 路由。Portal 则从不以脚本可读的形式拿到它：它通过 `POST /api/auth/portal/login` 登录，该接口只返回访问令牌，并把刷新令牌设置为一个 Secure、HttpOnly、`SameSite=Strict`、作用域限定在 `/api/auth/portal` 的 cookie。Portal 在 `POST /api/auth/portal/session`（页面加载、刷新以及遇到 401 时）用该 cookie 换取新的访问令牌，并在 `POST /api/auth/portal/logout` 清除它。这些路由要求同源 `Origin` 且不设置任何宽松的 CORS，因此 Portal 与 API 必须同源——生产环境用反向代理，本地用开发服务器的 `/api` 代理。
+**刷新令牌存放在哪里取决于客户端。** 原生 CLI 与 Desktop 客户端把它保存在操作系统凭证库中，并使用上文的 JSON 路由。Portal 则从不以脚本可读的形式拿到它：它通过 `POST /api/auth/portal/login` 登录，该接口只返回访问令牌，并把刷新令牌设置为一个 Secure、HttpOnly、`SameSite=Strict`、作用域限定在 `/api/auth/portal` 的 cookie。Portal 在 `POST /api/auth/portal/session`（页面加载、刷新以及遇到 401 时）用该 cookie 换取新的访问令牌，并在 `POST /api/auth/portal/logout` 清除它。没有 cookie 的浏览器在该接口得到 204，因为它没有可恢复的会话；cookie 指向的会话已结束时得到 401，cookie 随之被清除。这两个 Portal 路由还会返回账户的 `system_roles`，Portal 据此决定是否显示 Administration；管理路由仍在每个请求上检查授权。这些路由要求同源 `Origin` 且不设置任何宽松的 CORS，因此 Portal 与 API 必须同源——生产环境用反向代理，本地用开发服务器的 `/api` 代理。
 
 ### 重用会结束会话
 

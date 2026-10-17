@@ -702,7 +702,11 @@ residue, and this design makes it more urgent rather than answering it.
 ## 10. Portal Administration Surface
 
 Administration is separate from Space settings and appears as a first-level
-sidebar destination only after `GET /api/admin/me` confirms a grant. Entering it
+sidebar destination only when the Portal session carries the grant: the session
+routes return the account's `system_roles` at sign-in, on load, and on every
+refresh. Portal used to ask `GET /api/admin/me`, whose expected 403 for almost
+every account was logged as an error on each page load; that route now serves
+only an administrator's own view of their grant. Entering it
 puts the sidebar on the deployment scope: the Space switcher is replaced by a
 static "Deployment" label, and the sidebar lists the Administration sections
 themselves (from the shared `ADMIN_NAV` in `portal/src/features/admin/nav.ts`)

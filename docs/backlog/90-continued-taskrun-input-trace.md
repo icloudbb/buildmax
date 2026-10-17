@@ -43,7 +43,7 @@ it before changing code.
 
 The other three findings from the same exploratory run: the kind worker-route
 probe false negative and the Desktop tool-card wrapping are fixed separately;
-the `/api/admin/me` 403 on ordinary sign-in was triaged as by-design.
+the `/api/admin/me` 403 on ordinary sign-in was triaged as by-design then, and Portal no longer asks that route.
 
 ## Acceptance Criteria
 

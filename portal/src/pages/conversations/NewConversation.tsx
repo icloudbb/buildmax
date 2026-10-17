@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from "react"
-import { ButtonLink, ChatComposer, Spinner } from "@buildmax/gui"
+import { ButtonLink, ChatComposer, PageHeader, Spinner } from "@buildmax/gui"
 import { buildHash, navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { cn } from "../../lib/cn"
@@ -88,8 +88,7 @@ export function NewConversation({
 
   return (
     <div className="page-new-chat">
-      <h1 className="page-new-chat__title">{t("chat.new.title")}</h1>
-      <p className="page-new-chat__subtitle">{t("chat.new.subtitle")}</p>
+      <PageHeader title={t("chat.new.title")} subtitle={t("chat.new.subtitle")} />
       <section className="page-chat__input">
         <ChatComposer
           value={prompt}

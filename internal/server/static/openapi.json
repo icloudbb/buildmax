@@ -436,6 +436,29 @@
           }
         }
       },
+      "PortalSession": {
+        "type": "object",
+        "description": "What the Portal session routes return: the short-lived access token, who it belongs to, and their deployment authority. Never a refresh token, which rides in the cookie.",
+        "properties": {
+          "access_token": {"type": "string"},
+          "expires_in": {"type": "integer", "description": "Access token lifetime in seconds"},
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "email": {"type": "string"},
+              "name": {"type": "string"}
+            },
+            "required": ["id", "email", "name"]
+          },
+          "system_roles": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "The account's active system roles, empty for most accounts. The Portal shows Administration from it; every `/api/admin` route still checks the grant."
+          }
+        },
+        "required": ["access_token", "expires_in", "user", "system_roles"]
+      },
       "Space": {
         "type": "object",
         "properties": {
@@ -2101,9 +2124,12 @@
       "post": {
         "tags": ["auth"],
         "summary": "Portal login (cookie-delivered refresh)",
-        "description": "Same credential check as `/api/auth/login`, but the renewable credential is set as a Secure, HttpOnly, SameSite=Strict cookie scoped to `/api/auth/portal` instead of returned in the body. The response carries only the short-lived access token and the user. Requires a same-origin `Origin`.",
+        "description": "Same credential check as `/api/auth/login`, but the renewable credential is set as a Secure, HttpOnly, SameSite=Strict cookie scoped to `/api/auth/portal` instead of returned in the body. The response carries only the short-lived access token, the user, and the user's system roles. Requires a same-origin `Origin`.",
         "responses": {
-          "200": { "description": "OK; refresh cookie set" },
+          "200": {
+            "description": "OK; refresh cookie set",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalSession" } } }
+          },
           "400": { "description": "Body invalid" },
           "401": { "description": "Invalid credential" },
           "403": { "description": "Account disabled, or cross-origin request" }
@@ -2114,10 +2140,14 @@
       "post": {
         "tags": ["auth"],
         "summary": "Exchange the Portal refresh cookie for an access token",
-        "description": "Reads the refresh cookie, rotates it, and returns a fresh access token and the user. The Portal calls it on load, on reload, and on a 401. A missing or dead cookie is a 401 and the cookie is cleared. Requires a same-origin `Origin`.",
+        "description": "Reads the refresh cookie, rotates it, and returns a fresh access token, the user, and the user's system roles. The Portal calls it on load, on reload, and on a 401. No cookie is a 204: the browser has no session to restore, which is an answer rather than a refusal. A dead cookie is a 401 and the cookie is cleared. Requires a same-origin `Origin`.",
         "responses": {
-          "200": { "description": "OK; refresh cookie rotated" },
-          "401": { "description": "No cookie, or the session is no longer active" },
+          "200": {
+            "description": "OK; refresh cookie rotated",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalSession" } } }
+          },
+          "204": { "description": "No refresh cookie was sent: there is no session to restore" },
+          "401": { "description": "The cookie names a session that is no longer active; the cookie is cleared" },
           "403": { "description": "Cross-origin request" }
         }
       }

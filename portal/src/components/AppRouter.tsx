@@ -63,6 +63,7 @@ export function AppRouter({
         <ConversationDetail
           spaceId={route.spaceId}
           conversationId={route.conversationId}
+          conversation={conversations.find((c) => c.id === route.conversationId)}
           onRefetch={onRefetchConversations}
           initialMessage={initialMessage}
         />

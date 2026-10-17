@@ -67,9 +67,15 @@ client. If less than an hour of your Portal session is left, the page offers
 - **Administration** — deployment-wide settings. This appears only if you hold a
   system-administrator grant.
 
-**Top bar** — on the right you'll find a **Help** icon (this manual), a
-**Marketplace** icon (plugins this deployment publishes), and a light/dark theme
-toggle.
+Each sidebar entry is an ordinary link, so you can open it in a new tab or copy
+its address.
+
+**Top bar** — on the left, the way back to the page's parents, such as
+**Issues** above an issue. The page's own name is its heading. On the right
+you'll find a **Help** icon (this manual), a **Marketplace** icon (plugins this
+deployment publishes), and a light/dark theme toggle. The Portal starts in your
+system's light or dark setting; once you use the toggle, this browser remembers
+your choice.
 
 **User menu** — the button at the bottom of the sidebar opens **Account**,
 **Remote Control**, **Help**, the interface **Language** (English or 简体中文),

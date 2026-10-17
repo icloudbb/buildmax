@@ -163,7 +163,11 @@ Portal never receives it as script-readable data: it signs in through
 refresh token as a Secure, HttpOnly, `SameSite=Strict` cookie scoped to
 `/api/auth/portal`. The Portal exchanges that cookie for a fresh access token at
 `POST /api/auth/portal/session` (on load, on reload, and after a 401) and clears
-it at `POST /api/auth/portal/logout`. These routes require a same-origin `Origin`
+it at `POST /api/auth/portal/logout`. A browser with no cookie gets 204 there,
+because it has no session to restore; a cookie for a session that has ended gets
+401 and is cleared. Both Portal routes also return the account's
+`system_roles`, which is how the Portal decides whether to show Administration;
+the admin routes still check the grant on every request. These routes require a same-origin `Origin`
 and set no permissive CORS, so the Portal and API must share one origin — a
 reverse proxy in production, and the dev server's `/api` proxy locally.
 

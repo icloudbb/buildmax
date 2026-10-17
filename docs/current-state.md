@@ -981,6 +981,14 @@ focus and returns it to what opened it, and a confirmation over a dialog closes
 alone on Escape. Its page, dialog, and banner actions are gui's `Button`, and
 Portal, Desktop, and gui draw one icon set from gui: Desktop's tab strip shows
 line icons where it showed emoji and text glyphs.
+Portal's shell states scope once: sidebar destinations are links to their
+routes, the current one marked `aria-current="page"`; the breadcrumb lists only
+a page's parents, the page names itself once in its H1, detail pages carry no
+second "Back to" link, and the narrow header shows only the Space. Portal
+learns whether to show Administration from the `system_roles` its session
+routes return, and a signed-out session check answers 204, so an ordinary page
+load, signed in or out, logs no expected 401 or 403. Portal and Desktop start
+in the operating system's light or dark theme until the person picks one.
 Every pull request compares screenshots of the specimen, one Portal page per
 template, and Desktop's golden-path views, in both themes, with baselines
 rendered on Linux, and runs axe's WCAG A/AA rules, contrast included, on them;

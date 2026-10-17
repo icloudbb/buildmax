@@ -42,18 +42,8 @@
   height: 1.35rem;
 }
 
-.shell__compact-title {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
 .shell__compact-space {
-  font-size: 0.75rem;
-  color: var(--color-text-subtle);
-}
-
-.shell__compact-page {
+  min-width: 0;
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--color-text);
@@ -95,6 +85,8 @@
   align-items: center;
   gap: 0.25rem;
   flex-shrink: 0;
+  /* Stays at the end when a page has no parent trail to show. */
+  margin-left: auto;
 }
 
 .theme-toggle {

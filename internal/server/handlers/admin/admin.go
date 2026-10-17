@@ -7,12 +7,12 @@ import (
 	"github.com/icloudbb/buildmax/internal/server/httputil"
 )
 
-// AdminMeResponse describes the caller's deployment-scoped authority.
+// AdminMeResponse describes the caller's deployment-scoped authority, for an
+// administrator's own view of it inside the administration area.
 //
-// It is what Portal asks before deciding whether an administration area exists
-// for this person. A 403 is the expected answer for almost everyone and is not
-// an error — hiding the navigation is presentation, and this route is the
-// server's half of the same question.
+// Whether that area exists for a person is not asked here: Portal reads it from
+// the system roles its session carries, so the many accounts without a grant
+// never meet this route's 403.
 type AdminMeResponse struct {
 	UserID string   `json:"user_id"`
 	Roles  []string `json:"roles"`
