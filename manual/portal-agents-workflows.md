@@ -107,6 +107,11 @@ the run's detail view, where each step shows its own status as it executes. You 
 also assign the workflow to an issue so it runs as that issue's work — see
 [Conversations & issues](portal-issues.md).
 
+Steps are numbered in run order. A step's Task is named after the workflow and
+that number, such as **Release review · Step 2**, on its Task page and in the
+agent's run list. Each step also shows its id, and its Task and run IDs, with a
+**Copy** button.
+
 The run's **Result** shows the workflow's declared `result` once the run
 succeeds. A workflow that declares no result says so and points to its steps:
 each step shows what it produced under **Output**, above the collapsed input

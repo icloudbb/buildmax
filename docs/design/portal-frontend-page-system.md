@@ -180,7 +180,11 @@ moves Desktop onto them; Desktop already takes its dialogs, drawer, buttons, and
 icons from there. Every Portal page uses them; no page keeps its
 own header, collection panel, menu, or input styling. `CollectionFrame` hides
 the count and pagination while loading and shows rows or the empty state, never
-both.
+both. *Shipped:* a work or run detail names its object by what a person knows
+it as — a Task by the Issue, Workflow step, or Schedule it serves, from the
+origin the server reads with it — and shows opaque IDs through Portal's
+`CopyableId`, muted, monospace, and copyable, on the Task details and each
+Workflow run step.
 
 ## States, responsive behavior, and accessibility
 

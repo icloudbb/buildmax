@@ -92,6 +92,10 @@ Workflow 一经发布，就可用 **Run Workflow** 运行它。你会被带到�
 使其作为该 Issue 的工作来运行——见
 [对话与 Issue](对话与Issue.md)。
 
+步骤按运行顺序编号。步骤的 Task 以 Workflow 名称和该序号命名，例如
+**Release review · 第 2 步**，在其 Task 页面和 Agent 的运行列表中都是如此。每个步骤还会显示它的
+id 以及其 Task 和运行的 ID，并附有 **复制** 按钮。
+
 运行成功后，运行的 **Result** 会显示 Workflow 声明的 `result`。没有声明结果的 Workflow
 会说明这一点并指向各个步骤：每个步骤在 **Output** 下显示它的产出，位于该步骤收到的、
 默认折叠的输入之上。

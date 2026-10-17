@@ -161,6 +161,17 @@ a Conversation-origin Task navigates through the Conversation; a Workflow run
 navigates through its Workflow run. The Agent is displayed as executor metadata
 and linked separately.
 
+The origin also names the Task. An Issue-origin Task is headed and listed by
+the Issue's title, a Workflow step's Task by the Workflow and step number, and
+a Schedule's by the Schedule, so every run of the same work reads the same,
+including one that failed before it started; the generated title is secondary.
+A Conversation asks for many different Tasks, so its Task, like a direct Agent
+run, keeps its own title. Every Task read carries the origin by kind, ID, and
+current name, read in the same query as the Task, so a list labels each row
+and a reloaded breadcrumb names its origin without another lookup. A Workflow
+step outranks the Issue its Task carries for Issue access: that Task belongs
+to the Workflow run the Issue started.
+
 Input attribution follows the trigger, not a hard-coded user avatar:
 
 - direct Conversation continuation may be labeled with the sending member;

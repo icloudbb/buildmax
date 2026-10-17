@@ -989,6 +989,13 @@ learns whether to show Administration from the `system_roles` its session
 routes return, and a signed-out session check answers 204, so an ordinary page
 load, signed in or out, logs no expected 401 or 403. Portal and Desktop start
 in the operating system's light or dark theme until the person picks one.
+Every Task read names the Task's origin — its Workflow run and step, Issue,
+Conversation, or Schedule — through the same query as the Task, and Portal
+heads and lists a run by it: an Issue's run by the Issue's title, a Workflow
+step's by the Workflow and step number, a Schedule's by the Schedule, with the
+generated title secondary, on the Task page, its breadcrumb after a reload,
+Agent run lists, and **Waiting on you**. Task details and Workflow steps show
+IDs as copyable secondary metadata, and Issue list snippets are plain text.
 Every pull request compares screenshots of the specimen, one Portal page per
 template, and Desktop's golden-path views, in both themes, with baselines
 rendered on Linux, and runs axe's WCAG A/AA rules, contrast included, on them;

@@ -48,6 +48,14 @@ Portal 负责云端/Space 使用场景：
   呈现为四组，每一项都链接到其解决之处：Issue、Task 页面，或承载该请求的
   Workflow 运行。`internal/service/needsme` 决定哪些内容计入；Portal 只负责呈现，
   加载中绝不显示为没有待处理的工作。
+- Task 依据每次 Task 读取都携带的 `origin` 命名，存储层随 Task 一起读出它
+  （`internal/infra/db/task.go`，优先级见 `internal/core/task/origin.go`）：
+  Workflow 步骤优先，其次是 Issue、对话或定时任务。`features/tasks/label.ts`
+  是把它转换为标签的唯一位置：Issue、Workflow 步骤（“QA review · 第 2 步”）或
+  定时任务为 Task 命名，生成的标题居于次要位置；对话发起的 Task 和直接运行的
+  Agent 保留各自的标题。Task 页面的标题与面包屑、Agent 运行列表以及
+  **等待你处理** 都使用它，因此刷新后的显示与从来源进入时一致。工作视图中的不透明
+  ID 通过 `components/CopyableId` 显示：弱化、等宽、可复制。
 - `/specimen` 是设计与评审产物，而非产品页面：它一次性呈现共享操作语法、语义 token、
   状态词汇与全部资源状态，复用真实组件，使评审者在信任已迁移页面之前，能跨主题与宽度
   逐一确认每种角色与状态。`portal/visual/` 中的截图套件把它以及每种模板的一个页面
