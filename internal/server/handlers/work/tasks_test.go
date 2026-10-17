@@ -14,106 +14,75 @@ import (
 	corequota "github.com/icloudbb/buildmax/internal/core/quota"
 	corespace "github.com/icloudbb/buildmax/internal/core/space"
 	coretask "github.com/icloudbb/buildmax/internal/core/task"
-	coreworkflow "github.com/icloudbb/buildmax/internal/core/workflow"
 	"github.com/icloudbb/buildmax/internal/mock"
 	"github.com/icloudbb/buildmax/internal/service/quota"
 	"github.com/icloudbb/buildmax/internal/testsupport"
 	"github.com/icloudbb/buildmax/internal/util"
 )
 
-// A workflow step task carries neither an IssueID nor a ConversationID: its
-// only origin is the step run that dispatched it. Getting the task has to
-// resolve that origin, or a caller has no way to tell "started by a
-// workflow" from "started with no recorded origin at all".
-func TestGetTaskResolvesWorkflowOrigin(t *testing.T) {
-	secret := "test-get-task-workflow-origin-secret"
+// A Task names what it serves on every read, the single-task read and a list
+// alike, so Portal labels a run by its Issue or Workflow without a lookup per
+// row. The store resolves the origin; the response carries it unchanged.
+func TestTaskResponsesCarryOrigin(t *testing.T) {
+	secret := "test-task-origin-secret"
 	spaceID := "tm_personal_u1"
-	spaces := &mock.MockSpaceStore{
-		Spaces:  []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-		Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}},
-	}
 	agentID := "a_1"
-
-	t.Run("a workflow-step task reports the workflow run that dispatched it", func(t *testing.T) {
-		task := coretask.Task{ID: "t_wf", SpaceID: spaceID, Status: "SUCCEEDED", Input: "step input", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), AgentID: &agentID}
-		h := New(Config{
-			JWTSecret: secret,
-			Spaces:    spaces,
-			Tasks:     &mock.MockTaskStore{List: []coretask.Task{task}},
-			Workflows: &mock.MockWorkflowStore{
-				NodeRuns: []coreworkflow.NodeRun{{ID: "wsr_1", WorkflowRunID: "wr_1", TaskID: util.Ptr("t_wf")}},
-			},
-		})
-		mux := http.NewServeMux()
-		h.Register(mux)
-		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/tasks/t_wf", nil)
+	issueID := "iss_1"
+	origin := &coretask.Origin{Kind: coretask.OriginIssue, ID: issueID, Name: "Fix import failures"}
+	tasks := []coretask.Task{
+		{ID: "t_issue", SpaceID: spaceID, Status: "SUCCEEDED", Input: "issue input", Title: "deployment smoke ok", CreatedBy: "u1", CreatedAt: time.Unix(2000, 0).UTC(), AgentID: &agentID, IssueID: &issueID, Origin: origin},
+		{ID: "t_direct", SpaceID: spaceID, Status: "SUCCEEDED", Input: "direct input", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), AgentID: &agentID},
+	}
+	h := New(Config{
+		JWTSecret: secret,
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+			Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}},
+		},
+		Agents: &mock.MockAgentStore{Agents: []agentdef.Agent{{ID: agentID, SpaceID: spaceID, Name: "Reviewer"}}},
+		Tasks:  &mock.MockTaskStore{List: tasks},
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	get := func(t *testing.T, path string, out any) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+path, nil)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+			t.Fatalf("GET %s status = %d, want 200; body = %s", path, rec.Code, rec.Body.String())
 		}
+		if err := json.Unmarshal(rec.Body.Bytes(), out); err != nil {
+			t.Fatalf("decode %s: %v", path, err)
+		}
+	}
+
+	t.Run("the single-task read", func(t *testing.T) {
 		var out TaskResponse
-		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
-			t.Fatalf("decode body: %v", err)
-		}
-		if out.WorkflowRunID == nil || *out.WorkflowRunID != "wr_1" {
-			t.Errorf("workflow_run_id = %v, want wr_1", out.WorkflowRunID)
+		get(t, "/tasks/t_issue", &out)
+		if out.Origin == nil || *out.Origin != *origin {
+			t.Errorf("origin = %+v, want %+v", out.Origin, origin)
 		}
 	})
 
-	t.Run("an issue-origin task never reports a workflow run, even if one exists for it", func(t *testing.T) {
-		issueID := "iss_1"
-		task := coretask.Task{ID: "t_issue", SpaceID: spaceID, Status: "SUCCEEDED", Input: "issue input", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), AgentID: &agentID, IssueID: &issueID}
-		h := New(Config{
-			JWTSecret: secret,
-			Spaces:    spaces,
-			Tasks:     &mock.MockTaskStore{List: []coretask.Task{task}},
-			Workflows: &mock.MockWorkflowStore{
-				NodeRuns: []coreworkflow.NodeRun{{ID: "wsr_2", WorkflowRunID: "wr_2", TaskID: util.Ptr("t_issue")}},
-			},
-		})
-		mux := http.NewServeMux()
-		h.Register(mux)
-		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/tasks/t_issue", nil)
-		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	t.Run("an Agent's run list, with no origin for a direct run", func(t *testing.T) {
+		var out tasksListResponse
+		get(t, "/agents/"+agentID+"/tasks", &out)
+		if len(out.Tasks) != 2 {
+			t.Fatalf("tasks = %d, want 2", len(out.Tasks))
 		}
-		var out TaskResponse
-		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
-			t.Fatalf("decode body: %v", err)
-		}
-		if out.WorkflowRunID != nil {
-			t.Errorf("workflow_run_id = %v, want nil for an issue-origin task", *out.WorkflowRunID)
-		}
-	})
-
-	t.Run("a direct agent task with no step run reports no workflow origin", func(t *testing.T) {
-		task := coretask.Task{ID: "t_agent", SpaceID: spaceID, Status: "SUCCEEDED", Input: "direct input", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), AgentID: &agentID}
-		h := New(Config{
-			JWTSecret: secret,
-			Spaces:    spaces,
-			Tasks:     &mock.MockTaskStore{List: []coretask.Task{task}},
-			Workflows: &mock.MockWorkflowStore{},
-		})
-		mux := http.NewServeMux()
-		h.Register(mux)
-		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/tasks/t_agent", nil)
-		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
-		}
-		var out TaskResponse
-		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
-			t.Fatalf("decode body: %v", err)
-		}
-		if out.WorkflowRunID != nil {
-			t.Errorf("workflow_run_id = %v, want nil", *out.WorkflowRunID)
+		for _, task := range out.Tasks {
+			switch task.ID {
+			case "t_issue":
+				if task.Origin == nil || *task.Origin != *origin {
+					t.Errorf("issue task origin = %+v, want %+v", task.Origin, origin)
+				}
+			case "t_direct":
+				if task.Origin != nil {
+					t.Errorf("direct task origin = %+v, want none", task.Origin)
+				}
+			}
 		}
 	})
 }

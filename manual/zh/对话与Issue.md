@@ -20,10 +20,15 @@ Shift+Enter 换行）。一段对话可以直接回答你，或者，当工作�
 **Retry tasks**，但仍保留对话内容。
 
 直接运行 Agent 时，Task 页面按轮次展示输入与输出。**Continue** 发送新指令；
-**Retry last run** 重复上一轮。**Details** 收纳来源、时间、ID 和轨迹；
+**Retry last run** 重复上一轮。**Details** 收纳来源、时间、可复制的 ID 和轨迹；
 页头使用 **Done** 等可读状态词。失败的一轮会说明原因；需要由你修复时，页头以修复操作代替
 **Retry last run** 作为首要操作（见 [Issue 详情](#issue-详情)）。当 Agent 停下来向你提问时，状态显示为 **Needs your answer**，
 问题列在输出末尾；用 **Continue** 以自己的话回答即可。
+
+Task 以它所服务的工作命名。从 Issue 发起的运行以 Issue 标题作为标题并在列表中显示，
+Workflow 步骤的运行以 Workflow 名称和步骤序号命名，定时任务的运行以定时任务名称命名，
+即使运行在开始前就已失败也是如此；Task 自己生成的标题显示在旁边。无论你从哪里进入该页面，
+面包屑都会经由同一个 Issue、Workflow 运行或对话返回。
 
 ## 等待你处理
 
@@ -56,7 +61,8 @@ Portal 打开时进入 **Issues**：登录后、裸 Portal 地址以及 **返回
 在侧栏打开 **Issues** 并选择 **New Issue**。一个 Issue 有：
 
 - **Title** —— 对该工作的简短陈述。
-- **Description** —— Agent 处理它所需的细节。
+- **Description** —— Agent 处理它所需的细节，使用 Markdown。Issue 列表以纯文本显示其文字，
+  不显示 Markdown 语法。
 - **Business Status** —— `todo`、`in progress` 或 `done`。由你自己设置；
   它不会因一次运行而自动改变。
 - **Owner** —— 对该 Issue 负责的人（见下文）。

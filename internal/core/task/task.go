@@ -344,7 +344,10 @@ type Task struct {
 	// list of Tasks can explain a failure without one run read per row.
 	FailureClass string        `json:"failure_class,omitempty"`
 	FailureCause *FailureCause `json:"failure_cause,omitempty"`
-	AgentID      *string       `json:"agent_id,omitempty"`
+	// Origin is what the Task serves, named, read with it for the same reason.
+	// Nil for a Task with no recorded origin.
+	Origin  *Origin `json:"origin,omitempty"`
+	AgentID *string `json:"agent_id,omitempty"`
 	// WorkspaceHeadCheckpointID points at the latest checkpoint accepted as this
 	// Task's recoverable workspace: its initial seed, then each successful
 	// result. It is a database pointer among immutable checkpoints, never a

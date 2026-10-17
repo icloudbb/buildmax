@@ -184,7 +184,13 @@ func (s *Service) buildCreateInput(ctx context.Context, cmd CreateTaskCmd) (*cor
 		return nil, err
 	}
 	createdByType, triggerSource := normalizeCreateTaskProvenance(cmd.CreatedByType, cmd.TriggerSource)
-	title, promptTokens, completionTokens := s.resolveTitle(ctx, input)
+	// With no instruction of the person's own, the input is the Agent's
+	// definition; its name, not that text's first line, is the fallback title.
+	fallbackTitle := input
+	if blankInput(cmd.Input) && selectedAgent != nil {
+		fallbackTitle = selectedAgent.Name
+	}
+	title, promptTokens, completionTokens := s.resolveTitle(ctx, input, fallbackTitle)
 	create := &coretask.CreateInput{
 		ConversationID:            cmd.ConversationID,
 		SpaceID:                   cmd.SpaceID,
@@ -507,8 +513,8 @@ const maxTaskInputBytes = 65535
 // instruction: admitting it would spend a worker run and model tokens on it.
 func blankInput(input string) bool { return strings.TrimSpace(input) == "" }
 
-func (s *Service) resolveTitle(ctx context.Context, input string) (string, int, int) {
-	title := truncateTaskTitle(input, defaultTitleRunes)
+func (s *Service) resolveTitle(ctx context.Context, input, fallback string) (string, int, int) {
+	title := truncateTaskTitle(fallback, defaultTitleRunes)
 	if s.TitleGenerator == nil {
 		return title, 0, 0
 	}

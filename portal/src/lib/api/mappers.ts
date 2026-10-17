@@ -230,6 +230,7 @@ export function apiTaskToTask(api: ApiTask): Task {
     errorMessage: api.error_message ?? undefined,
     failureClass: api.failure_class,
     failureCause: api.failure_cause ?? undefined,
+    origin: api.origin ?? undefined,
   }
 }
 

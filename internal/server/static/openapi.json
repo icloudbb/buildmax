@@ -201,11 +201,18 @@
           "awaiting_answer": { "type": "boolean", "description": "True while the latest run ended on AskUser questions that continuing the task has not yet answered." },
           "failure_class": { "$ref": "#/components/schemas/FailureClass" },
           "failure_cause": { "$ref": "#/components/schemas/FailureCause" },
-          "workflow_run_id": {
-            "type": "string",
-            "nullable": true,
-            "description": "Set only when the task has neither an issue_id nor a conversation_id: the workflow run that dispatched it."
-          }
+          "origin": { "$ref": "#/components/schemas/TaskOrigin" }
+        }
+      },
+      "TaskOrigin": {
+        "type": "object",
+        "description": "What the task serves, named, on every task read. A Workflow step outranks the Issue its task may carry; absent for a task with no recorded origin, such as a direct Agent run.",
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["workflow", "issue", "conversation", "schedule"] },
+          "id": { "type": "string", "description": "The Workflow run, Issue, Conversation, or Schedule." },
+          "name": { "type": "string", "description": "The Workflow name, Issue title, Conversation title, or Schedule name as it reads now; absent when it has none." },
+          "step": { "type": "integer", "description": "For a Workflow step: its 1-based position in the run's definition order." }
         }
       },
       "TaskRun": {

@@ -6,6 +6,7 @@ export const commonMessages = {
   en: {
     "common.cancel": "Cancel",
     "common.copy": "Copy",
+    "common.copyLabeled": "Copy {label}",
     "common.copied": "Copied",
     "common.copyFailed": "Copy failed",
     "common.tryAgain": "Try again",
@@ -45,6 +46,7 @@ export const commonMessages = {
   "zh-CN": {
     "common.cancel": "取消",
     "common.copy": "复制",
+    "common.copyLabeled": "复制 {label}",
     "common.copied": "已复制",
     "common.copyFailed": "复制失败",
     "common.tryAgain": "重试",

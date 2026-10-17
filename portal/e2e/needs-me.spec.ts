@@ -178,6 +178,8 @@ test("the work waiting on a person is listed, and each item opens where it is re
   await expect(issueLink).toContainText("Its latest run failed")
   const failedLink = failedRuns.getByRole("link", { name: new RegExp(seeded.blockedAgent) })
   await expect(failedLink).toContainText("This Agent's Secret grant is disabled")
+  // A run that failed before it started is named by the Issue it serves.
+  await expect(failedLink).toContainText(seeded.issueTitle)
   const requestLink = requests.getByRole("link", { name: new RegExp(seeded.workflowName) })
   await expect(requestLink).toContainText("Approve the needs-me release notes?")
   if (seeded.askingTaskId) {
@@ -191,7 +193,9 @@ test("the work waiting on a person is listed, and each item opens where it is re
       await page.setViewportSize({ width, height: 900 })
       await page.reload()
       const region = page.getByRole("region", { name: locale === "en" ? "Waiting on you" : "等待你处理" })
-      await expect(region.getByText(seeded.issueTitle)).toBeVisible()
+      // The Issue, and its failed run named after it.
+      await expect(region.getByText(seeded.issueTitle)).toHaveCount(2)
+      await expect(region.getByText(seeded.issueTitle).first()).toBeVisible()
       await expectNoHorizontalOverflow(page)
     }
   }

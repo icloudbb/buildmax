@@ -24,13 +24,20 @@ load, Chat shows a warning and **Retry tasks** without hiding the conversation.
 
 When you run an agent directly, its Task page keeps the input and output for
 each turn together. **Continue** sends new instructions; **Retry last run**
-repeats the previous turn. **Details** holds the run's origin, timing, ID, and
-trace, while the page header uses readable status words such as **Done**. A
-failed turn explains why, and when the fix is yours to make the header leads
-with it instead of **Retry last run** (see [Issue Detail](#issue-detail)). When
-the agent stopped to ask you something, the status reads **Needs your answer**
-and the questions close its output; answer them with **Continue**, in your own
-words.
+repeats the previous turn. **Details** holds the run's origin, timing, a
+copyable ID, and trace, while the page header uses readable status words such
+as **Done**. A failed turn explains why, and when the fix is yours to make the
+header leads with it instead of **Retry last run** (see
+[Issue Detail](#issue-detail)). When the agent stopped to ask you something,
+the status reads **Needs your answer** and the questions close its output;
+answer them with **Continue**, in your own words.
+
+A Task is named after the work it serves. A run started from an issue is headed
+and listed by the issue's title, a workflow step's by the workflow and the step
+number, and a schedule's by the schedule, even when the run failed before it
+started; the Task's own generated title is shown beside it. The breadcrumb
+leads back through the same issue, workflow run, or conversation, however you
+reached the page.
 
 ## Waiting on you
 
@@ -66,7 +73,8 @@ An **issue** is the user-facing unit of work — the thing you actually want don
 Open **Issues** in the sidebar and choose **New Issue**. An issue has:
 
 - **Title** — a short statement of the work.
-- **Description** — the detail an agent needs to act on it.
+- **Description** — the detail an agent needs to act on it, in Markdown. The
+  issue list shows its words as plain text, without the Markdown syntax.
 - **Business Status** — `todo`, `in progress`, or `done`. You set this yourself;
   it is not changed automatically by a run.
 - **Owner** — the person accountable for the issue (see below).
