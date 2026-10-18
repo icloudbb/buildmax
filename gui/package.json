@@ -44,7 +44,7 @@
     "stylelint": "^17.16.0",
     "typescript": "~7.0.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.4"
   },
   "scripts": {
     "build": "vite build && cp src/theme.css dist/theme.css && cp src/button.css dist/button.css && cp src/modal.css dist/modal.css && cp src/drawer.css dist/drawer.css && cp src/widgets.css dist/widgets.css && cp src/field.css dist/field.css && cp src/menu.css dist/menu.css && cp src/feedback.css dist/feedback.css && cp src/page.css dist/page.css && npm run build:types",
