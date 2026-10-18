@@ -21,7 +21,7 @@ export const filesMessages = {
     "files.error.loadFile": "Failed to load file",
     "files.upload.notAuthenticated": "Not authenticated",
     "files.upload.tooMany": "Too many files (max {max})",
-    "files.upload.done": "Uploaded {count} file(s)",
+    "files.upload.done": { one: "Uploaded {count} file", other: "Uploaded {count} files" },
     "files.upload.failed": "Upload failed",
   },
   "zh-CN": {

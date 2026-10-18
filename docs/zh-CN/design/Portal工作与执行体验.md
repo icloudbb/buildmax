@@ -134,6 +134,14 @@ Breadcrumb 以来源优先：源于 Issue 的 Task 经 Issue 导航；源于 Con
 经 Conversation 导航；Workflow run 经其 Workflow run 导航。Agent 作为 executor
 元数据单独显示和链接。
 
+来源也为 Task 命名。源于 Issue 的 Task 以 Issue 标题作为标题并在列表中显示，Workflow
+步骤的 Task 以 Workflow 名称和步骤序号命名，Schedule 的 Task 以 Schedule 名称命名，因此同一项
+工作的每次运行读起来都一样，包括在开始前就失败的运行；生成的标题居于次要位置。一个
+Conversation 会请求许多不同的 Task，因此它的 Task 与直接运行的 Agent 一样保留自己的标题。
+每次 Task 读取都按类型、ID 和当前名称携带来源，并与 Task 在同一查询中读出，因此列表能为每一行
+命名，刷新后的 breadcrumb 也无需再查询即可说出来源。Workflow 步骤优先于其 Task 因 Issue
+访问而携带的 Issue：该 Task 属于由 Issue 发起的 Workflow run。
+
 输入署名遵循 trigger，而不是硬编码用户头像：
 
 - Conversation 的直接后续消息可标为发送成员；

@@ -18,7 +18,21 @@ import {
 import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
-import { cancelTask, continueTask, getTask, getTaskRuns, retryTask, streamTaskOutput } from "../../features/tasks"
+import {
+  cancelTask,
+  continueTask,
+  getTask,
+  getTaskRuns,
+  originKindLabel,
+  originLabel,
+  originName,
+  originRoute,
+  retryTask,
+  streamTaskOutput,
+  taskLabel,
+} from "../../features/tasks"
+import { apiTaskToTask } from "../../lib/api/mappers"
+import { CopyableId } from "../../components/CopyableId"
 import { getAgent } from "../../features/agents"
 import {
   explainRunFailure,
@@ -185,37 +199,33 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
     if (task?.agent_id && agentName) setEntityLabel(task.agent_id, agentName)
   }, [task?.agent_id, agentName, setEntityLabel])
 
-  // Origin-first breadcrumb: an Issue or Conversation is where this task came
-  // from and outranks the Agent, which only describes what executed it — the
-  // Agent gets its own link elsewhere (header, Details panel), never the
-  // primary trail. A workflow-step task carries neither on the Task itself,
-  // so its origin is the workflow run the server resolved for it. Only a task
+  // What the task is called: its origin's name for an Issue, a Workflow step,
+  // or a Schedule, with its own generated title secondary.
+  const label = useMemo(() => (task ? taskLabel(apiTaskToTask(task), t) : null), [task, t])
+
+  // Origin-first breadcrumb: the server names what the task serves, so the
+  // trail reads the same on a reload as when it was reached from its origin.
+  // The origin outranks the Agent, which only describes what executed it —
+  // the Agent gets its own link elsewhere (header, Details panel). Only a task
   // with no recorded origin at all (a direct agent run) shows the Agent here,
   // because that genuinely is where it came from.
   // The trail is display state, not a load, so it follows `t` and is rebuilt
   // in the new language when the language changes.
   useEffect(() => {
-    if (!task) return
-    const leaf: BreadcrumbCrumb = { label: task.title || t("shell.crumbs.task"), route: { name: "task", spaceId, taskId } }
+    if (!task || !label) return
+    const leaf: BreadcrumbCrumb = { label: label.primary, route: { name: "task", spaceId, taskId } }
+    const origin = task.origin
     let trail: BreadcrumbCrumb[]
-    if (task.issue_id) {
-      trail = [
-        { label: t("shell.nav.issues"), route: { name: "issues", spaceId } },
-        { label: entityLabels[task.issue_id] ?? t("shell.crumbs.issue"), route: { name: "issue", spaceId, issueId: task.issue_id } },
-        leaf,
-      ]
-    } else if (task.conversation_id) {
-      trail = [
-        { label: t("shell.nav.chat"), route: { name: "chat", spaceId } },
-        { label: t("shell.crumbs.conversation"), route: { name: "chat", spaceId, conversationId: task.conversation_id } },
-        leaf,
-      ]
-    } else if (task.workflow_run_id) {
-      trail = [
-        { label: t("shell.nav.workflows"), route: { name: "workflows", spaceId } },
-        { label: t("tasks.workflowRun"), route: { name: "workflowRun", spaceId, workflowRunId: task.workflow_run_id } },
-        leaf,
-      ]
+    if (origin?.kind === "schedule") {
+      trail = [{ label: t("shell.nav.schedules"), route: { name: "schedules", spaceId } }, leaf]
+    } else if (origin) {
+      const collection: BreadcrumbCrumb =
+        origin.kind === "workflow"
+          ? { label: t("shell.nav.workflows"), route: { name: "workflows", spaceId } }
+          : origin.kind === "issue"
+            ? { label: t("shell.nav.issues"), route: { name: "issues", spaceId } }
+            : { label: t("shell.nav.chat"), route: { name: "chat", spaceId } }
+      trail = [collection, { label: originName(origin, t), route: originRoute(origin, spaceId) }, leaf]
     } else if (task.agent_id) {
       trail = [
         { label: t("shell.nav.agents"), route: { name: "agents", spaceId } },
@@ -226,7 +236,7 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
       trail = [{ label: t("shell.nav.chat"), route: { name: "chat", spaceId } }, leaf]
     }
     setBreadcrumbTrail(taskId, trail)
-  }, [task, taskId, spaceId, entityLabels, setBreadcrumbTrail, t])
+  }, [task, label, taskId, spaceId, entityLabels, setBreadcrumbTrail, t])
 
   // A failed run is explained in the person's terms, and the latest one decides
   // the header's lead: a fix the person can make outranks a retry that would
@@ -387,9 +397,9 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
     <div className="page-chat task-thread">
       <DetailHeader
         className="task-thread__header"
-        title={task?.title || t("tasks.untitled")}
+        title={label?.primary ?? t("tasks.untitled")}
         status={task ? <StatusLabel status={taskStatus(task)} /> : <Spinner />}
-        meta={agentName}
+        meta={[label?.secondary, agentName].filter(Boolean).join(" · ") || null}
         actions={
           <>
             {running ? (
@@ -424,6 +434,17 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
         >
           <div className="modal__body">
           <dl className="task-details__kv">
+            {task.origin ? (
+              <>
+                <dt>{t("tasks.details.origin")}</dt>
+                <dd>
+                  {originKindLabel(task.origin, t)}{" "}
+                  <a className="task-details__link" href={buildHash(originRoute(task.origin, spaceId))}>
+                    {originLabel(task.origin, t)}
+                  </a>
+                </dd>
+              </>
+            ) : null}
             <dt>{t("tasks.details.agent")}</dt>
             <dd>
               {task.agent_id ? (
@@ -452,9 +473,9 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
             <dd>{fmtDuration(task.started_at, task.ended_at)}</dd>
             <dt>{t("tasks.details.runs")}</dt>
             <dd>{runs.length}</dd>
-            <dt>{t("tasks.details.task")}</dt>
-            <dd className="task-details__mono">{task.id}</dd>
-            {task.issue_id ? (
+            {/* A Workflow step can carry its run's Issue without that Issue
+                being its origin; it is still worth a link. */}
+            {task.issue_id && task.origin?.kind !== "issue" ? (
               <>
                 <dt>{t("tasks.details.issue")}</dt>
                 <dd>
@@ -464,16 +485,10 @@ export function TaskDetail({ token, spaceId, taskId }: TaskDetailProps) {
                 </dd>
               </>
             ) : null}
-            {task.conversation_id ? (
-              <>
-                <dt>{t("tasks.details.conversation")}</dt>
-                <dd>
-                  <a className="task-details__link" href={buildHash({ name: "chat", spaceId, conversationId: task.conversation_id })}>
-                    {t("tasks.details.openConversation")}
-                  </a>
-                </dd>
-              </>
-            ) : null}
+            <dt>{t("tasks.details.taskId")}</dt>
+            <dd>
+              <CopyableId label={t("tasks.details.taskId")} id={task.id} showLabel={false} />
+            </dd>
           </dl>
           <div className="task-details__actions">
             {traceRun ? (

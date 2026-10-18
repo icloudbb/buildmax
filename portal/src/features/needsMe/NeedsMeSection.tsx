@@ -8,6 +8,7 @@ import { Alert } from "../../components/state/Alert"
 import { EmptyState } from "../../components/state/EmptyState"
 import { classifyError, type RequestError } from "../../state/resourceState"
 import { explainRunFailure, failureText, useCanManageSpace } from "../runs"
+import { taskLabel } from "../tasks"
 import { getNeedsMe } from "./api"
 import { requestSummary, toNeedsMe, waitingCount, type AttentionIssue, type NeedsMe, type NeedsMeGroup } from "./model"
 
@@ -119,7 +120,7 @@ export function NeedsMeSection({ token, spaceId, agents, workflows, onCreateIssu
             render={(task) => (
               <NeedsMeItem
                 href={buildHash({ name: "task", spaceId, taskId: task.id })}
-                title={task.title}
+                title={taskLabel(task, t).primary}
                 detail={`${agentName(task)} · ${statusLabel("needs_answer")}`}
                 action={t("needsMe.open.answer")}
                 time={relativeTime(task.timeAt)}
@@ -150,7 +151,7 @@ export function NeedsMeSection({ token, spaceId, agents, workflows, onCreateIssu
             render={(task) => (
               <NeedsMeItem
                 href={buildHash({ name: "task", spaceId, taskId: task.id })}
-                title={task.title}
+                title={taskLabel(task, t).primary}
                 detail={`${agentName(task)} · ${failureTitle(task)}`}
                 action={t("needsMe.open.run")}
                 time={relativeTime(task.timeAt)}

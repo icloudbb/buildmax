@@ -5,7 +5,7 @@ import type { ApiTask } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiTaskToTask } from "../../lib/api/mappers"
-import { createAgentTask, listAgentTasks } from "../../features/tasks"
+import { createAgentTask, listAgentTasks, taskLabel } from "../../features/tasks"
 import { formatSuccessRate, getAgents, successRate as rateOf } from "../../features/agents"
 import { taskRunFinished, taskStatus } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
@@ -288,6 +288,7 @@ export function AgentList({ token, spaceId }: AgentListProps) {
               <div className="agent-activity__feed">
                 {recent.map(({ task, agent }) => {
                   const ui = apiTaskToTask(task)
+                  const label = taskLabel(ui, t)
                   return (
                     <button
                       key={task.id}
@@ -296,8 +297,10 @@ export function AgentList({ token, spaceId }: AgentListProps) {
                       onClick={() => navigate({ name: "task", spaceId, taskId: task.id })}
                     >
                       <div className="agent-activity__body">
-                        <span className="agent-activity__row-title">{ui.title}</span>
-                        <span className="agent-activity__row-sub">{agent.name}</span>
+                        <span className="agent-activity__row-title">{label.primary}</span>
+                        <span className="agent-activity__row-sub">
+                          {[agent.name, label.secondary].filter(Boolean).join(" · ")}
+                        </span>
                       </div>
                       <StatusLabel status={taskStatus(task)} />
                       <span className="agent-activity__time">{relativeTime(ui.timeAt)}</span>

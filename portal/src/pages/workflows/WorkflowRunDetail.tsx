@@ -33,6 +33,7 @@ import { buildHash, navigate } from "../../router"
 import { useApp } from "../../contexts/AppContext"
 import { ApiRequestError } from "../../lib/api/client"
 import { ResourceUnavailable, type ResourceUnavailableKind } from "../../components/ResourceUnavailable"
+import { CopyableId } from "../../components/CopyableId"
 
 interface WorkflowRunDetailProps {
   token: string | null
@@ -252,7 +253,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
             <details className="workflow-run-page__diagnostics">
               <summary>{t("workflows.run.details")}</summary>
             <div className="workflow-run-page__meta">
-              <div><strong>{t("workflows.run.id")}</strong> {run.id}</div>
+              <div><CopyableId label={t("workflows.run.id")} id={run.id} /></div>
               {run.workflowRevision ? (
                 <div><strong>{t("workflows.run.version")}</strong> v{run.workflowRevision}</div>
               ) : null}
@@ -260,7 +261,12 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
               {run.startedAt ? <div><strong>{t("workflows.run.started")}</strong> {formatTimestamp(run.startedAt, locale)}</div> : null}
               {run.endedAt ? <div><strong>{t("workflows.run.ended")}</strong> {formatTimestamp(run.endedAt, locale)}</div> : null}
               {run.deadlineAt ? <div><strong>{t("workflows.run.deadline")}</strong> {formatTimestamp(run.deadlineAt, locale)}</div> : null}
-              {run.issueId ? <div><strong>{t("workflows.run.issueId")}</strong> {run.issueId}</div> : null}
+              {run.issueId ? (
+                <div>
+                  <strong>{t("workflows.run.issue")}</strong>{" "}
+                  <a href={buildHash({ name: "issue", spaceId, issueId: run.issueId })}>{t("workflows.run.openIssue")}</a>
+                </div>
+              ) : null}
               <div>
                 <strong>{t("workflows.run.mode")}</strong> {isLive ? t("workflows.run.live") : t("workflows.run.final")}
               </div>
@@ -299,7 +305,12 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                 {steps.map((step) => (
                   <li key={step.id} className="workflow-page__step">
                     <div className="workflow-page__step-head">
-                      <strong>{step.nodeId}</strong>
+                      {/* "Step 2", as a Task this step dispatched is named; the
+                          step's own identifier is secondary. */}
+                      <span>
+                        <strong>{t("workflows.run.stepHeading", { step: step.nodeIndex + 1 })}</strong>{" "}
+                        <code className="workflow-run-page__step-id">{step.nodeId}</code>
+                      </span>
                       <StatusLabel status={step.status} />
                     </div>
                     <div className="workflow-page__step-body">
@@ -315,9 +326,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                         ))}
                       {step.targetAgentId ? (
                         <div className="page-activity__meta">
-                          {t("workflows.run.agentLine", {
-                            agent: step.agentName ? `${step.agentName} (${step.targetAgentId})` : step.targetAgentId,
-                          })}
+                          {t("workflows.run.agentLine", { agent: step.agentName || step.targetAgentId })}
                           {step.agentRevision ? ` · v${step.agentRevision}` : ""}
                         </div>
                       ) : null}
@@ -328,19 +337,20 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                         </details>
                       ) : null}
                       {step.taskId ? (
-                        <div className="page-activity__meta">
-                          {t("workflows.run.taskLine", { task: step.taskId })}
-                          {step.taskRunId ? t("workflows.run.taskRunSuffix", { run: step.taskRunId }) : ""}
-                        </div>
-                      ) : null}
-					  {step.taskId ? (
                         <div className="workflow-run-page__step-actions">
                           <Button
-                            variant="tertiary" size="compact"
-							onClick={() => navigate({ name: "task", spaceId, taskId: step.taskId! })}
+                            variant="tertiary"
+                            size="compact"
+                            onClick={() => navigate({ name: "task", spaceId, taskId: step.taskId! })}
                           >
-							{t("workflows.run.openTask")}
+                            {t("workflows.run.openTask")}
                           </Button>
+                        </div>
+                      ) : null}
+                      {step.taskId ? (
+                        <div className="workflow-run-page__step-ids">
+                          <CopyableId label={t("workflows.run.taskId")} id={step.taskId} />
+                          {step.taskRunId ? <CopyableId label={t("workflows.run.taskRunId")} id={step.taskRunId} /> : null}
                         </div>
                       ) : null}
                       {/* Output first and labelled, so it never reads as the

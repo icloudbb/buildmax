@@ -134,6 +134,14 @@
   color: var(--color-text);
 }
 
+/* A run's own generated title, under the origin that names it. */
+.agent-runs__sub {
+  display: block;
+  font-weight: 400;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
 .agent-runs__when {
   font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
   font-size: 0.78rem;

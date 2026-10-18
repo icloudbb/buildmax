@@ -67,6 +67,16 @@ Portal owns the cloud/space lane:
   or the Workflow run that holds the request. `internal/service/needsme` owns
   what counts; Portal only presents it, and loading never reads as nothing
   waiting.
+- A Task is named from the `origin` every Task read carries, which the store
+  reads with the Task (`internal/infra/db/task.go`, precedence in
+  `internal/core/task/origin.go`): a Workflow step, else the Issue, the
+  Conversation, or the Schedule. `features/tasks/label.ts` is the one place
+  that turns it into a label: an Issue, a Workflow step ("QA review · Step 2"),
+  or a Schedule names the Task, and the generated title is secondary; a
+  Conversation's Task and a direct Agent run keep their own title. The Task
+  page heading and breadcrumb, Agent run lists, and **Waiting on you** use it,
+  so a reload reads the same as arriving from the origin. Opaque IDs in work
+  views go through `components/CopyableId`: muted, monospace, and copyable.
 - `/specimen` is a design and review artifact, not a product page: it renders the
   shared action grammar, semantic tokens, status vocabulary, and every resource
   state once, reusing the real components so a reviewer can confirm each role and

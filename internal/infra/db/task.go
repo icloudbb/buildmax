@@ -87,11 +87,21 @@ type taskReadRow struct {
 	// explains a failure without a run read per row.
 	LastRunFailureClass *string `gorm:"column:last_run_failure_class"`
 	LastRunFailureCause *string `gorm:"column:last_run_failure_cause"`
+	// What the Task serves, named, read through the same joins so a Task list
+	// labels every row by its origin without a lookup per row.
+	IssueTitle          string  `gorm:"column:issue_title"`
+	ConversationTitle   string  `gorm:"column:conversation_title"`
+	ScheduleName        string  `gorm:"column:schedule_name"`
+	WorkflowRunPublicID *string `gorm:"column:origin_workflow_run_public_id"`
+	WorkflowName        string  `gorm:"column:origin_workflow_name"`
+	WorkflowNodeIndex   int     `gorm:"column:origin_workflow_node_index"`
 }
 
 // taskSelect is the one place the join set for a task read is written down, so
 // the detail read, the listings, and the run-output read cannot drift apart.
-// Every join is a primary-key lookup, which is what keeps a listing one query.
+// Every join is a primary-key lookup, which is what keeps a listing one query;
+// the Workflow step is found through workflow_node_run's task_id index, by its
+// lowest row so a listing can never repeat a Task.
 func (s *Store) taskSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&taskRow{}).
 		Select("task.*, c.public_id AS conversation_public_id, t.public_id AS space_public_id, " +
@@ -99,7 +109,10 @@ func (s *Store) taskSelect(ctx context.Context) *gorm.DB {
 			"i.public_id AS issue_public_id, sc.public_id AS schedule_public_id, " +
 			"a.public_id AS agent_public_id, rb.public_id AS requested_by_public_id, " +
 			"asst.public_id AS assistant_public_id, " +
-			"lr.failure_class AS last_run_failure_class, lr.failure_cause AS last_run_failure_cause").
+			"lr.failure_class AS last_run_failure_class, lr.failure_cause AS last_run_failure_cause, " +
+			"COALESCE(i.title, '') AS issue_title, COALESCE(c.title, '') AS conversation_title, " +
+			"COALESCE(sc.name, '') AS schedule_name, owr.public_id AS origin_workflow_run_public_id, " +
+			"COALESCE(ow.name, '') AS origin_workflow_name, COALESCE(onr.node_index, 0) AS origin_workflow_node_index").
 		Joins("LEFT JOIN conversation c ON c.id = task.conversation_id").
 		Joins("INNER JOIN space t ON t.id = task.space_id").
 		Joins("INNER JOIN `user` cb ON cb.id = task.created_by").
@@ -108,7 +121,34 @@ func (s *Store) taskSelect(ctx context.Context) *gorm.DB {
 		Joins("LEFT JOIN schedule sc ON sc.id = task.schedule_id").
 		Joins("LEFT JOIN agent a ON a.id = task.agent_id").
 		Joins("LEFT JOIN `user` rb ON rb.id = task.requested_by").
-		Joins("LEFT JOIN assistant asst ON asst.id = task.assistant_id")
+		Joins("LEFT JOIN assistant asst ON asst.id = task.assistant_id").
+		Joins("LEFT JOIN workflow_node_run onr ON onr.id = " +
+			"(SELECT MIN(n.id) FROM workflow_node_run n WHERE n.task_id = task.id)").
+		Joins("LEFT JOIN workflow_run owr ON owr.id = onr.workflow_run_id").
+		Joins("LEFT JOIN workflow ow ON ow.id = owr.workflow_id")
+}
+
+func taskOrigin(row *taskReadRow) *coretask.Origin {
+	rel := coretask.OriginRelations{
+		IssueTitle:        row.IssueTitle,
+		ConversationTitle: row.ConversationTitle,
+		ScheduleName:      row.ScheduleName,
+		WorkflowName:      row.WorkflowName,
+	}
+	if row.WorkflowRunPublicID != nil {
+		rel.WorkflowRunID = *row.WorkflowRunPublicID
+		rel.WorkflowStep = row.WorkflowNodeIndex + 1
+	}
+	if row.Row.IssueID != nil {
+		rel.IssueID = derefPublicID(row.IssuePublicID)
+	}
+	if row.Row.ConversationID != nil {
+		rel.ConversationID = derefPublicID(row.ConversationPublicID)
+	}
+	if row.Row.ScheduleID != nil {
+		rel.ScheduleID = derefPublicID(row.SchedulePublicID)
+	}
+	return rel.Origin()
 }
 
 func toTask(row *taskReadRow) *coretask.Task {
@@ -137,6 +177,7 @@ func toTask(row *taskReadRow) *coretask.Task {
 		SessionID:             row.Row.SessionID,
 		AwaitingAnswer:        row.Row.AwaitingAnswer,
 		FailureCause:          decodeFailureCause(row.LastRunFailureCause),
+		Origin:                taskOrigin(row),
 	}
 	if row.LastRunFailureClass != nil {
 		out.FailureClass = *row.LastRunFailureClass
