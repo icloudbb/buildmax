@@ -768,12 +768,16 @@ run through the same gateway service in process; their tokens count toward
 the conversation's Space usage and token quota, and a Space over its token
 limit is refused a reply. The administration Overview reports work progress without Space
 content: the oldest waiting PENDING and unstarted SCHEDULED runs, silent RUNNING
-runs, failures in the last 24 hours by `task_run.failure_class` with who acts,
+runs, failures in the last 24 hours by `task_run.failure_class` with a next
+step naming who acts and what they check,
 Workflow requests waiting on Space members by kind with their age and next
 expiry, Workflow run failures by `workflow_run.failure_class`, and the Spaces
-needing attention, including personal ones, with their owners and the ids of
-their oldest waiting and latest failed Workflow runs
-(`GET /api/admin/runtime/spaces`).
+needing attention, including personal ones, with their owners, the same next
+step for each failure class, and the ids of their oldest waiting and latest
+failed Workflow runs as copyable secondary detail
+(`GET /api/admin/runtime/spaces`). Overview and Space detail name health
+checks, run statuses, roles, worker mode, model transport, and quota tiers in
+the interface language rather than by the server's identifiers.
 A System Administrator can assign any Space, team or personal, to an existing
 seeded quota tier from Space detail, `buildmax admin quota-tier set`, or
 `PUT /api/admin/spaces/{space_id}/quota-tier`; the new limits apply from the

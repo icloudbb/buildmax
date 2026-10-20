@@ -37,6 +37,14 @@
   color: var(--color-text);
 }
 
+/* The raw configuration value behind a label, for an operator matching it to
+   server.yaml: there, but never what is read first. */
+.admin-fact__detail {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
 .admin-subtitle {
   margin: 1rem 0 0.5rem;
   font-size: 0.85rem;
@@ -152,10 +160,18 @@
   padding: 0;
   text-align: left;
   font: inherit;
+}
+
+/* Portal's link look — the link color, underlined only on hover — for the
+   Space names that open a Space's detail, whether a button or an anchor. */
+.admin-link,
+.admin-list__main--action {
   color: var(--color-link);
+  text-decoration: none;
   cursor: pointer;
 }
 
+.admin-link:hover,
 .admin-list__main--action:hover {
   text-decoration: underline;
 }
@@ -206,6 +222,68 @@
 }
 
 .admin-table__muted {
+  color: var(--color-text-muted);
+}
+
+/* A table of names, emails, counts, and sentences wraps between words, so a
+   column cannot split one ("Analytic al"). An ID inside keeps its own rule. */
+.admin-table--prose tbody td {
+  overflow-wrap: break-word;
+}
+
+/* Chinese breaks between any two characters, so where there is room a header
+   or a short label stays whole ("运行数", "Space 配置"); a phone wraps them. */
+@media (min-width: 768px) {
+  .admin-table--prose thead th,
+  .admin-table__label {
+    white-space: nowrap;
+  }
+}
+
+/* A count with its label, or a short label, stays on one line. */
+.admin-table__nowrap {
+  white-space: nowrap;
+}
+
+.admin-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+.admin-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+/* Capped so its sentences wrap rather than take the width the other columns'
+   names and emails need. */
+.admin-failures {
+  max-width: 22rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-failures li {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-failures__next {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.admin-failures__group {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   color: var(--color-text-muted);
 }
 

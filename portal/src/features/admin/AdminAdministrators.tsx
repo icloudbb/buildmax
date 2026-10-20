@@ -5,6 +5,7 @@ import type { ApiSystemGrant } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { useTimestamp } from "../../lib/dateFormat"
 import { createAdminGrant, listAdminGrants, listAdminUsers, revokeAdminGrant } from "./api"
+import { systemRoleLabel } from "./roles"
 
 // The grant's granting actor is a user id, or the operator sentinel when the
 // command line made it. Naming the shell keeps a bootstrap grant from reading as
@@ -99,7 +100,7 @@ export function AdminAdministrators({ token }: { token: string | null }) {
 
   function confirmRevoke(g: ApiSystemGrant): boolean {
     return window.confirm(
-      t("admin.administrators.revokeConfirm", { who: g.email || g.user_id, role: g.role }),
+      t("admin.administrators.revokeConfirm", { who: g.email || g.user_id, role: systemRoleLabel(g.role, t) }),
     )
   }
 
@@ -160,7 +161,7 @@ export function AdminAdministrators({ token }: { token: string | null }) {
                 </span>
                 <span className="admin-list__meta">
                   {t("admin.administrators.meta", {
-                    role: g.role,
+                    role: systemRoleLabel(g.role, t),
                     by: grantedByLabel(g.granted_by, t),
                     when: whenever(g.granted_at),
                   })}
@@ -174,7 +175,7 @@ export function AdminAdministrators({ token }: { token: string | null }) {
                       if (confirmRevoke(g)) {
                         void act(
                           () => revokeAdminGrant(token!, g.user_id),
-                          t("admin.administrators.revokedNotice", { who: g.email || g.user_id, role: g.role }),
+                          t("admin.administrators.revokedNotice", { who: g.email || g.user_id, role: systemRoleLabel(g.role, t) }),
                         )
                       }
                     }}

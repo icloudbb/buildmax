@@ -146,7 +146,93 @@ const taskRuns = [
 
 const usage = { run_count: 42, total_tokens: 1_284_000, tier: "standard", period_days: 30, max_runs_per_period: 500 }
 
+// Administration: a ready deployment whose one Space has running work, a
+// request waiting on its members, and failures of each kind an operator
+// relays. Every value is one the server sends, so a raw identifier shown as a
+// label is visible in the screenshot.
+const adminOwner = { user_id: USER.id, email: USER.email, role: "owner", kind: "human" }
+const adminWorkflowRuntime = {
+  waiting_requests: { input: 1 },
+  oldest_waiting_request_at: "2026-03-04T12:00:00Z",
+  next_request_expiry_at: "2026-03-05T12:00:00Z",
+  workflow_failures: { node_timeout: 1 },
+}
+const adminSpace = {
+  id: SPACE,
+  name: "Analytical Engine",
+  personal: false,
+  quota_tier: "pro",
+  member_count: 2,
+  created_by: USER.id,
+  created_at: "2026-01-12T09:00:00Z",
+}
+const quotaTiers = [
+  { tier_name: "free_trial", max_runs_per_period: 10, max_tokens_per_period: 100_000, max_storage_bytes: 0, period_days: 30 },
+  { tier_name: "pro", max_runs_per_period: 1000, max_tokens_per_period: 10_000_000, max_storage_bytes: 0, period_days: 30 },
+]
+
+const adminFixtures: Fixtures = {
+  "GET /api/admin/me": {
+    user_id: USER.id,
+    roles: ["system_admin"],
+    grants: [{ id: "sgr_ada", user_id: USER.id, role: "system_admin", granted_by: "buildmax-server", granted_at: "2026-01-12T09:00:00Z" }],
+  },
+  "GET /api/admin/config": { warnings: [] },
+  "GET /api/admin/system": {
+    version: "v0.3.0",
+    schema_migrations: [{ id: "0007_task_run_failure_class", applied_at: "2026-02-01T10:00:00Z" }],
+    dependencies: [
+      { name: "database", status: "ok" },
+      { name: "object_storage", status: "ok" },
+    ],
+    ready: true,
+    worker_run_mode: "k8s_job",
+    worker_llm_transport: "direct",
+    allow_signup: false,
+    task_runs: { SUCCEEDED: 1284, FAILED: 4, CANCELED: 2, RUNNING: 1, SCHEDULED: 1 },
+    runtime: {
+      oldest_unstarted_at: "2026-03-04T15:22:00Z",
+      stale_running: 0,
+      stale_after_seconds: 900,
+      failures: { space_configuration: 3, model: 1 },
+      failure_window_hours: 24,
+      ...adminWorkflowRuntime,
+    },
+    system_admins: 1,
+    server_time: "2026-03-04T15:30:00Z",
+  },
+  "GET /api/admin/runtime/spaces": {
+    spaces: [
+      {
+        space_id: SPACE,
+        name: "Analytical Engine",
+        personal: false,
+        owners: [adminOwner],
+        active: { RUNNING: 1, SCHEDULED: 1 },
+        oldest_active_at: "2026-03-04T15:22:00Z",
+        failures: { space_configuration: 3, model: 1 },
+        ...adminWorkflowRuntime,
+        oldest_waiting_workflow_run_id: "wfr_signoff",
+        latest_failed_workflow_run_id: "wfr_nightly",
+      },
+    ],
+    total: 1,
+    failure_window_hours: 24,
+  },
+  "GET /api/admin/spaces": { spaces: [adminSpace], total: 1 },
+  [`GET /api/admin/spaces/${SPACE}`]: {
+    ...adminSpace,
+    members: [
+      adminOwner,
+      { user_id: "usr_grace", email: "grace@example.com", role: "member", kind: "human" },
+    ],
+    usage: { run_count: 258, total_tokens: 1_284_000, tier: "pro", period_days: 30, max_runs_per_period: 1000, max_tokens_per_period: 10_000_000 },
+  },
+  "GET /api/admin/quota-tiers": { tiers: quotaTiers },
+}
+
 export const fixtures: Fixtures = {
+  ...adminFixtures,
   // Ada administers the deployment, so the shell shows Administration.
   "POST /api/auth/portal/session": { access_token: "visual-token", expires_in: 3600, user: USER, system_roles: ["system_admin"] },
   // A CLI waiting at the sign-in confirmation page, started four minutes ago.

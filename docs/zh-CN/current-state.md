@@ -426,9 +426,11 @@ Space Secret 与 Agent Secret 使用声明也有存储和 worker 投递实现，
 ——每次调用的模型、token、成本与状态，可按用户、模型、状态、surface 和时间过滤，
 且不含提示词或生成内容。其 Overview 在不涉及 Space 内容的前提下报告工作进度：最老等待中的
 PENDING 与未启动 SCHEDULED run、沉默的 RUNNING run、最近 24 小时按 `task_run.failure_class`
-统计并标明处理方的失败、按类型统计并带时长与下一次到期时间的等待 Space 成员处理的 Workflow 请求、
+统计的失败（每类附带下一步，说明由谁处理、检查什么）、按类型统计并带时长与下一次到期时间的等待 Space 成员处理的 Workflow 请求、
 按 `workflow_run.failure_class` 统计的 Workflow run 失败，以及需要关注的 Space（含个人 Space）
-及其所有者和最老等待中、最近失败的 Workflow run 的 id（`GET /api/admin/runtime/spaces`）。
+及其所有者、每类失败的同一下一步，和作为可复制次要信息的最老等待中、最近失败的 Workflow run 的 id
+（`GET /api/admin/runtime/spaces`）。Overview 与 Space 详情以界面语言显示健康检查、run 状态、角色、
+Worker 运行模式、模型传输方式和配额等级，而不是服务器的标识符。
 系统管理员可以在 Space 详情、`buildmax admin quota-tier set` 或
 `PUT /api/admin/spaces/{space_id}/quota-tier` 中把任意 Space（团队或个人）分配到一个已有的种子配额层级；
 新的限额从该 Space 的下一次配额检查开始生效，正在运行的工作不会被停止，变更会以

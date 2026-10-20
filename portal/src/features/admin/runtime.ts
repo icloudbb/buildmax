@@ -1,23 +1,25 @@
 import type { Translate } from "@buildmax/gui"
 import type { MessageKey } from "../../i18n"
 
-type FailureClasses = Record<string, { label: MessageKey; owner: MessageKey }>
+type FailureClasses = Record<string, { label: MessageKey; owner: MessageKey; next: MessageKey }>
 
 /**
- * Presentation of the server's run failure classes. Each says who acts: the
+ * Presentation of the server's run failure classes. Each says who acts — the
  * operator for a platform fault, the Space for its own configuration, or
- * whoever reads the run when it is the model or the Agent's own work.
+ * whoever reads the run when it is the model or the Agent's own work — and
+ * what they check, which is what an operator passes on. The step names
+ * settings, never a route into the Space: Administration stays metadata-only.
  */
 export const FAILURE_CLASSES: FailureClasses = {
-  dispatch: { label: "admin.failure.dispatch", owner: "admin.actor.operator" },
-  worker_lost: { label: "admin.failure.worker_lost", owner: "admin.actor.operator" },
-  abandoned: { label: "admin.failure.abandoned", owner: "admin.actor.operator" },
-  interrupted: { label: "admin.failure.interrupted", owner: "admin.actor.operator" },
-  infrastructure: { label: "admin.failure.infrastructure", owner: "admin.actor.operator" },
-  space_configuration: { label: "admin.failure.space_configuration", owner: "admin.actor.spaceOwner" },
-  model: { label: "admin.failure.model", owner: "admin.actor.operatorOrSpace" },
-  run: { label: "admin.failure.run", owner: "admin.actor.space" },
-  unclassified: { label: "admin.failure.unclassified", owner: "admin.actor.checkRun" },
+  dispatch: { label: "admin.failure.dispatch", owner: "admin.actor.operator", next: "admin.next.dispatch" },
+  worker_lost: { label: "admin.failure.worker_lost", owner: "admin.actor.operator", next: "admin.next.worker_lost" },
+  abandoned: { label: "admin.failure.abandoned", owner: "admin.actor.operator", next: "admin.next.abandoned" },
+  interrupted: { label: "admin.failure.interrupted", owner: "admin.actor.operator", next: "admin.next.interrupted" },
+  infrastructure: { label: "admin.failure.infrastructure", owner: "admin.actor.operator", next: "admin.next.infrastructure" },
+  space_configuration: { label: "admin.failure.space_configuration", owner: "admin.actor.spaceOwner", next: "admin.next.space_configuration" },
+  model: { label: "admin.failure.model", owner: "admin.actor.operatorOrSpace", next: "admin.next.model" },
+  run: { label: "admin.failure.run", owner: "admin.actor.space", next: "admin.next.run" },
+  unclassified: { label: "admin.failure.unclassified", owner: "admin.actor.checkRun", next: "admin.next.unclassified" },
 }
 
 /**
@@ -26,14 +28,14 @@ export const FAILURE_CLASSES: FailureClasses = {
  * own. A failed node's task run carries its own class above.
  */
 export const WORKFLOW_FAILURE_CLASSES: FailureClasses = {
-  node_failed: { label: "admin.failure.node_failed", owner: "admin.actor.seeTaskRunFailures" },
-  output_schema: { label: "admin.failure.output_schema", owner: "admin.actor.space" },
-  node_timeout: { label: "admin.failure.node_timeout", owner: "admin.actor.space" },
-  admission: { label: "admin.failure.admission", owner: "admin.actor.spaceOrOperator" },
-  request_declined: { label: "admin.failure.request_declined", owner: "admin.actor.space" },
-  request_expired: { label: "admin.failure.request_expired", owner: "admin.actor.spaceMembers" },
-  run_deadline: { label: "admin.failure.run_deadline", owner: "admin.actor.space" },
-  unclassified: { label: "admin.failure.unclassified", owner: "admin.actor.checkRun" },
+  node_failed: { label: "admin.failure.node_failed", owner: "admin.actor.seeTaskRunFailures", next: "admin.next.node_failed" },
+  output_schema: { label: "admin.failure.output_schema", owner: "admin.actor.space", next: "admin.next.output_schema" },
+  node_timeout: { label: "admin.failure.node_timeout", owner: "admin.actor.space", next: "admin.next.node_timeout" },
+  admission: { label: "admin.failure.admission", owner: "admin.actor.spaceOrOperator", next: "admin.next.admission" },
+  request_declined: { label: "admin.failure.request_declined", owner: "admin.actor.space", next: "admin.next.request_declined" },
+  request_expired: { label: "admin.failure.request_expired", owner: "admin.actor.spaceMembers", next: "admin.next.request_expired" },
+  run_deadline: { label: "admin.failure.run_deadline", owner: "admin.actor.space", next: "admin.next.run_deadline" },
+  unclassified: { label: "admin.failure.unclassified", owner: "admin.actor.checkRun", next: "admin.next.unclassified" },
 }
 
 /** What a pending Workflow request asks a Space member for, by kind. */
@@ -51,14 +53,17 @@ export function failureLabel(
   return entry ? t(entry.label) : cls
 }
 
-/** Who acts on a failure class, or null for a class this build does not know. */
-export function failureOwner(
+/**
+ * Who acts on a failure class and what they check, as one line. A class this
+ * build does not know reads as unclassified, so every class shown has a step.
+ */
+export function failureNextStep(
   cls: string,
   t: Translate<MessageKey>,
   classes: FailureClasses = FAILURE_CLASSES,
-): string | null {
-  const entry = classes[cls]
-  return entry ? t(entry.owner) : null
+): string {
+  const entry = classes[cls] ?? classes.unclassified
+  return t("admin.overview.nextStep", { owner: t(entry.owner), step: t(entry.next) })
 }
 
 function formatSpan(ms: number, t: Translate<MessageKey>): string {
