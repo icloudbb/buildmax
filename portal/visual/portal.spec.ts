@@ -86,6 +86,40 @@ const views: View[] = [
       await expect(page.getByText("The model failed this run")).toBeVisible()
     },
   },
+  // Administration Overview. The page scrolls inside the shell, so each view
+  // opens at a different part: in English the failures, each with who acts and
+  // what they check, and the Spaces needing attention with their Space link;
+  // in Chinese the deployment facts and run statuses read as labels.
+  {
+    name: "administration",
+    path: "/#/admin",
+    ready: async (page) => {
+      await expect(page.getByRole("link", { name: "Analytical Engine" })).toBeVisible()
+      await page
+        .getByRole("heading", { name: "Task run failures in the last 24 hours" })
+        .evaluate((heading) => heading.scrollIntoView({ block: "start" }))
+    },
+  },
+  {
+    name: "administration-zh",
+    path: "/#/admin",
+    locale: "zh-CN",
+    ready: async (page) => {
+      await expect(page.getByText("对象存储", { exact: true })).toBeVisible()
+      await page
+        .getByRole("heading", { name: "部署", exact: true })
+        .evaluate((heading) => heading.scrollIntoView({ block: "start" }))
+    },
+  },
+  // A Space's Administration detail: its tier by name and its quota grouped.
+  {
+    name: "administration-space",
+    path: `/#/admin/spaces/${SPACE}`,
+    ready: async (page) => {
+      await expect(page.getByText("258 / 1,000")).toBeVisible()
+      await expect(page.getByText("1,284,000 / 10,000,000")).toBeVisible()
+    },
+  },
   {
     name: "settings",
     path: `${space}/settings`,

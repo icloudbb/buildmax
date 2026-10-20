@@ -1,7 +1,8 @@
-import { Spinner, useLocale, type Translate, statusLabel } from "@buildmax/gui"
+import { Spinner, StatusLabel, useLocale } from "@buildmax/gui"
 import { formatTimestamp } from "../../lib/dateFormat"
 import { useEffect, useState } from "react"
-import { useStableT, useT, type MessageKey } from "../../i18n"
+import { CopyableId } from "../../components/CopyableId"
+import { useStableT, useT } from "../../i18n"
 import type {
   ApiAdminMe,
   ApiAdminSpaceAttention,
@@ -12,11 +13,20 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { buildHash } from "../../router"
 import { getAdminConfig, getAdminMe, getAdminSystem, listAdminRuntimeSpaces } from "./api"
 import {
+  dependencyLabel,
+  dependencyStatusLabel,
+  formatCount,
+  orderedRunStatuses,
+  workerRunModeLabel,
+  workerTransportLabel,
+} from "./labels"
+import { systemRoleLabel } from "./roles"
+import {
   FAILURE_CLASSES,
   WORKFLOW_FAILURE_CLASSES,
   ageSince,
   failureLabel,
-  failureOwner,
+  failureNextStep,
   orderedFailures,
   timeUntil,
   waitingSummary,
@@ -28,7 +38,7 @@ function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   )
 }
 
-/** One failure class per row, with who acts on it. */
+/** One failure class per row, with who acts on it and what they check. */
 function FailureTable({
   failures,
   classes,
@@ -37,21 +47,22 @@ function FailureTable({
   classes: typeof FAILURE_CLASSES
 }) {
   const t = useT()
+  const { locale } = useLocale()
   return (
-    <table className="admin-table">
+    <table className="admin-table admin-table--prose">
       <thead>
         <tr>
           <th scope="col">{t("admin.overview.cause")}</th>
           <th scope="col">{t("admin.overview.runs")}</th>
-          <th scope="col">{t("admin.overview.whoActs")}</th>
+          <th scope="col">{t("admin.overview.nextStepCol")}</th>
         </tr>
       </thead>
       <tbody>
         {failures.map(([cls, n]) => (
           <tr key={cls}>
-            <td>{failureLabel(cls, t, classes)}</td>
-            <td>{n}</td>
-            <td className="admin-table__muted">{failureOwner(cls, t, classes) ?? "—"}</td>
+            <td className="admin-table__label">{failureLabel(cls, t, classes)}</td>
+            <td className="admin-table__nowrap">{formatCount(n, locale)}</td>
+            <td className="admin-table__muted">{failureNextStep(cls, t, classes)}</td>
           </tr>
         ))}
       </tbody>
@@ -84,8 +95,8 @@ function SpaceWaiting({
         {expiry ? t("admin.overview.waitingExpiry", { expiry }) : null}
       </span>
       {space.oldest_waiting_workflow_run_id ? (
-        <div className="admin-table__muted">
-          {t("admin.overview.workflowRun")} <code>{space.oldest_waiting_workflow_run_id}</code>
+        <div>
+          <CopyableId label={t("admin.overview.oldestWaitingRun")} id={space.oldest_waiting_workflow_run_id} />
         </div>
       ) : null}
     </>
@@ -93,59 +104,85 @@ function SpaceWaiting({
 }
 
 /**
- * "3 dispatch, 1 agent run". English lowercases the label after its count;
- * Chinese keeps it as is, since lowercasing would mangle the Latin terms it
- * keeps (Agent, Worker).
+ * One failure class and its count, then who acts and what they check. English
+ * lowercases the label after its count; Chinese keeps it as is, since
+ * lowercasing would mangle the Latin terms it keeps (Agent, Worker).
  */
-function countedLabels(
-  counts: [string, number][],
-  label: (key: string) => string,
-  t: Translate<MessageKey>,
-  english: boolean,
-): string {
-  return counts
-    .map(([key, count]) => {
-      const text = label(key)
-      return t("admin.overview.failureCount", { count, label: english ? text.toLowerCase() : text })
-    })
-    .join(t("admin.listSeparator"))
+function FailureLines({
+  failures,
+  classes,
+}: {
+  failures: [string, number][]
+  classes: typeof FAILURE_CLASSES
+}) {
+  const t = useT()
+  const { locale } = useLocale()
+  return (
+    <ul className="admin-failures">
+      {failures.map(([cls, count]) => {
+        const label = failureLabel(cls, t, classes)
+        return (
+          <li key={cls}>
+            <span className="admin-table__nowrap">
+              {t("admin.overview.failureCount", {
+                count: formatCount(count, locale),
+                label: locale === "en" ? label.toLowerCase() : label,
+              })}
+            </span>
+            <span className="admin-failures__next">{failureNextStep(cls, t, classes)}</span>
+          </li>
+        )
+      })}
+    </ul>
+  )
 }
 
 /** Task run and Workflow run failures in the window, each by its own classes. */
 function SpaceFailures({ space }: { space: ApiAdminSpaceAttention }) {
   const t = useT()
-  const english = useLocale().locale === "en"
-  const taskRuns = countedLabels(orderedFailures(space.failures), (cls) => failureLabel(cls, t), t, english)
-  const workflowRuns = countedLabels(
-    orderedFailures(space.workflow_failures, WORKFLOW_FAILURE_CLASSES),
-    (cls) => failureLabel(cls, t, WORKFLOW_FAILURE_CLASSES),
-    t,
-    english,
-  )
-  if (!taskRuns && !workflowRuns) return <>—</>
+  const taskRuns = orderedFailures(space.failures)
+  const workflowRuns = orderedFailures(space.workflow_failures, WORKFLOW_FAILURE_CLASSES)
+  if (taskRuns.length === 0 && workflowRuns.length === 0) return <>—</>
   return (
     <>
-      {taskRuns ? <div>{taskRuns}</div> : null}
-      {workflowRuns ? (
-        <div>
-          {t("admin.overview.workflowFailures", { failures: workflowRuns })}
+      {taskRuns.length > 0 ? <FailureLines failures={taskRuns} classes={FAILURE_CLASSES} /> : null}
+      {workflowRuns.length > 0 ? (
+        <>
+          <div className="admin-failures__group">{t("admin.overview.workflowRunFailures")}</div>
+          <FailureLines failures={workflowRuns} classes={WORKFLOW_FAILURE_CLASSES} />
           {space.latest_failed_workflow_run_id ? (
-            <span className="admin-table__muted">
-              {t("admin.overview.latest")}
-              <code>{space.latest_failed_workflow_run_id}</code>
-            </span>
+            <CopyableId label={t("admin.overview.latestFailedRun")} id={space.latest_failed_workflow_run_id} />
           ) : null}
-        </div>
+        </>
       ) : null}
     </>
   )
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+/** Run statuses by the shared vocabulary, each with its count. */
+function StatusCounts({ counts }: { counts: Record<string, number> }) {
+  const { locale } = useLocale()
+  const entries = orderedRunStatuses(counts)
+  if (entries.length === 0) return <>—</>
+  return (
+    <span className="admin-counts">
+      {entries.map(([status, n]) => (
+        <span key={status} className="admin-count">
+          <StatusLabel status={status} />
+          <span>{formatCount(n, locale)}</span>
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/** A labelled value; `detail` is the raw configuration value, kept as secondary technical detail. */
+function Fact({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="admin-fact">
       <span className="admin-fact__label">{label}</span>
       <span className="admin-fact__value">{value}</span>
+      {detail ? <code className="admin-fact__detail">{detail}</code> : null}
     </div>
   )
 }
@@ -209,7 +246,7 @@ export function AdminOverview({ token }: { token: string | null }) {
   if (!system) return null
 
   const warnings = Array.isArray(config?.warnings) ? (config.warnings as string[]) : []
-  const runStatuses = Object.entries(system.task_runs).sort(([a], [b]) => a.localeCompare(b))
+  const runStatuses = orderedRunStatuses(system.task_runs)
   const runtime = system.runtime
   const failures = orderedFailures(runtime?.failures)
   const workflowFailures = orderedFailures(runtime?.workflow_failures, WORKFLOW_FAILURE_CLASSES)
@@ -236,7 +273,7 @@ export function AdminOverview({ token }: { token: string | null }) {
             </div>
           </div>
           <div className="admin-facts">
-            <Fact label={t("admin.overview.role")} value={myGrant.role} />
+            <Fact label={t("admin.overview.role")} value={systemRoleLabel(myGrant.role, t)} />
             <Fact label={t("admin.overview.grantedBy")} value={grantedBy} />
             <Fact
               label={t("admin.overview.granted")}
@@ -263,8 +300,8 @@ export function AdminOverview({ token }: { token: string | null }) {
           ) : (
             system.dependencies.map((dep) => (
               <div key={dep.name} className="admin-fact">
-                <span className="admin-fact__label">{dep.name}</span>
-                <StatusPill ok={dep.status === "ok"} label={dep.status} />
+                <span className="admin-fact__label">{dependencyLabel(dep.name, t)}</span>
+                <StatusPill ok={dep.status === "ok"} label={dependencyStatusLabel(dep.status, t)} />
               </div>
             ))
           )}
@@ -282,11 +319,17 @@ export function AdminOverview({ token }: { token: string | null }) {
           <Fact label={t("admin.overview.version")} value={system.version} />
           <Fact
             label={t("admin.overview.workerRunMode")}
-            value={system.worker_run_mode ?? t("admin.overview.unknown")}
+            value={system.worker_run_mode ? workerRunModeLabel(system.worker_run_mode, t) : t("admin.overview.unknown")}
+            detail={system.worker_run_mode}
           />
           <Fact
             label={t("admin.overview.workerTransport")}
-            value={system.worker_llm_transport ?? t("admin.overview.unknown")}
+            value={
+              system.worker_llm_transport
+                ? workerTransportLabel(system.worker_llm_transport, t)
+                : t("admin.overview.unknown")
+            }
+            detail={system.worker_llm_transport}
           />
           {/*
             Empty means no worker path reports a sandbox surface, which is every
@@ -302,7 +345,7 @@ export function AdminOverview({ token }: { token: string | null }) {
             label={t("admin.overview.selfRegistration")}
             value={system.allow_signup ? t("admin.overview.open") : t("admin.overview.closed")}
           />
-          <Fact label={t("admin.overview.systemAdmins")} value={String(system.system_admins)} />
+          <Fact label={t("admin.overview.systemAdmins")} value={formatCount(system.system_admins, locale)} />
         </div>
       </section>
 
@@ -318,7 +361,10 @@ export function AdminOverview({ token }: { token: string | null }) {
             <p className="admin-empty">{t("admin.overview.noRuns")}</p>
           ) : (
             runStatuses.map(([status, count]) => (
-              <Fact key={status} label={status} value={String(count)} />
+              <div key={status} className="admin-fact">
+                <StatusLabel status={status} />
+                <span className="admin-fact__value">{formatCount(count, locale)}</span>
+              </div>
             ))
           )}
         </div>
@@ -348,7 +394,7 @@ export function AdminOverview({ token }: { token: string | null }) {
                 label={t("admin.overview.staleRunning", {
                   minutes: Math.round(runtime.stale_after_seconds / 60),
                 })}
-                value={String(runtime.stale_running)}
+                value={formatCount(runtime.stale_running, locale)}
               />
               {/*
                 A Workflow run waiting on a person holds no worker, so none of the
@@ -401,7 +447,7 @@ export function AdminOverview({ token }: { token: string | null }) {
         ) : attention.spaces.length === 0 ? (
           <p className="admin-empty">{t("admin.overview.noAttention")}</p>
         ) : (
-          <table className="admin-table">
+          <table className="admin-table admin-table--prose">
             <thead>
               <tr>
                 <th scope="col">{t("admin.overview.colSpace")}</th>
@@ -416,7 +462,10 @@ export function AdminOverview({ token }: { token: string | null }) {
               {attention.spaces.map((space) => (
                 <tr key={space.space_id}>
                   <td>
-                    <a href={buildHash({ name: "admin", section: "spaces", spaceId: space.space_id })}>
+                    <a
+                      className="admin-link"
+                      href={buildHash({ name: "admin", section: "spaces", spaceId: space.space_id })}
+                    >
                       {space.name || space.space_id}
                     </a>
                     {space.personal ? (
@@ -427,20 +476,11 @@ export function AdminOverview({ token }: { token: string | null }) {
                     {space.owners.map((o) => o.email || o.user_id).join(t("admin.listSeparator")) || "—"}
                   </td>
                   <td>
-                    {Object.entries(space.active)
-                      .map(([status, n]) =>
-                        t("admin.overview.activeCount", {
-                          count: n,
-                          // English has always shown the raw status, lowercased.
-                          status:
-                            locale === "en"
-                              ? status.toLowerCase()
-                              : statusLabel(status.toLowerCase(), locale),
-                        }),
-                      )
-                      .join(t("admin.listSeparator")) || "—"}
+                    <StatusCounts counts={space.active} />
                   </td>
-                  <td>{ageSince(space.oldest_active_at, system.server_time, t) ?? "—"}</td>
+                  <td className="admin-table__nowrap">
+                    {ageSince(space.oldest_active_at, system.server_time, t) ?? "—"}
+                  </td>
                   <td>
                     <SpaceWaiting space={space} serverTime={system.server_time} />
                   </td>

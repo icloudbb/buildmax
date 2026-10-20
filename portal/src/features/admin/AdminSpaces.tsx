@@ -1,5 +1,6 @@
-import { Button, Field, Input, Select, Spinner, useToast } from "@buildmax/gui"
+import { Button, Field, Input, Select, Spinner, useLocale, useToast } from "@buildmax/gui"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { CopyableId } from "../../components/CopyableId"
 import { useStableT, useT } from "../../i18n"
 import type {
   ApiAdminSpace,
@@ -9,6 +10,7 @@ import type {
 } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { pageWindow } from "./pagination"
+import { formatCount, quotaTierLabel } from "./labels"
 import { describeTierLimits } from "./quotaTier"
 import { roleLabel } from "./roles"
 import {
@@ -47,6 +49,7 @@ export function AdminSpaces({
 }) {
   const t = useT()
   const stableT = useStableT()
+  const { locale } = useLocale()
   const [spaces, setSpaces] = useState<ApiAdminSpace[]>([])
   const [total, setTotal] = useState(0)
   const [offset, setOffset] = useState(0)
@@ -129,14 +132,15 @@ export function AdminSpaces({
 
   async function changeTier(space: ApiAdminSpaceDetail, tier: string): Promise<void> {
     if (!token) return
-    if (!window.confirm(t("admin.spaces.tierConfirm", { space: space.name, tier }))) {
+    const label = quotaTierLabel(tier, t)
+    if (!window.confirm(t("admin.spaces.tierConfirm", { space: space.name, tier: label }))) {
       return
     }
     setBusy(true)
     setError(null)
     try {
       await setSpaceQuotaTier(token, space.id, tier)
-      toast(stableT("admin.spaces.tierChanged", { space: space.name, tier }))
+      toast(stableT("admin.spaces.tierChanged", { space: space.name, tier: label }))
       setSelected(await getAdminSpace(token, space.id))
       load(query, offset)
     } catch (err) {
@@ -219,8 +223,8 @@ export function AdminSpaces({
                       {space.name}
                     </button>
                   </td>
-                  <td>{space.member_count}</td>
-                  <td className="admin-table__muted">{space.quota_tier || "—"}</td>
+                  <td>{formatCount(space.member_count, locale)}</td>
+                  <td className="admin-table__muted">{space.quota_tier ? quotaTierLabel(space.quota_tier, t) : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -260,7 +264,9 @@ export function AdminSpaces({
           <div className="settings-page__section-head">
             <div>
               <h2 className="settings-page__section-title">{selected.name}</h2>
-              <p className="settings-page__section-copy">{selected.id}</p>
+              <p className="settings-page__section-copy">
+                <CopyableId label={t("admin.spaces.spaceId")} id={selected.id} />
+              </p>
             </div>
             <Button variant="tertiary" onClick={() => setSelected(null)}>
               {t("admin.close")}
@@ -271,23 +277,26 @@ export function AdminSpaces({
             <div className="admin-facts">
               <div className="admin-fact">
                 <span className="admin-fact__label">{t("admin.spaces.tier")}</span>
-                <span className="admin-fact__value">{selected.usage.tier || t("admin.spaces.unknown")}</span>
+                <span className="admin-fact__value">
+                  {selected.usage.tier ? quotaTierLabel(selected.usage.tier, t) : t("admin.spaces.unknown")}
+                </span>
+                {selected.usage.tier ? <code className="admin-fact__detail">{selected.usage.tier}</code> : null}
               </div>
               <div className="admin-fact">
                 <span className="admin-fact__label">{t("admin.spaces.runsThisPeriod")}</span>
                 <span className="admin-fact__value">
-                  {selected.usage.run_count}
+                  {formatCount(selected.usage.run_count, locale)}
                   {selected.usage.max_runs_per_period !== undefined
-                    ? ` / ${selected.usage.max_runs_per_period}`
+                    ? ` / ${formatCount(selected.usage.max_runs_per_period, locale)}`
                     : ""}
                 </span>
               </div>
               <div className="admin-fact">
                 <span className="admin-fact__label">{t("admin.spaces.tokensThisPeriod")}</span>
                 <span className="admin-fact__value">
-                  {selected.usage.total_tokens}
+                  {formatCount(selected.usage.total_tokens, locale)}
                   {selected.usage.max_tokens_per_period !== undefined
-                    ? ` / ${selected.usage.max_tokens_per_period}`
+                    ? ` / ${formatCount(selected.usage.max_tokens_per_period, locale)}`
                     : ""}
                 </span>
               </div>
@@ -318,7 +327,7 @@ export function AdminSpaces({
                 >
                   {tiers.map((tier) => (
                     <option key={tier.tier_name} value={tier.tier_name}>
-                      {tier.tier_name} — {describeTierLimits(tier, t)}
+                      {quotaTierLabel(tier.tier_name, t)} — {describeTierLimits(tier, t)}
                     </option>
                   ))}
                 </Select>
