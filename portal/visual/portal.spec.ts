@@ -72,7 +72,14 @@ const views: View[] = [
     path: `${space}/workflows/wfl_release`,
     ready: async (page) => {
       await expect(page.getByRole("tab", { name: "Definition" })).toHaveAttribute("aria-selected", "true")
-      await expect(page.locator(".react-flow__node").first()).toBeVisible()
+      // A wide window shows the graph; a narrow one lists the steps instead,
+      // under a note that connecting steps needs a wider window. The view
+      // opens at that note so the list is what the narrow baseline shows.
+      await expect(page.locator(".react-flow__node, .wf-step-list").first()).toBeVisible()
+      const narrowNote = page.locator(".wf-visual__narrow-note")
+      if ((await narrowNote.count()) > 0) {
+        await narrowNote.evaluate((note) => note.scrollIntoView({ block: "start" }))
+      }
     },
   },
   {

@@ -87,18 +87,24 @@ test("the detail page organizes into tabs, and lifecycle actions live on the Def
   // A draft opens on its Definition tab. The lifecycle actions live in that panel
   // and name the state they reach — Publish (primary) and Save as draft — with no
   // status control. Run Workflow is in the header but disabled, because the
-  // runtime refuses to run an unpublished definition.
+  // runtime refuses to run an unpublished definition, and it says so in text a
+  // screen reader announces with the button.
+  const run = page.getByRole("button", { name: "Run Workflow" })
   await expect(tabs.getByRole("tab", { name: "Definition" })).toHaveAttribute("aria-selected", "true")
   await expect(page.getByRole("combobox", { name: "Status" })).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Publish" })).toHaveClass(/bm-button--primary/)
   await expect(page.getByRole("button", { name: "Save as draft" })).toHaveClass(/bm-button--secondary/)
-  await expect(page.getByRole("button", { name: "Run Workflow" })).toBeDisabled()
+  await expect(run).toBeDisabled()
+  await expect(run).toHaveAccessibleDescription("Publish this Workflow to run it.")
+  await expect(page.getByText("Publish this Workflow to run it.", { exact: true })).toBeVisible()
 
   // Publishing makes the workflow runnable: the status pill reads Published and
-  // Run Workflow enables. The tab stays put — publishing is a save, not a mode.
+  // Run Workflow enables, with no reason left to give. The tab stays put —
+  // publishing is a save, not a mode.
   await page.getByRole("button", { name: "Publish" }).click()
   await expect(page.getByText("Published", { exact: true }).first()).toBeVisible()
-  await expect(page.getByRole("button", { name: "Run Workflow" })).toBeEnabled()
+  await expect(run).toBeEnabled()
+  await expect(run).toHaveAccessibleDescription("")
 
   // The Overview tab presents the read-only plan; the Runs tab lists executions.
   await tabs.getByRole("tab", { name: "Overview" }).click()
@@ -118,6 +124,7 @@ test("the detail page organizes into tabs, and lifecycle actions live on the Def
   await page.getByRole("button", { name: "Archive" }).click()
   await expect(page.getByText("Archived", { exact: true }).first()).toBeVisible()
   await expect(page.getByRole("button", { name: "Archive" })).toHaveCount(0)
+  await expect(run).toHaveAccessibleDescription("This Workflow is archived. Publish it again to run it.")
   // Saving as draft brings an archived workflow back into the draft lifecycle.
   await page.getByRole("button", { name: "Save as draft" }).click()
   await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible()

@@ -48,6 +48,7 @@ function parseSpaceScopedRoute(spaceId: string, rest: string[], query = new URLS
     case SEGMENT.agents:
       return id ? { name: "agent", spaceId, agentId: id } : { name: "agents", spaceId }
     case SEGMENT.workflows:
+      if (id === "new") return { name: "workflowNew", spaceId }
       return id ? { name: "workflow", spaceId, workflowId: id } : { name: "workflows", spaceId }
     case SEGMENT.workflowRuns:
       if (id) return { name: "workflowRun", spaceId, workflowRunId: id }
@@ -269,6 +270,8 @@ export function buildHash(route: Route): string {
       }
     case "workflows":
       return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.workflows}`
+    case "workflowNew":
+      return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.workflows}/new`
     case "workflow":
       return `#/${SEGMENT.spaces}/${route.spaceId}/${SEGMENT.workflows}/${route.workflowId}`
     case "workflowRun":

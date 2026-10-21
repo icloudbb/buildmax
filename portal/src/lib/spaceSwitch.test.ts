@@ -18,6 +18,7 @@ describe("spaceSwitchTarget", () => {
       { name: "space", spaceId: NEW, section: "overview" },
     ],
     [{ name: "workflows", spaceId: OLD }, { name: "workflows", spaceId: NEW }],
+    [{ name: "workflowNew", spaceId: OLD }, { name: "workflows", spaceId: NEW }],
     [{ name: "workflow", spaceId: OLD, workflowId: "w_1" }, { name: "workflows", spaceId: NEW }],
     [
       { name: "workflowRun", spaceId: OLD, workflowRunId: "wr_1" },

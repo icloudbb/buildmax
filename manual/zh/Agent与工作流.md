@@ -44,17 +44,28 @@ Agent，在该 Workflow 被修改或归档之前无法删除。
 
 ## 创建一个 Workflow
 
-在侧栏打开 **Workflows** 并选择 **New Workflow**。Workflow 的详情页按标签页
-组织，与 Agent 页面风格一致：**Overview**（只读地查看计划）、**Definition**
-（编辑器与生命周期操作）、**Runs**、**Schedules** 和 **Revisions**。草稿默认
-打开 Definition 标签页；已发布的 Workflow 默认打开 Overview。**Run Workflow**
-位于页头，在 Workflow 发布后可用。
+在侧栏打开 **Workflows** 并选择 **New Workflow**。它会打开一个独立页面，其中是下文
+介绍的图编辑器：为 Workflow 命名、安排步骤，然后选择 **Create workflow**。Workflow
+会保存为草稿；**Create workflow** 不可用时，旁边的文字会说明还缺少什么。
+
+Workflow 的详情页按标签页组织，与 Agent 页面风格一致：**Overview**（只读地查看
+计划）、**Definition**（编辑器与生命周期操作）、**Runs**、**Schedules** 和
+**Revisions**。草稿默认打开 Definition 标签页；已发布的 Workflow 默认打开
+Overview。**Run Workflow** 位于页头，在 Workflow 发布后可用；在此之前，按钮下方的
+文字会说明它为什么还不能运行。
 
 Workflow 是一个可复用的执行计划，你可以手动运行它或将它分派给一个 Issue。
 在 **Definition** 标签页使用可视化图编辑器构建它：
 
-- 用 **Add step** 创建 Agent 步骤。选择节点后，在右侧面板编辑它的 id、目标 Agent、
-  prompt、Issue 访问模式和输入绑定。`agent_task` 是目前运行时唯一支持的节点类型。
+- 用 **Add step** 创建 Agent 步骤。步骤按添加顺序命名为 **Step 1**、**Step 2** 等。
+  选择节点后，在右侧面板编辑它的 Agent、prompt、Issue 访问模式和输入绑定。Agent
+  按名称列出；两个 Agent 重名时，各自还会显示描述。`agent_task` 是目前运行时唯一
+  支持的节点类型。
+- **Issue access** 决定步骤是否处理发起运行的 Issue：**No Issue access**、
+  **Use the run's Issue, if any** 或 **Require an Issue**（此时 Workflow 只能从
+  Issue 运行）。字段下方的提示会解释当前选项。
+- 每个步骤还有一个生成的 ID，raw JSON 和运行详情用它引用该步骤。它位于右侧面板的
+  **Advanced** 折叠区，你可以在那里把它改成有意义的名字，所有引用会随之更新。
 - 从一个节点的右边缘拖到另一个节点的左边缘，让后者依赖前者。一个节点会在所有
   依赖节点成功后运行；互不依赖的节点可以并行运行。**Max parallel** 设置每次运行
   的并行上限，**Run timeout (min)** 会让未能按时结束的运行失败。**Re-layout**
@@ -69,6 +80,9 @@ Workflow 是一个可复用的执行计划，你可以手动运行它或将它�
 - **Edit raw JSON** 展示同一份定义，供精确检查或编辑可视化界面尚未提供的字段，
   包括 `input_schema`、`result` 和节点的 `output_schema`。**Visual editor** 返回
   图视图。保存时两种视图使用同一套校验规则。
+
+在手机等窄屏上，编辑器会按顺序列出步骤而不是绘制依赖图：选择一个步骤即可编辑。
+连接步骤需要更宽的窗口。Overview 标签页在窄屏上也以同样的列表显示计划。
 
 ### 草稿、发布、归档
 

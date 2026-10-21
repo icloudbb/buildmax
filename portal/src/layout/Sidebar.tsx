@@ -63,7 +63,7 @@ function isIssuesActive(route: Route): boolean {
 }
 
 function isWorkflowsActive(route: Route): boolean {
-  return route.name === "workflows" || route.name === "workflow" || route.name === "workflowRun"
+  return route.name === "workflows" || route.name === "workflowNew" || route.name === "workflow" || route.name === "workflowRun"
 }
 
 function isSchedulesActive(route: Route): boolean {

@@ -69,7 +69,7 @@ export interface WorkflowStepsState {
 /**
  * Owns the visual editor and the raw JSON view as one state machine with a
  * single source of truth (`steps`, with explicit `needs` edges), so
- * `WorkflowDetail` and the create modal share one place that decides what Save
+ * `WorkflowDetail` and the new-Workflow page share one place that decides what Save
  * is allowed to submit. `input_schema`, `result`, and each node's
  * `output_schema` are carried verbatim so switching to the visual editor and
  * saving does not strip a definition that declares them.

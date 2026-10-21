@@ -18,6 +18,10 @@ import "@xyflow/react/dist/style.css"
 import { Button, Field, Input, Select, Textarea } from "@buildmax/gui"
 import type { Agent } from "../../lib/types"
 import { useT } from "../../i18n"
+import { useMediaQuery } from "../../hooks/useMediaQuery"
+import { agentOptionLabels } from "../agents/optionLabel"
+import { ISSUE_ACCESS_OPTIONS, issueAccessOption, stepExecutorLabel, stepHeading } from "./labels"
+import { STEP_LIST_QUERY, WorkflowStepList } from "./StepList"
 import {
   HUMAN_INPUT_STEP_TYPE,
   MAX_NODE_ATTEMPTS,
@@ -28,13 +32,11 @@ import {
 } from "./steps"
 import type { WorkflowStepsState } from "./useWorkflowSteps"
 
-const ISSUE_ACCESS_OPTIONS = ["none", "if_bound", "required"]
-
 interface StepNodeData extends Record<string, unknown> {
   label: string
   agentName: string
   prompt: string
-  issueAccess?: string
+  issueBadge: string | null
   maxAttempts?: number
   timeoutSeconds?: number
   errorCount: number
@@ -72,13 +74,11 @@ function StepNodeComponent({ data, selected }: NodeProps<StepNode>) {
       className={`wf-node${selected ? " wf-node--selected" : ""}${data.errorCount > 0 ? " wf-node--error" : ""}`}
     >
       <Handle type="target" position={Position.Left} />
-      <div className="wf-node__id">{data.label}</div>
-      <div className="wf-node__agent">{data.agentName || t("workflows.editor.noAgent")}</div>
+      <div className="wf-node__heading">{data.label}</div>
+      <div className="wf-node__agent">{data.agentName}</div>
       <div className="wf-node__prompt">{data.prompt || t("workflows.editor.noPrompt")}</div>
       <div className="wf-node__tags">
-        {data.issueAccess && data.issueAccess !== "none" ? (
-          <span className="wf-node__badge">{t("workflows.editor.issueBadge", { access: data.issueAccess })}</span>
-        ) : null}
+        {data.issueBadge ? <span className="wf-node__badge">{data.issueBadge}</span> : null}
         {data.maxAttempts && data.maxAttempts > 1 ? (
           <span className="wf-node__badge">{t("workflows.editor.attemptsBadge", { count: data.maxAttempts })}</span>
         ) : null}
@@ -144,10 +144,6 @@ interface WorkflowVisualEditorProps {
   state: WorkflowStepsState
   agents: Agent[]
   disabled: boolean
-  /** When set, the canvas grows to fill the available height, so the editing
-   *  page is dominated by the graph rather than the surrounding chrome. The
-   *  create modal leaves it off to keep the canvas within the dialog. */
-  fill?: boolean
 }
 
 /**
@@ -155,10 +151,12 @@ interface WorkflowVisualEditorProps {
  * inspector for the selected step. `state.steps` is the source of truth for
  * content and `needs` edges; node positions are local UI state. Every mutation
  * goes through the shared step state, so the raw JSON view and Save see the same
- * definition.
+ * definition. On a narrow screen the canvas gives way to the ordered step list,
+ * which selects the step the inspector edits.
  */
-export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: WorkflowVisualEditorProps) {
+export function WorkflowVisualEditor({ state, agents, disabled }: WorkflowVisualEditorProps) {
   const t = useT()
+  const narrow = useMediaQuery(STEP_LIST_QUERY)
   const parallelId = useId()
   const runTimeoutId = useId()
   const { steps, errors } = state
@@ -180,7 +178,7 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
   }
 
   const layout = useMemo(() => computeLayout(steps), [steps])
-  const agentName = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents])
+  const agentLabels = useMemo(() => agentOptionLabels(agents), [agents])
   // Fall back to the first step so the inspector is always populated when there
   // is something to edit; an explicit click overrides it.
   const effectiveSelectedId = (selectedId && steps.some((s) => s.id === selectedId) ? selectedId : steps[0]?.id) ?? null
@@ -198,23 +196,30 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
 
   const nodes = useMemo<StepNode[]>(
     () =>
-      steps.map((step) => ({
-        id: step.id,
-        type: "wfStep",
-        position: positions[step.id] ?? layout[step.id] ?? { x: 0, y: 0 },
-        selected: step.id === effectiveSelectedId,
-        draggable: !disabled,
-        data: {
-          label: step.id,
-          agentName: step.type === HUMAN_INPUT_STEP_TYPE ? t("workflows.editor.byPerson") : (agentName.get(step.targetAgentId) ?? ""),
-          prompt: step.prompt,
-          issueAccess: step.issueAccess,
-          maxAttempts: step.maxAttempts,
-          timeoutSeconds: step.timeoutSeconds,
-          errorCount: errorCountById[step.id] ?? 0,
-        },
-      })),
-    [steps, positions, layout, effectiveSelectedId, disabled, agentName, errorCountById, t],
+      steps.map((step, index) => {
+        const heading = stepHeading(index, t)
+        const executor = stepExecutorLabel(step, agentLabels, t)
+        const badge = issueAccessOption(step.issueAccess)?.badge
+        return {
+          id: step.id,
+          type: "wfStep",
+          position: positions[step.id] ?? layout[step.id] ?? { x: 0, y: 0 },
+          selected: step.id === effectiveSelectedId,
+          draggable: !disabled,
+          // The node's accessible name is the step's, not its generated id.
+          ariaLabel: `${heading}, ${executor}`,
+          data: {
+            label: heading,
+            agentName: executor,
+            prompt: step.prompt,
+            issueBadge: badge ? t(badge) : null,
+            maxAttempts: step.maxAttempts,
+            timeoutSeconds: step.timeoutSeconds,
+            errorCount: errorCountById[step.id] ?? 0,
+          },
+        }
+      }),
+    [steps, positions, layout, effectiveSelectedId, disabled, agentLabels, errorCountById, t],
   )
 
   const edges = useMemo<Edge[]>(
@@ -271,10 +276,11 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
     state.connectNeed(connection.target, connection.source)
   }
 
-  const selectedStep = steps.find((s) => s.id === effectiveSelectedId) ?? null
+  const selectedIndex = steps.findIndex((s) => s.id === effectiveSelectedId)
+  const selectedStep = selectedIndex >= 0 ? steps[selectedIndex] : null
 
   return (
-    <div className={`wf-visual${fill ? " wf-visual--fill" : ""}`}>
+    <div className="wf-visual">
       <div className="wf-visual__toolbar">
         {!disabled ? (
           <Button
@@ -300,9 +306,11 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
             {t("workflows.editor.addInputStep")}
           </Button>
         ) : null}
-        <Button variant="tertiary" size="compact" onClick={() => setPositions({})}>
-          {t("workflows.editor.relayout")}
-        </Button>
+        {!narrow ? (
+          <Button variant="tertiary" size="compact" onClick={() => setPositions({})}>
+            {t("workflows.editor.relayout")}
+          </Button>
+        ) : null}
         <div className="wf-visual__parallel">
           <label className="wf-visual__parallel-label" htmlFor={parallelId}>
             {t("workflows.editor.maxParallel")}
@@ -339,31 +347,48 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
       </div>
 
       <div className="wf-visual__body">
-        <div className="wf-visual__canvas">
-          {steps.length === 0 ? (
-            <p className="page-activity__empty">{t("workflows.editor.noSteps")}</p>
-          ) : (
-            <ReactFlowProvider>
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                nodeTypes={nodeTypes}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onNodeClick={(_, node) => setSelectedId(node.id)}
-                onPaneClick={() => setSelectedId(null)}
-                nodesConnectable={!disabled}
-                elementsSelectable
-                fitView
-                minZoom={0.2}
-              >
-                <Background />
-                <Controls showInteractive={false} />
-              </ReactFlow>
-            </ReactFlowProvider>
-          )}
-        </div>
+        {narrow ? (
+          <div className="wf-visual__list">
+            <p className="wf-visual__narrow-note">{t("workflows.editor.narrowNote")}</p>
+            {steps.length === 0 ? (
+              <p className="page-activity__empty">{t("workflows.editor.noSteps")}</p>
+            ) : (
+              <WorkflowStepList
+                steps={steps}
+                agentLabels={agentLabels}
+                label={t("workflows.editor.steps")}
+                selectedId={effectiveSelectedId}
+                onSelect={setSelectedId}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="wf-visual__canvas">
+            {steps.length === 0 ? (
+              <p className="page-activity__empty">{t("workflows.editor.noSteps")}</p>
+            ) : (
+              <ReactFlowProvider>
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  nodeTypes={nodeTypes}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onConnect={onConnect}
+                  onNodeClick={(_, node) => setSelectedId(node.id)}
+                  onPaneClick={() => setSelectedId(null)}
+                  nodesConnectable={!disabled}
+                  elementsSelectable
+                  fitView
+                  minZoom={0.2}
+                >
+                  <Background />
+                  <Controls showInteractive={false} />
+                </ReactFlow>
+              </ReactFlowProvider>
+            )}
+          </div>
+        )}
 
         <aside className="wf-visual__inspector">
           {selectedStep ? (
@@ -373,6 +398,8 @@ export function WorkflowVisualEditor({ state, agents, disabled, fill = false }: 
               agents={agents}
               disabled={disabled}
               step={selectedStep}
+              index={selectedIndex}
+              agentLabels={agentLabels}
               stepErrors={errors
                 .filter((e) => e.index >= 0 && steps[e.index]?.id === selectedStep.id)
                 .map((e) => e.message)}
@@ -394,18 +421,36 @@ interface StepInspectorProps {
   agents: Agent[]
   disabled: boolean
   step: WorkflowStepDraft
+  /** The step's position in the definition, which names it ("Step 2"). */
+  index: number
+  agentLabels: Map<string, string>
   stepErrors: string[]
   predecessors: Set<string>
   allSteps: WorkflowStepDraft[]
   onRename: (oldId: string, newId: string) => void
 }
 
-/** The editing panel for one selected step: its id, agent, prompt, Issue access,
- *  and input bindings. A binding may read the workflow input or a step this one
- *  depends on, matching the server rule. */
-function StepInspector({ state, agents, disabled, step, stepErrors, predecessors, allSteps, onRename }: StepInspectorProps) {
-  const predecessorSteps = allSteps.filter((s) => predecessors.has(s.id))
+/** The editing panel for one selected step: its agent, prompt, Issue access,
+ *  and input bindings, then its identifier under a disclosure. A binding may
+ *  read the workflow input or a step this one depends on, matching the server
+ *  rule. */
+function StepInspector({
+  state,
+  agents,
+  disabled,
+  step,
+  index,
+  agentLabels,
+  stepErrors,
+  predecessors,
+  allSteps,
+  onRename,
+}: StepInspectorProps) {
+  const predecessorSteps = allSteps
+    .map((s, i) => ({ step: s, index: i }))
+    .filter(({ step: s }) => predecessors.has(s.id))
   const human = step.type === HUMAN_INPUT_STEP_TYPE
+  const issueAccess = issueAccessOption(step.issueAccess)
   const bindings = step.bindings ?? []
   // The id is edited as a local draft and committed on blur/Enter, so the step's
   // id (and thus this node's identity) changes once per rename rather than on
@@ -435,27 +480,16 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
   return (
     <div className="wf-inspector">
       <div className="wf-inspector__head">
-        <strong>{human ? t("workflows.editor.inputStep") : t("workflows.editor.step")}</strong>
+        <h4 className="wf-inspector__title">
+          {stepHeading(index, t)}
+          {human ? <span className="wf-inspector__kind">{t("workflows.editor.inputStep")}</span> : null}
+        </h4>
         {!disabled ? (
           <Button variant="danger" size="compact" disabled={allSteps.length === 1} onClick={() => state.removeStep(step.id)}>
             {t("workflows.editor.remove")}
           </Button>
         ) : null}
       </div>
-      <Field label={t("workflows.editor.stepId")} error={idError}>
-        <Input
-          value={idDraft}
-          disabled={disabled}
-          onChange={(e) => setIdDraft(e.target.value)}
-          onBlur={commitId}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault()
-              e.currentTarget.blur()
-            }
-          }}
-        />
-      </Field>
       {human ? (
         <HumanStepFields state={state} step={step} disabled={disabled} />
       ) : (
@@ -469,7 +503,7 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
           <option value="">{t("workflows.editor.selectAgent")}</option>
           {agents.map((agent) => (
             <option key={agent.id} value={agent.id}>
-              {agent.name} ({agent.id})
+              {agentLabels.get(agent.id) ?? agent.name}
             </option>
           ))}
         </Select>
@@ -482,17 +516,20 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
           onChange={(e) => state.changeStep(step.id, { prompt: e.target.value })}
         />
       </Field>
-      <Field label={t("workflows.editor.issueAccess")}>
+      <Field label={t("workflows.editor.issueAccess")} hint={issueAccess ? t(issueAccess.hint) : undefined}>
         <Select
-          value={step.issueAccess ?? "none"}
+          value={step.issueAccess || "none"}
           disabled={disabled}
           onChange={(e) => state.changeStep(step.id, { issueAccess: e.target.value })}
         >
           {ISSUE_ACCESS_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}
+            <option key={option.value} value={option.value}>
+              {t(option.label)}
             </option>
           ))}
+          {/* A value only raw JSON could write stays visible rather than
+              silently reading as the first option; validation names it. */}
+          {issueAccess ? null : <option value={step.issueAccess}>{step.issueAccess}</option>}
         </Select>
       </Field>
       <div className="wf-inspector__row">
@@ -546,8 +583,8 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
               <option value="">{t("workflows.editor.selectSource")}</option>
               <option value={WORKFLOW_INPUT_SOURCE}>{t("workflows.editor.workflowInput")}</option>
               {predecessorSteps.map((predecessor) => (
-                <option key={predecessor.id} value={nodeOutputSource(predecessor.id)}>
-                  {t("workflows.editor.stepOutput", { id: predecessor.id })}
+                <option key={predecessor.step.id} value={nodeOutputSource(predecessor.step.id)}>
+                  {t("workflows.editor.stepOutput", { step: stepHeading(predecessor.index, t) })}
                 </option>
               ))}
             </Select>
@@ -578,6 +615,26 @@ function StepInspector({ state, agents, disabled, step, stepErrors, predecessors
           ))}
         </ul>
       ) : null}
+      {/* The identifier is generated, so it is not part of authoring a step.
+          Raw JSON, input bindings, and run diagnostics refer to the step by it,
+          so it stays one disclosure away, renamable to something meaningful. */}
+      <details className="wf-inspector__advanced" open={idError ? true : undefined}>
+        <summary>{t("workflows.editor.advanced")}</summary>
+        <Field label={t("workflows.editor.stepId")} hint={t("workflows.editor.stepIdHint")} error={idError}>
+          <Input
+            value={idDraft}
+            disabled={disabled}
+            onChange={(e) => setIdDraft(e.target.value)}
+            onBlur={commitId}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                e.currentTarget.blur()
+              }
+            }}
+          />
+        </Field>
+      </details>
     </div>
   )
 }

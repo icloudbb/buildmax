@@ -505,7 +505,7 @@ Task 详情和对话中的 Task 卡片也采用共享操作层级与面向用户
 方向键标签页与 Files 链接。
 对话中的 Task 操作失败时，错误保留在对应卡片上；Task 列表加载失败时，可就近重试，
 对话内容仍可阅读。
-Workflow 详情通过显式的「存为草稿」「发布」「归档」操作驱动生命周期，而非状态控件；版本历史从头部按钮打开，不显示不透明的 workflow id。其定义编辑器是可视化图形画布（React Flow）与 raw JSON 视图并列：步骤是节点，`needs` 依赖是节点间连线，选中节点的 agent、指令、Issue 访问与输入绑定在检视面板中编辑，因此分叉 DAG 不再需要手写 JSON。`input_schema`、`result` 与节点的 `output_schema` 经可视化编辑器无损保留、由 raw JSON 编写。
+Workflow 详情通过显式的「存为草稿」「发布」「归档」操作驱动生命周期，而非状态控件；版本历史从头部按钮打开，不显示不透明的 workflow id。**运行 Workflow** 不可用时会说明原因（发布草稿，或重新发布已归档的 Workflow），屏幕阅读器会随按钮一起朗读。其定义编辑器是可视化图形画布（React Flow）与 raw JSON 视图并列：步骤是节点，`needs` 依赖是节点间连线，选中节点的 agent、指令、Issue 访问与输入绑定在检视面板中编辑，因此分叉 DAG 不再需要手写 JSON。新 Workflow 在独立页面（`#/spaces/{space_id}/workflows/new`）中用同一个编辑器编写，而非对话框。步骤显示为“第 N 步”及其 Agent 名称；生成的步骤 ID 位于检视面板的“高级”折叠区，Agent 按名称列出（仅在重名时附加区分信息），Issue 访问提供带一行说明的可读选项，而非 `none`、`if_bound`、`required`。宽度小于 768px 时，编辑器和概览中的计划以有序列表显示步骤，编辑器会说明连接步骤需要更宽的窗口。`input_schema`、`result` 与节点的 `output_schema` 经可视化编辑器无损保留、由 raw JSON 编写。
 Agent 详情的运行、保存和删除操作也采用同一层级；标签栏支持方向键和窄屏横向滚动。
 Agent 的 schedule 在已触发 Task 加载失败时展示错误并可就地重试。
 Artifacts 的上传、下载、分享和删除也使用共享操作层级。列表成功加载后才显示数量；

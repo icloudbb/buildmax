@@ -63,9 +63,8 @@ export interface WorkflowStepDraft {
    */
   needs?: string[]
   /** The node's Issue access mode: "none" (default), "if_bound", or "required".
-   *  The step form does not edit it yet; advanced JSON does, and carrying it here
-   *  keeps a hand-authored value from being stripped on save. `undefined` is
-   *  treated as "none". */
+   *  The node inspector edits it in the words labels.ts gives each mode.
+   *  `undefined` is treated as "none". */
   issueAccess?: string
   targetAgentId: string
   /** The pinned agent revision, when the definition names one (publication pins

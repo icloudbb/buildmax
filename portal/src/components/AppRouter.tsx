@@ -14,6 +14,7 @@ import { Artifacts } from "../pages/artifacts/Artifacts"
 import { ArtifactDetail } from "../pages/artifacts/ArtifactDetail"
 import { Workflows } from "../pages/workflows/Workflows"
 import { SchedulesPage } from "../pages/schedules/SchedulesPage"
+import { NewWorkflow } from "../pages/workflows/NewWorkflow"
 import { WorkflowDetail } from "../pages/workflows/WorkflowDetail"
 import { WorkflowRunDetail } from "../pages/workflows/WorkflowRunDetail"
 import { AccountSettings } from "../pages/settings/AccountSettings"
@@ -103,6 +104,10 @@ export function AppRouter({
 
   if (route.name === "workflows") {
     return <Workflows token={token ?? null} spaceId={route.spaceId} />
+  }
+
+  if (route.name === "workflowNew") {
+    return <NewWorkflow token={token ?? null} spaceId={route.spaceId} />
   }
 
   if (route.name === "workflow") {

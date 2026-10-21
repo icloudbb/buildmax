@@ -142,6 +142,12 @@ export function useBreadcrumbs(route: Route, conversations: Conversation[] = [])
   if (route.name === "workflows") {
     return [{ label: t("shell.nav.workflows"), route: { name: "workflows", spaceId: route.spaceId } }]
   }
+  if (route.name === "workflowNew") {
+    return [
+      { label: t("shell.nav.workflows"), route: { name: "workflows", spaceId: route.spaceId } },
+      { label: t("shell.crumbs.newWorkflow"), route },
+    ]
+  }
   if (route.name === "workflow") {
     return [
       { label: t("shell.nav.workflows"), route: { name: "workflows", spaceId: route.spaceId } },
