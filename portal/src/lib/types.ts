@@ -95,6 +95,8 @@ export type Route =
       spaceId?: string
     }
   | { name: "workflows"; spaceId: string }
+  // The full-page editor a new Workflow is authored in before it exists.
+  | { name: "workflowNew"; spaceId: string }
   | { name: "workflow"; spaceId: string; workflowId: string }
   | { name: "workflowRun"; spaceId: string; workflowRunId: string }
   | { name: "schedules"; spaceId: string }

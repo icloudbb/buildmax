@@ -16,6 +16,8 @@ export {
 export { WorkflowRequestCard, type RequestResponse } from "./RequestCard"
 export { answerMode, describeResponse, formatQuestionAnswers } from "./request"
 export { WorkflowStepsEditor } from "./StepsEditor"
+export { STEP_LIST_QUERY, WorkflowStepList } from "./StepList"
+export { ISSUE_ACCESS_OPTIONS, issueAccessOption, stepExecutorLabel, stepHeading } from "./labels"
 export { WorkflowVisualEditor } from "./VisualEditor"
 export { WorkflowGraph, type GraphNode } from "./WorkflowGraph"
 export { WorkflowRunInputForm } from "./RunInputForm"

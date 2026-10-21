@@ -27,6 +27,7 @@ const SWITCH_TARGET: Record<SpaceScopedRouteName, SpaceCollectionRouteName> = {
   agent: "agents",
   space: "space",
   workflows: "workflows",
+  workflowNew: "workflows",
   workflow: "workflows",
   workflowRun: "workflows",
   schedules: "schedules",

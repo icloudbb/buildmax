@@ -9,7 +9,7 @@ import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../l
 import { collectionFilter, createIssue, getIssues } from "../../features/issues"
 import { IssueBoard } from "./IssueBoard"
 import { NeedsMeSection } from "../../features/needsMe"
-import { getAgents } from "../../features/agents"
+import { agentOptionLabels, getAgents } from "../../features/agents"
 import { getSpaceMembers, peopleOnly } from "../../features/spaces/api"
 import { getWorkflows } from "../../features/workflows"
 import { IssueModal } from "../../components/IssueModal"
@@ -43,6 +43,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
   const [issuesData, setIssuesData] = useState<Issue[] | null>(null)
   const [total, setTotal] = useState(0)
   const [agents, setAgents] = useState<Agent[]>([])
+  const agentLabels = useMemo(() => agentOptionLabels(agents), [agents])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [members, setMembers] = useState<ApiSpaceMember[]>([])
   const [loading, setLoading] = useState(true)
@@ -295,7 +296,7 @@ export function Issues({ token, spaceId, userId, query = {} }: IssuesProps) {
               <optgroup label={t("issues.filter.agents")}>
                 {agents.map((agent) => (
                   <option key={agent.id} value={`agent:${agent.id}`}>
-                    {agent.name}
+                    {agentLabels.get(agent.id) ?? agent.name}
                   </option>
                 ))}
               </optgroup>

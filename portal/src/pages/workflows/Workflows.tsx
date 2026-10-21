@@ -1,22 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button, CollectionFrame, PageHeader, StatusLabel } from "@buildmax/gui"
-import type { Agent, Workflow, WorkflowRequest } from "../../lib/types"
+import type { Workflow, WorkflowRequest } from "../../lib/types"
 import { navigate } from "../../router"
-import { getErrorMessage } from "../../lib/errorMessage"
 import { useStableT, useT } from "../../i18n"
 import { useRelativeTime } from "../../lib/dateFormat"
-import {
-  apiAgentToAgent,
-  apiWorkflowRequestToWorkflowRequest,
-  apiWorkflowToWorkflow,
-} from "../../lib/api/mappers"
-import { getAgents } from "../../features/agents"
-import {
-  createWorkflow,
-  getPendingWorkflowRequests,
-  getWorkflows,
-} from "../../features/workflows"
-import { WorkflowModal } from "../../components/WorkflowModal"
+import { apiWorkflowRequestToWorkflowRequest, apiWorkflowToWorkflow } from "../../lib/api/mappers"
+import { getPendingWorkflowRequests, getWorkflows } from "../../features/workflows"
 import { useSpace, useSpaceCapability } from "../../contexts/SpaceContext"
 import { Alert } from "../../components/state/Alert"
 import { EmptyState } from "../../components/state/EmptyState"
@@ -33,23 +22,17 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
   const relativeTime = useRelativeTime()
   const stableT = useStableT()
   const { currentUserRole } = useSpace()
-  const [agents, setAgents] = useState<Agent[]>([])
   const [pendingRequests, setPendingRequests] = useState<WorkflowRequest[]>([])
   // null means "not yet successfully fetched", distinct from [] meaning the
   // space genuinely has no workflows. See deriveResourceState.
   const [workflowsData, setWorkflowsData] = useState<Workflow[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<RequestError | null>(null)
-  const [saving, setSaving] = useState(false)
-  // Distinct from listError: the create-workflow mutation's own error.
-  const [createError, setCreateError] = useState<string | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
   const canManageWorkflowsState = useSpaceCapability(currentUserRole === "owner" || currentUserRole === "admin")
   const canManageWorkflows = isAllowed(canManageWorkflowsState)
 
   const fetchWorkflows = useCallback(() => {
     if (!token || !spaceId) {
-      setAgents([])
       setWorkflowsData(null)
       setLoading(false)
       setListError(null)
@@ -62,14 +45,8 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
     void getPendingWorkflowRequests(spaceId, token)
       .then((res) => setPendingRequests(res.requests.map(apiWorkflowRequestToWorkflowRequest)))
       .catch(() => setPendingRequests([]))
-    return Promise.all([
-      getWorkflows(spaceId, token),
-      getAgents(spaceId, token),
-    ])
-      .then(([workflowRes, agentRes]) => {
-        setWorkflowsData(workflowRes.workflows.map(apiWorkflowToWorkflow))
-        setAgents(agentRes.map(apiAgentToAgent))
-      })
+    return getWorkflows(spaceId, token)
+      .then((workflowRes) => setWorkflowsData(workflowRes.workflows.map(apiWorkflowToWorkflow)))
       // workflowsData from a prior successful fetch (if any) is left in place,
       // so a failed refresh reads as Stale rather than wiping the list.
       .catch((err) => setListError(classifyError(err, stableT("workflows.error.load"))))
@@ -87,20 +64,6 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
 
   const workflowCountLabel = t("workflows.list.count", { count: workflowsData?.length ?? 0 })
 
-  function handleCreate(values: { name: string; description: string; definition: string }) {
-    if (!token || !spaceId) return
-    setSaving(true)
-    setCreateError(null)
-    createWorkflow(spaceId, values, token)
-      .then((created) => {
-        setCreateOpen(false)
-        // Success lands on the created workflow, not back on the list.
-        navigate({ name: "workflow", spaceId, workflowId: created.id })
-      })
-      .catch((err) => setCreateError(getErrorMessage(err, stableT("workflows.error.create"))))
-      .finally(() => setSaving(false))
-  }
-
   return (
     <div className="page-activity">
       <PageHeader
@@ -108,13 +71,8 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
         subtitle={t("workflows.subtitle")}
         actions={
           canManageWorkflows ? (
-            <Button
-              variant="primary"
-              onClick={() => {
-                setCreateError(null)
-                setCreateOpen(true)
-              }}
-            >
+            // A Workflow is authored on a page of its own, sized for its graph.
+            <Button variant="primary" onClick={() => navigate({ name: "workflowNew", spaceId })}>
               {t("workflows.new")}
             </Button>
           ) : null
@@ -207,18 +165,6 @@ export function Workflows({ token, spaceId }: WorkflowsProps) {
           </ul>
         )}
       </CollectionFrame>
-
-      <WorkflowModal
-        open={createOpen}
-        agents={agents}
-        loading={saving}
-        error={createOpen ? createError : null}
-        onClose={() => {
-          setCreateOpen(false)
-          setCreateError(null)
-        }}
-        onSubmit={handleCreate}
-      />
     </div>
   )
 }

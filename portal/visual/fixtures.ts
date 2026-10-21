@@ -33,7 +33,7 @@ const definition = JSON.stringify(
       {
         id: "check",
         type: "agent_task",
-        depends_on: ["draft"],
+        needs: ["draft"],
         agent: { id: agent.id },
         input: { instruction: "Check the draft against the merged changes." },
       },

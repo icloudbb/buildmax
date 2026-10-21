@@ -51,6 +51,7 @@ describe("hash router", () => {
     ["#/admin/plugins", { name: "admin", section: "plugins" }],
     ["#/admin/audit", { name: "admin", section: "audit" }],
     [`#/spaces/${SPACE}/workflows`, { name: "workflows", spaceId: SPACE }],
+    [`#/spaces/${SPACE}/workflows/new`, { name: "workflowNew", spaceId: SPACE }],
     [`#/spaces/${SPACE}/workflows/w_123`, { name: "workflow", spaceId: SPACE, workflowId: "w_123" }],
     [`#/spaces/${SPACE}/workflow-runs/wr_123`, { name: "workflowRun", spaceId: SPACE, workflowRunId: "wr_123" }],
     [`#/spaces/${SPACE}/schedules`, { name: "schedules", spaceId: SPACE }],
@@ -103,6 +104,7 @@ describe("hash router", () => {
       `#/spaces/${SPACE}/settings/assistants/as_123`,
     ],
     [{ name: "workflows", spaceId: SPACE }, `#/spaces/${SPACE}/workflows`],
+    [{ name: "workflowNew", spaceId: SPACE }, `#/spaces/${SPACE}/workflows/new`],
     [{ name: "workflow", spaceId: SPACE, workflowId: "w_123" }, `#/spaces/${SPACE}/workflows/w_123`],
     [
       { name: "workflowRun", spaceId: SPACE, workflowRunId: "wr_123" },

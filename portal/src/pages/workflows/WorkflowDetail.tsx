@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import {
   BaseModal,
   Button,
@@ -22,7 +22,7 @@ import {
   apiWorkflowRunToWorkflowRun,
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
-import { getAgents } from "../../features/agents"
+import { agentOptionLabels, getAgents } from "../../features/agents"
 import {
   getWorkflow,
   getWorkflowRevisions,
@@ -34,7 +34,11 @@ import {
   WorkflowStepsEditor,
   WorkflowGraph,
   WorkflowRunInputForm,
+  STEP_LIST_QUERY,
+  WorkflowStepList,
   effectiveNeeds,
+  stepExecutorLabel,
+  stepHeading,
   parseInputSchema,
   buildInputValue,
   type GraphNode,
@@ -49,6 +53,7 @@ import { classifyError, deriveResourceState, type RequestError } from "../../sta
 import { useApp } from "../../contexts/AppContext"
 import { useStableT, useT } from "../../i18n"
 import { useRelativeTime } from "../../lib/dateFormat"
+import { useMediaQuery } from "../../hooks/useMediaQuery"
 
 interface WorkflowDetailProps {
   token: string | null
@@ -65,6 +70,10 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   const statusLabel = useStatusLabel()
   const { currentUserRole, currentSpaceMembers } = useSpace()
   const { setEntityLabel } = useApp()
+  const runReasonId = useId()
+  // A graph wider than the screen would need a horizontal scroll to follow, so
+  // a narrow screen reads the plan as its ordered step list instead.
+  const narrow = useMediaQuery(STEP_LIST_QUERY)
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [runs, setRuns] = useState<WorkflowRun[]>([])
@@ -112,16 +121,20 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
     () => (workflow ? (parseInputSchema(workflow.definition)?.fields ?? []) : []),
     [workflow],
   )
+  const agentLabels = useMemo(() => agentOptionLabels(agents), [agents])
   // Read-only topology derived from the edited definition, so it tracks the form
-  // while editing and reuses the run page's DAG rendering.
-  const topologyNodes = useMemo<GraphNode[]>(() => {
-    const nameOf = (id: string) => agents.find((a) => a.id === id)?.name
-    return steps.map((step, i) => ({
-      id: step.id,
-      sublabel: nameOf(step.targetAgentId) ?? step.targetAgentId ?? undefined,
-      needs: effectiveNeeds(steps, i),
-    }))
-  }, [steps, agents])
+  // while editing and reuses the run page's DAG rendering. Steps read as
+  // "Step N" and their Agent, never as generated ids.
+  const topologyNodes = useMemo<GraphNode[]>(
+    () =>
+      steps.map((step, i) => ({
+        id: step.id,
+        label: stepHeading(i, t),
+        sublabel: stepExecutorLabel(step, agentLabels, t),
+        needs: effectiveNeeds(steps, i),
+      })),
+    [steps, agentLabels, t],
+  )
 
   const load = useCallback(async () => {
     if (!token || !spaceId) {
@@ -342,6 +355,15 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
   }
 
   const published = workflow?.status === "published"
+  // A disabled Run says why, in words a screen reader announces with it.
+  const runBlockedReason =
+    workflow == null || published
+      ? null
+      : !canManageWorkflows
+        ? t("workflows.detail.runNeedsPublisher")
+        : workflow.status === "archived"
+          ? t("workflows.detail.runArchived")
+          : t("workflows.detail.runDraft")
   const saveDisabled =
     saving ||
     loading ||
@@ -361,14 +383,22 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
             <Button variant="tertiary" disabled={loading} onClick={() => void load()}>
               {t("workflows.refresh")}
             </Button>
-            <Button
-              variant="primary"
-              busy={running}
-              disabled={loading || workflow == null || !published}
-              onClick={handleRunClick}
-            >
-              {t("workflows.detail.run")}
-            </Button>
+            <span className="page-activity__action-group">
+              <Button
+                variant="primary"
+                busy={running}
+                disabled={loading || workflow == null || !published}
+                aria-describedby={runBlockedReason ? runReasonId : undefined}
+                onClick={handleRunClick}
+              >
+                {t("workflows.detail.run")}
+              </Button>
+              {runBlockedReason ? (
+                <span id={runReasonId} className="page-activity__meta">
+                  {runBlockedReason}
+                </span>
+              ) : null}
+            </span>
           </>
         }
       />
@@ -407,7 +437,15 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
                     : ""}
                 </span>
               </div>
-              <WorkflowGraph nodes={topologyNodes} emptyLabel={t("workflows.detail.noSteps")} />
+              {narrow ? (
+                steps.length === 0 ? (
+                  <p className="page-activity__empty">{t("workflows.detail.noSteps")}</p>
+                ) : (
+                  <WorkflowStepList steps={steps} agentLabels={agentLabels} label={t("workflows.detail.plan")} />
+                )
+              ) : (
+                <WorkflowGraph nodes={topologyNodes} emptyLabel={t("workflows.detail.noSteps")} />
+              )}
             </section>
           ) : null}
 
@@ -442,7 +480,7 @@ export function WorkflowDetail({ token, spaceId, workflowId }: WorkflowDetailPro
                 </div>
               </details>
 
-              <WorkflowStepsEditor state={stepsState} agents={agents} disabled={!canManageWorkflows} fill />
+              <WorkflowStepsEditor state={stepsState} agents={agents} disabled={!canManageWorkflows} />
 
               {canManageWorkflows ? (
                 // Lesser actions first and Publish last, in the editor's Save place.

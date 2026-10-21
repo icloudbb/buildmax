@@ -308,7 +308,7 @@ export function WorkflowRunDetail({ token, spaceId, workflowRunId }: WorkflowRun
                       {/* "Step 2", as a Task this step dispatched is named; the
                           step's own identifier is secondary. */}
                       <span>
-                        <strong>{t("workflows.run.stepHeading", { step: step.nodeIndex + 1 })}</strong>{" "}
+                        <strong>{t("workflows.step.heading", { step: step.nodeIndex + 1 })}</strong>{" "}
                         <code className="workflow-run-page__step-id">{step.nodeId}</code>
                       </span>
                       <StatusLabel status={step.status} />

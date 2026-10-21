@@ -4,6 +4,7 @@ import type { Agent, Workflow } from "../../lib/types"
 import type { PermissionState } from "../../state/permissionState"
 import { useT, type MessageKey } from "../../i18n"
 import { executorHint, type ExecutorHint } from "./execution"
+import { agentOptionLabels } from "../agents/optionLabel"
 
 const HINT_TEXT: Record<ExecutorHint, MessageKey> = {
   agentOrWorkflow: "issues.executor.hint.agentOrWorkflow",
@@ -44,6 +45,7 @@ export function ExecutorField({ value, savedValue, onChange, agents, workflows, 
   const selectableWorkflows = allowWorkflows
     ? workflows.filter((workflow) => workflow.status === "published" || workflow.id === selectedWorkflowId)
     : []
+  const agentLabels = agentOptionLabels(agents)
   const hint = executorHint({
     agentCount: agents.length,
     publishedWorkflowCount: workflows.filter((workflow) => workflow.status === "published").length,
@@ -56,7 +58,7 @@ export function ExecutorField({ value, savedValue, onChange, agents, workflows, 
         <option value="">{t("issues.none")}</option>
         {agents.map((agent) => (
           <option key={agent.id} value={`agent:${agent.id}`}>
-            {agent.name}
+            {agentLabels.get(agent.id) ?? agent.name}
           </option>
         ))}
         {selectableWorkflows.map((workflow) => (
