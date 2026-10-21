@@ -89,6 +89,7 @@ Space 主导航按用户意图分组：
 #/spaces/{space_id}/issues/{issue_id}
 #/spaces/{space_id}/chat/{conversation_id}
 #/spaces/{space_id}/agents/{agent_id}
+#/spaces/{space_id}/workflows/new
 #/spaces/{space_id}/workflows/{workflow_id}
 #/spaces/{space_id}/workflow-runs/{run_id}
 #/spaces/{space_id}/tasks/{task_id}

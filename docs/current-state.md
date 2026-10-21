@@ -894,12 +894,21 @@ Failed conversation task actions stay visible on their card, and a task-list
 failure offers a local retry while keeping the conversation readable.
 Workflow Detail drives lifecycle through explicit Save as draft, Publish, and
 Archive actions instead of a status control, opens version history from a header
-button, and does not show the opaque workflow id. Its definition editor is a
-visual graph canvas (React Flow) beside a raw JSON view: a step is a node, a
-`needs` dependency is an edge drawn between nodes, and the selected node's agent,
+button, and does not show the opaque workflow id. A disabled **Run Workflow**
+states why — publish the draft, or republish an archived Workflow — in text a
+screen reader announces with the button. Its definition editor is a visual graph
+canvas (React Flow) beside a raw JSON view: a step is a node, a `needs`
+dependency is an edge drawn between nodes, and the selected node's agent,
 prompt, Issue access, and input bindings are edited in an inspector, so a
-branching DAG no longer requires hand-written JSON. `input_schema`, `result`, and
-a node's `output_schema` are preserved through the visual editor and authored in
+branching DAG no longer requires hand-written JSON. A new Workflow is authored
+in the same editor on its own page (`#/spaces/{space_id}/workflows/new`), not in
+a dialog. Steps read as "Step N" with their Agent's name; the generated step ID
+sits under the inspector's Advanced disclosure, Agents are listed by name (with a
+detail only when two share one), and Issue access offers labelled modes with a
+one-line hint instead of `none`, `if_bound`, and `required`. Below 768px the
+editor and the Overview plan show the steps as an ordered list, and the editor
+says connecting steps needs a wider window. `input_schema`, `result`, and a
+node's `output_schema` are preserved through the visual editor and authored in
 raw JSON.
 Agent Detail uses the same roles for Run, Save, and Delete, and its tablist
 supports arrow keys and narrow-screen scrolling. Agent schedules name a failed

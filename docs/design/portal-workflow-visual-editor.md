@@ -4,7 +4,9 @@
 >
 > **Audience:** Portal contributors · **Status:** implemented. The visual canvas
 > (`@xyflow/react`), node inspector with id rename, raw JSON mode, lossless
-> round-trip, and Settings drawer shipped; the non-goals below stay out of scope.
+> round-trip, Settings drawer, full-page creation, person-facing step labels,
+> and the narrow-screen step list shipped; the non-goals below stay out of
+> scope.
 >
 > **Opened:** 2026-09-20
 
@@ -40,7 +42,7 @@ authoring object.
 ## User outcome, evidence, and constraints
 
 A Space member editing a workflow can see its steps as a graph, add a step,
-connect one step's completion to another's start, and edit a step's id, agent,
+connect one step's completion to another's start, and edit a step's agent,
 instruction, Issue access, and input bindings, without hand-writing JSON. A
 branching plan (two steps that both feed a third) is authored by drawing edges,
 not by knowing the `needs` array syntax. Raw JSON remains for exact inspection
@@ -50,7 +52,21 @@ Because editing the graph is the whole task of this page, the graph is the page:
 the canvas fills the available height, the workflow's name and description
 collapse into a "Settings" drawer that is closed by default, and the editor no
 longer renders a second read-only topology diagram above the canvas that
-duplicated it.
+duplicated it. Creating a Workflow is the same task, so **New Workflow** opens
+the same editor on a page of its own (`#/spaces/{space_id}/workflows/new`)
+rather than in a dialog, with the name and description as visible fields
+because the Workflow does not exist yet. Nothing is stored until **Create
+workflow**: the server validates a definition on creation, and a disabled
+Create says what is missing.
+
+The editor speaks in the author's terms, not the definition's
+([work and execution experience](portal-work-and-execution-experience.md#workflow-authoring)).
+A step reads as "Step N", numbered in definition order as its validation
+errors and its run's steps are, with its Agent's name. Agent pickers list
+Agents by name and add a detail (description, else id) only when two share a
+name. Issue access offers "No Issue access", "Use the run's Issue, if any",
+and "Require an Issue", each with a one-line hint, for `none`, `if_bound`, and
+`required`.
 
 Constraints: the definition contract is unchanged and server-owned; the editor
 only produces the same JSON the runtime already validates. Layout is not part of
@@ -75,8 +91,9 @@ and graph-first:
 
 ## The visual editor
 
-The canvas renders each step as a node (its id, agent, a prompt snippet, its
-Issue-access badge, and an error marker) and each `needs` entry as an edge into
+The canvas renders each step as a node (its "Step N" heading, its Agent's
+name, a prompt snippet, its Issue-access badge, and an error marker) and each
+`needs` entry as an edge into
 the dependent node. `steps` is the source of truth for content and edges;
 React Flow node **positions** are UI-only local state, seeded from a
 depth-column auto-layout and adjustable by dragging, never persisted to the
@@ -84,13 +101,23 @@ definition. Interactions map to draft mutations: connecting an edge adds a
 `needs` entry, deleting an edge removes it, deleting a node removes the step and
 any edge that referenced it, and adding a node appends a root step the user then
 connects. Selecting a node opens an inspector for its fields. A node id is
-generated on creation but is editable in the inspector; renaming it rewrites
+generated on creation and kept out of the primary form: raw JSON, bindings, and
+run diagnostics refer to the step by it, so it is editable under the
+inspector's **Advanced** disclosure, and a binding source reads as "Step N
+output". Renaming it rewrites
 every reference to it in one step — other nodes' `needs` edges, binding sources
 that read its output, and the definition's `result` selector — so a
 human-meaningful id (`collect`, `analyze`) replaces the generated one without
 breaking the graph. A connection that would create a cycle, a duplicate or empty
 id, a missing agent, or an empty prompt surfaces through the same validation that
 gates Save. `max_parallel_nodes` is a workflow-level control beside the canvas.
+
+A canvas cannot be read or edited below 768px. There the editor shows the
+steps as an ordered list instead (each with its Agent, its prompt, and the
+steps it runs after), stacked above the inspector; choosing a step opens it
+there, and a note says connecting steps on the graph needs a wider window. The
+Overview plan uses the same list at that width, so a Workflow's steps and
+their order read without a horizontal scroll.
 
 ## Dependency
 
@@ -117,5 +144,7 @@ definition contract or run model.
 
 `./make check portal` (lint, types, unit), `steps.ts` round-trip unit tests for
 the newly preserved fields and explicit-edge normalization, and the workflow
-browser spec extended to author a branch visually. Manual review at the
-reference widths in both themes.
+browser spec extended to author a branch visually, to author a two-step
+Workflow without a step ID, Agent ID, or raw Issue access value as a label, and
+to read the steps at 390px with no horizontal scroll. `./make e2e visual`
+holds the editor at the reference widths in both themes.

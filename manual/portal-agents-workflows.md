@@ -51,19 +51,34 @@ still uses can't be deleted until that workflow is changed or archived.
 
 ## Create a workflow
 
-Open **Workflows** in the sidebar and choose **New Workflow**. A workflow's
-detail page is organized into tabs, the same layout the agent page uses:
-**Overview** (a read-only view of the plan), **Definition** (the editor and the
-lifecycle actions), **Runs**, **Schedules**, and **Revisions**. A draft opens on
-its Definition tab; a published workflow opens on Overview. **Run Workflow** sits
-in the header and is enabled once the workflow is published.
+Open **Workflows** in the sidebar and choose **New Workflow**. It opens a page
+of its own with the graph editor described below: give the workflow a name,
+lay out its steps, and choose **Create workflow**. The workflow is saved as a
+draft; while **Create workflow** is unavailable, the text beside it says what
+is missing.
+
+A workflow's detail page is organized into tabs, the same layout the agent
+page uses: **Overview** (a read-only view of the plan), **Definition** (the
+editor and the lifecycle actions), **Runs**, **Schedules**, and **Revisions**.
+A draft opens on its Definition tab; a published workflow opens on Overview.
+**Run Workflow** sits in the header and is enabled once the workflow is
+published; until then the text under it says why it cannot run.
 
 A workflow is a reusable execution plan you can run manually or assign to an
 issue. Build it on the **Definition** tab in the visual graph editor:
 
-- Use **Add step** to create an Agent step. Select its node to edit its id,
-  target Agent, prompt, Issue access, and input bindings in the inspector.
-  `agent_task` is the only node type the runtime executes today.
+- Use **Add step** to create an Agent step. Steps are named **Step 1**,
+  **Step 2**, and so on, in the order they were added. Select a node to edit
+  its Agent, prompt, Issue access, and input bindings in the inspector.
+  Agents are listed by name; when two share a name, each also shows its
+  description. `agent_task` is the only node type the runtime executes today.
+- **Issue access** decides whether a step works with the Issue a run was
+  started from: **No Issue access**, **Use the run's Issue, if any**, or
+  **Require an Issue** (the workflow then runs only from an Issue). The hint
+  under the field explains the selected choice.
+- Each step also has a generated ID, which raw JSON and run details use to
+  refer to it. It is under the inspector's **Advanced** disclosure, where you
+  can rename it to something meaningful; every reference to it follows.
 - Drag from one node's right edge to another's left edge to make the second
   depend on the first. A node runs after all its dependencies succeed;
   independent nodes may run together. **Max parallel** sets a per-run ceiling,
@@ -83,6 +98,10 @@ issue. Build it on the **Definition** tab in the visual graph editor:
   fields the visual editor does not yet author, including `input_schema`,
   `result`, and a node's `output_schema`. **Visual editor** returns to the
   graph. Both views use the same validation when you save.
+
+On a narrow screen, such as a phone, the editor lists the steps in order
+instead of drawing the graph: choose a step to edit it. Connecting steps needs
+a wider window. The Overview tab shows the plan as the same list there.
 
 ### Draft, publish, archive
 
