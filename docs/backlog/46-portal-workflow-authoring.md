@@ -6,7 +6,7 @@ source: docs/design/ui-experience-program.md#phases
 depends_on: []
 verification: ["./make check portal", "./make e2e visual", "./make e2e local"]
 claim: gougoujiang 2026-10-21
-pr:
+pr: 900
 ---
 
 ## Outcome
