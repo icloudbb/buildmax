@@ -3,4 +3,4 @@
 // for the full rationale.
 module gui
 
-go 1.26.9
+go 1.26.10
