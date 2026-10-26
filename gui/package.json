@@ -36,15 +36,15 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "eslint": "^10.12.0",
+    "eslint": "^10.13.0",
     "eslint-parser-oxc": "^0.1.1",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "jsdom": "^30.1.2",
+    "jsdom": "^30.1.3",
     "stylelint": "^17.16.0",
     "typescript": "~7.0.2",
-    "vite": "^8.3.4",
-    "vitest": "^5.0.4"
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
   },
   "scripts": {
     "build": "vite build && cp src/theme.css dist/theme.css && cp src/button.css dist/button.css && cp src/modal.css dist/modal.css && cp src/drawer.css dist/drawer.css && cp src/widgets.css dist/widgets.css && cp src/field.css dist/field.css && cp src/menu.css dist/menu.css && cp src/feedback.css dist/feedback.css && cp src/page.css dist/page.css && npm run build:types",
