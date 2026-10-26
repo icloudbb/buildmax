@@ -14,6 +14,70 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.25] - 2026-10-26
+
+### Added
+
+- Portal opens on Issues, which now starts with **Waiting on you**: your
+  Issues whose latest run failed or awaits an answer, your failed runs, runs
+  waiting for your answer, and the Space's pending Workflow requests, each
+  linking to where it is resolved, served by the new
+  `GET /api/spaces/{space_id}/needs-me` route.
+
+### Changed
+
+- Desktop dialogs and the background-jobs drawer now keep keyboard focus
+  inside while open and return it to the control that opened them; in Desktop
+  and Portal a dialog opened over another dialog or drawer closes alone on
+  Escape. Desktop's buttons and icons match Portal's, and the workbench tab
+  strip shows line icons instead of emoji and text glyphs.
+
+- Portal Administration names health checks, run statuses, roles, worker mode,
+  model transport, and quota tiers in the interface language instead of the
+  server's identifiers, groups quota numbers, and gives each failure class a
+  next step saying who acts and what they check. Workflow run IDs are
+  copyable secondary detail, and Space links look like Portal's other links.
+
+- Portal forms, menus, loading, status labels, and page headers now come from
+  one set of shared components: every field shows its hint and error with it,
+  the user and breadcrumb menus work with the arrow keys and return focus on
+  Escape, a collection shows no count before it loads, a narrow editor keeps
+  Save and Cancel at the bottom of the screen, and model, Space-owner, tier,
+  administrator, and password changes confirm with a toast. Status reads the
+  same everywhere, so chat now says Succeeded, Pending, and Canceled where it
+  said Done, Queued, and Stopped.
+
+- Portal's sidebar entries are links that open in a new tab and mark the
+  current page; each page states its title once, with the breadcrumb leading
+  back to its parents; page loads no longer log an expected 401 or 403
+  (`POST /api/auth/portal/session` answers 204 without a cookie and returns
+  the account's `system_roles`); and Portal and Desktop start in the operating
+  system's light or dark theme until one is chosen.
+
+- Portal names a run by the work it serves: a run started from an Issue is
+  headed, listed, and trailed by the Issue's title, a Workflow step's by the
+  Workflow and step number, and a Schedule's by the Schedule, with the
+  generated title secondary; every Task read carries this as `origin`, which
+  replaces `workflow_run_id`. IDs in Task details and Workflow steps are
+  copyable secondary metadata, and Issue list snippets drop Markdown syntax.
+
+- Portal authors a new Workflow on a page of its own instead of a dialog.
+  Steps read as "Step 1", "Step 2" with their Agent's name, the generated step
+  ID moves under the inspector's Advanced disclosure, Agents are listed by
+  name, and Issue access offers labelled choices with a hint. A disabled Run
+  Workflow says why, and on a narrow screen the editor and Overview list the
+  steps in order.
+
+### Fixed
+
+- Screen readers now announce the signed-in name on the Portal and Desktop
+  user menu button instead of only "User menu".
+
+### Security
+
+- Go 1.26.10, closing a `crypto/x509` vulnerability (GO-2026-6809) in the
+  standard library.
+
 ## [0.2.0-alpha.24] - 2026-10-14
 
 ### Added
@@ -4072,7 +4136,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.24...HEAD
+[Unreleased]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.25...HEAD
+[0.2.0-alpha.25]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.24...v0.2.0-alpha.25
 [0.2.0-alpha.24]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.23...v0.2.0-alpha.24
 [0.2.0-alpha.23]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.22...v0.2.0-alpha.23
 [0.2.0-alpha.22]: https://github.com/icloudbb/buildmax/compare/v0.2.0-alpha.21...v0.2.0-alpha.22
