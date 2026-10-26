@@ -107,7 +107,6 @@
 }
 
 .sidebar--collapsed .sidebar__nav-item .sidebar__nav-item-text,
-.sidebar--collapsed .sidebar__user-name,
 .sidebar--collapsed .sidebar__space-switcher {
   display: none !important;
 }

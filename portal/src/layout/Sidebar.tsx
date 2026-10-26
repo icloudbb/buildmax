@@ -216,6 +216,9 @@ export function SidebarNavContent({
   const personalSpaces = spaces.filter((space) => Boolean(space.personalForUserId))
   const sharedSpaces = spaces.filter((space) => !space.personalForUserId)
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
+  // The menu button is named by its content, not aria-label: the avatar's
+  // initials count as visible text, so no label could contain it (WCAG 2.5.3).
+  const userName = user.name?.trim() || (user.email ? user.email.split("@")[0] : "")
 
   function go(target: Route) {
     navigate(target)
@@ -373,11 +376,10 @@ export function SidebarNavContent({
           className="sidebar__user-menu"
           placement="above"
           trigger={(props) => (
-            <button {...props} type="button" className="sidebar__user-trigger" aria-label={t("shell.userMenu")}>
+            <button {...props} type="button" className="sidebar__user-trigger">
               <UserAvatar user={user} size="sm" />
-              <span className="sidebar__user-name">
-                {user.name?.trim() || (user.email ? user.email.split("@")[0] : "")}
-              </span>
+              <span className={collapsed ? "bm-visually-hidden" : "sidebar__user-name"}>{userName}</span>
+              <span className="bm-visually-hidden">{t("shell.userMenu")}</span>
             </button>
           )}
         >
