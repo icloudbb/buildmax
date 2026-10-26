@@ -140,6 +140,11 @@ export function Sidebar({
   }
 
   const { authStatus, localMode, onSignIn, onSignOut } = account;
+  // The menu button is named by its content, not aria-label: the avatar's
+  // initials count as visible text, so no label could contain it (WCAG 2.5.3).
+  const userName = localMode
+    ? t('shell.localMode')
+    : authStatus.name?.trim() || (authStatus.email ? authStatus.email.split('@')[0] : '');
 
   return (
     <aside className="sidebar" aria-label={t('shell.sidebar')} style={{ width }} ref={asideRef}>
@@ -305,17 +310,13 @@ export function Sidebar({
           onClick={() => setUserMenuOpen((v) => !v)}
           aria-expanded={userMenuOpen}
           aria-haspopup="menu"
-          aria-label={t('shell.userMenu')}
         >
           <Avatar
             label={(authStatus.name?.trim() || authStatus.email || 'Local').slice(0, 1).toUpperCase()}
             size="sm"
           />
-          <span className="sidebar__user-name">
-            {localMode
-              ? t('shell.localMode')
-              : authStatus.name?.trim() || (authStatus.email ? authStatus.email.split('@')[0] : '')}
-          </span>
+          <span className="sidebar__user-name">{userName}</span>
+          <span className="bm-visually-hidden">{t('shell.userMenu')}</span>
         </button>
         {userMenuOpen && (
           <div className="sidebar__user-menu" role="menu">

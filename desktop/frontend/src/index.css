@@ -4,6 +4,7 @@
 @import '@buildmax/gui/drawer.css';
 @import '@buildmax/gui/field.css';
 @import '@buildmax/gui/widgets.css';
+@import '@buildmax/gui/feedback.css';
 @import './css/layout.css';
 @import './css/sidebar.css';
 @import './css/chat-detail.css';
